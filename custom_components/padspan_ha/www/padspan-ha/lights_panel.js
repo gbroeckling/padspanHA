@@ -907,6 +907,10 @@ class PadSpanLightsApp extends HTMLElement {
           Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
         },
       } : null,
+      // This screen is the house map (views/atlas_screen.js): zoomed in, the
+      // flat map takes the whole panel too, it can go full screen, and a
+      // double-tap on a room zooms to it. Mapping's builder hands none of it.
+      screen: { slot: "atlas" },
       // The 3D house: the shared card draws its Map / 3D switch only while
       // the setting is on and the tier is Pro, and reads the rest from here.
       house3d: this.state._house3d ? {

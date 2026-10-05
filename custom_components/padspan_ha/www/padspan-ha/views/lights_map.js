@@ -26,6 +26,10 @@ const { tierAtLeast } =
 // load must not take the house map with it — the map just has no weather.
 const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: atlas_weather failed to load", err); return null; });
+// The sidebar as a screen (atlas_screen.js): the map alone, full screen, a
+// double-tap on a room. Optional too: missing, the map is as it always was.
+const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: atlas_screen failed to load", err); return null; });
 
 // ── What a tier is shown ─────────────────────────────────────────────────────
 // Below `bright` — PadSpan HA with no key, PadSpan Bright with no key — the
@@ -968,6 +972,15 @@ export function pressRing(svg, cx, cy, r){
   svg.appendChild(c);
   return c;
 }
+// A second tap on the same marker hard on the first (a double-tap, to zoom or
+// not) is not a second switch: a light double-tapped switches once.
+let _lastTap = null;
+function _tapAgain(eid, e){
+  const t = Number.isFinite(e.timeStamp) ? e.timeStamp : performance.now();
+  const again = !!_lastTap && _lastTap.eid === eid && t - _lastTap.t <= 420 && Math.hypot(e.clientX - _lastTap.x, e.clientY - _lastTap.y) <= 44;
+  _lastTap = again ? null : { eid, t, x: e.clientX, y: e.clientY };
+  return again;
+}
 export function wireUseSurface(isoDiv, api){
   const q = (sel) => isoDiv.querySelectorAll(sel);
   const svg = isoDiv.querySelector("svg");
@@ -1040,7 +1053,7 @@ export function wireUseSurface(isoDiv, api){
       // never arm below and every real tap (quick or long) opens its own
       // activity history instead of toggling into the read-only refusal.
       if (l0.isMotion) { if (r === "tap" || r === "open") api.openActivity(eid); return; }
-      if (r === "tap") { api.toggle(eid); return; }
+      if (r === "tap") { if (!_tapAgain(eid, e)) api.toggle(eid); return; }
       if (r === "open") { if (holdable) api.openControls(eid); else api.toggle(eid); return; }
       if (r === "drag-end") {
         const b = g._dragTarget;
@@ -2987,6 +3000,51 @@ export function buildLightsMapCard(hostIn){
   };
   if (h3) _la3dPickers.set(h3.slot, pick3d);
 
+  // The sidebar as a screen (atlas_screen.js; host.screen is the sidebar
+  // host's alone, never Mapping's): zoomed in past the whole house, the bars
+  // step aside for the map alone; ⛶ takes the panel full screen; a
+  // double-tap on a room's empty floor zooms to that room. Not while Live
+  // Aboard shows (it has its own).
+  const scr = SCREEN && host.screen && host.screen.slot
+    ? SCREEN.flatScreen({ slot: host.screen.slot, card: mapCard, stage: isoDiv, zoom: view.zoom, shown: () => !h3 || !la3dOn() }) : null;
+  if (scr) {
+    if (h3) la3dPaints.push(() => scr.paint());
+    // The point under a finger, in the drawing's own units.
+    const drawn = (cx, cy) => {
+      const svg = isoDiv.querySelector("svg"), m = svg && svg.getScreenCTM ? svg.getScreenCTM() : null;
+      if (!m || !svg.createSVGPoint) return null;
+      const p = svg.createSVGPoint(); p.x = cx; p.y = cy;
+      const q = p.matrixTransform(m.inverse());
+      return [q.x, q.y];
+    };
+    SCREEN.flatDoubleTap(isoDiv, {
+      roomAt: (cx, cy) => {
+        const fz = getFocusZ(view.focusIdx);
+        return SCREEN.roomUnder(_frame, drawn(cx, cy), (z) => fz === null || (Array.isArray(fz) ? fz.includes(z) : fz === z), pointInPolygon);
+      },
+      go: (r) => {
+        const svg = isoDiv.querySelector("svg"), vb = svg && svg.viewBox && svg.viewBox.baseVal;
+        if (!vb || !vb.width) return;
+        const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+        for (const p of r.pts) {
+          const [x, y] = _frame.iso(p[0], p[1], r.z);
+          box.x0 = Math.min(box.x0, x); box.y0 = Math.min(box.y0, y); box.x1 = Math.max(box.x1, x); box.y1 = Math.max(box.y1, y);
+        }
+        const t = SCREEN.roomZoom(box, vb.width, Math.max(1, isoDiv.clientWidth - 20), Math.max(1, Math.min(isoDiv.clientHeight, window.innerHeight || isoDiv.clientHeight) - 20));
+        view.zoom = t.zoom;
+        applyZoom();
+        // Its middle in the middle of the stage, wherever the stage is now.
+        const svg2 = isoDiv.querySelector("svg"), m = svg2 && svg2.getScreenCTM ? svg2.getScreenCTM() : null;
+        if (!m) return;
+        const p = svg2.createSVGPoint(); p.x = t.cx; p.y = t.cy;
+        const at = p.matrixTransform(m), sr = isoDiv.getBoundingClientRect();
+        const vh = Math.min(sr.height, (window.innerHeight || sr.height) - Math.max(0, sr.top));
+        isoDiv.scrollLeft += at.x - (sr.left + sr.width / 2);
+        isoDiv.scrollTop += at.y - (sr.top + vh / 2);
+      },
+    });
+  }
+
   // Semantic zoom (use surface): the codes leave the drawing below 100% and
   // come back above it, so a zoom change across that line is a rebuild, not
   // just a CSS width. The builder always shows codes (host.codeChip unset).
@@ -3034,6 +3092,8 @@ export function buildLightsMapCard(hostIn){
     }
     // The weather overlay takes the same width and centring as the SVG.
     if (wxSlot) wxSlot.fit(view.zoom, V2);
+    // By hand past the whole house: the map alone; back out: the bars.
+    if (scr) scr.zoomed(view.zoom);
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
   // Zoom about a point (pinch midpoint / wheel): keep what is under the
@@ -3897,6 +3957,7 @@ export function buildLightsMapCard(hostIn){
     isoDiv.addEventListener("pointerdown", () => { if (view.drawer) setDrawer(view.drawer); });
   }
   mapCard.appendChild(isoDiv);
+  if (scr) mapCard.appendChild(scr.anchor);
   const legend = buildShapeLegend(el, Object.values(host.lightsByEid));
   if (legend) mapCard.appendChild(legend);
   rebuildISO();

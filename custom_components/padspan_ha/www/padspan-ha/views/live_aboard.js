@@ -65,6 +65,8 @@ const DEVICES = await import(`./live_aboard_devices.js${new URL(import.meta.url)
 // P6: beacons, scanners and people where PadSpan tracks them (optional too).
 const TRACKED = await import(`./live_aboard_tracked.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_tracked failed to load", err); return null; });
+// The screen's rules, shared with the flat Atlas (the map alone, full screen).
+const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}`);
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -108,9 +110,10 @@ const READ_H = 0.45, READ_PX = [22, 30];   // a readout chip's height (m), and n
 const READ_W = 520, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
 const RING_R0 = 0.6;                       // the motion ring's radius (m) at 1 (the Atlas's 0.7 → 2.4)
 const FILL_K = 0.6, RECENT_K = 0.45, AIR_K = 1.6;   // how strongly a floor takes the Motion · Air colour
-// The screen (the sidebar): zoomed in past SOLO_IN of the whole-house fit, the
-// bars step aside for the map alone; back out to SOLO_OUT of it, they return.
-const SOLO_IN = 0.8, SOLO_OUT = 0.97, COVER_Z = 45;
+// The screen (the sidebar): zoomed in past the whole-house fit, the bars step
+// aside for the map alone; back out to it, they return (atlas_screen.js
+// soloStep, the flat map's rule too).
+const COVER_Z = SCREEN.COVER_Z;
 const NARROW_W = 560;                      // under this the bar is one compact row
 const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
 const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
@@ -641,18 +644,9 @@ function createSlot(slotKey){
   // Escape leaves it; a screen that may not go full screen gets the map alone
   // in the panel instead. Only where the host says so (mapOnly: the sidebar).
   /** The panel's element: the host of the shadow root the view is in. */
-  function hostEl(){
-    try { const rn = root && root.getRootNode ? root.getRootNode() : null; return rn && rn.host ? rn.host : null; } catch (_) { return null; }
-  }
+  function hostEl(){ return SCREEN.panelHostOf(root); }
   /** The panel's box, to the window's right and bottom (the whole screen while full screen). */
-  function coverRect(){
-    const W = window.innerWidth || 0, H = window.innerHeight || 0;
-    if (fsOn) return { left: 0, top: 0, width: W, height: H };
-    const h = hostEl(), r = h && h.getBoundingClientRect ? h.getBoundingClientRect() : null;
-    const left = r ? Math.max(0, Math.min(r.left, W - 160)) : 0, top = r ? Math.max(0, Math.min(r.top, H - 160)) : 0;
-    const right = r && r.right > left + 160 ? Math.min(r.right, W) : W;
-    return { left, top, width: right - left, height: H - top };
-  }
+  function coverRect(){ return SCREEN.coverRect(hostEl(), fsOn); }
   function layCover(){
     if (!cover) return;
     const c = coverRect();
@@ -708,39 +702,24 @@ function createSlot(slotKey){
    *  fit level, the map alone; back out to it, the bars. */
   function afterZoom(inward){
     if (!mapOnly || !fitR || furnishOn || (editor && editor.active)) return;
-    if (cam.radius >= fitR * SOLO_OUT) { soloHold = null; if (bare) setBare(false, false); return; }
-    if (inward && !bare && cam.radius < fitR * SOLO_IN && (soloHold === null || cam.radius < soloHold * SOLO_IN)) setBare(true, false);
+    const s = SCREEN.soloStep({ at: cam.radius, fit: fitR, bare, hold: soloHold, inward });
+    soloHold = s.hold;
+    if (s.bare !== bare) setBare(s.bare, false);
   }
-  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
-  function canFull(){
-    const h = hostEl();
-    if (!h || !(h.requestFullscreen || h.webkitRequestFullscreen)) return false;
-    return document.fullscreenEnabled !== false || !!document.webkitFullscreenEnabled;
-  }
+  function canFull(){ return SCREEN.canFull(hostEl()); }
   function toggleFull(){
     closeMenu();
     if (fsOn) { leaveFull(); return; }
     if (!canFull()) { setBare(true, false); return; }        // not allowed here (a kiosk): the map alone in the panel
     const h = hostEl();
     fsTarget = h;
-    const refused = guard(() => { fsTarget = null; if (!fsOn) setBare(true, false); });
-    try {
-      const pr = (h.requestFullscreen || h.webkitRequestFullscreen).call(h, { navigationUI: "hide" });
-      if (pr && typeof pr.then === "function") pr.then(null, refused);
-    } catch (_) { refused(); }
+    SCREEN.askFull(h, guard(() => { fsTarget = null; if (!fsOn) setBare(true, false); }));
   }
   function leaveFull(){
-    if (!fsOn) return;
-    try {
-      const x = document.exitFullscreen || document.webkitExitFullscreen;
-      const pr = x ? x.call(document) : null;
-      if (pr && typeof pr.catch === "function") pr.catch(() => { /* already out */ });
-    } catch (_) { /* already out */ }
+    if (fsOn) SCREEN.leaveFull();
   }
   function onFullChange(){
-    let rn = null;
-    try { rn = fsTarget && fsTarget.getRootNode ? fsTarget.getRootNode() : null; } catch (_) { rn = null; }
-    const now = !!(fsTarget && (fsEl() === fsTarget || (rn && rn.fullscreenElement === fsTarget)));
+    const now = SCREEN.isFullOf(fsTarget);
     if (now === fsOn) return;
     fsOn = now;
     // Left (Escape, or the browser's own way out): everything back.
@@ -748,17 +727,16 @@ function createSlot(slotKey){
     paintCover();
     paintFull();
   }
-  const FULL_ICON = { on: "M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4", off: "M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" };
   function paintFull(){
     const seg = fullBtns[0] && fullBtns[0].parentNode;
     if (seg) seg.style.display = mapOnly ? "" : "none";
     const b = fullBtns[0];
     if (!b) return;
-    const t = fsOn ? "Leave full screen" : canFull() ? "Full screen" : "Only the map";
+    const t = SCREEN.fullLabel(fsOn, canFull());
     b.title = t;
     b.setAttribute("aria-label", t);
     b.setAttribute("aria-pressed", String(fsOn));
-    b.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="${fsOn ? FULL_ICON.off : FULL_ICON.on}"/></svg>`;
+    b.innerHTML = SCREEN.fullIconSvg(fsOn);
   }
   /** Out of the screen's ways (the view leaves, or is switched off). */
   function endScreen(){

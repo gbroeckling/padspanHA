@@ -95,7 +95,13 @@ def test_full_screen_takes_the_panel_and_lets_go() -> None:
     the view; switched off or leaving, the screen ends first."""
     la = _js(_VIEWS / "live_aboard.js")
     tog = la[la.index("  function toggleFull(){"):la.index("  function leaveFull(){")]
-    assert "const h = hostEl();" in tog and "(h.requestFullscreen || h.webkitRequestFullscreen).call(h" in tog
+    # The request itself is the screen's shared rule (atlas_screen.js, the flat
+    # Atlas's too), asked of the same element.
+    assert "const h = hostEl();" in tog and "SCREEN.askFull(h, " in tog
+    sc = _js(_VIEWS / "atlas_screen.js")
+    ask = sc[sc.index("export function askFull("):sc.index("export function leaveFull(")]
+    assert "(host.requestFullscreen || host.webkitRequestFullscreen).call(host" in ask
+    assert "function hostEl(){ return SCREEN.panelHostOf(root); }" in la
     assert "setBare(true, false); return; }" in tog, "a screen that may not: the map alone in the panel"
     obs = la[la.index("  function wireObservers(){"):la.index("  // ── the 3D file (part C)")]
     assert 'document.addEventListener("fullscreenchange", onFull);' in obs
