@@ -170,7 +170,8 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
         if "vendor" in p.parts or p.name in ("lights_map.js", "live_aboard.js", "live_aboard_house.js", "live_aboard_draft.js",
                                                   "live_aboard_edit.js", "live_aboard_furnish.js",   # P2: Furnish names its flows
                                                   "live_aboard_import.js",
-                                                  "live_aboard_devices.js"):    # P5: reads a light as the view does
+                                                  "live_aboard_devices.js",     # P5: reads a light as the view does
+                                                  "live_aboard_people.js"):   # the Furnish tab's people screen (P6)
             continue
         code = "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
         assert "live_aboard" not in code, p.name
@@ -189,7 +190,11 @@ def test_three_is_the_bundled_core_build_only() -> None:
         for bad in ("examples/jsm", "three/addons", "OrbitControls", "BufferGeometryUtils", "RoundedBoxGeometry",
                     "cdn.jsdelivr", "unpkg.com"):
             assert bad not in s, (p.name, bad)
-        if p.name != "live_aboard.js":
+        if p.name == "live_aboard_people.js":
+            # Its figure preview: the same bundled build, the same cache-busted URL (one module instance).
+            assert s.count("three.module") == 1 and (
+                "import(`../vendor/three/three.module.min.js${new URL(import.meta.url).search}`)" in s), p.name
+        elif p.name != "live_aboard.js":
             assert "three.module" not in s, p.name
     assert (_WWW / "vendor" / "three" / "three.module.min.js").read_text(encoding="utf-8").startswith(
         "/**\n * @license\n * Copyright 2010-2024 Three.js Authors"), "the bundled build is unmodified"

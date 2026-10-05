@@ -168,10 +168,11 @@ class House3dStore:
 # ("win_" / "door_" + 8 hex digits, a stretch of wall in fabric metres), the
 # hinge, swing, sill and head of a barrier's own door or window (keyed by the
 # barrier's id; the map is never written), the 3D-only height of a light or
-# another device, and the furniture (P2 Furnish: "fur_" + 8 hex digits). Each
-# entry is set, or removed with None. What the editor owns is checked
-# strictly; every other key already in the file (a newer PadSpan's) is kept.
-EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices", "pieces")
+# another device (or a beacon's or scanner's look), the furniture (P2 Furnish:
+# "fur_" + 8 hex digits) and the people figures (P6). Each entry is set, or
+# removed with None. What the editor owns is checked strictly; every other
+# key already in the file (a newer PadSpan's) is kept.
+EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices", "pieces", "figures")
 OPENING_ID = re.compile(r"^(win|door)_[0-9a-f]{8}$")
 BARRIER_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,40}$")
 # Home Assistant's own entity id shape (core.valid_entity_id).
@@ -196,7 +197,7 @@ COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 _PIECE_OWNED = frozenset(("id", "recipe", "origin", "label", "library_id", "submission_id", "floor_id",
                           "x_m", "y_m", "z_m", "rotation", "entity_id", "entity_reg_id", "updated_at"))
-_CAPS = {"openings": MAX_OPENINGS, "lights": MAX_HEIGHTS, "devices": MAX_HEIGHTS, "pieces": MAX_PIECES}
+_CAPS = {"openings": MAX_OPENINGS, "lights": MAX_HEIGHTS, "devices": MAX_HEIGHTS, "pieces": MAX_PIECES, "figures": 50}
 
 
 class EditError(ValueError):
@@ -356,6 +357,8 @@ def _entry(section: str, key: Any, e: Any, stamp: str = "") -> tuple[frozenset, 
     remove it, whether removing takes the whole entry)."""
     if not isinstance(key, str):
         raise EditError(f"{section}: every key must be text")
+    if section in _OWN_ENTRY:            # people figures, and beacon and scanner looks (P6)
+        return _OWN_ENTRY[section](key, e)
     # fullmatch: with match, "$" also matches before a trailing newline.
     if section == "openings":
         if OPENING_ID.fullmatch(key):
@@ -445,6 +448,151 @@ async def async_restore_data(hass: HomeAssistant, incoming: Any) -> Any:
     if not writable(current) or not current.get("pieces"):
         return incoming
     return {**incoming, "pieces": copy.deepcopy(current["pieces"])}
+
+
+# ── People figures and beacon and scanner looks (P6) ──────────────────────────
+# figures: {"person.<name>": {"params": FIGURE's settings, "origin": photo |
+# build}}, kept only in this file and its backups: never shared, never sent,
+# never in telemetry. A figure goes only when it is removed here (None), never
+# because its person is gone: the screen shows that one as unlinked.
+# devices: besides a 3D-only height ({z_m}, the 3D editor's), an entry can
+# carry a look, {recipe, library_id, submission_id}, keyed by the id PadSpan
+# tracks the beacon or scanner by ("ble:<address>", a scanner's address). A
+# look is removed with {"recipe": None}, which keeps the height; None alone
+# is still the editor's "back to the default height", which keeps the look.
+_FIGURE_OWNED = frozenset(("params", "origin"))
+_LOOK_OWNED = frozenset(("recipe", "library_id", "submission_id"))
+DEVICE_KEY = re.compile(r"[A-Za-z0-9_.:-]{1,96}")
+_LINK_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_KIND = re.compile(r"[a-z0-9_]{1,40}")
+_RECIPE_KEYS = frozenset(("kind", "params", "colors", "width_m", "depth_m", "height_m", "details"))
+LOOK_SIZE_M = (0.001, 8.0)
+_SHORT = 60
+
+
+def _figure_params(key: str, p: Any) -> dict:
+    """FIGURE's settings (house3d_builders, from the builders): numbers
+    clamped, choices and yes/no checked, a "#rrggbb" for each part; a setting
+    left out is its default, one FIGURE doesn't have is refused."""
+    from . import house3d_builders as B  # noqa: PLC0415
+    fig = B.data()["figure"]
+    specs = {s["key"]: s for s in fig.get("params") or [] if isinstance(s, dict) and isinstance(s.get("key"), str)}
+    names = dict(fig.get("colors") or {})
+    if not isinstance(p, dict):
+        raise EditError(f"{key}: params must be an object")
+    extra = sorted(set(p) - set(specs) - {"colors"}, key=str)
+    if extra:
+        raise EditError(f"{key}: a figure has no setting {str(extra[0])[:40]!r}")
+    out: dict[str, Any] = {}
+    for k, s in specs.items():
+        v, t = p.get(k, s.get("def")), s.get("type")
+        if t in ("int", "num"):
+            if isinstance(v, str) or B.number(v) is None:
+                raise EditError(f"{key} {k} must be a number")
+            out[k] = B.clamp_param(s, v)
+        elif t == "choice":
+            if not B.is_choice(s, v):
+                raise EditError(f"{key} {k} must be one of {', '.join(map(str, B.choices_of(s)))}")
+            out[k] = v
+        elif t == "bool":
+            if not isinstance(v, bool):
+                raise EditError(f"{key} {k} must be true or false")
+            out[k] = v
+    cols = p.get("colors", {})
+    if not isinstance(cols, dict) or set(cols) - set(names):
+        raise EditError(f"{key}: a figure's colors are {', '.join(names)}")
+    out["colors"] = {}
+    for n, default in names.items():
+        c = B.hex_colour(cols.get(n, default))
+        if c is None:
+            raise EditError(f"{key} {n} colour must be #rrggbb")
+        out["colors"][n] = c
+    return out
+
+
+def _figure_entry(key: str, e: Any) -> tuple[frozenset, dict | None, bool]:
+    if len(key) > 255 or not key.startswith("person.") or not ENTITY_ID.fullmatch(key):
+        raise EditError(f"figures: {key[:48]!r} is not a person (person.<name>)")
+    if e is None:
+        return _FIGURE_OWNED, None, True          # removing a figure removes all of it
+    if not isinstance(e, dict) or set(e) != _FIGURE_OWNED:
+        raise EditError(f"{key}: a figure is {{params, origin}}")
+    return _FIGURE_OWNED, {"params": _figure_params(key, e["params"]),
+                           "origin": _pick(e["origin"], ("photo", "build"), f"{key} origin")}, True
+
+
+def _simple(v: Any, depth: int = 0) -> bool:
+    """Plain, small data: what a recipe's settings and details may hold."""
+    if v is None or isinstance(v, bool):
+        return True
+    if isinstance(v, (int, float)):
+        try:
+            return math.isfinite(v)
+        except OverflowError:
+            return False
+    if isinstance(v, str):
+        return len(v) <= _SHORT
+    if isinstance(v, list) and depth < 2:
+        return len(v) <= 16 and all(_simple(x, depth + 1) for x in v)
+    return False
+
+
+def _look_recipe(key: str, r: Any) -> dict:
+    """A beacon's or scanner's look: a recipe (contracts §1), plain data. An
+    unknown kind is kept (it draws as a box); the builders read the rest."""
+    if not isinstance(r, dict) or set(r) - _RECIPE_KEYS:
+        raise EditError(f"{key}: a recipe has only {', '.join(sorted(_RECIPE_KEYS))}")
+    kind = r.get("kind")
+    if not isinstance(kind, str) or not _KIND.fullmatch(kind):
+        raise EditError(f"{key}: recipe kind must be a builder's kind")
+    params = r.get("params", {})
+    if (not isinstance(params, dict) or len(params) > 40
+            or not all(isinstance(k, str) and len(k) <= 40 and _simple(v, 2) for k, v in params.items())):
+        raise EditError(f"{key}: recipe params must be at most 40 plain settings")
+    colours = r.get("colors")
+    if not isinstance(colours, list) or not 1 <= len(colours) <= 6 or not all(
+            isinstance(c, str) and re.fullmatch(r"#[0-9a-f]{6}", c) for c in colours):
+        raise EditError(f"{key}: recipe colors must be 1 to 6 \"#rrggbb\"")
+    out: dict[str, Any] = {"kind": kind, "params": dict(params), "colors": list(colours)}
+    for k in ("width_m", "depth_m", "height_m"):
+        out[k] = _num(r.get(k), *LOOK_SIZE_M, f"{key} {k}")
+    if "details" in r:
+        d = r["details"]
+        if not isinstance(d, dict) or len(d) > 40 or not all(
+                isinstance(k, str) and len(k) <= 40 and _simple(v) for k, v in d.items()):
+            raise EditError(f"{key}: recipe details must be at most 40 plain fields")
+        out["details"] = dict(d)
+    return out
+
+
+def _device_entry(key: str, e: Any) -> tuple[frozenset, dict | None, bool]:
+    """A device's 3D-only height (the 3D editor's, keyed by entity id), and/or
+    a beacon's or scanner's look (keyed by the id PadSpan tracks it by)."""
+    look = isinstance(e, dict) and "recipe" in e
+    if len(key) > 255 or not (ENTITY_ID.fullmatch(key) or (look and DEVICE_KEY.fullmatch(key))):
+        raise EditError(f"devices: {key[:48]!r} is not an entity id" + (" or a tracked id" if look else ""))
+    if e is None:
+        return _HEIGHT_OWNED, None, False
+    if not isinstance(e, dict) or not e or set(e) - _HEIGHT_OWNED - _LOOK_OWNED or (
+            not look and set(e) & _LOOK_OWNED):
+        raise EditError(f"{key}: a device has a height {{z_m}} and/or a look {{recipe, library_id, submission_id}}")
+    clean: dict[str, Any] = {}
+    if "z_m" in e:
+        clean["z_m"] = _num(e["z_m"], 0.0, HEIGHT_MAX_M, f"{key} z_m")
+    if look and e["recipe"] is not None:
+        clean["recipe"] = _look_recipe(key, e["recipe"])
+        for k in ("library_id", "submission_id"):
+            v = e.get(k)
+            if v is not None and not (isinstance(v, str) and _LINK_ID.fullmatch(v)):
+                raise EditError(f"{key}: {k} must be an id or null")
+            clean[k] = v
+    elif look and set(e) & {"library_id", "submission_id"}:
+        raise EditError(f"{key}: a look removed (recipe null) takes no library_id or submission_id")
+    owned = frozenset(e) | (_LOOK_OWNED if look else frozenset())
+    return owned, clean or None, False
+
+
+_OWN_ENTRY = {"figures": _figure_entry, "devices": _device_entry}
 
 
 async def async_get_store(hass: HomeAssistant) -> House3dStore:

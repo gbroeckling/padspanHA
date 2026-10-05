@@ -1,0 +1,1703 @@
+{
+ "kinds": [
+  "sofa",
+  "bed",
+  "table",
+  "chair",
+  "desk",
+  "dresser",
+  "tv",
+  "lamp",
+  "rug",
+  "shelf",
+  "wardrobe",
+  "plant",
+  "washer",
+  "dryer",
+  "vacuum_dock",
+  "mower_dock",
+  "car",
+  "charger",
+  "radiator",
+  "fan",
+  "speaker",
+  "other"
+ ],
+ "furniture": {
+  "sofa": {
+   "name": "Sofa",
+   "group": "furniture",
+   "category": "seating",
+   "params": [
+    {
+     "key": "seats",
+     "label": "Seats",
+     "type": "int",
+     "min": 1,
+     "max": 4,
+     "step": 1,
+     "def": 3,
+     "sizes": {
+      "1": {
+       "width_m": 0.95
+      },
+      "2": {
+       "width_m": 1.55
+      },
+      "3": {
+       "width_m": 2.1
+      },
+      "4": {
+       "width_m": 2.7
+      }
+     }
+    },
+    {
+     "key": "arms",
+     "label": "Arms",
+     "type": "choice",
+     "choices": [
+      "none",
+      "slim",
+      "wide",
+      "rolled"
+     ],
+     "def": "slim"
+    },
+    {
+     "key": "seat_h_m",
+     "label": "Seat height",
+     "type": "num",
+     "min": 0.3,
+     "max": 0.55,
+     "step": 0.01,
+     "def": 0.44
+    },
+    {
+     "key": "legs",
+     "label": "Legs",
+     "type": "choice",
+     "choices": [
+      "none",
+      "block",
+      "tapered",
+      "metal"
+     ],
+     "def": "tapered"
+    },
+    {
+     "key": "cushions",
+     "label": "Back cushions",
+     "type": "int",
+     "min": 0,
+     "max": 4,
+     "step": 1,
+     "def": 3
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Cushions"
+   ],
+   "colors": [
+    "#5b6b7a",
+    "#c8b89a"
+   ],
+   "size": {
+    "width_m": [
+     0.6,
+     3.6,
+     2.1
+    ],
+    "depth_m": [
+     0.6,
+     1.2,
+     0.9
+    ],
+    "height_m": [
+     0.55,
+     1.1,
+     0.82
+    ]
+   },
+   "live": null
+  },
+  "bed": {
+   "name": "Bed",
+   "group": "furniture",
+   "category": "sleeping",
+   "params": [
+    {
+     "key": "size",
+     "label": "Size",
+     "type": "choice",
+     "choices": [
+      "twin",
+      "double",
+      "queen",
+      "king",
+      "crib",
+      "bunk"
+     ],
+     "def": "queen",
+     "sizes": {
+      "twin": {
+       "width_m": 1.13,
+       "depth_m": 2.1,
+       "height_m": 1
+      },
+      "double": {
+       "width_m": 1.51,
+       "depth_m": 2.1,
+       "height_m": 1.05
+      },
+      "queen": {
+       "width_m": 1.66,
+       "depth_m": 2.2,
+       "height_m": 1.1
+      },
+      "king": {
+       "width_m": 2.07,
+       "depth_m": 2.2,
+       "height_m": 1.15
+      },
+      "crib": {
+       "width_m": 0.8,
+       "depth_m": 1.42,
+       "height_m": 0.95
+      },
+      "bunk": {
+       "width_m": 1.13,
+       "depth_m": 2.1,
+       "height_m": 1.7
+      }
+     }
+    },
+    {
+     "key": "headboard",
+     "label": "Headboard",
+     "type": "choice",
+     "choices": [
+      "none",
+      "panel",
+      "slatted",
+      "padded"
+     ],
+     "def": "padded",
+     "sizes": {
+      "none": {
+       "height_m": 0.65
+      },
+      "panel": {
+       "height_m": 1.1
+      },
+      "slatted": {
+       "height_m": 1.1
+      },
+      "padded": {
+       "height_m": 1.15
+      }
+     }
+    },
+    {
+     "key": "footboard",
+     "label": "Footboard",
+     "type": "bool",
+     "def": false
+    },
+    {
+     "key": "base",
+     "label": "Base",
+     "type": "choice",
+     "choices": [
+      "frame",
+      "platform"
+     ],
+     "def": "frame"
+    }
+   ],
+   "colorNames": [
+    "Frame",
+    "Bedding"
+   ],
+   "colors": [
+    "#6b4f3a",
+    "#7f97ad"
+   ],
+   "size": {
+    "width_m": [
+     0.6,
+     2.3,
+     1.66
+    ],
+    "depth_m": [
+     1,
+     2.4,
+     2.2
+    ],
+    "height_m": [
+     0.35,
+     2,
+     1.1
+    ]
+   },
+   "live": null
+  },
+  "table": {
+   "name": "Table",
+   "group": "furniture",
+   "category": "tables",
+   "params": [
+    {
+     "key": "shape",
+     "label": "Shape",
+     "type": "choice",
+     "choices": [
+      "rectangle",
+      "rounded",
+      "round"
+     ],
+     "def": "rectangle",
+     "sizes": {
+      "round": {
+       "width_m": 1.1,
+       "depth_m": 1.1
+      }
+     }
+    },
+    {
+     "key": "legs",
+     "label": "Legs",
+     "type": "choice",
+     "choices": [
+      "four",
+      "pedestal",
+      "trestle"
+     ],
+     "def": "four"
+    },
+    {
+     "key": "top_t_m",
+     "label": "Top thickness",
+     "type": "num",
+     "min": 0.015,
+     "max": 0.08,
+     "step": 0.005,
+     "def": 0.035
+    },
+    {
+     "key": "apron",
+     "label": "Rail under the top",
+     "type": "bool",
+     "def": true
+    }
+   ],
+   "colorNames": [
+    "Top",
+    "Legs"
+   ],
+   "colors": [
+    "#9b7653",
+    "#7a5a40"
+   ],
+   "size": {
+    "width_m": [
+     0.4,
+     3,
+     1.6
+    ],
+    "depth_m": [
+     0.4,
+     1.4,
+     0.9
+    ],
+    "height_m": [
+     0.35,
+     1.1,
+     0.75
+    ]
+   },
+   "live": null
+  },
+  "chair": {
+   "name": "Chair",
+   "group": "furniture",
+   "category": "seating",
+   "params": [
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "dining",
+      "armchair",
+      "office",
+      "stool"
+     ],
+     "def": "dining",
+     "sizes": {
+      "dining": {
+       "width_m": 0.48,
+       "depth_m": 0.52,
+       "height_m": 0.9
+      },
+      "armchair": {
+       "width_m": 0.85,
+       "depth_m": 0.85,
+       "height_m": 0.85
+      },
+      "office": {
+       "width_m": 0.66,
+       "depth_m": 0.66,
+       "height_m": 1.05
+      },
+      "stool": {
+       "width_m": 0.4,
+       "depth_m": 0.4,
+       "height_m": 0.65
+      }
+     }
+    },
+    {
+     "key": "seat_h_m",
+     "label": "Seat height",
+     "type": "num",
+     "min": 0.3,
+     "max": 0.8,
+     "step": 0.01,
+     "def": 0.46
+    },
+    {
+     "key": "cushion",
+     "label": "Cushioned seat",
+     "type": "bool",
+     "def": false
+    },
+    {
+     "key": "arms",
+     "label": "Arms",
+     "type": "bool",
+     "def": false
+    }
+   ],
+   "colorNames": [
+    "Frame",
+    "Seat"
+   ],
+   "colors": [
+    "#7a5a40",
+    "#b5a48a"
+   ],
+   "size": {
+    "width_m": [
+     0.35,
+     1.1,
+     0.48
+    ],
+    "depth_m": [
+     0.35,
+     1,
+     0.52
+    ],
+    "height_m": [
+     0.4,
+     1.3,
+     0.9
+    ]
+   },
+   "live": null
+  },
+  "desk": {
+   "name": "Desk",
+   "group": "furniture",
+   "category": "office",
+   "params": [
+    {
+     "key": "legs",
+     "label": "Legs",
+     "type": "choice",
+     "choices": [
+      "four",
+      "panel",
+      "metal"
+     ],
+     "def": "four"
+    },
+    {
+     "key": "drawers",
+     "label": "Drawers",
+     "type": "choice",
+     "choices": [
+      "none",
+      "left",
+      "right",
+      "both"
+     ],
+     "def": "right"
+    },
+    {
+     "key": "back",
+     "label": "Back panel",
+     "type": "bool",
+     "def": true
+    }
+   ],
+   "colorNames": [
+    "Top",
+    "Frame"
+   ],
+   "colors": [
+    "#b08a63",
+    "#3c3f44"
+   ],
+   "size": {
+    "width_m": [
+     0.6,
+     2.4,
+     1.4
+    ],
+    "depth_m": [
+     0.4,
+     1,
+     0.7
+    ],
+    "height_m": [
+     0.5,
+     1.2,
+     0.75
+    ]
+   },
+   "live": null
+  },
+  "dresser": {
+   "name": "Dresser / cabinet",
+   "group": "furniture",
+   "category": "storage",
+   "params": [
+    {
+     "key": "fronts",
+     "label": "Fronts",
+     "type": "choice",
+     "choices": [
+      "drawers",
+      "doors",
+      "both"
+     ],
+     "def": "drawers"
+    },
+    {
+     "key": "columns",
+     "label": "Columns",
+     "type": "int",
+     "min": 1,
+     "max": 4,
+     "step": 1,
+     "def": 2
+    },
+    {
+     "key": "rows",
+     "label": "Drawers in a column",
+     "type": "int",
+     "min": 1,
+     "max": 6,
+     "step": 1,
+     "def": 3
+    },
+    {
+     "key": "base",
+     "label": "Base",
+     "type": "choice",
+     "choices": [
+      "plinth",
+      "feet",
+      "legs"
+     ],
+     "def": "plinth"
+    },
+    {
+     "key": "handles",
+     "label": "Handles",
+     "type": "choice",
+     "choices": [
+      "bar",
+      "knob",
+      "none"
+     ],
+     "def": "bar"
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Fronts"
+   ],
+   "colors": [
+    "#7a5a40",
+    "#8e6c4f"
+   ],
+   "size": {
+    "width_m": [
+     0.3,
+     2.4,
+     1.2
+    ],
+    "depth_m": [
+     0.25,
+     0.8,
+     0.5
+    ],
+    "height_m": [
+     0.3,
+     2.2,
+     0.85
+    ]
+   },
+   "live": null
+  },
+  "tv": {
+   "name": "TV + media unit",
+   "group": "furniture",
+   "category": "media",
+   "params": [
+    {
+     "key": "screen_in",
+     "label": "Screen size (inches)",
+     "type": "int",
+     "min": 24,
+     "max": 98,
+     "step": 1,
+     "def": 55
+    },
+    {
+     "key": "unit",
+     "label": "Unit",
+     "type": "choice",
+     "choices": [
+      "low",
+      "cabinet",
+      "none"
+     ],
+     "def": "low"
+    },
+    {
+     "key": "mount",
+     "label": "TV on",
+     "type": "choice",
+     "choices": [
+      "stand",
+      "wall"
+     ],
+     "def": "stand"
+    }
+   ],
+   "colorNames": [
+    "Unit",
+    "TV"
+   ],
+   "colors": [
+    "#6e5039",
+    "#1f2124"
+   ],
+   "size": {
+    "width_m": [
+     0.5,
+     3,
+     1.6
+    ],
+    "depth_m": [
+     0.2,
+     0.7,
+     0.42
+    ],
+    "height_m": [
+     0.35,
+     2.4,
+     1.27
+    ]
+   },
+   "live": "screen"
+  },
+  "lamp": {
+   "name": "Lamp",
+   "group": "furniture",
+   "category": "lighting",
+   "params": [
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "floor",
+      "table"
+     ],
+     "def": "floor",
+     "sizes": {
+      "floor": {
+       "width_m": 0.45,
+       "depth_m": 0.45,
+       "height_m": 1.6
+      },
+      "table": {
+       "width_m": 0.32,
+       "depth_m": 0.32,
+       "height_m": 0.55
+      }
+     }
+    },
+    {
+     "key": "shade",
+     "label": "Shade",
+     "type": "choice",
+     "choices": [
+      "drum",
+      "cone",
+      "globe"
+     ],
+     "def": "drum"
+    },
+    {
+     "key": "base",
+     "label": "Base",
+     "type": "choice",
+     "choices": [
+      "round",
+      "square",
+      "tripod"
+     ],
+     "def": "round"
+    }
+   ],
+   "colorNames": [
+    "Shade",
+    "Base"
+   ],
+   "colors": [
+    "#efe6d2",
+    "#4a4f55"
+   ],
+   "size": {
+    "width_m": [
+     0.12,
+     1,
+     0.45
+    ],
+    "depth_m": [
+     0.12,
+     1,
+     0.45
+    ],
+    "height_m": [
+     0.2,
+     2.2,
+     1.6
+    ]
+   },
+   "live": "glow"
+  },
+  "rug": {
+   "name": "Rug",
+   "group": "furniture",
+   "category": "decor",
+   "params": [
+    {
+     "key": "shape",
+     "label": "Shape",
+     "type": "choice",
+     "choices": [
+      "rectangle",
+      "round"
+     ],
+     "def": "rectangle",
+     "sizes": {
+      "round": {
+       "width_m": 1.6,
+       "depth_m": 1.6
+      }
+     }
+    },
+    {
+     "key": "pattern",
+     "label": "Pattern",
+     "type": "choice",
+     "choices": [
+      "plain",
+      "border",
+      "stripes"
+     ],
+     "def": "border"
+    },
+    {
+     "key": "fringe",
+     "label": "Fringe",
+     "type": "bool",
+     "def": false
+    }
+   ],
+   "colorNames": [
+    "Main",
+    "Border"
+   ],
+   "colors": [
+    "#a85d4a",
+    "#e8dcc6"
+   ],
+   "size": {
+    "width_m": [
+     0.4,
+     5,
+     2
+    ],
+    "depth_m": [
+     0.4,
+     5,
+     1.4
+    ],
+    "height_m": [
+     0.004,
+     0.05,
+     0.012
+    ]
+   },
+   "live": null
+  },
+  "shelf": {
+   "name": "Shelf",
+   "group": "furniture",
+   "category": "storage",
+   "params": [
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "bookcase",
+      "open",
+      "wall"
+     ],
+     "def": "bookcase"
+    },
+    {
+     "key": "shelves",
+     "label": "Shelves",
+     "type": "int",
+     "min": 1,
+     "max": 8,
+     "step": 1,
+     "def": 5
+    },
+    {
+     "key": "books",
+     "label": "Books",
+     "type": "choice",
+     "choices": [
+      "none",
+      "some",
+      "full"
+     ],
+     "def": "some"
+    },
+    {
+     "key": "back",
+     "label": "Back panel",
+     "type": "bool",
+     "def": true
+    }
+   ],
+   "colorNames": [
+    "Wood",
+    "Books"
+   ],
+   "colors": [
+    "#c9b79c",
+    "#8a4f3c"
+   ],
+   "size": {
+    "width_m": [
+     0.3,
+     3,
+     0.9
+    ],
+    "depth_m": [
+     0.15,
+     0.6,
+     0.32
+    ],
+    "height_m": [
+     0.2,
+     2.5,
+     1.8
+    ]
+   },
+   "live": null
+  },
+  "wardrobe": {
+   "name": "Wardrobe",
+   "group": "furniture",
+   "category": "storage",
+   "params": [
+    {
+     "key": "style",
+     "label": "Doors",
+     "type": "choice",
+     "choices": [
+      "hinged",
+      "sliding"
+     ],
+     "def": "hinged"
+    },
+    {
+     "key": "doors",
+     "label": "Number of doors",
+     "type": "int",
+     "min": 1,
+     "max": 4,
+     "step": 1,
+     "def": 2
+    },
+    {
+     "key": "drawers",
+     "label": "Drawers below",
+     "type": "int",
+     "min": 0,
+     "max": 3,
+     "step": 1,
+     "def": 0
+    },
+    {
+     "key": "handles",
+     "label": "Handles",
+     "type": "choice",
+     "choices": [
+      "bar",
+      "knob",
+      "none"
+     ],
+     "def": "bar"
+    },
+    {
+     "key": "mirror",
+     "label": "Mirror",
+     "type": "bool",
+     "def": false
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Doors"
+   ],
+   "colors": [
+    "#e8e2d6",
+    "#d8d0c0"
+   ],
+   "size": {
+    "width_m": [
+     0.4,
+     3.6,
+     1.2
+    ],
+    "depth_m": [
+     0.4,
+     0.8,
+     0.6
+    ],
+    "height_m": [
+     1,
+     2.6,
+     2
+    ]
+   },
+   "live": null
+  },
+  "plant": {
+   "name": "Plant",
+   "group": "furniture",
+   "category": "decor",
+   "params": [
+    {
+     "key": "style",
+     "label": "Plant",
+     "type": "choice",
+     "choices": [
+      "bush",
+      "tree",
+      "palm",
+      "cactus"
+     ],
+     "def": "bush",
+     "sizes": {
+      "bush": {
+       "height_m": 0.8
+      },
+      "tree": {
+       "height_m": 1.6
+      },
+      "palm": {
+       "height_m": 1.5
+      },
+      "cactus": {
+       "height_m": 0.7
+      }
+     }
+    },
+    {
+     "key": "pot",
+     "label": "Pot",
+     "type": "choice",
+     "choices": [
+      "round",
+      "square",
+      "none"
+     ],
+     "def": "round"
+    }
+   ],
+   "colorNames": [
+    "Leaves",
+    "Pot"
+   ],
+   "colors": [
+    "#4f7a3a",
+    "#b5653d"
+   ],
+   "size": {
+    "width_m": [
+     0.12,
+     2,
+     0.5
+    ],
+    "depth_m": [
+     0.12,
+     2,
+     0.5
+    ],
+    "height_m": [
+     0.15,
+     3,
+     0.9
+    ]
+   },
+   "live": null
+  },
+  "washer": {
+   "name": "Washer",
+   "group": "device",
+   "category": "appliance",
+   "params": [
+    {
+     "key": "loading",
+     "label": "Loading",
+     "type": "choice",
+     "choices": [
+      "front",
+      "top"
+     ],
+     "def": "front"
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Trim"
+   ],
+   "colors": [
+    "#f2f2f0",
+    "#9aa5ad"
+   ],
+   "size": {
+    "width_m": [
+     0.45,
+     0.8,
+     0.6
+    ],
+    "depth_m": [
+     0.4,
+     0.85,
+     0.62
+    ],
+    "height_m": [
+     0.6,
+     1.1,
+     0.85
+    ]
+   },
+   "live": "run"
+  },
+  "dryer": {
+   "name": "Dryer",
+   "group": "device",
+   "category": "appliance",
+   "params": [
+    {
+     "key": "door",
+     "label": "Door",
+     "type": "choice",
+     "choices": [
+      "glass",
+      "solid"
+     ],
+     "def": "glass"
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Trim"
+   ],
+   "colors": [
+    "#f2f2f0",
+    "#9aa5ad"
+   ],
+   "size": {
+    "width_m": [
+     0.45,
+     0.8,
+     0.6
+    ],
+    "depth_m": [
+     0.4,
+     0.85,
+     0.62
+    ],
+    "height_m": [
+     0.6,
+     1.1,
+     0.85
+    ]
+   },
+   "live": "run"
+  },
+  "vacuum_dock": {
+   "name": "Robot vacuum dock",
+   "group": "device",
+   "category": "appliance",
+   "params": [
+    {
+     "key": "dock",
+     "label": "Dock",
+     "type": "choice",
+     "choices": [
+      "small",
+      "tower"
+     ],
+     "def": "small",
+     "sizes": {
+      "small": {
+       "height_m": 0.12
+      },
+      "tower": {
+       "height_m": 0.45
+      }
+     }
+    },
+    {
+     "key": "robot",
+     "label": "Robot",
+     "type": "choice",
+     "choices": [
+      "round",
+      "d-shape"
+     ],
+     "def": "round"
+    }
+   ],
+   "colorNames": [
+    "Dock",
+    "Robot"
+   ],
+   "colors": [
+    "#2b2d31",
+    "#e9e9e6"
+   ],
+   "size": {
+    "width_m": [
+     0.2,
+     0.6,
+     0.38
+    ],
+    "depth_m": [
+     0.3,
+     0.9,
+     0.55
+    ],
+    "height_m": [
+     0.06,
+     0.6,
+     0.12
+    ]
+   },
+   "live": "dock"
+  },
+  "mower_dock": {
+   "name": "Mower dock",
+   "group": "device",
+   "category": "outdoor",
+   "params": [
+    {
+     "key": "roof",
+     "label": "Roof",
+     "type": "bool",
+     "def": false,
+     "sizes": {
+      "true": {
+       "height_m": 0.6
+      },
+      "false": {
+       "height_m": 0.35
+      }
+     }
+    }
+   ],
+   "colorNames": [
+    "Dock",
+    "Mower"
+   ],
+   "colors": [
+    "#3a3d40",
+    "#e2611a"
+   ],
+   "size": {
+    "width_m": [
+     0.4,
+     1.2,
+     0.65
+    ],
+    "depth_m": [
+     0.6,
+     1.6,
+     1
+    ],
+    "height_m": [
+     0.2,
+     1,
+     0.35
+    ]
+   },
+   "live": "dock"
+  },
+  "car": {
+   "name": "Car",
+   "group": "device",
+   "category": "outdoor",
+   "params": [
+    {
+     "key": "body",
+     "label": "Body",
+     "type": "choice",
+     "choices": [
+      "sedan",
+      "hatch",
+      "suv",
+      "pickup"
+     ],
+     "def": "sedan",
+     "sizes": {
+      "sedan": {
+       "width_m": 1.85,
+       "depth_m": 4.7,
+       "height_m": 1.45
+      },
+      "hatch": {
+       "width_m": 1.78,
+       "depth_m": 4.1,
+       "height_m": 1.48
+      },
+      "suv": {
+       "width_m": 1.92,
+       "depth_m": 4.75,
+       "height_m": 1.72
+      },
+      "pickup": {
+       "width_m": 2,
+       "depth_m": 5.6,
+       "height_m": 1.9
+      }
+     }
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Windows"
+   ],
+   "colors": [
+    "#8a1f1f",
+    "#2a3540"
+   ],
+   "size": {
+    "width_m": [
+     1.5,
+     2.2,
+     1.85
+    ],
+    "depth_m": [
+     3.2,
+     6.2,
+     4.7
+    ],
+    "height_m": [
+     1.2,
+     2.1,
+     1.45
+    ]
+   },
+   "live": "charge"
+  },
+  "charger": {
+   "name": "Car charger",
+   "group": "device",
+   "category": "outdoor",
+   "params": [
+    {
+     "key": "mount",
+     "label": "Mount",
+     "type": "choice",
+     "choices": [
+      "wall",
+      "post"
+     ],
+     "def": "wall",
+     "sizes": {
+      "wall": {
+       "depth_m": 0.15,
+       "height_m": 0.4
+      },
+      "post": {
+       "depth_m": 0.3,
+       "height_m": 1.3
+      }
+     }
+    },
+    {
+     "key": "cable",
+     "label": "Cable",
+     "type": "bool",
+     "def": true
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Cable"
+   ],
+   "colors": [
+    "#e8eaec",
+    "#222426"
+   ],
+   "size": {
+    "width_m": [
+     0.15,
+     0.5,
+     0.25
+    ],
+    "depth_m": [
+     0.08,
+     0.5,
+     0.15
+    ],
+    "height_m": [
+     0.2,
+     1.6,
+     0.4
+    ]
+   },
+   "live": "charge"
+  },
+  "radiator": {
+   "name": "Radiator",
+   "group": "device",
+   "category": "appliance",
+   "params": [
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "panel",
+      "column"
+     ],
+     "def": "panel"
+    }
+   ],
+   "colorNames": [
+    "Colour"
+   ],
+   "colors": [
+    "#f0f0ee"
+   ],
+   "size": {
+    "width_m": [
+     0.3,
+     2.4,
+     0.8
+    ],
+    "depth_m": [
+     0.04,
+     0.3,
+     0.1
+    ],
+    "height_m": [
+     0.15,
+     1.8,
+     0.6
+    ]
+   },
+   "live": "warm"
+  },
+  "fan": {
+   "name": "Fan",
+   "group": "device",
+   "category": "appliance",
+   "params": [
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "pedestal",
+      "desk",
+      "ceiling"
+     ],
+     "def": "pedestal",
+     "sizes": {
+      "pedestal": {
+       "width_m": 0.45,
+       "depth_m": 0.35,
+       "height_m": 1.25
+      },
+      "desk": {
+       "width_m": 0.3,
+       "depth_m": 0.22,
+       "height_m": 0.4
+      },
+      "ceiling": {
+       "width_m": 1.3,
+       "depth_m": 1.3,
+       "height_m": 0.45
+      }
+     }
+    },
+    {
+     "key": "blades",
+     "label": "Blades",
+     "type": "int",
+     "min": 3,
+     "max": 6,
+     "step": 1,
+     "def": 5
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Blades"
+   ],
+   "colors": [
+    "#e8e8e6",
+    "#cfd6dc"
+   ],
+   "size": {
+    "width_m": [
+     0.2,
+     1.6,
+     0.45
+    ],
+    "depth_m": [
+     0.15,
+     1.6,
+     0.35
+    ],
+    "height_m": [
+     0.2,
+     1.6,
+     1.25
+    ]
+   },
+   "live": "spin"
+  },
+  "speaker": {
+   "name": "Speaker",
+   "group": "device",
+   "category": "media",
+   "params": [
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "bookshelf",
+      "floor",
+      "smart",
+      "soundbar"
+     ],
+     "def": "bookshelf",
+     "sizes": {
+      "bookshelf": {
+       "width_m": 0.2,
+       "depth_m": 0.25,
+       "height_m": 0.32
+      },
+      "floor": {
+       "width_m": 0.25,
+       "depth_m": 0.32,
+       "height_m": 1.05
+      },
+      "smart": {
+       "width_m": 0.12,
+       "depth_m": 0.12,
+       "height_m": 0.18
+      },
+      "soundbar": {
+       "width_m": 0.95,
+       "depth_m": 0.1,
+       "height_m": 0.07
+      }
+     }
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Grille"
+   ],
+   "colors": [
+    "#2a2a2c",
+    "#3a3a3d"
+   ],
+   "size": {
+    "width_m": [
+     0.08,
+     1.4,
+     0.2
+    ],
+    "depth_m": [
+     0.08,
+     0.5,
+     0.25
+    ],
+    "height_m": [
+     0.05,
+     1.3,
+     0.32
+    ]
+   },
+   "live": "run"
+  },
+  "tag": {
+   "name": "Tag",
+   "group": "tag",
+   "category": "device",
+   "params": [
+    {
+     "key": "form",
+     "label": "Form",
+     "type": "choice",
+     "choices": [
+      "puck",
+      "card",
+      "fob",
+      "phone"
+     ],
+     "def": "puck",
+     "sizes": {
+      "puck": {
+       "width_m": 0.032,
+       "depth_m": 0.032,
+       "height_m": 0.008
+      },
+      "card": {
+       "width_m": 0.054,
+       "depth_m": 0.086,
+       "height_m": 0.003
+      },
+      "fob": {
+       "width_m": 0.035,
+       "depth_m": 0.05,
+       "height_m": 0.01
+      },
+      "phone": {
+       "width_m": 0.075,
+       "depth_m": 0.155,
+       "height_m": 0.009
+      }
+     }
+    }
+   ],
+   "colorNames": [
+    "Body",
+    "Accent"
+   ],
+   "colors": [
+    "#f4f4f2",
+    "#9aa3ab"
+   ],
+   "size": {
+    "width_m": [
+     0.015,
+     0.2,
+     0.032
+    ],
+    "depth_m": [
+     0.015,
+     0.2,
+     0.032
+    ],
+    "height_m": [
+     0.002,
+     0.04,
+     0.008
+    ]
+   },
+   "live": null
+  },
+  "scanner": {
+   "name": "Scanner",
+   "group": "scanner",
+   "category": "device",
+   "params": [
+    {
+     "key": "form",
+     "label": "Form",
+     "type": "choice",
+     "choices": [
+      "box",
+      "board"
+     ],
+     "def": "box",
+     "sizes": {
+      "box": {
+       "width_m": 0.07,
+       "depth_m": 0.05,
+       "height_m": 0.03
+      },
+      "board": {
+       "width_m": 0.055,
+       "depth_m": 0.028,
+       "height_m": 0.01
+      }
+     }
+    },
+    {
+     "key": "antenna",
+     "label": "Antenna",
+     "type": "bool",
+     "def": false,
+     "sizes": {
+      "true": {
+       "height_m": 0.11
+      }
+     }
+    }
+   ],
+   "colorNames": [
+    "Case",
+    "Light"
+   ],
+   "colors": [
+    "#1f2225",
+    "#3a7bd5"
+   ],
+   "size": {
+    "width_m": [
+     0.02,
+     0.3,
+     0.07
+    ],
+    "depth_m": [
+     0.01,
+     0.3,
+     0.05
+    ],
+    "height_m": [
+     0.004,
+     0.25,
+     0.03
+    ]
+   },
+   "live": null
+  },
+  "other": {
+   "name": "Box",
+   "group": "furniture",
+   "category": "other",
+   "params": [],
+   "colorNames": [
+    "Colour"
+   ],
+   "colors": [
+    "#9aa3ab"
+   ],
+   "size": {
+    "width_m": [
+     0.05,
+     6,
+     0.6
+    ],
+    "depth_m": [
+     0.05,
+     6,
+     0.6
+    ],
+    "height_m": [
+     0.02,
+     4,
+     0.6
+    ]
+   },
+   "live": null
+  }
+ },
+ "figure": {
+  "name": "Person",
+  "params": [
+   {
+    "key": "height_m",
+    "label": "Height",
+    "type": "num",
+    "min": 1,
+    "max": 2.1,
+    "step": 0.01,
+    "def": 1.75
+   },
+   {
+    "key": "build",
+    "label": "Build",
+    "type": "choice",
+    "choices": [
+     "slim",
+     "medium",
+     "broad"
+    ],
+    "def": "medium"
+   },
+   {
+    "key": "hair",
+    "label": "Hair",
+    "type": "choice",
+    "choices": [
+     "none",
+     "short",
+     "long",
+     "bun"
+    ],
+    "def": "short"
+   },
+   {
+    "key": "glasses",
+    "label": "Glasses",
+    "type": "bool",
+    "def": false
+   },
+   {
+    "key": "hat",
+    "label": "Cap",
+    "type": "bool",
+    "def": false
+   }
+  ],
+  "colorNames": {
+   "hair": "Hair",
+   "skin": "Skin",
+   "top": "Top",
+   "bottom": "Bottom"
+  },
+  "colors": {
+   "hair": "#3a2a1a",
+   "skin": "#c8956d",
+   "top": "#224466",
+   "bottom": "#333333"
+  }
+ }
+}
