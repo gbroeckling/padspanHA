@@ -216,7 +216,8 @@ def test_no_figure_data_in_the_usage_report():
 def test_nothing_but_the_3d_file_reads_the_figures():
     """The figures section is read and written by the 3D file's own code only:
     no report, library, backup label or server code reaches into it."""
-    allowed = {"house3d_store.py", "ws_house3d.py"}
+    # house3d_people.py only takes a deleted person's figure out of the file.
+    allowed = {"house3d_store.py", "ws_house3d.py", "house3d_people.py"}
     readers = sorted(p.name for p in _CC.rglob("*.py")
                      if re.search(r"""["']figures["']""", p.read_text(encoding="utf-8")) and p.name not in allowed)
     assert readers == []

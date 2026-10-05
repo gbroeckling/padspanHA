@@ -654,6 +654,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.debug("Emergency test listener setup failed: %s", err)
 
+    # Live Aboard: a person deleted in Home Assistant takes their figure
+    # along (house3d_people.py) — nothing at all for a house with no Live
+    # Aboard file.
+    try:
+        from .house3d_people import async_setup_house3d_people
+        async_setup_house3d_people(hass)
+    except Exception as err:
+        _LOGGER.debug("Live Aboard people listener setup failed: %s", err)
+
     # Vacation Mode's 5-minute check — a per-tick no-op unless
     # vacation_mode_enabled is on (see vacation_mode.py).
     try:
@@ -721,6 +730,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_stop_emergency_test(hass)
     except Exception as err:
         _LOGGER.debug("Emergency test listener teardown error: %s", err)
+    try:
+        from .house3d_people import async_stop_house3d_people
+        async_stop_house3d_people(hass)
+    except Exception as err:
+        _LOGGER.debug("Live Aboard people listener teardown error: %s", err)
 
     # Stop Vacation Mode's check timer
     try:

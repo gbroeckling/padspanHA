@@ -16,8 +16,10 @@
 //             first that the person in the photo agrees (nothing is sent
 //             until that is ticked), says which AI Task reads it and
 //             recommends a local one, and suggests the sliders for children.
-//             A figure whose person is gone shows as not linked, with
-//             Remove; nothing removes it on its own. People are never
+//             A person deleted in Home Assistant takes their figure along
+//             (house3d_people.py, on the server); one whose person is only
+//             missing from the states shows as not linked, with Remove,
+//             and nothing removes it on its own. People are never
 //             shared: figures live only in this house's 3D file.
 //   Beacons   the ones the Atlas shows (named, or known to the positioning
 //   Scanners  engine), and the scanners placed on the map: a look by hand

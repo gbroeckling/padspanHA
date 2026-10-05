@@ -2923,6 +2923,13 @@ export function buildLightsMapCard(hostIn){
             zs: sortedLevels.map(lv => String(lv)),
             at: z === null || z === undefined ? sortedLevels.length - 1 : Math.max(0, sortedLevels.indexOf(z)),
             all: z === null || z === undefined,
+            // Each floor's activity, the floor chips' own numbers: lights
+            // and fans on, and motion.
+            counts: sortedLevels.map(lv => {
+              const a = floorIdAtLevel(_frame, host.model, floors, lv)
+                ? floorAggregate(Object.values(host.lightsByEid || {}), host.model, floorIdsOnSlab(_frame, host.model, floors, lv)) : null;
+              return { on: a ? a.lightsOn + a.fansOn : 0, motion: a ? a.motionActive : 0 };
+            }),
             go: (i) => la3dFocus(i < 0 ? 0 : isoPos.findIndex(q => q === sortedLevels[i])) } : null,
           mapOnly: h3.mapOnly === true,
           prefs: _laPrefs,

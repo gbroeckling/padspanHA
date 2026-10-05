@@ -204,7 +204,10 @@ await tryCase("pick: the view runs here", async () => {
 });
 
 // ── pick ────────────────────────────────────────────────────────────────────
-await tryCase("pick: drawing on Main never lands on the floor below", async () => {
+await tryCase("pick: with Main picked, drawing never lands on the floor below", async () => {
+  topIds = ["main"];                              // the stepper or the floor chips on Main
+  poll();
+  await settle();
   await openEdit();
   await pickTool("window");
   const landed = { main: 0, basement: 0, none: 0 }, wrong = [];
@@ -234,8 +237,11 @@ await tryCase("pick: drawing on Main never lands on the floor below", async () =
       }
     }
   }
-  check("pick: drawing on Main never lands on the floor below", landed.main >= 40 && !landed.basement, { landed, wrong });
+  check("pick: with Main picked, drawing never lands on the floor below", landed.main >= 40 && !landed.basement, { landed, wrong });
   await closeEdit();
+  topIds = null;
+  poll();
+  await settle();
 });
 await tryCase("pick: a window drawn on Main is saved on Main", async () => {
   await openEdit();
@@ -252,6 +258,54 @@ await tryCase("pick: a window drawn on Main is saved on Main", async () => {
   check("pick: a window drawn on Main is saved on Main", ops.length === 1 && ops[0].floor_id === "main" && ops[0].kind === "window",
     { sent, offMainWallPx: segPx(a, m0, m1) });
   await closeEdit();
+});
+/** A line dragged right on a wall of floor `fid` (x, y0 → y1 or x0 → x1 at
+ *  y): the floor it was drawn on, or null; taken back with Undo. */
+function lineOn(fid, a0, a1){
+  const a = where(fid, ...a0, WALL_Z), b = where(fid, ...a1, WALL_Z);
+  if (!a || !b) return "off screen";
+  const before = Object.keys(ed().draft.openings);
+  drag(a, b);
+  const added = Object.keys(ed().draft.openings).filter(k => !before.includes(k));
+  const fl = added.length ? ed().draft.openings[added[0]].floor_id : null;
+  if (added.length) click("Undo", "la3d-tools");
+  return fl;
+}
+await tryCase("pick: with All showing, a wall under the floor above is never drawn on; one on the floor below in plain view is", async () => {
+  await openEdit();
+  if (ed().tool) await pickTool(ed().tool);
+  await pickTool("window");                       // straight down on the top floor showing (Main)
+  const cam = st().cam;
+  // The basement's walls under Main's floor (Rec | Gym, Gym | Store), as they
+  // show through it, and the Shop's far wall out past Main, in plain view.
+  const under = [lineOn("basement", [4.55, 2], [4.55, 3.5]), lineOn("basement", [7.55, 5.5], [7.55, 7]), lineOn("basement", [4.55, 6], [4.55, 7.4])];
+  const shop = lineOn("basement", [14, 5], [14, 6.6]);
+  const mainWall = lineOn("main", [10, 5], [10, 6.6]);
+  check("pick: with All showing, a wall under the floor above is never drawn on; one on the floor below in plain view is",
+    cam.phi < 0.01 && under.every(f => f !== "basement") && shop === "basement" && mainWall === "main", { cam, under, shop, mainWall });
+  await closeEdit();
+});
+await tryCase("pick: a door is drawn on the lower floor picked, the tool looking straight down on it", async () => {
+  topIds = ["basement"];                          // the stepper on the Basement: Main is hidden
+  poll();
+  await settle();
+  await openEdit();
+  if (ed().tool) await pickTool(ed().tool);
+  await pickTool("door");
+  const cam = st().cam;
+  const n0 = payloads.length;
+  // Rec | Gym: the Basement's own wall, under Main's floor when Main shows.
+  drag(where("basement", 4.55, 2, WALL_Z), where("basement", 4.55, 3.4, WALL_Z));
+  click("Save", "la3d-tools");
+  await settle();
+  const sent = payloads.slice(n0), ops = sent.length === 1 ? Object.values(sent[0].openings || {}) : [];
+  check("pick: a door is drawn on the lower floor picked, the tool looking straight down on it",
+    cam.phi < 0.01 && cam.target[1] < 2.8 && ops.length === 1 && ops[0].kind === "door" && ops[0].floor_id === "basement"
+    && Math.abs(ops[0].a_m[0] - 4.55) < 0.06 && Math.abs(ops[0].b_m[0] - 4.55) < 0.06, { cam, sent });
+  await closeEdit();
+  topIds = null;
+  poll();
+  await settle();
 });
 await tryCase("pick: under the floor above is never picked; on a floor below in plain view still is", async () => {
   await openEdit();

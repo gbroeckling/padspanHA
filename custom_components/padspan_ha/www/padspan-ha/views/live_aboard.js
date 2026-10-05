@@ -162,6 +162,16 @@ const CSS = `
 .la3d .lv-zoomseg button{white-space:nowrap}
 .la3d.la3d-narrow .lv-zoomseg button{padding:7px 8px}
 .la3d.la3d-narrow .la3d-floor .la3d-fname{min-width:40px;max-width:76px;overflow:hidden;text-overflow:ellipsis}
+.la3d .la3d-floor .la3d-fname{display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.la3d .la3d-fn{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.la3d .lv-dot{display:inline-block;flex:none;box-sizing:border-box}
+.la3d-menu .lv-dot{margin-left:7px;vertical-align:1px}
+.la3d-corner{all:unset;box-sizing:border-box;position:absolute;left:12px;bottom:12px;z-index:4;display:inline-flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:999px;background:rgba(6,14,9,.5);color:#f0fdf4;font-size:12.5px;font-weight:600;cursor:pointer;
+  opacity:0;visibility:hidden;pointer-events:none}
+.la3d.la3d-bare .la3d-corner.on{pointer-events:auto;animation:la3d-corner 2s ease forwards}
+@keyframes la3d-corner{0%{opacity:0;visibility:visible}12%{opacity:.7}70%{opacity:.7;visibility:visible}100%{opacity:0;visibility:hidden}}
+.la3d.la3d-bare .la3d-menu.la3d-keep{opacity:1;visibility:visible;pointer-events:auto}
 .la3d-menu{position:absolute;z-index:5;min-width:170px;max-width:min(280px,calc(100% - 20px));padding:5px;border-radius:12px;
   background:rgba(6,14,9,.96);border:1px solid rgba(120,190,155,.24);box-shadow:0 10px 26px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:2px}
 .la3d-menu .la3d-mrow{display:flex;align-items:center;gap:2px}
@@ -406,6 +416,17 @@ function createSlot(slotKey){
   let mapOnly = false, bare = false, cover = false, fsOn = false, fsTarget = null, fitR = null, soloHold = null;
   let coverOff = null, panelCss = null, showCss = null, soloBtn = null, fullBtns = [], menuEl = null, menuOff = null;
   let floorSteps = null, floorEls = [], hintCard = null, tipEl = null, narrow = false;
+  // A camera kept per floor on this screen (and one for All), as the Atlas
+  // keeps each floor's zoom and scroll: left on a floor, it is there again on
+  // coming back (this page load only; saved Views keep theirs). floorKey: the
+  // floor showing; keepCam: a piece moved a floor in Furnish, the camera stays.
+  // selIds: the floor chips' choice (the floor ids at the top, null: All).
+  const floorCams = new Map();
+  let floorKey = null, keepCam = false, selIds = null;
+  // The map alone: the floor's name, faint in a corner for a moment.
+  let cornerEl = null, cornerOn = false;
+  // The live read's own clock (Show people, Show tags & scanners): see peopleClock.
+  let peopleTimer = null;
   // What this browser keeps for the view (its saved views, the first-time
   // card seen): the host's {get(k), set(k, v)}; without one, this page load's.
   let prefs = null;
@@ -434,6 +455,7 @@ function createSlot(slotKey){
     devices = null; emOutlines = []; emKey = "";
     try { if (tracked) tracked.dispose(); } catch (_) { /* gone with the view */ }
     tracked = null; peopleSnap = null; peopleAt = 0; peopleLoad = null;
+    if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
     layer = null; furnishP = null; topCb = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
@@ -508,16 +530,18 @@ function createSlot(slotKey){
     if (floorEls[1]) floorEls[1].classList.add("la3d-fname");
     if (floorEls[3]) floorEls[3].classList.add("la3d-w");           // narrow: All is in View ▾
     floor.style.display = "none";
-    // Views: the whole house, and views saved from the camera on this browser.
-    const vbtn = seg(null, [["Views ▾", "The whole house, or a view you saved", () => openMenu(vbtn, viewItems(false))]]);
+    // Views: every floor (to go straight to one), the whole house, and views
+    // saved from the camera on this browser.
+    const vbtn = seg(null, [["Views ▾", "A floor, the whole house, or a view you saved",
+      () => openMenu(vbtn, [...floorItems(), ...(floorSteps ? [null] : []), ...viewItems(false)])]]);
     vbtn.classList.add("la3d-w");
     vbtn.setAttribute("data-la3d-saved", "");
     // A narrow screen: one row — Walls ▾, View ▾, the floor stepper, full screen.
     const wbtn = seg(null, [["Walls ▾", "Cut, Up or Down", () => openMenu(wbtn, WALLS.map(([t, , m]) => ({ text: t, on: wallMode === m, act: () => setWalls(m) })))]]);
     wbtn.classList.add("la3d-n");
-    const abtn = seg(null, [["View ▾", "Angles, the whole house and your views", () => openMenu(abtn, [
+    const abtn = seg(null, [["View ▾", "Angles, the floors, the whole house and your views", () => openMenu(abtn, [
       ...ANGLES.map(([t, , n]) => ({ text: t, act: () => preset(n, true) })),
-      ...(floorSteps ? [null, { text: "All floors", on: floorSteps.all, act: () => stepFloor(0) }] : []), null, ...viewItems()])]]);
+      ...(floorSteps ? [null, ...floorItems()] : []), null, ...viewItems()])]]);
     abtn.classList.add("la3d-n");
     const full = seg(null, [["", "", () => toggleFull()]]);
     full.setAttribute("data-la3d-full", "");
@@ -541,6 +565,15 @@ function createSlot(slotKey){
     soloBtn.setAttribute("data-la3d-solo", "");
     soloBtn.addEventListener("click", guard((e) => { e.stopPropagation(); setBare(false, true); }));
     root.appendChild(soloBtn);
+    // The map alone: the floor's name (and what is on there), faint in a
+    // corner for 2 s after a floor change or a touch (a CSS fade, no timer);
+    // a tap on it while it shows lists the floors.
+    cornerEl = d("button", "la3d-corner");
+    cornerEl.type = "button";
+    cornerEl.setAttribute("data-la3d-corner", "");
+    cornerEl.addEventListener("click", guard((e) => { e.stopPropagation(); if (cornerOn && bare) openFloorList(cornerEl); }));
+    cornerEl.addEventListener("animationend", guard(() => { cornerOn = false; cornerEl.classList.remove("on"); }));
+    root.appendChild(cornerEl);
     tipEl = d("div", "la3d-tip");
     tipEl.textContent = "Drag to turn · pinch or wheel to zoom · tap a light · hold for controls · double-tap a room to go there";
     root.appendChild(tipEl);
@@ -662,6 +695,7 @@ function createSlot(slotKey){
     if (want === bare) return;
     bare = want;
     if (!want && byHand) soloHold = cam.radius;
+    if (!want) { cornerOn = false; if (cornerEl) cornerEl.classList.remove("on"); }
     closeMenu();
     root.classList.toggle("la3d-bare", want);
     paintCover();
@@ -734,11 +768,32 @@ function createSlot(slotKey){
   // ── the floor stepper: ▲ Main ▼ · All ─────────────────────────────────────
   // The host's floor chips, from the view: {names (lowest first), zs (each
   // one's storey, for its sheet), at (the top floor showing), all (every
-  // floor), go(i) (i < 0: All)}.
+  // floor), go(i) (i < 0: All), counts ([{on, motion}] per floor: the floor
+  // chips' own numbers, lights and fans on and motion)}.
   function stepsOf(fs){
     if (!fs || !Array.isArray(fs.names) || fs.names.length < 2 || typeof fs.go !== "function") return null;
     const n = fs.names.length, at = Math.max(0, Math.min(n - 1, Math.round(Number(fs.at)) || 0));
-    return { names: fs.names.map(String), zs: Array.isArray(fs.zs) ? fs.zs : null, at, all: fs.all === true, go: fs.go };
+    const counts = Array.isArray(fs.counts) && fs.counts.length === n
+      ? fs.counts.map(c => ({ on: Math.max(0, Math.round(Number(c && c.on)) || 0), motion: Math.max(0, Math.round(Number(c && c.motion)) || 0) })) : null;
+    return { names: fs.names.map(String), zs: Array.isArray(fs.zs) ? fs.zs : null, at, all: fs.all === true, go: fs.go, counts };
+  }
+  /** A floor's activity as the floor chips show it: how many are on, in a
+   *  dot that turns blue with motion; nothing at all when all is quiet. */
+  function dotOf(c){
+    if (!c || !(c.on || c.motion)) return null;
+    const s = document.createElement("span");
+    s.className = "lv-dot" + (c.motion ? " motion" : "");
+    s.textContent = c.on ? String(c.on) : "";
+    return s;
+  }
+  const activityText = (c) => (c && (c.on || c.motion) ? `${c.on} on${c.motion ? ` · ${c.motion} motion` : ""}` : "nothing on");
+  /** The floor's name and its dot, into `el` (the stepper's name, the corner). */
+  function nameInto(el, s, i){
+    const t = document.createElement("span");
+    t.className = "la3d-fn";
+    t.textContent = s.all && i === null ? "All floors" : s.names[i] || "";
+    const dot = i === null ? null : dotOf(s.counts && s.counts[i]);
+    el.replaceChildren(...(dot ? [t, dot] : [t]));
   }
   function paintFloors(){
     const s = floorSteps, seg = floorEls[0] && floorEls[0].parentNode;
@@ -747,10 +802,56 @@ function createSlot(slotKey){
     const [up, name, down, all] = floorEls, n = s.names.length;
     up.disabled = s.at >= n - 1;
     down.disabled = s.at <= 0;
-    name.textContent = s.names[s.at] || "";
-    name.title = `${s.names[s.at] || ""}: everything on this floor`;
+    nameInto(name, s, s.at);
+    name.title = `${s.names[s.at] || ""}: everything on this floor${s.counts ? ` (${activityText(s.counts[s.at])})` : ""}`;
     all.setAttribute("aria-pressed", String(!!s.all));
     name.setAttribute("aria-pressed", String(!s.all));
+  }
+  /** Every floor with its activity, and All: to go straight to one (Views ▾,
+   *  View ▾ on a narrow screen, the corner's list). Each acts on the floors
+   *  as they are when tapped. */
+  function floorItems(){
+    const s = floorSteps;
+    if (!s) return [];
+    return [{ text: "All floors", on: s.all, act: () => stepFloor(0) },
+            ...s.names.map((name, i) => ({ text: name, on: !s.all && s.at === i, dot: s.counts ? s.counts[i] : null,
+                                           title: s.counts ? `${name}: ${activityText(s.counts[i])}` : name,
+                                           act: () => { const q = floorSteps; if (q && i < q.names.length && (q.all || i !== q.at)) q.go(i); } }))];
+  }
+  /** The floors listed over `anchor`; with the map alone too (the corner's). */
+  function openFloorList(anchor){
+    openMenu(anchor, floorItems());
+    if (menuEl) menuEl.classList.add("la3d-keep");
+  }
+  /** The floor showing changed (the chips, the stepper, a menu, a key): the
+   *  camera as left is kept for the floor left, the one kept for the floor
+   *  now showing comes back (none kept yet: it stays where it is), and with
+   *  the map alone the floor's name shows in the corner. */
+  function followFloor(){
+    const s = floorSteps, key = s ? (s.all ? "all" : `floor:${s.zs ? s.zs[s.at] : s.at}`) : null;
+    if (key === floorKey) return;
+    const was = floorKey;
+    floorKey = key;
+    if (was === null || key === null) return;
+    floorCams.set(was, { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() });
+    const c = keepCam ? null : floorCams.get(key);
+    if (c) {
+      cam.fly = null; cam.moved = true; cam.needsFit = false;
+      cam.theta = c.theta; cam.phi = c.phi; cam.radius = c.radius; cam.target.fromArray(c.target);
+      applyCam();
+    }
+    flashCorner();
+  }
+  /** The map alone: the floor's name in the corner, fading out over 2 s. */
+  function flashCorner(){
+    const s = floorSteps;
+    if (!cornerEl || !bare || !s) return;
+    nameInto(cornerEl, s, s.all ? null : s.at);
+    cornerEl.title = s.all ? "All floors: tap for the list" : `${s.names[s.at]}${s.counts ? `, ${activityText(s.counts[s.at])}` : ""}: tap for the list`;
+    cornerEl.classList.remove("on");
+    void cornerEl.offsetWidth;                               // the fade starts again
+    cornerEl.classList.add("on");
+    cornerOn = true;
   }
   function stepFloor(d){
     const s = floorSteps;
@@ -816,7 +917,8 @@ function createSlot(slotKey){
     if (menuEl && menuEl.parentNode) menuEl.parentNode.removeChild(menuEl);
     menuEl = null;
   }
-  /** items: {text, act, on?, del?} or null (a line between). A second tap on its button closes it. */
+  /** items: {text, act, on?, del?, dot? (a floor's activity), title?} or
+   *  null (a line between). A second tap on its button closes it. */
   function openMenu(anchor, items){
     const again = !!(menuEl && menuEl._from === anchor);
     closeMenu();
@@ -829,6 +931,9 @@ function createSlot(slotKey){
       if (!it) { m.appendChild(d("hr")); continue; }
       const row = d("div", "la3d-mrow"), b = d("button");
       b.type = "button"; b.textContent = it.text;
+      const dot = it.dot ? dotOf(it.dot) : null;
+      if (dot) b.appendChild(dot);
+      if (it.title) b.title = it.title;
       b.setAttribute("role", it.on === undefined ? "menuitem" : "menuitemradio");
       if (it.on !== undefined) b.setAttribute("aria-checked", String(!!it.on));
       b.addEventListener("click", guard((e) => { e.stopPropagation(); closeMenu(); it.act(); }));
@@ -871,7 +976,8 @@ function createSlot(slotKey){
                      "Drag to turn the house. Two fingers (or the right mouse button) move it; pinch or the wheel zooms.",
                      "Double-tap a room to go there.",
                      "Walls: Cut, Up or Down. ▲ and ▼ change the floor you see.",
-                     ...(mapOnly ? ["Zoom in and the bars step aside for the map alone; ☰ brings them back. The corners button fills the screen."] : [])]) {
+                     ...(mapOnly ? ["Zoom in and the bars step aside for the map alone; ☰ brings them back. The corners button fills the screen.",
+                                    "With the map alone, PgUp and PgDn change the floor and Home shows them all. Touch the map and the floor's name shows in the corner: tap it to pick a floor."] : [])]) {
       ul.appendChild(d("li", t));
     }
     const ok = d("button", "Got it");
@@ -952,10 +1058,26 @@ function createSlot(slotKey){
       // The plan alone (a narrow screen): its middle as it shows, not where the hidden 3D view looks.
       centre: () => { if (viewports().d3) return [cam.target.x, cam.target.z]; fitPlan(); return [plan.cx, plan.cy]; }, setTopFloor: (fid) => { if (topCb) topCb(fid); }, host: () => furnishP,
       base: new URL(import.meta.url).search,
+      // The floor the stepper or the floor chips picked (its ids; null: All): the line tool draws there.
+      selected: () => selIds,
     });
     wirePointer();
+    wireKeys();
     wireObservers();
     return true;
+  }
+  /** While the view has the keyboard (a press on it gives it): PgUp and PgDn
+   *  step a floor, Home is every floor, as the stepper's ▲ ▼ and All. */
+  function wireKeys(){
+    canvas.tabIndex = 0;
+    canvas.setAttribute("aria-label", "Live Aboard: PgUp and PgDn change the floor, Home shows them all");
+    canvas.addEventListener("keydown", guard((e) => {
+      const d = { PageUp: 1, PageDown: -1, Home: 0 }[e.key];
+      if (d === undefined || !floorSteps || e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+      e.preventDefault();
+      stepFloor(d);
+      flashCorner();
+    }));
   }
   function makeShared(){
     const wallBox = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);    // its base on y = 0
@@ -1796,7 +1918,8 @@ function createSlot(slotKey){
   /** p.people (only while Show people is on): {snapshot() (the live snapshot
    *  the host already holds, Mapping), or read() → Promise (through
    *  the host, the sidebar) with everyMs (never more often than Overview
-   *  polls)}. A read happens on a card the Atlas builds anyway: no timer. */
+   *  polls)}. A read happens on a card the Atlas builds, and by the view's
+   *  own clock (peopleClock) while it shows: the same gate for both. */
   function syncTracked(p, vd, rebuilt){
     if (!tracked) return;
     // p.tags (only while Show tags & scanners is on) is the same reader: one
@@ -1805,17 +1928,46 @@ function createSlot(slotKey){
     const pp = on(p.people) ? p.people : on(p.tags) ? p.tags : null;
     if (!pp) { peopleSnap = null; peopleAt = 0; peopleLoad = null; }
     else if (typeof pp.snapshot === "function") { peopleSnap = pp.snapshot() || null; peopleReads++; }
-    else if (typeof pp.read === "function" && !peopleLoad && Date.now() - peopleAt >= Math.max(PEOPLE_MS, Number(pp.everyMs) || 0)) {
-      peopleAt = Date.now();
-      peopleReads++;
-      const mine = peopleLoad = Promise.resolve().then(() => pp.read()).then((snap) => {
-        if (peopleLoad !== mine) return;
-        peopleLoad = null; peopleSnap = snap && typeof snap === "object" ? snap : null;
-        if (lastP && renderer && !failed) syncTracked(lastP, viewData(), false);
-      }, () => { if (peopleLoad === mine) peopleLoad = null; });
-    }
+    else if (typeof pp.read === "function") readPeople(pp);
     if (tracked.sync({ model: p.model, looks: vd.devices, figures: vd.figures, snapshot: pp ? peopleSnap : null,
                        states: p.states || {}, people: on(p.people), tags: on(p.tags) }, rebuilt)) requestRender();
+    peopleClock();
+  }
+  /** One read of the live snapshot through the host, never sooner than
+   *  everyMs (and never under PEOPLE_MS) after the last; drawn once it is in. */
+  function readPeople(pp){
+    if (peopleLoad || Date.now() - peopleAt < Math.max(PEOPLE_MS, Number(pp.everyMs) || 0)) return;
+    peopleAt = Date.now();
+    peopleReads++;
+    const mine = peopleLoad = Promise.resolve().then(() => pp.read()).then((snap) => {
+      if (peopleLoad !== mine) return;
+      peopleLoad = null; peopleSnap = snap && typeof snap === "object" ? snap : null;
+      if (lastP && renderer && !failed) syncTracked(lastP, viewData(), false);
+    }, () => { if (peopleLoad === mine) peopleLoad = null; });
+  }
+  /** The host's reader ({read(), everyMs}) while Show people or Show tags &
+   *  scanners is on, else null (a {snapshot()} host has its own data). */
+  function liveReader(){
+    const p = lastP, on = (x) => !!(x && typeof x === "object");
+    const pp = !p ? null : on(p.people) ? p.people : on(p.tags) ? p.tags : null;
+    return pp && typeof pp.snapshot !== "function" && typeof pp.read === "function" ? pp : null;
+  }
+  /** The view's own clock for that read, so people and tags move in Mapping
+   *  too, where no poll rebuilds the card: every everyMs, the sidebar's own
+   *  interval, only while the view shows with a reader. Hidden (Map picked,
+   *  the page or the panel out of sight), switched off, or the card gone: it
+   *  stops, and starts again when the view shows. */
+  function peopleClock(){
+    if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
+    const pp = liveReader();
+    if (!pp || !stage || !tracked || failed || !shouldDraw()) return;
+    const wait = Math.max(0, Math.max(PEOPLE_MS, Number(pp.everyMs) || 0) - (Date.now() - peopleAt));
+    peopleTimer = setTimeout(guard(() => {
+      peopleTimer = null;
+      const q = liveReader();
+      if (q && stage && tracked && shouldDraw()) readPeople(q);
+      peopleClock();
+    }), wait + 25);
   }
 
   // ── sensors: motion, Motion · Air, the readouts (part B) ──────────────────
@@ -2330,6 +2482,7 @@ function createSlot(slotKey){
       if (typeof touchCb === "function") { try { touchCb(); } catch (_) { /* the card's, not ours */ } }
       const onlyNorth = e === northDismissed;                // this tap put north back, nothing more
       cam.fly = null;                                        // a hand on the house stops a flight
+      flashCorner();                                         // the map alone: which floor this is
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       follow();
       try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* followed on the window anyway */ }
@@ -2936,12 +3089,13 @@ function createSlot(slotKey){
         const e = entries[entries.length - 1];
         visible = !!(e && e.isIntersecting);
         if (visible && dirty) requestRender();
+        peopleClock();
       }));
       io.observe(root);
       observers.push(() => io.disconnect());
     }
     if (typeof document !== "undefined" && document.addEventListener) {
-      const onVis = guard(() => { if (document.visibilityState !== "hidden" && dirty) requestRender(); });
+      const onVis = guard(() => { if (document.visibilityState !== "hidden" && dirty) requestRender(); peopleClock(); });
       document.addEventListener("visibilitychange", onVis);
       observers.push(() => document.removeEventListener("visibilitychange", onVis));
       // Full screen came or went (Escape, or the browser's own way out).
@@ -3167,6 +3321,7 @@ function createSlot(slotKey){
     syncTracked(p, vd, rebuilt);
     paintLights(p.lightsByEid);
     paintLive();
+    selIds = p.topFloorIds ? new Set([...(p.topFloorIds instanceof Set ? p.topFloorIds : [].concat(p.topFloorIds))].map(String)) : null;
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
     if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
     applySun(p);
@@ -3229,19 +3384,21 @@ function createSlot(slotKey){
         // tool open. p.furnish is the host's own for the tool (its flows and
         // "This is a device…"), handed through: the view calls nothing itself.
         furnishP = p.furnish && typeof p.furnish === "object" ? { ...p.furnish, states: p.states || null } : null;
-        topCb = typeof p.setTopFloor === "function" ? p.setTopFloor : null;
+        // A piece moved a floor: its floor shows, and the camera stays where it is.
+        topCb = typeof p.setTopFloor === "function" ? (fid) => { keepCam = true; try { p.setTopFloor(fid); } finally { keepCam = false; } } : null;
         setFurnishView(!!furnishP);
         // The sidebar: the map alone when zoomed in, and full screen.
         mapOnly = p.mapOnly === true;
         if (panelCss) panelCss.textContent = mapOnly ? CSS_PANEL : "";
         if (!mapOnly) endScreen();
         floorSteps = stepsOf(p.floorSteps);
+        followFloor();
         prefs = p.prefs && typeof p.prefs.get === "function" && typeof p.prefs.set === "function" ? p.prefs : null;
         update(p);
         if (editor) editor.setFurnish(!!furnishP);           // after update: a file read needs the card's data
         if (failed) return false;
         place(s);
-        paintFloors(); paintFull(); showHint();
+        paintFloors(); paintFull(); showHint(); peopleClock();
         return !failed;
       } catch (_) {
         fail("error");
@@ -3253,7 +3410,7 @@ function createSlot(slotKey){
     /** The 3D file changed elsewhere (Settings → Remove all furniture): read
      *  again now while showing, else when the screen is next shown. */
     reload(){ try { fileLoad = null; if (stage && lastP && !failed) loadFile(lastP); } catch (_) { /* read when next shown */ } },
-    detach(){ try { fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */
@@ -3286,8 +3443,12 @@ function createSlot(slotKey){
                                                                        ext: l.userData.ext, aspect: l.userData.aspect }))),
                chips: chips.map(C => ({ room: C.room ? C.room.name : null, text: C.text, eids: C.sensors.map(S => S.eid),
                                         shown: C.F.group.visible && C.sprite.visible })),
-               screen: { mapOnly, bare, cover, full: fsOn, fitR, narrow, floors: floorSteps ? { names: floorSteps.names, at: floorSteps.at, all: floorSteps.all } : null,
-                         flying: !!cam.fly, menu: !!menuEl, hint: !!hintCard },
+               screen: { mapOnly, bare, cover, full: fsOn, fitR, narrow, floors: floorSteps ? { names: floorSteps.names, at: floorSteps.at, all: floorSteps.all,
+                                                                                               counts: floorSteps.counts } : null,
+                         flying: !!cam.fly, menu: !!menuEl, hint: !!hintCard,
+                         // The floors: a camera kept for each one left, the corner's name.
+                         floorKey, floorCams: [...floorCams.keys()], corner: { on: cornerOn && bare, text: cornerEl ? cornerEl.textContent : "" } },
+               peopleClock: peopleTimer !== null,
                night: { k: nightK, top: topGlow.value, floor: floorsUi.map(F => (F.lift ? F.lift.material.opacity : 0)),
                         edges: floorsUi.map(F => (F.edges ? F.edges.material.opacity : 0)), grid: gridLines ? gridLines.material.opacity : null,
                         ...offBulb() },

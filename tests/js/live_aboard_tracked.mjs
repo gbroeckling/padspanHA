@@ -58,8 +58,10 @@ const settle = async (rounds = 12) => { await shim.flush(rounds); await new Prom
 let clockOff = 0, dateOff = 0;
 const clock0 = performance.now();
 performance.now = () => clock0 + clockOff;
-const realDate = Date.now.bind(Date);
-Date.now = () => realDate() + dateOff;
+// The date as the harness sets it, never the real clock's drift: the view's
+// own read clock keeps a settle running all its rounds.
+const date0 = Date.now();
+Date.now = () => date0 + dateOff;
 const shimRaf = globalThis.requestAnimationFrame;
 globalThis.requestAnimationFrame = (fn) => shimRaf(() => fn(performance.now()));
 const pendingFrames = () => shim.rafQueue.filter(Boolean).length;
@@ -255,6 +257,56 @@ await tryCase("both: one read serves both; what is someone's is drawn as them, n
     drawn === "beacon:ble:found,beacon:ble:keys,person.garry,person.nicole,scanner:AA:BB:CC:DD:EE:01,scanner:AA:BB:CC:DD:EE:02,scanner:AA:BB:CC:DD:EE:03"
     && within === 1 && fetches === 2, { drawn, within, fetches });
   people = null; tags = null;
+  poll(); await settle(4);
+});
+// ── live: the view's own read clock (Mapping, where no poll rebuilds the card) ──
+await tryCase("live: showing with Show people on, the view reads by itself every everyMs; hidden, off, or the card gone, it stops", async () => {
+  fetches = 0;
+  people = { read: async () => { fetches++; return snap; }, everyMs: 8000 };
+  await later(9000, 6);
+  poll(); await settle(6);                                     // one card, as Mapping draws it once
+  const first = { fetches, clock: st().peopleClock };
+  await later(4000, 6); const soon = fetches;                  // not yet everyMs
+  await later(4500, 6); const one = fetches;                   // past it: read with no new card
+  await later(8500, 6); const two = fetches;
+  // The page hidden: no reads, and no clock left running.
+  document.visibilityState = "hidden";
+  await later(8500, 6); await later(8500, 6);
+  const hidden = { fetches, clock: st().peopleClock };
+  document.visibilityState = "visible";
+  poll(); await settle(6);                                     // shown again (the next card): reads again
+  const shownAgain = fetches;
+  // Map picked (the view leaves): stops.
+  slot.detach();
+  await later(9000, 6); await later(9000, 6);
+  const detached = { fetches, clock: st().peopleClock };
+  poll(); await settle(6);
+  const back = fetches;
+  // The card gone (Mapping left): stops.
+  slot.element.isConnected = false;
+  await later(9000, 6); await later(9000, 6);
+  const gone = { fetches, clock: st().peopleClock };
+  delete slot.element.isConnected;
+  // Show people switched off: never read again.
+  people = null;
+  poll(); await settle(6);
+  await later(9000, 6); await later(9000, 6);
+  const off = { fetches, clock: st().peopleClock };
+  check("live: showing with Show people on, the view reads by itself every everyMs; hidden, off, or the card gone, it stops",
+    first.fetches === 1 && first.clock && soon === 1 && one === 2 && two === 3 && hidden.fetches === 3 && !hidden.clock
+    && shownAgain === 4 && detached.fetches === 4 && !detached.clock && back === 5 && gone.fetches === 5 && !gone.clock
+    && off.fetches === 5 && !off.clock,
+    { first, soon, one, two, hidden, shownAgain, detached, back, gone, off });
+});
+await tryCase("live: a host with its own snapshot (sample data) needs no clock: nothing is read by the view", async () => {
+  fetches = 0;
+  let asked = 0;
+  people = { snapshot: () => { asked++; return snap; } };
+  poll(); await settle(6);
+  await later(9000, 6); await later(9000, 6);
+  check("live: a host with its own snapshot (sample data) needs no clock: nothing is read by the view",
+    asked === 1 && fetches === 0 && !st().peopleClock, { asked, fetches, clock: st().peopleClock });
+  people = null;
   poll(); await settle(4);
 });
 LA.releaseLiveAboardSlot("tracked");

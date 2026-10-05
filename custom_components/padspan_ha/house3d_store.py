@@ -505,8 +505,9 @@ async def async_restore_absent(hass: HomeAssistant) -> None:
 # ── People figures and beacon and scanner looks (P6) ──────────────────────────
 # figures: {"person.<name>": {"params": FIGURE's settings, "origin": photo |
 # build}}, kept only in this file and its backups: never shared, never sent,
-# never in telemetry. A figure goes only when it is removed here (None), never
-# because its person is gone: the screen shows that one as unlinked.
+# never in telemetry. A figure goes when it is removed here (None), or when its
+# person is deleted in Home Assistant (house3d_people.py); a person merely
+# missing from the states never removes it (the screen shows that one as unlinked).
 # devices: besides a 3D-only height ({z_m}, the 3D editor's), an entry can
 # carry a look, {recipe, library_id, submission_id}, keyed by the id PadSpan
 # tracks the beacon or scanner by ("ble:<address>", a scanner's address). A

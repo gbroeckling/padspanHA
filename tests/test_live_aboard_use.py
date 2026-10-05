@@ -136,10 +136,14 @@ def test_the_dim_uses_wirePress_own_helpers() -> None:
 def test_the_3d_view_calls_nothing_on_home_assistant_itself() -> None:
     """Every action goes through the host's api or the Atlas's own helper;
     no websocket call, service call, history read, fetch or timer of its own
-    (the hold is timed on the 3D view's frames)."""
+    (the hold is timed on the 3D view's frames). The one timer is the live
+    read's clock (Show people / tags while the view shows), through the host."""
     for name in ("live_aboard.js", "live_aboard_use.js", "live_aboard_house.js", "live_aboard_draft.js", "live_aboard_edit.js"):
         code = _code(_VIEWS / name)
         for bad in ("callWS", "callService", "callApi", "fetch(", "setTimeout", "setInterval", "telemetry_event"):
+            if bad == "setTimeout" and name == "live_aboard.js":
+                assert code.count("setTimeout(") == 1 and "peopleTimer = setTimeout(" in code
+                continue
             assert bad not in code, (name, bad)
 
 

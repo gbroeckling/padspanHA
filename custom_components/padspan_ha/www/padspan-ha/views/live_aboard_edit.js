@@ -17,9 +17,12 @@
 //                 rules): press on a wall and drag along it, or tap its two
 //                 ends. It stays on that wall, stops at a corner and at any
 //                 door or window already there, and shows its length as it
-//                 goes; on release it is the opening. Picking the tool turns
-//                 the camera straight down on the top floor showing, so
-//                 drawing is tracing the plan (it works in 3D as well). Then
+//                 goes; on release it is the opening. It draws on the floor
+//                 the stepper or the floor chips picked, any floor; with
+//                 All, on the floor whose wall is under the pointer. Picking
+//                 the tool turns the camera straight down on that floor (with
+//                 All, the top one showing), so drawing is tracing the plan
+//                 (it works in 3D as well). Then
 //                 drag either end, set the heights, switch door ↔ window,
 //                 hinge and swing, or Delete.
 //   Heights       tap a light, a sensor or a readout: a height from its floor
@@ -117,6 +120,7 @@ const CSS = `
  *                              {eid}, in place from the draft (false: not drawn, redraw instead)
  *   render()                   ask for a frame
  *   topDown(F)                 the camera straight down on floor F
+ *   selected()                 the floor ids the stepper or the floor chips picked (a Set), or null: All
  *   clearUse()                 the Atlas's hover box and rings off
  *   guard(fn)                  fn, any throw puts the flat Atlas back
  * }
@@ -297,9 +301,18 @@ export function createEditor(ctx){
   const visibleFloors = () => ctx.floors().filter(F => F.group.visible);
   /** A floor as drawn, by its id (a door or window's own floor). */
   const floorOf = (fid) => ctx.floors().find(F => F.fl.id === fid) || null;
-  /** The top floor showing: the one the line tool looks down on. */
+  /** The floors the line tool draws on: the one the stepper or the floor
+   *  chips picked (two at the same height: both), or with All, every indoor
+   *  floor showing. Highest first. */
+  function drawFloors(){
+    const sel = ctx.selected ? ctx.selected() : null;
+    const shown = visibleFloors().filter(F => !F.fl.outdoor && F.rooms.length).sort((a, b) => b.fl.elev - a.fl.elev);
+    const picked = sel ? shown.filter(F => sel.has(String(F.fl.id))) : [];
+    return picked.length ? picked : shown;
+  }
+  /** The top one of those: the floor the line tool looks down on. */
   function currentFloor(){
-    return visibleFloors().filter(F => !F.fl.outdoor && F.rooms.length).sort((a, b) => b.fl.elev - a.fl.elev)[0] || null;
+    return drawFloors()[0] || null;
   }
   /** t along a run under the pointer: on the wall's own upright plane when
    *  it is seen from the side, else on the level plane it was pressed at. */
@@ -312,39 +325,60 @@ export function createEditor(ctx){
     if (!hit) { plane.set(Y, -(w.F.fl.elev + w.h)); hit = rr.intersectPlane(plane, new THREE.Vector3()); }
     return hit ? DRAFT.tOn(w.run, hit.x, hit.z) : null;
   }
-  /** The wall under the pointer while drawing: the nearest of the floor
-   *  being drawn on (currentFloor, the one the tool looks down on) within
-   *  reach on screen. Never a floor below: from above its walls show
-   *  through the floor being traced, a little inside that floor's own. */
+  /** The wall under the pointer while drawing: the nearest within reach on
+   *  screen, on the floors the tool draws on (drawFloors: the floor picked,
+   *  or with All, the one whose walls are under the pointer). A floor lower
+   *  than the top one there counts only where its wall is in plain view:
+   *  from above, its walls show through the floor over them, a little
+   *  inside that floor's own, and are never what was meant. */
   function wallAt(x, y, reach){
-    const F = currentFloor();
-    if (!F) return null;
+    const floors = drawFloors();
+    if (!floors.length) return null;
+    const top = floors[0].fl.elev;
     let best = null;
-    for (const P of F.pieces) {
-      const pc = P.pc;
-      if (pc.kind === "rail") continue;
-      const h = P.cut ? HOUSE.CUT_H * 0.6 : Math.min(1.2, ceilOf(F) * 0.45);
-      const a = screenAt(F, pc.x0, pc.y0, h), b = screenAt(F, pc.x1, pc.y1, h);
-      if (!a || !b) continue;
-      const dd = segPx(x, y, a, b);
-      if (dd <= reach && (!best || dd < best.d)) best = { d: dd, P, h };
+    for (const F of floors) {
+      const near = [];
+      for (const P of F.pieces) {
+        const pc = P.pc;
+        if (pc.kind === "rail") continue;
+        const h = P.cut ? HOUSE.CUT_H * 0.6 : Math.min(1.2, ceilOf(F) * 0.45);
+        const a = screenAt(F, pc.x0, pc.y0, h), b = screenAt(F, pc.x1, pc.y1, h);
+        if (!a || !b) continue;
+        const dd = segPx(x, y, a, b);
+        if (dd <= reach && (!best || dd < best.d)) near.push({ d: dd, P, h, F, a, b });
+      }
+      const lower = F.fl.elev < top - 1e-3;
+      for (const c of near.sort((p, q) => p.d - q.d).slice(0, lower ? 3 : 1)) {
+        if (lower && wallHidden(c, x, y)) continue;
+        best = c;
+        break;
+      }
     }
     if (!best) return null;
-    const entry = runsOf(F).find(r => r.run.pcs.includes(best.P.pc));
+    const F = best.F, entry = runsOf(F).find(r => r.run.pcs.includes(best.P.pc));
     if (!entry) return null;
     const w = { F, run: entry.run, stops: entry.stops, ops: entry.ops, h: best.h };
     w.t = tAlong(w, x, y);
     return w.t === null ? null : w;
   }
+  /** Is a wall wallAt found hidden where the pointer is on it (under a
+   *  floor above, or behind another wall)? Its own parts never hide it. */
+  function wallHidden(c, x, y){
+    if (!ctx.blocked) return false;
+    const dx = c.b[0] - c.a[0], dy = c.b[1] - c.a[1], L2 = dx * dx + dy * dy, pc = c.P.pc;
+    const t = L2 ? Math.max(0, Math.min(1, ((x - c.a[0]) * dx + (y - c.a[1]) * dy) / L2)) : 0;
+    const v = new THREE.Vector3(pc.x0 + (pc.x1 - pc.x0) * t, c.F.fl.elev + c.h, pc.y0 + (pc.y1 - pc.y0) * t);
+    return ctx.blocked(v, new Set(c.P.els.filter(e => e.mesh).map(e => `${e.mesh.id}:${e.i}`)));
+  }
   /** A door or window under the pointer (one drawn in 3D, or a barrier's
    *  from the map), by its outline on screen; the nearest wins. While
-   *  drawing, only the floor drawn on; else one on another floor only where
-   *  nothing hides it (the view's own test: under the floor above, or
-   *  behind a wall, it is not there to tap). */
+   *  drawing, only the floors drawn on; one on another floor than the top
+   *  one only where nothing hides it (the view's own test: under the floor
+   *  above, or behind a wall, it is not there to tap). */
   function openingAt(x, y){
     const cam = ctx.camera(), cur = currentFloor(), drawing = tool === "door" || tool === "window";
     let best = null;
-    for (const F of drawing ? (cur ? [cur] : []) : visibleFloors()) {
+    for (const F of drawing ? drawFloors() : visibleFloors()) {
       for (const P of F.pieces) {
         const pc = P.pc, id = pc.added || (pc.barrier && pc.barrier.id) || null;
         if (!id || (pc.kind !== "door" && pc.kind !== "window")) continue;
