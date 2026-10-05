@@ -383,7 +383,8 @@ await tryCase("views: saved from the camera on this browser, flown back to, forg
   const x = slot.element.querySelector(".la3d-menu").querySelectorAll("button").find(b => b.textContent === "×");
   click(x);
   check("views: saved from the camera on this browser, flown back to, forgotten with ×",
-    saved.length === 1 && saved[0].name === "Living room" && JSON.stringify(items) === JSON.stringify(["Whole house", "Living room", "×", "Save this view"])
+    saved.length === 1 && saved[0].name === "Living room"
+    && JSON.stringify(items) === JSON.stringify(["All floors", "Basement", "Main", "Whole house", "Living room", "×", "Save this view"])
     && Math.abs(back.radius - want.radius) < 1e-6 && Math.abs(back.theta - want.theta) < 1e-6
     && calls.some(c => c[0] === "go" && c[1] === -1) && Math.abs(whole.cam.radius - whole.screen.fitR) < 1e-6
     && JSON.parse(store.get("views_scr-views")).length === 0, { saved, items, want, back, calls, whole: whole.cam });

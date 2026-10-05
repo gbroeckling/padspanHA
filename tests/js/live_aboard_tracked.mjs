@@ -58,8 +58,10 @@ const settle = async (rounds = 12) => { await shim.flush(rounds); await new Prom
 let clockOff = 0, dateOff = 0;
 const clock0 = performance.now();
 performance.now = () => clock0 + clockOff;
-const realDate = Date.now.bind(Date);
-Date.now = () => realDate() + dateOff;
+// The date as the harness sets it, never the real clock's drift: the view's
+// own read clock keeps a settle running all its rounds.
+const date0 = Date.now();
+Date.now = () => date0 + dateOff;
 const shimRaf = globalThis.requestAnimationFrame;
 globalThis.requestAnimationFrame = (fn) => shimRaf(() => fn(performance.now()));
 const pendingFrames = () => shim.rafQueue.filter(Boolean).length;
