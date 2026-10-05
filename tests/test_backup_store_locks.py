@@ -150,3 +150,20 @@ def test_a_backup_that_cannot_read_a_store_saves_nothing_and_says_so(store, monk
     assert not conn.send_result.called
     code, message = conn.send_error.call_args[0][1:3]
     assert code == "backup_failed" and HOUSE3D_STORE_KEY in message
+
+
+def test_restoring_no_file_keeps_one_store_and_one_lock(store, monkeypatch, tmp_path):
+    """Review of the backlog fix: the store a waiting Save holds is reloaded
+    and kept as THE store. Dropped instead, the next request built a second
+    store with its own lock, and a Save through either could roll the other
+    back (the two-stores state async_get_store exists to prevent)."""
+    from custom_components.padspan_ha.ws_common import ABSENT_MARKER
+    _disk_file(tmp_path)
+    store.saved[HOUSE3D_STORE_KEY] = {**H.empty(), "lights": {"light.a": {"z_m": 1.0}}}
+    h = _house(tmp_path, on=True)
+    held = _run(H.async_get_store(h))
+    msg = _restore_msg(monkeypatch, {HOUSE3D_STORE_KEY: {ABSENT_MARKER: True}})
+    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), msg))
+    after = _run(H.async_get_store(h))
+    assert after is held, "a second store (and a second lock) after the restore"
+    assert HOUSE3D_STORE_KEY not in store.saved and "light.a" not in (after.data.get("lights") or {})

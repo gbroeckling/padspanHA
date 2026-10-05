@@ -577,7 +577,8 @@ def test_restoring_there_was_no_file_takes_away_the_file_the_import_made(store, 
     _run(H.async_get_store(h))
     _restore(h, monkeypatch, {HOUSE3D_STORE_KEY: {ABSENT_MARKER: True}})
     assert HOUSE3D_STORE_KEY not in store.saved, "the file is gone again"
-    assert DATA_HOUSE3D not in h.data[DOMAIN], "the cached store went with it"
+    # The cached store is the same one (one store, one lock), read again: no file.
+    assert h.data[DOMAIN][DATA_HOUSE3D].data.get("pieces") == {}, "the cached store kept the taken-away house"
     assert _run(H.async_get_store(h)).data.get("pieces") == {}
 
 
