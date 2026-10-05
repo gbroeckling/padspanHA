@@ -189,6 +189,15 @@ export function createDraft(base){
     get dirty(){ return changesOf(d.base, d.cur) !== null; },
     /** Saved: what was saved is the new base, and the history starts again. */
     rebase(b){ d.base = copy(b); d.cur = copy(b); d.undo = []; d.redo = []; d.group = null; },
+    /** Entries gone from the file (removed elsewhere): out of the base, the
+     *  draft and every Undo and Redo step, so no step brings one back. */
+    forget(section, ids){
+      if (!ids.length) return;
+      const out = (c) => { for (const id of ids) if (c && c[section]) delete c[section][id]; return c; };
+      out(d.base); out(d.cur);
+      d.undo = d.undo.map(x => JSON.stringify(out(JSON.parse(x))));
+      d.redo = d.redo.map(x => JSON.stringify(out(JSON.parse(x))));
+    },
   };
 }
 

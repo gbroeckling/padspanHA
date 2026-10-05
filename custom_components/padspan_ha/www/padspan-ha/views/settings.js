@@ -3507,6 +3507,8 @@ function _atlas3dSection(ctx, el, settings){
             const r = await ctx.actions.wsCall("padspan_ha/house3d_clear", { only: "pieces" });
             ctx.toast(r && r.backup_id ? "All furniture removed. To bring it back, restore the backup taken just now (Backup & Restore)."
               : "There was no furniture to remove.");
+            // Every Live Aboard open in this page reads its file again.
+            try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
           } catch (e) {
             ctx.toast("Could not remove the furniture: " + String((e && e.message) || e), true);
           }

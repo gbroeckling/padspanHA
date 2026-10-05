@@ -148,6 +148,13 @@ export function liveAboardSlot(key){
   if (!_slots.has(k)) _slots.set(k, createSlot(k));
   return _slots.get(k);
 }
+// Settings → Remove all furniture (settings.js, once house3d_clear has done
+// it): every screen reads the 3D file again, so a removed piece is not drawn,
+// nor saved back from a draft.
+const FILE_CHANGED = "padspan-ha-house3d-changed";
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener(FILE_CHANGED, () => { for (const s of _slots.values()) s.reload(); });
+}
 /** The feature was switched off: give the screen's GL context back (a later
  *  switch-on starts afresh). */
 export function releaseLiveAboardSlot(key){
@@ -2145,6 +2152,7 @@ function createSlot(slotKey){
       if (fileLoad !== mine) return false;
       file = DRAFT.ownedOf(r && r.data);
       setFileErr(DRAFT.writable(r && r.data, r && r.writable) ? null : "house3d_newer");
+      if (editor) editor.fileChanged();                   // an open draft follows what was removed elsewhere
       redraw();
       return true;
     }, (err) => {
@@ -2410,6 +2418,9 @@ function createSlot(slotKey){
     },
     /** Back to the flat Atlas (Map picked, or the feature switched off).
      *  The camera and the GL context stay for a quick return. */
+    /** The 3D file changed elsewhere (Settings → Remove all furniture): read
+     *  again now while showing, else when the screen is next shown. */
+    reload(){ try { fileLoad = null; if (stage && lastP && !failed) loadFile(lastP); } catch (_) { /* read when next shown */ } },
     detach(){ try { fileLoad = null; dirty = true; dropPointers(); cancelNorth(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`

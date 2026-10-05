@@ -982,6 +982,18 @@ export function createEditor(ctx){
       else if (editing && !code && hintMsg === NOT_SAVED.house3d_newer) hint("Live Aboard's file can be saved again.");
       paint();
     },
+    /** The file was read again (changed elsewhere: Settings → Remove all
+     *  furniture, say). A draft with nothing unsaved follows it; one with
+     *  unsaved work loses only the pieces the file no longer has, from its
+     *  Undo and Redo too, so no Save brings one back. */
+    fileChanged(){
+      const f = ctx.file();
+      if (!editing || !draft || !f || JSON.stringify(draft.base) === JSON.stringify(f)) return;
+      if (!draft.dirty) draft.rebase(f);
+      else draft.forget("pieces", Object.keys(draft.base.pieces || {}).filter(id => !(f.pieces && f.pieces[id])));
+      if (fur) fur.refresh();
+      paint(); sheetFor();
+    },
     /** The draft while editing (what the view draws instead of the file). */
     view(){ return active() ? draft.cur : null; },
     down, move, up, tap: (e) => tap(e), cancel, hover, layout, holdLeave,
