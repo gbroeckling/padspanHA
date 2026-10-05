@@ -51,7 +51,7 @@ def _code(p: Path) -> str:
 
 @pytest.mark.parametrize("prefix,least", [
     ("ids:", 1), ("turn:", 1), ("face:", 1), ("height:", 2), ("floors:", 1), ("place:", 3), ("snap:", 3), ("fit:", 5),
-    ("edges:", 1), ("draft:", 1),
+    ("edges:", 1), ("draft:", 1), ("exact:", 1), ("gaps:", 1), ("stand:", 1), ("hang:", 1),
 ])
 def test_the_rules_harness_covers_each_part(rules, prefix, least) -> None:
     got = [k for k in rules["cases"] if k.startswith(prefix)]

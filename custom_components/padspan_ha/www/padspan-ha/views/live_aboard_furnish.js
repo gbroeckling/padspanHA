@@ -1061,7 +1061,7 @@ export function createFurnish(ctx){
     state(){
       return { sel, menu: menuOpen, flows: mods ? Object.keys(mods).filter(k => mods[k]) : null, gesture: gesture ? { id: gesture.id, moved: gesture.moved, snapped: gesture.snapped } : null,
                checks: sel && pieceOf(sel) ? checksOf(pieceOf(sel)).map(w => w.kind) : [], outline: outline.visible ? "#" + outlineMat.color.getHexString() : null,
-               flowOpen: !!flowEl, picker: !!picker, lastDrag, keys: keysOn,
+               flowOpen: !!flowEl, picker: !!picker, lastDrag, keys: keysOn, right: rightOnPlan().map(mm),
                gaps: gapsNow.map((g, i) => ({ side: g.side, d: g.d, label: gapMarks[i].label.text, shown: gapMarks[i].line.visible && !!gapMarks[i].line.parent })) };
     },
     /** For the harness and a test: add a piece of a kind, as Build does. */

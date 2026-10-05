@@ -27,6 +27,16 @@
 //   save      one call with the whole draft, every piece whole; the file
 //             then is what was saved
 //   survive   a card rebuild mid-edit keeps the draft, the pick and the camera
+//   typed     X, Y, Height and Angle typed on its panel: there exactly, each
+//             one Undo; a blank changes nothing
+//   keys      arrows move the picked piece 1 cm (Shift 10 cm) the way the view
+//             is seen, [ and ] turn it 15° (Shift 1°); a run of keys is one
+//             Undo; keys typed into a box are the box's
+//   gaps      while it is dragged, two short lines to the nearest walls with
+//             how far they are; let go, they go; a nudge shows them
+//   stand     Stand on what's under it: a lamp onto the table it is over
+//   hang      Hang on wall: its back on the nearest wall, its middle at the
+//             height asked, facing out; saved as the server keeps it
 //
 // usage: live_aboard_furnish.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...] }
@@ -42,6 +52,17 @@ import { installStubGL } from "./stub_gl.mjs";
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: live_aboard_furnish.mjs <www/padspan-ha dir>"); process.exit(2); }
 shim.install();
+// The page's keys (Furnish's arrows and [ ]), dispatched as the page would.
+const docL = {};
+document.addEventListener = (t, fn) => { (docL[t] ||= []).push(fn); };
+document.removeEventListener = (t, fn) => { docL[t] = (docL[t] || []).filter(f => f !== fn); };
+function key(k, o = {}){
+  const target = o.target || document.body;
+  const ev = { type: "keydown", key: k, code: o.code || "", shiftKey: !!o.shift, ctrlKey: false, metaKey: false, altKey: false,
+               defaultPrevented: false, target, composedPath: () => [target], preventDefault(){ this.defaultPrevented = true; }, stopPropagation(){} };
+  for (const fn of [...(docL.keydown || [])]) fn(ev);
+  return ev;
+}
 const winL = {};
 globalThis.addEventListener = (t, fn) => { (winL[t] ||= []).push(fn); };
 globalThis.removeEventListener = (t, fn) => { winL[t] = (winL[t] || []).filter(f => f !== fn); };
@@ -600,6 +621,117 @@ await tryCase("cleared: Remove all furniture reaches an open view: its pieces go
     && JSON.stringify(b.draft) === JSON.stringify([fresh]) && b.dirty && !seen.includes(kept)
     && !sent.includes(kept) && !server.file.pieces[kept] && !!server.file.pieces[fresh],
     { had, a, b, kept, fresh, seen, sent });
+});
+
+// ── placing exactly ─────────────────────────────────────────────────────────
+const typeIn = (name, v) => { const r = slider(name); if (!r) return false; r.value = String(v); r.dispatchEvent({ type: "change" }); return true; };
+// A press on the bare floor of Living (the view the keys then follow), then the piece picked.
+const pressOn = async (id) => { const a = slot._whereOf("main", 0.6, 7.4, 0); fire("pointerdown", a[0], a[1]); fire("pointerup", a[0], a[1]); await settle(); slot._furnish().select(id); await settle(); };
+let table = null;
+await tryCase("typed: X, Y, Height and Angle typed on the panel put it there exactly, each one Undo; a blank changes nothing", async () => {
+  slot._look(0, 0.9, [2.2, 0, 4], 18);
+  for (const id of Object.keys(draftPieces())) { slot._furnish().select(id); click("Delete", "la3d-sheet"); await settle(); }   // a clear room
+  table = slot._furnish().build("table"); await settle();
+  const boxes = ["X on the plan", "Y on the plan", "Height above the floor", "Angle"].map(n => !!slider(n));
+  typeIn("X on the plan", 2.345); await settle();
+  typeIn("Y on the plan", 4.5); await settle();
+  typeIn("Angle", 37.5); await settle();
+  typeIn("Height above the floor", 9); await settle();               // kept under the ceiling
+  const p = clone(draftPieces()[table]);
+  typeIn("X on the plan", ""); await settle();
+  const blank = { x: draftPieces()[table].x_m, box: slider("X on the plan").value };
+  click("Undo", "la3d-tools"); await settle();
+  const undone = clone(draftPieces()[table]);
+  click("Redo", "la3d-tools"); await settle();
+  typeIn("Height above the floor", 0); await settle();
+  check("typed: X, Y, Height and Angle typed on the panel put it there exactly, each one Undo; a blank changes nothing",
+    boxes.every(Boolean) && p.x_m === 2.345 && p.y_m === 4.5 && p.rotation === 37.5 && near(p.z_m, CEIL - 0.75, 1e-9)
+    && blank.x === 2.345 && blank.box === "2.345" && near(undone.z_m, 0) && undone.rotation === 37.5 && undone.x_m === 2.345
+    && draftPieces()[table].z_m === 0 && sheetText().includes("Arrow keys move it 1 cm"), { boxes, p, blank, undone });
+});
+await tryCase("keys: arrows move it 1 cm (Shift 10 cm) the way the view is seen, [ and ] turn it 15° (Shift 1°); a run is one Undo; never while typing", async () => {
+  await pressOn(table);                                               // the 3D view pressed: the keys go its way
+  const r0 = fur().right, p0 = clone(draftPieces()[table]);
+  const evs = [key("ArrowRight"), key("ArrowRight"), key("ArrowRight", { shift: true })];
+  await settle();
+  const p1 = clone(draftPieces()[table]), want = P_.arrowStep("ArrowRight", r0, 0.12);
+  click("Undo", "la3d-tools"); await settle();
+  const undone = clone(draftPieces()[table]);
+  click("Redo", "la3d-tools"); await settle();
+  key("["); await settle();
+  const t1 = draftPieces()[table].rotation;
+  key("]", { shift: true }); await settle();
+  const t2 = draftPieces()[table].rotation;
+  key("}", { shift: true, code: "BracketRight" }); await settle();
+  const t3 = draftPieces()[table].rotation;
+  const box = slider("X on the plan"), x0 = draftPieces()[table].x_m;
+  const typing = key("ArrowLeft", { target: box }); await settle();
+  const typed = { moved: draftPieces()[table].x_m !== x0, prevented: typing.defaultPrevented };
+  // The view turned a quarter: Right moves it another way on the plan.
+  slot._look(Math.PI / 2, 0.9, [2.2, 0, 4], 18);
+  await pressOn(table);
+  const r1 = fur().right, q0 = clone(draftPieces()[table]);
+  key("ArrowRight"); await settle();
+  const q1 = clone(draftPieces()[table]), want1 = P_.arrowStep("ArrowRight", r1, 0.01);
+  check("keys: arrows move it 1 cm (Shift 10 cm) the way the view is seen, [ and ] turn it 15° (Shift 1°); a run is one Undo; never while typing",
+    evs.every(e => e.defaultPrevented) && near(p1.x_m - p0.x_m, want[0], 1e-6) && near(p1.y_m - p0.y_m, want[1], 1e-6) && near(Math.hypot(...want), 0.12, 1e-9)
+    && undone.x_m === p0.x_m && undone.y_m === p0.y_m && t1 === 30 && t2 === 31 && t3 === 32 && !typed.moved && !typed.prevented
+    && Math.abs(r0[0] * r1[0] + r0[1] * r1[1]) < 0.1 * Math.hypot(...r0) * Math.hypot(...r1)
+    && near(q1.x_m - q0.x_m, want1[0], 1e-6) && near(q1.y_m - q0.y_m, want1[1], 1e-6) && fur().keys === true,
+    { r0, r1, p0, p1, want, undone, t: [t1, t2, t3], typed, q0, q1, want1 });
+});
+await tryCase("gaps: while it is dragged, two short lines say how far the nearest walls are; let go, they go; a nudge shows them", async () => {
+  click("Plan"); await settle(20);                                   // on the plan, nothing stands in front of it
+  const a = slot._wherePiece(table, 0.3, true);
+  fire("pointerdown", a[0], a[1]);
+  for (let i = 1; i <= 6; i++) fire("pointermove", a[0] + i * 4, a[1] + i * 3);
+  await settle();
+  const during = clone(fur().gaps);
+  fire("pointerup", a[0] + 24, a[1] + 18); await settle();
+  const after = clone(fur().gaps);
+  key("ArrowDown"); await settle();
+  const nudged = clone(fur().gaps);
+  click("3D"); await settle(20);
+  const axis = (g) => (g.side === "back" || g.side === "front" ? "depth" : "width");
+  check("gaps: while it is dragged, two short lines say how far the nearest walls are; let go, they go; a nudge shows them",
+    during.length === 2 && during.every(g => g.shown && g.d >= 0 && g.d < 8 && g.label === `${g.d.toFixed(2)} m`) && new Set(during.map(axis)).size === 2
+    && after.length === 0 && nudged.length === 2 && nudged.every(g => g.shown), { during, after, nudged });
+});
+await tryCase("stand: Stand on what's under it puts a lamp onto the table it is over, one Undo; nothing under it, the floor", async () => {
+  const t = clone(draftPieces()[table]);
+  const lamp = slot._furnish().build("lamp"); await settle();
+  typeIn("X on the plan", t.x_m + 0.1); await settle();
+  typeIn("Y on the plan", t.y_m); await settle();
+  click("Stand on what's under it", "la3d-sheet"); await settle();
+  const on = clone(draftPieces()[lamp]), hint1 = ed().hint;
+  click("Undo", "la3d-tools"); await settle();
+  const undone = draftPieces()[lamp].z_m;
+  click("Redo", "la3d-tools"); await settle();
+  typeIn("X on the plan", t.x_m + 3); await settle();
+  click("Stand on what's under it", "la3d-sheet"); await settle();
+  const off = clone(draftPieces()[lamp]), hint2 = ed().hint;
+  check("stand: Stand on what's under it puts a lamp onto the table it is over, one Undo; nothing under it, the floor",
+    near(on.z_m, 0.75, 1e-9) && hint1 === "On the table." && undone === 0 && off.z_m === 0 && hint2 === "On the floor: nothing is under it.",
+    { on, hint1, undone, off, hint2 });
+  click("Delete", "la3d-sheet"); await settle();
+});
+await tryCase("hang: Hang on wall puts its back flat on the nearest wall with its middle at the height asked, facing out, one Undo", async () => {
+  const tv = slot._furnish().build("tv"); await settle();
+  typeIn("X on the plan", 2.2); await settle();
+  typeIn("Y on the plan", 0.9); await settle();
+  typeIn("Angle", 120); await settle();
+  typeIn("Hang height", 1.5); await settle();
+  click("Hang on wall", "la3d-sheet"); await settle();
+  const p = clone(draftPieces()[tv]), s = P_.sizeOf(p.recipe), hint = ed().hint;
+  const backGap = p.y_m - s.d / 2;                                   // Living's back wall: its face near y = 0
+  click("Undo", "la3d-tools"); await settle();
+  const undone = clone(draftPieces()[tv]);
+  click("Redo", "la3d-tools"); await settle();
+  click("Save", "la3d-tools"); await settle(30);                     // what was placed exactly, as the server takes it
+  check("hang: Hang on wall puts its back flat on the nearest wall with its middle at the height asked, facing out, one Undo",
+    p.rotation === 0 && backGap > -0.02 && backGap < 0.12 && near(p.z_m + s.h / 2, 1.5, 1e-3) && near(p.x_m, 2.2, 1e-3) && /^On the wall, its middle 1\.50 m up\.$/.test(hint)
+    && undone.y_m === 0.9 && undone.rotation === 120 && undone.z_m === 0 && !!server.file.pieces[tv] && server.file.pieces[tv].rotation === 0,
+    { p, backGap, hint, undone });
 });
 
 console.log(JSON.stringify({ cases, failures, payloads, live: LIVE }));

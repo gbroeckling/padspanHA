@@ -18,6 +18,15 @@
 //   fit      into a wall; overlapping another piece (in 3D: a lamp on a table
 //            is fine); in a door's swing; before a dresser's front or a bed's
 //            side; taller than a window's sill in front of it; a rug never
+//   exact    arrow keys step 1 cm (Shift 10 cm) the way the view is seen;
+//            turned by any angle
+//   gaps     from each side of a piece straight out to the first wall's face
+//            (a door's or a window's line too), the nearer on each axis
+//   stand    onto the top of the piece its middle is over, never onto what
+//            hangs above it; nothing under it, the floor
+//   hang     its middle at the height asked, its back flat on the nearest
+//            wall solid there (never a window's glass or a doorway), facing
+//            out, under the ceiling
 //
 // usage: live_aboard_pieces.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...] }
@@ -263,6 +272,65 @@ tryCase("draft: furniture is in the editor's one draft: a slider's drag one step
   check("draft: furniture is in the editor's one draft: a slider's drag one step, Discard undoable, Save whole or null",
     sent && oneStep && dragGone && discarded && back && removed, { ch, ch2, oneStep, dragGone, discarded, back });
   payloads.push({ pieces: { [lamp.id]: ch.pieces[lamp.id], fur_0000000a: ch.pieces.fur_0000000a } });
+});
+
+// ── placing exactly ─────────────────────────────────────────────────────────
+// The kitchen's wall faces: back y = 0, left x = 0, the shared wall x = 4
+// (its door y 1 to 1.9), front y = 3 (its window x 1 to 2.2).
+tryCase("exact: arrow keys step 1 cm (Shift 10 cm) the way the view is seen; turns by any angle", () => {
+  const plan = ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].map(k => P.arrowStep(k, [1, 0], P.NUDGE_M[0]));
+  const turned = ["ArrowRight", "ArrowUp"].map(k => P.arrowStep(k, [0, 1], P.NUDGE_M[1]));   // the view's right is down the plan
+  const slant = P.arrowStep("ArrowRight", [0.8, -0.6], 0.01), none = P.arrowStep("a", [1, 0], 0.01);
+  check("exact: arrow keys step 1 cm (Shift 10 cm) the way the view is seen; turns by any angle",
+    JSON.stringify(plan) === "[[0.01,0],[-0.01,0],[0,-0.01],[0,0.01]]" && JSON.stringify(turned) === "[[0,0.1],[0.1,0]]"
+    && JSON.stringify(slant) === "[0.01,0]" && none === null && P.NUDGE_M[0] === 0.01 && P.NUDGE_M[1] === 0.1
+    && P.turnedBy(350, 15) === 5 && P.turnedBy(10, -P.FINE_TURN) === 9 && P.turnedBy(0, -0.5) === 359.5 && P.turnedBy(37.5, 0) === 37.5,
+    { plan, turned, slant, none });
+});
+tryCase("gaps: from each side straight out to the first wall's face, the nearer on each of its axes", () => {
+  const box = piece("fur_00000020", "box", 0.6, 0.4, 0.5, { x: 1, y: 1.4 });
+  const g = P.wallGaps(box, null, walls);
+  // Turned to face left: its back (+x) towards the shared wall, its sides along y.
+  const t = P.wallGaps({ ...box, x_m: 3.5, rotation: 90 }, null, walls);
+  // Beside the doorway: the door's line is the wall there.
+  const dr = P.wallGaps({ ...box, x_m: 3.5, y_m: 1.45 }, null, walls).find(x => x.side === "right");
+  const far = P.wallGaps(box, null, walls, 0.5);
+  check("gaps: from each side straight out to the first wall's face, the nearer on each of its axes",
+    g.length === 2 && g[0].side === "back" && near(g[0].d, 1.2, 1e-3) && near(g[0].to[1], 0, 1e-3) && near(g[0].from[1], 1.2, 1e-3)
+    && g[1].side === "left" && near(g[1].d, 0.7, 1e-3) && near(g[1].to[0], 0, 1e-3)
+    && t.length === 2 && t[0].side === "back" && near(t[0].d, 0.3, 1e-3) && t[1].side === "left" && near(t[1].d, 1.1, 1e-3)
+    && dr && near(dr.d, 0.2, 1e-3) && far.length === 0, { g, t, dr, far });
+});
+tryCase("stand: onto the top of the piece its middle is over; never onto what hangs above it; nothing, the floor", () => {
+  const table = piece("fur_00000030", "table", 1.4, 0.9, 0.75, { x: 2, y: 1.5, r: 20 });
+  const lamp = piece("fur_00000031", "lamp", 0.3, 0.3, 0.5, { x: 2.3, y: 1.6 });
+  const unit = piece("fur_00000032", "tv_unit", 1.6, 0.45, 0.5, { x: 2, y: 0.3 });
+  const tv = piece("fur_00000033", "tv", 1.2, 0.08, 0.7, { x: 2.1, y: 0.25, z: 1.1 });
+  const rug = piece("fur_00000034", "rug", 2, 1.5, 0.01, { x: 2, y: 1.5 });
+  const a = P.standOn(lamp, [table, unit, tv, rug]), b = P.standOn(tv, [table, unit]), c = P.standOn(unit, [tv]);
+  const d = P.standOn({ ...lamp, x_m: 3.6 }, [table, unit]), e = P.standOn({ ...lamp, z_m: 1.2 }, [table]);
+  check("stand: onto the top of the piece its middle is over; never onto what hangs above it; nothing, the floor",
+    a.z_m === 0.75 && a.on === table.id && b.z_m === 0.5 && b.on === unit.id && c.z_m === 0 && c.on === null
+    && d.z_m === 0 && d.on === null && e.z_m === 0.75 && e.on === table.id, { a, b, c, d, e });
+  payloads.push({ pieces: { [lamp.id]: { ...lamp, z_m: a.z_m }, [tv.id]: { ...tv, z_m: b.z_m } } });
+});
+tryCase("hang: its middle at the height asked, its back flat on the nearest wall solid there, facing out; under the ceiling", () => {
+  const tv = piece("fur_00000040", "tv", 1.2, 0.08, 0.7, { x: 2, y: 0.8, r: 120 });
+  const h = P.hangOnWall(tv, null, walls, 1.2, CEIL);
+  // In front of the window: its glass is no wall, so the nearest solid one.
+  const pic = piece("fur_00000041", "other", 0.8, 0.03, 0.6, { x: 1.6, y: 2.6 });
+  const w = P.hangOnWall(pic, null, walls, 1.5, CEIL);
+  // Beside the doorway: never into the door.
+  const shelf = piece("fur_00000042", "shelf", 0.6, 0.25, 0.3, { x: 3.7, y: 1.45 });
+  const s = P.hangOnWall(shelf, null, walls, 1.0, CEIL);
+  const top = P.hangOnWall(tv, null, walls, 2.6, CEIL), none = P.hangOnWall(tv, null, [], 1.2, CEIL);
+  const kind = (r) => r && walls[r.wall].kind;
+  check("hang: its middle at the height asked, its back flat on the nearest wall solid there, facing out; under the ceiling",
+    h && near(h.y_m, 0.04, 1e-3) && h.x_m === 2 && h.rotation === 0 && near(h.z_m, 0.85, 1e-9)
+    && w && kind(w) === "wall" && near(w.x_m, 0.015, 1e-3) && w.rotation === 270 && near(w.z_m, 1.2, 1e-9)
+    && s && kind(s) !== "door" && top && near(top.z_m + 0.7, CEIL, 1e-9) && none === null,
+    { h, w, s, top, kinds: [kind(h), kind(w), kind(s)] });
+  payloads.push({ pieces: { [tv.id]: { ...tv, ...h }, [pic.id]: { ...pic, ...w } } });
 });
 
 // ── what Save sends at the edges ────────────────────────────────────────────
