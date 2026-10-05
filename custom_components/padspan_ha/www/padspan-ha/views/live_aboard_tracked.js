@@ -141,6 +141,43 @@ export function scannerCard(addr, model, z){
   return { title: scannerName(addr, model), lines: [info && info.room ? `In ${info.room}` : "On the map", `${(Math.round(z * 100) / 100).toFixed(2)} m above the floor`] };
 }
 
+/** What is drawn now, Live Aboard's and the flat Atlas's alike (the sidebar's
+ *  Show people and Show tags & scanners): d = {model, looks (the 3D file's
+ *  devices), figures, snapshot, states, people, tags}. Each {key, kind:
+ *  "scanner" | "beacon" | "person", floor_id, x, y, z, ...}. */
+export function wantedOf(d){
+  const out = [];
+  const looks = d.looks && typeof d.looks === "object" ? d.looks : {};
+  const lookOf = (k) => (looks[k] && looks[k].recipe && typeof looks[k].recipe === "object" ? looks[k].recipe : null);
+  const sp = d.model && d.model.scanner_positions_m && typeof d.model.scanner_positions_m === "object" ? d.model.scanner_positions_m : {};
+  for (const [addr, s] of Object.entries(sp)) {
+    const r = lookOf(addr), x = fin(s && s.x_m), y = fin(s && s.y_m);
+    if ((!r && !d.tags) || x === null || y === null) continue;
+    const z = fin(s.z_m) ?? SCANNER_Z;
+    out.push({ key: "scanner:" + addr, kind: "scanner", recipe: r, floor_id: s.floor_id, x, y, z, centre: true,
+               card: scannerCard(addr, d.model, z) });
+  }
+  if (!d.people && !d.tags) return out;
+  const tracked = trackedOf(d.snapshot);
+  const people = d.people ? peopleOf(d.states, tracked) : [];
+  const theirs = new Set(people.filter(P => P.at).map(P => P.at.key));
+  if (d.tags) {
+    for (const o of tracked) {
+      const r = lookOf(o.key);
+      if (!o.beacon || !(o.shown || r) || theirs.has(o.key)) continue;
+      out.push({ key: "beacon:" + o.key, kind: "beacon", recipe: r, floor_id: o.floor_id, x: o.x, y: o.y, z: CARRY_H, centre: true,
+                 name: o.label || "Tag", halo: haloOf(o.sure), card: tagCard(o, d.model) });
+    }
+  }
+  const figs = d.figures && typeof d.figures === "object" ? d.figures : {};
+  for (const P of people) {
+    if (!P.at) continue;
+    const f = figs[P.eid] && figs[P.eid].params && typeof figs[P.eid].params === "object" ? figs[P.eid].params : null;
+    out.push({ key: P.eid, kind: "person", figure: f, floor_id: P.at.floor_id, x: P.at.x, y: P.at.y, z: 0, centre: false });
+  }
+  return out;
+}
+
 /**
  * ctx = {THREE, FURN() (the builders, or null), floors() (the view's floors:
  *        {fl, group}), canon(fid), quality() ("low" | "high")}
@@ -270,39 +307,6 @@ export function createTrackedLayer(ctx){
     if (I.stem) I.stem.geometry.dispose();
     items.delete(key);
   }
-  /** What should be drawn now. */
-  function wanted(d){
-    const out = [];
-    const looks = d.looks && typeof d.looks === "object" ? d.looks : {};
-    const lookOf = (k) => (looks[k] && looks[k].recipe && typeof looks[k].recipe === "object" ? looks[k].recipe : null);
-    const sp = d.model && d.model.scanner_positions_m && typeof d.model.scanner_positions_m === "object" ? d.model.scanner_positions_m : {};
-    for (const [addr, s] of Object.entries(sp)) {
-      const r = lookOf(addr), x = fin(s && s.x_m), y = fin(s && s.y_m);
-      if ((!r && !d.tags) || x === null || y === null) continue;
-      const z = fin(s.z_m) ?? SCANNER_Z;
-      out.push({ key: "scanner:" + addr, kind: "scanner", recipe: r, floor_id: s.floor_id, x, y, z, centre: true,
-                 card: scannerCard(addr, d.model, z) });
-    }
-    if (!d.people && !d.tags) return out;
-    const tracked = trackedOf(d.snapshot);
-    const people = d.people ? peopleOf(d.states, tracked) : [];
-    const theirs = new Set(people.filter(P => P.at).map(P => P.at.key));
-    if (d.tags) {
-      for (const o of tracked) {
-        const r = lookOf(o.key);
-        if (!o.beacon || !(o.shown || r) || theirs.has(o.key)) continue;
-        out.push({ key: "beacon:" + o.key, kind: "beacon", recipe: r, floor_id: o.floor_id, x: o.x, y: o.y, z: CARRY_H, centre: true,
-                   name: o.label || "Tag", halo: haloOf(o.sure), card: tagCard(o, d.model) });
-      }
-    }
-    const figs = d.figures && typeof d.figures === "object" ? d.figures : {};
-    for (const P of people) {
-      if (!P.at) continue;
-      const f = figs[P.eid] && figs[P.eid].params && typeof figs[P.eid].params === "object" ? figs[P.eid].params : null;
-      out.push({ key: P.eid, kind: "person", figure: f, floor_id: P.at.floor_id, x: P.at.x, y: P.at.y, z: 0, centre: false });
-    }
-    return out;
-  }
   function place(I, w, F){
     const S = I.body && I.body.g.userData && I.body.g.userData.size, h = S ? S.h * I.body.g.scale.y : 0;
     const y = F.fl.elev + Math.max(0, w.centre ? w.z - h / 2 : w.z);
@@ -359,7 +363,7 @@ export function createTrackedLayer(ctx){
      *  floors were made afresh. True when anything drawn changed. */
     sync(d, rebuilt = false){
       quality = ctx.quality() === "high" ? "high" : "low";
-      const want = wanted(d || {}), keys = new Set(want.map(w => w.key));
+      const want = wantedOf(d || {}), keys = new Set(want.map(w => w.key));
       let changed = false;
       for (const k of [...items.keys()]) if (!keys.has(k)) { drop(k); changed = true; }
       for (const w of want) {

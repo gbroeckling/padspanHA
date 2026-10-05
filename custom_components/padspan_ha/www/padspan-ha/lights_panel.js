@@ -909,8 +909,11 @@ class PadSpanLightsApp extends HTMLElement {
       } : null,
       // This screen is the house map (views/atlas_screen.js): zoomed in, the
       // flat map takes the whole panel too, it can go full screen, and a
-      // double-tap on a room zooms to it. Mapping's builder hands none of it.
-      screen: { slot: "atlas" },
+      // double-tap on a room zooms to it; with Show people or Show tags &
+      // scanners on, they show on it too (views/atlas_aboard.js). Mapping's
+      // builder hands none of it. shownAt: when this panel was last opened
+      // (Live Aboard's file is read again then, never on the poll).
+      screen: { slot: "atlas", shownAt: this._shownAt || 0 },
       // The 3D house: the shared card draws its Map / 3D switch only while
       // the setting is on and the tier is Pro, and reads the rest from here.
       house3d: this.state._house3d ? {
@@ -1137,6 +1140,7 @@ class PadSpanLightsApp extends HTMLElement {
 
   connectedCallback(){
     if(!this.shadowRoot) this.attachShadow({mode:"open"});
+    this._shownAt = Date.now();
     // Track a held pointer so the 5s poll can't re-render mid-interaction
     // (dragging a slider is the case that actually bites).
     if(!this._pointerWired){

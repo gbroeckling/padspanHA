@@ -133,9 +133,9 @@ def test_the_tags_setting_round_trips_on_its_own() -> None:
 def test_the_snapshot_is_handed_over_only_while_show_people_is_on() -> None:
     lm = _js(_VIEWS / "lights_map.js")
     mount = lm[lm.index("const mount3d = () => {"):lm.index("const pick3d = (on) => {")]
-    assert "people: h3.settings.atlas_3d_people === true && h3.people ? h3.people : null," in mount
+    assert "people: h3.settings.atlas_3d_people === true && h3.people ? abReader(h3.people) : null," in mount
     # Show tags & scanners: the same reader, only while it is on.
-    assert "tags: h3.settings.atlas_3d_tags === true && h3.people ? h3.people : null," in mount
+    assert "tags: h3.settings.atlas_3d_tags === true && h3.people ? abReader(h3.people) : null," in mount
     maps = _js(_VIEWS / "maps.js")
     mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]
     mblock = mblock[:mblock.index("} : null,")]
@@ -166,7 +166,8 @@ def test_the_layer_calls_nothing_and_keeps_no_timer() -> None:
     for bad in ("callWS", "callService", "callApi", "fetch(", "setTimeout", "setInterval", "requestAnimationFrame", "telemetry"):
         assert bad not in code, bad
     importers = sorted(p.name for p in _VIEWS.glob("*.js") if "live_aboard_tracked.js" in _js(p) and p.name != "live_aboard_tracked.js")
-    assert importers == ["live_aboard.js"], importers
+    # The flat Atlas's people and tags (atlas_aboard.js, 2026-10-05) share its rules and cards.
+    assert importers == ["atlas_aboard.js", "live_aboard.js"], importers
     want = "import(`./live_aboard_tracked.js${new URL(import.meta.url).search}`)"
     la = _js(_VIEWS / "live_aboard.js")
     assert la[la.index(want) + len(want):].lstrip().startswith(".catch("), "optional, like the other layers"

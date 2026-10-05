@@ -850,6 +850,8 @@ export function wireHoverHud(isoDiv, opts){
   const stackAt = (x, y) => {
     const seen = new Set(), out = [];
     for (const n of fromPoint(x, y)) {
+      // A tag, scanner or person on top (atlas_aboard.js) takes the click itself.
+      if (n.closest && n.closest("[data-live]")) break;
       const g = n.closest ? n.closest("g.lhex[data-eid]") : null;
       if (!g || !svg.contains(g)) continue;
       const eid = g.getAttribute("data-eid");
@@ -859,6 +861,7 @@ export function wireHoverHud(isoDiv, opts){
   };
   const roomAt = (x, y) => {
     for (const n of fromPoint(x, y)) {
+      if (n.closest && n.closest("[data-live]")) break;
       const g = n.closest ? n.closest("g.lroom[data-room]") : null;
       if (g && svg.contains(g)) return g.getAttribute("data-room");
     }
@@ -2717,6 +2720,19 @@ export { _exactBrightness, _tellProblems };
 //   saveView() → Promise              persist floorGap/horizGap/focusIdx
 //   onHexesBuilt(isoDiv, rebuild)     wire hex interactions after every build
 // }
+// What the flat sidebar Atlas takes from Live Aboard (views/atlas_aboard.js):
+// fetched only once Show people or Show tags & scanners is on, or Live Aboard
+// is (its light kinds and furniture); off, never. A failure leaves the map as
+// it always was. Loaded, the newest card of each screen draws again.
+let _AB = null, _abLoading = null, _abFailed = false;
+const _abRedraw = new Map();          // slot -> the newest card's redraw
+function _abLoad(){
+  if (_AB || _abFailed || _abLoading) return;
+  _abLoading = import(`./atlas_aboard.js${new URL(import.meta.url).search}`)
+    .then((m) => { _AB = m; for (const f of [..._abRedraw.values()]) { try { f(); } catch (_) { /* the next card draws */ } } })
+    .catch((err) => { console.warn("PadSpan: atlas_aboard failed to load", err); _abFailed = true; });
+}
+
 export function buildLightsMapCard(hostIn){
   // The tier decides what is drawn, whatever the host asked for. One place,
   // for both hosts — see lightsHostForTier.
@@ -2952,9 +2968,9 @@ export function buildLightsMapCard(hostIn){
           entities: h3.entities || null, regIds: h3.regIds || null, emergency: h3.emergency || null,
           // P6: the people layer, only while Show people is on: the live
           // snapshot through the host (off, it is never read).
-          people: h3.settings.atlas_3d_people === true && h3.people ? h3.people : null,
+          people: h3.settings.atlas_3d_people === true && h3.people ? abReader(h3.people) : null,
           // Show tags & scanners: the same snapshot, the same reader (read once for both).
-          tags: h3.settings.atlas_3d_tags === true && h3.people ? h3.people : null,
+          tags: h3.settings.atlas_3d_tags === true && h3.people ? abReader(h3.people) : null,
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }
@@ -3045,6 +3061,35 @@ export function buildLightsMapCard(hostIn){
     });
   }
 
+  // What the flat sidebar Atlas takes from Live Aboard (atlas_aboard.js; the
+  // sidebar only): with Show people / Show tags & scanners on (Pro, the
+  // Settings box's own gate; Live Aboard need not be on), who and what is
+  // where, through the very reader Live Aboard reads (one read serves both);
+  // with Live Aboard on, the light kinds set there and, with Show furniture,
+  // its furniture, doors and windows. None of it on: nothing is fetched.
+  const abSet = host.house3d && host.house3d.settings ? host.house3d.settings : {};
+  const abSlot = scr ? host.screen.slot : null;
+  const abLive = !!(scr && tierAtLeast(host.tier, "pro") && host.house3d && host.house3d.people
+    && (abSet.atlas_3d_people === true || abSet.atlas_3d_tags === true));
+  const abFile = !!(scr && h3 && typeof h3.load === "function");
+  const abReader = (pp) => (scr && SCREEN ? SCREEN.sharedReader(abSlot, pp) : pp);
+  const abFurnKey = `padspan_lv_furniture_${abSlot}`;
+  const abFurn = () => { try { return localStorage.getItem(abFurnKey) === "1"; } catch (_) { return false; } };
+  if (abLive || abFile) { _abRedraw.set(abSlot, () => rebuildISO()); _abLoad(); }
+  else if (scr) { _abRedraw.delete(abSlot); if (_AB) _AB.liveLayer(abSlot).clear(); }
+  let abData = null;
+  const abDraw = (snapshot) => {
+    if (!_AB || !abLive) return;
+    const fz = getFocusZ(view.focusIdx);
+    _AB.liveLayer(abSlot).draw(snapshot !== undefined ? null : {
+      stage: isoDiv, frame: _frame, frameKey: `${view.floorGap}|${view.horizGap}`, model: host.model,
+      states: host.house3d.states || {}, figures: (abData && abData.figures) || {},
+      people: abSet.atlas_3d_people === true, tags: abSet.atlas_3d_tags === true, hideNames: !codesShown || !!host.hideDeviceCodes,
+      focused: (z) => fz === null || (Array.isArray(fz) ? fz.includes(z) : fz === z), outdoor: isOutdoorFloorId,
+      home: () => { const rn = isoDiv.getRootNode ? isoDiv.getRootNode() : null; return rn && rn.host ? rn : document.body; } }, snapshot);
+  };
+  if (abLive && _AB) mapCard.appendChild(_AB.liveCss());
+
   // Semantic zoom (use surface): the codes leave the drawing below 100% and
   // come back above it, so a zoom change across that line is a rebuild, not
   // just a CSS width. The builder always shows codes (host.codeChip unset).
@@ -3112,8 +3157,11 @@ export function buildLightsMapCard(hostIn){
     // filter on the drawing, not the persisted hidden set, so the table still
     // lists every light and stays the way to reach one that is filtered out.
     codesShown = host.codeChip ? codesVisibleAtZoom(view.zoom) : true;
-    const svgStr = buildIsoSVG(host.model, host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
-      view.floorGap, view.horizGap, host.lightsByEid, host.lightsLoading, floors,
+    // Live Aboard's light kinds and furniture (atlas_aboard.js; none: as ever).
+    abData = _AB && abFile ? _AB.fileOf(abSlot, h3.load, host.screen.shownAt, () => { const f = _abRedraw.get(abSlot); if (f) f(); }) : null;
+    const abDrawn = abData ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abData, host.lightsByEid, h3.settings.light_shapes)) : null;
+    const svgStr = buildIsoSVG(host.model, abDrawn ? abDrawn.byRoom : host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
+      view.floorGap, view.horizGap, abDrawn ? abDrawn.lightsByEid : host.lightsByEid, host.lightsLoading, floors,
       { showcase: !!host.showcase, showcaseTheme: host.showcaseTheme || "classic",
         fitRooms: !!host.showcase && !!host.fitRooms,
         ambient: host.ambient, isolux: !!host.showcase && !!host.isolux,
@@ -3149,8 +3197,18 @@ export function buildLightsMapCard(hostIn){
         automorphRoomPct: view.automorphLivePct !== undefined ? view.automorphLivePct : (host.automorphRoomPct || 0),
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
         automorphStyle: host.automorphStyle || "glow",
-        automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0) });
+        automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0),
+        underlay: abData && abFurn() ? _AB.underlayOf(abData) : null });
     isoDiv.innerHTML = svgStr;
+    // People, tags and scanners over it, then the newest positions (while
+    // the flat map shows and the page is in sight).
+    if (abLive && _AB) {
+      abDraw();
+      if (!(h3 && la3dOn()) && !(typeof document !== "undefined" && document.hidden)) {
+        const live = abReader(host.house3d.people);
+        Promise.resolve().then(() => live.read()).then((snap) => abDraw(snap && typeof snap === "object" ? snap : null), () => {});
+      }
+    }
     mountWeather(svgStr);
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
@@ -3600,6 +3658,16 @@ export function buildLightsMapCard(hostIn){
       whyEl.textContent = why;
       whyEl.style.display = why ? "inline-block" : "none";
     });
+  }
+
+  // Show furniture (Live Aboard on, the sidebar): each piece placed in Live
+  // Aboard, faint on its floor, with its doors and windows; per browser.
+  if (abFile) {
+    const fb = el("button", { "data-lv-furniture": "", title: "Show the furniture, doors and windows placed in Live Aboard on this map",
+      onclick: () => { try { localStorage.setItem(abFurnKey, abFurn() ? "0" : "1"); } catch (_) { /* kept for this card only */ } paintFb(); rebuildISO(); } }, "Show furniture");
+    const paintFb = () => { const on = abFurn(); fb.setAttribute("aria-pressed", String(on)); fb.style.cssText = on ? "background:rgba(82,183,136,.24);color:#e8f0ea" : ""; };
+    paintFb();
+    ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [fb]));
   }
 
   // Garry, 2026-09-09: "all sliders need a ? to bring up a card that

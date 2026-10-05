@@ -2720,6 +2720,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // whatever it's handed, on its own floor, with no click handler at all —
   // never a device to place, size, rotate or link.
   const BEACONS = Array.isArray(opts.beacons) ? opts.beacons : null;
+  // A plain underlay the host hands in: [{floor_id, pts: [[x_m, y_m], …],
+  // closed, color, width, fill, opacity}] — thin outlines and marks in
+  // fabric metres on their own floor, under the labels and the markers,
+  // never pressed (the sidebar's Show furniture, and doors and windows
+  // drawn in Live Aboard). Absent or empty: nothing at all is drawn.
+  const UNDERLAY = Array.isArray(opts.underlay) && opts.underlay.length ? opts.underlay : null;
   // "Now", injectable so a test can pin elapsed time instead of racing the
   // clock — every other opt here follows the same pattern.
   const NOW_MS=Number(opts.nowMs)||Date.now();
@@ -5891,6 +5897,17 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           `fill="#22d3ee" stroke="#083344" stroke-width="1.5" style="cursor:ew-resize"/>`+
           `</g>`;
       }
+    }
+    if(UNDERLAY) for(const u of UNDERLAY){
+      if(!u || frame.levelOf(String(u.floor_id||"main"))!==z) continue;
+      const P=(Array.isArray(u.pts)?u.pts:[]).filter(q=>Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]));
+      if(P.length<2) continue;
+      const pp=P.map(q=>iso(q[0],q[1],z).map(v=>v.toFixed(1)).join(",")).join(" ");
+      const col=escSVG(String(u.color||"#cbd5e1")), w=Number(u.width)>0?Number(u.width):1;
+      const op=((Number.isFinite(Number(u.opacity))?Number(u.opacity):0.6)*go).toFixed(2);
+      s+=u.closed
+        ? `<polygon points="${pp}" fill="${col}" fill-opacity="${(Number(u.fill)||0).toFixed(2)}" stroke="${col}" stroke-width="${w}" stroke-linejoin="round" opacity="${op}" pointer-events="none"/>`
+        : `<polyline points="${pp}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" opacity="${op}" pointer-events="none"/>`;
     }
     // ── Beacons: read-only, no click handler, never a device to place —
     // Garry, 2026-09-09: "add working proven beacons to the mapping, lights

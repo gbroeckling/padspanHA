@@ -74,10 +74,12 @@ function settingsPage(settings, { refuse = false, admin = true } = {}) {
   const cb = all.find(n => n.localName === "input" && n.getAttribute("type") === "checkbox");
   const sel = all.find(n => n.localName === "select");
   const more = all.find(n => n.attributes && "data-la3d-more" in n.attributes);
+  // Show people and Show tags & scanners: the flat map's too, so always shown (2026-10-05).
+  const both = all.find(n => n.attributes && "data-la3d-both" in n.attributes);
   const north = all.find(n => n.localName === "input" && n.getAttribute("type") === "number");
   const needle = all.find(n => n.attributes && "data-la3d-north" in n.attributes);
   const polys = all.filter(n => n.localName === "polygon").map(n => n.getAttribute("points"));
-  return { ctx, sent, ws, toasts, box, cb, sel, more, north, needle, polys, rerenders: () => rerenders,
+  return { ctx, sent, ws, toasts, box, cb, sel, more, both, north, needle, polys, rerenders: () => rerenders,
            text: box.textContent, options: sel ? sel.children.map(o => [o.getAttribute("value"), o.textContent]) : [] };
 }
 
@@ -88,7 +90,11 @@ try {
     off.cb && off.cb.checked === false && off.more && off.more.style.display === "none"
     && off.sel && off.more.contains(off.sel) && off.north && off.more.contains(off.north)
     && /Adds a Map \/ Live Aboard switch to the Atlas/.test(off.text) && /Off by default\./.test(off.text)
-    && /Show Live Aboard on the Atlas/.test(off.text) && !/people|AI Task|library|furniture/i.test(off.text.replace(off.more.textContent, "").replace(/Adds a Map[^.]*\./, "")),
+    && /Show Live Aboard on the Atlas/.test(off.text)
+    && !/people|AI Task|library|furniture/i.test(off.text.replace(off.more.textContent, "").replace(off.both ? off.both.textContent : "", "").replace(/Adds a Map[^.]*\./, ""))
+    // People and tags show on the map with Live Aboard off: their rows stand outside it, shown.
+    && !!off.both && !off.more.contains(off.both) && off.both.style.display !== "none"
+    && /On the Atlas's map and in Live Aboard/.test(off.both.textContent) && /Show people/.test(off.both.textContent) && /Show tags & scanners/.test(off.both.textContent),
     { text: off.text });
   await settle();
   const offNeedle = off.needle && off.needle.getAttribute("visibility");

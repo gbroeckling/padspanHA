@@ -3473,7 +3473,7 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan."));
   // Rain and snow, and the Showcase look: each its own switch, saved alone.
-  const tick = (key, label, checked, hint) => {
+  const tick = (key, label, checked, hint, into = more) => {
     const r = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
     const cb = el("input",{type:"checkbox"});
     cb.checked = checked;
@@ -3481,17 +3481,21 @@ function _atlas3dSection(ctx, el, settings){
     cb.addEventListener("change", ()=>{ const want = cb.checked; save(key, want, ()=>{ cb.checked = !want; }); });
     r.appendChild(cb);
     r.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, label));
-    more.appendChild(r);
-    more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 26px;line-height:1.5"}, hint));
+    into.appendChild(r);
+    into.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 26px;line-height:1.5"}, hint));
   };
+  // People and tags show on the Atlas's flat map too, with Live Aboard on or
+  // off: their two switches stand outside the Live Aboard rows, always shown.
+  const both = el("div",{"data-la3d-both":"", style:"margin-top:12px;padding-top:8px;border-top:1px dashed #1e3a2a"});
+  both.appendChild(el("div",{style:"font-size:12px;color:#cbd5e1;font-weight:600"}, "On the Atlas's map and in Live Aboard"));
   tick("atlas_3d_weather", "Rain and snow", settings.atlas_3d_weather !== false,
     "Follows Outdoor weather above, and shows only while that is on too.");
   tick("atlas_3d_showcase", "Use the Atlas's Showcase look", settings.atlas_3d_showcase === true,
     "The colours of the Showcase theme the Atlas is showing.");
   tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,
-    "Each person, as their figure (or a soft marker), walking to where their phone or tag is now. Uses the same live positions as Overview.");
+    "Each person where their phone or tag is now: on the map, a round marker with their initial; in Live Aboard, their figure (or a soft marker), walking there. Tap one for where they are and since when. Uses the same live positions as Overview.", both);
   tick("atlas_3d_tags", "Show tags & scanners", settings.atlas_3d_tags === true,
-    "Every tag the Atlas can place, with its name, and every scanner at its height. The faint ring under a tag is wider the less sure its spot is. Tap a tag for its room, when it was last seen and which scanners hear it. Uses the same live positions as Overview.");
+    "Every tag the Atlas can place, with its name, and every scanner (in Live Aboard, every scanner at its height). The faint ring under a tag is wider the less sure its spot is. Tap a tag for its room, when it was last seen and which scanners hear it. Uses the same live positions as Overview.", both);
   // Remove all furniture (admins; ws_house3d.house3d_clear only="pieces"): the
   // server takes a backup first and removes nothing without one. Asked here
   // in the page, the way Clear calibration asks above.
@@ -3528,6 +3532,7 @@ function _atlas3dSection(ctx, el, settings){
   const addLibraryRows = () => { if (!libraryRows) { libraryRows = true; _atlas3dLibraryRows(ctx, el, settings, more, row, save); } };
   if (onCb.checked) addLibraryRows();
   box.appendChild(more);
+  box.appendChild(both);
   onCb.addEventListener("change", ()=>{
     const want = onCb.checked;
     more.style.display = want ? "block" : "none";

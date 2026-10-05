@@ -96,6 +96,8 @@ export const fullIconSvg = (on) => `<svg viewBox="0 0 16 16" fill="none" stroke=
 // alone, the card takes .lv-alone and the stage covers the panel's box; the
 // emergency dial and the Vacation banner stay above it (Garry, 2026-09-21:
 // the banner pinned in the centre on both Atlas screens), and so do ☰ and ⛶.
+// Alone, the drawing takes its zoom on a phone too (the panel's narrow-screen
+// rule otherwise holds every svg to the stage's width).
 const FLAT_CSS = `
 .lv-alone-anchor{position:relative;height:1px;margin-top:-1px;pointer-events:none}
 .lv-alone-anchor > button{all:unset;box-sizing:border-box;position:absolute;display:flex;align-items:center;justify-content:center;
@@ -110,7 +112,8 @@ const FLAT_CSS = `
 .lv-mapcard.lv-alone > .lv-alone-anchor > .lv-alone-solo{display:flex}
 .lv-mapcard.lv-alone:has(.lv-emerg) > .lv-alone-anchor > .lv-alone-solo{right:96px}
 .lv-mapcard.lv-alone > .lv-emerg-anchor{position:fixed;left:var(--lv-al-l);top:var(--lv-al-t);width:var(--lv-al-w);z-index:${COVER_Z + 2}}
-.lv-mapcard.lv-alone > .lv-vacation{z-index:${COVER_Z + 3}}`;
+.lv-mapcard.lv-alone > .lv-vacation{z-index:${COVER_Z + 3}}
+.lv-mapcard.lv-alone > .lv-stage > svg{max-width:none}`;
 // The stage's own cover, inline (it must win over the layout's own widths).
 const COVER_KEYS = ["position", "left", "top", "width", "height", "margin", "maxWidth", "borderRadius", "border", "zIndex", "boxSizing"];
 
@@ -345,3 +348,32 @@ export function roomZoom(box, viewW, stageW, stageH){
   const z = Math.min(0.7 * stageW / (bw * perUnit), 0.7 * stageH / (bh * perUnit));
   return { zoom: Math.max(1, Math.min(2.5, Math.round(z * 10) / 10)), cx: (box.x0 + box.x1) / 2, cy: (box.y0 + box.y1) / 2 };
 }
+
+// ── one read of the live snapshot for both views ────────────────────────────
+// Show people and Show tags & scanners read Overview's live snapshot through
+// the host's reader ({read(), everyMs}). On the sidebar the flat map and Live
+// Aboard read it through this, per screen: a read answered less than everyMs
+// ago serves whichever view asks next (within four fifths of it: the poll
+// that asks lands a little early or late), so one read serves both, never more
+// often than Overview polls. A reader with no read() (Mapping's snapshot()) is
+// handed back as it is.
+const _reads = new Map();   // slot -> {at, p, n (reads made)}
+export function sharedReader(slot, src){
+  if (!src || typeof src.read !== "function") return src || null;
+  const k = String(slot || "atlas"), every = Math.max(1000, Number(src.everyMs) || 5000);
+  return {
+    everyMs: src.everyMs,
+    read(){
+      let c = _reads.get(k);
+      if (!c) _reads.set(k, c = { at: 0, p: null, n: 0 });
+      if (c.p && Date.now() - c.at < every * 0.8) return c.p;
+      c.at = Date.now(); c.n++;
+      const p = c.p = Promise.resolve().then(() => src.read());
+      p.catch(() => { if (c.p === p) { c.p = null; c.at = 0; } });
+      return p;
+    },
+  };
+}
+/** How many reads a screen has made (the tests). */
+export const readsOf = (slot) => (_reads.get(String(slot || "atlas")) || { n: 0 }).n;
+export function dropReads(){ _reads.clear(); }
