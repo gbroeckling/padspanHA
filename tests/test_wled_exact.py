@@ -2067,3 +2067,162 @@ async def test_the_other_lights_reporting_the_same_change_never_stop_a_command(h
     await _w(house.timers[-1][1]())
     await house.settle()
     assert dev.serialize_state()["on"] is True and rec["last_result"]["ok"]
+
+
+# ── a wall switch during a hold ──────────────────────────────────────────────
+
+
+async def _off_then_wall_on(house):
+    """A light PadSpan left off; a minute later the wall switch turns it on
+    at 60 with an old colour (the hold's cue)."""
+    dev = simple_device()
+    did = house.add("valance", dev)
+    await _remember(house, did)
+    await _to_padspan(house, did)
+    await E.async_power(house.hass, "light.valance_main", False)
+    await house.settle()
+    _up(house, [dev], 60)
+    await dev.handle("POST", "json/state", {"on": True, "bri": 60, "seg": [{"id": 1, "col": [[0, 0, 255]]}]})
+    return dev, house.store.get("28562f551738")
+
+
+async def _fire_timers(house):
+    for _delay, job in list(house.timers):
+        await _w(job())
+        await house.settle()
+
+
+_OFF = SimpleNamespace(state="off", attributes={})
+
+
+def _hold_reply(monkeypatch, house, method, path):
+    """The first matching request is answered; the answer is held until
+    released (the device said "on" before anything below happened)."""
+    held, release = asyncio.Event(), asyncio.Event()
+    orig = house.fleet.request_once
+    state = {"done": False}
+
+    async def _req(hass, host, m, p, body, timeout):
+        out = await orig(hass, host, m, p, body, timeout)
+        if m == method and p == path and not state["done"]:
+            state["done"] = True
+            held.set()
+            await release.wait()
+        return out
+    monkeypatch.setattr(W, "_request_once", _req)
+    return held, release
+
+
+async def test_a_wall_switch_off_while_the_holds_read_is_in_flight_stands(house, monkeypatch):
+    """Backlog 10-05: while a hold's read was in flight, any change on the
+    device was taken for the echo of PadSpan's own command, so a wall-switch
+    "off" a fraction of a second into a hold was undone. Only a change going
+    the way the hold goes is its echo; the "off" goes the other way: it is
+    the person's, and it stands."""
+    dev, rec = await _off_then_wall_on(house)
+    held, release = _hold_reply(monkeypatch, house, "GET", "json/si")
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", _OFF, _shown(60)))
+    await _w(held.wait())                             # the hold has started; its read's "on" on the way
+    for eid in ("light.valance", "light.valance_segment_1"):   # the other lights report the same "on"
+        await _w(E.on_state_change(house.hass, eid, _OFF, _shown(60)))
+    await dev.handle("POST", "json/state", {"on": False})       # the wall switch, off again
+    await _w(E.on_state_change(house.hass, "light.valance_main", _shown(60), _OFF))
+    release.set()
+    await _w(h)
+    await house.settle()
+    await _fire_timers(house)
+    assert dev.serialize_state()["on"] is False, "the wall switch's off was undone"
+    assert rec["last_result"]["source"] == "hold" and rec["last_result"]["replaced"]
+    assert rec["last_cmd"]["on"] is False and rec["last_cmd"]["source"] == "outside"
+
+
+async def test_a_hold_whose_read_finds_the_light_switched_off_gives_way(house, monkeypatch):
+    """The same flip, when the device answers the hold's read before HA has
+    reported it: the read itself says the light was switched off since the
+    "on" the hold answers — it gives way, and HA's report then stands too."""
+    dev, rec = await _off_then_wall_on(house)
+    held, release = _hold_request(monkeypatch, house, "GET", "json/si")
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", _OFF, _shown(60)))
+    await _w(held.wait())
+    await dev.handle("POST", "json/state", {"on": False})       # the wall switch, off again
+    release.set()
+    await _w(h)
+    await house.settle()
+    assert dev.serialize_state()["on"] is False, "the hold switched it back on"
+    assert rec["last_result"]["replaced"]
+    await _w(E.on_state_change(house.hass, "light.valance_main", _shown(60), _OFF))   # HA, a moment later
+    await house.settle()
+    await _fire_timers(house)
+    assert dev.serialize_state()["on"] is False and rec["last_cmd"]["on"] is False
+
+
+async def test_a_wall_switch_right_after_the_hold_wrote_stands(house):
+    """Inside the echo window after the hold wrote: its own echo is still
+    nothing at all, but an "off", or a dim (the hold kept the brightness, so
+    any change of it is someone's), is the person's — the late check leaves
+    it alone instead of putting the look back."""
+    dev, rec = await _off_then_wall_on(house)
+    await E.on_state_change(house.hass, "light.valance_main", _OFF, _shown(60))
+    await house.settle()
+    assert rec["last_result"]["source"] == "hold" and rec["last_result"]["ok"]
+    worker = E._worker(house.hass, "28562f551738")
+    seen = worker.outside
+    await E.on_state_change(house.hass, "light.valance_main", _OFF, _shown(60))       # the hold's own echo
+    await E.on_state_change(house.hass, "light.valance_segment_1", _shown(255), _shown(200))   # its look's opacity
+    assert worker.outside == seen and rec["last_cmd"]["source"] == "hold"
+    house.clock[0] += 0.5
+    await dev.handle("POST", "json/state", {"on": False})       # the wall switch, off again
+    await E.on_state_change(house.hass, "light.valance_main", _shown(60), _OFF)
+    await house.settle()
+    await _fire_timers(house)
+    assert dev.serialize_state()["on"] is False, "the late check undid the wall switch"
+    assert rec["last_cmd"]["on"] is False
+    # On again at the wall: the look goes back; then a dim right after it.
+    house.timers.clear()
+    _up(house, [dev], 60)
+    await dev.handle("POST", "json/state", {"on": True, "bri": 60})
+    await E.on_state_change(house.hass, "light.valance_main", _OFF, _shown(60))
+    await house.settle()
+    assert rec["last_result"]["source"] == "hold" and dev.serialize_state()["on"] is True
+    house.clock[0] += 0.5
+    await dev.handle("POST", "json/state", {"bri": 40})
+    await E.on_state_change(house.hass, "light.valance_main", _shown(60), _shown(40))
+    await house.settle()
+    await _fire_timers(house)
+    s = dev.serialize_state()
+    assert s["on"] is True and s["bri"] == 40, "the late check undid the dim"
+
+
+async def test_a_wall_switch_while_the_hold_writes_stands(house, monkeypatch):
+    """The same flip while the hold writes: reported before its write is
+    answered, or found when it reads back after a lost reply. The hold
+    neither repeats its write nor leaves a late check to put it back."""
+    # (a) The device took the hold's write; the off is reported before the reply.
+    dev, rec = await _off_then_wall_on(house)
+    held, release = _hold_reply(monkeypatch, house, "POST", "json/state")
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", _OFF, _shown(60)))
+    await _w(held.wait())
+    await dev.handle("POST", "json/state", {"on": False})
+    await _w(E.on_state_change(house.hass, "light.valance_main", _shown(60), _OFF))
+    release.set()
+    await _w(h)
+    await house.settle()
+    await _fire_timers(house)
+    assert dev.serialize_state()["on"] is False, "the late check undid the wall switch"
+    assert rec["last_result"]["replaced"] and rec["last_cmd"]["on"] is False
+    # (b) Its reply lost: it reads the light back — off by then — and would repeat.
+    house.timers.clear()
+    _up(house, [dev], 60)
+    await dev.handle("POST", "json/state", {"on": True, "bri": 60, "seg": [{"id": 1, "col": [[0, 0, 255]]}]})
+    dev.lose = 1
+    held, release = _hold_request(monkeypatch, house, "GET", "json/state")
+    h = asyncio.ensure_future(E.on_state_change(house.hass, "light.valance_main", _OFF, _shown(60)))
+    await _w(held.wait())
+    await dev.handle("POST", "json/state", {"on": False})
+    await _w(E.on_state_change(house.hass, "light.valance_main", _shown(60), _OFF))
+    release.set()
+    await _w(h)
+    await house.settle()
+    await _fire_timers(house)
+    assert dev.serialize_state()["on"] is False, "the hold's repeat undid the wall switch"
+    assert rec["last_result"]["replaced"] and rec["last_cmd"]["on"] is False
