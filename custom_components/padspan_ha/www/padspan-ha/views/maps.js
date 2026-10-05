@@ -9418,9 +9418,15 @@ function _lightsTab(ctx, maps, active) {
       furnish, entities: ctx.hass?.entities || null, toast: (t, bad) => ctx.toast(t, bad),
       // A piece linked to a device follows it through a rename (P5): the registry already read.
       regIds: ctx.state._lightsRegStore?.reg?.regIds || null,
-      // Show people (P6): the live snapshot this page already polls for
-      // Overview, read only when the 3D view asks (Show people on).
-      people: { snapshot: () => ctx.state.live?.snapshot || null },
+      // Show people (P6): this page does not poll the live snapshot (the
+      // panel's poll skips Mapping), so with live data the view reads it
+      // through here as the sidebar does: only while Show people is on and
+      // the view redraws, never more often than Overview polls. Sample data
+      // stays the page's own.
+      people: ctx.state.dataMode === "live"
+        ? { read: () => ctx.actions.wsCall("padspan_ha/live_snapshot").then((r) => (r && r.snapshot) || null),
+            everyMs: 1000 * (Number(ctx.state.settings.presence_poll_interval_s) || 5) }
+        : { snapshot: () => ctx.state.live?.snapshot || null },
       callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); },
       // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
       // like the Settings box (settingsSet would re-render everything).
