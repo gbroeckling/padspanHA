@@ -231,6 +231,86 @@ export function snapToWall(p, size, walls, reach = SNAP_M){
            rotation: rotFacing(n[0], n[1]), wall: best.i };
 }
 
+// ── placing exactly ─────────────────────────────────────────────────────────
+export const NUDGE_M = [0.01, 0.1];        // an arrow key moves a piece 1 cm, with Shift 10 cm
+export const FINE_TURN = 1;                // [ and ] with Shift turn it 1° (without, onto the next 15°)
+export const GAP_REACH_M = 8;              // the walls measured to while placing are this near at most
+export const HANG_REACH_M = 8;             // Hang on wall: the nearest wall, this near at most (across a big room)
+export const HANG_MID_M = 1.4;             // Hang on wall: its middle this high, unless it is raised already
+export const COORD_MAX_M = 10000;          // the server's range for x and y (house3d_store.py)
+
+/** Turned `deg` degrees clockwise, any angle. */
+export const turnedBy = (rot, deg) => normRot((num(rot) ?? 0) + (num(deg) ?? 0));
+/** An arrow key's step on the plan (m) as the view is seen: `right` is the
+ *  plan direction of the screen's right ([x, y], y down the plan), snapped
+ *  to the nearest plan axis, so Right moves it right on the screen and Up
+ *  away. Not an arrow: null. */
+export function arrowStep(key, right, m){
+  const r = Array.isArray(right) && (num(right[0]) || num(right[1])) ? right : [1, 0];
+  const [rx, ry] = Math.abs(r[0]) >= Math.abs(r[1]) ? [Math.sign(r[0]), 0] : [0, Math.sign(r[1])];
+  const up = [ry, -rx], s = num(m) ?? NUDGE_M[0];
+  const dir = { ArrowRight: [rx, ry], ArrowLeft: [-rx, -ry], ArrowUp: up, ArrowDown: [-up[0], -up[1]] }[key];
+  return dir ? [mm(dir[0] * s) + 0, mm(dir[1] * s) + 0] : null;
+}
+/** Where a ray from plan point o along unit d first meets box b, as a
+ *  distance along it (0 from inside), or null. */
+function rayBox(o, d, b){
+  const q = [o[0] - b.c[0], o[1] - b.c[1]], lo = [q[0] * b.u[0] + q[1] * b.u[1], q[0] * b.v[0] + q[1] * b.v[1]];
+  const ld = [d[0] * b.u[0] + d[1] * b.u[1], d[0] * b.v[0] + d[1] * b.v[1]], h = [b.hu, b.hv];
+  let t0 = -Infinity, t1 = Infinity;
+  for (let i = 0; i < 2; i++) {
+    if (Math.abs(ld[i]) < 1e-12) { if (Math.abs(lo[i]) > h[i]) return null; continue; }
+    const a = (-h[i] - lo[i]) / ld[i], c = (h[i] - lo[i]) / ld[i];
+    t0 = Math.max(t0, Math.min(a, c)); t1 = Math.min(t1, Math.max(a, c));
+  }
+  return t1 >= Math.max(t0, 0) ? Math.max(t0, 0) : null;
+}
+/** How far the piece stands from the walls: from the middle of each side of
+ *  its footprint straight out to the first wall (its face, a door or a
+ *  window in it too), the nearer on each of its two axes. [{side ("back" |
+ *  "front" | "left" | "right"), d (m), from: [x, y], to: [x, y]}], up to
+ *  two, none further than `reach`. */
+export function wallGaps(p, size, walls, reach = GAP_REACH_M){
+  const b = boxOf(p, size), boxes = (walls || []).map(wallBox).filter(w => w.len > 0.05), out = [];
+  for (const pair of [[["back", b.v, -1, b.hv], ["front", b.v, 1, b.hv]], [["left", b.u, -1, b.hu], ["right", b.u, 1, b.hu]]]) {
+    let best = null;
+    for (const [side, ax, s, half] of pair) {
+      const dir = [ax[0] * s, ax[1] * s], from = [b.c[0] + dir[0] * half, b.c[1] + dir[1] * half];
+      let t = null;
+      for (const w of boxes) { const h = rayBox(from, dir, w); if (h !== null && (t === null || h < t)) t = h; }
+      if (t === null || t > reach) continue;
+      if (!best || t < best.d) best = { side, d: mm(t), from: [mm(from[0]), mm(from[1])], to: [mm(from[0] + dir[0] * t), mm(from[1] + dir[1] * t)] };
+    }
+    if (best) out.push(best);
+  }
+  return out;
+}
+/** Stand on what's under it: the top of the highest piece its middle is
+ *  over that stands no higher than it does (a lamp onto the table it is
+ *  over, a TV onto its unit); nothing under it, the floor. {z_m, on (that
+ *  piece's id, or null)}. */
+export function standOn(p, others){
+  const b = boxOf(p);
+  let best = null;
+  for (const o of others || []) {
+    if (!o || o.id === p.id) continue;
+    const ob = boxOf(o);
+    if (ob.z0 > b.z0 + TOL_M || !inBox(ob, b.c, 0)) continue;
+    if (!best || ob.z1 > best.z) best = { z: ob.z1, on: o.id };
+  }
+  return best ? { z_m: mm(best.z), on: best.on } : { z_m: 0, on: null };
+}
+/** Hang on wall: its middle `mid` metres above the floor (kept under the
+ *  ceiling `ceil`), its back flush against the nearest wall that is solid
+ *  there (within HANG_REACH_M, its middle beside that wall's length), facing
+ *  away from it. {x_m, y_m, z_m, rotation, wall} or null. */
+export function hangOnWall(p, size, walls, mid = HANG_MID_M, ceil){
+  const s = size || sizeOf(p && p.recipe);
+  const z = clampZ((num(mid) ?? HANG_MID_M) - s.h / 2, ceil, s.h);
+  const at = snapToWall({ ...p, z_m: z }, s, walls, HANG_REACH_M);
+  return at ? { ...at, z_m: z } : null;
+}
+
 // ── fit checks: warnings, never blocks ───────────────────────────────────────
 /** The doors among a floor's wall pieces, as the quarter circle each sweeps
  *  (the editor draws the same arcs): swingOf(pc) is the view's own

@@ -231,6 +231,22 @@ await tryCase("off: Rain and snow and the Showcase look change nothing while off
     && onMap.stage.style.display !== "none" && threeLoads().length === 0 && sent.length === 0 && fileCalls.length === 0,
     { overlay: [wxA, wxO, wxM], same: [a === o, m === a], loaded: threeLoads().length, sent: sent.length, files: fileCalls.length });
 });
+// P6: Show people and Show tags & scanners switched on, with a snapshot to
+// read: off, or on but showing Map, the card is exactly what it was, nothing
+// of Live Aboard loads and the snapshot is never read.
+await tryCase("off: Show people and Show tags & scanners change nothing while off or showing Map; nothing is read", async () => {
+  localStorage.removeItem(PICK("atlas"));
+  let reads = 0;
+  const people = { read: () => { reads++; return Promise.resolve({ objects: { list: [] } }); }, everyMs: 5000, snapshot: () => { reads++; return null; } };
+  const extra = { atlas_3d_people: true, atlas_3d_tags: true };
+  const absent = card({}), a = ser(absent.c);
+  const off = card({ house3d: { ...H3(false, "atlas", extra), people } }), o = ser(off.c);
+  const onMap = card({ house3d: { ...H3(true, "atlas", extra), people } }), m = ser(onMap.c, isSwitch);
+  await new Promise(r => globalThis._realSetTimeout(r, 0));
+  check("off: Show people and Show tags & scanners change nothing while off or showing Map; nothing is read",
+    a === o && m === a && off.svg === absent.svg && onMap.svg === absent.svg && threeLoads().length === 0 && sent.length === 0
+    && fileCalls.length === 0 && reads === 0, { same: [a === o, m === a], loaded: threeLoads().length, reads, files: fileCalls.length });
+});
 await tryCase("gate: on but below Pro (free, bright) is exactly off, even with 3D picked", async () => {
   localStorage.setItem(PICK("atlas"), "1"); localStorage.setItem(PICK("builder"), "1");
   const out = {};

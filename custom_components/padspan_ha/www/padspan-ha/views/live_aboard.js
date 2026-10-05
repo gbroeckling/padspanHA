@@ -388,8 +388,9 @@ function createSlot(slotKey){
   // outlines round the emergency lights while the Atlas's test runs.
   let devices = null, emOutlines = [], emKey = "";
   // P6 (live_aboard_tracked.js): scanners with a look where the map keeps
-  // them; with Show people on, beacons with a look and people where PadSpan
-  // tracks them. peopleSnap: the live snapshot as the host last handed it
+  // them; with Show tags & scanners on, every placed tag and every scanner;
+  // with Show people on, people where PadSpan tracks them. peopleSnap: the
+  // live snapshot as the host last handed it
   // (read through it, never more often than it says); off, none of it.
   let tracked = null, peopleSnap = null, peopleAt = 0, peopleLoad = null, peopleReads = 0;
   // Furnish shows a plan beside the 3D view on a wide screen, drawn by the
@@ -1798,7 +1799,10 @@ function createSlot(slotKey){
    *  polls)}. A read happens on a card the Atlas builds anyway: no timer. */
   function syncTracked(p, vd, rebuilt){
     if (!tracked) return;
-    const pp = p.people && typeof p.people === "object" ? p.people : null;
+    // p.tags (only while Show tags & scanners is on) is the same reader: one
+    // read serves both layers.
+    const on = (x) => !!(x && typeof x === "object");
+    const pp = on(p.people) ? p.people : on(p.tags) ? p.tags : null;
     if (!pp) { peopleSnap = null; peopleAt = 0; peopleLoad = null; }
     else if (typeof pp.snapshot === "function") { peopleSnap = pp.snapshot() || null; peopleReads++; }
     else if (typeof pp.read === "function" && !peopleLoad && Date.now() - peopleAt >= Math.max(PEOPLE_MS, Number(pp.everyMs) || 0)) {
@@ -1811,7 +1815,7 @@ function createSlot(slotKey){
       }, () => { if (peopleLoad === mine) peopleLoad = null; });
     }
     if (tracked.sync({ model: p.model, looks: vd.devices, figures: vd.figures, snapshot: pp ? peopleSnap : null,
-                       states: p.states || {}, people: !!pp }, rebuilt)) requestRender();
+                       states: p.states || {}, people: on(p.people), tags: on(p.tags) }, rebuilt)) requestRender();
   }
 
   // ── sensors: motion, Motion · Air, the readouts (part B) ──────────────────
@@ -2653,6 +2657,16 @@ function createSlot(slotKey){
     if (!rect.width || !rect.height) return null;
     camera.updateMatrixWorld();
     const dist = (v) => { const s = screenPt(v, rect); return s ? Math.hypot(s[0] - clientX, s[1] - clientY) : Infinity; };
+    // A tag or a scanner (P6): on it, or anywhere on a tag's name (names
+    // show over everything, so a press there is the tag's).
+    let tagHit = null;
+    for (const T of tracked ? tracked.pickable() : []) {
+      let d = dist(T.at);
+      const s = T.name && T.namePx ? screenPt(T.name, rect) : null;
+      if (s && Math.abs(clientX - s[0]) <= T.namePx[0] / 2 && clientY <= s[1] + 2 && clientY >= s[1] - T.namePx[1] - 2) d = 0;
+      else if (d > PICK_R || blocked(T.at)) continue;
+      if (!tagHit || d < tagHit.d) tagHit = { d, hit: { kind: T.kind, key: T.key, anchor: T.at, label: T.label, card: T.card } };
+    }
     const devs = [];
     for (const L of lights) {
       if (!L.F.group.visible || (L.wall && L.wall.cut) || !L.pick || L.swap) continue;
@@ -2693,6 +2707,7 @@ function createSlot(slotKey){
     devs.sort((a, b) => a.d - b.d);
     const ok = [];
     for (const c of devs.slice(0, 8)) if (!ok.some(x => x.eid === c.eid) && (c.top || !blocked(c.v))) ok.push(c);
+    if (tagHit && (!ok.length || tagHit.d <= ok[0].d)) return { hit: tagHit.hit, under: ok.map(deviceTarget) };
     if (ok.length) return { hit: deviceTarget(ok[0]), under: ok.slice(1).map(deviceTarget) };
     const surf = [];
     for (const F of floorsUi) {
@@ -3197,7 +3212,8 @@ function createSlot(slotKey){
      *  the Atlas already reads): a linked piece follows its renamed entity;
      *  emergency (the Atlas's emergency lights while its test runs, else
      *  null) (P5), people (only while Show people is on: {snapshot()} or
-     *  {read(), everyMs}, the live snapshot through the host) (P6)}. */
+     *  {read(), everyMs}, the live snapshot through the host) (P6), tags
+     *  (the same, only while Show tags & scanners is on)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
@@ -3350,7 +3366,8 @@ function createSlot(slotKey){
       applyCam();
     },
     /** Where something is on screen, in client px (the harness presses it):
-     *  {eid} a device's nearest point, {room}, {door: eid}, {floor: z}. */
+     *  {eid} a device's nearest point, {room}, {door: eid}, {floor: z},
+     *  {tracked: key} a tag or a scanner (P6). */
     _where(q){
       if (!renderer || !camera) return null;
       const rect = view3Rect(), at = (v) => screenPt(v, rect);
@@ -3373,6 +3390,7 @@ function createSlot(slotKey){
         const c = L.pick.reduce((a, v) => a.add(v), new THREE.Vector3()).multiplyScalar(1 / L.pick.length);
         return at(L.pick.reduce((b, v) => (v.distanceTo(c) < b.distanceTo(c) ? v : b)));
       }
+      if (q.tracked) { const T = (tracked ? tracked.pickable() : []).find(x => x.key === q.tracked); return T ? at(T.at) : null; }
       const S = sensorsUi.find(x => x.eid === q.eid);
       if (S && S.chip) { const p = labelQuad(S.chip.sprite).map(at); return p.every(Boolean) ? [(p[0][0] + p[1][0]) / 2, (p[0][1] + p[2][1]) / 2] : null; }
       return S ? at(S.pos) : null;

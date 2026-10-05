@@ -348,6 +348,31 @@ await tryCase("quiet: no api, no press; a device the Atlas doesn't know, no pres
   check("quiet: no api, no press; a device the Atlas doesn't know, no press", a === false && b === false && c === false && !use.pressing, { a, b, c });
 });
 
+// ── a tag's or a scanner's card (P6) ────────────────────────────────────────
+await tryCase("card: a tapped tag or scanner says what it is beside it, calls nothing, and goes on the next press or ×", async () => {
+  const tag = { kind: "tag", key: "tag:ble:keys", label: "Keys · tag",
+                card: { title: "Keys", lines: ["In Kitchen", "Seen just now", "Heard by: Kitchen (0B:52), Hall (D7:1E)"] } };
+  const scanner = { kind: "scanner", key: "scanner:AA:BB", label: "Kitchen scanner (AA:BB)", card: { title: "Kitchen scanner (AA:BB)", lines: ["In Kitchen", "2.20 m above the floor"] } };
+  const cards = () => root.children.filter(n => n && n.className === "la3d-tagcard");
+  d3.log.length = 0;
+  const pressed = await d3Gesture(tag);
+  const one = { n: cards().length, st: use.state().card, at: cards()[0] && [cards()[0].style.left, cards()[0].style.top] };
+  await d3Gesture(scanner, { held: 700 });                   // a hold opens it too
+  const two = { n: cards().length, st: use.state().card };
+  aim = null;
+  use.down(ev("pointerdown", 5, 5, now()));                 // a press anywhere: gone
+  const gone = cards().length;
+  await d3Gesture(tag);
+  const x = cards()[0] && cards()[0].querySelector("button");
+  if (x) x.click();
+  check("card: a tapped tag or scanner says what it is beside it, calls nothing, and goes on the next press or ×",
+    pressed === true && one.n === 1 && one.st && one.st.key === "tag:ble:keys" && one.st.text.includes("Keys") && one.st.text.includes("In Kitchen")
+    && one.st.text.includes("Seen just now") && one.st.text.includes("Heard by: Kitchen (0B:52), Hall (D7:1E)") && one.at.every(v => /^\d+px$/.test(v))
+    && two.n === 1 && two.st.key === "scanner:AA:BB" && two.st.text.includes("2.20 m above the floor")
+    && gone === 0 && !!x && cards().length === 0 && use.state().card === null && d3.log.length === 0,
+    { pressed, one, two, gone, log: d3.log });
+});
+
 void rafQueue;
 console.log(JSON.stringify({ cases, failures }));
 process.exit(failures.length ? 1 : 0);

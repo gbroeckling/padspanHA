@@ -70,7 +70,7 @@ def _code(p: Path) -> str:
 
 @pytest.mark.parametrize("prefix", ["open:", "add:", "drag:", "turn:", "floor:", "height:", "copy:", "device:", "fit:", "save:",
                                     "survive:", "share:", "flowcss:", "flowclose:", "draft:", "import:", "planbuild:", "leave:",
-                                    "cleared:"])
+                                    "cleared:", "typed:", "keys:", "gaps:", "stand:", "hang:"])
 def test_the_furnish_harness_covers_each_part(furnish, prefix) -> None:
     got = [k for k in furnish["cases"] if k.startswith(prefix)]
     assert got, (prefix, sorted(furnish["cases"]))

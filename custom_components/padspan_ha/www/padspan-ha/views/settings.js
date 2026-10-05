@@ -3489,7 +3489,9 @@ function _atlas3dSection(ctx, el, settings){
   tick("atlas_3d_showcase", "Use the Atlas's Showcase look", settings.atlas_3d_showcase === true,
     "The colours of the Showcase theme the Atlas is showing.");
   tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,
-    "People, and the tags and phones PadSpan tracks, where they are now. Uses the same live positions as Overview.");
+    "Each person, as their figure (or a soft marker), walking to where their phone or tag is now. Uses the same live positions as Overview.");
+  tick("atlas_3d_tags", "Show tags & scanners", settings.atlas_3d_tags === true,
+    "Every tag the Atlas can place, with its name, and every scanner at its height. The faint ring under a tag is wider the less sure its spot is. Tap a tag for its room, when it was last seen and which scanners hear it. Uses the same live positions as Overview.");
   // Remove all furniture (admins; ws_house3d.house3d_clear only="pieces"): the
   // server takes a backup first and removes nothing without one. Asked here
   // in the page, the way Clear calibration asks above.

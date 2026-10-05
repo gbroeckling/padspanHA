@@ -51,11 +51,13 @@ const UNDER_TITLE = "Act on this one instead — it's under the marker on top";
  *   root            the 3D view's element (the marks and the box go in it)
  *   pick(x, y)      → {hit, under} | null: the target under client (x, y)
  *                     and the devices under it. A target is {kind: "device" |
- *                     "room" | "floor" | "door" | "entity", key, label, eid?,
- *                     room?, z?, bar?} — z is the plate's storey as the
- *                     Atlas's badge carries it, bar the barrier as its card
- *                     is handed it; "entity" a piece of furniture linked to a
- *                     device the Atlas has no marker for (P5).
+ *                     "room" | "floor" | "door" | "entity" | "tag" | "scanner",
+ *                     key, label, eid?, room?, z?, bar?, card?} — z is the
+ *                     plate's storey as the Atlas's badge carries it, bar the
+ *                     barrier as its card is handed it; "entity" a piece of
+ *                     furniture linked to a device the Atlas has no marker
+ *                     for (P5); a tag or a scanner says what it is (card:
+ *                     {title, lines}) beside it when tapped (P6).
  *   screenOf(t)     → {x, y} | {poly: [[x, y], …]} | null, in px from root
  *   api()           → the host's use api, or null (then nothing is pressed)
  *   frame()         asks the view for a frame (the hold is timed on frames)
@@ -81,7 +83,7 @@ export function createUseSurface(o){
     if (!press && !(e && e.relatedTarget && o.root.contains(e.relatedTarget))) hideHud();
   });
 
-  let press = null, hover = null, hudKey = "", emptySince = null, rerender = null, lastHover = null;
+  let press = null, hover = null, hudKey = "", emptySince = null, rerender = null, lastHover = null, card = null;
   const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
   const stamp = (e) => (e && Number.isFinite(e.timeStamp) ? e.timeStamp : now());
 
@@ -147,6 +149,48 @@ export function createUseSurface(o){
     }
   }
   function hideHud(){ hudKey = ""; emptySince = null; hud.hidden = true; }
+
+  // ── a tag's or a scanner's card (P6) ──────────────────────────────────────
+  // What a tapped tag says (its name, room, when last seen, which scanners
+  // hear it) or a tapped scanner (where it is, how high), beside it. It
+  // follows it as the house turns; the next press anywhere, or ×, closes it.
+  const CARD = "position:absolute;z-index:7;box-sizing:border-box;min-width:170px;max-width:min(280px,calc(100% - 12px));padding:8px 10px 9px;"
+    + "border-radius:10px;background:rgba(6,14,9,.95);border:1px solid rgba(94,234,212,.45);color:#e8f0ea;font:12.5px/1.45 Inter,system-ui,sans-serif;"
+    + "box-shadow:0 8px 22px rgba(0,0,0,.5);pointer-events:auto";
+  function placeCard(){
+    if (!card) return;
+    const at = o.screenOf(card.t);
+    if (!at || at.poly) { card.el.style.visibility = "hidden"; return; }
+    // Under it (its name is over it), or over its name when there is no room below.
+    const W = o.root.clientWidth || 0, H = o.root.clientHeight || 0, w = card.el.offsetWidth || 200, h = card.el.offsetHeight || 80;
+    const x = W ? Math.max(6, Math.min(at.x - w / 2, W - w - 6)) : at.x - w / 2;
+    let y = at.y + 22;
+    if (H && y + h > H - 6) y = Math.max(6, at.y - h - 52);
+    card.el.style.left = `${Math.round(x)}px`; card.el.style.top = `${Math.round(y)}px`; card.el.style.visibility = "";
+  }
+  function closeCard(){ if (card) { try { card.el.remove(); } catch (_) { /* gone with the view */ } card = null; } }
+  function showCard(t){
+    closeCard();
+    const c = t.card || { title: t.label, lines: [] }, el = document.createElement("div");
+    el.className = "la3d-tagcard";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", c.title);
+    el.style.cssText = CARD;
+    const head = document.createElement("div"), name = document.createElement("b"), x = document.createElement("button");
+    head.style.cssText = "display:flex;gap:8px;align-items:flex-start;margin-bottom:3px";
+    name.style.cssText = "flex:1;font-size:13.5px;color:#5eead4";
+    name.textContent = c.title;
+    x.type = "button"; x.textContent = "×"; x.title = "Close";
+    x.style.cssText = "all:unset;cursor:pointer;padding:0 4px;font-size:16px;line-height:1;color:rgba(226,240,232,.7)";
+    x.addEventListener("click", (e) => { e.stopPropagation(); closeCard(); });
+    head.append(name, x);
+    el.appendChild(head);
+    for (const l of c.lines || []) { const d = document.createElement("div"); d.textContent = l; el.appendChild(d); }
+    for (const ev of ["pointerdown", "pointerup", "click", "wheel"]) el.addEventListener(ev, (e) => e.stopPropagation());
+    o.root.appendChild(el);
+    card = { t, el };
+    placeCard();
+  }
   // An "Under" pick does what a tap on that device does (the sidebar's
   // onPickUnder): motion its activity, a device with controls its controls,
   // anything else switches.
@@ -188,6 +232,7 @@ export function createUseSurface(o){
       return;
     }
     if (r !== "tap" && r !== "open") return;
+    if (t.kind === "tag" || t.kind === "scanner") { showCard(t); return; }
     if (t.kind === "room") api.openRoom(t.room);
     else if (t.kind === "floor") api.openFloor(t.z);
     else if (t.kind === "door" && t.bar && t.bar.linked_entity_id && api.hass) openBarrierCard(api.hass, t.bar, api);
@@ -232,6 +277,7 @@ export function createUseSurface(o){
      *  started, and the camera waits; false: nothing to press there. */
     down(e){
       if (press || (e.pointerType === "mouse" && e.button !== undefined && e.button !== 0)) return false;
+      closeCard();
       const api = o.api();
       const found = api ? o.pick(e.clientX, e.clientY) : null;
       const t = found && found.hit;
@@ -334,6 +380,7 @@ export function createUseSurface(o){
     layout(){
       if (press) { mark(press.target, hoverG); if (press.ring) placeRing(press.ring, press.target); }
       else if (hover) mark(hover.hit, hoverG);
+      placeCard();
     },
     /** Forget what is shown (the house was rebuilt, or the view left). */
     clear(){
@@ -341,6 +388,7 @@ export function createUseSurface(o){
       hover = null;
       mark(null, hoverG);
       hideHud();
+      closeCard();
     },
     dispose(){
       this.clear();
@@ -350,7 +398,8 @@ export function createUseSurface(o){
     state(){
       return { hover: hover && hover.hit ? hover.hit.key : null, hud: hud.hidden ? null : hud.textContent,
                under: hover && hover.under ? hover.under.map(u => u.key) : [],
-               press: press ? { key: press.target.key, armed: press.armed, ring: !!press.ring, dimming: press.dragBri !== null } : null };
+               press: press ? { key: press.target.key, armed: press.armed, ring: !!press.ring, dimming: press.dragBri !== null } : null,
+               card: card ? { key: card.t.key, text: card.el.textContent } : null };
     },
   };
 }

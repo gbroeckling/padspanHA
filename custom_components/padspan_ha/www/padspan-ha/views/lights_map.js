@@ -2933,6 +2933,8 @@ export function buildLightsMapCard(hostIn){
           // P6: the people layer, only while Show people is on: the live
           // snapshot through the host (off, it is never read).
           people: h3.settings.atlas_3d_people === true && h3.people ? h3.people : null,
+          // Show tags & scanners: the same snapshot, the same reader (read once for both).
+          tags: h3.settings.atlas_3d_tags === true && h3.people ? h3.people : null,
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }
