@@ -78,6 +78,11 @@ const MARKS = await import(`./live_aboard_marks.js${new URL(import.meta.url).sea
 // as it was).
 const MOTION = await import(`./live_aboard_motion.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_motion failed to load", err); return null; });
+// The house itself (live_aboard_storey.js): a solid floor under each storey,
+// the roof, the openings stairs cut, how a door with no sensor stands
+// (optional: missing, the house is drawn as it was).
+const STOREY = await import(`./live_aboard_storey.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_storey failed to load", err); return null; });
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -443,6 +448,10 @@ function createSlot(slotKey){
   let marks = null, codes = null, classF = null, zoomCb = null, zoomShown = null;
   // live_aboard_motion.js: motion in the house (motionL) and the Motion chip.
   let motionL = null, mchip = null;
+  // live_aboard_storey.js: each storey's floor and roof (storeyL); roofWant:
+  // the roof is showing or on its way (the walls under it stand).
+  let storeyL = null, roofWant = false;
+  const PREF_ROOF = "roof_";
   // Furnish shows a plan beside the 3D view on a wide screen, drawn by the
   // same renderer in its own viewport; on a phone, Plan or 3D. The plan looks
   // straight down at the top floor showing.
@@ -499,6 +508,8 @@ function createSlot(slotKey){
     try { if (marks) marks.dispose(); if (codes) codes.dispose(); } catch (_) { /* gone with the view */ }
     marks = null; codes = null; zoomCb = null;
     try { if (motionL) motionL.dispose(); if (mchip) mchip.dispose(); } catch (_) { /* gone with the view */ }
+    try { if (storeyL) storeyL.dispose(); } catch (_) { /* gone with the view */ }
+    storeyL = null; roofWant = false;
     motionL = null; mchip = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
@@ -561,6 +572,13 @@ function createSlot(slotKey){
     const walls = seg("Walls", WALLS.map(([t, title, m]) => [t, title, () => setWalls(m)]));
     walls.setAttribute("data-la3d-walls", "");
     walls.classList.add("la3d-w");
+    // The roof: shown from outside (Auto) or never (Off); on a narrow screen, in Walls ▾.
+    const ROOF = [["Roof: Auto", "The roof shows when you look at the house from outside", "auto"], ["Roof: Off", "Never show the roof", "off"]];
+    if (STOREY) {
+      const rb = seg(null, [["Roof", "The roof: shown from outside (Auto) or never (Off)", () => setRoof(roofPick() === "off" ? "auto" : "off")]]);
+      rb.querySelector("button").setAttribute("data-la3d-roof", "");
+      walls.appendChild(rb.querySelector("button"));
+    }
     const views = seg(null, ANGLES.map(([t, title, n]) => [t, title, () => preset(n, true)]));
     views.setAttribute("data-la3d-views", "");
     views.classList.add("la3d-w");
@@ -582,7 +600,9 @@ function createSlot(slotKey){
     vbtn.classList.add("la3d-w");
     vbtn.setAttribute("data-la3d-saved", "");
     // A narrow screen: one row — Walls ▾, View ▾, the floor stepper, full screen.
-    const wbtn = seg(null, [["Walls ▾", "Cut, Up or Down", () => openMenu(wbtn, WALLS.map(([t, , m]) => ({ text: t, on: wallMode === m, act: () => setWalls(m) })))]]);
+    const wbtn = seg(null, [["Walls ▾", "Cut, Up or Down, and the roof", () => openMenu(wbtn, [
+      ...WALLS.map(([t, , m]) => ({ text: t, on: wallMode === m, act: () => setWalls(m) })),
+      ...(STOREY ? [null, ...ROOF.map(([t, title, v]) => ({ text: t, title, on: roofPick() === v, act: () => setRoof(v) }))] : [])])]]);
     wbtn.classList.add("la3d-n");
     const abtn = seg(null, [["View ▾", "Angles, the floors, the whole house and your views", () => openMenu(abtn, [
       ...ANGLES.map(([t, , n]) => ({ text: t, act: () => preset(n, true) })),
@@ -674,6 +694,8 @@ function createSlot(slotKey){
     if (!bar) return;
     const btns = bar.querySelectorAll("[data-la3d-walls] button");
     ["cut", "up", "down"].forEach((m, i) => { if (btns[i]) btns[i].setAttribute("aria-pressed", String(wallMode === m)); });
+    const rb = bar.querySelector("[data-la3d-roof]");
+    if (rb) rb.setAttribute("aria-pressed", String(roofPick() !== "off"));
   }
 
   // ── the screen: the map alone, full screen (the sidebar) ──────────────────
@@ -1083,7 +1105,8 @@ function createSlot(slotKey){
     });
     // Furniture (P2): every piece drawn on its floor, in every view.
     layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
-      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low") });
+      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low"),
+      recipeOf: (p) => stairRecipe(p) });
     devices = DEVICES ? DEVICES.createDeviceLayer({ THREE, layer, FURN: () => FURN, halo: shared.haloMats.m,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi,
@@ -1093,6 +1116,8 @@ function createSlot(slotKey){
     motionL = MOTION ? MOTION.createMotionLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low"), behind: (v) => blocked(v),
       dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22,
       floorTiles: () => floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles) }) : null;
+    storeyL = STOREY ? STOREY.createStoreyLayer({ THREE, lit: (g, spec, c, r) => lit(g, spec, c, r), slabT: HOUSE.SLAB_T,
+      quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
     planCam.up.set(0, 0, -1);                                // the plan as drawn: its top up
     // The 3D editor: its page in this element, its marks in this scene, its
@@ -1108,6 +1133,7 @@ function createSlot(slotKey){
       // P2 Furnish: its tool, the furniture drawn, and where on screen each view is.
       FURNISH, PIECES, FURN: () => FURN, layer, rect: () => view3Rect(), viewAt: (x, y) => viewAt(x, y),
       STRIP, RUNS,                                           // the Strip tool (lights laid out along their runs)
+      STOREY,                                                // stairs in Furnish: the floor they reach, their rise
       lights: () => lights.map(L => ({ eid: L.eid, F: L.F, drawn: L.drawn, guess: L.guess, label: (deviceInfo(L.eid) || {}).label || L.eid })),
       // The plan alone (a narrow screen): its middle as it shows, not where the hidden 3D view looks.
       centre: () => { if (viewports().d3) return [cam.target.x, cam.target.z]; fitPlan(); return [plan.cx, plan.cy]; }, setTopFloor: (fid) => { if (topCb) topCb(fid); }, host: () => furnishP,
@@ -1285,6 +1311,8 @@ function createSlot(slotKey){
       z0 = Math.min(z0, r.floor.elev - HOUSE.SLAB_T); z1 = Math.max(z1, r.floor.elev + r.floor.h - HOUSE.SLAB_T);
     }
     houseBox = Number.isFinite(x0) ? { x0, y0, x1, y1, z0, z1 } : { x0: -5, y0: -5, x1: 5, y1: 5, z0: 0, z1: 3 };
+    // Stairs cut their opening in the floor they reach: its tiles and its storey's floor.
+    const cuts = STOREY ? STOREY.stairCuts(viewData().pieces, h.floors, h.canon) : null;
     for (const fl of h.floors) {
       const group = new THREE.Group();
       group.name = "floor:" + fl.id;
@@ -1296,7 +1324,9 @@ function createSlot(slotKey){
       // on top, the Atlas's beige on the sides — merged into one per floor.
       const geos = [];
       per.rooms.forEach((r, i) => {
-        const g = new THREE.ExtrudeGeometry(new THREE.Shape(r.pts.map(p => new THREE.Vector2(p[0], p[1]))), { depth: HOUSE.SLAB_T, bevelEnabled: false });
+        const holes = cuts && cuts.get(fl.id);
+        const g = new THREE.ExtrudeGeometry((holes ? STOREY.minusAll(r.pts, holes) : [r.pts]).map(P => new THREE.Shape(P.map(p => new THREE.Vector2(p[0], p[1])))),
+                                            { depth: HOUSE.SLAB_T, bevelEnabled: false });
         g.rotateX(Math.PI / 2);                              // plan (x, y) -> world (x, ·, y); the extrusion goes down
         g.translate(0, (i % 8) * 0.0005, 0);                 // overlapping hand-drawn rooms must not z-fight
         const tm = theme3d ? theme3d.tile : 0.38;            // the Showcase look's mix (Classic: 0.38, a deck 0.5)
@@ -1304,8 +1334,12 @@ function createSlot(slotKey){
         const top = atlas ? new THREE.Color(atlas.floor).lerp(colorOf(r.color), r.outdoor ? atlas.floorMix * 0.7 : atlas.floorMix)
           : colorOf(r.color).lerp(new THREE.Color(TILE_MIX), r.outdoor ? tm + 0.12 : tm);
         const side = new THREE.Color(fl.outdoor ? EARTH_SIDE : atlas ? atlas.side : SLAB_SIDE);
-        const n = g.attributes.position.count, caps = g.groups.length ? g.groups[0].count : n, col = new Float32Array(n * 3);
-        for (let v = 0; v < n; v++) { const cc = v < caps ? top : side; col[v * 3] = cc.r; col[v * 3 + 1] = cc.g; col[v * 3 + 2] = cc.b; }
+        const n = g.attributes.position.count, col = new Float32Array(n * 3);
+        // Each shape's caps (group 0) the room's colour, its sides the slab's edge (stairs may cut a room in pieces).
+        for (const gr of g.groups.length ? g.groups : [{ start: 0, count: n, materialIndex: 0 }]) {
+          const cc = gr.materialIndex === 0 ? top : side;
+          for (let v = gr.start; v < Math.min(n, gr.start + gr.count); v++) { col[v * 3] = cc.r; col[v * 3 + 1] = cc.g; col[v * 3 + 2] = cc.b; }
+        }
         g.setAttribute("color", new THREE.BufferAttribute(col, 3));
         g.clearGroups();
         geos.push(g);
@@ -1374,6 +1408,9 @@ function createSlot(slotKey){
       F.ao = aoMesh(F);
       if (F.ao) group.add(F.ao);
     }
+    // A solid floor under each storey (halls never drawn as rooms are no
+    // holes), and the roof over it (live_aboard_storey.js).
+    if (storeyL) shellRes.push(...storeyL.build(h, floorsUi, cuts, storeyLook()));
     if (atlas) platesOf(h);
     // The ground and the sun, sized to the house.
     const cx = (houseBox.x0 + houseBox.x1) / 2, cy = (houseBox.y0 + houseBox.y1) / 2;
@@ -1396,6 +1433,21 @@ function createSlot(slotKey){
     applyTop();
     paintNight();
     if (!cam.moved) cam.needsFit = true;
+  }
+  /** The storeys' floor and roof in the look's colours, muted (the Atlas's
+   *  look, or Live Aboard's own): a neutral floor, a slate roof, a pale fascia. */
+  function storeyLook(){
+    const side = atlas ? atlas.side : SLAB_SIDE, grey = new THREE.Color("#6b6b6b");
+    const hex = (c) => "#" + c.getHexString();
+    return { slab: hex(new THREE.Color(atlas ? atlas.floor : TILE_MIX).lerp(new THREE.Color(side), 0.3)), slabSide: side,
+             roof: hex(new THREE.Color(atlas ? atlas.side : "#86776a").lerp(grey, 0.5)),
+             fascia: hex(new THREE.Color(atlas ? atlas.floor : "#efe9df").lerp(new THREE.Color("#e2ddd4"), 0.5)) };
+  }
+  /** Stairs are drawn as high as the floor they reach is now (live_aboard_storey.js stairReach). */
+  function stairRecipe(p){
+    if (!STOREY || !STOREY.isStairs(p) || !house) return p.recipe;
+    const r = STOREY.stairReach(house.canon ? house.canon(p.floor_id) : p.floor_id, p.recipe.params && p.recipe.params.to_floor, house.floors);
+    return { ...p.recipe, height_m: r.rise };
   }
   /** A band just inside each room's outline (EDGE_IN to EDGE_IN + EDGE_W in
    *  from it), in the room's colour: one geometry for the floor. */
@@ -1712,7 +1764,7 @@ function createSlot(slotKey){
   // openingSwing; nothing here ever writes it).
   function setupOpening(F, P, rooms){
     const b = P.pc.barrier, k = P.pc.kind, len = Math.hypot(P.pc.x1 - P.pc.x0, P.pc.y1 - P.pc.y0);
-    if (!b || !b.linked_entity_id) return;
+    if (!b || !b.linked_entity_id) { if (STOREY && k === "door") standDoor(P, rooms, len); return; }
     const o = { bar: b, eid: String(b.linked_entity_id), kind: k, leaf: null, len, hinge: null, side: null,
                 garage: false, state: null, at: 0, to: 0, from: 0, t0: 0, flash: null };
     if (k === "open") {
@@ -1732,6 +1784,18 @@ function createSlot(slotKey){
     P.open = o;
     openings.push({ F, P });
   }
+  // A door with no sensor stands as its sheet says (live_aboard_storey.js
+  // doorShown): ajar inside, shut on an outside wall or as a garage door,
+  // unless set open, ajar or shut. It never moves, so it asks for no frame
+  // (it is not one of `openings`).
+  function standDoor(P, rooms, len){
+    const leaf = P.els.find(e => e.leaf);
+    if (!leaf) return;
+    const shown = STOREY.doorShown(P.pc), sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null), garage = len > STOREY.GARAGE_DOOR_M;
+    const at = garage ? { open: 1, ajar: 0.4, shut: 0 }[shown] : shown === "shut" ? 0 : 1;   // a garage door rolls up part way, ajar
+    P.open = { bar: P.pc.barrier, eid: null, kind: "door", leaf, len, hinge: sw.hinge, side: sw.side, garage, state: null, shown,
+               at, to: at, max: STOREY.DOOR_ANGLE_DEG[shown] * D2R, from: 0, t0: 0, flash: null, still: true };
+  }
   // The leaf at o.at (0 shut, 1 open), eased: about its hinge, or up into
   // its head for a garage door. Shut, it is exactly the piece's own place.
   function leafMatrix(F, P, z0, hgt, thick){
@@ -1742,7 +1806,7 @@ function createSlot(slotKey){
     }
     const hb = o.hinge === "b", hx = hb ? pc.x1 : pc.x0, hy = hb ? pc.y1 : pc.y0;
     const ux = ((hb ? pc.x0 : pc.x1) - hx) / o.len, uy = ((hb ? pc.y0 : pc.y1) - hy) / o.len;
-    const ang = a * (o.kind === "window" ? WINDOW_OPEN : DOOR_OPEN), c = Math.cos(ang), s = Math.sin(ang);
+    const ang = a * (o.kind === "window" ? WINDOW_OPEN : (o.max ?? DOOR_OPEN)), c = Math.cos(ang), s = Math.sin(ang);
     const dx = c * ux + s * pc.nx * o.side, dy = c * uy + s * pc.ny * o.side;
     return compose(hx + dx * o.len / 2, F.fl.elev + z0, hy + dy * o.len / 2, HOUSE.yawOf([dx, dy]), o.len, hgt, thick);
   }
@@ -2379,6 +2443,7 @@ function createSlot(slotKey){
                    motionL ? motionL.rate() : 0].filter(Boolean);
     const slow = rates.length ? Math.min(...rates) : 0;
     const fast = slow ? Math.min(own, slow) : own;
+    if (storeyL && storeyL.moving) return fast;                // the roof lifting away or coming back
     for (const { F, P } of openings) {
       const o = P.open;
       if (F.group.visible && (o.at !== o.to || (o.state === "unlocked" && now < o.liveUntil))) return fast;
@@ -2455,7 +2520,7 @@ function createSlot(slotKey){
       for (const lbl of F.labels) {
         const u = lbl.userData, mpp = mppAt(lbl.position), roomPx = u.ext / mpp;
         const letters = Math.max(NAME_PX[0], Math.min(NAME_PX[1], roomPx / 9)), hPx = letters / u.letters, wPx = hPx * u.aspect;
-        if (persp) u.behind = !u.covered && behind(lbl.position, occ);
+        if (persp) u.behind = !u.covered && (underRoof(F, lbl.position) || behind(lbl.position, occ));
         lbl.visible = !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
         u.px = lbl.visible ? hPx : 0;
         lbl.scale.set(wPx * k, hPx * k, 1);
@@ -2470,10 +2535,12 @@ function createSlot(slotKey){
       // Under the room's name (or where the name would be), clear of it.
       const nameH = C.label ? Math.max(C.label.userData.px, 18) : 0;
       C.sprite.center.set(0.5, C.label ? 0.5 + (nameH / 2 + 2 + hPx / 2) / hPx : 0.5);
-      if (persp && !C.label) C.behind = behind(C.sprite.position, above(C.F));
+      if (persp && !C.label) C.behind = underRoof(C.F, C.sprite.position) || behind(C.sprite.position, above(C.F));
       C.sprite.visible = !!C.parts && !(C.label ? C.label.userData.covered || (persp && C.label.userData.behind) : persp && C.behind);
     }
   }
+  /** Under the roof while it shows: a name, a chip (live_aboard_storey.js). */
+  const underRoof = (F, v) => !!(storeyL && storeyL.covers(F, v.x, v.z));
   /** A name (and its room's chip) under a floor showing above it is hidden. */
   function coverNames(){
     const shown = floorsUi.filter(F => F.group.visible);
@@ -2505,16 +2572,37 @@ function createSlot(slotKey){
   }
   function updateCutaway(){
     const topDown = cam.phi < 0.2;
+    // Under the roof the walls stand (Cut is Up while it shows).
+    const mode = roofTick() && wallMode === "cut" ? "up" : wallMode;
     for (const F of floorsUi) {
       if (!F.group.visible) continue;
       for (const P of F.pieces) {
-        const cut = HOUSE.wallCut(P.pc, camera.position.x, camera.position.z, wallMode, topDown);
+        const cut = HOUSE.wallCut(P.pc, camera.position.x, camera.position.z, mode, topDown);
         if (cut === P.cut) continue;
         P.cut = cut;
         placePiece(F, P, cut);
         for (const L of P.lights) if (L.look) paintLight(L);     // wall lights go with their wall
       }
     }
+  }
+  // ── the roof (live_aboard_storey.js) ──────────────────────────────────────
+  // It shows from outside: Roof on Auto, zoomed out past the whole house,
+  // every floor showing, walls Up or Cut, not from straight above, and not in
+  // Edit or Furnish; otherwise it lifts away. It fades over ROOF_FADE_MS on
+  // the view's live clock (liveRate), so at rest it asks for no frame.
+  const roofPick = () => (STOREY ? STOREY.roofSetting(prefGet(PREF_ROOF + slotKey)) : "off");
+  function roofTick(){
+    if (!storeyL) return false;
+    const want = STOREY.roofShown({ setting: roofPick(), editing: !!(editor && editor.active), furnish: furnishOn, topElev,
+                                    topStorey: storeyL.topElev(), wallMode, phi: cam.phi, radius: cam.radius, fitR });
+    storeyL.fade(want, performance.now());
+    if (want !== roofWant) { roofWant = want; recheckCovers(); }
+    return want;
+  }
+  function setRoof(v){
+    prefSet(PREF_ROOF + slotKey, STOREY ? STOREY.roofSetting(v) : "auto");
+    paintWallButtons();
+    requestRender();
   }
   function applyProfile(name){
     const Q = HOUSE.QUALITY_PROFILES[name];
@@ -3606,7 +3694,7 @@ function createSlot(slotKey){
     const vd = viewData();
     const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid);
     const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden, p.shapeOverrides), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
-    const sSig = mSig + DRAFT.openingsSignature(vd);
+    const sSig = mSig + DRAFT.openingsSignature(vd) + (STOREY ? STOREY.stairsSignature(vd.pieces) : "");
     const lSig = mlSig + DRAFT.heightsSignature(vd, "lights") + RUNS.runsSignature(vd);
     const xSig = mxSig + DRAFT.heightsSignature(vd, "devices");
     let rebuilt = false;
@@ -3758,6 +3846,10 @@ function createSlot(slotKey){
                                             pools: L.refs.pools.length, halos: L.refs.halos.length, rps: L.spin ? L.spin.rps : null,
                                             angle: L.spin ? L.spin.angle : null })),
                walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0),
+               // The house itself: each storey's floor and roof, the roof's pick, the doors with no sensor.
+               house: storeyL ? { ...storeyL.state(), roofPick: roofPick(), roofWant } : null,
+               doors: floorsUi.flatMap(F => F.pieces.filter(P => P.open && P.open.still).map(P => ({ id: P.pc.added || (P.pc.barrier && P.pc.barrier.id) || null,
+                                                                                                     floor: F.fl.id, shown: P.open.shown, at: P.open.at, deg: Math.round(P.open.max / D2R) }))),
                // Part B: the live parts and the taps.
                openings: openings.map(({ P }) => ({ eid: P.open.eid, kind: P.open.kind, state: P.open.state, at: P.open.at, to: P.open.to,
                                                      garage: P.open.garage, hinge: P.open.hinge, side: P.open.side, cut: !!P.cut })),

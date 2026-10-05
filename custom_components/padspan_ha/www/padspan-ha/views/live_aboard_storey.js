@@ -38,7 +38,10 @@ export const ROOF_MAX_H = 3.2;             // a roof is never taller than this
 export const ROOF_MIN_M = 1.2;             // a part of a roof narrower than this is left off
 export const ROOF_MAX_PARTS = 16;          // the most rectangles one storey's roof is made of
 export const ROOF_FADE_MS = 300;           // the roof lifts away (or comes back) over this
-export const ROOF_FIT_K = 0.97;            // zoomed out to about the whole-house fit, or further
+// Zoomed out past the whole-house fit, a little: the view opens at the fit
+// with the rooms and their lights in sight, and a step out shows the
+// building, roof and all.
+export const ROOF_FIT_K = 1.12;
 export const TOP_PHI = 0.2;                // looking this near straight down is the Top view
 export const ROOF_SETTINGS = ["auto", "off"];
 // How far a door with no sensor stands open, by how it is shown.
@@ -405,8 +408,8 @@ export function hipRoof(part, frame){
 // ── when the roof shows ──────────────────────────────────────────────────────
 /** Does the roof show? Only with Roof on Auto, outside Edit and Furnish,
  *  with no floor below the top one picked, the walls Up or Cut, not looking
- *  straight down (Top), and zoomed out to about the whole-house fit or
- *  further (radius against fitR). */
+ *  straight down (Top), and zoomed out past the whole-house fit (radius
+ *  against fitR, ROOF_FIT_K). */
 export function roofShown(s){
   if (!s || s.setting === "off") return false;
   if (s.editing || s.furnish) return false;
@@ -479,4 +482,136 @@ export function stairsSignature(pieces){
     const p = pieces[k], r = p.recipe;
     return [k, p.floor_id, p.x_m, p.y_m, p.rotation, r.width_m, r.depth_m, r.params && r.params.to_floor];
   }));
+}
+
+// ── drawn: the storeys' floors and roofs ─────────────────────────────────────
+/**
+ * ctx = {THREE (handed in: this file imports nothing), lit(geo, spec, cast,
+ *        recv) (the view's own lit mesh, so the floor takes the view's
+ *        materials and quality), quality() ("low" | "high"), slabT (the
+ *        slab's thickness)}
+ * build(h, floorsUi, cuts, look) draws each storey's floor and roof into its
+ * first floor's group (so a floor hidden takes them with it) and returns the
+ * geometries a rebuild frees; look = {slab, slabSide, roof, fascia} colours.
+ * fade(want, now) moves the roof toward shown (or gone) over ROOF_FADE_MS:
+ * {moving}; at rest nothing moves, so nothing asks for a frame.
+ */
+export function createStoreyLayer(ctx){
+  const { THREE } = ctx, slabT = num(ctx.slabT) ?? 0.15;
+  let model = null, slabs = [], roofs = [], k = null, want = false, last = 0, moving = false;
+  const mats = {};
+  const roofMat = () => {
+    const q = ctx.quality && ctx.quality() === "high" ? "high" : "low";
+    if (!mats[q]) {
+      // Its own material: it fades, so it is see-through, yet still writes depth
+      // (its parts overlap where it turns a corner).
+      const o = { vertexColors: true, transparent: true, depthWrite: true, side: THREE.DoubleSide, opacity: 1 };
+      mats[q] = q === "high" ? new THREE.MeshStandardMaterial({ ...o, roughness: 0.92, metalness: 0 }) : new THREE.MeshLambertMaterial(o);
+    }
+    return mats[q];
+  };
+  const coloured = (g, top, side) => {
+    const n = g.attributes.position.count, col = new Float32Array(n * 3);
+    const groups = g.groups.length ? g.groups : [{ start: 0, count: n, materialIndex: 0 }];
+    for (const gr of groups) {
+      const c = gr.materialIndex === 0 ? top : side;
+      for (let v = gr.start; v < Math.min(n, gr.start + gr.count); v++) { col[v * 3] = c.r; col[v * 3 + 1] = c.g; col[v * 3 + 2] = c.b; }
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    g.clearGroups();
+    return g;
+  };
+  function paint(){
+    const m = roofMat();
+    m.opacity = k ?? 0;
+    for (const R of roofs) { R.mesh.material = m; R.mesh.visible = (k ?? 0) > 0.001; }
+  }
+  return {
+    build(h, floorsUi, cuts, look){
+      const free = [];
+      slabs = []; roofs = [];
+      model = houseModel(h, cuts);
+      const L = look || {};
+      const cTop = new THREE.Color(L.slab || "#cfc8b9"), cSide = new THREE.Color(L.slabSide || "#c8b18c");
+      const cRoof = new THREE.Color(L.roof || "#6f6660"), cFascia = new THREE.Color(L.fascia || "#e6e0d6");
+      for (const s of model.storeys) {
+        const F = (floorsUi || []).find(G => s.floors.includes(G.fl.id) && G.group);
+        if (!F) continue;
+        // The floor under the whole storey: just under the rooms' tiles.
+        const shapes = s.shapes.map(sh => {
+          const S = new THREE.Shape(sh.outer.map(p => new THREE.Vector2(p[0], p[1])));
+          for (const hole of sh.holes) S.holes.push(new THREE.Path(hole.map(p => new THREE.Vector2(p[0], p[1]))));
+          return S;
+        });
+        if (shapes.length) {
+          const g = coloured(new THREE.ExtrudeGeometry(shapes, { depth: slabT - 0.012, bevelEnabled: false }), cTop, cSide);
+          g.rotateX(Math.PI / 2);                              // plan (x, y) -> world (x, ·, y); the extrusion goes down
+          g.translate(0, s.elev - 0.006, 0);
+          free.push(g);
+          const mesh = ctx.lit(g, { vc: true, r: 0.95 }, true, true);
+          mesh.name = "storey-floor";
+          mesh.userData.storey = s.elev;
+          F.group.add(mesh);
+          slabs.push({ mesh, elev: s.elev, shapes: s.shapes.length, holes: s.shapes.reduce((a, q) => a + q.holes.length, 0) });
+        }
+        // Its roof, where no storey is above it: one mesh.
+        const pos = [], col = [];
+        const base = s.top - slabT;
+        let tris = 0;
+        for (const part of s.roof) {
+          const r = hipRoof(part, model.frame);
+          for (const [list, c] of [[r.roof, cRoof], [r.fascia, cFascia]]) {
+            for (const t of list) for (const p of t) { pos.push(p[0], base + p[2], p[1]); col.push(c.r, c.g, c.b); }
+            tris += list.length;
+          }
+        }
+        if (pos.length) {
+          const g = new THREE.BufferGeometry();
+          g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+          g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+          g.computeVertexNormals();
+          free.push(g);
+          const mesh = new THREE.Mesh(g, roofMat());
+          mesh.name = "roof";
+          mesh.castShadow = true; mesh.receiveShadow = true;    // shadows are drawn on High only
+          mesh.raycast = () => {};                               // it never takes a tap
+          mesh.renderOrder = 3;
+          F.group.add(mesh);
+          roofs.push({ mesh, elev: s.elev, parts: s.roof.length, tris });
+        }
+      }
+      paint();
+      return free;
+    },
+    /** The highest storey's height (null: none). */
+    topElev(){ return model && model.storeys.length ? model.storeys[model.storeys.length - 1].elev : null; },
+    get moving(){ return moving; },
+    get shown(){ return (k ?? 0) > 0.001; },
+    fade(w, now){
+      want = !!w;
+      if (k === null) { k = want ? 1 : 0; moving = false; last = now; paint(); return { moving }; }   // the first look is how it is
+      if (!moving) last = now - 16;                          // from rest: one frame's step
+      const r = roofFade(k, want, now - last);
+      last = now;
+      const changed = r.k !== k;
+      k = r.k; moving = r.moving;
+      if (changed) paint();
+      return { moving, changed };
+    },
+    /** Is plan point (x, y) on floor F hidden by the roof showing? */
+    covers(F, x, y){ return (k ?? 0) >= 0.5 && !!F && !F.fl.outdoor && underRoof(model, x, y, F.fl.elev); },
+    state(){
+      return { axis: model ? model.axis : null, k, want, moving,
+               storeys: model ? model.storeys.map(s => ({ elev: s.elev, floors: s.floors, shapes: s.shapes.length, roofParts: s.roof.length })) : [],
+               slabs: slabs.map(S => ({ elev: S.elev, shapes: S.shapes, holes: S.holes, shown: !!(S.mesh.parent && S.mesh.parent.visible) })),
+               roofs: roofs.map(R => ({ elev: R.elev, parts: R.parts, tris: R.tris, visible: R.mesh.visible, opacity: R.mesh.material.opacity,
+                                        shadow: R.mesh.castShadow })) };
+    },
+    /** The ground plan's own: is (x, y) inside storey `elev`'s floor? (tests, and the harness) */
+    floorAt(elev, x, y){
+      const s = model && model.storeys.find(q => Math.abs(q.elev - elev) <= 1e-3);
+      return !!s && s.shapes.some(sh => inside(x, y, sh.outer) && !sh.holes.some(hh => inside(x, y, hh)));
+    },
+    dispose(){ for (const m of Object.values(mats)) m.dispose(); slabs = []; roofs = []; model = null; },
+  };
 }

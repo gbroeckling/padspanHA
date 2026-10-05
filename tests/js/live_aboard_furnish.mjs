@@ -198,7 +198,8 @@ await tryCase("open: Furnish opens at the furniture tool; Build lists the builde
   const of = (g) => (FURN ? FURN.FURNITURE_KINDS.filter(k => k !== "other" && FURN.FURNITURE[k].group === g).map(k => FURN.FURNITURE[k].name) : []);
   // The starter set first (ready-made pieces), then each builder.
   const starters = FURN && Array.isArray(FURN.STARTER_SET) ? FURN.STARTER_SET.map(st => st.name) : [];
-  const want = [...starters, ...of("furniture"), ...of("device"), "Box"];
+  // The house itself (stairs) after them, under House; the Box last.
+  const want = [...starters, ...of("furniture"), ...of("device"), ...(FURN && FURN.FURNITURE.stairs ? ["Stairs"] : []), "Box"];
   check("open: Furnish opens at the furniture tool; Build lists the builders' kinds; a missing flow has no button",
     !st().failed && ed().editing && ed().tool === "furnish" && ed().furnishOn && !shown(button("Door", "la3d-tools"))
     && JSON.stringify(menu) === JSON.stringify(want)

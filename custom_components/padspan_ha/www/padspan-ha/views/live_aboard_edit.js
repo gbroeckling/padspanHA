@@ -32,6 +32,10 @@
 //                 them: presence uses it.)
 //   a door or window from the map (a barrier): tap it to set its hinge and
 //                 swing, or its sill and head, in 3D only.
+//   Doorway       drawn like a door: an opening with no door in it (an
+//                 archway, an open plan). A door with no sensor stands ajar
+//                 inside and shut on an outside wall; its sheet's "Shown"
+//                 sets it open, ajar or shut (one with a sensor follows it).
 //
 // One finger (or the left button) draws while a tool is on; two fingers
 // still pan and zoom. The draft, the tool and what is picked live in the
@@ -42,7 +46,10 @@ const SLOP = 6;                                   // px a press may move and sti
 const REACH = { mouse: 22, touch: 30 };           // how near a wall a press must land (px)
 const GRAB = { mouse: 16, touch: 26 };            // how near an end a press must land to drag it (px)
 const PICK_OPENING = 8;                           // px round an opening's own outline
-const COL = { window: "#60a5fa", door: "#f59e0b", stop: "#ef4444", map: "#a3e635", arc: "#fbbf24" };
+const COL = { window: "#60a5fa", door: "#f59e0b", doorway: "#c084fc", stop: "#ef4444", map: "#a3e635", arc: "#fbbf24" };
+// What each kind drawn on a wall is called, and the words for drawing one.
+const NAME = { door: "Door", window: "Window", doorway: "Doorway" };
+const DRAW_HINT = "Door, Window or Doorway: draw along a wall. Heights: tap a device. Tap a door or window to change it.";
 const FEW = (n) => `${n} change${n === 1 ? "" : "s"}`;
 // The server's refusals (ws_house3d.py), said plainly. The house still draws
 // from the map, and a refused Save keeps the draft, to be saved again.
@@ -163,6 +170,7 @@ export function createEditor(ctx){
   (viewsSeg && viewsSeg.parentNode ? viewsSeg.parentNode : bar).insertBefore(editSeg, viewsSeg || null);
   const bDoor = btn("Door", "Draw a door along a wall", () => pickTool("door"));
   const bWin = btn("Window", "Draw a window along a wall", () => pickTool("window"));
+  const bWay = btn("Doorway", "Draw a doorway along a wall: an opening with no door in it", () => pickTool("doorway"));
   const bHts = btn("Heights", "Tap a light, a sensor or a readout to set its height (a light: also what it is)", () => pickTool("heights"));
   const bStrip = ctx.STRIP && ctx.RUNS ? btn("Strip", "Lay out an LED strip or string lights: where it really goes, how high, which way it shines", () => pickTool("strip")) : null;
   const bUndo = btn("Undo", "Undo", () => { if (draft && !saving && draft.undo()) afterHistory("Undone."); });
@@ -175,6 +183,7 @@ export function createEditor(ctx){
   const hintEl = d("div", "la3d-hint");
   hintEl.setAttribute("aria-live", "polite");
   const toolSeg = seg(bDoor, bWin, bHts, ...(bStrip ? [bStrip] : []));
+  toolSeg.insertBefore(bWay, bWin.nextSibling);
   tools.append(toolSeg, seg(bUndo, bRedo), seg(bSave, bDiscard), hintEl);
   root.appendChild(tools);
   const sheet = d("div", "la3d-sheet");
@@ -195,6 +204,7 @@ export function createEditor(ctx){
     hint: (text, bad) => hint(text, bad), floors: () => ctx.floors(), topFloor: () => currentFloor(),
     setTopFloor: (fid) => ctx.setTopFloor(fid), viewAt: (x, y) => ctx.viewAt(x, y), centre: () => ctx.centre(),
     host: () => ctx.host(), base: ctx.base || "", paintEditor: () => paint(),
+    STOREY: ctx.STOREY || null,                              // stairs: the floor they reach and their rise
   }) : null;
   const furnishing = () => !!fur && active() && tool === "furnish";
   // The Strip tool (live_aboard_strip.js): a light's run, on this same draft.
@@ -386,13 +396,14 @@ export function createEditor(ctx){
    *  one only where nothing hides it (the view's own test: under the floor
    *  above, or behind a wall, it is not there to tap). */
   function openingAt(x, y){
-    const cam = ctx.camera(), cur = currentFloor(), drawing = tool === "door" || tool === "window";
+    const cam = ctx.camera(), cur = currentFloor(), drawing = tool === "door" || tool === "window" || tool === "doorway";
     let best = null;
     for (const F of drawing ? drawFloors() : visibleFloors()) {
       for (const P of F.pieces) {
         const pc = P.pc, id = pc.added || (pc.barrier && pc.barrier.id) || null;
-        if (!id || (pc.kind !== "door" && pc.kind !== "window")) continue;
-        const leaf = P.els.find(e => e.leaf);
+        if (!id || (pc.kind !== "door" && pc.kind !== "window" && pc.kind !== "doorway")) continue;
+        // A doorway has no leaf: its opening, floor to head, is what a tap finds.
+        const leaf = P.els.find(e => e.leaf) || (pc.kind === "doorway" ? { z0: 0, z1: typeof pc.head_m === "number" ? pc.head_m : HOUSE.DOOR_H } : null);
         if (!leaf) continue;
         const z0 = Math.max(0, leaf.z0), z1 = P.cut ? Math.min(leaf.z1, HOUSE.CUT_H) : leaf.z1;
         const q = [[pc.x0, pc.y0, z0], [pc.x1, pc.y1, z0], [pc.x1, pc.y1, z1], [pc.x0, pc.y0, z1]].map(([px, py, z]) => screenAt(F, px, py, z));
@@ -546,7 +557,7 @@ export function createEditor(ctx){
     draft = DRAFT.createDraft(f);
     editing = true; tool = t === "furnish" && fur ? "furnish" : null; sel = null; gesture = null; pending = null;
     ctx.clearUse();
-    hint(tool === "furnish" ? FUR_HINT : "Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+    hint(tool === "furnish" ? FUR_HINT : DRAW_HINT);
     syncArcs();
     paint();
     sheetFor();
@@ -594,13 +605,13 @@ export function createEditor(ctx){
     const was = tool;
     tool = tool === t ? null : t;
     pending = null; gesture = null; line.visible = false;
-    const drawing = (x) => x === "door" || x === "window";
+    const drawing = (x) => x === "door" || x === "window" || x === "doorway";
     if (drawing(tool) && !drawing(was)) { const F = currentFloor(); if (F) ctx.topDown(F); }
     if (tool === "heights" && sel && sel.opening) sel = null;
     hint(drawing(tool) ? "Press on a wall and drag along it, or tap its two ends."
       : tool === "heights" ? "Tap a light, a sensor or a readout."
       : tool === "strip" ? "Tap a light, or pick one from the list."
-      : "Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+      : DRAW_HINT);
     paint();
     sheetFor();
     ctx.render();
@@ -627,6 +638,7 @@ export function createEditor(ctx){
     if (fur) fur.show(on && tool === "furnish");
     if (strip) strip.show(on && tool === "strip");
     for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"], [bStrip, "strip"]]) if (b) b.setAttribute("aria-pressed", String(tool === t));
+    bWay.setAttribute("aria-pressed", String(tool === "doorway"));
     bUndo.disabled = !on || saving || !draft.canUndo;
     bRedo.disabled = !on || saving || !draft.canRedo;
     const dirty = on && draft.dirty;
@@ -704,10 +716,10 @@ export function createEditor(ctx){
     if (!rec) { sel = null; return; }
     const F = floorOf(rec.floor_id), ceil = F ? ceilOf(F) : 2.65, lim = DRAFT.heightLimits(ceil);
     const w = Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]);
-    head(`${rec.kind === "door" ? "Door" : "Window"} · ${DRAFT.metres(w)}`, "Drawn in Live Aboard. Drag either end to change its width.");
-    choice("Is a", [["door", "Door"], ["window", "Window"]], rec.kind, (k) => {
+    head(`${NAME[rec.kind] || "Window"} · ${DRAFT.metres(w)}`, "Drawn in Live Aboard. Drag either end to change its width.");
+    choice("Is a", [["door", "Door"], ["window", "Window"], ["doorway", "Doorway"]], rec.kind, (k) => {
       if (k === rec.kind) return;
-      const sw = DRAFT.switchKind(o.id, rec, ceil);
+      const sw = DRAFT.switchKind(o.id, rec, ceil, k);
       if (sw.error) { flash(sw.error + "."); return; }
       change((c) => { delete c.openings[o.id]; c.openings[sw.id] = sw.rec; });
       sel = { opening: { ...o, id: sw.id, kind: sw.rec.kind } };
@@ -724,14 +736,17 @@ export function createEditor(ctx){
     } else {
       slider("Height", DRAFT.mm(lim.doorLow), DRAFT.mm(lim.doorHigh), rec.head_m, (v, g) => set({ head_m: v }, g), { opening: o.id });
       const pick = (k, v) => { change((c) => { if (c.openings[o.id]) c.openings[o.id][k] = v; }); sheetFor(); };
-      choice("Hinge", [["left", "Left"], ["right", "Right"]], rec.hinge, (v) => pick("hinge", v));
-      choice("Swing", [["in", "In"], ["out", "Out"]], rec.swing, (v) => pick("swing", v));
+      if (rec.kind === "door") {
+        choice("Hinge", [["left", "Left"], ["right", "Right"]], rec.hinge, (v) => pick("hinge", v));
+        choice("Swing", [["in", "In"], ["out", "Out"]], rec.swing, (v) => pick("swing", v));
+        shownRow(addedNow(o.id), rec.shown, (v) => pick("shown", v));
+      }
     }
     const acts = d("div", "la3d-acts");
     acts.appendChild(seg(btn("Delete", `Delete this ${rec.kind}`, () => {
       change((c) => { delete c.openings[o.id]; });
       select(null);
-      hint(`${rec.kind === "door" ? "Door" : "Window"} deleted. Undo brings it back.`);
+      hint(`${NAME[rec.kind] || "Window"} deleted. Undo brings it back.`);
     }, "la3d-del")));
     sheet.appendChild(acts);
   }
@@ -752,6 +767,8 @@ export function createEditor(ctx){
     } else {
       choice("Hinge", [["left", "Left"], ["right", "Right"]], cur.hinge || "left", (v) => { set({ hinge: v }); sheetFor(); });
       choice("Swing", [["in", "In"], ["out", "Out"]], cur.swing || "in", (v) => { set({ swing: v }); sheetFor(); });
+      const P = o.F.pieces.find(q => q.pc.barrier && q.pc.barrier.id === o.id && q.pc.kind === "door");
+      shownRow(P ? { P } : null, cur.shown, (v) => { set({ shown: v }); sheetFor(); });
     }
     const acts = d("div", "la3d-acts");
     const reset = btn("Reset", "Back to how the map has it", () => { change((c) => { delete c.openings[o.id]; }); sheetFor(); });
@@ -759,6 +776,14 @@ export function createEditor(ctx){
     sheetRefresh();
     acts.appendChild(seg(reset));
     sheet.appendChild(acts);
+  }
+  /** A door's "Shown": open, ajar or shut, when no sensor says (one with a
+   *  sensor follows it). `at`: where it is drawn ({P}); `stored`: the file's. */
+  function shownRow(at, stored, act){
+    const P = at && at.P, b = P && P.pc.barrier;
+    if (b && b.linked_entity_id) { sheet.appendChild(d("p", "la3d-sub", "It opens and shuts with its sensor.")); return; }
+    const now = DRAFT.DOOR_SHOWN.includes(stored) ? stored : P && ctx.STOREY ? ctx.STOREY.doorShown(P.pc) : "ajar";
+    choice("Shown", [["open", "Open"], ["ajar", "Ajar"], ["shut", "Shut"]], now, (v) => act(v));
   }
   function sheetDevice(eid){
     const info = ctx.device(eid);
@@ -823,7 +848,7 @@ export function createEditor(ctx){
     if (gesture && gesture.span && (gesture.kind === "line" || gesture.kind === "drag")) {
       const g = gesture, run = g.w.run, kind = g.kindOf;
       const hts = DRAFT.openingHeights({ kind, sill_m: g.sill, head_m: g.head }, ceilOf(g.w.F));
-      const z = kind === "door" ? [0, hts.head_m] : [hts.sill_m, hts.head_m];
+      const z = kind === "window" ? [hts.sill_m, hts.head_m] : [0, hts.head_m];
       return { F: g.w.F, a: DRAFT.pointOf(run, g.span.t0), b: DRAFT.pointOf(run, g.span.t1), z, kind, thick: g.w.run.thick,
                len: g.span.len, stop: g.span.stop, short: g.span.len < DRAFT.minWidth(kind) - 1e-6, fixed: g.fixed };
     }
@@ -831,7 +856,7 @@ export function createEditor(ctx){
       const rec = draft.cur.openings[sel.opening.id], F = rec ? floorOf(rec.floor_id) : null;
       if (!rec || !F) return null;
       const at = addedNow(sel.opening.id);
-      return { F, a: rec.a_m, b: rec.b_m, z: rec.kind === "door" ? [0, rec.head_m] : [rec.sill_m, rec.head_m], kind: rec.kind,
+      return { F, a: rec.a_m, b: rec.b_m, z: rec.kind === "window" ? [rec.sill_m, rec.head_m] : [0, rec.head_m], kind: rec.kind,
                thick: at ? at.P.pc.thick : 0.14, len: Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]),
                stop: null, short: false, handles: true };
     }
@@ -929,7 +954,7 @@ export function createEditor(ctx){
     }
     const op = openingAt(x, y);
     if (op) { gesture = { kind: "tap", target: { opening: op }, x0: x, y0: y }; return "tap"; }
-    if (tool === "door" || tool === "window") {
+    if (tool === "door" || tool === "window" || tool === "doorway") {
       const w = wallAt(x, y, REACH[k]);
       if (!w) {
         if (k !== "touch") return null;
@@ -1008,7 +1033,7 @@ export function createEditor(ctx){
     hint("Now tap the other end, on the same wall.");
   }
   function addOpening(w, sp){
-    const kind = tool === "door" ? "door" : "window", min = DRAFT.minWidth(kind);
+    const kind = tool === "door" || tool === "doorway" ? tool : "window", min = DRAFT.minWidth(kind);
     if (!sp || sp.len < min - 1e-6) {
       flash(`Too short: a ${kind} is at least ${min.toFixed(2)} m wide${sp && sp.stop === "opening" ? ", and openings never overlap" : ""}.`);
       return;
@@ -1017,8 +1042,8 @@ export function createEditor(ctx){
     const rec = DRAFT.newOpening(kind, w.F.fl.id, DRAFT.pointOf(w.run, sp.t0), DRAFT.pointOf(w.run, sp.t1), ceilOf(w.F));
     change((c) => { c.openings[id] = rec; });
     select({ opening: { id, added: true, kind } });
-    if (sp.stop === "opening") flash(`${kind === "door" ? "Door" : "Window"} ${DRAFT.metres(sp.len)}: it stops at the opening next to it (openings never overlap).`);
-    else hint(`${kind === "door" ? "Door" : "Window"} ${DRAFT.metres(sp.len)} added. Drag either end to change it.`);
+    if (sp.stop === "opening") flash(`${NAME[kind]} ${DRAFT.metres(sp.len)}: it stops at the opening next to it (openings never overlap).`);
+    else hint(`${NAME[kind]} ${DRAFT.metres(sp.len)} added. Drag either end to change it.`);
   }
   function moveEnd(g){
     const min = DRAFT.minWidth(g.kindOf);
@@ -1034,7 +1059,7 @@ export function createEditor(ctx){
     });
     sheetFor();
     if (g.span.stop === "opening") flash("Stopped at the opening next to it: openings never overlap.");
-    else hint(`${g.kindOf === "door" ? "Door" : "Window"} now ${DRAFT.metres(g.span.len)}.`);
+    else hint(`${NAME[g.kindOf] || "Window"} now ${DRAFT.metres(g.span.len)}.`);
   }
   function cancel(){ gesture = null; if (fur) fur.cancel(); if (strip) strip.cancel(); paint3d(); }
   function hover(e){
@@ -1071,7 +1096,7 @@ export function createEditor(ctx){
         if (!draft || !draft.dirty) stop();
         else {
           tool = null;
-          hint("Door or Window: draw along a wall. Heights: tap a device. Tap a door or window to change it.");
+          hint(DRAW_HINT);
         }
       }
       paint(); sheetFor(); ctx.render();
