@@ -914,5 +914,48 @@ await tryCase("newer: under an open draft, a read that finds a newer PadSpan's f
     && back.dirty && back.saveOn && back.hint === "Live Aboard's file can be saved again." && !back.bad, { held, back });
 });
 
+// Heights → a light → "What is this?": a kind for Live Aboard only. The view
+// draws it at once from the draft, Save sends it with the light's height,
+// a height reset keeps it, and "PadSpan's guess" takes it away again.
+await tryCase("kind: \"What is this?\" sets what a light is drawn as; Save sends it; PadSpan's guess takes it back", async () => {
+  await openEdit();
+  await pickTool("heights");
+  slot._look(0.6, 0.7, [5, 2.8, 4], 26);
+  await settle();
+  const kindOf = () => (st().fixtures.find(f => f.eid === "light.den") || {}).kind;
+  const pickEl = () => root().querySelectorAll(".la3d-sheet")[0].querySelectorAll("select")[0] || null;
+  const choose = async (v) => { const el = pickEl(); el.value = v; el.dispatchEvent({ type: "change" }); await settle(); };
+  tap(slot._where({ eid: "light.den" }));
+  await settle();
+  const el = pickEl(), opts = el ? el.querySelectorAll("option").map(o => [o.value, o.textContent]) : [];
+  const guess = kindOf();
+  await choose("lamp");
+  const asLamp = { drawn: kindOf(), draft: clone(ed().draft.lights["light.den"]), sheet: !!pickEl() && pickEl().value };
+  slide("Height", 1.1);
+  await settle();
+  const withZ = clone(ed().draft.lights["light.den"]);
+  click("Reset to default", "la3d-sheet");
+  await settle();
+  const reset = clone(ed().draft.lights["light.den"]);
+  const n0 = payloads.length;
+  click("Save", "la3d-tools");
+  await settle();
+  const sent = payloads.slice(n0);
+  tap(slot._where({ eid: "light.den" }));
+  await settle();
+  await choose("");
+  click("Save", "la3d-tools");
+  await settle();
+  const back = { drawn: kindOf(), sent: payloads.slice(n0 + 1), file: server.file.lights["light.den"] || null };
+  check("kind: \"What is this?\" sets what a light is drawn as; Save sends it; PadSpan's guess takes it back",
+    opts.length === H.LIGHT_KINDS.length + 1 && opts[0][0] === "" && /^PadSpan's guess: /.test(opts[0][1]) && guess === "glow"
+    && asLamp.drawn === "lamp" && asLamp.draft.kind === "lamp" && asLamp.sheet === "lamp"   // (a height saved before stays)
+    && withZ.kind === "lamp" && withZ.z_m === 1.1 && Object.keys(withZ).length === 2 && JSON.stringify(reset) === '{"kind":"lamp"}'
+    && JSON.stringify(sent) === '[{"lights":{"light.den":{"kind":"lamp"}}}]'
+    && back.drawn === guess && JSON.stringify(back.sent) === '[{"lights":{"light.den":null}}]' && back.file === null && !ed().dirty,
+    { opts: opts.slice(0, 3), guess, asLamp, withZ, reset, sent, back });
+  await closeEdit();
+});
+
 check("the view never failed", !st().failed, { failed: st().failed });
 console.log(JSON.stringify({ cases, failures, payloads, start: FILE0 }));

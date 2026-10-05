@@ -1110,11 +1110,12 @@ function createSlot(slotKey){
         lights.push(L);
       }
       // Each bulb twice: lit (glowing whatever the room's light) and off
-      // (shaded like the room: a white trim, a dark strip); paintLight shows one.
+      // (shaded like the room, and half see-through so a trim or a dark
+      // strip recedes at night); paintLight shows one.
       F.bulbs = {}; F.bulbsOff = {};
       for (const [prim, list] of Object.entries(bulbs)) {
         if (!list.length) continue;
-        const spec = { r: 0.7 };
+        const spec = { r: 0.7, tr: true, op: 0.5 };
         const im = new THREE.InstancedMesh(shared.prim[prim], shared.bulbMat, list.length);
         const dark = new THREE.InstancedMesh(shared.prim[prim], mat(spec), list.length);
         dark.userData.spec = spec;
