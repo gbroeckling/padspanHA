@@ -149,7 +149,7 @@ await tryCase("choice: no choice or own is today's look; atlas follows the Atlas
   const back = strip(S(hygge).look);
   check("choice: no choice or own is today's look; atlas follows the Atlas; own again is today's",
     S(absent).look.key === "classic" && S(absent).look.atlas === null && JSON.stringify(o) === JSON.stringify(a) && S(own).look.atlas === null
-    && pl.key === "atlas:plain" && pl.atlas.on === false && pl.bg === "#0c110f" && pl.ground === "#18201c"
+    && pl.key === "atlas:plain:hygge" && pl.atlas.on === false && pl.bg === "#0c110f" && pl.ground === "#18201c"
     && hy.key === "atlas:hygge" && hy.atlas.on === true && hy.bg === wantHy.page.bg && hy.ground === wantHy.page.ground
     && hy.bg !== LOOKS.SHOWCASE_LOOKS.hygge.bg && JSON.stringify(back) === JSON.stringify(a),
     { a, o, pl, hy, back, want: wantHy.page });

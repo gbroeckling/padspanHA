@@ -106,7 +106,8 @@ export function atlasLook(a){
   const sideOf = (s, d) => (s && typeof s === "object" ? { fill: colour(s.fill, d), op: clamp(num(s.fillOpacity, 0.3), 0, 1) } : { fill: d, op: 0.3 });
   const front = sideOf(t.slabSideFront, "#0a1a12");
   return Object.freeze({
-    key: on ? `atlas:${key}` : "atlas:plain", on, theme: on ? key : "classic", page, light, ...r,
+    // Its key: the theme, or the plain Atlas with the theme its slab edges and chips are read from.
+    key: on ? `atlas:${key}` : `atlas:plain:${key}`, on, theme: on ? key : "classic", page, light, ...r,
     // A floor: where the flat plates sit (the vignette's centre; Showcase
     // off, the ground lifted a little), its room colour mixed in.
     floor: on && vg.length ? stop(vg[0], FLOOR_K) : mixHex("#ffffff", page.ground, 0.05),
