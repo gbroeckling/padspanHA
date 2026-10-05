@@ -155,7 +155,8 @@ export function createEditor(ctx){
   const editSeg = seg(bEdit, editWhy);
   editSeg.classList.add("la3d-editseg");
   editSeg.style.cssText = "display:none;margin-left:auto";      // beside the view buttons, on the right
-  bar.insertBefore(editSeg, bar.querySelector("[data-la3d-views]"));
+  const viewsSeg = bar.querySelector("[data-la3d-views]");          // in the bar's right-hand group
+  (viewsSeg && viewsSeg.parentNode ? viewsSeg.parentNode : bar).insertBefore(editSeg, viewsSeg || null);
   const bDoor = btn("Door", "Draw a door along a wall", () => pickTool("door"));
   const bWin = btn("Window", "Draw a window along a wall", () => pickTool("window"));
   const bHts = btn("Heights", "Tap a light, a sensor or a readout to set its height (a light: also what it is)", () => pickTool("heights"));

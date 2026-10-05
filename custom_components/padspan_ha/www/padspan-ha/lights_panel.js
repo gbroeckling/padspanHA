@@ -910,6 +910,9 @@ class PadSpanLightsApp extends HTMLElement {
       // the setting is on and the tier is Pro, and reads the rest from here.
       house3d: this.state._house3d ? {
         slot: "atlas", settings: this.state._house3d,
+        // This screen is the house map: zoomed in, Live Aboard takes the
+        // whole panel (every bar steps aside), and it can go full screen.
+        mapOnly: true,
         // The sun's position (sun.sun) and the place (hass.config): no new calls.
         states: this._hass?.states || {}, config: this._hass?.config || null,
         // The 3D compass's Save: the GPS Bridge's own bearing,
