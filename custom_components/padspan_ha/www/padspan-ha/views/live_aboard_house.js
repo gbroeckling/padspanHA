@@ -1140,6 +1140,17 @@ export function runParts(L, ctx){
       wash([c[0] - b[0] / 2, c[1] - b[2] / 2], h - b[1] / 2, a, b, "round", on);
     }
   }
+  // Where its real light comes from (the view's lamp): the middle of what is
+  // lit, off the wall into the room, the way it faces.
+  if (P.picks.length) {
+    let sx = 0, sy = 0, sh = 0, nx = 0, ny = 0;
+    for (const q of P.picks) { sx += q.x; sy += q.y; sh += q.h; }
+    const k = P.picks.length, mx = sx / k, my = sy / k, mh = sh / k;
+    for (const q of st) { const d = [q.b[0] - q.a[0], q.b[1] - q.a[1]], L2 = Math.hypot(d[0], d[1]); if (L2 > 0.01) { const n = into(q, [d[0] / L2, d[1] / L2], nearestWall(pieces, (q.a[0] + q.b[0]) / 2, (q.a[1] + q.b[1]) / 2, 0.3)); nx += n[0] * L2; ny += n[1] * L2; } }
+    const nl = Math.hypot(nx, ny), off = run.loop ? 0 : 0.7;
+    P.lamp = [mx + (nl > 1e-6 ? nx / nl * off : 0), my + (nl > 1e-6 ? ny / nl * off : 0),
+              clamp(str ? mh - 0.2 : face === "up" ? mh + 0.25 : face === "down" ? mh - 0.45 : mh, 0.15, ceil - 0.05)];
+  }
   if (str) {                                                   // the wire, then a bulb every so often
     const S = RUNS.stringOf(run);
     for (const [a, b] of S.wire) {

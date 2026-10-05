@@ -1610,7 +1610,8 @@ function createSlot(slotKey){
         // A ceiling fan's blades turn while it runs.
         if (parts.spin) L.spin = { x: parts.spin.x, y: parts.spin.y, angle: 0, rps: 0, blades: parts.spin.blades.map(b => ({ a: b.a, r: b.r, ref: L.refs.houses[b.i] })) };
         const n = Math.max(1, parts.bulbs.length), mh = sh / n;
-        L.lamp = new THREE.Vector3(sx / n, F.fl.elev + (mh > 1.5 ? mh - 0.3 : mh + 0.35), sy / n);
+        L.lamp = parts.lamp ? new THREE.Vector3(parts.lamp[0], F.fl.elev + parts.lamp[2], parts.lamp[1])   // a run: off its wall, into the room
+          : new THREE.Vector3(sx / n, F.fl.elev + (mh > 1.5 ? mh - 0.3 : mh + 0.35), sy / n);
         lights.push(L);
       }
       // Each bulb twice: lit (glowing whatever the room's light) and off
