@@ -23,14 +23,21 @@
 //                     snapping to walls; the piece's panel: label, size, the
 //                     builder's own settings, colours, Turn, Floor ▲ / ▼ (the
 //                     view follows it), Height in room, Duplicate, Delete and
-//                     "This is a device…"; the fit checks as warnings.
+//                     "This is a device…"; the fit checks as warnings. Placed
+//                     exactly: typed X, Y, Height and Angle; arrow keys move
+//                     the picked piece 1 cm (Shift 10 cm) the way the view is
+//                     seen, [ and ] turn it 15° (Shift 1°); while it moves,
+//                     two short lines to the nearest walls with how far they
+//                     are; "Stand on what's under it" (a lamp onto its table)
+//                     and "Hang on wall" at a chosen height. Each is one Undo.
 //
 // Imports nothing: three.js, the rules (live_aboard_pieces.js) and the
 // builders (live_aboard_furniture.js — or null, and every piece is a box)
 // are handed in by the view.
 
 const SLOP = 6;                                     // px a press may move and still be a tap
-const COL = { sel: "#52b788", warn: "#f59e0b" };
+const COL = { sel: "#52b788", warn: "#f59e0b", gap: "#38bdf8" };
+const GAP_PX = 20;                                  // a distance's label: this tall on screen, either view
 const FLOWS = [["photo", "From a photo", "live_aboard_photo.js", "photoFlow"],
                ["library", "Library", "live_aboard_library.js", "libraryFlow"],
                ["import", "Import", "live_aboard_import.js", "importFlow"],
@@ -72,10 +79,20 @@ const CSS = `
 .la3d-flow > div{box-sizing:border-box;width:min(560px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;padding:12px 14px;
   border-radius:14px;background:#0b1410;border:1px solid rgba(120,190,155,.3);color:#e8f0ea;box-shadow:0 10px 30px rgba(0,0,0,.6)}
 .la3d-flow h4{margin:0 0 8px;display:flex;gap:8px;align-items:center;font-size:14px}
-.la3d-flow h4 span{flex:1}`;
+.la3d-flow h4 span{flex:1}
+.la3d-sheet .la3d-xy{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin:4px 0 6px}
+.la3d-sheet .la3d-fld{display:flex;align-items:center;gap:5px;min-width:0;font-size:11.5px;color:rgba(226,240,232,.75)}
+.la3d-sheet .la3d-fld span{min-width:42px}
+.la3d-sheet .la3d-fld input{min-width:0;flex:1;padding:4px 6px}
+.la3d-sheet .la3d-fld small{color:rgba(226,240,232,.5)}
+.la3d-sheet input.la3d-hang{width:64px;padding:4px 6px}
+.la3d-sheet .la3d-keys{margin:6px 0 0;font-size:10.5px;color:rgba(226,240,232,.5)}`;
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const copy = (x) => JSON.parse(JSON.stringify(x));
+const mm = (v) => Math.round(v * 1000) / 1000;
+const ARROWS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+const KEYS_TEXT = "Arrow keys move it 1 cm (Shift: 10 cm); [ and ] turn it 15° (Shift: 1°).";
 const metres = (v) => `${(Math.round(v * 100) / 100).toFixed(2)} m`;
 /** A recipe's size kept to what the server keeps (1 mm to 8 m; house3d_store.py),
  *  whatever a builder or a flow allows, so a Save is never refused for it. */
@@ -255,6 +272,10 @@ export function createFurnish(ctx){
   let fitHint = null;                                // a fit warning the hint shows, until it no longer applies
   let mods = null;                                   // the flows: {photo, library, import, people} → their function
   let share = null;                                  // the library's shareFlow (P4), when it has one
+  let lastCam = null;                                // the camera of the view last pressed: the arrow keys go its way
+  let burst = null;                                  // arrow keys or [ ] held: one Undo for the run ({id, g, t})
+  let measure = false;                               // the lines to the walls show (while it moves, after a nudge)
+  let hangAt = null;                                 // Hang on wall's height for the picked piece ({id, v})
   const FURN = () => (ctx.FURN ? ctx.FURN() : null);
   const cur = () => { const d = ctx.draft(); return d ? d.cur : null; };
   /** The changes the draft holds now (one Save takes at most so many). */
@@ -291,6 +312,54 @@ export function createFurnish(ctx){
   const outlineMat = new THREE.LineBasicMaterial({ color: COL.sel, depthTest: false, transparent: true, opacity: 0.95 });
   const outline = new THREE.LineSegments(outlineGeo, outlineMat);
   outline.renderOrder = 40; outline.visible = false; outline.frustumCulled = false;
+
+  // ── marks: how far the walls are ──────────────────────────────────────────
+  // Two short lines from the piece's sides to the nearest walls, each with
+  // its distance on a label the same size on screen in the 3D view and in
+  // the plan; on top of everything, as the outline is.
+  const _vp = new THREE.Vector4(), _wp = new THREE.Vector3();
+  function textSprite(){
+    const c = document.createElement("canvas");
+    c.width = 192; c.height = 48;
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    sp.renderOrder = 42; sp.frustumCulled = false; sp.visible = false;
+    sp.onBeforeRender = (renderer, scene, camera) => {
+      renderer.getCurrentViewport(_vp);
+      const H = _vp.w / (renderer.getPixelRatio() || 1) || 600;
+      let mpp;
+      if (camera.isOrthographicCamera) mpp = (camera.top - camera.bottom) / (camera.zoom || 1) / H;
+      else { sp.getWorldPosition(_wp); mpp = 2 * Math.tan((camera.fov || 40) * Math.PI / 360) * _wp.distanceTo(camera.position) / H; }
+      sp.scale.set(GAP_PX * mpp * 4, GAP_PX * mpp, 1);
+      sp.updateMatrixWorld();
+    };
+    let text = null;
+    return { sp, tex, mat, get text(){ return text; },
+      set(t){
+        if (t === text) return;
+        text = t;
+        const g = c.getContext("2d");
+        g.clearRect(0, 0, 192, 48);
+        g.beginPath();
+        if (g.roundRect) g.roundRect(26, 4, 140, 40, 20); else g.rect(26, 4, 140, 40);
+        g.fillStyle = "rgba(6,14,9,0.88)"; g.fill();
+        g.lineWidth = 2; g.strokeStyle = COL.gap; g.stroke();
+        g.fillStyle = "#e0f2fe"; g.font = "700 26px system-ui, \"Segoe UI\", Roboto, sans-serif";
+        g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(t, 96, 26);
+        tex.needsUpdate = true;
+      } };
+  }
+  const gapGeo = new THREE.BoxGeometry(1, 1, 1);
+  const gapMat = new THREE.MeshBasicMaterial({ color: COL.gap, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false });
+  const gapMarks = [0, 1].map(() => {
+    const line = new THREE.Mesh(gapGeo, gapMat);
+    line.renderOrder = 41; line.frustumCulled = false; line.visible = false;
+    return { line, label: textSprite() };
+  });
+  let gapsNow = [];
 
   // ── the current floor, its walls, doors and pieces ────────────────────────
   const floorById = (fid) => ctx.floors().find(F => F.fl.id === String(fid)) || null;
@@ -464,6 +533,8 @@ export function createFurnish(ctx){
     if (fitHint && id !== sel) { fitHint = null; ctx.hint(""); }   // that warning was another piece's
     sel = id && pieceOf(id) ? id : null;
     picker = null;
+    if (id !== (hangAt && hangAt.id)) hangAt = null;
+    measure = false; burst = null;
     sheet();
     paint3d();
     ctx.paintEditor();
@@ -548,8 +619,15 @@ export function createFurnish(ctx){
       });
       el.appendChild(cols);
     }
-    // Turn, floor, height.
+    // Turn, floor, height. Exactly: where it stands on the plan (m), how
+    // high its bottom is, which way it faces (degrees clockwise).
     el.appendChild(d("div", "la3d-sec", "Place"));
+    const xy = d("div", "la3d-xy");
+    xy.append(numField("X", p.x_m, 0.01, "m", "X on the plan", (v) => placeAt({ x_m: v })),
+              numField("Y", p.y_m, 0.01, "m", "Y on the plan", (v) => placeAt({ y_m: v })),
+              numField("Height", p.z_m || 0, 0.01, "m", "Height above the floor", (v) => placeAt({ z_m: v })),
+              numField("Angle", p.rotation || 0, 1, "°", "Angle", (v) => placeAt({ rotation: v })));
+    el.appendChild(xy);
     const turnRow = d("div", "la3d-acts");
     turnRow.append(seg(btn("⟲ 15°", "Turn it anticlockwise", () => turn(-1)), btn("⟳ 15°", "Turn it clockwise", () => turn(1))),
                    d("span", "la3d-sub", `${Math.round(p.rotation || 0)}°`));
@@ -572,9 +650,22 @@ export function createFurnish(ctx){
       const onFloor = btn("On the floor", "Stand it on the floor", () => { if (edit((q) => { q.z_m = 0; }, null, true)) { ctx.hint("On the floor."); sheet(); paint3d(); } });
       onFloor.disabled = !(p.z_m > 0);
       const hRow = d("div", "la3d-acts");
-      hRow.append(seg(onFloor));
+      hRow.append(seg(onFloor, btn("Stand on what's under it", "Onto the top of the piece under it: a lamp onto its table, a TV onto its unit", () => standOn())));
       el.appendChild(hRow);
+      // On a wall at a chosen height (its middle), its back flat against the
+      // nearest wall: a TV, a picture, a shelf.
+      if (!hangAt || hangAt.id !== p.id) hangAt = { id: p.id, v: mm(p.z_m > 0 ? p.z_m + S.h / 2 : PIECES.HANG_MID_M) };
+      const hangIn = d("input", "la3d-fin la3d-hang");
+      hangIn.type = "number"; hangIn.step = "0.01"; hangIn.min = "0"; hangIn.value = String(hangAt.v);
+      hangIn.setAttribute("aria-label", "Hang height");
+      hangIn.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") hang(); });
+      hangIn.addEventListener("change", guard(() => { const v = Number(hangIn.value); if (hangIn.value.trim() !== "" && Number.isFinite(v)) hangAt = { id: p.id, v: mm(Math.max(0, v)) }; }));
+      const hangRow = d("div", "la3d-acts");
+      hangRow.append(seg(btn("Hang on wall", "Its back flat on the nearest wall, its middle at this height", () => hang())),
+                     d("span", "la3d-sub", "its middle at"), hangIn, d("span", "la3d-sub", "m"));
+      el.appendChild(hangRow);
     }
+    if (!(globalThis.matchMedia && globalThis.matchMedia("(pointer: coarse)").matches)) el.appendChild(d("p", "la3d-keys", KEYS_TEXT));
     // Copy, delete, device.
     const acts = d("div", "la3d-acts");
     acts.append(seg(btn("Duplicate", "Another one beside it", () => duplicate()), btn("Delete", "Take it out", () => remove(), "la3d-del")));
@@ -694,6 +785,103 @@ export function createFurnish(ctx){
   function turn(dir){
     if (edit((q) => { q.rotation = PIECES.turned(q.rotation, dir); }, null, true)) { sheet(); paint3d(); }
   }
+  /** A typed value: a box in the panel whose change (Enter, or leaving it)
+   *  sets it, one Undo; a blank or a word puts the box back. */
+  function numField(label, value, step, unit, name, apply){
+    const inp = d("input", "la3d-fin");
+    inp.type = "number"; inp.step = String(step); inp.value = String(mm(num(value) ?? 0));
+    inp.setAttribute("aria-label", name);
+    inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter" && inp.blur) inp.blur(); });
+    inp.addEventListener("change", guard(() => {
+      const v = Number(inp.value);
+      if (inp.value.trim() === "" || !Number.isFinite(v)) { sheet(); return; }
+      apply(v);
+    }));
+    const l = d("label", "la3d-fld");
+    l.append(d("span", null, label), inp, d("small", null, unit));
+    return l;
+  }
+  /** Typed X, Y, Height or Angle: there exactly (x and y in the server's
+   *  range, the height under its floor's ceiling, the angle any angle). */
+  function placeAt(ch){
+    const p = sel && pieceOf(sel), F = p && floorById(p.floor_id);
+    if (!p) return;
+    const lim = (v) => mm(Math.max(-PIECES.COORD_MAX_M, Math.min(PIECES.COORD_MAX_M, v)));
+    edit((q) => {
+      if ("x_m" in ch) q.x_m = lim(ch.x_m);
+      if ("y_m" in ch) q.y_m = lim(ch.y_m);
+      if ("z_m" in ch) q.z_m = F ? PIECES.clampZ(ch.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h) : mm(Math.max(0, ch.z_m));
+      if ("rotation" in ch) q.rotation = PIECES.normRot(ch.rotation);
+    }, null, true);
+    if ("x_m" in ch || "y_m" in ch) measure = true;
+    sheet(); paint3d();
+  }
+  /** One run of keys on one piece is one Undo (a pause starts another). */
+  function burstGroup(kind){
+    const t = Date.now();
+    if (!burst || burst.id !== sel || burst.kind !== kind || t - burst.t > 1500) burst = { id: sel, kind, g: `${kind}:${sel}:${t}` };
+    burst.t = t;
+    return burst.g;
+  }
+  /** The screen's right on the plan, in the view last pressed (the plan's
+   *  own right before any press). */
+  function rightOnPlan(){
+    if (!lastCam) return [1, 0];
+    lastCam.updateMatrixWorld();
+    const v = new THREE.Vector3().setFromMatrixColumn(lastCam.matrixWorld, 0);
+    return Math.hypot(v.x, v.z) > 1e-6 ? [v.x, v.z] : [1, 0];
+  }
+  /** An arrow key: 1 cm (Shift: 10 cm) the way the view is seen. */
+  function nudge(key, big){
+    const step = PIECES.arrowStep(key, rightOnPlan(), PIECES.NUDGE_M[big ? 1 : 0]);
+    if (!step || !sel) return;
+    if (!edit((q) => { q.x_m = mm((num(q.x_m) ?? 0) + step[0]); q.y_m = mm((num(q.y_m) ?? 0) + step[1]); }, burstGroup("nudge"), true)) return;
+    measure = true;
+    ctx.hint(big ? "Moved 10 cm." : "Moved 1 cm.");
+    sheet(); paint3d();
+  }
+  /** [ or ]: onto the next 15° that way, or (Shift) 1°. */
+  function turnKey(dir, fine){
+    if (edit((q) => { q.rotation = fine ? PIECES.turnedBy(q.rotation, dir * PIECES.FINE_TURN) : PIECES.turned(q.rotation, dir); }, burstGroup("turn"), true)) { sheet(); paint3d(); }
+  }
+  /** Keys while a piece is picked in Furnish, never while typing in a box. */
+  const onKey = guard((e) => {
+    if (!shownNow || !sel || !ctx.active() || gesture || flowEl || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = (typeof e.composedPath === "function" && e.composedPath()[0]) || e.target;
+    if (t && (/^(input|textarea|select)$/i.test(String(t.tagName || t.localName || "")) || t.isContentEditable)) return;
+    if (root.isConnected === false) return;
+    const k = e.key;
+    if (ARROWS.includes(k)) { e.preventDefault(); nudge(k, !!e.shiftKey); }
+    else if (k === "[" || k === "{" || e.code === "BracketLeft") { e.preventDefault(); turnKey(-1, !!e.shiftKey); }
+    else if (k === "]" || k === "}" || e.code === "BracketRight") { e.preventDefault(); turnKey(1, !!e.shiftKey); }
+  });
+  let keysOn = false;
+  function keys(on){
+    if (on === keysOn || typeof document === "undefined") return;
+    keysOn = on;
+    if (on) document.addEventListener("keydown", onKey); else document.removeEventListener("keydown", onKey);
+  }
+  /** Stand on what's under it: onto the top of the piece its middle is over. */
+  function standOn(){
+    const p = sel && pieceOf(sel), F = p && floorById(p.floor_id);
+    if (!p || !F) return;
+    const r = PIECES.standOn(p, sceneOf(p).others), z = PIECES.clampZ(r.z_m, ceilOf(F), PIECES.sizeOf(p.recipe).h);
+    edit((q) => { q.z_m = z; }, null, true);
+    ctx.hint(r.on ? (z < r.z_m ? `On the ${nameOf(r.on)}, as high as the ceiling lets it.` : `On the ${nameOf(r.on)}.`) : "On the floor: nothing is under it.");
+    sheet(); paint3d();
+  }
+  /** Hang on wall at the height asked: its back on the nearest wall, facing out. */
+  function hang(){
+    const p = sel && pieceOf(sel), F = p && floorById(p.floor_id);
+    if (!p || !F) return;
+    const mid = hangAt && hangAt.id === p.id ? hangAt.v : PIECES.HANG_MID_M;
+    const r = PIECES.hangOnWall(p, null, wallsOf(F), mid, ceilOf(F));
+    if (!r) { ctx.hint("No wall near enough to hang it on at that height.", true); return; }
+    edit((q) => { q.x_m = r.x_m; q.y_m = r.y_m; q.z_m = r.z_m; q.rotation = r.rotation; }, null, true);
+    measure = true;
+    ctx.hint(`On the wall, its middle ${metres(r.z_m + PIECES.sizeOf(p.recipe).h / 2)} up.`);
+    sheet(); paint3d();
+  }
   function toFloor(dir){
     const p = sel && pieceOf(sel);
     if (!p) return;
@@ -758,6 +946,9 @@ export function createFurnish(ctx){
   // ── presses (the view hands them over while the tool is on) ──────────────
   function down(e){
     closeMenu();
+    const v = ctx.viewAt(e.clientX, e.clientY);
+    if (v && v.camera) lastCam = v.camera;
+    measure = false; burst = null;
     const id = pieceAt(e.clientX, e.clientY);
     if (!id) return "tap";
     const p = pieceOf(id), F = floorById(p.floor_id);
@@ -780,6 +971,7 @@ export function createFurnish(ctx){
     const want = { ...p, x_m: Math.round((at[0] + g.off[0]) * 1000) / 1000, y_m: Math.round((at[1] + g.off[1]) * 1000) / 1000, rotation: g.rot };
     const s = PIECES.snapToWall(want, null, wallsOf(F));
     g.snapped = !!s;
+    measure = true;
     ctx.change((c) => {
       const q = c.pieces[g.id];
       if (!q) return;
@@ -792,6 +984,7 @@ export function createFurnish(ctx){
     gesture = null;
     if (!g) return;
     lastDrag = { id: g.id, moved: g.moved, snapped: g.snapped };
+    measure = false;
     if (g.moved) {
       ctx.redraw();
       const p = pieceOf(g.id), warns = p ? checksOf(p) : [];
@@ -811,9 +1004,10 @@ export function createFurnish(ctx){
   function paint3d(render = true){
     const p = sel && pieceOf(sel), F = p && floorById(p.floor_id);
     if (!p || !F || !ctx.active()) {
-      const was = outline.visible;
+      const was = outline.visible || gapsNow.length > 0;
       outline.visible = false;
       if (outline.parent) outline.parent.remove(outline);
+      paintGaps(null, null);
       if (was && render) ctx.render();
       return;
     }
@@ -825,7 +1019,27 @@ export function createFurnish(ctx){
     outline.scale.set(s.w + 0.04, s.h + 0.02, s.d + 0.04);
     outlineMat.color.set(checksOf(p).length ? COL.warn : COL.sel);
     outline.visible = true;
+    paintGaps(p, F);
     if (render) ctx.render();
+  }
+  /** The lines to the nearest walls, while it moves (and after a nudge). */
+  function paintGaps(p, F){
+    gapsNow = measure && p && F ? PIECES.wallGaps(p, null, wallsOf(F)) : [];
+    gapMarks.forEach((M, i) => {
+      const g = gapsNow[i];
+      if (!g) { M.line.visible = false; M.label.sp.visible = false; return; }
+      if (M.line.parent !== F.group) {
+        for (const o of [M.line, M.label.sp]) { if (o.parent) o.parent.remove(o); F.group.add(o); }
+      }
+      const y = F.fl.elev + (num(p.z_m) ?? 0) + 0.03, dx = g.to[0] - g.from[0], dy = g.to[1] - g.from[1];
+      M.line.position.set((g.from[0] + g.to[0]) / 2, y, (g.from[1] + g.to[1]) / 2);
+      M.line.rotation.set(0, Math.atan2(-dy, dx), 0);
+      M.line.scale.set(Math.max(0.005, g.d), 0.02, 0.02);
+      M.line.visible = true;
+      M.label.set(`${g.d.toFixed(2)} m`);
+      M.label.sp.position.set((g.from[0] + g.to[0]) / 2, y + 0.04, (g.from[1] + g.to[1]) / 2);
+      M.label.sp.visible = true;
+    });
   }
 
   return {
@@ -835,21 +1049,29 @@ export function createFurnish(ctx){
       if (!!on === shownNow) return;
       shownNow = !!on;
       bar.style.display = on ? "" : "none";
+      keys(!!on);
       if (on) loadFlows().catch(() => {});
-      else { closeMenu(); closeFlow(); sel = null; gesture = null; picker = null; paint3d(); }
+      else { closeMenu(); closeFlow(); sel = null; gesture = null; picker = null; measure = false; paint3d(); }
     },
     sheet, down, move, up, tap, cancel, hover, paint3d, select,
     /** After Undo, Redo, Discard or a Save: the selection only if it is still there. */
-    refresh(){ if (sel && !pieceOf(sel)) sel = null; picker = null; paint3d(); },
+    refresh(){ if (sel && !pieceOf(sel)) sel = null; picker = null; measure = false; burst = null; paint3d(); },
     /** Every frame (the view draws nothing at rest, so this asks for none). */
     layout(){ if (menuOpen) placeMenu(); },
     state(){
       return { sel, menu: menuOpen, flows: mods ? Object.keys(mods).filter(k => mods[k]) : null, gesture: gesture ? { id: gesture.id, moved: gesture.moved, snapped: gesture.snapped } : null,
                checks: sel && pieceOf(sel) ? checksOf(pieceOf(sel)).map(w => w.kind) : [], outline: outline.visible ? "#" + outlineMat.color.getHexString() : null,
-               flowOpen: !!flowEl, picker: !!picker, lastDrag };
+               flowOpen: !!flowEl, picker: !!picker, lastDrag, keys: keysOn,
+               gaps: gapsNow.map((g, i) => ({ side: g.side, d: g.d, label: gapMarks[i].label.text, shown: gapMarks[i].line.visible && !!gapMarks[i].line.parent })) };
     },
     /** For the harness and a test: add a piece of a kind, as Build does. */
     build(kind){ add([{ recipe: recipeFor(kind) }]); return sel; },
-    dispose(){ closeFlow(); if (outline.parent) outline.parent.remove(outline); outlineGeo.dispose(); outlineMat.dispose(); },
+    dispose(){
+      closeFlow(); keys(false);
+      if (outline.parent) outline.parent.remove(outline);
+      outlineGeo.dispose(); outlineMat.dispose();
+      for (const M of gapMarks) { for (const o of [M.line, M.label.sp]) if (o.parent) o.parent.remove(o); M.label.tex.dispose(); M.label.mat.dispose(); }
+      gapGeo.dispose(); gapMat.dispose();
+    },
   };
 }
