@@ -232,7 +232,9 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     block = block[:block.index("} : null,")]
     assert 'saveNorth: async (b)=>{' in block
     assert 'this._hass.callWS({ type:"padspan_ha/settings_set", fabric_bearing_deg: b })' in block
-    assert block.count("callWS(") == 3, "the report's, the Save's and the 3D file's read, nothing else"
+    # (P6: and Show people's read of Overview's live snapshot, only while it is on.)
+    assert block.count("callWS(") == 4, "the report's, the Save's, the 3D file's read and Show people's, nothing else"
+    assert 'people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" })' in block
     assert 'load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),' in block
     maps = _js(_VIEWS / "maps.js")
     mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]

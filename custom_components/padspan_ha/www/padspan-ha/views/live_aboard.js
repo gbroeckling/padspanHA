@@ -58,6 +58,9 @@ const LOOKS = await import(`./live_aboard_showcase.js${new URL(import.meta.url).
 // pieces are only furniture and the fixtures stay where they are).
 const DEVICES = await import(`./live_aboard_devices.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_devices failed to load", err); return null; });
+// P6: beacons, scanners and people where PadSpan tracks them (optional too).
+const TRACKED = await import(`./live_aboard_tracked.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_tracked failed to load", err); return null; });
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -95,6 +98,7 @@ const meanOf = (v) => v.slice(1).reduce((a, x, i) => a + (x + v[i]) / 2, 0) / (v
 const STILL = { active: meanOf(HOUSE.MOTION_PULSE.fill), recent: meanOf(HOUSE.MOTION_RECENT.op) };   // a pulse's, a breath's mean
 const PICK_R = 22, BADGE_PX = 28;          // a device's reach for a tap (the Atlas's 44 px target); a floor badge
 const PIECE_D = PICK_R / 2;                // a press on a linked piece: a marker nearer than this wins
+const PEOPLE_MS = 5000;                    // the people layer reads the live snapshot at most this often
 const READ_H = 0.3, READ_PX = [14, 24];    // a readout's height (m), and never under / over this on screen (px)
 const READ_W = 400, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
 const RING_R0 = 0.6;                       // the motion ring's radius (m) at 1 (the Atlas's 0.7 → 2.4)
@@ -290,6 +294,11 @@ function createSlot(slotKey){
   // P5 (live_aboard_devices.js): what each linked piece shows, and the
   // outlines round the emergency lights while the Atlas's test runs.
   let devices = null, emOutlines = [], emKey = "";
+  // P6 (live_aboard_tracked.js): scanners with a look where the map keeps
+  // them; with Show people on, beacons with a look and people where PadSpan
+  // tracks them. peopleSnap: the live snapshot as the host last handed it
+  // (read through it, never more often than it says); off, none of it.
+  let tracked = null, peopleSnap = null, peopleAt = 0, peopleLoad = null, peopleReads = 0;
   // Furnish shows a plan beside the 3D view on a wide screen, drawn by the
   // same renderer in its own viewport; on a phone, Plan or 3D. The plan looks
   // straight down at the top floor showing.
@@ -310,6 +319,8 @@ function createSlot(slotKey){
     editor = null;
     try { if (devices) devices.dispose(); } catch (_) { /* gone with the view */ }
     devices = null; emOutlines = []; emKey = "";
+    try { if (tracked) tracked.dispose(); } catch (_) { /* gone with the view */ }
+    tracked = null; peopleSnap = null; peopleAt = 0; peopleLoad = null;
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
     layer = null; furnishP = null; topCb = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
@@ -476,6 +487,8 @@ function createSlot(slotKey){
       canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low") });
     devices = DEVICES ? DEVICES.createDeviceLayer({ THREE, layer, FURN: () => FURN, halo: shared.haloMats.m,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
+    tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi,
+      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
     planCam.up.set(0, 0, -1);                                // the plan as drawn: its top up
     // The 3D editor: its page in this element, its marks in this scene, its
@@ -1181,6 +1194,29 @@ function createSlot(slotKey){
     return true;
   }
 
+  // ── beacons, scanners and people (P6) ─────────────────────────────────────
+  /** p.people (only while Show people is on): {snapshot() (the live snapshot
+   *  the host already holds, Mapping), or read() → Promise (through
+   *  the host, the sidebar) with everyMs (never more often than Overview
+   *  polls)}. A read happens on a card the Atlas builds anyway: no timer. */
+  function syncTracked(p, vd, rebuilt){
+    if (!tracked) return;
+    const pp = p.people && typeof p.people === "object" ? p.people : null;
+    if (!pp) { peopleSnap = null; peopleAt = 0; peopleLoad = null; }
+    else if (typeof pp.snapshot === "function") { peopleSnap = pp.snapshot() || null; peopleReads++; }
+    else if (typeof pp.read === "function" && !peopleLoad && Date.now() - peopleAt >= Math.max(PEOPLE_MS, Number(pp.everyMs) || 0)) {
+      peopleAt = Date.now();
+      peopleReads++;
+      const mine = peopleLoad = Promise.resolve().then(() => pp.read()).then((snap) => {
+        if (peopleLoad !== mine) return;
+        peopleLoad = null; peopleSnap = snap && typeof snap === "object" ? snap : null;
+        if (lastP && renderer && !failed) syncTracked(lastP, viewData(), false);
+      }, () => { if (peopleLoad === mine) peopleLoad = null; });
+    }
+    if (tracked.sync({ model: p.model, looks: vd.devices, figures: vd.figures, snapshot: pp ? peopleSnap : null,
+                       states: p.states || {}, people: !!pp }, rebuilt)) requestRender();
+  }
+
   // ── sensors: motion, Motion · Air, the readouts (part B) ──────────────────
   // Placed sensors only, as on the Atlas. A motion sensor is a small sensor
   // near the ceiling, lit while active; the floor of its room pulses in the
@@ -1404,7 +1440,9 @@ function createSlot(slotKey){
     // Rain and snow draw on their own capped clock (live_aboard_weather.js frameMs).
     // A fan turning, a washer running (P5): on their own capped clock too.
     const wxMs = wx ? wx.frameMs() : 0, own = AMBIENT_MS[quality.profile || quality.measuring || "low"];
-    const dvMs = devices ? devices.rate() : 0, slow = wxMs && dvMs ? Math.min(wxMs, dvMs) : wxMs || dvMs;
+    // Someone walking (P6) too.
+    const rates = [wxMs, devices ? devices.rate() : 0, tracked ? tracked.rate() : 0].filter(Boolean);
+    const slow = rates.length ? Math.min(...rates) : 0;
     const fast = slow ? Math.min(own, slow) : own;
     for (const { F, P } of openings) {
       const o = P.open;
@@ -1448,6 +1486,7 @@ function createSlot(slotKey){
     }
     if (wx) wx.tick(t);                                       // rain and snow: the clock, to the GPU
     if (devices) devices.tick(t);                             // fans, washers, robots out
+    if (tracked) tracked.tick(t);                             // people walking
     liveMs = liveRate(t);
   }
   // Readouts keep to a size you can read; badges keep one size on screen.
@@ -1499,7 +1538,7 @@ function createSlot(slotKey){
     });
     for (const F of floorsUi) if (F.ao) F.ao.visible = !!Q.ao;
     if (layer) layer.sync(viewData().pieces);              // furniture's finishes and shadows go with the profile
-    if (lastP) syncDevices(lastP, viewData());
+    if (lastP) { syncDevices(lastP, viewData()); syncTracked(lastP, viewData(), false); }
     lampsDirty = true;
     resize();
   }
@@ -2296,6 +2335,7 @@ function createSlot(slotKey){
     // Furniture (P2): each piece on its floor, from the draft while editing.
     if (layer && layer.sync(vd.pieces, rebuilt)) requestRender();
     syncDevices(p, vd);
+    syncTracked(p, vd, rebuilt);
     paintLights(p.lightsByEid);
     paintLive();
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
@@ -2339,7 +2379,8 @@ function createSlot(slotKey){
      *  (hass.entities) and regIds ({registry id: entity id}, the registry
      *  the Atlas already reads): a linked piece follows its renamed entity;
      *  emergency (the Atlas's emergency lights while its test runs, else
-     *  null) (P5)}. */
+     *  null) (P5), people (only while Show people is on: {snapshot()} or
+     *  {read(), everyMs}, the live snapshot through the host) (P6)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
@@ -2419,6 +2460,8 @@ function createSlot(slotKey){
                // aside for one, the emergency lights outlined, the real lamps lit.
                devices: devices ? devices.state() : [], swapped: lights.filter(L => L.swap).map(L => L.eid),
                outlined: emOutlines.length, lamps: lampPool.filter(l => l.intensity > 0).map(l => l.position.toArray().map(v => Math.round(v * 100) / 100)),
+               // P6: scanners, beacons and people as drawn, and how often the snapshot was read.
+               tracked: tracked ? tracked.state() : [], peopleReads,
                split: furnishOn ? (viewports().plan ? (viewports().d3 ? "both" : "plan") : "3d") : null, plan: { ...plan } };
     },
     /** The Furnish tool (the harness builds a piece of any kind through it). */

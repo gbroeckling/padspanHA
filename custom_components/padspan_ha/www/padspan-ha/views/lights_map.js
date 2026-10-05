@@ -2907,6 +2907,9 @@ export function buildLightsMapCard(hostIn){
           // registry the Atlas already reads), and the emergency lights are
           // outlined while the Atlas's test runs.
           entities: h3.entities || null, regIds: h3.regIds || null, emergency: h3.emergency || null,
+          // P6: the people layer, only while Show people is on: the live
+          // snapshot through the host (off, it is never read).
+          people: h3.settings.atlas_3d_people === true && h3.people ? h3.people : null,
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }

@@ -507,6 +507,28 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
 }
 
 // ── Delete Map Modal ─────────────────────────────────────────────────────────
+// Live Aboard (P6): the looks of the beacons, from the 3D file's devices (a
+// tag's form and colours), read once per page when Show beacons first needs
+// them (a failed read: none, until the page loads again); the map draws
+// again when they arrive. {key: {form, color, accent}}, or null until read.
+function _beaconLooks(ctx, mapState) {
+  if (mapState._beaconLooks !== undefined) return mapState._beaconLooks;
+  mapState._beaconLooks = null;
+  Promise.resolve(ctx.actions.wsCall("padspan_ha/house3d_get")).then((r) => {
+    const out = {};
+    const dv = r && r.data && r.data.devices && typeof r.data.devices === "object" ? r.data.devices : {};
+    for (const [k, v] of Object.entries(dv)) {
+      const rc = v && v.recipe;
+      if (!rc || rc.kind !== "tag") continue;
+      const cols = Array.isArray(rc.colors) ? rc.colors : [];
+      out[k] = { form: String((rc.params && rc.params.form) || "puck"), color: cols[0] || null, accent: cols[1] || null };
+    }
+    mapState._beaconLooks = out;
+    if (Object.keys(out).length) ctx.actions.renderRooms();
+  }).catch(() => { mapState._beaconLooks = {}; });
+  return null;
+}
+
 // When a map has data (receivers, beacons, room outlines), offers the option
 // to migrate that data to another same-floor map before deleting. Migration
 // transforms coordinates from source → world → target coordinate space using
@@ -9041,6 +9063,13 @@ function _lightsTab(ctx, maps, active) {
       x_m: o.x_m, y_m: o.y_m,
       floor_id: o.floor_id || null,
     }));
+  // Live Aboard (P6): a beacon with a look (a tag made in Furnish → People &
+  // devices) wears a small drawing of it — only while Show beacons is on and
+  // Live Aboard is on at Pro. Off, nothing is read and the beacons are as
+  // they always were.
+  const beaconLooks = showBeacons && ctx.state.settings?.atlas_3d_enabled === true && _tierAtLeast(tier, "pro")
+    ? _beaconLooks(ctx, mapState) : null;
+  if (beaconLooks) for (const b of beacons) if (beaconLooks[b.key]) b.look = beaconLooks[b.key];
 
   // A press-and-hold jump must never land on a row the index's own filter
   // is hiding — "take me to this device" outranks a list filter set earlier.
@@ -9389,6 +9418,9 @@ function _lightsTab(ctx, maps, active) {
       furnish, entities: ctx.hass?.entities || null, toast: (t, bad) => ctx.toast(t, bad),
       // A piece linked to a device follows it through a rename (P5): the registry already read.
       regIds: ctx.state._lightsRegStore?.reg?.regIds || null,
+      // Show people (P6): the live snapshot this page already polls for
+      // Overview, read only when the 3D view asks (Show people on).
+      people: { snapshot: () => ctx.state.live?.snapshot || null },
       callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); },
       // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
       // like the Settings box (settingsSet would re-render everything).

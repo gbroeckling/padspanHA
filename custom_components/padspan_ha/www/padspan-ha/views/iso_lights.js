@@ -2591,6 +2591,37 @@ export function sceneColours(model, floors, byRoom, lightsByEid, hiddenEids, fie
 // contact shadow and a lit rim, and the code steps out from under the glyph so
 // the symbol can be seen. Everything the build tools rely on (g.lhex, data-eid,
 // data-cx/cy) is untouched, so the map stays fully editable in this mode.
+// A beacon's look on the flat Atlas (Live Aboard P6, only inside the beacon
+// overlay): its form — a puck, a card, a fob or a phone — in its own two
+// colours, a few pixels across, outlined in the beacon teal so it still reads
+// as a beacon. look = {form, color, accent} ("#rrggbb"; anything else is the
+// tag's own default).
+function beaconLookSVG(bx, by, look){
+  const hex = (c, d) => (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c) ? c : d);
+  const col = hex(look.color, "#f4f4f2"), acc = hex(look.accent, "#9aa3ab"), x = bx.toFixed(1), y = by.toFixed(1);
+  const edge = `stroke="#5eead4" stroke-width="1.4"`;
+  let g = "";
+  switch(look.form){
+    case "card":
+      g = `<rect x="${(bx-4.5).toFixed(1)}" y="${(by-6.5).toFixed(1)}" width="9" height="13" rx="1.6" fill="${col}" ${edge}/>`+
+        `<rect x="${(bx-2.5).toFixed(1)}" y="${(by-4).toFixed(1)}" width="3.5" height="2.6" rx="0.6" fill="${acc}"/>`;
+      break;
+    case "fob":
+      g = `<circle cx="${x}" cy="${(by-7).toFixed(1)}" r="2.2" fill="none" ${edge}/>`+
+        `<rect x="${(bx-4).toFixed(1)}" y="${(by-5).toFixed(1)}" width="8" height="10.5" rx="3" fill="${col}" ${edge}/>`+
+        `<circle cx="${x}" cy="${(by+0.6).toFixed(1)}" r="1.6" fill="${acc}"/>`;
+      break;
+    case "phone":
+      g = `<rect x="${(bx-4).toFixed(1)}" y="${(by-7.5).toFixed(1)}" width="8" height="15" rx="1.8" fill="${col}" ${edge}/>`+
+        `<rect x="${(bx-2.8).toFixed(1)}" y="${(by-5.8).toFixed(1)}" width="5.6" height="10.6" rx="0.8" fill="${acc}"/>`;
+      break;
+    default:
+      g = `<circle cx="${x}" cy="${y}" r="6" fill="${col}" ${edge}/>`+
+        `<circle cx="${x}" cy="${y}" r="2.2" fill="${acc}"/>`;
+  }
+  return `<g opacity="0.95" pointer-events="none">${g}</g>`;
+}
+
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
   // Which palette Showcase paints with — see SHOWCASE_THEMES above. Falls
@@ -5911,7 +5942,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         s+=`</g>`;
         continue;
       }
-      s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4.5" fill="#5eead4" `+
+      // Live Aboard (P6): a beacon with a look (a tag made in Furnish) wears a
+      // small drawing of it, ringed in the beacon teal; the rest, the dot.
+      if(b.look) s+=beaconLookSVG(bx, by, b.look);
+      else s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4.5" fill="#5eead4" `+
         `stroke="#0a1a12" stroke-width="1.2" opacity="0.9" pointer-events="none"/>`;
       // "Hide codes" also covers beacon names (Garry, 2026-09-09: "when txt
       // is turned off, should include beacons text") — one declutter switch,

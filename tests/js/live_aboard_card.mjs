@@ -191,6 +191,24 @@ await tryCase("off: absent and off are byte-identical; on but Map changes only t
   check("off: absent and off are byte-identical; on but Map changes only the switch",
     Object.values(out).every(o => Object.values(o).every(Boolean)), out);
 });
+// P6: a beacon's look (a tag made in Furnish) is drawn on the flat Atlas only
+// inside Show beacons. With it off, beacons that have looks change nothing at
+// all; on, a beacon with no look is the very same dot as before.
+await tryCase("off: a beacon's look shows only inside Show beacons", async () => {
+  const B = (look) => [{ key: "ble:keys", label: "Keys", x_m: 2, y_m: 2, floor_id: "main", ...(look ? { look } : {}) }];
+  const LOOK = { form: "fob", color: "#ff0000", accent: "#00ff00" };
+  const absent = card();
+  const offLooks = card({ more: { showBeacons: false, beacons: B(LOOK) } });
+  const offLooks3d = card({ house3d: H3(true), more: { showBeacons: false, beacons: B(LOOK) } });
+  const onPlain = card({ more: { showBeacons: true, beacons: B(null) } });
+  const onLook = card({ more: { showBeacons: true, beacons: B(LOOK) } });
+  const dot = 'r="4.5" fill="#5eead4"';
+  check("off: a beacon's look shows only inside Show beacons",
+    ser(offLooks.c) === ser(absent.c) && ser(offLooks3d.c, isSwitch) === ser(absent.c) && offLooks.svg === absent.svg
+    && onPlain.svg.includes(dot) && !absent.svg.includes(dot) && !onLook.svg.includes(dot)
+    && onLook.svg.includes('fill="#ff0000"') && onLook.svg.includes('fill="#00ff00"') && onLook.svg.includes(">Keys<"),
+    { plainDot: onPlain.svg.includes(dot), lookDot: onLook.svg.includes(dot) });
+});
 // P8: Rain and snow and the Showcase look switched on, with the flat map
 // raining (its own overlay) and in a Showcase theme: off, or on but showing
 // Map, the card is still exactly what it was, and nothing of Live Aboard loads.

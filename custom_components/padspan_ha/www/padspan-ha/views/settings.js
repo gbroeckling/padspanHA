@@ -3466,6 +3466,8 @@ function _atlas3dSection(ctx, el, settings){
     "Follows Outdoor weather above, and shows only while that is on too.");
   tick("atlas_3d_showcase", "Use the Atlas's Showcase look", settings.atlas_3d_showcase === true,
     "The colours of the Showcase theme the Atlas is showing.");
+  tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,
+    "People, and the tags and phones PadSpan tracks, where they are now. Uses the same live positions as Overview.");
   // Remove all furniture (admins; ws_house3d.house3d_clear only="pieces"): the
   // server takes a backup first and removes nothing without one. Asked here
   // in the page, the way Clear calibration asks above.
