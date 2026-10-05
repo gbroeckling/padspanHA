@@ -179,6 +179,28 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.100</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">5 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Added:</b> <b>Strip</b> in Live Aboard's Edit (in Mapping) puts LED strips and string lights where they really are:</li>
+          <li><b>Added:</b> floors work like the Atlas's floor chips.</li>
+          <li><b>Changed:</b> in Mapping, Show people and Show tags & scanners now move live, as on the sidebar.</li>
+          <li><b>Changed:</b> deleting a person in Home Assistant deletes their Live Aboard figure; renaming them keeps it.</li>
+          <li><b>Fixed:</b> the door and window tool draws on the floor you picked, not only the top one showing.</li>
+          <li><b>Fixed:</b> a wall switch flipped while PadSpan was putting a WLED light's look back is no longer undone.</li>
+          <li><b>Fixed:</b> on a one-segment strip, the brightness Home Assistant reports after that is no longer taken for someone else's change.</li>
+          <li><b>Fixed:</b> a restore or a factory reset can no longer land halfway through a Live Aboard save.</li>
+          <li><b>Fixed:</b> a manual backup that can't read one of its parts now says so and saves nothing. It used to save that part empty.</li>
+          <li><b>Fixed:</b> positions on Home Assistant's map were mirrored east to west; they now plot the right way round. The bearing still means the compass direction of down-the-plan, so a plan drawn with north at the top is 180. If you set the bearing by trial and error, check it again.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.99</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">5 October 2026</span>
