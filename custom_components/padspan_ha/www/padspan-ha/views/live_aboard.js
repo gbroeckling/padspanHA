@@ -3413,7 +3413,8 @@ function createSlot(slotKey){
    *  "Hide device codes" is on; the chip colours are the Atlas's theme's). */
   function codeList(p){
     if (!MARKS || !p.codes || typeof p.codes !== "object") return [];
-    const theme = (p.showcase && p.showcase.theme) || null, sc = !!p.codes.showcase, out = [];
+    // The theme the flat map's chips use (stored, whether Showcase is on or not).
+    const theme = (p.atlasLook && p.atlasLook.theme) || (p.showcase && p.showcase.theme) || null, sc = !!p.codes.showcase, out = [];
     const add = (eid, F, v, lit) => { const look = MARKS.chipLook(lbe[eid], theme, sc, lit); if (look) out.push({ eid, F, v, look, dim: dimOf(eid) }); };
     for (const L of lights) {
       if (!L.pick || !L.pick.length || L.swap) continue;

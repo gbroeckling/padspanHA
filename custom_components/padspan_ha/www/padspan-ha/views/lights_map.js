@@ -2893,7 +2893,8 @@ export function buildLightsMapCard(hostIn){
   let la3dCloseDrawer = null;
   // The drawers' Find active, Zoom and Save / Reset view act on Live Aboard
   // while it shows (fn gets its slot); false while the flat map shows.
-  const la3dDo = (fn) => { if (!la3dOn()) return false; const s = la3dSlot(); if (s) fn(s); return true; };
+  // Still loading, the flat map is what shows: its own controls act on it.
+  const la3dDo = (fn) => { if (!la3dOn()) return false; const s = la3dSlot(); if (!s) return false; fn(s); return true; };
   let la3dZoomLbl = null;
   const la3dSlot = () => (_LA && h3 ? _LA.liveAboardSlot(h3.slot) : null);
   // Why this screen cannot show 3D right now: the fallback kind, or null.
