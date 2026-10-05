@@ -426,7 +426,8 @@ def test_withdraw_takes_every_piece_of_a_house_that_shared_many(store, monkeypat
 
 # What this house shared: the owner tokens are the only way to withdraw it, so
 # a restore, "Remove everything", a factory reset or a Bright import keeps
-# them, like a tester sign-up (tester.carried_over). The live ones win.
+# them, like a tester sign-up (tester.carried_over). The live ones win. A
+# share still waiting is not sent after it.
 _SHARED = {"prefix": "abcdef", "submissions": {"sub_abcdef0000000001": {
     "owner_token": "0123456789abcdef0123456789abcdef", "library_id": "lib_000000000001",
     "shared_at": "2026-10-04T12:00:00+00:00", "kind": "sofa"}}}
@@ -438,7 +439,8 @@ def _live_shared(tmp_path, *, pieces: bool = True) -> None:
     from tests.test_house3d_store import _disk_file
     _disk_file(tmp_path)
     h3 = {"schema": 1, "pieces": {"fur_00000001": dict(_PIECE)} if pieces else {}, "lights": {}, "openings": {},
-          "devices": {}, "figures": {}, "library": {"terms_version": L.TERMS_VERSION, **_SHARED}}
+          "devices": {}, "figures": {}, "library": {"terms_version": L.TERMS_VERSION, **_SHARED, "pending_shares": [
+              {"submission_id": "sub_abcdef0000000001", "recipe": {"kind": "sofa"}, "queued_at": "2026-10-04"}]}}
     _FakeStore.saved[HOUSE3D_STORE_KEY] = json.loads(json.dumps(h3))
 
 
@@ -450,9 +452,12 @@ def test_a_restore_keeps_what_this_house_shared_since(store, monkeypatch, tmp_pa
     withdrawn = {"sub_abcdef00000000ff": {"owner_token": "f" * 32, "library_id": "lib_0000000000ff"}}
     for pieces in ({"fur_00000002": dict(_PIECE, id="fur_00000002")}, {}):     # with furniture, and without
         older = {"schema": 1, "pieces": pieces, "library": {"terms_version": L.TERMS_VERSION, "prefix": "abcdef",
-                                                            "submissions": withdrawn}}
+                                                            "submissions": withdrawn, "pending_shares": [
+                                                                {"submission_id": "sub_abcdef00000000ff",
+                                                                 "recipe": {"kind": "sofa"}}]}}
         _restore(h, monkeypatch, {HOUSE3D_STORE_KEY: older})
         assert _lib()["submissions"] == _SHARED["submissions"], "kept; and one withdrawn since never comes back"
+        assert _lib()["pending_shares"] == [], "nothing waits to be sent after it"
         assert _lib()["prefix"] == "abcdef" and _lib()["terms_version"] == L.TERMS_VERSION
         assert h.data[DOMAIN][DATA_HOUSE3D].data["library"]["submissions"] == _SHARED["submissions"]
         _FakeStore.saved[HOUSE3D_STORE_KEY]["library"].update(_SHARED)
@@ -470,7 +475,8 @@ def test_remove_everything_keeps_what_this_house_shared(store, monkeypatch, tmp_
     _run(W.ws_house3d_clear(h, conn, {"id": 1}))
     assert conn.send_result.call_args[0][1] == {"cleared": True, "backup_id": "bk_1"}
     saved = _FakeStore.saved[HOUSE3D_STORE_KEY]
-    assert saved["pieces"] == {} and saved["library"] == _SHARED, "the furniture goes; the shared pieces' tokens stay"
+    assert saved["pieces"] == {} and saved["library"] == {**_SHARED, "pending_shares": []}, (
+        "the furniture goes; the shared pieces' tokens stay; nothing waits to be sent")
 
 
 def test_a_factory_reset_keeps_what_this_house_shared(store, tmp_path) -> None:
@@ -479,8 +485,9 @@ def test_a_factory_reset_keeps_what_this_house_shared(store, tmp_path) -> None:
     h, conn = _house(tmp_path), MagicMock()
     _run(ws_factory_reset(h, conn, {"id": 1, "confirm": "FACTORY RESET"}))
     saved = _FakeStore.saved[HOUSE3D_STORE_KEY]
-    assert saved["pieces"] == {} and saved["library"] == _SHARED, "terms and furniture go; the tokens stay"
-    assert h.data[DOMAIN][DATA_HOUSE3D].data["library"] == _SHARED
+    assert saved["pieces"] == {} and saved["library"] == {**_SHARED, "pending_shares": []}, (
+        "terms, furniture and shares waiting go; the tokens stay")
+    assert h.data[DOMAIN][DATA_HOUSE3D].data["library"] == {**_SHARED, "pending_shares": []}
     assert "padspan_ha.house3d" not in conn.send_result.call_args[0][1]["errors"]
 
 

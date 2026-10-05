@@ -319,12 +319,13 @@ def test_an_import_keeps_what_this_house_shared_to_the_library(tmp_path):
     target = tmp_path / ".storage" / HOUSE3D_STORE_KEY
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps({"version": 1, "key": HOUSE3D_STORE_KEY, "data": {
-        "schema": 1, "pieces": {}, "library": {"terms_version": 1, **shared}}}), encoding="utf-8")
+        "schema": 1, "pieces": {}, "library": {"terms_version": 1, **shared, "pending_shares": [
+            {"submission_id": "sub_abcdef0000000001", "recipe": {"kind": "sofa"}}]}}}), encoding="utf-8")
     imported = {"schema": 1, "pieces": {"fur_9": {"id": "fur_9", "recipe": {"kind": "bed"}}}, "library": {}}
     _write_bright(tmp_path, "house3d", imported)
     res = _import(_hass(tmp_path), _backup_ok)
     assert res["ok"] is True and "house3d" in res["imported"], res
-    assert _read_target(tmp_path, HOUSE3D_STORE_KEY) == {**imported, "library": shared}
+    assert _read_target(tmp_path, HOUSE3D_STORE_KEY) == {**imported, "library": {**shared, "pending_shares": []}}
 
 
 

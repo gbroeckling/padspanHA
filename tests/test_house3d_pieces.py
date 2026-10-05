@@ -164,7 +164,8 @@ def test_the_least_size_is_one_number_everywhere():
     least = {"house3d_store": H.SIZE_MIN_M, "library": L.DIM_MIN_M, "look": H.LOOK_SIZE_M[0],
              "pieces.js": float(re.search(r"export const SIZE_MIN_M = ([\d.]+)", pieces)[1]),
              "import.js": float(re.search(r"export const SIZE_MIN_M = ([\d.]+)", imp)[1]),
-             "furnish.js inRange": float(re.search(r"function inRange\(recipe\)\{.*?Math\.max\(([\d.]+),", furnish, re.S)[1])}
+             "furnish.js inRange": float(re.search(r"function inRange\(recipe\)\{.*?Math\.max\(([\d.]+),",
+                                                   furnish, re.S)[1])}
     assert set(least.values()) == {0.001}, least
 
 
