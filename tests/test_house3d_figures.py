@@ -224,7 +224,7 @@ def test_nothing_but_the_3d_file_reads_the_figures():
     assert php == [], "no PadSpan server code knows about people figures"
     js_readers = sorted(p.name for p in (_CC / "www").rglob("*.js")
                         if re.search(r"""\.figures\b|["']figures["']|\bfigures\s*:""", p.read_text(encoding="utf-8")))
-    # live_aboard_draft.js: the Furnish tab's one draft carries what People & devices
-    # returns through to its one Save (house3d_edit), like every other section.
-    assert set(js_readers) <= {"live_aboard_people.js", "live_aboard_furnish.js", "live_aboard.js", "live_aboard_draft.js",
-                               "live_aboard_house.js", "live_aboard_live.js"}, js_readers
+    assert set(js_readers) <= {"live_aboard_people.js", "live_aboard_furnish.js", "live_aboard.js",
+                               "live_aboard_house.js", "live_aboard_live.js",
+                               "live_aboard_draft.js",      # the 3D file's own rules (ownedOf)
+                               "live_aboard_tracked.js"}, js_readers   # P6: draws each figure, in this house only

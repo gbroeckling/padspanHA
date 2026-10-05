@@ -291,7 +291,8 @@ class PadSpanLightsApp extends HTMLElement {
       // off. A failed fetch keeps the last answer; before any, no switch.
       if (s.atlas_3d_enabled !== undefined) {
         this.state._house3d = { atlas_3d_enabled: s.atlas_3d_enabled, atlas_3d_quality: s.atlas_3d_quality,
-          fabric_bearing_deg: s.fabric_bearing_deg, atlas_3d_weather: s.atlas_3d_weather, atlas_3d_showcase: s.atlas_3d_showcase };
+          fabric_bearing_deg: s.fabric_bearing_deg, atlas_3d_weather: s.atlas_3d_weather, atlas_3d_showcase: s.atlas_3d_showcase,
+          atlas_3d_people: s.atlas_3d_people, presence_poll_interval_s: s.presence_poll_interval_s };
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
@@ -921,6 +922,17 @@ class PadSpanLightsApp extends HTMLElement {
         },
         // Taps and holds in 3D: this map's own use api, asked for on the press.
         useApi: ()=>this._useApi(lightsByEid, lights),
+        // Furniture that is a device (P5): renames followed through the
+        // registry already read above, and the emergency lights while a
+        // test runs (the status this panel already keeps).
+        entities: this._hass?.entities || null, regIds: this._regStore?.reg?.regIds || null,
+        // Show people (P6): this panel has no live snapshot of its own, so
+        // the 3D view reads Overview's through here, only while Show people
+        // is on and the view shows, never more often than Overview polls.
+        people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" }).then(r=>(r && r.snapshot) || null),
+          everyMs: 1000 * (Number(this.state._house3d.presence_poll_interval_s) || 5) },
+        emergency: this.state._emerg && this.state._emerg.test && this.state._emerg.test.active
+          ? (this.state._emerg.members || []).map(m => m && m.entity_id).filter(Boolean) : null,
         // The 3D file (doors and windows drawn in 3D, heights): read when
         // the 3D view shows, never on the poll.
         load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),

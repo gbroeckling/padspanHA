@@ -157,6 +157,7 @@ await tryCase("open: Furnish opens at the furniture tool; Build lists the builde
     && JSON.stringify(menu) === JSON.stringify(want)
     // A flow shows only when its module is there (each lands from its own phase).
     && FLOW_FILES.every(([id, label, file]) => shown(button(label, "la3d-tools")) === existsSync(join(WWW, "views", file)))
+    // (the flows load side by side: in whatever order they arrive)
     && fur().flows && JSON.stringify([...fur().flows].sort()) === JSON.stringify(FLOW_FILES.filter(f => existsSync(join(WWW, "views", f[2]))).map(f => f[0]).sort())
     && st().furnish === true && st().split === "3d",
     { edit: { editing: ed().editing, tool: ed().tool }, menu, want, flows: fur().flows, split: st().split });

@@ -2276,7 +2276,11 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
           }
         }
         const areaMap = {}, platformMap = {}, manufacturerMap = {}, ipMap = {};
+        // Every entity by its registry id (Live Aboard: a piece of furniture
+        // linked to a device follows it through a rename). Same fetch.
+        const regIds = {};
         for (const e of (reg || [])) {
+          if (e && e.id && e.entity_id) regIds[e.id] = e.entity_id;
           // Fans and motion sensors ride the lights pipeline now, so their
           // room assignment resolves the same way a light's does. Temperature
           // sensors too — same sensor.* + device_class=="temperature" test
@@ -2313,7 +2317,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // in hand for the device_class/name each pairing decision needs.
         const pairMap = computeMotionOccupancyPairs(reg, hass.states);
         const doorLockMap = computeDoorLockPairs(reg, hass.states);
-        store.reg = { ts: Date.now(), areaMap, platformMap, manufacturerMap, ipMap, pairMap, doorLockMap };
+        store.reg = { ts: Date.now(), areaMap, platformMap, manufacturerMap, ipMap, pairMap, doorLockMap, regIds };
         store.retryAfter = 0;
       } catch (_) {
         // A failed fetch must never become the authoritative answer. With a
@@ -2321,7 +2325,7 @@ export function ensureLightsRegistry(store, hass, areas, onLoaded){
         // stay in the loading state (the map keeps its placeholder) instead of
         // caching an empty areaMap for 60s, which would tell the user every
         // light in the house has no room.
-        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, manufacturerMap: store.reg.manufacturerMap, ipMap: store.reg.ipMap, pairMap: store.reg.pairMap, doorLockMap: store.reg.doorLockMap };
+        if (store.reg) store.reg = { ts: Date.now(), areaMap: store.reg.areaMap, platformMap: store.reg.platformMap, manufacturerMap: store.reg.manufacturerMap, ipMap: store.reg.ipMap, pairMap: store.reg.pairMap, doorLockMap: store.reg.doorLockMap, regIds: store.reg.regIds };
         else store.retryAfter = Date.now() + 10000;
       } finally {
         store.loading = false;
@@ -2899,6 +2903,13 @@ export function buildLightsMapCard(hostIn){
           furnish: h3.furnish === true ? { callWS: typeof h3.callWS === "function" ? h3.callWS : null,
             toast: typeof h3.toast === "function" ? h3.toast : null, settings: h3.settings, entities: h3.entities || null } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
+          // P5: furniture that is a device follows a renamed entity (the
+          // registry the Atlas already reads), and the emergency lights are
+          // outlined while the Atlas's test runs.
+          entities: h3.entities || null, regIds: h3.regIds || null, emergency: h3.emergency || null,
+          // P6: the people layer, only while Show people is on: the live
+          // snapshot through the host (off, it is never read).
+          people: h3.settings.atlas_3d_people === true && h3.people ? h3.people : null,
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
     }

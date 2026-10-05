@@ -131,11 +131,12 @@ def test_the_box_saves_each_control_on_its_own() -> None:
     assert "import(`./fabric_compass.js${new URL(import.meta.url).search}`)" in sec
     for v in ('["auto", ', '["low", ', '["high", '):
         assert v in src[src.index("const _ATLAS_3D_QUALITY"):src.index("function _atlas3dSection(")], v
-    # P2's Remove all furniture (admins; the server backs up first). P4's
-    # library rows and P3's AI Task row are here too (their own tests); the
-    # people layer's row is not here yet.
+    # Every phase's row is here now: P2's Remove all furniture (admins; the server
+    # backs up first), P4's library rows and P3's AI Task (their own tests), P6's
+    # Show people.
     assert '"Remove all furniture…"' in sec and 'wsCall("padspan_ha/house3d_clear", { only: "pieces" })' in sec
-    for later in ("atlas_3d_people",):
+    assert 'tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,' in sec
+    for later in ():
         assert later not in sec, later
     # P3: the AI Task that reads photos, saved alone, from Home Assistant's ai_task.* entities, once on.
     assert 'save("atlas_3d_ai_task_entity", want,' in sec and 'e.startsWith("ai_task.")' in sec

@@ -33,6 +33,13 @@ const NS = "http://www.w3.org/2000/svg";
 const RING_R = 18;                         // the pressed ring, px
 const HOVER_R = 15;                        // the hover mark, px
 const HIDE_GRACE_MS = 450;                 // the hover box lingers this long over nothing (as on the Atlas)
+/** A piece of furniture linked to a device the Atlas has no marker for (a TV,
+ *  a washer, a robot; P5): a tap or a hold opens Home Assistant's own
+ *  controls for it, never a blind switch (a washer on a plug must never go
+ *  off from a stray tap). */
+function moreInfo(node, eid){
+  node.dispatchEvent(new CustomEvent("hass-more-info", { bubbles: true, composed: true, detail: { entityId: eid } }));
+}
 // The bubble wirePress shows while a drag dims, the same face.
 const DIM_BUBBLE = "position:fixed;z-index:10001;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:800;"
   + "font-variant-numeric:tabular-nums;color:#111827;background:linear-gradient(135deg,#f59e0b,#fbbf24);"
@@ -44,9 +51,11 @@ const UNDER_TITLE = "Act on this one instead — it's under the marker on top";
  *   root            the 3D view's element (the marks and the box go in it)
  *   pick(x, y)      → {hit, under} | null: the target under client (x, y)
  *                     and the devices under it. A target is {kind: "device" |
- *                     "room" | "floor" | "door", key, label, eid?, room?, z?,
- *                     bar?} — z is the plate's storey as the Atlas's badge
- *                     carries it, bar the barrier as its card is handed it.
+ *                     "room" | "floor" | "door" | "entity", key, label, eid?,
+ *                     room?, z?, bar?} — z is the plate's storey as the
+ *                     Atlas's badge carries it, bar the barrier as its card
+ *                     is handed it; "entity" a piece of furniture linked to a
+ *                     device the Atlas has no marker for (P5).
  *   screenOf(t)     → {x, y} | {poly: [[x, y], …]} | null, in px from root
  *   api()           → the host's use api, or null (then nothing is pressed)
  *   frame()         asks the view for a frame (the hold is timed on frames)
@@ -142,6 +151,7 @@ export function createUseSurface(o){
   // onPickUnder): motion its activity, a device with controls its controls,
   // anything else switches.
   function actUnder(u){
+    if (u.kind === "entity") { moreInfo(o.root, u.eid); return; }
     const api = o.api();
     const l0 = api && api.lightsByEid ? api.lightsByEid[u.eid] : null;
     if (!l0) return;
@@ -163,6 +173,7 @@ export function createUseSurface(o){
   // room / floor / barrier clicks).
   function act(p, r){
     const api = p.api, t = p.target;
+    if (t.kind === "entity") { if (r === "tap" || r === "open") moreInfo(o.root, t.eid); return; }
     if (t.kind === "device") {
       const eid = t.eid, l0 = api.lightsByEid[eid];
       if (l0.isMotion) { if (r === "tap" || r === "open") api.openActivity(eid); return; }

@@ -183,7 +183,9 @@ def test_the_view_draws_it_on_its_own_live_clock() -> None:
     played, the decision runs at each poll, and switching off lets it go."""
     la = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     rate = la[la.index("  function liveRate(now){"):la.index("  /** The frame: the Atlas's clocks, played")]
-    assert "const wxMs = wx ? wx.frameMs() : 0" in rate and rate.rstrip().endswith("return wxMs;\n  }")
+    # (P5 and P6: what devices and people do joins it, on its own capped clock.)
+    assert "const wxMs = wx ? wx.frameMs() : 0" in rate and rate.rstrip().endswith("return slow;\n  }")
+    assert "slow = wxMs && dvMs ? Math.min(wxMs, dvMs) : wxMs || dvMs;" in rate or "[wxMs, devices ? devices.rate() : 0," in rate
     anim = la[la.index("  function animateLive(t){"):la.index("  // Readouts keep to a size you can read")]
     assert "if (wx) wx.tick(t);" in anim and anim.index("if (wx) wx.tick(t);") < anim.index("liveMs = liveRate(t);")
     upd = la[la.index("  function update(p){"):la.index("  function place(s){")]

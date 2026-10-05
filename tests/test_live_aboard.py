@@ -170,6 +170,7 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
         if "vendor" in p.parts or p.name in ("lights_map.js", "live_aboard.js", "live_aboard_house.js", "live_aboard_draft.js",
                                                   "live_aboard_edit.js", "live_aboard_furnish.js",   # P2: Furnish names its flows
                                                   "live_aboard_import.js",
+                                                  "live_aboard_devices.js",     # P5: reads a light as the view does
                                                   "live_aboard_people.js"):   # the Furnish tab's people screen (P6)
             continue
         code = "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
@@ -237,7 +238,9 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     block = block[:block.index("} : null,")]
     assert 'saveNorth: async (b)=>{' in block
     assert 'this._hass.callWS({ type:"padspan_ha/settings_set", fabric_bearing_deg: b })' in block
-    assert block.count("callWS(") == 3, "the report's, the Save's and the 3D file's read, nothing else"
+    # (P6: and Show people's read of Overview's live snapshot, only while it is on.)
+    assert block.count("callWS(") == 4, "the report's, the Save's, the 3D file's read and Show people's, nothing else"
+    assert 'people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" })' in block
     assert 'load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),' in block
     maps = _js(_VIEWS / "maps.js")
     mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]

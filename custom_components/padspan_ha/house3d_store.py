@@ -168,10 +168,10 @@ class House3dStore:
 # ("win_" / "door_" + 8 hex digits, a stretch of wall in fabric metres), the
 # hinge, swing, sill and head of a barrier's own door or window (keyed by the
 # barrier's id; the map is never written), the 3D-only height of a light or
-# another device, the furniture (P2 Furnish: "fur_" + 8 hex digits) and the
-# people figures (P6). Each entry is set, or removed with None. What the editor
-# owns is checked strictly; every other key already in the file (a newer
-# PadSpan's) is kept.
+# another device (or a beacon's or scanner's look), the furniture (P2 Furnish:
+# "fur_" + 8 hex digits) and the people figures (P6). Each entry is set, or
+# removed with None. What the editor owns is checked strictly; every other
+# key already in the file (a newer PadSpan's) is kept.
 EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices", "pieces", "figures")
 OPENING_ID = re.compile(r"^(win|door)_[0-9a-f]{8}$")
 BARRIER_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,40}$")
