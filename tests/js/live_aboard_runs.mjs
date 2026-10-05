@@ -160,7 +160,7 @@ tryCase("piece: behind, under and along the top, on the piece", () => {
   const top = R.roundPiece(cab, { w: 2.4, d: 0.35, h: 0.7 }, "top").run;
   for (const [w, run] of [["behind", behind], ["under", under], ["glow", glow], ["top", top]]) keep(w, { kind: "strip", run });
   check("piece: behind, under and along the top, on the piece", behind.piece === TV.id && behind.loop && behind.face === "wall"
-    && behind.pts.every(p => near(p[1], -0.052)) && under.face === "down" && !under.loop && under.pts.every(p => p[2] === 0)
+    && behind.pts.every(p => near(p[1], -0.036)) && under.face === "down" && !under.loop && under.pts.every(p => p[2] === 0)
     && glow.loop && glow.pts.length === 4 && glow.face === "down" && top.face === "up" && top.pts.every(p => near(p[2], 0.712)),
     { behind, under, glow, top });
 });
@@ -173,7 +173,7 @@ tryCase("piece: the run moves and turns with its piece", () => {
   const r0 = at0.map(p => Math.hypot(p[0] - TV.x_m, p[1] - TV.y_m)), r1 = at1.map(p => Math.hypot(p[0] - 5, p[1] + 2));
   const gone = R.placed(run, {});
   check("piece: the run moves and turns with its piece", r0.every((v, i) => near(v, r1[i], 2e-3)) && at1.every((p, i) => near(p[2] - at0[i][2], 0.25, 2e-3))
-    && near(at1[0][1], -2.052) && gone === null && R.placed({ ...run, piece: undefined }, {}) !== null, { at0, at1 });
+    && near(at1[0][1], -2.036) && gone === null && R.placed({ ...run, piece: undefined }, {}) !== null, { at0, at1 });
 });
 tryCase("piece: removed, its run stays where it was (one step)", () => {
   const run = R.roundPiece(TV, { w: 1.3, d: 0.08, h: 0.8 }, "behind").run, before = R.placed(run, { [TV.id]: TV }).pts;

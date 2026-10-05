@@ -111,7 +111,7 @@ export function createStrip(ctx){
   const pieceOf = (id) => { const c = cur(); return (c && c.pieces && c.pieces[id]) || null; };
   const info = () => (sel ? ctx.device(sel) : null);
   const ceilOf = (F) => F.fl.h - HOUSE.SLAB_T;
-  const kindOf = (eid) => { const e = entryOf(eid), L = ctx.lights().find(x => x.eid === eid); return (e && e.kind) || (L && L.drawn) || "strip"; };
+  const kindOf = (eid) => { const e = entryOf(eid), I = e && e.kind ? null : ctx.device(eid); return (e && e.kind) || (I && I.kind) || "strip"; };
   /** The run where it is drawn: its points on its floor (null: its piece is gone). */
   const placedOf = (eid) => RUNS.placed(runOf(eid), (cur() || {}).pieces);
 

@@ -249,6 +249,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_devices",                          # Live Aboard P5: furniture that is a device
     "live_aboard_tracked",                          # Live Aboard P6: beacons, scanners and people, live
     "live_aboard_people", "live_aboard_photo",
+    "live_aboard_runs", "live_aboard_strip",        # Live Aboard's Strip tool: strips and string lights
     "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
     "insights", "iso_lights", "iso_motion", "light_codes", "lights_map", "locate",
     "pan_zoom", "path_loss", "plan_viewer", "push_subscription", "radio_map",

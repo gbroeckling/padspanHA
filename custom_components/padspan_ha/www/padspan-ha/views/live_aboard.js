@@ -1587,8 +1587,8 @@ function createSlot(slotKey){
         // Moved whole to its height in the 3D file, if it has one (part C).
         // Laid out with the Strip tool: drawn along its run (on a piece: where the piece stands now).
         const own = RUNS.readRun(zs[L0.eid]), run = RUNS.placed(own, vdP), on = run && own.piece ? vdP[own.piece] : null;
-        const L1 = run ? { ...L0, kind: set || L0.kind, run, pieceAt: on ? [on.x_m, on.y_m] : null } : set ? { ...L0, kind: set } : L0;
-        const lift = DRAFT.liftParts(HOUSE.fixtureParts(L1, ctx), run ? null : zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
+        const lift = run ? DRAFT.liftParts(HOUSE.fixtureParts({ ...L0, kind: set || L0.kind, run, pieceAt: on ? [on.x_m, on.y_m] : null }, ctx), null, F.fl.h - HOUSE.SLAB_T)
+          : DRAFT.liftParts(HOUSE.fixtureParts(set ? { ...L0, kind: set } : L0, ctx), zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
         const L = { ...L0, F, kf: parts.kf, drawn: parts.kind, guess, wall: null, refs: { bulbs: [], houses: [], halos: [], washes: [], pools: [] },
                     key: null, look: null, z: lift.z, zDefault: lift.zDefault, spin: null };
         // A wall it hangs on (or a part of it does: a cove's sides) repaints it as it is cut.

@@ -39,7 +39,7 @@ export function faceOf(kind){
 // Hidden tape: unseen while off (as Wave A draws them).
 export const HIDDEN_OFF = new Set(["undercab", "kick", "tv", "cove"]);
 export const TAPE_M = 0.022;               // a strip's width and depth
-export const RAIL_TOP_M = 1.03;            // on a deck rail (live_aboard_house.js RAIL_H + 3 cm)
+export const RAIL_TOP_M = 1.03;            // on a deck rail: 3 cm over its top (the house's RAIL_H)
 export const SNAP_M = 0.03;                // a height snaps to a chip this near
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -347,7 +347,7 @@ export function roundPiece(piece, size, mode){
       pts = [[-a, -b, hh], [a, -b, hh], [a, b, hh], [-a, b, hh]]; face = "down"; loop = true;
     }
   } else if (mode === "behind") {
-    const a = inset(hu, 0.05), y = -hv - 0.012;
+    const a = inset(hu, 0.05), y = -hv + 0.004;                    // on its back (a flush-mounted TV: between it and the wall)
     if (H < 0.2) { pts = [[-a, y, H * 0.7], [a, y, H * 0.7]]; }
     else { const lo = Math.min(0.06, H / 4), hi = H - lo; pts = [[-a, y, lo], [a, y, lo], [a, y, hi], [-a, y, hi]]; loop = true; }
     face = "wall";
