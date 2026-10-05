@@ -443,7 +443,7 @@ export function createCodeLayer(ctx){
         let C = chips.get(eid);
         if (!C) { C = make(eid); chips.set(eid, C); changed = true; }
         if (C.sprite.parent !== d.F.group) { d.F.group.add(C.sprite); changed = true; }
-        C.F = d.F; C.v = d.v; C.dim = !!d.dim;
+        C.F = d.F; C.v = d.v; C.dim = !!d.dim; C.gap = Number.isFinite(d.gap) ? d.gap : 10;
         C.sprite.position.copy(d.v);
         const key = JSON.stringify(d.look);
         if (key !== C.key) { C.key = key; C.text = d.look.text; draw(C, d.look); changed = true; }
@@ -451,6 +451,8 @@ export function createCodeLayer(ctx){
       camKey = null;
       return changed;
     },
+    /** Walls or floors changed: what covers a code is worked out again. */
+    recheck(){ camKey = null; },
     /** Sized and shown for camera c over a view H px high; show: codes on
      *  at all (the preference, and room scale). */
     size(c, H, show){
@@ -473,7 +475,7 @@ export function createCodeLayer(ctx){
         shownN++;
         C.sprite.scale.set(CODE_PX * (200 / 56) * k, CODE_PX * k, 1);
         C.sprite.material.opacity = C.dim ? DIM_K : 1;            // faded with its device
-        C.sprite.center.set(0.5, 1 + 10 / CODE_PX);            // under the device, clear of it
+        C.sprite.center.set(0.5, 1 + (C.gap ?? 10) / CODE_PX);   // under the device, clear of it (and of a motion marker)
       }
     },
     state(){ return { shown: shownN, chips: [...chips.values()].map(C => ({ eid: C.eid, text: C.text, on: C.sprite.visible, dim: C.dim,

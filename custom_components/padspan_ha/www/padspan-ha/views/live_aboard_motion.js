@@ -99,14 +99,17 @@ export function stepOf(look){
 }
 /** "pir" | "presence" | "pair": the model drawn and the coverage. A sensor
  *  folded with an occupancy half (the Atlas's pairs) is a room sensor's square
- *  face; an occupancy or presence sensor a flat puck (mmWave), unless its name
- *  says PIR; a motion sensor a PIR dome, unless its name says radar. */
+ *  face; a "presence" sensor, or one whose name says radar, mmWave or
+ *  presence (or names an mmWave model), a flat puck; anything else a PIR
+ *  dome. Zigbee2MQTT reports a plain PIR as "occupancy", so that word alone
+ *  never makes a presence unit. */
 export function sensorModelOf(l, paired){
   if (paired) return "pair";
   const name = `${(l && l.entity_id) || ""} ${(l && l.friendly_name) || ""}`.toLowerCase().replace(/[_.]/g, " ");
   const dc = l && l.device_class;
-  if (dc === "occupancy" || dc === "presence") return /\bpir\b/.test(name) ? "pir" : "presence";
-  return /radar|mmwave|mm wave|presence|ld24\d\d|\bfp[12]\b/.test(name) ? "presence" : "pir";
+  if (/\bpir\b/.test(name)) return "pir";
+  if (dc === "presence") return "presence";
+  return /radar|mmwave|mm wave|presence|ld24\d\d|\bfp[12]\b|snzb ?06|\b06p\b/.test(name) ? "presence" : "pir";
 }
 /** The Atlas's own "stuck on" (light_codes.js healthOf with the motion
  *  class's health key): on for longer than it can really be. */
@@ -121,7 +124,7 @@ export function stuckOf(l, nowMs){
 export function glowOf(l, nowMs, haStartedMs, presence = false){
   if (!l) return null;
   if (l.state === "unavailable" || l.state === "unknown") return { none: true };
-  if (stuckOf(l, nowMs)) {
+  if (!presence && stuckOf(l, nowMs)) {                      // on for hours is someone still there, for presence
     const e = nowMs - Date.parse(l.last_changed);
     return { active: true, steady: false, stuck: true, on: true, step: 0, color: ACTIVE, k: GLOW.stuck, elapsed: Number.isFinite(e) ? e : 0 };
   }
@@ -627,7 +630,7 @@ export function createMotionLayer(ctx){
         P.u.uRingW.value[i] = r.w;
       } else R.set(S.mx, S.my, 0, 0);
       let fa = 0;
-      if (S.flashT !== null && t - S.flashT < FLASH.ms) { const q = (t - S.flashT) / FLASH.ms; fa = FLASH.a * (1 - q * q); }
+      if (S.flashT !== null && t - S.flashT < FLASH.ms) { const q = (t - S.flashT) / FLASH.ms; fa = FLASH.a * (1 - q * q) * (S.dim ? DIM : 1); }
       if ((lens && !S.dim) || focusEid === S.eid) fa = Math.max(fa, COVER_A);
       if (fa > 0 && S.cover) {
         Fv.set(S.mx, S.my, S.cover.m, fa);
@@ -677,12 +680,12 @@ export function createMotionLayer(ctx){
     /** The view's clock (t: performance.now()): the rings and flashes, moved. */
     tick(t){
       last = t;
-      for (const P of patches) if (P.sensors.some(playing)) {
-        stepPatch(P, t);
-        for (const S of P.sensors) {
-          if (S.ringT !== null && t - S.ringT >= RING.ms) S.ringT = null;
-          if (S.flashT !== null && t - S.flashT >= FLASH.ms) S.flashT = null;
-        }
+      for (const P of patches) if (P.all.some(playing)) stepPatch(P, t);
+      // Every sensor's ring and flash ends, a room's fifth too (its patch
+      // draws four): else the view never came to rest.
+      for (const S of sensors) {
+        if (S.ringT !== null && t - S.ringT >= RING.ms) S.ringT = null;
+        if (S.flashT !== null && t - S.flashT >= FLASH.ms) S.flashT = null;
       }
     },
     /** How often to draw while a ring or a flash plays on a floor that shows (ms), or 0. */
@@ -717,6 +720,8 @@ export function createMotionLayer(ctx){
         S.sprite.material.opacity = S.dim ? DIM + 0.1 : L.lit ? 1 : 0.85;
       }
     },
+    /** Walls or floors changed: what hides a marker is worked out again. */
+    recheck(){ camKey = null; },
     /** What a press can land on: a marker that shows, not faded. */
     pickable(){ return sensors.filter(S => S.shownNow && !S.dim).map(S => ({ eid: S.eid, v: S.at })); },
     /** The hover box's words for eid, or null. */

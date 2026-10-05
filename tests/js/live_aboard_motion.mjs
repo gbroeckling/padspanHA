@@ -239,10 +239,48 @@ await tryCase("presence: on holds steady; cleared, the hold and the steps by age
   check("presence: on holds steady; cleared, the hold and the steps by age",
     on.steady && on.active && on.k === 1 && on.color === "#3b82f6" && !hold.steady && hold.active && hold.step === 0
     && !later8.steady && later8.step === 1 && !motionOn.steady
-    && MO.sensorModelOf({ entity_id: "binary_sensor.p", device_class: "occupancy" }) === "presence"
+    // Zigbee2MQTT reports a plain PIR as "occupancy": only "presence", or a name saying radar / an mmWave model, is a puck.
+    && MO.sensorModelOf({ entity_id: "binary_sensor.p", device_class: "occupancy" }) === "pir"
+    && MO.sensorModelOf({ entity_id: "binary_sensor.0xf044_occupancy", friendly_name: "DeckLounge Occupancy", device_class: "occupancy" }) === "pir"
+    && MO.sensorModelOf({ entity_id: "binary_sensor.p", device_class: "presence" }) === "presence"
+    && MO.sensorModelOf({ entity_id: "binary_sensor.sonoff_snzb_06p", device_class: "occupancy" }) === "presence"
+    && MO.sensorModelOf({ entity_id: "binary_sensor.garage_radar_0xa4_occupancy", device_class: "occupancy" }) === "presence"
+    // A presence sensor on all night is someone still there, never "stuck".
+    && !(MO.glowOf(l("on", 9 * 60), now, 0, true) || {}).stuck && !!(MO.glowOf(l("on", 9 * 60), now, 0, false) || {}).stuck
     && MO.sensorModelOf({ entity_id: "binary_sensor.k", device_class: "motion" }) === "pir"
     && MO.sensorModelOf({ entity_id: "binary_sensor.garage_radar", device_class: "motion" }) === "presence"
     && MO.sensorModelOf({ entity_id: "binary_sensor.k", device_class: "motion" }, true) === "pair", { on, hold, later8 });
+});
+await tryCase("layer: a room's fifth sensor's ring ends and the view rests; a flash fades with another class picked", async () => {
+  const T3 = await import(pathToFileURL(join(WWW, "vendor", "three", "three.module.min.js")).href);
+  const now = Date.now(), old = new Date(now - 3600e3).toISOString();
+  const mk = (i, st, lc) => ({ entity_id: `binary_sensor.m${i}`, isMotion: true, device_class: "motion", state: st, last_changed: lc, friendly_name: `M${i}` });
+  const room = { name: "Big", pts: [[0, 0], [10, 0], [10, 10], [0, 10]] };
+  const F = { group: new T3.Group(), pieces: [], fl: { id: "m", elev: 0, h: 2.6 } };
+  F.group.visible = true;
+  const L = MO.createMotionLayer({ THREE: T3, quality: () => "low", behind: () => false, dim: () => false, dimK: 0.22, floorTiles: () => [] });
+  L.build([0, 1, 2, 3, 4].map(i => ({ eid: `binary_sensor.m${i}`, l: mk(i, "off", old), F, x: 1 + i, y: 5, z: 2.2, room, lp: null, pos: new T3.Vector3() })));
+  const lbe = {}; for (let i = 0; i < 5; i++) lbe[`binary_sensor.m${i}`] = mk(i, "off", old);
+  L.sync({ lbe, states: {}, entities: {}, now, haStarted: 0, t: 1000, cls: null, night: 0, ground: 0 });
+  lbe["binary_sensor.m4"] = mk(4, "on", new Date(now).toISOString());
+  L.sync({ lbe, states: {}, entities: {}, now: now + 1000, haStarted: 0, t: 2000, cls: null, night: 0, ground: 0 });
+  const playing = L.rate() > 0;
+  L.tick(60000);
+  const rested = L.rate() === 0;
+  // Another class picked: the flash fades as the ring does.
+  const D = MO.createMotionLayer({ THREE: T3, quality: () => "low", behind: () => false, dim: () => true, dimK: 0.22, floorTiles: () => [] });
+  const G = { group: new T3.Group(), pieces: [], fl: { id: "m", elev: 0, h: 2.6 } };
+  G.group.visible = true;
+  const small = { name: "Small", pts: [[0, 0], [6, 0], [6, 6], [0, 6]] };
+  D.build([{ eid: "binary_sensor.m0", l: mk(0, "off", old), F: G, x: 3, y: 3, z: 2.2, room: small, lp: null, pos: new T3.Vector3() }]);
+  const dl = { "binary_sensor.m0": mk(0, "off", old) };
+  D.sync({ lbe: dl, states: {}, entities: {}, now, haStarted: 0, t: 1000, cls: "light", night: 0, ground: 0 });
+  dl["binary_sensor.m0"] = mk(0, "on", new Date(now).toISOString());
+  D.sync({ lbe: dl, states: {}, entities: {}, now: now + 500, haStarted: 0, t: 2000, cls: "light", night: 0, ground: 0 });
+  D.tick(2100);
+  const fan = D.state().patches[0].fans[0];
+  check("layer: a room's fifth sensor's ring ends and the view rests; a flash fades with another class picked",
+    playing && rested && fan && fan[3] > 0 && fan[3] < 0.3, { playing, rested, fan });
 });
 await tryCase("pair: the Atlas's pairs fold into one; its occupancy half is read as a record of its own", async () => {
   const st = hass({ "binary_sensor.loft_occupancy": { state: "on", last_changed: ago(12) } });

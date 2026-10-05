@@ -2330,7 +2330,8 @@ function createSlot(slotKey){
     // Motion: the ring, the room's glow, the marker (live_aboard_motion.js).
     if (motionL && house && motionL.sync({ lbe, states: lastP && lastP.states, entities: lastP && lastP.entities, now, haStarted,
                                            t: performance.now(), cls: classF, night: nightK, ground: house.ground })) changed = true;
-    if (mchip && motionL) mchip.update(motionL.rooms(narrow ? 2 : 3));
+    // Another class picked on the chips: the Motion chip stands down with motion.
+    if (mchip && motionL) mchip.update(classF && classF !== "motion" ? [] : motionL.rooms(narrow ? 2 : 3));
     for (const T of tints) {
       // The room shows its most telling sensor: active before quiet, the
       // latest quiet one; the worst air.
@@ -2491,11 +2492,15 @@ function createSlot(slotKey){
     coverNames();
     lampsDirty = true;
     liveMs = liveRate(performance.now());                    // a floor shown again may be swinging or flashing
+    recheckCovers();
   }
+  /** Walls or floors changed: what covers a motion marker or a code is worked out again. */
+  function recheckCovers(){ if (motionL && motionL.recheck) motionL.recheck(); if (codes && codes.recheck) codes.recheck(); }
   function setWalls(m){
     if (!HOUSE.WALL_MODES.includes(m)) return;
     wallMode = m;
     paintWallButtons();
+    recheckCovers();
     requestRender();
   }
   function updateCutaway(){
@@ -3454,12 +3459,14 @@ function createSlot(slotKey){
     if (!MARKS || !p.codes || typeof p.codes !== "object") return [];
     // The theme the flat map's chips use (stored, whether Showcase is on or not).
     const theme = (p.atlasLook && p.atlasLook.theme) || (p.showcase && p.showcase.theme) || null, sc = !!p.codes.showcase, out = [];
-    const add = (eid, F, v, lit) => { const look = MARKS.chipLook(lbe[eid], theme, sc, lit); if (look) out.push({ eid, F, v, look, dim: dimOf(eid) }); };
+    const add = (eid, F, v, lit, gap) => { const look = MARKS.chipLook(lbe[eid], theme, sc, lit); if (look) out.push({ eid, F, v, look, dim: dimOf(eid), gap }); };
     for (const L of lights) {
       if (!L.pick || !L.pick.length || L.swap) continue;
       add(L.eid, L.F, middleOf(L.pick), sc && L.look && L.look.on && L.color ? "#" + L.color.getHexString() : null);
     }
-    for (const S of sensorsUi) if (S.kind === "motion") add(S.eid, S.F, S.pos, null);
+    // A motion sensor's code hangs below its marker (lit, it is the biggest thing there).
+    const mGap = MOTION ? Math.ceil(MOTION.MARK_PX.lit / 0.72 / 2) + 4 : 10;
+    for (const S of sensorsUi) if (S.kind === "motion") add(S.eid, S.F, S.pos, null, mGap);
     for (const M of marks ? marks.places() : []) add(M.eid, M.F, M.v, null);
     return out;
   }
