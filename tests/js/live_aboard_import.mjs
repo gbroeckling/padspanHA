@@ -422,4 +422,33 @@ await tryCase("result", async () => {
   piecesOut.push(...Object.values(r.pieces));
 });
 
-console.log(JSON.stringify({ cases, failures, payloads, pieces: piecesOut }));
+// ── what one Save takes ───────────────────────────────────────────────────
+// The 3D file already holds a piece and two windows (FILE3D); Save takes at
+// most 1000 changes, 1000 pieces and 500 doors and windows (house3d_store.py).
+let big = null;
+await tryCase("save: a file bigger than one Save starts with what one Save takes ticked, says so, and never adds more", async () => {
+  const prev = clone(P.house), [pid] = Object.keys(prev.pieces);
+  for (let i = 0; i < 1200; i++) {
+    const id = `fur_${(0x10000000 + i).toString(16)}`;
+    prev.pieces[id] = { ...clone(prev.pieces[pid]), id };
+    prev.report.pieces[id] = clone(prev.report.pieces[pid]);
+  }
+  P.big = prev;
+  const f = await opened("big");
+  const said = textOf(f.el), addText = textOf(button(f.el, "Add"));
+  const r = await add(f);
+  const np = Object.keys(r.pieces).length, no = Object.keys(r.openings).length;
+  big = r;
+  check("save: a file bigger than one Save starts with what one Save takes ticked, says so, and never adds more",
+    np + no === IM.MAX_CHANGES && np <= IM.MAX_PIECES - 1 && no <= IM.MAX_OPENINGS - 2 && said.includes("start unticked")
+      && addText === `Add ${np + no} to the house`, { np, no, addText, said: said.slice(0, 400) });
+  const g = await opened("big");
+  buttons(g.el).filter(b => textOf(b) === "All").forEach(b => b.click());
+  await settle();
+  const over = button(g.el, "Add") || buttons(g.el).find(b => textOf(b).startsWith("Too many"));
+  over.click(); await settle();
+  check("save: ticking more than one Save takes is said on the button, and nothing is added", over.disabled === true
+    && textOf(over).startsWith("Too many for one Save") && g.result === undefined, textOf(over));
+});
+
+console.log(JSON.stringify({ cases, failures, payloads, pieces: piecesOut, big }));

@@ -33,6 +33,7 @@ export const BOX = "other";                          // the builders' own box ("
 export const BOX_COLOR = "#a8a29e";
 export const SIZE_MIN_M = 0.001, SIZE_MAX_M = 8;      // a piece's sizes as the 3D file keeps them
 export const Z_MAX_M = 20;
+export const MAX_CHANGES = 1000, MAX_PIECES = 1000, MAX_OPENINGS = 500;   // what one Save takes (house3d_store.py)
 export const HIGH_LIGHT_M = 1.5;                     // a lamp this high is a ceiling or wall light
 export const LEAVE_OUT = "";                         // a level that goes to no floor
 const NO_LEVEL = "";                                 // what the file has on no level
@@ -223,10 +224,29 @@ export function choiceOf(prev, model, file3d, current, tools){
     pick[id] = !(kind[id] === "lamp" && (num(c.z_m) ?? 0) >= HIGH_LIGHT_M);
   }
   for (const id of Object.keys(cands.openings)) pick[id] = true;
+  const have = (sec) => Object.keys((d[sec] && typeof d[sec] === "object") ? d[sec] : {}).length;
   const S = { levels, rep, cands, floors, keys, floorOf: defaultFloors(keys, levels, floors, current),
-              reading: readingOf(model, file3d), kinds, pick, kind, kind0: { ...kind }, placed: {} };
+              reading: readingOf(model, file3d), kinds, pick, kind, kind0: { ...kind }, placed: {},
+              room: { all: MAX_CHANGES, pieces: Math.max(0, MAX_PIECES - have("pieces")),
+                      openings: Math.max(0, MAX_OPENINGS - have("openings")) }, capped: 0 };
   placeAll(S);
+  // One Save takes only so much (house3d_store.py): what is past it starts
+  // unticked, doors and windows first, and the list says so.
+  let np = 0, no = 0;
+  for (const id of Object.keys(cands.openings)) {
+    if (!pick[id] || !(S.placed[id] && S.placed[id].rec)) continue;
+    if (no < S.room.openings && np + no < S.room.all) no++; else { pick[id] = false; S.capped++; }
+  }
+  for (const id of Object.keys(cands.pieces)) {
+    if (!pick[id] || !S.floorOf[levelOf(S, "pieces", id)]) continue;
+    if (np < S.room.pieces && np + no < S.room.all) np++; else { pick[id] = false; S.capped++; }
+  }
   return S;
+}
+/** How many of those ticked one Save cannot take (0: it all fits). */
+export function overBy(S, tools){
+  const r = chosenOf(S, tools), np = Object.keys(r.pieces).length, no = Object.keys(r.openings).length;
+  return Math.max(0, np + no - S.room.all, np - S.room.pieces, no - S.room.openings);
 }
 const levelOf = (S, sec, id) => keyOf((S.rep[sec][id] || {}).level_id);
 /** Each door and window placed again on the floors as now chosen. */
@@ -360,9 +380,9 @@ export function importFlow(ctx){
     const count = () => { const r = chosenOf(S, tools); return Object.keys(r.pieces).length + Object.keys(r.openings).length; };
     let addBtn = null;
     const recount = () => {
-      const n = count();
-      addBtn.textContent = n ? `Add ${n} to the house` : "Add to the house";
-      addBtn.disabled = !n;
+      const n = count(), over = overBy(S, tools);
+      addBtn.textContent = over ? `Too many for one Save: untick ${over}` : n ? `Add ${n} to the house` : "Add to the house";
+      addBtn.disabled = !n || over > 0;
     };
     function tick(id, on){
       S.pick[id] = on;
@@ -440,11 +460,12 @@ export function importFlow(ctx){
         }),
       ]) : null;
       const left = [...S.rep.skipped.map(s => `${s.name}: ${s.why}`), ...S.rep.warnings];
-      addBtn = h("button", { class: "btn inline primary", onclick: () => { if (count()) finish(chosenOf(S, tools)); } }, "Add");
+      addBtn = h("button", { class: "btn inline primary", onclick: () => { if (count() && !overBy(S, tools)) finish(chosenOf(S, tools)); } }, "Add");
       screen([
         h("div", { style: CSS.title }, "Import from Sweet Home 3D"),
         h("div", {}, [h("b", {}, fileName || "The file"), `: ${found.join(", ")}.`]),
         !pIds.length && !oIds.length ? h("div", { role: "alert", style: CSS.bad }, "Nothing in this file can be added.") : null,
+        S.capped ? h("div", { style: CSS.note }, `One Save takes only so many, so the last ${S.capped} start unticked. Add these and Save, then import the file again and tick the rest.`) : null,
         floorsBlock,
         section("Doors and windows", oIds, openingRow),
         section("Furniture", pIds, pieceRow),

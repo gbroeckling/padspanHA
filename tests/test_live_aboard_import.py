@@ -122,6 +122,19 @@ def test_the_pieces_handed_over_are_the_contracts_shape(flow) -> None:
         assert isinstance(r["params"], dict) and all(isinstance(v, (int, float, str, bool)) for v in r["params"].values())
 
 
+def test_a_big_file_hands_over_what_one_save_takes(flow) -> None:
+    """A file with more than one Save can take starts with only what fits
+    ticked: added to the harness's 3D file (a piece and two windows), the
+    Save is not refused."""
+    big = flow["big"]
+    assert big and big["pieces"], "the harness ran the big file"
+    base = {**HS.empty(), "pieces": {"fur_aaaaaaaa": {"id": "fur_aaaaaaaa", "recipe": {"kind": "sofa"}}},
+            "openings": {"win_00000001": {}, "win_00000002": {}}}
+    out = HS.apply_edit(base, {"pieces": big["pieces"], "openings": big["openings"]})
+    assert len(big["pieces"]) + len(big["openings"]) == HS.MAX_CHANGES
+    assert len(out["pieces"]) <= HS.MAX_PIECES and len(out["openings"]) <= HS.MAX_OPENINGS
+
+
 # ═══ it only reads ═══════════════════════════════════════════════════════════
 
 def test_the_flow_only_reads_and_asks_in_the_page() -> None:
