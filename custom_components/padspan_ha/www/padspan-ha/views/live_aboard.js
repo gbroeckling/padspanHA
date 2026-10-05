@@ -832,7 +832,8 @@ function createSlot(slotKey){
    *  now showing comes back (none kept yet: it stays where it is), and with
    *  the map alone the floor's name shows in the corner. */
   function followFloor(){
-    const s = floorSteps, key = s ? (s.all ? "all" : `floor:${s.zs ? s.zs[s.at] : s.at}`) : null;
+    // Kept by the floor's name, not its level: a floor deleted renumbers the levels.
+    const s = floorSteps, key = s ? (s.all ? "all" : `floor:${s.names[s.at]}`) : null;
     if (key === floorKey) return;
     const was = floorKey;
     floorKey = key;
@@ -843,6 +844,7 @@ function createSlot(slotKey){
       cam.fly = null; cam.moved = true; cam.needsFit = false;
       cam.theta = c.theta; cam.phi = c.phi; cam.radius = c.radius; cam.target.fromArray(c.target);
       applyCam();
+      afterZoom(false);                                    // zoomed back out, with the map alone: the bars come back
     }
     flashCorner();
   }
