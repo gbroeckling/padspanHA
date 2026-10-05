@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.102 — Motion you can see from across the room (2026-10-05)
+
+### Live Aboard
+- **Added:** motion in Live Aboard, in the Atlas's own colours.
+  - A new trigger sends one ring across the room's floor, and the room's floor glows blue.
+  - After the 5-minute hold, the glow steps through the Atlas's colours by age: cyan, green, yellow, orange, red, then magenta at 2 hours. Each step is fainter than the last, and the glow is gone at 6 hours.
+  - "Now" reads at a glance from the whole-house view, day or night, in every look.
+- **Added:** an occupancy or presence sensor (mmWave) that is on holds its room steady. A motion + occupancy pair (an ecobee room sensor, say) reads its motion half only, as the Atlas does.
+- **Added:** each sensor is a small model on its wall at its height: a PIR dome, a presence puck, or a room sensor's square face. Above it is a marker in its motion colour; tap the marker for the week's activity, hover it for "Motion · Kitchen · 3 min ago".
+- **Added:** coverage. A sensor's detection fan flashes when it triggers and shows when you hover it. Pick **Motion** on the ☰ chips to see every sensor's coverage.
+- **Added:** a sensor with no reading gets a dashed ring and no glow. One stuck on is drawn striped, with a ⚠ on its marker.
+- **Added:** a **Motion:** chip by the top hint ("Living Room now · Hall 4 min"). Tap a room in it to fly there; ⓘ shows the colour key.
+- **Fixed:** a motion sensor outside every room no longer draws its patch floating in empty space beside the house.
+
+---
+
 ## 0.38.101 — The Atlas and Live Aboard, one program (2026-10-05)
 
 ### Live Aboard looks like the Atlas
