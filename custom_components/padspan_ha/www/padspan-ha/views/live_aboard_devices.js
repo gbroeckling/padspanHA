@@ -235,7 +235,7 @@ export function createDeviceLayer(ctx){
   }
   /** Draw what R shows now. */
   function apply(R){
-    const k = R.look, live = R.live, high = quality === "high", P = R.parts, S = sizeOf(R);
+    const k = R.look, live = R.live, high = quality === "high", P = R.parts, S = sizeOf(R), dk = R.dk ?? 1;
     // The badge while its entity is gone; the outline while the test runs.
     if (R.how === "unlinked" && !R.badge) {
       R.badge = new THREE.Sprite(badge());
@@ -260,16 +260,16 @@ export function createDeviceLayer(ctx){
         g.forEach((m, i) => {
           if (!on) { m.material.emissive.setRGB(0, 0, 0); return; }
           const last2 = i === g.length - 1;                  // the bulb, brighter and whiter than the shade
-          m.material.emissive.copy(_c).lerp(new THREE.Color(1, 1, 1), last2 ? 0.5 : 0.15).multiplyScalar(last2 ? 0.7 + 0.3 * k.f : 0.2 + 0.45 * k.f);
+          m.material.emissive.copy(_c).lerp(new THREE.Color(1, 1, 1), last2 ? 0.5 : 0.15).multiplyScalar((last2 ? 0.7 + 0.3 * k.f : 0.2 + 0.45 * k.f) * dk);
         });
-        halo(R, g, R.color, on ? k.f * 0.8 : 0);
+        halo(R, g, R.color, on ? k.f * 0.8 * dk : 0);
       } else {
         // A charge port or ring is a few centimetres: its glow carries a halo too.
-        setEmissive(g, CHARGE, on ? 0.9 : 0);
-        halo(R, g, _c.set(CHARGE), on ? 0.7 : 0);
+        setEmissive(g, CHARGE, on ? 0.9 * dk : 0);
+        halo(R, g, _c.set(CHARGE), on ? 0.7 * dk : 0);
       }
-    } else if (live === "screen") setEmissive(P.screen, k && k.playing ? SCREEN_ON : SCREEN_IDLE, on ? (k.playing ? 0.85 : 0.7) : 0);
-    else if (live === "warm") setEmissive(P.warm, WARM, on ? 0.55 : 0);
+    } else if (live === "screen") setEmissive(P.screen, k && k.playing ? SCREEN_ON : SCREEN_IDLE, on ? (k.playing ? 0.85 : 0.7) * dk : 0);
+    else if (live === "warm") setEmissive(P.warm, WARM, on ? 0.55 * dk : 0);
     else if (live === "spin") R.rps = k ? k.rps * (high ? 1 : 0.5) : 0;
     else if (live === "run") { if (on && high) { if (k.pulse) R.pulse = true; else R.shake = true; } }
     else if (live === "dock" && P.dock && R.base.has(P.dock)) {
@@ -340,7 +340,9 @@ export function createDeviceLayer(ctx){
         const st = link.eid && H.states ? H.states[link.eid] || null : null;
         R.look = R.live && link.eid ? deviceLook(R.live, kind, link.eid, st, (H.lbe && H.lbe[link.eid]) || null) : null;
         R.em = !!(link.eid && H.emergency && H.emergency.has(link.eid));
-        const key = JSON.stringify([link.how, R.look, R.em, quality, sizeOf(R)]);
+        // Another class picked on the Atlas's chips: what it shows fades (its light with it).
+        R.dk = link.eid && typeof H.dim === "function" && H.dim(link.eid) ? Math.max(0, Math.min(1, Number(H.dimK) || 0)) : 1;
+        const key = JSON.stringify([link.how, R.look, R.em, R.dk, quality, sizeOf(R)]);
         if (key === R.key) continue;
         R.key = key;
         apply(R);
@@ -380,7 +382,7 @@ export function createDeviceLayer(ctx){
       const out = [];
       for (const R of recs.values()) {
         if (R.live !== "glow" || !R.look || !R.look.on || !R.bulb || !shown(R)) continue;
-        out.push({ eid: R.eid, pos: R.root.localToWorld(R.bulb.clone()), color: R.color, k: R.look.f * 0.8 });
+        out.push({ eid: R.eid, pos: R.root.localToWorld(R.bulb.clone()), color: R.color, k: R.look.f * 0.8 * (R.dk ?? 1) });
       }
       return out;
     },

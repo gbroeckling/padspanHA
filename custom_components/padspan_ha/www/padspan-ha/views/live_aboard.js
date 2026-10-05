@@ -1923,6 +1923,11 @@ function createSlot(slotKey){
       else dark.setColorAt(r.i, offColour(_c.copy(r.off)).multiplyScalar(k.unavailable ? 0.55 : 1).lerp(scene.background, 1 - dk));   // lit like the room: at night it darkens with it
       for (const im of [lit, dark]) { im.instanceColor.needsUpdate = true; im.instanceMatrix.needsUpdate = true; }
     }
+    // The fixture's body (a fan's blades too) fades with it while another class is picked.
+    if (F.houses && L.refs.houses.length) {
+      for (const r of L.refs.houses) F.houses.setColorAt(r.i, _c.set(r.hh.col).lerp(scene.background, 1 - dk));
+      F.houses.instanceColor.needsUpdate = true;
+    }
     for (const r of L.refs.halos) {
       const attr = F.halos[r.cls].geometry.attributes.color, g = on && !hidden ? k.f * 0.95 * glow * dk : 0;
       attr.setXYZ(r.i, c.r * g, c.g * g, c.b * g);
@@ -2003,7 +2008,8 @@ function createSlot(slotKey){
   function syncDevices(p, vd){
     if (!devices) return;
     const em = Array.isArray(p.emergency) && p.emergency.length ? new Set(p.emergency.map(String)) : null;
-    let changed = devices.sync(vd.pieces, { states: p.states || {}, regIds: p.regIds || null, entities: p.entities || null, lbe, emergency: em });
+    let changed = devices.sync(vd.pieces, { states: p.states || {}, regIds: p.regIds || null, entities: p.entities || null, lbe, emergency: em,
+                                            dim: classF ? dimOf : null, dimK: MARKS ? MARKS.DIM_K : 1 });
     for (const L of lights) {
       const s = devices.has(L.eid, L.drawn === "fan" || (L.l && L.l.isFan) ? "spin" : "glow");
       if (s !== !!L.swap) { L.swap = s; L.key = null; changed = true; }
@@ -3700,6 +3706,7 @@ function createSlot(slotKey){
                         pill: !!(pill && pill.classList.contains("on")), spinning: !!spin },
                canvas, gl: renderer ? renderer.getContext() : null, lights: lights.length, floors: floorsUi.length,
                fixtures: lights.map(L => ({ eid: L.eid, kind: L.drawn, guess: L.guess, bulbs: L.refs.bulbs.length, washes: L.refs.washes.length,
+                                            house: L.F.houses && L.refs.houses.length ? ((c) => { L.F.houses.getColorAt(L.refs.houses[0].i, c); return "#" + c.getHexString(); })(new THREE.Color()) : null,
                                             pools: L.refs.pools.length, halos: L.refs.halos.length, rps: L.spin ? L.spin.rps : null,
                                             angle: L.spin ? L.spin.angle : null })),
                walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0),

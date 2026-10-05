@@ -222,7 +222,8 @@ function mount(slotKey, quality, pieces = PIECES, lights = null){
   h.d3 = makeApi(h.states, lbeOf(h.states));
   h.P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: lbeOf(h.states), hidden: new Set(), topFloorIds: h.topIds, quality,
     telemetry: () => {}, onTouch: () => {}, states: h.states, config: {}, bearing: 0, saveNorth: null, useApi: () => h.d3.api,
-    haStartedMs: 0, load: async () => ({ data: clone(h.file) }), edit: null, entities: null, regIds: h.regIds, emergency: h.emergency });
+    haStartedMs: 0, load: async () => ({ data: clone(h.file) }), edit: null, entities: null, regIds: h.regIds, emergency: h.emergency,
+    classFilter: h.cls || null });
   h.poll = () => {
     const card = document.createElement("div"), stage = document.createElement("div");
     card.appendChild(stage);
@@ -489,6 +490,31 @@ await tryCase("view: a fixture fan turns at full speed on High, half on Low", as
   check("view: a fixture fan turns at full speed on High, half on Low",
     hi.profile === "high" && lo.profile === "low" && lo.rps > 0 && Math.abs(hi.rps - 2 * lo.rps) < 1e-9, { hi, lo });
 
+// The Atlas's class chips: a fixture's body (a fan's blades) and a linked
+// piece's light fade with the rest of their device, not only the glow.
+await tryCase("view: with another class picked, a fan's blades and a linked lamp's light fade too", async () => {
+  MODEL.light_positions_m["fan.ceiling"] = { x_m: 8, y_m: 3, floor_id: "main", shape: "fan" };
+  const alone = Object.fromEntries(Object.entries(PIECES).filter(([, p]) => p.entity_id !== "fan.ceiling"));
+  const h = mount("devices-cls", "low", alone);
+  await later(10000, 60);
+  const lum = (hex) => { const n = parseInt(String(hex).slice(1), 16); return ((n >> 16) & 255) + ((n >> 8) & 255) + (n & 255); };
+  const fanHouse = () => (h.slot._state().fixtures.find(f => f.eid === "fan.ceiling") || {}).house;
+  const lampGlow = () => { const d = h.dev(ID["lamp:light.dim"]); return d && d.glow.length ? d.glow[d.glow.length - 1] : null; };
+  const before = { fan: fanHouse(), lamp: lampGlow() };
+  h.cls = "light"; h.poll(); await later(500, 12);
+  const lights = { fan: fanHouse(), lamp: lampGlow() };
+  h.cls = "fan"; h.poll(); await later(500, 12);
+  const fans = { fan: fanHouse(), lamp: lampGlow() };
+  h.cls = null; h.poll(); await later(500, 12);
+  const back = { fan: fanHouse(), lamp: lampGlow() };
+  check("view: with another class picked, a fan's blades and a linked lamp's light fade too",
+    !!before.fan && !!before.lamp && lights.fan !== before.fan && fans.fan === before.fan
+    && lum(fans.lamp) < lum(before.lamp) * 0.5 && lights.lamp === before.lamp && back.fan === before.fan && back.lamp === before.lamp,
+    { before, lights, fans, back });
+  LA.releaseLiveAboardSlot("devices-cls");
+  delete MODEL.light_positions_m["fan.ceiling"];
+  await settle();
+});
 // "What is this?" says a light is a ceiling fan: a Fan piece linked to it
 // stands in for it, as for a light PadSpan guessed was a fan.
 await tryCase("view: a light set to Ceiling fan in Live Aboard steps aside for its linked Fan piece", async () => {
