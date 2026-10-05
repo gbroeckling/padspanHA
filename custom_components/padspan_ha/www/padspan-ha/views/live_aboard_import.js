@@ -296,7 +296,8 @@ function readBase64(file){
 /** contracts §4: pick a .sh3d, choose from the preview, and resolve the
  *  accepted {pieces, openings}; Cancel (before or after the preview)
  *  resolves null and writes nothing. ctx: {el, callWS, toast, floor,
- *  recipeTools, …}. */
+ *  recipeTools, draft (Furnish's draft: the doors and windows to fit
+ *  against, unsaved ones too), …}. */
 export function importFlow(ctx){
   return new Promise((resolve) => {
     const el = ctx && ctx.el;
@@ -337,7 +338,8 @@ export function importFlow(ctx){
         const [prev, model, file3d] = await Promise.all([
           call({ type: PREVIEW_TYPE, sh3d_base64: b64 }),
           Promise.resolve().then(() => call({ type: "padspan_ha/model_get" })).catch(() => null),
-          Promise.resolve().then(() => call({ type: "padspan_ha/house3d_get" })).catch(() => null),
+          // Furnish's draft, unsaved doors and windows too; else the saved file.
+          ctx.draft ? { data: ctx.draft } : Promise.resolve().then(() => call({ type: "padspan_ha/house3d_get" })).catch(() => null),
         ]);
         if (mine !== token) return;
         fileName = String(file.name || "");

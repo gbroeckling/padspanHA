@@ -396,7 +396,8 @@ export function createFurnish(ctx){
     const callWS = typeof host.callWS === "function" ? host.callWS : () => Promise.reject(new Error("no connection"));
     const fctx = { el: body, callWS, wsCall: callWS, toast: (t, bad) => (host.toast ? host.toast(t, bad) : ctx.hint(t, bad)),
                    settings: host.settings || {}, floor: F ? { id: F.fl.id, name: F.fl.name } : null,
-                   room: spot && spot.room ? { name: spot.room.name } : null, recipeTools: FURN(), signal: flowStop ? flowStop.signal : null };
+                   room: spot && spot.room ? { name: spot.room.name } : null, recipeTools: FURN(), signal: flowStop ? flowStop.signal : null,
+                   draft: cur() ? copy(cur()) : null };     // what the house is now, unsaved work and all
     let r = null;
     try { r = await (k === "share" ? fn(fctx, copy(piece)) : fn(fctx)); } catch (err) { r = null; if (gen === flowGen) ctx.hint(`That didn't work: ${String((err && err.message) || err)}`, true); }
     if (gen !== flowGen) return;                     // closed meanwhile: what it found is dropped
