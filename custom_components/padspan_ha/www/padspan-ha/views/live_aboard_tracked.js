@@ -599,7 +599,7 @@ export function createTrackedLayer(ctx){
       return [...items.values()].map(I => ({ key: I.key, kind: I.kind, floor: I.F ? I.F.fl.id : null, at: [r(I.at.x), r(I.at.y), r(I.at.z)],
         to: [r(I.to.x), r(I.to.y), r(I.to.z)], yaw: r(I.yaw), walking: I.walking, marker: !!I.marker, plain: !!I.plain, shown: shown(I),
         name: I.name ? I.name.text : null, halo: I.halo ? r(I.halo.scale.x) : null, ground: I.halo ? r(I.at.y + I.halo.position.y) : null,
-        dim: !!I.dim, opacity: I.body ? Math.min(...(I.body.dimMats && I.body.dimMats.length ? I.body.dimMats.map(m => m.opacity) : [1])) : null,
+        dim: !!I.dim, opacity: I.body ? Math.max(...(I.body.dimMats && I.body.dimMats.length ? I.body.dimMats.map(m => m.opacity) : [1])) : null,
         pinned: !!I.pinned, card: I.card ? { title: I.card.title, lines: I.card.lines.slice() } : null }));
     },
     dispose(){

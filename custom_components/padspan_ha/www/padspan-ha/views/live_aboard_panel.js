@@ -279,9 +279,9 @@ export function createPanel(v){
     if (d < NEAR) { if (d > 0) v.setTarget(goal); gliding = false; lastStep = null; return; }
     const dt = lastStep === null ? 1000 / 30 : Math.min(250, Math.max(0, t - lastStep));
     lastStep = t;
-    const k = 1 - Math.exp(-dt / FOLLOW_TAU_MS);
-    v.setTarget(cur.map((c, i) => c + (goal[i] - c) * k));
-    gliding = true;
+    const k = 1 - Math.exp(-dt / FOLLOW_TAU_MS), next = cur.map((c, i) => c + (goal[i] - c) * k);
+    gliding = dist(goal, next) >= NEAR;
+    v.setTarget(gliding ? next : goal);
   }
   /** How often to draw while the camera glides after someone (ms), or 0. */
   function rate(){
