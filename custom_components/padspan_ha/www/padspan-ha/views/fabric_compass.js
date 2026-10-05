@@ -9,8 +9,8 @@
 // The fabric is y-DOWN: a map's metres are origin + frac × scale with
 // positive scales, so +Y runs down the plan as it is drawn. A plan drawn
 // north-up therefore has a bearing of 180: north is (0, -1), the top of the
-// plan, and east is (1, 0), the right. (geo_bridge.py's formula assumes y-up
-// and mirrors east and west; nothing here copies it.)
+// plan, and east is (1, 0), the right. (The GPS Bridge has the same maths in
+// geo_bridge.py's fabric_compass; tests/test_geo_bridge.py holds them equal.)
 //
 // The one place the frontend turns the bearing into directions and back —
 // the 3D house's sun and compass, and the Settings preview, all ask here. If
