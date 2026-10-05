@@ -343,4 +343,29 @@ await tryCase("device: a washer can be linked to the sensor that says it runs", 
     { washer, list });
 });
 
+// With every floor showing, the sofa in Living is under the Loft's floor: a
+// press there is on the Loft, not on the sofa, and a drag pans.
+await tryCase("drag: a piece hidden under the floor above is not picked; a press there pans", async () => {
+  const press = (a) => { fire("pointerdown", a[0], a[1]); fire("pointerup", a[0], a[1]); };
+  slot._furnish().select(null); await settle();
+  topIds = new Set(["main"]); poll(); await settle();
+  slot._look(0.8, 0.3, [2.2, 0, 4], 18);              // steeply down: the Loft is between the eye and the sofa
+  const a = slot._wherePiece(sofa, 0.05);
+  press(a); await settle();
+  const seen = fur().sel;
+  slot._furnish().select(null); await settle();
+  topIds = null; poll(); await settle();
+  slot._look(0.8, 0.3, [2.2, 0, 4], 18);
+  const before = clone(draftPieces()[sofa]), b = slot._wherePiece(sofa, 0.05);
+  press(b); await settle();
+  const hidden = fur().sel;
+  drag(b, [b[0] + 60, b[1] + 40]); await settle();
+  const after = clone(draftPieces()[sofa]);
+  topIds = new Set(["main"]); poll(); await settle();
+  slot._furnish().select(sofa); await settle();
+  check("drag: a piece hidden under the floor above is not picked; a press there pans",
+    seen === sofa && hidden !== sofa && after.x_m === before.x_m && after.y_m === before.y_m,
+    { seen, hidden, a, b, before: [before.x_m, before.y_m], after: [after.x_m, after.y_m] });
+});
+
 console.log(JSON.stringify({ cases, failures, payloads }));

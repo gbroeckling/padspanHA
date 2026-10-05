@@ -702,7 +702,13 @@ export function createFurnish(ctx){
     if (!r) return null;
     const shown = ctx.layer.shown();
     const hits = r.intersectObjects(shown.map(s => s.root), true);
+    // Nothing hidden is picked: a piece behind a wall or under a floor that
+    // shows (a sofa under the bedroom upstairs), as the view's own presses.
+    const occ = [];
+    for (const F of ctx.floors()) if (F.group.visible) { if (F.tiles) occ.push(F.tiles); if (F.solid) occ.push(F.solid); }
+    const wall = occ.length ? r.intersectObjects(occ, false)[0] : null;
     for (const h of hits) {
+      if (wall && wall.distance < h.distance) return null;
       let o = h.object;
       while (o && !(o.userData && o.userData.pieceId)) o = o.parent;
       if (o && pieceOf(o.userData.pieceId)) return o.userData.pieceId;
