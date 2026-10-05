@@ -178,7 +178,8 @@ def test_the_3d_module_is_imported_once_behind_the_switch_and_cache_busted() -> 
                                                   "live_aboard_marks.js",       # the Atlas's leak sensors, locks and codes: reads the house as the view does
                                                   "live_aboard_motion.js",      # motion: reads the house as the view does
                                                   "live_aboard_people.js",    # the Furnish tab's people screen (P6)
-                                                  "atlas_aboard.js"):         # the flat Atlas's people, tags, kinds and furniture (2026-10-05)
+                                                  "atlas_aboard.js",          # the flat Atlas's people, tags, kinds and furniture (2026-10-05)
+                                                  "atlas_heights.js"):        # Mapping's Height row and Heights list: Live Aboard's defaults (2026-10-05)
             continue
         code = "\n".join(ln for ln in _js(p).splitlines() if not ln.lstrip().startswith(("//", "*")))
         if p.name == "settings.js":
@@ -262,8 +263,11 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     # The fourth is P2 Furnish's: the host's connection handed to its flows
     # (contracts §4) and "This is a device…", only on Mapping → Furnish. The
     # fifth is Show people's read of the live snapshot (P6): Mapping does not
-    # poll it, so the view reads it, only while Show people is on.
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 5
+    # poll it, so the view reads it, only while Show people is on. The sixth
+    # is the editor's heights, on the placement records (2026-10-05: the
+    # Atlas's own fabric_light_height_set, on the same gate as edit).
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 6
+    assert 'ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })' in mblock
     assert 'read: () => ctx.actions.wsCall("padspan_ha/live_snapshot")' in mblock
     assert "callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); }," in mblock
     assert 'load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),' in mblock

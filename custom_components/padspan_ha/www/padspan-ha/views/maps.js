@@ -27,7 +27,7 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
-        isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
+        isOutdoorFloorId, wireHoverHud, heightOfRecord, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
@@ -527,6 +527,71 @@ function _beaconLooks(ctx, mapState) {
     if (Object.keys(out).length) ctx.actions.renderRooms();
   }).catch(() => { mapState._beaconLooks = {}; });
   return null;
+}
+
+// ── Heights for Live Aboard (views/atlas_heights.js) ────────────────────────
+// Garry, 2026-10-05: "needs to be a tool to add the third dimension for the
+// sims view, height mostly. Same dataset". A device's height is z_m on its
+// placement record, set here in the inspector's Height row and the Heights
+// list, through this tab's own placement draft (its Undo, Save placements
+// and Discard). Only while Live Aboard is on at Pro (the Furnish tab's
+// gate): off, the module is never fetched and this tab is as it was.
+const _heightsOn = (ctx) => ctx.state.settings?.atlas_3d_enabled === true && _tierAtLeast(ctx.state.settings?.tier, "pro");
+let _AH = null, _ahLoading = null;
+function _heightsTool(ctx) {
+  if (_AH) return _AH;
+  if (!_ahLoading) {
+    _ahLoading = import(`./atlas_heights.js${new URL(import.meta.url).search}`)
+      .then((m) => { _AH = m; ctx.actions.renderRooms(); })
+      .catch((err) => { console.warn("PadSpan: atlas_heights failed to load", err); });
+  }
+  return null;
+}
+// The 3D file's light kinds ("What is this?") and any height still kept
+// there, for the defaults: read once, and again after Live Aboard saves.
+function _heightsFile(ctx, mapState) {
+  if (mapState._heightsFile !== undefined) return mapState._heightsFile || { lights: {}, devices: {} };
+  mapState._heightsFile = null;
+  Promise.resolve(ctx.actions.wsCall("padspan_ha/house3d_get")).then((r) => {
+    const d = (r && r.data) || {};
+    mapState._heightsFile = { lights: d.lights || {}, devices: d.devices || {} };
+    ctx.actions.renderRooms();
+  }).catch(() => { mapState._heightsFile = { lights: {}, devices: {} }; });
+  return { lights: {}, devices: {} };
+}
+// A draft entry carries a copy of its record, height and all; only the
+// Height row's own (marked _z) stands for the height. Anything else draws,
+// and saves, with the height the record has now: a device moved here never
+// takes back a height set meanwhile (in Live Aboard, say).
+export function _draftOverRecords(committed, draft) {
+  const out = { ...committed };
+  for (const [eid, e] of Object.entries(draft || {})) {
+    const { _z, ...rest } = e;
+    if (!_z) {
+      const z = (committed[eid] || {}).z_m;
+      if (z === undefined) delete rest.z_m; else rest.z_m = z;
+    }
+    out[eid] = rest;
+  }
+  return out;
+}
+// Heights into the placement draft: one step, one Undo. zOf(row) is each
+// one's new height (null: its default); one already there is left alone.
+function _setHeights(ctx, mapState, rows, eids, zOf) {
+  const draft = mapState._lightsDraftM || (mapState._lightsDraftM = {});
+  const committed = (ctx.state.model || {}).light_positions_m || {};
+  const byEid = new Map(rows.map((r) => [r.eid, r]));
+  const next = new Map();
+  for (const e of eids) {
+    const r = byEid.get(e);
+    if (!r || !(draft[e] || committed[e])) continue;
+    const z = zOf(r);
+    if (z !== r.z) next.set(e, z);
+  }
+  if (!next.size) return;
+  _pushUndo(mapState, [...next.keys()]);
+  for (const [e, z] of next) draft[e] = { ...(draft[e] || committed[e]), z_m: z, _z: true };
+  ctx.actions.renderRooms();
 }
 
 // When a map has data (receivers, beacons, room outlines), offers the option
@@ -7203,6 +7268,8 @@ function _draftAt(ctx, o, eid, x_m, y_m, fid, source) {
     // placement or a drag/nudge of one; "auto" is an accepted room-centre
     // guess, shown as APPROXIMATE in the inspector until someone moves it.
     source: source || "manual",
+    // A height the Height row set, not yet saved, moves with it.
+    ...(prev._z ? { z_m: prev.z_m, _z: true } : null),
   };
 }
 
@@ -8108,6 +8175,8 @@ function _wireHoverHud(ctx, isoDiv, svg, o) {
     underTitle: "Select this one instead — it's under the marker on top",
     stackHint: "Alt+click cycles through the stack · right-click lists everything here",
     roomLine: (room, n) => `${room} — selects its ${n} device${n === 1 ? "" : "s"}`,
+    // Its height for Live Aboard, once it has one (Live Aboard on at Pro).
+    heightOf: _heightsOn(ctx) ? (eid) => heightOfRecord(o.model, eid) : null,
   });
 }
 
@@ -8925,7 +8994,11 @@ function _lightsTab(ctx, maps, active) {
             // APPROXIMATE badge and the dashed halo before Save; it does not
             // need to survive one (an accepted room centre still IS just a
             // placement — the next drag makes it a real one).
-            const { source, ...lp } = mapState._lightsDraftM[eid];
+            // A height (z_m) goes only when the Height row set it (_z, draft-only
+            // too): left out, the record keeps the one it has (a move never
+            // wipes a height, nor sends back an old copy of one).
+            const { source, _z, ...lp } = mapState._lightsDraftM[eid];
+            if (!_z) delete lp.z_m;
             await ctx.actions.wsCall("padspan_ha/fabric_light_position_set", { entity_id: eid, ...lp });
             delete mapState._lightsDraftM[eid];
             saved++;
@@ -8990,7 +9063,7 @@ function _lightsTab(ctx, maps, active) {
   // Unsaved drags overlay the fabric's light positions; maps are untouched.
   const modelForRender = Object.keys(mapState._lightsDraftM || {}).length
     ? { ...ctx.state.model,
-        light_positions_m: { ...(ctx.state.model?.light_positions_m || {}), ...mapState._lightsDraftM } }
+        light_positions_m: _draftOverRecords(ctx.state.model?.light_positions_m || {}, mapState._lightsDraftM) }
     : ctx.state.model;
   // Hoisted out of the host object literal (rather than read back off
   // `host.onDropPlace` inside it, which does not exist yet mid-construction)
@@ -9442,7 +9515,12 @@ function _lightsTab(ctx, maps, active) {
       load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),
       // The 3D editor's Save, on the same gate as placing a light here
       // (paid, not Preview): without it the 3D view offers no Edit.
-      edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes) : null,
+      edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)
+        .then((r) => { mapState._heightsFile = undefined; return r; }) : null,
+      // Its heights, on the placement records (the Atlas's own command and
+      // gate), then the map read again so both views have them.
+      heights: paid && !preview ? (heights) => ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })
+        .then((r) => { Promise.resolve(ctx.actions.modelRefresh()).catch(() => {}); return r; }) : null,
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
     isolux: mapState._lightsIsolux === undefined
@@ -9817,6 +9895,12 @@ function _lightsTab(ctx, maps, active) {
   }
   cols.appendChild(mapCardEl);
 
+  // Heights for Live Aboard (views/atlas_heights.js): the inspector's Height
+  // row and the Heights list, only while Live Aboard is on at Pro.
+  const HT = paid && !preview && _heightsOn(ctx) ? _heightsTool(ctx) : null;
+  const heightRows = HT ? HT.rowsOf({ model: ctx.state.model, draft: mapState._lightsDraftM, lightsByEid, floors,
+                                      file: _heightsFile(ctx, mapState), shapes: shapeOverrides }) : null;
+
   // ── Selected-light inspector — the build tools for one light ────────────
   const sel = paid && !preview ? mapState._selLight : null;
   if (sel && lightsByEid[sel.eid]) {
@@ -9977,6 +10061,9 @@ function _lightsTab(ctx, maps, active) {
         insp.appendChild(el("span", { class: "lv-hint" },
           "0 = default marker size"));
       }
+      // How high it is, for Live Aboard: on this same record.
+      const hRow = heightRows && heightRows.find((r) => r.eid === sel.eid);
+      if (hRow) insp.appendChild(HT.heightRow(el, hRow, (z) => _setHeights(ctx, mapState, heightRows, [sel.eid], () => z)));
 
       insp.appendChild(el("button", {
         class: "lv-act",
@@ -10007,6 +10094,17 @@ function _lightsTab(ctx, maps, active) {
       mapState._selLight = null; ctx.actions.renderRooms();
     } }, "Deselect"));
     cols.appendChild(insp);
+  }
+
+  // Every placed device's height, for Live Aboard, over the light index.
+  if (heightRows) {
+    const hs = mapState._heightsUi || (mapState._heightsUi = { open: false, floor: "all", onlyDefault: false, sort: "name", dir: 1, sel: [] });
+    cols.appendChild(HT.heightsCard(el, hs, heightRows, {
+      change: () => ctx.actions.renderRooms(),
+      set: (eids, zOf) => _setHeights(ctx, mapState, heightRows, eids, zOf),
+      pick: (eid) => { mapState._selLight = { eid, mapId: null }; ctx.actions.renderRooms(); },
+      mapSel: [...selSet],
+    }));
   }
 
   // ── The shared light index table (brings its own card) ──────────────────

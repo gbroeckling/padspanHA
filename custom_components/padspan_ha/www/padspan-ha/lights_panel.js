@@ -25,7 +25,7 @@ const { hasControlCard } =
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
-        wireHoverHud, captureWholeHouse, applyWholeHouse, ensureExactDevices } =
+        wireHoverHud, heightOfRecord, captureWholeHouse, applyWholeHouse, ensureExactDevices } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
@@ -1013,6 +1013,9 @@ class PadSpanLightsApp extends HTMLElement {
             underTitle: "Act on this one instead — it's under the marker on top",
             stackHint: null,
             roomLine: (room, n) => `${room} — opens its ${n} device${n === 1 ? "" : "s"}`,
+            // Its height for Live Aboard, once it has one (Live Aboard on, at Pro).
+            heightOf: this.state._house3d && this.state._house3d.atlas_3d_enabled === true
+              && String(this.state._tier || "").toLowerCase() === "pro" ? (eid) => heightOfRecord(this.state.model, eid) : null,
           });
         });
       },

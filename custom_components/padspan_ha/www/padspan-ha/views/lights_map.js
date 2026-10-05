@@ -824,6 +824,8 @@ export function wireStageTouch(stage, view, onZoom){
 //   opts.isDragging()  true while a marker drag is in flight: no HUD churn
 //   opts.onPickUnder(eid)  the "Under" button
 //   opts.underTitle / opts.stackHint (null = none) / opts.roomLine(room, n)
+//   opts.heightOf(eid)  its height above its floor (Live Aboard's, on its
+//                       placement record) or null: "2.40 m up" by its name
 export function wireHoverHud(isoDiv, opts){
   const svg = isoDiv.querySelector("svg");
   if (!svg) return () => [];
@@ -878,7 +880,9 @@ export function wireHoverHud(isoDiv, opts){
 
   const label = (eid) => {
     const l = lightsByEid[eid];
-    return l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid;
+    const name = l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid;
+    const z = typeof opts.heightOf === "function" ? opts.heightOf(eid) : null;
+    return z === null || z === undefined ? name : `${name} · ${(Math.round(z * 100) / 100).toFixed(2)} m up`;
   };
   // Pin the box to the top-left of the VISIBLE part of the stage. The anchor
   // is sticky within the stage's own scroll box, but the PAGE scrolls too,
@@ -983,6 +987,12 @@ function _tapAgain(eid, e){
   const again = !!_lastTap && _lastTap.eid === eid && t - _lastTap.t <= 420 && Math.hypot(e.clientX - _lastTap.x, e.clientY - _lastTap.y) <= 44;
   _lastTap = again ? null : { eid, t, x: e.clientX, y: e.clientY };
   return again;
+}
+/** A placed device's height above its floor from its placement record
+ *  (light_positions_m[eid].z_m, Live Aboard's), or null when it has none. */
+export function heightOfRecord(model, eid){
+  const z = (((model && model.light_positions_m) || {})[eid] || {}).z_m;
+  return typeof z === "number" && Number.isFinite(z) ? z : null;
 }
 export function wireUseSurface(isoDiv, api){
   const q = (sel) => isoDiv.querySelectorAll(sel);

@@ -105,13 +105,18 @@ def test_edit_is_handed_over_only_where_lights_are_placed() -> None:
     maps = _js(_VIEWS / "maps.js")
     assert "const onDropPlace = (paid && !preview && mapState._selLight) ?" in maps
     mblock = _block(maps, "house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?")
-    assert 'edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes) : null,' in mblock
+    assert ('edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)\n'
+            '        .then((r) => { mapState._heightsFile = undefined; return r; }) : null,') in mblock
+    # Its heights go on the placement records, on the same gate (2026-10-05).
+    assert 'heights: paid && !preview ? (heights) => ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })' in mblock
     lp = _block(_js(_WWW / "lights_panel.js"), "house3d: this.state._house3d ?")
     assert "edit:" not in lp and "house3d_edit" not in _js(_WWW / "lights_panel.js")
     lm = _js(_VIEWS / "lights_map.js")
     assert 'edit: typeof h3.edit === "function" ? h3.edit : null,' in lm
     la = _js(_VIEWS / "live_aboard.js")
-    assert 'editor.setEdit(typeof p.edit === "function" ? p.edit : null)' in la
+    # Through editSave: the heights to their placement records, the rest to the file (2026-10-05).
+    assert 'editor.setEdit(typeof p.edit === "function" ? editSave : null)' in la
+    assert "const p = lastP || {}, edit = p.edit, put = typeof p.heights === \"function\" ? p.heights : null;" in la
     assert W.ws_house3d_edit.ws_schema["type"] == "padspan_ha/house3d_edit"
 
 
@@ -154,7 +159,9 @@ def test_one_finger_draws_two_still_pinch() -> None:
 def test_the_draft_lives_in_the_long_lived_slot() -> None:
     la = _js(_VIEWS / "live_aboard.js")
     assert "editor = EDIT.createEditor({" in la and la.index("editor = EDIT.createEditor({") > la.index("function start(setting){")
-    assert "const viewData = () => (editor && editor.view()) || file || NO_FILE;" in la
+    # The file as drawn: the placement records' heights over it (2026-10-05).
+    assert "const viewData = () => (editor && editor.view()) || shownFile();" in la
+    assert "const f = file || NO_FILE, recs = recordsNow();" in la
     assert "if (editor) editor.layout();" in la
     ed = _code(_VIEWS / "live_aboard_edit.js")
     assert "root.appendChild(" in ed and "document.body" not in ed, "its page lives in the slot's element"
