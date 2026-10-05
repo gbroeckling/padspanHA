@@ -99,7 +99,7 @@ const STILL = { active: meanOf(HOUSE.MOTION_PULSE.fill), recent: meanOf(HOUSE.MO
 const PICK_R = 22;                         // a device's reach for a tap (the Atlas's 44 px target)
 const PIECE_D = PICK_R / 2;                // a press on a linked piece: a marker nearer than this wins
 const PEOPLE_MS = 5000;                    // the people layer reads the live snapshot at most this often
-const READ_H = 0.3, READ_PX = [14, 24];    // a readout's height (m), and never under / over this on screen (px)
+const READ_H = 0.45, READ_PX = [22, 30];   // a readout chip's height (m), and never under / over this on screen (px)
 const READ_W = 520, READ_C = 72;           // its canvas: the pill is drawn inside, as wide as its words
 const RING_R0 = 0.6;                       // the motion ring's radius (m) at 1 (the Atlas's 0.7 → 2.4)
 const FILL_K = 0.6, RECENT_K = 0.45, AIR_K = 1.6;   // how strongly a floor takes the Motion · Air colour
@@ -1029,7 +1029,7 @@ function createSlot(slotKey){
     shellRes.push(tex, m);
     const sp = new THREE.Sprite(m);
     sp.renderOrder = 30;
-    sp.userData = { aspect: c.width / c.height, letters: px / c.height, ext, covered: false, px: 0 };
+    sp.userData = { aspect: c.width / c.height, letters: px / c.height, ext, covered: false, behind: false, px: 0 };
     return sp;
   }
   function lit(geo, spec, cast = true, recv = true){
@@ -1073,7 +1073,7 @@ function createSlot(slotKey){
         let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
         for (const q of r.pts) { bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]); by0 = Math.min(by0, q[1]); by1 = Math.max(by1, q[1]); }
         const lbl = labelSprite(String(r.name), Math.max(r.spot.r * 2, 0.75 * Math.max(bx1 - bx0, by1 - by0)));
-        lbl.position.set(r.spot.x, fl.elev + 0.05, r.spot.y);
+        lbl.position.set(r.spot.x, fl.elev + 0.5, r.spot.y);          // just over what is left of a cut wall
         group.add(lbl);
         F.labels.push(lbl);
       });
@@ -2020,12 +2020,27 @@ function createSlot(slotKey){
   function sizeNames(c, H){
     const persp = !!c.isPerspectiveCamera, k = persp ? 2 * Math.tan(FOV / 2 * D2R) / H : (c.top - c.bottom) / H;
     const mppAt = (v) => (persp ? c.position.distanceTo(v) * k : k);           // metres per px there
+    // Drawn over the fixtures, a name must still not show through a wall
+    // standing in front of it or a floor above it: one ray from the eye.
+    const walls = persp ? floorsUi.filter(G => G.group.visible && G.solid).map(G => G.solid) : [];
+    const above = (F) => (persp ? walls.concat(floorsUi.filter(G => G !== F && G.group.visible && !G.fl.outdoor && G.tiles
+                                                                  && G.fl.elev > F.fl.elev + 0.5).map(G => G.tiles)) : []);
+    const behind = (v, occ) => {
+      if (!occ.length) return false;
+      _v.copy(v).sub(c.position);
+      const d = _v.length();
+      _hit.set(c.position, _v.normalize());
+      _hit.near = 0; _hit.far = Math.max(0, d - 0.05);
+      return _hit.intersectObjects(occ, false).length > 0;
+    };
     for (const F of floorsUi) {
       if (!F.group.visible) continue;
+      const occ = above(F);
       for (const lbl of F.labels) {
         const u = lbl.userData, mpp = mppAt(lbl.position), roomPx = u.ext / mpp;
         const letters = Math.max(NAME_PX[0], Math.min(NAME_PX[1], roomPx / 9)), hPx = letters / u.letters, wPx = hPx * u.aspect;
-        lbl.visible = !u.covered && wPx - 28 * hPx / 68 <= roomPx * 1.15;
+        if (persp) u.behind = !u.covered && behind(lbl.position, occ);
+        lbl.visible = !u.covered && !u.behind && wPx - 28 * hPx / 68 <= roomPx * 1.15;
         u.px = lbl.visible ? hPx : 0;
         lbl.scale.set(wPx * k, hPx * k, 1);
       }
@@ -2037,9 +2052,10 @@ function createSlot(slotKey){
       C.sprite.scale.set(hPx * READ_W / READ_C * k, hPx * k, 1);
       C.px = hPx;
       // Under the room's name (or where the name would be), clear of it.
-      const above = C.label ? Math.max(C.label.userData.px, 18) : 0;
-      C.sprite.center.set(0.5, C.label ? 0.5 + (above / 2 + 2 + hPx / 2) / hPx : 0.5);
-      C.sprite.visible = !!C.parts && !(C.label && C.label.userData.covered);
+      const nameH = C.label ? Math.max(C.label.userData.px, 18) : 0;
+      C.sprite.center.set(0.5, C.label ? 0.5 + (nameH / 2 + 2 + hPx / 2) / hPx : 0.5);
+      if (persp && !C.label) C.behind = behind(C.sprite.position, above(C.F));
+      C.sprite.visible = !!C.parts && !(C.label ? C.label.userData.covered || C.label.userData.behind : C.behind);
     }
   }
   /** A name (and its room's chip) under a floor showing above it is hidden. */
@@ -2384,8 +2400,17 @@ function createSlot(slotKey){
    *  screen turns it so the long side of the house runs up the screen. */
   function isoAngle(){
     if (camera.aspect >= 0.8) return { theta: Math.PI / 4, phi: 0.98 };
+    // The walls' run, sampled along every showing room's outline (corners
+    // alone let one small room tilt it).
     let n = 0, mx = 0, my = 0, xx = 0, yy = 0, xy = 0;
-    for (const v of visiblePoints()) { n++; mx += v.x; my += v.z; xx += v.x * v.x; yy += v.z * v.z; xy += v.x * v.z; }
+    const add = (x, y) => { n++; mx += x; my += y; xx += x * x; yy += y * y; xy += x * y; };
+    for (const r of (house && house.rooms) || []) {
+      if (r.floor.outdoor || !HOUSE.floorShown(r.floor, topElev)) continue;
+      r.pts.forEach((q, i) => {
+        const e = r.pts[(i + 1) % r.pts.length], k = Math.max(1, Math.ceil(Math.hypot(e[0] - q[0], e[1] - q[1]) / 0.5));
+        for (let j = 0; j < k; j++) add(q[0] + (e[0] - q[0]) * j / k, q[1] + (e[1] - q[1]) * j / k);
+      });
+    }
     if (!n) return { theta: 0.35, phi: 0.85 };
     mx /= n; my /= n;
     const a = 0.5 * Math.atan2(2 * (xy / n - mx * my), (xx / n - mx * mx) - (yy / n - my * my));   // the long axis
@@ -2483,6 +2508,13 @@ function createSlot(slotKey){
     _hit.near = 0; _hit.far = d - 0.15;
     for (const h of _hit.intersectObjects(occ, false)) if (!(own && own.has(`${h.object.id}:${h.instanceId}`))) return true;
     return false;
+  }
+  /** The harness: a fixture that is off, its colour as drawn and as lit by day. */
+  function offBulb(){
+    const L = lights.find(x => x.look && !x.look.on && x.refs.bulbs.length);
+    if (!L) return { offBulb: null, offLit: null };
+    const r = L.refs.bulbs[0], a = L.F.bulbs[r.prim].instanceColor.array;
+    return { offBulb: [a[r.i * 3], a[r.i * 3 + 1], a[r.i * 3 + 2]], offLit: [r.off.r, r.off.g, r.off.b].map(v => v * (L.look.unavailable ? 0.55 : 1)) };
   }
   /** A sprite's corners in the world as it shows now (a name, a chip):
    *  its size on screen at its depth, its centre where sprite.center puts it. */
@@ -3115,13 +3147,15 @@ function createSlot(slotKey){
                readouts: readouts.map(R => ({ eid: R.eid, kind: R.kind, ...(R.shown || {}) })),
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
                names: floorsUi.flatMap(F => F.labels.map((l, i) => ({ room: F.rooms[i].name, shown: F.group.visible && l.visible,
-                                                                       covered: !!l.userData.covered, px: Math.round(l.userData.px) }))),
+                                                                       covered: !!l.userData.covered, px: l.userData.px,
+                                                                       onTop: !l.material.depthTest && l.renderOrder >= 30, upright: !!l.isSprite }))),
                chips: chips.map(C => ({ room: C.room ? C.room.name : null, text: C.text, eids: C.sensors.map(S => S.eid),
                                         shown: C.F.group.visible && C.sprite.visible })),
                screen: { mapOnly, bare, cover, full: fsOn, fitR, narrow, floors: floorSteps ? { names: floorSteps.names, at: floorSteps.at, all: floorSteps.all } : null,
                          flying: !!cam.fly, menu: !!menuEl, hint: !!hintCard },
                night: { k: nightK, top: topGlow.value, floor: floorsUi.map(F => (F.lift ? F.lift.material.opacity : 0)),
-                        edges: floorsUi.map(F => (F.edges ? F.edges.material.opacity : 0)) },
+                        edges: floorsUi.map(F => (F.edges ? F.edges.material.opacity : 0)), ...offBulb() },
+               wallMat: (floorsUi.find(F => F.solid) || { solid: null }).solid ? floorsUi.find(F => F.solid).solid.material : null,
                flash: shared ? { color: "#" + shared.flashMat.color.getHexString(), opacity: shared.flashMat.opacity } : null,
                animating: liveMs > 0, liveMs, use: use ? use.state() : null, work: { ...work },
                // What of the host's it still holds (nothing, once switched off).
