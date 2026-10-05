@@ -78,6 +78,10 @@ const MARKS = await import(`./live_aboard_marks.js${new URL(import.meta.url).sea
 // as it was).
 const MOTION = await import(`./live_aboard_motion.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_motion failed to load", err); return null; });
+// The wall panel (live_aboard_panel.js): a home view it goes back to, Follow,
+// the People chip, the two switches in Views ▾ (optional: missing, as it was).
+const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_panel failed to load", err); return null; });
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
@@ -443,6 +447,8 @@ function createSlot(slotKey){
   let marks = null, codes = null, classF = null, zoomCb = null, zoomShown = null;
   // live_aboard_motion.js: motion in the house (motionL) and the Motion chip.
   let motionL = null, mchip = null;
+  // live_aboard_panel.js: the home view, going back to it, Follow, the People chip.
+  let panel = null;
   // Furnish shows a plan beside the 3D view on a wide screen, drawn by the
   // same renderer in its own viewport; on a phone, Plan or 3D. The plan looks
   // straight down at the top floor showing.
@@ -500,6 +506,8 @@ function createSlot(slotKey){
     marks = null; codes = null; zoomCb = null;
     try { if (motionL) motionL.dispose(); if (mchip) mchip.dispose(); } catch (_) { /* gone with the view */ }
     motionL = null; mchip = null;
+    try { if (panel) panel.dispose(); } catch (_) { /* gone with the view */ }
+    panel = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
     layer = null; furnishP = null; topCb = null;
@@ -875,6 +883,7 @@ function createSlot(slotKey){
     const was = floorKey;
     floorKey = key;
     if (was === null || key === null) return;
+    if (panel) panel.floorChanged();
     floorCams.set(was, { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() });
     const c = keepCam ? null : floorCams.get(key);
     if (c) {
@@ -922,7 +931,7 @@ function createSlot(slotKey){
     const saved = readViews();
     return [{ text: "Whole house", act: () => wholeHouse() },
             ...saved.map((v, i) => ({ text: v.name, act: () => goView(v), del: () => { saved.splice(i, 1); writeViews(saved); } })),
-            { text: "Save this view", act: () => saveView() }];
+            { text: "Save this view", act: () => saveView() }, ...(panel ? panel.menuItems() : [])];
   }
   /** The room the camera looks at, on the top floor showing it. */
   function roomNear(x, y){
@@ -981,6 +990,7 @@ function createSlot(slotKey){
       if (it.title) b.title = it.title;
       b.setAttribute("role", it.on === undefined ? "menuitem" : "menuitemradio");
       if (it.on !== undefined) b.setAttribute("aria-checked", String(!!it.on));
+      if (it.disabled) b.disabled = true;
       b.addEventListener("click", guard((e) => { e.stopPropagation(); closeMenu(); it.act(); }));
       row.appendChild(b);
       if (it.del) {
@@ -1093,6 +1103,7 @@ function createSlot(slotKey){
     motionL = MOTION ? MOTION.createMotionLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low"), behind: (v) => blocked(v),
       dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22,
       floorTiles: () => floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles) }) : null;
+    panel = PANEL ? makePanel() : null;
     planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
     planCam.up.set(0, 0, -1);                                // the plan as drawn: its top up
     // The 3D editor: its page in this element, its marks in this scene, its
@@ -2066,7 +2077,9 @@ function createSlot(slotKey){
     else if (typeof pp.snapshot === "function") { peopleSnap = pp.snapshot() || null; peopleReads++; }
     else if (typeof pp.read === "function") readPeople(pp);
     if (tracked.sync({ model: p.model, looks: vd.devices, figures: vd.figures, snapshot: pp ? peopleSnap : null,
-                       states: p.states || {}, people: on(p.people), tags: on(p.tags) }, rebuilt)) requestRender();
+                       states: p.states || {}, people: on(p.people), tags: on(p.tags),
+                       carries: p.settings3d ? p.settings3d.atlas_3d_carries : null }, rebuilt)) requestRender();
+    if (panel) panel.peopleChanged();
     peopleClock();
   }
   /** One read of the live snapshot through the host, never sooner than
@@ -2376,7 +2389,7 @@ function createSlot(slotKey){
     const fans = DEVICES && lights.some(L => L.spin && L.spin.rps > 0 && L.F.group.visible)
       ? DEVICES.DEVICE_MS[quality.profile === "high" ? "high" : "low"] : 0;
     const rates = [wxMs, devices ? devices.rate() : 0, tracked ? tracked.rate() : 0, fans, marks ? marks.rate() : 0,
-                   motionL ? motionL.rate() : 0].filter(Boolean);
+                   motionL ? motionL.rate() : 0, panel ? panel.rate() : 0].filter(Boolean);
     const slow = rates.length ? Math.min(...rates) : 0;
     const fast = slow ? Math.min(own, slow) : own;
     for (const { F, P } of openings) {
@@ -2425,6 +2438,7 @@ function createSlot(slotKey){
     if (motionL) motionL.tick(t);                             // a trigger's ring, its coverage's flash
     turnFans(t);                                              // ceiling fans that run
     if (tracked) tracked.tick(t);                             // people walking
+    if (panel) panel.tick(t);                                 // the camera after someone followed
     liveMs = liveRate(t);
   }
   // Readouts keep to a size you can read, and so do the rooms' names, whatever the zoom.
@@ -2856,6 +2870,7 @@ function createSlot(slotKey){
    *  upright, room scale (about ROOM_SPAN across) at the middle of the house. */
   const ROOM_SPAN = 9;
   function openView(){
+    if (panel && panel.open()) return;                      // the sidebar opens on its home view
     preset("iso");
     if (camera.aspect >= 0.8) return;
     const r = ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect);
@@ -2981,10 +2996,12 @@ function createSlot(slotKey){
     let tagHit = null;
     for (const T of tracked ? tracked.pickable() : []) {
       let d = dist(T.at);
+      if (T.pts) d = Math.min(d, ...T.pts.map(dist));        // a person: anywhere from their feet to their head
       const s = T.name && T.namePx ? screenPt(T.name, rect) : null;
       if (s && Math.abs(clientX - s[0]) <= T.namePx[0] / 2 && clientY <= s[1] + 2 && clientY >= s[1] - T.namePx[1] - 2) d = 0;
       else if (d > PICK_R || blocked(T.at)) continue;
-      if (!tagHit || d < tagHit.d) tagHit = { d, hit: { kind: T.kind, key: T.key, anchor: T.at, label: T.label, card: T.card } };
+      if (!tagHit || d < tagHit.d) tagHit = { d, hit: { kind: T.kind, key: T.key, anchor: T.at, live: T.live, label: T.label,
+                                                        card: T.kind === "person" && panel ? panel.cardOf(T.key, T.card) : T.card } };
     }
     const devs = [];
     for (const L of lights) {
@@ -3078,7 +3095,7 @@ function createSlot(slotKey){
     if (!renderer || !root) return null;
     const rect = view3Rect(), r0 = root.getBoundingClientRect();
     const ox = r0.left + (root.clientLeft || 0), oy = r0.top + (root.clientTop || 0);
-    if (t.anchor) { const s = screenPt(t.anchor, rect); return s ? { x: s[0] - ox, y: s[1] - oy } : null; }
+    if (t.anchor) { const s = screenPt((typeof t.live === "function" && t.live()) || t.anchor, rect); return s ? { x: s[0] - ox, y: s[1] - oy } : null; }
     if (t.quad) {
       const ps = t.quad.map(v => screenPt(v, rect));
       return ps.every(Boolean) ? { poly: ps.map(p => [p[0] - ox, p[1] - oy]) } : null;
@@ -3538,6 +3555,74 @@ function createSlot(slotKey){
     return true;
   }
 
+  // ── the wall panel and the people in it (live_aboard_panel.js) ────────────
+  // What the panel needs of the view: the camera, the floors, the people
+  // drawn, and what may hold it off (Edit, Furnish, full screen, a card).
+  function makePanel(){
+    return PANEL.createPanel({
+      root, guard, slotKey, prefGet, prefSet,
+      host: () => lastP,
+      sidebar: () => mapOnly && !!stage && !failed,
+      busy: () => (editor && editor.active ? "edit" : furnishOn ? "furnish" : fsOn ? "full" : PANEL.hostCardOpen(root) ? "card" : null),
+      cam: () => ({ theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() }),
+      floorNow: () => (selIds && selIds.size ? [...selIds].sort()[0] : null),
+      onFloor: (fid) => (fid === null ? !selIds : !!(selIds && selIds.has(fid))),
+      setFloor: (fid) => setFloor(fid),
+      homeFloor: () => (house ? PANEL.homeFloorOf(house.rooms) : null),
+      wholeGoal: () => homeGoal(),
+      go: (g, smooth) => goTo(g, smooth),
+      flying: () => !!cam.fly,
+      closeAll: (bars) => { closeMenu(); if (use) use.clear(); if (bars && bare) setBare(false, false); },
+      tracked: () => tracked,
+      toPerson: (key) => flyToPerson(key),
+      showCard: (key) => { const T = tracked && tracked.pickable().find(x => x.key === key); if (T && use) use.show({ kind: T.kind, key: T.key, anchor: T.at, live: T.live, label: T.label, card: panel ? panel.cardOf(T.key, T.card) : T.card }); },
+      onTop: (w) => onTop(w),
+      target: () => cam.target.toArray(),
+      setTarget: (a) => { cam.target.fromArray(a); applyCam(); },
+      quality: () => (profileOf().pbr ? "high" : "low"),
+      toast: (t) => toast(t), render: () => requestRender(),
+    });
+  }
+  /** That floor at the top (null: All), the camera left where it is. */
+  function setFloor(fid){
+    if (fid === null) { if (floorSteps && !floorSteps.all) { keepCam = true; try { floorSteps.go(-1); } finally { keepCam = false; } } }
+    else if (topCb) topCb(fid);
+  }
+  /** Does `w` (a person where they are) stand on the floor at the top? */
+  function onTop(w){
+    if (!house) return true;
+    const top = topElev !== null ? topElev : Math.max(...house.floors.filter(f => !f.outdoor).map(f => f.elev));
+    return Math.abs(w.elev - top) < 1e-3;
+  }
+  /** The whole house from the Atlas's angle on the floor showing, as the view opens. */
+  function homeGoal(){
+    const a = isoAngle(), g = frameFor(a.theta, a.phi, visiblePoints());
+    fitR = g.radius;
+    if (camera.aspect < 0.8) g.radius = Math.max(MIN_R, Math.min(g.radius, ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect)));
+    return { theta: g.theta, phi: g.phi, radius: g.radius, target: g.target.toArray() };
+  }
+  /** The camera to g ({theta, phi, radius, target: [x, y, z]}): flown, or at once. */
+  function goTo(g, smooth){
+    const goal = { target: new THREE.Vector3().fromArray(g.target), radius: g.radius, theta: g.theta, phi: g.phi };
+    if (smooth) { flyTo(goal, false); return; }
+    cam.fly = null; cam.needsFit = false;
+    cam.target.copy(goal.target); cam.radius = goal.radius; cam.theta = goal.theta; cam.phi = goal.phi;
+    applyCam();
+  }
+  /** Fly to someone drawn, framing the room they are in; their floor at the top. */
+  function flyToPerson(key){
+    let w = tracked ? tracked.whereOf(key) : null;
+    if (!w || !house || !camera) return false;
+    if (!onTop(w)) { setFloor(w.floor); w = tracked.whereOf(key) || w; }
+    const F = floorsUi.find(q => q.fl.id === w.floor), room = F ? HOUSE.roomAt(F.rooms, w.x, w.z) : null, pts = [];
+    if (room) for (const q of room.pts) pts.push(new THREE.Vector3(q[0], w.elev, q[1]), new THREE.Vector3(q[0], w.elev + Math.min(1.2, F.fl.h), q[1]));
+    else for (const d of [-2.5, 2.5]) pts.push(new THREE.Vector3(w.x + d, w.elev, w.z + d), new THREE.Vector3(w.x - d, w.elev + 1.2, w.z + d));
+    const g = frameFor(cam.theta, Math.max(0.35, Math.min(cam.phi, 1.05)), pts);
+    g.radius = Math.max(MIN_R, g.radius * 1.12);
+    flyTo(g, false);
+    return true;
+  }
+
   // ── P8 atmosphere: the Showcase look, rain and snow ───────────────────────
   /** The Atlas's Showcase look as this view's lighting: the background and
    *  its haze, the sky, the tiles' colour and the lights' glow
@@ -3716,6 +3801,7 @@ function createSlot(slotKey){
         if (failed) return false;
         place(s);
         paintFloors(); paintFull(); showHint(); peopleClock();
+        if (panel) panel.attach();
         return !failed;
       } catch (_) {
         fail("error");
@@ -3727,7 +3813,7 @@ function createSlot(slotKey){
     /** The 3D file changed elsewhere (Settings → Remove all furniture): read
      *  again now while showing, else when the screen is next shown. */
     reload(){ try { fileLoad = null; if (stage && lastP && !failed) loadFile(lastP); } catch (_) { /* read when next shown */ } },
-    detach(){ try { fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (panel) panel.detach(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */
@@ -3814,13 +3900,15 @@ function createSlot(slotKey){
                devices: devices ? devices.state() : [], swapped: lights.filter(L => L.swap).map(L => L.eid),
                outlined: emOutlines.length, lamps: lampPool.filter(l => l.intensity > 0).map(l => l.position.toArray().map(v => Math.round(v * 100) / 100)),
                // P6: scanners, beacons and people as drawn, and how often the snapshot was read.
-               tracked: tracked ? tracked.state() : [], peopleReads,
+               tracked: tracked ? tracked.state() : [], peopleReads, panel: panel ? panel.state() : null,
                // The Atlas's drawers and its other devices (live_aboard_marks.js).
                marks: marks ? marks.state() : [], codes: codes ? codes.state() : null, classF, zoomPct: zoomPctNow(),
                chipsFaded: chips.filter(C => C.sprite.material.opacity < 1).map(C => (C.room ? C.room.name : null)),
                dimmed: lights.filter(L => dimOf(L.eid)).map(L => L.eid),
                split: furnishOn ? (viewports().plan ? (viewports().d3 ? "both" : "plan") : "3d") : null, plan: { ...plan } };
     },
+    /** The wall panel (live_aboard_panel.js: the harness drives it). */
+    _panel(){ return panel; },
     /** The Furnish tool (the harness builds a piece of any kind through it). */
     _furnish(){ return editor ? editor.furnish : null; },
     /** The Strip tool (the harness lays out a light through it). */

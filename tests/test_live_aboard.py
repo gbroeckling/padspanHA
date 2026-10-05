@@ -252,7 +252,10 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     assert 'saveNorth: async (b)=>{' in block
     assert 'this._hass.callWS({ type:"padspan_ha/settings_set", fabric_bearing_deg: b })' in block
     # (P6: and Show people's read of Overview's live snapshot, only while it is on.)
-    assert block.count("callWS(") == 4, "the report's, the Save's, the 3D file's read and Show people's, nothing else"
+    # (And the wall panel's: Show people / Show tags & scanners from inside the
+    # view, the one key it is handed and nothing else.)
+    assert block.count("callWS(") == 5, "the report's, the Save's, the 3D file's read, Show people's and the switches', nothing else"
+    assert 'await this._hass.callWS({ type:"padspan_ha/settings_set", [key]: v });' in block
     assert 'people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" })' in block
     assert 'load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),' in block
     maps = _js(_VIEWS / "maps.js")
@@ -263,7 +266,9 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     # (contracts §4) and "This is a device…", only on Mapping → Furnish. The
     # fifth is Show people's read of the live snapshot (P6): Mapping does not
     # poll it, so the view reads it, only while Show people is on.
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 5
+    # The sixth is the wall panel's switches (Show people, Show tags & scanners).
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 6
+    assert 'ctx.actions.wsCall("padspan_ha/settings_set", { [key]: v })' in mblock
     assert 'read: () => ctx.actions.wsCall("padspan_ha/live_snapshot")' in mblock
     assert "callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); }," in mblock
     assert 'load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),' in mblock

@@ -295,7 +295,7 @@ class PadSpanLightsApp extends HTMLElement {
         this.state._house3d = { atlas_3d_enabled: s.atlas_3d_enabled, atlas_3d_quality: s.atlas_3d_quality,
           fabric_bearing_deg: s.fabric_bearing_deg, atlas_3d_weather: s.atlas_3d_weather, atlas_3d_showcase: s.atlas_3d_showcase, atlas_3d_look: s.atlas_3d_look,
           atlas_3d_people: s.atlas_3d_people, presence_poll_interval_s: s.presence_poll_interval_s, light_shapes: s.light_shapes,
-          atlas_3d_tags: s.atlas_3d_tags };
+          atlas_3d_tags: s.atlas_3d_tags, atlas_3d_carries: s.atlas_3d_carries, atlas_3d_home_idle_s: s.atlas_3d_home_idle_s };
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
@@ -935,6 +935,15 @@ class PadSpanLightsApp extends HTMLElement {
         },
         // Taps and holds in 3D: this map's own use api, asked for on the press.
         useApi: ()=>this._useApi(lightsByEid, lights),
+        // Show people / Show tags & scanners from inside Live Aboard: an
+        // administrator's, as in Settings, saved alone and drawn at once.
+        admin: !!this._hass?.user?.is_admin,
+        saveSetting: async (key, v)=>{
+          await this._hass.callWS({ type:"padspan_ha/settings_set", [key]: v });
+          this.state._house3d = { ...(this.state._house3d || {}), [key]: v };
+          this._render();
+          return true;
+        },
         // Furniture that is a device (P5): renames followed through the
         // registry already read above, and the emergency lights while a
         // test runs (the status this panel already keeps).

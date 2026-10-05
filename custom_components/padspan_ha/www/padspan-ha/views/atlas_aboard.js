@@ -14,7 +14,10 @@
 //                 their figure's top colour, moving smoothly to where they
 //                 are. A tap says what it is (the same card Live Aboard
 //                 shows: live_aboard_tracked.js tagCard, scannerCard), and a
-//                 person's says who, where and since when. The same live
+//                 person's says who, where and since when. Who carries what,
+//                 someone known only by their room (faint, in its middle)
+//                 and a tag pinned on the map (at its pin) are Live Aboard's
+//                 own rules (wantedOf), so both views agree. The same live
 //                 snapshot through the same reader as Live Aboard (one read
 //                 serves both, never more often than Overview polls)
 //   light kinds   with Live Aboard on, a light whose "What is this?" kind was
@@ -144,26 +147,9 @@ function inkOn(hex){
   const n = parseInt(m[1], 16), lum = 0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
   return lum > 140 ? "#0a1a12" : "#f8fafc";
 }
-const clockOf = (t) => {
-  const d = new Date(t), now = new Date();
-  const hm = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return d.toDateString() === now.toDateString() ? hm : `${d.toLocaleDateString([], { weekday: "short" })} ${hm}`;
-};
-const STATE_WORD = { home: "Home", not_home: "Away" };
-/** What a tapped person says: who, where, and since when. */
-export function personCard(P, st, roomSince){
-  const lines = [];
-  const room = P.at && P.at.room ? P.at.room : "";
-  lines.push(room ? `In ${room}${roomSince ? ` since ${clockOf(roomSince)}` : ""}` : "Room not known");
-  if (st && st.state && st.last_changed) {
-    const w = STATE_WORD[st.state] || String(st.state).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-    const t = Date.parse(st.last_changed);
-    if (Number.isFinite(t)) lines.push(`${w} since ${clockOf(t)}`);
-  }
-  const seen = TRACKED.seenText(P.at && P.at.age);
-  if (seen) lines.push(seen);
-  return { title: P.name, lines };
-}
+/** What a tapped person says: who, where, and since when (Live Aboard's own
+ *  card, live_aboard_tracked.js, so both views say the same). */
+export const personCard = TRACKED.personCard;
 
 // The card a tap opens: Live Aboard's face (live_aboard_use.js), fixed by the
 // spot that was tapped; the next press anywhere, or ×, closes it.
@@ -279,9 +265,8 @@ function createLiveLayer(){
     if (!d) return;
     const fig = d.file && typeof d.file === "object" && d.file.figures && typeof d.file.figures === "object" ? d.file.figures : {};
     const fr = d.frame, wants = TRACKED.wantedOf({ model: d.model, looks: {}, figures: fig, snapshot: snap,
-                                                  states: d.states || {}, people: !!d.people, tags: !!d.tags });
-    const people = d.people ? TRACKED.peopleOf(d.states || {}, TRACKED.trackedOf(snap)) : [];
-    const byEid = new Map(people.map(P => [P.eid, P]));
+                                                  states: d.states || {}, people: !!d.people, tags: !!d.tags, carries: d.carries || null });
+    const byEid = new Map(wants.filter(w => w.person).map(w => [w.key, w.person]));
     const keep = new Set();
     const S = fr.scale || 1, now = Date.now();
     for (const w of wants) {
@@ -321,6 +306,9 @@ function createLiveLayer(){
         else if (was.room !== room) since.set(w.key, { room, t: now });
         it.card = P ? personCard(P, (d.states || {})[w.key], since.get(w.key).t) : { title: name, lines: [] };
         it.name = name; it.color = top;
+        // Known only by their room: faint, at the room's middle (live_aboard_tracked.js wantedOf).
+        it.dim = !!w.dim;
+        if (it.dim) it.g.setAttribute("opacity", String(TRACKED.ROOM_ONLY_OPACITY + 0.15)); else it.g.removeAttribute("opacity");
       }
     }
     for (const [k, it] of items) if (!keep.has(k)) { try { it.g.remove(); } catch (_) { /* gone */ } items.delete(k); }
@@ -330,6 +318,7 @@ function createLiveLayer(){
      * Into this card's drawing, as of now: d = {stage, frame (fabricFrame's),
      * frameKey (what moves every marker at once: spacing, L/R), model,
      * states, file (the 3D file: each person's figure), people, tags,
+     * carries (settings.atlas_3d_carries: what each person carries),
      * hideNames, focused(z), outdoor(fid),
      * home() (where a card goes)}; snapshot when a read came in (else the
      * last one).
@@ -358,7 +347,7 @@ function createLiveLayer(){
     /** What is drawn (the tests and the harness). */
     state: () => [...items.entries()].map(([key, it]) => ({ key, kind: it.kind, at: it.at, shown: it.g.style.display !== "none",
       jump: it.g.classList.contains("lv-live-jump"), name: it.name || null, color: it.color || null,
-      initial: it.parts.initial ? it.parts.initial.textContent : null, ring: it.parts.ring ? [Number(it.parts.ring.getAttribute("rx")), Number(it.parts.ring.getAttribute("ry"))] : null,
+      initial: it.parts.initial ? it.parts.initial.textContent : null, dim: !!it.dim, opacity: it.g.getAttribute("opacity"), ring: it.parts.ring ? [Number(it.parts.ring.getAttribute("rx")), Number(it.parts.ring.getAttribute("ry"))] : null,
       card: it.card || null })),
     hasSnapshot: () => !!snap,
   };

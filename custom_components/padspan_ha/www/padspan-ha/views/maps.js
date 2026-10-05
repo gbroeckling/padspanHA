@@ -9437,6 +9437,15 @@ function _lightsTab(ctx, maps, active) {
       },
       // Taps and holds in 3D: the sidebar's exact api (Preview as sidebar's).
       useApi: () => previewApi,
+      // Show people / Show tags & scanners from inside Live Aboard (an
+      // administrator's, as in Settings), saved alone like the compass.
+      admin: !!ctx.hass?.user?.is_admin,
+      saveSetting: async (key, v) => {
+        const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: v });
+        if (r && r.settings) ctx.state.settings = r.settings;
+        ctx.actions.renderRooms();
+        return true;
+      },
       // The 3D file (doors and windows drawn in 3D, heights): read when the
       // 3D view shows, never on the poll.
       load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),
