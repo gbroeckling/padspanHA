@@ -27,8 +27,10 @@ Task and is then dropped. Home Assistant hands an attachment to the AI Task
 as a file a media source resolves, so for the call only the photo is a file
 in a new hidden folder (a random name, owner-only) in Home Assistant's first
 media folder, which the media browser does not list; it is removed in
-`finally`, whether the call worked, failed or was cancelled. It is never
-logged and never sent anywhere else.
+`finally`, whether the call worked, failed or was cancelled, and one left by
+a call that never got there (Home Assistant stopped, crashed or was killed
+mid-call) is removed before the next photo is read. It is never logged and
+never sent anywhere else.
 
 Refused (nothing read, nothing sent): while off and below Pro (as if off),
 as ws_house3d.py; no_ai_task when no AI Task is chosen, it is not there, it
@@ -72,6 +74,7 @@ MAX_PHOTO_BYTES = 2 * 1024 * 1024     # the screen sends a ≤1280 px JPEG, far 
 PHOTO_TIMEOUT_S = 240                 # a local vision model on a CPU is slow
 _MIME = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 _FOLDER = ".padspan_ha_photo_"
+_READING = "house3d_photo_folders"    # hass.data[DOMAIN]: the folders of the photos being read now
 _SUPPORTS = 1 | 2                     # AITaskEntityFeature GENERATE_DATA | SUPPORT_ATTACHMENTS
 # Where an AI Task runs, by its integration, for the screen's note (anything
 # else: "if it runs in the cloud, the photo leaves the house").
@@ -563,6 +566,25 @@ def _remove(folder: Path, path: Path) -> None:
                             type(err).__name__)
 
 
+def _sweep(base: Path, reading: set[str]) -> None:
+    """Remove the photo folders left by a call that never got to its
+    `finally`: every one in the media folder but those being read now."""
+    try:
+        left = [p for p in base.iterdir() if p.name.startswith(_FOLDER) and p.name not in reading]
+    except OSError:
+        return
+    for folder in left:
+        try:
+            if folder.is_symlink() or not folder.is_dir():
+                continue
+            for f in folder.iterdir():
+                f.unlink(missing_ok=True)
+            folder.rmdir()
+        except OSError as err:
+            _LOGGER.warning("PadSpan Live Aboard: couldn't remove a photo's leftover temporary file: %s",
+                            type(err).__name__)
+
+
 class _NoMedia(Exception):
     pass
 
@@ -574,14 +596,16 @@ async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict,
     if media is None:
         raise _NoMedia
     dir_id, base = media
+    reading = hass.data.setdefault(DOMAIN, {}).setdefault(_READING, set())
+    await hass.async_add_executor_job(_sweep, base, set(reading))
     folder = base / f"{_FOLDER}{secrets.token_hex(16)}"
     path = folder / f"photo{_MIME[mime]}"
+    reading.add(folder.name)
     try:
-        await hass.async_add_executor_job(_write, folder, path, raw)
-    except OSError:
-        await hass.async_add_executor_job(_remove, folder, path)
-        raise _NoMedia from None
-    try:
+        try:
+            await hass.async_add_executor_job(_write, folder, path, raw)
+        except OSError:
+            raise _NoMedia from None
         async with asyncio.timeout(PHOTO_TIMEOUT_S):
             resp = await hass.services.async_call(
                 "ai_task", "generate_data",
@@ -596,6 +620,8 @@ async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict,
         except BaseException:
             _remove(folder, path)
             raise
+        finally:
+            reading.discard(folder.name)
     return resp.get("data") if isinstance(resp, dict) else None
 
 

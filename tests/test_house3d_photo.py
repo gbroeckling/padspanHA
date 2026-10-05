@@ -363,6 +363,57 @@ def test_the_file_is_gone_when_the_call_fails(monkeypatch, tmp_path, disk, caplo
     assert _B64[:40] not in caplog.text and "JFIF" not in caplog.text, "never logged"
 
 
+def test_a_call_cancelled_while_the_photo_is_written_leaves_no_file(monkeypatch, tmp_path, disk):
+    h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=dict(_SOFA))
+    run = h.async_add_executor_job
+
+    async def _cancelled_after_write(fn, *args):
+        out = await run(fn, *args)
+        if fn is P._write:
+            raise asyncio.CancelledError
+        return out
+    h.async_add_executor_job = _cancelled_after_write
+    with pytest.raises(asyncio.CancelledError):
+        _photo(h, conn)
+    assert ai.calls == [] and _leftovers(media) == []
+
+
+def test_a_photo_left_by_a_call_that_never_finished_goes_before_the_next(monkeypatch, tmp_path, disk):
+    """Home Assistant stopped, crashed or was killed mid-call: the next photo
+    read removes what that call left, and nothing else in the media folder."""
+    h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=dict(_SOFA))
+    left = media / ".padspan_ha_photo_0123456789abcdef0123456789abcdef"
+    left.mkdir()
+    (left / "photo.jpg").write_bytes(_JPEG)
+    (media / "holiday.jpg").write_bytes(_JPEG)
+    assert _photo(h, conn)["ok"]
+    assert _leftovers(media) == ["holiday.jpg"]
+
+
+def test_a_photo_being_read_is_never_swept_by_another_read(monkeypatch, tmp_path, disk):
+    h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=dict(_SOFA))
+    first_in, first_go, held = asyncio.Event(), asyncio.Event(), []
+
+    async def _ai(domain, service, data, blocking=False, return_response=False):
+        f = media / data["attachments"][0]["media_content_id"].removeprefix("media-source://media_source/local/")
+        if not first_in.is_set():
+            first_in.set()
+            await first_go.wait()          # the second read runs meanwhile
+        held.append(f.is_file())
+        return {"data": dict(_SOFA)}
+    h.services.async_call = _ai
+
+    async def _both():
+        one = asyncio.ensure_future(P.ask(h, _AI, "i", {}, _JPEG, "image/jpeg"))
+        await first_in.wait()
+        await P.ask(h, _AI, "i", {}, _JPEG, "image/jpeg")
+        first_go.set()
+        await one
+    _run(_both())
+    assert held == [True, True], "the first photo was still there when its AI Task read it"
+    assert _leftovers(media) == []
+
+
 def test_a_slow_ai_task_times_out_plainly_and_the_file_goes(monkeypatch, tmp_path, disk):
     h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=dict(_SOFA), delay=5)
     monkeypatch.setattr(P, "PHOTO_TIMEOUT_S", 0.05)
