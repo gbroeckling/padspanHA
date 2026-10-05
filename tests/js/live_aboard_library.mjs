@@ -455,7 +455,12 @@ function settingsBox(settings){
 }
 {
   const off = settingsBox({ atlas_3d_enabled: false, atlas_3d_library: false });
-  check("settings_rows", !/library|furniture|Withdraw/i.test(off.box.textContent), "nothing of the library while off");
+  // What shows while off: the rows under the switch are hidden then (P2's admin-only
+  // Remove all furniture lives there), so only the visible text counts.
+  const hidden = off.attr("data-la3d-more");
+  const offText = off.box.textContent.replace(hidden ? hidden.textContent : "", "");
+  check("settings_rows", !/library|furniture|Withdraw/i.test(offText) && (!hidden || hidden.style.display === "none")
+    && !/library|Withdraw/i.test(off.box.textContent), "nothing of the library while off");
   off.master.checked = true;
   off.master.dispatchEvent({ type: "change" });
   await settle();
