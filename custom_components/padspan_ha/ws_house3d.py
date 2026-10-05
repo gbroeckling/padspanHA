@@ -12,7 +12,8 @@ library commands, each refused while the feature is off.
 - house3d_get: any user, and it works while the feature is off (backups
   label the file from it). It reads; it never writes. It says whether this
   version writes the file (writable): the browser can't tell a schema of 1.0
-  from 1 once JSON has read it.
+  from 1 once JSON has read it. Neither it nor house3d_edit ever sends the
+  library's owner tokens (house3d_library.without_tokens).
 - house3d_clear: admin only, refused while the feature is off and below Pro
   (as if off), and takes an automatic backup of the file first. No backup, no
   clear. A file that was never written has nothing to clear: no backup, no
