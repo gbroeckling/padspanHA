@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.98",
+  "title": "Share your furniture",
+  "date": "2026-10-04",
+  "body_markdown": "### Live Aboard\n- **Added:** the shared furniture library is open. Turn on Settings → UI Structure → Atlas — Mapped Light Control → 🏠 Live Aboard → **Shared library** (administrators), then share a piece from its panel in Mapping → Furnish (**Share…**): you accept the library's terms once, fill in its details sheet, and other PadSpan houses can find it, filter it and place it. Only the piece's shape, sizes, colours and details sheet are shared — never a photo, your floor plan, where it sits, its name in your house, a linked device or anything about you. **Withdraw my shared furniture** in the same settings takes yours out again. With the switch off, Library shows the starter pieces and nothing leaves your house.\n- **Fixed:** undoing a PadSpan Bright import (restoring the backup it took first) now also takes away a Live Aboard file the import created on a house that had none."
+ },
+ {
   "version": "0.38.97",
   "title": "A starter set of furniture",
   "date": "2026-10-04",
@@ -28,11 +34,5 @@
   "title": "One colour key for motion and air on the Atlas",
   "date": "2026-09-29",
   "body_markdown": "### Atlas\n- **Changed:** the colour key under the Atlas is one strip for motion and air quality, labelled \"Motion · Air\". Both use the same colours in the same order, from blue (motion just now, good air) to magenta (motion long ago, hazardous air), so they were two identical-looking strips side by side.\n- **Changed:** the key's label is smaller than the floor names, so it no longer reads as another floor."
- },
- {
-  "version": "0.38.92",
-  "title": "Only real rain sensors in the rain-sensor list",
-  "date": "2026-09-29",
-  "body_markdown": "### Atlas — outdoor weather\n- **Fixed:** Settings → Outdoor weather → **Rain sensor** listed every entity of a rain device (its cleaning reminder, light level, last seen), water-leak detectors, and anything else with \"rain\" in its name. It now lists only actual rain sensors: an on/off sensor named for rain (by its own name, not its device's), a rain rate, or a rain gauge's latest reading.\n- **Fixed:** a solar rain sensor's \"Rain intensity\" is no longer offered. It's a voltage that reads above 0 even when dry, so picking it would have drawn rain all the time."
  }
 ]
