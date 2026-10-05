@@ -3341,6 +3341,8 @@ function createSlot(slotKey){
     },
     /** The Furnish tool (the harness builds a piece of any kind through it). */
     _furnish(){ return editor ? editor.furnish : null; },
+    /** The Strip tool (the harness lays out a light through it). */
+    _strip(){ return editor ? editor.strip : null; },
     /** A piece's middle (dz metres above its bottom) on screen, in the 3D view or the plan. */
     _wherePiece(id, dz = 0.3, inPlan = false){
       const r = layer && layer.rootOf(id), vp = inPlan ? viewports().plan : viewports().d3;

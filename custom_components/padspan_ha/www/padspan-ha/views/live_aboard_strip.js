@@ -54,7 +54,7 @@ const DRAW_HINT = "Press on a wall and drag along it, or tap points one at a tim
 
 const CSS = `
 .la3d-sheet.strip{max-height:calc(100% - 120px);overflow-y:auto}
-@media (max-width:600px){.la3d-sheet.strip{left:10px;right:10px;width:auto;top:auto!important;bottom:58px;max-height:48%}}
+@media (max-width:600px){.la3d-sheet.strip{left:10px;right:10px;width:auto;top:auto!important;bottom:58px;max-height:40%}}
 .la3d-sheet .la3d-sl{display:flex;flex-direction:column;gap:2px;max-height:260px;overflow:auto;margin-top:4px}
 .la3d-sheet .la3d-sl button{all:unset;box-sizing:border-box;display:block;width:100%;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;color:#e8f0ea}
 .la3d-sheet .la3d-sl button:hover,.la3d-sheet .la3d-sl button:focus-visible{background:rgba(82,183,136,.2)}
@@ -101,6 +101,7 @@ export function createStrip(ctx){
   const { THREE, HOUSE, RUNS, root, guard } = ctx;
   let shownNow = false, sel = null, drawing = null, area = null, gesture = null, ptSel = null, lastTap = null;
   let pulseUntil = 0, pulsing = false, dragGen = 0, lastCam = null, burst = null;
+  let folded = false;                                // the panel folded to its title (a phone: the house shows)
   const opts = { doors: true, windows: false };
   const loops = new Map();
   let loopsGen = null;
@@ -466,8 +467,12 @@ export function createStrip(ctx){
     S.classList.add("strip");
     const h4 = d("h4");
     h4.appendChild(d("span", null, sel ? (info() || {}).label || sel : "Strip"));
+    const fold = btn(folded ? "▴" : "▾", folded ? "Show the panel" : "Fold the panel away", () => { folded = !folded; sheet(); }, "la3d-x");
+    fold.setAttribute("aria-expanded", String(!folded));
+    h4.appendChild(fold);
     if (sel) h4.appendChild(btn("×", "Back to the list", () => select(null), "la3d-x"));
     S.appendChild(h4);
+    if (folded) { S.classList.add("on"); return true; }
     if (!sel || !info()) { listOf(S); S.classList.add("on"); return true; }
     const run = runOf(sel), pl = placedOf(sel), F = info().F, ceil = ceilOf(F);
     S.appendChild(d("p", "la3d-sub", run && !pl ? "Its piece is gone: lay it out again."
@@ -988,15 +993,18 @@ export function createStrip(ctx){
     setHeight: (h) => setHeight(h), setFace: (f) => { const r = runOf(sel); if (r) { setRun({ ...r, face: f }); sheet(); paint(); } },
     raise: (dh) => raiseBy(dh), pickPoint: (i) => { ptSel = i; sheet(); paint(); }, deletePoint: () => deletePoint(), removeRun: () => removeRun(),
     setOpts: (o) => Object.assign(opts, o),
+    fold: (on) => { folded = !!on; sheet(); },
     state(){
       const s = shownNow ? shownRun() : null;
-      return { shown: shownNow, sel, drawing: drawing ? drawing.anchors.length : null, area, ptSel, gesture: gesture ? gesture.kind : null,
+      return { shown: shownNow, sel, folded, drawing: drawing ? drawing.anchors.length : null, area, ptSel, gesture: gesture ? gesture.kind : null,
                mark: mark.visible ? mark.count : 0, pulsing, opts: { ...opts }, keys: keysOn,
                pts: s ? s.pts.map(q => q.map(RUNS.mm)) : null, len: s && s.pts.length >= 2 ? RUNS.mm(RUNS.lengthOf(s.pts, s.loop)) : null,
                lenText: lenPill.style.display === "block" ? lenPill.textContent : null,
                cornerText: cornerPill.style.display === "block" ? cornerPill.textContent : null,
                handles: (() => { const hs = handles(s); return hs ? { points: hs.points.length, mid: !!hs.mid, ends: hs.ends.filter(Boolean).length } : null; })() };
     },
+    /** A plan point at height h on the picked light's floor, in client px (the harness presses it). */
+    whereOf(x, y, h){ const I = info(); return I ? screenAt(I.F, x, y, h) : null; },
     /** Where a handle is on screen (the harness drags it): "mid", "end0", "end1", or a point's number. */
     handleAt(which){
       const hs = handles(shownRun());
