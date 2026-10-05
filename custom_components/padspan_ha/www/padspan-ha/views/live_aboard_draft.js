@@ -13,7 +13,8 @@
 //             wall in 3D, a stretch of wall in fabric metres; any other key
 //             is a barrier's id, and holds that barrier's hinge, swing,
 //             sill and head in 3D only (the map is never written)
-//   lights    {z_m}: a light's height above its floor, in 3D only
+//   lights    {z_m, kind}: a light's height above its floor and what it is
+//             (LIGHT_KIND: a pot, a valance, a lamp...), in 3D only
 //   devices   {z_m}: any other device's height (readouts, sensors); a
 //             beacon's or scanner's recipe (P6) is passed through whole
 //   pieces    furniture (P2 Furnish, "fur_" + 8 hex digits): each piece
@@ -39,6 +40,9 @@ export const DOOR_MIN_HEAD_M = 0.5;        // the lowest door the server keeps, 
 export const OPENING_ID = /^(win|door)_[0-9a-f]{8}$/;
 export const FILE_SCHEMA = 1;              // the 3D file this version writes (house3d_store.py SCHEMA)
 export const SECTIONS = ["openings", "lights", "devices", "pieces", "figures"];
+// A light's kind in the file (house3d_store.py _KIND): a short word. One this
+// version does not draw is kept all the same (the view draws its guess).
+export const LIGHT_KIND = /^[a-z0-9_]{1,40}$/;
 const UNDO_MAX = 100;
 const RUN_COS = Math.cos(3 * Math.PI / 180);    // pieces this parallel,
 const RUN_OFF = 0.12;                            // this close to one line,
@@ -114,6 +118,12 @@ export function ownedOf(data){
   for (const s of ["lights", "devices"]) {
     const m = d[s] && typeof d[s] === "object" ? d[s] : {};
     for (const k of Object.keys(m)) { const z = num(m[k] && m[k].z_m); if (z !== null) out[s][k] = { z_m: z }; }
+  }
+  // What a light is, set in Live Aboard; a light can have a kind and no height.
+  const ls = obj(d.lights) ? d.lights : {};
+  for (const k of Object.keys(ls)) {
+    const kind = obj(ls[k]) ? ls[k].kind : null;
+    if (typeof kind === "string" && LIGHT_KIND.test(kind)) out.lights[k] = { ...(out.lights[k] || {}), kind };
   }
   // A beacon's or scanner's recipe (P6), whole, so a flow can change or remove
   // it; a key that also has a height keeps both.
@@ -415,12 +425,14 @@ export function fixtureZ(parts){
   return b.length ? b.reduce((a, q) => a + q.h, 0) / b.length : null;
 }
 /** A fixture's parts moved up or down, whole, to the height stored for it
- *  (lights[<entity id>].z_m), kept under the ceiling. {parts, z, zDefault}. */
+ *  (lights[<entity id>].z_m), kept under the ceiling: its bulbs, housings,
+ *  glows, the light on its wall and where a press finds it (not the light
+ *  where it lands: a `fixed` wash, a pool). {parts, z, zDefault}. */
 export function liftParts(parts, stored, ceil){
   const z0 = fixtureZ(parts), want = num(stored && stored.z_m);
   if (z0 === null || want === null) return { parts, z: z0, zDefault: z0 };
   const z = clampHeight(want, ceil), d = z - z0;
-  for (const list of [parts.bulbs, parts.housings, parts.halos]) for (const q of list || []) q.h += d;
+  for (const list of [parts.bulbs, parts.housings, parts.halos, parts.washes, parts.picks]) for (const q of list || []) if (!q.fixed) q.h += d;
   return { parts, z, zDefault: z0 };
 }
 
@@ -505,5 +517,6 @@ export function applyOpenings(h, openings){
 }
 /** What the walls are drawn from, of the file: its openings. */
 export const openingsSignature = (vd) => JSON.stringify(Object.keys((vd && vd.openings) || {}).sort().map(k => [k, vd.openings[k]]));
-/** What the heights of one section are drawn from. */
-export const heightsSignature = (vd, section) => JSON.stringify(Object.keys((vd && vd[section]) || {}).sort().map(k => [k, (vd[section][k] || {}).z_m]));
+/** What the heights of one section are drawn from (and a light's kind). */
+export const heightsSignature = (vd, section) => JSON.stringify(Object.keys((vd && vd[section]) || {}).sort()
+  .map(k => [k, (vd[section][k] || {}).z_m, (vd[section][k] || {}).kind]));

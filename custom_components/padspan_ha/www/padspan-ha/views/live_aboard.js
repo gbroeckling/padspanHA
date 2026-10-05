@@ -75,6 +75,7 @@ const LAMP_I = 7;                          // a real lamp's intensity at full br
 // judge; a screen that cannot draw six frames in 4 s is slow, full stop.
 const MEASURE_FRAMES = 22, MEASURE_MS = 1500, MEASURE_MIN = 6, MEASURE_GIVE_UP_MS = 4000;
 const HALO = { s: 0.16, m: 0.55, l: 1.05 };
+const POOL_K = 0.34, WASH_K = 0.6;         // a light's pool on the floor, its wash on a wall: how bright at full
 const AO_W = 0.38, AO_A = 0.42;            // High's contact shade along wall bases: width (m), darkest alpha
 // The sun and the sky by day, and what is left of them at night (blended
 // through twilight by live_aboard_house.js sunLight).
@@ -186,6 +187,28 @@ function radialTexture(stops){
   const g = c.getContext("2d"), grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   for (const [o, col] of stops) grd.addColorStop(o, col);
   g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+// Light from a line (a strip, a cove, a pot by a wall) on what it falls on:
+// brightest along the line (the canvas's bottom edge, v = 0) and fading away
+// from it, soft at both ends ("fade"); a soft fan from the middle of the line
+// ("scallop").
+function washTexture(scallop){
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const g = c.getContext("2d");
+  if (scallop) {
+    const grd = g.createRadialGradient(32, 64, 0, 32, 64, 64);
+    grd.addColorStop(0, "rgba(255,255,255,1)"); grd.addColorStop(0.4, "rgba(255,255,255,0.45)"); grd.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  } else {
+    const v = g.createLinearGradient(0, 64, 0, 0);
+    v.addColorStop(0, "rgba(255,255,255,1)"); v.addColorStop(0.35, "rgba(255,255,255,0.42)"); v.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = v; g.fillRect(0, 0, 64, 64);
+    g.globalCompositeOperation = "destination-in";
+    const u = g.createLinearGradient(0, 0, 64, 0);
+    for (const [o, a] of [[0, 0], [0.06, 1], [0.94, 1], [1, 0]]) u.addColorStop(o, `rgba(0,0,0,${a})`);
+    g.fillStyle = u; g.fillRect(0, 0, 64, 64);
+  }
   return new THREE.CanvasTexture(c);
 }
 function rampTexture(){
@@ -546,8 +569,15 @@ function createSlot(slotKey){
       poolMat: new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }),
       haloMats: {},
+      // A wash: a quad from its line (y = 0) out to y = 1.
+      washGeo: new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0),
+      washMats: {},
       mats: new Map(),
     };
+    for (const [k, map] of [["fade", washTexture(false)], ["scallop", washTexture(true)], ["round", glowTex]]) {
+      shared.washMats[k] = new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
+    }
     for (const k of Object.keys(HALO)) {
       shared.haloMats[k] = new THREE.PointsMaterial({ size: HALO[k] / Math.tan(FOV / 2 * D2R), map: glowTex, vertexColors: true,
         transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
@@ -1046,38 +1076,54 @@ function createSlot(slotKey){
       F.lightGroup = lg;
       F.group.add(lg);
       const bulbs = { puck: [], dome: [], box: [], sphere: [] }, houses = [], halos = { s: [], m: [], l: [] }, pools = [];
+      const washes = { fade: [], scallop: [], round: [] };
       const ctx = { rooms: F.rooms, pieces: F.pieces.map(P => P.pc), ground: h.ground };
       const zs = viewData().lights;
+      const pieceOf = (pc) => (pc ? F.pieces.find(q => q.pc === pc) || null : null);
       for (const L0 of mine) {
+        // What it is: the kind set in Live Aboard (the 3D file), else PadSpan's guess.
+        const guess = HOUSE.drawnKind(L0, ctx), set = HOUSE.storedKind(zs[L0.eid]);
         // Moved whole to its height in the 3D file, if it has one (part C).
-        const lift = DRAFT.liftParts(HOUSE.fixtureParts(L0, ctx), zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
-        const L = { ...L0, F, kf: parts.kf, wall: null, refs: { bulbs: [], houses: [], halos: [], pool: null }, key: null, look: null,
-                    z: lift.z, zDefault: lift.zDefault };
-        if (parts.wall) { const P = F.pieces.find(q => q.pc === parts.wall); if (P) { L.wall = P; P.lights.push(L); } }
+        const lift = DRAFT.liftParts(HOUSE.fixtureParts(set ? { ...L0, kind: set } : L0, ctx), zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
+        const L = { ...L0, F, kf: parts.kf, drawn: parts.kind, guess, wall: null, refs: { bulbs: [], houses: [], halos: [], washes: [], pools: [] },
+                    key: null, look: null, z: lift.z, zDefault: lift.zDefault, spin: null };
+        // A wall it hangs on (or a part of it does: a cove's sides) repaints it as it is cut.
+        const onWall = (pc) => { const P = pieceOf(pc); if (P && !P.lights.includes(L)) P.lights.push(L); return P; };
+        if (parts.wall) L.wall = onWall(parts.wall);
         let sx = 0, sy = 0, sh = 0;
         for (const b of parts.bulbs) {
           const m = compose(b.x, F.fl.elev + b.h, b.y, b.yaw, b.sx, b.sy, b.sz).clone();
-          L.refs.bulbs.push({ prim: b.prim, i: bulbs[b.prim].length, off: new THREE.Color(b.off), m });
-          bulbs[b.prim].push({ m, off: b.off });
+          L.refs.bulbs.push({ prim: b.prim, i: bulbs[b.prim].length, off: new THREE.Color(b.off), m, hideOff: !!b.hideOff, wall: onWall(b.wall) });
+          bulbs[b.prim].push({ m, off: b.off, hideOff: !!b.hideOff });
           sx += b.x; sy += b.y; sh += b.h;
         }
         for (const hh of parts.housings) { L.refs.houses.push({ i: houses.length, hh }); houses.push(hh); }
         for (const hl of parts.halos) { L.refs.halos.push({ cls: hl.cls, i: halos[hl.cls].length }); halos[hl.cls].push(hl); }
-        // Where a press finds it: every bulb and every glow (a strip anywhere along it).
-        L.pick = [...parts.bulbs, ...parts.halos].map(q => new THREE.Vector3(q.x, F.fl.elev + q.h, q.y));
-        if (parts.pool && parts.poolH !== null) { L.refs.pool = pools.length; pools.push({ at: parts.poolAt, h: parts.poolH, ...parts.pool }); }
+        for (const w of parts.washes) { L.refs.washes.push({ tex: w.tex, i: washes[w.tex].length, w, wall: onWall(w.wall) }); washes[w.tex].push(w); }
+        // Where a press finds it: every bulb and glow, and all along a run.
+        L.pick = [...parts.bulbs, ...parts.halos, ...parts.picks].map(q => new THREE.Vector3(q.x, F.fl.elev + q.h, q.y));
+        if (parts.poolH !== null) for (const pl of parts.pools) { L.refs.pools.push(pools.length); pools.push({ h: parts.poolH, ...pl }); }
+        // A ceiling fan's blades turn while it runs.
+        if (parts.spin) L.spin = { x: parts.spin.x, y: parts.spin.y, angle: 0, rps: 0, blades: parts.spin.blades.map(b => ({ a: b.a, r: b.r, ref: L.refs.houses[b.i] })) };
         const n = Math.max(1, parts.bulbs.length), mh = sh / n;
         L.lamp = new THREE.Vector3(sx / n, F.fl.elev + (mh > 1.5 ? mh - 0.3 : mh + 0.35), sy / n);
         lights.push(L);
       }
-      F.bulbs = {};
+      // Each bulb twice: lit (glowing whatever the room's light) and off
+      // (shaded like the room: a white trim, a dark strip); paintLight shows one.
+      F.bulbs = {}; F.bulbsOff = {};
       for (const [prim, list] of Object.entries(bulbs)) {
         if (!list.length) continue;
+        const spec = { r: 0.7 };
         const im = new THREE.InstancedMesh(shared.prim[prim], shared.bulbMat, list.length);
-        list.forEach((b, i) => { im.setMatrixAt(i, b.m); im.setColorAt(i, _c.set(b.off)); });
-        im.frustumCulled = false;                            // instances come and go with their walls
-        lightRes.push({ dispose: () => im.dispose() });
-        lg.add(F.bulbs[prim] = im);
+        const dark = new THREE.InstancedMesh(shared.prim[prim], mat(spec), list.length);
+        dark.userData.spec = spec;
+        list.forEach((b, i) => {
+          im.setMatrixAt(i, ZERO); im.setColorAt(i, _c.set(b.off));
+          dark.setMatrixAt(i, b.hideOff ? ZERO : b.m); dark.setColorAt(i, _c.set(b.off));
+        });
+        for (const x of [im, dark]) { x.frustumCulled = false; lightRes.push({ dispose: () => x.dispose() }); lg.add(x); }   // instances come and go with their walls
+        F.bulbs[prim] = im; F.bulbsOff[prim] = dark;
       }
       if (houses.length) {
         const spec = { r: 0.6 };
@@ -1100,6 +1146,16 @@ function createSlot(slotKey){
         lightRes.push(g);
         lg.add(F.halos[cls] = pts);
       }
+      // Light on the walls, the counters and the deck: dark until painted.
+      F.washes = {};
+      for (const [tex, list] of Object.entries(washes)) {
+        if (!list.length) continue;
+        const im = new THREE.InstancedMesh(shared.washGeo, shared.washMats[tex], list.length);
+        list.forEach((w, i) => { im.setMatrixAt(i, washMatrix(w, F.fl.elev)); im.setColorAt(i, _c.setRGB(0, 0, 0)); });
+        im.renderOrder = 3; im.frustumCulled = false;
+        lightRes.push({ dispose: () => im.dispose() });
+        lg.add(F.washes[tex] = im);
+      }
       F.pool = null;
       if (pools.length) {
         const im = new THREE.InstancedMesh(shared.poolGeo, shared.poolMat, pools.length);
@@ -1114,30 +1170,67 @@ function createSlot(slotKey){
     }
     lampsDirty = true;
   }
-  // One light's look, painted: the bulb's colour, the glow, the pool. A
-  // switch changes these values only — what is drawn never changes.
+  /** A wash's quad: from its line (w.x, w.h, w.y) along ±a, out along b
+   *  (both [x, up, y], plan metres). */
+  function washMatrix(w, elev){
+    const a = w.a, b = w.b;
+    _p.set(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]).normalize();
+    return _m.set(2 * a[0], b[0], _p.x, w.x, 2 * a[1], b[1], _p.y, elev + w.h, 2 * a[2], b[2], _p.z, w.y, 0, 0, 0, 1);
+  }
+  // One light's look, painted: the bulb lit or shaded, the glow, the washes,
+  // the pools, a fan's speed. A switch changes these values only — what is
+  // drawn never changes.
   const _white = new THREE.Color(1, 1, 1);
   function paintLight(L){
     const F = L.F, k = L.look, on = k.on, hidden = !!(L.wall && L.wall.cut) || !!L.swap, glow = theme3d ? theme3d.glow : 1;
     const c = new THREE.Color().setRGB(k.rgb[0], k.rgb[1], k.rgb[2], THREE.SRGBColorSpace);
     L.color = c; L.f = k.f;
     const core = on ? c.clone().lerp(_white, 0.35).multiplyScalar(0.55 + 0.45 * k.f) : null;
+    const gone = (r) => hidden || !!(r.wall && r.wall.cut);
     for (const r of L.refs.bulbs) {
-      const im = F.bulbs[r.prim];
-      im.setColorAt(r.i, on ? core : (k.unavailable ? _c.copy(r.off).multiplyScalar(0.55) : r.off));
-      im.setMatrixAt(r.i, hidden ? ZERO : r.m);
-      im.instanceColor.needsUpdate = true;
-      im.instanceMatrix.needsUpdate = true;
+      const lit = F.bulbs[r.prim], dark = F.bulbsOff[r.prim], show = !gone(r);
+      lit.setMatrixAt(r.i, show && on ? r.m : ZERO);
+      dark.setMatrixAt(r.i, show && !on && !r.hideOff ? r.m : ZERO);
+      if (on) lit.setColorAt(r.i, core);
+      else dark.setColorAt(r.i, k.unavailable ? _c.copy(r.off).multiplyScalar(0.55) : r.off);
+      for (const im of [lit, dark]) { im.instanceColor.needsUpdate = true; im.instanceMatrix.needsUpdate = true; }
     }
     for (const r of L.refs.halos) {
       const attr = F.halos[r.cls].geometry.attributes.color, g = on && !hidden ? k.f * 0.95 * glow : 0;
       attr.setXYZ(r.i, c.r * g, c.g * g, c.b * g);
       attr.needsUpdate = true;
     }
-    if (L.refs.pool !== null && F.pool) {
-      const g = on ? k.f * 0.34 * glow : 0;
-      F.pool.setColorAt(L.refs.pool, _c.setRGB(c.r * g, c.g * g, c.b * g));
+    for (const r of L.refs.washes) {
+      const g = on && !gone(r) ? k.f * WASH_K * glow : 0;
+      F.washes[r.tex].setColorAt(r.i, _c.setRGB(c.r * g, c.g * g, c.b * g));
+      F.washes[r.tex].instanceColor.needsUpdate = true;
+    }
+    if (F.pool) {
+      const g = on ? k.f * POOL_K * glow : 0;
+      for (const i of L.refs.pools) F.pool.setColorAt(i, _c.setRGB(c.r * g, c.g * g, c.b * g));
       F.pool.instanceColor.needsUpdate = true;
+    }
+    // A fan turns at its speed (the Furnish fan's), slower on Low.
+    if (L.spin) {
+      const look = on && !hidden && DEVICES ? DEVICES.deviceLook("spin", "fan", L.eid, { state: "on", attributes: {} }, lbe[L.eid] || L.l) : null;
+      L.spin.rps = look ? look.rps * ((quality.profile || quality.measuring) === "high" ? 1 : 0.5) : 0;
+    }
+  }
+  /** Turn the fans that run, on the clock (t: performance.now()). */
+  let fanLast = null;
+  function turnFans(t){
+    const now = lights.filter(L => L.spin && L.spin.rps > 0 && L.F.group.visible && L.F.houses);
+    if (!now.length) { fanLast = null; return; }               // starting again: no leap for the time at rest
+    const dt = fanLast === null ? 0 : Math.min(0.25, Math.max(0, (t - fanLast) / 1000));
+    fanLast = t;
+    for (const L of now) {
+      const S = L.spin, F = L.F;
+      S.angle = (S.angle + S.rps * 2 * Math.PI * dt) % (2 * Math.PI);
+      for (const b of S.blades) {
+        const hh = b.ref.hh, a = b.a + S.angle, d = [Math.cos(a), Math.sin(a)];
+        F.houses.setMatrixAt(b.ref.i, compose(S.x + d[0] * b.r, F.fl.elev + hh.h, S.y + d[1] * b.r, HOUSE.yawOf(d), hh.sx, hh.sy, hh.sz));
+      }
+      F.houses.instanceMatrix.needsUpdate = true;
     }
   }
   /** The poll: repaint only the lights whose look changed. */
@@ -1449,7 +1542,10 @@ function createSlot(slotKey){
     // A fan turning, a washer running (P5): on their own capped clock too.
     const wxMs = wx ? wx.frameMs() : 0, own = AMBIENT_MS[quality.profile || quality.measuring || "low"];
     // Someone walking (P6) too.
-    const rates = [wxMs, devices ? devices.rate() : 0, tracked ? tracked.rate() : 0].filter(Boolean);
+    // A ceiling fan turning, as a Furnish fan does.
+    const fans = DEVICES && lights.some(L => L.spin && L.spin.rps > 0 && L.F.group.visible)
+      ? DEVICES.DEVICE_MS[quality.profile === "high" ? "high" : "low"] : 0;
+    const rates = [wxMs, devices ? devices.rate() : 0, tracked ? tracked.rate() : 0, fans].filter(Boolean);
     const slow = rates.length ? Math.min(...rates) : 0;
     const fast = slow ? Math.min(own, slow) : own;
     for (const { F, P } of openings) {
@@ -1494,6 +1590,7 @@ function createSlot(slotKey){
     }
     if (wx) wx.tick(t);                                       // rain and snow: the clock, to the GPU
     if (devices) devices.tick(t);                             // fans, washers, robots out
+    turnFans(t);                                              // ceiling fans that run
     if (tracked) tracked.tick(t);                             // people walking
     liveMs = liveRate(t);
   }
@@ -2182,6 +2279,7 @@ function createSlot(slotKey){
     if (!X || typeof X.z !== "number") return null;
     const l = lbe[eid];
     return { section: L ? "lights" : "devices", eid, F: X.F, z: X.z, zDefault: X.zDefault,
+             kind: L ? L.drawn : null, guess: L ? L.guess : null,
              label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid,
              at: new THREE.Vector3(X.x, X.F.fl.elev + X.z, X.y) };
   }
@@ -2245,6 +2343,12 @@ function createSlot(slotKey){
         const a = F.halos[r.cls].geometry.attributes.position;
         a.setY(r.i, a.getY(r.i) + d);
         a.needsUpdate = true;
+      }
+      for (const r of L.refs.washes) {
+        if (r.w.fixed) continue;                            // where it lands stays (a counter, the floor)
+        r.w.h += d;
+        F.washes[r.tex].setMatrixAt(r.i, washMatrix(r.w, F.fl.elev));
+        F.washes[r.tex].instanceMatrix.needsUpdate = true;
       }
       for (const v of L.pick) v.y += d;
       L.lamp.y += d; L.z = z; lampsDirty = true;
@@ -2319,7 +2423,7 @@ function createSlot(slotKey){
     // heights): either changing redraws what it touches.
     const vd = viewData();
     const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid);
-    const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
+    const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden, p.shapeOverrides), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
     const sSig = mSig + DRAFT.openingsSignature(vd);
     const lSig = mlSig + DRAFT.heightsSignature(vd, "lights");
     const xSig = mxSig + DRAFT.heightsSignature(vd, "devices");
@@ -2328,7 +2432,7 @@ function createSlot(slotKey){
       // The map is read again only when it changed; the 3D file's doors and
       // windows are cut into a copy of its walls.
       const rSig = [mSig, mlSig, mxSig].join("|");
-      if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden); readSig = rSig; work.reads++; }
+      if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden, p.shapeOverrides); readSig = rSig; work.reads++; }
       const shell = sSig !== shellSig;
       rebuilt = shell;
       if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); buildBadges(p); shellSig = sSig; }
@@ -2436,6 +2540,9 @@ function createSlot(slotKey){
                north: { stored: storedBearing, preview: northPreview, hold: northHold ? northHold.b : null,
                         pill: !!(pill && pill.classList.contains("on")), spinning: !!spin },
                canvas, gl: renderer ? renderer.getContext() : null, lights: lights.length, floors: floorsUi.length,
+               fixtures: lights.map(L => ({ eid: L.eid, kind: L.drawn, guess: L.guess, bulbs: L.refs.bulbs.length, washes: L.refs.washes.length,
+                                            pools: L.refs.pools.length, halos: L.refs.halos.length, rps: L.spin ? L.spin.rps : null,
+                                            angle: L.spin ? L.spin.angle : null })),
                walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0),
                // Part B: the live parts and the taps.
                openings: openings.map(({ P }) => ({ eid: P.open.eid, kind: P.open.kind, state: P.open.state, at: P.open.at, to: P.open.to,
