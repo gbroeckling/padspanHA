@@ -136,6 +136,15 @@ def _atlas_3d_quality(value: Any) -> str:
     return v if v in _ATLAS_3D_QUALITY else "auto"
 
 
+# Live Aboard's look: the same as the Atlas (the default), or its own.
+_ATLAS_3D_LOOK = ("atlas", "own")
+
+
+def _atlas_3d_look(value: Any) -> str:
+    v = str(value or "").strip().lower()
+    return v if v in _ATLAS_3D_LOOK else "atlas"
+
+
 def _atlas_3d_ai_task(value: Any) -> str:
     """An ai_task.* entity id, or "" (none chosen)."""
     return _weather_entity(value, ("ai_task.",))
@@ -378,6 +387,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_3d_library"): bool,
         vol.Optional("atlas_3d_weather"): bool,
         vol.Optional("atlas_3d_showcase"): bool,
+        vol.Optional("atlas_3d_look"): vol.Any(str, None),
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
@@ -665,6 +675,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["atlas_weather_strength"] = _weather_strength(msg["atlas_weather_strength"])
         if "atlas_3d_quality" in msg:
             payload["atlas_3d_quality"] = _atlas_3d_quality(msg["atlas_3d_quality"])
+        if "atlas_3d_look" in msg:
+            payload["atlas_3d_look"] = _atlas_3d_look(msg["atlas_3d_look"])
         if "atlas_3d_ai_task_entity" in msg:
             payload["atlas_3d_ai_task_entity"] = _atlas_3d_ai_task(msg["atlas_3d_ai_task_entity"])
         if "ble_max_age_s" in msg:

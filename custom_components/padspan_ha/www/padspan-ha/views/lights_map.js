@@ -2903,12 +2903,16 @@ export function buildLightsMapCard(hostIn){
           edit: typeof h3.edit === "function" ? h3.edit : null,
           // Rain and snow, and the Showcase look (P8): the flat map's own
           // weather inputs with Live Aboard's Rain and snow switch, and the
-          // Showcase theme this map shows with "Use the Atlas's Showcase
-          // look". The view decides what they draw.
+          // Showcase theme this map shows. The view decides what they draw.
           weather: host.weather && host.weather.settings ? host.weather : null, weather3d: h3.settings.atlas_3d_weather,
-          showcase3d: h3.settings.atlas_3d_showcase,
           showcase: { key: host.showcase ? (host.showcaseTheme || "classic") : "classic",
                       theme: (host.showcase && SHOWCASE_THEMES[host.showcaseTheme]) || SHOWCASE_THEMES.classic },
+          // Live Aboard's look (atlas_3d_look): the same as this map unless
+          // "own" is chosen, and what this map wears: Showcase on or off, and
+          // the theme it reads its colours from (buildIsoSVG's own THEME).
+          look3d: h3.settings.atlas_3d_look === "own" ? "own" : "atlas",
+          atlasLook: { on: !!host.showcase, key: host.showcaseTheme || "classic",
+                       theme: SHOWCASE_THEMES[host.showcaseTheme] || SHOWCASE_THEMES.classic },
           // Mapping → Furnish (P2): the Furnish tool open, what its flows and
           // "This is a device…" need of the host, and the floor chips a piece
           // moved up or down a floor takes along.

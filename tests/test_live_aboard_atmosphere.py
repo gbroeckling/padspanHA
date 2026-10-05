@@ -101,7 +101,8 @@ def test_the_box_offers_each_row_saved_on_its_own(box) -> None:
     src = (_VIEWS / "settings.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     sec = src[src.index("function _atlas3dSection("):src.index("// ── UI Structure tab")]
     assert 'tick("atlas_3d_weather", "Rain and snow", settings.atlas_3d_weather !== false,' in sec
-    assert 'tick("atlas_3d_showcase", "Use the Atlas\'s Showcase look", settings.atlas_3d_showcase === true,' in sec
+    # The old Showcase tick gave way to the Look row (atlas_3d_look; tests/test_live_aboard_one_look.py).
+    assert 'tick("atlas_3d_showcase"' not in sec and 'more.appendChild(row("Look", [lookSel]));' in sec
     assert 'ctx.actions.wsCall("padspan_ha/settings_set"' in sec and "settingsSet(" not in sec
 
 
@@ -247,11 +248,12 @@ def test_the_table_covers_every_theme_by_its_own_key() -> None:
 
 def test_the_look_is_read_only_and_switches_off_on_its_own() -> None:
     """The host hands over the theme the flat Atlas shows (its own
-    SHOWCASE_THEMES entry, never changed); the view applies it only with
-    "Use the Atlas's Showcase look" on, and Classic, today's look, otherwise.
-    The table module is pure data and only the 3D view imports it."""
+    SHOWCASE_THEMES entry, never changed); with Live Aboard's own look the
+    view stays Classic, today's look (the old atlas_3d_showcase switch is
+    no longer handed over: atlas_3d_look decides). The table module is pure
+    data and only the 3D view imports it."""
     lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
-    assert "showcase3d: h3.settings.atlas_3d_showcase," in lm
+    assert "showcase3d:" not in lm and 'look3d: h3.settings.atlas_3d_look === "own" ? "own" : "atlas",' in lm
     assert ('showcase: { key: host.showcase ? (host.showcaseTheme || "classic") : "classic",\n'
             '                      theme: (host.showcase && SHOWCASE_THEMES[host.showcaseTheme]) || SHOWCASE_THEMES.classic },') in lm.replace("\r\n", "\n")
     la = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
