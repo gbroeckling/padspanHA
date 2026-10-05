@@ -724,6 +724,7 @@ export function createStrip(ctx){
       const pl = placedOf(sel);
       const heightGesture = (idx, q) => {
         gesture = { kind: "height", idx, x0: x, y0: y, run0: runOf(sel), pl0: pl, at: q.slice(), q0: q.slice(), group: `strip-h:${++dragGen}`, moved: false };
+        gesture.h0 = heightUnder(gesture, x, y);                       // where it was pressed: the run moves by as much as the pointer
         return "drag";
       };
       if (hs.mid && near(hs.mid.p)) return heightGesture(null, hs.mid.q);
@@ -786,6 +787,15 @@ export function createStrip(ctx){
     if (dev) { gesture = { kind: "tapLight", eid: dev.eid }; return "tap"; }
     return null;
   }
+  /** The height under the pointer on the upright plane through a height
+   *  handle's point, square to the view (null: none). */
+  function heightUnder(g, x, y){
+    const I = info(), r = rayAt(x, y);
+    if (!I || !r) return null;
+    const nx = r.direction.x, nz = r.direction.z, L = Math.hypot(nx, nz) || 1;
+    plane.set(new THREE.Vector3(nx / L, 0, nz / L), -(g.q0[0] * nx / L + g.q0[1] * nz / L));
+    return r.intersectPlane(plane, _v) ? _v.y - I.F.fl.elev : null;
+  }
   // The corners a drag passes on the way round (as loop anchors at its height).
   function midMarks(loop, s0, acc, h){
     const path = RUNS.pathAlong(loop, s0, s0 + acc);
@@ -806,13 +816,9 @@ export function createStrip(ctx){
     g.moved = true;
     if (g.kind === "draw") { g.track(e.clientX, e.clientY); paint(); return; }
     if (g.kind === "height") {
-      const I = info(), r = rayAt(e.clientX, e.clientY);
-      if (!I || !r) return;
-      // On the upright plane through the handle, square to the view.
-      const nx = r.direction.x, nz = r.direction.z, L = Math.hypot(nx, nz) || 1;
-      plane.set(new THREE.Vector3(nx / L, 0, nz / L), -(g.q0[0] * nx / L + g.q0[1] * nz / L));
-      if (!r.intersectPlane(plane, _v)) return;
-      const want = _v.y - I.F.fl.elev, sn = RUNS.snapHeight(want, ceilOf(I.F), edgesNear(I.F, g.q0[0], g.q0[1]));
+      const I = info(), hNow = heightUnder(g, e.clientX, e.clientY);
+      if (!I || hNow === null || g.h0 === null) return;
+      const want = g.q0[2] + (hNow - g.h0), sn = RUNS.snapHeight(want, ceilOf(I.F), edgesNear(I.F, g.q0[0], g.q0[1]));
       const run = RUNS.raised(g.run0, sn.h - g.q0[2], g.idx, g.run0.piece ? RUNS.HEIGHT_MAX_M : ceilOf(I.F));
       g.at = [g.q0[0], g.q0[1], sn.h]; g.snap = sn.snap;
       if (run) setRun(run, g.group); else setRun(g.run0, g.group);
@@ -852,12 +858,12 @@ export function createStrip(ctx){
     if (!drawing) return;
     const t = performance.now();
     drawing.anchors.push(a);
-    const two = lastTap && t - lastTap.t <= TAP2_MS && drawing.anchors.length >= 2;
+    // Two taps quick and in one place: the second is the end, not a point of its own.
+    const prev = drawing.anchors[drawing.anchors.length - 2];
+    const two = lastTap && t - lastTap.t <= TAP2_MS && prev && Math.hypot(prev.x - a.x, prev.y - a.y) < 0.3;
     lastTap = { t };
     if (two) {
-      // A double-tap's second tap is the end, not a point of its own.
-      const prev = drawing.anchors[drawing.anchors.length - 2];
-      if (prev && Math.hypot(prev.x - a.x, prev.y - a.y) < 0.15) drawing.anchors.pop();
+      drawing.anchors.pop();
       finish(drawing.anchors);
       return;
     }
