@@ -241,7 +241,28 @@ def test_results_never_carry_an_owner_token(store, monkeypatch, tmp_path) -> Non
         assert "owner_token" not in json.dumps(out) and not re.search(r"[0-9a-f]{32}", json.dumps(out))
 
 
-@pytest.mark.parametrize("drop", ["category", "rooms", "style", "material", "color_family", "size_class"])
+def test_the_file_never_carries_an_owner_token_to_a_browser(store, monkeypatch, tmp_path) -> None:
+    """house3d_get (any user, even while off) and house3d_edit (any user)
+    send the file to the browser: the tokens stay here, the rest goes."""
+    from custom_components.padspan_ha import ws_house3d as W
+    _wire(monkeypatch, _via(_Library(_php())))
+    h = _home(tmp_path)
+    _share(h)
+    sid, sub = next(iter(_lib()["submissions"].items()))
+    tok = sub["owner_token"]
+    conn = MagicMock()
+    _run(W.ws_house3d_get(h, conn, {"id": 1}))
+    got = conn.send_result.call_args[0][1]
+    conn = MagicMock()
+    _run(W.ws_house3d_edit(h, conn, {"id": 2, "lights": {"light.lounge": {"z_m": 2.0}}}))
+    edited = conn.send_result.call_args[0][1]
+    for out in (got, edited):
+        assert tok not in json.dumps(out) and "owner_token" not in json.dumps(out)
+        assert out["data"]["library"]["submissions"][sid]["library_id"] == sub["library_id"], "the rest goes"
+    assert _lib()["submissions"][sid]["owner_token"] == tok, "kept in the file, to withdraw with"
+
+
+@pytest.mark.parametrize("drop",["category", "rooms", "style", "material", "color_family", "size_class"])
 def test_a_piece_missing_a_required_detail_is_not_shared(store, monkeypatch, tmp_path, drop) -> None:
     wire = _wire(monkeypatch, lambda url, body: (200, {"ok": True}))
     h = _home(tmp_path)

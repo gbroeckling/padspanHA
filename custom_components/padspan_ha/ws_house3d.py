@@ -41,6 +41,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import HOUSE3D_STORE_KEY
+from .house3d_library import without_tokens
 from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStore, NewerFile, ReadFailed,
                             apply_edit, async_get_store, empty, enabled, writable)
 from .ws_common import _tier_at_least
@@ -71,7 +72,7 @@ async def ws_house3d_get(hass: HomeAssistant, connection, msg) -> None:
     store = await _loaded(hass, connection, msg)
     if store is None:
         return
-    connection.send_result(msg["id"], {"enabled": enabled(hass), "data": store.data,
+    connection.send_result(msg["id"], {"enabled": enabled(hass), "data": without_tokens(store.data),
                                        "writable": writable(store.data), "counts": store.counts()})
 
 
@@ -151,7 +152,7 @@ async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
         if not await store.async_write(new):
             connection.send_error(msg["id"], "save_failed", "Could not save Live Aboard. Nothing was changed.")
             return
-        connection.send_result(msg["id"], {"data": store.data, "counts": store.counts()})
+        connection.send_result(msg["id"], {"data": without_tokens(store.data), "counts": store.counts()})
 
 
 WS_COMMANDS = (ws_house3d_get, ws_house3d_clear, ws_house3d_edit)

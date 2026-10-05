@@ -425,6 +425,19 @@ def status(data: Any) -> dict[str, Any]:
             "shared": len(lib["submissions"]), "waiting": len(lib["pending_shares"])}
 
 
+def without_tokens(data: Any) -> Any:
+    """The 3D file as a browser may see it (house3d_get, house3d_edit): each
+    submission without its owner token. The token stays in the file; only
+    this house's withdraw and share send it, and only to the library."""
+    lib = data.get("library") if isinstance(data, dict) else None
+    subs = lib.get("submissions") if isinstance(lib, dict) else None
+    if not isinstance(subs, dict):
+        return data
+    return {**data, "library": {**lib, "submissions": {
+        k: {kk: vv for kk, vv in v.items() if kk != "owner_token"} if isinstance(v, dict) else v
+        for k, v in subs.items()}}}
+
+
 async def _write_library(store: House3dStore, change) -> bool:
     """One write of the library section, under the store's lock, from the
     file as it is now: `change(lib)` edits a copy and returns False for no
