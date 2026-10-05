@@ -65,7 +65,7 @@ export const WALL_REACH = 1.5;
 export const STEP_K = [1, 0.8, 0.66, 0.55, 0.46, 0.38, 0.32];
 /** The floor's glow, by day and by night: its fill, its soft edge band; a
  *  presence hold's flat fill and solid line; a stuck sensor's hatch. */
-export const GLOW = { fill: [0.66, 0.55], band: [1, 1], steadyFill: 0.72, steadyBand: 0.3, line: 0.95, stuck: 0.75,
+export const GLOW = { fill: [0.66, 0.55], band: [1, 1], steadyFill: 0.72, steadyBand: 0.3, line: 1, stuck: 0.5,
                       bandW: [0.15, 0.6], bandOf: 0.3, groundR: 2.2, near: 0.6 };
 /** The marker's size on screen (px): lit, quiet. Its tap target is the
  *  view's own (PICK_R, 44 px across). */
@@ -322,7 +322,7 @@ void main(){ vE = aE; vP = position.xz; gl_Position = projectionMatrix * modelVi
 const BAND_FS = `uniform vec3 uColor; uniform float uBand, uLine, uHatch; varying float vE; varying vec2 vP;
 void main(){
   float soft = uBand * pow(1.0 - clamp(vE, 0.0, 1.0), 1.7);
-  float line = uLine * (1.0 - smoothstep(0.12, 0.2, vE));
+  float line = uLine * (1.0 - smoothstep(0.2, 0.27, vE));
   float a = max(soft, line);
   if (uHatch > 0.5) a *= 0.2 + 0.8 * step(0.5, fract((vP.x + vP.y) * 2.4));
   gl_FragColor = vec4(uColor, a);
@@ -368,6 +368,7 @@ export function createMotionLayer(ctx){
   const { THREE } = ctx;
   const DIM = Number(ctx.dimK) > 0 ? Number(ctx.dimK) : 0.22;
   let sensors = [], patches = [], res = [], want = null, pairKey = null, halves = {}, lens = false, focusEid = null;
+  let pairsOf = null, pairsN = -1, pairsAt = null;           // the pairs, for the registry (and states) they came from
   // near: the fill's strength at room scale (the band and the marker carry it there).
   let camKey = null, last = null, night = 0, near = 1;
   const seen = new Map();                    // eid -> {state, last_changed} last seen, and the half's
@@ -649,7 +650,9 @@ export function createMotionLayer(ctx){
      *  night (0 day … 1 night), ground}. True when anything drawn changed. */
     sync(h){
       let changed = false;
-      const hv = pairHalves(h.entities, h.states), pk = JSON.stringify(hv);
+      const nStates = h.states ? Object.keys(h.states).length : 0;
+      if (h.entities !== pairsOf || nStates !== pairsN || !pairsAt) { pairsOf = h.entities; pairsN = nStates; pairsAt = pairHalves(h.entities, h.states); }
+      const hv = pairsAt, pk = JSON.stringify(hv);
       if (want && pk !== pairKey) {
         pairKey = pk; halves = hv;
         build(h);
@@ -793,7 +796,9 @@ const CHIP_CSS = `.la3d-mchip{position:absolute;left:50%;top:44px;z-index:2;tran
   max-width:calc(100% - 150px);padding:3px 4px 3px 12px;border-radius:999px;background:rgba(6,14,9,.8);border:1px solid rgba(120,190,155,.22);
   box-shadow:0 4px 14px rgba(0,0,0,.35);color:rgba(226,240,232,.75);font:600 12.5px/1.2 system-ui,"Segoe UI",Roboto,sans-serif;white-space:nowrap}
 .la3d-mchip[hidden]{display:none}
-.la3d.la3d-narrow .la3d-mchip{top:12px}
+.la3d.la3d-narrow .la3d-mchip{top:auto;bottom:58px;max-width:calc(100% - 20px);padding:2px 2px 2px 9px;font-size:11.5px}
+.la3d.la3d-narrow .la3d-mchip button{padding:4px 4px}
+.la3d.la3d-narrow .la3d-mchip .la3d-mage{margin-left:3px}
 .la3d-mchip button{all:unset;box-sizing:border-box;cursor:pointer;padding:4px 7px;border-radius:999px;font-weight:800;overflow:hidden;text-overflow:ellipsis}
 .la3d-mchip button:hover,.la3d-mchip button:focus-visible{background:rgba(255,255,255,.1)}
 .la3d-mchip .la3d-mage{font-weight:600;opacity:.85;margin-left:4px}
@@ -802,7 +807,7 @@ const CHIP_CSS = `.la3d-mchip{position:absolute;left:50%;top:44px;z-index:2;tran
 .la3d-mkey{position:absolute;left:50%;top:84px;z-index:5;transform:translateX(-50%);padding:9px 12px;border-radius:12px;background:rgba(6,14,9,.95);
   border:1px solid rgba(120,190,155,.24);box-shadow:0 10px 26px rgba(0,0,0,.5);color:#e8f0ea;font:600 12.5px/1.3 system-ui,"Segoe UI",Roboto,sans-serif}
 .la3d-mkey[hidden]{display:none}
-.la3d.la3d-narrow .la3d-mkey{top:52px}
+.la3d.la3d-narrow .la3d-mkey{top:auto;bottom:100px;max-width:calc(100% - 20px)}
 .la3d-mkey b{display:block;margin-bottom:6px}
 .la3d-mkey .la3d-mrow{display:flex;flex-wrap:wrap;gap:6px 12px}
 .la3d-mkey i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:5px;vertical-align:-1px}

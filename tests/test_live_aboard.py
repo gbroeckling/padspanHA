@@ -88,6 +88,8 @@ def test_off_means_no_import(card) -> None:
             "vendor/three/three.module.min.js"} <= set(card["loaded"]), card["loaded"]
     # The Strip tool and its runs' rules (2026-10-05) are among what off never loads.
     assert {"views/live_aboard_strip.js", "views/live_aboard_runs.js"} <= set(card["loaded"]), card["loaded"]
+    # So is motion (live_aboard_motion.js, 2026-10-05).
+    assert "views/live_aboard_motion.js" in set(card["loaded"]), card["loaded"]
 
 
 def test_off_means_the_3d_file_is_never_read_or_written(card) -> None:

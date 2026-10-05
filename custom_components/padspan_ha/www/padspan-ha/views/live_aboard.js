@@ -2091,10 +2091,12 @@ function createSlot(slotKey){
   }
 
   // ── sensors: motion, Motion · Air, the readouts (part B) ──────────────────
-  // Placed sensors only, as on the Atlas. A motion sensor is a small sensor
-  // near the ceiling, lit while active; the floor of its room pulses in the
-  // Atlas's motion colours on its clocks (live_aboard_house.js motionLook),
-  // with the ring sweeping out from under it. Poor air rises in bars across
+  // Placed sensors only, as on the Atlas. Motion is live_aboard_motion.js's
+  // (a ring on a new trigger, the room's floor glowing in the Atlas's motion
+  // colours, the sensor on its wall and its marker, its coverage); without
+  // that file, a small sensor near the ceiling whose room pulses in the
+  // Atlas's colours on its clocks (live_aboard_house.js motionLook), with the
+  // ring sweeping out from under it. Poor air rises in bars across
   // its room's floor (airLook). Temperature, humidity and air float as
   // readouts, read-only. Each sits at its height above its floor: a default
   // by its type (deviceZ — part C's 3D file replaces it per device).
