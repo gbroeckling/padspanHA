@@ -180,3 +180,16 @@ def test_flat_beacons_wear_a_look_only_inside_show_beacons() -> None:
     assert "if(b.look) s+=beaconLookSVG(bx, by, b.look);" in iso
     assert ('else s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4.5" fill="#5eead4" `+\n'
             '        `stroke="#0a1a12" stroke-width="1.2" opacity="0.9" pointer-events="none"/>`;') in iso.replace("\r\n", "\n")
+
+
+def test_a_tag_name_is_drawn_over_room_names_and_chips_as_presses_take_it() -> None:
+    """pickAt gives a press on a tag's name to the tag before chips and room
+    names, so the name must be drawn over them too (what you press is what
+    you see on top)."""
+    import re
+    tracked = (_VIEWS / "live_aboard_tracked.js").read_text(encoding="utf-8")
+    view = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
+    tag = re.search(r"sp\.renderOrder = (\d+); sp\.frustumCulled = false;", tracked)
+    others = [int(n) for n in re.findall(r"sp\.renderOrder = (\d+);", view)]
+    assert tag and others, (tag, others)
+    assert int(tag.group(1)) > max(others), (int(tag.group(1)), others)

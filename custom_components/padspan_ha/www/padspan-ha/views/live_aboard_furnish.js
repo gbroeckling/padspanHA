@@ -658,8 +658,9 @@ export function createFurnish(ctx){
       const hangIn = d("input", "la3d-fin la3d-hang");
       hangIn.type = "number"; hangIn.step = "0.01"; hangIn.min = "0"; hangIn.value = String(hangAt.v);
       hangIn.setAttribute("aria-label", "Hang height");
-      hangIn.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") hang(); });
-      hangIn.addEventListener("change", guard(() => { const v = Number(hangIn.value); if (hangIn.value.trim() !== "" && Number.isFinite(v)) hangAt = { id: p.id, v: mm(Math.max(0, v)) }; }));
+      const takeHang = () => { const v = Number(hangIn.value); if (hangIn.value.trim() !== "" && Number.isFinite(v)) hangAt = { id: p.id, v: mm(Math.max(0, v)) }; };
+      hangIn.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { takeHang(); hang(); } });
+      hangIn.addEventListener("change", guard(takeHang));
       const hangRow = d("div", "la3d-acts");
       hangRow.append(seg(btn("Hang on wall", "Its back flat on the nearest wall, its middle at this height", () => hang())),
                      d("span", "la3d-sub", "its middle at"), hangIn, d("span", "la3d-sub", "m"));

@@ -121,9 +121,10 @@ const api = { calls: [], toast(){}, toggle(...a){ api.calls.push(["toggle", ...a
 // ── the view ────────────────────────────────────────────────────────────────
 const slot = LA.liveAboardSlot("edit-harness");
 let card = null, topIds = null;                  // topIds: the floor chips (null: every floor)
+let tagsHook = null;                             // Show tags & scanners: the live snapshot through the host (null: off)
 const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: topIds, quality: "low",
   telemetry: () => {}, states: {}, config: {}, bearing: 0, saveNorth: null, useApi: () => api, haStartedMs: 0,
-  load: async () => ({ data: clone(server.file) }), edit: editFn });
+  load: async () => ({ data: clone(server.file) }), edit: editFn, tags: tagsHook });
 /** A fresh card, as the Atlas builds one every 5 s: the view moves into it. */
 function poll(){
   card = document.createElement("div");
@@ -955,6 +956,47 @@ await tryCase("kind: \"What is this?\" sets what a light is drawn as; Save sends
     && back.drawn === guess && JSON.stringify(back.sent) === '[{"lights":{"light.den":null}}]' && back.file === null && !ed().dirty,
     { opts: opts.slice(0, 3), guess, asLamp, withZ, reset, sent, back });
   await closeEdit();
+});
+
+// Heights with Show tags & scanners on: a tag drawn right over a light (its
+// name is on top, so a press there is the tag's) never keeps Heights from
+// the light under it.
+await tryCase("heights: a tag over a light, the light's height sheet still opens", async () => {
+  tagsHook = { snapshot: () => ({ objects: { list: [{ key: "ble:keys", kind: "ble", x_m: 9.2, y_m: 0.9, floor_id: "main",
+                                                      user_label: "Keys", room: "Den", age_s: 3, knn_confidence: 0.9 }] } }) };
+  poll(); await settle(30);
+  await openEdit();
+  await pickTool("heights");
+  slot._look(0, 0.02, [9.2, 1.5, 0.9], 12);                         // straight down on the light: the tag is on it
+  await settle();
+  const at = slot._where({ tracked: "beacon:ble:keys" }), seen = at ? slot._pick(at[0], at[1]) : null;
+  if (at) tap(at);
+  await settle();
+  const sheet = root().querySelectorAll(".la3d-sheet")[0], picked = !!sheet && !!sheet.querySelectorAll("select")[0];
+  check("heights: a tag over a light, the light's height sheet still opens",
+    !!at && !!seen && seen.hit === "beacon:ble:keys" && (seen.under || []).includes("device:light.den") && picked,
+    { at, seen, picked });
+  await closeEdit();
+  tagsHook = null; poll(); await settle(30);
+});
+
+// A tag's card closes when the floor chips (or the stepper) hide its floor:
+// it never points at a tag that is no longer drawn.
+await tryCase("card: a tag's card closes when its floor is hidden", async () => {
+  tagsHook = { snapshot: () => ({ objects: { list: [{ key: "ble:keys", kind: "ble", x_m: 9.2, y_m: 0.9, floor_id: "main",
+                                                      user_label: "Keys", room: "Den", age_s: 3, knn_confidence: 0.9 }] } }) };
+  topIds = null; poll(); await settle(30);
+  slot._look(0, 0.02, [9.2, 1.5, 0.9], 12);
+  await settle();
+  const at = slot._where({ tracked: "beacon:ble:keys" });
+  if (at) tap(at);
+  await settle();
+  const open = st().use && st().use.card;
+  topIds = ["basement"]; poll(); await settle(30);                  // the Basement on top: Main, and the tag, hidden
+  const after = st().use && st().use.card;
+  check("card: a tag's card closes when its floor is hidden",
+    !!open && open.key === "beacon:ble:keys" && !after, { at, open, after });
+  topIds = null; tagsHook = null; poll(); await settle(30);
 });
 
 check("the view never failed", !st().failed, { failed: st().failed });

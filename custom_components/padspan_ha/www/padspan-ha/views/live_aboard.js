@@ -112,7 +112,7 @@ const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
 const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
 // Readable night: a floor keeps this much of its day colour, its outline and
 // the wall tops show, and a fixture that is off darkens with the house.
-const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_OFF = 0.72, NIGHT_GRID = 0.6;
+const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
 const NAME_PX = [12, 17];                  // a room's name on screen (px), never under / over
 
 // The view's own look: everything is scoped under .la3d, and the sheet travels
@@ -1682,14 +1682,12 @@ function createSlot(slotKey){
     L.color = c; L.f = k.f;
     const core = on ? c.clone().lerp(_white, 0.35).multiplyScalar(0.55 + 0.45 * k.f) : null;
     const gone = (r) => hidden || !!(r.wall && r.wall.cut);
-    // Off, a fixture is shaded like the rest of the house: at night it all but goes.
-    const shade = 1 - NIGHT_OFF * nightK;
     for (const r of L.refs.bulbs) {
       const lit = F.bulbs[r.prim], dark = F.bulbsOff[r.prim], show = !gone(r);
       lit.setMatrixAt(r.i, show && on ? r.m : ZERO);
       dark.setMatrixAt(r.i, show && !on && !r.hideOff ? r.m : ZERO);
       if (on) lit.setColorAt(r.i, core);
-      else dark.setColorAt(r.i, _c.copy(r.off).multiplyScalar((k.unavailable ? 0.55 : 1) * shade));
+      else dark.setColorAt(r.i, _c.copy(r.off).multiplyScalar(k.unavailable ? 0.55 : 1));   // lit like the room: at night it darkens with it
       for (const im of [lit, dark]) { im.instanceColor.needsUpdate = true; im.instanceMatrix.needsUpdate = true; }
     }
     for (const r of L.refs.halos) {
@@ -1710,9 +1708,11 @@ function createSlot(slotKey){
     // A fan turns at its speed (the Furnish fan's), slower on Low.
     if (L.spin) {
       const look = on && !hidden && DEVICES ? DEVICES.deviceLook("spin", "fan", L.eid, { state: "on", attributes: {} }, lbe[L.eid] || L.l) : null;
-      L.spin.rps = look ? look.rps * ((quality.profile || quality.measuring) === "high" ? 1 : 0.5) : 0;
+      L.spin.base = look ? look.rps : 0;
+      L.spin.rps = L.spin.base * fanK(quality.profile || quality.measuring);
     }
   }
+  const fanK = (profile) => profile === "high" ? 1 : 0.5;
   /** Turn the fans that run, on the clock (t: performance.now()). */
   let fanLast = null;
   function turnFans(t){
@@ -1772,7 +1772,7 @@ function createSlot(slotKey){
     const em = Array.isArray(p.emergency) && p.emergency.length ? new Set(p.emergency.map(String)) : null;
     let changed = devices.sync(vd.pieces, { states: p.states || {}, regIds: p.regIds || null, entities: p.entities || null, lbe, emergency: em });
     for (const L of lights) {
-      const s = devices.has(L.eid, L.kind === "fan" || (L.l && L.l.isFan) ? "spin" : "glow");
+      const s = devices.has(L.eid, L.drawn === "fan" || (L.l && L.l.isFan) ? "spin" : "glow");
       if (s !== !!L.swap) { L.swap = s; L.key = null; changed = true; }
     }
     if (outlineFixtures(em)) changed = true;
@@ -2215,6 +2215,7 @@ function createSlot(slotKey){
     for (const F of floorsUi) if (F.ao) F.ao.visible = !!Q.ao;
     if (layer) layer.sync(viewData().pieces);              // furniture's finishes and shadows go with the profile
     if (lastP) { syncDevices(lastP, viewData()); syncTracked(lastP, viewData(), false); }
+    for (const L of lights) if (L.spin) L.spin.rps = (L.spin.base || 0) * fanK(name);   // a running fan's speed goes with the profile
     lampsDirty = true;
     resize();
   }
@@ -3167,7 +3168,7 @@ function createSlot(slotKey){
     paintLights(p.lightsByEid);
     paintLive();
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
-    if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); requestRender(); }
+    if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
     applySun(p);
     if (setting !== quality.setting || (!quality.profile && !quality.measuring)) {
       quality.setting = setting; quality.measured = {}; quality.profile = null;

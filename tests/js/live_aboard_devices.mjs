@@ -215,9 +215,10 @@ function makeApi(states, lbe){
   return { api, log };
 }
 
-function mount(slotKey, quality, pieces = PIECES){
+function mount(slotKey, quality, pieces = PIECES, lights = null){
   const slot = LA.liveAboardSlot(slotKey);
-  const h = { states: clone(STATES0), emergency: null, regIds: { reg_den2: "light.den2" }, topIds: null, file: { schema: 1, pieces: clone(pieces) } };
+  const h = { states: clone(STATES0), emergency: null, regIds: { reg_den2: "light.den2" }, topIds: null,
+              file: { schema: 1, pieces: clone(pieces), ...(lights ? { lights: clone(lights) } : {}) } };
   h.d3 = makeApi(h.states, lbeOf(h.states));
   h.P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: lbeOf(h.states), hidden: new Set(), topFloorIds: h.topIds, quality,
     telemetry: () => {}, onTouch: () => {}, states: h.states, config: {}, bearing: 0, saveNorth: null, useApi: () => h.d3.api,
@@ -465,6 +466,42 @@ await tryCase("view: a Fan piece linked to a placed fan stands in for its fixtur
     s.swapped.includes("fan.ceiling") && s.swapped.includes("light.dim") && !s.swapped.includes("light.kitchen"),
     { swapped: s.swapped, lights: s.lights });
   LA.releaseLiveAboardSlot("devices-fanswap");
+  delete MODEL.light_positions_m["fan.ceiling"];
+  await settle();
+});
+
+// A placed fan with no piece for it: its own blades turn, at full speed on
+// High and half on Low, whichever profile is decided after the first paint.
+await tryCase("view: a fixture fan turns at full speed on High, half on Low", async () => {
+  MODEL.light_positions_m["fan.ceiling"] = { x_m: 8, y_m: 3, floor_id: "main", shape: "fan" };
+  const alone = Object.fromEntries(Object.entries(PIECES).filter(([, p]) => p.entity_id !== "fan.ceiling"));
+  const was = STATES0["fan.ceiling"];
+  STATES0["fan.ceiling"] = { ...was, state: "on", attributes: { ...was.attributes, percentage: 100 } };   // on from the first paint
+  const rpsOn = async (key, q) => {
+    const h = mount(key, q, alone);
+    await later(10000, 60);
+    const s = h.slot._state(), f = s.fixtures.find(x => x.eid === "fan.ceiling");
+    LA.releaseLiveAboardSlot(key);
+    return { profile: s.profile, rps: f ? f.rps : null };
+  };
+  const hi = await rpsOn("devices-fanhi", "high"), lo = await rpsOn("devices-fanlo", "low");
+  STATES0["fan.ceiling"] = was;
+  check("view: a fixture fan turns at full speed on High, half on Low",
+    hi.profile === "high" && lo.profile === "low" && lo.rps > 0 && Math.abs(hi.rps - 2 * lo.rps) < 1e-9, { hi, lo });
+
+// "What is this?" says a light is a ceiling fan: a Fan piece linked to it
+// stands in for it, as for a light PadSpan guessed was a fan.
+await tryCase("view: a light set to Ceiling fan in Live Aboard steps aside for its linked Fan piece", async () => {
+  const fanOnKitchen = Object.fromEntries([...Object.entries(PIECES).filter(([, p]) => p.entity_id !== "fan.ceiling"),
+    piece("fan", 8, 1, "light.kitchen", { w: 0.5, d: 0.35, h: 1.2 })]);
+  const h = mount("devices-kindfan", "low", fanOnKitchen, { "light.kitchen": { kind: "fan" } });
+  await later(10000, 60);
+  const s = h.slot._state(), f = s.fixtures.find(x => x.eid === "light.kitchen");
+  check("view: a light set to Ceiling fan in Live Aboard steps aside for its linked Fan piece",
+    !!f && f.kind === "fan" && s.swapped.includes("light.kitchen"), { kind: f && f.kind, swapped: s.swapped });
+  LA.releaseLiveAboardSlot("devices-kindfan");
+  await settle();
+});
   delete MODEL.light_positions_m["fan.ceiling"];
   await settle();
 });

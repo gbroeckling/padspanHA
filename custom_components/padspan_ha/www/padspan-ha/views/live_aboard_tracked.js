@@ -235,7 +235,7 @@ export function createTrackedLayer(ctx){
     tex.colorSpace = THREE.SRGBColorSpace;
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
     const sp = new THREE.Sprite(mat);
-    sp.renderOrder = 21; sp.frustumCulled = false;
+    sp.renderOrder = 32; sp.frustumCulled = false;           // over room names (31) and chips (30): a press on it is the tag's
     sp.center.set(0.5, 0);
     sp.userData.aspect = c.width / c.height;
     sp.onBeforeRender = (renderer, scene, camera) => {

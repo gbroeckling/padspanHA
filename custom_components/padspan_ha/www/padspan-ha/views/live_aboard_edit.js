@@ -880,8 +880,11 @@ export function createEditor(ctx){
       return "line";
     }
     const hit = ctx.pick(x, y);
-    if (hit && hit.hit && hit.hit.kind === "device" && ctx.device(hit.hit.eid)) {
-      gesture = { kind: "tap", target: { eid: hit.hit.eid }, x0: x, y0: y };
+    // A tag or a scanner over a light is not what Heights sets: the device under it is.
+    const dev = hit && [hit.hit, ...(hit.hit && hit.hit.kind !== "device" ? hit.under || [] : [])]
+      .find(t => t && t.kind === "device" && ctx.device(t.eid));
+    if (dev) {
+      gesture = { kind: "tap", target: { eid: dev.eid }, x0: x, y0: y };
       return "tap";
     }
     return null;

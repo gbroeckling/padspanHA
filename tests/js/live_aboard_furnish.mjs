@@ -734,4 +734,18 @@ await tryCase("hang: Hang on wall puts its back flat on the nearest wall with it
     { p, backGap, hint, undone });
 });
 
+await tryCase("hang: Enter in the height box hangs it at the height just typed (no change event first)", async () => {
+  const tv = slot._furnish().build("tv"); await settle();
+  typeIn("X on the plan", 2.2); await settle();
+  typeIn("Y on the plan", 0.9); await settle();
+  const box = slider("Hang height");
+  box.value = "1.8";
+  box.dispatchEvent({ type: "keydown", key: "Enter", stopPropagation(){}, preventDefault(){} });
+  await settle();
+  const p = clone(draftPieces()[tv]), s = P_.sizeOf(p.recipe), hint = ed().hint;
+  check("hang: Enter in the height box hangs it at the height just typed (no change event first)",
+    near(p.z_m + s.h / 2, 1.8, 1e-3) && /^On the wall, its middle 1\.80 m up\.$/.test(hint), { p, hint });
+  click("Delete", "la3d-sheet"); await settle();
+});
+
 console.log(JSON.stringify({ cases, failures, payloads, live: LIVE }));

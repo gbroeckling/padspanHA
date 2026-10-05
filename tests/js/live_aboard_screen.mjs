@@ -391,7 +391,7 @@ await tryCase("views: saved from the camera on this browser, flown back to, forg
 });
 
 // ── night ───────────────────────────────────────────────────────────────────
-await tryCase("night: floors keep their colour, outlines and wall tops show, off fixtures darken", async () => {
+await tryCase("night: floors keep their colour, outlines and wall tops show, off fixtures are lit like the room (never darkened twice)", async () => {
   const { slot } = await newSlot("scr-night", { states: NIGHT });
   const n = S(slot).night, wall = S(slot).wallMat;
   const sh = { uniforms: {}, vertexShader: "void main(){\n#include <begin_vertex>\n}", fragmentShader: "void main(){\n#include <emissivemap_fragment>\n}" };
@@ -399,9 +399,9 @@ await tryCase("night: floors keep their colour, outlines and wall tops show, off
   card(slot, { states: DAY });
   await settle(10);
   const d = S(slot).night;
-  check("night: floors keep their colour, outlines and wall tops show, off fixtures darken",
+  check("night: floors keep their colour, outlines and wall tops show, off fixtures are lit like the room (never darkened twice)",
     n.k === 1 && n.floor.every(v => Math.abs(v - 0.3) < 1e-6) && n.edges.length && n.edges.every(v => v > 0.6) && Math.abs(n.top - 0.42) < 1e-6
-    && n.offBulb && n.offLit && n.offBulb.every((v, i) => v <= n.offLit[i] * 0.3 + 1e-6)
+    && n.offBulb && n.offLit && n.offBulb.every((v, i) => Math.abs(v - n.offLit[i]) < 1e-6)
     && sh.uniforms.uTopGlow && sh.uniforms.uTopGlow.value === 0 && /vTop = aTop/.test(sh.vertexShader)
     && /totalEmissiveRadiance \+= vec3\(vTop \* uTopGlow\)/.test(sh.fragmentShader)
     && Math.abs(n.grid - 0.4) < 1e-6 && d.grid === 1
