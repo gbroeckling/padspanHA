@@ -62,6 +62,7 @@ MAX_ANSWER = 512 * 1024
 MAX_PENDING = 50
 FLUSH_BATCH = 10                   # pending shares sent per successful fetch
 MAX_SUBMISSIONS = 1000
+WITHDRAW_BATCH = 80                # the server's $MAX_WITHDRAW: 80 items of ~90 bytes fit in MAX_SEND
 _FLUSH_LOCK = "house3d_library_flush"   # hass.data[DOMAIN]: one flush at a time
 
 # ── The details sheet: server/furniture_library.php's lists, in its order ────
@@ -578,8 +579,8 @@ async def withdraw_all(hass: HomeAssistant, store: House3dStore) -> dict[str, An
     await _write_library(store, drop_waiting)
     done: list[str] = []
     try:
-        for i in range(0, len(items), 200):
-            reply = await post(hass, {"schema": 1, "action": "withdraw", "items": items[i:i + 200]})
+        for i in range(0, len(items), WITHDRAW_BATCH):
+            reply = await post(hass, {"schema": 1, "action": "withdraw", "items": items[i:i + WITHDRAW_BATCH]})
             done += [s for s in reply.get("withdrawn") or [] if isinstance(s, str)]
     finally:
         if done:

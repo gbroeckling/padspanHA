@@ -152,6 +152,7 @@ def test_the_lists_and_patterns_are_the_servers() -> None:
     assert [(w, f"/{p}/" + ("i" if i else "")) for w, p, i in L.PERSONAL] == php
     assert _php_pairs(src, "COUNTS") == L.COUNTS and _php_pairs(src, "TEXT") == L.TEXT
     assert f"$DIM_MIN_M = {L.DIM_MIN_M};" in src and f"$DIM_MAX_M = {L.DIM_MAX_M};" in src
+    assert f"$MAX = {L.MAX_SEND};" in src and f"$MAX_WITHDRAW = {L.WITHDRAW_BATCH};" in src
 
 
 @pytest.mark.parametrize("case", _fixture("freetext.json")["cases"], ids=lambda c: c["text"][:40])
@@ -398,6 +399,29 @@ def test_withdraw_with_the_library_down_drops_what_waited_and_keeps_the_rest(sto
     assert len(_lib()["submissions"]) == 2, "kept, to withdraw again"
     _wire(monkeypatch, _via(server))
     assert _call(h, "library_withdraw")[1]["withdrawn"] == 2 and server.db["entries"] == {}
+
+
+def test_withdraw_takes_every_piece_of_a_house_that_shared_many(store, monkeypatch, tmp_path) -> None:
+    """Over 90 pieces is more than the library takes in one 8 KB request:
+    they go in batches it takes, and every one is withdrawn."""
+    import hashlib
+    server = _Library(_php())
+    wire = _wire(monkeypatch, _via(server))
+    h = _home(tmp_path)
+    subs = {}
+    for i in range(250):
+        sid, tok = f"sub_abcdef{i:010x}", f"{i:032x}"
+        subs[sid] = {"owner_token": tok, "library_id": f"lib_{i:012x}", "shared_at": "2026-10-04T12:00:00+00:00",
+                     "kind": "sofa"}
+        server.db["entries"][f"lib_{i:012x}"] = {"submission_id": sid,
+                                                 "owner_hash": hashlib.sha256(tok.encode()).hexdigest()}
+    _FakeStore.saved[HOUSE3D_STORE_KEY]["library"].update(prefix="abcdef", submissions=subs)
+    kind, out, _ = _call(h, "library_withdraw")
+    assert kind == "result" and (out["withdrawn"], out["left"]) == (250, 0), out
+    assert server.db["entries"] == {} and _lib()["submissions"] == {}
+    for _, body in wire.posts:
+        assert len(json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()) <= L.MAX_SEND
+        assert len(body["items"]) <= server.max_withdraw
 
 
 # ═══ 5. browsing, placing, reporting ══════════════════════════════════════════
