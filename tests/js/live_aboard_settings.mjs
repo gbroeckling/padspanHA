@@ -87,8 +87,8 @@ try {
   check("box: off shows the switch and one line, not Quality or North",
     off.cb && off.cb.checked === false && off.more && off.more.style.display === "none"
     && off.sel && off.more.contains(off.sel) && off.north && off.more.contains(off.north)
-    && /Adds a Map \/ 3D switch to the Atlas/.test(off.text) && /Off by default\./.test(off.text)
-    && /Show Live Aboard on the Atlas/.test(off.text) && !/people|AI Task|library|furniture/i.test(off.text.replace(off.more.textContent, "")),
+    && /Adds a Map \/ Live Aboard switch to the Atlas/.test(off.text) && /Off by default\./.test(off.text)
+    && /Show Live Aboard on the Atlas/.test(off.text) && !/people|AI Task|library|furniture/i.test(off.text.replace(off.more.textContent, "").replace(/Adds a Map[^.]*\./, "")),
     { text: off.text });
   await settle();
   const offNeedle = off.needle && off.needle.getAttribute("visibility");

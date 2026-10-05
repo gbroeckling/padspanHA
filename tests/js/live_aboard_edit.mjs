@@ -911,7 +911,7 @@ await tryCase("newer: under an open draft, a read that finds a newer PadSpan's f
   await closeEdit();
   check("newer: under an open draft, a read that finds a newer PadSpan's file holds Save and says why; this version's again, Save can go ahead",
     held.editing && held.dirty && held.saveOff && /^Not saved: a newer PadSpan saved Live Aboard's file/.test(held.hint) && held.bad
-    && back.dirty && back.saveOn && back.hint === "The 3D file can be saved again." && !back.bad, { held, back });
+    && back.dirty && back.saveOn && back.hint === "Live Aboard's file can be saved again." && !back.bad, { held, back });
 });
 
 check("the view never failed", !st().failed, { failed: st().failed });

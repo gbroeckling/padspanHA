@@ -458,7 +458,8 @@ function settingsBox(settings){
   // What shows while off: the rows under the switch are hidden then (P2's admin-only
   // Remove all furniture lives there), so only the visible text counts.
   const hidden = off.attr("data-la3d-more");
-  const offText = off.box.textContent.replace(hidden ? hidden.textContent : "", "");
+  // (The box's own one-line description says what Live Aboard holds, furniture too.)
+  const offText = off.box.textContent.replace(hidden ? hidden.textContent : "", "").replace(/Adds a Map[^.]*\./, "");
   check("settings_rows", !/library|furniture|Withdraw/i.test(offText) && (!hidden || hidden.style.display === "none")
     && !/library|Withdraw/i.test(off.box.textContent), "nothing of the library while off");
   off.master.checked = true;

@@ -126,7 +126,7 @@ def test_the_box_saves_each_control_on_its_own() -> None:
     sec = src[src.index("function _atlas3dSection("):src.index("// ── UI Structure tab")]
     assert '"atlas_3d_enabled"' in sec and '"atlas_3d_quality"' in sec and 'save("fabric_bearing_deg", b,' in sec
     assert 'ctx.actions.wsCall("padspan_ha/settings_set"' in sec and "settingsSet(" not in sec
-    assert "Adds a Map / 3D switch to the Atlas" in sec and "Off by default." in sec
+    assert "Adds a Map / Live Aboard switch to the Atlas" in sec and "Off by default." in sec
     assert "The same bearing the GPS Bridge uses." in sec and "north-up" not in sec.lower()
     assert "import(`./fabric_compass.js${new URL(import.meta.url).search}`)" in sec
     for v in ('["auto", ', '["low", ', '["high", '):
