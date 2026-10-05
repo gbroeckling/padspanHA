@@ -15,7 +15,8 @@ file changes, and a file without that figure is not written at all.
 Only that event deletes. A person missing from the states (Home Assistant
 starting, a restart, the person integration reloading) is never taken for a
 deleted one: nothing here reads the states. A rename (an "update" with a new
-entity id) leaves the figure as it is.
+entity id) moves the figure to the new id, the same way, so deleting the
+person later still takes it.
 
 Deleting the person is the owner's own act, and a figure is personal data, so
 this holds whatever the Live Aboard switch says (off, or below Pro): the
@@ -43,14 +44,16 @@ _UNSUB = "house3d_people_unsub"     # hass.data[DOMAIN]: the registry listener
 
 @ha_callback
 def _on_entity_registry_updated(hass: HomeAssistant, event: Any) -> None:
-    """A person deleted in Home Assistant: their figure goes (off the loop)."""
+    """A person deleted in Home Assistant: their figure goes; renamed: it
+    moves to the new id (off the loop)."""
     data = getattr(event, "data", None) or {}
-    if data.get("action") != "remove":
-        return
-    entity_id = data.get("entity_id")
+    entity_id, old = data.get("entity_id"), data.get("old_entity_id")
     if not isinstance(entity_id, str) or not entity_id.startswith("person."):
         return
-    hass.async_create_task(async_forget_person(hass, entity_id))
+    if data.get("action") == "remove":
+        hass.async_create_task(async_forget_person(hass, entity_id))
+    elif data.get("action") == "update" and isinstance(old, str) and old.startswith("person.") and old != entity_id:
+        hass.async_create_task(async_rename_person(hass, old, entity_id))
 
 
 async def async_forget_person(hass: HomeAssistant, entity_id: str) -> bool:
@@ -77,6 +80,34 @@ async def async_forget_person(hass: HomeAssistant, entity_id: str) -> bool:
                           "(the file was not written)", entity_id)
             return False
     _LOGGER.info("Live Aboard: %s was deleted in Home Assistant; their figure is removed", entity_id)
+    return True
+
+
+async def async_rename_person(hass: HomeAssistant, old: str, new_id: str) -> bool:
+    """Move `old`'s figure to `new_id` (the person's entity id changed). True
+    once written and read back; False when there is nothing to move (no file,
+    no figure, or `new_id` already has one: that one is kept) or it could not
+    be written (the figure stays under the old id)."""
+    if not await async_file_exists(hass):
+        return False
+    try:
+        store = await async_get_store(hass)
+    except ReadFailed:
+        _LOGGER.warning("Live Aboard: %s was renamed %s, but Live Aboard's file could not be read; "
+                        "their figure keeps the old name", old, new_id)
+        return False
+    async with store.lock:
+        figures = store.data.get("figures")
+        if (not isinstance(figures, dict) or old not in figures or new_id in figures
+                or not writable(store.data)):
+            return False
+        new = copy.deepcopy(store.data)
+        new["figures"][new_id] = new["figures"].pop(old)
+        if not await store.async_write(new):
+            _LOGGER.error("Live Aboard: %s was renamed %s, but their figure could not be moved "
+                          "(the file was not written)", old, new_id)
+            return False
+    _LOGGER.info("Live Aboard: %s was renamed %s in Home Assistant; their figure moved with them", old, new_id)
     return True
 
 

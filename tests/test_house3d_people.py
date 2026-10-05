@@ -116,9 +116,9 @@ def test_a_person_missing_from_the_states_is_never_deleted(disk, tmp_path):
     assert [c.args[0] for c in h.bus.async_listen.call_args_list] == ["entity_registry_updated"], "no state listener"
     gone = SimpleNamespace(data={"entity_id": "person.garry", "old_state": SimpleNamespace(state="home"), "new_state": None})
     assert _fire(h, gone) == []
-    # Neither a rename, a new or changed entry, nor another kind of entity deletes.
+    # Neither a changed or new entry, nor another kind of entity deletes (a
+    # rename moves the figure: test_a_renamed_person_keeps_their_figure).
     for ev in (_event("person.garry", "update", old_entity_id="person.garry", changes={"name": "G"}),
-               _event("person.garry_2", "update", old_entity_id="person.garry"),
                _event("person.garry", "create"),
                _event("device_tracker.pixel"),
                _event("light.person_garry"),
@@ -198,3 +198,19 @@ def test_the_listener_is_set_up_once_and_taken_down_on_unload():
     setup = src[src.index("async def async_setup_entry("):src.index("async def async_unload_entry(")]
     unload = src[src.index("async def async_unload_entry("):]
     assert "async_setup_house3d_people(hass)" in setup and "async_stop_house3d_people(hass)" in unload
+
+
+def test_a_renamed_person_keeps_their_figure_and_deleting_them_later_still_takes_it(disk, tmp_path):
+    """Review of the person listener: a rename moves the figure to the new
+    entity id (one write, read back); a figure already under the new id is
+    kept. Left under the old id, deleting the person later left it behind."""
+    h, _conn = _on(tmp_path)
+    before = _two(tmp_path)
+    assert _fire(h, _event("person.g", "update", old_entity_id="person.garry")) == [True]
+    after = _stored(tmp_path)
+    assert after["figures"] == {"person.g": before["figures"]["person.garry"], "person.nicole": before["figures"]["person.nicole"]}
+    assert disk.writes == [HOUSE3D_STORE_KEY]
+    assert _fire(h, _event("person.nicole", "update", old_entity_id="person.g")) == [False]   # nicole has hers: kept
+    assert _stored(tmp_path) == after
+    assert _fire(h, _event("person.g")) == [True]
+    assert set(_stored(tmp_path)["figures"]) == {"person.nicole"}, "the renamed person's figure was left behind"
