@@ -215,9 +215,9 @@ function makeApi(states, lbe){
   return { api, log };
 }
 
-function mount(slotKey, quality){
+function mount(slotKey, quality, pieces = PIECES){
   const slot = LA.liveAboardSlot(slotKey);
-  const h = { states: clone(STATES0), emergency: null, regIds: { reg_den2: "light.den2" }, topIds: null, file: { schema: 1, pieces: clone(PIECES) } };
+  const h = { states: clone(STATES0), emergency: null, regIds: { reg_den2: "light.den2" }, topIds: null, file: { schema: 1, pieces: clone(pieces) } };
   h.d3 = makeApi(h.states, lbeOf(h.states));
   h.P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: lbeOf(h.states), hidden: new Set(), topFloorIds: h.topIds, quality,
     telemetry: () => {}, onTouch: () => {}, states: h.states, config: {}, bearing: 0, saveNorth: null, useApi: () => h.d3.api,
@@ -437,6 +437,20 @@ await tryCase("view: on High the robot goes round near its dock, the washer shak
     && JSON.stringify(a.v.dock) !== JSON.stringify(b.v.dock) && JSON.stringify(a.w.run) !== JSON.stringify(b.w.run)
     && !c.v.circling && !c.w.shake && c.liveMs === 0 && c.frames === 0, { prof, a, b, c });
   LA.releaseLiveAboardSlot("devices-high");
+  await settle();
+});
+
+// A piece that cannot show a light (a sofa) linked to one: the light stays,
+// with its fixture; only a lamp stands in for it.
+await tryCase("view: a sofa linked to a light leaves the light and its fixture in place", async () => {
+  const [sid, sofa] = piece("sofa", 7, 1, "light.kitchen", { w: 2, d: 0.9, h: 0.8 });
+  const h = mount("devices-sofa", "low", { ...PIECES, [sid]: sofa });
+  await later(10000, 60);
+  const s = h.slot._state(), d = h.dev(sid);
+  check("view: a sofa linked to a light leaves the light and its fixture in place",
+    d && d.eid === "light.kitchen" && !s.swapped.includes("light.kitchen") && s.swapped.includes("light.dim"),
+    { sofa: d, swapped: s.swapped });
+  LA.releaseLiveAboardSlot("devices-sofa");
   await settle();
 });
 

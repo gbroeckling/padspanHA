@@ -368,8 +368,9 @@ export function createDeviceLayer(ctx){
       box.getSize(o.scale);
       return o;
     },
-    /** Is a piece showing the device eid (its marker then steps aside)? */
-    has(eid){ for (const R of recs.values()) if (R.eid === eid && R.root.parent) return true; return false; },
+    /** Is a lamp showing the light eid (its fixture then steps aside)? A
+     *  piece that cannot glow (a sofa linked to a light) leaves it in place. */
+    has(eid){ for (const R of recs.values()) if (R.eid === eid && R.live === "glow" && R.root.parent) return true; return false; },
     /** Linked pieces on a floor that shows, for a press: {id, eid, root}. */
     pickable(){ return [...recs.values()].filter(R => R.eid && shown(R)).map(R => ({ id: R.id, eid: R.eid, root: R.root })); },
     /** Lamps glowing on a floor that shows: where their light comes from. */
