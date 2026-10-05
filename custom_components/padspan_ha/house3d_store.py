@@ -167,10 +167,10 @@ class House3dStore:
 # One draft, written at once: doors and windows drawn on a wall in 3D
 # ("win_" / "door_" + 8 hex digits, a stretch of wall in fabric metres), the
 # hinge, swing, sill and head of a barrier's own door or window (keyed by the
-# barrier's id; the map is never written), the 3D-only height of a light or
-# another device (or a beacon's or scanner's look), the furniture (P2 Furnish:
-# "fur_" + 8 hex digits) and the people figures (P6). Each entry is set, or
-# removed with None. What the editor owns is checked strictly; every other
+# barrier's id; the map is never written), the 3D-only height of a light (and
+# what it is, its kind) or another device (or a beacon's or scanner's look),
+# the furniture (P2 Furnish: "fur_" + 8 hex digits) and the people figures
+# (P6). Each entry is set, or removed with None. What the editor owns is checked strictly; every other
 # key already in the file (a newer PadSpan's) is kept.
 EDIT_SECTIONS: tuple[str, ...] = ("openings", "lights", "devices", "pieces", "figures")
 OPENING_ID = re.compile(r"^(win|door)_[0-9a-f]{8}$")
@@ -353,6 +353,26 @@ def _piece(pid: str, e: dict, stamp: str) -> dict:
     return out
 
 
+# A light's 3D-only entry: its height {z_m} and/or what it is in Live Aboard
+# {kind} (a pot, a valance, a lamp...; 3D only, the map is never written). The
+# entry is the editor's whole: a key it leaves out goes. A kind is a short
+# word, and one this version does not draw is still kept (drawn as guessed).
+_LIGHT_OWNED = frozenset(("z_m", "kind"))
+
+
+def _light_entry(k: str, v: dict) -> dict:
+    if not v or set(v) - _LIGHT_OWNED:
+        raise EditError(f"{k}: a light has a height {{z_m}} and/or a kind {{kind}}")
+    out: dict[str, Any] = {}
+    if "z_m" in v:
+        out["z_m"] = _num(v["z_m"], 0.0, HEIGHT_MAX_M, f"{k} z_m")
+    if "kind" in v:
+        if not isinstance(v["kind"], str) or not _KIND.fullmatch(v["kind"]):
+            raise EditError(f"{k}: kind must be a short word (a-z, 0-9 and _)")
+        out["kind"] = v["kind"]
+    return out
+
+
 def _entry(section: str, key: Any, e: Any, stamp: str = "") -> tuple[frozenset, dict | None, bool]:
     """(the keys the editor owns in this entry, the checked entry or None to
     remove it, whether removing takes the whole entry)."""
@@ -375,6 +395,10 @@ def _entry(section: str, key: Any, e: Any, stamp: str = "") -> tuple[frozenset, 
 
         def check(k: str, v: dict) -> dict:
             return _piece(k, v, stamp)
+    elif section == "lights":
+        if len(key) > 255 or not ENTITY_ID.fullmatch(key):
+            raise EditError(f"{section}: {key[:48]!r} is not an entity id")
+        owned, whole, check = _LIGHT_OWNED, False, _light_entry
     else:
         if len(key) > 255 or not ENTITY_ID.fullmatch(key):
             raise EditError(f"{section}: {key[:48]!r} is not an entity id")

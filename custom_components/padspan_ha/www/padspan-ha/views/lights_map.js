@@ -2879,6 +2879,8 @@ export function buildLightsMapCard(hostIn){
         const z = Array.isArray(focus) ? focus[focus.length - 1] : focus;
         la3dSlot().attach(isoDiv, { model: host.model, floors, lightsByEid: host.lightsByEid || {},
           hidden: host.hiddenEidsMap || host.hiddenEids,
+          // The Atlas shapes the person set: what a light is drawn as follows them.
+          shapeOverrides: h3.settings.light_shapes || null,
           topFloorIds: z === null || z === undefined ? null : floorIdsOnSlab(_frame, host.model, floors, z),
           quality: h3.settings.atlas_3d_quality, telemetry: h3.telemetry,
           // The sun (sun.sun, else hass.config) and true north (the GPS

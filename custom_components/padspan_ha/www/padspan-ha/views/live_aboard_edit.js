@@ -23,8 +23,10 @@
 //                 drag either end, set the heights, switch door ↔ window,
 //                 hinge and swing, or Delete.
 //   Heights       tap a light, a sensor or a readout: a height from its floor
-//                 to the ceiling, or back to its default. (Scanners keep the
-//                 height the map gives them: presence uses it.)
+//                 to the ceiling, or back to its default; for a light, also
+//                 what it is ("What is this?": a pot, a valance, a lamp...),
+//                 or PadSpan's guess. (Scanners keep the height the map gives
+//                 them: presence uses it.)
 //   a door or window from the map (a barrier): tap it to set its hinge and
 //                 swing, or its sill and head, in 3D only.
 //
@@ -73,6 +75,9 @@ const CSS = `
 .la3d-sheet .la3d-row{display:grid;grid-template-columns:52px 1fr 54px;gap:8px;align-items:center;margin:6px 0}
 .la3d-sheet .la3d-row b{text-align:right;font-variant-numeric:tabular-nums}
 .la3d-sheet input[type=range]{width:100%;margin:0;accent-color:#52b788}
+.la3d-sheet .la3d-row.la3d-kind{grid-template-columns:auto 1fr}
+.la3d-sheet select{width:100%;min-width:0;box-sizing:border-box;padding:5px 6px;border-radius:8px;font:inherit;
+  background:#0b1410;color:#e8f0ea;border:1px solid rgba(120,190,155,.35)}
 .la3d-sheet .la3d-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .la3d-sheet .lv-zoomseg{box-shadow:none}
 .la3d-sheet button.la3d-x{all:unset;cursor:pointer;padding:0 4px;font-size:16px;color:rgba(226,240,232,.6)}
@@ -121,6 +126,7 @@ export function createEditor(ctx){
   let editFn = null, editing = false, draft = null, tool = null, sel = null, gesture = null, pending = null;
   let saving = false, afterSave = null, askGo = null, hintMsg = "", hintBad = false, redrawDue = false, sliderGen = 0, sheetRefresh = null;
   let moveDue = null, sliding = null;        // a slider being dragged: what it moves, drawn in place once a frame
+  let resheet = false;                       // a light's kind changed: its sheet again once it is drawn as it
   let furnishOn = false;                     // Mapping → Furnish: Edit opens at the furniture tool (P2)
   let runsGen = null, arcsGen = null;
   const runsByFloor = new Map();
@@ -152,7 +158,7 @@ export function createEditor(ctx){
   bar.insertBefore(editSeg, bar.querySelector("[data-la3d-views]"));
   const bDoor = btn("Door", "Draw a door along a wall", () => pickTool("door"));
   const bWin = btn("Window", "Draw a window along a wall", () => pickTool("window"));
-  const bHts = btn("Heights", "Tap a light, a sensor or a readout to set its height", () => pickTool("heights"));
+  const bHts = btn("Heights", "Tap a light, a sensor or a readout to set its height (a light: also what it is)", () => pickTool("heights"));
   const bUndo = btn("Undo", "Undo", () => { if (draft && !saving && draft.undo()) afterHistory("Undone."); });
   const bRedo = btn("Redo", "Redo", () => { if (draft && !saving && draft.redo()) afterHistory("Redone."); });
   const bSave = btn("Save", "Save the changes", () => save(null), "la3d-save");
@@ -399,6 +405,7 @@ export function createEditor(ctx){
     requestAnimationFrame(guard(() => {
       redrawDue = false;
       ctx.redraw();
+      if (resheet) { resheet = false; sheetFor(); }
       if (fur) fur.paint3d(false);               // the picked piece's outline, where it is drawn now
       paint();
     }));
@@ -704,19 +711,47 @@ export function createEditor(ctx){
     const info = ctx.device(eid);
     if (!info || info.z === null) { sel = null; return; }
     const ceil = ceilOf(info.F), cur = draft.cur[info.section][eid], top = DRAFT.heightRange(ceil, info.section).max;
+    const light = info.section === "lights", setZ = (e) => !!e && typeof e.z_m === "number";
     head(info.label, `Height above its floor, 0 to ${DRAFT.metres(top)}. Default ${DRAFT.metres(info.zDefault)}.`);
-    slider("Height", 0, top, cur ? cur.z_m : info.z, (v, g) => {
-      change((c) => { c[info.section][eid] = { z_m: DRAFT.clampHeight(v, ceil, info.section) }; }, g);
+    if (light) kindPicker(eid, info);
+    slider("Height", 0, top, setZ(cur) ? cur.z_m : info.z, (v, g) => {
+      // A light keeps what it is (its kind) as its height changes.
+      change((c) => { c[info.section][eid] = { ...(light ? c.lights[eid] : null), z_m: DRAFT.clampHeight(v, ceil, info.section) }; }, g);
     }, { eid });
     const acts = d("div", "la3d-acts");
     const reset = btn("Reset to default", "Back to the height its type gives it", () => {
-      change((c) => { delete c[info.section][eid]; });
+      change((c) => {
+        const e = c[info.section][eid];
+        if (light && e && e.kind) c.lights[eid] = { kind: e.kind }; else delete c[info.section][eid];
+      });
       sheetFor();
     });
-    sheetRefresh = () => { reset.disabled = !draft.cur[info.section][eid]; };
+    sheetRefresh = () => { reset.disabled = !setZ(draft.cur[info.section][eid]); };
     sheetRefresh();
     acts.appendChild(seg(reset));
     sheet.appendChild(acts);
+  }
+
+  /** "What is this?": a light's kind in Live Aboard (3D only), or PadSpan's guess. */
+  function kindPicker(eid, info){
+    const row = d("label", "la3d-row la3d-kind"), pick = d("select");
+    pick.setAttribute("aria-label", "What is this?");
+    const nameOf = (k) => (HOUSE.LIGHT_KINDS.find(([v]) => v === k) || [null, "Just its light"])[1];
+    const opt = (v, text) => { const o = d("option", null, text); o.value = v; return o; };
+    pick.appendChild(opt("", `PadSpan's guess: ${nameOf(info.guess)}`));
+    for (const [k, text] of HOUSE.LIGHT_KINDS) pick.appendChild(opt(k, text));
+    const cur = draft.cur.lights[eid];
+    pick.value = cur && HOUSE.LIGHT_KINDS.some(([k]) => k === cur.kind) ? cur.kind : "";
+    pick.addEventListener("change", guard(() => {
+      const v = pick.value;
+      if (change((c) => {
+        const e = { ...(c.lights[eid] || {}) };
+        if (v) e.kind = v; else delete e.kind;
+        if (Object.keys(e).length) c.lights[eid] = e; else delete c.lights[eid];
+      })) resheet = true;                        // its default height is the new kind's
+    }));
+    row.append(d("span", null, "What is this?"), pick);
+    sheet.appendChild(row);
   }
 
   // ── the line, the ends, the length ────────────────────────────────────────

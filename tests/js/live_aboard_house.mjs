@@ -256,7 +256,7 @@ const LIGHTS_MODEL = {
     "light.kitchen_pots": { x_m: 3, y_m: 2, floor_id: "main" },
     "light.island_pendant": { x_m: 2, y_m: 2, floor_id: "main" },
     "light.wall_sconce": { x_m: 0.3, y_m: 2, floor_id: "main" },
-    "light.under_cab_strip": { x_m: 5.7, y_m: 2, floor_id: "main" },
+    "light.under_cab_strip": { x_m: 5.7, y_m: 2, floor_id: "main", width_cm: 120, height_cm: 1, rotation: 150 },
     "light.cove": { x_m: 3, y_m: 1, floor_id: "main", margin_cm: 20 },
     "fan.ceiling": { x_m: 4, y_m: 2, floor_id: "main" },
     "binary_sensor.kitchen_motion": { x_m: 1, y_m: 1, floor_id: "main" },
@@ -264,6 +264,8 @@ const LIGHTS_MODEL = {
     "light.not_in_ha": { x_m: 1, y_m: 2, floor_id: "main" },
   },
 };
+// The Atlas shapes the person set (settings.light_shapes).
+const SHAPES = { "light.cove": "perimeter" };
 const LBE = {
   "light.kitchen_pots": dev("light.kitchen_pots"), "light.island_pendant": dev("light.island_pendant"),
   "light.wall_sconce": dev("light.wall_sconce"), "light.under_cab_strip": dev("light.under_cab_strip"),
@@ -272,24 +274,26 @@ const LBE = {
   "light.hidden_one": dev("light.hidden_one"),
 };
 tryCase("lights: placed fixtures and fans, by the Atlas shape; never sensors, hidden or unknown", () => {
-  const h = H.readHouse(LIGHTS_MODEL, LIGHTS_MODEL.floors, LBE, new Set(["light.hidden_one"]));
+  const h = H.readHouse(LIGHTS_MODEL, LIGHTS_MODEL.floors, LBE, new Set(["light.hidden_one"]), SHAPES);
   const got = Object.fromEntries(h.lights.map(L => [L.eid, L.kind]));
   check("lights: placed fixtures and fans, by the Atlas shape; never sensors, hidden or unknown",
     JSON.stringify(got) === JSON.stringify({ "fan.ceiling": "fan", "light.cove": "perimeter", "light.island_pendant": "pendant",
-      "light.kitchen_pots": "pot", "light.under_cab_strip": "strip", "light.wall_sconce": "sconce" }), got);
+      "light.kitchen_pots": "pot", "light.under_cab_strip": "undercab", "light.wall_sconce": "sconce" }), got);
 });
 tryCase("lights: each kind hangs at its own default height", () => {
   const ceil = 2.8 - H.SLAB_T;
   const m = (k) => H.mountHeight(k, ceil);
-  const ok = near(m("pot"), ceil - 0.012) && near(m("pendant"), ceil - 0.6) && near(m("strip"), ceil - 0.12) && m("sconce") === 1.8
+  const ok = near(m("pot"), ceil - 0.012) && near(m("pendant"), ceil - 0.6) && near(m("strip"), ceil - 0.12) && m("sconce") === 1.7
     && m("led") === 1.35 && near(m("fan"), ceil - 0.36) && near(m("fixture"), ceil) && m("pendant") < m("fan") && m("fan") < m("pot")
-    && Object.keys(H.MOUNT).sort().join() === "chandelier,fan,fixture,led,pendant,perimeter,pot,sconce,spot,strip,track,tube"
+    && Object.keys(H.MOUNT).sort().join() === "accent,chandelier,cove,fan,fixture,glow,kick,lamp,led,panel,pendant,perimeter,pot,pot_ring,"
+      + "sconce,spot,strip,track,tube,tv,undercab,valance,vanity"
+    && H.LIGHT_KINDS.every(([k]) => k in H.MOUNT)
     && Object.values(H.KIND_OF_SHAPE).every(k => k in H.MOUNT)
     && LC.LIGHT_SHAPES.filter(([k]) => H.KIND_OF_SHAPE[k]).length === 12;
   check("lights: each kind hangs at its own default height", ok, Object.fromEntries(Object.keys(H.MOUNT).map(k => [k, m(k)])));
 });
 tryCase("lights: the fixture parts sit where the kind says", () => {
-  const h = H.readHouse(LIGHTS_MODEL, LIGHTS_MODEL.floors, LBE, null);
+  const h = H.readHouse(LIGHTS_MODEL, LIGHTS_MODEL.floors, LBE, null, SHAPES);
   const fl = h.byId.get("main"), ctx = { ...h.perFloor.get(fl), ground: h.ground };
   const parts = Object.fromEntries(h.lights.map(L => [L.eid, H.fixtureParts(L, ctx)]));
   const ceil = 2.8 - H.SLAB_T;
@@ -298,11 +302,12 @@ tryCase("lights: the fixture parts sit where the kind says", () => {
   const inRoom = (b) => b.x > 0 && b.x < 6 && b.y > 0 && b.y < 4;
   const ok = pot.bulbs.length === 1 && pot.bulbs[0].prim === "puck" && near(pot.bulbs[0].h, ceil - 0.012) && pot.where === "in"
     && pend.bulbs[0].prim === "dome" && near(pend.bulbs[0].h, ceil - 0.6) && pend.housings.length === 1
-    && sc.wall && sc.bulbs[0].h === 1.8 && near(sc.bulbs[0].x, H.EXT_T / 2 * 0 + 0.012, 0.05)
-    && strip.wall && near(strip.bulbs[0].h, ceil - 0.12) && near(strip.bulbs[0].x, 6 - 0.012, 0.05)
-    && cove.bulbs.length === 4 && cove.bulbs.every(b => inRoom(b) && near(b.h, ceil - 0.12))
-    && fan.housings.length === 6 && fan.bulbs[0].prim === "dome" && fan.kf === 1
-    && [pot, pend, sc, strip, cove, fan].every(p => p.halos.length >= 1 && p.pool);
+    && sc.wall && sc.bulbs[0].h === 1.7 && near(sc.bulbs[0].x, H.EXT_T / 2 * 0 + 0.012, 0.05)
+    && strip.wall && strip.kind === "undercab" && near(strip.bulbs[0].h, 1.4) && near(strip.bulbs[0].x, 6 - 0.012, 0.05)
+    && cove.kind === "cove" && cove.bulbs.length === 4 && cove.bulbs.every(b => inRoom(b) && near(b.h, ceil - 0.012) && b.hideOff)
+    && fan.housings.length === 6 && fan.bulbs[0].prim === "dome" && fan.kf === 1 && fan.spin.blades.length === 4
+    && [pot, pend, sc, fan].every(p => p.halos.length >= 1) && [pot, pend, sc, cove, fan].every(p => p.pools.length >= 1)
+    && strip.washes.length >= 1 && cove.washes.length === 4;
   check("lights: the fixture parts sit where the kind says", ok, {
     pot: pot.bulbs, pend: pend.bulbs, sc: sc.bulbs, strip: strip.bulbs, cove: cove.bulbs.map(b => [b.x, b.y]), fan: fan.housings.length });
 });

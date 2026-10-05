@@ -24,7 +24,7 @@
 
 const { isOutdoorFloorId, offsetPolygonInward, barrierNoReading, fabricFrame, floorIdAtLevel, floorNameAtLevel } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { castsLight, deviceClassOf, airQualityBadness, HUMIDITY_BORDER, AIR_BORDER, MOTION_PULSE: MOTION_BLUE } =
+const { castsLight, deviceClassOf, airQualityBadness, HUMIDITY_BORDER, AIR_BORDER, MOTION_PULSE: MOTION_BLUE, isWledLight, isPartitionLight } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // The shared Atlas card's readings: the state words and which floors share a plate.
 const { stateWordOf, floorIdsOnSlab } =
@@ -461,37 +461,119 @@ export function frameMs(intervals, skip = 3){
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 }
 
-// ── Lights: by the Atlas's own shape ─────────────────────────────────────────
-// The shape a light wears on the Atlas (resolveLightShape — its override, else
-// what its name says) picks the fixture. Sensors, readouts and locks are not
-// lights; fans are drawn (a ceiling has fans on it).
+// ── Lights: what each one is ─────────────────────────────────────────────────
+// The Atlas's shapes (its override, else what the name says) name a family;
+// Live Aboard draws a light as the real thing (docs: section 4 of the
+// viewing review). Light first: what shows is where the light lands, a pool
+// on the floor and a wash on the wall; the fixture is a small detail. A light
+// PadSpan is not sure of is only its pool and a small plain point ("glow"),
+// never an invented fixture. Sensors, readouts and locks are not lights; fans
+// are drawn (a ceiling has fans on it).
 export const KIND_OF_SHAPE = {
   hex: "fixture", circle: "pot", bar: "strip", line: "track", square: "tube", fan: "fan",
   pendant: "pendant", sconce: "sconce", chandelier: "chandelier", triangle: "spot", diamond: "led",
   perimeter: "perimeter",
 };
+// What a person can say a light is, in Live Aboard's Heights tool (stored as
+// lights[<entity id>].kind in the 3D file; the map is never written).
+export const LIGHT_KINDS = [
+  ["glow", "Just its light"], ["fixture", "Ceiling light"], ["pot", "Pot lights"],
+  ["pot_ring", "Pot lights round the room"], ["pendant", "Pendant"], ["chandelier", "Chandelier"],
+  ["fan", "Ceiling fan"], ["track", "Track lights"], ["tube", "Tube or shop light"], ["spot", "Spotlight"],
+  ["sconce", "Wall light"], ["vanity", "Vanity light"], ["strip", "LED strip on a wall"], ["valance", "Valance"],
+  ["cove", "Cove round the room"], ["undercab", "Under the cabinets"], ["kick", "Toe-kick or stairs"],
+  ["tv", "Behind the TV"], ["lamp", "Lamp"], ["panel", "Panel or display"], ["accent", "Small accent light"],
+  ["led", "Status light"],
+];
+const KINDS = new Set(LIGHT_KINDS.map(([k]) => k));
 // Where each kind hangs when nothing says otherwise: metres below the ceiling
 // ("ceiling") or above the floor ("floor"). A per-light height is the store's
 // job (P5), never the map's.
 export const MOUNT = {
   pot:        { ceiling: 0.012 },
+  pot_ring:   { ceiling: 0.012 },
   fixture:    { ceiling: 0 },
+  glow:       { ceiling: 0.25 },
   spot:       { ceiling: 0.02 },
   tube:       { ceiling: 0.03 },
+  cove:       { ceiling: 0.012 },
   track:      { ceiling: 0.08 },
   strip:      { ceiling: 0.12 },
   perimeter:  { ceiling: 0.12 },
   fan:        { ceiling: 0.36 },
   chandelier: { ceiling: 0.55 },
   pendant:    { ceiling: 0.6 },
-  sconce:     { floor: 1.8 },
+  valance:    { floor: 2.1 },
+  vanity:     { floor: 2.0 },
+  sconce:     { floor: 1.7 },
+  panel:      { floor: 1.5 },
+  undercab:   { floor: 1.4 },
   led:        { floor: 1.35 },
+  tv:         { floor: 1.2 },
+  accent:     { floor: 0.9 },
+  lamp:       { floor: 0.75 },
+  kick:       { floor: 0.1 },
 };
 /** The default mount height of a kind, above its floor, under a ceiling at
  *  `ceil` metres. */
 export function mountHeight(kind, ceil){
   const m = MOUNT[kind] || MOUNT.fixture;
   return m.floor !== undefined ? Math.min(m.floor, ceil - 0.2) : ceil - m.ceiling;
+}
+// The words a name gives away (whole words of the entity id and the name).
+const words = (...w) => new RegExp(`\\b(${w.join("|")})\\b`);
+const POTS = words("pots?", "pot ?lights?", "potlights?", "downlights?", "down lights?", "recessed", "can lights?", "cans");
+const NAME_KIND = [
+  ["fan", words("fans?")], ["chandelier", words("chandeliers?")], ["pendant", words("pendants?", "hanging", "drop lights?")],
+  ["vanity", words("vanity")], ["sconce", words("sconces?", "wall lights?", "wall lamps?")],
+  // Before pots: "spot" holds "pot".
+  ["spot", words("spots?", "spotlights?", "spot lights?", "floods?", "floodlights?", "flood lights?", "wall wash", "washers?")],
+  ["tv", words("tv", "bias")],
+  ["led", words("status led", "indicator", "backlight")],
+  ["pot", POTS],
+  ["track", words("track")],
+  ["strip", words("valances?", "strips?", "coves?", "tape", "rope", "under ?cab\\w*", "ws2812\\w*", "sk6812\\w*", "neopixels?",
+    "xmas", "christmas")],
+  ["tube", words("flouresents?", "fluorescents?", "tubes?", "shop lights?")],
+  ["fixture", words("ceiling lights?", "flush ?mounts?", "fixtures?", "dome lights?")],
+];
+// A strip's place, by name: a valance over a window, under the cabinets (a
+// band on the counter), near the floor, behind a TV.
+const STRIP_KIND = [
+  ["valance", words("valances?", "windows?")], ["undercab", words("under ?cab\\w*", "counters?")],
+  ["kick", words("kick\\w*", "plinths?", "stairs?", "steps?")], ["tv", words("tv", "bias", "backlights?")],
+];
+const STRIPS = new Set(["strip", "valance", "undercab", "kick", "tv"]);
+// A WLED light that is not a strip, by the start of a word in its name.
+const WLED_KIND = [["lamp", /\blamp/], ["panel", /\b(matrix|display|panel)/], ["accent", /\b(ring|pill|orb)/]];
+/** What PadSpan draws a light as, in this order: (1) the kind set in Live
+ *  Aboard (storedKind, the caller's); (2) the Atlas shape the person set
+ *  (`override`, settings.light_shapes); (3) words in its name; (4) a
+ *  footprint under 0.4 m is never a strip, whatever its name; (5) a WLED
+ *  light named a lamp, matrix, display, panel, ring, pill or orb; (6) only
+ *  then a WLED light is a strip. "perimeter" is a family the room settles
+ *  (drawnKind). Nothing sure: "glow". */
+export function guessKind(l, fp, override){
+  const text = ` ${(l && l.entity_id) || ""} ${(l && l.friendly_name) || ""} `.toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  const named = (rules) => { const r = rules.find(([, re]) => re.test(text)); return r ? r[0] : null; };
+  const strip = () => named(STRIP_KIND) || "strip";
+  if (l && deviceClassOf(l).key === "fan") return "fan";
+  const o = override && override !== "auto" ? KIND_OF_SHAPE[override] : null;
+  if (o) return o === "strip" ? strip() : o === "perimeter" && POTS.test(text) ? "pot_ring" : o;
+  const long = !!fp && fp.la >= 0.4, byName = named(NAME_KIND), k = byName === "strip" ? strip() : byName;
+  if (k && (long || !STRIPS.has(k))) return k;
+  if (l && (isWledLight(l) || isPartitionLight(l))) {
+    const w = named(WLED_KIND);
+    if (w) return w;
+    if (long) return strip();
+  }
+  return "glow";
+}
+/** The kind the 3D file sets for a light ({kind}), if it is one this
+ *  version draws. */
+export function storedKind(stored){
+  const k = stored && typeof stored === "object" ? stored.kind : null;
+  return typeof k === "string" && KINDS.has(k) ? k : null;
 }
 // width_cm / height_cm / rotation are drawn in the Atlas's isometric screen
 // frame (x' = (x - y)·cos 30°, y' = (x + y)·sin 30°), so the footprint's two
@@ -513,8 +595,9 @@ export function isFixture(l){
 }
 /** The lights to draw: placed (light_positions_m), known to the card, not
  *  hidden, and a fixture. Each carries the Atlas device record `l` it is
- *  painted from on every poll. */
-export function readLights(model, F, lightsByEid, hidden){
+ *  painted from on every poll, and its kind as guessed (guessKind; the
+ *  Atlas shapes the person set: `overrides`, settings.light_shapes). */
+export function readLights(model, F, lightsByEid, hidden, overrides){
   const out = [];
   const pos = (model && model.light_positions_m) || {};
   for (const eid of Object.keys(pos).sort()) {
@@ -523,7 +606,8 @@ export function readLights(model, F, lightsByEid, hidden){
     if (hidden && typeof hidden.has === "function" && hidden.has(eid)) continue;
     const fl = F.byId.get(F.canon(lp.floor_id)), x = num(lp.x_m), y = num(lp.y_m);
     if (!fl || x === null || y === null) continue;
-    out.push({ eid, l, floor: fl, x, y, kind: KIND_OF_SHAPE[l.shape] || "fixture", fp: footprint(lp),
+    const fp = footprint(lp);
+    out.push({ eid, l, floor: fl, x, y, kind: guessKind(l, fp, overrides && overrides[eid]), fp,
                rot: num(lp.rotation) || 0, marginM: num(lp.margin_cm) === null ? null : Math.max(0, num(lp.margin_cm) / 100) });
   }
   return out;
@@ -568,6 +652,34 @@ export function nearestWall(pieces, x, y, maxD, rails = false, align = null){
   const off = pc.thick / 2 + 0.012;
   return { x: px + n[0] * off, y: py + n[1] * off, n, dir: unit([pc.x1 - pc.x0, pc.y1 - pc.y0]), rail: pc.kind === "rail", pc };
 }
+/** The wall of `room` a light inside it runs along, at any distance: the
+ *  nearest running `align`'s way, else the nearest. Where on it: square
+ *  across from (x, y), on the room's side (as nearestWall gives it). */
+export function roomWall(pieces, room, x, y, align = null){
+  const find = (al) => {
+    let best = null;
+    for (const pc of pieces) {
+      if (pc.kind === "rail" || pc.kind === "open") continue;
+      const dir = unit([pc.x1 - pc.x0, pc.y1 - pc.y0]);
+      if (al && Math.abs(dir[0] * al[0] + dir[1] * al[1]) < ALIGN_COS) continue;
+      const [d, t] = segDist(x, y, pc.x0, pc.y0, pc.x1, pc.y1);
+      if (best && d >= best.d) continue;
+      // Its face toward the room: the side (x, y) is on, a few cm in.
+      const px = pc.x0 + (pc.x1 - pc.x0) * t, py = pc.y0 + (pc.y1 - pc.y0) * t, off = pc.thick / 2 + 0.012;
+      let n = Math.hypot(x - px, y - py) < 1e-3 ? [pc.nx, pc.ny] : unit([x - px, y - py]);
+      if (!inPoly(px + n[0] * (off + 0.05), py + n[1] * (off + 0.05), room.pts)) {
+        n = [-n[0], -n[1]];
+        if (!inPoly(px + n[0] * (off + 0.05), py + n[1] * (off + 0.05), room.pts)) continue;
+      }
+      // Square across from (x, y) on the wall's line, even past this piece.
+      const s = (x - pc.x0) * dir[0] + (y - pc.y0) * dir[1], lx = pc.x0 + dir[0] * s, ly = pc.y0 + dir[1] * s;
+      best = { d, pc, dir, n, x: lx + n[0] * off, y: ly + n[1] * off };
+    }
+    return best;
+  };
+  const w = (align && find(align)) || find(null);
+  return w ? { x: w.x, y: w.y, n: w.n, dir: w.dir, rail: false, pc: w.pc } : null;
+}
 function grid(fp, spacing, maxN){
   if (!fp) return [[0, 0]];
   const n1 = clamp(Math.round(fp.la / spacing), 1, maxN), n2 = clamp(Math.round(fp.lb / spacing), 1, maxN), out = [];
@@ -584,16 +696,52 @@ function growPara(fp, g){
   return { a: [fp.a[0] + ua[0] * g, fp.a[1] + ua[1] * g], b: [fp.b[0] + ub[0] * g, fp.b[1] + ub[1] * g] };
 }
 const ring = (r) => ({ a: [r, 0], b: [0, r] });
-const OFF = { white: "#a3a9af", strip: "#646b72", screen: "#262b31" };   // a switched-off fixture stays quiet
+// A switched-off fixture is shaded like the rest of the room: a white trim,
+// a dark strip, a dark screen or body.
+const OFF = { white: "#a3a9af", strip: "#646b72", screen: "#262b31", body: "#3a4047", diffuser: "#d9dcdf" };
+// Pots round a room: one per corner of the loop, then evenly along each side
+// about `every` metres apart, none closer than half a metre to another.
+function ringSpots(loop, every){
+  const P = loop.filter((p, i) => {                        // only real corners
+    const a = loop[(i + loop.length - 1) % loop.length], b = loop[(i + 1) % loop.length];
+    const u = unit([p[0] - a[0], p[1] - a[1]]), v = unit([b[0] - p[0], b[1] - p[1]]);
+    return Math.abs(u[0] * v[1] - u[1] * v[0]) > 0.34 || u[0] * v[0] + u[1] * v[1] < 0;
+  });
+  const C = P.length >= 3 ? P : loop, out = [];
+  const add = (p) => { if (!out.some(q => dist(q, p) < 0.5)) out.push(p); };
+  for (let i = 0; i < C.length; i++) {
+    const a = C[i], b = C[(i + 1) % C.length], k = Math.max(1, Math.round(dist(a, b) / every));
+    add(a);
+    for (let j = 1; j < k; j++) add([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]);
+  }
+  return out;
+}
+const GARAGE = /\b(garage|shop|workshop)\b/i;
+/** The kind a light is drawn as: its own (L.kind), with the perimeter family
+ *  settled by its room — pots on a deck or patio (at floor level, along its
+ *  edge), else a cove — and a run round no room only its light. */
+export function drawnKind(L, ctx){
+  const k = KINDS.has(L.kind) || L.kind === "perimeter" ? L.kind : "glow";
+  if (k !== "perimeter" && k !== "pot_ring" && k !== "cove") return k;
+  const room = roomAt((ctx && ctx.rooms) || [], L.x, L.y);
+  if (!room) return "glow";
+  return k === "perimeter" ? (room.outdoor || L.floor.outdoor ? "pot_ring" : "cove") : k;
+}
 
-/** The parts of one fixture, by kind: bulbs (lit when on), housings (never
- *  lit), halos (the glow) and a pool of light on the floor below — plain
- *  numbers in plan metres, heights above its floor. `wall`: the wall piece it
- *  hangs on (it hides while that wall is cut away, as wall things do in the
- *  Sims). kf: how much real lamp light it throws (0 = glow only). */
+/** The parts of one fixture, by kind (drawnKind): bulbs (lit when on, shaded
+ *  when off; `hideOff`: hidden while off, as a hidden tape is), housings
+ *  (never lit), halos (a small glow), washes (light on a wall, a counter or
+ *  the floor: a quad from a line, `a` half its length and `b` how far the
+ *  light spreads from it, both [x, up, y]; `fixed` ones stay where the light
+ *  lands when the fixture is raised), pools of light on the floor below and
+ *  the points a press finds it by — plain numbers in plan metres, heights
+ *  above its floor. `wall`: the wall piece it hangs on (it hides while that
+ *  wall is cut away, as wall things do in the Sims; a bulb or wash can carry
+ *  its own). kf: how much real lamp light it throws (0 = glow only). spin: a
+ *  fan's blades (housings), turned while it runs. */
 export function fixtureParts(L, ctx){
   const fl = L.floor, ceil = fl.h - SLAB_T, rooms = ctx.rooms || [], pieces = ctx.pieces || [];
-  const room = roomAt(rooms, L.x, L.y);
+  const room = roomAt(rooms, L.x, L.y), kind = drawnKind(L, ctx);
   // in: inside an indoor room. out: on a deck, patio or outdoor floor. none:
   // in no room, i.e. on the outside of the building.
   const where = fl.outdoor ? "out" : !room ? "none" : room.outdoor ? "out" : "in";
@@ -601,88 +749,140 @@ export function fixtureParts(L, ctx){
   const align = L.fp && L.fp.la >= 0.9 ? unit(L.fp.a) : null;
   const snap = outdoor ? nearestWall(pieces, L.x, L.y, where === "none" ? 2.5 : 1.5, true, align) : null;
   const onGround = fl.elev <= (ctx.ground || 0) + 0.5;
-  const P = { where, bulbs: [], housings: [], halos: [], pool: null, poolAt: [L.x, L.y], poolH: 0.014, kf: 1, wall: null };
+  const P = { kind, where, bulbs: [], housings: [], halos: [], washes: [], pools: [], picks: [], poolH: 0.014, kf: 1, wall: null, spin: null };
   // Nothing out there to light, unless it is the ground (just above the
   // ground plane, which lies under the lowest slab).
   if (where === "none") P.poolH = onGround ? (ctx.ground || 0) - SLAB_T - 0.008 - fl.elev : null;
-  const bulb = (prim, x, y, h, sx, sy, sz, yaw = 0, off = OFF.white) => P.bulbs.push({ prim, x, y, h, sx, sy, sz, yaw, off });
+  const bulb = (prim, x, y, h, sx, sy, sz, yaw = 0, off = OFF.white, more = null) => P.bulbs.push({ prim, x, y, h, sx, sy, sz, yaw, off, ...more });
   const house = (x, y, h, sx, sy, sz, yaw, col) => P.housings.push({ x, y, h, sx, sy, sz, yaw, col });
   const halo = (x, y, h, cls) => P.halos.push({ x, y, h, cls });
-  const along = (x, y, h, dir, len, every, cls) => {
-    const n = Math.max(1, Math.round(len / every));
-    for (let i = 0; i < n; i++) { const t = ((i + 0.5) / n - 0.5) * len; halo(x + dir[0] * t, y + dir[1] * t, h, cls); }
+  const pool = (at, shape) => P.pools.push({ at, ...shape });
+  const wash = (x, y, h, a, b, tex, more = null) => P.washes.push({ x, y, h, a, b, tex, fixed: false, wall: null, ...more });
+  // A run: pressed anywhere along it.
+  const along = (x, y, h, dir, len) => {
+    const n = Math.max(1, Math.round(len / 0.6));
+    for (let i = 0; i < n; i++) { const t = ((i + 0.5) / n - 0.5) * len; P.picks.push({ x: x + dir[0] * t, y: y + dir[1] * t, h }); }
   };
+  // Light down (span > 0) or up a wall face, from a line on it.
+  const wallWash = (w, cx, cy, h, dir, len, span, tex = "fade", more = null) =>
+    wash(cx + w.n[0] * 0.006, cy + w.n[1] * 0.006, h, [dir[0] * len / 2, 0, dir[1] * len / 2], [0, -span, 0], tex, { wall: w.pc, ...more });
   const { x, y, fp } = L;
-  const at = (kind) => mountHeight(kind, ceil);
-  switch (L.kind) {
+  const at = (k) => mountHeight(k, ceil);
+  // How wide a light's pool is, from how high it hangs.
+  const poolR = (h, k = 0.38) => ring(clamp(h * k, 0.55, 1.6));
+  switch (kind) {
     case "pot": {
       if (where === "none" && snap && !snap.rail) {          // soffit pots: a row just outside the wall, under the eave
         const len = fp ? fp.la : 0, n = clamp(Math.round(len / 1.25), 1, 6);
         for (let i = 0; i < n; i++) {
           const t = ((i + 0.5) / n - 0.5) * len, px = snap.x + snap.dir[0] * t + snap.n[0] * 0.35, py = snap.y + snap.dir[1] * t + snap.n[1] * 0.35;
-          bulb("puck", px, py, at("pot"), 0.075, 0.024, 0.075); halo(px, py, ceil - 0.07, "m");
+          bulb("puck", px, py, at("pot"), 0.075, 0.024, 0.075); halo(px, py, ceil - 0.05, "s");
+          pool([px + snap.n[0] * 0.4, py + snap.n[1] * 0.4], ring(0.9));
         }
-        P.pool = { a: [snap.dir[0] * (len / 2 + 0.6), snap.dir[1] * (len / 2 + 0.6)], b: [snap.n[0] * 0.9, snap.n[1] * 0.9] };
-        P.poolAt = [snap.x + snap.n[0] * 0.6, snap.y + snap.n[1] * 0.6];
       } else {
         const h = outdoor ? 0.015 : at("pot");               // decks and patios have no ceiling: set into the floor
-        for (const [dx, dy] of grid(fp, 1.25, 5)) { bulb("puck", x + dx, y + dy, h, 0.075, 0.024, 0.075); halo(x + dx, y + dy, outdoor ? 0.07 : h - 0.06, "m"); }
-        P.pool = fp ? growPara(fp, 0.55) : ring(1.15);
+        for (const [dx, dy] of grid(fp, 1.25, 5)) {
+          bulb("puck", x + dx, y + dy, h, 0.075, 0.024, 0.075); halo(x + dx, y + dy, outdoor ? 0.05 : h - 0.04, "s");
+          pool([x + dx, y + dy], outdoor ? ring(0.5) : poolR(h));
+        }
       }
       P.kf = 1.25;
       break;
     }
-    case "strip": case "track": case "tube": {
-      let dir, len = 0, cx = x, cy = y, h;
-      if (fp && fp.la >= 0.5) { dir = unit(fp.a); len = fp.la; }
-      else {
-        const w = nearestWall(pieces, x, y, 1.2);
-        dir = w ? w.dir : unit(isoToPlan(Math.cos(L.rot * Math.PI / 180), Math.sin(L.rot * Math.PI / 180)));
+    case "pot_ring": {                                       // pots round the room, each its own; no bar between them
+      const deck = room.outdoor || fl.outdoor;
+      const want = deck ? 0.25 : L.marginM !== null && L.marginM >= 0.3 ? Math.min(L.marginM, 1.2) : 0.6;
+      const loop = offsetPolygonInward(room.pts, Math.min(want, room.spot.r * 0.85));
+      const h = deck ? 0.012 : at("pot_ring");
+      for (const [px, py] of ringSpots(loop, deck ? 1.3 : 1.35)) {
+        bulb("puck", px, py, h, deck ? 0.05 : 0.07, 0.022, deck ? 0.05 : 0.07);
+        halo(px, py, deck ? 0.05 : h - 0.04, "s");
+        pool([px, py], deck ? ring(0.5) : poolR(h));
+        // A pot near a wall: a soft scallop of light down it.
+        const w = deck ? null : nearestWall(pieces, px, py, 0.7);
+        if (w) wallWash(w, w.x, w.y, ceil - 0.01, w.dir, 0.8, 1.2, "scallop");
       }
-      if (L.kind === "tube") len = len ? clamp(len, 0.6, 2.4) : 1.2;
-      else len = Math.max(len, L.kind === "track" ? 1.5 : 0.6);
-      if (!outdoor) {
-        h = at(L.kind);
-        const w = L.kind === "strip" ? nearestWall(pieces, x, y, 1.2, false, align) : null;   // a valance or cove runs along its wall
-        if (w) { dir = w.dir; cx = w.x; cy = w.y; P.wall = w.pc; }
-      } else if (snap) {                                       // along the deck rail, or the outside of the wall
-        dir = snap.dir; cx = snap.x; cy = snap.y;
-        if (!snap.rail) P.wall = snap.pc;
-        h = snap.rail ? RAIL_H + 0.03 : where === "none" ? ceil - 0.15 : 2.2;
-      } else h = 0.05;                                         // nothing to hang it on: a ground strip
-      const yaw = yawOf(dir);
-      if (L.kind === "track" && !outdoor) {
-        house(cx, cy, ceil - 0.02, len, 0.03, 0.04, yaw, "#2f343a");
-        const n = Math.max(2, Math.round(len / 0.6));
-        for (let i = 0; i < n; i++) { const t = ((i + 0.5) / n - 0.5) * len; bulb("sphere", cx + dir[0] * t, cy + dir[1] * t, h, 0.045, 0.045, 0.045); halo(cx + dir[0] * t, cy + dir[1] * t, h - 0.04, "m"); }
-      } else if (L.kind === "tube") {
-        bulb("box", cx, cy, h, len, 0.05, 0.16, yaw);
-        along(cx, cy, h - 0.04, dir, len, 0.4, "m");
-      } else {
-        bulb("box", cx, cy, h, len, 0.035, 0.035, yaw, OFF.strip);
-        along(cx, cy, h, dir, len, 0.38, "m");
-        P.kf = 0.8;
-      }
-      P.pool = { a: [dir[0] * (len / 2 + 0.5), dir[1] * (len / 2 + 0.5)], b: [-dir[1] * 0.8, dir[0] * 0.8] };
-      P.poolAt = [cx, cy];
+      P.kf = deck ? 0.6 : 1.25;
       break;
     }
-    case "perimeter": {                                        // a cove round the whole room, in from the walls
-      const r = room && !room.outdoor ? room : null;
-      if (!r) { bulb("box", x, y, at("strip"), 0.6, 0.035, 0.035, 0, OFF.strip); halo(x, y, at("strip"), "m"); P.pool = ring(1.2); P.kf = 0.8; break; }
-      // Never more than most of the room's half-width (its label spot's
-      // clearance), so a big margin cannot fold the loop back on itself.
-      const loop = offsetPolygonInward(r.pts, Math.min(L.marginM === null ? 0.15 : L.marginM, r.spot.r * 0.85));
-      const h = at("perimeter");
+    case "cove": {                                           // tape hidden at the top of the walls: no bulbs, no dots
+      const deck = room.outdoor || fl.outdoor;               // on a deck: along its edge, at floor level
+      const loop = offsetPolygonInward(room.pts, deck ? 0.12 : 0.02);
+      const h = deck ? 0.03 : ceil - 0.012;
       for (let i = 0; i < loop.length; i++) {
         const a = loop[i], b = loop[(i + 1) % loop.length], len = dist(a, b);
         if (len < 0.05) continue;
         const d = unit([b[0] - a[0], b[1] - a[1]]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-        bulb("box", mx, my, h, len, 0.035, 0.035, yawOf(d), OFF.strip);
-        along(mx, my, h, d, len, 0.6, "m");
+        const w = deck ? null : nearestWall(pieces, mx, my, 0.5);
+        bulb("box", mx, my, h, len, 0.018, 0.018, yawOf(d), OFF.strip, { hideOff: true, wall: w ? w.pc : null });
+        if (deck) {                                          // a glow on the deck, inward
+          const n = perp(d), into = inPoly(mx + n[0] * 0.3, my + n[1] * 0.3, room.pts) ? n : [-n[0], -n[1]];
+          wash(mx, my, 0.016, [d[0] * len / 2, 0, d[1] * len / 2], [into[0] * 0.55, 0, into[1] * 0.55], "fade", { fixed: true });
+        } else wash(mx, my, ceil - 0.006, [d[0] * len / 2, 0, d[1] * len / 2], [0, -0.45, 0], "fade", { wall: w ? w.pc : null });
+        along(mx, my, h, d, len);
       }
-      P.pool = ring(Math.min(3, Math.max(1.2, r.spot.r * 1.6))); P.poolAt = [r.spot.x, r.spot.y];
+      if (!deck) pool([room.spot.x, room.spot.y], ring(Math.min(3, Math.max(1.2, room.spot.r * 1.6))));
       P.kf = 0.8;
+      break;
+    }
+    case "strip": case "valance": case "undercab": case "kick": case "tv": {
+      let dir = fp && fp.la >= 0.4 ? unit(fp.a) : null, len = fp && fp.la >= 0.4 ? fp.la : kind === "tv" ? 1.0 : 0.6;
+      let cx = x, cy = y, h, n = null, w = null;
+      if (!outdoor) {
+        // On the wall of its room it runs along, however far: never mid-room.
+        w = roomWall(pieces, room, x, y, dir);
+        h = at(kind);
+      } else if (snap) {                                       // along the deck rail, or the outside of the wall
+        w = snap;
+        h = kind === "kick" ? 0.1 : snap.rail ? RAIL_H + 0.03 : where === "none" ? ceil - 0.15 : 2.2;
+      } else h = kind === "kick" ? 0.1 : 0.05;                 // nothing to hang it on: a ground strip
+      if (w) { dir = w.dir; cx = w.x; cy = w.y; n = w.n; if (!w.rail) P.wall = w.pc; }
+      dir = dir || unit(isoToPlan(Math.cos(L.rot * Math.PI / 180), Math.sin(L.rot * Math.PI / 180)));
+      n = n || perp(dir);
+      const hideOff = kind !== "strip" && kind !== "valance";  // tape under a cabinet, at the floor, behind a TV: unseen when off
+      bulb("box", cx, cy, h, len, 0.022, 0.022, yawOf(dir), OFF.strip, { hideOff });
+      const flat = (hh, span) => wash(cx, cy, hh, [dir[0] * len / 2, 0, dir[1] * len / 2], [n[0] * span, 0, n[1] * span], "fade", { fixed: true });
+      if (w && !w.rail) {
+        if (kind === "strip" || kind === "valance") {
+          wallWash(w, cx, cy, h, dir, len, Math.min(kind === "valance" ? 1.1 : 0.9, h - 0.05));
+          if (ceil - h > 0.05) wallWash(w, cx, cy, h, dir, len, -(ceil - h - 0.01));
+        } else if (kind === "undercab") { wallWash(w, cx, cy, h, dir, len, Math.max(0.1, h - 0.9)); flat(0.91, 0.6); }
+        else if (kind === "tv") wash(cx + n[0] * 0.006, cy + n[1] * 0.006, h - 0.5, [dir[0] * (len / 2 + 0.4), 0, dir[1] * (len / 2 + 0.4)], [0, 1.0, 0], "round", { wall: w.pc });
+      }
+      if (kind === "kick") flat(0.016, 0.6);
+      else if (kind === "strip" || kind === "valance" || (w && w.rail) || !w) {
+        pool([cx + n[0] * 0.5, cy + n[1] * 0.5], { a: [dir[0] * (len / 2 + 0.4), dir[1] * (len / 2 + 0.4)], b: [n[0] * 0.8, n[1] * 0.8] });
+      }
+      along(cx, cy, h, dir, len);
+      P.kf = { strip: 0.8, valance: 0.8, undercab: 0.45, kick: 0.3, tv: 0.35 }[kind];
+      break;
+    }
+    case "track": {                                          // a dark rail, small heads, each aimed into the room
+      const dir = fp && fp.la >= 0.5 ? unit(fp.a) : unit(isoToPlan(Math.cos(L.rot * Math.PI / 180), Math.sin(L.rot * Math.PI / 180)));
+      const len = Math.max(fp ? fp.la : 0, 1.5), h = outdoor ? 2.2 : at("track"), top = outdoor ? 2.3 : ceil - 0.02;
+      house(x, y, top, len, 0.03, 0.04, yawOf(dir), "#2f343a");
+      const n = Math.max(2, Math.round(len / 0.6));
+      for (let i = 0; i < n; i++) {
+        const t = ((i + 0.5) / n - 0.5) * len, hx = x + dir[0] * t, hy = y + dir[1] * t;
+        bulb("dome", hx, hy, h, 0.035, 0.08, 0.035, 0, OFF.body);
+        halo(hx, hy, h - 0.08, "s");
+        const to = room ? [room.spot.x - hx, room.spot.y - hy] : [0, 0], d = Math.hypot(to[0], to[1]);
+        const aim = d > 0.3 ? unit(to) : null, reach = aim ? Math.min(0.9, d) : 0;
+        pool([hx + (aim ? aim[0] * reach : 0), hy + (aim ? aim[1] * reach : 0)],
+          aim ? { a: [aim[0] * 0.6, aim[1] * 0.6], b: [-aim[1] * 0.42, aim[0] * 0.42] } : ring(0.5));
+      }
+      P.kf = 0.9;
+      break;
+    }
+    case "tube": {                                           // a long box, a white underside; in a garage, hung on chains
+      const dir = fp && fp.la >= 0.5 ? unit(fp.a) : unit(isoToPlan(Math.cos(L.rot * Math.PI / 180), Math.sin(L.rot * Math.PI / 180)));
+      const len = fp ? clamp(fp.la, 0.6, 2.4) : 1.2, yaw = yawOf(dir);
+      const hung = !outdoor && room && GARAGE.test(room.name), h = outdoor ? 2.3 : hung ? ceil - 0.3 : at("tube");
+      house(x, y, h + 0.035, len, 0.07, 0.14, yaw, "#9aa1a8");
+      if (hung) for (const s of [-0.35, 0.35]) house(x + dir[0] * len * s, y + dir[1] * len * s, ceil - 0.15, 0.01, 0.3, 0.01, 0, "#5b6168");
+      bulb("box", x, y, h - 0.006, len * 0.97, 0.012, 0.11, yaw, OFF.diffuser);
+      pool([x, y], { a: [dir[0] * (len / 2 + 0.6), dir[1] * (len / 2 + 0.6)], b: [-dir[1] * 1.1, dir[0] * 1.1] });
+      along(x, y, h, dir, len);
       break;
     }
     case "fan": {
@@ -696,21 +896,23 @@ export function fixtureParts(L, ctx){
       const yaw0 = fp ? yawOf(fp.a) : 0;
       house(x, y, ceil - 0.12, 0.03, 0.24, 0.03, 0, "#e7e3dc");                          // downrod
       house(x, y, ceil - 0.3, 0.22, 0.12, 0.22, yaw0, "#e7e3dc");                       // motor
-      const bl = span / 2 - 0.11;
+      const bl = span / 2 - 0.11, r = 0.11 + bl / 2, blades = [];
       for (let k = 0; k < 4; k++) {
-        const a = -yaw0 + k * Math.PI / 2, d = [Math.cos(a), Math.sin(a)], r = 0.11 + bl / 2;
+        const a = -yaw0 + k * Math.PI / 2, d = [Math.cos(a), Math.sin(a)];
+        blades.push({ i: P.housings.length, a, r });
         house(x + d[0] * r, y + d[1] * r, ceil - 0.31, bl, 0.012, 0.13, yawOf(d), "#a88560");
       }
+      P.spin = { x, y, blades };
       bulb("dome", x, y, at("fan"), 0.11, 0.09, 0.11);
-      halo(x, y, at("fan") - 0.06, "l");
-      P.pool = ring(1.8);
+      halo(x, y, at("fan") - 0.06, "m");
+      pool([x, y], poolR(at("fan"), 0.6));
       break;
     }
     case "pendant": {
       house(x, y, ceil - 0.3, 0.012, 0.6, 0.012, 0, "#2f343a");
       bulb("dome", x, y, at("pendant"), 0.2, 0.16, 0.2);
-      halo(x, y, at("pendant") - 0.12, "l");
-      P.pool = ring(1.6);
+      halo(x, y, at("pendant") - 0.12, "m");
+      pool([x, y], ring(1.2));
       break;
     }
     case "chandelier": {
@@ -719,69 +921,118 @@ export function fixtureParts(L, ctx){
       bulb("sphere", x, y, h, 0.07, 0.07, 0.07);
       for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; bulb("sphere", x + Math.cos(a) * 0.32, y + Math.sin(a) * 0.32, h - 0.05, 0.045, 0.06, 0.045); }
       halo(x, y, h - 0.05, "l");
-      P.pool = ring(2.2);
+      pool([x, y], ring(2.2));
       break;
     }
-    case "sconce": {
-      const w = nearestWall(pieces, x, y, 1.5);
-      const px = w ? w.x : x, py = w ? w.y : y, h = at("sconce");
+    case "sconce": case "vanity": {                          // a plate on the wall, light fanning up and down it
+      const w = room && !outdoor ? roomWall(pieces, room, x, y) : nearestWall(pieces, x, y, 1.5);
+      const px = w ? w.x : x, py = w ? w.y : y, h = at(kind), dir = w ? w.dir : [1, 0];
       if (w) P.wall = w.pc;
-      bulb("sphere", px, py, h, 0.09, 0.13, 0.09, w ? yawOf(w.dir) : 0);
-      halo(px, py, h, "m");
-      P.pool = ring(1.3); P.poolAt = [px, py];
+      if (kind === "vanity") bulb("box", px, py, h, 0.6, 0.08, 0.06, yawOf(dir));
+      else bulb("sphere", px, py, h, 0.09, 0.13, 0.05, yawOf(dir));
+      halo(px, py, h, "s");
+      if (w) {
+        wallWash(w, px, py, h, dir, kind === "vanity" ? 0.9 : 0.6, kind === "vanity" ? 1.0 : 0.7, "scallop");
+        if (kind === "sconce") wallWash(w, px, py, h, dir, 0.6, -Math.min(0.7, ceil - h - 0.01), "scallop");
+      }
+      pool(w ? [px + w.n[0] * 0.5, py + w.n[1] * 0.5] : [px, py], ring(kind === "vanity" ? 0.9 : 1.0));
       break;
     }
     case "spot": {
-      const h = outdoor ? 0.3 : at("spot");
-      bulb("dome", x, y, h, 0.08, 0.1, 0.08);
-      halo(x, y, h - 0.1, "m");
-      P.pool = ring(1.1);
+      if (outdoor && snap && !snap.rail) {                   // on the outside wall, aimed out
+        const h = where === "none" ? Math.min(2.5, ceil - 0.1) : 2.5;
+        P.wall = snap.pc;
+        bulb("dome", snap.x, snap.y, h, 0.06, 0.09, 0.06, yawOf(snap.dir), OFF.body);
+        halo(snap.x, snap.y, h - 0.09, "s");
+        pool([snap.x + snap.n[0] * 2.5, snap.y + snap.n[1] * 2.5], { a: [snap.n[0] * 1.6, snap.n[1] * 1.6], b: [snap.dir[0] * 1.1, snap.dir[1] * 1.1] });
+      } else {
+        const h = outdoor ? 0.3 : at("spot");
+        bulb("dome", x, y, h, 0.06, 0.09, 0.06, 0, OFF.body);
+        halo(x, y, h - 0.1, "s");
+        pool([x, y], ring(0.9));
+      }
       break;
     }
-    case "led": {   // an indicator or a screen's backlight: on the nearest wall, else on a small stand
-      const w = nearestWall(pieces, x, y, 1.6), h = at("led");
-      if (w) {
-        P.wall = w.pc;
-        bulb("box", w.x, w.y, h, 0.17, 0.11, 0.016, yawOf(w.dir), OFF.screen);
-        halo(w.x + w.n[0] * 0.04, w.y + w.n[1] * 0.04, h, "s");
-      } else {
-        house(x, y, 0.45, 0.02, 0.9, 0.02, 0, "#3a4047");
-        bulb("sphere", x, y, 0.93, 0.035, 0.035, 0.035, 0, OFF.screen);
-        halo(x, y, 0.93, "s");
-      }
+    case "led": {   // a status light on a device: a pin-head dot, only while lit; it lights nothing
+      const w = nearestWall(pieces, x, y, 0.6), h = at("led");
+      if (w) P.wall = w.pc;
+      bulb("sphere", w ? w.x : x, w ? w.y : y, h, 0.022, 0.022, 0.022, 0, OFF.screen, { hideOff: true });
+      halo(w ? w.x : x, w ? w.y : y, h, "s");
       P.kf = 0;
       break;
     }
-    default: {   // "fixture": the Atlas's default hexagon
+    case "lamp": {  // a glowing body standing on a stand, a small pool round it
+      const h = at("lamp");
+      house(x, y, 0.01, 0.22, 0.02, 0.22, 0, OFF.body);
+      house(x, y, h / 2, 0.025, h, 0.025, 0, OFF.body);
+      bulb("puck", x, y, h + 0.13, 0.13, 0.26, 0.13, 0, OFF.body);
+      halo(x, y, h + 0.13, "s");
+      pool([x, y], ring(1.1));
+      P.kf = 0.6;
+      break;
+    }
+    case "panel": { // a flat panel on its wall, its face glowing
+      const w = room && !outdoor ? roomWall(pieces, room, x, y) : nearestWall(pieces, x, y, 1.6);
+      const wide = fp ? clamp(fp.la, 0.3, 2) : 0.5, h = at("panel");
+      if (w) {
+        P.wall = w.pc;
+        bulb("box", w.x, w.y, h, wide, 0.32, 0.025, yawOf(w.dir), OFF.screen);
+        wash(w.x + w.n[0] * 0.008, w.y + w.n[1] * 0.008, h - 0.45, [w.dir[0] * (wide / 2 + 0.35), 0, w.dir[1] * (wide / 2 + 0.35)], [0, 0.9, 0], "round", { wall: w.pc });
+      } else {
+        house(x, y, 0.5, 0.025, 1.0, 0.025, 0, OFF.body);
+        bulb("box", x, y, 1.15, wide, 0.32, 0.025, 0, OFF.screen);
+        halo(x, y, 1.15, "s");
+      }
+      P.kf = 0.25;
+      break;
+    }
+    case "accent": {  // a few LEDs in an object: a small puck that glows, lighting nothing else
+      bulb("puck", x, y, at("accent"), 0.05, 0.03, 0.05, 0, OFF.body);
+      halo(x, y, at("accent"), "s");
+      P.kf = 0;
+      break;
+    }
+    case "glow": {  // not sure what it is: a small plain point and its pool, nothing invented
+      const h = where === "in" ? at("glow") : where === "out" ? 2.0 : Math.min(2.2, ceil - 0.1);
+      bulb("sphere", x, y, h, 0.035, 0.035, 0.035);
+      halo(x, y, h, "s");
+      pool([x, y], fp ? growPara(fp, 0.35) : poolR(h, 0.45));
+      P.kf = 0.9;
+      break;
+    }
+    default: {   // "fixture": a ceiling light the person or its name says it is
       if (outdoor) {
         const long = fp && fp.la >= 0.9 && fp.la / Math.max(fp.lb, 0.05) >= 3.2;
         if (snap && !snap.rail) {                            // on the outside of the wall: a porch light, or a bar under the eave
           const hh = long ? (where === "none" ? ceil - 0.15 : 2.2) : 2.0;
           P.wall = snap.pc;
-          if (long) { bulb("box", snap.x, snap.y, hh, fp.la, 0.05, 0.06, yawOf(snap.dir)); along(snap.x, snap.y, hh, snap.dir, fp.la, 0.45, "m"); }
-          else { bulb("sphere", snap.x, snap.y, hh, 0.08, 0.11, 0.08, yawOf(snap.dir)); halo(snap.x, snap.y, hh, "m"); }
-          P.pool = long ? { a: [snap.dir[0] * (fp.la / 2 + 0.5), snap.dir[1] * (fp.la / 2 + 0.5)], b: [snap.n[0] * 1.0, snap.n[1] * 1.0] } : ring(1.4);
-          P.poolAt = [snap.x + snap.n[0] * 0.5, snap.y + snap.n[1] * 0.5];
+          if (long) {
+            bulb("box", snap.x, snap.y, hh, fp.la, 0.05, 0.06, yawOf(snap.dir));
+            wallWash(snap, snap.x, snap.y, hh, snap.dir, fp.la, Math.min(1.2, hh - 0.1));
+            along(snap.x, snap.y, hh, snap.dir, fp.la);
+          } else { bulb("sphere", snap.x, snap.y, hh, 0.08, 0.11, 0.08, yawOf(snap.dir)); halo(snap.x, snap.y, hh, "m"); }
+          pool([snap.x + snap.n[0] * 0.5, snap.y + snap.n[1] * 0.5],
+            long ? { a: [snap.dir[0] * (fp.la / 2 + 0.5), snap.dir[1] * (fp.la / 2 + 0.5)], b: [snap.n[0] * 1.0, snap.n[1] * 1.0] } : ring(1.4));
         } else if (snap) {                                   // a post light on the deck rail
           house(snap.x, snap.y, RAIL_H + 0.12, 0.05, 0.24, 0.05, 0, "#3a4047");
           bulb("sphere", snap.x, snap.y, RAIL_H + 0.3, 0.07, 0.07, 0.07); halo(snap.x, snap.y, RAIL_H + 0.3, "m");
-          P.pool = ring(1.4); P.poolAt = [snap.x, snap.y];
+          pool([snap.x, snap.y], ring(1.4));
         } else {                                             // free-standing: a bollard
           house(x, y, 0.3, 0.06, 0.6, 0.06, 0, "#3a4047"); bulb("sphere", x, y, 0.65, 0.07, 0.07, 0.07); halo(x, y, 0.65, "m");
-          P.pool = ring(1.4);
+          pool([x, y], ring(1.4));
         }
       } else if (fp && fp.la >= 0.9 && fp.la / Math.max(fp.lb, 0.05) >= 3.2) {   // a long fixture: a linear bar
         const dir = unit(fp.a);
         bulb("box", x, y, ceil - 0.03, fp.la, 0.05, clamp(fp.lb, 0.08, 0.3), yawOf(dir));
-        along(x, y, ceil - 0.08, dir, fp.la, 0.45, "m");
-        P.pool = growPara(fp, 0.55);
+        along(x, y, ceil - 0.03, dir, fp.la);
+        pool([x, y], growPara(fp, 0.55));
       } else if (fp && fp.lb >= 0.9) {                                           // an area: a few fixtures across it
-        for (const [dx, dy] of grid(fp, 2.0, 3)) { bulb("dome", x + dx, y + dy, at("fixture"), 0.15, 0.08, 0.15); halo(x + dx, y + dy, ceil - 0.12, "l"); }
-        P.pool = growPara(fp, 0.55);
+        for (const [dx, dy] of grid(fp, 2.0, 3)) { bulb("dome", x + dx, y + dy, at("fixture"), 0.15, 0.08, 0.15); halo(x + dx, y + dy, ceil - 0.12, "m"); }
+        pool([x, y], growPara(fp, 0.55));
       } else {
         bulb("dome", x, y, at("fixture"), 0.16, 0.09, 0.16);
-        halo(x, y, ceil - 0.12, "l");
-        P.pool = ring(1.8);
+        halo(x, y, ceil - 0.12, "m");
+        pool([x, y], poolR(ceil, 0.65));
       }
     }
   }
@@ -1126,7 +1377,7 @@ export function floorBadges(model, floorList, house){
  *  state); hidden: the Atlas's hidden lights (a Set). Per floor: its rooms
  *  and its wall pieces, barriers spliced in (a linked one as an opening of
  *  its sensor's kind). */
-export function readHouse(model, floorList, lightsByEid, hidden){
+export function readHouse(model, floorList, lightsByEid, hidden, overrides){
   const F = readFloors(model, floorList);
   const rooms = readRooms(model, F);
   const barriers = Array.isArray(model && model.rf_barriers_m) ? model.rf_barriers_m : [];
@@ -1138,7 +1389,7 @@ export function readHouse(model, floorList, lightsByEid, hidden){
     perFloor.set(fl, { rooms: mine, pieces });
   }
   return { floors: F.floors, byId: F.byId, canon: F.canon, ground: F.ground, rooms, perFloor,
-           lights: readLights(model, F, lightsByEid, hidden), sensors: readSensors(model, F, lightsByEid, hidden) };
+           lights: readLights(model, F, lightsByEid, hidden, overrides), sensors: readSensors(model, F, lightsByEid, hidden) };
 }
 
 /** A reading's walls to cut into: each floor's pieces copied, so what is
@@ -1163,15 +1414,16 @@ export function shellSignature(model, floorList, lightsByEid){
     m.room_meta || {}, m.rf_barriers_m || [], linked]);
 }
 /** What the fixtures are drawn from — which lights, where, how big, their
- *  shapes — but not their state, which is painted on every poll instead. */
-export function lightsSignature(model, lightsByEid, hidden){
+ *  shapes and the shapes the person set — but not their state, which is
+ *  painted on every poll instead. */
+export function lightsSignature(model, lightsByEid, hidden, overrides){
   const pos = (model && model.light_positions_m) || {};
   const rows = [];
   for (const eid of Object.keys(pos).sort()) {
     const l = lightsByEid && lightsByEid[eid];
     if (!isFixture(l) || (hidden && typeof hidden.has === "function" && hidden.has(eid))) continue;
     const p = pos[eid] || {};
-    rows.push([eid, p.x_m, p.y_m, p.floor_id, p.width_cm, p.height_cm, p.rotation, p.margin_cm, l.shape]);
+    rows.push([eid, p.x_m, p.y_m, p.floor_id, p.width_cm, p.height_cm, p.rotation, p.margin_cm, l.shape, (overrides && overrides[eid]) || null]);
   }
   return JSON.stringify(rows);
 }
