@@ -88,7 +88,9 @@ const ws = [], tops = [];
 const callWS = async (msg) => { ws.push(clone(msg)); return msg.type === "config/entity_registry/get" ? { id: "0123456789abcdef0123456789abcdef" } : {}; };
 const states = { "media_player.lounge_tv": { entity_id: "media_player.lounge_tv", state: "off", attributes: { friendly_name: "Lounge TV" } },
                  "light.den": { entity_id: "light.den", state: "on", attributes: { friendly_name: "Den light" } },
-                 "sensor.den_temp": { entity_id: "sensor.den_temp", state: "21", attributes: { friendly_name: "Den temperature" } } };
+                 "sensor.den_temp": { entity_id: "sensor.den_temp", state: "21", attributes: { friendly_name: "Den temperature" } },
+                 "sensor.washer_power": { entity_id: "sensor.washer_power", state: "350", attributes: { friendly_name: "Washer power", unit_of_measurement: "W" } },
+                 "binary_sensor.washer_running": { entity_id: "binary_sensor.washer_running", state: "on", attributes: { friendly_name: "Washer running" } } };
 
 // ── the view, as Mapping → Furnish mounts it ────────────────────────────────
 const slot = LA.liveAboardSlot("furnish-harness");
@@ -322,6 +324,23 @@ await tryCase("survive: card rebuilds mid-edit keep the draft, the pick and the 
   const after = { draft: clone(ed().draft), sel: fur().sel, cam: clone(st().cam), dirty: ed().dirty };
   check("survive: card rebuilds mid-edit keep the draft, the pick and the camera",
     before.dirty && JSON.stringify(before) === JSON.stringify(after) && ed().editing && ed().tool === "furnish", { before, after });
+});
+
+// A washer tells whether it runs through a sensor (its power, a running
+// state): "This is a device…" offers those for it, and not for a sofa.
+await tryCase("device: a washer can be linked to the sensor that says it runs", async () => {
+  if (!FURN) { check("device: a washer can be linked to the sensor that says it runs", true); return; }
+  click("Build ▾", "la3d-tools");
+  click("Washer", "la3d-furmenu");
+  await settle();
+  const washer = fur().sel;
+  click("This is a device…", "la3d-sheet"); await settle();
+  const list = root().querySelectorAll(".la3d-ents")[0].querySelectorAll("button").map(b => b.textContent);
+  click("Cancel", "la3d-sheet"); await settle();
+  click("Undo", "la3d-tools"); await settle();
+  check("device: a washer can be linked to the sensor that says it runs",
+    draftPieces()[washer] === undefined && list.some(t => /Washer power/.test(t)) && list.some(t => /Washer running/.test(t)),
+    { washer, list });
 });
 
 console.log(JSON.stringify({ cases, failures, payloads }));

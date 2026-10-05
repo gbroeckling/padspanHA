@@ -38,6 +38,9 @@ const FLOWS = [["photo", "From a photo", "live_aboard_photo.js", "photoFlow"],
 // What "This is a device…" offers: what a piece of furniture can be.
 const DEVICE_DOMAINS = ["light", "media_player", "fan", "switch", "vacuum", "lawn_mower", "climate", "water_heater",
                         "humidifier", "cover", "remote", "valve", "lock", "camera", "input_boolean"];
+// A washer, dryer, car or charger often says it runs or charges only through
+// a sensor (its power, a running or charging state): those are offered too.
+const SENSOR_LIVE = ["run", "charge"], SENSOR_DOMAINS = ["sensor", "binary_sensor"];
 
 const CSS = `
 .la3d-furbar{display:contents}
@@ -634,9 +637,11 @@ export function createFurnish(ctx){
   }
   function deviceList(query){
     const host = ctx.host() || {}, states = host.states || {}, s = String(query || "").trim().toLowerCase();
+    const p = sel && pieceOf(sel), F = FURN(), def = p && F && F.FURNITURE ? F.FURNITURE[p.recipe.kind] : null;
+    const doms = def && SENSOR_LIVE.includes(def.live) ? DEVICE_DOMAINS.concat(SENSOR_DOMAINS) : DEVICE_DOMAINS;
     const out = [];
     for (const eid of Object.keys(states)) {
-      if (!DEVICE_DOMAINS.includes(eid.split(".")[0])) continue;
+      if (!doms.includes(eid.split(".")[0])) continue;
       const name = (states[eid].attributes && states[eid].attributes.friendly_name) || eid;
       if (s && !name.toLowerCase().includes(s) && !eid.includes(s)) continue;
       out.push({ eid, name });
