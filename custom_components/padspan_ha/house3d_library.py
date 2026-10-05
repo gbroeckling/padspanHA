@@ -371,21 +371,23 @@ async def post(hass: HomeAssistant, body: dict[str, Any]) -> dict[str, Any]:
         raise LibraryError("invalid", "That piece is too big to share (over 8 KB).")
     status, reply = 0, None
     try:
-        import aiohttp  # noqa: PLC0415
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
         session = async_get_clientsession(hass)
-        async with session.post(LIBRARY_URL, data=data, headers={"Content-Type": "application/json"},
-                                timeout=aiohttp.ClientTimeout(total=TIMEOUT_S)) as resp:
-            status = int(resp.status)
-            raw = bytearray()
-            async for chunk in resp.content.iter_chunked(65536):
-                raw += chunk
-                if len(raw) > MAX_ANSWER:
-                    raise ValueError("answer too long")
-            try:
-                reply = json.loads(bytes(raw).decode("utf-8"))
-            except ValueError:
-                reply = None
+        # asyncio's own timeout round the whole exchange (no aiohttp import
+        # needed here: the stubbed test suite has no aiohttp, and failing to
+        # import it read as "the library is unreachable").
+        async with asyncio.timeout(TIMEOUT_S):
+            async with session.post(LIBRARY_URL, data=data, headers={"Content-Type": "application/json"}) as resp:
+                status = int(resp.status)
+                raw = bytearray()
+                async for chunk in resp.content.iter_chunked(65536):
+                    raw += chunk
+                    if len(raw) > MAX_ANSWER:
+                        raise ValueError("answer too long")
+                try:
+                    reply = json.loads(bytes(raw).decode("utf-8"))
+                except ValueError:
+                    reply = None
     except Exception as err:  # noqa: BLE001
         _LOGGER.debug("Furniture library unreachable: %s", err)
         raise Unreachable("unreachable", "Can't reach the shared library right now.") from None

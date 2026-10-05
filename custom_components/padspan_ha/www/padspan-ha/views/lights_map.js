@@ -1009,6 +1009,10 @@ export function wireUseSurface(isoDiv, api){
           // An exact device starts from its own brightness, or its look's.
           dragBri = ex ? (_exactBrightness(api.hass && api.hass.states, ex) ?? ex.lookBri ?? 128)
             : typeof st?.attributes?.brightness === "number" ? st.attributes.brightness : (lastBrightness(eid) || 128);
+          // A new dim answers at once: the 180 ms spacing is within one
+          // press, as in Live Aboard (live_aboard_use.js), not carried over
+          // from the press before on the same light.
+          lastSend = 0;
           if (ring) { ring.remove(); ring = null; }
           readout = document.createElement("div");
           readout.style.cssText = "position:fixed;z-index:10001;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:800;"
