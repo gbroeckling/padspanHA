@@ -231,6 +231,26 @@ await tryCase("off: Rain and snow and the Showcase look change nothing while off
     && onMap.stage.style.display !== "none" && threeLoads().length === 0 && sent.length === 0 && fileCalls.length === 0,
     { overlay: [wxA, wxO, wxM], same: [a === o, m === a], loaded: threeLoads().length, sent: sent.length, files: fileCalls.length });
 });
+// One look (atlas_3d_look): the Atlas's look or Live Aboard's own, in a
+// Showcase theme or the plain Atlas: off, or on but showing Map, the card is
+// exactly what it was, and nothing of Live Aboard loads.
+await tryCase("off: the look choice changes nothing while off or showing Map", async () => {
+  localStorage.removeItem(PICK("atlas"));
+  const out = [];
+  for (const more of [{ showcase: true, showcaseTheme: "hygge" }, { showcase: false, showcaseTheme: "hygge" }]) {
+    const absent = card({ more }), a = ser(absent.c);
+    for (const look of ["atlas", "own", undefined]) {
+      const extra = look === undefined ? {} : { atlas_3d_look: look };
+      const off = card({ more, house3d: H3(false, "atlas", extra) });
+      const onMap = card({ more, house3d: H3(true, "atlas", extra) });
+      out.push({ look, show: more.showcase, off: ser(off.c) === a && off.svg === absent.svg,
+                 map: ser(onMap.c, isSwitch) === a && onMap.svg === absent.svg });
+    }
+  }
+  check("off: the look choice changes nothing while off or showing Map",
+    out.every(o => o.off && o.map) && threeLoads().length === 0 && sent.length === 0 && fileCalls.length === 0,
+    { out, loaded: threeLoads().length, sent: sent.length, files: fileCalls.length });
+});
 // P6: Show people and Show tags & scanners switched on, with a snapshot to
 // read: off, or on but showing Map, the card is exactly what it was, nothing
 // of Live Aboard loads and the snapshot is never read.

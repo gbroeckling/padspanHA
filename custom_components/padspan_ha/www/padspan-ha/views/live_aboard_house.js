@@ -1482,10 +1482,10 @@ export function readoutOf(l, nowMs){
 
 // ── The floor badges (part B) ───────────────────────────────────────────────
 // The flat Atlas numbers each plate of its stack with a badge in the plate's
-// colour (iso_lights.js LAYER_PAL); a tap opens that plate's floor sheet,
-// handed the plate's storey as the badge's data-z. Here: one per plate, at
-// the corner of its rooms the flat badge marks (least x, most y).
-export const LAYER_PAL = ["#52b788", "#f59e0b", "#60a5fa", "#e879f9", "#fb923c", "#34d399", "#f87171", "#a78bfa"];
+// colour (iso_lights.js LAYER_PAL, the same list); a tap opens that plate's
+// floor sheet, handed the plate's storey as the badge's data-z. Here: one per
+// plate, at the corner of its rooms the flat badge marks (least x, most y).
+export const { LAYER_PAL } = await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 export function floorBadges(model, floorList, house){
   const floors = (floorList && floorList.length ? floorList : (model && model.floors)) || [];
   const frame = fabricFrame(model || {}, floors, 150, 0);
