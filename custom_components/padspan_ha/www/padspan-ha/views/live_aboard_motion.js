@@ -65,12 +65,14 @@ export const WALL_REACH = 1.5;
 export const STEP_K = [1, 0.8, 0.66, 0.55, 0.46, 0.38, 0.32];
 /** The floor's glow, by day and by night: its fill, its soft edge band; a
  *  presence hold's flat fill and solid line; a stuck sensor's hatch. */
-export const GLOW = { fill: [0.46, 0.34], band: [0.95, 0.88], steadyFill: 0.72, steadyBand: 0.3, line: 0.95, stuck: 0.75,
+export const GLOW = { fill: [0.66, 0.55], band: [1, 1], steadyFill: 0.72, steadyBand: 0.3, line: 0.95, stuck: 0.75,
                       bandW: [0.15, 0.6], bandOf: 0.3, groundR: 2.2 };
 /** The marker's size on screen (px): lit, quiet. Its tap target is the
  *  view's own (PICK_R, 44 px across). */
 export const MARK_PX = { lit: 34, quiet: 22 };
-export const MARK_UP = 0.24;                 // the marker floats this far over its sensor (m)
+/** The marker hangs this far out from its wall into the room (m), and this
+ *  far under the ceiling at most, so a floor above never covers it. */
+export const MARK_OUT = 0.35, MARK_UNDER = 0.15;
 const QUIET_INK = "#94a3b8", NONE_INK = "#64748b", WARN = "#f59e0b", PLASTIC = "#eef2f6";
 const ACTIVE = HOUSE.motionFill({ active: true });        // the Atlas's active blue (its MOTION_PULSE)
 /** The colour key (ⓘ): the Atlas's steps, in its words. */
@@ -353,7 +355,8 @@ export function bandStrip(pts, w, y){
 /**
  * ctx = {THREE, quality() ("low" | "high"), behind(v) (is world point v
  *        behind a wall or under a floor showing, from the eye), dim(eid)
- *        (faded by the class chips)}
+ *        (faded by the class chips), dimK, floorTiles() (the floors that
+ *        show, to tell a marker under one)}
  */
 export function createMotionLayer(ctx){
   const { THREE } = ctx;
@@ -361,7 +364,19 @@ export function createMotionLayer(ctx){
   let sensors = [], patches = [], res = [], want = null, pairKey = null, halves = {}, lens = false, focusEid = null;
   let camKey = null, last = null, night = 0;
   const seen = new Map();                    // eid -> {state, last_changed} last seen, and the half's
-  const _p = new THREE.Vector3();
+  const _p = new THREE.Vector3(), _d = new THREE.Vector3(), _ray = new THREE.Raycaster();
+  /** Is world point v under a floor that shows, from camera c? A lit marker
+   *  floats over walls (it says what is happening), never through a floor. */
+  function under(v, c){
+    const tiles = ctx.floorTiles ? ctx.floorTiles() : [];
+    if (!tiles.length) return false;
+    _d.copy(v).sub(c.position);
+    const d = _d.length();
+    if (d < 0.2) return false;
+    _ray.set(c.position, _d.normalize());
+    _ray.near = 0; _ray.far = d - 0.15;
+    return _ray.intersectObjects(tiles, false).length > 0;
+  }
 
   // The marker and the hover box read the device: its own state (no reading
   // and stuck are its own), else with its occupancy half, the newer of the two.
@@ -443,6 +458,13 @@ export function createMotionLayer(ctx){
     }
     S.tex.needsUpdate = true;
   }
+  /** Where the marker hangs: out from the wall into the room, at the
+   *  sensor's height, under the ceiling. */
+  function markAt(S){
+    const out = S.ceiling ? 0 : MARK_OUT, top = S.F.fl.h - HOUSE.SLAB_T - MARK_UNDER;
+    S.at.set(S.mx + S.face[0] * out, S.F.fl.elev + Math.min(S.z, top), S.my + S.face[1] * out);
+    if (S.sprite) S.sprite.position.copy(S.at);
+  }
   // ── the floor patch: a room's, or the ground's round an outside sensor ────
   function floorPatch(F, room, list, ground){
     const y = ground !== null ? ground : F.fl.elev + 0.006;
@@ -512,7 +534,7 @@ export function createMotionLayer(ctx){
       // from the house); else a ceiling unit at its spot.
       const pieces = F.pieces.map(P => P.pc);
       const w = room ? HOUSE.roomWall(pieces, room, S0.x, S0.y) : HOUSE.nearestWall(pieces, S0.x, S0.y, WALL_REACH, true);
-      S.ceiling = !(w && (!room || w.d <= WALL_REACH));
+      S.ceiling = !(w && (!room || Math.hypot(w.x - S0.x, w.y - S0.y) <= WALL_REACH));
       if (S.ceiling) { S.mx = S0.x; S.my = S0.y; S.face = [0, 1]; }
       else { S.mx = w.x; S.my = w.y; S.face = w.n; }
       const rot = S.lp ? S.lp.rotation : null;
@@ -531,7 +553,8 @@ export function createMotionLayer(ctx){
       sp.visible = false;
       res.push(tex, sm);
       S.canvas = c; S.tex = tex; S.sprite = sp;
-      S.at = new THREE.Vector3(S.mx, F.fl.elev + S.z + MARK_UP, S.my);
+      S.at = new THREE.Vector3();
+      markAt(S);
       sp.position.copy(S.at);
       S.group.add(sp);
       F.group.add(S.group);
@@ -663,7 +686,7 @@ export function createMotionLayer(ctx){
      *  about room scale (quiet ones show only then). */
     size(c, H, room){
       const k = 2 * Math.tan((c.fov || 40) / 2 * Math.PI / 180) / Math.max(1, H);
-      const key = c.matrixWorld.elements.map(v => v.toFixed(3)).join(",") + H;
+      const key = c.matrixWorld.elements.map(v => v.toFixed(3)).join(",") + H + "|" + sensors.map(S => (shown(S) ? 1 : 0)).join("");
       const again = key !== camKey;
       camKey = key;
       for (const S of sensors) {
@@ -672,7 +695,8 @@ export function createMotionLayer(ctx){
         if (on && again) {
           _p.copy(S.at).project(c);
           S.out = !(_p.z > -1 && _p.z < 1 && Math.abs(_p.x) <= 1.05 && Math.abs(_p.y) <= 1.05);
-          S.hid = !S.out && !!(ctx.behind && ctx.behind(S.at));
+          // Quiet, it hides behind a wall as a code chip does; lit, only under a floor.
+          S.hid = !S.out && (L.wide ? under(S.at, c) : !!(ctx.behind && ctx.behind(S.at)));
         }
         on = on && !S.out && !S.hid;
         S.shownNow = on;
@@ -709,8 +733,8 @@ export function createMotionLayer(ctx){
       if (!S) return false;
       const d = z - S.z;
       S.z = z;
-      for (const o of S.group.children) o.position.y += d;
-      S.at.y += d;
+      for (const o of S.group.children) if (o !== S.sprite) o.position.y += d;
+      markAt(S);
       if (S.S0.pos && S.S0.pos.copy) S.S0.pos.copy(S.at);
       camKey = null;
       return true;
@@ -734,7 +758,7 @@ export function createMotionLayer(ctx){
         sensors: sensors.map(S => ({ eid: S.eid, model: S.model, half: S.half, ceiling: S.ceiling, room: S.room ? S.room.name : null,
           at: [S.at.x, S.at.y, S.at.z].map(v => Math.round(v * 1000) / 1000), mount: [S.mx, S.my].map(v => Math.round(v * 1000) / 1000),
           aim: S.aim.map(v => Math.round(v * 1000) / 1000), cover: S.cover, range: S.range, own: S.own, give: S.give,
-          look: S.look, shown: S.shownNow, dim: S.dim, ring: S.ringT !== null, flash: S.flashT !== null, patch: S.patch ? patches.indexOf(S.patch) : -1 })),
+          look: S.look, shown: S.shownNow, hid: !!S.hid, out: !!S.out, dim: S.dim, ring: S.ringT !== null, flash: S.flashT !== null, patch: S.patch ? patches.indexOf(S.patch) : -1 })),
         patches: patches.map(P => ({ room: P.room ? P.room.name : null, ground: P.ground, floor: P.F.fl.id, visible: P.mesh.visible,
           y: Math.round(P.mesh.geometry.attributes.position.getY(0) * 1000) / 1000,
           glow: P.glow, fill: P.u.uFill.value, hatch: P.u.uHatch.value,
