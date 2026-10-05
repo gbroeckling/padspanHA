@@ -372,7 +372,8 @@ export function createFurnish(ctx){
     await Promise.all(FLOWS.map(async ([k, , file, fn]) => {
       const m = await import(`./${file}${base}`).catch(() => null);
       mods[k] = m && typeof m[fn] === "function" ? m[fn] : null;
-      if (k === "library" && m && typeof m.shareFlow === "function") share = m.shareFlow;
+      // Share only once the shared library's server is live (live_aboard_library.js).
+      if (k === "library" && m && typeof m.shareFlow === "function" && m.LIBRARY_SERVER_LIVE !== false) share = m.shareFlow;
     }));
     for (const [k] of FLOWS) flowBtns[k].style.display = mods[k] ? "" : "none";
     return mods;

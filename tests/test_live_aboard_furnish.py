@@ -8,7 +8,11 @@ real 3D view and editor under the DOM shim, as Mapping → Furnish mounts it:
 it opens by itself at the furniture tool, Build, a drag that snaps to a wall
 and undoes in one step, Turn, Floor ▲ / ▼ with the floor chips following,
 Height in room (Garry's drop/raise), Duplicate and Delete, "This is a
-device…", a fit warning, Save, and card rebuilds mid-edit. What Save sent goes
+device…", a fit warning, Save, and card rebuilds mid-edit; and what the review
+found: the flows' own styles in Furnish's box, × ending a flow, the flows
+starting from the draft, imports under the ceiling, Build with the plan alone,
+leaving Furnish, Remove all furniture reaching an open view, and Share only
+while the library's server is live (run both ways). What Save sent goes
 through the server's own apply_edit here. The rest is held here, in the code:
 the Furnish tab only while Live Aboard shows, its modules loaded only by the
 3D view, its flows each behind import().catch, one renderer for the plan and
@@ -33,15 +37,27 @@ _VIEWS = _WWW / "views"
 _NODE = shutil.which("node")
 
 
-@pytest.fixture(scope="module")
-def furnish() -> dict:
+def _run(www: Path) -> dict:
     if _NODE is None:
         pytest.skip("node is not installed")
-    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "live_aboard_furnish.mjs"), str(_WWW)],
+    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "live_aboard_furnish.mjs"), str(www)],
                          capture_output=True, text=True, encoding="utf-8", timeout=240)
     lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
     assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
     return json.loads(lines[-1])
+
+
+@pytest.fixture(scope="module")
+def furnish() -> dict:
+    return _run(_WWW)
+
+
+@pytest.fixture(scope="module")
+def furnish_other(furnish, tmp_path_factory) -> dict:
+    """The same run on a copy of the tree with the library's LIBRARY_SERVER_LIVE
+    the other way round (tests/test_live_aboard_library.py library_tree)."""
+    from tests.test_live_aboard_library import library_tree
+    return _run(library_tree(tmp_path_factory, not furnish["live"]))
 
 
 def _js(p: Path) -> str:
@@ -53,7 +69,8 @@ def _code(p: Path) -> str:
 
 
 @pytest.mark.parametrize("prefix", ["open:", "add:", "drag:", "turn:", "floor:", "height:", "copy:", "device:", "fit:", "save:",
-                                    "survive:"])
+                                    "survive:", "share:", "flowcss:", "flowclose:", "draft:", "import:", "planbuild:", "leave:",
+                                    "cleared:"])
 def test_the_furnish_harness_covers_each_part(furnish, prefix) -> None:
     got = [k for k in furnish["cases"] if k.startswith(prefix)]
     assert got, (prefix, sorted(furnish["cases"]))
@@ -63,6 +80,15 @@ def test_the_furnish_harness_covers_each_part(furnish, prefix) -> None:
 
 def test_every_furnish_case_passes(furnish) -> None:
     assert furnish["cases"] and all(furnish["cases"].values()), json.dumps(furnish["failures"][:6], indent=2, ensure_ascii=False)
+
+
+def test_share_shows_only_while_the_library_server_is_live(furnish, furnish_other) -> None:
+    """LIBRARY_SERVER_LIVE run both ways: a piece's panel has Share… only
+    while it is true, and everything else in Furnish works the same."""
+    assert {furnish["live"], furnish_other["live"]} == {True, False}
+    for run in (furnish, furnish_other):
+        assert run["cases"] and all(run["cases"].values()), json.dumps(run["failures"][:4], indent=2, ensure_ascii=False)
+        assert any(k.startswith("share:") for k in run["cases"])
 
 
 def test_what_furnish_saved_the_server_keeps(furnish) -> None:

@@ -13,6 +13,12 @@ shareFlow (the terms first, a missing detail and a phone number refused in the
 page, the suggestion put back, a share of the recipe's keys and the sheet
 only); and the library's rows in Settings → UI Structure → Atlas → 3D house.
 
+LIBRARY_SERVER_LIVE (the module's one switch for a pre-release before the
+library's server is up) is run both ways: the harness on this tree, and on a
+copy with only that line the other way round. Live: everything above. Not
+live: no Share, no terms, no Settings rows, and Library is the starter set
+with not one call.
+
 Held here too: the page's lists and patterns are the server's and the
 install's — one set of rules in three places; the terms are marked "Draft —
 under review"; the module is only ever loaded on demand; and a share as the
@@ -38,15 +44,48 @@ _FIX = Path(__file__).parent / "fixtures" / "furniture_library"
 _NODE = shutil.which("node")
 
 
-@pytest.fixture(scope="module")
-def page() -> dict:
+_LIVE = re.compile(r"^export const LIBRARY_SERVER_LIVE = (true|false);$", re.M)
+
+
+def library_tree(tmp_path_factory, live: bool) -> Path:
+    """www/padspan-ha with LIBRARY_SERVER_LIVE as asked: this tree when it
+    already is, else a copy with only that line the other way round."""
+    src = (_VIEWS / "live_aboard_library.js").read_text(encoding="utf-8")
+    found = _LIVE.findall(src)
+    assert len(found) == 1, "one LIBRARY_SERVER_LIVE, true or false"
+    if (found[0] == "true") == live:
+        return _WWW / "padspan-ha"
+    out = tmp_path_factory.mktemp("library_live" if live else "library_prerelease") / "padspan-ha"
+    shutil.copytree(_WWW / "padspan-ha", out)
+    (out / "views" / "live_aboard_library.js").write_text(
+        _LIVE.sub(f"export const LIBRARY_SERVER_LIVE = {'true' if live else 'false'};", src), encoding="utf-8")
+    return out
+
+
+def _run(views: Path) -> dict:
     if _NODE is None:
         pytest.skip("node is not installed")
-    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "live_aboard_library.mjs"), str(_VIEWS), str(_FIX)],
+    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "live_aboard_library.mjs"), str(views), str(_FIX)],
                          capture_output=True, text=True, encoding="utf-8", timeout=240)
     lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
     assert lines, f"the harness itself failed:\n{res.stderr[-3000:]}"
     return json.loads(lines[-1])
+
+
+@pytest.fixture(scope="module")
+def page(tmp_path_factory) -> dict:
+    """The library's server live."""
+    got = _run(library_tree(tmp_path_factory, True) / "views")
+    assert got["data"]["live"] is True
+    return got
+
+
+@pytest.fixture(scope="module")
+def page_prerelease(tmp_path_factory) -> dict:
+    """Before the library's server is live (LIBRARY_SERVER_LIVE false)."""
+    got = _run(library_tree(tmp_path_factory, False) / "views")
+    assert got["data"]["live"] is False
+    return got
 
 
 def _case(p: dict, *prefixes: str) -> None:
@@ -93,6 +132,24 @@ def test_the_settings_rows(page) -> None:
     library switch (saved alone) and Withdraw my shared furniture, asked in
     the page first."""
     _case(page, "settings_")
+
+
+def test_before_the_library_server_is_live(page_prerelease) -> None:
+    """LIBRARY_SERVER_LIVE false: Library is the starter set and asks
+    nothing of anyone, even with the switch saved on; no terms, no shared
+    pieces, no Report; Share has nothing to share to; Settings shows no
+    Shared library switch and no Withdraw (Remove all furniture stays)."""
+    _case(page_prerelease, "prerelease_browse", "prerelease_share", "prerelease_settings")
+    for prefix in ("prerelease_browse", "prerelease_share", "prerelease_settings"):
+        assert any(k.startswith(prefix) for k in page_prerelease["cases"]), prefix
+    _case(page_prerelease, "starters", "freetext", "details")
+
+
+def test_a_flow_closed_from_outside_ends_as_its_own_close_does(page, page_prerelease) -> None:
+    """Furnish's × (ctx.signal): the flow resolves null and empties its box,
+    so its thumbnail renderer is let go."""
+    _case(page, "closed_outside")
+    _case(page_prerelease, "closed_outside")
 
 
 def test_the_starter_set(page) -> None:

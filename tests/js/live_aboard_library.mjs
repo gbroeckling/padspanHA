@@ -29,6 +29,11 @@ if (!VIEWS || !FIX) { console.error("usage: live_aboard_library.mjs <views-dir> 
 install(globalThis);
 
 const L = await import(pathToFileURL(join(VIEWS, "live_aboard_library.js")).href);
+// Is the shared library's server live (LIBRARY_SERVER_LIVE)? The library's
+// own cases run while it is; the pre-release ones (section 8) while it is not.
+// tests/test_live_aboard_library.py runs this on a copy of the tree with that
+// one line the other way round, so both are always run.
+const LIVE = L.LIBRARY_SERVER_LIVE === true;
 const T = await import(pathToFileURL(join(VIEWS, "live_aboard_furniture.js")).href);
 const fx = (name) => JSON.parse(readFileSync(join(FIX, name), "utf-8"));
 const cases = {}, failures = [], data = {};
@@ -172,7 +177,7 @@ const searchAnswer = (msg) => {
 };
 const searches = (calls) => calls.filter(c => c.type === "padspan_ha/house3d_library_search");
 
-{   // the library off: the starter set, and not a single library call
+if (LIVE) {   // the library off: the starter set, and not a single library call
   const { ctx, calls } = fakeCtx({ libraryOn: false });
   const p = L.libraryFlow(ctx);
   await settle();
@@ -187,7 +192,7 @@ const searches = (calls) => calls.filter(c => c.type === "padspan_ha/house3d_lib
   check("library_off", ctx.el.children.length === 0, "the flow leaves its container empty");
 }
 
-{   // the library unreachable: said plainly, and Furnish still works from the starter set
+if (LIVE) {   // the library unreachable: said plainly, and Furnish still works from the starter set
   const { ctx } = fakeCtx({ answer: () => { throw { code: "unreachable", message: "Can't reach the shared library right now." }; } });
   const p = L.libraryFlow(ctx);
   await settle();
@@ -197,7 +202,7 @@ const searches = (calls) => calls.filter(c => c.type === "padspan_ha/house3d_lib
   check("library_down", (await p) === null && ctx.el.children.length === 0);
 }
 
-{   // the library answering: every filter and the sorts reach the wire; placing counts
+if (LIVE) {   // the library answering: every filter and the sorts reach the wire; placing counts
   const { ctx, calls } = fakeCtx({ answer: searchAnswer, space: { width_m: 1.0, depth_m: 1.0 } });
   const p = L.libraryFlow(ctx);
   await settle();
@@ -277,7 +282,7 @@ const searches = (calls) => calls.filter(c => c.type === "padspan_ha/house3d_lib
   $(ctx.el, '[data-lal="close"]').click();
 }
 
-{   // only a room's name: its outline is read once, from the model, when Fits here is pressed
+if (LIVE) {   // only a room's name: its outline is read once, from the model, when Fits here is pressed
   const { ctx, calls } = fakeCtx({ room: { name: "Den" }, answer: (msg) => (msg.type === "padspan_ha/model_get"
     ? { room_geometry_m: { Den: { floor_id: "main", points_m: [[1, 1], [2.2, 1], [2.2, 2.5], [1, 2.5]] } } } : searchAnswer(msg)) });
   L.libraryFlow(ctx);
@@ -298,7 +303,7 @@ const PIECE = { id: "fur_1a2b3c4d", origin: "build", label: "Mum's old couch", f
     colors: ["#5b6b7a", "#c8b89a"], width_m: 2.1, depth_m: 0.9, height_m: 0.82, future_key: 1 } };
 const houseGet = (accepted) => ({ data: { library: accepted ? { terms_version: L.TERMS_VERSION } : {} } });
 
-{   // the library off: said, nothing sent
+if (LIVE) {   // the library off: said, nothing sent
   const { ctx, calls } = fakeCtx({ libraryOn: false });
   const p = L.shareFlow(ctx, PIECE);
   await settle();
@@ -307,7 +312,7 @@ const houseGet = (accepted) => ({ data: { library: accepted ? { terms_version: L
   check("share_off", (await p) === null);
 }
 
-{   // the terms first, then the sheet; its refusals; then a share of the recipe's keys and the sheet only
+if (LIVE) {   // the terms first, then the sheet; its refusals; then a share of the recipe's keys and the sheet only
   let shared = null;
   const { ctx, calls, toasts } = fakeCtx({ answer: (msg) => {
     if (msg.type === "padspan_ha/house3d_get") return houseGet(false);
@@ -363,7 +368,7 @@ const houseGet = (accepted) => ({ data: { library: accepted ? { terms_version: L
   data.share_message = shared;
 }
 
-{   // an AI's sheet: the person's tick is the "details checked" mark; a queued share is said
+if (LIVE) {   // an AI's sheet: the person's tick is the "details checked" mark; a queued share is said
   const results = [];
   for (const tick of [false, true]) {
     let shared = null;
@@ -430,7 +435,7 @@ function hel(tag, attrs = {}, children = []){
   }
   return n;
 }
-function settingsBox(settings){
+async function settingsBox(settings){
   const sent = [], toasts = [];
   const ctx = {
     hass: { user: { is_admin: true }, states: {} },
@@ -451,10 +456,11 @@ function settingsBox(settings){
   const all = () => box._all();
   const libCb = () => { const lab = all().find(n => n.localName === "span" && n.textContent === "Use the shared furniture library"); return lab && lab.parentNode.children.find(c => c.localName === "input"); };
   const attr = (a) => all().find(n => n.attributes && a in n.attributes);
+  await settle();                                  // the rows wait for the library's module (LIBRARY_SERVER_LIVE)
   return { ctx, sent, toasts, box, all, libCb, attr, master: all().find(n => n.localName === "input" && n.getAttribute("type") === "checkbox") };
 }
-{
-  const off = settingsBox({ atlas_3d_enabled: false, atlas_3d_library: false });
+if (LIVE) {
+  const off = await settingsBox({ atlas_3d_enabled: false, atlas_3d_library: false });
   // What shows while off: the rows under the switch are hidden then (P2's admin-only
   // Remove all furniture lives there), so only the visible text counts.
   const hidden = off.attr("data-la3d-more");
@@ -473,14 +479,14 @@ function settingsBox(settings){
   const rows = off.all().filter(n => n.localName === "span" && n.textContent === "Use the shared furniture library");
   check("settings_rows", rows.length === 1 && off.libCb() && off.libCb().checked === false
     && off.attr("data-la3d-withdraw").parentNode.style.display === "none", "built once, when the switch goes on");
-  const on = settingsBox({ atlas_3d_enabled: true, atlas_3d_library: false });
+  const on = await settingsBox({ atlas_3d_enabled: true, atlas_3d_library: false });
   const cb = on.libCb();
   cb.checked = true;
   cb.dispatchEvent({ type: "change" });
   await settle();
   check("settings_rows", JSON.stringify(on.sent) === JSON.stringify([["padspan_ha/settings_set", { atlas_3d_library: true }]])
     && on.attr("data-la3d-withdraw").parentNode.style.display === "flex", on.sent);
-  const lib = settingsBox({ atlas_3d_enabled: true, atlas_3d_library: true });
+  const lib = await settingsBox({ atlas_3d_enabled: true, atlas_3d_library: true });
   const wd = lib.attr("data-la3d-withdraw"), yes = lib.attr("data-la3d-withdraw-yes");
   check("settings_withdraw", wd.parentNode.style.display === "flex" && yes.parentNode.parentNode.style.display === "none");
   wd.click();
@@ -490,6 +496,47 @@ function settingsBox(settings){
   check("settings_withdraw", JSON.stringify(lib.sent) === JSON.stringify([["padspan_ha/house3d_library_withdraw", {}]])
     && lib.toasts.some(([t, e]) => !e && /2 pieces taken out of the library/.test(t)) && yes.parentNode.parentNode.style.display === "none",
     { sent: lib.sent, toasts: lib.toasts });
+}
+
+// ── 8. before the shared library's server is live (LIBRARY_SERVER_LIVE false) ─
+data.live = LIVE;
+if (!LIVE) {
+  {   // Library: the starter set only, and not one call, even with the switch saved on; no terms, no shared pieces
+    const { ctx, calls } = fakeCtx({ libraryOn: true });
+    const p = L.libraryFlow(ctx);
+    await settle();
+    const status = text($(ctx.el, '[data-lal="status"]'));
+    check("prerelease_browse", /starter pieces that come with PadSpan/.test(status) && !/shared library|administrator|Settings/i.test(status), status);
+    check("prerelease_browse", $(ctx.el, '[data-lal="terms"]').style.display === "none" && $(ctx.el, '[data-lal="shared"]').style.display === "none"
+      && $$(ctx.el, '[data-lal="report"]').length === 0, "no terms, no shared pieces, no Report");
+    const cards = $$(ctx.el, ".lal-card");
+    check("prerelease_browse", cards.length === 5 && /Starter set \(5\)/.test(text($(ctx.el, '[data-lal="starters"]'))), cards.length);
+    $(cards[0], '[data-lal="place"]').click();
+    const v = await p;
+    check("prerelease_browse", v && v.library_id === null && v.recipe && v.recipe.kind === "sofa" && calls.length === 0, { v, calls });
+  }
+  {   // Share: nothing to share to yet (Furnish offers no Share then)
+    const { ctx, calls } = fakeCtx({ libraryOn: true });
+    const v = await L.shareFlow(ctx, PIECE);
+    check("prerelease_share", v === null && calls.length === 0 && ctx.el.children.length === 0, { v, calls });
+  }
+  {   // Settings: no Shared library switch and no Withdraw, even with the switch saved on
+    const on = await settingsBox({ atlas_3d_enabled: true, atlas_3d_library: true });
+    check("prerelease_settings", !/Shared library|shared furniture|Withdraw/i.test(on.box.textContent) && !on.attr("data-la3d-withdraw")
+      && /Remove all furniture/.test(on.box.textContent), on.box.textContent.slice(-400));
+  }
+}
+
+// ── 9. closed from outside (Furnish's ×): the flow ends as its own Close does ─
+{
+  const { ctx } = fakeCtx({ libraryOn: false });
+  const stop = new AbortController();
+  ctx.signal = stop.signal;
+  const p = L.libraryFlow(ctx);
+  await settle();
+  const had = ctx.el.children.length;
+  stop.abort();
+  check("closed_outside", (await p) === null && had > 0 && ctx.el.children.length === 0, had);
 }
 
 console.log(JSON.stringify({ cases, failures, data }));

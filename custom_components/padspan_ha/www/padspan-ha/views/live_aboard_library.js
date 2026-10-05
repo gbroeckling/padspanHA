@@ -417,6 +417,13 @@ export function searchEntries(entries, q = {}){
 }
 
 // ── The starter set (assets/furniture_starters.json) ─────────────────────────
+// Is the shared library's server up for everyone yet? false (a public
+// pre-release before it is): no Share, no terms, no "Shared library" switch
+// or "Withdraw my shared furniture" in Settings (settings.js reads this), and
+// Library shows only the starter set and never asks the library for
+// anything. true brings all of it back; nothing else needs to change.
+export const LIBRARY_SERVER_LIVE = false;
+
 let startersP = null;
 export function starterEntries(json){
   const pieces = json && Array.isArray(json.pieces) ? json.pieces : [];
@@ -671,7 +678,7 @@ export function libraryFlow(ctx){
   return new Promise((resolve) => {
     const tools = ctx.recipeTools || null;
     const call = wsCall(ctx);
-    const libraryOn = !!(ctx.settings && ctx.settings.atlas_3d_library === true);
+    const libraryOn = LIBRARY_SERVER_LIVE && !!(ctx.settings && ctx.settings.atlas_3d_library === true);
     const root = mount(ctx, "lal-lib");
     const thumbs = thumbnailer(tools);
     let closed = false, seq = 0, timer = null, starters = [], space = null;
@@ -692,6 +699,7 @@ export function libraryFlow(ctx){
     const closeBtn = h("button", { type: "button", "data-lal": "close" }, "Close");
     root.appendChild(h("div", { class: "lal-head" }, [h("h3", {}, "Library"), termsBtn, closeBtn]));
     closeBtn.addEventListener("click", () => finish(null));
+    if (!LIBRARY_SERVER_LIVE) termsBtn.style.display = "none";
     const main = h("div", { "data-lal": "main" });
     root.appendChild(main);
 
@@ -880,7 +888,8 @@ export function libraryFlow(ctx){
     function setStatus(){
       const n = lib.total;
       const text = {
-        off: "The shared library is off, so these are the starter pieces that come with PadSpan. An administrator can turn it on in Settings → UI Structure → Atlas → Live Aboard.",
+        off: LIBRARY_SERVER_LIVE ? "The shared library is off, so these are the starter pieces that come with PadSpan. An administrator can turn it on in Settings → UI Structure → Atlas → Live Aboard."
+          : "These are the starter pieces that come with PadSpan.",
         down: "Can't reach the shared library right now. The starter set below still works.",
         busy: "Searching the shared library…",
         ok: n ? `${n} shared piece${n === 1 ? "" : "s"} found.` : "No shared pieces match. Try fewer filters.",
@@ -972,6 +981,7 @@ export function shareRecipe(recipe, details){
 
 export function shareFlow(ctx, piece){
   return new Promise((resolve) => {
+    if (!LIBRARY_SERVER_LIVE) { resolve(null); return; }   // nothing to share to yet (Furnish offers no Share then)
     const tools = ctx.recipeTools || null;
     const call = wsCall(ctx);
     const root = mount(ctx, "lal-share");
