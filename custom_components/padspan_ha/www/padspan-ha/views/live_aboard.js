@@ -3362,10 +3362,10 @@ function createSlot(slotKey){
     cam.fly = null;
     if (how === "fit") { preset("fit", true); return true; }
     if (how !== "in" && how !== "out") return false;
+    // The bars stay as they are: these buttons are on them.
     moved();
     cam.radius = Math.max(MIN_R, Math.min(MAX_R, cam.radius * (how === "in" ? 1 / ZOOM_STEP : ZOOM_STEP)));
     applyCam();
-    afterZoom(how === "in");
     return true;
   }
   /** Where a device is drawn: {F, v}; one the map has not placed, its room ({F, room}). */
@@ -3395,7 +3395,7 @@ function createSlot(slotKey){
     else for (const d of [-2.5, 2.5]) pts.push(new THREE.Vector3(w.v.x + d, F.fl.elev, w.v.z + d), new THREE.Vector3(w.v.x - d, F.fl.elev + 1.2, w.v.z + d));
     const g = frameFor(cam.theta, Math.max(0.35, Math.min(cam.phi, 1.05)), pts);
     g.radius = Math.max(MIN_R, g.radius * 1.12);
-    flyTo(g, true);
+    flyTo(g, false);                                         // the bars stay: the button is on them
     return true;
   }
 

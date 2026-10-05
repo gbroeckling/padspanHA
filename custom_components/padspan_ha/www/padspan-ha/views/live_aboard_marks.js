@@ -54,7 +54,7 @@ export const FLOOD_RIPPLE = { wet: { n: 3, ms: 2600, spinMs: 9000 }, latched: { 
                               lobes: 7, amp: 0.16, from: 0.03, op: 0.85 };
 export const LOCK_LOOK = { locked: "#fbbf24", off: "#374151", none: "#64748b" };
 const QUIET = "#cfd8d3", NO_READING = "#64748b";
-const TINT = 0.2, RING_W = 0.14, LOCK_REACH = 1.5, BADGE_PX = 22, CODE_PX = 17;
+const TINT = 0.2, RING_W = 0.14, LOCK_REACH = 1.5, BADGE_PX = 26, CODE_PX = 17;
 
 const num = (v) => (v === null || v === undefined || v === "" || typeof v === "boolean" ? null
   : (Number.isFinite(Number(v)) ? Number(v) : null));
@@ -235,9 +235,9 @@ export function createMarkLayer(ctx){
     const yaw = w ? HOUSE.yawOf(w.dir) : 0;
     const bodyMat = new THREE.MeshBasicMaterial({ color: LOCK_LOOK.off, transparent: true, opacity: 1 });
     const rimMat = new THREE.MeshBasicMaterial({ color: LOCK_BORDER, transparent: true, opacity: 1 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.075, 0.03), bodyMat);
-    const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.007, 6, 14, Math.PI), rimMat);
-    shackle.position.set(0, 0.0375, 0);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.035), bodyMat);
+    const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.009, 6, 14, Math.PI), rimMat);
+    shackle.position.set(0, 0.045, 0);
     const g = new THREE.Group();
     g.add(body, shackle);
     g.position.set(at[0], y0 + M.z, at[1]);

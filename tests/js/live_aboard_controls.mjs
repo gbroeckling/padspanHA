@@ -325,22 +325,23 @@ await tryCase("heights: a leak sensor and a lock at a default by kind, and at th
 });
 
 // ── zoom and find, on the view ──────────────────────────────────────────────
-await tryCase("zoom: − and + step out and in about the middle, 100% is the whole-house fit, the label follows", async () => {
+await tryCase("zoom: − and + step out and in about the middle (the bars stay), 100% is the whole-house fit, the label follows", async () => {
   const told = [];
-  const slot = await newSlot("ctl-zoom", { onZoom: (z) => told.push(z) });
+  // The sidebar's screen (mapOnly): the buttons are on the bars, so the bars stay.
+  const slot = await newSlot("ctl-zoom", { onZoom: (z) => told.push(z), mapOnly: true });
   const fit = { pct: slot.zoomPct(), r: S(slot).cam.radius, target: S(slot).cam.target };
   slot.zoom("in");
   const inn = { pct: slot.zoomPct(), r: S(slot).cam.radius, target: S(slot).cam.target };
   slot.zoom("in");
-  const in2 = slot.zoomPct();
+  const in2 = slot.zoomPct(), bare = S(slot).screen.bare;
   slot.zoom("fit");
   const back = { pct: slot.zoomPct(), r: S(slot).cam.radius };
   slot.zoom("out");
   const out = slot.zoomPct();
   LA.releaseLiveAboardSlot("ctl-zoom");
-  check("zoom: − and + step out and in about the middle, 100% is the whole-house fit, the label follows",
+  check("zoom: − and + step out and in about the middle (the bars stay), 100% is the whole-house fit, the label follows",
     fit.pct === 100 && Math.abs(inn.r - fit.r / 1.25) < 1e-6 && inn.pct === 125 && JSON.stringify(inn.target) === JSON.stringify(fit.target)
-    && in2 === 156 && back.pct === 100 && out === 80 && told.includes(125) && told.includes(156) && told[told.length - 1] === 80,
+    && in2 === 156 && !bare && back.pct === 100 && out === 80 && told.includes(125) && told.includes(156) && told[told.length - 1] === 80,
     { fit, inn, in2, back, out, told });
 });
 await tryCase("find: flies to the Atlas's pick, showing its floor first when the chips hide it", async () => {
