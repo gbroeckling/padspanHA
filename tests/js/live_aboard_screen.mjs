@@ -22,7 +22,8 @@
 //   views     Whole house, and views saved from the camera through the
 //             host's per-browser store, flown back to; forgotten with ×
 //   night     at night the floors keep their colour, the outlines and wall
-//             tops show, and a fixture that is off darkens with the house
+//             tops show, the grid fades, and a fixture that is off darkens
+//             with the house
 //   names     room names upright, over the fixtures, never under a floor
 //             showing above, hidden when their room is too small on screen,
 //             a size you can read; readouts one chip per room, a dash when
@@ -96,7 +97,7 @@ const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: 
 const MODEL = {
   floors: [{ id: "basement", name: "Basement" }, { id: "main", name: "Main" }],
   room_geometry_m: { Rec: rect("basement", 0, 0, 6, 5), "Living room": rect("main", 0, 0, 4.5, 5), Den: rect("main", 4.6, 0, 9, 5),
-                     Closet: rect("main", 9.1, 0, 9.5, 0.4) },
+                     Closet: rect("main", 9.1, 0, 9.3, 0.2) },
   rf_barriers_m: [],
   light_positions_m: { "light.den": { x_m: 6, y_m: 1, floor_id: "main" }, "light.hall": { x_m: 2, y_m: 1, floor_id: "main" },
                        "sensor.den_temp": { x_m: 6, y_m: 4, floor_id: "main" }, "sensor.den_humidity": { x_m: 6.2, y_m: 4, floor_id: "main" },
@@ -393,6 +394,7 @@ await tryCase("night: floors keep their colour, outlines and wall tops show, off
     && n.offBulb && n.offLit && n.offBulb.every((v, i) => v <= n.offLit[i] * 0.3 + 1e-6)
     && sh.uniforms.uTopGlow && sh.uniforms.uTopGlow.value === 0 && /vTop = aTop/.test(sh.vertexShader)
     && /totalEmissiveRadiance \+= vec3\(vTop \* uTopGlow\)/.test(sh.fragmentShader)
+    && Math.abs(n.grid - 0.4) < 1e-6 && d.grid === 1
     && d.k === 0 && d.floor.every(v => v === 0) && d.top === 0 && d.offBulb.every((v, i) => Math.abs(v - d.offLit[i]) < 1e-6),
     { n, d, sh: sh.fragmentShader });
   LA.releaseLiveAboardSlot("scr-night");
