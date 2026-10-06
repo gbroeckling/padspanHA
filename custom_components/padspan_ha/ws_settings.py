@@ -1061,6 +1061,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["padspan_automations"] = _clean_rules
         await st.async_set(**payload)
 
+        # ── Live Aboard turned on → its heights join the placement records
+        # (house3d_heights.py: a no-op when there is nothing left to move).
+        if msg.get("atlas_3d_enabled") is True:
+            from .house3d_heights import async_move_heights  # noqa: PLC0415
+            hass.async_create_task(async_move_heights(hass))
+
         # ── Excluded scanners changed → retrain the forest (issue #59) ───────
         # k-NN masks per query, but the Random Forest bakes its feature columns
         # in at training time: without a retrain the masked scanner would keep

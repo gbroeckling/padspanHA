@@ -75,6 +75,24 @@ Data layout in .storage/padspan_ha.fabric:
     "rf_barriers_m":       [ {id, name, material, attenuation_dbm, floor_id, points_m} ],
     "light_positions_m":   { "<entity_id>": {x_m, y_m, floor_id, color, shape, rotation, width_cm, height_cm, margin_cm, label} },
 
+    # A placed device's (or a fixed beacon's) height above its own floor, for
+    # Live Aboard (house3d_heights.py), beside its record rather than in it:
+    # an older PadSpan copies a record whole into its Mapping draft and sends
+    # it back through a schema that has no z_m, which refuses the save. So a
+    # stored record never carries one; ModelStore hands each record over with
+    # its z_m in it. A number is the height; None is "the default for its
+    # kind", chosen; no entry is "never set". An entry lives only beside its
+    # record: a record removed (Auto position) takes its height with it, and
+    # a new record starts with only the height its save gives. Nothing in
+    # presence reads these. Created on the first height, so a house that
+    # never sets one has a fabric file exactly as before.
+    "light_heights_m":     { "<entity_id>": z_m | None },
+    "beacon_heights_m":    { "<key>": z_m | None },
+    # The safety backup taken before Live Aboard's heights were first copied
+    # onto the records (house3d_heights.py): its id, kept here, not in the
+    # capped history, so it never ages out.
+    "live_aboard_heights_backup": "<backup id>",
+
     "history": [ {ts, floor_id, room, op, revision} ]   # append-only, capped
   }
 """
@@ -88,7 +106,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .const import DEFAULT_FLOOR_ID, FABRIC_STORE_KEY
+from .const import DEFAULT_FLOOR_ID, FABRIC_STORE_KEY, MAX_HEIGHT_M
 from .safe_store import wrap_store
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,6 +121,22 @@ def _default_floor() -> dict[str, Any]:
         "rooms": {},
         "frame_offset_m": {"dx_m": 0.0, "dy_m": 0.0, "rotation_rad": 0.0},
     }
+
+
+def device_height(v: Any) -> float | None:
+    """A placed device's or a beacon's optional height above its floor (z_m):
+    0 to MAX_HEIGHT_M, to the centimetre, as a scanner's is kept
+    (ModelStore.async_set_scanner_z_m). None for no height (the default for
+    its kind): None itself, or anything that is not a finite number."""
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(f):
+        return None
+    return round(max(0.0, min(MAX_HEIGHT_M, f)), 2)
 
 
 def _norm_geometry(geo: Any) -> dict[str, Any] | None:
@@ -326,6 +360,14 @@ class FabricStore:
         """{entity_id: {x_m, y_m, floor_id, ...}} — canonical light placement."""
         return dict(self.data.get("light_positions_m") or {})
 
+    def light_heights_m(self) -> dict[str, float | None]:
+        """{entity_id: z_m | None} — placed devices' heights (see the layout)."""
+        return dict(self.data.get("light_heights_m") or {})
+
+    def beacon_heights_m(self) -> dict[str, float | None]:
+        """{key: z_m | None} — fixed beacons' heights."""
+        return dict(self.data.get("beacon_heights_m") or {})
+
     def rf_barriers_m(self) -> list[dict[str, Any]]:
         """[{name, material, attenuation_dbm, floor_id, points_m, ...}] — canonical."""
         return list(self.data.get("rf_barriers_m") or [])
@@ -483,8 +525,9 @@ class FabricStore:
         """Validate + normalize one scanner/beacon/light spatial entry.
 
         Shared by all three point kinds in async_spatial_update — only
-        scanners carry a z_m (floor height matters for trilateration;
-        beacons/lights are floor-plan points). Returns None on any
+        scanners carry a z_m (floor height matters for trilateration); a
+        beacon's or a light's height is kept beside its record
+        (light_heights_m, beacon_heights_m: see height_of). Returns None on any
         malformed/non-finite coordinate so a single bad entry in a batch is
         skipped rather than corrupting the whole write (callers count only
         what actually normalized).
@@ -500,8 +543,23 @@ class FabricStore:
                 out[k] = v
         except (TypeError, ValueError):
             return None
+        if not need_z:
+            out.pop("z_m", None)
         out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
         return out
+
+    @staticmethod
+    def height_of(entry: Any) -> tuple[bool, float | None]:
+        """What an entry says about its height: (says something, the height).
+        No z_m: nothing (the stored height stays). None: the default for its
+        kind, chosen. A height: that height (device_height). Anything else is
+        not a height and says nothing."""
+        if not isinstance(entry, dict) or "z_m" not in entry:
+            return False, None
+        if entry["z_m"] is None:
+            return True, None
+        z = device_height(entry["z_m"])
+        return (z is not None), z
 
     @staticmethod
     def _norm_barrier(bar: Any) -> dict[str, Any] | None:
@@ -551,6 +609,8 @@ class FabricStore:
         remove_lights: list[str] | None = None,
         set_barriers: list[dict] | None = None,
         remove_barrier_ids: list[str] | None = None,
+        set_light_heights: dict[str, float | None] | None = None,
+        set_beacon_heights: dict[str, float | None] | None = None,
         op: str = "spatial_update",
     ) -> dict[str, int]:
         """Apply a set of spatial changes atomically.
@@ -559,9 +619,17 @@ class FabricStore:
         one); remove_barrier_ids removes by id. There is no per-photo
         replace any more: a wall is placed and edited in metres like a
         scanner or a room, and no photograph owns a list of them.
+        A light's or a beacon's height (z_m in its entry, or set_*_heights:
+        a height, or None for the default chosen) goes beside its record;
+        left out, the stored one stays (height_of). A height lives only
+        beside its record: removing a record removes its height, and a new
+        record saved without one has none (not one left from an earlier
+        record of the same id, nor one an older PadSpan left behind).
         Invalid entries are skipped, not fatal.  Returns per-kind counts.
         """
-        counts = {"scanners": 0, "beacons": 0, "barriers": 0, "lights": 0, "removed": 0}
+        counts = {"scanners": 0, "beacons": 0, "barriers": 0, "lights": 0, "heights": 0, "removed": 0}
+        heights: dict[str, dict[str, float | None]] = {"light_heights_m": {}, "beacon_heights_m": {}}
+        dropped: dict[str, set[str]] = {"light_heights_m": set(), "beacon_heights_m": set()}
         scanners = self.data.setdefault("scanner_positions_m", {})
         beacons = self.data.setdefault("beacon_positions_m", {})
 
@@ -579,22 +647,36 @@ class FabricStore:
             norm = self._norm_point_entry(entry, need_z=False)
             if norm is None or not str(key):
                 continue
+            fresh = str(key) not in beacons
             beacons[str(key)] = norm
             counts["beacons"] += 1
+            says, z = self.height_of(entry)
+            if says:
+                heights["beacon_heights_m"][str(key)] = z
+            elif fresh:
+                dropped["beacon_heights_m"].add(str(key))
         for key in (remove_beacons or []):
             if beacons.pop(str(key), None) is not None:
                 counts["removed"] += 1
+            dropped["beacon_heights_m"].add(str(key))
 
         lights = self.data.setdefault("light_positions_m", {})
         for eid, entry in (set_lights or {}).items():
             norm = self._norm_point_entry(entry, need_z=False)
             if norm is None or not str(eid):
                 continue
+            fresh = str(eid) not in lights
             lights[str(eid)] = norm
             counts["lights"] += 1
+            says, z = self.height_of(entry)
+            if says:
+                heights["light_heights_m"][str(eid)] = z
+            elif fresh:
+                dropped["light_heights_m"].add(str(eid))
         for eid in (remove_lights or []):
             if lights.pop(str(eid), None) is not None:
                 counts["removed"] += 1
+            dropped["light_heights_m"].add(str(eid))
 
         barriers = self.data.setdefault("rf_barriers_m", [])
         if set_barriers:
@@ -612,8 +694,28 @@ class FabricStore:
             counts["removed"] += len(barriers) - len(kept)
             self.data["rf_barriers_m"] = kept
 
+        for key, given in (("light_heights_m", set_light_heights), ("beacon_heights_m", set_beacon_heights)):
+            for k, v in (given or {}).items():
+                says, z = self.height_of({"z_m": v})
+                if says and str(k):
+                    heights[key][str(k)] = z
+        for key, changes in heights.items():
+            if not changes:
+                continue
+            stored = self.data.setdefault(key, {})
+            for k, z in changes.items():
+                if k not in stored or stored[k] != z:
+                    stored[k] = z
+                    counts["heights"] += 1
+        for key, gone in dropped.items():
+            stored = self.data.get(key) or {}
+            for k in gone - set(heights[key]):
+                if k in stored:
+                    del stored[k]
+                    counts["heights"] += 1
+
         total = (counts["scanners"] + counts["beacons"] + counts["barriers"]
-                 + counts["lights"] + counts["removed"])
+                 + counts["lights"] + counts["heights"] + counts["removed"])
         if total:
             self._log_history("", "", op, total)
             await self.store.async_save(self.data)

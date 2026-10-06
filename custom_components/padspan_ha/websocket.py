@@ -231,12 +231,14 @@ from .ws_tester import (  # noqa: F401  (re-exported: registration, tests, calle
     ws_tester_withdraw,
 )
 from .ws_fabric import (  # noqa: F401  (re-exported: registration, tests, callers)
+    ws_fabric_beacon_height_set,
     ws_fabric_beacon_position_set,
     ws_fabric_beacon_remove,
     ws_fabric_correct_room,
     ws_fabric_floor_elevations_set,
     ws_fabric_floor_finalize,
     ws_fabric_health,
+    ws_fabric_light_height_set,
     ws_fabric_light_position_set,
     ws_fabric_light_remove,
     ws_fabric_map_reanchor,
@@ -405,6 +407,8 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_beacon_remove)
     websocket_api.async_register_command(hass, ws_fabric_beacon_position_set)
     websocket_api.async_register_command(hass, ws_fabric_light_position_set)
+    websocket_api.async_register_command(hass, ws_fabric_light_height_set)
+    websocket_api.async_register_command(hass, ws_fabric_beacon_height_set)
     websocket_api.async_register_command(hass, ws_fabric_light_remove)
     websocket_api.async_register_command(hass, ws_fabric_room_add)
     websocket_api.async_register_command(hass, ws_fabric_room_remove)

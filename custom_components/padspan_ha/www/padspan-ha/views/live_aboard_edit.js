@@ -29,7 +29,9 @@
 //                 to the ceiling, or back to its default; for a light, also
 //                 what it is ("What is this?": a pot, a valance, a lamp...),
 //                 or PadSpan's guess. (Scanners keep the height the map gives
-//                 them: presence uses it.)
+//                 them: presence uses it.) A placed device's height is kept on
+//                 its placement record, the Atlas's own (Save sends it there:
+//                 live_aboard.js editSave); the rest goes to the 3D file.
 //   a door or window from the map (a barrier): tap it to set its hinge and
 //                 swing, or its sill and head, in 3D only.
 //   Doorway       drawn like a door: an opening with no door in it (an
@@ -515,7 +517,7 @@ export function createEditor(ctx){
     const sent = draft;
     saving = true; paint();
     try {
-      const r = await editFn(ch);
+      const r = await editFn(ch, draft.base);
       if (!r || typeof r !== "object" || !r.data) throw new Error("no answer");
       saving = false;
       ctx.saved(r.data);
@@ -528,9 +530,14 @@ export function createEditor(ctx){
     } catch (err) {
       // Refused: the draft stays, to be saved again; what went wrong said plainly.
       saving = false; afterSave = null;
+      // Part of it went in (the heights: live_aboard.js editSave): from here
+      // the draft starts from them, so Undo, Discard and the next Save count
+      // them as saved.
+      if (err && err.heights && draft === sent) draft.setBase(DRAFT.baseWithHeights(draft.base, ch, err.heights));
       const code = err && err.code;
       if (code === "house3d_newer" && ctx.newer) ctx.newer();   // the file's own error, until a read finds otherwise
-      hint(NOT_SAVED[code] || `Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
+      // A Save that went partly in says what did (live_aboard.js editSave).
+      hint(err && err.partial ? String(err.message) : NOT_SAVED[code] || `Not saved: ${String((err && (err.message || err.code)) || err)}`, true);
       paint();
       return;
     }

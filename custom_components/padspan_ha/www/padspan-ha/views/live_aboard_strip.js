@@ -335,7 +335,9 @@ export function createStrip(ctx){
     return RUNS.tidy({ pts, face, loop, ...(onOne ? { piece: onOne } : null) });
   }
   const defaultH = (F, eid = sel) => {
-    const k = kindOf(eid), ceil = ceilOf(F);
+    const k = kindOf(eid), ceil = ceilOf(F), e = entryOf(eid);
+    // Its own height (on its placement record, else the 3D file's) when it has one.
+    if (e && typeof e.z_m === "number" && Number.isFinite(e.z_m)) return Math.max(0, Math.min(e.z_m, ceil - 0.05));
     return k === "cove" ? RUNS.chips(ceil)[4][2] : Math.min(HOUSE.mountHeight(HOUSE.MOUNT[k] ? k : "strip", ceil), ceil - 0.05);
   };
   const faceFor = (eid = sel) => { const r = runOf(eid); return r ? r.face : RUNS.faceOf(kindOf(eid)); };
