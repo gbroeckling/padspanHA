@@ -4,6 +4,44 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.105 — Stable: device heights on the map, open doors on the Atlas, and Live Aboard's house (2026-10-06)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+- **Heights move to the map:** heights set in Live Aboard before this version are copied to the map once. A backup is taken first.
+- **Going back to an older version:** your map still saves, and the heights you set wait beside it until you update again. A height you change while on the older version isn't carried over; set it again in Mapping. A door you gave a type in Live Aboard can't be edited on the older version until you Reset it.
+
+### Mapping (with Live Aboard on)
+- **Added:** every placed device has a **Height** in the Atlas builder's inspector: Ceiling, High on the wall, Wall, Switch height, Table, Floor or a number. Each kind offers the heights that make sense for it (a leak sensor: Floor; a lock: Door height). Empty means the usual height for its kind.
+- **Added:** a **Heights** list shows every placed device with its height. Sort it, set many at once, or show only the ones still using the usual height.
+- **Changed:** dragging a device on the map keeps its height. Auto position says when it clears one.
+
+### Atlas
+- **Added:** an open door now looks open. Its leaf stands swung into the room from its hinge, and a faint arc shows its swing; the gap in the wall stays clear. A shut door still draws its grey line. Sliding, folding and garage doors show the way they stand open.
+
+### Live Aboard — experimental (PadSpan Pro, off until you turn it on)
+- **Added:** the house itself:
+  - stairs between floors (straight, L or U), placed like furniture in Furnish;
+  - doorways with no door;
+  - doors shown open, ajar or shut;
+  - a roof seen from outside, which lifts away as you zoom in;
+  - a solid floor under each storey, so halls you never drew aren't holes.
+- **Added:** door types: hinged, double, sliding, barn, pocket, bifold, overhead garage, roll-up, tilt-up and gate. Each moves its own way. PadSpan guesses the type until you pick one. A door follows its contact sensor, or its cover's position.
+- **Safety:** a garage door or gate never moves from a tap in Live Aboard. A tap shows what it reads and when it last moved; press and hold for Home Assistant's own controls.
+- **Added:** heights from Mapping. A device's height is set once and used by both views.
+- **Added:** for a wall screen:
+  - **Set as home** in Views ▾. The screen flies back to its home view after a minute untouched (Off, 30 s, 1 min or 5 min). It never does this while you're editing, furnishing or reading a card.
+  - With no home set, it opens on the floor that shows the most rooms.
+- **Added:** people:
+  - Someone known only by room stands in that room, marked "room only".
+  - **Carries** (admins) says which phone or tag is whose. One phone picked for two people stays with the first, and the screen says so.
+  - **Follow** keeps a person in view.
+  - The **People** chip flies to each person in turn.
+  - Pinned tags stay where you pinned them.
+- **Changed:** **Show people** and **Show tags & scanners** are now in Views ▾ too, and only an administrator can change them.
+
+---
+
 ## 0.38.104 — Stable: rain and snow on the Atlas, fixes, and Live Aboard to try (2026-10-05)
 
 This stable release brings everything since 0.38.85 (the 0.38.86 to 0.38.103 pre-releases) to everyone. The notes for each pre-release are below; this is the short version.
