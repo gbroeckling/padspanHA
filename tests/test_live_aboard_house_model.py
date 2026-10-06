@@ -79,7 +79,8 @@ def test_the_view_cases_by_name(model) -> None:
                  "view: each door drawn as its type, linked or as shown",
                  "view: a door on a cover follows its position, moves while it opens, then is still: 0 frames at rest",
                  "view: a door on a contact sensor slides open with it",
-                 "view: a tap on a door on a cover sends nothing; a hold opens Home Assistant's own controls"):
+                 "view: a tap on a door on a cover sends nothing; a hold opens Home Assistant's own controls",
+                 "view: a door something moves is one whose barrier card could move it"):
         assert model["cases"].get(name) is True, name
 
 

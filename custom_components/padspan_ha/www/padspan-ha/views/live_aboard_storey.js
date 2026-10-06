@@ -34,7 +34,7 @@
 const DOORS = await import(`./door_types.js${new URL(import.meta.url).search}`);
 export const { DOOR_SHOWN, DOOR_ANGLE_DEG, GARAGE_DOOR_M, doorShown, DOOR_TYPES, DOOR_TYPE_NAMES, DOOR_TYPE_OPTIONS, DOOR_SLIDES,
                DOOR_FACES, DOOR_PANELS, LIFT_AJAR, COVER_TRAVEL_MS, COVER_STEP_MS, guessDoorType, doorTypeOf, linkKind, coverAt,
-               coverIsDoor, doorPanels, shownAt, PANEL_COLOURS, panelColour, moveMs } = DOORS;
+               coverWords, movedWords, coverIsDoor, doorPanels, shownAt, PANEL_COLOURS, panelColour, moveMs } = DOORS;
 
 export const CELL_M = 0.1;                 // the grid a storey's outline is found on
 export const HALL_M = 1.8;                 // a gap between rooms this wide or less is floor (a hall)

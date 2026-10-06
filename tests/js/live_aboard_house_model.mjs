@@ -451,10 +451,17 @@ LA.releaseLiveAboardSlot("house-model");
 // ── doors of a type, in the view ────────────────────────────────────────────
 // A garage with its overhead door on a cover, a hall with a sliding glass
 // door on a contact sensor, a closet's bifold, a double door and a roll-up,
-// none linked.
+// none linked. On the map: a side gate linked straight to a cover, and a
+// garage door as Garry's truck door is (a contact sensor that reads
+// backwards, and a switch that opens it).
 {
   const DMODEL = { floors: [{ id: "main", name: "Main" }],
-    room_geometry_m: { Garage: rect("main", 0, 0, 6, 6), Hall: rect("main", 6.1, 0, 9, 6), "Bedroom Closet": rect("main", 0, 6.1, 3, 8) } };
+    room_geometry_m: { Garage: rect("main", 0, 0, 6, 6), Hall: rect("main", 6.1, 0, 9, 6), "Bedroom Closet": rect("main", 0, 6.1, 3, 8) },
+    rf_barriers_m: [
+      { id: "bar_c0000001", name: "Side gate", material: "wood", floor_id: "main", points_m: [[7, 0], [8.2, 0]], linked_entity_id: "cover.side_gate" },
+      { id: "bar_c0000002", name: "Door — Wall (Garage) (2)", material: "metal", floor_id: "main", points_m: [[0, 1.5], [0, 4.13]],
+        linked_entity_id: "binary_sensor.truck_contact", invert_state: true, linked_opener_entity_id: "switch.truck_door" },
+    ] };
   const door = (a, b, more = {}) => ({ kind: "door", floor_id: "main", a_m: a, b_m: b, head_m: 2.03, hinge: "left", swing: "in", ...more });
   const DFILE = { schema: 1, pieces: {}, lights: {}, devices: {}, figures: {}, openings: {
     door_d0000001: door([1, 0], [3.6, 0], { link: "cover.garage_door" }),
@@ -467,8 +474,12 @@ LA.releaseLiveAboardSlot("house-model");
   const states = {
     "cover.garage_door": { entity_id: "cover.garage_door", state: "open", attributes: { current_position: 40, device_class: "garage", friendly_name: "Garage door" }, last_changed: ago(60e3) },
     "binary_sensor.patio_door": { entity_id: "binary_sensor.patio_door", state: "off", attributes: { device_class: "door", friendly_name: "Patio door" }, last_changed: ago(60e3) },
+    "cover.side_gate": { entity_id: "cover.side_gate", state: "closed", attributes: { current_position: 0, device_class: "gate", friendly_name: "Side gate" }, last_changed: ago(3 * 3600e3) },
+    "binary_sensor.truck_contact": { entity_id: "binary_sensor.truck_contact", state: "on", attributes: { device_class: "garage_door", friendly_name: "Truck door contact" }, last_changed: ago(20 * 60e3) },
+    "switch.truck_door": { entity_id: "switch.truck_door", state: "off", attributes: { friendly_name: "Upper garage truck door" }, last_changed: ago(20 * 60e3) },
   };
-  const DLBE = { "binary_sensor.patio_door": { entity_id: "binary_sensor.patio_door", friendly_name: "Patio door", state: "off", device_class: "door" } };
+  const DLBE = { "binary_sensor.patio_door": { entity_id: "binary_sensor.patio_door", friendly_name: "Patio door", state: "off", device_class: "door" },
+                 "binary_sensor.truck_contact": { entity_id: "binary_sensor.truck_contact", friendly_name: "Truck door contact", state: "on", device_class: "garage_door" } };
   const service = [], toggles = [];
   const dapi = { toast(){}, toggle: (...a) => toggles.push(a), openRoom(){}, openFloor(){}, openControls: (...a) => toggles.push(["controls", ...a]), openActivity(){},
                  controlsFor: () => null, lightsByEid: DLBE, hass: { states, callService: (...a) => { service.push(a); return Promise.resolve(); } } };
@@ -524,28 +535,77 @@ LA.releaseLiveAboardSlot("house-model");
     const t1 = op("binary_sensor.patio_door");
     check("view: a door on a contact sensor slides open with it", t0.to === 1 && t0.ms === 1000 && t0.liveMs > 0 && t1.at === 1 && ds().liveMs === 0, { t0, t1 });
   });
+  // A door something moves — on a cover by the 3D file's link, on the map
+  // linked straight to a cover, or with an opener as Garry's truck door has
+  // — never moves from a tap, nor from anything the tap shows: every button
+  // the tap leaves in the page is pressed, and nothing is sent. Its card
+  // says what it reads; a hold opens Home Assistant's own controls for what
+  // moves it.
   await tryCase("view: a tap on a door on a cover sends nothing; a hold opens Home Assistant's own controls", async () => {
-    dslot._look(0, 0.9, [2.3, 1, 0], 7);
-    await later(300, 10);
-    const at = dslot._where({ door: "cover.garage_door" }), cv = dslot.element.querySelector("canvas");
-    const more = [];
+    states["cover.garage_door"] = { ...states["cover.garage_door"], state: "open", attributes: { ...states["cover.garage_door"].attributes, current_position: 40 }, last_changed: ago(60e3) };
+    dpoll();
+    await later(4000, 10);
+    const cv = dslot.element.querySelector("canvas"), more = [];
     dslot.element.addEventListener("hass-more-info", (e) => more.push(e.detail && e.detail.entityId));
     const evp = (type, x, y) => ({ type, button: 0, pointerType: "mouse", pointerId: 1, clientX: x, clientY: y, deltaMode: 0, timeStamp: performance.now(),
                                    stopPropagation(){}, preventDefault(){}, composedPath: () => [] });
-    const hit = at ? dslot._pick(at[0], at[1]) : null;
-    service.length = 0; toggles.length = 0;
-    cv.dispatchEvent(evp("pointerdown", at[0], at[1]));
-    cv.dispatchEvent(evp("pointerup", at[0], at[1]));
-    await later(100, 6);
-    const tap = { service: service.length, toggles: toggles.length, more: more.length };
-    cv.dispatchEvent(evp("pointerdown", at[0], at[1]));
-    clockOff += 800;
-    await settle(6);
-    cv.dispatchEvent(evp("pointerup", at[0], at[1]));
-    await later(100, 6);
+    const doors = [["cover.garage_door", [2.3, 1, 0], "cover.garage_door", ["Garage door", "Open 40%", "Last moved 1 min ago"]],
+                   ["cover.side_gate", [7.6, 1, 0], "cover.side_gate", ["Side gate", "Closed", "Last moved 3 h ago"]],
+                   ["binary_sensor.truck_contact", [0, 1, 2.8], "switch.truck_door", ["Door — Wall (Garage) (2)", "Closed", "Last moved 20 min ago"]]];
+    const got = [];
+    for (const [eid, target, mover, words] of doors) {
+      let at = null, hit = null;
+      for (const th of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        dslot._look(th, 0.9, target, 7);
+        await later(300, 10);
+        at = dslot._where({ door: eid });
+        hit = at ? dslot._pick(at[0], at[1]) : null;
+        if (hit && hit.hit.startsWith(`door:${eid}@`)) break;
+      }
+      const before = new Set(document.body.querySelectorAll("button"));
+      service.length = 0; toggles.length = 0; more.length = 0;
+      cv.dispatchEvent(evp("pointerdown", at[0], at[1]));
+      cv.dispatchEvent(evp("pointerup", at[0], at[1]));
+      await later(100, 6);
+      const card = ds().use && ds().use.card ? ds().use.card.text : "";
+      const left = document.body.querySelectorAll("button").filter(b => !before.has(b));
+      for (const b of left) b.click();
+      await later(100, 6);
+      const tap = { service: service.slice(), toggles: toggles.length, more: more.length, buttons: left.map(b => b.textContent) };
+      cv.dispatchEvent(evp("pointerdown", at[0], at[1]));
+      clockOff += 800;
+      await settle(6);
+      cv.dispatchEvent(evp("pointerup", at[0], at[1]));
+      await later(100, 6);
+      got.push({ eid, hit: hit && hit.hit, card, tap, held: more.slice(), service: service.slice(), ok:
+        !!hit && hit.hit.startsWith(`door:${eid}@`) && words.every(w => card.includes(w)) && !tap.service.length && !tap.toggles && !tap.more
+        && !service.length && !toggles.length && more.join() === mover });
+    }
     check("view: a tap on a door on a cover sends nothing; a hold opens Home Assistant's own controls",
-      at && hit && /^door:cover\.garage_door/.test(hit.hit) && tap.service === 0 && tap.toggles === 0 && tap.more === 0
-      && service.length === 0 && toggles.length === 0 && more.join() === "cover.garage_door" && !ds().failed, { at, hit, tap, more, service, toggles });
+      got.every(g => g.ok) && !ds().failed, got);
+  });
+  // Which doors are "something moves it" is the barrier card's own opener
+  // rule: a barrier whose card has an Open, Close or Trigger, and no other.
+  await tryCase("view: a door something moves is one whose barrier card could move it", async () => {
+    const LM = await import(pathToFileURL(join(WWW, "views", "lights_map.js")).href);
+    const USE = await import(pathToFileURL(join(WWW, "views", "live_aboard_use.js")).href);
+    const hs = { states: {
+      "binary_sensor.c": { state: "off", attributes: {} }, "lock.f": { state: "locked", attributes: {} },
+      "cover.g": { state: "closed", attributes: { current_position: 0 } }, "switch.s": { state: "off", attributes: {} },
+      "script.r": { state: "off", attributes: {} }, "button.b": { state: "unknown", attributes: {} } }, callService: () => Promise.resolve() };
+    const bars = [{ linked_entity_id: "binary_sensor.c" }, { linked_entity_id: "cover.g" }, { linked_entity_id: "lock.f" },
+                  { linked_entity_id: "binary_sensor.c", linked_lock_entity_id: "lock.f" },
+                  ...["cover.g", "switch.s", "script.r", "button.b"].map(op => ({ linked_entity_id: "binary_sensor.c", linked_opener_entity_id: op }))];
+    const MOVES = ["Open", "Close", "Trigger", "Opening…", "Closing…", "Running…"];
+    const bad = [];
+    for (const bar of bars) {
+      document.body.replaceChildren();
+      LM.openBarrierCard(hs, { name: "D", invert_state: false, ...bar }, { toast(){}, rerender(){} });
+      const moves = document.body.querySelectorAll("button").some(b => MOVES.includes(b.textContent));
+      if (moves !== !!USE.doorMover(bar)) bad.push({ bar, moves, mover: USE.doorMover(bar) });
+    }
+    document.body.replaceChildren();
+    check("view: a door something moves is one whose barrier card could move it", !bad.length, bad);
   });
   LA.releaseLiveAboardSlot("house-doors");
 }

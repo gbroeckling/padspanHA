@@ -19,7 +19,8 @@
 //                  its options
 //   doorPanels     where each panel of a door of any type is, at any point
 //                  of opening, in the door's own frame
-//   coverAt        a cover's position as how open a door is
+//   coverAt        a cover's position as how open a door is; coverWords
+//                  and movedWords, what a door's card says of it
 //
 // Imports nothing and draws nothing; node runs it as it is. Nothing here
 // writes anything.
@@ -164,6 +165,23 @@ export function coverAt(st){
   const moving = st.state === "opening" ? 1 : st.state === "closing" ? -1 : 0;
   const at = p !== null ? Math.max(0, Math.min(100, p)) / 100 : st.state === "open" ? 1 : st.state === "closed" ? 0 : moving > 0 ? 0 : 1;
   return { at, moving, none: false };
+}
+/** A cover's state said plainly, as a door's card shows it: "Open 40%",
+ *  "Open", "Closed", "Opening", "Closing" or "No reading". */
+export function coverWords(st){
+  const c = coverAt(st);
+  if (c.none) return "No reading";
+  if (c.moving) return c.moving > 0 ? "Opening" : "Closing";
+  if (c.at <= 0.005) return "Closed";
+  return c.at < 0.995 ? `Open ${Math.round(c.at * 100)}%` : "Open";
+}
+/** When a door last moved, said plainly ("" when not known): an ISO time
+ *  (a state's last_changed) and now (ms). */
+export function movedWords(when, now){
+  const t = Date.parse(String(when || ""));
+  if (!Number.isFinite(t)) return "";
+  const s = Math.max(0, (now - t) / 1000);
+  return `Last moved ${s < 60 ? "just now" : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 172800 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`}`;
 }
 /** Is this cover one a door follows (a garage door, a gate, a door)? */
 export const coverIsDoor = (st) => !st || !st.attributes || !st.attributes.device_class || COVER_CLASSES.includes(st.attributes.device_class);

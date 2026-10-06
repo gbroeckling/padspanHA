@@ -3276,12 +3276,15 @@ function createSlot(slotKey){
         return { hit: { kind: "room", key: "room:" + s.room, room: s.room, quad: s.quad,
                         label: `${s.room} — opens its ${n} device${n === 1 ? "" : "s"}` }, under: [] };
       }
-      const o = s.P.open, b = o.bar, l = lbe[o.eid], st = o.cover && lastP && lastP.states ? lastP.states[o.eid] : null;
-      // A door on a cover: its card on a tap, Home Assistant's own controls
-      // on a hold (live_aboard_use.js), and never a move.
-      return { hit: { kind: "door", key: `door:${o.eid}@${b.id || s.i}`, eid: o.eid, bar: HOUSE.barrierCardOf(b), quad: s.quad,
-                      cover: o.cover ? o.eid : null,
-                      label: `${b.name || (l && l.friendly_name) || (st && st.attributes && st.attributes.friendly_name) || o.eid} · ${OPEN_WORD[o.state] || OPEN_WORD.none}` }, under: [] };
+      const o = s.P.open, b = o.bar, l = lbe[o.eid], st = lastP && lastP.states ? lastP.states[o.eid] : null, bar = HOUSE.barrierCardOf(b);
+      const name = b.name || (l && l.friendly_name) || (st && st.attributes && st.attributes.friendly_name) || o.eid;
+      const said = o.cover && STOREY ? STOREY.coverWords(st) : OPEN_WORD[o.state] || OPEN_WORD.none;
+      // A door something moves (a garage door, a gate): a tap shows its card
+      // of what it reads, a hold Home Assistant's own controls
+      // (live_aboard_use.js doorMover), and nothing ever moves it here.
+      const card = USE.doorMover(bar) ? { title: name, lines: [said, STOREY && st ? STOREY.movedWords(st.last_changed, Date.now()) : ""].filter(Boolean) } : null;
+      return { hit: { kind: "door", key: `door:${o.eid}@${b.id || s.i}`, eid: o.eid, bar, quad: s.quad, card,
+                      label: `${name} · ${said}` }, under: [] };
     }
     return null;
   }
