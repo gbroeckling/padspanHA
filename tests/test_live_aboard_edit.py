@@ -106,7 +106,8 @@ def test_edit_is_handed_over_only_where_lights_are_placed() -> None:
     assert "const onDropPlace = (paid && !preview && mapState._selLight) ?" in maps
     mblock = _block(maps, "house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?")
     assert ('edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)\n'
-            '        .then((r) => { mapState._heightsFile = undefined; return r; }) : null,') in mblock
+            '        .then((r) => { mapState._heightsFile = undefined; _laFileHeights(ctx, mapState, changes && changes.heights_set, r); '
+            'return r; }) : null,') in mblock
     # Its heights go on the placement records, on the same gate (2026-10-05).
     assert "heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null," in mblock
     put = maps[maps.index("export function _laHeightsPut("):][:400]
@@ -162,9 +163,11 @@ def test_one_finger_draws_two_still_pinch() -> None:
 def test_the_draft_lives_in_the_long_lived_slot() -> None:
     la = _js(_VIEWS / "live_aboard.js")
     assert "editor = EDIT.createEditor({" in la and la.index("editor = EDIT.createEditor({") > la.index("function start(setting){")
-    # The file as drawn: the placement records' heights over it (2026-10-05).
+    # The file as drawn: the placement records' heights over it (2026-10-05),
+    # without the heights out of date there (2026-10-06).
     assert "const viewData = () => (editor && editor.view()) || shownFile();" in la
-    assert "const f = file || NO_FILE, recs = recordsNow();" in la
+    assert "const f = file || NO_FILE, recs = recordsNow(), gone = [...goneNow()].sort();" in la
+    assert "out: DRAFT.withRecordHeights(withoutGone(f, gone), recs, sectionOf)" in la
     assert "if (editor) editor.layout();" in la
     ed = _code(_VIEWS / "live_aboard_edit.js")
     assert "root.appendChild(" in ed and "document.body" not in ed, "its page lives in the slot's element"
