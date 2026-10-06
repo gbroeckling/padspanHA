@@ -3212,7 +3212,9 @@ export function buildLightsMapCard(hostIn){
         automorphHardness: view.automorphLiveHardness !== undefined ? view.automorphLiveHardness : (host.automorphHardness || 0),
         automorphStyle: host.automorphStyle || "glow",
         automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0),
-        underlay: abData && abFurn() ? _AB.underlayOf(abData) : null });
+        underlay: abData && abFurn() ? _AB.underlayOf(abData) : null,
+        // Live Aboard's own hinge, swing, type and Shown for a door, when it is on.
+        doorOpenings: abData && abData.openings && typeof abData.openings === "object" ? abData.openings : null });
     isoDiv.innerHTML = svgStr;
     // People, tags and scanners over it, then the newest positions (while
     // the flat map shows and the page is in sight).

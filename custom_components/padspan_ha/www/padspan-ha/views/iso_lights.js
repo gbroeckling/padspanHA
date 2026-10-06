@@ -22,6 +22,12 @@ const { WLED_BORDER, PARTITION_BORDER, MOTION_PULSE, DOOR_BORDER,
         HUMIDITY_BORDER, FLOOD_BORDER, airQualityBadness, castsLight, classBorder, deviceClassOf } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
+// Doors, shared with Live Aboard (door_types.js): which way an open door
+// swings, its type and where its panels are, so the flat map draws an open
+// door's leaf swung open the way Live Aboard shows it. Optional: missing, an
+// open door is the clear gap it always was.
+const DOORS = await import(`./door_types.js${new URL(import.meta.url).search}`).catch(() => null);
+
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
 
 // 2 days — mirrors flood_latch.py's ACTIVE_WINDOW_S (Python owns the write,
@@ -2729,6 +2735,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // never pressed (the sidebar's Show furniture, and doors and windows
   // drawn in Live Aboard). Absent or empty: nothing at all is drawn.
   const UNDERLAY = Array.isArray(opts.underlay) && opts.underlay.length ? opts.underlay : null;
+  // Live Aboard's file's openings (its hinge, swing, door type and Shown for a
+  // barrier, by its id), when Live Aboard is on: an open door's leaf swings
+  // the way it is set there. None: hinged at the left end, swinging in.
+  const DOOR_STORED = opts.doorOpenings && typeof opts.doorOpenings === "object" ? opts.doorOpenings : null;
   // "Now", injectable so a test can pin elapsed time instead of racing the
   // clock — every other opt here follows the same pattern.
   const NOW_MS=Number(opts.nowMs)||Date.now();
@@ -5775,6 +5785,66 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         s+=`<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2" `+
           `stroke-dasharray="4,4" stroke-linecap="round" opacity="0.45" pointer-events="none"/>`;
       }
+      // An open (or ajar) door's leaf, Sims style: a short upright panel
+      // turned into the room from its hinge, with a faint quarter circle on
+      // the floor for its swing — or, for a door of another type (Live
+      // Aboard's), its panels as they stand open: slid beside the gap,
+      // folded at the side, two leaves, or a dashed outline up at the head
+      // for a door that lifts or rolls. Hinge, swing and type are Live
+      // Aboard's own rule and file (door_types.js); a window is no door.
+      // Under the hit-line (pointer-events none): the line stays the target.
+      function doorLeafSvg(bar, bpts, z, shown, dl, dim){
+        if(!DOORS) return "";
+        const dc = dl && dl.device_class;
+        const nm = String(bar.name||""), mat = String(bar.material||"").toLowerCase();
+        if(dc==="window" || (!["door","garage_door","opening"].includes(dc) && (/window/i.test(nm) || mat==="glass" && !/door|slid|patio/i.test(nm)))) return "";
+        const a=bpts[0], b=bpts[bpts.length-1], L=Math.hypot(b[0]-a[0], b[1]-a[1]);
+        if(!(L > 0.2)) return "";
+        const ux=(b[0]-a[0])/L, uy=(b[1]-a[1])/L;
+        const fid=String(bar.floor_id||"main"), outFloor=isOutdoorFloorId(fid);
+        const rooms=[];
+        for(const [name, g] of Object.entries((model && model.room_geometry_m) || {})){
+          if(!g || String(g.floor_id||"main")!==fid || !Array.isArray(g.points_m) || g.points_m.length<3) continue;
+          rooms.push({ name, outdoor: outFloor || undefined, pts: g.points_m.map(p=>[Number(p[0]), Number(p[1])]) });
+        }
+        const n=DOORS.barrierNormal(a, b, rooms);           // the side its wall faces, as Live Aboard's walls have it
+        const pc={ x0:a[0], y0:a[1], x1:b[0], y1:b[1], nx:n[0], ny:n[1], mat, barrier:bar,
+                   override: DOOR_STORED && DOOR_STORED[bar.id] && typeof DOOR_STORED[bar.id]==="object" ? DOOR_STORED[bar.id] : null };
+        const sw=DOORS.doorSwing(pc, rooms, pc.override), t=DOORS.doorTypeOf(pc, rooms);
+        if(dc==="garage_door" && t.guessed) t.type="overhead";
+        const ang=(DOORS.DOOR_ANGLE_DEG[shown]||85)*Math.PI/180, at=DOORS.shownAt(t.type, shown);
+        const H=2.03, panels=DOORS.doorPanels(t, at, L, H, 0.14, ang, sw.hinge==="b", H+0.6);
+        const vx=pc.nx*sw.side, vy=pc.ny*sw.side;
+        const P=(u,v)=>iso(a[0]+ux*u+vx*v, a[1]+uy*u+vy*v, z);
+        const up=Math.max(6, Math.min(26, (frame.scale||20)*0.55));       // a short height up the slab, on screen
+        const f=(q)=>`${q[0].toFixed(1)},${q[1].toFixed(1)}`;
+        const op=(0.9*dim).toFixed(2);
+        let g=`<g class="lvdoorleaf" pointer-events="none" opacity="${op}">`;
+        let lifted=false;
+        for(const q of panels){
+          if(q.pitch || q.kind==="drum" || q.kind==="curtain" || q.kind==="section" || t.type==="tiltup"){ lifted=true; continue; }
+          const ex=Math.cos(q.yaw), ev=Math.sin(q.yaw), hl=q.size[0]/2;
+          const A=P(q.c[0]-ex*hl, q.c[1]-ev*hl), B=P(q.c[0]+ex*hl, q.c[1]+ev*hl), h=up*Math.min(1, q.size[1]/H);
+          g+=`<polygon points="${f(A)} ${f(B)} ${f([B[0],B[1]-h])} ${f([A[0],A[1]-h])}" fill="${DOOR_BORDER}" fill-opacity="0.5" `+
+             `stroke="${DOOR_BORDER}" stroke-width="1.5" stroke-linejoin="round"/>`;
+          if(q.kind==="leaf" || (q.kind==="gate" && !t.slide)){
+            // Its swing: a quarter circle on the floor round the hinge, from shut to where it stands.
+            const E1=[q.c[0]-ex*hl, q.c[1]-ev*hl], E2=[q.c[0]+ex*hl, q.c[1]+ev*hl];
+            const hinge=Math.abs(E1[1])<=Math.abs(E2[1]) ? E1 : E2, free=hinge===E1 ? E2 : E1, len=q.size[0];
+            const s2=hinge[0] < L/2 ? 1 : -1, th=Math.atan2(Math.max(0, free[1]-hinge[1]), Math.max(0, s2*(free[0]-hinge[0])));
+            const pts=[];
+            for(let i=0;i<=8;i++){ const w=th*i/8; pts.push(f(P(hinge[0]+s2*Math.cos(w)*len, hinge[1]+Math.sin(w)*len))); }
+            g+=`<polyline points="${pts.join(" ")}" fill="none" stroke="${DOOR_BORDER}" stroke-width="1" stroke-dasharray="2,3" opacity="0.55"/>`;
+          }
+        }
+        if(lifted){
+          // A door that lifts or rolls: a dashed outline of it up at the head; the gap stays clear.
+          const A=P(0,0), B=P(L,0);
+          g+=`<polygon points="${f([A[0],A[1]-up])} ${f([B[0],B[1]-up])} ${f([B[0],B[1]-up*0.72])} ${f([A[0],A[1]-up*0.72])}" fill="none" `+
+             `stroke="${DOOR_BORDER}" stroke-width="1.2" stroke-dasharray="3,3"/>`;
+        }
+        return g+`</g>`;
+      }
       for(const bar of ((model && model.rf_barriers_m) || [])){
         // Garry, 2026-09-10: "any setting should not negate a door showing
         // up properly" — a linked wall is never gated by hiddenEids (the
@@ -5798,6 +5868,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         } else if(barrierNoReading(dl)){
           s+=`<polyline points="${ppx}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="3,4" `+
             `stroke-linecap="round" opacity="${(0.7*barDim).toFixed(2)}" pointer-events="none"/>`;
+          // No reading, but Live Aboard shows it ajar (or open): its leaf so.
+          const shownNow = DOOR_STORED && DOOR_STORED[bar.id] ? DOOR_STORED[bar.id].shown : null;
+          if(shownNow==="ajar" || shownNow==="open") s+=doorLeafSvg(bar, bpts, z, shownNow, dl, barDim);
         } else if(dl && dl.isLock){
           // A lock reports its OWN state, not the opening's — the section
           // stays drawn either way (a lock does not make the wall vanish
@@ -5825,6 +5898,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           if(!isOpen){
             s+=`<polyline points="${ppx}" fill="none" stroke="#94a3b8" stroke-width="2.6" `+
               `stroke-linecap="round" opacity="${barDim.toFixed(2)}" pointer-events="none"/>`;
+          } else {
+            // Garry, 2026-10-05: "in atlas, you never got the door looking
+            // like it's open, fix in sim style". The gap stays clear (no
+            // line where the door is); its leaf stands swung open beside it.
+            s+=doorLeafSvg(bar, bpts, z, "open", dl, barDim);
           }
         }
         // The two points where this opening meets the rest of the wall it

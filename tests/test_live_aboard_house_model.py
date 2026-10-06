@@ -56,7 +56,7 @@ def _code(p: Path) -> str:
 
 
 @pytest.mark.parametrize("prefix,least", [
-    ("storey:", 3), ("roof:", 3), ("stairs:", 3), ("door:", 1), ("doorway:", 1), ("types:", 3), ("view:", 10),
+    ("storey:", 3), ("roof:", 3), ("stairs:", 3), ("door:", 1), ("doorway:", 1), ("types:", 4), ("view:", 10),
 ])
 def test_the_house_model_harness_covers_each_part(model, prefix, least) -> None:
     got = [k for k in model["cases"] if k.startswith(prefix)]

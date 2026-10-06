@@ -243,6 +243,34 @@ await tryCase("types: a cover's position is how open it is; opening and closing 
     && DT.shownAt("bifold", "shut") === 0 && DT.coverIsDoor({ attributes: { device_class: "garage" } }), { a, b, c, d, e });
 });
 
+await tryCase("types: the flat Atlas swings a map door the way Live Aboard does", () => {
+  const model = { floors: [{ id: "main", name: "Main" }],
+    room_geometry_m: { Hall: rect("main", 0, 0, 4, 4), Den: rect("main", 4.1, 0, 8, 4),
+                       Back: { type: "poly", floor_id: "main", points_m: [[8, 4.1], [0, 4.1], [0, 6], [8, 6]] } },
+    rf_barriers_m: [{ id: "b1", name: "Den door", material: "wood", floor_id: "main", points_m: [[4.05, 1], [4.05, 1.9]], linked_entity_id: "binary_sensor.x" },
+                    { id: "b2", name: "Back door", material: "wood", floor_id: "main", points_m: [[2, 4.05], [1.1, 4.05]], linked_entity_id: "binary_sensor.y" },
+                    { id: "b3", name: "Front door", material: "wood", floor_id: "main", points_m: [[1, 0], [1.9, 0]], linked_entity_id: "binary_sensor.z" },
+                    { id: "b4", name: "Den side door", material: "wood", floor_id: "main", points_m: [[8, 2.9], [8, 2]], linked_entity_id: "binary_sensor.w" }] };
+  const h = H.readHouse(model, model.floors, {}, new Set(), {});
+  const per = h.perFloor.get(h.byId.get("main"));
+  const rooms = Object.entries(model.room_geometry_m).map(([name, g]) => ({ name, pts: g.points_m }));
+  const bad = [];
+  for (const b of model.rf_barriers_m) {
+    const pc = per.pieces.find(p => p.barrier && p.barrier.id === b.id);
+    if (!pc) { bad.push({ id: b.id, missing: true }); continue; }
+    const la = H.openingSwing(pc, per.rooms, null);
+    const laDir = [pc.nx * la.side, pc.ny * la.side], laHinge = la.hinge === "a" ? [pc.x0, pc.y0] : [pc.x1, pc.y1];
+    const a = b.points_m[0], e = b.points_m[1], n = DT.barrierNormal(a, e, rooms);
+    const fl = DT.doorSwing({ x0: a[0], y0: a[1], x1: e[0], y1: e[1], nx: n[0], ny: n[1] }, rooms, null);
+    const flDir = [n[0] * fl.side, n[1] * fl.side], flHinge = fl.hinge === "a" ? a : e;
+    // (An outside wall stands half its thickness out from the room's edge.)
+    if (Math.hypot(laDir[0] - flDir[0], laDir[1] - flDir[1]) > 1e-6 || Math.hypot(laHinge[0] - flHinge[0], laHinge[1] - flHinge[1]) > 0.1) {
+      bad.push({ id: b.id, laDir, flDir, laHinge, flHinge });
+    }
+  }
+  check("types: the flat Atlas swings a map door the way Live Aboard does", !bad.length, bad);
+});
+
 // ── the view ────────────────────────────────────────────────────────────────
 shim.install();
 const lists = { window: {}, document: {} };

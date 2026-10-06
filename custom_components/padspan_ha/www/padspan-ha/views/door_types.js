@@ -25,6 +25,9 @@
 // writes anything.
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+// A room outdoors: as its floor says (outdoor), else by its name (a deck, a patio...).
+const OUTDOOR_NAME = /\b(deck|patio|porch|balcony|terrace|veranda|yard|garden|lawn|driveway|outside|outdoor)\b/i;
+const outdoorRoom = (r) => (typeof r.outdoor === "boolean" ? r.outdoor : OUTDOOR_NAME.test(String(r.name || "")));
 function inside(x, y, P){
   let c = false;
   for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
@@ -46,13 +49,39 @@ function inside(x, y, P){
 export function doorSwing(pc, rooms, stored){
   const dx = pc.x1 - pc.x0, dy = pc.y1 - pc.y0;
   const mx = (pc.x0 + pc.x1) / 2, my = (pc.y0 + pc.y1) / 2;
-  const indoor = (s) => (rooms || []).some(r => !r.outdoor && inside(mx + pc.nx * s * 0.45, my + pc.ny * s * 0.45, r.pts));
+  const indoor = (s) => (rooms || []).some(r => !outdoorRoom(r) && inside(mx + pc.nx * s * 0.45, my + pc.ny * s * 0.45, r.pts));
   const inS = indoor(1) && !indoor(-1) ? 1 : -1;
   // Facing in, in the y-down plan: left of (fx, fy) is (fy, -fx).
   const fx = pc.nx * inS, fy = pc.ny * inS;
   let hingeB = dx * fy + dy * -fx > 0;                       // walking a → b goes left: b is the left end
   if (stored && stored.hinge === "right") hingeB = !hingeB;
   return { hinge: hingeB ? "b" : "a", side: stored && stored.swing === "out" ? -inS : inS };
+}
+
+/** The normal a barrier's wall has in Live Aboard (the house's
+ *  deriveWalls): a wall along a room's edge faces as that edge does (dy, -dx
+ *  over its length), built by the first indoor room in the map's order whose
+ *  edge it lies along (within 8° and 0.47 m); a barrier along no room's edge
+ *  stands on its own and faces (uy, -ux). So the flat Atlas swings a door the
+ *  same way Live Aboard does. rooms: [{name, outdoor?, pts}] in map order. */
+export function barrierNormal(a, b, rooms){
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+  const cos8 = Math.cos(8 * Math.PI / 180);
+  for (const r of rooms || []) {
+    if (outdoorRoom(r) || !r.pts) continue;
+    const P = r.pts;
+    for (let i = 0; i < P.length; i++) {
+      const p = P[i], q = P[(i + 1) % P.length], el = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (el < 0.03) continue;
+      const ex = (q[0] - p[0]) / el, ey = (q[1] - p[1]) / el;
+      if (Math.abs(ex * ux + ey * uy) < cos8) continue;
+      const off = (s) => Math.abs((s[0] - p[0]) * -ey + (s[1] - p[1]) * ex);
+      const along = (s) => (s[0] - p[0]) * ex + (s[1] - p[1]) * ey, m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      if (off(a) > 0.47 || off(b) > 0.47 || along(m) < -0.05 || along(m) > el + 0.05) continue;
+      return [ey, -ex];
+    }
+  }
+  return [uy, -ux];
 }
 
 // ── how a door with no sensor stands ─────────────────────────────────────────
@@ -96,7 +125,7 @@ export const OVERHEAD_MIN_M = 2.2, DOUBLE_M = [1.4, 1.9];
 export function guessDoorType(pc, rooms){
   const len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0), mx = (pc.x0 + pc.x1) / 2, my = (pc.y0 + pc.y1) / 2;
   const nx = num(pc.nx) ?? 0, ny = num(pc.ny) ?? 0;
-  const sides = [1, -1].map(s => (rooms || []).find(r => !r.outdoor && r.pts && inside(mx + nx * s * 0.45, my + ny * s * 0.45, r.pts)) || null);
+  const sides = [1, -1].map(s => (rooms || []).find(r => !outdoorRoom(r) && r.pts && inside(mx + nx * s * 0.45, my + ny * s * 0.45, r.pts)) || null);
   const name = String((pc.barrier && pc.barrier.name) || "");
   // (Outside: an outside wall, or with a room on one side only, as the flat Atlas sees a barrier.)
   const outside = pc.cls ? pc.cls === "ext" : !(sides[0] && sides[1]);
