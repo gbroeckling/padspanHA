@@ -3702,7 +3702,7 @@ export function buildLightsMapCard(hostIn){
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;
       mapB.setAttribute("title", "The flat map");
       d3B.setAttribute("aria-pressed", String(on)); d3B.style.cssText = on ? lit : "";
-      d3B.setAttribute("title", why || "Live Aboard: the house you can walk around");
+      d3B.setAttribute("title", why || "Live Aboard (experimental): the house you can walk around");
       if (why) { d3B.setAttribute("aria-disabled", "true"); d3B.setAttribute("aria-describedby", whyId); d3B.style.opacity = "0.45"; }
       else { d3B.removeAttribute("aria-disabled"); d3B.removeAttribute("aria-describedby"); }
       whyEl.textContent = why;
@@ -4063,7 +4063,7 @@ export function buildLightsMapCard(hostIn){
         const on = la3dOn(), why = la3dWhyNot();
         b3.classList.toggle("on", on); b3.style.opacity = why ? "0.45" : "";
         if (why) b3.setAttribute("aria-disabled", "true"); else b3.removeAttribute("aria-disabled");
-        b3.setAttribute("title", why || (on ? "Back to the flat map" : "Live Aboard"));
+        b3.setAttribute("title", why || (on ? "Back to the flat map" : "Live Aboard (experimental)"));
       });
       la3dCloseDrawer = () => { if (view.drawer) setDrawer(view.drawer); };
     }

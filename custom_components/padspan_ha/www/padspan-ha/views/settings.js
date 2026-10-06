@@ -3342,6 +3342,9 @@ const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard's o
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
+  // Experimental for now (Garry, 2026-10-05: label it so in the stable release).
+  box.appendChild(el("div",{"data-la3d-experimental":"",style:"display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:1px 8px;margin:0 0 6px"},
+    "EXPERIMENTAL — still changing; tell us what you find"));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
     "Adds a Map / Live Aboard switch to the Atlas: walk around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default."));
   const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");

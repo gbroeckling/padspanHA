@@ -1017,7 +1017,8 @@ function createSlot(slotKey){
     card.setAttribute("role", "dialog");
     card.setAttribute("aria-label", "How Live Aboard works");
     const ul = d("ul");
-    for (const t of ["Tap a light to switch it. Hold it for brightness and colour.",
+    for (const t of ["Live Aboard is experimental: it is still changing, and some of your house may not show yet.",
+                     "Tap a light to switch it. Hold it for brightness and colour.",
                      "Drag to turn the house. Two fingers (or the right mouse button) move it; pinch or the wheel zooms.",
                      "Double-tap a room to go there.",
                      "Walls: Cut, Up or Down. ▲ and ▼ change the floor you see.",
