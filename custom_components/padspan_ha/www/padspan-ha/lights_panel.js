@@ -25,7 +25,7 @@ const { hasControlCard } =
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
-        wireHoverHud, heightNow, captureWholeHouse, applyWholeHouse, ensureExactDevices } =
+        wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
@@ -1023,10 +1023,11 @@ class PadSpanLightsApp extends HTMLElement {
             stackHint: null,
             roomLine: (room, n) => `${room} — opens its ${n} device${n === 1 ? "" : "s"}`,
             // Its height for Live Aboard, once it has one (Live Aboard on, at Pro):
-            // the Heights list's lookup, with no Mapping draft here and no 3D
-            // file read while the flat map shows (the record's).
+            // the Heights list's lookup, with no Mapping draft here: the record's,
+            // else Live Aboard's file's as this screen already read it (no read
+            // of its own), as Live Aboard draws it.
             heightOf: this.state._house3d && this.state._house3d.atlas_3d_enabled === true
-              && String(this.state._tier || "").toLowerCase() === "pro" ? (eid) => heightNow(eid, this.state.model && this.state.model.light_positions_m) : null,
+              && String(this.state._tier || "").toLowerCase() === "pro" ? (eid) => screenHeight("atlas", this.state.model, eid, lightsByEid[eid]) : null,
           });
         });
       },

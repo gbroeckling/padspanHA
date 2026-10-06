@@ -544,6 +544,9 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
         "fabric_sync_mode": fabric_sync_mode,
         "scanner_positions_m": scanner_positions_m,
         "light_positions_m": mdl.light_positions_m() if mdl else {},
+        # The devices whose height in Live Aboard's file no view reads any
+        # more (a record's decided height removed since: fabric_store).
+        "light_heights_gone": mdl.light_heights_gone() if mdl else [],
         "room_geometry_m": room_geometry_m,
         "rf_barriers_m": rf_barriers_m,
         "map_transforms": map_transforms,

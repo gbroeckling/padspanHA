@@ -26,7 +26,11 @@ library commands, each refused while the feature is off.
   store write, or not at all. The light-placement gate (ws_fabric: any user,
   no admin, at the paid tier), inside the Pro-only feature: refused while off
   and below Pro, as if off. The first Save creates the file; from then on
-  backups carry it.
+  backups carry it. heights_set names the devices whose height the Save
+  writes here because they have no placement record (live_aboard_draft.js
+  splitSave): the newest height each has, so one a removed record had made
+  out of date in this file (fabric_store "light_heights_gone") counts again
+  once the file holds it, and the answer says which are still out of date.
 
 A file that is there but cannot be read is never shown as empty or written
 over: the commands answer read_failed until a read succeeds. The two that
@@ -41,7 +45,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import HOUSE3D_STORE_KEY
+from .const import DATA_FABRIC, DATA_MODEL, DOMAIN, HOUSE3D_STORE_KEY
 from .house3d_library import carried_over, without_tokens
 from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStore, NewerFile, ReadFailed,
                             apply_edit, async_get_store, empty, enabled, without_pieces, writable)
@@ -128,11 +132,14 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("devices"): dict,
     vol.Optional("pieces"): dict,
     vol.Optional("figures"): dict,
+    # The devices with no placement record whose height this Save writes here.
+    vol.Optional("heights_set"): [str],
 })
 @websocket_api.async_response
 async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
     """Save the 3D editor's draft: {openings, lights, devices, pieces, figures}, each
-    {key: entry to set | None to remove}. Returns the whole file."""
+    {key: entry to set | None to remove}, and heights_set (see above). Returns
+    the whole file."""
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return
@@ -157,7 +164,25 @@ async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
         if not await store.async_write(new):
             connection.send_error(msg["id"], "save_failed", "Could not save Live Aboard. Nothing was changed.")
             return
-        connection.send_result(msg["id"], {"data": without_tokens(store.data), "counts": store.counts()})
+        answer = {"data": without_tokens(store.data), "counts": store.counts()}
+        if "heights_set" in msg:
+            # The file holds them now: only then are they taken off the list.
+            answer["light_heights_gone"] = await _heights_back(hass, msg["heights_set"])
+        connection.send_result(msg["id"], answer)
+
+
+async def _heights_back(hass: HomeAssistant, eids: list[str]) -> list[str]:
+    """Take the devices Live Aboard just wrote a height for in its file off
+    fabric_store's light_heights_gone (one fabric write, only when one was
+    on it); returns the list as it is now."""
+    dom = hass.data.get(DOMAIN, {})
+    fab = getattr(dom.get(DATA_MODEL), "fabric", None) or dom.get(DATA_FABRIC)
+    if fab is None:
+        return []
+    back = sorted(set(eids) & set(fab.light_heights_gone()))
+    if back:
+        await fab.async_spatial_update(file_heights_set=back, op="house3d_heights")
+    return fab.light_heights_gone()
 
 
 WS_COMMANDS = (ws_house3d_get, ws_house3d_clear, ws_house3d_edit)

@@ -88,6 +88,16 @@ Data layout in .storage/padspan_ha.fabric:
     # never sets one has a fabric file exactly as before.
     "light_heights_m":     { "<entity_id>": z_m | None },
     "beacon_heights_m":    { "<key>": z_m | None },
+    # The devices whose height in Live Aboard's own file is out of date: a
+    # record that had its height decided (a height, or Default) was removed
+    # since (Auto position). That file keeps its copy of a height for an
+    # older PadSpan (house3d_heights.py), and a device with no record falls
+    # back to it, so without this the height Auto position cleared would come
+    # back (Live Aboard drawing it, the move copying it onto the next record).
+    # No view and no move reads a listed device's height there; a height Live
+    # Aboard writes to its file after that is the newest and takes the device
+    # off (ws_house3d). Created on the first such removal.
+    "light_heights_gone":  [ "<entity_id>" ],
     # The safety backup taken before Live Aboard's heights were first copied
     # onto the records (house3d_heights.py): its id, kept here, not in the
     # capped history, so it never ages out.
@@ -368,6 +378,12 @@ class FabricStore:
         """{key: z_m | None} — fixed beacons' heights."""
         return dict(self.data.get("beacon_heights_m") or {})
 
+    def light_heights_gone(self) -> list[str]:
+        """[entity_id] — devices whose height in Live Aboard's file is out of
+        date (see the layout)."""
+        gone = self.data.get("light_heights_gone")
+        return [str(e) for e in gone] if isinstance(gone, list) else []
+
     def rf_barriers_m(self) -> list[dict[str, Any]]:
         """[{name, material, attenuation_dbm, floor_id, points_m, ...}] — canonical."""
         return list(self.data.get("rf_barriers_m") or [])
@@ -611,6 +627,7 @@ class FabricStore:
         remove_barrier_ids: list[str] | None = None,
         set_light_heights: dict[str, float | None] | None = None,
         set_beacon_heights: dict[str, float | None] | None = None,
+        file_heights_set: list[str] | None = None,
         op: str = "spatial_update",
     ) -> dict[str, int]:
         """Apply a set of spatial changes atomically.
@@ -625,6 +642,10 @@ class FabricStore:
         beside its record: removing a record removes its height, and a new
         record saved without one has none (not one left from an earlier
         record of the same id, nor one an older PadSpan left behind).
+        A light record removed with its height decided puts the device on
+        light_heights_gone (Live Aboard's file's copy is out of date);
+        file_heights_set (the devices Live Aboard just wrote a height for in
+        its file) takes them off.
         Invalid entries are skipped, not fatal.  Returns per-kind counts.
         """
         counts = {"scanners": 0, "beacons": 0, "barriers": 0, "lights": 0, "heights": 0, "removed": 0}
@@ -673,9 +694,11 @@ class FabricStore:
                 heights["light_heights_m"][str(eid)] = z
             elif fresh:
                 dropped["light_heights_m"].add(str(eid))
+        removed_lights: set[str] = set()
         for eid in (remove_lights or []):
             if lights.pop(str(eid), None) is not None:
                 counts["removed"] += 1
+                removed_lights.add(str(eid))
             dropped["light_heights_m"].add(str(eid))
 
         barriers = self.data.setdefault("rf_barriers_m", [])
@@ -707,14 +730,25 @@ class FabricStore:
                 if k not in stored or stored[k] != z:
                     stored[k] = z
                     counts["heights"] += 1
+        went: set[str] = set()
         for key, gone in dropped.items():
             stored = self.data.get(key) or {}
             for k in gone - set(heights[key]):
                 if k in stored:
                     del stored[k]
                     counts["heights"] += 1
+                    if key == "light_heights_m" and k in removed_lights:
+                        went.add(k)
+        # A record removed with its height decided: Live Aboard's file's copy
+        # of that height is out of date from now on (see the layout), until
+        # Live Aboard writes it a new one.
+        listed = set(self.light_heights_gone())
+        now = (listed | went) - {str(e) for e in (file_heights_set or [])}
+        if now != listed:
+            self.data["light_heights_gone"] = sorted(now)
+            counts["heights"] += len(now ^ listed)
 
-        total = (counts["scanners"] + counts["beacons"] + counts["barriers"]
+        total =(counts["scanners"] + counts["beacons"] + counts["barriers"]
                  + counts["lights"] + counts["heights"] + counts["removed"])
         if total:
             self._log_history("", "", op, total)

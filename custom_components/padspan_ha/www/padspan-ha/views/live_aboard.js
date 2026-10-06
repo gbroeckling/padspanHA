@@ -60,6 +60,8 @@ const LOOKS = await import(`./live_aboard_showcase.js${new URL(import.meta.url).
   .catch(err => { console.warn("PadSpan: live_aboard_showcase failed to load", err); return null; });
 // The Atlas's own word for the air (its room sheet's "Air Good").
 const { airQualityWord, airQualityBadness } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
+// The heights in Live Aboard's file no view reads (out of date: the map's).
+const { withoutGone } = await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // P5: furniture that is a device behaves like it (optional too: missing, the
 // pieces are only furniture and the fixtures stay where they are).
 const DEVICES = await import(`./live_aboard_devices.js${new URL(import.meta.url).search}`)
@@ -418,8 +420,11 @@ function createSlot(slotKey){
   let file = null, fileLoad = null, lastP = null;
   // The file as the host last handed it (house3d_get's or house3d_edit's
   // "data"), and heights just saved to placement records that the map's own
-  // read may not have yet ({entity id: {z, was}}: see recordsNow).
-  let fileRaw = null, recZ = {}, shownMemo = null, shownSig = "";
+  // read may not have yet ({entity id: {z, was}}: see recordsNow). fileZ:
+  // heights just written to the file for devices with no record, the newest
+  // each has ({entity id: {over, gone}}: what the map said of it then; see
+  // recordsNow and goneNow).
+  let fileRaw = null, recZ = {}, fileZ = {}, shownMemo = null, shownSig = "";
   // Why the file cannot be edited: read but refused ({code: "read_failed"}),
   // or a newer PadSpan's ({code: "house3d_newer"}: read so, or a Save refused
   // so); null when it can. The next read that works says again.
@@ -3555,18 +3560,25 @@ function createSlot(slotKey){
    *  and not yet saved has no record), else the map's. */
   const savedRecords = () => (lastP && typeof lastP.records === "function" ? lastP.records()
     : lastP && lastP.model && lastP.model.light_positions_m) || {};
-  /** {entity id: z_m or null}: the heights of devices with a placement
-   *  record, as the map draws them (in Mapping, its unsaved Height-row value
-   *  over the record). A device with no record has none here: its height
-   *  is the 3D file's, never Mapping's draft. A height just saved stands in
-   *  until the saved record changes at all (it has it now, or another was
-   *  saved over it since, say Mapping's Save placements): never measured
-   *  against Mapping's draft, so it never outlives the record it was saved
-   *  to. */
+  /** {entity id: z_m or null}: the heights as the map draws them: each
+   *  record's, and in Mapping its unsaved Height-row value over the record,
+   *  for a device dropped there and not yet saved too (as its Height row,
+   *  Heights list and hover box say it); never written to the file for one
+   *  with no record (splitSave). A height just written to the file for one
+   *  with no record (fileZ) is drawn over Mapping's unsaved one, older, while
+   *  the map still says that one (maps.js drops it). A height just saved
+   *  stands in until the saved record changes at all (it has it now, or
+   *  another was saved over it since, say Mapping's Save placements): never
+   *  measured against Mapping's draft, so it never outlives the record it
+   *  was saved to. */
   function recordsNow(){
     const saved = savedRecords(), savedZ = DRAFT.recordHeights({ light_positions_m: saved });
     const recs = DRAFT.recordHeights(lastP && lastP.model);
-    for (const k of Object.keys(recs)) if (!saved[k]) delete recs[k];
+    for (const k of Object.keys(fileZ)) {
+      const f = fileZ[k];
+      if (f.over !== null && f.over !== overSig(recs, k)) f.over = null;
+      if (f.over !== null) delete recs[k];
+    }
     for (const k of Object.keys(recZ)) {
       const now = k in savedZ ? savedZ[k] : undefined;
       if (!saved[k] || now !== recZ[k].was) { delete recZ[k]; continue; }
@@ -3576,14 +3588,34 @@ function createSlot(slotKey){
   }
   /** The devices with a placement record (the ones whose height lives there). */
   const placedNow = () => new Set(Object.keys(savedRecords()));
+  // What the map says of a height: Mapping's (or the record's) for one
+  // device, and which heights in the file are out of date (the model's
+  // light_heights_gone: a record's decided height removed since).
+  const overSig = (recs, k) => JSON.stringify(Object.prototype.hasOwnProperty.call(recs, k) ? recs[k] : "none");
+  const goneOf = () => { const g = lastP && lastP.model && lastP.model.light_heights_gone; return Array.isArray(g) ? g : []; };
+  const goneSig = () => JSON.stringify([...goneOf()].sort());
+  /** The devices whose height in the file no view reads (the model's
+   *  light_heights_gone), but for one just written there (fileZ), while the
+   *  model still says what it said then (the server has taken it off). */
+  function goneNow(){
+    const g = new Set(goneOf()), sig = goneSig();
+    for (const k of Object.keys(fileZ)) {
+      const f = fileZ[k];
+      if (f.gone !== null && f.gone !== sig) f.gone = null;
+      if (f.gone !== null) g.delete(k);
+      if (f.over === null && f.gone === null) delete fileZ[k];
+    }
+    return g;
+  }
   /** Which of the file's sections the view reads a device's height from. */
   const sectionOf = (eid) => (HOUSE.isFixture(lbe[eid]) ? "lights" : "devices");
-  /** The file as drawn: the records' heights over it (the same object while
-   *  neither changed; the file itself while no record has a height). */
+  /** The file as drawn: the records' heights over it, without the ones out
+   *  of date (goneNow) (the same object while none changed; the file itself
+   *  while no record has a height and none is out of date). */
   function shownFile(){
-    const f = file || NO_FILE, recs = recordsNow();
-    const sig = JSON.stringify(Object.keys(recs).sort().map(k => [k, recs[k], sectionOf(k)]));
-    if (!shownMemo || shownMemo.f !== f || shownMemo.sig !== sig) shownMemo = { f, sig, out: DRAFT.withRecordHeights(f, recs, sectionOf) };
+    const f = file || NO_FILE, recs = recordsNow(), gone = [...goneNow()].sort();
+    const sig = JSON.stringify([gone, Object.keys(recs).sort().map(k => [k, recs[k], sectionOf(k)])]);
+    if (!shownMemo || shownMemo.f !== f || shownMemo.sig !== sig) shownMemo = { f, sig, out: DRAFT.withRecordHeights(withoutGone(f, gone), recs, sectionOf) };
     return shownMemo.out;
   }
   // What a part of Save that failed was, said plainly (the rest was saved).
@@ -3599,12 +3631,15 @@ function createSlot(slotKey){
    *  goes to the 3D file (the host's edit: house3d_edit). A refused height
    *  command changes nothing at all; a file write that fails after the
    *  heights went in says so, and hands the editor the heights saved (it
-   *  starts from them: live_aboard_edit.js). A host with no height command:
-   *  all to the file, as before. */
+   *  starts from them: live_aboard_edit.js). A height the file holds out of
+   *  date is never sent back as its own (the file as the view reads it); a
+   *  height written to the file for a device with no record is the newest it
+   *  has from then on (fileZ). A host with no height command: all to the
+   *  file, as before. */
   async function editSave(ch, base){
     const p = lastP || {}, edit = p.edit, put = typeof p.heights === "function" ? p.heights : null;
     if (!put) return edit(ch);
-    const split = DRAFT.splitSave(file || NO_FILE, ch, base, placedNow());
+    const split = DRAFT.splitSave(withoutGone(file || NO_FILE, [...goneNow()]), ch, base, placedNow());
     if (split.heights) {
       const before = DRAFT.recordHeights({ light_positions_m: savedRecords() });
       try { await put(split.heights); }
@@ -3616,7 +3651,13 @@ function createSlot(slotKey){
       shownMemo = null;
     }
     if (!split.file) return { data: fileRaw || file || NO_FILE };
-    try { return await edit(split.file); }
+    const mine = split.file.heights_set || [], said = mine.length ? { recs: recordsNow(), gone: goneSig() } : null;
+    try {
+      const r = await edit(split.file);
+      for (const k of mine) fileZ[k] = { over: overSig(said.recs, k), gone: said.gone };
+      if (mine.length) shownMemo = null;
+      return r;
+    }
     catch (err) {
       if (!split.heights) throw err;
       throw Object.assign(new Error(`Heights saved. The rest wasn't: ${why(err)}. Your other changes are still here: Save to try again.`),

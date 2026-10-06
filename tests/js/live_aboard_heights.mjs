@@ -32,9 +32,16 @@
 //           then on Undo, Discard and the next Save count the heights as saved
 //           (finding 1); a device dropped on Mapping's map and not yet saved
 //           has no record yet: its height goes to the 3D file (finding 4),
-//           and Mapping's unsaved Height-row value for it is never taken
-//           (re-review finding 3); a host with no height command: all to the
+//           named as the newest (heights_set), and Mapping's unsaved
+//           Height-row value for it is drawn but never written there
+//           (re-review finding 3, gaps finding 2); a height Live Aboard saves
+//           for it wins over that older unsaved one, in both views at once
+//           (gaps finding 2); a host with no height command: all to the
 //           file, as before
+//   gone    a height Auto position cleared (the model's light_heights_gone)
+//           never comes back from the 3D file, for a device placed again or
+//           dropped on Mapping's map; a height Live Aboard writes there after
+//           that is the newest, drawn at once (gaps finding 1)
 //
 // usage: live_aboard_heights.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...], payloads: [...] }
@@ -157,11 +164,14 @@ const editFn = async (changes) => {
   payloads.push(clone(changes));
   if (server.fail) { const f = server.fail; server.fail = null; throw f; }
   const next = clone(server.file);
-  for (const [sec, entries] of Object.entries(changes)) for (const [k, v] of Object.entries(entries)) {
-    if (v === null) delete next[sec][k]; else next[sec][k] = clone(v);
+  for (const [sec, entries] of Object.entries(changes)) {
+    if (sec === "heights_set") continue;
+    for (const [k, v] of Object.entries(entries)) { if (v === null) delete next[sec][k]; else next[sec][k] = clone(v); }
   }
   server.file = next;
-  return { data: clone(next), counts: {} };
+  if (!changes.heights_set) return { data: clone(next), counts: {} };
+  server.model.light_heights_gone = (server.model.light_heights_gone || []).filter((e) => !changes.heights_set.includes(e));
+  return { data: clone(next), counts: {}, light_heights_gone: clone(server.model.light_heights_gone) };
 };
 const heightsFn = async (heights) => {
   heightCalls.push(clone(heights));
@@ -179,17 +189,22 @@ const P = () => ({ model: clone(server.model), floors: server.model.floors, ligh
   load: async () => ({ data: clone(server.file) }), edit: editFn, heights: withHeights ? heightsFn : null,
   // Mapping: the draft adds a device just dropped (draftOnly), not yet saved.
   ...(draftOnly ? { records: () => clone(server.model.light_positions_m) } : null),
-  // Mapping for real (startMapping): its own heights hook, its model as read.
-  ...(mapping ? { heights: MAPS._laHeightsPut(mapping.ctx, mapping.mapState), records: () => clone(mapping.model.light_positions_m) } : null) });
+  // Mapping for real (startMapping): its own heights hook, its model as read,
+  // and its own hook after a Save to the 3D file (maps.js edit: _laFileHeights).
+  ...(mapping ? { heights: MAPS._laHeightsPut(mapping.ctx, mapping.mapState), records: () => clone(mapping.model.light_positions_m),
+                  edit: ((m) => (changes) => editFn(changes).then((r) => { MAPS._laFileHeights(m.ctx, m.mapState, changes.heights_set, r); return r; }))(mapping) }
+    : null) });
 const drawnModel = () => (mapping ? { ...clone(mapping.model), light_positions_m: MAPS._draftOverRecords(clone(mapping.model.light_positions_m), clone(mapping.mapState._lightsDraftM)) }
   : draftOnly ? { ...clone(server.model), light_positions_m: { ...clone(server.model.light_positions_m), ...draftOnly } } : clone(server.model));
 // Mapping's tab: its model as last read (the map read again, after a while,
 // redraws the card as the panel does) and its placement draft.
 function startMapping(draftM){
   const m = { mapState: { _lightsDraftM: clone(draftM) }, model: null };
-  m.ctx = { actions: {
+  m.ctx = { state: { get model(){ return m.model; } }, actions: {
     wsCall: async (type, msg) => { if (type !== "padspan_ha/fabric_light_height_set") throw new Error(type); return heightsFn(msg.heights); },
     modelRefresh: () => new Promise((r) => globalThis._realSetTimeout(r, 0)).then(() => { m.model = clone(server.model); poll(); }),
+    // Mapping drawn again (no read): the card a moment later, as the panel schedules it.
+    renderRooms: () => { m.rendered = (m.rendered || 0) + 1; globalThis._realSetTimeout(() => { if (mapping === m) poll(); }, 0); },
   } };
   return m;
 }
@@ -408,7 +423,8 @@ await tryCase("save: a device dropped on Mapping's map, not yet saved: its heigh
   const sentFile = payloads.slice(before), h = hint();
   draftOnly = null;
   check("save: a device dropped on Mapping's map, not yet saved: its height goes to the 3D file",
-    picked && heightCalls.length === 0 && sentFile.length === 1 && canonical(sentFile[0]) === canonical({ lights: { "light.lamp": { z_m: 1.3 } } })
+    picked && heightCalls.length === 0 && sentFile.length === 1
+    && canonical(sentFile[0]) === canonical({ lights: { "light.lamp": { z_m: 1.3 } }, heights_set: ["light.lamp"] })
     && !ed().dirty && /Saved/.test(h), { picked, heightCalls, sentFile, h });
 });
 await tryCase("read: a height just saved never outlives its record: Mapping's Save placements over it is drawn", async () => {
@@ -471,9 +487,11 @@ await tryCase("read: a height just saved in Live Aboard is drawn at once, never 
     && canonical(left) === canonical({ "light.living": { ...BASE.light_positions_m["light.living"], x_m: 2.6, source: "manual" } }),
     { picked, before, sent, saved, after, left });
 });
-await tryCase("save: a device dropped on Mapping's map, not yet saved, never takes Mapping's unsaved height", async () => {
+await tryCase("save: a device dropped on Mapping's map, not yet saved: its unsaved height drawn, never written to the file", async () => {
   // Re-review finding 3: its Height row says 0.9 (unsaved); in Live Aboard
-  // only its kind changes. It has no record, so its height is the 3D file's.
+  // only its kind changes. It has no record, so its height is the 3D file's:
+  // 0.9 never goes there. Gaps finding 2: Live Aboard draws the 0.9 the
+  // Height row, the Heights list and the hover box say.
   draftOnly = { "light.lamp": { x_m: 1.0, y_m: 7, floor_id: "main", z_m: 0.9 } };
   const model = clone(BASE);
   delete model.light_positions_m["light.lamp"];
@@ -489,8 +507,8 @@ await tryCase("save: a device dropped on Mapping's map, not yet saved, never tak
   await settle(); await settle();
   const sentFile = payloads.slice(before), sentHeights = heightCalls.slice(calls);
   draftOnly = null;
-  check("save: a device dropped on Mapping's map, not yet saved, never takes Mapping's unsaved height",
-    picked && !near(shown, 0.9) && sentHeights.length === 0 && sentFile.length === 1
+  check("save: a device dropped on Mapping's map, not yet saved: its unsaved height drawn, never written to the file",
+    picked && near(shown, 0.9) && sentHeights.length === 0 && sentFile.length === 1
     && canonical(sentFile[0]) === canonical({ lights: { "light.lamp": { kind: "pendant" } } }), { picked, shown, sentFile, sentHeights });
 });
 await tryCase("read: a height just saved gives way when the map brings another", async () => {
@@ -506,6 +524,83 @@ await tryCase("read: a height just saved gives way when the map brings another",
   poll(); await settle();
   check("read: a height just saved gives way when the map brings another", near(saved, 1.25) && near(zOf("light.den"), 2.0),
     { saved, now: zOf("light.den") });
+});
+await tryCase("save: a height Live Aboard saves for a device dropped on Mapping's map, not yet saved, wins over the Height row's", async () => {
+  // Gaps finding 2: the floor lamp dropped in Mapping, Table (0.75) on its
+  // Height row, not saved. Live Aboard draws 0.75; it sets 1.3 there (no
+  // record: the 3D file). That is the newest: drawn at once and after,
+  // and Mapping's older 0.75 leaves its draft (the drop stays), so its Save
+  // placements never puts 0.75 back over it.
+  const model = clone(BASE);
+  delete model.light_positions_m["light.lamp"];
+  await start(model, { ...FILE, lights: {}, devices: {} });
+  const drop = { x_m: 1.0, y_m: 7, floor_id: "main" };
+  mapping = startMapping({ "light.lamp": { ...drop, z_m: 0.75, _z: true, source: "manual" } });
+  mapping.model = clone(server.model);
+  poll(); await settle();
+  const before = zOf("light.lamp"), sent = payloads.length, calls = heightCalls.length;
+  await openHeights();
+  const picked = await pickDevice("light.lamp");
+  slide("Height", 1.3);
+  click("Save", "la3d-tools");
+  await settle(); await settle();
+  const saved = zOf("light.lamp"), file = payloads.slice(sent), left = clone(mapping.mapState._lightsDraftM);
+  await settle(); poll(); await settle();
+  const after = zOf("light.lamp");
+  click("Done"); await settle(); poll(); await settle();
+  const done = zOf("light.lamp");
+  mapping = null;
+  check("save: a height Live Aboard saves for a device dropped on Mapping's map, not yet saved, wins over the Height row's",
+    picked && near(before, 0.75) && heightCalls.length === calls && file.length === 1
+    && canonical(file[0]) === canonical({ lights: { "light.lamp": { z_m: 1.3 } }, heights_set: ["light.lamp"] })
+    && near(saved, 1.3) && near(after, 1.3) && near(done, 1.3) && server.file.lights["light.lamp"].z_m === 1.3
+    && canonical(left) === canonical({ "light.lamp": { ...drop, source: "manual" } }), { picked, before, file, saved, after, done, left });
+});
+// ── gone: a height Auto position cleared ───────────────────────────────────
+await tryCase("gone: a height Auto position cleared never comes back from the 3D file", async () => {
+  // Gaps finding 1: the den light's record had its height and was removed
+  // (Auto position), then saved again with none; the floor lamp's too, now
+  // dropped again on Mapping's map, not yet saved. The file still has their
+  // old heights (for an older PadSpan): neither is drawn.
+  const model = clone(BASE);
+  delete model.light_positions_m["light.lamp"];
+  model.light_heights_gone = ["light.den", "light.lamp"];
+  draftOnly = { "light.lamp": { x_m: 1.0, y_m: 7, floor_id: "main" } };
+  await start(model, { ...FILE, lights: { ...FILE.lights, "light.lamp": { z_m: 0.6 } } });
+  const den = zOf("light.den"), lamp = zOf("light.lamp"), living = zOf("light.living");
+  draftOnly = null;
+  check("gone: a height Auto position cleared never comes back from the 3D file",
+    den === null && lamp === null && near(living, 1.9), { den, lamp, living });
+});
+await tryCase("gone: a height Live Aboard writes after that is the newest, drawn at once; a kind alone never brings the old one back", async () => {
+  const model = clone(BASE);
+  delete model.light_positions_m["light.lamp"];
+  model.light_heights_gone = ["light.lamp", "light.living"];
+  await start(model, { ...FILE, lights: { ...FILE.lights, "light.lamp": { z_m: 0.6 } } });
+  mapping = startMapping({ "light.lamp": { x_m: 1.0, y_m: 7, floor_id: "main", source: "manual" } });
+  mapping.model = clone(server.model);
+  poll(); await settle();
+  const sent = payloads.length;
+  await openHeights();
+  // The living light (placed, its old 1.9 out of date): only its kind changes.
+  const pickedLiving = await pickDevice("light.living");
+  const kind = root().querySelectorAll(".la3d-sheet")[0].querySelectorAll("select")[0];
+  kind.value = "chandelier"; kind.dispatchEvent({ type: "change" });
+  await settle();
+  const picked = await pickDevice("light.lamp");
+  const shownBefore = zOf("light.lamp");
+  slide("Height", 1.3);
+  click("Save", "la3d-tools");
+  await settle(); await settle();
+  const saved = zOf("light.lamp"), file = payloads.slice(sent), goneNow = clone(mapping.model.light_heights_gone);
+  await settle(); poll(); await settle();
+  const after = { lamp: zOf("light.lamp"), living: zOf("light.living") };
+  mapping = null;
+  check("gone: a height Live Aboard writes after that is the newest, drawn at once; a kind alone never brings the old one back",
+    pickedLiving && picked && shownBefore === null && file.length === 1
+    && canonical(file[0]) === canonical({ lights: { "light.lamp": { z_m: 1.3 }, "light.living": { kind: "chandelier" } }, heights_set: ["light.lamp"] })
+    && near(saved, 1.3) && near(after.lamp, 1.3) && after.living === null
+    && canonical(goneNow) === canonical(["light.living"]), { pickedLiving, picked, shownBefore, file, saved, after, goneNow });
 });
 await tryCase("save: a host with no height command: all to the file, as before", async () => {
   withHeights = false;

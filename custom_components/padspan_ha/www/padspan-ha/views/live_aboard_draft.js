@@ -606,19 +606,25 @@ const withoutZ = (e) => { const o = { ...(e || {}) }; delete o.z_m; return o; };
  *  (`placed`) whose height the draft changed from where it started (`base`,
  *  the draft's starting copy): a height never touched is never sent, so a
  *  newer one set elsewhere meanwhile stays. file: the draft's changes (`ch`,
- *  changesOf) for house3d_edit, with a placed device's height left as the 3D
- *  file has it (`file`, as read): a light's entry keeps the file's own copy,
- *  a device's height entry is not sent. Either is null with nothing in it. */
+ *  changesOf) for house3d_edit, with a height the draft did not change left
+ *  as the 3D file has it (`file`, as the view reads it): a light's entry
+ *  keeps the file's own copy, a device's height entry is not sent. So a
+ *  height the view only lays over a device with no record (Mapping's unsaved
+ *  Height-row value for one dropped there and not yet saved) is drawn, never
+ *  written. A device with no record whose height the draft did change: that
+ *  height goes to the file, and file.heights_set names it (the newest height
+ *  it has: ws_house3d, maps.js). Either is null with nothing in it. */
 export function splitSave(file, ch, base, placed){
   const has = (id) => (placed instanceof Set ? placed.has(id) : !!(placed && placed[id]));
-  const heights = {}, out = {};
+  const heights = {}, out = {}, mine = [];
   for (const s of SECTIONS) {
     const sec = ch && ch[s];
     if (!sec) continue;
     const keep = {};
     for (const k of Object.keys(sec)) {
-      if ((s !== "lights" && s !== "devices") || !has(k)) { keep[k] = sec[k]; continue; }
+      if (s !== "lights" && s !== "devices") { keep[k] = sec[k]; continue; }
       const e = sec[k], z = num(e && e.z_m), z0 = num(base && base[s] && base[s][k] && base[s][k].z_m);
+      if (!has(k) && z !== z0) { keep[k] = sec[k]; mine.push(k); continue; }
       if (z !== z0) heights[k] = z;
       const was = (file && file[s] && file[s][k]) || null, fz = num(was && was.z_m);
       const want = { ...withoutZ(e), ...(fz !== null ? { z_m: fz } : null) };
@@ -635,6 +641,7 @@ export function splitSave(file, ch, base, placed){
     }
     if (Object.keys(keep).length) out[s] = keep;
   }
+  if (mine.length) out.heights_set = mine.sort();
   return { heights: Object.keys(heights).length ? heights : null, file: Object.keys(out).length ? out : null };
 }
 /** The draft's starting copy once `heights` ({entity id: z_m or null}, from

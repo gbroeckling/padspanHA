@@ -42,6 +42,7 @@ import voluptuous as vol
 
 from custom_components.padspan_ha import house3d_store as HS
 from custom_components.padspan_ha.ws_fabric import ws_fabric_light_height_set, ws_fabric_light_position_set
+from custom_components.padspan_ha.ws_house3d import ws_house3d_edit
 
 _ROOT = Path(__file__).resolve().parents[1]
 _WWW = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
@@ -101,7 +102,14 @@ def test_the_heights_list_sorts_filters_and_sets_in_one_step(atlas) -> None:
 
 
 def test_what_is_drawn_and_the_hover_box(atlas) -> None:
-    _case(atlas, "draw:", 4)
+    _case(atlas, "draw:", 5)
+
+
+def test_a_height_live_aboard_wrote_to_its_file_wins_over_the_rows_older_one(atlas) -> None:
+    """Gaps finding 2: for a device dropped here and not yet saved, the
+    Height row's older unsaved height leaves the draft once Live Aboard wrote
+    a newer one to its file; Save placements then sends none."""
+    _case(atlas, "file:")
 
 
 def test_the_flat_drawing_is_byte_identical_with_heights_in_the_records(atlas) -> None:
@@ -140,7 +148,14 @@ def test_live_aboard_reads_the_record_then_the_file_then_the_default(aboard) -> 
 
 
 def test_edit_heights_save_to_the_record_with_undo_discard_and_honest_words(aboard) -> None:
-    _case(aboard, "save:", 8)
+    _case(aboard, "save:", 9)
+
+
+def test_a_height_auto_position_cleared_never_comes_back_in_live_aboard(aboard) -> None:
+    """Gaps finding 1: out of date (the model's light_heights_gone), a height
+    still in Live Aboard's file is never drawn; one Live Aboard writes there
+    afterwards is the newest, drawn at once."""
+    _case(aboard, "gone:", 2)
 
 
 def test_every_live_aboard_case_passes(aboard) -> None:
@@ -154,8 +169,11 @@ def test_what_live_aboard_sent_to_its_file_the_server_keeps(aboard) -> None:
     assert len(sent) >= 4
     base = {**HS.empty(), "lights": {"light.den": {"z_m": 2.3, "kind": "pendant"}, "light.living": {"z_m": 1.9}},
             "devices": {"sensor.den_temp": {"z_m": 1.1}}}
-    for changes in sent:
-        HS.apply_edit(base, changes)
+    schema = vol.Schema({vol.Required("id"): int, **ws_house3d_edit.ws_schema})
+    for i, changes in enumerate(sent):
+        schema({"id": i + 1, "type": "padspan_ha/house3d_edit", **changes})
+        HS.apply_edit(base, {k: v for k, v in changes.items() if k in HS.EDIT_SECTIONS})   # as the command does
+    assert any(c.get("heights_set") for c in sent), "a device with no record named as the newest"
 
 
 def test_the_height_command_takes_what_live_aboard_sends() -> None:
@@ -194,6 +212,9 @@ def test_the_hooks_are_where_they_belong() -> None:
     assert 'heights: typeof h3.heights === "function" ? h3.heights : null,' in lm
     assert 'records: typeof h3.records === "function" ? h3.records : null,' in lm
     assert "records: () => ctx.state.model?.light_positions_m || {}," in maps
+    # Live Aboard's Save to its file: Mapping's own hook after it (gaps finding 2).
+    assert ('.then((r) => { mapState._heightsFile = undefined; _laFileHeights(ctx, mapState, changes && changes.heights_set, r); '
+            'return r; }) : null,') in maps
     la = _js(_VIEWS / "live_aboard.js")
     assert 'editor.setEdit(typeof p.edit === "function" ? editSave : null);' in la
     assert "const viewData = () => (editor && editor.view()) || shownFile();" in la

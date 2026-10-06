@@ -101,6 +101,17 @@ def test_kinds_draw_as_atlas_shapes_and_furniture_shows_when_on(run) -> None:
     _case(run, "furn:")
 
 
+def test_the_hover_box_says_the_height_live_aboard_draws(run) -> None:
+    """Gaps finding 3: the record's height, else Live Aboard's file's as the
+    panel already read it (no read of its own), from the section Live Aboard
+    reads, never one Auto position cleared; and lights_panel.js asks for it
+    that way."""
+    _case(run, "hover:")
+    panel = _js(_WWW / "lights_panel.js")
+    assert 'heightOf: this.state._house3d && this.state._house3d.atlas_3d_enabled === true' in panel
+    assert '(eid) => screenHeight("atlas", this.state.model, eid, lightsByEid[eid]) : null,' in panel
+
+
 def test_only_the_sidebar_hands_the_screen() -> None:
     lp = _js(_WWW / "lights_panel.js")
     assert 'screen: { slot: "atlas", shownAt: this._shownAt || 0 },' in lp

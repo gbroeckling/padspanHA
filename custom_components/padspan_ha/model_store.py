@@ -1324,6 +1324,13 @@ class ModelStore:
         fab = getattr(self, "fabric", None)
         return _with_heights(fab.light_positions_m(), fab.light_heights_m()) if fab else {}
 
+    def light_heights_gone(self) -> list[str]:
+        """The devices whose height in Live Aboard's file is out of date (a
+        record's decided height removed since): no view reads it there
+        (fabric_store "light_heights_gone")."""
+        fab = getattr(self, "fabric", None)
+        return fab.light_heights_gone() if fab else []
+
     async def async_set_light_position_m(
         self, entity_id: str, x_m: float, y_m: float, floor_id: str,
         color: str = "", shape: str = "", rotation: float = 0.0,

@@ -31,7 +31,7 @@ const HOUSE = await import(`./live_aboard_house.js${q}`);
 const DRAFT = await import(`./live_aboard_draft.js${q}`);
 const MARKS = await import(`./live_aboard_marks.js${q}`);
 const { deviceClassOf } = await import(`./light_codes.js${q}`);
-const { heightNow } = await import(`./lights_map.js${q}`);
+const { heightNow, withoutGone } = await import(`./lights_map.js${q}`);
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 /** A height as shown: "2.40 m". */
@@ -126,10 +126,12 @@ export { heightNow };
  *  aside), each {eid, label, room, floorId, floorName, z (null: its
  *  default), shown (what Live Aboard draws), ...infoOf}. d = {model (the
  *  map as committed), draft (Mapping's unsaved placements), lightsByEid,
- *  floors (the registry's), file (the 3D file: {lights, devices}), shapes
- *  (settings.light_shapes)}. */
+ *  floors (the registry's), file (the 3D file: {lights, devices}; a height
+ *  there out of date, the model's light_heights_gone, is never read),
+ *  shapes (settings.light_shapes)}. */
 export function rowsOf(d){
   const committed = (d.model && d.model.light_positions_m) || {}, draft = d.draft || {};
+  const live = withoutGone(d.file, d.model && d.model.light_heights_gone);
   const pos = { ...committed, ...draft };
   const F = HOUSE.readFloors(d.model, d.floors), rooms = HOUSE.readRooms(d.model, F);
   const out = [];
@@ -138,7 +140,7 @@ export function rowsOf(d){
     if (!l || !lp || typeof lp !== "object") continue;
     const fl = F.byId.get(F.canon(lp.floor_id));
     const ceil = (fl ? fl.h : HOUSE.FLOOR_TO_FLOOR_M) - HOUSE.SLAB_T;
-    const file = d.file || {};
+    const file = live || {};
     const at = fl ? { floor: fl, rooms: rooms.filter((r) => r.floor === fl), ground: F.ground } : null;
     const info = infoOf(l, lp, ceil, (file.lights || {})[eid], (d.shapes || {})[eid], at);
     if (!info) continue;

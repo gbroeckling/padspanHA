@@ -18,7 +18,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, floorNameAtLevel, sa
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         TEMP_BORDER, healthOf,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
-        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets } =
+        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -1005,6 +1005,49 @@ export function heightNow(eid, committed, draft, file, section){
   const c = (committed || {})[eid];
   if (c && typeof c === "object" && Object.prototype.hasOwnProperty.call(c, "z_m")) return num(c.z_m);
   return num((((file || {})[section] || {})[eid] || {}).z_m);
+}
+/** Live Aboard's file (`file`: {lights, devices, ...}) as every view reads
+ *  its heights: without the ones out of date (`gone`, the model's
+ *  light_heights_gone: the device's record had its height decided and was
+ *  removed since, by Auto position). The file keeps them for an older
+ *  PadSpan; no view here reads them, so the height Auto position cleared
+ *  never comes back. The same object when none is out of date. */
+export function withoutGone(file, gone){
+  const ids = gone instanceof Set ? [...gone] : Array.isArray(gone) ? gone : [];
+  if (!file || typeof file !== "object" || !ids.length) return file;
+  let out = null;
+  for (const s of ["lights", "devices"]) {
+    const sec = file[s];
+    if (!sec || typeof sec !== "object") continue;
+    for (const k of ids) {
+      const e = sec[k];
+      if (!e || typeof e !== "object" || !Object.prototype.hasOwnProperty.call(e, "z_m")) continue;
+      out = out || { ...file };
+      if (out[s] === sec) out[s] = { ...sec };
+      const { z_m, ...rest } = e;
+      if (Object.keys(rest).length) out[s][k] = rest; else delete out[s][k];
+    }
+  }
+  return out || file;
+}
+/** Is this Atlas device a light fixture in Live Aboard (a light, or a fan)?
+ *  Its height is then in Live Aboard's file under "lights", else "devices"
+ *  (live_aboard_house.js takes its isFixture from here). */
+export function isFixture(l){
+  return !!l && (castsLight(l) || deviceClassOf(l).key === "fan");
+}
+/** Live Aboard's file as this screen last read it (atlas_aboard.js fileData:
+ *  read when the panel was opened with Live Aboard on at Pro); null before
+ *  that, or where nothing reads it. Never a read of its own. */
+export const screenFile = (slot) => (_AB ? _AB.fileData(slot) : null);
+/** A device's height on a screen with no Mapping draft (the Lights screen's
+ *  hover box): as Live Aboard draws it, its record's (in `model`), else
+ *  Live Aboard's file's as this screen last read it (screenFile), from the
+ *  section Live Aboard reads `l` from, never one out of date; null for its
+ *  default. */
+export function screenHeight(slot, model, eid, l){
+  const m = model || {};
+  return heightNow(eid, m.light_positions_m, null, withoutGone(screenFile(slot), m.light_heights_gone), isFixture(l) ? "lights" : "devices");
 }
 export function wireUseSurface(isoDiv, api){
   const q = (sel) => isoDiv.querySelectorAll(sel);

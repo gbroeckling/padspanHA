@@ -602,6 +602,19 @@ function _dropRowHeights(mapState, eids) {
   fix(mapState._lightsDraftM || {}, (d, eid) => { delete d[eid]; });
   if (mapState._lightsUndo) mapState._lightsUndo.forEach((step) => fix(step, (s, eid) => { s[eid] = null; }));
 }
+// Live Aboard's Edit → Heights just wrote these devices' heights to its file
+// (they have no placement record: one dropped here and not yet saved, say):
+// the newest each has. The Height row's unsaved height for one (older) goes,
+// as for a record's (_dropRowHeights), and the map takes the answer's word on
+// which heights in the file are out of date (light_heights_gone: one just
+// written there no longer is), with no read of its own; both views then draw
+// the file's.
+export function _laFileHeights(ctx, mapState, eids, r) {
+  if (!Array.isArray(eids) || !eids.length) return;
+  _dropRowHeights(mapState, eids);
+  if (r && Array.isArray(r.light_heights_gone) && ctx.state.model) ctx.state.model.light_heights_gone = r.light_heights_gone;
+  ctx.actions.renderRooms();
+}
 // Live Aboard's heights, on the placement records (the Atlas's own command
 // and gate), then the map read again so both views have them.
 export function _laHeightsPut(ctx, mapState) {
@@ -9585,7 +9598,7 @@ function _lightsTab(ctx, maps, active) {
       // The 3D editor's Save, on the same gate as placing a light here
       // (paid, not Preview): without it the 3D view offers no Edit.
       edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)
-        .then((r) => { mapState._heightsFile = undefined; return r; }) : null,
+        .then((r) => { mapState._heightsFile = undefined; _laFileHeights(ctx, mapState, changes && changes.heights_set, r); return r; }) : null,
       // Its heights, on the placement records (_laHeightsPut).
       heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null,
       // The placement records as saved: a height lives on its record; a

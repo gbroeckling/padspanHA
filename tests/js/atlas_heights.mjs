@@ -29,7 +29,12 @@
 //   draw    the map Live Aboard reads (the card's model) carries the row's
 //           unsaved height, and a moved device's record height, never an old
 //           copy; the hover box says "2.40 m up", Mapping's from the Heights
-//           list's own lookup (a height only in the 3D file too)
+//           list's own lookup (a height only in the 3D file too); a height
+//           Auto position cleared (light_heights_gone) never comes back from
+//           the 3D file, and the drawing is the same with the list as without
+//   file    a height Live Aboard wrote to its file for a device dropped here
+//           and not yet saved: the row's older unsaved one leaves the draft
+//           (the drop stays), so Save placements never sends it
 //   byte    buildIsoSVG is byte for byte the same with heights in the
 //           records as without, on a realistic house and on Garry's own
 //
@@ -452,6 +457,57 @@ await tryCase("list: tick all shown, then Ceiling: each at its own ceiling, in o
     && !d["binary_sensor.sink_leak"] === false && Object.values(d).every((e) => e._z === true)
     && Object.keys(top).length === Object.keys(d).length && afterUndo === 0 && steps.peekUndo() === null,
     { d: Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v.z_m])), top: Object.keys(top || {}), afterUndo });
+});
+
+await tryCase("draw: a height Auto position cleared never comes back from Live Aboard's file in Mapping", async () => {
+  // Gaps finding 1: the island pendant's record had its height and Auto
+  // position removed it; it was placed again with none. Live Aboard's file
+  // still holds 2.3 for it (for an older PadSpan): out of date.
+  fileNow = { ...FILE, lights: { ...FILE.lights, "light.island_pendant": { kind: "pendant", z_m: 2.3 }, "light.kitchen_pots": { z_m: 2.5 } } };
+  await open();
+  fileNow = FILE;
+  ctx.state.model.light_heights_gone = ["light.island_pendant"];
+  root = MAPS.render(ctx);
+  const at = (eid) => MAPS._hoverHeight(ctx.state.maps, eid);
+  const row0 = (ctx.state.maps._heightRows || []).find((r) => r.eid === "light.island_pendant");
+  const island = at("light.island_pendant"), pots = at("light.kitchen_pots");
+  pick("light.island_pendant");
+  const inRow = row().querySelectorAll("input")[0].value;               // the cm box: empty for its default
+  // The flat drawing never reads the list.
+  const lbe = lbeOf(STATES);
+  const mk = (m) => ISO.buildIsoSVG(m, {}, new Set(), null, 150, 0, lbe, false, FLOORS, { codeChip: true, hitHalo: true });
+  const same = mk(clone(MODEL)) === mk({ ...clone(MODEL), light_heights_gone: ["light.island_pendant", "light.kitchen_pots"] });
+  check("draw: a height Auto position cleared never comes back from Live Aboard's file in Mapping",
+    island === null && row0 && row0.z === null && inRow === "" && pots === 2.5 && same, { island, row: row0 && row0.z, inRow, pots, same });
+});
+await tryCase("file: a height Live Aboard wrote to its file for a device dropped here, not yet saved, wins over the row's older one", async () => {
+  // Gaps finding 2: the bed lamp dropped here (no record yet), Table (0.75)
+  // on its Height row, unsaved; Live Aboard then wrote 1.3 to its file
+  // (maps.js's edit hook: _laFileHeights). Save placements sends the drop
+  // with no height: the newer 1.3 stays the lamp's.
+  await open();
+  delete ctx.state.model.light_positions_m["light.bed_lamp"];
+  ctx.state.model.light_heights_gone = ["light.bed_lamp", "light.hall_sconce"];
+  const drop = { ...RECORDS["light.bed_lamp"] };
+  ctx.state.maps._lightsDraftM = { "light.bed_lamp": { ...drop, z_m: 0.75, _z: true, source: "manual" } };
+  root = MAPS.render(ctx);
+  const before = MAPS._hoverHeight(ctx.state.maps, "light.bed_lamp");
+  let renders = 0;
+  const real = ctx.actions.renderRooms;
+  ctx.actions.renderRooms = () => { renders++; real(); };
+  MAPS._laFileHeights(ctx, ctx.state.maps, ["light.bed_lamp"], { data: {}, light_heights_gone: ["light.hall_sconce"] });
+  ctx.actions.renderRooms = real;
+  const left = clone(draft());
+  const save = all("button").find((b) => text(b).includes("Save placements"));
+  const from = sent.length;
+  save.dispatchEvent({ type: "click", currentTarget: save, target: save, stopPropagation(){}, preventDefault(){} });
+  await settle(); await sleep(5); await settle();
+  const put = sent.slice(from).filter(([t]) => t === "padspan_ha/fabric_light_position_set").map(([, m]) => m);
+  check("file: a height Live Aboard wrote to its file for a device dropped here, not yet saved, wins over the row's older one",
+    before === 0.75 && renders === 1 && canonical(left) === canonical({ "light.bed_lamp": { ...drop, source: "manual" } })
+    && JSON.stringify(ctx.state.model.light_heights_gone) === JSON.stringify(["light.hall_sconce"])
+    && put.length === 1 && put[0].entity_id === "light.bed_lamp" && !("z_m" in put[0]) && !("_z" in put[0]),
+    { before, renders, left, gone: ctx.state.model.light_heights_gone, put });
 });
 
 // ── byte ────────────────────────────────────────────────────────────────────

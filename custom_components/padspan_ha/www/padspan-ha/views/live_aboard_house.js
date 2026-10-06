@@ -24,11 +24,11 @@
 
 const { isOutdoorFloorId, offsetPolygonInward, barrierNoReading, fabricFrame, floorIdAtLevel, floorNameAtLevel } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { castsLight, deviceClassOf, airQualityBadness, HUMIDITY_BORDER, AIR_BORDER, MOTION_PULSE: MOTION_BLUE, isWledLight, isPartitionLight } =
+const { deviceClassOf, airQualityBadness, HUMIDITY_BORDER, AIR_BORDER, MOTION_PULSE: MOTION_BLUE, isWledLight, isPartitionLight } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // The shared Atlas card's readings: the state words, which floors share a
 // plate, and which sensors read backwards.
-const { stateWordOf, floorIdsOnSlab, doorInvertOf } =
+const { stateWordOf, floorIdsOnSlab, doorInvertOf, isFixture } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 const { roomColor } =
   await import(`./room_color.js${new URL(import.meta.url).search}`);
@@ -602,10 +602,9 @@ export function footprint(lp){
   const l1 = 2 * Math.hypot(p1[0], p1[1]), l2 = 2 * Math.hypot(p2[0], p2[1]);
   return l1 >= l2 ? { a: p1, b: p2, la: l1, lb: l2 } : { a: p2, b: p1, la: l2, lb: l1 };
 }
-/** Is this Atlas device drawn as a light fixture in 3D? */
-export function isFixture(l){
-  return !!l && (castsLight(l) || deviceClassOf(l).key === "fan");
-}
+/** Is this Atlas device drawn as a light fixture in 3D? (lights_map.js's,
+ *  so the flat map's hover box reads a height where this view does.) */
+export { isFixture };
 /** The lights to draw: placed (light_positions_m), known to the card, not
  *  hidden, and a fixture. Each carries the Atlas device record `l` it is
  *  painted from on every poll, and its kind as guessed (guessKind; the

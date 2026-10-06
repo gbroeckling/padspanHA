@@ -505,3 +505,48 @@ def test_a_beacon_removed_takes_its_height_and_reset_spatial_keeps_the_lights(mo
     assert not conn.send_error.called
     assert mdl.fabric.data["beacon_positions_m"] == {} and mdl.fabric.data["beacon_heights_m"] == {}
     assert _rec(mdl)["z_m"] == 2.1
+
+
+# ═══ gaps review 2026-10-06, finding 1: Live Aboard's file's copy goes stale ═
+# Live Aboard's file keeps its own copy of a height (for an older PadSpan), and
+# a device with no record falls back to it. Once Auto position removes a
+# record that had its height decided, that copy is out of date: the fabric
+# lists the device (light_heights_gone), the model hands the list over, and
+# only a height Live Aboard writes to its file afterwards takes it off.
+
+def test_auto_position_lists_the_files_copy_of_a_cleared_height_as_out_of_date() -> None:
+    from custom_components.padspan_ha.websocket import ws_fabric_light_remove
+    mdl = _mdl()
+    h = _hass(mdl)
+    _place(h, z_m=2.1)
+    _place(h, eid="light.hall_sconce")                               # no height decided
+    _place(h, eid="sensor.lounge_temperature")
+    _call(ws_fabric_light_height_set, h, {"entity_id": "sensor.lounge_temperature", "z_m": None})   # Default chosen
+    for eid in ("light.island_pendant", "light.hall_sconce", "sensor.lounge_temperature"):
+        _call(ws_fabric_light_remove, h, {"entity_id": eid})
+    assert mdl.light_heights_gone() == ["light.island_pendant", "sensor.lounge_temperature"], \
+        "a height, or Default, cleared with its record; the sconce had none, so the file's stays its height"
+    _place(h)                                                        # dropped again, no height sent
+    assert mdl.light_heights_gone() == ["light.island_pendant", "sensor.lounge_temperature"], "still out of date"
+    assert "z_m" not in _rec(mdl)
+    _run(mdl.fabric.async_spatial_update(file_heights_set=["light.island_pendant", "light.never"], op="house3d_heights"))
+    assert mdl.light_heights_gone() == ["sensor.lounge_temperature"], "a height written to the file since is the newest"
+
+
+def test_nothing_is_listed_for_a_house_that_never_clears_a_height() -> None:
+    """No new key in the fabric file until a decided height is removed."""
+    from custom_components.padspan_ha.websocket import ws_fabric_light_remove
+    mdl = _mdl()
+    h = _hass(mdl)
+    _place(h)
+    _call(ws_fabric_light_remove, h, {"entity_id": "light.island_pendant"})
+    _run(mdl.fabric.async_spatial_update(file_heights_set=["light.island_pendant"]))
+    assert "light_heights_gone" not in mdl.fabric.data and mdl.light_heights_gone() == []
+    assert mdl.fabric.store.async_save.await_count == 2, "the place and the removal; taking nothing off writes nothing"
+
+
+def test_model_get_hands_over_the_heights_out_of_date() -> None:
+    import inspect
+
+    from custom_components.padspan_ha import websocket as ws
+    assert '"light_heights_gone": mdl.light_heights_gone() if mdl else [],' in inspect.getsource(ws.ws_model_get)

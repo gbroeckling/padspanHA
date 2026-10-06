@@ -263,3 +263,89 @@ def test_a_settings_save_turning_live_aboard_on_starts_the_move(monkeypatch):
     started.clear()
     _run(WS.ws_settings_set(h, conn, {"id": 2, "type": "padspan_ha/settings_set", "atlas_3d_enabled": False}))
     assert "async_move_heights" not in started
+
+
+# ═══ gaps review 2026-10-06, finding 1: a height Auto position cleared ═══════
+# The file keeps its copy of a height for an older PadSpan. Once a record that
+# had its height decided is removed (Auto position), that copy is out of date
+# (fabric_store "light_heights_gone"): never copied onto the device's next
+# record, until Live Aboard writes it a new height in its file.
+
+def _gone(tmp_path: Path) -> list:
+    return _disk(tmp_path, FABRIC_STORE_KEY).get("light_heights_gone", [])
+
+
+def _auto_position_and_place_again(house, eid: str = "light.island_pendant") -> None:
+    """Auto position (the record and its height go), then the device dropped
+    on the map again and saved with no height."""
+    mdl = house.data[DOMAIN][DATA_MODEL]
+    _run(mdl.async_remove_light_position_m(eid))
+    _run(mdl.fabric.async_spatial_update(set_lights={eid: dict(_RECORDS[eid])}, op="light_set"))
+
+
+def test_a_height_auto_position_cleared_is_never_copied_back_from_the_file(house, disk, backups, tmp_path):
+    """The finding's own steps: 1.6 copied from the file, 0.9 set on the
+    Atlas, Auto position (it says the 0.90 m was cleared), the pendant dropped
+    again and saved: the next start must not bring 1.6 back."""
+    assert _run(M.async_move_heights(house)) == {"copied": 2}
+    mdl = house.data[DOMAIN][DATA_MODEL]
+    assert _run(mdl.async_set_light_heights({"light.island_pendant": 0.9})) == []
+    _auto_position_and_place_again(house)
+    assert _gone(tmp_path) == ["light.island_pendant"], "the file's 1.6 is out of date from the removal on"
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 0}
+    assert "light.island_pendant" not in _heights(tmp_path), "no height: Live Aboard draws its default"
+    assert "z_m" not in _boot(tmp_path).data[DOMAIN][DATA_MODEL].light_positions_m()["light.island_pendant"]
+    assert _disk(tmp_path)["lights"]["light.island_pendant"]["z_m"] == 1.6, "the file still keeps its copy for an older PadSpan"
+
+
+def test_a_record_removed_with_no_height_decided_leaves_the_files_height_live(house, disk, backups, tmp_path):
+    """Auto position took no height (the record had none decided, the view
+    drew the file's): nothing is out of date, and the move copies it as ever."""
+    mdl = house.data[DOMAIN][DATA_MODEL]
+    _run(mdl.async_remove_light_position_m("light.island_pendant"))
+    assert _gone(tmp_path) == []
+    _run(mdl.fabric.async_spatial_update(set_lights={"light.island_pendant": dict(_RECORDS["light.island_pendant"])}))
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 2}
+    assert _heights(tmp_path)["light.island_pendant"] == 1.6
+
+
+def test_a_height_live_aboard_writes_after_that_counts_again(house, disk, backups, tmp_path):
+    """The newest height wins: once the cleared device has a new height in
+    Live Aboard's file (written while it had no record), the next record gets
+    that one."""
+    from custom_components.padspan_ha import ws_house3d as W
+    _run(M.async_move_heights(house))
+    mdl = house.data[DOMAIN][DATA_MODEL]
+    _run(mdl.async_remove_light_position_m("light.island_pendant"))
+    assert _gone(tmp_path) == ["light.island_pendant"]
+    conn = MagicMock()
+    _run(W.ws_house3d_edit(house, conn, {"id": 1, "type": "padspan_ha/house3d_edit",
+                                         "lights": {"light.island_pendant": {"z_m": 1.3, "kind": "pendant"}},
+                                         "heights_set": ["light.island_pendant"]}))
+    assert not conn.send_error.called
+    assert conn.send_result.call_args[0][1]["light_heights_gone"] == []
+    assert _gone(tmp_path) == [] and _disk(tmp_path)["lights"]["light.island_pendant"]["z_m"] == 1.3
+    _run(mdl.fabric.async_spatial_update(set_lights={"light.island_pendant": dict(_RECORDS["light.island_pendant"])}))
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 1}
+    assert _heights(tmp_path)["light.island_pendant"] == 1.3
+
+
+def test_a_file_write_that_failed_leaves_the_files_height_out_of_date(house, disk, backups, tmp_path):
+    """Taken off the list only once the file holds the new height: a Save
+    that could not be written changes neither."""
+    from custom_components.padspan_ha import ws_house3d as W
+    _run(M.async_move_heights(house))
+    _run(house.data[DOMAIN][DATA_MODEL].async_remove_light_position_m("light.island_pendant"))
+    disk.fail = ["swallowed"]
+    conn = MagicMock()
+    _run(W.ws_house3d_edit(house, conn, {"id": 1, "type": "padspan_ha/house3d_edit",
+                                         "lights": {"light.island_pendant": {"z_m": 1.3}},
+                                         "heights_set": ["light.island_pendant"]}))
+    assert conn.send_error.call_args[0][1] == "save_failed"
+    assert _gone(tmp_path) == ["light.island_pendant"] and _disk(tmp_path)["lights"]["light.island_pendant"]["z_m"] == 1.6
+
+
+def test_the_plan_never_takes_a_height_out_of_date():
+    copy_in = M.plan({"lights": {"light.a": {"z_m": 1.6}, "light.b": {"z_m": 2.0}}, "devices": {"sensor.c": {"z_m": 1.0}}},
+                     {"light.a": {"x_m": 0}, "light.b": {"x_m": 0}, "sensor.c": {"x_m": 0}}, {}, ["light.a", "sensor.c"])
+    assert copy_in == {"light.b": 2.0}

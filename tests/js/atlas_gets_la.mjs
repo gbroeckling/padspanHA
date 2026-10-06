@@ -28,6 +28,10 @@
 //   kinds   a Live Aboard kind draws as its Atlas shape; an Atlas shape the
 //           person set wins; sensors keep theirs
 //   furn    Show furniture draws footprints and door/window marks, none off
+//   hover   the sidebar's hover box says the height Live Aboard draws: the
+//           record's, else Live Aboard's file's as the panel already read it
+//           (no read of its own), from the section Live Aboard reads, never
+//           one Auto position cleared (gaps finding 3)
 //
 // usage: atlas_gets_la.mjs <www/padspan-ha dir> [house_export.json]
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -623,6 +627,38 @@ await tryCase("furn: Show furniture draws each piece's footprint and Live Aboard
   check("furn: Show furniture draws each piece's footprint and Live Aboard's doors and windows; off, none",
     shapes && Math.abs(sofaW - 2.2) < 1e-6 && polys === 2 && on.includes('stroke="#bae6fd"') && on.includes('stroke="#fde68a"') && off === none && on !== off
     && !off.includes('fill-opacity="0.18"'), { shapes, sofaW, polys, offIsNone: off === none });
+});
+
+await tryCase("hover: the sidebar's hover box says the height Live Aboard draws, a height only in its file too, with no read of its own", async () => {
+  // Gaps finding 3: lights_panel.js's heightOf (screenHeight) read only the
+  // record, so a height only in Live Aboard's file (a device placed after the
+  // last start, say) showed no "m up" here while Live Aboard drew it.
+  fileData = { lights: { "light.living_lamp": { z_m: 1.2, kind: "lamp" }, "light.hall_light": { z_m: 2.4 }, "sensor.office_temperature": { z_m: 0.4 } },
+               devices: { "sensor.office_temperature": { z_m: 1.45 }, "fan.bedroom_fan": { z_m: 0.1 } } };
+  fileData.lights["fan.bedroom_fan"] = { z_m: 2.5 };          // a fan is a fixture: Live Aboard reads it under lights
+  shown++;                                                    // the panel opened again: the file is read once
+  card({ house3d: H3(true) }); await settle(); await sleep(5);
+  const calls = fileCalls;
+  const at = (model, eid) => LM.screenHeight("atlas", model, eid, LBE[eid]);
+  const lamp = at(MODEL, "light.living_lamp"), temp = at(MODEL, "sensor.office_temperature"), fan = at(MODEL, "fan.bedroom_fan");
+  const rec = at({ ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.living_lamp": { ...MODEL.light_positions_m["light.living_lamp"], z_m: 2.0 } } }, "light.living_lamp");
+  const dflt = at({ ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.living_lamp": { ...MODEL.light_positions_m["light.living_lamp"], z_m: null } } }, "light.living_lamp");
+  const gone = at({ ...MODEL, light_heights_gone: ["light.hall_light"] }, "light.hall_light"), hall = at(MODEL, "light.hall_light");
+  // Through the hover box itself.
+  const stage = document.createElement("div"), svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  stage.appendChild(svg);
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("data-eid", "light.living_lamp");
+  svg.appendChild(g);
+  g.closest = (sel) => (sel.startsWith("g.lhex") ? g : null);
+  stage.getRootNode = () => ({ elementsFromPoint: () => [g], querySelector: () => null });
+  LM.wireHoverHud(stage, { lightsByEid: LBE, heightOf: (eid) => at(MODEL, eid) });
+  stage.dispatchEvent({ type: "pointermove", pointerType: "mouse", clientX: 5, clientY: 5, target: stage });
+  const hud = stage.querySelectorAll(".lv-hoverhud").slice(-1)[0], words = hud ? hud.textContent || "" : "";
+  fileData = {};
+  check("hover: the sidebar's hover box says the height Live Aboard draws, a height only in its file too, with no read of its own",
+    lamp === 1.2 && temp === 1.45 && fan === 2.5 && rec === 2.0 && dflt === null && gone === null && hall === 2.4
+    && /Living lamp · 1\.20 m up/.test(words) && fileCalls === calls, { lamp, temp, fan, rec, dflt, gone, hall, words, calls, now: fileCalls });
 });
 
 console.log(JSON.stringify({ cases, failures, house: houseRan }));

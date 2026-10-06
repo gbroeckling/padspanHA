@@ -26,7 +26,10 @@ file only, and Live Aboard reads it there.
 Live Aboard's file is never stripped. An older PadSpan (0.38.104 and before),
 should someone roll back to one, reads heights only from that file, so it
 keeps the heights it had; this version reads the record first and never
-writes a placed device's height into the file. Copying is the only write, so
+writes a placed device's height into the file. Once a record whose height was
+decided is removed (Auto position), the file's copy of that device's height
+is out of date (fabric_store "light_heights_gone"): it is never copied again,
+until Live Aboard writes that device a new one. Copying is the only write, so
 a restart anywhere leaves either no copy or the whole copy, and the next run
 copies whatever is left (a fabric-only restore of an older backup gets its
 heights back that way too). A run with nothing to copy writes nothing.
@@ -64,17 +67,20 @@ def _height(v: Any) -> float | None:
     return device_height(v)
 
 
-def plan(house: dict, records: dict, heights: dict) -> dict[str, float]:
+def plan(house: dict, records: dict, heights: dict, gone: Any = ()) -> dict[str, float]:
     """{entity_id: z_m} to copy from `house` (Live Aboard's file) onto the
-    placement `records` (light_positions_m): placed devices only, and only
-    where `heights` (light_heights_m) has nothing decided for them."""
+    placement `records` (light_positions_m): placed devices only, only
+    where `heights` (light_heights_m) has nothing decided for them, and
+    never a height the file holds out of date (`gone`, light_heights_gone:
+    its record's own was removed since)."""
+    gone = set(gone)
     copy_in: dict[str, float] = {}
     for section in SECTIONS:
         entries = house.get(section)
         if not isinstance(entries, dict):
             continue
         for eid, e in entries.items():
-            if not isinstance(e, dict) or eid in copy_in or eid in heights:
+            if not isinstance(e, dict) or eid in copy_in or eid in heights or eid in gone:
                 continue
             if not isinstance(records.get(eid), dict):
                 continue                       # unplaced: the file keeps its height
@@ -106,7 +112,7 @@ async def async_move_heights(hass: HomeAssistant) -> dict[str, int]:
         return done
     if not writable(store.data):
         return done                            # a newer PadSpan's file: its shape is not this version's
-    copy_in = plan(store.data, fab.light_positions_m(), fab.light_heights_m())
+    copy_in = plan(store.data, fab.light_positions_m(), fab.light_heights_m(), fab.light_heights_gone())
     if not copy_in:
         return done
     if not fab.data.get(BACKUP_MARK):
@@ -120,7 +126,7 @@ async def async_move_heights(hass: HomeAssistant) -> dict[str, int]:
         fab.data[BACKUP_MARK] = backup_id          # saved with the copy (or the fabric's next write)
         # The backup awaited the disk: decide again against the records as
         # they are now (a height set or Default chosen meanwhile stays).
-        copy_in = plan(store.data, fab.light_positions_m(), fab.light_heights_m())
+        copy_in = plan(store.data, fab.light_positions_m(), fab.light_heights_m(), fab.light_heights_gone())
         if not copy_in:
             return done
     await fab.async_spatial_update(set_light_heights=copy_in, op=MOVE_OP)
