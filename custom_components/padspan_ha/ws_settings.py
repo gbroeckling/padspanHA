@@ -150,6 +150,57 @@ def _atlas_3d_ai_task(value: Any) -> str:
     return _weather_entity(value, ("ai_task.",))
 
 
+# The sidebar's Live Aboard goes back to its home view after this long
+# untouched (views/live_aboard_panel.js): never, 30 s, 1 min or 5 min.
+ATLAS_3D_IDLE_CHOICES = (0, 30, 60, 300)
+
+
+def _atlas_3d_idle(value: Any) -> int:
+    """One of the choices; anything else is the default, 1 min."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 60
+    # Infinite or not a number ("inf", "1e400", "nan") is no time: int() of it
+    # raised, and the whole save failed with it.
+    if not math.isfinite(v):
+        return 60
+    return int(v) if int(v) == v and int(v) in ATLAS_3D_IDLE_CHOICES else 60
+
+
+# Who carries what (People & devices, views/live_aboard_people.js): for each
+# Home Assistant person, the phones and tags PadSpan tracks that are theirs,
+# by the key the live snapshot gives them. Personal: it is kept in this
+# install's settings and its backups only, and nothing sends it anywhere.
+CARRIES_MAX_PEOPLE, CARRIES_MAX_EACH = 50, 8
+_CARRIES_PERSON = re.compile(r"^person\.(?!_)[a-z0-9_]{1,250}(?<!_)$")
+_CARRIES_KEY = re.compile(r"^[^\s\x00-\x1f\x7f]{1,160}$")
+
+
+def _atlas_3d_carries(raw: Any) -> dict[str, list[str]]:
+    """{person id: [tracked keys]}: people by their entity id, at most
+    CARRIES_MAX_PEOPLE of them and CARRIES_MAX_EACH things each, every key
+    plain text with no spaces, in the order picked, once. Anything else is
+    dropped; a person with nothing left is left out."""
+    out: dict[str, list[str]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for eid, keys in raw.items():
+        if len(out) >= CARRIES_MAX_PEOPLE:
+            break
+        if not isinstance(eid, str) or not _CARRIES_PERSON.match(eid) or not isinstance(keys, list):
+            continue
+        clean: list[str] = []
+        for k in keys:
+            if isinstance(k, str) and _CARRIES_KEY.match(k) and k not in clean:
+                clean.append(k)
+            if len(clean) >= CARRIES_MAX_EACH:
+                break
+        if clean:
+            out[eid] = clean
+    return out
+
+
 def _weather_strength(value: Any) -> float:
     """0.5x-1.5x opacity; anything unreadable is the default 1x."""
     try:
@@ -388,6 +439,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_3d_weather"): bool,
         vol.Optional("atlas_3d_showcase"): bool,
         vol.Optional("atlas_3d_look"): vol.Any(str, None),
+        vol.Optional("atlas_3d_home_idle_s"): vol.Any(int, float, str, None),
+        vol.Optional("atlas_3d_carries"): vol.Any(dict, None),
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
@@ -538,6 +591,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "unauthorized",
                                       "Only an administrator can change Live Aboard's library or photo settings")
                 return
+        if "atlas_3d_people" in msg or "atlas_3d_tags" in msg or "atlas_3d_carries" in msg:
+            # Who shows in the house, and what each person carries (personal):
+            # an administrator's, as Live Aboard's Views menu and Settings say.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized",
+                                      "Only an administrator can change who shows in Live Aboard and what each person carries")
+                return
         if "telemetry_asked" in msg:
             payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))
         if "trial_nudge_done" in msg:
@@ -685,6 +746,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["atlas_3d_look"] = _atlas_3d_look(msg["atlas_3d_look"])
         if "atlas_3d_ai_task_entity" in msg:
             payload["atlas_3d_ai_task_entity"] = _atlas_3d_ai_task(msg["atlas_3d_ai_task_entity"])
+        if "atlas_3d_home_idle_s" in msg:
+            payload["atlas_3d_home_idle_s"] = _atlas_3d_idle(msg["atlas_3d_home_idle_s"])
+        if "atlas_3d_carries" in msg and isinstance(msg["atlas_3d_carries"], dict):
+            # A non-dict is ignored, never stored as empty (light_shapes' rule).
+            payload["atlas_3d_carries"] = _atlas_3d_carries(msg["atlas_3d_carries"])
         if "ble_max_age_s" in msg:
             payload["ble_max_age_s"] = max(30, min(14400, int(msg["ble_max_age_s"])))
         # ── Radio map / heatmap visualization controls (v0.15.x) ──────────

@@ -3339,6 +3339,8 @@ const _ATLAS_3D_QUALITY = [["auto", "Auto — picked for this screen"], ["low", 
 // Live Aboard's look (atlas_3d_look): the Atlas's colours, rooms and floor
 // numbers (its Showcase theme, or the plain Atlas), or its own dark look.
 const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard's own"]];
+// How long the sidebar's Live Aboard waits untouched before it goes back to its home view.
+const _ATLAS_3D_IDLE = [[0, "Off"], [30, "After 30 s"], [60, "After 1 min"], [300, "After 5 min"]];
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
@@ -3398,6 +3400,22 @@ function _atlas3dSection(ctx, el, settings){
   let lookLast = lookCur;
   lookSel.addEventListener("change", ()=>{ const want = lookSel.value; save("atlas_3d_look", want, ()=>{ lookSel.value = lookLast; }).then(ok=>{ if (ok) lookLast = want; }); });
   more.appendChild(row("Look", [lookSel]));
+
+  // The wall panel (live_aboard_panel.js): the sidebar's Live Aboard goes
+  // back to its home view after this long untouched.
+  const idleCur = [0, 30, 60, 300].includes(Number(settings.atlas_3d_home_idle_s)) ? Number(settings.atlas_3d_home_idle_s) : 60;
+  const idleSel = document.createElement("select");
+  idleSel.className = "select";
+  idleSel.style.width = "auto";
+  idleSel.style.maxWidth = "100%";
+  idleSel.setAttribute("data-la3d-key", "atlas_3d_home_idle_s");
+  for (const [v, label] of _ATLAS_3D_IDLE) idleSel.appendChild(el("option",{value:String(v)}, label));
+  idleSel.value = String(idleCur);
+  let idleLast = idleCur;
+  idleSel.addEventListener("change", ()=>{ const want = Number(idleSel.value); save("atlas_3d_home_idle_s", want, ()=>{ idleSel.value = String(idleLast); }).then(ok=>{ if (ok) idleLast = want; }); });
+  more.appendChild(row("Back to home view", [idleSel]));
+  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
+    "On the sidebar, Live Aboard flies back to its home view when nobody has touched it for this long. Set the home view in Views ▾ → Set as home. It waits while Edit or Furnish is open, a card is open, or you made it full screen."));
 
   // The AI Task that reads photos in Furnish (ws_house3d_photo.py): an
   // administrator's choice, since a cloud one sends each photo out of the house.
@@ -3511,8 +3529,18 @@ function _atlas3dSection(ctx, el, settings){
     "Follows Outdoor weather above, and shows only while that is on too.");
   tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,
     "Each person where their phone or tag is now: on the map, a round marker with their initial; in Live Aboard, their figure (or a soft marker), walking there. Tap one for where they are and since when. Uses the same live positions as Overview.", both);
+  // Who shows in the house is an administrator's (ws_settings holds the same
+  // rule; Live Aboard's Views menu shows these on or off to anyone else).
+  const whoShows = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   tick("atlas_3d_tags", "Show tags & scanners", settings.atlas_3d_tags === true,
     "Every tag the Atlas can place, with its name, and every scanner (in Live Aboard, every scanner at its height). The faint ring under a tag is wider the less sure its spot is. Tap a tag for its room, when it was last seen and which scanners hear it. Uses the same live positions as Overview.", both);
+  if (!whoShows) {
+    for (const cb of both.querySelectorAll("input[data-la3d-key]")) {
+      if (cb.getAttribute("data-la3d-key") === "atlas_3d_people" || cb.getAttribute("data-la3d-key") === "atlas_3d_tags") {
+        cb.disabled = true; cb.title = "Only an administrator can change this";
+      }
+    }
+  }
   // Remove all furniture (admins; ws_house3d.house3d_clear only="pieces"): the
   // server takes a backup first and removes nothing without one. Asked here
   // in the page, the way Clear calibration asks above.

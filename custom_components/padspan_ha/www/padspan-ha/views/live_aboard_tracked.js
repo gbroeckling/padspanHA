@@ -19,7 +19,14 @@
 //   people    with Show people on, each Home Assistant person found through
 //             the phone or tag they carry walks to it: their figure
 //             (figures["person.x"]) if they have one, a soft marker if not
-//             (what is someone's is drawn as them, not as a tag too)
+//             (what is someone's is drawn as them, not as a tag too). What
+//             each carries can be picked (settings.atlas_3d_carries, People
+//             & devices): picked, it is theirs, whatever the names say. One
+//             known only by its room stands in the middle of that room
+//             (Overview's own rule), nudged apart from others there, dimmed,
+//             and their card says "room only"
+//   pinned    a tag pinned on the map (model.beacon_positions_m) stands at
+//             its pin, never wandering with each reading
 //
 // Tags and people read the live snapshot Overview already reads, handed in
 // by the view (one read for both); with both off, nothing of it is read or
@@ -46,6 +53,11 @@ const SHOWN_M = { beacon: 0.22, scanner: 0.16 };
 export const HALO_M = [0.3, 1.5];
 const LABEL_PX = 22;                       // a tag's name: this tall on screen, any distance, either camera
 const HEARD_MAX = 4;                       // scanners named in a tag's card
+// Someone known only by their room: a step out from its middle for each one
+// there before them (m, up to the second), and drawn this opaque.
+const ROOM_FAN_M = [0.3, 1.2], APART_M = 0.5;
+export const ROOM_ONLY_OPACITY = 0.55;
+export const ROOM_ONLY_WORDS = "Room only: PadSpan knows the room, not the spot";
 
 const fin = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const low = (v) => String(v || "").trim().toLowerCase();
@@ -55,49 +67,180 @@ const low = (v) => String(v || "").trim().toLowerCase();
  * {key, label, x, y, floor_id, linked: [entity ids], shown (named or
  * identified: the flat Atlas shows it), beacon (a tag's kind), room, age
  * (s since last heard), sure (0..1, how sure the spot is, or null), heard:
- * [{source, rssi}]}. Not stale, not a ghost; the same "a place it truly
- * knows" rule as the flat Atlas's beacons.
+ * [{source, rssi}], roomOnly}. Not stale, not a ghost; the same "a place it
+ * truly knows" rule as the flat Atlas's beacons. After those, the ones known
+ * only by their room (roomOnly, x and y null), as Overview places them.
  */
 export function trackedOf(snapshot){
   const list = snapshot && snapshot.objects && Array.isArray(snapshot.objects.list) ? snapshot.objects.list : [];
-  const out = [];
+  const out = [], byRoom = [];
   for (const o of list) {
     if (!o || typeof o !== "object" || o._stale || o._ghost) continue;
     const x = fin(o.x_m), y = fin(o.y_m), key = String(o.key || o.address || o.entity_id || "");
-    if (x === null || y === null || !key) continue;
-    out.push({ key, x, y, floor_id: o.floor_id || null, linked: Array.isArray(o.linked_entities) ? o.linked_entities.map(String) : [],
+    const room = typeof o.room === "string" ? o.room : "", placed = x !== null && y !== null;
+    if (!key || (!placed && !room)) continue;
+    (placed ? out : byRoom).push({ key, x: placed ? x : null, y: placed ? y : null, roomOnly: !placed, floor_id: o.floor_id || null,
+               linked: Array.isArray(o.linked_entities) ? o.linked_entities.map(String) : [],
                label: String(o.user_label || o.private_ble_name || o.name || ""), shown: !!(o.user_label || o.identified),
                beacon: o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon",
-               room: typeof o.room === "string" ? o.room : "", age: fin(o.age_s), sure: fin(o.knn_confidence),
+               room, age: fin(o.age_s), sure: fin(o.knn_confidence),
                heard: (Array.isArray(o.sources) ? o.sources : []).map(s => (s && typeof s === "object" ? { source: String(s.source || ""), rssi: fin(s.rssi) } : { source: String(s || ""), rssi: null }))
                  .filter(s => s.source) });
   }
-  return out;
+  return out.concat(byRoom);
 }
-/**
- * Each Home Assistant person, and the tracked thing that is theirs (or
- * null): the phone or tag behind their person entity (its device trackers),
- * or one named as they or their trackers are — how PadSpan already places
- * known people (ws_occupancy.py). Each tracked thing is someone's once.
- */
-export function peopleOf(states, tracked){
-  const st = states && typeof states === "object" ? states : {};
-  const taken = new Set(), out = [];
-  for (const eid of Object.keys(st).filter(e => e.startsWith("person.")).sort()) {
-    const a = (st[eid] && st[eid].attributes) || {};
-    const trackers = new Set([...(Array.isArray(a.device_trackers) ? a.device_trackers : []), a.source].filter(Boolean).map(String));
-    const names = new Set([low(a.friendly_name || eid.slice(7).replace(/_/g, " "))]);
-    for (const t of trackers) {
-      const fn = st[t] && st[t].attributes && st[t].attributes.friendly_name;
-      if (fn) names.add(low(fn));
-      names.add(low(t.split(".").slice(1).join(".").replace(/_/g, " ")));
-    }
-    names.delete("");
-    const at = (tracked || []).find(o => !taken.has(o.key) && (o.linked.some(e => trackers.has(e)) || (o.label && names.has(low(o.label))))) || null;
-    if (at) taken.add(at.key);
-    out.push({ eid, name: String(a.friendly_name || eid), at });
+
+/** What each person carries (settings.atlas_3d_carries, picked in People &
+ *  devices): {"person.x": [tracked keys]}, read tolerantly. */
+export function carriesOf(raw){
+  const out = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [eid, keys] of Object.entries(raw)) {
+    if (!eid.startsWith("person.") || !Array.isArray(keys)) continue;
+    const list = [...new Set(keys.filter(k => typeof k === "string" && k))];
+    if (list.length) out[eid] = list;
   }
   return out;
+}
+/** Who keeps each picked thing: the first person (by id, the order people
+ *  are matched in) to have picked it. → Map(key → person id). */
+export function carriesOwners(carries, ids){
+  const C = carriesOf(carries), owner = new Map();
+  for (const eid of [...(ids || Object.keys(C))].sort()) for (const k of C[eid] || []) if (!owner.has(k)) owner.set(k, eid);
+  return owner;
+}
+
+/**
+ * Each Home Assistant person, and the tracked thing that is theirs (or
+ * null): what they carry when it was picked for them (carries; nothing else
+ * then), else the phone or tag behind their person entity (its device
+ * trackers), or one named as they or their trackers are — how PadSpan
+ * already places known people (ws_occupancy.py). A tracker two people share
+ * (pixel and remote on one phone, a tablet in the hall) places only the
+ * first of them by id, who has no picks; the others are found by their own
+ * trackers and names alone. Each tracked thing is someone's once; a thing
+ * picked for two people stays with the first (lost: [{key, keptBy}] for the
+ * other). One with a place wins over one known only by its room.
+ */
+export function peopleOf(states, tracked, carries){
+  const st = states && typeof states === "object" ? states : {};
+  const pool = tracked || [], byKey = new Map(pool.map(o => [o.key, o]));
+  const ids = Object.keys(st).filter(e => e.startsWith("person.")).sort();
+  const C = carriesOf(carries), owner = carriesOwners(C, ids);
+  const taken = new Set(owner.keys()), out = [];
+  const attrs = (eid) => (st[eid] && st[eid].attributes) || {};
+  const trackersOf = (eid) => { const a = attrs(eid); return [...(Array.isArray(a.device_trackers) ? a.device_trackers : []), a.source].filter(Boolean).map(String); };
+  // Each tracker's first person (by id) among those with no picks: theirs alone.
+  const firstOn = new Map();
+  for (const eid of ids) if (!C[eid]) for (const t of trackersOf(eid)) if (!firstOn.has(t)) firstOn.set(t, eid);
+  for (const eid of ids) {
+    const a = attrs(eid);
+    const trackers = new Set(trackersOf(eid).filter(t => firstOn.get(t) === eid));
+    const mine = C[eid] || null;
+    let at = null, lost = [];
+    if (mine) {
+      const things = mine.filter(k => owner.get(k) === eid).map(k => byKey.get(k)).filter(Boolean);
+      at = things.find(o => !o.roomOnly) || things[0] || null;
+      lost = mine.filter(k => owner.get(k) !== eid).map(k => ({ key: k, keptBy: owner.get(k) }));
+    } else {
+      const names = new Set([low(a.friendly_name || eid.slice(7).replace(/_/g, " "))]);
+      for (const t of trackers) {
+        const fn = st[t] && st[t].attributes && st[t].attributes.friendly_name;
+        if (fn) names.add(low(fn));
+        names.add(low(t.split(".").slice(1).join(".").replace(/_/g, " ")));
+      }
+      names.delete("");
+      at = pool.find(o => !taken.has(o.key) && (o.linked.some(e => trackers.has(e)) || (o.label && names.has(low(o.label))))) || null;
+      if (at) taken.add(at.key);
+    }
+    out.push({ eid, name: String(a.friendly_name || eid), at, carries: mine, lost });
+  }
+  return out;
+}
+
+/** Is (x, y) inside the outline P? */
+function inside(x, y, P){
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const a = P[i], b = P[j];
+    if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+  }
+  return c;
+}
+/** How far (x, y) is from the nearest side of P. */
+function clearance(x, y, P){
+  let best = Infinity;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [ax, ay] = P[j], [bx, by] = P[i], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    const t = L2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2)) : 0;
+    best = Math.min(best, Math.hypot(x - ax - t * dx, y - ay - t * dy));
+  }
+  return best;
+}
+/** The point of P furthest from its sides (searched on a grid, then a finer
+ *  one round the best): always inside it, whatever its shape. */
+function deepest(P){
+  const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), best = null;
+  for (let round = 0; round < 2; round++) {
+    const N = 24, sx = (x1 - x0) / N, sy = (y1 - y0) / N;
+    for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
+      const x = x0 + i * sx, y = y0 + j * sy;
+      if (!inside(x, y, P)) continue;
+      const c = clearance(x, y, P);
+      if (!best || c > best.c) best = { x, y, c };
+    }
+    if (!best) break;
+    x0 = best.x - sx; x1 = best.x + sx; y0 = best.y - sy; y1 = best.y + sy;
+  }
+  return best;
+}
+/** A room's middle on the map: Overview's (the mean of its corners; a round
+ *  room's centre) when that is inside it, else the point furthest inside it
+ *  (an L or a U whose mean falls in a wall or the room next door). {x, y,
+ *  floor_id, pts (its outline, or null)}, or null for no such room. */
+export function roomMiddle(model, room){
+  const g = model && model.room_geometry_m && typeof model.room_geometry_m === "object" ? model.room_geometry_m[room] : null;
+  if (!g || typeof g !== "object") return null;
+  const floor_id = String(g.floor_id || "main");
+  if (g.type === "circle") {
+    const x = fin(Number(g.cx_m)), y = fin(Number(g.cy_m));
+    return x === null || y === null ? null : { x, y, floor_id, pts: null };
+  }
+  const pts = Array.isArray(g.points_m) ? g.points_m.map(p => [Number(p && p[0]), Number(p && p[1])]) : [];
+  if (pts.length < 3 || pts.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return null;
+  const x = pts.reduce((a, p) => a + p[0], 0) / pts.length, y = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+  if (inside(x, y, pts)) return { x, y, floor_id, pts };
+  const d = deepest(pts);
+  return d ? { x: d.x, y: d.y, floor_id, pts } : { x, y, floor_id, pts };
+}
+/** The i-th one known only by a room stands this far (m) and this way from
+ *  its middle: the first at the middle, the next stepping out round it
+ *  (Overview's own stagger: 2.4 rad a step, a little further each time). */
+export function roomStagger(i){
+  if (!i) return [0, 0];
+  const r = Math.min(ROOM_FAN_M[1], ROOM_FAN_M[0] * (1 + i));
+  return [Math.cos(i * 2.4) * r, Math.sin(i * 2.4) * r];
+}
+/** Where in a room (roomMiddle's mid) someone known only by it stands: its
+ *  middle, else the first step out round it (roomStagger) that is inside the
+ *  room and APART_M from everyone standing on that floor already. */
+function spotIn(mid, stands){
+  const near = (x, y) => stands.some(s => s.floor_id === mid.floor_id && Math.hypot(s.x - x, s.y - y) < APART_M);
+  let first = null;
+  for (let i = 0; i < 24; i++) {
+    const [dx, dy] = roomStagger(i), x = mid.x + dx, y = mid.y + dy;
+    if (mid.pts && !inside(x, y, mid.pts)) continue;
+    if (!first) first = { x, y, floor_id: mid.floor_id };
+    if (!near(x, y)) return { x, y, floor_id: mid.floor_id };
+  }
+  return first || { x: mid.x, y: mid.y, floor_id: mid.floor_id };
+}
+/** A tag's pin on the map (model.beacon_positions_m): {x, y, floor_id, z}, or null. */
+export function pinOf(model, key){
+  const b = model && model.beacon_positions_m && typeof model.beacon_positions_m === "object" ? model.beacon_positions_m[key] : null;
+  const x = fin(b && b.x_m), y = fin(b && b.y_m);
+  return x === null || y === null ? null : { x, y, floor_id: b.floor_id || null, z: fin(b.z_m) };
 }
 
 /** How wide a tag's ring is (m) for how sure PadSpan is of its spot (0..1;
@@ -123,9 +266,14 @@ export function scannerName(addr, model){
   return info && info.room ? `${info.room} scanner (${end})` : `Scanner ${addr}`;
 }
 /** What a tapped tag says: {title, lines}. Its room, when last heard, and
- *  which scanners hear it, the strongest first. */
-export function tagCard(o, model){
+ *  which scanners hear it, the strongest first; pinned, that it is, and how
+ *  far from its pin PadSpan reads it now. */
+export function tagCard(o, model, pin){
   const lines = [o.room ? `In ${o.room}` : "Room not known"];
+  if (pin) {
+    lines.push("Pinned on the map: it stands at its pin");
+    if (!o.roomOnly && fin(o.x) !== null) lines.push(`PadSpan reads it ${(Math.round(Math.hypot(o.x - pin.x, o.y - pin.y) * 10) / 10).toFixed(1)} m from its pin`);
+  }
   const seen = seenText(o.age);
   if (seen) lines.push(seen);
   const heard = (o.heard || []).slice().sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
@@ -135,6 +283,28 @@ export function tagCard(o, model){
   } else lines.push("No scanner hears it right now");
   return { title: o.label || "Tag", lines };
 }
+const clockOf = (t) => {
+  const d = new Date(t), now = new Date();
+  const hm = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === now.toDateString() ? hm : `${d.toLocaleDateString([], { weekday: "short" })} ${hm}`;
+};
+const STATE_WORD = { home: "Home", not_home: "Away" };
+/** What a tapped person says, in both views: who, where, and since when;
+ *  known only by their room, that it is only the room. */
+export function personCard(P, st, roomSince){
+  const lines = [];
+  const room = P.at && P.at.room ? P.at.room : "";
+  lines.push(room ? `In ${room}${roomSince ? ` since ${clockOf(roomSince)}` : ""}` : "Room not known");
+  if (P.at && P.at.roomOnly) lines.push(ROOM_ONLY_WORDS);
+  if (st && st.state && st.last_changed) {
+    const w = STATE_WORD[st.state] || String(st.state).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+    const t = Date.parse(st.last_changed);
+    if (Number.isFinite(t)) lines.push(`${w} since ${clockOf(t)}`);
+  }
+  const seen = seenText(P.at && P.at.age);
+  if (seen) lines.push(seen);
+  return { title: P.name, lines };
+}
 /** What a tapped scanner says: where it is and how high. */
 export function scannerCard(addr, model, z){
   const info = model && model.scanners && typeof model.scanners === "object" ? model.scanners[addr] : null;
@@ -143,8 +313,10 @@ export function scannerCard(addr, model, z){
 
 /** What is drawn now, Live Aboard's and the flat Atlas's alike (the sidebar's
  *  Show people and Show tags & scanners): d = {model, looks (the 3D file's
- *  devices), figures, snapshot, states, people, tags}. Each {key, kind:
- *  "scanner" | "beacon" | "person", floor_id, x, y, z, ...}. */
+ *  devices), figures, snapshot, states, people, tags, carries (settings.
+ *  atlas_3d_carries)}. Each {key, kind: "scanner" | "beacon" | "person",
+ *  floor_id, x, y, z, ...}; a pinned tag pinned: true, someone known only by
+ *  their room dim: true (and person: who they are, for their card). */
 export function wantedOf(d){
   const out = [];
   const looks = d.looks && typeof d.looks === "object" ? d.looks : {};
@@ -159,21 +331,38 @@ export function wantedOf(d){
   }
   if (!d.people && !d.tags) return out;
   const tracked = trackedOf(d.snapshot);
-  const people = d.people ? peopleOf(d.states, tracked) : [];
+  const people = d.people ? peopleOf(d.states, tracked, d.carries) : [];
   const theirs = new Set(people.filter(P => P.at).map(P => P.at.key));
   if (d.tags) {
     for (const o of tracked) {
-      const r = lookOf(o.key);
-      if (!o.beacon || !(o.shown || r) || theirs.has(o.key)) continue;
-      out.push({ key: "beacon:" + o.key, kind: "beacon", recipe: r, floor_id: o.floor_id, x: o.x, y: o.y, z: CARRY_H, centre: true,
-                 name: o.label || "Tag", halo: haloOf(o.sure), card: tagCard(o, d.model) });
+      const r = lookOf(o.key), pin = pinOf(d.model, o.key);
+      if (!o.beacon || !(o.shown || r) || theirs.has(o.key) || (o.roomOnly && !pin)) continue;
+      out.push({ key: "beacon:" + o.key, kind: "beacon", recipe: r, floor_id: pin ? pin.floor_id || o.floor_id : o.floor_id,
+                 x: pin ? pin.x : o.x, y: pin ? pin.y : o.y, z: pin && pin.z !== null ? pin.z : CARRY_H, centre: true, pinned: !!pin,
+                 name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin) });
     }
   }
   const figs = d.figures && typeof d.figures === "object" ? d.figures : {};
+  // Where people already stand: those PadSpan places first, then each one
+  // known only by a room, so none stands on another.
+  const stands = people.filter(P => P.at && !P.at.roomOnly).map(P => ({ x: P.at.x, y: P.at.y, floor_id: P.at.floor_id }));
   for (const P of people) {
     if (!P.at) continue;
     const f = figs[P.eid] && figs[P.eid].params && typeof figs[P.eid].params === "object" ? figs[P.eid].params : null;
-    out.push({ key: P.eid, kind: "person", figure: f, floor_id: P.at.floor_id, x: P.at.x, y: P.at.y, z: 0, centre: false });
+    let at = { x: P.at.x, y: P.at.y, floor_id: P.at.floor_id };
+    if (P.at.roomOnly) {
+      // A room is a guess made from where they were: it says nothing of
+      // someone who is out (a tracker Home Assistant keeps in a room for
+      // good, a room a tag is set to): only while they are home.
+      const st = d.states && d.states[P.eid];
+      if (!st || st.state !== "home") continue;
+      const mid = roomMiddle(d.model, P.at.room);
+      if (!mid) continue;                     // a room not on the map (away, outside): nowhere to stand
+      at = spotIn(mid, stands);
+      stands.push(at);
+    }
+    out.push({ key: P.eid, kind: "person", figure: f, floor_id: at.floor_id, x: at.x, y: at.y, z: 0, centre: false,
+               dim: !!P.at.roomOnly, person: P });
   }
   return out;
 }
@@ -185,6 +374,7 @@ export function wantedOf(d){
 export function createTrackedLayer(ctx){
   const { THREE } = ctx;
   const items = new Map();                  // key -> what is drawn for it
+  const since = new Map();                  // person -> {room, t (null: the room they were in when first seen)}
   let quality = "low", last = null, markerRes = null, tagRes = null;
   const _vp = new THREE.Vector4(), _wp = new THREE.Vector3();
 
@@ -287,9 +477,20 @@ export function createTrackedLayer(ctx){
     };
     return { sp, tex, mat, text };
   }
+  /** Someone known only by their room: their figure (or marker) see-through,
+   *  on materials of its own (the shared ones stay as they are). */
+  function dim(B){
+    B.dimMats = [];
+    B.g.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      const one = (m) => { const c = m.clone(); c.transparent = true; c.opacity = (m.opacity ?? 1) * ROOM_ONLY_OPACITY; c.depthWrite = false; B.dimMats.push(c); return c; };
+      o.material = Array.isArray(o.material) ? o.material.map(one) : one(o.material);
+    });
+  }
   function dropBody(I){
     if (!I.body) return;
     I.root.remove(I.body.g);
+    for (const m of I.body.dimMats || []) m.dispose();
     if (!I.body.own) { const FURN = ctx.FURN ? ctx.FURN() : null; try { if (FURN && FURN.disposePiece) FURN.disposePiece(I.body.g); } catch (_) { /* best effort */ } }
     I.body = null;
   }
@@ -376,19 +577,28 @@ export function createTrackedLayer(ctx){
           I.root.name = "tracked:" + w.key; items.set(w.key, I); changed = true;
         }
         if (rebuilt) { I.F = null; if (I.root.parent) I.root.parent.remove(I.root); }
-        const look = JSON.stringify([w.recipe || null, w.figure || null, quality]);
+        const look = JSON.stringify([w.recipe || null, w.figure || null, quality, !!w.dim]);
         if (look !== I.look) {
           dropBody(I);
           I.body = body(w);
           const S = I.body.g.userData && I.body.g.userData.size;
           if (S && SHOWN_M[w.kind]) I.body.g.scale.setScalar(Math.max(1, SHOWN_M[w.kind] / Math.max(S.w, S.d, S.h, 1e-3)));
-          I.body.g.traverse((o) => { if (o.isMesh) { o.castShadow = quality === "high" && !I.body.plain; o.receiveShadow = false; } });
+          if (w.dim) dim(I.body);
+          I.body.g.traverse((o) => { if (o.isMesh) { o.castShadow = quality === "high" && !I.body.plain && !w.dim; o.receiveShadow = false; } });
           I.root.add(I.body.g);
-          I.look = look; I.marker = I.body.own && w.kind === "person"; I.plain = !!I.body.plain;
+          I.look = look; I.marker = I.body.own && w.kind === "person"; I.plain = !!I.body.plain; I.dim = !!w.dim;
           changed = true;
         }
         const before = drawnKey(I);
         if (w.kind === "beacon") dressTag(I, w);
+        I.pinned = !!w.pinned;
+        if (w.kind === "person" && w.person) {
+          // Who, where and since when: the room they are in, as first seen or as it changed.
+          const room = w.person.at ? w.person.at.room || "" : "", was = since.get(w.key);
+          if (!was) since.set(w.key, { room, t: null });
+          else if (was.room !== room) since.set(w.key, { room, t: Date.now() });
+          w.card = personCard(w.person, ((d && d.states) || {})[w.key], since.get(w.key).t);
+        }
         I.card = w.card || null;
         place(I, w, F);
         if (before !== drawnKey(I)) changed = true;
@@ -414,17 +624,25 @@ export function createTrackedLayer(ctx){
       for (const I of items.values()) if (I.walking && shown(I)) return WALK_MS[quality];
       return 0;
     },
-    /** The tags and scanners on floors that show, for a tap: {key, kind
-     *  ("tag" | "scanner"), at (world: the middle of what is drawn), name
-     *  (world: the bottom middle of its name, or null), namePx ([w, h] on
-     *  screen), label, card: {title, lines}}. */
+    /** The tags, scanners and people on floors that show, for a tap: {key,
+     *  kind ("tag" | "scanner" | "person"), at (world: the middle of what is
+     *  drawn), pts (a person: more of them, feet to head), live() (a person:
+     *  where they are now, as they walk), name (world: the bottom middle of
+     *  its name, or null), namePx ([w, h] on screen), label, card: {title, lines}}. */
     pickable(){
       const out = [];
       for (const I of items.values()) {
-        if (!shown(I) || !I.card || (I.kind !== "beacon" && I.kind !== "scanner")) continue;
+        if (!shown(I) || !I.card) continue;
         const S = I.body && I.body.g.userData && I.body.g.userData.size, h = S ? S.h * I.body.g.scale.y : 0;
         I.root.updateMatrixWorld();
         const at = new THREE.Vector3(0, h / 2, 0).applyMatrix4(I.root.matrixWorld);
+        if (I.kind === "person") {
+          const tall = Math.max(h, 1.2), pts = [0.15, 0.5, 0.85].map(k => new THREE.Vector3(0, tall * k, 0).applyMatrix4(I.root.matrixWorld));
+          // Their card hangs from their feet, so it never covers them.
+          out.push({ key: I.key, kind: "person", at, pts, live: () => I.at.clone(), name: null, namePx: null,
+                     label: `${I.card.title} · ${I.dim ? "room only" : "person"}`, card: I.card });
+          continue;
+        }
         const name = I.name ? new THREE.Vector3().setFromMatrixPosition(I.name.sp.matrixWorld) : null;
         out.push({ key: I.key, kind: I.kind === "beacon" ? "tag" : "scanner", at, name,
                    namePx: I.name ? [LABEL_PX * I.name.sp.userData.aspect, LABEL_PX] : null,
@@ -432,17 +650,30 @@ export function createTrackedLayer(ctx){
       }
       return out;
     },
+    /** Where someone (or something) drawn is now: {x, y, z (world, y up,
+     *  at their feet), floor (its id), elev (its floor's height), shown, walking}, or null. */
+    whereOf(key){
+      const I = items.get(key);
+      return I && I.F ? { x: I.at.x, y: I.at.y, z: I.at.z, floor: I.F.fl.id, elev: I.F.fl.elev, shown: shown(I), walking: I.walking } : null;
+    },
+    /** The people drawn, by name: [{key, name, floor, dim}]. */
+    people(){
+      return [...items.values()].filter(I => I.kind === "person" && I.F)
+        .map(I => ({ key: I.key, name: I.card ? I.card.title : I.key, floor: I.F.fl.id, dim: !!I.dim }))
+        .sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
+    },
     state(){
       const r = (v) => Math.round(v * 1000) / 1000;
       return [...items.values()].map(I => ({ key: I.key, kind: I.kind, floor: I.F ? I.F.fl.id : null, at: [r(I.at.x), r(I.at.y), r(I.at.z)],
         to: [r(I.to.x), r(I.to.y), r(I.to.z)], yaw: r(I.yaw), walking: I.walking, marker: !!I.marker, plain: !!I.plain, shown: shown(I),
         name: I.name ? I.name.text : null, halo: I.halo ? r(I.halo.scale.x) : null, ground: I.halo ? r(I.at.y + I.halo.position.y) : null,
-        card: I.card ? { title: I.card.title, lines: I.card.lines.slice() } : null }));
+        dim: !!I.dim, opacity: I.body ? Math.max(...(I.body.dimMats && I.body.dimMats.length ? I.body.dimMats.map(m => m.opacity) : [1])) : null,
+        pinned: !!I.pinned, card: I.card ? { title: I.card.title, lines: I.card.lines.slice() } : null }));
     },
     dispose(){
       for (const k of [...items.keys()]) drop(k);
       for (const R of [markerRes, tagRes]) if (R) for (const v of Object.values(R)) v.dispose();
-      markerRes = null; tagRes = null;
+      markerRes = null; tagRes = null; since.clear();
     },
   };
 }

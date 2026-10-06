@@ -21,6 +21,17 @@
 //             missing from the states shows as not linked, with Remove,
 //             and nothing removes it on its own. People are never
 //             shared: figures live only in this house's 3D file.
+//   Carries   each person's phones and tags, picked from what PadSpan
+//             tracks (the live snapshot): picked, they are what places that
+//             person in Live Aboard and on the Atlas's map, whatever the
+//             names say (live_aboard_tracked.js peopleOf). Kept at once in
+//             PadSpan's own settings (atlas_3d_carries), the one place both
+//             views read, in this house only: nothing sends it anywhere. A
+//             thing picked for two people stays with the first (by their
+//             id); the other's row says so. An administrator's to change
+//             (as Show people is). A person renamed in Home Assistant keeps
+//             theirs and a deleted one's go (house3d_people.py); one this
+//             house no longer has shows as not linked, with Forget.
 //   Beacons   the ones the Atlas shows (named, or known to the positioning
 //   Scanners  engine), and the scanners placed on the map: a look by hand
 //             (the builders' tag and scanner kinds) or from a photo, kept by
@@ -34,6 +45,7 @@
 
 const PH = await import(`./live_aboard_photo.js${new URL(import.meta.url).search}`);
 const { el, addCss, aiNote, errText, photoButtons, shrinkPhoto, photoKinds } = PH;
+const TR = await import(`./live_aboard_tracked.js${new URL(import.meta.url).search}`);
 
 const CMD = "padspan_ha/house3d_from_photo";
 export const CONSENT_NEEDED = "Tick that the person in the photo agrees first. Nothing is sent until then.";
@@ -55,6 +67,27 @@ export function beaconsOf(snapshot){
     out.push({ id, label: o.user_label || o.private_ble_name || o.name || id });
   }
   return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** What a person can carry: the tags and phones the Atlas shows (named, or
+ *  known to the engine) and the trackers Home Assistant places by room,
+ *  [{id, label, where}] by name ("where": its room and when last heard, or
+ *  that it is not heard now). */
+export function thingsOf(snapshot){
+  const list = snapshot && snapshot.objects && Array.isArray(snapshot.objects.list) ? snapshot.objects.list : [];
+  const out = [], seen = new Set();
+  for (const o of list) {
+    if (!o || typeof o !== "object" || o._ghost) continue;
+    const ble = o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon";
+    if (!(ble && (o.user_label || o.identified)) && o.kind !== "entity") continue;
+    const id = String(o.key || o.address || o.entity_id || "");
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const room = typeof o.room === "string" && o.room ? o.room : "", heard = TR.seenText(o.age_s);
+    const where = o._stale ? "Not heard now" : [room ? `In ${room}` : "", heard].filter(Boolean).join(" · ");
+    out.push({ id, label: String(o.user_label || o.private_ble_name || o.name || id), where: where || (o.kind === "entity" ? "A Home Assistant tracker" : "") });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 }
 
 /** The scanners placed on the map (model.scanner_positions_m), by address. */
@@ -101,11 +134,14 @@ export function clampFigureParams(F, p){
 }
 
 const GROUP_OF = { beacon: "tag", scanner: "scanner" };
+const CARRIES_MAX = 8;                     // things one person carries (ws_settings.CARRIES_MAX_EACH)
 
-export function peopleMachine({ F, callWS, hass, draft = null }){
+export function peopleMachine({ F, callWS, hass, draft = null, settings = null }){
   const m = {
     step: "list", loading: true, devicesLoading: true, error: null, warn: null,
-    people: [], beacons: [], scanners: [], info: null,
+    people: [], beacons: [], scanners: [], things: [], info: null,
+    // Who carries what (settings.atlas_3d_carries): saved as soon as it is kept.
+    carries: TR.carriesOf(settings && settings.atlas_3d_carries), saving: false, admin: null,
     file: { figures: {}, devices: {} },
     changes: { figures: {}, devices: {} },
     edit: null, consent: false, photo: null,
@@ -113,11 +149,16 @@ export function peopleMachine({ F, callWS, hass, draft = null }){
     async load(){
       const states = hass && hass.states ? Promise.resolve(hass.states)
         : callWS({ type: "get_states" }).then(list => Object.fromEntries((list || []).map(s => [s.entity_id, s])));
-      const [st, got, info] = await Promise.all([
+      // Carries is an administrator's to change (the server holds the same rule).
+      const admin = hass && hass.user ? Promise.resolve(hass.user.is_admin === true)
+        : callWS({ type: "auth/current_user" }).then(u => (u && typeof u.is_admin === "boolean" ? u.is_admin : null));
+      const [st, got, info, isAdmin] = await Promise.all([
         states.catch(() => ({})),
         callWS({ type: "padspan_ha/house3d_get" }).catch(e => ({ error: errText(e) })),
         callWS({ type: CMD, target: "person" }).catch(e => ({ ready: false, message: errText(e) })),
+        admin.catch(() => null),
       ]);
+      m.admin = isAdmin;                    // true, false, or null (not known: the server decides)
       m.people = peopleOf(st);
       // Furnish's draft (a figure made and not saved yet is there), else the saved file.
       const data = draft || (got && got.data ? got.data : {});
@@ -129,11 +170,15 @@ export function peopleMachine({ F, callWS, hass, draft = null }){
       return m;
     },
     async loadDevices(){
-      const [snap, model] = await Promise.all([
+      const [got, model] = await Promise.all([
         callWS({ type: "padspan_ha/live_snapshot" }).catch(() => null),
         callWS({ type: "padspan_ha/model_get" }).catch(() => null),
       ]);
+      // live_snapshot answers {snapshot}: read inside it (read whole, the
+      // Beacons list was always empty).
+      const snap = got && got.snapshot && typeof got.snapshot === "object" ? got.snapshot : got;
       m.beacons = beaconsOf(snap);
+      m.things = thingsOf(snap);
       m.scanners = scannersOf(model);
       m.devicesLoading = false;
       return m;
@@ -146,9 +191,10 @@ export function peopleMachine({ F, callWS, hass, draft = null }){
       const e = m.file.devices[id];
       return e && e.recipe ? e.recipe : null;
     },
+    /** People this house no longer has who still have a figure or picks. */
     unlinked(){
-      const ids = new Set([...Object.keys(m.file.figures), ...Object.keys(m.changes.figures)]);
-      return [...ids].filter(id => m.figureOf(id) && !m.people.some(p => p.id === id)).sort();
+      const ids = new Set([...Object.keys(m.file.figures), ...Object.keys(m.changes.figures), ...Object.keys(m.carries)]);
+      return [...ids].filter(id => (m.figureOf(id) || m.carriesOf(id).length) && !m.people.some(p => p.id === id)).sort();
     },
     changed(){ return Object.keys(m.changes.figures).length + Object.keys(m.changes.devices).length; },
 
@@ -248,6 +294,65 @@ export function peopleMachine({ F, callWS, hass, draft = null }){
       else delete m.changes.devices[id];
     },
 
+    // What a person carries: picked from what PadSpan tracks, kept at once.
+    carriesOf(id){ return m.carries[id] || []; },
+    /** What was picked for `id` that someone before them (by id, and still
+     *  in Home Assistant) keeps: [{key, keptBy, label, name}]. */
+    lostOf(id){
+      const owner = TR.carriesOwners(m.carries, m.people.map(p => p.id));
+      return m.carriesOf(id).filter(k => owner.get(k) !== id).map(k => ({ key: k, keptBy: owner.get(k), label: m.thingName(k),
+                                                                          name: (m.people.find(p => p.id === owner.get(k)) || { name: owner.get(k) }).name }));
+    },
+    thingName(k){ const t = m.things.find(x => x.id === k); return t ? t.label : k; },
+    editCarries(id, name){
+      m.edit = { what: "carries", id, name: name || id, picked: [...m.carriesOf(id)], filter: "" };
+      m.error = null;
+      m.step = "carries";
+    },
+    toggleCarry(key){
+      if (!m.edit || m.edit.what !== "carries") return;
+      const p = m.edit.picked, i = p.indexOf(key);
+      if (i >= 0) p.splice(i, 1); else if (p.length < CARRIES_MAX) p.push(key);
+    },
+    setFilter(t){ if (m.edit && m.edit.what === "carries") m.edit.filter = String(t || ""); },
+    /** The things to pick from, the filter applied; what is picked first. */
+    choices(){
+      const e = m.edit, f = e ? e.filter.trim().toLowerCase() : "";
+      const picked = new Set(e ? e.picked : []), known = new Set(m.things.map(t => t.id));
+      const gone = [...picked].filter(k => !known.has(k)).map(k => ({ id: k, label: k, where: "Not heard now" }));
+      return [...gone, ...m.things].filter(t => !f || t.label.toLowerCase().includes(f) || picked.has(t.id))
+        .sort((a, b) => Number(picked.has(b.id)) - Number(picked.has(a.id)));
+    },
+    async keepCarries(){
+      if (!m.edit || m.edit.what !== "carries" || m.saving) return false;
+      const next = { ...m.carries };
+      if (m.edit.picked.length) next[m.edit.id] = [...m.edit.picked]; else delete next[m.edit.id];
+      return m.saveCarries(next, true);
+    },
+    /** What someone this house no longer has carried, forgotten (saved at once). */
+    forgetCarries(id){
+      if (m.saving || !(id in m.carries)) return Promise.resolve(false);
+      const next = { ...m.carries };
+      delete next[id];
+      return m.saveCarries(next, false);
+    },
+    async saveCarries(next, back){
+      m.saving = true;
+      try {
+        const r = await callWS({ type: "padspan_ha/settings_set", atlas_3d_carries: next });
+        m.carries = TR.carriesOf(r && r.settings && r.settings.atlas_3d_carries !== undefined ? r.settings.atlas_3d_carries : next);
+        // The host's own copy of the settings: both views draw it at their next read.
+        if (settings && typeof settings === "object") settings.atlas_3d_carries = { ...m.carries };
+        m.saving = false;
+        if (back) m.back();
+        return true;
+      } catch (e) {
+        m.saving = false;
+        m.error = `Could not save: ${errText(e)}`;
+        return false;
+      }
+    },
+
     back(){ m.edit = null; m.photo = null; m.consent = false; m.error = null; m.step = "list"; },
     result(){ return { figures: { ...m.changes.figures }, devices: { ...m.changes.devices } }; },
   };
@@ -268,6 +373,9 @@ const CSS = `
 .la3d-people .ctl input[type=color]{width:46px;height:30px;padding:0;border:none;background:none}
 .la3d-people .prev{width:220px;height:260px;border-radius:10px;background:linear-gradient(#69727c,#3b4148);display:flex;align-items:center;justify-content:center}
 .la3d-people .prev canvas{width:220px;height:260px}
+.la3d-people .la3d-carries{max-height:min(46vh,420px);overflow:auto;margin:8px 0}
+.la3d-people .la3d-carries .item{cursor:pointer}
+.la3d-people input[type=search]{box-sizing:border-box;width:100%;max-width:360px;padding:7px 9px;border-radius:8px}
 @media (max-width:520px){.la3d-people .edit{grid-template-columns:1fr}.la3d-people .prev{justify-self:center}}
 `;
 
@@ -354,7 +462,7 @@ function colourControl(key, label, value, onInput){
 export async function peopleFlow(ctx){
   const F = ctx.recipeTools;
   const call = ctx.callWS || ctx.wsCall;
-  const m = peopleMachine({ F, callWS: call, hass: ctx.hass, draft: ctx.draft || null });
+  const m = peopleMachine({ F, callWS: call, hass: ctx.hass, draft: ctx.draft || null, settings: ctx.settings || null });
   const root = el("div", { class: "la3d-pflow la3d-people" });
   ctx.el.replaceChildren(root);
   addCss(ctx.el);
@@ -380,6 +488,10 @@ export async function peopleFlow(ctx){
     const btn = (label, fn, go) => el("button", { class: go ? "go" : "", onclick: () => { fn(); draw(); } }, label);
 
     function figureSub(f){ return !f ? "No figure" : f.origin === "photo" ? "Figure from a photo" : "Figure made by hand"; }
+    function carriesSub(id){
+      const c = m.carriesOf(id);
+      return c.length ? `Carries: ${c.map(k => m.thingName(k)).join(", ")}` : "Carries: found by their name and trackers";
+    }
     function lookSub(r){ return r ? `Looks like: ${(r.details && r.details.title) || (F.FURNITURE[r.kind] && F.FURNITURE[r.kind].name) || r.kind}` : "The plain marker"; }
 
     function listScreen(){
@@ -394,15 +506,21 @@ export async function peopleFlow(ctx){
       if (!m.people.length) out.push(el("p", { class: "muted" }, "Home Assistant has no people yet (Settings → People)."));
       for (const p of m.people) {
         const f = m.figureOf(p.id);
-        out.push(row(p.name, figureSub(f), p.id in m.changes.figures,
+        out.push(row(p.name, [figureSub(f), el("br"), carriesSub(p.id)], p.id in m.changes.figures,
           btn("By hand", () => m.editFigure(p.id, p.name)),
           btn("From a photo", () => m.photoFigure(p.id, p.name)),
+          m.admin === false ? el("button", { disabled: true, title: "Only an administrator can change what someone carries" }, "Carries")
+            : btn("Carries", () => m.editCarries(p.id, p.name)),
           f ? btn("Remove", () => m.removeFigure(p.id)) : null));
+        for (const L of m.lostOf(p.id)) out.push(el("p", { class: "warn", "data-carries-lost": p.id }, `${L.label} is picked for ${L.name} too. ${L.name} keeps it, so it doesn't place ${p.name}.`));
       }
       for (const id of m.unlinked()) {
         out.push(row(id, "Not linked: this person isn't in Home Assistant any more", id in m.changes.figures,
-          btn("Remove", () => m.removeFigure(id))));
+          m.figureOf(id) ? btn("Remove", () => m.removeFigure(id)) : null,
+          m.carriesOf(id).length && m.admin !== false
+            ? el("button", { onclick: () => { m.forgetCarries(id).then(draw); } }, "Forget what they carry") : null));
       }
+      if (m.error && m.step === "list") out.push(el("p", { class: "warn" }, m.error));
       for (const [title, list, which] of [["Beacons", m.beacons, "beacon"], ["Scanners", m.scanners, "scanner"]]) {
         out.push(el("h3", {}, title));
         if (m.devicesLoading) { out.push(el("p", { class: "muted" }, "Loading…")); continue; }
@@ -472,6 +590,33 @@ export async function peopleFlow(ctx){
       return out;
     }
 
+    /** Carries: tick the phones and tags that are theirs. */
+    function carriesScreen(){
+      const e = m.edit;
+      const find = el("input", { type: "search", value: e.filter, placeholder: "Find a phone or tag", "aria-label": "Find a phone or tag" });
+      const list = el("div", { class: "la3d-carries" });
+      const paintList = () => {
+        const ch = m.choices();
+        list.replaceChildren(...(ch.length ? ch.map(t => {
+          const tick = el("input", { type: "checkbox", checked: e.picked.includes(t.id) });
+          tick.addEventListener("change", () => { m.toggleCarry(t.id); tick.checked = e.picked.includes(t.id); });
+          return el("label", { class: "item", "data-carry": t.id }, tick, el("span", { class: "who" }, t.label, el("small", {}, t.where)));
+        }) : [el("p", { class: "muted" }, m.devicesLoading ? "Loading…" : "Nothing PadSpan tracks matches.")]));
+      };
+      find.addEventListener("input", () => { m.setFilter(find.value); paintList(); });
+      paintList();
+      return [
+        el("h3", {}, `What ${e.name} carries`),
+        el("p", { class: "muted" }, `Tick the phones and tags that are ${e.name}'s. Ticked, they place them in Live Aboard and on the Atlas's map, whatever the names say. None ticked: found by name and trackers, as before. This stays in this house and is never sent anywhere.`),
+        find, list,
+        m.error ? el("p", { class: "warn" }, m.error) : null,
+        el("p", { class: "muted" }, "Keep saves it straight away (it isn't part of Done and Save)."),
+        el("div", { class: "row" },
+          el("button", { class: "go", disabled: m.saving, onclick: () => { m.keepCarries().then(draw); draw(); } }, m.saving ? "Saving…" : "Keep"),
+          el("button", { onclick: () => { m.back(); draw(); } }, "Back")),
+      ];
+    }
+
     function lookScreen(){
       const e = m.edit, r = e.recipe, def = F.FURNITURE[r.kind];
       if (!preview) preview = makePreview(F);
@@ -507,6 +652,7 @@ export async function peopleFlow(ctx){
       figphoto: () => photoScreen(true),
       lookphoto: () => photoScreen(false),
       look: lookScreen,
+      carries: carriesScreen,
       reading: () => [el("h3", {}, "Reading the photo"),
         el("p", {}, el("span", { class: "busy" }), `${(m.info && m.info.name) || "The AI Task"} is reading it. On a home computer this can take a minute or two.`)],
     };

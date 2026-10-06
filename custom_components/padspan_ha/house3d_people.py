@@ -20,7 +20,9 @@ person later still takes it.
 
 Deleting the person is the owner's own act, and a figure is personal data, so
 this holds whatever the Live Aboard switch says (off, or below Pro): the
-recipe goes with the person. A house that never wrote the file has none to
+recipe goes with the person. What the person carried (settings.atlas_3d_carries,
+picked in People & devices) follows them too: moved on a rename, gone on a
+delete, in one settings write, and only when they had picks. A house that never wrote the file has none to
 read, and then nothing is read or written. A file that cannot be read, or a
 newer PadSpan's, is left alone (the People screen still offers Remove).
 """
@@ -34,7 +36,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant, callback as ha_callback
 
-from .const import DOMAIN
+from .const import DATA_SETTINGS, DOMAIN
 from .house3d_store import ReadFailed, async_file_exists, async_get_store, writable
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,8 +54,38 @@ def _on_entity_registry_updated(hass: HomeAssistant, event: Any) -> None:
         return
     if data.get("action") == "remove":
         hass.async_create_task(async_forget_person(hass, entity_id))
+        if entity_id in _carries(hass):
+            hass.async_create_task(async_carries_follow(hass, entity_id, None))
     elif data.get("action") == "update" and isinstance(old, str) and old.startswith("person.") and old != entity_id:
         hass.async_create_task(async_rename_person(hass, old, entity_id))
+        if old in _carries(hass):
+            hass.async_create_task(async_carries_follow(hass, old, entity_id))
+
+
+def _carries(hass: HomeAssistant) -> dict:
+    """Who carries what (settings.atlas_3d_carries), as it is now."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    c = ((st.data if st else None) or {}).get("atlas_3d_carries")
+    return c if isinstance(c, dict) else {}
+
+
+async def async_carries_follow(hass: HomeAssistant, old: str, new_id: str | None) -> bool:
+    """What `old` carried (settings.atlas_3d_carries, People & devices)
+    follows the person: renamed (new_id), it moves to the new id, unless that
+    id has picks of its own, which are kept; deleted (None), it goes. One
+    settings write of that key alone, only when something changes. True once
+    written."""
+    carries = _carries(hass)
+    if old not in carries:
+        return False
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    new = {k: list(v) for k, v in carries.items() if k != old}
+    moved = bool(new_id) and new_id not in new
+    if moved:
+        new[new_id] = list(carries[old])
+    await st.async_set(atlas_3d_carries=new)
+    _LOGGER.info("Live Aboard: what %s carried is %s", old, f"now {new_id}'s" if moved else "forgotten")
+    return True
 
 
 async def async_forget_person(hass: HomeAssistant, entity_id: str) -> bool:

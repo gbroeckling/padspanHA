@@ -2984,6 +2984,10 @@ export function buildLightsMapCard(hostIn){
           // while "Hide device codes" is on), and ⚙'s zoom label to keep up.
           classFilter: host.classFilter || null, floodLatches: host.floodLatches || {},
           codes: host.hideDeviceCodes ? null : { showcase: !!host.showcase },
+          // The wall panel and its people (live_aboard_panel.js): the settings
+          // read there (who carries what, the return to the home view), and
+          // Show people / Show tags & scanners from inside the view (admins).
+          settings3d: h3.settings, admin: h3.admin === true, saveSetting: typeof h3.saveSetting === "function" ? h3.saveSetting : null,
           onZoom: (pct) => { if (la3dZoomLbl && la3dOn()) la3dZoomLbl.textContent = `${pct}%`; },
           onTouch: () => { if (la3dCloseDrawer) la3dCloseDrawer(); } });
       } catch (_) { /* attach counts its own failures; the flat map stays */ }
@@ -3099,6 +3103,7 @@ export function buildLightsMapCard(hostIn){
       stage: isoDiv, frame: _frame, frameKey: `${view.floorGap}|${view.horizGap}`, model: host.model,
       states: host.house3d.states || {}, file: abData,
       people: abSet.atlas_3d_people === true, tags: abSet.atlas_3d_tags === true, hideNames: !codesShown || !!host.hideDeviceCodes,
+      carries: abSet.atlas_3d_carries || null,
       focused: (z) => fz === null || (Array.isArray(fz) ? fz.includes(z) : fz === z), outdoor: isOutdoorFloorId,
       home: () => { const rn = isoDiv.getRootNode ? isoDiv.getRootNode() : null; return rn && rn.host ? rn : document.body; } }, snapshot);
   };

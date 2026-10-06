@@ -51,13 +51,16 @@ const UNDER_TITLE = "Act on this one instead — it's under the marker on top";
  *   root            the 3D view's element (the marks and the box go in it)
  *   pick(x, y)      → {hit, under} | null: the target under client (x, y)
  *                     and the devices under it. A target is {kind: "device" |
- *                     "room" | "floor" | "door" | "entity" | "tag" | "scanner",
- *                     key, label, eid?, room?, z?, bar?, card?} — z is the
+ *                     "room" | "floor" | "door" | "entity" | "tag" | "scanner" |
+ *                     "person", key, label, eid?, room?, z?, bar?, card?,
+ *                     live?} — z is the
  *                     plate's storey as the Atlas's badge carries it, bar the
  *                     barrier as its card is handed it; "entity" a piece of
  *                     furniture linked to a device the Atlas has no marker
  *                     for (P5); a tag or a scanner says what it is (card:
- *                     {title, lines}) beside it when tapped (P6).
+ *                     {title, lines, buttons?: [{text, title?, act}]})
+ *                     beside it when tapped (P6), and a person their card
+ *                     (live() → where they are now, as they walk).
  *   screenOf(t)     → {x, y} | {poly: [[x, y], …]} | null, in px from root
  *   api()           → the host's use api, or null (then nothing is pressed)
  *   frame()         asks the view for a frame (the hold is timed on frames)
@@ -188,6 +191,18 @@ export function createUseSurface(o){
     head.append(name, x);
     el.appendChild(head);
     for (const l of c.lines || []) { const d = document.createElement("div"); d.textContent = l; el.appendChild(d); }
+    // A person's card has its buttons (Follow: live_aboard_panel.js); one closes the card.
+    if (Array.isArray(c.buttons) && c.buttons.length) {
+      const row = document.createElement("div");
+      row.className = "la3d-cbtns";
+      for (const B of c.buttons) {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = B.text; if (B.title) b.title = B.title;
+        b.addEventListener("click", (e) => { e.stopPropagation(); closeCard(); B.act(); });
+        row.appendChild(b);
+      }
+      el.appendChild(row);
+    }
     for (const ev of ["pointerdown", "pointerup", "click", "wheel"]) el.addEventListener(ev, (e) => e.stopPropagation());
     o.root.appendChild(el);
     card = { t, el };
@@ -234,7 +249,7 @@ export function createUseSurface(o){
       return;
     }
     if (r !== "tap" && r !== "open") return;
-    if (t.kind === "tag" || t.kind === "scanner") { showCard(t); return; }
+    if (t.kind === "tag" || t.kind === "scanner" || t.kind === "person") { showCard(t); return; }
     if (t.kind === "room") api.openRoom(t.room);
     else if (t.kind === "floor") api.openFloor(t.z);
     else if (t.kind === "door" && t.bar && t.bar.linked_entity_id && api.hass) openBarrierCard(api.hass, t.bar, api);
@@ -378,6 +393,8 @@ export function createUseSurface(o){
       }
       return more;
     },
+    /** Open the card of `t` (a tag, a scanner or a person, as pick() gives it). */
+    show(t){ if (t) showCard(t); },
     /** The camera moved: the marks follow what they mark. */
     layout(){
       if (press) { mark(press.target, hoverG); if (press.ring) placeRing(press.ring, press.target); }
