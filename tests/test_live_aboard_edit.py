@@ -122,7 +122,8 @@ def test_edit_is_handed_over_only_where_lights_are_placed() -> None:
 
 def test_nothing_is_stored_until_save_and_save_goes_through_the_host() -> None:
     ed = _code(_VIEWS / "live_aboard_edit.js")
-    assert "const r = await editFn(ch);" in ed and "ctx.saved(r.data);" in ed
+    # The draft's starting copy goes along: the host's Save sends only the heights it changed (2026-10-05).
+    assert "const r = await editFn(ch, draft.base);" in ed and "ctx.saved(r.data);" in ed
     assert ed.count("editFn(") == 1, "Save is the one place the editor writes"
     for name in ("live_aboard.js", "live_aboard_edit.js", "live_aboard_draft.js"):
         code = _code(_VIEWS / name)
