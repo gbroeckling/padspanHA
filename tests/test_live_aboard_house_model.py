@@ -56,7 +56,7 @@ def _code(p: Path) -> str:
 
 
 @pytest.mark.parametrize("prefix,least", [
-    ("storey:", 3), ("roof:", 3), ("stairs:", 3), ("door:", 1), ("doorway:", 1), ("view:", 6),
+    ("storey:", 3), ("roof:", 3), ("stairs:", 3), ("door:", 1), ("doorway:", 1), ("types:", 3), ("view:", 10),
 ])
 def test_the_house_model_harness_covers_each_part(model, prefix, least) -> None:
     got = [k for k in model["cases"] if k.startswith(prefix)]
@@ -75,7 +75,11 @@ def test_the_view_cases_by_name(model) -> None:
                  "view: a door with no sensor stands ajar inside, shut outside, open when set",
                  "view: the roof shows a step out past the whole house, fading, then still: 0 frames at rest",
                  "view: zoomed in, a floor below the top, Top, walls Down, Edit or Roof Off: the roof lifts away",
-                 "view: a door's sheet sets Shown: open, ajar or shut"):
+                 "view: a door's sheet sets Shown: open, ajar or shut",
+                 "view: each door drawn as its type, linked or as shown",
+                 "view: a door on a cover follows its position, moves while it opens, then is still: 0 frames at rest",
+                 "view: a door on a contact sensor slides open with it",
+                 "view: a tap on a door on a cover sends nothing; a hold opens Home Assistant's own controls"):
         assert model["cases"].get(name) is True, name
 
 

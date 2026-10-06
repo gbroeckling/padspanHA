@@ -24,6 +24,10 @@
 //            with no sensor ajar inside and shut outside, and their sheet's
 //            Shown; the roof shown and hidden by the camera, the floor, the
 //            view and the tool, fading then still: 0 frames at rest
+//   types    every door type shut in its opening and open its own way;
+//            PadSpan's first guess; a cover's position; in the view each
+//            type drawn, a cover followed (and still at rest), a sensor
+//            followed, and a tap on a cover's door sending nothing
 //
 // usage: live_aboard_house_model.mjs <www/padspan-ha dir>
 // prints one JSON line: { cases: {name: result}, failures: [...] }
@@ -179,6 +183,66 @@ await tryCase("doorway: a gap under a lintel, drawn and kept as a doorway", () =
     { els, rec, sw, owned });
 });
 
+// ── door types (door_types.js) ──────────────────────────────────────────────
+const DT = await import(pathToFileURL(join(WWW, "views", "door_types.js")).href);
+const W0 = 2.4, H0 = 2.1, T0 = { slide: "right", face: "in", panels: 3, glass: false };
+const PN = (type, a, t = {}) => DT.doorPanels({ ...T0, type, ...t }, a, W0, H0, 0.14, 85 * Math.PI / 180, false, 2.65);
+const inOpening = (list) => list.every(p => p.c[0] >= -1e-9 && p.c[0] <= W0 + 1e-9 && Math.abs(p.c[1]) <= 0.2 && Math.abs(p.pitch) < 1e-9);
+await tryCase("types: every type shut stands in its opening; open, each moves its own way", () => {
+  const bad = [];
+  const ok = (name, cond, d) => { if (!cond) bad.push({ name, d }); };
+  for (const type of DT.DOOR_TYPES) ok(`${type} shut`, inOpening(PN(type, 0).filter(p => p.kind !== "drum")), PN(type, 0));
+  const deg = (r) => Math.round(r * 180 / Math.PI);
+  ok("hinged: one leaf swung 85°", PN("hinged", 1).length === 1 && deg(PN("hinged", 1)[0].yaw) === 85);
+  ok("double: two leaves, each half, swung", PN("double", 1).length === 2 && PN("double", 1).every(p => Math.abs(p.size[0] - W0 / 2) < 1e-9 && p.c[1] > 0.5));
+  const sl = PN("sliding", 1, { glass: true }), sl0 = PN("sliding", 0, { glass: true });
+  ok("sliding: one half slides behind the fixed one, glass", sl.length === 2 && sl.every(p => p.glass) && Math.abs(sl[1].c[0] - sl[0].c[0]) < 1e-9 && sl0[1].c[0] < sl0[0].c[0]);
+  const both = PN("sliding", 1, { slide: "both" });
+  ok("sliding both ways: the halves part past the ends", both[0].c[0] < 0 && both[1].c[0] > W0);
+  ok("barn: along the wall's face past its end, on the side asked", PN("barn", 1)[0].c[0] > W0 && PN("barn", 1)[0].c[1] > 0.07 && PN("barn", 1, { face: "out" })[0].c[1] < -0.07
+     && PN("barn", 1, { slide: "left" })[0].c[0] < 0);
+  ok("pocket: into the wall", PN("pocket", 1)[0].c[1] === 0 && PN("pocket", 1)[0].c[0] > W0);
+  const bf = PN("bifold", 1);
+  ok("bifold: 3 panels folded in a zig-zag at the side", bf.length === 3 && bf.every(p => p.c[0] > W0 * 0.7 && p.c[1] > 0.2) && PN("bifold", 1, { slide: "both", panels: 4 }).length === 4);
+  const oh = PN("overhead", 1), oh5 = PN("overhead", 0.5);
+  ok("overhead: four sections, up and back under the ceiling, the lowest on the bend", oh.length === 4
+     && oh.every(p => p.pitch > 0.5 && p.c[2] <= 2.65 && p.c[2] >= H0 && p.c[1] > 0) && oh.filter(p => Math.abs(p.pitch - Math.PI / 2) < 1e-9).length >= 3
+     && oh5.some(p => p.pitch === 0) && oh5.some(p => p.pitch > 0));
+  const ru = PN("rollup", 1), ru0 = PN("rollup", 0);
+  ok("roll-up: a drum over it, the curtain shortened into it", ru.find(p => p.kind === "drum") && ru.find(p => p.kind === "curtain").size[1] < 0.05
+     && Math.abs(ru0.find(p => p.kind === "curtain").size[1] - H0) < 1e-9);
+  const tu = PN("tiltup", 1)[0];
+  ok("tilt-up: one piece up and out", Math.abs(tu.pitch + Math.PI / 2) < 1e-9 && tu.c[1] < -1 && Math.abs(tu.c[2] - H0) < 1e-9);
+  ok("gate: a single leaf, a double, or one sliding", PN("gate", 1, { panels: 1, slide: null }).length === 1 && PN("gate", 1, { panels: 2, slide: null }).length === 2
+     && PN("gate", 1, { slide: "left" })[0].c[0] < 0 && PN("gate", 0, { slide: null, panels: 1 }).every(p => p.size[1] <= 1.5));
+  check("types: every type shut stands in its opening; open, each moves its own way", !bad.length, bad);
+});
+await tryCase("types: PadSpan's first guess, and the stored type over it", () => {
+  const room = (name, x0, y0, x1, y1, outdoor = false) => ({ name, outdoor, pts: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
+  const rooms = [room("Garage", 0, 0, 6, 6), room("Hall", 6.1, 0, 9, 6), room("Bedroom Closet", 0, 6.1, 3, 8)];
+  const pc = (o) => ({ x0: 1, y0: 0, x1: 3.6, y1: 0, nx: 0, ny: 1, cls: "ext", mat: null, barrier: null, ...o });
+  const g = (o) => DT.guessDoorType(pc(o), rooms).type;
+  const got = { garage: g({}), narrowGarage: g({ x1: 3 }), glass: g({ x0: 6.5, x1: 7.4, mat: "glass" }),
+                patio: g({ x0: 6.5, x1: 7.4, barrier: { name: "Patio door" } }), closet: g({ x0: 0.5, x1: 1.7, y0: 6.05, y1: 6.05, cls: "int" }),
+                double: g({ x0: 6.5, x1: 8.1, cls: "int" }), hinged: g({ x0: 6.5, x1: 7.4, cls: "int" }) };
+  const stored = DT.doorTypeOf(pc({ override: { type: "barn", slide: "left", face: "out" } }), rooms);
+  const guessed = DT.doorTypeOf(pc({}), rooms);
+  check("types: PadSpan's first guess, and the stored type over it",
+    got.garage === "overhead" && got.narrowGarage === "hinged" && got.glass === "sliding" && got.patio === "sliding" && got.closet === "bifold"
+    && got.double === "double" && got.hinged === "hinged" && stored.type === "barn" && !stored.guessed && stored.guess === "overhead"
+    && stored.slide === "left" && stored.face === "out" && guessed.guessed && guessed.type === "overhead"
+    && DT.doorTypeOf(pc({ x0: 6.5, x1: 7.4, mat: "glass" }), rooms).glass === true, { got, stored, guessed });
+});
+await tryCase("types: a cover's position is how open it is; opening and closing move it", () => {
+  const a = DT.coverAt({ state: "open", attributes: { current_position: 40 } }), b = DT.coverAt({ state: "opening", attributes: { current_position: 40 } });
+  const c = DT.coverAt({ state: "closed", attributes: {} }), d = DT.coverAt({ state: "unavailable", attributes: {} }), e = DT.coverAt({ state: "closing", attributes: {} });
+  check("types: a cover's position is how open it is; opening and closing move it",
+    a.at === 0.4 && a.moving === 0 && b.at === 0.4 && b.moving === 1 && c.at === 0 && d.none && e.moving === -1
+    && DT.linkKind("cover.garage_door") === "cover" && DT.linkKind("binary_sensor.patio") === "sensor"
+    && DT.shownAt("overhead", "ajar") === DT.LIFT_AJAR && DT.shownAt("sliding", "ajar") === 0.5 && DT.shownAt("hinged", "ajar") === 1
+    && DT.shownAt("bifold", "shut") === 0 && DT.coverIsDoor({ attributes: { device_class: "garage" } }), { a, b, c, d, e });
+});
+
 // ── the view ────────────────────────────────────────────────────────────────
 shim.install();
 const lists = { window: {}, document: {} };
@@ -327,7 +391,136 @@ await tryCase("view: a door's sheet sets Shown: open, ajar or shut", async () =>
   if (button("Done", null)) button("Done", null).click();
   await later(100, 6);
 });
+await tryCase("view: a door's sheet: Type, PadSpan's guess, only that type's options, and what it follows", async () => {
+  if (!st().edit.editing) button("Edit", null).click();
+  await later(300, 10);
+  slot._look(0, 0.0015, [7.45, 0, 4.05], 8);
+  await later(300, 10);
+  const at = slot._whereOf("main", 7.45, 4.05, 1), c = st().canvas;
+  const ev = (type) => ({ type, pointerId: 1, pointerType: "mouse", clientX: at[0], clientY: at[1], button: 0, buttons: type === "pointerup" ? 0 : 1,
+                          isPrimary: true, timeStamp: performance.now(), target: c, preventDefault(){}, stopPropagation(){} });
+  for (const t of ["pointerdown", "pointerup"]) { for (const fn of [...(lists.window[t] || [])]) fn(ev(t)); c.dispatchEvent(ev(t)); }
+  await later(100, 6);
+  const sheet = () => root().querySelectorAll(".la3d-sheet")[0];
+  const typeSel = () => sheet().querySelectorAll("select").find(s => s.getAttribute("aria-label") === "Type");
+  const labels = () => sheet().querySelectorAll("span").map(s => s.textContent);
+  const s0 = typeSel(), first = s0 ? s0.querySelectorAll("option").map(o => o.textContent) : [];
+  const hinged = labels();
+  s0.value = "sliding";
+  s0.dispatchEvent({ type: "change" });
+  await later(100, 6);
+  const slid = labels(), d1 = st().edit.draft.openings.door_5a1e0002;
+  check("view: a door's sheet: Type, PadSpan's guess, only that type's options, and what it follows",
+    first[0] === "PadSpan's guess: Hinged" && first.length === 11 && hinged.includes("Hinge") && hinged.includes("Swing") && hinged.includes("Follows")
+    && hinged.includes("Shown") && d1.type === "sliding" && slid.includes("Slides") && slid.includes("Glass") && !slid.includes("Hinge"),
+    { first, hinged, slid, d1 });
+  if (button("Discard", "la3d-tools")) button("Discard", "la3d-tools").click();
+  if (button("Done", null)) button("Done", null).click();
+  await later(100, 6);
+});
 LA.releaseLiveAboardSlot("house-model");
+
+// ── doors of a type, in the view ────────────────────────────────────────────
+// A garage with its overhead door on a cover, a hall with a sliding glass
+// door on a contact sensor, a closet's bifold, a double door and a roll-up,
+// none linked.
+{
+  const DMODEL = { floors: [{ id: "main", name: "Main" }],
+    room_geometry_m: { Garage: rect("main", 0, 0, 6, 6), Hall: rect("main", 6.1, 0, 9, 6), "Bedroom Closet": rect("main", 0, 6.1, 3, 8) } };
+  const door = (a, b, more = {}) => ({ kind: "door", floor_id: "main", a_m: a, b_m: b, head_m: 2.03, hinge: "left", swing: "in", ...more });
+  const DFILE = { schema: 1, pieces: {}, lights: {}, devices: {}, figures: {}, openings: {
+    door_d0000001: door([1, 0], [3.6, 0], { link: "cover.garage_door" }),
+    door_d0000002: door([9, 1], [9, 2.8], { type: "sliding", glass: true, link: "binary_sensor.patio_door" }),
+    door_d0000003: door([0.5, 6.05], [1.7, 6.05], { shown: "ajar" }),
+    door_d0000004: door([6.05, 2], [6.05, 3.6], { shown: "ajar" }),
+    door_d0000005: door([6.5, 6], [8.5, 6], { type: "rollup", shown: "ajar" }),
+  } };
+  const ago = (ms) => new Date(Date.now() - ms).toISOString();
+  const states = {
+    "cover.garage_door": { entity_id: "cover.garage_door", state: "open", attributes: { current_position: 40, device_class: "garage", friendly_name: "Garage door" }, last_changed: ago(60e3) },
+    "binary_sensor.patio_door": { entity_id: "binary_sensor.patio_door", state: "off", attributes: { device_class: "door", friendly_name: "Patio door" }, last_changed: ago(60e3) },
+  };
+  const DLBE = { "binary_sensor.patio_door": { entity_id: "binary_sensor.patio_door", friendly_name: "Patio door", state: "off", device_class: "door" } };
+  const service = [], toggles = [];
+  const dapi = { toast(){}, toggle: (...a) => toggles.push(a), openRoom(){}, openFloor(){}, openControls: (...a) => toggles.push(["controls", ...a]), openActivity(){},
+                 controlsFor: () => null, lightsByEid: DLBE, hass: { states, callService: (...a) => { service.push(a); return Promise.resolve(); } } };
+  const DP = (over = {}) => ({ model: DMODEL, floors: DMODEL.floors, lightsByEid: DLBE, hidden: new Set(), topFloorIds: null, quality: "low",
+    telemetry: () => {}, onTouch: () => {}, states, config: {}, bearing: 0, saveNorth: async () => true, useApi: () => dapi, haStartedMs: 0,
+    load: async () => ({ data: clone(DFILE) }), edit: null, ...over });
+  const dslot = LA.liveAboardSlot("house-doors");
+  let dstage = null;
+  const dpoll = (over) => { const c = document.createElement("div"); dstage = document.createElement("div"); c.appendChild(dstage); document.body.replaceChildren(c); return dslot.attach(dstage, DP(over)); };
+  dpoll();
+  await later(10000, 60);
+  const ds = () => dslot._state();
+  const op = (eid) => ds().openings.find(o => o.eid === eid) || null;
+  const still = (id) => (ds().doors || []).find(d => d.id === id) || null;
+
+  await tryCase("view: each door drawn as its type, linked or as shown", async () => {
+    const g = op("cover.garage_door"), p = op("binary_sensor.patio_door");
+    const bf = still("door_d0000003"), db = still("door_d0000004"), ru = still("door_d0000005");
+    check("view: each door drawn as its type, linked or as shown",
+      !ds().failed && g && g.type === "overhead" && g.cover && g.panels === 4 && near(g.at, 0.4) && g.state === "open"
+      && p && p.type === "sliding" && !p.cover && p.panels === 2 && p.at === 0 && p.state === "closed"
+      && bf && bf.type === "bifold" && bf.guessed && bf.panels === 2 && bf.at === 0.5
+      && db && db.type === "double" && db.panels === 2 && db.at === 1 && db.deg === 70
+      && ru && ru.type === "rollup" && !ru.guessed && ru.at === 0.25 && ds().liveMs === 0, { g, p, bf, db, ru, failed: ds().failed });
+  });
+  await tryCase("view: a door on a cover follows its position, moves while it opens, then is still: 0 frames at rest", async () => {
+    states["cover.garage_door"] = { ...states["cover.garage_door"], state: "opening", attributes: { ...states["cover.garage_door"].attributes, current_position: 40 } };
+    dpoll();
+    await settle(3);
+    const going = { ...op("cover.garage_door"), liveMs: ds().liveMs };
+    for (let i = 0; i < 40; i++) await later(200, 3);           // 8 s on the clock
+    states["cover.garage_door"] = { ...states["cover.garage_door"], state: "open", attributes: { ...states["cover.garage_door"].attributes, current_position: 100 } };
+    dpoll();
+    await later(2000, 10);
+    const up = { ...op("cover.garage_door"), liveMs: ds().liveMs }, f1 = ds().frames;
+    await later(30000);
+    const rest = ds().frames - f1;
+    states["cover.garage_door"] = { ...states["cover.garage_door"], state: "closed", attributes: { ...states["cover.garage_door"].attributes, current_position: 0 } };
+    dpoll();
+    await settle(3);
+    const shutting = op("cover.garage_door");
+    check("view: a door on a cover follows its position, moves while it opens, then is still: 0 frames at rest",
+      going.to === 1 && going.at < 0.5 && going.liveMs > 0 && near(going.ms, 0.6 * 12000, 1) && up.at === 1 && up.liveMs === 0
+      && rest === 0 && shutting.to === 0 && shutting.ms >= 300, { going, up, shutting, rest });
+    for (let i = 0; i < 20; i++) await later(200, 3);
+  });
+  await tryCase("view: a door on a contact sensor slides open with it", async () => {
+    DLBE["binary_sensor.patio_door"] = { ...DLBE["binary_sensor.patio_door"], state: "on" };
+    dpoll();
+    await settle(3);
+    const t0 = { ...op("binary_sensor.patio_door"), liveMs: ds().liveMs };
+    for (let i = 0; i < 12; i++) await later(100, 3);
+    const t1 = op("binary_sensor.patio_door");
+    check("view: a door on a contact sensor slides open with it", t0.to === 1 && t0.ms === 1000 && t0.liveMs > 0 && t1.at === 1 && ds().liveMs === 0, { t0, t1 });
+  });
+  await tryCase("view: a tap on a door on a cover sends nothing; a hold opens Home Assistant's own controls", async () => {
+    dslot._look(0, 0.9, [2.3, 1, 0], 7);
+    await later(300, 10);
+    const at = dslot._where({ door: "cover.garage_door" }), cv = dslot.element.querySelector("canvas");
+    const more = [];
+    dslot.element.addEventListener("hass-more-info", (e) => more.push(e.detail && e.detail.entityId));
+    const evp = (type, x, y) => ({ type, button: 0, pointerType: "mouse", pointerId: 1, clientX: x, clientY: y, deltaMode: 0, timeStamp: performance.now(),
+                                   stopPropagation(){}, preventDefault(){}, composedPath: () => [] });
+    const hit = at ? dslot._pick(at[0], at[1]) : null;
+    service.length = 0; toggles.length = 0;
+    cv.dispatchEvent(evp("pointerdown", at[0], at[1]));
+    cv.dispatchEvent(evp("pointerup", at[0], at[1]));
+    await later(100, 6);
+    const tap = { service: service.length, toggles: toggles.length, more: more.length };
+    cv.dispatchEvent(evp("pointerdown", at[0], at[1]));
+    clockOff += 800;
+    await settle(6);
+    cv.dispatchEvent(evp("pointerup", at[0], at[1]));
+    await later(100, 6);
+    check("view: a tap on a door on a cover sends nothing; a hold opens Home Assistant's own controls",
+      at && hit && /^door:cover\.garage_door/.test(hit.hit) && tap.service === 0 && tap.toggles === 0 && tap.more === 0
+      && service.length === 0 && toggles.length === 0 && more.join() === "cover.garage_door" && !ds().failed, { at, hit, tap, more, service, toggles });
+  });
+  LA.releaseLiveAboardSlot("house-doors");
+}
 
 console.log(JSON.stringify({ cases, failures }));
 process.exit(0);

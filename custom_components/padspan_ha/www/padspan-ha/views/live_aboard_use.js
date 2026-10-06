@@ -295,6 +295,7 @@ export function createUseSurface(o){
         holdable = !!api.controlsFor(l0);
         canDrag = !!l0.dimmable && String(t.eid).startsWith("light.");
       }
+      if (t.kind === "door" && t.cover) holdable = true;      // a door on a cover: hold for Home Assistant's own controls
       const tracker = createHoldTracker({ canDrag });
       tracker.down(e.clientX, e.clientY, stamp(e));
       press = { target: t, api, tracker, holdable, t0: stamp(e), ring: null, armed: false, dragBri: null, dragTo: null,

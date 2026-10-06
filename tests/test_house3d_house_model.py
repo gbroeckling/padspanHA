@@ -180,3 +180,80 @@ def test_a_sofa_is_not_checked_as_stairs() -> None:
     p["recipe"]["params"]["shape"] = "spiral"
     p["recipe"]["width_m"] = 0.3
     assert H.apply_edit(H.empty(), {"pieces": {p["id"]: p}})["pieces"][p["id"]]["recipe"]["params"]["shape"] == "spiral"
+
+
+# ═══ door types ═══════════════════════════════════════════════════════════════
+# Garry, 2026-10-05: "a door will also need swing left, right, roll up or down,
+# etc." Each type and option round trips on an added door and on a barrier's
+# entry; anything outside the lists is refused; a link is an entity id.
+
+@pytest.mark.parametrize("door_type", list(H.DOOR_TYPES))
+def test_every_door_type_round_trips(door_type) -> None:
+    added = {**_DOOR, "type": door_type}
+    out = H.apply_edit(H.empty(), {"openings": {"door_0a1b2c3d": added, "bar_a71a3324": {"type": door_type}}})
+    assert out["openings"]["door_0a1b2c3d"] == added and out["openings"]["bar_a71a3324"] == {"type": door_type}
+
+
+@pytest.mark.parametrize("opts", [
+    {"type": "sliding", "slide": "both", "glass": True},
+    {"type": "barn", "slide": "left", "face": "out"},
+    {"type": "pocket", "slide": "right"},
+    {"type": "bifold", "slide": "both", "panels": 4},
+    {"type": "double", "glass": False},
+    {"type": "gate", "panels": 2, "swing": "out"},
+    {"type": "gate", "slide": "left"},
+    {"type": "overhead", "link": "cover.garage_door"},
+    {"type": "rollup", "shown": "ajar"},
+    {"type": "tiltup", "link": "binary_sensor.garage_contact"},
+])
+def test_every_door_option_round_trips(opts) -> None:
+    added = {**_DOOR, **opts}
+    barrier = {k: v for k, v in opts.items() if k != "swing"}
+    out = H.apply_edit(H.empty(), {"openings": {"door_0a1b2c3d": added, "bar_a71a3324": barrier}})
+    assert out["openings"]["door_0a1b2c3d"] == added and out["openings"]["bar_a71a3324"] == barrier
+    # Taken out again by an entry without them (the editor's whole).
+    again = H.apply_edit(out, {"openings": {"door_0a1b2c3d": dict(_DOOR)}})
+    assert again["openings"]["door_0a1b2c3d"] == _DOOR
+
+
+@pytest.mark.parametrize("why,opts", [
+    ("an unknown type", {"type": "revolving"}),
+    ("a slide not left, right or both", {"slide": "up"}),
+    ("a face not in or out", {"face": "middle"}),
+    ("one panel", {"panels": 1}),
+    ("five panels", {"panels": 5}),
+    ("panels as text", {"panels": "3"}),
+    ("panels true", {"panels": True}),
+    ("half a panel", {"panels": 2.5}),
+    ("glass as text", {"glass": "yes"}),
+    ("a link that is no entity id", {"link": "Garage Door"}),
+    ("a link too long", {"link": "cover." + "x" * 260}),
+])
+def test_door_types_and_options_are_checked(why, opts) -> None:
+    with pytest.raises(H.EditError):
+        H.apply_edit(H.empty(), {"openings": {"door_0a1b2c3d": {**_DOOR, **opts}}})
+    with pytest.raises(H.EditError):
+        H.apply_edit(H.empty(), {"openings": {"bar_a71a3324": dict(opts)}})
+
+
+def test_a_window_or_a_doorway_takes_no_door_type() -> None:
+    with pytest.raises(H.EditError):
+        H.apply_edit(H.empty(), {"openings": {"win_5e6f7a8b": {**_WIN, "type": "sliding"}}})
+    with pytest.raises(H.EditError):
+        H.apply_edit(H.empty(), {"openings": {"doorway_0a1b2c3d": {**_WAY, "type": "hinged"}}})
+
+
+def test_an_older_padspan_keeps_a_typed_door_it_saves_again() -> None:
+    """An older PadSpan does not own type, slide, face, panels, glass or link:
+    saving its own fields of a typed door keeps them (its keep-what-you-do-
+    not-own rule), and it draws the door hinged. Shown here with the same
+    rule: an entry's unowned keys stay through a save of the owned ones."""
+    old_owned = frozenset(("kind", "floor_id", "a_m", "b_m", "head_m", "hinge", "swing", "sill_m"))
+    typed = {**_DOOR, "type": "overhead", "link": "cover.garage_door"}
+    keep = {k: v for k, v in typed.items() if k not in old_owned}
+    assert keep == {"type": "overhead", "link": "cover.garage_door"}
+    # This version's own save of the barrier entry keeps a newer key it does not know.
+    base = H.apply_edit(H.empty(), {"openings": {"bar_a71a3324": {"type": "barn"}}})
+    base["openings"]["bar_a71a3324"]["newer"] = 1
+    out = H.apply_edit(base, {"openings": {"bar_a71a3324": {"type": "pocket"}}})
+    assert out["openings"]["bar_a71a3324"] == {"type": "pocket", "newer": 1}
