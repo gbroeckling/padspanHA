@@ -51,7 +51,7 @@ OFF_CODE = "house3d_off"
 OFF_MESSAGE = "Live Aboard is off. Turn it on in Settings → UI Structure → Atlas → Live Aboard."
 # Below Pro the 3D house is as if off, whatever the switch says; the message
 # says what would bring it back (editions.js: a gate is never a dead end).
-PRO_MESSAGE = ("Live Aboard needs PadSpan Pro or Bright Pro. Enter a key in Settings → Features "
+PRO_MESSAGE = ("Live Aboard (experimental) needs PadSpan Pro. Enter a key in Settings → Features "
                "→ PadSpan licence, or get one at https://padspan.traks.ca/#pro")
 READ_CODE = "read_failed"
 READ_MESSAGE = "Could not read Live Aboard's file. Nothing was changed; try again."

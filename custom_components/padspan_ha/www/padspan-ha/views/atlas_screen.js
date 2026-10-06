@@ -131,7 +131,9 @@ const FLAT_CSS = `
 .lv-mapcard.lv-alone:has(.lv-emerg) > .lv-alone-anchor > .lv-alone-solo{top:98px}
 .lv-mapcard.lv-alone > .lv-emerg-anchor{position:fixed;left:var(--lv-al-l);top:var(--lv-al-t);width:var(--lv-al-w);z-index:${COVER_Z + 2}}
 .lv-mapcard.lv-alone > .lv-vacation{z-index:${COVER_Z + 3}}
-.lv-mapcard.lv-alone > .lv-stage > svg{max-width:none}`;
+.lv-mapcard.lv-alone > .lv-stage > svg{max-width:none}
+.lv-mapcard.lv-alone > .lv-stage > .lv-wx{--wxcap:100000%}
+.lv-mapcard.lv-alone.lv-has-emerg > .lv-alone-anchor > .lv-alone-solo{top:98px}`;
 // The stage's own cover, inline (it must win over the layout's own widths).
 const COVER_KEYS = ["position", "left", "top", "width", "height", "margin", "maxWidth", "borderRadius", "border", "zIndex", "boxSizing"];
 
@@ -155,6 +157,10 @@ function paint(st){
   if ((st.bare || st.fsOn) && !shownOf(st)) st.bare = false;
   const alone = st.bare;
   c.card.classList.toggle("lv-alone", alone);
+  // ☰ goes under the emergency dial: by a class, for browsers without :has().
+  const dial = () => c.card.classList.toggle("lv-has-emerg", !!(c.card.querySelector && c.card.querySelector(".lv-emerg")));
+  dial();
+  queueMicrotask(dial);                                      // the dial may join the card after this paint
   if (alone) {
     const r = coverRect(hostOf(st), st.fsOn);
     for (const [k, v] of [["--lv-al-l", r.left], ["--lv-al-t", r.top], ["--lv-al-w", r.width], ["--lv-al-h", r.height]]) c.card.style.setProperty(k, `${Math.round(v)}px`);

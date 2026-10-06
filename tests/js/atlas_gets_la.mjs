@@ -335,6 +335,19 @@ await tryCase("file: a read of Live Aboard's file that fails is asked again on t
   check("file: a read of Live Aboard's file that fails is asked again on the next card, not left empty for the panel's life",
     afterFail === null && calls === 2 && got && got.pieces && got.pieces.a === 1, { afterFail, calls, got });
 });
+await tryCase("alone: rain keeps matching the drawing on a narrow screen; ☰ goes under the dial without :has()", async () => {
+  const c = el("div", { class: "card lv-mapcard" }), s = el("div", { class: "lv-stage" });
+  c.appendChild(s);
+  const dial = el("div", { class: "lv-emerg" });
+  c.appendChild(dial);
+  const sc = SCREEN.flatScreen({ slot: "t-narrow", card: c, stage: s, zoom: 1, shown: () => true });
+  const css = c._all().filter(n => n.localName === "style").map(n => n.textContent).join("\n");
+  const has = c.classList.contains("lv-has-emerg");
+  SCREEN.dropFlatScreen("t-narrow");
+  check("alone: rain keeps matching the drawing on a narrow screen; ☰ goes under the dial without :has()",
+    /\.lv-mapcard\.lv-alone > \.lv-stage > \.lv-wx\{--wxcap:100000%\}/.test(css)
+    && /\.lv-mapcard\.lv-alone\.lv-has-emerg > \.lv-alone-anchor > \.lv-alone-solo\{top:98px\}/.test(css) && has, { has });
+});
 await tryCase("alone: the emergency dial, the Vacation banner, ☰ and ⛶ stay above the covering map", async () => {
   const c = el("div", { class: "card lv-mapcard" }), s = el("div", { class: "lv-stage" });
   c.appendChild(s);
