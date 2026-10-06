@@ -166,8 +166,9 @@ def test_the_layer_calls_nothing_and_keeps_no_timer() -> None:
     for bad in ("callWS", "callService", "callApi", "fetch(", "setTimeout", "setInterval", "requestAnimationFrame", "telemetry"):
         assert bad not in code, bad
     importers = sorted(p.name for p in _VIEWS.glob("*.js") if "live_aboard_tracked.js" in _js(p) and p.name != "live_aboard_tracked.js")
-    # The flat Atlas's people and tags (atlas_aboard.js, 2026-10-05) share its rules and cards.
-    assert importers == ["atlas_aboard.js", "live_aboard.js"], importers
+    # The flat Atlas's people and tags (atlas_aboard.js, 2026-10-05) share its rules and cards;
+    # People & devices its Carries rules (who keeps a thing picked for two).
+    assert importers == ["atlas_aboard.js", "live_aboard.js", "live_aboard_people.js"], importers
     want = "import(`./live_aboard_tracked.js${new URL(import.meta.url).search}`)"
     la = _js(_VIEWS / "live_aboard.js")
     assert la[la.index(want) + len(want):].lstrip().startswith(".catch("), "optional, like the other layers"

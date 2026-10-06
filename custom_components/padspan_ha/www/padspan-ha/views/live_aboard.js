@@ -3771,7 +3771,10 @@ function createSlot(slotKey){
      *  class chips' pick, or "all"/null), floodLatches ({entity id:
      *  {triggered_at}}, flood_latch.py's), codes ({showcase}: codes shown,
      *  or null while "Hide device codes" is on), onZoom(pct) (the ⚙ zoom
-     *  label: the zoom against the whole-house fit, on every change)}. */
+     *  label: the zoom against the whole-house fit, on every change),
+     *  settings3d (the settings: who carries what, going back home), admin
+     *  and saveSetting(key, value) → Promise (Show people / Show tags &
+     *  scanners from Views ▾; live_aboard_panel.js)}. */
     attach(s, p){
       send = p && p.telemetry;
       touchCb = p && p.onTouch;
