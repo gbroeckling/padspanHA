@@ -91,17 +91,27 @@ def test_imported_by_the_view_alone_with_its_own_catch() -> None:
 def test_it_imports_nothing_keeps_no_clock_and_writes_nothing() -> None:
     """three.js is handed in; only the view's capped clock moves the fade; it
     reads the house the view read and never calls Home Assistant."""
-    src = _code(_VIEWS / "live_aboard_storey.js")
-    assert not re.search(r"\bimport\b", src)
+    src, doors = _code(_VIEWS / "live_aboard_storey.js"), _code(_VIEWS / "door_types.js")
+    # Its one import: the doors' rules it shares with the flat Atlas, which import nothing.
+    assert re.findall(r"\bimport\b[^;]*", src) == ["import(`./door_types.js${new URL(import.meta.url).search}`)"]
+    assert not re.search(r"\bimport\b", doors)
     for bad in ("setInterval(", "setTimeout(", "requestAnimationFrame(", "callWS(", "callService(", "subscribe", "fetch(",
                 "localStorage", "document."):
-        assert bad not in src, bad
+        assert bad not in src and bad not in doors, bad
 
 
 def test_the_limits_are_the_servers() -> None:
-    """The stair rise and the door's Shown are the server's own lists."""
+    """The stair rise, the door's Shown, its types and options are the server's own lists."""
     src = (_VIEWS / "live_aboard_storey.js").read_text(encoding="utf-8")
-    assert 'export const DOOR_SHOWN = ["open", "ajar", "shut"];' in src and HS.DOOR_SHOWN == ("open", "ajar", "shut")
+    doors = (_VIEWS / "door_types.js").read_text(encoding="utf-8")
+    draft = (_VIEWS / "live_aboard_draft.js").read_text(encoding="utf-8")
+    assert 'export const DOOR_SHOWN = ["open", "ajar", "shut"];' in doors and HS.DOOR_SHOWN == ("open", "ajar", "shut")
+    types = '["hinged", "double", "sliding", "barn", "pocket", "bifold", "overhead", "rollup", "tiltup", "gate"]'
+    assert f"export const DOOR_TYPES = {types};" in doors and f"export const DOOR_TYPES = {types};" in draft
+    assert list(HS.DOOR_TYPES) == json.loads(types)
+    opts = 'export const DOOR_SLIDES = ["left", "right", "both"], DOOR_FACES = ["in", "out"], DOOR_PANELS = [2, 4];'
+    assert opts in doors and opts in draft
+    assert (HS.DOOR_SLIDES, HS.DOOR_FACES, HS.DOOR_PANELS) == (("left", "right", "both"), ("in", "out"), (2, 4))
     m = re.search(r"export const STAIR_RISE_M = \[([\d.]+), ([\d.]+)\];", src)
     assert m and (float(m[1]), float(m[2])) == HS.STAIR_RISE_M
     fur = (_VIEWS / "live_aboard_furniture.js").read_text(encoding="utf-8")

@@ -254,6 +254,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_marks",                            # Live Aboard: the Atlas's leak sensors, locks, codes and class chips
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
+    "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
     "busy_times", "calibration_matrix", "editions", "evidence_diagram", "house_activity",
     "insights", "iso_lights", "iso_motion", "light_codes", "lights_map", "locate",
     "pan_zoom", "path_loss", "plan_viewer", "push_subscription", "radio_map",

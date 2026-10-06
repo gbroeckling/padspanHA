@@ -1408,6 +1408,7 @@ function createSlot(slotKey){
       F.glass = inst(glasses, shared.glassBox, { tr: true, op: 0.32, r: 0.08 }, false);
       // A door, window or lock linked to a sensor opens with it (part B).
       for (const P of F.pieces) setupOpening(F, P, per.rooms);
+      if (STOREY) typedPanels(F);                            // doors of a type other than hinged: their own panels
       for (const P of F.pieces) placePiece(F, P, false);
       F.ao = aoMesh(F);
       if (F.ao) group.add(F.ao);
@@ -1755,10 +1756,11 @@ function createSlot(slotKey){
   function placePiece(F, P, cut){
     for (const e of P.els) {
       const z1 = cut && e.cuttable ? Math.min(e.z1, HOUSE.CUT_H) : e.z1, hgt = z1 - e.z0;
-      e.mesh.setMatrixAt(e.i, hgt < 0.005 ? ZERO : P.open && e === P.open.leaf ? leafMatrix(F, P, e.z0, hgt, e.thick)
+      e.mesh.setMatrixAt(e.i, hgt < 0.005 ? ZERO : P.open && e === P.open.leaf ? (P.open.slots ? ZERO : leafMatrix(F, P, e.z0, hgt, e.thick))
         : compose(P.mx, F.fl.elev + e.z0, P.my, P.yaw, P.len, hgt, e.thick));
       e.mesh.instanceMatrix.needsUpdate = true;
     }
+    if (P.open && P.open.slots) placePanels(F, P, cut);
     if (P.open && P.open.flash) placeFlash(F, P, cut);
   }
 
@@ -1773,8 +1775,12 @@ function createSlot(slotKey){
   // openingSwing; nothing here ever writes it).
   function setupOpening(F, P, rooms){
     const b = P.pc.barrier, k = P.pc.kind, len = Math.hypot(P.pc.x1 - P.pc.x0, P.pc.y1 - P.pc.y0);
-    if (!b || !b.linked_entity_id) { if (STOREY && k === "door") standDoor(P, rooms, len); return; }
-    const o = { bar: b, eid: String(b.linked_entity_id), kind: k, leaf: null, len, hinge: null, side: null,
+    // What drives a door: the 3D file's own link (a cover or a contact
+    // sensor, live_aboard_storey.js), else the map's.
+    const link = STOREY && k === "door" && P.pc.override && typeof P.pc.override.link === "string" ? P.pc.override.link : null;
+    if (!link && (!b || !b.linked_entity_id)) { if (STOREY && k === "door") standDoor(P, rooms, len); return; }
+    const o = { bar: link ? { ...(b || {}), id: (b && b.id) || P.pc.added, linked_entity_id: link, invert_state: false } : b,
+                eid: link || String(b.linked_entity_id), kind: k, leaf: null, len, hinge: null, side: null,
                 garage: false, state: null, at: 0, to: 0, from: 0, t0: 0, flash: null };
     if (k === "open") {
       // A gap (material "open") has no leaf: it keeps its reading and its
@@ -1789,9 +1795,23 @@ function createSlot(slotKey){
       if (!leaf || (k !== "door" && k !== "window")) return;
       const sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null);
       Object.assign(o, { leaf, hinge: sw.hinge, side: sw.side, garage: k === "door" && len > 1.8 });
+      if (STOREY && k === "door") typeDoor(o, P, rooms, !!(lbe[o.eid] && lbe[o.eid].device_class === "garage_door"));
     }
     P.open = o;
     openings.push({ F, P });
+  }
+  // A door's type (live_aboard_storey.js doorTypeOf: stored, else PadSpan's
+  // guess; a garage door's is overhead), what drives it (a cover follows
+  // its position), and a lock linked to it. A type other than hinged draws
+  // its own panels (typedPanels) instead of the wall's one leaf.
+  function typeDoor(o, P, rooms, garageClass){
+    const t = STOREY.doorTypeOf(P.pc, rooms);
+    if (t.guessed && (o.garage || garageClass)) t.type = "overhead";
+    o.garage = false;
+    o.t = t;
+    o.cover = STOREY.linkKind(o.eid, lastP && lastP.states ? lastP.states[o.eid] : null) === "cover";
+    o.lock = (P.pc.barrier && P.pc.barrier.linked_lock_entity_id) || null;
+    o.lockState = null;
   }
   // A door with no sensor stands as its sheet says (live_aboard_storey.js
   // doorShown): ajar inside, shut on an outside wall or as a garage door,
@@ -1800,10 +1820,85 @@ function createSlot(slotKey){
   function standDoor(P, rooms, len){
     const leaf = P.els.find(e => e.leaf);
     if (!leaf) return;
-    const shown = STOREY.doorShown(P.pc), sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null), garage = len > STOREY.GARAGE_DOOR_M;
-    const at = garage ? { open: 1, ajar: 0.4, shut: 0 }[shown] : shown === "shut" ? 0 : 1;   // a garage door rolls up part way, ajar
-    P.open = { bar: P.pc.barrier, eid: null, kind: "door", leaf, len, hinge: sw.hinge, side: sw.side, garage, state: null, shown,
+    const shown = STOREY.doorShown(P.pc), sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null), t = STOREY.doorTypeOf(P.pc, rooms);
+    if (t.guessed && len > STOREY.GARAGE_DOOR_M) t.type = "overhead";              // as a garage door was
+    const at = STOREY.shownAt(t.type, shown);                // ajar: its swing at 70°, a slider half way, a garage door a quarter up
+    P.open = { bar: P.pc.barrier, eid: null, kind: "door", leaf, len, hinge: sw.hinge, side: sw.side, garage: false, state: null, shown, t,
                at, to: at, max: STOREY.DOOR_ANGLE_DEG[shown] * D2R, from: 0, t0: 0, flash: null, still: true };
+  }
+  // ── doors of a type (live_aboard_storey.js doorPanels) ───────────────────
+  // One instanced mesh per floor holds every typed door's panels; each door
+  // keeps its own slots (slots: [first, count]) and moves them as it opens.
+  function typedPanels(F){
+    let n = 0;
+    for (const P of F.pieces) {
+      const o = P.open;
+      if (!o || !o.t || o.t.type === "hinged" || !o.leaf) continue;
+      o.slots = [n, panelsOf(F, P, 0).length];
+      n += o.slots[1];
+    }
+    if (!n) return;
+    const spec = { c: "#ffffff", r: 0.8 };
+    const im = new THREE.InstancedMesh(shared.prim.box, mat(spec), n);
+    im.userData.spec = spec;
+    im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false;
+    for (const P of F.pieces) {
+      const o = P.open;
+      if (!o || !o.slots) continue;
+      panelsOf(F, P, 0).forEach((q, i) => im.setColorAt(o.slots[0] + i, _c.set(STOREY.panelColour(q))));
+    }
+    shellRes.push({ dispose: () => im.dispose() });
+    F.group.add(im);
+    F.panels = im;
+  }
+  function panelsOf(F, P, a){
+    const o = P.open;
+    return STOREY.doorPanels(o.t, a, o.len, Math.max(0.3, o.leaf.z1 - Math.max(0, o.leaf.z0)), P.pc.thick, o.max ?? DOOR_OPEN, o.hinge === "b",
+                             F.fl.h - HOUSE.SLAB_T);
+  }
+  const _pq = new THREE.Quaternion(), _pq2 = new THREE.Quaternion(), _pp = new THREE.Vector3(), _ps = new THREE.Vector3(), _pm = new THREE.Matrix4();
+  const X_AXIS = new THREE.Vector3(1, 0, 0);
+  /** One panel in the world: the door's frame runs from its end a along to
+   *  b (u), across toward the side it opens to (v), and up. Cut away, what
+   *  stands keeps under CUT_H and what lies flat goes. */
+  function panelMatrix(F, P, q, cut){
+    const pc = P.pc, o = P.open, L = o.len || 1, ux = (pc.x1 - pc.x0) / L, uy = (pc.y1 - pc.y0) / L;
+    const vx = pc.nx * o.side, vy = pc.ny * o.side, vs = Math.sign(vx * -uy + vy * ux) || 1;
+    let z = q.c[2], h = q.size[1];
+    if (cut) {
+      if (q.pitch) return ZERO;
+      const top = Math.min(z + h / 2, HOUSE.CUT_H), bot = z - h / 2;
+      if (top - bot < 0.01) return ZERO;
+      h = top - bot; z = (top + bot) / 2;
+    }
+    _pq.setFromAxisAngle(Y_AXIS, HOUSE.yawOf([ux, uy]) - vs * q.yaw).multiply(_pq2.setFromAxisAngle(X_AXIS, vs * q.pitch));
+    _pp.set(pc.x0 + ux * q.c[0] + vx * q.c[1], F.fl.elev + z, pc.y0 + uy * q.c[0] + vy * q.c[1]);
+    return _pm.compose(_pp, _pq, _ps.set(Math.max(0.005, q.size[0]), Math.max(0.005, h), Math.max(0.005, q.size[2])));
+  }
+  function placePanels(F, P, cut){
+    const o = P.open, im = F.panels;
+    if (!im || !o.slots) return;
+    const a = o.at * o.at * (3 - 2 * o.at), list = panelsOf(F, P, a);
+    for (let i = 0; i < o.slots[1]; i++) im.setMatrixAt(o.slots[0] + i, list[i] ? panelMatrix(F, P, list[i], cut) : ZERO);
+    im.instanceMatrix.needsUpdate = true;
+  }
+  // A door linked to a cover follows it (live_aboard_storey.js coverAt): its
+  // position, proportional (40 is 40% open), moving toward open or shut
+  // while it says opening or closing. A tap never moves it.
+  function paintCoverDoor(F, P){
+    const o = P.open, st = lastP && lastP.states ? lastP.states[o.eid] : null, c = STOREY.coverAt(st);
+    const key = `${c.at}|${c.moving}|${c.none}`;
+    if (key === o.coverKey) return false;
+    const first = o.coverKey === undefined;
+    o.coverKey = key;
+    o.state = c.none ? "none" : c.moving || c.at > 0.005 ? "open" : "closed";
+    const to = c.moving ? (c.moving > 0 ? 1 : 0) : c.at;
+    if (first) { o.at = o.to = to; }
+    else { o.from = o.at; o.to = to; o.t0 = performance.now(); o.ms = Math.max(300, Math.abs(to - o.at) * (c.moving ? STOREY.COVER_TRAVEL_MS : STOREY.COVER_STEP_MS)); }
+    const e = o.leaf;
+    if (e && !o.slots) { e.mesh.setColorAt(e.i, _c.set(c.none ? NO_READING : e.col)); e.mesh.instanceColor.needsUpdate = true; }
+    placePiece(F, P, !!P.cut);
+    return true;
   }
   // The leaf at o.at (0 shut, 1 open), eased: about its hinge, or up into
   // its head for a garage door. Shut, it is exactly the piece's own place.
@@ -1823,7 +1918,7 @@ function createSlot(slotKey){
   // set on the frame (animateLive); nothing while locked.
   function placeFlash(F, P, cut){
     const o = P.open, e = o.leaf || o.span, m = o.flash;
-    if (o.state !== "unlocked") m.matrix.copy(ZERO);
+    if (o.state !== "unlocked" && o.lockState !== "unlocked") m.matrix.copy(ZERO);
     else {
       const z1 = cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
       m.matrix.copy(compose(P.mx, F.fl.elev + e.z0 - 0.01, P.my, P.yaw, P.len + 0.04, z1 - e.z0 + 0.03, e.thick + 0.05));
@@ -1831,11 +1926,26 @@ function createSlot(slotKey){
     m.matrixWorldNeedsUpdate = true;
   }
   const OPEN_WORD = { open: "Open", closed: "Closed", locked: "Locked", unlocked: "Unlocked", none: "No reading" };
+  /** A lock linked to a door (the barrier's linked_lock_entity_id) is shown
+   *  on it: unlocked, the door glows as an unlocked lock does. */
+  function paintLock(F, P){
+    const o = P.open, ls = HOUSE.openingState(null, lbe[o.lock]);
+    if (ls === o.lockState) return false;
+    o.lockState = ls;
+    if (ls === "unlocked") {
+      o.liveUntil = performance.now() + LIVE_MS;
+      if (!o.flash) { o.flash = new THREE.Mesh(shared.glassBox, shared.flashMat); o.flash.matrixAutoUpdate = false; o.flash.renderOrder = 4; F.group.add(o.flash); }
+    }
+    if (o.flash) placeFlash(F, P, !!P.cut);
+    return true;
+  }
   function paintOpenings(){
     let changed = false;
     for (const { F, P } of openings) {
       const o = P.open, dl = lbe[o.eid];
-      if (o.kind === "door" && dl && dl.device_class === "garage_door") o.garage = true;
+      if (o.cover) { if (paintCoverDoor(F, P)) changed = true; continue; }
+      if (o.lock && paintLock(F, P)) changed = true;
+      if (o.kind === "door" && dl && dl.device_class === "garage_door" && !o.t) o.garage = true;
       const st = HOUSE.openingState(o.bar, dl);
       if (st === o.state) continue;
       const first = o.state === null;
@@ -1843,7 +1953,7 @@ function createSlot(slotKey){
       o.state = st;
       o.to = st === "open" ? 1 : 0;
       if (first || !o.leaf) o.at = o.to;                   // the first look is how it is, not a swing (a gap never swings)
-      else { o.from = o.at; o.t0 = performance.now(); }    // a swing, timed on the clock (animateLive)
+      else { o.from = o.at; o.t0 = performance.now(); o.ms = o.t && STOREY ? STOREY.moveMs(o.t.type) : SWING_MS; }   // a swing, timed on the clock (animateLive)
       const e = o.leaf || o.sill;
       e.mesh.setColorAt(e.i, _c.set(st === "none" ? NO_READING : !o.leaf && st !== "open" ? SHUT_LINE : e.col));
       e.mesh.instanceColor.needsUpdate = true;
@@ -2455,7 +2565,7 @@ function createSlot(slotKey){
     if (storeyL && storeyL.moving) return fast;                // the roof lifting away or coming back
     for (const { F, P } of openings) {
       const o = P.open;
-      if (F.group.visible && (o.at !== o.to || (o.state === "unlocked" && now < o.liveUntil))) return fast;
+      if (F.group.visible && (o.at !== o.to || ((o.state === "unlocked" || o.lockState === "unlocked") && now < o.liveUntil))) return fast;
     }
     for (const T of tints) if (T.act && T.F.group.visible && now < T.liveUntil) return fast;
     return slow;
@@ -2465,10 +2575,11 @@ function createSlot(slotKey){
     let flashing = false, flashLive = false;
     for (const { F, P } of openings) {
       const o = P.open;
-      if (o.state === "unlocked") { flashing = true; if (t < o.liveUntil) flashLive = true; }
+      if (o.state === "unlocked" || o.lockState === "unlocked") { flashing = true; if (t < o.liveUntil) flashLive = true; }
       if (o.at === o.to) continue;
-      // On the clock, not by frames: a slow screen swings it as fast.
-      const k = Math.min(1, Math.max(0, (t - o.t0) / SWING_MS));
+      // On the clock, not by frames: a slow screen swings it as fast (a
+      // door that lifts, or a cover travelling, takes its own time: o.ms).
+      const k = Math.min(1, Math.max(0, (t - o.t0) / (o.ms || SWING_MS)));
       o.at = k >= 1 ? o.to : o.from + (o.to - o.from) * k;
       placePiece(F, P, !!P.cut);
     }
@@ -3150,7 +3261,7 @@ function createSlot(slotKey){
       });
     }
     openings.forEach(({ F, P }, i) => {
-      if (!F.group.visible || !HOUSE.openingPressable(lbe[P.open.eid])) return;
+      if (!F.group.visible || !(P.open.cover ? !!(lastP && lastP.states && lastP.states[P.open.eid]) : HOUSE.openingPressable(lbe[P.open.eid]))) return;
       const q = openingQuad(F, P), poly = q.map(v => screenPt(v, rect));
       if (!poly.every(Boolean) || !nearPoly(clientX, clientY, poly, 6)) return;
       const at = q[0].clone().add(q[2]).multiplyScalar(0.5);
@@ -3165,9 +3276,12 @@ function createSlot(slotKey){
         return { hit: { kind: "room", key: "room:" + s.room, room: s.room, quad: s.quad,
                         label: `${s.room} — opens its ${n} device${n === 1 ? "" : "s"}` }, under: [] };
       }
-      const o = s.P.open, b = o.bar, l = lbe[o.eid];
+      const o = s.P.open, b = o.bar, l = lbe[o.eid], st = o.cover && lastP && lastP.states ? lastP.states[o.eid] : null;
+      // A door on a cover: its card on a tap, Home Assistant's own controls
+      // on a hold (live_aboard_use.js), and never a move.
       return { hit: { kind: "door", key: `door:${o.eid}@${b.id || s.i}`, eid: o.eid, bar: HOUSE.barrierCardOf(b), quad: s.quad,
-                      label: `${b.name || (l && l.friendly_name) || o.eid} · ${OPEN_WORD[o.state] || OPEN_WORD.none}` }, under: [] };
+                      cover: o.cover ? o.eid : null,
+                      label: `${b.name || (l && l.friendly_name) || (st && st.attributes && st.attributes.friendly_name) || o.eid} · ${OPEN_WORD[o.state] || OPEN_WORD.none}` }, under: [] };
     }
     return null;
   }
@@ -3859,10 +3973,14 @@ function createSlot(slotKey){
                // The house itself: each storey's floor and roof, the roof's pick, the doors with no sensor.
                house: storeyL ? { ...storeyL.state(), roofPick: roofPick(), roofWant } : null,
                doors: floorsUi.flatMap(F => F.pieces.filter(P => P.open && P.open.still).map(P => ({ id: P.pc.added || (P.pc.barrier && P.pc.barrier.id) || null,
-                                                                                                     floor: F.fl.id, shown: P.open.shown, at: P.open.at, deg: Math.round(P.open.max / D2R) }))),
+                                                                                                     floor: F.fl.id, shown: P.open.shown, at: P.open.at, deg: Math.round(P.open.max / D2R),
+                                                                                                     type: P.open.t ? P.open.t.type : null, guessed: !!(P.open.t && P.open.t.guessed),
+                                                                                                     panels: P.open.slots ? P.open.slots[1] : 0 }))),
                // Part B: the live parts and the taps.
                openings: openings.map(({ P }) => ({ eid: P.open.eid, kind: P.open.kind, state: P.open.state, at: P.open.at, to: P.open.to,
-                                                     garage: P.open.garage, hinge: P.open.hinge, side: P.open.side, cut: !!P.cut })),
+                                                     garage: P.open.garage, hinge: P.open.hinge, side: P.open.side, cut: !!P.cut,
+                                                     type: P.open.t ? P.open.t.type : null, cover: !!P.open.cover, panels: P.open.slots ? P.open.slots[1] : 0,
+                                                     ms: P.open.ms || null, lock: P.open.lockState || null })),
                tints: tints.map(T => ({ room: T.room ? T.room.name : null, motion: T.mLook, air: T.aLook,
                                         fill: T.fillMat.opacity, bars: T.barsMat ? T.barsMat.opacity : null, rings: T.rings.filter(R => R.on).length,
                                         ringsShown: T.rings.filter(R => R.mesh.scale.x > 0).length })),

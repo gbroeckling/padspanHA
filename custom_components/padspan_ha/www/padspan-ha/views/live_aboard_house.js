@@ -31,6 +31,8 @@ const { stateWordOf, floorIdsOnSlab } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 const { roomColor } =
   await import(`./room_color.js${new URL(import.meta.url).search}`);
+// Doors: which way one swings, shared with the flat Atlas (door_types.js).
+const { doorSwing } = await import(`./door_types.js${new URL(import.meta.url).search}`);
 // Which way north is (settings.fabric_bearing_deg, y-down): the one source.
 const COMPASS = await import(`./fabric_compass.js${new URL(import.meta.url).search}`);
 // The 3D editor's rules: the defaults and the limits a door, a window and a
@@ -1320,15 +1322,7 @@ export function barrierCardOf(b){
  *  wall's normal points away from. "Left" is as you stand outside, facing
  *  in. side: +1 / -1, the leaf opens toward (nx, ny) × side. */
 export function openingSwing(pc, rooms, stored){
-  const dx = pc.x1 - pc.x0, dy = pc.y1 - pc.y0;
-  const mx = (pc.x0 + pc.x1) / 2, my = (pc.y0 + pc.y1) / 2;
-  const indoor = (s) => (rooms || []).some(r => !r.outdoor && inPoly(mx + pc.nx * s * 0.45, my + pc.ny * s * 0.45, r.pts));
-  const inS = indoor(1) && !indoor(-1) ? 1 : -1;
-  // Facing in, in the y-down plan: left of (fx, fy) is (fy, -fx).
-  const fx = pc.nx * inS, fy = pc.ny * inS;
-  let hingeB = dx * fy + dy * -fx > 0;                       // walking a → b goes left: b is the left end
-  if (stored && stored.hinge === "right") hingeB = !hingeB;
-  return { hinge: hingeB ? "b" : "a", side: stored && stored.swing === "out" ? -inS : inS };
+  return doorSwing(pc, rooms, stored);                       // the flat Atlas's open door asks the same rule
 }
 
 // ── The live parts: motion and air (part B) ─────────────────────────────────

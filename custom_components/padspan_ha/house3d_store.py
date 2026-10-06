@@ -188,9 +188,18 @@ _ADDED_KEYS = {"window": ("kind", "floor_id", "a_m", "b_m", "sill_m", "head_m"),
 # A door with no sensor is shown open, ajar (the default for an inside door)
 # or shut (an outside door's); one linked to a sensor follows it.
 DOOR_SHOWN = ("open", "ajar", "shut")
-_ADDED_MAYBE = {"door": ("shown",)}
-_ADDED_OWNED = frozenset(_ADDED_KEYS["window"] + _ADDED_KEYS["door"] + _ADDED_KEYS["doorway"] + ("shown",))
-_BARRIER_OWNED = frozenset(("hinge", "swing", "sill_m", "head_m", "shown"))
+# What a door is (Garry, 2026-10-05: "a door will also need swing left, right,
+# roll up or down, etc."), and its options: which way it slides or folds, the
+# face a barn door runs on, how many panels (a bifold's; a gate's 2 is a double
+# gate), glass, and what drives it in Live Aboard (link: a contact sensor or a
+# cover, whose position it follows). None stored: PadSpan's guess. An older
+# PadSpan keeps these keys (they are not its own) and draws the door hinged.
+DOOR_TYPES = ("hinged", "double", "sliding", "barn", "pocket", "bifold", "overhead", "rollup", "tiltup", "gate")
+DOOR_SLIDES, DOOR_FACES, DOOR_PANELS = ("left", "right", "both"), ("in", "out"), (2, 4)
+_DOOR_TYPE_KEYS = ("type", "slide", "face", "panels", "glass", "link")
+_ADDED_MAYBE = {"door": ("shown",) + _DOOR_TYPE_KEYS}
+_ADDED_OWNED = frozenset(_ADDED_KEYS["window"] + _ADDED_KEYS["door"] + _ADDED_KEYS["doorway"] + ("shown",) + _DOOR_TYPE_KEYS)
+_BARRIER_OWNED = frozenset(("hinge", "swing", "sill_m", "head_m", "shown") + _DOOR_TYPE_KEYS)
 _HEIGHT_OWNED = frozenset(("z_m",))
 # A piece of furniture (docs "Data"): where it stands is fabric metres on its
 # floor, z_m its bottom above that floor, rotation degrees. Its recipe is plain
@@ -276,6 +285,33 @@ def _added_opening(oid: str, e: dict) -> dict:
                    swing=_pick(e["swing"], ("in", "out"), f"{oid} swing"))
         if "shown" in e:
             out["shown"] = _pick(e["shown"], DOOR_SHOWN, f"{oid} shown")
+        out.update(_door_type(oid, e))
+    return out
+
+
+def _door_type(oid: str, e: dict) -> dict:
+    """A door's type and options, each checked when it is there."""
+    out: dict[str, Any] = {}
+    if "type" in e:
+        out["type"] = _pick(e["type"], DOOR_TYPES, f"{oid} type")
+    if "slide" in e:
+        out["slide"] = _pick(e["slide"], DOOR_SLIDES, f"{oid} slide")
+    if "face" in e:
+        out["face"] = _pick(e["face"], DOOR_FACES, f"{oid} face")
+    if "panels" in e:
+        p = e["panels"]
+        if isinstance(p, bool) or not isinstance(p, int) or not DOOR_PANELS[0] <= p <= DOOR_PANELS[1]:
+            raise EditError(f"{oid}: panels must be a whole number from {DOOR_PANELS[0]} to {DOOR_PANELS[1]}")
+        out["panels"] = p
+    if "glass" in e:
+        if not isinstance(e["glass"], bool):
+            raise EditError(f"{oid}: glass must be true or false")
+        out["glass"] = e["glass"]
+    if "link" in e:
+        lk = e["link"]
+        if not (isinstance(lk, str) and len(lk) <= 255 and ENTITY_ID.fullmatch(lk)):
+            raise EditError(f"{oid}: link must be an entity id")
+        out["link"] = lk
     return out
 
 
@@ -294,6 +330,7 @@ def _barrier_override(bid: str, e: dict) -> dict:
             out[k] = _num(e[k], 0.0, HEIGHT_MAX_M, f"{bid} {k}")
     if "shown" in e:
         out["shown"] = _pick(e["shown"], DOOR_SHOWN, f"{bid} shown")
+    out.update(_door_type(bid, e))
     if "sill_m" in out and "head_m" in out and out["head_m"] < out["sill_m"] + GAP_MIN_M - 1e-9:
         raise EditError(f"{bid}: the head must be above the sill")
     return out

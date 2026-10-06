@@ -36,6 +36,11 @@
 //                 archway, an open plan). A door with no sensor stands ajar
 //                 inside and shut on an outside wall; its sheet's "Shown"
 //                 sets it open, ajar or shut (one with a sensor follows it).
+//                 Its Type ▾ (PadSpan's guess until one is picked: hinged,
+//                 double, sliding, barn, pocket, bifold, overhead garage,
+//                 roll-up, tilt-up or a gate) with only that type's options,
+//                 and Follows: a door or garage sensor, or a cover whose
+//                 position it follows (a cover's door never moves on a tap).
 //
 // One finger (or the left button) draws while a tool is on; two fingers
 // still pan and zoom. The draft, the tool and what is picked live in the
@@ -737,9 +742,10 @@ export function createEditor(ctx){
       slider("Height", DRAFT.mm(lim.doorLow), DRAFT.mm(lim.doorHigh), rec.head_m, (v, g) => set({ head_m: v }, g), { opening: o.id });
       const pick = (k, v) => { change((c) => { if (c.openings[o.id]) c.openings[o.id][k] = v; }); sheetFor(); };
       if (rec.kind === "door") {
-        choice("Hinge", [["left", "Left"], ["right", "Right"]], rec.hinge, (v) => pick("hinge", v));
-        choice("Swing", [["in", "In"], ["out", "Out"]], rec.swing, (v) => pick("swing", v));
-        shownRow(addedNow(o.id), rec.shown, (v) => pick("shown", v));
+        typeRows(addedNow(o.id), rec, (patch) => {
+          change((c) => { const e = c.openings[o.id]; if (e) for (const [k, v] of Object.entries(patch)) { if (v === null) delete e[k]; else e[k] = v; } });
+          sheetFor();
+        }, pick);
       }
     }
     const acts = d("div", "la3d-acts");
@@ -765,10 +771,15 @@ export function createEditor(ctx){
         set(DRAFT.openingHeights({ kind: "window", sill_m: c0.sill_m ?? HOUSE.SILL_H, head_m: v }, ceil), g);
       }, { opening: o.id });
     } else {
-      choice("Hinge", [["left", "Left"], ["right", "Right"]], cur.hinge || "left", (v) => { set({ hinge: v }); sheetFor(); });
-      choice("Swing", [["in", "In"], ["out", "Out"]], cur.swing || "in", (v) => { set({ swing: v }); sheetFor(); });
       const P = o.F.pieces.find(q => q.pc.barrier && q.pc.barrier.id === o.id && q.pc.kind === "door");
-      shownRow(P ? { P } : null, cur.shown, (v) => { set({ shown: v }); sheetFor(); });
+      typeRows(P ? { P, F: o.F } : null, cur, (patch) => {
+        change((c) => {
+          const e = { ...(c.openings[o.id] || {}) };
+          for (const [k, v] of Object.entries(patch)) { if (v === null) delete e[k]; else e[k] = v; }
+          if (Object.keys(e).length) c.openings[o.id] = e; else delete c.openings[o.id];
+        });
+        sheetFor();
+      }, (k, v) => { set({ [k]: v }); sheetFor(); });
     }
     const acts = d("div", "la3d-acts");
     const reset = btn("Reset", "Back to how the map has it", () => { change((c) => { delete c.openings[o.id]; }); sheetFor(); });
@@ -776,6 +787,66 @@ export function createEditor(ctx){
     sheetRefresh();
     acts.appendChild(seg(reset));
     sheet.appendChild(acts);
+  }
+  /** A door's Type ▾ (PadSpan's guess until one is picked), the options
+   *  that type has, what drives it (Follows: a door or garage sensor, or a
+   *  cover), and with nothing linked how it is shown. `cur`: its entry in
+   *  the draft; set(patch) (null takes a key out); pick(key, value). */
+  function typeRows(at, cur, set, pick){
+    const S2 = ctx.STOREY, P = at && at.P;
+    if (!S2) {                                     // no house module: the hinged door's own
+      choice("Hinge", [["left", "Left"], ["right", "Right"]], cur.hinge || "left", (v) => pick("hinge", v));
+      choice("Swing", [["in", "In"], ["out", "Out"]], cur.swing || "in", (v) => pick("swing", v));
+      shownRow(at, cur.shown, (v) => pick("shown", v));
+      return;
+    }
+    const pc = P ? { ...P.pc, override: { ...(P.pc.override || {}), ...cur } } : { x0: 0, y0: 0, x1: 0.9, y1: 0, cls: "int", override: cur };
+    const t = S2.doorTypeOf(pc, at && at.F ? at.F.rooms : P ? [] : []);
+    const row = d("label", "la3d-row la3d-kind"), sel2 = d("select");
+    sel2.setAttribute("aria-label", "Type");
+    const opt = (v, text) => { const n = d("option", null, text); n.value = v; return n; };
+    sel2.appendChild(opt("", `PadSpan's guess: ${S2.DOOR_TYPE_NAMES[t.guess]}`));
+    for (const k of S2.DOOR_TYPES) sel2.appendChild(opt(k, S2.DOOR_TYPE_NAMES[k]));
+    sel2.value = S2.DOOR_TYPES.includes(cur.type) ? cur.type : "";
+    sel2.addEventListener("change", guard(() => set({ type: sel2.value || null })));
+    row.append(d("span", null, "Type"), sel2);
+    sheet.appendChild(row);
+    const has = S2.DOOR_TYPE_OPTIONS[t.type] || [];
+    if (has.includes("hinge")) choice("Hinge", [["left", "Left"], ["right", "Right"]], cur.hinge || "left", (v) => set({ hinge: v }));
+    if (has.includes("swing") && !(t.type === "gate" && t.slide)) choice("Swing", [["in", "In"], ["out", "Out"]], cur.swing || "in", (v) => set({ swing: v }));
+    if (t.type === "gate") {
+      choice("Opens", [["swing", "Swings"], ["left", "Slides left"], ["right", "Slides right"]], t.slide || "swing", (v) => set({ slide: v === "swing" ? null : v }));
+      if (!t.slide) choice("Gates", [["one", "Single"], ["two", "Double"]], t.panels >= 2 ? "two" : "one", (v) => set({ panels: v === "two" ? 2 : null }));
+    } else if (has.includes("slide")) {
+      const both = t.type === "sliding" || t.type === "bifold";
+      choice(t.type === "bifold" ? "Folds" : "Slides", [["left", "Left"], ["right", "Right"], ...(both ? [["both", "Both ways"]] : [])],
+        t.slide === "both" && !both ? "right" : t.slide, (v) => set({ slide: v }));
+    }
+    if (has.includes("face")) choice("Runs on", [["in", "Room side"], ["out", "Outside"]], t.face, (v) => set({ face: v }));
+    if (t.type === "bifold") choice("Panels", [[2, "2"], [3, "3"], [4, "4"]], t.panels, (v) => set({ panels: v }));
+    if (has.includes("glass")) choice("Glass", [[true, "Glass"], [false, "Solid"]], !!t.glass, (v) => set({ glass: v }));
+    // What drives it: the map's sensor, else what Follows says, else Shown.
+    const b = P && P.pc.barrier;
+    if (b && b.linked_entity_id && !cur.link) { sheet.appendChild(d("p", "la3d-sub", "It opens and shuts with its sensor.")); return; }
+    const host = ctx.host ? ctx.host() || {} : {}, states = host.states || {};
+    const fl = d("label", "la3d-row la3d-kind"), fsel = d("select");
+    fsel.setAttribute("aria-label", "Follows");
+    fsel.appendChild(opt("", "Nothing: shown as below"));
+    const ok = (eid) => {
+      const st = states[eid], dc = st && st.attributes ? st.attributes.device_class : null, dom = eid.split(".")[0];
+      return dom === "cover" ? S2.coverIsDoor(st) : dom === "binary_sensor" && ["door", "garage_door", "opening", "window"].includes(dc);
+    };
+    const eids = Object.keys(states).filter(ok).sort((p, q) => String((states[p].attributes || {}).friendly_name || p).localeCompare(String((states[q].attributes || {}).friendly_name || q)));
+    if (cur.link && !eids.includes(cur.link)) eids.unshift(cur.link);
+    for (const eid of eids) fsel.appendChild(opt(eid, `${(states[eid] && states[eid].attributes && states[eid].attributes.friendly_name) || eid}${eid.startsWith("cover.") ? " (moves it: follows where it is)" : ""}`));
+    fsel.value = cur.link || "";
+    fsel.addEventListener("change", guard(() => set({ link: fsel.value || null })));
+    fl.append(d("span", null, "Follows"), fsel);
+    sheet.appendChild(fl);
+    if (cur.link) sheet.appendChild(d("p", "la3d-sub", cur.link.startsWith("cover.")
+      ? "It follows where the door is. A tap shows its card; hold for its controls. It never moves on a tap."
+      : "It opens and shuts with that sensor."));
+    else shownRow(at, cur.shown, (v) => set({ shown: v }));
   }
   /** A door's "Shown": open, ajar or shut, when no sensor says (one with a
    *  sensor follows it). `at`: where it is drawn ({P}); `stored`: the file's. */

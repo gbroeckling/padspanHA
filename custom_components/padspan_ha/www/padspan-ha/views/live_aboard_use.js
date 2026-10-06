@@ -237,6 +237,9 @@ export function createUseSurface(o){
     if (t.kind === "tag" || t.kind === "scanner") { showCard(t); return; }
     if (t.kind === "room") api.openRoom(t.room);
     else if (t.kind === "floor") api.openFloor(t.z);
+    // A door on a cover (a garage door, a gate) never moves on a tap: its card
+    // (what it reads), or on a hold Home Assistant's own controls.
+    else if (t.kind === "door" && t.cover) { if (r === "open") moreInfo(o.root, t.cover); else if (api.hass) openBarrierCard(api.hass, t.bar, api); }
     else if (t.kind === "door" && t.bar && t.bar.linked_entity_id && api.hass) openBarrierCard(api.hass, t.bar, api);
   }
   // The hold is armed once HOLD_MS has passed still (the Atlas's timer).

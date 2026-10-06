@@ -23,11 +23,18 @@
 //                (stairReach), and the opening it cuts in that floor
 //                (stairCuts: its footprint), cut from the rooms' tiles
 //                (minusConvex) and from the storey's floor.
-//   doors        how a door with no sensor stands (doorShown): as stored, or
-//                ajar inside, shut on an outside wall or as a garage door.
+//   doors        door_types.js, re-exported: how a door stands with no
+//                sensor (doorShown), its type (doorTypeOf: stored, else
+//                PadSpan's guess), where each panel is as it opens
+//                (doorPanels), and what drives it (a cover's position).
 //
 // Coordinates are PadSpan's plan metres (x, y down the plan); heights are
-// metres. Nothing here writes anything.
+// metres. Nothing here writes anything. three.js is handed in (the layer);
+// the only import is the doors' shared rules.
+const DOORS = await import(`./door_types.js${new URL(import.meta.url).search}`);
+export const { DOOR_SHOWN, DOOR_ANGLE_DEG, GARAGE_DOOR_M, doorShown, DOOR_TYPES, DOOR_TYPE_NAMES, DOOR_TYPE_OPTIONS, DOOR_SLIDES,
+               DOOR_FACES, DOOR_PANELS, LIFT_AJAR, COVER_TRAVEL_MS, COVER_STEP_MS, guessDoorType, doorTypeOf, linkKind, coverAt,
+               coverIsDoor, doorPanels, shownAt, PANEL_COLOURS, panelColour, moveMs } = DOORS;
 
 export const CELL_M = 0.1;                 // the grid a storey's outline is found on
 export const HALL_M = 1.8;                 // a gap between rooms this wide or less is floor (a hall)
@@ -44,10 +51,6 @@ export const ROOF_FADE_MS = 300;           // the roof lifts away (or comes back
 export const ROOF_FIT_K = 1.12;
 export const TOP_PHI = 0.2;                // looking this near straight down is the Top view
 export const ROOF_SETTINGS = ["auto", "off"];
-// How far a door with no sensor stands open, by how it is shown.
-export const DOOR_SHOWN = ["open", "ajar", "shut"];
-export const DOOR_ANGLE_DEG = { open: 85, ajar: 70, shut: 0 };
-export const GARAGE_DOOR_M = 1.8;          // a door wider than this is a garage door (the view's rule)
 export const STAIR_RISE_M = [0.3, 8];      // the rise kept (house3d_store.py STAIR_RISE_M)
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -434,16 +437,6 @@ export function roofFade(k, want, dt){
   return { k: next, moving: next !== to };
 }
 export const roofSetting = (v) => (v === "off" ? "off" : "auto");
-
-// ── doors with no sensor ─────────────────────────────────────────────────────
-/** How a door with no sensor stands: as stored (pc.override.shown), else
- *  shut when it is on an outside wall or a garage door, ajar inside. */
-export function doorShown(pc){
-  const s = pc && pc.override && pc.override.shown;
-  if (DOOR_SHOWN.includes(s)) return s;
-  const len = pc ? Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0) : 0;
-  return !pc || pc.cls === "ext" || len > GARAGE_DOOR_M ? "shut" : "ajar";
-}
 
 // ── stairs ───────────────────────────────────────────────────────────────────
 export const isStairs = (p) => !!(p && p.recipe && p.recipe.kind === "stairs");

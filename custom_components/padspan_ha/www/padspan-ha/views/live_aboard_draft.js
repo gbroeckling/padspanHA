@@ -45,6 +45,24 @@ export const OPENING_ID = /^(win|door|doorway)_[0-9a-f]{8}$/;
 // How a door with no sensor is shown (house3d_store.py DOOR_SHOWN); none
 // stored: ajar inside, shut on an outside wall (live_aboard_storey.js doorShown).
 export const DOOR_SHOWN = ["open", "ajar", "shut"];
+// What a door is and its options (house3d_store.py DOOR_TYPES and the rest;
+// live_aboard_storey.js draws each): kept on an added door and a barrier's
+// entry alike, each only when it is one the server keeps.
+export const DOOR_TYPES = ["hinged", "double", "sliding", "barn", "pocket", "bifold", "overhead", "rollup", "tiltup", "gate"];
+export const DOOR_SLIDES = ["left", "right", "both"], DOOR_FACES = ["in", "out"], DOOR_PANELS = [2, 4];
+const ENTITY = /^(?!.+__)(?!_)[\da-z_]+(?<!_)\.(?!_)[\da-z_]+(?<!_)$/;
+/** The door type keys of entry v the server would keep. */
+export function doorTypeKeys(v){
+  const o = {};
+  if (!v || typeof v !== "object") return o;
+  if (DOOR_TYPES.includes(v.type)) o.type = v.type;
+  if (DOOR_SLIDES.includes(v.slide)) o.slide = v.slide;
+  if (DOOR_FACES.includes(v.face)) o.face = v.face;
+  if (Number.isInteger(v.panels) && v.panels >= DOOR_PANELS[0] && v.panels <= DOOR_PANELS[1]) o.panels = v.panels;
+  if (typeof v.glass === "boolean") o.glass = v.glass;
+  if (typeof v.link === "string" && v.link.length <= 255 && ENTITY.test(v.link)) o.link = v.link;
+  return o;
+}
 const ID_OF = { door: "door", window: "win", doorway: "doorway" };
 export const FILE_SCHEMA = 1;              // the 3D file this version writes (house3d_store.py SCHEMA)
 export const SECTIONS = ["openings", "lights", "devices", "pieces", "figures"];
@@ -94,7 +112,7 @@ export function addedOf(id, v){
   if (String(id).startsWith("doorway_")) return { kind: "doorway", floor_id: fl, a_m: a, b_m: b, head_m: num(v.head_m) ?? DOOR_HEAD_M };
   return { kind: "door", floor_id: fl, a_m: a, b_m: b, head_m: num(v.head_m) ?? DOOR_HEAD_M,
            hinge: v.hinge === "right" ? "right" : "left", swing: v.swing === "out" ? "out" : "in",
-           ...(DOOR_SHOWN.includes(v.shown) ? { shown: v.shown } : null) };
+           ...(DOOR_SHOWN.includes(v.shown) ? { shown: v.shown } : null), ...doorTypeKeys(v) };
 }
 /** May this version write the file (house3d_store.py writable)? Only a
  *  schema that is a whole number up to FILE_SCHEMA, or none: a newer
@@ -123,6 +141,7 @@ export function ownedOf(data){
     if (v.hinge === "left" || v.hinge === "right") o.hinge = v.hinge;
     if (v.swing === "in" || v.swing === "out") o.swing = v.swing;
     if (DOOR_SHOWN.includes(v.shown)) o.shown = v.shown;
+    Object.assign(o, doorTypeKeys(v));
     for (const f of ["sill_m", "head_m"]) if (num(v[f]) !== null) o[f] = v[f];
     if (Object.keys(o).length) out.openings[k] = o;
   }
@@ -476,7 +495,7 @@ export function spliceOpening(pieces, id, o){
   if (L < 0.03) return pieces;
   const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
   const mine = { kind: o.kind, mat: null, barrier: null, added: id, sill_m: o.sill_m, head_m: o.head_m,
-                 override: o.kind === "door" ? { hinge: o.hinge, swing: o.swing, ...(o.shown ? { shown: o.shown } : null) } : null };
+                 override: o.kind === "door" ? { hinge: o.hinge, swing: o.swing, ...(o.shown ? { shown: o.shown } : null), ...doorTypeKeys(o) } : null };
   let hit = false;
   for (let k = 0; k < pieces.length; k++) {
     const W = pieces[k];
