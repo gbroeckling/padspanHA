@@ -19,7 +19,8 @@
 //                  its options
 //   doorPanels     where each panel of a door of any type is, at any point
 //                  of opening, in the door's own frame
-//   coverAt        a cover's position as how open a door is
+//   coverAt        a cover's position as how open a door is; coverWords
+//                  and movedWords, what a door's card says of it
 //
 // Imports nothing and draws nothing; node runs it as it is. Nothing here
 // writes anything.
@@ -117,28 +118,33 @@ const COVER_CLASSES = ["garage", "gate", "door", "shutter", "awning", "curtain",
 const SLIDE_NAME = /\b(patio|slider|sliding)\b/i, CLOSET_NAME = /\b(closet|wardrobe)\b/i, GARAGE_NAME = /\b(garage|shop|workshop)\b/i;
 export const OVERHEAD_MIN_M = 2.2, DOUBLE_M = [1.4, 1.9];
 
-/** PadSpan's guess at what a door is, when nothing is stored: wide on an
- *  outside wall of a garage or a shop, an overhead door; glass, or a patio
- *  door or slider by its name, a sliding glass door; into a closet or a
- *  wardrobe, a bifold; 1.4 to 1.9 m wide, a double door; else hinged.
- *  rooms: [{name, outdoor, pts}] on its floor. {type, glass?, slide?}. */
-export function guessDoorType(pc, rooms){
+/** PadSpan's guess at what a door is, when nothing is stored — the one
+ *  rule the door's sheet, Live Aboard and the flat Atlas all draw by: on a
+ *  garage door sensor (dc: the device class of what it follows), or wide
+ *  on an outside wall of a garage or a shop, an overhead door; glass, or a
+ *  patio door or slider by its name, a sliding glass door; into a closet or
+ *  a wardrobe, a bifold; 1.4 to 1.9 m wide, a double door; wider than any
+ *  of those, an overhead door (as the views have always drawn a door wider
+ *  than GARAGE_DOOR_M); else hinged. rooms: [{name, outdoor, pts}] on its
+ *  floor. {type, glass?, slide?}. */
+export function guessDoorType(pc, rooms, dc = null){
   const len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0), mx = (pc.x0 + pc.x1) / 2, my = (pc.y0 + pc.y1) / 2;
   const nx = num(pc.nx) ?? 0, ny = num(pc.ny) ?? 0;
   const sides = [1, -1].map(s => (rooms || []).find(r => !outdoorRoom(r) && r.pts && inside(mx + nx * s * 0.45, my + ny * s * 0.45, r.pts)) || null);
   const name = String((pc.barrier && pc.barrier.name) || "");
   // (Outside: an outside wall, or with a room on one side only, as the flat Atlas sees a barrier.)
   const outside = pc.cls ? pc.cls === "ext" : !(sides[0] && sides[1]);
-  if (len > OVERHEAD_MIN_M && outside && sides.some(r => r && GARAGE_NAME.test(r.name))) return { type: "overhead" };
+  if (dc === "garage_door" || (len > OVERHEAD_MIN_M && outside && sides.some(r => r && GARAGE_NAME.test(r.name)))) return { type: "overhead" };
   if (pc.mat === "glass" || SLIDE_NAME.test(name)) return { type: "sliding", glass: true };
   if (sides.some(r => r && CLOSET_NAME.test(r.name))) return { type: "bifold" };
   if (len >= DOUBLE_M[0] && len <= DOUBLE_M[1]) return { type: "double" };
-  return { type: "hinged" };
+  return { type: len > GARAGE_DOOR_M ? "overhead" : "hinged" };
 }
 /** A door's type and options as drawn: the stored ones (pc.override), else
- *  the guess; every option a type has, with its default. */
-export function doorTypeOf(pc, rooms){
-  const o = (pc && pc.override) || {}, guess = guessDoorType(pc, rooms);
+ *  the guess; every option a type has, with its default. dc: the device
+ *  class of what it follows, if anything. */
+export function doorTypeOf(pc, rooms, dc = null){
+  const o = (pc && pc.override) || {}, guess = guessDoorType(pc, rooms, dc);
   const stored = DOOR_TYPES.includes(o.type) ? o.type : null, type = stored || guess.type;
   const panels = Number.isInteger(o.panels) ? Math.max(DOOR_PANELS[0], Math.min(DOOR_PANELS[1], o.panels)) : null;
   return { type, guessed: !stored, guess: guess.type,
@@ -164,6 +170,23 @@ export function coverAt(st){
   const moving = st.state === "opening" ? 1 : st.state === "closing" ? -1 : 0;
   const at = p !== null ? Math.max(0, Math.min(100, p)) / 100 : st.state === "open" ? 1 : st.state === "closed" ? 0 : moving > 0 ? 0 : 1;
   return { at, moving, none: false };
+}
+/** A cover's state said plainly, as a door's card shows it: "Open 40%",
+ *  "Open", "Closed", "Opening", "Closing" or "No reading". */
+export function coverWords(st){
+  const c = coverAt(st);
+  if (c.none) return "No reading";
+  if (c.moving) return c.moving > 0 ? "Opening" : "Closing";
+  if (c.at <= 0.005) return "Closed";
+  return c.at < 0.995 ? `Open ${Math.round(c.at * 100)}%` : "Open";
+}
+/** When a door last moved, said plainly ("" when not known): an ISO time
+ *  (a state's last_changed) and now (ms). */
+export function movedWords(when, now){
+  const t = Date.parse(String(when || ""));
+  if (!Number.isFinite(t)) return "";
+  const s = Math.max(0, (now - t) / 1000);
+  return `Last moved ${s < 60 ? "just now" : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 172800 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`}`;
 }
 /** Is this cover one a door follows (a garage door, a gate, a door)? */
 export const coverIsDoor = (st) => !st || !st.attributes || !st.attributes.device_class || COVER_CLASSES.includes(st.attributes.device_class);

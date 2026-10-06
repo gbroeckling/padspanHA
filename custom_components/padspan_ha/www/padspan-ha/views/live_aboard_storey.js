@@ -34,7 +34,7 @@
 const DOORS = await import(`./door_types.js${new URL(import.meta.url).search}`);
 export const { DOOR_SHOWN, DOOR_ANGLE_DEG, GARAGE_DOOR_M, doorShown, DOOR_TYPES, DOOR_TYPE_NAMES, DOOR_TYPE_OPTIONS, DOOR_SLIDES,
                DOOR_FACES, DOOR_PANELS, LIFT_AJAR, COVER_TRAVEL_MS, COVER_STEP_MS, guessDoorType, doorTypeOf, linkKind, coverAt,
-               coverIsDoor, doorPanels, shownAt, PANEL_COLOURS, panelColour, moveMs } = DOORS;
+               coverWords, movedWords, coverIsDoor, doorPanels, shownAt, PANEL_COLOURS, panelColour, moveMs } = DOORS;
 
 export const CELL_M = 0.1;                 // the grid a storey's outline is found on
 export const HALL_M = 1.8;                 // a gap between rooms this wide or less is floor (a hall)
@@ -42,9 +42,10 @@ export const EAVE_M = 0.4;                 // the roof's overhang past the walls
 export const FASCIA_M = 0.18;              // the band along the roof's edge
 export const ROOF_PITCH = 0.5;             // rise over run: about 27°
 export const ROOF_MAX_H = 3.2;             // a roof is never taller than this
-export const ROOF_MIN_M = 1.2;             // a part of a roof narrower than this is left off
+export const ROOF_MIN_M = 0.4;             // a part of a roof narrower than this is left off (a neighbour's eaves cover it)
 export const ROOF_MAX_PARTS = 16;          // the most rectangles one storey's roof is made of
 export const ROOF_FADE_MS = 300;           // the roof lifts away (or comes back) over this
+export const LID_UP = 0.02;                // a flat lid sits this far over the walls' tops
 // Zoomed out past the whole-house fit, a little: the view opens at the fit
 // with the rooms and their lights in sight, and a step out shows the
 // building, roof and all.
@@ -85,14 +86,39 @@ function clipHalf(P, a, b, keepLeft){
   }
   return out;
 }
-/** Polygon P with the convex polygon C taken out of it: a list of polygons
- *  (P itself when they do not meet). The outside of C is cut into one
- *  convex strip per edge of C, and P is clipped to each. */
+/** A simple polygon cut into triangles (ear clipping); [] when it cannot be. */
+function triangles(P){
+  const ccw = areaOf(P) > 0, idx = P.map((_, i) => i), out = [];
+  const cross = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  const inTri = (p, a, b, c) => { const s = ccw ? 1 : -1; return s * cross(a, b, p) >= -1e-12 && s * cross(b, c, p) >= -1e-12 && s * cross(c, a, p) >= -1e-12; };
+  while (idx.length > 3) {
+    let cut = false;
+    for (let k = 0; k < idx.length && !cut; k++) {
+      const i0 = idx[(k + idx.length - 1) % idx.length], i1 = idx[k], i2 = idx[(k + 1) % idx.length], a = P[i0], b = P[i1], c = P[i2];
+      const cr = (ccw ? 1 : -1) * cross(a, b, c);
+      if (Math.abs(cr) <= 1e-12) { idx.splice(k, 1); cut = true; continue; }    // a point on a straight run: no corner
+      if (cr < 0 || idx.some(j => j !== i0 && j !== i1 && j !== i2 && inTri(P[j], a, b, c))) continue;
+      out.push([a, b, c]); idx.splice(k, 1); cut = true;
+    }
+    if (!cut) return [];
+  }
+  if (idx.length === 3) out.push(idx.map(i => P[i]));
+  return out;
+}
+const isConvex = (P) => { const s = Math.sign(areaOf(P)); return P.every((a, i) => { const b = P[(i + 1) % P.length], c = P[(i + 2) % P.length];
+  return s * ((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])) >= -1e-12; }); };
+/** Polygon P with the convex polygon C taken out of it: a list of polygons,
+ *  each inside P (P itself when they do not meet). The outside of C is cut
+ *  into one convex strip per edge of C, and P is clipped to each. Clipping
+ *  (Sutherland–Hodgman) is exact for a convex P only — a concave one (a U
+ *  or an L room) can come out as pieces joined by a zero-width bridge
+ *  outside it — so a concave P is cut into triangles first. */
 export function minusConvex(P, C){
   if (!C || C.length < 3 || !P || P.length < 3) return [P];
   const xs = (Q) => [Math.min(...Q.map(p => p[0])), Math.max(...Q.map(p => p[0])), Math.min(...Q.map(p => p[1])), Math.max(...Q.map(p => p[1]))];
   const bp = xs(P), bc = xs(C);
   if (bp[1] <= bc[0] || bc[1] <= bp[0] || bp[3] <= bc[2] || bc[3] <= bp[2]) return [P];
+  if (!isConvex(P)) { const T = triangles(P); if (T.length) return T.flatMap(Q => minusConvex(Q, C)); }
   const ccw = areaOf(C) > 0;                               // inside C is to the left of each edge when its area is positive
   const out = [];
   for (let i = 0; i < C.length; i++) {
@@ -197,8 +223,9 @@ const open = (A, g, r) => (r > 0 ? sweep(sweep(A, g, r, false), g, r, true) : A)
 // ── outlines from the grid ───────────────────────────────────────────────────
 /** The edges round the cells that are in, joined into loops in plan metres:
  *  [{pts, area}] (area > 0 an outline, < 0 a hole in one). Straight runs
- *  are one edge; a slant's stair-steps are straightened (within 1.2 cells). */
-export function loopsOf(A, g){
+ *  are one edge; a slant's stair-steps are straightened (within `eps`, 1.2
+ *  cells; 0 keeps every cell's edge). */
+export function loopsOf(A, g, eps = 1.2 * g.cell){
   const { nx, ny } = g, at = (i, j) => (i < 0 || j < 0 || i >= nx || j >= ny ? 0 : A[j * nx + i]);
   const from = new Map(), edges = [];
   const key = (i, j) => j * (nx + 1) + i;
@@ -225,7 +252,7 @@ export function loopsOf(A, g){
       e = nexts.find(n => n.i1 - n.i0 === -dj && n.j1 - n.j0 === di) || nexts[0] || null;
     }
     if (pts.length < 4) continue;
-    const local = straighten(pts.map(([i, j]) => [g.u0 + i * g.cell, g.v0 + j * g.cell]), 1.2 * g.cell);
+    const local = straighten(pts.map(([i, j]) => [g.u0 + i * g.cell, g.v0 + j * g.cell]), eps);
     if (local.length < 3) continue;
     const plan = local.map(([u, v]) => g.toPlan(u, v));
     loops.push({ pts: plan, area: areaOf(plan) });
@@ -299,16 +326,22 @@ export function houseModel(h, cuts = null){
   const rHall = Math.round(HALL_M / 2 / CELL_M), rRoof = Math.round(ROOF_MIN_M / 2 / CELL_M);
   const g = gridFor(frame, rooms, rHall + rRoof);
   const filled = st.map(s => close(raster(g, s.rooms, null), g, rHall));
-  const out = st.map((s, k) => {
+  // Top down: what the roofs higher up already cover, with their eaves.
+  const roofed = new Uint8Array(g.nx * g.ny), out = new Array(st.length);
+  for (let k = st.length - 1; k >= 0; k--) {
+    const s = st[k];
     const holes = s.floors.flatMap(fl => (cuts && cuts.get(fl.id)) || []);
     const floorCells = holes.length ? (() => { const A = filled[k].slice(), cut = raster(g, holes.map(C => ({ pts: C })), null); for (let i = 0; i < A.length; i++) if (cut[i]) A[i] = 0; return A; })() : filled[k];
-    // The roof: where no storey is above this one.
+    // The roof: where no storey is above this one. Every bit of it is under
+    // a roof — a hipped part, a higher storey's eaves, or where neither
+    // reaches (a slanted wall's wedge, a sliver) a flat lid at the walls' tops.
     const roofCells = filled[k].slice();
     for (let m = k + 1; m < st.length; m++) for (let i = 0; i < roofCells.length; i++) if (filled[m][i]) roofCells[i] = 0;
-    const parts = rectsOf(open(close(roofCells, g, 2), g, rRoof), g);
-    return { elev: s.elev, h: s.h, top: s.elev + s.h, floors: s.floors.map(f => f.id), shapes: shapesOf(loopsOf(floorCells, g)), roof: parts,
-             cells: filled[k], roofCells };
-  });
+    const parts = rectsOf(close(roofCells, g, 2), g, roofed);
+    const bare = roofCells.map((v, i) => (v && !roofed[i] ? 1 : 0));
+    out[k] = { elev: s.elev, h: s.h, top: s.elev + s.h, floors: s.floors.map(f => f.id), shapes: shapesOf(loopsOf(floorCells, g)), roof: parts,
+               lids: shapesOf(loopsOf(bare, g, 0)), cells: filled[k], roofCells };
+  }
   return { axis, grid: { u0: g.u0, v0: g.v0, nx: g.nx, ny: g.ny, cell: g.cell }, frame, storeys: out };
 }
 /** Is plan point (x, y) under a roof shown over storey `s` or one above it? */
@@ -329,8 +362,11 @@ export function underRoofAt(model, x, y, h){
   return model.storeys.some(s => s.top >= h - 0.05 && s.roofCells[j * g.nx + i]);
 }
 // Rectangles that cover the cells that are in, each as big as it can be
-// (overlapping one another where the shape turns), biggest first.
-function rectsOf(A, g){
+// (overlapping one another where the shape turns), biggest first: each one
+// only if some of it is not yet under a roof — a bigger part's, with its
+// eaves, or a higher storey's. `covered`: the cells under a roof so far;
+// each part kept adds itself and its eaves to it.
+function rectsOf(A, g, covered){
   const { nx, ny } = g, at = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny && A[j * nx + i] === 1;
   const taken = new Uint8Array(A.length), rects = [];
   for (let j = 0; j < ny; j++) {
@@ -360,19 +396,35 @@ function rectsOf(A, g){
   const min = ROOF_MIN_M / g.cell - 1e-6;
   const area = (r) => (r.i1 - r.i0 + 1) * (r.j1 - r.j0 + 1);
   const keep = rects.filter(r => r.i1 - r.i0 + 1 >= min && r.j1 - r.j0 + 1 >= min).sort((a, b) => area(b) - area(a));
-  // Biggest first, each only if it roofs enough that no bigger one already
-  // does (a square metre, and a tenth of itself): a jagged edge's near
-  // copies are left out.
-  const out = [], covered = new Uint8Array(A.length), least = 1 / (g.cell * g.cell);
+  // Biggest first, each only if it roofs what nothing yet does (a tenth of
+  // a square metre: a jagged edge's near copies are left out, and its
+  // eaves cover their steps).
+  const out = [], e = Math.round(EAVE_M / g.cell);
+  const least = 0.1 / (g.cell * g.cell);
   for (const r of keep) {
     let fresh = 0;
     for (let y = r.j0; y <= r.j1; y++) for (let x = r.i0; x <= r.i1; x++) if (!covered[y * nx + x]) fresh++;
-    if (fresh < least || fresh < 0.1 * area(r)) continue;
-    for (let y = r.j0; y <= r.j1; y++) for (let x = r.i0; x <= r.i1; x++) covered[y * nx + x] = 1;
+    if (fresh < least) continue;
+    for (let y = Math.max(0, r.j0 - e); y <= Math.min(ny - 1, r.j1 + e); y++) for (let x = Math.max(0, r.i0 - e); x <= Math.min(nx - 1, r.i1 + e); x++) covered[y * nx + x] = 1;
     out.push(r);
     if (out.length >= ROOF_MAX_PARTS) break;
   }
   return out.map(r => ({ u0: g.u0 + r.i0 * g.cell, v0: g.v0 + r.j0 * g.cell, u1: g.u0 + (r.i1 + 1) * g.cell, v1: g.v0 + (r.j1 + 1) * g.cell }));
+}
+/** A roof's flat lids as triangles, [[x, y] × 3] in plan metres, each
+ *  facing up (three.js's ShapeUtils, handed in). */
+export function lidTris(lids, THREE){
+  const out = [];
+  for (const sh of lids || []) {
+    const outer = sh.outer.map(p => new THREE.Vector2(p[0], p[1])), holes = sh.holes.map(h => h.map(p => new THREE.Vector2(p[0], p[1])));
+    const all = outer.concat(...holes);
+    for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(outer, holes)) {
+      const A = all[a], B = all[b], C = all[c];
+      const up = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x) < 0;   // clockwise on the plan faces up
+      out.push(up ? [[A.x, A.y], [B.x, B.y], [C.x, C.y]] : [[A.x, A.y], [C.x, C.y], [B.x, B.y]]);
+    }
+  }
+  return out;
 }
 /** One part of a roof as triangles, [[x, y, z] × 3] in plan metres with z
  *  above the walls' tops: a hip roof over the rectangle grown by the eaves
@@ -463,17 +515,22 @@ export function footprint(p, pad = 0){
   const at = (a, b) => [c[0] + u[0] * a + v[0] * b, c[1] + u[1] * a + v[1] * b];
   return [at(-hw, -hd), at(hw, -hd), at(hw, hd), at(-hw, hd)];
 }
-/** The openings stairs cut: Map floor id (the floor each reaches) → [their
- *  footprints]. floors: as stairReach; canon: a piece's floor id as the view names it. */
+/** The openings stairs cut: Map floor id → [the footprints of the stairs
+ *  reaching it]. A flight reaches a storey, so its opening is cut in every
+ *  indoor floor at the height of the floor it reaches (storeysOf's one
+ *  storey). floors: as stairReach; canon: a piece's floor id as the view names it. */
 export function stairCuts(pieces, floors, canon = (x) => String(x)){
   const out = new Map();
   for (const p of Object.values(pieces || {})) {
     if (!isStairs(p)) continue;
     const r = stairReach(canon(p.floor_id), p.recipe.params && p.recipe.params.to_floor, floors);
     if (!r.to) continue;
-    const list = out.get(r.to.id) || [];
-    list.push(footprint(p));
-    out.set(r.to.id, list);
+    for (const fl of floors || []) {
+      if (!fl || fl.outdoor || num(fl.elev) === null || Math.abs(fl.elev - r.to.elev) > 1e-3) continue;
+      const list = out.get(fl.id) || [];
+      list.push(footprint(p));
+      out.set(fl.id, list);
+    }
   }
   return out;
 }
@@ -572,6 +629,7 @@ export function createStoreyLayer(ctx){
             tris += list.length;
           }
         }
+        for (const t of lidTris(s.lids, THREE)) { for (const p of t) { pos.push(p[0], base + LID_UP, p[1]); col.push(cRoof.r, cRoof.g, cRoof.b); } tris++; }
         if (pos.length) {
           const g = new THREE.BufferGeometry();
           g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -616,7 +674,7 @@ export function createStoreyLayer(ctx){
     hides(x, y, h){ return (k ?? 0) >= 0.5 && underRoofAt(model, x, y, h); },
     state(){
       return { axis: model ? model.axis : null, k, want, moving,
-               storeys: model ? model.storeys.map(s => ({ elev: s.elev, floors: s.floors, shapes: s.shapes.length, roofParts: s.roof.length })) : [],
+               storeys: model ? model.storeys.map(s => ({ elev: s.elev, floors: s.floors, shapes: s.shapes.length, roofParts: s.roof.length, lids: s.lids.length })) : [],
                slabs: slabs.map(S => ({ elev: S.elev, shapes: S.shapes, holes: S.holes, shown: !!(S.mesh.parent && S.mesh.parent.visible) })),
                roofs: roofs.map(R => ({ elev: R.elev, parts: R.parts, tris: R.tris, visible: R.mesh.visible, opacity: R.mesh.material.opacity,
                                         shadow: R.mesh.castShadow })) };

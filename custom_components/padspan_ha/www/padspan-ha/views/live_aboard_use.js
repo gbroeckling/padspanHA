@@ -10,8 +10,8 @@
 // own api (lights_panel.js _useApi, maps.js previewApi). A tap switches a
 // light; a hold opens its controls; a hold then a drag dims it; a room's
 // name opens the room sheet, a floor's badge the floor sheet, a door the
-// barrier card, a motion sensor its activity calendar; a read-only tile says
-// it is read-only. Nothing here calls Home Assistant itself: the host's api
+// barrier card (a garage door or a gate only its card of what it reads), a
+// motion sensor its activity calendar; a read-only tile says it is read-only. Nothing here calls Home Assistant itself: the host's api
 // and the Atlas's own helpers do, exactly as they do for the flat map.
 //
 // The 3D view finds what is under the pointer (live_aboard.js, its own
@@ -45,6 +45,16 @@ const DIM_BUBBLE = "position:fixed;z-index:10001;padding:4px 10px;border-radius:
   + "font-variant-numeric:tabular-nums;color:#111827;background:linear-gradient(135deg,#f59e0b,#fbbf24);"
   + "box-shadow:0 0 18px rgba(251,191,36,.6);pointer-events:none;font-family:Inter,system-ui,sans-serif";
 const UNDER_TITLE = "Act on this one instead — it's under the marker on top";
+/** What can move a door: the barrier card's own opener (lights_map.js
+ *  openBarrierCard: its linked opener, or its link itself when that is a
+ *  cover) — a garage door, a gate. Such a door never goes to that card from
+ *  a tap, since its Open, Close or Trigger is one press away there. bar: the
+ *  barrier as its card is handed it (live_aboard_house.js barrierCardOf). */
+export function doorMover(bar){
+  if (!bar) return null;
+  const link = String(bar.linked_entity_id || "");
+  return bar.linked_opener_entity_id || (link.split(".")[0] === "cover" ? link : null);
+}
 
 /**
  * o = {
@@ -59,8 +69,9 @@ const UNDER_TITLE = "Act on this one instead — it's under the marker on top";
  *                     furniture linked to a device the Atlas has no marker
  *                     for (P5); a tag or a scanner says what it is (card:
  *                     {title, lines, buttons?: [{text, title?, act}]})
- *                     beside it when tapped (P6), and a person their card
- *                     (live() → where they are now, as they walk).
+ *                     beside it when tapped (P6), a person their card
+ *                     (live() → where they are now, as they walk), and
+ *                     a door something moves its read-only card (doorMover).
  *   screenOf(t)     → {x, y} | {poly: [[x, y], …]} | null, in px from root
  *   api()           → the host's use api, or null (then nothing is pressed)
  *   frame()         asks the view for a frame (the hold is timed on frames)
@@ -106,12 +117,15 @@ export function createUseSurface(o){
     if (at.poly) g.appendChild(shape("polygon", { ...st, points: at.poly.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ") }));
     else g.appendChild(shape("circle", { ...st, cx: at.x.toFixed(1), cy: at.y.toFixed(1), r: HOVER_R }));
   }
+  // Where a target stands on the screen: its point, or the middle of its
+  // outline (a door, a room). The pressed ring and a card both go there.
+  const pointOf = (at) => (at.poly ? at.poly.reduce((a, q) => [a[0] + q[0] / at.poly.length, a[1] + q[1] / at.poly.length], [0, 0]) : [at.x, at.y]);
   // The pressed ring (lights_map.js pressRing's own circle and classes, so
   // styles.css's .lpress animation fills it and .armed turns it gold).
   function ringFor(t){
     const at = o.screenOf(t);
     if (!at) return null;
-    const p = at.poly ? at.poly.reduce((a, q) => [a[0] + q[0] / at.poly.length, a[1] + q[1] / at.poly.length], [0, 0]) : [at.x, at.y];
+    const p = pointOf(at);
     const circ = (2 * Math.PI * RING_R).toFixed(1);
     const c = shape("circle", { class: "lpress", cx: p[0].toFixed(1), cy: p[1].toFixed(1), r: RING_R, fill: "none",
       stroke: "#fbbf24", "stroke-width": "3", "pointer-events": "none", "stroke-dasharray": circ, "stroke-dashoffset": circ });
@@ -122,7 +136,7 @@ export function createUseSurface(o){
   function placeRing(c, t){
     const at = c && o.screenOf(t);
     if (!at) return;
-    const p = at.poly ? at.poly.reduce((a, q) => [a[0] + q[0] / at.poly.length, a[1] + q[1] / at.poly.length], [0, 0]) : [at.x, at.y];
+    const p = pointOf(at);
     c.setAttribute("cx", p[0].toFixed(1)); c.setAttribute("cy", p[1].toFixed(1));
   }
 
@@ -165,12 +179,13 @@ export function createUseSurface(o){
   function placeCard(){
     if (!card) return;
     const at = o.screenOf(card.t);
-    if (!at || at.poly) { card.el.style.visibility = "hidden"; return; }
+    if (!at) { card.el.style.visibility = "hidden"; return; }
     // Under it (its name is over it), or over its name when there is no room below.
+    const [ax, ay] = pointOf(at);
     const W = o.root.clientWidth || 0, H = o.root.clientHeight || 0, w = card.el.offsetWidth || 200, h = card.el.offsetHeight || 80;
-    const x = W ? Math.max(6, Math.min(at.x - w / 2, W - w - 6)) : at.x - w / 2;
-    let y = at.y + 22;
-    if (H && y + h > H - 6) y = Math.max(6, at.y - h - 52);
+    const x = W ? Math.max(6, Math.min(ax - w / 2, W - w - 6)) : ax - w / 2;
+    let y = ay + 22;
+    if (H && y + h > H - 6) y = Math.max(6, ay - h - 52);
     card.el.style.left = `${Math.round(x)}px`; card.el.style.top = `${Math.round(y)}px`; card.el.style.visibility = "";
   }
   function closeCard(){ if (card) { try { card.el.remove(); } catch (_) { /* gone with the view */ } card = null; } }
@@ -252,9 +267,11 @@ export function createUseSurface(o){
     if (t.kind === "tag" || t.kind === "scanner" || t.kind === "person") { showCard(t); return; }
     if (t.kind === "room") api.openRoom(t.room);
     else if (t.kind === "floor") api.openFloor(t.z);
-    // A door on a cover (a garage door, a gate) never moves on a tap: its card
-    // (what it reads), or on a hold Home Assistant's own controls.
-    else if (t.kind === "door" && t.cover) { if (r === "open") moreInfo(o.root, t.cover); else if (api.hass) openBarrierCard(api.hass, t.bar, api); }
+    // A door something can move (a garage door, a gate: doorMover) never
+    // moves from a tap, nor from anything a tap shows: a tap shows what it
+    // reads (its card: state, last moved; nothing on it to press but its
+    // close); a hold opens Home Assistant's own controls for what moves it.
+    else if (t.kind === "door" && doorMover(t.bar)) { if (r === "open") moreInfo(o.root, doorMover(t.bar)); else showCard(t); }
     else if (t.kind === "door" && t.bar && t.bar.linked_entity_id && api.hass) openBarrierCard(api.hass, t.bar, api);
   }
   // The hold is armed once HOLD_MS has passed still (the Atlas's timer).
@@ -310,7 +327,7 @@ export function createUseSurface(o){
         holdable = !!api.controlsFor(l0);
         canDrag = !!l0.dimmable && String(t.eid).startsWith("light.");
       }
-      if (t.kind === "door" && t.cover) holdable = true;      // a door on a cover: hold for Home Assistant's own controls
+      if (t.kind === "door" && doorMover(t.bar)) holdable = true;   // a door that moves: hold for Home Assistant's own controls
       const tracker = createHoldTracker({ canDrag });
       tracker.down(e.clientX, e.clientY, stamp(e));
       press = { target: t, api, tracker, holdable, t0: stamp(e), ring: null, armed: false, dragBri: null, dragTo: null,

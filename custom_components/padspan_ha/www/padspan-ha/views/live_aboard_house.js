@@ -26,8 +26,9 @@ const { isOutdoorFloorId, offsetPolygonInward, barrierNoReading, fabricFrame, fl
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 const { castsLight, deviceClassOf, airQualityBadness, HUMIDITY_BORDER, AIR_BORDER, MOTION_PULSE: MOTION_BLUE, isWledLight, isPartitionLight } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
-// The shared Atlas card's readings: the state words and which floors share a plate.
-const { stateWordOf, floorIdsOnSlab } =
+// The shared Atlas card's readings: the state words, which floors share a
+// plate, and which sensors read backwards.
+const { stateWordOf, floorIdsOnSlab, doorInvertOf } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 const { roomColor } =
   await import(`./room_color.js${new URL(import.meta.url).search}`);
@@ -1305,6 +1306,10 @@ export function openingState(bar, dl){
   const rawOn = dl.state === "on";
   return (bar && bar.invert_state ? !rawOn : rawOn) ? "open" : "closed";
 }
+/** Does this sensor read backwards? As the map has it: the invert_state of
+ *  the map barrier linked to it (lights_map.js doorInvertOf, the Atlas's own
+ *  rule), so a door the 3D file links to that sensor reads it the same way. */
+export const sensorInverted = (model, eid) => !!doorInvertOf(model)[eid];
 /** Can it be pressed? Only a link to a device the Atlas knows: the Atlas
  *  draws no line to press for any other (its barrier pass's hit-line). */
 export const openingPressable = (dl) => !!dl;
