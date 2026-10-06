@@ -55,7 +55,7 @@ const LABEL_PX = 22;                       // a tag's name: this tall on screen,
 const HEARD_MAX = 4;                       // scanners named in a tag's card
 // Someone known only by their room: a step out from its middle for each one
 // there before them (m, up to the second), and drawn this opaque.
-const ROOM_FAN_M = [0.3, 1.2];
+const ROOM_FAN_M = [0.3, 1.2], APART_M = 0.5;
 export const ROOM_ONLY_OPACITY = 0.55;
 export const ROOM_ONLY_WORDS = "Room only: PadSpan knows the room, not the spot";
 
@@ -115,9 +115,10 @@ export function carriesOwners(carries, ids){
  * null): what they carry when it was picked for them (carries; nothing else
  * then), else the phone or tag behind their person entity (its device
  * trackers), or one named as they or their trackers are — how PadSpan
- * already places known people (ws_occupancy.py, whose rule this keeps too: a
- * person on the same tracker as one before is that same person, and gets
- * nothing of their own). Each tracked thing is someone's once; a thing
+ * already places known people (ws_occupancy.py). A tracker two people share
+ * (pixel and remote on one phone, a tablet in the hall) places only the
+ * first of them by id, who has no picks; the others are found by their own
+ * trackers and names alone. Each tracked thing is someone's once; a thing
  * picked for two people stays with the first (lost: [{key, keptBy}] for the
  * other). One with a place wins over one known only by its room.
  */
@@ -126,17 +127,22 @@ export function peopleOf(states, tracked, carries){
   const pool = tracked || [], byKey = new Map(pool.map(o => [o.key, o]));
   const ids = Object.keys(st).filter(e => e.startsWith("person.")).sort();
   const C = carriesOf(carries), owner = carriesOwners(C, ids);
-  const taken = new Set(owner.keys()), before = [], out = [];
+  const taken = new Set(owner.keys()), out = [];
+  const attrs = (eid) => (st[eid] && st[eid].attributes) || {};
+  const trackersOf = (eid) => { const a = attrs(eid); return [...(Array.isArray(a.device_trackers) ? a.device_trackers : []), a.source].filter(Boolean).map(String); };
+  // Each tracker's first person (by id) among those with no picks: theirs alone.
+  const firstOn = new Map();
+  for (const eid of ids) if (!C[eid]) for (const t of trackersOf(eid)) if (!firstOn.has(t)) firstOn.set(t, eid);
   for (const eid of ids) {
-    const a = (st[eid] && st[eid].attributes) || {};
-    const trackers = new Set([...(Array.isArray(a.device_trackers) ? a.device_trackers : []), a.source].filter(Boolean).map(String));
+    const a = attrs(eid);
+    const trackers = new Set(trackersOf(eid).filter(t => firstOn.get(t) === eid));
     const mine = C[eid] || null;
     let at = null, lost = [];
     if (mine) {
       const things = mine.filter(k => owner.get(k) === eid).map(k => byKey.get(k)).filter(Boolean);
       at = things.find(o => !o.roomOnly) || things[0] || null;
       lost = mine.filter(k => owner.get(k) !== eid).map(k => ({ key: k, keptBy: owner.get(k) }));
-    } else if (![...trackers].some(t => before.some(b => b.has(t)))) {
+    } else {
       const names = new Set([low(a.friendly_name || eid.slice(7).replace(/_/g, " "))]);
       for (const t of trackers) {
         const fn = st[t] && st[t].attributes && st[t].attributes.friendly_name;
@@ -147,25 +153,66 @@ export function peopleOf(states, tracked, carries){
       at = pool.find(o => !taken.has(o.key) && (o.linked.some(e => trackers.has(e)) || (o.label && names.has(low(o.label))))) || null;
       if (at) taken.add(at.key);
     }
-    before.push(trackers);
     out.push({ eid, name: String(a.friendly_name || eid), at, carries: mine, lost });
   }
   return out;
 }
 
-/** A room's middle on the map, Overview's way (the mean of its corners; a
- *  round room's centre): {x, y, floor_id}, or null for no such room. */
+/** Is (x, y) inside the outline P? */
+function inside(x, y, P){
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const a = P[i], b = P[j];
+    if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+  }
+  return c;
+}
+/** How far (x, y) is from the nearest side of P. */
+function clearance(x, y, P){
+  let best = Infinity;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [ax, ay] = P[j], [bx, by] = P[i], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    const t = L2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2)) : 0;
+    best = Math.min(best, Math.hypot(x - ax - t * dx, y - ay - t * dy));
+  }
+  return best;
+}
+/** The point of P furthest from its sides (searched on a grid, then a finer
+ *  one round the best): always inside it, whatever its shape. */
+function deepest(P){
+  const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), best = null;
+  for (let round = 0; round < 2; round++) {
+    const N = 24, sx = (x1 - x0) / N, sy = (y1 - y0) / N;
+    for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
+      const x = x0 + i * sx, y = y0 + j * sy;
+      if (!inside(x, y, P)) continue;
+      const c = clearance(x, y, P);
+      if (!best || c > best.c) best = { x, y, c };
+    }
+    if (!best) break;
+    x0 = best.x - sx; x1 = best.x + sx; y0 = best.y - sy; y1 = best.y + sy;
+  }
+  return best;
+}
+/** A room's middle on the map: Overview's (the mean of its corners; a round
+ *  room's centre) when that is inside it, else the point furthest inside it
+ *  (an L or a U whose mean falls in a wall or the room next door). {x, y,
+ *  floor_id, pts (its outline, or null)}, or null for no such room. */
 export function roomMiddle(model, room){
   const g = model && model.room_geometry_m && typeof model.room_geometry_m === "object" ? model.room_geometry_m[room] : null;
   if (!g || typeof g !== "object") return null;
   const floor_id = String(g.floor_id || "main");
   if (g.type === "circle") {
     const x = fin(Number(g.cx_m)), y = fin(Number(g.cy_m));
-    return x === null || y === null ? null : { x, y, floor_id };
+    return x === null || y === null ? null : { x, y, floor_id, pts: null };
   }
   const pts = Array.isArray(g.points_m) ? g.points_m.map(p => [Number(p && p[0]), Number(p && p[1])]) : [];
   if (pts.length < 3 || pts.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return null;
-  return { x: pts.reduce((a, p) => a + p[0], 0) / pts.length, y: pts.reduce((a, p) => a + p[1], 0) / pts.length, floor_id };
+  const x = pts.reduce((a, p) => a + p[0], 0) / pts.length, y = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+  if (inside(x, y, pts)) return { x, y, floor_id, pts };
+  const d = deepest(pts);
+  return d ? { x: d.x, y: d.y, floor_id, pts } : { x, y, floor_id, pts };
 }
 /** The i-th one known only by a room stands this far (m) and this way from
  *  its middle: the first at the middle, the next stepping out round it
@@ -174,6 +221,20 @@ export function roomStagger(i){
   if (!i) return [0, 0];
   const r = Math.min(ROOM_FAN_M[1], ROOM_FAN_M[0] * (1 + i));
   return [Math.cos(i * 2.4) * r, Math.sin(i * 2.4) * r];
+}
+/** Where in a room (roomMiddle's mid) someone known only by it stands: its
+ *  middle, else the first step out round it (roomStagger) that is inside the
+ *  room and APART_M from everyone standing on that floor already. */
+function spotIn(mid, stands){
+  const near = (x, y) => stands.some(s => s.floor_id === mid.floor_id && Math.hypot(s.x - x, s.y - y) < APART_M);
+  let first = null;
+  for (let i = 0; i < 24; i++) {
+    const [dx, dy] = roomStagger(i), x = mid.x + dx, y = mid.y + dy;
+    if (mid.pts && !inside(x, y, mid.pts)) continue;
+    if (!first) first = { x, y, floor_id: mid.floor_id };
+    if (!near(x, y)) return { x, y, floor_id: mid.floor_id };
+  }
+  return first || { x: mid.x, y: mid.y, floor_id: mid.floor_id };
 }
 /** A tag's pin on the map (model.beacon_positions_m): {x, y, floor_id, z}, or null. */
 export function pinOf(model, key){
@@ -282,17 +343,23 @@ export function wantedOf(d){
     }
   }
   const figs = d.figures && typeof d.figures === "object" ? d.figures : {};
-  const inRoom = new Map();                 // room -> how many known only by it stand there already
+  // Where people already stand: those PadSpan places first, then each one
+  // known only by a room, so none stands on another.
+  const stands = people.filter(P => P.at && !P.at.roomOnly).map(P => ({ x: P.at.x, y: P.at.y, floor_id: P.at.floor_id }));
   for (const P of people) {
     if (!P.at) continue;
     const f = figs[P.eid] && figs[P.eid].params && typeof figs[P.eid].params === "object" ? figs[P.eid].params : null;
     let at = { x: P.at.x, y: P.at.y, floor_id: P.at.floor_id };
     if (P.at.roomOnly) {
+      // A room is a guess made from where they were: it says nothing of
+      // someone who is out (a tracker Home Assistant keeps in a room for
+      // good, a room a tag is set to): only while they are home.
+      const st = d.states && d.states[P.eid];
+      if (!st || st.state !== "home") continue;
       const mid = roomMiddle(d.model, P.at.room);
       if (!mid) continue;                     // a room not on the map (away, outside): nowhere to stand
-      const i = inRoom.get(P.at.room) || 0, [dx, dy] = roomStagger(i);
-      inRoom.set(P.at.room, i + 1);
-      at = { x: mid.x + dx, y: mid.y + dy, floor_id: mid.floor_id };
+      at = spotIn(mid, stands);
+      stands.push(at);
     }
     out.push({ key: P.eid, kind: "person", figure: f, floor_id: at.floor_id, x: at.x, y: at.y, z: 0, centre: false,
                dim: !!P.at.roomOnly, person: P });

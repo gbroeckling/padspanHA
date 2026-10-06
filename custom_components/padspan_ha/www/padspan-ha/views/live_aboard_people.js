@@ -28,7 +28,10 @@
 //             PadSpan's own settings (atlas_3d_carries), the one place both
 //             views read, in this house only: nothing sends it anywhere. A
 //             thing picked for two people stays with the first (by their
-//             id); the other's row says so.
+//             id); the other's row says so. An administrator's to change
+//             (as Show people is). A person renamed in Home Assistant keeps
+//             theirs and a deleted one's go (house3d_people.py); one this
+//             house no longer has shows as not linked, with Forget.
 //   Beacons   the ones the Atlas shows (named, or known to the positioning
 //   Scanners  engine), and the scanners placed on the map: a look by hand
 //             (the builders' tag and scanner kinds) or from a photo, kept by
@@ -138,7 +141,7 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
     step: "list", loading: true, devicesLoading: true, error: null, warn: null,
     people: [], beacons: [], scanners: [], things: [], info: null,
     // Who carries what (settings.atlas_3d_carries): saved as soon as it is kept.
-    carries: TR.carriesOf(settings && settings.atlas_3d_carries), saving: false,
+    carries: TR.carriesOf(settings && settings.atlas_3d_carries), saving: false, admin: null,
     file: { figures: {}, devices: {} },
     changes: { figures: {}, devices: {} },
     edit: null, consent: false, photo: null,
@@ -146,11 +149,16 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
     async load(){
       const states = hass && hass.states ? Promise.resolve(hass.states)
         : callWS({ type: "get_states" }).then(list => Object.fromEntries((list || []).map(s => [s.entity_id, s])));
-      const [st, got, info] = await Promise.all([
+      // Carries is an administrator's to change (the server holds the same rule).
+      const admin = hass && hass.user ? Promise.resolve(hass.user.is_admin === true)
+        : callWS({ type: "auth/current_user" }).then(u => (u && typeof u.is_admin === "boolean" ? u.is_admin : null));
+      const [st, got, info, isAdmin] = await Promise.all([
         states.catch(() => ({})),
         callWS({ type: "padspan_ha/house3d_get" }).catch(e => ({ error: errText(e) })),
         callWS({ type: CMD, target: "person" }).catch(e => ({ ready: false, message: errText(e) })),
+        admin.catch(() => null),
       ]);
+      m.admin = isAdmin;                    // true, false, or null (not known: the server decides)
       m.people = peopleOf(st);
       // Furnish's draft (a figure made and not saved yet is there), else the saved file.
       const data = draft || (got && got.data ? got.data : {});
@@ -183,9 +191,10 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
       const e = m.file.devices[id];
       return e && e.recipe ? e.recipe : null;
     },
+    /** People this house no longer has who still have a figure or picks. */
     unlinked(){
-      const ids = new Set([...Object.keys(m.file.figures), ...Object.keys(m.changes.figures)]);
-      return [...ids].filter(id => m.figureOf(id) && !m.people.some(p => p.id === id)).sort();
+      const ids = new Set([...Object.keys(m.file.figures), ...Object.keys(m.changes.figures), ...Object.keys(m.carries)]);
+      return [...ids].filter(id => (m.figureOf(id) || m.carriesOf(id).length) && !m.people.some(p => p.id === id)).sort();
     },
     changed(){ return Object.keys(m.changes.figures).length + Object.keys(m.changes.devices).length; },
 
@@ -287,9 +296,10 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
 
     // What a person carries: picked from what PadSpan tracks, kept at once.
     carriesOf(id){ return m.carries[id] || []; },
-    /** What was picked for `id` that someone before them (by id) keeps: [{key, keptBy, label, name}]. */
+    /** What was picked for `id` that someone before them (by id, and still
+     *  in Home Assistant) keeps: [{key, keptBy, label, name}]. */
     lostOf(id){
-      const owner = TR.carriesOwners(m.carries, [...new Set([...m.people.map(p => p.id), ...Object.keys(m.carries)])]);
+      const owner = TR.carriesOwners(m.carries, m.people.map(p => p.id));
       return m.carriesOf(id).filter(k => owner.get(k) !== id).map(k => ({ key: k, keptBy: owner.get(k), label: m.thingName(k),
                                                                           name: (m.people.find(p => p.id === owner.get(k)) || { name: owner.get(k) }).name }));
     },
@@ -317,6 +327,16 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
       if (!m.edit || m.edit.what !== "carries" || m.saving) return false;
       const next = { ...m.carries };
       if (m.edit.picked.length) next[m.edit.id] = [...m.edit.picked]; else delete next[m.edit.id];
+      return m.saveCarries(next, true);
+    },
+    /** What someone this house no longer has carried, forgotten (saved at once). */
+    forgetCarries(id){
+      if (m.saving || !(id in m.carries)) return Promise.resolve(false);
+      const next = { ...m.carries };
+      delete next[id];
+      return m.saveCarries(next, false);
+    },
+    async saveCarries(next, back){
       m.saving = true;
       try {
         const r = await callWS({ type: "padspan_ha/settings_set", atlas_3d_carries: next });
@@ -324,7 +344,7 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
         // The host's own copy of the settings: both views draw it at their next read.
         if (settings && typeof settings === "object") settings.atlas_3d_carries = { ...m.carries };
         m.saving = false;
-        m.back();
+        if (back) m.back();
         return true;
       } catch (e) {
         m.saving = false;
@@ -489,14 +509,18 @@ export async function peopleFlow(ctx){
         out.push(row(p.name, [figureSub(f), el("br"), carriesSub(p.id)], p.id in m.changes.figures,
           btn("By hand", () => m.editFigure(p.id, p.name)),
           btn("From a photo", () => m.photoFigure(p.id, p.name)),
-          btn("Carries", () => m.editCarries(p.id, p.name)),
+          m.admin === false ? el("button", { disabled: true, title: "Only an administrator can change what someone carries" }, "Carries")
+            : btn("Carries", () => m.editCarries(p.id, p.name)),
           f ? btn("Remove", () => m.removeFigure(p.id)) : null));
         for (const L of m.lostOf(p.id)) out.push(el("p", { class: "warn", "data-carries-lost": p.id }, `${L.label} is picked for ${L.name} too. ${L.name} keeps it, so it doesn't place ${p.name}.`));
       }
       for (const id of m.unlinked()) {
         out.push(row(id, "Not linked: this person isn't in Home Assistant any more", id in m.changes.figures,
-          btn("Remove", () => m.removeFigure(id))));
+          m.figureOf(id) ? btn("Remove", () => m.removeFigure(id)) : null,
+          m.carriesOf(id).length && m.admin !== false
+            ? el("button", { onclick: () => { m.forgetCarries(id).then(draw); } }, "Forget what they carry") : null));
       }
+      if (m.error && m.step === "list") out.push(el("p", { class: "warn" }, m.error));
       for (const [title, list, which] of [["Beacons", m.beacons, "beacon"], ["Scanners", m.scanners, "scanner"]]) {
         out.push(el("h3", {}, title));
         if (m.devicesLoading) { out.push(el("p", { class: "muted" }, "Loading…")); continue; }

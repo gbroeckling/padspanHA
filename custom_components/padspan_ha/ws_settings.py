@@ -161,7 +161,11 @@ def _atlas_3d_idle(value: Any) -> int:
         v = float(value)
     except (TypeError, ValueError):
         return 60
-    return int(v) if v == v and int(v) == v and int(v) in ATLAS_3D_IDLE_CHOICES else 60
+    # Infinite or not a number ("inf", "1e400", "nan") is no time: int() of it
+    # raised, and the whole save failed with it.
+    if not math.isfinite(v):
+        return 60
+    return int(v) if int(v) == v and int(v) in ATLAS_3D_IDLE_CHOICES else 60
 
 
 # Who carries what (People & devices, views/live_aboard_people.js): for each
@@ -580,6 +584,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if _user is not None and getattr(_user, "is_admin", True) is False:
                 connection.send_error(msg["id"], "unauthorized",
                                       "Only an administrator can change Live Aboard's library or photo settings")
+                return
+        if "atlas_3d_people" in msg or "atlas_3d_tags" in msg or "atlas_3d_carries" in msg:
+            # Who shows in the house, and what each person carries (personal):
+            # an administrator's, as Live Aboard's Views menu and Settings say.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized",
+                                      "Only an administrator can change who shows in Live Aboard and what each person carries")
                 return
         if "telemetry_asked" in msg:
             payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))

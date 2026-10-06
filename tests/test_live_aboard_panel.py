@@ -126,7 +126,7 @@ def test_carries_keeps_people_by_id_and_plain_keys_once_each() -> None:
 
 def test_carries_saves_through_settings_set_and_a_bad_payload_wipes_nothing() -> None:
     h, conn = _hass(), MagicMock()
-    conn.user = MagicMock(is_admin=False)            # the Furnish gate, not an admin's: People & devices saves it
+    conn.user = MagicMock(is_admin=True)             # an administrator's (the review: as Show people's)
     _run(WS.ws_settings_set(h, conn, {"id": 1, "atlas_3d_carries": {**_PICKS, "light.x": ["k"]},
                                       "atlas_3d_home_idle_s": 300}))
     assert not conn.send_error.called
@@ -138,6 +138,80 @@ def test_carries_saves_through_settings_set_and_a_bad_payload_wipes_nothing() ->
         assert data["atlas_3d_carries"] == _PICKS, f"{bad!r} wiped what was saved"
     _run(WS.ws_settings_set(h, conn, {"id": 3, "atlas_3d_carries": {}}))
     assert data["atlas_3d_carries"] == {}, "an empty pick is kept: today's matching for everyone"
+
+
+@pytest.mark.parametrize("raw", ["inf", "-inf", "1e400", float("inf"), float("-inf"), "nan"])
+def test_a_return_time_that_is_no_number_never_breaks_the_save(raw) -> None:
+    """Review: "inf" or "1e400" raised OverflowError in int(), and the whole
+    save failed, every other setting in it lost."""
+    assert WS._atlas_3d_idle(raw) == 60
+    h, conn = _hass(), MagicMock()
+    conn.user = MagicMock(is_admin=True)
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "atlas_3d_home_idle_s": raw, "quiet_mode": False}))
+    assert not conn.send_error.called
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    assert data["atlas_3d_home_idle_s"] == 60 and data["quiet_mode"] is False
+
+
+@pytest.mark.parametrize(("key", "value"), [("atlas_3d_carries", {"person.alex": ["irk:0a1b2c3d4e"]}),
+                                            ("atlas_3d_people", True), ("atlas_3d_tags", True)])
+def test_only_an_administrator_changes_who_shows_and_what_they_carry(key, value) -> None:
+    """Review: as in Live Aboard's Views ▾ (and its Settings rows), an
+    administrator's: anyone else is refused and nothing of the save is kept."""
+    h, conn = _hass(), MagicMock()
+    conn.user = MagicMock(is_admin=False)
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    before = dict(data)
+    _run(WS.ws_settings_set(h, conn, {"id": 1, key: value, "quiet_mode": False}))
+    assert conn.send_error.called and conn.send_error.call_args[0][1] == "unauthorized"
+    assert data == before, "nothing of a refused save is kept"
+    admin = MagicMock()
+    admin.user = MagicMock(is_admin=True)
+    _run(WS.ws_settings_set(h, admin, {"id": 2, key: value}))
+    assert not admin.send_error.called and data[key] == value
+
+
+def _person_event(entity_id, action="remove", **more):
+    from types import SimpleNamespace
+    return SimpleNamespace(data={"action": action, "entity_id": entity_id, **more})
+
+
+def _person_fire(h, event) -> list:
+    """Home Assistant's registry listener, as it calls it; each task it starts, run."""
+    from custom_components.padspan_ha import house3d_people as HP
+    started = []
+    h.async_create_task = started.append
+    HP._on_entity_registry_updated(h, event)
+    return [_run(c) for c in started]
+
+
+def test_what_a_person_carried_follows_a_rename_and_goes_with_a_delete(tmp_path) -> None:
+    """Review: a renamed person's picks were left under the old id (they
+    silently stopped placing them) and a deleted one's stayed for good."""
+    h = _house(tmp_path)                             # no Live Aboard file: only the settings change
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    data["atlas_3d_carries"] = {"person.alex": ["irk:0a1b2c3d4e"], "person.sam": ["ble:keys"]}
+    writes = []
+    real = h.data[DOMAIN][DATA_SETTINGS].async_set
+
+    async def _set(**kw):
+        writes.append(sorted(kw))
+        await real(**kw)
+    h.data[DOMAIN][DATA_SETTINGS].async_set = _set
+    _person_fire(h, _person_event("person.alexandra", "update", old_entity_id="person.alex"))
+    assert data["atlas_3d_carries"] == {"person.alexandra": ["irk:0a1b2c3d4e"], "person.sam": ["ble:keys"]}
+    assert writes == [["atlas_3d_carries"]], "one settings write, of that key alone"
+    _person_fire(h, _person_event("person.sam"))
+    assert data["atlas_3d_carries"] == {"person.alexandra": ["irk:0a1b2c3d4e"]}
+    # Renamed onto someone who has picks of their own: theirs are kept.
+    data["atlas_3d_carries"] = {"person.a": ["k1"], "person.b": ["k2"]}
+    _person_fire(h, _person_event("person.b", "update", old_entity_id="person.a"))
+    assert data["atlas_3d_carries"] == {"person.b": ["k2"]}
+    # A person with no picks, another kind of entity, a plain update: nothing written.
+    writes.clear()
+    for ev in (_person_event("person.zed"), _person_event("light.alexandra"), _person_event("person.b", "update")):
+        _person_fire(h, ev)
+    assert writes == [] and data["atlas_3d_carries"] == {"person.b": ["k2"]}
 
 
 def test_carries_is_in_a_backup_and_comes_back_with_a_restore(store, tmp_path, monkeypatch) -> None:  # noqa: F811

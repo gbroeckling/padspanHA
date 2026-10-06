@@ -457,6 +457,102 @@ await tryCase("follow: the camera keeps someone in the middle as they walk, on t
     { there, rate, walked, still, off: off.follow, chip: off.chip });
 });
 
+// ── the review's fixes (2026-10-05) ─────────────────────────────────────────
+const inPolyT = (x, y, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const a = P[i], b = P[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+await tryCase("carries: a tracker two people share places only the first; the other is still found by their own phone, and a person with picks never counts", async () => {
+  const ST2 = {
+    // Aaron has picks: his trackers (the tablet among them) count for nothing.
+    "person.aaron": { state: "home", attributes: { friendly_name: "Aaron", device_trackers: ["device_tracker.tablet"] } },
+    "person.alice": { state: "home", attributes: { friendly_name: "Alice", device_trackers: ["device_tracker.tablet"] } },
+    "person.bob": { state: "home", attributes: { friendly_name: "Bob", device_trackers: ["device_tracker.bob_phone", "device_tracker.tablet"] } },
+    // The phone two person entities share (pixel, remote): the first only, as before.
+    "person.pixel": { state: "home", attributes: { friendly_name: "pixel", device_trackers: ["device_tracker.pixel_8_pro"] } },
+    "person.remote": { state: "home", attributes: { friendly_name: "remote", device_trackers: ["device_tracker.pixel_8_pro"] } },
+    "device_tracker.pixel_8_pro": { state: "home", attributes: { friendly_name: "Pixel 8 Pro" } },
+  };
+  const snap = { objects: { list: [
+    OBJ("ble:tablet", "ble", 1, 1, "main", { user_label: "Tablet", linked_entities: ["device_tracker.tablet"] }),
+    OBJ("irk:bob", "private_ble", 3, 3, "main", { linked_entities: ["device_tracker.bob_phone"] }),
+    OBJ("irk:pixel", "private_ble", 4, 4, "main", { private_ble_name: "Pixel 8 Pro", linked_entities: ["device_tracker.pixel_8_pro"] }),
+    OBJ("ble:aaronkeys", "ble", 5, 5, "main", { user_label: "Aaron's keys" }),
+  ] } };
+  const by = Object.fromEntries(TR.peopleOf(ST2, TR.trackedOf(snap), { "person.aaron": ["ble:aaronkeys"] }).map(p => [p.eid, p.at && p.at.key]));
+  check("carries: a tracker two people share places only the first; the other is still found by their own phone, and a person with picks never counts",
+    by["person.aaron"] === "ble:aaronkeys" && by["person.alice"] === "ble:tablet" && by["person.bob"] === "irk:bob"
+    && by["person.pixel"] === "irk:pixel" && by["person.remote"] === null, by);
+});
+await tryCase("carries: People & devices leaves out people no longer in Home Assistant, and lets what they carried be forgotten", async () => {
+  const sent = [], settings = { atlas_3d_carries: { "person.aaa_gone": ["ble:keys"], "person.dan": ["ble:keys"] } };
+  const callWS = async (m) => {
+    if (m.type === "padspan_ha/live_snapshot") return { snapshot: SNAP() };
+    if (m.type === "padspan_ha/model_get") return MODEL;
+    if (m.type === "padspan_ha/house3d_get") return { data: { figures: {}, devices: {} }, writable: true };
+    if (m.type === "padspan_ha/settings_set") { sent.push(m); return { settings: { atlas_3d_carries: m.atlas_3d_carries } }; }
+    return { ready: false };
+  };
+  const m = PEOPLE.peopleMachine({ F: {}, callWS, hass: { states: STATES }, settings });
+  await m.load(); await m.loadDevices();
+  const lost = m.lostOf("person.dan"), stale = m.unlinked();
+  const ok = await m.forgetCarries("person.aaa_gone");
+  check("carries: People & devices leaves out people no longer in Home Assistant, and lets what they carried be forgotten",
+    lost.length === 0 && stale.includes("person.aaa_gone") && ok && sent.length === 1
+    && JSON.stringify(sent[0].atlas_3d_carries) === JSON.stringify({ "person.dan": ["ble:keys"] }) && !m.unlinked().includes("person.aaa_gone"),
+    { lost, stale, sent });
+});
+await tryCase("roomonly: in an L-shaped room they stand inside it, and apart from someone whose spot is known there", async () => {
+  const L = [[0, 0], [6, 0], [6, 1], [1, 1], [1, 6], [0, 6]];
+  const M2 = { ...MODEL, room_geometry_m: { Ell: { type: "poly", floor_id: "main", points_m: L } } };
+  const mid = TR.roomMiddle(M2, "Ell");
+  const ST3 = { "person.alice": STATES["person.alice"], "person.bob": STATES["person.bob"] };
+  const snap = { objects: { list: [
+    OBJ("irk:alice", "private_ble", mid ? mid.x : 0.5, mid ? mid.y : 0.5, "main", { linked_entities: ["device_tracker.alice_phone"], room: "Ell" }),
+    OBJ("entity:device_tracker.bob", "entity", null, null, null, { room: "Ell", linked_entities: ["device_tracker.bob"] }),
+  ] } };
+  const w = Object.fromEntries(TR.wantedOf({ model: M2, snapshot: snap, states: ST3, people: true }).map(x => [x.key, x]));
+  const b = w["person.bob"], a = w["person.alice"];
+  check("roomonly: in an L-shaped room they stand inside it, and apart from someone whose spot is known there",
+    mid && inPolyT(mid.x, mid.y, L) && b && b.dim && inPolyT(b.x, b.y, L) && a && Math.hypot(a.x - b.x, a.y - b.y) >= 0.5,
+    { mid, b: b && [b.x, b.y], a: a && [a.x, a.y] });
+});
+await tryCase("roomonly: known only by a room, they stand in it only while they are home", async () => {
+  const away = { ...STATES, "person.bob": { ...STATES["person.bob"], state: "not_home" }, "person.alice": { ...STATES["person.alice"], state: "not_home" } };
+  const w = Object.fromEntries(TR.wantedOf({ model: MODEL, snapshot: SNAP(), states: away, people: true, carries: CARRIES }).map(x => [x.key, x]));
+  check("roomonly: known only by a room, they stand in it only while they are home",
+    !w["person.bob"] && w["person.cara"] && w["person.cara"].dim && w["person.alice"] && !w["person.alice"].dim, Object.keys(w));
+});
+await tryCase("idle: a touch anywhere on the page (an Atlas sheet, Home Assistant's own dialog) starts the wait again", async () => {
+  H.top = "main"; H.snap = SNAP(); poll();
+  slot._panel().goHome(); await later(1000, 60);
+  await wheel(3);
+  const r0 = S().panel.returns;
+  await later(50000);
+  fire("document", "pointerdown", { target: document.body });  // someone working in a sheet on the page
+  await later(30000);
+  const held = S().panel.returns === r0;
+  await later(31000, 20); await later(1000, 60);
+  check("idle: a touch anywhere on the page (an Atlas sheet, Home Assistant's own dialog) starts the wait again",
+    held && S().panel.returns === r0 + 1 && S().panel.atHome, { held, returns: S().panel.returns, r0 });
+});
+await tryCase("hold: never back home while following someone; only a touch on the view lets go", async () => {
+  touch();
+  const r0 = S().panel.returns;
+  slot._panel().follow("person.alice");
+  await later(1000, 40);
+  await later(70000);
+  const kept = { returns: S().panel.returns, follow: S().panel.follow };
+  touch();
+  const off = S().panel.follow;
+  await later(61000, 20); await later(1000, 60);
+  check("hold: never back home while following someone; only a touch on the view lets go",
+    kept.returns === r0 && kept.follow && kept.follow.key === "person.alice" && !off && S().panel.returns === r0 + 1, { kept, off, returns: S().panel.returns });
+});
+await tryCase("hold: a sheet the Atlas moved into the panel (full screen) holds it too", async () => {
+  const sheet = document.createElement("div");
+  sheet.style.position = "fixed"; sheet.style.inset = "0px";
+  const out = await heldBy("panel sheet", () => shadow.appendChild(sheet), () => sheet.remove());
+  check("hold: a sheet the Atlas moved into the panel (full screen) holds it too", out.held && out.went, out);
+});
+
 // ── rest ────────────────────────────────────────────────────────────────────
 await tryCase("rest: at home and nothing moving, no frames and no timer", async () => {
   slot._panel().goHome();

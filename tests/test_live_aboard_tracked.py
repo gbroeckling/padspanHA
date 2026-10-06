@@ -117,7 +117,7 @@ def test_the_tags_setting_round_trips_on_its_own() -> None:
     from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
     from tests.test_telemetry import _hass as _house_hass
     h, conn = _house_hass(), MagicMock()
-    conn.user = MagicMock(is_admin=False)
+    conn.user = MagicMock(is_admin=True)           # an administrator's (tests/test_live_aboard_panel.py: anyone else is refused)
     _run(WS.ws_settings_set(h, conn, {"id": 1, "atlas_3d_tags": 1}))
     assert not conn.send_error.called
     data = h.data[DOMAIN][DATA_SETTINGS].data

@@ -3526,8 +3526,18 @@ function _atlas3dSection(ctx, el, settings){
     "Follows Outdoor weather above, and shows only while that is on too.");
   tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,
     "Each person where their phone or tag is now: on the map, a round marker with their initial; in Live Aboard, their figure (or a soft marker), walking there. Tap one for where they are and since when. Uses the same live positions as Overview.", both);
+  // Who shows in the house is an administrator's (ws_settings holds the same
+  // rule; Live Aboard's Views menu shows these on or off to anyone else).
+  const whoShows = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   tick("atlas_3d_tags", "Show tags & scanners", settings.atlas_3d_tags === true,
     "Every tag the Atlas can place, with its name, and every scanner (in Live Aboard, every scanner at its height). The faint ring under a tag is wider the less sure its spot is. Tap a tag for its room, when it was last seen and which scanners hear it. Uses the same live positions as Overview.", both);
+  if (!whoShows) {
+    for (const cb of both.querySelectorAll("input[data-la3d-key]")) {
+      if (cb.getAttribute("data-la3d-key") === "atlas_3d_people" || cb.getAttribute("data-la3d-key") === "atlas_3d_tags") {
+        cb.disabled = true; cb.title = "Only an administrator can change this";
+      }
+    }
+  }
   // Remove all furniture (admins; ws_house3d.house3d_clear only="pieces"): the
   // server takes a backup first and removes nothing without one. Asked here
   // in the page, the way Clear calibration asks above.

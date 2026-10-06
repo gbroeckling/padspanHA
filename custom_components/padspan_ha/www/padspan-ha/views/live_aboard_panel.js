@@ -14,15 +14,19 @@
 //   going back   the sidebar's view, untouched for a while
 //                (settings.atlas_3d_home_idle_s: 60 s, or 30 s, 5 min, off),
 //                flies back to its home by itself, closing its menus and the
-//                small cards beside tags and people. Never while Edit or
+//                small cards beside tags and people. A touch anywhere on the
+//                page counts (a sheet, Home Assistant's own dialog), not
+//                only on the view. Never while someone is followed, Edit or
 //                Furnish is open, a card or sheet the Atlas opened is up (a
 //                light's controls, a room's or floor's sheet, a door's card,
-//                the activity calendar), or full screen was asked for by
-//                hand: then it looks again a little later. One timer in this
-//                browser, nothing asked of Home Assistant, no frames at rest.
+//                the activity calendar; full screen, inside the panel), or
+//                full screen was asked for by hand: then it looks again a
+//                little later. One timer in this browser, nothing asked of
+//                Home Assistant, no frames at rest.
 //   follow       a person's card has Follow: the camera keeps them in the
 //                middle, gliding on the capped clock and only while they
-//                move (to their floor too), until the view is touched
+//                move (to their floor too), until the view is touched (never
+//                by going back home)
 //   people chip  beside the Motion chip, how many people are home; each tap
 //                flies to the next one, changing floor as needed, and says
 //                who it is
@@ -234,7 +238,8 @@ export function createPanel(v){
     if (!idle || atHome || !v.sidebar()) return;
     const left = idle - (now() - lastTouch);
     if (left > 50) { arm(left); return; }
-    if (v.busy()) { arm(Math.min(idle, RECHECK_MS)); return; }
+    // Someone followed is someone being watched: only a touch lets them go.
+    if (v.busy() || follow) { arm(Math.min(idle, RECHECK_MS)); return; }
     returns++;
     goHome(true);
   }
@@ -246,9 +251,23 @@ export function createPanel(v){
     disarm();
     arm();
   }
+  /** A touch somewhere else on the page (a sheet the Atlas opened on it,
+   *  Home Assistant's own dialog): someone is here; the wait starts again. */
+  function activity(){
+    lastTouch = now();
+    if (timer !== null) { disarm(); arm(); }
+  }
   const onView = v.guard(() => touched(true));
   const onPanel = v.guard(() => touched(false));
-  for (const ev of ["pointerdown", "wheel", "keydown"]) v.root.addEventListener(ev, onView, true);
+  const onPage = v.guard(() => activity());
+  const EVENTS = ["pointerdown", "wheel", "keydown"];
+  for (const ev of EVENTS) v.root.addEventListener(ev, onView, true);
+  let pageHooked = false;
+  const hookPage = (on) => {
+    if (on === pageHooked || typeof document === "undefined" || !document.addEventListener) return;
+    for (const ev of EVENTS) { if (on) document.addEventListener(ev, onPage, true); else document.removeEventListener(ev, onPage, true); }
+    pageHooked = on;
+  };
 
   // ── follow ─────────────────────────────────────────────────────────────────
   function stopFollow(paint = true){
@@ -364,12 +383,12 @@ export function createPanel(v){
           unhook = () => { for (const ev of ["pointerdown", "wheel", "keydown"]) he.removeEventListener(ev, onPanel, true); };
         }
       }
-      if (!v.sidebar() || !idleMs()) disarm();
-      else arm();
+      if (!v.sidebar() || !idleMs()) { disarm(); hookPage(false); }
+      else { hookPage(true); arm(); }
       paintChip();
     },
     /** The view left (Map picked, switched off): nothing waits. */
-    detach(){ disarm(); stopFollow(); },
+    detach(){ disarm(); hookPage(false); stopFollow(); },
     /** The sidebar's first view (and again while nobody has moved the
      *  camera, as the map arrives): its home, at once. False: open as ever
      *  (not the sidebar, or no house to choose a floor from yet). */
@@ -400,6 +419,7 @@ export function createPanel(v){
     },
     dispose(){
       disarm();
+      hookPage(false);
       if (unhook) unhook();
       unhook = null; follow = null;
       for (const ev of ["pointerdown", "wheel", "keydown"]) v.root.removeEventListener(ev, onView, true);
