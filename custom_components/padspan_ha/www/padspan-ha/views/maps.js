@@ -576,13 +576,13 @@ export function _draftOverRecords(committed, draft) {
   return out;
 }
 // A placement as the draft holds it, its height (and draft-only marks) aside.
-const _placeOf = (e) => JSON.stringify(Object.keys(e || {}).filter((k) => !["z_m", "_z", "_zOnly", "source"].includes(k))
+const _placeKey = (e) => JSON.stringify(Object.keys(e || {}).filter((k) => !["z_m", "_z", "_zOnly", "source"].includes(k))
   .sort().map((k) => [k, e[k]]));
 // A height alone: the entry the Height row made from a saved record
 // (_zOnly: that record's placement) while nothing else of it has changed.
 // Save placements sends it with fabric_light_height_set, the height only:
 // x, y and looks stay as saved, even if another screen moved it meanwhile.
-const _heightOnly = (e) => !!e && !!e._zOnly && e._zOnly === _placeOf(e);
+const _heightOnly = (e) => !!e && !!e._zOnly && e._zOnly === _placeKey(e);
 // The hover box's "2.40 m up": the Heights list's own row (rowsOf, through
 // heightNow: the Height row's unsaved height, the record's, then the 3D
 // file's), shown as the list shows it; nothing while it uses a default.
@@ -606,7 +606,7 @@ function _setHeights(ctx, mapState, rows, eids, zOf) {
   if (!next.size) return;
   _pushUndo(mapState, [...next.keys()]);
   for (const [e, z] of next) {
-    draft[e] = draft[e] ? { ...draft[e], z_m: z, _z: true } : { ...committed[e], z_m: z, _z: true, _zOnly: _placeOf(committed[e]) };
+    draft[e] = draft[e] ? { ...draft[e], z_m: z, _z: true } : { ...committed[e], z_m: z, _z: true, _zOnly: _placeKey(committed[e]) };
   }
   ctx.actions.renderRooms();
 }
