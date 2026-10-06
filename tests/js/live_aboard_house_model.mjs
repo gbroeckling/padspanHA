@@ -761,7 +761,9 @@ LA.releaseLiveAboardSlot("house-model");
     states["cover.gate"] = { entity_id: "cover.gate", state: "unavailable", attributes: { device_class: "gate" } };
     epoll();
     await settle(3);
-    const going = { car: ops("binary_sensor.car_contact")[0], gate: ops("cover.gate")[0], liveMs: es().liveMs };
+    // Nothing moves: every door is where it is going. (The clock itself may
+    // still run, for the gate's unlocked lock flashing for LIVE_MS.)
+    const going = { car: ops("binary_sensor.car_contact")[0], gate: ops("cover.gate")[0], still: es().openings.every(o => o.at === o.to) };
     for (let i = 0; i < 30; i++) await later(100, 3);
     const none = { car: ops("binary_sensor.car_contact")[0], gate: ops("cover.gate")[0] };
     setCar("on");
@@ -772,7 +774,7 @@ LA.releaseLiveAboardSlot("house-model");
     const grey = (o) => !!(o && o.panelCols && o.panelCols.length && o.panelCols.every(c => c === GREY));
     check("view: a door of a type with no reading is the Atlas's grey, and stays where it was",
       before.type === "overhead" && before.state === "open" && before.at === 1 && !grey(before) && near(gate0.at, 0.6) && !grey(gate0)
-      && going.car.state === "none" && going.car.to === 1 && going.gate.state === "none" && near(going.gate.to, 0.6) && going.liveMs === 0
+      && going.car.state === "none" && going.car.to === 1 && going.gate.state === "none" && near(going.gate.to, 0.6) && going.still
       && grey(none.car) && none.car.at === 1 && grey(none.gate) && near(none.gate.at, 0.6)
       && back.car.state === "closed" && back.car.at === 0 && !grey(back.car) && back.gate.at === 0 && !grey(back.gate), { before, gate0, going, none, back });
   });
