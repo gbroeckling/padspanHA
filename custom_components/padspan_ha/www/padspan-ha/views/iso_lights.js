@@ -5810,8 +5810,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const n=DOORS.barrierNormal(a, b, rooms);           // the side its wall faces, as Live Aboard's walls have it
         const pc={ x0:a[0], y0:a[1], x1:b[0], y1:b[1], nx:n[0], ny:n[1], mat, barrier:bar,
                    override: DOOR_STORED && DOOR_STORED[bar.id] && typeof DOOR_STORED[bar.id]==="object" ? DOOR_STORED[bar.id] : null };
-        const sw=DOORS.doorSwing(pc, rooms, pc.override), t=DOORS.doorTypeOf(pc, rooms);
-        if(dc==="garage_door" && t.guessed) t.type="overhead";
+        const sw=DOORS.doorSwing(pc, rooms, pc.override), t=DOORS.doorTypeOf(pc, rooms, dc);
         const ang=(DOORS.DOOR_ANGLE_DEG[shown]||85)*Math.PI/180, at=DOORS.shownAt(t.type, shown);
         const H=2.03, panels=DOORS.doorPanels(t, at, L, H, 0.14, ang, sw.hinge==="b", H+0.6);
         const vx=pc.nx*sw.side, vy=pc.ny*sw.side;

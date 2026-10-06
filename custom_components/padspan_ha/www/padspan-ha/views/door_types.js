@@ -118,28 +118,33 @@ const COVER_CLASSES = ["garage", "gate", "door", "shutter", "awning", "curtain",
 const SLIDE_NAME = /\b(patio|slider|sliding)\b/i, CLOSET_NAME = /\b(closet|wardrobe)\b/i, GARAGE_NAME = /\b(garage|shop|workshop)\b/i;
 export const OVERHEAD_MIN_M = 2.2, DOUBLE_M = [1.4, 1.9];
 
-/** PadSpan's guess at what a door is, when nothing is stored: wide on an
- *  outside wall of a garage or a shop, an overhead door; glass, or a patio
- *  door or slider by its name, a sliding glass door; into a closet or a
- *  wardrobe, a bifold; 1.4 to 1.9 m wide, a double door; else hinged.
- *  rooms: [{name, outdoor, pts}] on its floor. {type, glass?, slide?}. */
-export function guessDoorType(pc, rooms){
+/** PadSpan's guess at what a door is, when nothing is stored — the one
+ *  rule the door's sheet, Live Aboard and the flat Atlas all draw by: on a
+ *  garage door sensor (dc: the device class of what it follows), or wide
+ *  on an outside wall of a garage or a shop, an overhead door; glass, or a
+ *  patio door or slider by its name, a sliding glass door; into a closet or
+ *  a wardrobe, a bifold; 1.4 to 1.9 m wide, a double door; wider than any
+ *  of those, an overhead door (as the views have always drawn a door wider
+ *  than GARAGE_DOOR_M); else hinged. rooms: [{name, outdoor, pts}] on its
+ *  floor. {type, glass?, slide?}. */
+export function guessDoorType(pc, rooms, dc = null){
   const len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0), mx = (pc.x0 + pc.x1) / 2, my = (pc.y0 + pc.y1) / 2;
   const nx = num(pc.nx) ?? 0, ny = num(pc.ny) ?? 0;
   const sides = [1, -1].map(s => (rooms || []).find(r => !outdoorRoom(r) && r.pts && inside(mx + nx * s * 0.45, my + ny * s * 0.45, r.pts)) || null);
   const name = String((pc.barrier && pc.barrier.name) || "");
   // (Outside: an outside wall, or with a room on one side only, as the flat Atlas sees a barrier.)
   const outside = pc.cls ? pc.cls === "ext" : !(sides[0] && sides[1]);
-  if (len > OVERHEAD_MIN_M && outside && sides.some(r => r && GARAGE_NAME.test(r.name))) return { type: "overhead" };
+  if (dc === "garage_door" || (len > OVERHEAD_MIN_M && outside && sides.some(r => r && GARAGE_NAME.test(r.name)))) return { type: "overhead" };
   if (pc.mat === "glass" || SLIDE_NAME.test(name)) return { type: "sliding", glass: true };
   if (sides.some(r => r && CLOSET_NAME.test(r.name))) return { type: "bifold" };
   if (len >= DOUBLE_M[0] && len <= DOUBLE_M[1]) return { type: "double" };
-  return { type: "hinged" };
+  return { type: len > GARAGE_DOOR_M ? "overhead" : "hinged" };
 }
 /** A door's type and options as drawn: the stored ones (pc.override), else
- *  the guess; every option a type has, with its default. */
-export function doorTypeOf(pc, rooms){
-  const o = (pc && pc.override) || {}, guess = guessDoorType(pc, rooms);
+ *  the guess; every option a type has, with its default. dc: the device
+ *  class of what it follows, if anything. */
+export function doorTypeOf(pc, rooms, dc = null){
+  const o = (pc && pc.override) || {}, guess = guessDoorType(pc, rooms, dc);
   const stored = DOOR_TYPES.includes(o.type) ? o.type : null, type = stored || guess.type;
   const panels = Number.isInteger(o.panels) ? Math.max(DOOR_PANELS[0], Math.min(DOOR_PANELS[1], o.panels)) : null;
   return { type, guessed: !stored, guess: guess.type,

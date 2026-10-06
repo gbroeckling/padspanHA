@@ -1779,7 +1779,7 @@ function createSlot(slotKey){
     // sensor, live_aboard_storey.js), else the map's.
     const link = STOREY && k === "door" && P.pc.override && typeof P.pc.override.link === "string" ? P.pc.override.link : null;
     if (!link && (!b || !b.linked_entity_id)) { if (STOREY && k === "door") standDoor(P, rooms, len); return; }
-    const o = { bar: link ? { ...(b || {}), id: (b && b.id) || P.pc.added, linked_entity_id: link, invert_state: false } : b,
+    const o = { bar: link ? { ...(b || {}), id: (b && b.id) || P.pc.added, linked_entity_id: link, invert_state: HOUSE.sensorInverted(lastP && lastP.model, link) } : b,
                 eid: link || String(b.linked_entity_id), kind: k, leaf: null, len, hinge: null, side: null,
                 garage: false, state: null, at: 0, to: 0, from: 0, t0: 0, flash: null };
     if (k === "open") {
@@ -1795,18 +1795,18 @@ function createSlot(slotKey){
       if (!leaf || (k !== "door" && k !== "window")) return;
       const sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null);
       Object.assign(o, { leaf, hinge: sw.hinge, side: sw.side, garage: k === "door" && len > 1.8 });
-      if (STOREY && k === "door") typeDoor(o, P, rooms, !!(lbe[o.eid] && lbe[o.eid].device_class === "garage_door"));
+      if (STOREY && k === "door") typeDoor(o, P, rooms);
     }
     P.open = o;
     openings.push({ F, P });
   }
   // A door's type (live_aboard_storey.js doorTypeOf: stored, else PadSpan's
-  // guess; a garage door's is overhead), what drives it (a cover follows
-  // its position), and a lock linked to it. A type other than hinged draws
-  // its own panels (typedPanels) instead of the wall's one leaf.
-  function typeDoor(o, P, rooms, garageClass){
-    const t = STOREY.doorTypeOf(P.pc, rooms);
-    if (t.guessed && (o.garage || garageClass)) t.type = "overhead";
+  // guess, by the class of what it follows), what drives it (a cover
+  // follows its position), and a lock linked to it. A type other than
+  // hinged draws its own panels (typedPanels) instead of the wall's one leaf.
+  function typeDoor(o, P, rooms){
+    const dl = lbe[o.eid], st = lastP && lastP.states ? lastP.states[o.eid] : null;
+    const t = STOREY.doorTypeOf(P.pc, rooms, (dl && dl.device_class) || (st && st.attributes && st.attributes.device_class) || null);
     o.garage = false;
     o.t = t;
     o.cover = STOREY.linkKind(o.eid, lastP && lastP.states ? lastP.states[o.eid] : null) === "cover";
@@ -1821,7 +1821,6 @@ function createSlot(slotKey){
     const leaf = P.els.find(e => e.leaf);
     if (!leaf) return;
     const shown = STOREY.doorShown(P.pc), sw = HOUSE.openingSwing(P.pc, rooms, P.pc.override || null), t = STOREY.doorTypeOf(P.pc, rooms);
-    if (t.guessed && len > STOREY.GARAGE_DOOR_M) t.type = "overhead";              // as a garage door was
     const at = STOREY.shownAt(t.type, shown);                // ajar: its swing at 70°, a slider half way, a garage door a quarter up
     P.open = { bar: P.pc.barrier, eid: null, kind: "door", leaf, len, hinge: sw.hinge, side: sw.side, garage: false, state: null, shown, t,
                at, to: at, max: STOREY.DOOR_ANGLE_DEG[shown] * D2R, from: 0, t0: 0, flash: null, still: true };
@@ -1842,14 +1841,10 @@ function createSlot(slotKey){
     const im = new THREE.InstancedMesh(shared.prim.box, mat(spec), n);
     im.userData.spec = spec;
     im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false;
-    for (const P of F.pieces) {
-      const o = P.open;
-      if (!o || !o.slots) continue;
-      panelsOf(F, P, 0).forEach((q, i) => im.setColorAt(o.slots[0] + i, _c.set(STOREY.panelColour(q))));
-    }
     shellRes.push({ dispose: () => im.dispose() });
     F.group.add(im);
     F.panels = im;
+    for (const P of F.pieces) if (P.open && P.open.slots) tintPanels(F, P, P.open.state === "none");
   }
   function panelsOf(F, P, a){
     const o = P.open;
@@ -1892,13 +1887,25 @@ function createSlot(slotKey){
     const first = o.coverKey === undefined;
     o.coverKey = key;
     o.state = c.none ? "none" : c.moving || c.at > 0.005 ? "open" : "closed";
-    const to = c.moving ? (c.moving > 0 ? 1 : 0) : c.at;
+    // No reading is neither open nor shut: it stays where it was, greyed.
+    const to = c.none ? o.at : c.moving ? (c.moving > 0 ? 1 : 0) : c.at;
     if (first) { o.at = o.to = to; }
     else { o.from = o.at; o.to = to; o.t0 = performance.now(); o.ms = Math.max(300, Math.abs(to - o.at) * (c.moving ? STOREY.COVER_TRAVEL_MS : STOREY.COVER_STEP_MS)); }
     const e = o.leaf;
-    if (e && !o.slots) { e.mesh.setColorAt(e.i, _c.set(c.none ? NO_READING : e.col)); e.mesh.instanceColor.needsUpdate = true; }
+    if (o.slots) tintPanels(F, P, c.none);
+    else if (e) { e.mesh.setColorAt(e.i, _c.set(c.none ? NO_READING : e.col)); e.mesh.instanceColor.needsUpdate = true; }
     placePiece(F, P, !!P.cut);
     return true;
+  }
+  // A door of a type draws its own panels in place of the leaf, so the
+  // Atlas's grey for no reading goes on them (as on a hinged leaf), and
+  // each panel's own colour comes back with a reading.
+  function tintPanels(F, P, none){
+    const o = P.open, im = F.panels;
+    if (!im || !o.slots) return;
+    const list = panelsOf(F, P, 0);
+    for (let i = 0; i < o.slots[1]; i++) im.setColorAt(o.slots[0] + i, _c.set(none ? NO_READING : STOREY.panelColour(list[i] || {})));
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
   }
   // The leaf at o.at (0 shut, 1 open), eased: about its hinge, or up into
   // its head for a garage door. Shut, it is exactly the piece's own place.
@@ -1943,17 +1950,20 @@ function createSlot(slotKey){
     let changed = false;
     for (const { F, P } of openings) {
       const o = P.open, dl = lbe[o.eid];
+      if (o.lock && paintLock(F, P)) changed = true;           // a lock linked to the door, whatever drives it
       if (o.cover) { if (paintCoverDoor(F, P)) changed = true; continue; }
-      if (o.lock && paintLock(F, P)) changed = true;
       if (o.kind === "door" && dl && dl.device_class === "garage_door" && !o.t) o.garage = true;
       const st = HOUSE.openingState(o.bar, dl);
       if (st === o.state) continue;
       const first = o.state === null;
       if (st === "unlocked") o.liveUntil = performance.now() + LIVE_MS;   // a flash just started
       o.state = st;
-      o.to = st === "open" ? 1 : 0;
+      // No reading: a door of a type stays where it was, greyed (a hinged
+      // leaf still shuts grey, as it always has).
+      o.to = st === "none" && o.slots ? o.at : st === "open" ? 1 : 0;
       if (first || !o.leaf) o.at = o.to;                   // the first look is how it is, not a swing (a gap never swings)
       else { o.from = o.at; o.t0 = performance.now(); o.ms = o.t && STOREY ? STOREY.moveMs(o.t.type) : SWING_MS; }   // a swing, timed on the clock (animateLive)
+      if (o.slots) tintPanels(F, P, st === "none");
       const e = o.leaf || o.sill;
       e.mesh.setColorAt(e.i, _c.set(st === "none" ? NO_READING : !o.leaf && st !== "open" ? SHUT_LINE : e.col));
       e.mesh.instanceColor.needsUpdate = true;
@@ -3980,7 +3990,10 @@ function createSlot(slotKey){
                                                                                                      type: P.open.t ? P.open.t.type : null, guessed: !!(P.open.t && P.open.t.guessed),
                                                                                                      panels: P.open.slots ? P.open.slots[1] : 0 }))),
                // Part B: the live parts and the taps.
-               openings: openings.map(({ P }) => ({ eid: P.open.eid, kind: P.open.kind, state: P.open.state, at: P.open.at, to: P.open.to,
+               openings: openings.map(({ F, P }) => ({ eid: P.open.eid, kind: P.open.kind, state: P.open.state, at: P.open.at, to: P.open.to,
+                                                     // a door of a type: its panels' colours as drawn
+                                                     panelCols: P.open.slots && F.panels && F.panels.instanceColor
+                                                       ? Array.from({ length: P.open.slots[1] }, (_, i) => "#" + _c.fromArray(F.panels.instanceColor.array, (P.open.slots[0] + i) * 3).getHexString()) : null,
                                                      garage: P.open.garage, hinge: P.open.hinge, side: P.open.side, cut: !!P.cut,
                                                      type: P.open.t ? P.open.t.type : null, cover: !!P.open.cover, panels: P.open.slots ? P.open.slots[1] : 0,
                                                      ms: P.open.ms || null, lock: P.open.lockState || null })),

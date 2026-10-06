@@ -222,14 +222,17 @@ await tryCase("types: PadSpan's first guess, and the stored type over it", () =>
   const rooms = [room("Garage", 0, 0, 6, 6), room("Hall", 6.1, 0, 9, 6), room("Bedroom Closet", 0, 6.1, 3, 8)];
   const pc = (o) => ({ x0: 1, y0: 0, x1: 3.6, y1: 0, nx: 0, ny: 1, cls: "ext", mat: null, barrier: null, ...o });
   const g = (o) => DT.guessDoorType(pc(o), rooms).type;
-  const got = { garage: g({}), narrowGarage: g({ x1: 3 }), glass: g({ x0: 6.5, x1: 7.4, mat: "glass" }),
+  const got = { garage: g({}), narrowGarage: g({ x1: 2 }), glass: g({ x0: 6.5, x1: 7.4, mat: "glass" }),
                 patio: g({ x0: 6.5, x1: 7.4, barrier: { name: "Patio door" } }), closet: g({ x0: 0.5, x1: 1.7, y0: 6.05, y1: 6.05, cls: "int" }),
                 double: g({ x0: 6.5, x1: 8.1, cls: "int" }), hinged: g({ x0: 6.5, x1: 7.4, cls: "int" }) };
+  Object.assign(got, { wide: g({ x0: 6.5, x1: 8.6, cls: "int" }), widePatio: g({ x0: 6.5, x1: 8.94, cls: "int", barrier: { name: "Patio door" } }),
+                      double185: g({ x0: 6.5, x1: 8.35, cls: "int" }), sensor: DT.guessDoorType(pc({ x0: 6.5, x1: 7.4, cls: "int" }), rooms, "garage_door").type });
   const stored = DT.doorTypeOf(pc({ override: { type: "barn", slide: "left", face: "out" } }), rooms);
   const guessed = DT.doorTypeOf(pc({}), rooms);
   check("types: PadSpan's first guess, and the stored type over it",
     got.garage === "overhead" && got.narrowGarage === "hinged" && got.glass === "sliding" && got.patio === "sliding" && got.closet === "bifold"
-    && got.double === "double" && got.hinged === "hinged" && stored.type === "barn" && !stored.guessed && stored.guess === "overhead"
+    && got.double === "double" && got.hinged === "hinged" && got.wide === "overhead" && got.widePatio === "sliding" && got.double185 === "double"
+    && got.sensor === "overhead" && stored.type === "barn" && !stored.guessed && stored.guess === "overhead"
     && stored.slide === "left" && stored.face === "out" && guessed.guessed && guessed.type === "overhead"
     && DT.doorTypeOf(pc({ x0: 6.5, x1: 7.4, mat: "glass" }), rooms).glass === true, { got, stored, guessed });
 });
@@ -461,6 +464,7 @@ LA.releaseLiveAboardSlot("house-model");
       { id: "bar_c0000001", name: "Side gate", material: "wood", floor_id: "main", points_m: [[7, 0], [8.2, 0]], linked_entity_id: "cover.side_gate" },
       { id: "bar_c0000002", name: "Door — Wall (Garage) (2)", material: "metal", floor_id: "main", points_m: [[0, 1.5], [0, 4.13]],
         linked_entity_id: "binary_sensor.truck_contact", invert_state: true, linked_opener_entity_id: "switch.truck_door" },
+      { id: "bar_c0000003", name: "Patio door", material: "wood", floor_id: "main", points_m: [[9, 3.2], [9, 5.64]] },
     ] };
   const door = (a, b, more = {}) => ({ kind: "door", floor_id: "main", a_m: a, b_m: b, head_m: 2.03, hinge: "left", swing: "in", ...more });
   const DFILE = { schema: 1, pieces: {}, lights: {}, devices: {}, figures: {}, openings: {
@@ -469,6 +473,7 @@ LA.releaseLiveAboardSlot("house-model");
     door_d0000003: door([0.5, 6.05], [1.7, 6.05], { shown: "ajar" }),
     door_d0000004: door([6.05, 2], [6.05, 3.6], { shown: "ajar" }),
     door_d0000005: door([6.5, 6], [8.5, 6], { type: "rollup", shown: "ajar" }),
+    door_d0000006: door([6.05, 4], [6.05, 5.85]),
   } };
   const ago = (ms) => new Date(Date.now() - ms).toISOString();
   const states = {
@@ -504,6 +509,15 @@ LA.releaseLiveAboardSlot("house-model");
       && bf && bf.type === "bifold" && bf.guessed && bf.panels === 2 && bf.at === 0.5
       && db && db.type === "double" && db.panels === 2 && db.at === 1 && db.deg === 70
       && ru && ru.type === "rollup" && !ru.guessed && ru.at === 0.25 && ds().liveMs === 0, { g, p, bf, db, ru, failed: ds().failed });
+  });
+  // One guess, PadSpan's (door_types.js guessDoorType), whatever its width:
+  // a 2.44 m patio door slides, a 1.85 m door between rooms is a double,
+  // and a door on a garage door sensor is an overhead door.
+  await tryCase("view: PadSpan's one guess: a wide patio door slides, a 1.85 m door is a double, a garage door sensor's is overhead", async () => {
+    const patio = still("bar_c0000003"), wide = still("door_d0000006"), truck = op("binary_sensor.truck_contact");
+    check("view: PadSpan's one guess: a wide patio door slides, a 1.85 m door is a double, a garage door sensor's is overhead",
+      patio && patio.type === "sliding" && patio.guessed && wide && wide.type === "double" && wide.guessed && truck && truck.type === "overhead",
+      { patio, wide, truck });
   });
   await tryCase("view: a door on a cover follows its position, moves while it opens, then is still: 0 frames at rest", async () => {
     states["cover.garage_door"] = { ...states["cover.garage_door"], state: "opening", attributes: { ...states["cover.garage_door"].attributes, current_position: 40 } };
@@ -608,6 +622,82 @@ LA.releaseLiveAboardSlot("house-model");
     check("view: a door something moves is one whose barrier card could move it", !bad.length, bad);
   });
   LA.releaseLiveAboardSlot("house-doors");
+}
+
+// ── a sensor read backwards, a lock on a gate, and no reading ───────────────
+// Garry's garage door as the map has it (2.63 m, a garage door contact that
+// reads backwards: invert_state) and a door the 3D file links to that same
+// sensor; a gate on a cover with a lock linked to it.
+{
+  const EMODEL = { floors: [{ id: "main", name: "Main" }],
+    room_geometry_m: { Garage: rect("main", 0, 0, 6, 6), Hall: rect("main", 6.1, 0, 9, 6) },
+    rf_barriers_m: [
+      { id: "bar_e0000001", name: "Door — Wall (Garage)", material: "metal", floor_id: "main", points_m: [[0, 1.5], [0, 4.13]],
+        linked_entity_id: "binary_sensor.car_contact", invert_state: true },
+      { id: "bar_e0000002", name: "Side gate", material: "wood", floor_id: "main", points_m: [[7, 0], [8.2, 0]],
+        linked_entity_id: "cover.gate", linked_lock_entity_id: "lock.gate" },
+    ] };
+  const door = (a, b, more = {}) => ({ kind: "door", floor_id: "main", a_m: a, b_m: b, head_m: 2.03, hinge: "left", swing: "in", ...more });
+  const EFILE = { schema: 1, pieces: {}, lights: {}, devices: {}, figures: {}, openings: {
+    door_e0000001: door([9, 1], [9, 1.9], { link: "binary_sensor.car_contact" }),
+    bar_e0000002: { type: "gate" },
+  } };
+  const states = {
+    "binary_sensor.car_contact": { entity_id: "binary_sensor.car_contact", state: "on", attributes: { device_class: "garage_door" } },
+    "cover.gate": { entity_id: "cover.gate", state: "open", attributes: { current_position: 60, device_class: "gate" } },
+    "lock.gate": { entity_id: "lock.gate", state: "unlocked", attributes: {} },
+  };
+  const ELBE = { "binary_sensor.car_contact": { entity_id: "binary_sensor.car_contact", state: "on", device_class: "garage_door" },
+                 "lock.gate": { entity_id: "lock.gate", state: "unlocked", isLock: true } };
+  const eapi = { toast(){}, toggle(){}, openRoom(){}, openFloor(){}, openControls(){}, openActivity(){}, controlsFor: () => null, lightsByEid: ELBE,
+                 hass: { states, callService: () => Promise.resolve() } };
+  const EP = () => ({ model: EMODEL, floors: EMODEL.floors, lightsByEid: ELBE, hidden: new Set(), topFloorIds: null, quality: "low",
+    telemetry: () => {}, onTouch: () => {}, states, config: {}, bearing: 0, saveNorth: async () => true, useApi: () => eapi, haStartedMs: 0,
+    load: async () => ({ data: clone(EFILE) }), edit: null });
+  const eslot = LA.liveAboardSlot("house-doors-e");
+  const epoll = () => { const c = document.createElement("div"); const stg = document.createElement("div"); c.appendChild(stg); document.body.replaceChildren(c); return eslot.attach(stg, EP()); };
+  epoll();
+  await later(10000, 60);
+  const es = () => eslot._state();
+  const ops = (eid) => es().openings.filter(o => o.eid === eid);
+  const GREY = "#64748b";
+  const setCar = (st) => { ELBE["binary_sensor.car_contact"] = { ...ELBE["binary_sensor.car_contact"], state: st }; states["binary_sensor.car_contact"] = { ...states["binary_sensor.car_contact"], state: st }; };
+
+  await tryCase("view: a door the 3D file links to a sensor reads it as the map does (backwards when the map says so)", async () => {
+    const shut = ops("binary_sensor.car_contact").map(o => o.state);
+    setCar("off");
+    epoll();
+    for (let i = 0; i < 30; i++) await later(100, 3);
+    const open = ops("binary_sensor.car_contact").map(o => o.state);
+    check("view: a door the 3D file links to a sensor reads it as the map does (backwards when the map says so)",
+      shut.length === 2 && shut.every(x => x === "closed") && open.every(x => x === "open"), { shut, open });
+  });
+  await tryCase("view: a lock linked to a door on a cover is shown on it", async () => {
+    const g = ops("cover.gate")[0];
+    check("view: a lock linked to a door on a cover is shown on it", g && g.lock === "unlocked", g);
+  });
+  await tryCase("view: a door of a type with no reading is the Atlas's grey, and stays where it was", async () => {
+    const before = ops("binary_sensor.car_contact")[0], gate0 = ops("cover.gate")[0];
+    setCar("unavailable");
+    states["cover.gate"] = { entity_id: "cover.gate", state: "unavailable", attributes: { device_class: "gate" } };
+    epoll();
+    await settle(3);
+    const going = { car: ops("binary_sensor.car_contact")[0], gate: ops("cover.gate")[0], liveMs: es().liveMs };
+    for (let i = 0; i < 30; i++) await later(100, 3);
+    const none = { car: ops("binary_sensor.car_contact")[0], gate: ops("cover.gate")[0] };
+    setCar("on");
+    states["cover.gate"] = { entity_id: "cover.gate", state: "closed", attributes: { current_position: 0, device_class: "gate" } };
+    epoll();
+    for (let i = 0; i < 30; i++) await later(100, 3);
+    const back = { car: ops("binary_sensor.car_contact")[0], gate: ops("cover.gate")[0] };
+    const grey = (o) => !!(o && o.panelCols && o.panelCols.length && o.panelCols.every(c => c === GREY));
+    check("view: a door of a type with no reading is the Atlas's grey, and stays where it was",
+      before.type === "overhead" && before.state === "open" && before.at === 1 && !grey(before) && near(gate0.at, 0.6) && !grey(gate0)
+      && going.car.state === "none" && going.car.to === 1 && going.gate.state === "none" && near(going.gate.to, 0.6) && going.liveMs === 0
+      && grey(none.car) && none.car.at === 1 && grey(none.gate) && near(none.gate.at, 0.6)
+      && back.car.state === "closed" && back.car.at === 0 && !grey(back.car) && back.gate.at === 0 && !grey(back.gate), { before, gate0, going, none, back });
+  });
+  LA.releaseLiveAboardSlot("house-doors-e");
 }
 
 console.log(JSON.stringify({ cases, failures }));
