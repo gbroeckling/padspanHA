@@ -30,6 +30,10 @@
 //                     two short lines to the nearest walls with how far they
 //                     are; "Stand on what's under it" (a lamp onto its table)
 //                     and "Hang on wall" at a chosen height. Each is one Undo.
+//                     Build ▾ → House → Stairs: a flight placed the same way,
+//                     its width and run, straight, L or U, which way it
+//                     turns and the floor it goes up to; its rise is always
+//                     the gap up to that floor (live_aboard_storey.js).
 //
 // Imports nothing: three.js, the rules (live_aboard_pieces.js) and the
 // builders (live_aboard_furniture.js — or null, and every piece is a box)
@@ -123,6 +127,8 @@ export function fitText(w, nameOf){
     case "blocks": return w.what === "side" ? `It blocks a side of the ${other}.` : `It blocks the front of the ${other}.`;
     case "blocked": return w.what === "side" ? `The ${other} blocks one of its sides.` : `The ${other} blocks its front.`;
     case "window": return "It is taller than the sill of the window behind it.";
+    case "landing": return `Its top doesn't land in a room on ${w.floor || "the floor above"}.`;
+    case "nofloor": return "There is no floor above it to go up to.";
     default: return "It may not fit here.";
   }
 }
@@ -147,10 +153,13 @@ export function createPieceLayer(ctx){
     const id = ctx.canon ? ctx.canon(fid) : String(fid);
     return ctx.floors().find(F => F.fl.id === id) || null;
   };
+  // What a piece is drawn from: its recipe (stairs: with the rise up to the
+  // floor they reach now, ctx.recipeOf).
+  const recipeOf = (p) => { try { return ctx.recipeOf ? ctx.recipeOf(p) || p.recipe : p.recipe; } catch (_) { return p.recipe; } };
   function body(p){
     const FURN = ctx.FURN ? ctx.FURN() : null;
     if (FURN && typeof FURN.buildPiece === "function") {
-      try { return { g: FURN.buildPiece(THREE, p.recipe, { quality: quality || "low" }), own: false }; } catch (_) { /* a box, below */ }
+      try { return { g: FURN.buildPiece(THREE, recipeOf(p), { quality: quality || "low" }), own: false }; } catch (_) { /* a box, below */ }
     }
     // No builders (or one that threw): a coloured box of its size.
     const s = PIECES.sizeOf(p.recipe), c = (p.recipe && Array.isArray(p.recipe.colors) && p.recipe.colors[0]) || "#9a8b78";
@@ -189,7 +198,7 @@ export function createPieceLayer(ctx){
     return true;
   }
   function dress(D, p){
-    const look = JSON.stringify(p.recipe) + "|" + quality;
+    const look = JSON.stringify(recipeOf(p)) + "|" + quality;
     if (D.look === look && D.body) return false;
     dropBody(D);
     D.body = body(p);
@@ -242,7 +251,8 @@ export function createPieceLayer(ctx){
     state(){
       return [...drawn.entries()].map(([id, D]) => ({ id, floor: D.F ? D.F.fl.id : null, shown: !!(D.F && D.F.group.visible),
         at: D.root.position.toArray().map(v => Math.round(v * 1000) / 1000), yaw: Math.round(D.root.rotation.y * 1000) / 1000,
-        box: !!(D.body && D.body.own), blob: !!(D.blob && D.blob.visible), shadows: !!(D.body && D.body.g.children.some(o => o.castShadow)) }));
+        box: !!(D.body && D.body.own), blob: !!(D.blob && D.blob.visible), shadows: !!(D.body && D.body.g.children.some(o => o.castShadow)),
+        h: D.body && D.body.g.userData && D.body.g.userData.size ? D.body.g.userData.size.h : null }));
     },
     dispose(){
       for (const id of [...drawn.keys()]) remove(id);
@@ -373,7 +383,7 @@ export function createFurnish(ctx){
     const c = cur(), others = Object.values((c && c.pieces) || {}).filter(o => o.floor_id === p.floor_id && o.id !== p.id);
     return { walls, doors, others };
   }
-  const checksOf = (p) => PIECES.fitChecks(p, sceneOf(p));
+  const checksOf = (p) => PIECES.fitChecks(p, sceneOf(p)).concat(stairChecks(p));
   const nameOf = (id) => { const p = pieceOf(id); return p ? pieceName(p, FURN()).toLowerCase() : "piece"; };
 
   // ── adding ────────────────────────────────────────────────────────────────
@@ -416,6 +426,7 @@ export function createFurnish(ctx){
         if (item.library_id) p.library_id = item.library_id;
         p.z_m = num(p.z_m) ?? 0;
         inRange(p.recipe);
+        stairFix(p);                                    // stairs: up to the floor above, their rise its gap
         const PF = floorById(p.floor_id);              // under its floor's ceiling, as every other way in keeps it
         if (PF) p.z_m = PIECES.clampZ(p.z_m, ceilOf(PF), PIECES.sizeOf(p.recipe).h);
         c.pieces[p.id] = p;
@@ -447,6 +458,11 @@ export function createFurnish(ctx){
       if (!ks.length) continue;
       menu.appendChild(d("h5", null, title));
       for (const k of ks) menu.appendChild(btn(B.FURNITURE[k].name || k, `Add a ${B.FURNITURE[k].name || k}`, () => { closeMenu(); add([{ recipe: recipeFor(k) }]); }));
+    }
+    // The house itself: stairs (not furniture; never offered by a photo or an import).
+    if (B && B.FURNITURE && B.FURNITURE.stairs && ctx.STOREY) {
+      menu.appendChild(d("h5", null, "House"));
+      menu.appendChild(btn("Stairs", "Stairs up to the floor above: straight, L or U", () => { closeMenu(); add([{ recipe: recipeFor("stairs") }]); }));
     }
     menu.appendChild(d("h5", null, "Other"));
     menu.appendChild(btn("Box", "A plain box of any size: anything with no builder of its own", () => { closeMenu(); add([{ recipe: recipeFor(boxKind) }]); }));
@@ -585,7 +601,9 @@ export function createFurnish(ctx){
     // Size.
     el.appendChild(d("div", "la3d-sec", "Size"));
     const S = PIECES.sizeOf(p.recipe), lim = (k, i, dflt) => (spec && spec.size && Array.isArray(spec.size[k]) ? spec.size[k][i] : dflt);
-    for (const [k, label, name] of [["width_m", "W", "Width"], ["depth_m", "D", "Depth"], ["height_m", "H", "Height"]]) {
+    const stairs = !!(ctx.STOREY && ctx.STOREY.isStairs(p));     // their height is the rise: never set by hand
+    for (const [k, label, name] of stairs ? [["width_m", "Width", "Width"], ["depth_m", "Run", "Run"]]
+      : [["width_m", "W", "Width"], ["depth_m", "D", "Depth"], ["height_m", "H", "Height"]]) {
       const lo = Math.max(PIECES.SIZE_MIN_M, lim(k, 0, PIECES.SIZE_MIN_M)), hi = Math.min(PIECES.SIZE_MAX_M, lim(k, 1, k === "height_m" ? 3 : 4));
       const v = k === "width_m" ? S.w : k === "depth_m" ? S.d : S.h;
       el.appendChild(slider(label, Math.min(lo, v), Math.max(hi, v), 0.01, v, metres, (val, g) => edit((q) => {
@@ -596,8 +614,11 @@ export function createFurnish(ctx){
     }
     // The builder's own settings, and its colours.
     const params = spec && Array.isArray(spec.params) ? spec.params : [];
-    if (params.length) el.appendChild(d("div", "la3d-sec", "Style"));
-    for (const pr of params) el.appendChild(paramRow(p, pr));
+    if (stairs) stairRows(el, p, spec);
+    else {
+      if (params.length) el.appendChild(d("div", "la3d-sec", "Style"));
+      for (const pr of params) el.appendChild(paramRow(p, pr));
+    }
     const names = spec && Array.isArray(spec.colorNames) && spec.colorNames.length ? spec.colorNames : (p.recipe.colors || []).map((_, i) => `Colour ${i + 1}`);
     if (names.length) {
       const cols = d("div", "la3d-cols");
@@ -640,7 +661,7 @@ export function createFurnish(ctx){
     const floorRow = d("div", "la3d-acts");
     floorRow.append(seg(bUp, bDown), d("span", "la3d-sub", F ? `On ${F.fl.name}` : "Its floor is gone"));
     el.appendChild(floorRow);
-    if (F) {
+    if (F && !stairs) {
       // Its bottom above its floor, up to the ceiling less its own height:
       // on a shelf, on a table, on a wall.
       el.appendChild(d("div", "la3d-sec", "Height in room"));
@@ -684,6 +705,78 @@ export function createFurnish(ctx){
     }
     el.classList.add("on");
     return true;
+  }
+  // ── stairs ──────────────────────────────────────────────────────────────
+  /** The floors a flight on `fid` may go up to, and where this one goes. */
+  const floorList = () => ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, h: G.fl.h, outdoor: G.fl.outdoor, name: G.fl.name }));
+  const reachOf = (q) => ctx.STOREY.stairReach(q.floor_id, q.recipe && q.recipe.params && q.recipe.params.to_floor, floorList());
+  /** Stairs go up to the floor named, or the next one up (kept named, so a
+   *  floor added later in between changes nothing), and their height is
+   *  the gap: `moved` (a floor ▲ / ▼) picks the next one up from the new floor. */
+  function stairFix(q, moved = false){
+    if (!ctx.STOREY || !ctx.STOREY.isStairs(q)) return;
+    const params = { ...(q.recipe.params || {}) };
+    if (moved) delete params.to_floor;
+    q.recipe.params = params;
+    const r = reachOf(q);
+    if (r.to) q.recipe.params.to_floor = r.to.id; else delete q.recipe.params.to_floor;
+    q.recipe.height_m = r.rise;
+    q.z_m = 0;
+  }
+  /** Stairs' own checks, warnings like every fit check: no floor above to
+   *  go up to, or a top that lands in no room on the floor reached. */
+  function stairChecks(p){
+    const B = FURN();
+    if (!ctx.STOREY || !ctx.STOREY.isStairs(p) || !B || typeof B.stairFlights !== "function") return [];
+    const r = reachOf(p);
+    if (!r.to) return r.from ? [{ kind: "nofloor" }] : [];
+    const S = PIECES.sizeOf(p.recipe), L0 = B.stairFlights({ w: S.w, d: S.d, h: r.rise }, p.recipe.params || {});
+    // A step past the top, on the plan.
+    const u = PIECES.acrossOf(p.rotation), v = PIECES.frontOf(p.rotation), lx = L0.exit.x + L0.exit.dx * 0.3, lz = L0.exit.z + L0.exit.dz * 0.3;
+    const x = (num(p.x_m) ?? 0) + u[0] * lx + v[0] * lz, y = (num(p.y_m) ?? 0) + u[1] * lx + v[1] * lz;
+    const up = ctx.floors().filter(G => !G.fl.outdoor && Math.abs(G.fl.elev - r.to.elev) <= 1e-3);
+    const lands = up.some(G => G.rooms.some(rm => !rm.outdoor && Array.isArray(rm.pts) && rm.pts.length >= 3 && ctx.HOUSE.inPoly(x, y, rm.pts)));
+    return lands ? [] : [{ kind: "landing", floor: r.to.name || null }];
+  }
+  /** The stairs' panel: straight, L or U, which way they turn, the floor they go up to. */
+  function stairRows(el, p, spec){
+    el.appendChild(d("div", "la3d-sec", "Stairs"));
+    const params = p.recipe.params || {}, r = reachOf(p);
+    const shapeP = spec && Array.isArray(spec.params) ? spec.params.find(x => x.key === "shape") : null;
+    const set = (patch) => {
+      if (!edit((q) => {
+        q.recipe.params = { ...(q.recipe.params || {}), ...patch };
+        const sz = patch.shape && shapeP && shapeP.sizes ? shapeP.sizes[patch.shape] : null;
+        if (sz) for (const k of ["width_m", "depth_m"]) if (num(sz[k]) !== null) q.recipe[k] = sz[k];
+        tidyRecipe(q);
+        stairFix(q);
+      })) return;
+      ctx.redraw(); sheet();
+    };
+    const pick = (label, key, opts, cur) => {
+      const s2 = d("span", "lv-zoomseg");
+      for (const [v, text] of opts) {
+        const b = btn(text, `${label}: ${text}`, () => set({ [key]: v }));
+        b.setAttribute("aria-pressed", String(cur === v));
+        s2.appendChild(b);
+      }
+      const r2 = d("div", "la3d-acts");
+      r2.append(d("span", "la3d-sub", label), s2);
+      el.appendChild(r2);
+    };
+    const shape = ["straight", "l", "u"].includes(params.shape) ? params.shape : "straight";
+    pick("Shape", "shape", [["straight", "Straight"], ["l", "L"], ["u", "U"]], shape);
+    if (shape !== "straight") pick("Turns", "turn", [["left", "Left"], ["right", "Right"]], params.turn === "right" ? "right" : "left");
+    const from = r.from ? r.from.elev : null, ups = floorList().filter(f => !f.outdoor && from !== null && f.elev > from + 0.05);
+    if (ups.length > 1) {
+      const sel2 = d("select", "la3d-fin");
+      for (const f of ups) { const o = d("option", null, f.name); o.value = f.id; sel2.appendChild(o); }
+      sel2.value = r.to ? r.to.id : ups[0].id;
+      sel2.addEventListener("change", guard(() => set({ to_floor: sel2.value })));
+      el.appendChild(row("Up to", sel2));
+    }
+    el.appendChild(d("p", "la3d-sub", r.to ? `Up ${metres(r.rise)} to ${r.to.name || r.to.id}: always as high as the floor it reaches.`
+      : "There is no floor above: it goes up as high as its own floor."));
   }
   function tidyRecipe(q){
     const B = FURN();
@@ -890,7 +983,7 @@ export function createFurnish(ctx){
     const floors = ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, outdoor: G.fl.outdoor }));
     const to = PIECES.floorStep(floors, p.floor_id, dir), F = to && floorById(to);
     if (!F) return;
-    if (!edit((q) => { q.floor_id = to; q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h); })) return;
+    if (!edit((q) => { q.floor_id = to; stairFix(q, true); q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h); })) return;
     ctx.setTopFloor(to);                              // the view follows it, so you see where it went
     ctx.redraw();
     ctx.hint(`Moved ${towards(from, F, dir)} ${F.fl.name}.`);

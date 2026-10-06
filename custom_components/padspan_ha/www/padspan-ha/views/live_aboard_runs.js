@@ -272,14 +272,14 @@ const realCorner = (loop, i) => {
 /** "Round this room": the room's walls at height h as one closed loop, with
  *  the stretches past each door (and window, if asked) only wire. A door
  *  is a gap only where the run is lower than its head; a window only where
- *  the run crosses its glass. openings: [{kind: "door" | "window" | "open",
+ *  the run crosses its glass. openings: [{kind: "door" | "window" | "open" | "doorway",
  *  a: [x, y], b: [x, y], sill, head}] (the floor's wall pieces).
  *  {run} or {error}. */
 export function roundRoom(loop, h, openings, opts = {}){
   if (!loop || loop.length < 3) return { error: "That room has no walls to go round." };
   const { cum, P } = perimeter(loop), cuts = [];
   for (const o of openings || []) {
-    const door = o.kind === "door" || o.kind === "open";
+    const door = o.kind === "door" || o.kind === "open" || o.kind === "doorway";
     if (door ? !(opts.doors ?? true) || h >= (num(o.head) ?? 2.03) : o.kind !== "window" || !opts.windows
         || h <= (num(o.sill) ?? 0.9) || h >= (num(o.head) ?? 2.1)) continue;
     const A = sOf(loop, o.a[0], o.a[1]), B = sOf(loop, o.b[0], o.b[1]);

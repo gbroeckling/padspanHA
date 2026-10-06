@@ -239,6 +239,17 @@ export const FURNITURE = {
       bool("antenna", "Antenna", false, { sizes: { true: { height_m: 0.11 } } }),
     ]),
   other: kind("Box", "furniture", "other", null, ["Colour"], [BOX_COLOR], BOX_SIZE, []),
+  // Stairs (group "house": Furnish's Build ▾ lists them under House, not the
+  // furniture; the photo and import flows never offer them). Width and depth
+  // are the footprint; the height is the rise, which the view always draws
+  // as the gap up to the floor reached (params.to_floor: that floor's id,
+  // kept with the shape and the turn; stairFlights lays the steps out).
+  stairs: kind("Stairs", "house", "other", null, ["Treads", "Sides", "Rail"], ["#8b6a4f", "#e8e2d6", "#3d3a36"],
+    sz([0.6, 4, 0.95], [0.6, 8, 3.6], [0.3, 8, 2.8]), [
+      choice("shape", "Shape", ["straight", "l", "u"], "straight", { sizes: {
+        straight: { width_m: 0.95, depth_m: 3.6 }, l: { width_m: 2.0, depth_m: 3.0 }, u: { width_m: 2.0, depth_m: 2.9 } } }),
+      choice("turn", "Turns", ["left", "right"], "left"),
+    ]),
 };
 
 // The Build menu, in order. Tags and scanners (groups "tag" and "scanner")
@@ -662,6 +673,92 @@ function makeKit(THREE, quality, root){
 // C its colours, parts the live parts it fills in.
 const L = (c, f = "plain") => ({ c, f });
 const LEG_WOOD = "#5e4431", LEG_DARK = "#2f2621", METAL = "#b9bec3";
+
+// ── stairs ───────────────────────────────────────────────────────────────────
+// Climbing from the front (+z) toward the back (−z) of the footprint. A
+// straight flight fills it; an L runs up one side, across a landing in the
+// back corner and along the back toward its turn; a U runs up one half,
+// across a landing the whole width, and back down the plan on the other
+// half. Each riser at most STAIR_RISER_M; the last one steps onto the
+// floor above, at the footprint's edge (where the view cuts its opening).
+export const STAIR_RISER_M = 0.19, STAIR_RAIL_M = 0.9;
+/** The steps, as numbers, in the piece's own frame (x across, z to the
+ *  front, y up; metres): {risers, riser, steps: [{x0, z0, x1, z1, h}] (each
+ *  a block from the floor up to h), landings (the same), rails: [[a, b]]
+ *  ([x, y, z] each), exit: {x, z, dx, dz} (where you step off at the top,
+ *  and which way), path: [[x, y, z]] (up the middle, bottom to top)}. */
+export function stairFlights(S, p){
+  const W = Math.max(0.3, S.w), D = Math.max(0.3, S.d), R = Math.max(0.05, S.h);
+  const shape = p && (p.shape === "l" || p.shape === "u") ? p.shape : "straight", sx = p && p.turn === "right" ? -1 : 1;
+  const N = Math.max(2, Math.ceil(R / STAIR_RISER_M - 1e-9)), r = R / N;
+  const steps = [], landings = [], rails = [], path = [];
+  // One flight: from s (its middle at the bottom) along d for L metres, w
+  // wide, n risers from height b; the last riser at its far end. rails: the
+  // sides (+1 left of d, -1 right) with a rail.
+  const flight = (s, d, L, w, n, b, railSides) => {
+    const across = [-d[1], d[0]], at = (t, a) => [s[0] + d[0] * t + across[0] * a, s[1] + d[1] * t + across[1] * a];
+    const ts = n >= 2 ? Array.from({ length: n }, (_, j) => L * j / (n - 1)) : [0, L];
+    const treads = n >= 2 ? n - 1 : 1;
+    for (let j = 0; j < treads; j++) {
+      const p0 = at(ts[j], -w / 2), p1 = at(ts[j + 1] ?? L, w / 2);
+      steps.push({ x0: Math.min(p0[0], p1[0]), z0: Math.min(p0[1], p1[1]), x1: Math.max(p0[0], p1[0]), z1: Math.max(p0[1], p1[1]), h: b + (j + 1) * r });
+    }
+    const top = b + treads * r;
+    // A rail STAIR_RAIL_M over the nosings, up to the floor above (it stops
+    // there: the stairs keep inside their box, whose height is the rise).
+    const y0 = b + r + STAIR_RAIL_M, y1 = top + STAIR_RAIL_M, t1 = L - 0.03;
+    const Rr = R - 0.03;                                   // the rail's round end stays under the top too
+    const tEnd = y1 > Rr ? Math.max(0.03, 0.03 + (t1 - 0.03) * (Rr - y0) / Math.max(1e-6, y1 - y0)) : t1;
+    if (y0 < Rr) {
+      for (const side of railSides) {
+        const a = at(0.03, side * (w / 2 - 0.04)), e = at(tEnd, side * (w / 2 - 0.04));
+        rails.push([[a[0], y0, a[1]], [e[0], y0 + (y1 - y0) * (tEnd - 0.03) / Math.max(1e-6, t1 - 0.03), e[1]]]);
+      }
+    }
+    const s0 = at(0, 0), s1 = at(L, 0);
+    path.push([s0[0], b, s0[1]], [s1[0], top, s1[1]]);
+    return top;
+  };
+  let exit;
+  if (shape === "straight") {
+    flight([0, D / 2], [0, -1], D, W, N, 0, [1, -1]);
+    exit = { x: 0, z: -D / 2, dx: 0, dz: -1 };
+  } else if (shape === "l") {
+    const f = Math.min(W, D) / 2, L1 = D - f, L2 = W - f;
+    const n1 = Math.min(N - 1, Math.max(1, Math.round(N * L1 / (L1 + L2)))), n2 = N - n1;
+    // Turning left (sx 1): up the right side, then along the back to the left.
+    flight([sx * (W / 2 - f / 2), D / 2], [0, -1], L1, f, n1, 0, [sx]);
+    landings.push({ x0: sx > 0 ? W / 2 - f : -W / 2, z0: -D / 2, x1: sx > 0 ? W / 2 : -W / 2 + f, z1: -D / 2 + f, h: n1 * r });
+    path.push([sx * (W / 2 - f / 2), n1 * r, -D / 2 + f / 2]);
+    flight([sx * (W / 2 - f), -D / 2 + f / 2], [-sx, 0], L2, f, n2, n1 * r, [sx]);
+    exit = { x: -sx * W / 2, z: -D / 2 + f / 2, dx: -sx, dz: 0 };
+  } else {
+    const f = Math.min(W / 2, D / 2), L1 = D - f;
+    const n1 = Math.min(N - 1, Math.max(1, Math.round(N / 2))), n2 = N - n1;
+    // Turning left (sx 1): up the right half, across the back, down the plan on the left half.
+    flight([sx * W / 4, D / 2], [0, -1], L1, W / 2, n1, 0, [sx]);
+    landings.push({ x0: -W / 2, z0: -D / 2, x1: W / 2, z1: -D / 2 + f, h: n1 * r });
+    path.push([sx * W / 4, n1 * r, -D / 2 + f / 2], [-sx * W / 4, n1 * r, -D / 2 + f / 2]);
+    flight([-sx * W / 4, -D / 2 + f], [0, 1], L1, W / 2, n2, n1 * r, [sx]);
+    exit = { x: -sx * W / 4, z: D / 2, dx: 0, dz: 1 };
+  }
+  path.push([exit.x, R, exit.z]);
+  return { risers: N, riser: r, rise: R, shape, steps, landings, rails, exit, path };
+}
+function buildStairs(K, S, p, C){
+  const L0 = stairFlights(S, p), tread = L(C[0], "wood"), side = L(C[1]), rail = L(C[2] || "#3d3a36", "metal");
+  const T = Math.min(0.035, L0.riser * 0.4);
+  for (const b of [...L0.steps, ...L0.landings]) {
+    const w = b.x1 - b.x0, d = b.z1 - b.z0;
+    if (w < 1e-3 || d < 1e-3 || b.h < 1e-3) continue;
+    K.box(w, Math.max(0.002, b.h - T), d, (b.x0 + b.x1) / 2, (b.h - T) / 2, (b.z0 + b.z1) / 2, side);
+    K.box(w, T, d, (b.x0 + b.x1) / 2, b.h - T / 2, (b.z0 + b.z1) / 2, tread);
+  }
+  for (const [a, b] of L0.rails) {
+    K.rod(a, b, 0.02, rail);
+    for (const q of [a, b]) K.rod([q[0], q[1] - STAIR_RAIL_M, q[2]], q, 0.015, rail);
+  }
+}
 
 function buildBox(K, S, p, C){
   K.box(S.w, S.h, S.d, 0, S.h / 2, 0, L(C[0]), Math.min(0.015, S.w / 4, S.d / 4, S.h / 4));
@@ -1516,7 +1613,7 @@ const BUILDERS = { sofa: buildSofa, bed: buildBed, table: buildTable, chair: bui
                    dryer: (K, S, p, C, parts) => buildLaundry(K, S, p, C, parts, true),
                    vacuum_dock: buildVacuumDock, mower_dock: buildMowerDock, car: buildCar, charger: buildCharger,
                    radiator: buildRadiator, fan: buildFan, speaker: buildSpeaker, tag: buildTag, scanner: buildScanner,
-                   other: buildBox };
+                   stairs: buildStairs, other: buildBox };
 
 // ── building and freeing ─────────────────────────────────────────────────────
 function build(THREE, quality, fn, S, p, C, meta){
