@@ -17,7 +17,11 @@ sims view." Held here:
 from __future__ import annotations
 
 import copy
+import importlib.util
 import json
+import shutil
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -243,16 +247,57 @@ def test_a_window_or_a_doorway_takes_no_door_type() -> None:
         H.apply_edit(H.empty(), {"openings": {"doorway_0a1b2c3d": {**_WAY, "type": "hinged"}}})
 
 
-def test_an_older_padspan_keeps_a_typed_door_it_saves_again() -> None:
-    """An older PadSpan does not own type, slide, face, panels, glass or link:
-    saving its own fields of a typed door keeps them (its keep-what-you-do-
-    not-own rule), and it draws the door hinged. Shown here with the same
-    rule: an entry's unowned keys stay through a save of the owned ones."""
-    old_owned = frozenset(("kind", "floor_id", "a_m", "b_m", "head_m", "hinge", "swing", "sill_m"))
-    typed = {**_DOOR, "type": "overhead", "link": "cover.garage_door"}
-    keep = {k: v for k, v in typed.items() if k not in old_owned}
-    assert keep == {"type": "overhead", "link": "cover.garage_door"}
-    # This version's own save of the barrier entry keeps a newer key it does not know.
+def _older_store(tmp_path):
+    """0.38.104's own house3d_store.py (main at 7e11ddad, the release before
+    this file knew doors of a type, doorways or stairs), byte for byte as
+    tests/fixtures holds it, imported from a temp copy into this package so
+    its own imports (.const, .safe_store) resolve."""
+    src = Path(__file__).parent / "fixtures" / "house3d_store_0_38_104.py.txt"
+    dst = tmp_path / "house3d_store_0_38_104.py"
+    shutil.copyfile(src, dst)
+    name = "custom_components.padspan_ha._house3d_store_0_38_104"
+    spec = importlib.util.spec_from_file_location(name, dst)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.modules.pop(name, None)
+    return mod
+
+
+def test_an_older_padspan_keeps_a_typed_door_it_saves_again(tmp_path) -> None:
+    """What 0.38.104 (its own apply_edit, run here) does with this file: it
+    is its own schema, so it reads and writes it; saving its own fields of a
+    typed door keeps type, link and shown (it keeps what it does not own),
+    and so does saving a map door's hinge; its Reset of a map door cannot
+    take the new keys out (they are not its to clear), only its own; a
+    doorway and the stairs are kept, and the stairs move; deleting a door
+    removes it whole."""
+    old = _older_store(tmp_path)
+    assert old.SCHEMA == H.SCHEMA == 1
+    typed = {**_DOOR, "type": "overhead", "link": "cover.garage_door", "shown": "ajar"}
+    new = H.apply_edit(H.empty(), {**_stairs(), "openings": {"door_0a1b2c3d": typed, "doorway_0a1b2c3d": _WAY,
+                                                             "bar_a71a3324": {"hinge": "right", "type": "sliding", "slide": "both", "glass": True}}})
+    assert old.writable(old.normalise(new))
+    out = old.apply_edit(new, {"openings": {"door_0a1b2c3d": {**_DOOR, "hinge": "right"}}})
+    assert out["openings"]["door_0a1b2c3d"] == {**typed, "hinge": "right"}
+    out = old.apply_edit(out, {"openings": {"bar_a71a3324": {"hinge": "left"}}})
+    assert out["openings"]["bar_a71a3324"] == {"hinge": "left", "type": "sliding", "slide": "both", "glass": True}
+    reset = old.apply_edit(out, {"openings": {"bar_a71a3324": None}})
+    assert reset["openings"]["bar_a71a3324"] == {"type": "sliding", "slide": "both", "glass": True}
+    assert reset["openings"]["doorway_0a1b2c3d"] == _WAY
+    moved = copy.deepcopy(new["pieces"]["fur_5a6b7c8d"])
+    moved["x_m"] = moved["x_m"] + 1
+    out = old.apply_edit(reset, {"pieces": {"fur_5a6b7c8d": moved}})
+    assert out["pieces"]["fur_5a6b7c8d"]["recipe"] == _STAIRS["recipe"] and out["pieces"]["fur_5a6b7c8d"]["x_m"] == moved["x_m"]
+    gone = old.apply_edit(out, {"openings": {"door_0a1b2c3d": None}})
+    assert "door_0a1b2c3d" not in gone["openings"]
+    # And this version reads back everything the older one saved.
+    assert H.normalise(out)["openings"]["door_0a1b2c3d"] == {**typed, "hinge": "right"}
+
+
+def test_this_version_keeps_a_newer_key_on_a_door_it_saves() -> None:
     base = H.apply_edit(H.empty(), {"openings": {"bar_a71a3324": {"type": "barn"}}})
     base["openings"]["bar_a71a3324"]["newer"] = 1
     out = H.apply_edit(base, {"openings": {"bar_a71a3324": {"type": "pocket"}}})
