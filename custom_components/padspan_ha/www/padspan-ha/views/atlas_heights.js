@@ -31,6 +31,7 @@ const HOUSE = await import(`./live_aboard_house.js${q}`);
 const DRAFT = await import(`./live_aboard_draft.js${q}`);
 const MARKS = await import(`./live_aboard_marks.js${q}`);
 const { deviceClassOf } = await import(`./light_codes.js${q}`);
+const { heightNow } = await import(`./lights_map.js${q}`);
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 /** A height as shown: "2.40 m". */
@@ -116,18 +117,10 @@ export function infoOf(l, lp, ceil, stored, shape, at){
   return { cls, kind, what, section, ceil, top, dflt, spots };
 }
 
-/** A placed device's height as Mapping has it now (z_m, or null for its
- *  default), as Live Aboard draws it: the Height row's unsaved one (a draft
- *  entry it marked _z) first, else its record's when decided (a height, or
- *  Default chosen: null), else the 3D file's (one never set on the record:
- *  Live Aboard still reads it there). */
-export function heightNow(eid, committed, draft, file, section){
-  const d = draft && draft[eid];
-  if (d && d._z) return num(d.z_m);
-  const c = (committed || {})[eid];
-  if (c && typeof c === "object" && Object.prototype.hasOwnProperty.call(c, "z_m")) return num(c.z_m);
-  return num((((file || {})[section] || {})[eid] || {}).z_m);
-}
+/** A placed device's height as Mapping has it now (lights_map.js heightNow,
+ *  the hover box's too): the Height row's unsaved one, else its record's,
+ *  else the 3D file's; null for its default. */
+export { heightNow };
 
 /** The Heights list's rows: every placed device (a door or window sensor
  *  aside), each {eid, label, room, floorId, floorName, z (null: its

@@ -27,7 +27,7 @@ const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
-        isOutdoorFloorId, wireHoverHud, heightOfRecord, pressRing, HOLD_MS, PRESS_RING_MS,
+        isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
@@ -566,7 +566,7 @@ function _heightsFile(ctx, mapState) {
 export function _draftOverRecords(committed, draft) {
   const out = { ...committed };
   for (const [eid, e] of Object.entries(draft || {})) {
-    const { _z, ...rest } = e;
+    const { _z, _zOnly, ...rest } = e;
     if (!_z) {
       const z = (committed[eid] || {}).z_m;
       if (z === undefined) delete rest.z_m; else rest.z_m = z;
@@ -574,6 +574,21 @@ export function _draftOverRecords(committed, draft) {
     out[eid] = rest;
   }
   return out;
+}
+// A placement as the draft holds it, its height (and draft-only marks) aside.
+const _placeOf = (e) => JSON.stringify(Object.keys(e || {}).filter((k) => !["z_m", "_z", "_zOnly", "source"].includes(k))
+  .sort().map((k) => [k, e[k]]));
+// A height alone: the entry the Height row made from a saved record
+// (_zOnly: that record's placement) while nothing else of it has changed.
+// Save placements sends it with fabric_light_height_set, the height only:
+// x, y and looks stay as saved, even if another screen moved it meanwhile.
+const _heightOnly = (e) => !!e && !!e._zOnly && e._zOnly === _placeOf(e);
+// The hover box's "2.40 m up": the Heights list's own row (rowsOf, through
+// heightNow: the Height row's unsaved height, the record's, then the 3D
+// file's), shown as the list shows it; nothing while it uses a default.
+export function _hoverHeight(mapState, eid) {
+  const r = ((mapState && mapState._heightRows) || []).find((x) => x.eid === eid);
+  return r && r.z !== null ? Math.min(r.z, r.top) : null;
 }
 // Heights into the placement draft: one step, one Undo. zOf(row) is each
 // one's new height (null: its default); one already there is left alone.
@@ -590,7 +605,9 @@ function _setHeights(ctx, mapState, rows, eids, zOf) {
   }
   if (!next.size) return;
   _pushUndo(mapState, [...next.keys()]);
-  for (const [e, z] of next) draft[e] = { ...(draft[e] || committed[e]), z_m: z, _z: true };
+  for (const [e, z] of next) {
+    draft[e] = draft[e] ? { ...draft[e], z_m: z, _z: true } : { ...committed[e], z_m: z, _z: true, _zOnly: _placeOf(committed[e]) };
+  }
   ctx.actions.renderRooms();
 }
 
@@ -8176,7 +8193,7 @@ function _wireHoverHud(ctx, isoDiv, svg, o) {
     stackHint: "Alt+click cycles through the stack · right-click lists everything here",
     roomLine: (room, n) => `${room} — selects its ${n} device${n === 1 ? "" : "s"}`,
     // Its height for Live Aboard, once it has one (Live Aboard on at Pro).
-    heightOf: _heightsOn(ctx) ? (eid) => heightOfRecord(o.model, eid) : null,
+    heightOf: _heightsOn(ctx) ? (eid) => _hoverHeight(o.mapState, eid) : null,
   });
 }
 
@@ -8987,7 +9004,16 @@ function _lightsTab(ctx, maps, active) {
         // user to retry and re-send it.
         let saved = 0;
         try {
+          // A height alone (the Height row's, nothing else changed) goes
+          // with the height command, all in one write after the placements:
+          // never the whole record, which would put back a place copied when
+          // the height was set (another screen may have moved it since).
+          const heightsOnly = {};
           for (const eid of dirtyEids) {
+            const d = mapState._lightsDraftM[eid];
+            if (_heightOnly(d)) heightsOnly[eid] = d.z_m === undefined ? null : d.z_m;
+          }
+          for (const eid of dirtyEids.filter((e) => !(e in heightsOnly))) {
             // "source" (provenance: manual/auto) is a draft-only, pre-save
             // signal — the backend schema has no field for it and a stray
             // extra key fails the whole call. It exists to draw the
@@ -8997,11 +9023,16 @@ function _lightsTab(ctx, maps, active) {
             // A height (z_m) goes only when the Height row set it (_z, draft-only
             // too): left out, the record keeps the one it has (a move never
             // wipes a height, nor sends back an old copy of one).
-            const { source, _z, ...lp } = mapState._lightsDraftM[eid];
+            const { source, _z, _zOnly, ...lp } = mapState._lightsDraftM[eid];
             if (!_z) delete lp.z_m;
             await ctx.actions.wsCall("padspan_ha/fabric_light_position_set", { entity_id: eid, ...lp });
             delete mapState._lightsDraftM[eid];
             saved++;
+          }
+          if (Object.keys(heightsOnly).length) {
+            await ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights: heightsOnly });
+            for (const eid of Object.keys(heightsOnly)) delete mapState._lightsDraftM[eid];
+            saved += Object.keys(heightsOnly).length;
           }
           await ctx.actions.modelRefresh();
           _undoStack(mapState).clear();   // what is committed is not undoable from here
@@ -9521,9 +9552,10 @@ function _lightsTab(ctx, maps, active) {
       // gate), then the map read again so both views have them.
       heights: paid && !preview ? (heights) => ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })
         .then((r) => { Promise.resolve(ctx.actions.modelRefresh()).catch(() => {}); return r; }) : null,
-      // The devices with a saved placement: a height lives on its record; one
-      // dropped here and not yet saved has none (its height goes to the 3D file).
-      placed: () => Object.keys(ctx.state.model?.light_positions_m || {}),
+      // The placement records as saved: a height lives on its record; a
+      // device dropped here and not yet saved has none (its height is the 3D
+      // file's), and this tab's unsaved Height-row values are not saved ones.
+      records: () => ctx.state.model?.light_positions_m || {},
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
     isolux: mapState._lightsIsolux === undefined
@@ -9901,7 +9933,7 @@ function _lightsTab(ctx, maps, active) {
   // Heights for Live Aboard (views/atlas_heights.js): the inspector's Height
   // row and the Heights list, only while Live Aboard is on at Pro.
   const HT = paid && !preview && _heightsOn(ctx) ? _heightsTool(ctx) : null;
-  const heightRows = HT ? HT.rowsOf({ model: ctx.state.model, draft: mapState._lightsDraftM, lightsByEid, floors,
+  const heightRows = mapState._heightRows = HT ? HT.rowsOf({ model: ctx.state.model, draft: mapState._lightsDraftM, lightsByEid, floors,
                                       file: _heightsFile(ctx, mapState), shapes: shapeOverrides }) : null;
 
   // ── Selected-light inspector — the build tools for one light ────────────
@@ -10068,14 +10100,20 @@ function _lightsTab(ctx, maps, active) {
       const hRow = heightRows && heightRows.find((r) => r.eid === sel.eid);
       if (hRow) insp.appendChild(HT.heightRow(el, hRow, (z) => _setHeights(ctx, mapState, heightRows, [sel.eid], () => z)));
 
+      // A height lives only beside its placement (fabric_store), so Auto
+      // position takes a saved one with it: said on the button and after.
+      const zGone = ((ctx.state.model?.light_positions_m || {})[sel.eid] || {}).z_m;
+      const zWords = typeof zGone === "number" ? `its height for Live Aboard (${zGone.toFixed(2)} m)` : null;
       insp.appendChild(el("button", {
         class: "lv-act",
+        title: zWords ? `Back to automatic placement in its room; ${zWords} is cleared too` : null,
         onclick: async () => {
           // Un-place it: back to automatic clustering in its room.
           delete (mapState._lightsDraftM || {})[sel.eid];
           try {
             await ctx.actions.wsCall("padspan_ha/fabric_light_remove", { entity_id: sel.eid });
             await ctx.actions.modelRefresh();
+            if (zWords) ctx.toast(`Back to auto position; ${zWords} was cleared too`);
           } catch (err) { ctx.toast("Failed: " + (err.message || err), true); }
           mapState._selLight = { eid: sel.eid, mapId: null };
           ctx.actions.renderRooms();

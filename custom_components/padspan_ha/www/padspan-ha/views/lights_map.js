@@ -988,11 +988,21 @@ function _tapAgain(eid, e){
   _lastTap = again ? null : { eid, t, x: e.clientX, y: e.clientY };
   return again;
 }
-/** A placed device's height above its floor from its placement record
- *  (light_positions_m[eid].z_m, Live Aboard's), or null when it has none. */
-export function heightOfRecord(model, eid){
-  const z = (((model && model.light_positions_m) || {})[eid] || {}).z_m;
-  return typeof z === "number" && Number.isFinite(z) ? z : null;
+/** A placed device's height above its floor for Live Aboard (z_m, or null
+ *  for its default), as Live Aboard draws it: Mapping's unsaved Height-row
+ *  one (a `draft` entry it marked _z) first, else its record's in
+ *  `committed` (light_positions_m) when decided (a height, or Default
+ *  chosen: null), else the 3D file's (`file`: {lights, devices}, the entry
+ *  in `section`; one never set on the record, Live Aboard still reads it
+ *  there). The one lookup for the Heights list (atlas_heights.js) and the
+ *  hover box. */
+export function heightNow(eid, committed, draft, file, section){
+  const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const d = draft && draft[eid];
+  if (d && d._z) return num(d.z_m);
+  const c = (committed || {})[eid];
+  if (c && typeof c === "object" && Object.prototype.hasOwnProperty.call(c, "z_m")) return num(c.z_m);
+  return num((((file || {})[section] || {})[eid] || {}).z_m);
 }
 export function wireUseSurface(isoDiv, api){
   const q = (sel) => isoDiv.querySelectorAll(sel);
@@ -2948,8 +2958,8 @@ export function buildLightsMapCard(hostIn){
           // Its heights go on the placement records (fabric_light_height_set),
           // given with edit, on the same gate as placing a light.
           heights: typeof h3.heights === "function" ? h3.heights : null,
-          // Which devices have a placement record (Mapping draws unsaved ones too).
-          placed: typeof h3.placed === "function" ? h3.placed : null,
+          // The placement records as saved (Mapping draws its unsaved ones over them).
+          records: typeof h3.records === "function" ? h3.records : null,
           // Rain and snow, and the Showcase look (P8): the flat map's own
           // weather inputs with Live Aboard's Rain and snow switch, and the
           // Showcase theme this map shows. The view decides what they draw.

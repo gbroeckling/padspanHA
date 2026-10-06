@@ -89,7 +89,7 @@ def test_off_nothing_is_fetched_and_mapping_is_as_it_was(atlas) -> None:
 
 
 def test_the_inspector_has_a_height_row_by_kind_with_undo(atlas) -> None:
-    _case(atlas, "row:", 2)
+    _case(atlas, "row:", 3)
 
 
 def test_save_placements_sends_a_height_only_when_the_row_set_one(atlas) -> None:
@@ -101,7 +101,7 @@ def test_the_heights_list_sorts_filters_and_sets_in_one_step(atlas) -> None:
 
 
 def test_what_is_drawn_and_the_hover_box(atlas) -> None:
-    _case(atlas, "draw:", 2)
+    _case(atlas, "draw:", 4)
 
 
 def test_the_flat_drawing_is_byte_identical_with_heights_in_the_records(atlas) -> None:
@@ -114,13 +114,19 @@ def test_every_atlas_case_passes(atlas) -> None:
 
 def test_what_save_placements_sent_the_server_takes(atlas) -> None:
     """Each fabric_light_position_set the tab sent passes the command's own
-    schema: a height (or null to clear it) is a declared key now."""
+    schema: a height (or null to clear it) is a declared key now. A height
+    alone went by fabric_light_height_set, which takes it too."""
     schema = vol.Schema({vol.Required("id"): int, **ws_fabric_light_position_set.ws_schema})
     sent = [m for t, m in atlas["sent"] if t == "padspan_ha/fabric_light_position_set"]
-    assert len(sent) >= 3
+    assert len(sent) >= 2
     for i, m in enumerate(sent):
         schema({"id": i + 1, "type": "padspan_ha/fabric_light_position_set", **m})
     assert any(m.get("z_m") is None and "z_m" in m for m in sent), "a cleared height is sent as null"
+    alone = vol.Schema({vol.Required("id"): int, **ws_fabric_light_height_set.ws_schema})
+    heights = [m for t, m in atlas["sent"] if t == "padspan_ha/fabric_light_height_set"]
+    assert heights
+    for i, m in enumerate(heights):
+        alone({"id": i + 1, "type": "padspan_ha/fabric_light_height_set", **m})
 
 
 # ═══ Live Aboard: the record first, one Save for both writes ═════════════════
@@ -130,11 +136,11 @@ def test_the_rules_split_and_lay_the_heights(aboard) -> None:
 
 
 def test_live_aboard_reads_the_record_then_the_file_then_the_default(aboard) -> None:
-    _case(aboard, "read:", 2)
+    _case(aboard, "read:", 5)
 
 
 def test_edit_heights_save_to_the_record_with_undo_discard_and_honest_words(aboard) -> None:
-    _case(aboard, "save:", 6)
+    _case(aboard, "save:", 8)
 
 
 def test_every_live_aboard_case_passes(aboard) -> None:
@@ -172,14 +178,22 @@ def test_mapping_fetches_the_tool_only_while_live_aboard_is_on_at_pro() -> None:
 
 def test_the_hooks_are_where_they_belong() -> None:
     maps = _js(_VIEWS / "maps.js")
-    # Save placements: a height only when the Height row set it.
-    assert 'const { source, _z, ...lp } = mapState._lightsDraftM[eid];\n            if (!_z) delete lp.z_m;' in maps
+    # Save placements: a height alone by the height command; a record's z_m
+    # only when the Height row set it.
+    assert "if (_heightOnly(d)) heightsOnly[eid] = d.z_m === undefined ? null : d.z_m;" in maps
+    assert 'const { source, _z, _zOnly, ...lp } = mapState._lightsDraftM[eid];\n            if (!_z) delete lp.z_m;' in maps
+    # The hover box: the Heights list's own lookup (the harness tests _hoverHeight).
+    hover = maps[maps.index("function _wireHoverHud("):][:1500]
+    assert "heightOf: _heightsOn(ctx) ? (eid) => _hoverHeight(o.mapState, eid) : null," in hover
+    assert "heightOfRecord" not in maps + _js(_WWW / "lights_panel.js")
     # What the card draws (and Live Aboard reads): the record's height unless the row set one.
     assert "light_positions_m: _draftOverRecords(ctx.state.model?.light_positions_m || {}, mapState._lightsDraftM) }" in maps
     # Live Aboard's Save hands its heights to the Atlas's own command.
     assert '"padspan_ha/fabric_light_height_set", { heights })' in maps
     lm = _js(_VIEWS / "lights_map.js")
     assert 'heights: typeof h3.heights === "function" ? h3.heights : null,' in lm
+    assert 'records: typeof h3.records === "function" ? h3.records : null,' in lm
+    assert "records: () => ctx.state.model?.light_positions_m || {}," in maps
     la = _js(_VIEWS / "live_aboard.js")
     assert 'editor.setEdit(typeof p.edit === "function" ? editSave : null);' in la
     assert "const viewData = () => (editor && editor.view()) || shownFile();" in la

@@ -3299,24 +3299,32 @@ function createSlot(slotKey){
   // heights laid over it (DRAFT.withRecordHeights), so every reader of a
   // height (lights, sensors, the marks, the motion mount, the Strip tool's
   // default) takes the record's without knowing where it came from.
-  /** {entity id: z_m or null}: the records' heights, with the ones just
-   *  saved standing in until the map's own read changes for them at all
-   *  (it has them now, or another was saved since, say on the Atlas). */
+  /** The placement records as saved: the host's own (Mapping draws its
+   *  unsaved placements and heights over them, and a device dropped there
+   *  and not yet saved has no record), else the map's. */
+  const savedRecords = () => (lastP && typeof lastP.records === "function" ? lastP.records()
+    : lastP && lastP.model && lastP.model.light_positions_m) || {};
+  /** {entity id: z_m or null}: the heights of devices with a placement
+   *  record, as the map draws them (in Mapping, its unsaved Height-row value
+   *  over the record). A device with no record has none here: its height
+   *  is the 3D file's, never Mapping's draft. A height just saved stands in
+   *  until the saved record changes at all (it has it now, or another was
+   *  saved over it since, say Mapping's Save placements): never measured
+   *  against Mapping's draft, so it never outlives the record it was saved
+   *  to. */
   function recordsNow(){
-    const model = lastP && lastP.model, recs = DRAFT.recordHeights(model);
-    const pos = (model && model.light_positions_m) || {};
+    const saved = savedRecords(), savedZ = DRAFT.recordHeights({ light_positions_m: saved });
+    const recs = DRAFT.recordHeights(lastP && lastP.model);
+    for (const k of Object.keys(recs)) if (!saved[k]) delete recs[k];
     for (const k of Object.keys(recZ)) {
-      const now = k in recs ? recs[k] : undefined;
-      if (!pos[k] || now !== recZ[k].was) { delete recZ[k]; continue; }
+      const now = k in savedZ ? savedZ[k] : undefined;
+      if (!saved[k] || now !== recZ[k].was) { delete recZ[k]; continue; }
       recs[k] = recZ[k].z;
     }
     return recs;
   }
-  /** The devices with a placement record (the ones whose height lives
-   *  there): the host's own (Mapping draws unsaved placements too, which
-   *  have no record yet), else every one the map draws. */
-  const placedNow = () => new Set(lastP && typeof lastP.placed === "function" ? lastP.placed()
-    : Object.keys((lastP && lastP.model && lastP.model.light_positions_m) || {}));
+  /** The devices with a placement record (the ones whose height lives there). */
+  const placedNow = () => new Set(Object.keys(savedRecords()));
   /** Which of the file's sections the view reads a device's height from. */
   const sectionOf = (eid) => (HOUSE.isFixture(lbe[eid]) ? "lights" : "devices");
   /** The file as drawn: the records' heights over it (the same object while
@@ -3347,7 +3355,7 @@ function createSlot(slotKey){
     if (!put) return edit(ch);
     const split = DRAFT.splitSave(file || NO_FILE, ch, base, placedNow());
     if (split.heights) {
-      const before = DRAFT.recordHeights(p.model);
+      const before = DRAFT.recordHeights({ light_positions_m: savedRecords() });
       try { await put(split.heights); }
       catch (err) {
         throw Object.assign(new Error(`the heights couldn't be saved (${why(err)}). Nothing was changed; your changes are still here: Save to try again.`),

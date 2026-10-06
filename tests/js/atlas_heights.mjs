@@ -13,17 +13,21 @@
 //           Corner, Ceiling...; a pendant: Over a counter), a cm box, and
 //           Default (Live Aboard's own default for its kind); a chip puts the
 //           height in the placement draft, Undo takes it back, Default clears
-//           it, the box takes centimetres
-//   save    Save placements sends z_m only when the Height row set it (null
-//           to clear); a moved device sends none (the record keeps its own),
-//           even one whose draft copied an old height
+//           it, the box takes centimetres; Auto position says a saved height
+//           goes with the placement
+//   save    Save placements sends a height alone with fabric_light_height_set
+//           (x, y and looks as saved, even moved on another screen); a record
+//           with z_m only when the Height row set it (null to clear); a moved
+//           device sends none (the record keeps its own), even one whose
+//           draft copied an old height
 //   list    the Heights list: every placed device but a door sensor, its
 //           height or "default", sorted by a heading, the "Using a default"
 //           filter, a floor; tick all shown, then Ceiling: every one at its
 //           own ceiling in one step, one Undo
 //   draw    the map Live Aboard reads (the card's model) carries the row's
 //           unsaved height, and a moved device's record height, never an old
-//           copy; the hover box says "2.40 m up"
+//           copy; the hover box says "2.40 m up", Mapping's from the Heights
+//           list's own lookup (a height only in the 3D file too)
 //   byte    buildIsoSVG is byte for byte the same with heights in the
 //           records as without, on a realistic house and on Garry's own
 //
@@ -90,6 +94,8 @@ const STATES = {
   "binary_sensor.front_door_contact": S("binary_sensor.front_door_contact", "off", { name: "Front door", device_class: "door" }),
 };
 const FILE = { schema: 1, lights: { "light.island_pendant": { kind: "pendant" }, "light.bed_lamp": { kind: "lamp" } }, devices: {}, openings: {}, pieces: {}, figures: {} };
+let fileNow = FILE;                       // what house3d_get answers
+const toasts = [];
 
 function el(tag, attrs = {}, children = []){
   const n = document.createElement(tag);
@@ -119,7 +125,7 @@ function makeCtx(settings, over = {}){
     actions: new Proxy({
       renderRooms: () => { root = MAPS.render(c); },
       wsCall: async (type, msg) => {
-        if (type === "padspan_ha/house3d_get") { reads++; return { data: clone(FILE) }; }
+        if (type === "padspan_ha/house3d_get") { reads++; return { data: clone(fileNow) }; }
         sent.push([type, clone(msg)]);
         if (type === "padspan_ha/fabric_light_position_set") {
           const { entity_id, ...rec } = msg, old = c.state.model.light_positions_m[entity_id] || {};
@@ -127,11 +133,15 @@ function makeCtx(settings, over = {}){
           if (!("z_m" in msg) && old.z_m !== undefined) next.z_m = old.z_m;      // the server keeps it (null: Default chosen)
           c.state.model.light_positions_m[entity_id] = next;
         }
+        if (type === "padspan_ha/fabric_light_height_set") {           // the height alone: x, y and looks as stored
+          for (const [eid, z] of Object.entries(msg.heights)) c.state.model.light_positions_m[eid].z_m = z;
+        }
+        if (type === "padspan_ha/fabric_light_remove") delete c.state.model.light_positions_m[msg.entity_id];
         return { ok: true };
       },
       modelRefresh: async () => {}, mapsRefreshQuiet: async () => {}, settingsSet: async () => ({}), telemetryEvent: () => {},
     }, { get: (t, k) => (k in t ? t[k] : () => {}) }),
-    toast: () => {},
+    toast: (m) => { toasts.push(String(m)); },
   };
   return c;
 }
@@ -220,29 +230,36 @@ await tryCase("row: a chip puts the height in the draft, Undo takes it back, Def
 });
 
 // ── save ────────────────────────────────────────────────────────────────────
-await tryCase("save: Save placements sends z_m only when the Height row set it; a move keeps the record's", async () => {
+await tryCase("save: a height alone goes by the height command; a moved or re-sized device by its record, z_m only when the row set it", async () => {
   ctx.state.maps._lightsDraftM = {};
+  // The sconce: Default (clears its 2.0 m), then its width changed: the whole record, z_m null.
   pick("light.hall_sconce");
-  chipBtn(row(), "Default").click();                                        // clear its 2.0 m
+  chipBtn(row(), "Default").click();
+  draft()["light.hall_sconce"].width_cm = 40;
+  // The pot lights: Ceiling, nothing else. Another screen moves them meanwhile
+  // (re-review finding 6): the height alone must not put back the old place.
   pick("light.kitchen_pots");
   chipBtn(row(), "Ceiling").click();
+  ctx.state.model.light_positions_m["light.kitchen_pots"] = { ...RECORDS["light.kitchen_pots"], x_m: 2.5 };
   // A device moved (a drag's draft carries a copy of its record, old height and all).
   ctx.state.maps._lightsDraftM["light.island_pendant"] = { ...RECORDS["light.island_pendant"], z_m: 0.5, x_m: 3.5 };
   ctx.state.model.light_positions_m["light.island_pendant"] = { ...RECORDS["light.island_pendant"], z_m: 1.6 };   // set meanwhile in Live Aboard
   root = MAPS.render(ctx);
-  const drawn = clone(LM && ctx.state.model.light_positions_m);
   const save = all("button").find((b) => text(b).includes("Save placements"));
   sent.length = 0;
   save.dispatchEvent({ type: "click", currentTarget: save, target: save, stopPropagation(){}, preventDefault(){} });
   await settle(); await sleep(5); await settle();
   const by = Object.fromEntries(sent.filter(([t]) => t === "padspan_ha/fabric_light_position_set").map(([, m]) => [m.entity_id, m]));
+  const hz = sent.filter(([t]) => t === "padspan_ha/fabric_light_height_set").map(([, m]) => m);
   const recs = ctx.state.model.light_positions_m;
-  check("save: Save placements sends z_m only when the Height row set it; a move keeps the record's",
-    by["light.hall_sconce"] && by["light.hall_sconce"].z_m === null && !("_z" in by["light.hall_sconce"])
-    && by["light.kitchen_pots"] && by["light.kitchen_pots"].z_m === 2.65
+  check("save: a height alone goes by the height command; a moved or re-sized device by its record, z_m only when the row set it",
+    by["light.hall_sconce"] && by["light.hall_sconce"].z_m === null && by["light.hall_sconce"].width_cm === 40
+    && !("_z" in by["light.hall_sconce"]) && !("_zOnly" in by["light.hall_sconce"])
+    && !by["light.kitchen_pots"] && hz.length === 1 && JSON.stringify(hz[0]) === JSON.stringify({ heights: { "light.kitchen_pots": 2.65 } })
     && by["light.island_pendant"] && !("z_m" in by["light.island_pendant"]) && by["light.island_pendant"].x_m === 3.5
-    && recs["light.hall_sconce"].z_m === null && recs["light.kitchen_pots"].z_m === 2.65 && recs["light.island_pendant"].z_m === 1.6
-    && Object.keys(draft()).length === 0, { by, recs: { hall: recs["light.hall_sconce"], pots: recs["light.kitchen_pots"], isl: recs["light.island_pendant"] }, drawn: !!drawn });
+    && recs["light.hall_sconce"].z_m === null && recs["light.kitchen_pots"].z_m === 2.65 && recs["light.kitchen_pots"].x_m === 2.5
+    && recs["light.island_pendant"].z_m === 1.6 && Object.keys(draft()).length === 0,
+    { by, hz, recs: { hall: recs["light.hall_sconce"], pots: recs["light.kitchen_pots"], isl: recs["light.island_pendant"] } });
 });
 
 // ── draw: what the card (and Live Aboard) reads ─────────────────────────────
@@ -281,14 +298,30 @@ await tryCase("draw: the hover box says how high a device is", async () => {
     const t = hud ? (hud.textContent || "") : "";
     return { t, added: stage.children.length > before };
   };
-  const up = words((eid) => LM.heightOfRecord({ light_positions_m: { "light.island_pendant": { z_m: 2.4 } } }, eid));
-  const none = words((eid) => LM.heightOfRecord({ light_positions_m: { "light.island_pendant": {} } }, eid));
+  const up = words((eid) => LM.heightNow(eid, { "light.island_pendant": { z_m: 2.4 } }));
+  const none = words((eid) => LM.heightNow(eid, { "light.island_pendant": {} }));
   const off = words(null);
   check("draw: the hover box says how high a device is",
     /L01 · Island pendant · 2\.40 m up/.test(up.t) && /L01 · Island pendant/.test(none.t) && !/m up/.test(none.t) && !/m up/.test(off.t)
-    && LM.heightOfRecord(null, "a") === null, { up, none, off });
+    && LM.heightNow("a", null) === null, { up, none, off });
 });
 
+await tryCase("draw: Mapping's hover box says what the Heights list says, a height only in Live Aboard's file too", async () => {
+  // Re-review finding 7: one lookup (heightNow) for both.
+  fileNow = { ...FILE, lights: { ...FILE.lights, "light.island_pendant": { kind: "pendant", z_m: 2.3 } } };
+  await open();
+  fileNow = FILE;
+  const H = await import(pathToFileURL(join(WWW, "views", "atlas_heights.js")).href);
+  const at = (eid) => MAPS._hoverHeight(ctx.state.maps, eid);
+  const fileOnly = at("light.island_pendant"), saved = at("light.hall_sconce"), dflt = at("binary_sensor.sink_leak");
+  pick("light.kitchen_pots");
+  chipBtn(row(), "Wall").click();                                           // the Height row's, unsaved
+  const unsaved = at("light.kitchen_pots");
+  const listed = (ctx.state.maps._heightRows || []).find((r) => r.eid === "light.island_pendant");
+  check("draw: Mapping's hover box says what the Heights list says, a height only in Live Aboard's file too",
+    fileOnly === 2.3 && listed && listed.z === 2.3 && saved === 2.0 && dflt === null && unsaved === 1.5
+    && H.heightNow === LM.heightNow, { fileOnly, saved, dflt, unsaved, listed: listed && listed.z });
+});
 await tryCase("draw: Default chosen on the record beats a height still in Live Aboard's file", async () => {
   // Review finding 7: the Height row and the list say "default", as Live Aboard draws it.
   const H = await import(pathToFileURL(join(WWW, "views", "atlas_heights.js")).href);
@@ -298,6 +331,22 @@ await tryCase("draw: Default chosen on the record beats a height still in Live A
   const set = H.heightNow("light.a", { "light.a": { x_m: 1, z_m: 2.2 } }, {}, file, "lights");
   check("draw: Default chosen on the record beats a height still in Live Aboard's file",
     decided === null && never === 1.9 && set === 2.2, { decided, never, set });
+});
+
+await tryCase("row: Auto position says a saved height goes with the placement", async () => {
+  // Re-review finding 2: a height lives only beside its record (fabric_store).
+  await open();
+  const auto = () => all("button").find((b) => text(b).includes("Auto position"));
+  pick("light.island_pendant");
+  const plainTitle = auto().getAttribute("title");
+  pick("light.hall_sconce");
+  const title = auto().getAttribute("title") || "";
+  toasts.length = 0;
+  auto().click();
+  await settle(); await sleep(5); await settle();
+  check("row: Auto position says a saved height goes with the placement",
+    !plainTitle && /2\.00 m\) is cleared too/.test(title) && toasts.some((t) => /2\.00 m\) was cleared too/.test(t))
+    && !ctx.state.model.light_positions_m["light.hall_sconce"], { plainTitle, title, toasts });
 });
 
 // ── list ────────────────────────────────────────────────────────────────────
