@@ -218,7 +218,12 @@ def test_nothing_from_the_house_is_in_the_report():
     # to opt-in", "need to watch the pi installs for max outs". A full day's
     # `health.perf` is ~550 bytes more; that is bounded on its own in
     # test_a_full_load_section_is_small_and_every_word_is_on_the_list.
-    assert len(text) < 3950
+    # Raised 3950 -> 4000 for env.object_history_days / env.ble_max_age_s and
+    # features.atlas_3d_enabled (~75 bytes): Garry, 2026-10-05, the low-memory
+    # version and its minimum requirements need what sizes the object list and
+    # whether the 3D house is on. A full day of PadSpan's own size, by-view
+    # load and health.runs is bounded in the full-load-section test below.
+    assert len(text) < 4000
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1171,6 +1176,25 @@ def _busy_day(h, hours: float = 24.0):
     for i in range(8640):
         w.add("snap", rnd.uniform(900, 8200))
         w.add("cycle", rnd.uniform(40, 2400))
+    # PadSpan's own size on a busy street, and Home Assistant by view
+    # (Garry, 2026-10-05: the low-memory version and its minimum requirements).
+    for i in range(1440):
+        w.add("objects", rnd.uniform(9000, 82000))
+        w.add("history", rnd.uniform(9000, 82000))
+        w.add("obj_kb", rnd.uniform(1.5, 4.5))
+        w.add("history_mb", rnd.uniform(20, 340))
+        w.add("ble_addrs", rnd.uniform(4000, 60000))
+        w.add("ble_mb", rnd.uniform(10, 240))
+        w.add("ble_new", rnd.uniform(300, 9000))
+        w.add("ble_old", rnd.uniform(40, 95))
+        w.add("esp_addrs", rnd.uniform(0, 1200))
+        w.add("snap_mb", rnd.uniform(15, 260))
+        w.add("snap_json_mb", rnd.uniform(4, 90))
+        w.add("snap_req", rnd.uniform(0, 1440))
+        for v in ("atlas", "sim", "other", "none"):
+            w.add(f"cpu@{v}", rnd.uniform(1, 99.4))
+            w.add(f"lag@{v}", rnd.uniform(0.05, 1800))
+            w.add(f"rss@{v}", rnd.uniform(600, 1900))
     w.over.update({"load": 200, "cpu": 40, "mem": 12, "lag": 5})
     h.data[DOMAIN][ps._DATA_WINDOW] = w
     return w
@@ -1199,7 +1223,11 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     assert perf["mem_avail_pc"]["min"] <= perf["mem_avail_pc"]["p05"] <= perf["mem_avail_pc"]["p50"]
     assert perf["lag_ms"]["p50"] <= perf["lag_ms"]["p95"] <= perf["lag_ms"]["max"]
     section = len(json.dumps(perf)) + len(json.dumps(p["env"]["hw"]))
-    assert section < 700, section
+    # 700 -> 1600 (Garry, 2026-10-05): PadSpan's own size, the live snapshot
+    # and Home Assistant's load by view — what deciding the low-memory
+    # version's object cap, and whether a 2 GB Pi keeps the Atlas and the 3D
+    # house, takes. The whole report is still held under the 8 KB cap below.
+    assert section < 1600, section
     assert len(json.dumps(p)) <= T._MAX_BYTES
 
 

@@ -179,6 +179,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.103</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">5 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Changed:</b> a machine with more than 2 GB of RAM is now the recommendation. Near a busy street PadSpan hears thousands of passing devices, and on a 2 GB Raspberry Pi Home Assistant has been seen running out of memory within hours. A low-memory mode for 2 GB machines is being built; the new Minimum requirements page (docs/MINIMUM_REQUIREMENTS.md) has the details.</li>
+          <li><b>Added:</b> what PadSpan holds in memory: objects in the live snapshot, the object history and the Bluetooth cache (counts and estimated size), how many new devices arrive per hour, and how big the snapshot sent to open panels is.</li>
+          <li><b>Added:</b> how many times Home Assistant started since the last report, how many of those followed a crash (such as running out of memory), and the worst memory seen. It is kept on disk, so a run that ran out of memory still reports, and it is deleted when you turn the report off.</li>
+          <li><b>Added:</b> how hard Home Assistant works while the Atlas or Live Aboard is on a screen, and how smoothly each screen draws them: frame rate and browser memory in buckets, plus the class of device (memory, CPU threads, WebGL 2, touch).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.102</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">5 October 2026</span>

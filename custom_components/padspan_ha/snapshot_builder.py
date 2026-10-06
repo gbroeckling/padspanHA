@@ -2772,6 +2772,8 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
       4. Attaches calibration status metadata for the Setup tab
     """
     snap = await _live_snapshot(hass)
+    from .perf_sampler import note_snapshot_request  # noqa: PLC0415
+    note_snapshot_request(hass)
 
     # The snapshot is shared via the TTL cache — shallow-copy the envelope and
     # the object dicts before the overlays below so mutations never leak into

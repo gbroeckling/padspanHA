@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.38.102";
-const RELEASE_BUILD_ID = "20261005T210136Z";
+const APP_VERSION = "0.38.103";
+const RELEASE_BUILD_ID = "20261006T003529Z";
 // The stamp the views are actually loaded with.
 //
 // This was the release literal above, so every view URL stayed frozen between
@@ -1152,6 +1152,7 @@ class PadSpanHaApp extends HTMLElement {
   // if HA creates a new element instance. connectedCallback will recreate them.
   disconnectedCallback(){
     this._stopDataPoll();
+    this._stopClientPerf();
     this._pollInFlight = false;
     if(this._reconnectsStop) this._reconnectsStop();
     this._reconnectsStop = null; this._reconnectsConn = null;
@@ -1452,6 +1453,28 @@ class PadSpanHaApp extends HTMLElement {
   _startPolling(){
     this._startDataPoll();
     this._startKeepAlive();
+    this._startClientPerf();
+  }
+
+  // The opt-in report's look at this screen (client_perf.js): frame rate and
+  // heap by view once a minute, the device class once per page load. Nothing
+  // is measured while the report is off; events go through _telemetryEvent.
+  _startClientPerf(){
+    if (this._clientPerf || this._clientPerfLoading) return;
+    this._clientPerfLoading = import(`./client_perf.js?b=${BUILD_ID}`).then((m) => {
+      this._clientPerfLoading = null;
+      if (!this.isConnected || this._clientPerf) return;
+      this._clientPerf = m.startClientPerf({
+        root: this.shadowRoot || this,
+        viewClass: () => (this.state.view === "maps" && this.state.mapsTab === "lights") ? "atlas" : "other",
+        enabled: () => !!this.state.settings?.telemetry_enabled,
+        send: (name) => this._telemetryEvent(name),
+      });
+    }).catch(() => { this._clientPerfLoading = null; });
+  }
+
+  _stopClientPerf(){
+    if (this._clientPerf){ this._clientPerf.stop(); this._clientPerf = null; }
   }
 
   _stopDataPoll(){
