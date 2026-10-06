@@ -316,6 +316,15 @@ export function underRoof(model, x, y, elev){
   if (i < 0 || j < 0 || i >= g.nx || j >= g.ny) return false;
   return model.storeys.some(s => s.elev >= elev - 1e-3 && s.roofCells[j * g.nx + i]);
 }
+/** Is the point at plan (x, y), `h` metres up, under a roof: in a roofed
+ *  part of a storey whose roof is no lower than it? */
+export function underRoofAt(model, x, y, h){
+  const g = model && model.grid;
+  if (!g) return false;
+  const [u, v] = model.frame.toLocal([x, y]), i = Math.floor((u - g.u0) / g.cell), j = Math.floor((v - g.v0) / g.cell);
+  if (i < 0 || j < 0 || i >= g.nx || j >= g.ny) return false;
+  return model.storeys.some(s => s.top >= h - 0.05 && s.roofCells[j * g.nx + i]);
+}
 // Rectangles that cover the cells that are in, each as big as it can be
 // (overlapping one another where the shape turns), biggest first.
 function rectsOf(A, g){
@@ -498,8 +507,10 @@ export function stairsSignature(pieces){
  */
 export function createStoreyLayer(ctx){
   const { THREE } = ctx, slabT = num(ctx.slabT) ?? 0.15;
-  let model = null, slabs = [], roofs = [], k = null, want = false, last = 0, moving = false;
-  const mats = {};
+  let model = null, slabs = [], roofs = [], k = null, want = false, last = 0, moving = false, nightK = 0;
+  const mats = {}, roofCol = new THREE.Color("#6f6660");
+  // Readable at night, as the rooms' floors are: the roof keeps a little of its own colour.
+  const glow = (m) => { m.emissive.copy(roofCol).multiplyScalar(0.5 * nightK); };
   const roofMat = () => {
     const q = ctx.quality && ctx.quality() === "high" ? "high" : "low";
     if (!mats[q]) {
@@ -507,6 +518,7 @@ export function createStoreyLayer(ctx){
       // (its parts overlap where it turns a corner).
       const o = { vertexColors: true, transparent: true, depthWrite: true, side: THREE.DoubleSide, opacity: 1 };
       mats[q] = q === "high" ? new THREE.MeshStandardMaterial({ ...o, roughness: 0.92, metalness: 0 }) : new THREE.MeshLambertMaterial(o);
+      glow(mats[q]);
     }
     return mats[q];
   };
@@ -534,6 +546,8 @@ export function createStoreyLayer(ctx){
       const L = look || {};
       const cTop = new THREE.Color(L.slab || "#cfc8b9"), cSide = new THREE.Color(L.slabSide || "#c8b18c");
       const cRoof = new THREE.Color(L.roof || "#6f6660"), cFascia = new THREE.Color(L.fascia || "#e6e0d6");
+      roofCol.copy(cRoof);
+      for (const m of Object.values(mats)) glow(m);
       for (const s of model.storeys) {
         const F = (floorsUi || []).find(G => s.floors.includes(G.fl.id) && G.group);
         if (!F) continue;
@@ -574,7 +588,8 @@ export function createStoreyLayer(ctx){
           const mesh = new THREE.Mesh(g, roofMat());
           mesh.name = "roof";
           mesh.castShadow = true; mesh.receiveShadow = true;    // shadows are drawn on High only
-          mesh.raycast = () => {};                               // it never takes a tap
+          // It never takes a tap (every press is found in lists of its own);
+          // only what hides under it asks it (roofs()).
           mesh.renderOrder = 3;
           F.group.add(mesh);
           roofs.push({ mesh, elev: s.elev, parts: s.roof.length, tris });
@@ -583,23 +598,29 @@ export function createStoreyLayer(ctx){
       paint();
       return free;
     },
+    /** The roof's meshes while it shows (what hides a lit motion marker). */
+    roofs(){ return (k ?? 0) >= 0.5 ? roofs.map(R => R.mesh).filter(m => m.parent && m.parent.visible) : []; },
+    /** How dark it is (0 day, 1 night: the view's nightK). */
+    night(n){ nightK = Math.max(0, Math.min(1, Number(n) || 0)); for (const m of Object.values(mats)) glow(m); },
     /** The highest storey's height (null: none). */
     topElev(){ return model && model.storeys.length ? model.storeys[model.storeys.length - 1].elev : null; },
     get moving(){ return moving; },
     get shown(){ return (k ?? 0) > 0.001; },
     fade(w, now){
       want = !!w;
-      if (k === null) { k = want ? 1 : 0; moving = false; last = now; paint(); return { moving }; }   // the first look is how it is
+      if (k === null) { k = want ? 1 : 0; moving = false; last = now; paint(); return { moving, crossed: want }; }   // the first look is how it is
       if (!moving) last = now - 16;                          // from rest: one frame's step
       const r = roofFade(k, want, now - last);
       last = now;
-      const changed = r.k !== k;
+      const changed = r.k !== k, crossed = (r.k >= 0.5) !== (k >= 0.5);   // what it hides changes halfway
       k = r.k; moving = r.moving;
       if (changed) paint();
-      return { moving, changed };
+      return { moving, changed, crossed };
     },
     /** Is plan point (x, y) on floor F hidden by the roof showing? */
     covers(F, x, y){ return (k ?? 0) >= 0.5 && !!F && !F.fl.outdoor && underRoof(model, x, y, F.fl.elev); },
+    /** Is the point at plan (x, y), `h` metres up, under the roof showing? */
+    hides(x, y, h){ return (k ?? 0) >= 0.5 && underRoofAt(model, x, y, h); },
     state(){
       return { axis: model ? model.axis : null, k, want, moving,
                storeys: model ? model.storeys.map(s => ({ elev: s.elev, floors: s.floors, shapes: s.shapes.length, roofParts: s.roof.length })) : [],

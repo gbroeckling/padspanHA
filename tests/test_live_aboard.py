@@ -90,6 +90,8 @@ def test_off_means_no_import(card) -> None:
     assert {"views/live_aboard_strip.js", "views/live_aboard_runs.js"} <= set(card["loaded"]), card["loaded"]
     # So is motion (live_aboard_motion.js, 2026-10-05).
     assert "views/live_aboard_motion.js" in set(card["loaded"]), card["loaded"]
+    # So is the house itself: each storey's floor, the roof, stairs' openings (live_aboard_storey.js, 2026-10-05).
+    assert "views/live_aboard_storey.js" in set(card["loaded"]), card["loaded"]
 
 
 def test_off_means_the_3d_file_is_never_read_or_written(card) -> None:

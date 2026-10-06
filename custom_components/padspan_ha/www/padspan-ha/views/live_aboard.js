@@ -1112,10 +1112,12 @@ function createSlot(slotKey){
     tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi,
       canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     marks = MARKS ? MARKS.createMarkLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low") }) : null;
-    codes = MARKS ? MARKS.createCodeLayer({ THREE, behind: (v) => blocked(v) }) : null;
-    motionL = MOTION ? MOTION.createMotionLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low"), behind: (v) => blocked(v),
+    // Under the roof while it shows is hidden too (a marker, a code).
+    const hidden = (v) => blocked(v) || !!(storeyL && storeyL.hides(v.x, v.z, v.y));
+    codes = MARKS ? MARKS.createCodeLayer({ THREE, behind: hidden }) : null;
+    motionL = MOTION ? MOTION.createMotionLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low"), behind: hidden,
       dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22,
-      floorTiles: () => floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles) }) : null;
+      floorTiles: () => floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles).concat(storeyL ? storeyL.roofs() : []) }) : null;
     storeyL = STOREY ? STOREY.createStoreyLayer({ THREE, lit: (g, spec, c, r) => lit(g, spec, c, r), slabT: HOUSE.SLAB_T,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
@@ -1313,6 +1315,7 @@ function createSlot(slotKey){
     houseBox = Number.isFinite(x0) ? { x0, y0, x1, y1, z0, z1 } : { x0: -5, y0: -5, x1: 5, y1: 5, z0: 0, z1: 3 };
     // Stairs cut their opening in the floor they reach: its tiles and its storey's floor.
     const cuts = STOREY ? STOREY.stairCuts(viewData().pieces, h.floors, h.canon) : null;
+    const tileSum = { r: 0, g: 0, b: 0, n: 0 };              // the rooms' floors, for the storey's own (storeyLook)
     for (const fl of h.floors) {
       const group = new THREE.Group();
       group.name = "floor:" + fl.id;
@@ -1334,6 +1337,7 @@ function createSlot(slotKey){
         const top = atlas ? new THREE.Color(atlas.floor).lerp(colorOf(r.color), r.outdoor ? atlas.floorMix * 0.7 : atlas.floorMix)
           : colorOf(r.color).lerp(new THREE.Color(TILE_MIX), r.outdoor ? tm + 0.12 : tm);
         const side = new THREE.Color(fl.outdoor ? EARTH_SIDE : atlas ? atlas.side : SLAB_SIDE);
+        if (!r.outdoor) { tileSum.r += top.r; tileSum.g += top.g; tileSum.b += top.b; tileSum.n++; }
         const n = g.attributes.position.count, col = new Float32Array(n * 3);
         // Each shape's caps (group 0) the room's colour, its sides the slab's edge (stairs may cut a room in pieces).
         for (const gr of g.groups.length ? g.groups : [{ start: 0, count: n, materialIndex: 0 }]) {
@@ -1410,7 +1414,7 @@ function createSlot(slotKey){
     }
     // A solid floor under each storey (halls never drawn as rooms are no
     // holes), and the roof over it (live_aboard_storey.js).
-    if (storeyL) shellRes.push(...storeyL.build(h, floorsUi, cuts, storeyLook()));
+    if (storeyL) shellRes.push(...storeyL.build(h, floorsUi, cuts, storeyLook(tileSum)));
     if (atlas) platesOf(h);
     // The ground and the sun, sized to the house.
     const cx = (houseBox.x0 + houseBox.x1) / 2, cy = (houseBox.y0 + houseBox.y1) / 2;
@@ -1435,11 +1439,15 @@ function createSlot(slotKey){
     if (!cam.moved) cam.needsFit = true;
   }
   /** The storeys' floor and roof in the look's colours, muted (the Atlas's
-   *  look, or Live Aboard's own): a neutral floor, a slate roof, a pale fascia. */
-  function storeyLook(){
+   *  look, or Live Aboard's own): a neutral floor (the rooms' own floors
+   *  averaged and greyed, so a hall reads as floor in any theme), a slate
+   *  roof, a pale fascia. */
+  function storeyLook(tiles){
     const side = atlas ? atlas.side : SLAB_SIDE, grey = new THREE.Color("#6b6b6b");
     const hex = (c) => "#" + c.getHexString();
-    return { slab: hex(new THREE.Color(atlas ? atlas.floor : TILE_MIX).lerp(new THREE.Color(side), 0.3)), slabSide: side,
+    const avg = tiles && tiles.n ? new THREE.Color(tiles.r / tiles.n, tiles.g / tiles.n, tiles.b / tiles.n) : new THREE.Color(TILE_MIX);
+    const lum = 0.2126 * avg.r + 0.7152 * avg.g + 0.0722 * avg.b;
+    return { slab: hex(avg.lerp(new THREE.Color(lum, lum, lum), 0.65)), slabSide: side,
              roof: hex(new THREE.Color(atlas ? atlas.side : "#86776a").lerp(grey, 0.5)),
              fascia: hex(new THREE.Color(atlas ? atlas.floor : "#efe9df").lerp(new THREE.Color("#e2ddd4"), 0.5)) };
   }
@@ -1507,6 +1515,7 @@ function createSlot(slotKey){
       if (F.edges) { F.edges.material.opacity = atlas ? Math.max(atlas.lineOp, NIGHT_EDGE * k) : NIGHT_EDGE * k; F.edges.visible = !!atlas || k > 0.01; }
     }
     topGlow.value = NIGHT_TOP * k;
+    if (storeyL) storeyL.night(k);                           // the roof keeps a little of its colour
     if (gridLines) gridLines.material.opacity = 1 - NIGHT_GRID * k;
     for (const L of lights) if (L.look) paintLight(L);
     requestRender();
@@ -2595,8 +2604,9 @@ function createSlot(slotKey){
     if (!storeyL) return false;
     const want = STOREY.roofShown({ setting: roofPick(), editing: !!(editor && editor.active), furnish: furnishOn, topElev,
                                     topStorey: storeyL.topElev(), wallMode, phi: cam.phi, radius: cam.radius, fitR });
-    storeyL.fade(want, performance.now());
-    if (want !== roofWant) { roofWant = want; recheckCovers(); }
+    const f = storeyL.fade(want, performance.now());
+    roofWant = want;
+    if (f.crossed) recheckCovers();                          // markers and codes under it hide, or show again
     return want;
   }
   function setRoof(v){
@@ -3952,6 +3962,15 @@ function createSlot(slotKey){
       fitPlan();
       const rect = rectOf(vp), v = new THREE.Vector3(x, F.fl.elev + z, y).project(planCam);
       return [rect.left + (v.x + 1) / 2 * rect.width, rect.top + (1 - v.y) / 2 * rect.height];
+    },
+    /** Is there floor at plan (x, y) on floor fid: its rooms' tiles, its
+     *  storey's own floor (the harness; stairs cut both). */
+    _floorAt(fid, x, y){
+      const F = floorsUi.find(q => q.fl.id === fid);
+      if (!F) return null;
+      const r = new THREE.Raycaster(new THREE.Vector3(x, F.fl.elev + 1, y), new THREE.Vector3(0, -1, 0), 0, 1.3);
+      const slabs = F.group.children.filter(o => o.name === "storey-floor");
+      return { tile: !!(F.tiles && r.intersectObject(F.tiles, false).length), slab: slabs.some(o => r.intersectObject(o, false).length > 0) };
     },
     /** Put the camera somewhere (the harness frames a shot). */
     _look(theta, phi, target, radius){
