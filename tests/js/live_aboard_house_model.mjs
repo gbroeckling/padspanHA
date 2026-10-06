@@ -656,6 +656,9 @@ LA.releaseLiveAboardSlot("house-model");
       cv.dispatchEvent(evp("pointerup", at[0], at[1]));
       await later(100, 6);
       const card = ds().use && ds().use.card ? ds().use.card.text : "";
+      // The card is in sight: not hidden, and placed at the door's outline.
+      const cel = document.body.querySelectorAll(".la3d-tagcard")[0], cs = cel ? cel.style : null;
+      const seen = cs ? { vis: cs.visibility, left: cs.left, top: cs.top } : null;
       const left = document.body.querySelectorAll("button").filter(b => !before.has(b));
       for (const b of left) b.click();
       await later(100, 6);
@@ -665,8 +668,10 @@ LA.releaseLiveAboardSlot("house-model");
       await settle(6);
       cv.dispatchEvent(evp("pointerup", at[0], at[1]));
       await later(100, 6);
-      got.push({ eid, hit: hit && hit.hit, card, tap, held: more.slice(), service: service.slice(), ok:
-        !!hit && hit.hit.startsWith(`door:${eid}@`) && words.every(w => card.includes(w)) && !tap.service.length && !tap.toggles && !tap.more
+      got.push({ eid, hit: hit && hit.hit, card, seen, tap, held: more.slice(), service: service.slice(), ok:
+        !!hit && hit.hit.startsWith(`door:${eid}@`) && words.every(w => card.includes(w))
+        && !!seen && seen.vis !== "hidden" && /^-?\d+px$/.test(seen.left) && /^-?\d+px$/.test(seen.top)
+        && !tap.service.length && !tap.toggles && !tap.more
         && !service.length && !toggles.length && more.join() === mover });
     }
     check("view: a tap on a door on a cover sends nothing; a hold opens Home Assistant's own controls",

@@ -114,12 +114,15 @@ export function createUseSurface(o){
     if (at.poly) g.appendChild(shape("polygon", { ...st, points: at.poly.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ") }));
     else g.appendChild(shape("circle", { ...st, cx: at.x.toFixed(1), cy: at.y.toFixed(1), r: HOVER_R }));
   }
+  // Where a target stands on the screen: its point, or the middle of its
+  // outline (a door, a room). The pressed ring and a card both go there.
+  const pointOf = (at) => (at.poly ? at.poly.reduce((a, q) => [a[0] + q[0] / at.poly.length, a[1] + q[1] / at.poly.length], [0, 0]) : [at.x, at.y]);
   // The pressed ring (lights_map.js pressRing's own circle and classes, so
   // styles.css's .lpress animation fills it and .armed turns it gold).
   function ringFor(t){
     const at = o.screenOf(t);
     if (!at) return null;
-    const p = at.poly ? at.poly.reduce((a, q) => [a[0] + q[0] / at.poly.length, a[1] + q[1] / at.poly.length], [0, 0]) : [at.x, at.y];
+    const p = pointOf(at);
     const circ = (2 * Math.PI * RING_R).toFixed(1);
     const c = shape("circle", { class: "lpress", cx: p[0].toFixed(1), cy: p[1].toFixed(1), r: RING_R, fill: "none",
       stroke: "#fbbf24", "stroke-width": "3", "pointer-events": "none", "stroke-dasharray": circ, "stroke-dashoffset": circ });
@@ -130,7 +133,7 @@ export function createUseSurface(o){
   function placeRing(c, t){
     const at = c && o.screenOf(t);
     if (!at) return;
-    const p = at.poly ? at.poly.reduce((a, q) => [a[0] + q[0] / at.poly.length, a[1] + q[1] / at.poly.length], [0, 0]) : [at.x, at.y];
+    const p = pointOf(at);
     c.setAttribute("cx", p[0].toFixed(1)); c.setAttribute("cy", p[1].toFixed(1));
   }
 
@@ -173,12 +176,13 @@ export function createUseSurface(o){
   function placeCard(){
     if (!card) return;
     const at = o.screenOf(card.t);
-    if (!at || at.poly) { card.el.style.visibility = "hidden"; return; }
+    if (!at) { card.el.style.visibility = "hidden"; return; }
     // Under it (its name is over it), or over its name when there is no room below.
+    const [ax, ay] = pointOf(at);
     const W = o.root.clientWidth || 0, H = o.root.clientHeight || 0, w = card.el.offsetWidth || 200, h = card.el.offsetHeight || 80;
-    const x = W ? Math.max(6, Math.min(at.x - w / 2, W - w - 6)) : at.x - w / 2;
-    let y = at.y + 22;
-    if (H && y + h > H - 6) y = Math.max(6, at.y - h - 52);
+    const x = W ? Math.max(6, Math.min(ax - w / 2, W - w - 6)) : ax - w / 2;
+    let y = ay + 22;
+    if (H && y + h > H - 6) y = Math.max(6, ay - h - 52);
     card.el.style.left = `${Math.round(x)}px`; card.el.style.top = `${Math.round(y)}px`; card.el.style.visibility = "";
   }
   function closeCard(){ if (card) { try { card.el.remove(); } catch (_) { /* gone with the view */ } card = null; } }
