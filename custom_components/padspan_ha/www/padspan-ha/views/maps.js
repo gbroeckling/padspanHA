@@ -9521,6 +9521,9 @@ function _lightsTab(ctx, maps, active) {
       // gate), then the map read again so both views have them.
       heights: paid && !preview ? (heights) => ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })
         .then((r) => { Promise.resolve(ctx.actions.modelRefresh()).catch(() => {}); return r; }) : null,
+      // The devices with a saved placement: a height lives on its record; one
+      // dropped here and not yet saved has none (its height goes to the 3D file).
+      placed: () => Object.keys(ctx.state.model?.light_positions_m || {}),
       telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     } : null,
     isolux: mapState._lightsIsolux === undefined

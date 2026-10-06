@@ -501,7 +501,7 @@ export function createEditor(ctx){
     const sent = draft;
     saving = true; paint();
     try {
-      const r = await editFn(ch);
+      const r = await editFn(ch, draft.base);
       if (!r || typeof r !== "object" || !r.data) throw new Error("no answer");
       saving = false;
       ctx.saved(r.data);
@@ -514,6 +514,10 @@ export function createEditor(ctx){
     } catch (err) {
       // Refused: the draft stays, to be saved again; what went wrong said plainly.
       saving = false; afterSave = null;
+      // Part of it went in (the heights: live_aboard.js editSave): from here
+      // the draft starts from them, so Undo, Discard and the next Save count
+      // them as saved.
+      if (err && err.heights && draft === sent) draft.setBase(DRAFT.baseWithHeights(draft.base, ch, err.heights));
       const code = err && err.code;
       if (code === "house3d_newer" && ctx.newer) ctx.newer();   // the file's own error, until a read finds otherwise
       // A Save that went partly in says what did (live_aboard.js editSave).

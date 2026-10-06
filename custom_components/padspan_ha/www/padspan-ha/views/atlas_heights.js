@@ -116,15 +116,16 @@ export function infoOf(l, lp, ceil, stored, shape, at){
   return { cls, kind, what, section, ceil, top, dflt, spots };
 }
 
-/** Every placed device's height as Mapping has it now: {entity id: z_m or
- *  null}. The Height row's unsaved one (a draft entry it marked _z) first,
- *  else its record's, else the 3D file's (an older install's: Live Aboard
- *  still reads it). */
+/** A placed device's height as Mapping has it now (z_m, or null for its
+ *  default), as Live Aboard draws it: the Height row's unsaved one (a draft
+ *  entry it marked _z) first, else its record's when decided (a height, or
+ *  Default chosen: null), else the 3D file's (one never set on the record:
+ *  Live Aboard still reads it there). */
 export function heightNow(eid, committed, draft, file, section){
   const d = draft && draft[eid];
   if (d && d._z) return num(d.z_m);
-  const c = num(((committed || {})[eid] || {}).z_m);
-  if (c !== null) return c;
+  const c = (committed || {})[eid];
+  if (c && typeof c === "object" && Object.prototype.hasOwnProperty.call(c, "z_m")) return num(c.z_m);
   return num((((file || {})[section] || {})[eid] || {}).z_m);
 }
 

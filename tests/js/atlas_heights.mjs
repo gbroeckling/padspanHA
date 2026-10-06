@@ -124,8 +124,7 @@ function makeCtx(settings, over = {}){
         if (type === "padspan_ha/fabric_light_position_set") {
           const { entity_id, ...rec } = msg, old = c.state.model.light_positions_m[entity_id] || {};
           const next = { ...rec };
-          if (!("z_m" in msg) && old.z_m !== undefined) next.z_m = old.z_m;      // the server keeps it
-          if (next.z_m === null) delete next.z_m;
+          if (!("z_m" in msg) && old.z_m !== undefined) next.z_m = old.z_m;      // the server keeps it (null: Default chosen)
           c.state.model.light_positions_m[entity_id] = next;
         }
         return { ok: true };
@@ -242,7 +241,7 @@ await tryCase("save: Save placements sends z_m only when the Height row set it; 
     by["light.hall_sconce"] && by["light.hall_sconce"].z_m === null && !("_z" in by["light.hall_sconce"])
     && by["light.kitchen_pots"] && by["light.kitchen_pots"].z_m === 2.65
     && by["light.island_pendant"] && !("z_m" in by["light.island_pendant"]) && by["light.island_pendant"].x_m === 3.5
-    && !("z_m" in recs["light.hall_sconce"]) && recs["light.kitchen_pots"].z_m === 2.65 && recs["light.island_pendant"].z_m === 1.6
+    && recs["light.hall_sconce"].z_m === null && recs["light.kitchen_pots"].z_m === 2.65 && recs["light.island_pendant"].z_m === 1.6
     && Object.keys(draft()).length === 0, { by, recs: { hall: recs["light.hall_sconce"], pots: recs["light.kitchen_pots"], isl: recs["light.island_pendant"] }, drawn: !!drawn });
 });
 
@@ -288,6 +287,17 @@ await tryCase("draw: the hover box says how high a device is", async () => {
   check("draw: the hover box says how high a device is",
     /L01 · Island pendant · 2\.40 m up/.test(up.t) && /L01 · Island pendant/.test(none.t) && !/m up/.test(none.t) && !/m up/.test(off.t)
     && LM.heightOfRecord(null, "a") === null, { up, none, off });
+});
+
+await tryCase("draw: Default chosen on the record beats a height still in Live Aboard's file", async () => {
+  // Review finding 7: the Height row and the list say "default", as Live Aboard draws it.
+  const H = await import(pathToFileURL(join(WWW, "views", "atlas_heights.js")).href);
+  const file = { lights: { "light.a": { z_m: 1.9 } }, devices: {} };
+  const decided = H.heightNow("light.a", { "light.a": { x_m: 1, z_m: null } }, {}, file, "lights");
+  const never = H.heightNow("light.a", { "light.a": { x_m: 1 } }, {}, file, "lights");
+  const set = H.heightNow("light.a", { "light.a": { x_m: 1, z_m: 2.2 } }, {}, file, "lights");
+  check("draw: Default chosen on the record beats a height still in Live Aboard's file",
+    decided === null && never === 1.9 && set === 2.2, { decided, never, set });
 });
 
 // ── list ────────────────────────────────────────────────────────────────────

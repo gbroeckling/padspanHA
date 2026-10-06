@@ -1,15 +1,16 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Live Aboard's heights move into the placement records, once.
+"""Live Aboard's heights onto the placement records.
 
 house3d_heights.async_move_heights, on Garry's word (2026-10-05: "same
-information store"): a height Live Aboard's file holds for a device with a
-placement record is copied into that record (unless the record has one: the
-record wins), then taken out of the file, the record written and read back
-first, the file second, under the file's lock. A device with no record keeps
-its height in the file. Idempotent, logged, safe across a restart midway,
-and nothing at all while Live Aboard is off.
+information store"): a height Live Aboard's file holds for a placed device
+whose record has none decided is copied onto the record (a record that has a
+height, or Default chosen, keeps it), one fabric write, read back from disk,
+after a safety backup the first time. Live Aboard's file is never stripped:
+an older PadSpan (rolled back to) still reads its heights there. A device
+with no record keeps its height in the file. Idempotent, logged, safe across
+a restart, and nothing at all while Live Aboard is off.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from custom_components.padspan_ha.const import (DATA_FABRIC, DATA_HOUSE3D, DATA_
                                                 FABRIC_STORE_KEY, HOUSE3D_STORE_KEY)
 from custom_components.padspan_ha.model_store import ModelStore
 from tests.test_house3d_edit import _DiskStore, _file, _seed, disk  # noqa: F401
-from tests.test_house3d_store import _house, _run
+from tests.test_house3d_store import _capture_backups, _house, _run
 
 _FILE = {
     "schema": 1,
@@ -42,9 +43,12 @@ _FILE = {
 }
 _RECORDS = {
     "light.island_pendant": {"x_m": 3.0, "y_m": 1.0, "floor_id": "main", "color": "#fbbf24"},
-    "light.hall_sconce": {"x_m": 6.0, "y_m": 0.2, "floor_id": "main", "z_m": 2.4},
+    "light.hall_sconce": {"x_m": 6.0, "y_m": 0.2, "floor_id": "main"},
     "sensor.lounge_temperature": {"x_m": 1.0, "y_m": 2.0, "floor_id": "main"},
 }
+_FABRIC = {"floors": {}, "history": [], "scanner_positions_m": {"aa:01": {"x_m": 1, "y_m": 1, "z_m": 2.2, "floor_id": "main"}},
+           "beacon_positions_m": {}, "rf_barriers_m": [], "light_positions_m": _RECORDS,
+           "light_heights_m": {"light.hall_sconce": 2.4}}       # the sconce's height already on its record
 
 
 @pytest.fixture
@@ -52,10 +56,13 @@ def house(disk, monkeypatch, tmp_path):
     """Live Aboard on at Pro, its file on disk, and a real fabric on disk."""
     monkeypatch.setattr(FS, "Store", _DiskStore)
     _seed(tmp_path, copy.deepcopy(_FILE))
-    _seed(tmp_path, {"floors": {}, "history": [], "scanner_positions_m": {"aa:01": {
-        "x_m": 1, "y_m": 1, "z_m": 2.2, "floor_id": "main"}}, "beacon_positions_m": {}, "rf_barriers_m": [],
-        "light_positions_m": copy.deepcopy(_RECORDS)}, FABRIC_STORE_KEY)
+    _seed(tmp_path, copy.deepcopy(_FABRIC), FABRIC_STORE_KEY)
     return _boot(tmp_path)
+
+
+@pytest.fixture
+def backups(monkeypatch):
+    return _capture_backups(monkeypatch)
 
 
 def _boot(tmp_path: Path):
@@ -76,64 +83,93 @@ def _disk(tmp_path: Path, key: str = HOUSE3D_STORE_KEY) -> dict:
     return json.loads(_file(tmp_path, key).read_text(encoding="utf-8"))["data"]
 
 
-def _records(tmp_path: Path) -> dict:
-    return _disk(tmp_path, FABRIC_STORE_KEY)["light_positions_m"]
+def _heights(tmp_path: Path) -> dict:
+    return _disk(tmp_path, FABRIC_STORE_KEY).get("light_heights_m", {})
 
 
-def test_heights_move_into_the_records_and_out_of_the_file(house, disk, tmp_path, caplog):
+def test_heights_are_copied_onto_the_records_and_the_file_keeps_its_own(house, disk, backups, tmp_path, caplog):
     caplog.set_level(logging.INFO)
     got = _run(M.async_move_heights(house))
-    assert got == {"copied": 2, "removed": 3}
-    rec = _records(tmp_path)
-    assert rec["light.island_pendant"]["z_m"] == 1.6 and rec["sensor.lounge_temperature"]["z_m"] == 1.2
-    assert rec["light.hall_sconce"]["z_m"] == 2.4, "a record that has a height keeps it: the record wins"
-    for eid, r in _RECORDS.items():
-        assert {k: v for k, v in rec[eid].items() if k != "z_m"} == {k: v for k, v in r.items() if k != "z_m"}, \
-            "x, y, floor and looks exactly as they were"
-    f = _disk(tmp_path)
-    assert f["lights"]["light.island_pendant"] == {"kind": "pendant"}, "its kind stays, its height goes"
-    assert "light.hall_sconce" not in f["lights"], "an entry left empty goes"
-    assert f["lights"]["light.unplaced_lamp"] == {"z_m": 0.75, "kind": "lamp"}, "no record: the file keeps it"
-    assert "sensor.lounge_temperature" not in f["devices"]
-    assert f["devices"]["ble:aa:bb"]["z_m"] == 0.9, "a tag's look and height, not a placement record, stay"
-    assert disk.writes == [FABRIC_STORE_KEY, HOUSE3D_STORE_KEY], "the record first, the file second"
+    assert got == {"copied": 2}
+    assert _heights(tmp_path) == {"light.hall_sconce": 2.4, "light.island_pendant": 1.6, "sensor.lounge_temperature": 1.2}, \
+        "a record that has a height keeps it: the record wins"
+    assert _disk(tmp_path, FABRIC_STORE_KEY)["light_positions_m"] == _RECORDS, "x, y, floor and looks exactly as they were"
+    mdl = house.data[DOMAIN][DATA_MODEL]
+    assert mdl.light_positions_m()["light.island_pendant"]["z_m"] == 1.6
+    assert _disk(tmp_path) == _FILE, "Live Aboard's file is never stripped: an older PadSpan still reads its heights"
+    assert disk.writes == [FABRIC_STORE_KEY], "one write: the records"
     assert _disk(tmp_path, FABRIC_STORE_KEY)["scanner_positions_m"]["aa:01"]["z_m"] == 2.2, "scanners untouched"
     assert _disk(tmp_path, FABRIC_STORE_KEY)["history"][-1]["op"] == "migration:house3d_heights"
-    assert any("moved into the placement records" in r.getMessage() for r in caplog.records), "logged"
+    assert any("onto their placement records" in r.getMessage() for r in caplog.records), "logged"
 
 
-def test_a_second_run_finds_nothing_to_do_and_writes_nothing(house, disk, tmp_path):
+def test_a_safety_backup_comes_before_the_first_write_and_holds_the_records_as_they_were(house, disk, backups, tmp_path):
+    _run(M.async_move_heights(house))
+    assert len(backups["backups"]) == 1
+    bk = backups["backups"][0]
+    assert set(bk["stores"]) == {FABRIC_STORE_KEY} and bk.get("auto")
+    assert bk["stores"][FABRIC_STORE_KEY]["light_heights_m"] == {"light.hall_sconce": 2.4}, "taken before the write"
+    assert "Live Aboard" in bk["note"]
+
+
+def test_no_backup_no_move(house, disk, monkeypatch, tmp_path):
+    from custom_components.padspan_ha import ws_backup
+
+    async def _none(*_a, **_k):
+        return None
+    monkeypatch.setattr(ws_backup, "_auto_backup", _none)
+    assert _run(M.async_move_heights(house)) == {"copied": 0}
+    assert disk.writes == [] and _heights(tmp_path) == {"light.hall_sconce": 2.4}
+
+
+def test_a_second_run_finds_nothing_to_do_and_writes_nothing(house, disk, backups, tmp_path):
     _run(M.async_move_heights(house))
     before = (_disk(tmp_path), _disk(tmp_path, FABRIC_STORE_KEY))
     disk.writes.clear()
-    assert _run(M.async_move_heights(house)) == {"copied": 0, "removed": 0}
-    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 0, "removed": 0}, "after a restart too"
+    assert _run(M.async_move_heights(house)) == {"copied": 0}
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 0}, "after a restart too"
     assert disk.writes == [] and (_disk(tmp_path), _disk(tmp_path, FABRIC_STORE_KEY)) == before
+    assert len(backups["backups"]) == 1
 
 
-def test_a_restart_between_the_record_and_the_file_finishes_the_move(house, disk, tmp_path):
-    disk.fail = [None, "swallowed"]           # the record is written; the file's write is lost
-    assert _run(M.async_move_heights(house)) == {"copied": 2, "removed": 0}
-    assert _records(tmp_path)["light.island_pendant"]["z_m"] == 1.6
-    assert _disk(tmp_path)["lights"]["light.island_pendant"]["z_m"] == 1.6, "the file still has it"
-    h2 = _boot(tmp_path)
-    disk.writes.clear()
-    assert _run(M.async_move_heights(h2)) == {"copied": 0, "removed": 3}, "nothing copied twice"
-    assert disk.writes == [HOUSE3D_STORE_KEY]
-    assert _disk(tmp_path)["lights"]["light.island_pendant"] == {"kind": "pendant"}
-    assert _records(tmp_path)["light.island_pendant"]["z_m"] == 1.6
+def test_default_chosen_after_the_move_is_never_undone(house, disk, backups, tmp_path):
+    """Review finding 7: Default (null) is a decided height; the file's copy
+    never comes back over it."""
+    _run(M.async_move_heights(house))
+    mdl = house.data[DOMAIN][DATA_MODEL]
+    assert _run(mdl.async_set_light_heights({"light.island_pendant": None})) == []
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 0}
+    assert _heights(tmp_path)["light.island_pendant"] is None
+    assert house.data[DOMAIN][DATA_MODEL].light_positions_m()["light.island_pendant"]["z_m"] is None
 
 
-def test_a_record_that_could_not_be_saved_keeps_the_heights_in_the_file(house, disk, tmp_path):
+def test_a_device_placed_after_the_move_is_copied_at_the_next_start_with_no_new_backup(house, disk, backups, tmp_path):
+    _run(M.async_move_heights(house))
+    fab = house.data[DOMAIN][DATA_FABRIC]
+    _run(fab.async_spatial_update(set_lights={"light.unplaced_lamp": {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"}}))
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 1}
+    assert _heights(tmp_path)["light.unplaced_lamp"] == 0.75
+    assert len(backups["backups"]) == 1, "only the first move takes a backup"
+
+
+def test_a_fabric_only_restore_of_an_older_backup_gets_its_heights_back(house, disk, backups, tmp_path):
+    """Review finding 5: the file still has them, so the next start copies
+    them again onto the restored records."""
+    _run(M.async_move_heights(house))
+    _seed(tmp_path, copy.deepcopy(_FABRIC), FABRIC_STORE_KEY)             # the restore: records as before the move
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 2}
+    assert _heights(tmp_path)["light.island_pendant"] == 1.6
+
+
+def test_a_record_that_could_not_be_saved_is_tried_again(house, disk, backups, tmp_path):
     disk.fail = ["swallowed"]                 # the fabric's write is lost
-    assert _run(M.async_move_heights(house)) == {"copied": 0, "removed": 0}
-    assert _disk(tmp_path) == _FILE, "the file is not touched"
-    assert "z_m" not in _records(tmp_path)["light.island_pendant"]
-    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 2, "removed": 3}, "a later start moves them"
+    assert _run(M.async_move_heights(house)) == {"copied": 0}
+    assert _heights(tmp_path) == {"light.hall_sconce": 2.4}
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 2}, "a later start moves them"
 
 
 @pytest.mark.parametrize("why", ["off", "below_pro", "no_file", "newer"])
-def test_off_below_pro_no_file_or_a_newer_file_nothing_is_read_or_written(house, disk, tmp_path, why):
+def test_off_below_pro_no_file_or_a_newer_file_nothing_is_read_or_written(house, disk, backups, tmp_path, why):
     st = house.data[DOMAIN][DATA_SETTINGS]
     if why == "off":
         st.data["atlas_3d_enabled"] = False
@@ -144,23 +180,24 @@ def test_off_below_pro_no_file_or_a_newer_file_nothing_is_read_or_written(house,
     else:
         _seed(tmp_path, {**copy.deepcopy(_FILE), "schema": 2})
     before = _disk(tmp_path, FABRIC_STORE_KEY)
-    assert _run(M.async_move_heights(house)) == {"copied": 0, "removed": 0}
-    assert disk.writes == [] and _disk(tmp_path, FABRIC_STORE_KEY) == before
+    assert _run(M.async_move_heights(house)) == {"copied": 0}
+    assert disk.writes == [] and _disk(tmp_path, FABRIC_STORE_KEY) == before and backups["backups"] == []
     if why in ("off", "below_pro", "no_file"):
         assert DATA_HOUSE3D not in house.data[DOMAIN], "not even read"
 
 
-def test_an_unreadable_file_is_left_alone(house, disk, tmp_path):
+def test_an_unreadable_file_is_left_alone(house, disk, backups, tmp_path):
     _file(tmp_path).write_text("{not json", encoding="utf-8")
-    assert _run(M.async_move_heights(house)) == {"copied": 0, "removed": 0}
+    assert _run(M.async_move_heights(house)) == {"copied": 0}
     assert disk.writes == []
 
 
-def test_the_plan_takes_only_heights_of_placed_devices():
-    copy_in, strip = M.plan({"lights": {"light.a": {"z_m": "high"}, "light.b": {"kind": "pot"}},
-                             "devices": {"light.c": {"z_m": 1.0}, "lock.d": {"z_m": 1.0}}},
-                            {"light.a": {"x_m": 0}, "light.b": {"x_m": 0}, "light.c": {"x_m": 0}})
-    assert copy_in == {"light.c": 1.0} and strip == [("devices", "light.c")]
+def test_the_plan_takes_only_heights_of_placed_devices_not_yet_decided():
+    copy_in = M.plan({"lights": {"light.a": {"z_m": "high"}, "light.b": {"kind": "pot"}, "light.e": {"z_m": 2.0}},
+                      "devices": {"light.c": {"z_m": 1.0}, "lock.d": {"z_m": 1.0}}},
+                     {"light.a": {"x_m": 0}, "light.b": {"x_m": 0}, "light.c": {"x_m": 0}, "light.e": {"x_m": 0}},
+                     {"light.e": None})
+    assert copy_in == {"light.c": 1.0}, "e: Default decided; d: no record; a: not a height"
 
 
 def test_it_runs_at_start_and_when_live_aboard_is_turned_on():

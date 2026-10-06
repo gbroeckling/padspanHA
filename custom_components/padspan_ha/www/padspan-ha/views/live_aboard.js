@@ -409,7 +409,7 @@ function createSlot(slotKey){
   let file = null, fileLoad = null, lastP = null;
   // The file as the host last handed it (house3d_get's or house3d_edit's
   // "data"), and heights just saved to placement records that the map's own
-  // read may not have yet ({entity id: z_m or null}): see recordsNow.
+  // read may not have yet ({entity id: {z, was}}: see recordsNow).
   let fileRaw = null, recZ = {}, shownMemo = null, shownSig = "";
   // Why the file cannot be edited: read but refused ({code: "read_failed"}),
   // or a newer PadSpan's ({code: "house3d_newer"}: read so, or a Save refused
@@ -3299,18 +3299,24 @@ function createSlot(slotKey){
   // heights laid over it (DRAFT.withRecordHeights), so every reader of a
   // height (lights, sensors, the marks, the motion mount, the Strip tool's
   // default) takes the record's without knowing where it came from.
-  /** {entity id: z_m}: the records' heights, with the ones just saved. */
+  /** {entity id: z_m or null}: the records' heights, with the ones just
+   *  saved standing in until the map's own read changes for them at all
+   *  (it has them now, or another was saved since, say on the Atlas). */
   function recordsNow(){
     const model = lastP && lastP.model, recs = DRAFT.recordHeights(model);
     const pos = (model && model.light_positions_m) || {};
     for (const k of Object.keys(recZ)) {
-      if (!pos[k] || (recs[k] ?? null) === recZ[k]) { delete recZ[k]; continue; }   // the map has it now
-      if (recZ[k] === null) delete recs[k]; else recs[k] = recZ[k];
+      const now = k in recs ? recs[k] : undefined;
+      if (!pos[k] || now !== recZ[k].was) { delete recZ[k]; continue; }
+      recs[k] = recZ[k].z;
     }
     return recs;
   }
-  /** The devices with a placement record (the ones whose height lives there). */
-  const placedNow = () => new Set(Object.keys((lastP && lastP.model && lastP.model.light_positions_m) || {}));
+  /** The devices with a placement record (the ones whose height lives
+   *  there): the host's own (Mapping draws unsaved placements too, which
+   *  have no record yet), else every one the map draws. */
+  const placedNow = () => new Set(lastP && typeof lastP.placed === "function" ? lastP.placed()
+    : Object.keys((lastP && lastP.model && lastP.model.light_positions_m) || {}));
   /** Which of the file's sections the view reads a device's height from. */
   const sectionOf = (eid) => (HOUSE.isFixture(lbe[eid]) ? "lights" : "devices");
   /** The file as drawn: the records' heights over it (the same object while
@@ -3327,26 +3333,27 @@ function createSlot(slotKey){
     house3d_newer: "a newer PadSpan saved Live Aboard's file, and this version never changes it",
   };
   const why = (err) => PART_FAILED[err && err.code] || String((err && (err.message || err.code)) || err);
-  /** Edit's Save: one Save, two writes. The heights of devices with a
-   *  placement record go to their records first, all in one command (the
-   *  host's heights: fabric_light_height_set, the Atlas's own permission);
-   *  everything else goes to the 3D file (the host's edit: house3d_edit).
-   *  A refused height command changes nothing at all; a file write that
-   *  fails after the heights went in says so: the heights are saved, the
-   *  rest is still in the draft (Save again sends the heights as they now
-   *  are, which changes nothing). A host with no height command: all to the
-   *  file, as before. */
-  async function editSave(ch){
+  /** Edit's Save: one Save, two writes. The heights the draft changed (from
+   *  `base`, where it started) of devices with a placement record go to
+   *  their records first, all in one command (the host's heights:
+   *  fabric_light_height_set, the Atlas's own permission); everything else
+   *  goes to the 3D file (the host's edit: house3d_edit). A refused height
+   *  command changes nothing at all; a file write that fails after the
+   *  heights went in says so, and hands the editor the heights saved (it
+   *  starts from them: live_aboard_edit.js). A host with no height command:
+   *  all to the file, as before. */
+  async function editSave(ch, base){
     const p = lastP || {}, edit = p.edit, put = typeof p.heights === "function" ? p.heights : null;
     if (!put) return edit(ch);
-    const split = DRAFT.splitSave(file || NO_FILE, ch, placedNow(), recordsNow());
+    const split = DRAFT.splitSave(file || NO_FILE, ch, base, placedNow());
     if (split.heights) {
+      const before = DRAFT.recordHeights(p.model);
       try { await put(split.heights); }
       catch (err) {
         throw Object.assign(new Error(`the heights couldn't be saved (${why(err)}). Nothing was changed; your changes are still here: Save to try again.`),
           { code: "heights_failed" });
       }
-      Object.assign(recZ, split.heights);
+      for (const [k, z] of Object.entries(split.heights)) recZ[k] = { z, was: k in before ? before[k] : undefined };
       shownMemo = null;
     }
     if (!split.file) return { data: fileRaw || file || NO_FILE };
@@ -3354,7 +3361,7 @@ function createSlot(slotKey){
     catch (err) {
       if (!split.heights) throw err;
       throw Object.assign(new Error(`Heights saved. The rest wasn't: ${why(err)}. Your other changes are still here: Save to try again.`),
-        { code: err && err.code, partial: true });
+        { code: err && err.code, partial: true, heights: split.heights });
     }
   }
   // Read through the host (the view calls nothing itself), once per showing:

@@ -2948,6 +2948,8 @@ export function buildLightsMapCard(hostIn){
           // Its heights go on the placement records (fabric_light_height_set),
           // given with edit, on the same gate as placing a light.
           heights: typeof h3.heights === "function" ? h3.heights : null,
+          // Which devices have a placement record (Mapping draws unsaved ones too).
+          placed: typeof h3.placed === "function" ? h3.placed : null,
           // Rain and snow, and the Showcase look (P8): the flat map's own
           // weather inputs with Live Aboard's Rain and snow switch, and the
           // Showcase theme this map shows. The view decides what they draw.
