@@ -7,8 +7,8 @@ What PadSpan HA needs from the machine running Home Assistant and from the scree
 | | |
 |---|---|
 | **Recommended** | **More than 2 GB of RAM.** A Raspberry Pi 4 or 5 with 4 GB or more, a Home Assistant Green, or any mini PC or VM with 4 GB or more. |
-| **2 GB machines** | **Not recommended for now.** Near a busy street or in an apartment block, PadSpan hears thousands of passing Bluetooth devices. On a 2 GB Raspberry Pi, Home Assistant has been seen running out of memory within a few hours. |
-| **Storage** | PadSpan's stores are small. The object history grows with how busy the radio environment is. |
+| **2 GB machines** | **Not recommended for now.** Near a busy street or in an apartment block, PadSpan hears thousands of passing Bluetooth devices. On a 2 GB Raspberry Pi, Home Assistant has been seen running out of memory within a few hours. See the measured numbers below. |
+| **Storage** | **An SSD or eMMC rather than an SD card.** The object history is saved to disk up to every 15 seconds. In a house with about 2,900 devices that file is about 5 MB, which is up to about 30 GB of writes a day. |
 
 ### Why a busy street costs memory
 
@@ -19,6 +19,21 @@ PadSpan keeps three things in memory that grow with every device it hears, not o
 - **The live snapshot.** Everything above, built into one list that is sent to every open PadSpan panel every 5 seconds.
 
 In a quiet house these hold a few hundred devices. Next to a busy street they can hold tens of thousands. One opted-in install reported over 80,000.
+
+### What it costs, measured
+
+On the developer's house (about 2,900 devices in the history, 19 scanners), every open PadSpan panel is sent about 5 MB every 5 seconds, and PadSpan's devices take about 40 MB of Home Assistant's 1.1 GB.
+
+Benchmarked on 64-bit Python, the same kind a Raspberry Pi 4 or 5 runs, with six scanners. These are estimates: real memory use runs about 10 to 30% higher.
+
+| Devices held | PadSpan's memory (held / peak with a panel open) |
+|---|---|
+| 1,000 | about 14 / 20 MB |
+| 5,000 | about 67 / 100 MB |
+| 25,000 | about 340 / 500 MB |
+| 80,000 | about 1.0 / 1.6 GB |
+
+A 2 GB Raspberry Pi has an estimated 0.4 to 0.8 GB left for PadSpan once Home Assistant OS, the Supervisor and a few add-ons are running. So PadSpan fits on 2 GB only if it holds about 5,000 devices or fewer. The measurements also show that capping the device list alone is not enough: the Bluetooth cache has to be capped too.
 
 ### Low-memory mode (being built)
 
