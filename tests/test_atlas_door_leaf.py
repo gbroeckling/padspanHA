@@ -62,6 +62,9 @@ _MODEL = {
          "linked_entity_id": "binary_sensor.front_door"},
         {"id": "bar_win", "name": "Hall window", "material": "glass", "floor_id": "main", "points_m": [[0, 1], [0, 2]],
          "linked_entity_id": "binary_sensor.hall_window"},
+        # A door linked to nothing: the flat lights map draws no unlinked wall
+        # (they are the Rooms tab's), whatever Live Aboard's file says of it.
+        {"id": "bar_pantry", "name": "Pantry door", "material": "wood", "floor_id": "main", "points_m": [[6, 4], [6.9, 4]]},
     ],
 }
 _FLOORS = [{"id": "main", "name": "Main", "level": 0}]
@@ -74,23 +77,35 @@ def _lbe(den="off", front="off", win="off", den_class="door"):
             "binary_sensor.hall_window": rec("binary_sensor.hall_window", win, "window")}
 
 
-def _script(cases: dict) -> str:
+def _script(cases: dict, model: dict | None = None) -> str:
+    """cases: {name: (lbe, opts)} or {name: (lbe, opts, model)}."""
     body = ["import * as M from './iso_lights.mjs';",
-            f"const MODEL={json.dumps(_MODEL)};", f"const FLOORS={json.dumps(_FLOORS)};",
-            "const R=(lbe, opts={})=>M.buildIsoSVG(MODEL,{},new Set(),null,150,0,lbe,false,FLOORS,{barrierHit:true,...opts});",
+            f"const MODEL={json.dumps(model or _MODEL)};", f"const FLOORS={json.dumps(_FLOORS)};",
+            "const R=(lbe, opts={}, m=MODEL)=>M.buildIsoSVG(m,{},new Set(),null,150,0,lbe,false,FLOORS,{barrierHit:true,...opts});",
             "const out={};"]
-    for k, (lbe, opts) in cases.items():
-        body.append(f"out[{json.dumps(k)}]=R({json.dumps(lbe)},{json.dumps(opts)});")
+    for k, (lbe, opts, *m) in cases.items():
+        body.append(f"out[{json.dumps(k)}]=R({json.dumps(lbe)},{json.dumps(opts)}{',' + json.dumps(m[0]) if m else ''});")
     body.append("console.log(JSON.stringify(out));")
     return "\n".join(body)
 
 
 _LEAF = re.compile(r'<g class="lvdoorleaf"[^>]*>.*?</g>', re.S)
+_NO_PANTRY = {**_MODEL, "rf_barriers_m": [b for b in _MODEL["rf_barriers_m"] if b["id"] != "bar_pantry"]}
+# Live Aboard's file says the unlinked Pantry door stands open, or is a
+# sliding door shown ajar: the flat Atlas draws none of it.
+_PANTRY_SAID = {"bar_pantry": {"shown": "open"}}
+_PANTRY_SLID = {"bar_pantry": {"shown": "ajar", "type": "sliding"}}
+
 
 
 def test_an_open_door_draws_its_leaf_and_nothing_else_changes(tmp_path) -> None:
-    out = _run(tmp_path, _script({"shut": (_lbe(), {}), "open": (_lbe(den="on"), {})}))
+    out = _run(tmp_path, _script({"shut": (_lbe(), {}), "open": (_lbe(den="on"), {}), "bare": (_lbe(), {}, _NO_PANTRY),
+                                  "said": (_lbe(den="on"), {"doorOpenings": _PANTRY_SAID}),
+                                  "slid": (_lbe(den="on"), {"doorOpenings": _PANTRY_SLID})}))
     shut, opened = out["shut"], out["open"]
+    # The unlinked Pantry door draws nothing, as ever: not shut, not with a
+    # door open beside it, and not whatever Live Aboard says of it.
+    assert shut == out["bare"] and out["said"] == opened and out["slid"] == opened
     leaves = _LEAF.findall(opened)
     assert len(leaves) == 1 and not _LEAF.findall(shut)
     leaf = leaves[0]
@@ -152,15 +167,31 @@ def test_shut_no_reading_and_windows_are_as_they_were(tmp_path) -> None:
 def test_without_the_door_rules_an_open_door_is_the_bare_gap_it_was(tmp_path) -> None:
     """The door rules load optionally: missing, the flat map is exactly the
     old drawing, and with no door open the rules change nothing at all."""
-    script = _script({"open": (_lbe(den="on"), {}), "shut": (_lbe(), {})})
+    script = _script({"open": (_lbe(den="on"), {}), "shut": (_lbe(), {}), "said": (_lbe(), {"doorOpenings": _PANTRY_SAID}),
+                      "noPantry": (_lbe(), {}, _NO_PANTRY)})
     bare = _run(tmp_path, script, doors=False)
     (tmp_path / "door_types.mjs").unlink(missing_ok=True)
     full_dir = tmp_path / "full"
     full_dir.mkdir()
     full = _run(full_dir, script, doors=True)
     assert not _LEAF.findall(bare["open"])
-    assert full["shut"] == bare["shut"]
+    # The unlinked Pantry door, said open in Live Aboard's file, draws
+    # nothing: the old drawing with or without it, byte for byte.
+    assert full["shut"] == bare["shut"] == full["said"] == bare["said"] == full["noPantry"] == bare["noPantry"]
     assert _LEAF.sub("", full["open"]) == bare["open"]
+
+
+def test_a_wide_door_is_drawn_as_live_aboard_guesses_it(tmp_path) -> None:
+    """One first guess (door_types.js guessDoorType) for the flat Atlas and
+    Live Aboard: open, a 2.44 m patio door is slid aside, and a plain door
+    wider than a double lifts (a dashed outline at the head), as Live Aboard
+    draws them."""
+    def wide(name):
+        return {**_MODEL, "rf_barriers_m": [{**_MODEL["rf_barriers_m"][0], "name": name, "points_m": [[4, 0.5], [4, 2.94]]}]}
+    out = _run(tmp_path, _script({"patio": (_lbe(den="on"), {}, wide("Patio door")), "plain": (_lbe(den="on"), {}, wide("Den door"))}))
+    patio, plain = (_LEAF.findall(out[k])[0] for k in ("patio", "plain"))
+    assert patio.count("<polygon") == 2 and 'stroke-dasharray="3,3"' not in patio, patio
+    assert plain.count("<polygon") == 1 and 'fill="none"' in plain and 'stroke-dasharray="3,3"' in plain, plain
 
 
 def test_the_rules_are_shared_not_copied() -> None:

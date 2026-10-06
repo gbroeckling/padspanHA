@@ -318,7 +318,8 @@ const api = { toast(){}, toggle(){}, openRoom(){}, openFloor(){}, openControls()
 let topIds = null;
 const prefStore = new Map();
 const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: {}, hidden: new Set(), topFloorIds: topIds, quality: "low",
-  telemetry: () => {}, onTouch: () => {}, states: {}, config: {}, bearing: 0, saveNorth: async () => true, useApi: () => api, haStartedMs: 0,
+  telemetry: () => {}, onTouch: () => {}, states: { "binary_sensor.big_door": { entity_id: "binary_sensor.big_door", state: "off", attributes: { device_class: "garage_door", friendly_name: "Big door" } } },
+  config: {}, bearing: 0, saveNorth: async () => true, useApi: () => api, haStartedMs: 0,
   prefs: { get: (k) => (prefStore.has(k) ? prefStore.get(k) : null), set: (k, v) => prefStore.set(k, v) },
   load: async () => ({ data: clone(server.file) }),
   edit: async (ch) => { for (const [s, e] of Object.entries(ch)) for (const [k, v] of Object.entries(e)) { if (v === null) delete server.file[s][k]; else server.file[s][k] = clone(v); } return { data: clone(server.file) }; } });
@@ -441,10 +442,20 @@ await tryCase("view: a door's sheet: Type, PadSpan's guess, only that type's opt
   s0.dispatchEvent({ type: "change" });
   await later(100, 6);
   const slid = labels(), d1 = st().edit.draft.openings.door_5a1e0002;
+  // Following a garage door sensor, its guess is what Live Aboard draws: overhead.
+  const s1 = typeSel();
+  s1.value = "";
+  s1.dispatchEvent({ type: "change" });
+  await later(100, 6);
+  const fol = sheet().querySelectorAll("select").find(q => q.getAttribute("aria-label") === "Follows");
+  fol.value = "binary_sensor.big_door";
+  fol.dispatchEvent({ type: "change" });
+  await later(100, 6);
+  const big = typeSel().querySelectorAll("option").map(o => o.textContent)[0];
   check("view: a door's sheet: Type, PadSpan's guess, only that type's options, and what it follows",
     first[0] === "PadSpan's guess: Hinged" && first.length === 11 && hinged.includes("Hinge") && hinged.includes("Swing") && hinged.includes("Follows")
-    && hinged.includes("Shown") && d1.type === "sliding" && slid.includes("Slides") && slid.includes("Glass") && !slid.includes("Hinge"),
-    { first, hinged, slid, d1 });
+    && hinged.includes("Shown") && d1.type === "sliding" && slid.includes("Slides") && slid.includes("Glass") && !slid.includes("Hinge")
+    && big === "PadSpan's guess: Overhead garage", { first, hinged, slid, d1, big });
   if (button("Discard", "la3d-tools")) button("Discard", "la3d-tools").click();
   if (button("Done", null)) button("Done", null).click();
   await later(100, 6);

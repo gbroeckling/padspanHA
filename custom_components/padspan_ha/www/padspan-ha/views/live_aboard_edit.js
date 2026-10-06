@@ -801,9 +801,9 @@ export function createEditor(ctx){
       return;
     }
     const pc = P ? { ...P.pc, override: { ...(P.pc.override || {}), ...cur } } : { x0: 0, y0: 0, x1: 0.9, y1: 0, cls: "int", override: cur };
-    const host = ctx.host ? ctx.host() || {} : {}, states = host.states || {};
-    const fol = states[cur.link || (P && P.pc.barrier && P.pc.barrier.linked_entity_id) || ""];
-    const t = S2.doorTypeOf(pc, at && at.F ? at.F.rooms : P ? [] : [], (fol && fol.attributes && fol.attributes.device_class) || null);
+    // PadSpan's guess goes by the class of what it follows, as the view's does.
+    const fol = cur.link || (P && P.pc.barrier && P.pc.barrier.linked_entity_id) || null;
+    const t = S2.doorTypeOf(pc, at && at.F ? at.F.rooms : P ? [] : [], fol && ctx.doorClass ? ctx.doorClass(fol) : null);
     const row = d("label", "la3d-row la3d-kind"), sel2 = d("select");
     sel2.setAttribute("aria-label", "Type");
     const opt = (v, text) => { const n = d("option", null, text); n.value = v; return n; };
@@ -830,6 +830,7 @@ export function createEditor(ctx){
     // What drives it: the map's sensor, else what Follows says, else Shown.
     const b = P && P.pc.barrier;
     if (b && b.linked_entity_id && !cur.link) { sheet.appendChild(d("p", "la3d-sub", "It opens and shuts with its sensor.")); return; }
+    const host = ctx.host ? ctx.host() || {} : {}, states = host.states || {};
     const fl = d("label", "la3d-row la3d-kind"), fsel = d("select");
     fsel.setAttribute("aria-label", "Follows");
     fsel.appendChild(opt("", "Nothing: shown as below"));

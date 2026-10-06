@@ -1127,7 +1127,7 @@ function createSlot(slotKey){
     editor = EDIT.createEditor({
       THREE, HOUSE, DRAFT, root, canvas, bar, guard,
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
-      pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid),
+      pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid), doorClass: (eid) => classOf(eid),
       file: () => file, reload: () => reloadFile(), problem: () => fileErr, newer: () => setFileErr("house3d_newer"),
       saved: (data) => { file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
       redraw: () => redraw(), preview: (t) => preview(t), render: () => requestRender(), topDown: (F) => topDownOn(F),
@@ -1805,13 +1805,18 @@ function createSlot(slotKey){
   // follows its position), and a lock linked to it. A type other than
   // hinged draws its own panels (typedPanels) instead of the wall's one leaf.
   function typeDoor(o, P, rooms){
-    const dl = lbe[o.eid], st = lastP && lastP.states ? lastP.states[o.eid] : null;
-    const t = STOREY.doorTypeOf(P.pc, rooms, (dl && dl.device_class) || (st && st.attributes && st.attributes.device_class) || null);
+    const t = STOREY.doorTypeOf(P.pc, rooms, classOf(o.eid));
     o.garage = false;
     o.t = t;
     o.cover = STOREY.linkKind(o.eid, lastP && lastP.states ? lastP.states[o.eid] : null) === "cover";
     o.lock = (P.pc.barrier && P.pc.barrier.linked_lock_entity_id) || null;
     o.lockState = null;
+  }
+  /** The device class of what a door follows (its guess goes by it; the
+   *  door's sheet asks the same). */
+  function classOf(eid){
+    const dl = eid ? lbe[eid] : null, st = eid && lastP && lastP.states ? lastP.states[eid] : null;
+    return (dl && dl.device_class) || (st && st.attributes && st.attributes.device_class) || null;
   }
   // A door with no sensor stands as its sheet says (live_aboard_storey.js
   // doorShown): ajar inside, shut on an outside wall or as a garage door,
