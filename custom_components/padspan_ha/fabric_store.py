@@ -748,7 +748,7 @@ class FabricStore:
             self.data["light_heights_gone"] = sorted(now)
             counts["heights"] += len(now ^ listed)
 
-        total =(counts["scanners"] + counts["beacons"] + counts["barriers"]
+        total = (counts["scanners"] + counts["beacons"] + counts["barriers"]
                  + counts["lights"] + counts["heights"] + counts["removed"])
         if total:
             self._log_history("", "", op, total)

@@ -203,8 +203,9 @@ function startMapping(draftM){
   m.ctx = { state: { get model(){ return m.model; } }, actions: {
     wsCall: async (type, msg) => { if (type !== "padspan_ha/fabric_light_height_set") throw new Error(type); return heightsFn(msg.heights); },
     modelRefresh: () => new Promise((r) => globalThis._realSetTimeout(r, 0)).then(() => { m.model = clone(server.model); poll(); }),
-    // Mapping drawn again (no read): the card a moment later, as the panel schedules it.
-    renderRooms: () => { m.rendered = (m.rendered || 0) + 1; globalThis._realSetTimeout(() => { if (mapping === m) poll(); }, 0); },
+    // Mapping asks to be drawn again (no read); the panel does it later: a
+    // case draws the next card itself (poll), so what shows before it is seen.
+    renderRooms: () => { m.rendered = (m.rendered || 0) + 1; },
   } };
   return m;
 }
@@ -544,8 +545,9 @@ await tryCase("save: a height Live Aboard saves for a device dropped on Mapping'
   slide("Height", 1.3);
   click("Save", "la3d-tools");
   await settle(); await settle();
-  const saved = zOf("light.lamp"), file = payloads.slice(sent), left = clone(mapping.mapState._lightsDraftM);
-  await settle(); poll(); await settle();
+  // Before Mapping's next card: its draft still says 0.75 to this view.
+  const saved = zOf("light.lamp"), file = payloads.slice(sent), left = clone(mapping.mapState._lightsDraftM), asked = mapping.rendered;
+  poll(); await settle();
   const after = zOf("light.lamp");
   click("Done"); await settle(); poll(); await settle();
   const done = zOf("light.lamp");
@@ -553,8 +555,8 @@ await tryCase("save: a height Live Aboard saves for a device dropped on Mapping'
   check("save: a height Live Aboard saves for a device dropped on Mapping's map, not yet saved, wins over the Height row's",
     picked && near(before, 0.75) && heightCalls.length === calls && file.length === 1
     && canonical(file[0]) === canonical({ lights: { "light.lamp": { z_m: 1.3 } }, heights_set: ["light.lamp"] })
-    && near(saved, 1.3) && near(after, 1.3) && near(done, 1.3) && server.file.lights["light.lamp"].z_m === 1.3
-    && canonical(left) === canonical({ "light.lamp": { ...drop, source: "manual" } }), { picked, before, file, saved, after, done, left });
+    && near(saved, 1.3) && near(after, 1.3) && near(done, 1.3) && server.file.lights["light.lamp"].z_m === 1.3 && asked === 1
+    && canonical(left) === canonical({ "light.lamp": { ...drop, source: "manual" } }), { picked, before, file, saved, after, done, left, asked });
 });
 // ── gone: a height Auto position cleared ───────────────────────────────────
 await tryCase("gone: a height Auto position cleared never comes back from the 3D file", async () => {
@@ -592,13 +594,16 @@ await tryCase("gone: a height Live Aboard writes after that is the newest, drawn
   slide("Height", 1.3);
   click("Save", "la3d-tools");
   await settle(); await settle();
+  // Before Mapping's next card: the model this view has still lists the lamp.
   const saved = zOf("light.lamp"), file = payloads.slice(sent), goneNow = clone(mapping.model.light_heights_gone);
-  await settle(); poll(); await settle();
+  poll(); await settle();
   const after = { lamp: zOf("light.lamp"), living: zOf("light.living") };
   mapping = null;
   check("gone: a height Live Aboard writes after that is the newest, drawn at once; a kind alone never brings the old one back",
     pickedLiving && picked && shownBefore === null && file.length === 1
-    && canonical(file[0]) === canonical({ lights: { "light.lamp": { z_m: 1.3 }, "light.living": { kind: "chandelier" } }, heights_set: ["light.lamp"] })
+    // The living light's old 1.9 stays in the file as its own copy (an older
+    // PadSpan's), never named the newest: still not drawn.
+    && canonical(file[0]) === canonical({ lights: { "light.lamp": { z_m: 1.3 }, "light.living": { kind: "chandelier", z_m: 1.9 } }, heights_set: ["light.lamp"] })
     && near(saved, 1.3) && near(after.lamp, 1.3) && after.living === null
     && canonical(goneNow) === canonical(["light.living"]), { pickedLiving, picked, shownBefore, file, saved, after, goneNow });
 });

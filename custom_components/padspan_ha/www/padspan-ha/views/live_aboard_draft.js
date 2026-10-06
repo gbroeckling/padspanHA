@@ -607,13 +607,13 @@ const withoutZ = (e) => { const o = { ...(e || {}) }; delete o.z_m; return o; };
  *  the draft's starting copy): a height never touched is never sent, so a
  *  newer one set elsewhere meanwhile stays. file: the draft's changes (`ch`,
  *  changesOf) for house3d_edit, with a height the draft did not change left
- *  as the 3D file has it (`file`, as the view reads it): a light's entry
- *  keeps the file's own copy, a device's height entry is not sent. So a
- *  height the view only lays over a device with no record (Mapping's unsaved
- *  Height-row value for one dropped there and not yet saved) is drawn, never
- *  written. A device with no record whose height the draft did change: that
- *  height goes to the file, and file.heights_set names it (the newest height
- *  it has: ws_house3d, maps.js). Either is null with nothing in it. */
+ *  as the 3D file has it (`file`, as read): a light's entry keeps the file's
+ *  own copy, a device's height entry is not sent. So a height the view only
+ *  lays over a device with no record (Mapping's unsaved Height-row value for
+ *  one dropped there and not yet saved) is drawn, never written. A device
+ *  with no record whose height the draft did change: that height goes to
+ *  the file, and file.heights_set names it (the newest height it has:
+ *  ws_house3d, maps.js). Either is null with nothing in it. */
 export function splitSave(file, ch, base, placed){
   const has = (id) => (placed instanceof Set ? placed.has(id) : !!(placed && placed[id]));
   const heights = {}, out = {}, mine = [];

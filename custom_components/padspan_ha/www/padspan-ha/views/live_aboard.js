@@ -3631,15 +3631,13 @@ function createSlot(slotKey){
    *  goes to the 3D file (the host's edit: house3d_edit). A refused height
    *  command changes nothing at all; a file write that fails after the
    *  heights went in says so, and hands the editor the heights saved (it
-   *  starts from them: live_aboard_edit.js). A height the file holds out of
-   *  date is never sent back as its own (the file as the view reads it); a
-   *  height written to the file for a device with no record is the newest it
-   *  has from then on (fileZ). A host with no height command: all to the
-   *  file, as before. */
+   *  starts from them: live_aboard_edit.js). A height written to the file
+   *  for a device with no record is the newest it has from then on (fileZ).
+   *  A host with no height command: all to the file, as before. */
   async function editSave(ch, base){
     const p = lastP || {}, edit = p.edit, put = typeof p.heights === "function" ? p.heights : null;
     if (!put) return edit(ch);
-    const split = DRAFT.splitSave(withoutGone(file || NO_FILE, [...goneNow()]), ch, base, placedNow());
+    const split = DRAFT.splitSave(file || NO_FILE, ch, base, placedNow());
     if (split.heights) {
       const before = DRAFT.recordHeights({ light_positions_m: savedRecords() });
       try { await put(split.heights); }
