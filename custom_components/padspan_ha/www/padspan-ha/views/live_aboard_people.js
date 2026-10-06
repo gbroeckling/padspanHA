@@ -583,7 +583,7 @@ export async function peopleFlow(ctx){
       paintList();
       return [
         el("h3", {}, `What ${e.name} carries`),
-        el("p", { class: "muted" }, `Tick the phones and tags that are ${e.name}'s. They place ${e.name} in Live Aboard and on the Atlas's map, whatever the names say. With none ticked, ${e.name} is found by name and trackers, as before. This stays in this house: it is never sent anywhere.`),
+        el("p", { class: "muted" }, `Tick the phones and tags that are ${e.name}'s. Ticked, they place them in Live Aboard and on the Atlas's map, whatever the names say. None ticked: found by name and trackers, as before. This stays in this house and is never sent anywhere.`),
         find, list,
         m.error ? el("p", { class: "warn" }, m.error) : null,
         el("p", { class: "muted" }, "Keep saves it straight away (it isn't part of Done and Save)."),

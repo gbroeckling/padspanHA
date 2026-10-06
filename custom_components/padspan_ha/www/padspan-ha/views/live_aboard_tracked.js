@@ -56,7 +56,7 @@ const HEARD_MAX = 4;                       // scanners named in a tag's card
 // Someone known only by their room: a step out from its middle for each one
 // there before them (m, up to the second), and drawn this opaque.
 const ROOM_FAN_M = [0.3, 1.2];
-export const ROOM_ONLY_OPACITY = 0.45;
+export const ROOM_ONLY_OPACITY = 0.55;
 export const ROOM_ONLY_WORDS = "Room only: PadSpan knows the room, not the spot";
 
 const fin = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -571,7 +571,8 @@ export function createTrackedLayer(ctx){
         const at = new THREE.Vector3(0, h / 2, 0).applyMatrix4(I.root.matrixWorld);
         if (I.kind === "person") {
           const tall = Math.max(h, 1.2), pts = [0.15, 0.5, 0.85].map(k => new THREE.Vector3(0, tall * k, 0).applyMatrix4(I.root.matrixWorld));
-          out.push({ key: I.key, kind: "person", at, pts, live: () => new THREE.Vector3(I.at.x, I.at.y + tall / 2, I.at.z), name: null, namePx: null,
+          // Their card hangs from their feet, so it never covers them.
+          out.push({ key: I.key, kind: "person", at, pts, live: () => I.at.clone(), name: null, namePx: null,
                      label: `${I.card.title} · ${I.dim ? "room only" : "person"}`, card: I.card });
           continue;
         }

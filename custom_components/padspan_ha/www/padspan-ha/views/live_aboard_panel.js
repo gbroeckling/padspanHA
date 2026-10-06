@@ -216,6 +216,7 @@ export function createPanel(v){
     });
     atHome = true;
     lastTouch = now();
+    disarm();
     paintChip();
     return true;
   }
