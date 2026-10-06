@@ -583,6 +583,35 @@ const _placeKey = (e) => JSON.stringify(Object.keys(e || {}).filter((k) => !["z_
 // Save placements sends it with fabric_light_height_set, the height only:
 // x, y and looks stay as saved, even if another screen moved it meanwhile.
 const _heightOnly = (e) => !!e && !!e._zOnly && e._zOnly === _placeKey(e);
+// Live Aboard's Edit → Heights just saved these devices' heights on their
+// records: those are the newest, so the Height row's unsaved height for the
+// same device (older) goes, from the draft and from its Undo and Redo steps
+// alike. An entry that held only that height goes whole; one that also
+// moved keeps the move and draws, and saves, with the record's height. Save
+// placements never puts an older height back over one saved since.
+function _dropRowHeights(mapState, eids) {
+  const fix = (snap, gone) => {
+    for (const eid of eids) {
+      const e = snap[eid];
+      if (!e || !e._z) continue;
+      if (_heightOnly(e)) { gone(snap, eid); continue; }
+      const { _z, _zOnly, z_m, ...rest } = e;
+      snap[eid] = rest;
+    }
+  };
+  fix(mapState._lightsDraftM || {}, (d, eid) => { delete d[eid]; });
+  if (mapState._lightsUndo) mapState._lightsUndo.forEach((step) => fix(step, (s, eid) => { s[eid] = null; }));
+}
+// Live Aboard's heights, on the placement records (the Atlas's own command
+// and gate), then the map read again so both views have them.
+export function _laHeightsPut(ctx, mapState) {
+  return (heights) => ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })
+    .then((r) => {
+      _dropRowHeights(mapState, Object.keys(heights || {}));
+      Promise.resolve(ctx.actions.modelRefresh()).catch(() => {});
+      return r;
+    });
+}
 // The hover box's "2.40 m up": the Heights list's own row (rowsOf, through
 // heightNow: the Height row's unsaved height, the record's, then the 3D
 // file's), shown as the list shows it; nothing while it uses a default.
@@ -9548,10 +9577,8 @@ function _lightsTab(ctx, maps, active) {
       // (paid, not Preview): without it the 3D view offers no Edit.
       edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)
         .then((r) => { mapState._heightsFile = undefined; return r; }) : null,
-      // Its heights, on the placement records (the Atlas's own command and
-      // gate), then the map read again so both views have them.
-      heights: paid && !preview ? (heights) => ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })
-        .then((r) => { Promise.resolve(ctx.actions.modelRefresh()).catch(() => {}); return r; }) : null,
+      // Its heights, on the placement records (_laHeightsPut).
+      heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null,
       // The placement records as saved: a height lives on its record; a
       // device dropped here and not yet saved has none (its height is the 3D
       // file's), and this tab's unsaved Height-row values are not saved ones.

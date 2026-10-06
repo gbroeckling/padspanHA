@@ -263,11 +263,13 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     # The fourth is P2 Furnish's: the host's connection handed to its flows
     # (contracts §4) and "This is a device…", only on Mapping → Furnish. The
     # fifth is Show people's read of the live snapshot (P6): Mapping does not
-    # poll it, so the view reads it, only while Show people is on. The sixth
-    # is the editor's heights, on the placement records (2026-10-05: the
-    # Atlas's own fabric_light_height_set, on the same gate as edit).
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 6
-    assert 'ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })' in mblock
+    # poll it, so the view reads it, only while Show people is on. The
+    # editor's heights go on the placement records (2026-10-05: the Atlas's
+    # own fabric_light_height_set, on the same gate as edit, _laHeightsPut).
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 5
+    assert "heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null," in mblock
+    put = maps[maps.index("export function _laHeightsPut("):][:400]
+    assert 'ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })' in put
     assert 'read: () => ctx.actions.wsCall("padspan_ha/live_snapshot")' in mblock
     assert "callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); }," in mblock
     assert 'load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),' in mblock

@@ -21,7 +21,8 @@
 //           and the defaults, as before; a height just saved gives way when
 //           the map brings another (finding 4), and never outlives the saved
 //           record it went to, however Mapping's unsaved draft read (re-review
-//           finding 1)
+//           finding 1); once saved it is what is drawn, never Mapping's older
+//           unsaved Height-row value (Mapping's own hook, round 2)
 //   save    Edit → Heights writes the record: one Save, the height command
 //           only (nothing for the 3D file), Undo and Discard before Save send
 //           nothing; a height and a kind in one Save: both writes, the file
@@ -57,6 +58,8 @@ installStubGL();
 const LA = await import(pathToFileURL(join(WWW, "views", "live_aboard.js")).href);
 const H = await import(pathToFileURL(join(WWW, "views", "live_aboard_house.js")).href);
 const D = await import(pathToFileURL(join(WWW, "views", "live_aboard_draft.js")).href);
+// Mapping's own pieces: the model it hands the view, and its heights hook.
+const MAPS = await import(pathToFileURL(join(WWW, "views", "maps.js")).href);
 
 const failures = [], cases = {}, payloads = [], heightCalls = [];
 const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push({ name, detail: detail === undefined ? null : detail }); };
@@ -170,13 +173,26 @@ const heightsFn = async (heights) => {
 };
 const api = { calls: [], toast(){}, toggle(){}, openRoom(){}, openFloor(){}, openControls(){}, openActivity(){}, controlsFor: () => null,
               lightsByEid: {}, hass: null };
-let slotN = 0, slot = null, withHeights = true, draftOnly = null;
+let slotN = 0, slot = null, withHeights = true, draftOnly = null, mapping = null;
 const P = () => ({ model: clone(server.model), floors: server.model.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: null, quality: "low",
   telemetry: () => {}, states: {}, config: {}, bearing: 0, saveNorth: null, useApi: () => api, haStartedMs: 0,
   load: async () => ({ data: clone(server.file) }), edit: editFn, heights: withHeights ? heightsFn : null,
   // Mapping: the draft adds a device just dropped (draftOnly), not yet saved.
-  ...(draftOnly ? { records: () => clone(server.model.light_positions_m) } : null) });
-const drawnModel = () => (draftOnly ? { ...clone(server.model), light_positions_m: { ...clone(server.model.light_positions_m), ...draftOnly } } : clone(server.model));
+  ...(draftOnly ? { records: () => clone(server.model.light_positions_m) } : null),
+  // Mapping for real (startMapping): its own heights hook, its model as read.
+  ...(mapping ? { heights: MAPS._laHeightsPut(mapping.ctx, mapping.mapState), records: () => clone(mapping.model.light_positions_m) } : null) });
+const drawnModel = () => (mapping ? { ...clone(mapping.model), light_positions_m: MAPS._draftOverRecords(clone(mapping.model.light_positions_m), clone(mapping.mapState._lightsDraftM)) }
+  : draftOnly ? { ...clone(server.model), light_positions_m: { ...clone(server.model.light_positions_m), ...draftOnly } } : clone(server.model));
+// Mapping's tab: its model as last read (the map read again, after a while,
+// redraws the card as the panel does) and its placement draft.
+function startMapping(draftM){
+  const m = { mapState: { _lightsDraftM: clone(draftM) }, model: null };
+  m.ctx = { actions: {
+    wsCall: async (type, msg) => { if (type !== "padspan_ha/fabric_light_height_set") throw new Error(type); return heightsFn(msg.heights); },
+    modelRefresh: () => new Promise((r) => globalThis._realSetTimeout(r, 0)).then(() => { m.model = clone(server.model); poll(); }),
+  } };
+  return m;
+}
 function poll(){
   const card = document.createElement("div"), stage = document.createElement("div");
   card.appendChild(stage);
@@ -396,9 +412,9 @@ await tryCase("save: a device dropped on Mapping's map, not yet saved: its heigh
     && !ed().dirty && /Saved/.test(h), { picked, heightCalls, sentFile, h });
 });
 await tryCase("read: a height just saved never outlives its record: Mapping's Save placements over it is drawn", async () => {
-  // Re-review finding 1: Mapping (Furnish open) holds an unsaved Height-row
-  // value (2.0) for the den light; Live Aboard saves 1.25 to its record;
-  // then Mapping's Save placements puts its 2.0 on the record.
+  // Re-review finding 1: a map that draws 2.0 for the den light; Live
+  // Aboard saves 1.25 to its record; then a Save placements (another tab's
+  // Mapping, say) puts 2.0 on the record.
   draftOnly = { "light.den": { x_m: 9.2, y_m: 0.9, floor_id: "main", z_m: 2.0 } };
   await start(withZ({ "light.den": 1.6 }), { ...FILE, lights: {}, devices: {} });
   const calls = heightCalls.length;
@@ -417,6 +433,43 @@ await tryCase("read: a height just saved never outlives its record: Mapping's Sa
   check("read: a height just saved never outlives its record: Mapping's Save placements over it is drawn",
     picked && sent.length === 1 && sent[0]["light.den"] === 1.25 && near(editing, 2.0) && near(after, 2.0)
     && server.model.light_positions_m["light.den"].z_m === 2.0, { picked, sent, editing, after });
+});
+await tryCase("read: a height just saved in Live Aboard is drawn at once, never Mapping's older unsaved one", async () => {
+  // Round-2 finding 1: in Mapping the den light's Height row says 2.0 (its
+  // only change, unsaved) and the living light was moved with 2.2 on its
+  // row; Live Aboard saves 1.25 and 1.7 to their records. Mapping's own hook
+  // (maps.js _laHeightsPut) takes its older heights out of its draft.
+  await start(withZ({ "light.den": 1.6 }), { ...FILE, lights: {}, devices: {} });
+  const rec = server.model.light_positions_m;
+  // The den's entry as Mapping's Height row makes it (_zOnly: its record's placement, maps.js _placeKey).
+  const key = (e) => JSON.stringify(Object.keys(e).filter((k) => !["z_m", "_z", "_zOnly", "source"].includes(k)).sort().map((k) => [k, e[k]]));
+  mapping = startMapping({
+    "light.den": { ...rec["light.den"], z_m: 2.0, _z: true, _zOnly: key(rec["light.den"]) },
+    "light.living": { ...rec["light.living"], x_m: 2.6, z_m: 2.2, _z: true, source: "manual" },
+  });
+  mapping.model = clone(server.model);
+  poll(); await settle();
+  const before = { den: zOf("light.den"), living: zOf("light.living") };
+  const calls = heightCalls.length;
+  await openHeights();
+  const picked = await pickDevice("light.den") && (slide("Height", 1.25), await pickDevice("light.living"));
+  slide("Height", 1.7);
+  click("Save", "la3d-tools");
+  await settle(); await settle();
+  // The map read again (Mapping's hook asks for it) has landed by now.
+  const sent = heightCalls.slice(calls), saved = { den: zOf("light.den"), living: zOf("light.living"), h: hint(),
+                                                   reread: mapping.model.light_positions_m["light.den"].z_m };
+  click("Done"); await settle(); poll(); await settle();
+  const after = { den: zOf("light.den"), living: zOf("light.living") };
+  const left = clone(mapping.mapState._lightsDraftM);
+  mapping = null;
+  check("read: a height just saved in Live Aboard is drawn at once, never Mapping's older unsaved one",
+    picked && near(before.den, 2.0) && near(before.living, 2.2) && sent.length === 1
+    && canonical(sent[0]) === canonical({ "light.den": 1.25, "light.living": 1.7 }) && /Saved/.test(saved.h) && saved.reread === 1.25
+    && near(saved.den, 1.25) && near(saved.living, 1.7) && near(after.den, 1.25) && near(after.living, 1.7)
+    && server.model.light_positions_m["light.den"].z_m === 1.25
+    && canonical(left) === canonical({ "light.living": { ...BASE.light_positions_m["light.living"], x_m: 2.6, source: "manual" } }),
+    { picked, before, sent, saved, after, left });
 });
 await tryCase("save: a device dropped on Mapping's map, not yet saved, never takes Mapping's unsaved height", async () => {
   // Re-review finding 3: its Height row says 0.9 (unsaved); in Live Aboard

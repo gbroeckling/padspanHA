@@ -108,7 +108,9 @@ def test_edit_is_handed_over_only_where_lights_are_placed() -> None:
     assert ('edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)\n'
             '        .then((r) => { mapState._heightsFile = undefined; return r; }) : null,') in mblock
     # Its heights go on the placement records, on the same gate (2026-10-05).
-    assert 'heights: paid && !preview ? (heights) => ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })' in mblock
+    assert "heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null," in mblock
+    put = maps[maps.index("export function _laHeightsPut("):][:400]
+    assert 'ctx.actions.wsCall("padspan_ha/fabric_light_height_set", { heights })' in put
     lp = _block(_js(_WWW / "lights_panel.js"), "house3d: this.state._house3d ?")
     assert "edit:" not in lp and "house3d_edit" not in _js(_WWW / "lights_panel.js")
     lm = _js(_VIEWS / "lights_map.js")

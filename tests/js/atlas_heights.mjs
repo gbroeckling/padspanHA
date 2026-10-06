@@ -19,7 +19,9 @@
 //           (x, y and looks as saved, even moved on another screen); a record
 //           with z_m only when the Height row set it (null to clear); a moved
 //           device sends none (the record keeps its own), even one whose
-//           draft copied an old height
+//           draft copied an old height; a height Live Aboard saved (Mapping's
+//           own hook) is the one shown and saved: the row's older unsaved
+//           one goes, from Undo too
 //   list    the Heights list: every placed device but a door sensor, its
 //           height or "default", sorted by a heading, the "Using a default"
 //           filter, a floor; tick all shown, then Ceiling: every one at its
@@ -56,6 +58,8 @@ const tryCase = async (name, fn) => { try { await fn(); } catch (e) { failures.p
 const sleep = (ms) => new Promise((r) => globalThis._realSetTimeout ? globalThis._realSetTimeout(r, ms) : setTimeout(r, ms));
 const settle = async () => { for (let i = 0; i < 8; i++) await sleep(0); };
 const clone = (x) => JSON.parse(JSON.stringify(x));
+const canonical = (x) => JSON.stringify(x, (k, v) => (v && typeof v === "object" && !Array.isArray(v)
+  ? Object.fromEntries(Object.keys(v).sort().map((q) => [q, v[q]])) : v));
 const heightsLoaded = () => loaded.some((u) => u.includes("/atlas_heights.js"));
 
 const MAPS = await import(pathToFileURL(join(WWW, "views", "maps.js")).href);
@@ -260,6 +264,53 @@ await tryCase("save: a height alone goes by the height command; a moved or re-si
     && recs["light.hall_sconce"].z_m === null && recs["light.kitchen_pots"].z_m === 2.65 && recs["light.kitchen_pots"].x_m === 2.5
     && recs["light.island_pendant"].z_m === 1.6 && Object.keys(draft()).length === 0,
     { by, hz, recs: { hall: recs["light.hall_sconce"], pots: recs["light.kitchen_pots"], isl: recs["light.island_pendant"] } });
+});
+
+await tryCase("save: a height Live Aboard saved is the one Mapping shows and saves, never the row's older unsaved one", async () => {
+  // Round-2 finding 1: the pot lights at Ceiling on the Height row (nothing
+  // else), the island pendant Over a counter and moved; then Live Aboard's
+  // Edit → Heights saves 1.25 and 1.4 through Mapping's own hook.
+  await open();
+  pick("light.kitchen_pots");
+  chipBtn(row(), "Ceiling").click();
+  pick("light.island_pendant");
+  chipBtn(row(), "Over a counter").click();
+  draft()["light.island_pendant"].x_m = 3.4;
+  const from = sent.length;                       // what went before stays for the schema test
+  await MAPS._laHeightsPut(ctx, ctx.state.maps)({ "light.kitchen_pots": 1.25, "light.island_pendant": 1.4 });
+  root = MAPS.render(ctx);
+  const left = clone(draft());
+  const drawn = MAPS._draftOverRecords(ctx.state.model.light_positions_m, draft());
+  const shown = { pots: MAPS._hoverHeight(ctx.state.maps, "light.kitchen_pots"), isl: MAPS._hoverHeight(ctx.state.maps, "light.island_pendant") };
+  const save = all("button").find((b) => text(b).includes("Save placements"));
+  save.dispatchEvent({ type: "click", currentTarget: save, target: save, stopPropagation(){}, preventDefault(){} });
+  await settle(); await sleep(5); await settle();
+  const first = sent[from], later = sent.slice(from + 1), recs = ctx.state.model.light_positions_m;
+  check("save: a height Live Aboard saved is the one Mapping shows and saves, never the row's older unsaved one",
+    first[0] === "padspan_ha/fabric_light_height_set"
+    && canonical(left) === canonical({ "light.island_pendant": { ...RECORDS["light.island_pendant"], x_m: 3.4 } })
+    && drawn["light.kitchen_pots"].z_m === 1.25 && drawn["light.island_pendant"].z_m === 1.4 && shown.pots === 1.25 && shown.isl === 1.4
+    && later.length === 1 && later[0][0] === "padspan_ha/fabric_light_position_set" && !("z_m" in later[0][1]) && later[0][1].x_m === 3.4
+    && recs["light.kitchen_pots"].z_m === 1.25 && recs["light.island_pendant"].z_m === 1.4 && recs["light.island_pendant"].x_m === 3.4,
+    { left, drawn: { pots: drawn["light.kitchen_pots"], isl: drawn["light.island_pendant"] }, shown, later });
+});
+await tryCase("row: Undo after Live Aboard saved a height never brings the row's older one back", async () => {
+  await open();
+  pick("light.kitchen_pots");
+  chipBtn(row(), "Ceiling").click();
+  chipBtn(row(), "Wall").click();                 // Undo's last step holds Ceiling
+  await MAPS._laHeightsPut(ctx, ctx.state.maps)({ "light.kitchen_pots": 1.25 });
+  root = MAPS.render(ctx);
+  const gone = draft()["light.kitchen_pots"] === undefined;
+  const undo = () => all("button").find((b) => text(b) === "↶ Undo");
+  const redo = () => all("button").find((b) => text(b) === "↷ Redo");
+  undo().click();
+  const afterUndo = clone(draft()["light.kitchen_pots"] || null), shownUndo = MAPS._hoverHeight(ctx.state.maps, "light.kitchen_pots");
+  redo().click();
+  const afterRedo = clone(draft()["light.kitchen_pots"] || null);
+  check("row: Undo after Live Aboard saved a height never brings the row's older one back",
+    gone && afterUndo === null && shownUndo === 1.25 && afterRedo === null && ctx.state.model.light_positions_m["light.kitchen_pots"].z_m === 1.25,
+    { gone, afterUndo, shownUndo, afterRedo });
 });
 
 // ── draw: what the card (and Live Aboard) reads ─────────────────────────────

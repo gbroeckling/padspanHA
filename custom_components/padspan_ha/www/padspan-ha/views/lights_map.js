@@ -739,6 +739,8 @@ export function createUndoStack(limit = 50){
     peekUndo(){ return past.length ? past[past.length - 1] : null; },
     peekRedo(){ return future.length ? future[future.length - 1] : null; },
     clear(){ past.length = 0; future.length = 0; },
+    // Every step kept, Undo's and Redo's alike (to amend them in place).
+    forEach(fn){ past.forEach(fn); future.forEach(fn); },
     get canUndo(){ return past.length > 0; },
     get canRedo(){ return future.length > 0; },
   };
