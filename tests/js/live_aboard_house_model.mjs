@@ -711,5 +711,50 @@ LA.releaseLiveAboardSlot("house-model");
   LA.releaseLiveAboardSlot("house-doors-e");
 }
 
+// ── the roof takes no press ─────────────────────────────────────────────────
+// One storey: a pendant in the Living room, a temperature sensor in the Den,
+// and the front door on the Living room's outside wall. With the roof on,
+// a press over the room lands on nothing (not the hidden light under it),
+// the outside door below the eaves still answers, and with the roof lifted
+// the light answers again.
+{
+  const RMODEL = { floors: [{ id: "main", name: "Main" }], floor_elevations: { main: 0 },
+    room_geometry_m: { Living: rect("main", 0, 0, 6, 5), Den: rect("main", 6.1, 0, 11, 5) },
+    light_positions_m: { "light.living": { x_m: 3, y_m: 2.5, floor_id: "main" }, "sensor.den_temp": { x_m: 8, y_m: 2.5, floor_id: "main" } },
+    rf_barriers_m: [{ id: "bar_f0000001", name: "Front door", material: "wood", floor_id: "main", points_m: [[2, 0], [2.9, 0]], linked_entity_id: "binary_sensor.front" }] };
+  const RLBE = { "light.living": { entity_id: "light.living", friendly_name: "Living light", state: "on", brightness: 200, shape: "pendant" },
+    "sensor.den_temp": { entity_id: "sensor.den_temp", friendly_name: "Den temperature", isTemp: true, state: "21.5", device_class: "temperature", unit_of_measurement: "°C" },
+    "binary_sensor.front": { entity_id: "binary_sensor.front", friendly_name: "Front door", state: "off", device_class: "door" } };
+  const rapi = { toast(){}, toggle(){}, openRoom(){}, openFloor(){}, openControls(){}, openActivity(){}, controlsFor: () => null, lightsByEid: RLBE, hass: null };
+  const RP = () => ({ model: RMODEL, floors: RMODEL.floors, lightsByEid: RLBE, hidden: new Set(), topFloorIds: null, quality: "low",
+    telemetry: () => {}, onTouch: () => {}, states: {}, config: {}, bearing: 0, saveNorth: async () => true, useApi: () => rapi, haStartedMs: 0,
+    prefs: { get: () => null, set: () => {} },
+    load: async () => ({ data: { schema: 1, pieces: {}, lights: {}, devices: {}, figures: {}, openings: {} } }), edit: null });
+  const rslot = LA.liveAboardSlot("house-roof");
+  { const c = document.createElement("div"), stg = document.createElement("div"); c.appendChild(stg); document.body.replaceChildren(c); rslot.attach(stg, RP()); }
+  await later(10000, 60);
+  await tryCase("view: the roof takes no press: what it hides is not pressed through it, an outside door below the eaves is", async () => {
+    const pick = (q) => { const at = rslot._where(q); return at ? rslot._pick(at[0], at[1]) : null; };
+    rslot.wholeHouse(); await later(2000, 30);
+    rslot.zoom("out"); await fade();
+    const s = rslot._state(), k = s.house && s.house.k;
+    const on = { light: pick({ eid: "light.living" }), sensor: pick({ eid: "sensor.den_temp" }) };
+    // From low beside the house, the front door shows under the eaves.
+    let k2 = null, door = null;
+    for (const th of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      rslot._look(th, 1.25, [2.45, 1, 0], s.cam.radius);
+      await fade();
+      k2 = rslot._state().house.k; door = pick({ door: "binary_sensor.front" });
+      if (door && door.hit) break;
+    }
+    rslot.zoom("in"); rslot.zoom("in"); rslot.zoom("in"); rslot.wholeHouse(); await later(2000, 30); rslot.zoom("in"); await fade();
+    const off = { k: rslot._state().house.k, light: pick({ eid: "light.living" }), sensor: pick({ eid: "sensor.den_temp" }) };
+    check("view: the roof takes no press: what it hides is not pressed through it, an outside door below the eaves is",
+      k === 1 && !(on.light && on.light.hit) && !(on.sensor && on.sensor.hit) && k2 === 1 && door && /^door:binary_sensor\.front@/.test(door.hit)
+      && off.k === 0 && off.light && off.light.hit === "device:light.living" && off.sensor && off.sensor.hit === "device:sensor.den_temp", { k, on, k2, door, off });
+  });
+  LA.releaseLiveAboardSlot("house-roof");
+}
+
 console.log(JSON.stringify({ cases, failures }));
 process.exit(0);

@@ -3144,10 +3144,13 @@ function createSlot(slotKey){
     return [rect.left + (_sp.x + 1) / 2 * rect.width, rect.top + (1 - _sp.y) / 2 * rect.height];
   }
   /** Is v behind a wall or under a floor? own: "meshId:instance" keys of the
-   *  thing itself (a door's own leaf and lintel never hide its opening). */
-  function blocked(v, own){
+   *  thing itself (a door's own leaf and lintel never hide its opening).
+   *  roof: the roof while it shows hides what is under it too — a press
+   *  never lands on anything through it (the roof itself is never pressed). */
+  function blocked(v, own, roof = false){
     const occ = [];
     for (const F of floorsUi) if (F.group.visible) { if (F.tiles) occ.push(F.tiles); if (F.solid) occ.push(F.solid); }
+    if (roof && storeyL) occ.push(...storeyL.roofs());
     _v.copy(v).sub(camera.position);
     const d = _v.length();
     if (d < 0.2) return false;
@@ -3207,7 +3210,7 @@ function createSlot(slotKey){
       let d = dist(T.at);
       const s = T.name && T.namePx ? screenPt(T.name, rect) : null;
       if (s && Math.abs(clientX - s[0]) <= T.namePx[0] / 2 && clientY <= s[1] + 2 && clientY >= s[1] - T.namePx[1] - 2) d = 0;
-      else if (d > PICK_R || blocked(T.at)) continue;
+      else if (d > PICK_R || blocked(T.at, null, true)) continue;
       if (!tagHit || d < tagHit.d) tagHit = { d, hit: { kind: T.kind, key: T.key, anchor: T.at, label: T.label, card: T.card } };
     }
     const devs = [];
@@ -3260,7 +3263,7 @@ function createSlot(slotKey){
     }
     devs.sort((a, b) => a.d - b.d);
     const ok = [];
-    for (const c of devs.slice(0, 8)) if (!ok.some(x => x.eid === c.eid) && (c.top || !blocked(c.v))) ok.push(c);
+    for (const c of devs.slice(0, 8)) if (!ok.some(x => x.eid === c.eid) && (c.top || !blocked(c.v, null, true))) ok.push(c);
     if (tagHit && (!ok.length || tagHit.d <= ok[0].d)) return { hit: tagHit.hit, under: ok.map(deviceTarget) };
     if (ok.length) return { hit: deviceTarget(ok[0]), under: ok.slice(1).map(deviceTarget) };
     const surf = [];
@@ -3285,7 +3288,7 @@ function createSlot(slotKey){
     surf.sort((a, b) => a.depth - b.depth);
     for (const s of surf) {
       const own = s.kind === "door" ? new Set(s.P.els.map(e => `${e.mesh.id}:${e.i}`)) : null;
-      if (s.kind !== "room" && blocked(s.at, own)) continue;
+      if (s.kind !== "room" && blocked(s.at, own, true)) continue;
       if (s.kind === "room") {
         const n = Object.values(lbe).filter(l => l && l.area_name === s.room).length;
         return { hit: { kind: "room", key: "room:" + s.room, room: s.room, quad: s.quad,

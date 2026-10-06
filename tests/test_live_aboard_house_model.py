@@ -84,7 +84,8 @@ def test_the_view_cases_by_name(model) -> None:
                  "view: PadSpan's one guess: a wide patio door slides, a 1.85 m door is a double, a garage door sensor's is overhead",
                  "view: a door the 3D file links to a sensor reads it as the map does (backwards when the map says so)",
                  "view: a lock linked to a door on a cover is shown on it",
-                 "view: a door of a type with no reading is the Atlas's grey, and stays where it was"):
+                 "view: a door of a type with no reading is the Atlas's grey, and stays where it was",
+                 "view: the roof takes no press: what it hides is not pressed through it, an outside door below the eaves is"):
         assert model["cases"].get(name) is True, name
 
 
