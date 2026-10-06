@@ -1044,9 +1044,11 @@ export const screenFile = (slot) => (_AB ? _AB.fileData(slot) : null);
  *  hover box): as Live Aboard draws it, its record's (in `model`), else
  *  Live Aboard's file's as this screen last read it (screenFile), from the
  *  section Live Aboard reads `l` from, never one out of date; null for its
- *  default. */
+ *  default, and for a device with no placement (Live Aboard draws only
+ *  placed devices, and Mapping's hover says none for it either). */
 export function screenHeight(slot, model, eid, l){
-  const m = model || {};
+  const m = model || {}, rec = (m.light_positions_m || {})[eid];
+  if (!rec || typeof rec !== "object") return null;
   return heightNow(eid, m.light_positions_m, null, withoutGone(screenFile(slot), m.light_heights_gone), isFixture(l) ? "lights" : "devices");
 }
 export function wireUseSurface(isoDiv, api){

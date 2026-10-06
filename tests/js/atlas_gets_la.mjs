@@ -644,6 +644,10 @@ await tryCase("hover: the sidebar's hover box says the height Live Aboard draws,
   const rec = at({ ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.living_lamp": { ...MODEL.light_positions_m["light.living_lamp"], z_m: 2.0 } } }, "light.living_lamp");
   const dflt = at({ ...MODEL, light_positions_m: { ...MODEL.light_positions_m, "light.living_lamp": { ...MODEL.light_positions_m["light.living_lamp"], z_m: null } } }, "light.living_lamp");
   const gone = at({ ...MODEL, light_heights_gone: ["light.hall_light"] }, "light.hall_light"), hall = at(MODEL, "light.hall_light");
+  // Not placed (auto-clustered): Live Aboard doesn't draw it and Mapping's hover
+  // says no height, so neither does this one, whatever the file holds.
+  const { ["light.living_lamp"]: _lamp, ...unplacedRecs } = MODEL.light_positions_m;
+  const unplaced = at({ ...MODEL, light_positions_m: unplacedRecs }, "light.living_lamp");
   // Through the hover box itself.
   const stage = document.createElement("div"), svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   stage.appendChild(svg);
@@ -657,8 +661,8 @@ await tryCase("hover: the sidebar's hover box says the height Live Aboard draws,
   const hud = stage.querySelectorAll(".lv-hoverhud").slice(-1)[0], words = hud ? hud.textContent || "" : "";
   fileData = {};
   check("hover: the sidebar's hover box says the height Live Aboard draws, a height only in its file too, with no read of its own",
-    lamp === 1.2 && temp === 1.45 && fan === 2.5 && rec === 2.0 && dflt === null && gone === null && hall === 2.4
-    && /Living lamp · 1\.20 m up/.test(words) && fileCalls === calls, { lamp, temp, fan, rec, dflt, gone, hall, words, calls, now: fileCalls });
+    lamp === 1.2 && temp === 1.45 && fan === 2.5 && rec === 2.0 && dflt === null && gone === null && hall === 2.4 && unplaced === null
+    && /Living lamp · 1\.20 m up/.test(words) && fileCalls === calls, { lamp, temp, fan, rec, dflt, gone, hall, unplaced, words, calls, now: fileCalls });
 });
 
 console.log(JSON.stringify({ cases, failures, house: houseRan }));
