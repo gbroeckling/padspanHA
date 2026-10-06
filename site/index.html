@@ -179,6 +179,39 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.104</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">5 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>GPS Bridge users:</b> positions on Home Assistant's map were mirrored east to west and now plot the right way round. The bearing still means the compass direction of down-the-plan, so a plan drawn with north at the top is <b>180</b>. If you set your bearing by trial and error, check it again.</li>
+          <li><b>Added:</b> rain and snow fall around the house when it's wet or snowing: from a rain sensor, your weather entity or weather warnings. It's on by default; turn it off or change its strength in Settings → UI Structure → Atlas — Mapped Light Control → Outdoor weather.</li>
+          <li><b>Added:</b> zoom the sidebar's map in past the whole house and the bars step aside, so the map fills the screen. ☰, Escape or zooming back out brings them back. Rain and snow keep to the outside of the house while you do.</li>
+          <li><b>Added:</b> <b>⛶</b> takes the map full screen.</li>
+          <li><b>Added:</b> double-tap a room's floor to zoom to it.</li>
+          <li><b>Changed:</b> the emergency lighting button sits at the top right of the map, and can be hidden in Settings.</li>
+          <li><b>Changed:</b> one colour key for motion and air.</li>
+          <li><b>Fixed:</b> the rain-sensor and weather-warning lists only offer real rain sensors and warnings, never leak detectors.</li>
+          <li><b>Fixed:</b> in Basic mode, Library → <b>Open</b> now opens the plan (it switches to Advanced and says so).</li>
+          <li><b>Fixed:</b> the calibration wizard's quality report and the Atlas's "Build from relays" no longer bounce back to the first screen.</li>
+          <li><b>Fixed:</b> a wall switch flipped while PadSpan was putting a WLED light's look back is no longer undone.</li>
+          <li><b>Fixed:</b> a restore or factory reset can no longer land halfway through a save.</li>
+          <li><b>Fixed:</b> a manual backup that can't read one of its parts says so and saves nothing; it used to save that part empty.</li>
+          <li><b>Fixed:</b> release notes open inside PadSpan, closable on a wall screen.</li>
+          <li><b>Fixed:</b> phone layouts for the Atlas light list and the Mapping header.</li>
+          <li><b>Fixed:</b> trial and licence lines say each offer once, in plain words.</li>
+          <li><b>Changed:</b> a machine with more than 2 GB of RAM is now the recommendation. Near a busy street PadSpan can hear thousands of passing devices, and a 2 GB Raspberry Pi has run out of memory within hours.</li>
+          <li><b>Added:</b> if you turn on the opt-in usage report, it now also covers:</li>
+          <li><b>Added:</b> Live Aboard is a house you can walk around, built from the map you already drew.</li>
+          <li>It's <b>experimental</b>: still changing, and some of a house may not show yet. Turn it on in Settings → UI Structure → Atlas — Mapped Light Control → 🏠 Live Aboard. Off, nothing of it loads.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.103</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">5 October 2026</span>
