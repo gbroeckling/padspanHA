@@ -15,7 +15,11 @@ This copies each height Live Aboard's file holds for a placed device whose
 record has none decided (no height, and Default never chosen) onto that
 record: one fabric write, read back from disk. The first time, a safety
 backup of the fabric comes first (as the photo-divorce migration does); no
-backup, no copy. A record with a height, or with Default chosen, keeps it:
+backup, no copy. That it was taken is kept in the fabric itself
+(BACKUP_MARK), not in its history, which keeps only the last 200 changes.
+What to copy is decided with nothing awaited before the write, so a height
+set or Default chosen while the backup was written is never overwritten.
+A record with a height, or with Default chosen, keeps it:
 the record wins. A device with no placement record keeps its height in the
 file only, and Live Aboard reads it there.
 
@@ -50,6 +54,7 @@ _LOGGER = logging.getLogger(__name__)
 SECTIONS: tuple[str, ...] = ("lights", "devices")
 BACKUP_NOTE = "Before Live Aboard's heights moved onto the placement records"
 MOVE_OP = "migration:house3d_heights"         # the fabric's history entry for a copy
+BACKUP_MARK = "live_aboard_heights_backup"    # the fabric's key: the first copy's safety backup id
 
 
 def _height(v: Any) -> float | None:
@@ -104,12 +109,19 @@ async def async_move_heights(hass: HomeAssistant) -> dict[str, int]:
     copy_in = plan(store.data, fab.light_positions_m(), fab.light_heights_m())
     if not copy_in:
         return done
-    if not any(isinstance(e, dict) and e.get("op") == MOVE_OP for e in fab.data.get("history") or []):
+    if not fab.data.get(BACKUP_MARK):
         # The first copy: the fabric as it was, in a safety backup first.
         from .ws_backup import _auto_backup  # noqa: PLC0415
-        if not await _auto_backup(hass, BACKUP_NOTE, [FABRIC_STORE_KEY]):
+        backup_id = await _auto_backup(hass, BACKUP_NOTE, [FABRIC_STORE_KEY])
+        if not backup_id:
             _LOGGER.error("Live Aboard heights: the safety backup could not be taken, so nothing was copied; "
                           "a later start tries again")
+            return done
+        fab.data[BACKUP_MARK] = backup_id          # saved with the copy (or the fabric's next write)
+        # The backup awaited the disk: decide again against the records as
+        # they are now (a height set or Default chosen meanwhile stays).
+        copy_in = plan(store.data, fab.light_positions_m(), fab.light_heights_m())
+        if not copy_in:
             return done
     await fab.async_spatial_update(set_light_heights=copy_in, op=MOVE_OP)
     # Read back: counted only once the records hold them on disk. Otherwise a

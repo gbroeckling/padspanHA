@@ -152,6 +152,39 @@ def test_a_device_placed_after_the_move_is_copied_at_the_next_start_with_no_new_
     assert len(backups["backups"]) == 1, "only the first move takes a backup"
 
 
+def test_a_height_set_while_the_backup_is_written_is_never_overwritten(house, disk, backups, tmp_path, monkeypatch):
+    """Re-review finding 4: the backup awaits the disk; a height set (or
+    Default chosen) on the Atlas meanwhile stays, the file's older one is
+    not copied over it."""
+    from custom_components.padspan_ha import ws_backup
+    mdl = house.data[DOMAIN][DATA_MODEL]
+    saving = ws_backup._save_backups
+
+    async def _meanwhile(h, data):
+        await saving(h, data)
+        assert await mdl.async_set_light_heights({"light.island_pendant": 1.9, "sensor.lounge_temperature": None}) == []
+    monkeypatch.setattr(ws_backup, "_save_backups", _meanwhile)
+    _run(M.async_move_heights(house))
+    assert len(backups["backups"]) == 1
+    assert _heights(tmp_path) == {"light.hall_sconce": 2.4, "light.island_pendant": 1.9, "sensor.lounge_temperature": None}
+
+
+def test_the_safety_backup_is_taken_once_however_long_the_history_grows(house, disk, backups, tmp_path):
+    """Re-review finding 5: the history keeps only the last 200 changes, and
+    every placement saved adds one; a later copy must not take another
+    automatic backup (the automatic ones are capped, and would push out
+    "Before Reset Spatial Model" or the Bright import's)."""
+    _run(M.async_move_heights(house))
+    fab = house.data[DOMAIN][DATA_FABRIC]
+    for i in range(FS._HISTORY_CAP + 5):
+        _run(fab.async_spatial_update(set_lights={"light.hall_sconce": {"x_m": 6.0 + i / 1000, "y_m": 0.2, "floor_id": "main"}}))
+    assert not any(e.get("op") == M.MOVE_OP for e in fab.data["history"]), "the copy's own entry has aged out"
+    _run(fab.async_spatial_update(set_lights={"light.unplaced_lamp": {"x_m": 2.0, "y_m": 2.0, "floor_id": "main"}}))
+    assert _run(M.async_move_heights(_boot(tmp_path))) == {"copied": 1}
+    assert len(backups["backups"]) == 1, "only the first copy takes a backup"
+    assert _disk(tmp_path, FABRIC_STORE_KEY)[M.BACKUP_MARK] == backups["backups"][0]["id"]
+
+
 def test_a_fabric_only_restore_of_an_older_backup_gets_its_heights_back(house, disk, backups, tmp_path):
     """Review finding 5: the file still has them, so the next start copies
     them again onto the restored records."""

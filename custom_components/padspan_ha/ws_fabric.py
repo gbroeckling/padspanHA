@@ -1506,8 +1506,10 @@ async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
 async def ws_fabric_reset_spatial(hass: HomeAssistant, connection, msg) -> None:
     """Reset the spatial model (Phase 2+3).
 
-    Clears scanner positions, beacon positions and barriers, after an
-    automatic backup of the fabric store (no backup, no reset). The room
+    Clears scanner positions, beacon positions (each beacon's height goes
+    with it) and barriers, after an automatic backup of the fabric store
+    (no backup, no reset). Placed lights and devices, and their heights, are
+    kept, as the button's own warning says. The room
     fabric (FabricStore) is deliberately untouched — a built floor's room
     shapes are ground truth and no reset may wipe them. Calibration points
     keep their metres, and map_transforms (each map's placement and measured

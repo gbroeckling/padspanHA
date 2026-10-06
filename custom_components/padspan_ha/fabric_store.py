@@ -81,12 +81,17 @@ Data layout in .storage/padspan_ha.fabric:
     # it back through a schema that has no z_m, which refuses the save. So a
     # stored record never carries one; ModelStore hands each record over with
     # its z_m in it. A number is the height; None is "the default for its
-    # kind", chosen; no entry is "never set". An entry outlives its record (a
-    # device un-placed and placed again keeps its height). Nothing in presence
-    # reads these. Created on the first height, so a house that never sets
-    # one has a fabric file exactly as before.
+    # kind", chosen; no entry is "never set". An entry lives only beside its
+    # record: a record removed (Auto position) takes its height with it, and
+    # a new record starts with only the height its save gives. Nothing in
+    # presence reads these. Created on the first height, so a house that
+    # never sets one has a fabric file exactly as before.
     "light_heights_m":     { "<entity_id>": z_m | None },
     "beacon_heights_m":    { "<key>": z_m | None },
+    # The safety backup taken before Live Aboard's heights were first copied
+    # onto the records (house3d_heights.py): its id, kept here, not in the
+    # capped history, so it never ages out.
+    "live_aboard_heights_backup": "<backup id>",
 
     "history": [ {ts, floor_id, room, op, revision} ]   # append-only, capped
   }
@@ -616,11 +621,15 @@ class FabricStore:
         scanner or a room, and no photograph owns a list of them.
         A light's or a beacon's height (z_m in its entry, or set_*_heights:
         a height, or None for the default chosen) goes beside its record;
-        left out, the stored one stays (height_of).
+        left out, the stored one stays (height_of). A height lives only
+        beside its record: removing a record removes its height, and a new
+        record saved without one has none (not one left from an earlier
+        record of the same id, nor one an older PadSpan left behind).
         Invalid entries are skipped, not fatal.  Returns per-kind counts.
         """
         counts = {"scanners": 0, "beacons": 0, "barriers": 0, "lights": 0, "heights": 0, "removed": 0}
         heights: dict[str, dict[str, float | None]] = {"light_heights_m": {}, "beacon_heights_m": {}}
+        dropped: dict[str, set[str]] = {"light_heights_m": set(), "beacon_heights_m": set()}
         scanners = self.data.setdefault("scanner_positions_m", {})
         beacons = self.data.setdefault("beacon_positions_m", {})
 
@@ -638,28 +647,36 @@ class FabricStore:
             norm = self._norm_point_entry(entry, need_z=False)
             if norm is None or not str(key):
                 continue
+            fresh = str(key) not in beacons
             beacons[str(key)] = norm
             counts["beacons"] += 1
             says, z = self.height_of(entry)
             if says:
                 heights["beacon_heights_m"][str(key)] = z
+            elif fresh:
+                dropped["beacon_heights_m"].add(str(key))
         for key in (remove_beacons or []):
             if beacons.pop(str(key), None) is not None:
                 counts["removed"] += 1
+            dropped["beacon_heights_m"].add(str(key))
 
         lights = self.data.setdefault("light_positions_m", {})
         for eid, entry in (set_lights or {}).items():
             norm = self._norm_point_entry(entry, need_z=False)
             if norm is None or not str(eid):
                 continue
+            fresh = str(eid) not in lights
             lights[str(eid)] = norm
             counts["lights"] += 1
             says, z = self.height_of(entry)
             if says:
                 heights["light_heights_m"][str(eid)] = z
+            elif fresh:
+                dropped["light_heights_m"].add(str(eid))
         for eid in (remove_lights or []):
             if lights.pop(str(eid), None) is not None:
                 counts["removed"] += 1
+            dropped["light_heights_m"].add(str(eid))
 
         barriers = self.data.setdefault("rf_barriers_m", [])
         if set_barriers:
@@ -689,6 +706,12 @@ class FabricStore:
             for k, z in changes.items():
                 if k not in stored or stored[k] != z:
                     stored[k] = z
+                    counts["heights"] += 1
+        for key, gone in dropped.items():
+            stored = self.data.get(key) or {}
+            for k in gone - set(heights[key]):
+                if k in stored:
+                    del stored[k]
                     counts["heights"] += 1
 
         total = (counts["scanners"] + counts["beacons"] + counts["barriers"]

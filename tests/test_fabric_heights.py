@@ -454,12 +454,54 @@ def test_default_is_a_decided_height_that_beats_any_other_copy() -> None:
     assert mdl.fabric.data["light_heights_m"] == {"light.island_pendant": None}
 
 
-def test_auto_position_keeps_the_height_for_when_it_is_placed_again() -> None:
+def test_auto_position_takes_the_height_with_the_record() -> None:
+    """Re-review finding 2: a height lives only beside its record. One left
+    behind came back hidden when the device was placed again, over a newer
+    height Live Aboard had put in its file meanwhile. Mapping says so when
+    Auto position takes one (atlas_heights.mjs)."""
     from custom_components.padspan_ha.websocket import ws_fabric_light_remove
     mdl = _mdl()
     h = _hass(mdl)
     _place(h, z_m=2.1)
     _call(ws_fabric_light_remove, h, {"entity_id": "light.island_pendant"})
     assert "light.island_pendant" not in mdl.light_positions_m()
+    assert mdl.fabric.data["light_heights_m"] == {}, "no height left without its record"
     _place(h)                                          # dropped on the map again, no height sent
+    assert "z_m" not in _rec(mdl), "a new record starts with only the height its save gives"
+    _call(ws_fabric_light_remove, h, {"entity_id": "light.island_pendant"})
+    _place(h, z_m=0.9)
+    assert _rec(mdl)["z_m"] == 0.9
+
+
+def test_a_height_an_older_padspan_left_behind_never_joins_a_new_record() -> None:
+    """An older PadSpan keeps the fabric whole but knows nothing of heights:
+    removing a record there leaves its height, and an entity id used again
+    must not inherit it."""
+    mdl = _mdl()
+    h = _hass(mdl)
+    mdl.fabric.data["light_heights_m"] = {"light.island_pendant": 2.4, "light.other": 1.0}
+    _place(h)
+    assert "z_m" not in _rec(mdl)
+    assert mdl.fabric.data["light_heights_m"] == {"light.other": 1.0}, "only the one placed again is touched"
+
+
+def test_a_beacon_removed_takes_its_height_and_reset_spatial_keeps_the_lights(monkeypatch) -> None:
+    """Reset Spatial Model clears the beacons and their heights with them;
+    placed lights and devices (and so their heights) it keeps, as its own
+    warning says ("lights ... are NOT touched")."""
+    from custom_components.padspan_ha import ws_fabric
+    from custom_components.padspan_ha.websocket import ws_fabric_reset_spatial
+    mdl = _mdl()
+    h = _hass(mdl)
+    _place(h, z_m=2.1)
+    _call(ws_fabric_beacon_position_set, h, {"key": "ble:aa", "x_m": 1.0, "y_m": 1.0, "floor_id": "main", "z_m": 0.9})
+    assert mdl.fabric.data["beacon_heights_m"] == {"ble:aa": 0.9}
+
+    async def _backup(*_a, **_k):
+        return "bk_test"
+    monkeypatch.setattr(ws_fabric, "_auto_backup", _backup)
+    conn = MagicMock()
+    _run(ws_fabric_reset_spatial(h, conn, {"id": 1}))
+    assert not conn.send_error.called
+    assert mdl.fabric.data["beacon_positions_m"] == {} and mdl.fabric.data["beacon_heights_m"] == {}
     assert _rec(mdl)["z_m"] == 2.1
