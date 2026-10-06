@@ -241,6 +241,11 @@ class BluetoothLive:
         self.seed_scanner_count: int = 0
         self.seed_device_readings: int = 0
         self.seed_error: str = ""
+        # Addresses added to the cache since it was made (never decremented).
+        # The opt-in report reads its rate per hour (perf_sampler.py): how
+        # crowded the radio environment is, which sets how big the cache and
+        # the object history grow.
+        self.new_addresses: int = 0
 
     def _note_scan_mode_flips(self, radios: List[Dict[str, Any]]) -> None:
         """Count radios whose live scan mode CHANGED since the last snapshot.
@@ -323,6 +328,7 @@ class BluetoothLive:
             src = rec.get("source") or "_unknown"
             if addr not in self._seen_by_source:
                 self._seen_by_source[addr] = {}
+                self.new_addresses += 1
             # A REPLAYED (old) report never replaces a newer one. A live advert
             # (age ~0) always lands: comparing wall-clock stamps alone froze
             # live readings for as long as a backward clock step (round 12).
@@ -433,6 +439,7 @@ class BluetoothLive:
                             )
                             if addr not in self._seen_by_source:
                                 self._seen_by_source[addr] = {}
+                                self.new_addresses += 1
                             self._seen_by_source[addr][str(src)] = _Adv(record=rec, seen=dev_seen)
                             if str(src) != "_unknown":
                                 self._radio_last_heard[str(src)] = seen

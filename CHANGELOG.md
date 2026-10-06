@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.103 — What a 2 GB Raspberry Pi needs (2026-10-05)
+
+### Requirements
+- **Changed:** a machine with more than 2 GB of RAM is now the recommendation. Near a busy street PadSpan hears thousands of passing devices, and on a 2 GB Raspberry Pi Home Assistant has been seen running out of memory within hours. A low-memory mode for 2 GB machines is being built; the new Minimum requirements page (docs/MINIMUM_REQUIREMENTS.md) has the details.
+
+### Help improve PadSpan (opt-in usage report)
+Only while the report is on (Settings → Presence → Help improve PadSpan), and counts and buckets only. The full list is in the README.
+- **Added:** what PadSpan holds in memory: objects in the live snapshot, the object history and the Bluetooth cache (counts and estimated size), how many new devices arrive per hour, and how big the snapshot sent to open panels is.
+- **Added:** how many times Home Assistant started since the last report, how many of those followed a crash (such as running out of memory), and the worst memory seen. It is kept on disk, so a run that ran out of memory still reports, and it is deleted when you turn the report off.
+- **Added:** how hard Home Assistant works while the Atlas or Live Aboard is on a screen, and how smoothly each screen draws them: frame rate and browser memory in buckets, plus the class of device (memory, CPU threads, WebGL 2, touch).
+
 ## 0.38.102 — Motion you can see from across the room (2026-10-05)
 
 ### Live Aboard

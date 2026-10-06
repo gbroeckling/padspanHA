@@ -36,6 +36,14 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         take, and how often any of them hit a limit (health.perf); CPU
         count, RAM size, architecture, installation type and board family
         from fixed lists (env.hw) — see perf_sampler.py and PERF_METRICS
+    what PadSpan itself holds and costs: objects, object history and the
+        Bluetooth cache (counts, estimated MB), new addresses per hour, the
+        live snapshot's size, Home Assistant's load while the Atlas or the 3D
+        house is on a screen (health.perf); Home Assistant starts, unclean
+        ends and the worst minutes since the last report, kept on disk so a
+        run that ran out of memory still reports (health.runs); and the
+        panels' frame rate and heap by view, and their device class, in
+        buckets (CLIENT_EVENTS)
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -331,6 +339,25 @@ HOUSE3D_EVENTS: frozenset[str] = frozenset(
 # answer; and nothing while the 3D house is off (the command refuses first).
 PHOTO_READ_OUTCOMES: tuple[str, ...] = ("ok", "no_ai_task", "bad_answer", "error")
 PHOTO_EVENTS: frozenset[str] = frozenset(f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES)
+# The panels' own measurements (www/padspan-ha/client_perf.js — the same lists
+# there, held equal by tests/test_telemetry.py). Once a minute while a panel
+# is on screen: its frame rate, and where the browser tells (Chromium) its
+# JavaScript heap, by the kind of view showing — the Atlas, the 3D house
+# ("sim"), anything else. Once per page load: the class of device it runs on
+# (the browser's own coarse memory figure, CPU threads, WebGL 2, touch). What
+# the Atlas and the 3D house need of the screen they run on — the half of the
+# minimum requirements the HA machine's numbers cannot say. Buckets only.
+CLIENT_VIEWS: tuple[str, ...] = ("atlas", "sim", "other")
+CLIENT_FPS: tuple[str, ...] = ("lt10", "10_24", "24_45", "45up")
+CLIENT_HEAP: tuple[str, ...] = ("lt128m", "128_256m", "256_512m", "512m_1g", "1g_up")
+CLIENT_DEV: tuple[str, ...] = ("mem_lt1g", "mem_1g", "mem_2g", "mem_4g", "mem_8g_up", "mem_unknown",
+                               "cores_1_2", "cores_3_4", "cores_5_8", "cores_9_up", "cores_unknown",
+                               "webgl2_yes", "webgl2_no", "touch_yes", "touch_no")
+CLIENT_EVENTS: frozenset[str] = frozenset(
+    {f"client_fps:{v}:{b}" for v in CLIENT_VIEWS for b in CLIENT_FPS}
+    | {f"client_heap:{v}:{b}" for v in CLIENT_VIEWS for b in CLIENT_HEAP}
+    | {f"client_dev:{d}" for d in CLIENT_DEV}
+)
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
 # here must be READ by something outside the settings plumbing — a switch
@@ -352,6 +379,7 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "ha_entity_scanner_distance_enabled", "ha_entity_occupancy_enabled",
     "tags_room_events_enabled", "tags_nfc_identify_enabled", "tags_phone_autolink_enabled",
     "update_check_enabled", "onboarding_completed",
+    "atlas_3d_enabled",
 )
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
@@ -411,8 +439,40 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "lag_ms": ("lag", ("p50", "p95", "max")),          # event loop
     "snap_ms": ("snap", ("p50", "p95", "max", "per_h")),    # live snapshot build
     "cycle_ms": ("cycle", ("p50", "p95", "max", "per_h")),  # presence poll (incl. its snapshot fetch)
+    # PadSpan's own size (perf_sampler.padspan_sizes). Garry, 2026-10-05: the
+    # low-memory version forces a safe maximum object count, and picking it
+    # takes how many objects an install holds, what one costs and how fast a
+    # busy street adds them — beside the RAM and memory figures above.
+    "objects_n": ("objects", ("p50", "max")),          # in the live snapshot
+    "history_n": ("history", ("p50", "max")),          # object history entries
+    "obj_kb": ("obj_kb", ("p50", "max")),              # one history entry, estimated
+    "history_mb": ("history_mb", ("p50", "max")),      # the whole history, estimated
+    "ble_addrs_n": ("ble_addrs", ("p50", "max")),      # Bluetooth cache addresses
+    "ble_mb": ("ble_mb", ("p50", "max")),              # the cache, estimated
+    "ble_new_per_h": ("ble_new", ("p50", "max")),      # addresses new to it, per hour
+    "ble_old_pc": ("ble_old", ("p50", "max")),         # share not heard for 15 min
+    "esp_addrs_n": ("esp_addrs", ("p50", "max")),      # ESPresense cache addresses
+    # The live snapshot: held between builds (a build holds a second one
+    # while it runs), its size as JSON — what every open panel is sent every
+    # 5 s — and how many of those requests an hour.
+    "snap_held_mb": ("snap_mb", ("p50", "max")),
+    "snap_json_mb": ("snap_json_mb", ("p50", "max")),
+    "snap_req_per_h": ("snap_req", ("p50", "max")),
+    # Home Assistant while each kind of view is on a screen (perf_sampler.
+    # VIEW_CLASSES, from the panels' heartbeat; "none": no panel on a screen):
+    # whether the Atlas or the 3D house (Live Aboard, "sim") costs the HA
+    # machine anything, which decides whether a low-memory machine can keep
+    # them. `n`: minutes, to the nearest 10.
+    **{f"{v}_{m}": (f"{s}@{v}", st) for v in ("atlas", "sim", "other", "none")
+       for m, s, st in (("cpu_pc", "cpu", ("p95", "n")), ("lag_ms", "lag", ("p95",)), ("rss_mb", "rss", ("max",)))},
 }
 PERF_OVER: tuple[str, ...] = ("load", "cpu", "mem", "lag")
+# health.runs (perf_sampler.RunLog): Home Assistant starts since the last
+# report, how many followed an unclean end (killed — out of memory, power),
+# and the worst of each RUN_PEAKS value across all those runs. Kept on disk,
+# because a run that dies takes the in-memory window with it.
+RUNS_KEYS: tuple[str, ...] = ("starts", "unclean", "rss_mb", "mem_avail_pc", "swap_mb",
+                              "objects_n", "history_n", "ble_addrs_n")
 
 # What a report may contain at the top level — anything else is a bug.
 _TOP_KEYS: frozenset[str] = frozenset({
@@ -441,7 +501,8 @@ def enabled(hass: HomeAssistant) -> bool:
 
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
-            or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS)
+            or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS
+            or name in CLIENT_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -567,6 +628,23 @@ def _hw_payload(hass: HomeAssistant) -> dict[str, Any]:
     return hw
 
 
+def _history_days(hass: HomeAssistant) -> float | None:
+    try:
+        from .ws_common import _object_history_ttl_s  # noqa: PLC0415
+        return round(_object_history_ttl_s(hass) / 86400.0, 2)
+    except Exception:
+        return None
+
+
+def _ble_max_age_s(settings: dict[str, Any]) -> int:
+    """As the live snapshot reads it (snapshot_builder): 60 s to 4 h, default 4 h."""
+    try:
+        v = settings.get("ble_max_age_s")
+        return 14400 if v is None else max(60, min(14400, int(v)))
+    except (TypeError, ValueError):
+        return 14400
+
+
 def _to_hour(n: int) -> int:
     """To the nearest 60 once-a-minute samples (an hour), halves up."""
     return (int(n) + 30) // 60 * 60
@@ -598,6 +676,9 @@ def _perf_payload(w: Any, cpus: int, now: float | None = None) -> dict[str, Any]
                 if hours > 0:
                     d[s] = _sig2(h.n / hours)
                 continue
+            if s == "n":
+                d[s] = (h.n + 5) // 10 * 10
+                continue
             v = h.hi if s == "max" else h.lo if s == "min" else h.quantile(int(s[1:]) / 100)
             if v is None:
                 continue
@@ -607,6 +688,19 @@ def _perf_payload(w: Any, cpus: int, now: float | None = None) -> dict[str, Any]
     if out["samples"]:
         over = {k: int(w.over.get(k, 0)) for k in PERF_OVER}
         out["over"] = {k: c if c < 30 else _to_hour(c) for k, c in over.items()}
+    return out
+
+
+def _runs_payload(raw: dict[str, Any]) -> dict[str, Any]:
+    """health.runs from a RunLog's counts: whole counts, whole percents,
+    everything else two significant figures; a peak never measured is left
+    out."""
+    out: dict[str, Any] = {}
+    for k in RUNS_KEYS:
+        v = raw.get(k)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
+            continue
+        out[k] = int(v) if k in ("starts", "unclean") else int(round(v)) if k.endswith("_pc") else _sig2(v)
     return out
 
 
@@ -954,6 +1048,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "irks": _len(settings.get("irk_devices") or []),
         "followed": _len(settings.get("followed_addrs") or []),
         "findmy": findmy,
+        # The two settings that size the object list: days an unidentified
+        # object stays in the history, and the oldest advert a snapshot takes.
+        "object_history_days": _history_days(hass),
+        "ble_max_age_s": _ble_max_age_s(settings),
         "objects_total": _len(obj_list),
         "objects_identified": sum(1 for o in obj_list if isinstance(o, dict) and o.get("identified")),
         "objects_by_kind": by_kind,
@@ -1068,6 +1166,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         from . import perf_sampler as _ps  # noqa: PLC0415
         _pw = _ps.take_window(hass) if consume else _ps.window(hass)
         health["perf"] = _perf_payload(_pw, _ps.cached_cpus(hass) or 0)
+        _log = _ps.run_log(hass)
+        _runs = _pw.runs if consume else (_log.peek() if _log is not None else None)
+        if _runs is not None:
+            health["runs"] = _runs_payload(_runs)
     except Exception:
         pass
     usage = _take_counters(hass) if consume else dict(dom.get(_DATA_COUNTERS) or {})
@@ -1206,6 +1308,14 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
                     _num(sv, f"health.perf.{k}.{sk}", allow_none=True)
             else:
                 raise ValueError(f"unexpected key in health.perf: {str(k)[:32]}")
+    runs = health.get("runs") if isinstance(health, dict) else None
+    if runs is not None:
+        if not isinstance(runs, dict):
+            raise ValueError("health.runs is not a dict")
+        for k, v in runs.items():
+            if k not in RUNS_KEYS:
+                raise ValueError(f"unexpected key in health.runs: {str(k)[:32]}")
+            _num(v, f"health.runs.{k}")
 
 
 # ── the schedule ─────────────────────────────────────────────────────────────

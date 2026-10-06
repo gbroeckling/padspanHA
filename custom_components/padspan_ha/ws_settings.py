@@ -523,6 +523,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 from .telemetry import ensure_install_id, reset_windows  # noqa: PLC0415
                 await ensure_install_id(hass)
                 reset_windows(hass)
+                from .perf_sampler import async_runs_opted_in  # noqa: PLC0415
+                await async_runs_opted_in(hass)
+            else:
+                # Off: the run log on disk (starts, crashes, worst minutes) goes too.
+                from .perf_sampler import async_runs_opted_out  # noqa: PLC0415
+                await async_runs_opted_out(hass)
         if "atlas_3d_library" in msg or "atlas_3d_ai_task_entity" in msg:
             # Live Aboard's shared library and a cloud AI Task reading photos
             # both let data leave the house: an administrator's call, like the

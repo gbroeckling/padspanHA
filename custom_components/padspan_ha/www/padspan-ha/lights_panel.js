@@ -1166,6 +1166,20 @@ class PadSpanLightsApp extends HTMLElement {
       window.addEventListener("error", this._uiErrorHandler);
       window.addEventListener("unhandledrejection", this._uiErrorHandler);
     }
+    // The opt-in report's look at this screen (client_perf.js): frame rate and
+    // heap once a minute ("atlas", or "sim" while the 3D house draws), the
+    // device class once per page load — only while the report is on.
+    if(!this._clientPerf && !this._clientPerfLoading){
+      this._clientPerfLoading = import(`./client_perf.js${new URL(import.meta.url).search}`).then((m)=>{
+        this._clientPerfLoading = null;
+        if(!this.isConnected || this._clientPerf) return;
+        this._clientPerf = m.startClientPerf({
+          root: this.shadowRoot, viewClass: ()=>"atlas",
+          enabled: ()=>!!this.state._telemetryOn && !!this._hass,
+          send: (name)=>{ Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{}); },
+        });
+      }).catch(()=>{ this._clientPerfLoading = null; });
+    }
     this.style.display="block";
     this.shadowRoot.innerHTML=`
       <link rel="stylesheet" href="/padspan_ha_static/padspan-ha/styles.css?v=${APP_VERSION}&b=${BUILD_ID}">
@@ -1181,6 +1195,7 @@ class PadSpanLightsApp extends HTMLElement {
 
   disconnectedCallback(){
     if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
+    if(this._clientPerf){ this._clientPerf.stop(); this._clientPerf = null; }
     if(this._uiErrorHandler){
       window.removeEventListener("error", this._uiErrorHandler);
       window.removeEventListener("unhandledrejection", this._uiErrorHandler);

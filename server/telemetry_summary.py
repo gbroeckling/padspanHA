@@ -56,7 +56,8 @@ def _well_formed(r) -> bool:
                     and all(isinstance(c, num) for c in (findmy.get(k) or {}).values())
                     for k in ("on_air", "separated", "tracked"))
             and all(isinstance(findmy.get(k) or 0, num) for k in ("tracked_live", "tracked_carried"))
-            and isinstance(health.get("perf") or {}, dict))
+            and isinstance(health.get("perf") or {}, dict)
+            and isinstance(health.get("runs") or {}, dict))
 
 
 def load(dirpath: Path, days: int) -> tuple[dict[tuple[str, str], dict], list[dict]]:
@@ -187,6 +188,109 @@ def load_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
             out.append(f"      {label:<30} {_spread(vals)}")
         out.append("      max-outs (installs that hit it): " + ", ".join(
             f"{lbl} {len(hit[cls].get(k, ()))}/{installs[cls]}" for k, lbl in _OVER_LABELS))
+    return out
+
+
+_RAM_ORDER = {"1g": 0, "2g": 1, "4g": 2, "8g": 3, "16g": 4, "16g+": 5}
+_CAPS = (2000, 5000, 10000)
+
+
+def _num(v) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def memory_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
+    """What deciding the low-memory version takes (Garry, 2026-10-05): per
+    install, smallest machines first — what PadSpan holds and what it costs
+    (health.perf), whether Home Assistant crashed (health.runs), and what a
+    forced object cap would leave; then Home Assistant's load by the view on
+    screen, and how smoothly each kind of screen draws the Atlas and the 3D
+    house (client_* usage events). An install whose last report carries none
+    of it is from before these fields and is counted, not shown."""
+    out = ["Memory and the low-memory switch (health.perf PadSpan figures, health.runs, client_* events)"]
+    rows = []
+    for iid, r in latest.items():
+        health = r.get("health") or {}
+        perf = health.get("perf") if isinstance(health.get("perf"), dict) else {}
+        runs = health.get("runs") if isinstance(health.get("runs"), dict) else {}
+        if "objects_n" not in perf and not runs:
+            continue
+        hw = (r.get("env") or {}).get("hw") or {}
+        hw = hw if isinstance(hw, dict) else {}
+        rows.append((iid, r, perf, runs, hw))
+    n = len(latest)
+    out.append(f"  {'installs reporting memory figures':<36} {len(rows):>7}  / {n}"
+               f"  ({n - len(rows)} not reported: older builds)")
+
+    def mx(r, metric):
+        return _perf_stat(r, metric, "max")
+
+    def ram_key(row):
+        ram = str(row[4].get("ram", "unknown"))
+        unclean = _num(row[3].get("unclean")) or 0
+        return (_RAM_ORDER.get(ram, 9), -unclean, row[0])
+
+    for iid, r, perf, runs, hw in sorted(rows, key=ram_key):
+        env = r.get("env") or {}
+        cls = f"{str(hw.get('board', '?'))}/{str(hw.get('ram', '?'))}"
+        objs = _num(runs.get("objects_n")) or mx(r, "objects_n")
+        hist_mb, ble_mb, snap_mb = mx(r, "history_mb"), mx(r, "ble_mb"), mx(r, "snap_held_mb")
+        held = sum(v for v in (hist_mb, ble_mb, snap_mb) if v is not None)
+        rss = _num(runs.get("rss_mb")) or mx(r, "rss_mb")
+        avail = _num(runs.get("mem_avail_pc"))
+        if avail is None:
+            avail = _perf_stat(r, "mem_avail_pc", "min")
+        out.append(f"  [{cls}] {iid[:8]} v{str(r.get('version'))}: objects max {objs if objs is not None else '-'}"
+                   f", history {mx(r, 'history_n') or '-'} x {_perf_stat(r, 'obj_kb', 'p50') or '-'} KB"
+                   f" = {hist_mb or '-'} MB, Bluetooth cache {mx(r, 'ble_addrs_n') or '-'} addrs {ble_mb or '-'} MB"
+                   f", snapshot {snap_mb or '-'} MB held / {mx(r, 'snap_json_mb') or '-'} MB JSON"
+                   f" x {_perf_stat(r, 'snap_req_per_h', 'p50') or '-'}/h")
+        out.append(f"      HA memory max {rss or '-'} MB, memory available min {avail if avail is not None else '-'}%"
+                   f", swap max {_num(runs.get('swap_mb')) or mx(r, 'swap_mb') or '-'} MB"
+                   f" | starts {_num(runs.get('starts')) or 0:g}, unclean {_num(runs.get('unclean')) or 0:g}"
+                   f" | new addrs {_perf_stat(r, 'ble_new_per_h', 'p50') or '-'}/h"
+                   f", not heard 15 min {_perf_stat(r, 'ble_old_pc', 'p50') or '-'}%"
+                   f" | history {str(env.get('object_history_days', '?'))} d")
+        if objs and held:
+            per = held / objs
+            caps = ", ".join(f"{c // 1000}k: ~{per * min(c, objs):.0f} MB (frees ~{held - per * min(c, objs):.0f})"
+                             for c in _CAPS)
+            out.append(f"      PadSpan objects hold ~{held:.0f} MB ({per * 1024:.1f} KB each, all stores); capped at {caps}")
+    # Home Assistant by the view on screen, across the latest reports.
+    out.append("  Home Assistant by view on screen (median across installs of each day's figure):")
+    for v in ("none", "other", "atlas", "sim"):
+        cpu = [x for x in (_perf_stat(r, f"{v}_cpu_pc", "p95") for _i, r, *_ in rows) if x is not None]
+        lag = [x for x in (_perf_stat(r, f"{v}_lag_ms", "p95") for _i, r, *_ in rows) if x is not None]
+        rss = [x for x in (_perf_stat(r, f"{v}_rss_mb", "max") for _i, r, *_ in rows) if x is not None]
+        mins = sum(int(x) for x in (_perf_stat(r, f"{v}_cpu_pc", "n") for _i, r, *_ in rows) if x is not None)
+
+        def med(xs):
+            return f"{sorted(xs)[(len(xs) - 1) // 2]:g}" if xs else "-"
+        out.append(f"    {v:<6} HA CPU p95 {med(cpu):>6}%  loop lag p95 {med(lag):>7} ms  HA memory max {med(rss):>6} MB"
+                   f"  ({len(cpu)} installs, {mins} min)")
+    # The screens: frame rate and heap by view, device classes — summed counts.
+    fps: dict[str, Counter] = defaultdict(Counter)
+    heap: dict[str, Counter] = defaultdict(Counter)
+    dev: Counter = Counter()
+    for r in reports:
+        for k, c in (r.get("usage") or {}).items():
+            c = _num(c)
+            if c is None:
+                continue
+            parts = str(k).split(":")
+            if parts[0] == "client_fps" and len(parts) == 3:
+                fps[parts[1]][parts[2]] += int(c)
+            elif parts[0] == "client_heap" and len(parts) == 3:
+                heap[parts[1]][parts[2]] += int(c)
+            elif parts[0] == "client_dev" and len(parts) == 2:
+                dev[parts[1]] += int(c)
+    out.append("  Screens: minutes by frame rate and by browser memory, per view (all reports in the window):")
+    for v in ("atlas", "sim", "other"):
+        out.append(f"    {v:<6} fps " + (", ".join(f"{b} {fps[v][b]}" for b in ("lt10", "10_24", "24_45", "45up")
+                                               if fps[v][b]) or "-")
+                   + " | heap " + (", ".join(f"{b} {heap[v][b]}" for b in ("lt128m", "128_256m", "256_512m",
+                                                                             "512m_1g", "1g_up") if heap[v][b]) or "-"))
+    out.append("    device classes (page loads): " + (", ".join(f"{k} {v}" for k, v in sorted(dev.items())) or "-"))
     return out
 
 
@@ -375,6 +479,10 @@ def main() -> int:
     print()
 
     for line in load_section(latest, reports):
+        print(line)
+    print()
+
+    for line in memory_section(latest, reports):
         print(line)
     print()
 
