@@ -91,6 +91,25 @@ await tryCase("storey: a room less a convex hole keeps all but the hole", () => 
     { mid: area(mid), edge: area(edge) });
 });
 
+// A U-shaped room less a stair's opening in one arm, and an L-shaped room
+// less one that crosses its edge: every piece lies in the room (no edge
+// outside it, as a zero-width bridge across the U's gap would be), and
+// together they are the room less the opening.
+await tryCase("storey: a U or L room less an opening: no piece reaches outside the room", () => {
+  const onSeg = (p, a, b) => { const cr = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]); if (Math.abs(cr) > 1e-9) return false;
+                               const d = (p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1]); return d >= -1e-9 && d <= (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2 + 1e-9; };
+  const within = (m, P) => S.inside(m[0], m[1], P) || P.some((a, i) => onSeg(m, a, P[(i + 1) % P.length]));
+  const U = [[0, 0], [6, 0], [6, 5], [4, 5], [4, 2], [2, 2], [2, 5], [0, 5]], L = [[0, 0], [6, 0], [6, 2], [2, 2], [2, 6], [0, 6]];
+  const cases = [[U, [[0.5, 3], [1.5, 3], [1.5, 4.5], [0.5, 4.5]], 1.5], [L, [[1, 3], [3, 3], [3, 4], [1, 4]], 1], [U, [[3, 0.5], [5, 0.5], [5, 1.5], [3, 1.5]], 2]];
+  const bad = [];
+  for (const [P, C, cut] of cases) {
+    const parts = S.minusConvex(P, C), area = parts.reduce((a, Q) => a + Math.abs(S.areaOf(Q)), 0);
+    const out = parts.flatMap(Q => Q.map((a, i) => { const b = Q[(i + 1) % Q.length]; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; })).filter(m => !within(m, P));
+    if (out.length || !near(area, Math.abs(S.areaOf(P)) - cut, 1e-6)) bad.push({ P, C, out, area });
+  }
+  check("storey: a U or L room less an opening: no piece reaches outside the room", !bad.length, bad);
+});
+
 // ── roof ────────────────────────────────────────────────────────────────────
 await tryCase("roof: over the part of each storey with nothing above it, faces out, eaves and fascia", () => {
   const model = { floors: [{ id: "main", name: "Main" }, { id: "upper", name: "Upper" }], floor_elevations: { main: 0, upper: 2.8 },
@@ -110,6 +129,35 @@ await tryCase("roof: over the part of each storey with nothing above it, faces o
     lo.roof.length >= 1 && lo.roof.every(p => !ok(p, 2.5, 3)) && lo.roof.some(p => ok(p, 9, 3)) && up.roof.length === 1 && ok(up.roof[0], 2.5, 3)
     && up3 && outs && r.fascia.length === 8 && near(Math.min(...xs), -S.EAVE_M, 0.11) && near(Math.max(...xs), 5 + S.EAVE_M, 0.11)
     && top > 1 && top <= S.ROOF_MAX_H, { lo: lo.roof, up: up.roof, up3, outs, top });
+});
+// Every bit of a storey with nothing above it is under a roof: a hipped
+// part (with its eaves) of it or of a storey higher up, or a flat lid.
+// Main runs 1.1 m past the Upper's west wall (as Garry's does beside the
+// Entry), and a slanted wall leaves a wedge.
+await tryCase("roof: a narrow strip beside a higher storey and a slanted wall's wedge are roofed: no bit open to the sky", async () => {
+  const THREE = await import(pathToFileURL(join(WWW, "vendor", "three", "three.module.min.js")).href);
+  const model = { floors: [{ id: "main", name: "Main" }, { id: "upper", name: "Upper" }], floor_elevations: { main: 0, upper: 2.8 },
+    room_geometry_m: { Hall: rect("main", 0, 0, 10, 8), Nook: { type: "poly", floor_id: "main", points_m: [[10, 0], [13, 0], [10.6, 8], [10, 8]] },
+                       Loft: rect("upper", 1.1, 0, 10, 8) } };
+  const m = S.houseModel(houseOf(model)), g = m.grid, bare = [];
+  for (const [k, s] of m.storeys.entries()) {
+    const parts = m.storeys.slice(k).flatMap(q => q.roof);
+    for (let j = 0; j < g.ny; j++) for (let i = 0; i < g.nx; i++) {
+      if (!s.roofCells[j * g.nx + i]) continue;
+      const u = g.u0 + (i + 0.5) * g.cell, v = g.v0 + (j + 0.5) * g.cell, [x, y] = m.frame.toPlan(u, v);
+      const roofed = parts.some(r => u >= r.u0 - S.EAVE_M && u <= r.u1 + S.EAVE_M && v >= r.v0 - S.EAVE_M && v <= r.v1 + S.EAVE_M)
+        || (s.lids || []).some(L => S.inside(x, y, L.outer) && !L.holes.some(h => S.inside(x, y, h)));
+      if (!roofed) bare.push([+x.toFixed(2), +y.toFixed(2)]);
+    }
+  }
+  const strip = m.storeys[0].roof.some(r => r.u0 <= 0.05 && r.u1 >= 1.05 && r.v1 - r.v0 >= 7.9);
+  // The lids, drawn: triangles facing up that cover them.
+  const lids = m.storeys.flatMap(s => s.lids || []), tris = S.lidTris ? S.lidTris(lids, THREE) : [];
+  const triA = tris.reduce((a, t) => a + Math.abs((t[1][0] - t[0][0]) * (t[2][1] - t[0][1]) - (t[1][1] - t[0][1]) * (t[2][0] - t[0][0])) / 2, 0);
+  const up = tris.every(t => (t[1][0] - t[0][0]) * (t[2][1] - t[0][1]) - (t[1][1] - t[0][1]) * (t[2][0] - t[0][0]) <= 0);
+  check("roof: a narrow strip beside a higher storey and a slanted wall's wedge are roofed: no bit open to the sky",
+    !bare.length && strip && lids.length >= 1 && tris.length >= lids.length && up && near(triA, lids.reduce((a, L) => a + Math.abs(L.area), 0), 1e-6)
+    && m.storeys[0].roof.length <= S.ROOF_MAX_PARTS, { bare: bare.slice(0, 8), n: bare.length, parts: m.storeys[0].roof, lids: lids.length, triA });
 });
 await tryCase("roof: shown only from outside, with every floor, walls Up or Cut, not Top, not editing", () => {
   const base = { setting: "auto", editing: false, furnish: false, topElev: null, topStorey: 2.8, wallMode: "cut", phi: 0.9, radius: 40, fitR: 30 };
@@ -147,6 +195,21 @@ await tryCase("stairs: the opening is the footprint, cut in the floor reached", 
     cuts.size === 1 && C && near(Math.abs(S.areaOf(C)), 3, 1e-9) && S.inside(3.2, 3.2, C) && !S.inside(2, 3.8, C)
     && S.stairsSignature({ [p.id]: p }) !== S.stairsSignature({ [p.id]: { ...p, x_m: 2.1 } })
     && S.stairsSignature({ [sofa.id]: sofa }) === "[]", { C });
+});
+// A storey of two floors at one height (Garage and Main both at 2.8 m):
+// the stairs reach the storey, and its opening is cut in both floors' tiles
+// (the view cuts each floor's tiles by its own id) as in its solid floor.
+await tryCase("stairs: reaching a storey of two floors at one height, the opening is cut in both", () => {
+  const model = { floors: [{ id: "basement", name: "Basement" }, { id: "garage", name: "Garage" }, { id: "main", name: "Main" }],
+    floor_elevations: { basement: 0, garage: 2.8, main: 2.8 },
+    room_geometry_m: { Rec: rect("basement", 0, 0, 12, 6), Living: rect("main", 0, 0, 6, 6), Garage: rect("garage", 6.1, 0, 12, 6) } };
+  const h = houseOf(model);
+  const p = { id: "s1", recipe: { kind: "stairs", params: { shape: "straight" }, width_m: 1, depth_m: 3, height_m: 2.8 }, floor_id: "basement", x_m: 2, y_m: 3, rotation: 0 };
+  const cuts = S.stairCuts({ s1: p }, h.floors, h.canon);
+  const st = S.houseModel(h, cuts).storeys.find(q => near(q.elev, 2.8));
+  const inMain = (cuts.get("main") || []).some(C => S.inside(2, 3, C)), inGarage = (cuts.get("garage") || []).some(C => S.inside(2, 3, C));
+  check("stairs: reaching a storey of two floors at one height, the opening is cut in both",
+    inMain && inGarage && !cuts.has("basement") && st && !inStorey(st, 2, 3) && inStorey(st, 4, 3), { keys: [...cuts.keys()] });
 });
 await tryCase("stairs: the steps reach the floor above, straight, L and U", () => {
   const bad = [];
