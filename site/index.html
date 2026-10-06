@@ -179,6 +179,32 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.105</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">6 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>Heights move to the map:</b> heights set in Live Aboard before this version are copied to the map once. A backup is taken first.</li>
+          <li><b>Going back to an older version:</b> your map still saves, and the heights you set wait beside it until you update again. A height you change while on the older version isn't carried over; set it again in Mapping. A door you gave a type in Live Aboard can't be edited on the older version until you Reset it.</li>
+          <li><b>Added:</b> every placed device has a <b>Height</b> in the Atlas builder's inspector: Ceiling, High on the wall, Wall, Switch height, Table, Floor or a number. Each kind offers the heights that make sense for it (a leak sensor: Floor; a lock: Door height). Empty means the usual height for its kind.</li>
+          <li><b>Added:</b> a <b>Heights</b> list shows every placed device with its height. Sort it, set many at once, or show only the ones still using the usual height.</li>
+          <li><b>Changed:</b> dragging a device on the map keeps its height. Auto position says when it clears one.</li>
+          <li><b>Added:</b> an open door now looks open. Its leaf stands swung into the room from its hinge, and a faint arc shows its swing; the gap in the wall stays clear. A shut door still draws its grey line. Sliding, folding and garage doors show the way they stand open.</li>
+          <li><b>Added:</b> the house itself:</li>
+          <li><b>Added:</b> door types: hinged, double, sliding, barn, pocket, bifold, overhead garage, roll-up, tilt-up and gate. Each moves its own way. PadSpan guesses the type until you pick one. A door follows its contact sensor, or its cover's position.</li>
+          <li><b>Safety:</b> a garage door or gate never moves from a tap in Live Aboard. A tap shows what it reads and when it last moved; press and hold for Home Assistant's own controls.</li>
+          <li><b>Added:</b> heights from Mapping. A device's height is set once and used by both views.</li>
+          <li><b>Added:</b> for a wall screen:</li>
+          <li><b>Added:</b> people:</li>
+          <li><b>Changed:</b> <b>Show people</b> and <b>Show tags & scanners</b> are now in Views ▾ too, and only an administrator can change them.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.104</span>
         <span class="pill stable">Stable</span>
         <span class="reldate">5 October 2026</span>
