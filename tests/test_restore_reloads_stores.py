@@ -93,3 +93,26 @@ def test_a_factory_reset_erases_the_traceback_history(store, monkeypatch, tmp_pa
     tb2 = TracebackStore(h)
     _run(tb2.async_load())
     assert tb2.frames == [] and tb.frames == []
+
+
+def test_a_factory_reset_also_empties_the_registry_lost_and_found_and_forensics(store, monkeypatch, tmp_path):
+    """The reset screen promises ALL PadSpan data and every label; the device
+    registry put its labels back on every device, and Lost & Found and
+    Forensics kept everything."""
+    from custom_components.padspan_ha.const import DATA_LOST_AND_FOUND, LOST_AND_FOUND_STORE_KEY
+    from custom_components.padspan_ha.lost_and_found_store import LostAndFoundStore
+    from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
+    h = _house(tmp_path)
+    dr = DeviceRegistry(h)
+    dr._devices = {"ps_1": {"padspan_id": "ps_1", "label": "Keys", "identities": []}}
+    dr._index = {"AA:BB:CC:DD:EE:FF": "ps_1"}
+    fs = ForensicsStore(h)
+    fs.addrs = {"AA": {"sessions": []}}
+    lf = LostAndFoundStore.__new__(LostAndFoundStore)
+    lf.records = {"ble:AA": {"room": "Hall", "ts": 1.0}}
+    h.data[DOMAIN].update({DATA_DEVICE_REGISTRY: dr, DATA_FORENSICS: fs, DATA_LOST_AND_FOUND: lf})
+    _run(ws_factory_reset(h, MagicMock(), {"id": 1, "confirm": "FACTORY RESET"}))
+    assert dr._devices == {} and dr._index == {} and dr.get_label_by_key("AA:BB:CC:DD:EE:FF") is None
+    assert fs.addrs == {} and lf.records == {}
+    assert store.saved[DEVICE_REGISTRY_STORE_KEY] == {"version": 1, "devices": {}}
+    assert store.saved[LOST_AND_FOUND_STORE_KEY] == {} and store.saved[FORENSICS_STORE_KEY] == {"addrs": {}}

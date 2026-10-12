@@ -341,6 +341,35 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: capture — %s", e)
         errors.append("padspan_ha.capture")
 
+    # ── 9c-9e. Device registry, Lost & Found, Forensics ──────────────────
+    # The screen promises "permanently delete ALL PadSpan data", "all BLE
+    # object labels and tag names" — but these three were left: the device
+    # registry put its labels straight back on every device after a reset
+    # (snapshot_builder copies a registry label onto the object), Lost & Found
+    # kept every last-seen room, and Forensics every session.
+    from .const import (  # noqa: PLC0415
+        DATA_DEVICE_REGISTRY, DATA_FORENSICS, DATA_LOST_AND_FOUND,
+        FORENSICS_STORE_KEY, LOST_AND_FOUND_STORE_KEY,
+    )
+    from .device_registry import DEVICE_REGISTRY_STORE_KEY  # noqa: PLC0415
+    for _key, _dkey, _empty, _reset in (
+        (DEVICE_REGISTRY_STORE_KEY, DATA_DEVICE_REGISTRY, {"version": 1, "devices": {}},
+         lambda o: (o._devices.clear(), o._index.clear(), o._ephemeral.clear())),
+        (LOST_AND_FOUND_STORE_KEY, DATA_LOST_AND_FOUND, {},
+         lambda o: o.records.clear()),
+        (FORENSICS_STORE_KEY, DATA_FORENSICS, {"addrs": {}},
+         lambda o: o.addrs.clear()),
+    ):
+        try:
+            await _St(hass, 1, _key).async_save(_empty)
+            cleared += 1
+            _obj = domain.get(_dkey)
+            if _obj is not None:
+                _reset(_obj)
+        except Exception as e:
+            _LOGGER.warning("Factory reset: %s — %s", _key, e)
+            errors.append(_key)
+
     # ── 10. Object history (plain dict, not a store class) ────────────────
     try:
         st = _St(hass, 1, OBJECT_HISTORY_STORE_KEY)
