@@ -768,8 +768,10 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
                     dev_reg = dr.async_get(hass)
                     device = dev_reg.async_get(ent_entry.device_id)
                     if device:
+                        from .telemetry import bump  # noqa: PLC0415
                         notify_target = mobile_app_notify_service(hass, device)
                         if not notify_target:
+                            bump(hass, "companion_tx_no_service")
                             results.append("No notify service found for this phone — "
                                            "turn on the BLE Transmitter in the Companion App")
                         if notify_target:
@@ -783,12 +785,15 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
                                 blocking=True,
                             )
                             transmitter_enabled = True
+                            bump(hass, "companion_tx_sent")
                             results.append("BLE Transmitter command sent to phone")
                             _LOGGER.info(
                                 "Sent command_ble_transmitter turn_on via notify.%s",
                                 notify_target,
                             )
             except Exception as te:
+                from .telemetry import bump as _bump  # noqa: PLC0415
+                _bump(hass, "companion_tx_failed")
                 _LOGGER.warning(
                     "Failed to send BLE Transmitter command for %s: %s",
                     transmitter_eid,

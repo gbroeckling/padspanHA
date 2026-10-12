@@ -1748,6 +1748,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     _ib_by_mac[mac.upper()] = obj
 
             _absorbed_keys: set[str] = set()  # keys of objects merged into an iBeacon
+            _merged_by_device = 0             # of those, matched by HA device (opt-in report)
             for obj in objects:
                 if obj.get("kind") not in ("ble", "private_ble"):
                     continue
@@ -1756,6 +1757,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 dev = obj.get("device")
                 if isinstance(dev, dict) and dev.get("device_id"):
                     target_ib = _ib_by_devid.get(dev["device_id"])
+                    if target_ib:
+                        _merged_by_device += 1
                 # Match by MAC address overlap
                 if not target_ib:
                     obj_addr = (obj.get("address") or "").upper()
@@ -1825,6 +1828,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # Remove absorbed objects from the list
             if _absorbed_keys:
                 objects = [o for o in objects if o.get("key", "") not in _absorbed_keys]
+            (snapshot.get("raw_counts") or {})["merged_by_device"] = _merged_by_device
         except Exception as _merge_err:
             _LOGGER.debug("Object merge error: %s", _merge_err)
 

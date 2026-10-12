@@ -114,6 +114,8 @@ METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", 
                             # Bermuda: its entities and devices, and what the "ha" phase
                             # works through for them (raw_counts in the snapshot)
                             "bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing",
+                            # objects merged by their HA device this build (0.38.109)
+                            "dev_merged",
                             # the poll's object counts, and Lost & Found (padspan_sizes)
                             "smoothed", "background", "lostfound",
                             # PadSpan's size (padspan_sizes)
@@ -519,7 +521,7 @@ def padspan_sizes(hass: HomeAssistant, kb: dict[str, float], *, estimate: bool) 
         pass
     raw = snap.get("raw_counts") if isinstance(snap.get("raw_counts"), dict) else {}
     for _k, _m in (("receivers", "bermuda_rcv"), ("candidate_entities", "tag_cands"),
-                   ("saved_entities_missing", "saved_missing")):
+                   ("saved_entities_missing", "saved_missing"), ("merged_by_device", "dev_merged")):
         if isinstance(raw.get(_k), int):
             out[_m] = raw[_k]
     # The cached live snapshot: held between builds (and doubled while one is

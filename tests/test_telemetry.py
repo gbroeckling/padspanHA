@@ -1203,7 +1203,7 @@ def _busy_day(h, hours: float = 24.0):
         w.add("background", rnd.uniform(0, 80000))
         w.add("lostfound", rnd.uniform(10, 90000))
         w.add("states", rnd.uniform(500, 120000))
-        for m in ("bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing"):
+        for m in ("bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing", "dev_merged"):
             w.add(m, rnd.uniform(0, 40000))
         for v in ("atlas", "sim", "other", "none"):
             w.add(f"cpu@{v}", rnd.uniform(1, 99.4))

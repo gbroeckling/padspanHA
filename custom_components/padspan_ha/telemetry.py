@@ -146,6 +146,15 @@ EVENTS: frozenset[str] = frozenset({
     # and a Diag Export built on request.
     "beacon_tune_saved", "beacon_tune_save_refused", "beacon_tune_save_failed",
     "lost_and_found_pruned", "diag_export_built",
+    # 0.38.108-110 fixed where Follow alerts go and when arrive/depart fire,
+    # the phone wizard's BLE Transmitter command, and MQTT publishing; these
+    # say whether that holds in houses the tests cannot see. Per event, counts
+    # only: a tagged device's arrive/depart, a Follow alert sent or not, the
+    # wizard's command sent / no phone service found / failed, a failed MQTT
+    # publish.
+    "tagged_arrived", "tagged_departed", "follow_alert_sent", "follow_alert_failed",
+    "companion_tx_sent", "companion_tx_no_service", "companion_tx_failed",
+    "mqtt_publish_failed",
     # The three guided wizards (v0.38.21): which step was REACHED, once per
     # distinct visit to that step (the wizard dedupes against its own last-
     # counted step, the same way a tab-open event never double-counts a
@@ -471,6 +480,10 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "bermuda_devices_n": ("bermuda_rcv", ("max",)),
     "tag_candidates_n": ("tag_cands", ("max",)),
     "saved_tags_missing_n": ("saved_missing", ("max",)),
+    # BLE/private-BLE objects merged into an iBeacon by their HA device in one
+    # build — the match that never fired before 0.38.109; a large number here
+    # would mean it merges more than it should.
+    "merged_by_device_n": ("dev_merged", ("max",)),
     "smoothed_n": ("smoothed", ("p50", "max")),
     "background_n": ("background", ("max",)),
     "lostfound_n": ("lostfound", ("max",)),

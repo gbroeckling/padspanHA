@@ -528,3 +528,11 @@ class TestSameDeviceObjectsMerge:
         house, a, b = self._house(monkeypatch, same_device=False)
         objs, _x = await house.poll(0, self._ib(a) + self._plain(b))
         assert "ble:" + b in objs
+
+    @pytest.mark.asyncio
+    async def test_a_merge_by_device_is_counted_for_the_report(self, monkeypatch):
+        from custom_components.padspan_ha import snapshot_builder as SB
+        house, a, b = self._house(monkeypatch, same_device=True)
+        await house.poll(0, self._ib(a) + self._plain(b))
+        snap = await SB._build_live_snapshot(house.hass)
+        assert snap["raw_counts"]["merged_by_device"] == 1

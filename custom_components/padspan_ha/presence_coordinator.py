@@ -1755,6 +1755,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         await async_publish(self.hass, f"{topic_base}/distance", str(dist), retain=True)
                 except Exception:
                     _LOGGER.debug("MQTT publish for %s failed", slug, exc_info=True)
+                    from .telemetry import bump  # noqa: PLC0415
+                    bump(self.hass, "mqtt_publish_failed")
         except ImportError:
             _LOGGER.debug("MQTT component not available — skipping MQTT publish")
         except Exception:
@@ -3352,6 +3354,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _key_labels[str(k)] = entry["label"]
 
         # ── Fire HA events for labelled arrive/depart ────────────────────
+        # Counted for the opt-in report too (how often tagged devices come and
+        # go — a flapping one shows as a count far above its owner's day).
+        from .telemetry import bump as _bump  # noqa: PLC0415
         # These events can be used as triggers in HA automations.  Only
         # labelled (user-tagged) devices fire: every rotating-MAC rotation in
         # a busy BLE environment registers as a "new" unlabelled arrival, and
@@ -3367,6 +3372,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass.bus.async_fire("padspan_device_arrived", {
                 "device_key": key, "label": label, "room": room,
             })
+            _bump(self.hass, "tagged_arrived")
             _LOGGER.info("Device arrived: %s (%s) in %s", label, key[:30], room)
         for key in departed:
             label = _key_labels.get(key, "")
@@ -3375,6 +3381,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass.bus.async_fire("padspan_device_departed", {
                 "device_key": key, "label": label,
             })
+            _bump(self.hass, "tagged_departed")
             _LOGGER.info("Device departed: %s (%s)", label, key[:30])
 
         # ── Fire follow-alerts for arrive/depart ─────────────────────────
@@ -3792,6 +3799,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     continue
         if sent:
             self._alert_last_sent[f"{key}:{cooldown_suffix}"] = now
+        # The opt-in report's view of Follow alerts (0.38.108-110 fixed where
+        # they go and when they fire): one count per alert, sent or not.
+        from .telemetry import bump  # noqa: PLC0415
+        if sent:
+            bump(self.hass, "follow_alert_sent")
+        else:
+            bump(self.hass, "follow_alert_failed")
         return sent
 
     def clear_scanner(self, source: str) -> int:

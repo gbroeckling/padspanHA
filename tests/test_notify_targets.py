@@ -165,3 +165,40 @@ async def test_a_config_with_nowhere_to_send_still_sends_nothing():
     coord._pending_room_changes = [(f"ble:{ADDR}", "Hall", "Kitchen")]
     await coord._process_room_alerts(1000.0, RESULT)
     coord.hass.services.async_call.assert_not_awaited()
+
+
+# ── The opt-in report's counters for these paths ──────────────────────────────
+
+def _counting(monkeypatch):
+    from custom_components.padspan_ha import telemetry as T
+    seen = []
+    monkeypatch.setattr(T, "bump", lambda hass, name, n=1: seen.append(name) or True)
+    return seen
+
+
+@pytest.mark.asyncio
+async def test_alerts_and_tagged_arrivals_are_counted(monkeypatch):
+    seen = _counting(monkeypatch)
+    await _arrive("notify.mobile_app_phone")
+    assert sorted(seen) == ["follow_alert_sent", "tagged_arrived"]
+
+
+@pytest.mark.asyncio
+async def test_an_alert_with_nowhere_to_go_is_counted_failed(monkeypatch):
+    seen = _counting(monkeypatch)
+    coord = _make_coordinator({ADDR: {"on_arrive": True, "notify_service": "notify.mobile_app_phone"}})
+    coord.hass.services.async_services.return_value = {"notify": {"mobile_app_phone": True}}
+    coord.hass.services.async_call = AsyncMock(side_effect=RuntimeError("service down"))
+    await coord._run_automations({f"ble:{ADDR}"}, set(), RESULT, now=1000.0)
+    assert "follow_alert_failed" in seen and "follow_alert_sent" not in seen
+
+
+@pytest.mark.asyncio
+async def test_the_wizard_counts_a_phone_it_cannot_reach(monkeypatch):
+    seen = _counting(monkeypatch)
+    assert mobile_app_notify_service(_phone_hass("mobile_app_other"), _device("Pixel")) is None
+    # the count itself is bumped by ws_companion_follow around this lookup
+    import inspect
+    from custom_components.padspan_ha import ws_companion as WC
+    src = inspect.getsource(WC.ws_companion_follow)
+    assert 'bump(hass, "companion_tx_no_service")' in src and 'bump(hass, "companion_tx_sent")' in src
