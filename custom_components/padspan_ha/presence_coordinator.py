@@ -197,6 +197,18 @@ _AWAY_GRACE_S: float = 120.0
 _BACKGROUND_AGE_S: float = 60.0
 
 
+def mqtt_topic_slug(label: str) -> str:
+    """A label as one MQTT topic level: lowercase, spaces as "_" — exactly
+    the topic it always had, so nothing subscribed to it moves — with only
+    the characters a publish topic cannot carry replaced: "#" and "+" are
+    wildcards (the publish raised), "/" split the label into levels, and
+    NUL is not allowed."""
+    slug = str(label or "").lower().replace(" ", "_")
+    for ch in ("#", "+", "/", "\x00"):
+        slug = slug.replace(ch, "_")
+    return slug
+
+
 def obj_is_identified(obj: dict) -> bool:
     """Someone's object: labelled, identified, or a phone resolved through an IRK."""
     return bool(
@@ -1703,7 +1715,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 label = obj.get("user_label")
                 if not label:
                     continue
-                slug = label.lower().replace(" ", "_")
+                slug = mqtt_topic_slug(label)
+                if not slug:
+                    continue
                 topic_base = f"padspan/devices/{slug}"
                 # State JSON
                 payload = {
@@ -1713,11 +1727,16 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "home": not (isinstance(obj.get("age_s"), (int, float)) and obj["age_s"] > 300),
                     "room_confidence": obj.get("room_confidence"),
                 }
-                await async_publish(self.hass, f"{topic_base}/state", _json.dumps(payload), retain=True)
-                await async_publish(self.hass, f"{topic_base}/area", obj.get("room") or "unknown", retain=True)
-                dist = obj.get("distance")
-                if dist is not None:
-                    await async_publish(self.hass, f"{topic_base}/distance", str(dist), retain=True)
+                # One device's failure is that device's: the try once wrapped
+                # the whole loop, so one bad publish stopped every device after it.
+                try:
+                    await async_publish(self.hass, f"{topic_base}/state", _json.dumps(payload), retain=True)
+                    await async_publish(self.hass, f"{topic_base}/area", obj.get("room") or "unknown", retain=True)
+                    dist = obj.get("distance")
+                    if dist is not None:
+                        await async_publish(self.hass, f"{topic_base}/distance", str(dist), retain=True)
+                except Exception:
+                    _LOGGER.debug("MQTT publish for %s failed", slug, exc_info=True)
         except ImportError:
             _LOGGER.debug("MQTT component not available — skipping MQTT publish")
         except Exception:
