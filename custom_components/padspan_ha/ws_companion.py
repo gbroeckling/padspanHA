@@ -21,6 +21,36 @@ from .const import (
     DATA_COORDINATOR,
 )
 from .bluetooth_live import get_bluetooth_live
+
+
+def _alnum(s: Any) -> str:
+    return "".join(ch for ch in str(s or "").lower() if ch.isalnum())
+
+
+def mobile_app_notify_service(hass: HomeAssistant, device: Any) -> str | None:
+    """The notify service the Companion App registered for this phone, from
+    the services that exist. The app names it mobile_app_<slugified device
+    name>; the device's ("mobile_app", id) identifier is the app's own random
+    device id, not that slug. Tried first, the identifier always gave a
+    target — so the name was never tried, the command went to a service that
+    does not exist, and the BLE Transmitter never turned on. Names are
+    compared letters and digits only, so slugify's handling of "'" or "-"
+    cannot miss."""
+    try:
+        svcs = [s for s in hass.services.async_services().get("notify", {})
+                if isinstance(s, str) and s.startswith("mobile_app_")]
+    except Exception:
+        return None
+    ids = {f"mobile_app_{i[1]}" for i in (device.identifiers or set())
+           if isinstance(i, tuple) and len(i) == 2 and i[0] == "mobile_app"}
+    for s in svcs:
+        if s in ids:
+            return s
+    want = {_alnum(getattr(device, "name", "")), _alnum(getattr(device, "name_by_user", ""))} - {""}
+    for s in svcs:
+        if _alnum(s[len("mobile_app_"):]) in want:
+            return s
+    return None
 from .private_ble_resolver import PrivateBLEResolver, get_resolver as _get_ble_resolver
 from .util import ha_devices
 from .ws_common import _get_settings, _is_rpa_addr
@@ -735,18 +765,10 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
                     dev_reg = dr.async_get(hass)
                     device = dev_reg.async_get(ent_entry.device_id)
                     if device:
-                        # Find the notify service for this mobile_app device.
-                        # Convention: notify.mobile_app_<device_name_slug>
-                        notify_target = None
-                        for ident in device.identifiers:
-                            if ident[0] == "mobile_app":
-                                notify_target = f"mobile_app_{ident[1]}"
-                                break
+                        notify_target = mobile_app_notify_service(hass, device)
                         if not notify_target:
-                            # Fallback: derive from device name
-                            dname = (device.name or "").lower().replace(" ", "_").replace("-", "_")
-                            if dname:
-                                notify_target = f"mobile_app_{dname}"
+                            results.append("No notify service found for this phone — "
+                                           "turn on the BLE Transmitter in the Companion App")
                         if notify_target:
                             await hass.services.async_call(
                                 "notify",

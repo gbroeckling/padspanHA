@@ -82,3 +82,34 @@ async def test_the_test_button_sends_to_the_phone_itself():
 async def test_the_test_button_uses_send_message_for_a_real_entity():
     calls, _conn = await _test_button("notify.smtp_home", notify_entities=["notify.smtp_home"])
     assert calls == [("notify", "send_message")]
+
+
+# ── Companion App: the phone's own notify service (BLE Transmitter command) ──
+
+from custom_components.padspan_ha.ws_companion import mobile_app_notify_service  # noqa: E402
+
+
+def _phone_hass(*services):
+    hass = MagicMock()
+    hass.services.async_services.return_value = {"notify": {s: True for s in ("send_message",) + services}}
+    return hass
+
+
+def _device(name, ident="8f2c1e0b9a7d4c36", by_user=None):
+    return SimpleNamespace(name=name, name_by_user=by_user, identifiers={("mobile_app", ident)})
+
+
+def test_the_phone_is_found_by_its_name_not_its_device_id():
+    hass = _phone_hass("mobile_app_garry_s_pixel_8", "mobile_app_nicoles_iphone")
+    assert mobile_app_notify_service(hass, _device("Garry's Pixel 8")) == "mobile_app_garry_s_pixel_8"
+    assert mobile_app_notify_service(hass, _device("Nicole's iPhone")) == "mobile_app_nicoles_iphone"
+
+
+def test_a_service_named_by_the_id_still_wins_if_it_exists():
+    hass = _phone_hass("mobile_app_8f2c1e0b9a7d4c36", "mobile_app_pixel")
+    assert mobile_app_notify_service(hass, _device("Pixel")) == "mobile_app_8f2c1e0b9a7d4c36"
+
+
+def test_no_matching_service_is_none_not_a_guess():
+    hass = _phone_hass("mobile_app_someone_else")
+    assert mobile_app_notify_service(hass, _device("Garry's Pixel 8")) is None
