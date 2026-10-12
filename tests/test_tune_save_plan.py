@@ -234,3 +234,15 @@ def test_mutex_primitives(plan: dict) -> None:
 
 def test_snap_baseline(plan: dict) -> None:
     assert plan["snap"] == {"s1": {"x": 0.1, "y": 0.2}}, plan["snap"]
+
+
+def test_scanner_position_save_takes_whole_numbers():
+    """The browser sends 2.0 back as 2; a strict float schema refused it."""
+    import inspect
+    import re
+    from custom_components.padspan_ha import ws_fabric
+    src = inspect.getsource(ws_fabric)
+    i = src.index('"type": "padspan_ha/fabric_scanner_position_set"')
+    block = src[i:src.index("@websocket_api.async_response", i)]
+    for f in ("x_m", "y_m", "z_m"):
+        assert re.search(rf'"{f}"\)?: vol\.Coerce\(float\)', block), f
