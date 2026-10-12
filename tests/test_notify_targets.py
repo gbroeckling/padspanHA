@@ -227,3 +227,49 @@ async def test_a_first_confirmation_after_restart_is_not_a_move():
     coord._pending_room_changes = [(f"ble:{ADDR}", None, "Kitchen")]
     await coord._process_room_alerts(1000.0, RESULT)
     coord.hass.services.async_call.assert_not_awaited()
+
+
+# ── Companion unfollow ────────────────────────────────────────────────────────
+
+def test_the_overview_unfollow_call_passes_the_schema():
+    """Overview sends {ibeacon_key, device_name}; the schema refused the extra key."""
+    import voluptuous as vol
+    from custom_components.padspan_ha import ws_companion as WC
+    import inspect
+    src = inspect.getsource(WC)
+    i = src.index('"type": "padspan_ha/companion_unfollow"')
+    assert 'vol.Optional("device_name")' in src[i:i + 500]
+
+
+@pytest.mark.asyncio
+async def test_unfollow_removes_the_irk_identity_label_too(monkeypatch):
+    from custom_components.padspan_ha import ws_companion as WC
+    from custom_components.padspan_ha.const import DATA_OBJECTS, DATA_SETTINGS, DOMAIN
+
+    class _Store:
+        def __init__(self, d):
+            self.d = {k.upper(): v for k, v in d.items()}
+
+        def get(self, k):
+            return self.d.get(str(k).upper())
+
+        def all(self):
+            return dict(self.d)
+
+        async def async_delete(self, k):
+            self.d.pop(str(k).upper(), None)
+
+    key = "ibeacon:e2c56db5-dffb-48d2-b060-d0f5a71096e0:100:1"
+    store = _Store({key: {"label": "Garry's Pixel"}, "irk:aabb": {"label": "Garry's Pixel"},
+                    "irk:ccdd": {"label": "Someone Else"}})
+    st = SimpleNamespace(data={"followed_addrs": [key.upper()]}, async_set=AsyncMock())
+    hass = MagicMock()
+    hass.data = {DOMAIN: {DATA_OBJECTS: store, DATA_SETTINGS: st}}
+
+    async def _no_resolver(h):
+        raise RuntimeError("phone not on the air")
+    monkeypatch.setattr(WC, "_get_ble_resolver", _no_resolver)
+    conn = MagicMock()
+    await WC.ws_companion_unfollow(hass, conn, {"id": 1, "ibeacon_key": key, "device_name": "Garry's Pixel"})
+    assert set(store.d) == {"IRK:CCDD"}
+    assert "IRK identity label removed" in conn.send_result.call_args.args[1]["actions"]

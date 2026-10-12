@@ -27,6 +27,34 @@ def _alnum(s: Any) -> str:
     return "".join(ch for ch in str(s or "").lower() if ch.isalnum())
 
 
+async def _phone_canonical_ids(hass: HomeAssistant, follow_key: str, obj_store: Any, label: str) -> list[str]:
+    """The IRK identity keys companion_follow labelled for this phone (see unfollow)."""
+    found: list[str] = []
+    try:
+        resolver = await _get_ble_resolver(hass)
+        ble_snap = get_bluetooth_live(hass).get_snapshot(max_ads=2000, max_age_s=600)
+        for ad in (ble_snap.get("advertisements") or []):
+            ib = resolver.parse_ibeacon(ad.get("manufacturer_data") or {})
+            if not ib or f"ibeacon:{ib['uuid']}:{ib['major']}:{ib['minor']}".upper() != follow_key:
+                continue
+            resolved = resolver.resolve_address(str(ad.get("address") or "").upper())
+            if resolved and resolved.get("canonical_id"):
+                found.append(str(resolved["canonical_id"]))
+            break
+    except Exception:
+        pass
+    if not found and label:
+        try:
+            same = [k for k, v in (obj_store.all() or {}).items()
+                    if str(k).lower().startswith("irk:")
+                    and str((v or {}).get("label") or "").strip() == label]
+            if len(same) == 1:
+                found = same
+        except Exception:
+            pass
+    return found
+
+
 def mobile_app_notify_service(hass: HomeAssistant, device: Any) -> str | None:
     """The notify service the Companion App registered for this phone, from
     the services that exist. The app names it mobile_app_<slugified device
@@ -830,6 +858,10 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({
     "type": "padspan_ha/companion_unfollow",
     vol.Required("ibeacon_key"): str,
+    # Overview's "Track Your Phone" Unfollow sends the name too; a schema
+    # without it made HA refuse the whole call ("extra keys not allowed"),
+    # so that button always failed. Accepted, not needed.
+    vol.Optional("device_name"): str,
 })
 @websocket_api.async_response
 async def ws_companion_unfollow(hass: HomeAssistant, connection, msg) -> None:
@@ -842,9 +874,19 @@ async def ws_companion_unfollow(hass: HomeAssistant, connection, msg) -> None:
         # 1) Remove label from ObjectStore
         obj_store = hass.data.get(DOMAIN, {}).get(DATA_OBJECTS)
         if obj_store:
+            _label = str(((obj_store.get(follow_key) or {}).get("label")) or "").strip()
             await obj_store.async_delete(ibeacon_key)
             await obj_store.async_delete(follow_key)
             results.append("Label removed")
+            # Follow also labelled the phone's IRK identity (its canonical_id),
+            # and unfollow left that label — the phone stayed identified, with
+            # its HA entities, Traceback and Lost & Found. Remove it too: the
+            # one resolved from the phone's iBeacon now, as follow found it,
+            # else the one IRK entry carrying the same label (never when two
+            # share it — that could be another device of the same name).
+            for _cid in await _phone_canonical_ids(hass, follow_key, obj_store, _label):
+                await obj_store.async_delete(_cid)
+                results.append("IRK identity label removed")
 
         # 2) Remove from followed_addrs
         st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
