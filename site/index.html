@@ -179,6 +179,26 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.112</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">12 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>Fixed:</b> Traceback now records whether or not a PadSpan page is open. It only recorded while someone had PadSpan on screen, so overnight and working hours were usually empty.</li>
+          <li><b>Fixed:</b> room-change alerts are limited to one a minute per device again. A tag sitting on the edge of two rooms could send an alert every few seconds.</li>
+          <li><b>Fixed:</b> restarting Home Assistant no longer sends "moved from unknown to …" for every followed device, or a <code>padspan_room_change</code> event from nowhere.</li>
+          <li><b>Fixed:</b> the <code>padspan_room_change</code> event now fires for followed Bluetooth devices and phones. Before, only followed iBeacons fired it.</li>
+          <li><b>Fixed:</b> <b>Unfollow</b> in Overview's Track Your Phone works. It always showed Error.</li>
+          <li><b>Fixed:</b> unfollowing a phone now removes its label everywhere, including the label on its IRK identity. Before, the phone stayed tagged and kept its Home Assistant entities.</li>
+          <li><b>Fixed:</b> a scanner set to a whole-metre height or position (like exactly 2 m) can be moved and saved again. Saving it failed every time.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.111</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>
