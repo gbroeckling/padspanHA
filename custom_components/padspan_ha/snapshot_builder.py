@@ -479,14 +479,31 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if hass.states.get(g):
                 return g
 
-        # Fuzzy fallback: find an entity id containing the object id
+        # Fuzzy fallback: find an entity id containing the object id. The
+        # location-like entity ids are gathered ONCE per build and shared by
+        # every saved tag that gets here: it was a walk over every HA state
+        # per missing tag, per build — and a Bermuda house has tens of
+        # thousands of states.
         objn = _norm(obj)
-        for st in hass.states.async_all():
-            eidn = _norm(st.entity_id)
-            if objn and objn in eidn and any(k in eidn for k in ("area", "room", "bermuda", "ble", "beacon", "tag")):
-                return st.entity_id
+        if not objn:
+            return tag_id
+        if _fuzzy_eids is None:
+            _fuzzy_eids_init()
+        for eid, eidn in _fuzzy_eids or ():
+            if objn in eidn:
+                return eid
 
         return tag_id
+
+    _fuzzy_eids: list[tuple[str, str]] | None = None
+
+    def _fuzzy_eids_init() -> None:
+        nonlocal _fuzzy_eids
+        _fuzzy_eids = []
+        for st in hass.states.async_all():
+            eidn = _norm(st.entity_id)
+            if any(k in eidn for k in ("area", "room", "bermuda", "ble", "beacon", "tag")):
+                _fuzzy_eids.append((st.entity_id, eidn))
 
     cand = 0
     mapped = 0

@@ -450,3 +450,29 @@ class TestBermudaTagAddresses:
         # 1,500 unresolved tags x 3,000 Bluetooth devices: ~4.5M dead iterations,
         # 0.63 s -> 0.06 s for this build when the step was removed
         assert _t.perf_counter() - t0 < 5.0
+
+    @pytest.mark.asyncio
+    async def test_missing_saved_tags_share_one_walk_over_the_states(self, monkeypatch):
+        from types import SimpleNamespace as NS
+        from custom_components.padspan_ha.const import DATA_COORDINATOR
+        house = self._house(monkeypatch, 4)
+        st_all = house.hass.states.async_all
+        cat = NS(entity_id="sensor.my_cat_room_sensor", state="Kitchen", attributes={}, name="cat")
+        states = list(st_all()) + [cat]
+        calls = []
+
+        def _all(*a):
+            calls.append(1)
+            return states
+        by = {s.entity_id: s for s in states}
+        house.hass.states = NS(async_all=_all, get=lambda e: by.get(e))
+        house.hass.data[DOMAIN][DATA_COORDINATOR] = NS(
+            room_tag_map={"Kitchen": ["tag.dog", "tag.cat", "tag.keys", "tag.fox"]})
+        calls.clear()
+        snap = await __import__("custom_components.padspan_ha.snapshot_builder",
+                                fromlist=["x"])._build_live_snapshot(house.hass)
+        # the main pass + ONE shared fuzzy pass, not one per missing tag
+        assert len(calls) == 2
+        tags = {t["entity_id"] for t in snap["tags"]}
+        assert "sensor.my_cat_room_sensor" in tags               # fuzzy match still found
+        assert snap["raw_counts"]["saved_entities_missing"] == 3   # dog, keys, fox
