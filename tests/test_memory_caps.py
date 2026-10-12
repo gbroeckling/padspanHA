@@ -476,3 +476,55 @@ class TestBermudaTagAddresses:
         tags = {t["entity_id"] for t in snap["tags"]}
         assert "sensor.my_cat_room_sensor" in tags               # fuzzy match still found
         assert snap["raw_counts"]["saved_entities_missing"] == 3   # dog, keys, fox
+
+
+class TestSameDeviceObjectsMerge:
+    """Objects a HA device owns by Bluetooth connection carry it as
+    obj["device"], an addr_to_device entry keyed "device_id". Two matches
+    read "id" instead and never fired: an iBeacon and a plain BLE address of
+    the SAME device stayed two objects unless their MACs overlapped."""
+
+    UUID = "0x" + " 0x".join(["E2"] * 16)
+
+    def _ib(self, addr):
+        md = "0x02 0x15 " + self.UUID + " 0x00 0x01 0x00 0x02 0xC5"
+        return [{"address": addr, "source": "kit", "rssi": -60, "age_s": 1.0, "name": "",
+                 "manufacturer_data": {"76": md}, "service_data": {}, "service_uuids": [],
+                 "connectable": False}]
+
+    def _plain(self, addr):
+        return [{"address": addr, "source": "kit", "rssi": -62, "age_s": 1.0, "name": "Tracker",
+                 "manufacturer_data": {}, "service_data": {}, "service_uuids": [], "connectable": False}]
+
+    def _house(self, monkeypatch, same_device):
+        from types import SimpleNamespace as NS
+        from custom_components.padspan_ha import snapshot_builder as SB
+        from tests.test_findmy_snapshot import _make_house
+        house = _make_house(monkeypatch, labels={}, followed=[])
+        a, b = _mac(1), _mac(2)
+        if same_device:
+            devs = [NS(id="d1", connections={("bluetooth", a), ("bluetooth", b)}, identifiers=set(), name="Fob",
+                       name_by_user=None, model="", manufacturer="", config_entries=set(), sw_version="")]
+        else:
+            devs = [NS(id=f"d{i}", connections={("bluetooth", m)}, identifiers=set(), name=f"Fob{i}",
+                       name_by_user=None, model="", manufacturer="", config_entries=set(), sw_version="")
+                    for i, m in enumerate((a, b))]
+        dr = NS(devices={d.id: d for d in devs}, async_get=lambda i: None)
+        er = NS(async_get=lambda e: None, entities={})
+        monkeypatch.setattr(SB.device_registry, "async_get", lambda h: dr)
+        monkeypatch.setattr(SB.entity_registry, "async_get", lambda h: er)
+        return house, a, b
+
+    @pytest.mark.asyncio
+    async def test_an_ibeacon_and_a_plain_address_of_one_device_are_one_object(self, monkeypatch):
+        house, a, b = self._house(monkeypatch, same_device=True)
+        objs, _x = await house.poll(0, self._ib(a) + self._plain(b))
+        ib = [o for o in objs.values() if o.get("kind") == "ibeacon"]
+        assert len(ib) == 1 and b in (ib[0].get("all_addresses") or [])
+        assert "ble:" + b not in objs
+
+    @pytest.mark.asyncio
+    async def test_different_devices_stay_apart(self, monkeypatch):
+        house, a, b = self._house(monkeypatch, same_device=False)
+        objs, _x = await house.poll(0, self._ib(a) + self._plain(b))
+        assert "ble:" + b in objs

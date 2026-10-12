@@ -1452,8 +1452,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                         # 3) Match to private_ble objects by device_id
                         if not addr:
                             for _cid, pg in _private_groups.items():
+                                # pg["device"] is an addr_to_device entry: its
+                                # id is "device_id" (it read "id", never there)
                                 _pg_dev = pg.get("device")
-                                if _pg_dev and _pg_dev.get("id") == ent.device_id:
+                                if _pg_dev and _pg_dev.get("device_id") == ent.device_id:
                                     canonical_id = _cid
                                     addr = pg["best_addr"].upper() if pg.get("best_addr") else ""
                                     all_addrs = sorted(pg.get("addrs") or [])
@@ -1737,9 +1739,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             for obj in objects:
                 if obj.get("kind") != "ibeacon":
                     continue
+                # obj["device"] is an addr_to_device entry, keyed "device_id"
+                # — this read "id", so the device match below never fired.
                 dev = obj.get("device")
-                if isinstance(dev, dict) and dev.get("id"):
-                    _ib_by_devid[dev["id"]] = obj
+                if isinstance(dev, dict) and dev.get("device_id"):
+                    _ib_by_devid[dev["device_id"]] = obj
                 for mac in (obj.get("all_addresses") or []):
                     _ib_by_mac[mac.upper()] = obj
 
@@ -1750,8 +1754,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 # Match by HA device_id
                 target_ib = None
                 dev = obj.get("device")
-                if isinstance(dev, dict) and dev.get("id"):
-                    target_ib = _ib_by_devid.get(dev["id"])
+                if isinstance(dev, dict) and dev.get("device_id"):
+                    target_ib = _ib_by_devid.get(dev["device_id"])
                 # Match by MAC address overlap
                 if not target_ib:
                     obj_addr = (obj.get("address") or "").upper()
