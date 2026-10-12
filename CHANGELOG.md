@@ -4,6 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.111 — Backups keep Lost & Found, and a setting that did nothing is gone (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Backups
+- **Fixed:** a PadSpan backup now includes Lost & Found, each tagged device's last confirmed room. Restoring a backup used to reset all of them to unknown.
+
+### Settings → Presence
+- **Removed:** the **Linger time** card. It hasn't done anything since 0.20.16: a device keeps its room for two minutes after its last signal, whatever the card said.
+
+### Help improve PadSpan (opt-in usage report)
+Only while the report is on, and counts only.
+- **Added:** how often tagged devices arrive and leave, how many Follow alerts were sent or failed, whether the phone setup's BLE Transmitter command reached the phone, failed MQTT publishes, and how many devices one update merged by their Home Assistant device. These say whether this week's fixes hold in real homes.
+
+### For developers
+- **Added:** `docs/BUG_LOG.md`, a running record of each bug fixed: what people saw, why, the fix and release, and how the opt-in report shows it.
+
+---
+
 ## 0.38.110 — Arrive and leave alerts actually fire (2026-10-12)
 
 ### Before you update
