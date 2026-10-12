@@ -173,3 +173,27 @@ def test_a_tagged_phone_departs_when_it_goes_quiet_and_arrives_when_it_is_back()
     _poll(coord, 1.0)                      # heard again
     _poll(coord, 2.0)                      # still home: nothing
     assert seen == [(set(), {KEY}), ({KEY}, set())]
+
+
+def test_traceback_records_from_the_poll_without_a_panel_open():
+    """Traceback recorded only from a panel's live_snapshot request, so it had
+    nothing for any time no panel was open. The poll records now — present
+    objects only (an away one keeps its last room in the poll's result)."""
+    from custom_components.padspan_ha.const import DATA_TRACEBACK, DOMAIN
+
+    class _TB:
+        def __init__(self):
+            self.frames = []
+
+        def record_frame(self, objs, followed_set=None):
+            self.frames.append([o.get("key") for o in objs])
+
+        async def async_maybe_save(self):
+            pass
+
+    coord = _poll_coord()
+    tb = _TB()
+    coord.hass.data[DOMAIN][DATA_TRACEBACK] = tb
+    _poll(coord, 1.0)
+    _poll(coord, 400.0)                    # past the away timeout
+    assert tb.frames == [[KEY], []]

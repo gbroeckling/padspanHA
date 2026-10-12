@@ -3073,19 +3073,10 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
-    # ── Traceback: record AFTER all overlays (k-NN, stale injection) ─────────
-    # Objects now have x_m, y_m, floor_id, room (smoothed),
-    # room_confidence — everything the traceback view needs for precise placement.
-    try:
-        from .const import DATA_TRACEBACK  # noqa: PLC0415
-        _tb_store = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
-        if _tb_store:
-            _tb_objs = (snap.get("objects") or {}).get("list") or []
-            _tb_followed = set(_get_settings(hass).get("followed_addrs") or [])
-            _tb_store.record_frame(_tb_objs, followed_set=_tb_followed)
-            await _tb_store.async_maybe_save()
-    except Exception:
-        pass
+    # (Traceback recorded here, from a panel's request — so nothing was
+    # recorded while no PadSpan panel was open, and overnight playback was
+    # empty. It records from the presence poll now, which always runs:
+    # PresenceCoordinator._async_update_data.)
 
     # ── Expose suspend status ──────────────────────────────────────────────
     try:

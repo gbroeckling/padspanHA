@@ -106,7 +106,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     DOMAIN, DATA_SETTINGS, DATA_CALIBRATION, DATA_ADAPTIVE, DATA_MODEL,
-    DATA_OBJECTS, DATA_CAPTURE, OUTSIDE_FLOOR_ID,
+    DATA_OBJECTS, DATA_CAPTURE, DATA_TRACEBACK, OUTSIDE_FLOOR_ID,
     DEFAULT_KALMAN_Q, DEFAULT_KALMAN_R,
     DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP,
 )
@@ -1606,6 +1606,22 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._presence_primed = True
             _arrived, _departed = set(), set()
         self._prev_present = _cur_present
+
+        # ── Traceback: recorded from the poll ────────────────────────────────
+        # It was recorded from the panel's live_snapshot request, so playback
+        # had nothing for any time no PadSpan panel was open. The poll always
+        # runs, and its result holds the smoothed room, metres and confidence
+        # the panel's overlay copied in. Away objects keep their last room
+        # here (the snapshot clears it), so they are left out by the same rule.
+        _tb = self.hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
+        if _tb is not None:
+            try:
+                _st_tb = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+                _tb_followed = {str(f).upper() for f in ((_st_tb.data if _st_tb else {}).get("followed_addrs") or [])}
+                _tb.record_frame([o for k, o in result.items() if k in _cur_present], followed_set=_tb_followed)
+                await _tb.async_maybe_save()
+            except Exception as _tb_err:
+                _LOGGER.debug("Traceback record failed: %s", _tb_err)
 
         if _arrived or _departed:
             try:
