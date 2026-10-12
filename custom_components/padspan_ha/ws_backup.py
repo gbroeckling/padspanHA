@@ -30,6 +30,8 @@ from .const import (
     MODEL_STORE_KEY,
     FABRIC_STORE_KEY,
     HOUSE3D_STORE_KEY,
+    DATA_TRACEBACK,
+    TRACEBACK_STORE_KEY,
 )
 from .build_info import BUILD_VERSION
 from .ws_common import (
@@ -423,6 +425,14 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                         _LOGGER.error("Restore of %s failed: %s", store_key, err)
                 continue
             try:
+                if store_key == TRACEBACK_STORE_KEY:
+                    # Traceback's history is its daily segment files: written
+                    # to the old single file, a restore was gone at restart.
+                    tb_obj = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
+                    if tb_obj is not None and hasattr(tb_obj, "async_replace"):
+                        await tb_obj.async_replace(data)
+                        restored += 1
+                        continue
                 if store_key == HOUSE3D_STORE_KEY:
                     # Live Aboard's file: a backup with no furniture in it keeps
                     # the furniture placed since (house3d_store.async_restore_data).
@@ -470,6 +480,18 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # Lost & Found: or its next save writes the old
                             # records back over the restored file
                             store_obj.records = data
+                        elif isinstance(store_obj, dict) and isinstance(data, dict):
+                            # The object history is a plain dict in hass.data,
+                            # saved every 15 s from memory: replaced in place
+                            # (other holders keep the same dict).
+                            store_obj.clear()
+                            store_obj.update(data)
+                        elif hasattr(store_obj, "async_load"):
+                            # Forensics (.addrs) and the device registry
+                            # (._devices + its index) match none of the above:
+                            # their next save wrote the old data back over the
+                            # restore. They read the restored file back in.
+                            await store_obj.async_load()
             except Exception as e:
                 _LOGGER.warning("Failed to restore %s: %s", store_key, e)
 

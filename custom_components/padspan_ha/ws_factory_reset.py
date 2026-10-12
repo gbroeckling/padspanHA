@@ -276,16 +276,17 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: movement — %s", e)
         errors.append(MOVEMENT_STORE_KEY)
 
-    # ── 9. TracebackStore — reset .frames to [] ──────────────────────────
+    # ── 9. TracebackStore — the whole history, segment files included ────
+    # It emptied only the old single file and the in-memory list: the daily
+    # segment files (the real history) stayed, and every movement came back
+    # on the next reload.
     try:
-        st = _St(hass, 1, TRACEBACK_STORE_KEY)
-        await st.async_save({"frames": []})
-        cleared += 1
         tb_obj = domain.get(DATA_TRACEBACK)
-        if tb_obj and hasattr(tb_obj, "frames"):
-            tb_obj.frames = []
-        elif tb_obj and hasattr(tb_obj, "data"):
-            tb_obj.data = {"frames": []}
+        if tb_obj is not None and hasattr(tb_obj, "async_replace"):
+            await tb_obj.async_replace([])
+        else:
+            await _St(hass, 1, TRACEBACK_STORE_KEY).async_save({"frames": []})
+        cleared += 1
     except Exception as e:
         _LOGGER.warning("Factory reset: traceback — %s", e)
         errors.append(TRACEBACK_STORE_KEY)

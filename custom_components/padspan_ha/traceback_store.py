@@ -126,6 +126,33 @@ class TracebackStore:
                 except OSError:
                     pass
 
+    def _replace_segments_sync(self, frames: list[dict[str, Any]]) -> None:
+        if self._seg_dir.is_dir():
+            for p in self._seg_dir.glob("*.jsonl"):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        if frames:
+            self._write_all_segments_sync(frames)
+
+    async def async_replace(self, frames: Any) -> None:
+        """Replace the whole history — a restore, or a factory reset ([]).
+        The daily segment files ARE the store: a restore that wrote the old
+        single file was gone at the next restart, and a reset that emptied it
+        left every segment, so the history came back on reload."""
+        if isinstance(frames, dict):
+            frames = frames.get("frames")
+        kept = [f for f in (frames or []) if isinstance(f, dict) and f.get("ts")]
+        self._pending = []
+        self.frames = sorted(kept, key=lambda f: f["ts"])
+        self._prune()
+        await self.hass.async_add_executor_job(self._replace_segments_sync, list(self.frames))
+        try:
+            await self._store.async_remove()      # the legacy file, if any
+        except Exception as err:
+            _LOGGER.debug("Legacy traceback store removal failed: %s", err)
+
     async def async_load(self) -> None:
         legacy = await self._store.async_load()
         legacy_frames = (legacy.get("frames") or []) if isinstance(legacy, dict) else []
