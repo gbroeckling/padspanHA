@@ -202,3 +202,18 @@ async def test_the_wizard_counts_a_phone_it_cannot_reach(monkeypatch):
     from custom_components.padspan_ha import ws_companion as WC
     src = inspect.getsource(WC.ws_companion_follow)
     assert 'bump(hass, "companion_tx_no_service")' in src and 'bump(hass, "companion_tx_sent")' in src
+
+
+@pytest.mark.asyncio
+async def test_room_change_alerts_are_throttled_per_device():
+    """The cooldown was read under the bare key but written under
+    "<key>:room", so a tag flapping between two rooms alerted every flip."""
+    coord = _with_send_message(_make_coordinator({
+        ADDR: {"on_room_change": True, "notify_service": "notify.mobile_app_phone"}}))
+    for t, (a, b) in ((1000.0, ("Hall", "Kitchen")), (1005.0, ("Kitchen", "Hall")), (1010.0, ("Hall", "Kitchen"))):
+        coord._pending_room_changes = [(f"ble:{ADDR}", a, b)]
+        await coord._process_room_alerts(t, RESULT)
+    assert coord.hass.services.async_call.await_count == 1
+    coord._pending_room_changes = [(f"ble:{ADDR}", "Kitchen", "Hall")]
+    await coord._process_room_alerts(1061.0, RESULT)       # cooldown over
+    assert coord.hass.services.async_call.await_count == 2

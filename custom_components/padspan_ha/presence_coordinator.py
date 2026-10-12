@@ -3249,7 +3249,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._room_dwell_start.pop(key, None)
         self._floor_dwell_start.pop(key, None)
         self._device_floor.pop(key, None)
+        # Cooldowns are kept per alert type ("<key>:room/arrive/depart").
         self._alert_last_sent.pop(key, None)
+        for _sfx in ("room", "arrive", "depart"):
+            self._alert_last_sent.pop(f"{key}:{_sfx}", None)
         self._last_candidate.pop(key, None)
         self._spatial_debug.pop(key, None)
         self._floor_evidence.pop(key, None)
@@ -3717,8 +3720,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if watch and new_room not in watch:
                     continue
 
-                # Rate limit: 60s cooldown per device
-                last = self._alert_last_sent.get(key, 0.0)
+                # Rate limit: 60s cooldown per device. Read under the key
+                # _send_follow_notify writes ("<key>:room"); this read the bare
+                # key, which nothing writes, so room changes were never throttled.
+                last = self._alert_last_sent.get(f"{key}:room", 0.0)
                 if now - last < 60:
                     _LOGGER.debug("Alert throttled for %s (%.0fs since last)", key, now - last)
                     continue
