@@ -197,3 +197,19 @@ def test_traceback_records_from_the_poll_without_a_panel_open():
     _poll(coord, 1.0)
     _poll(coord, 400.0)                    # past the away timeout
     assert tb.frames == [[KEY], []]
+
+
+def test_a_tagged_device_back_from_away_does_not_resume_its_old_room():
+    """The history keeps a labelled device in the result, so the grace loop
+    never marked it stale and its old room's votes survived any absence: home
+    again through the hall, it was reported in the bedroom it left from."""
+    from collections import deque
+    coord = _poll_coord()
+    _poll(coord, 1.0)
+    coord._room_votes[KEY] = deque(["Bedroom"] * 5, maxlen=5)
+    coord._confirmed_room[KEY] = "Bedroom"
+    _poll(coord, 4000.0)                   # gone for over an hour, still replayed
+    assert coord._confirmed_room.get(KEY) == "Bedroom"   # nothing to judge yet
+    _poll(coord, 1.0)                      # heard again
+    assert coord._confirmed_room.get(KEY) != "Bedroom"
+    assert "Bedroom" not in list(coord._room_votes.get(KEY) or [])

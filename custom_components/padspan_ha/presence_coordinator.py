@@ -782,6 +782,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # The first poll after a start only records who is present (see the
         # arrive/depart block): without it every device "arrived" at startup.
         self._presence_primed = False
+        # Objects that went quiet for a real absence while still in the result
+        # (labelled ones, replayed by the object history): heard again, they
+        # get the re-entry reset (see _object_loop).
+        self._quiet_keys: set[str] = set()
 
         # Suspend: when set, use only raw radio + spatial centroid (no k-NN, no adaptive)
         self._suspend_until: float = 0.0  # monotonic timestamp when suspend ends
@@ -1313,7 +1317,20 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # If this device was absent (stale) in the previous poll and is now
                     # back, reset the vote window and Kalman state so old-location votes
                     # don't slow down re-assignment.
-                    if self._known_objs.get(key, {}).get("_stale"):
+                    # A labelled object never leaves the result (the object
+                    # history replays it), so the grace loop never marks it
+                    # _stale and its old room's votes survived a ten-hour
+                    # absence: back through the hall, it was reported in the
+                    # bedroom it left from. The grace loop's own rule — a real
+                    # absence is over 60 s — applies to it here.
+                    _age_q = obj.get("age_s")
+                    _quiet_now = isinstance(_age_q, (int, float)) and _age_q >= 60.0
+                    _back = key in self._quiet_keys and not _quiet_now
+                    if _quiet_now:
+                        self._quiet_keys.add(key)
+                    elif _back:
+                        self._quiet_keys.discard(key)
+                    if self._known_objs.get(key, {}).get("_stale") or _back:
                         self._room_votes.pop(key, None)
                         self._room_confidence.pop(key, None)
                         # A device that was away and is back must not be judged on
@@ -3231,6 +3248,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         confidence, and alert state to prevent unbounded memory growth.
         """
         self._known_objs.pop(key, None)
+        self._quiet_keys.discard(key)
         self._last_seen.pop(key, None)
         self._away_miss.pop(key, None)
         self._room_votes.pop(key, None)
