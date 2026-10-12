@@ -145,3 +145,23 @@ async def test_a_phone_with_an_apostrophe_is_listed_once(monkeypatch):
     phones = conn.send_result.call_args.args[1]["phones"]
     names = [p["device_name"] for p in phones]
     assert len(phones) == 1, names
+
+
+@pytest.mark.asyncio
+async def test_a_phone_only_room_change_alert_is_sent():
+    """Follow saves without an email when a phone is picked, and arrive/depart
+    never needed one — but room-change alerts skipped any config without an
+    email, so a phone-only one was never sent."""
+    coord = _with_send_message(_make_coordinator({
+        ADDR: {"on_room_change": True, "notify_service": "notify.mobile_app_phone"}}))
+    coord._pending_room_changes = [(f"ble:{ADDR}", "Hall", "Kitchen")]
+    await coord._process_room_alerts(1000.0, RESULT)
+    assert [c.args[:2] for c in coord.hass.services.async_call.call_args_list] == [("notify", "mobile_app_phone")]
+
+
+@pytest.mark.asyncio
+async def test_a_config_with_nowhere_to_send_still_sends_nothing():
+    coord = _with_send_message(_make_coordinator({ADDR: {"on_room_change": True}}))
+    coord._pending_room_changes = [(f"ble:{ADDR}", "Hall", "Kitchen")]
+    await coord._process_room_alerts(1000.0, RESULT)
+    coord.hass.services.async_call.assert_not_awaited()

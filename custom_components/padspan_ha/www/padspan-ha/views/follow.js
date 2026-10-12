@@ -522,7 +522,8 @@ function _buildLog(el, history) {
 function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic) {
   const cfg = ctx.state.followAlertConfig[addr] || {};
   const name = chosen.user_label || chosen.name || addr || "tag";
-  const saved = !!(cfg.email && (cfg.on_room_change || cfg.on_arrive || cfg.on_depart));
+  // An email, or a picked notify target (a phone needs no email).
+  const saved = !!((cfg.email || cfg.notify_service) && (cfg.on_room_change || cfg.on_arrive || cfg.on_depart));
 
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { class: "card-head" }, [
@@ -617,19 +618,21 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
     }
   });
 
-  const testBtn = el("button", { class: "btn", style: "margin-top:10px" }, "Send Test Email");
+  const testBtn = el("button", { class: "btn", style: "margin-top:10px" }, "Send Test");
   testBtn.addEventListener("click", async () => {
     const email = (emailInput.value || "").trim();
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      saveStatus.textContent = "Enter a valid email first."; saveStatus.style.color = "#f87171"; return;
+    const chosenSvc = serviceSelect ? serviceSelect.value : "";
+    // A picked notify target (a phone) needs no email; an email typed must be valid.
+    if ((!email && !chosenSvc) || (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
+      saveStatus.textContent = "Enter a valid email or pick where to send."; saveStatus.style.color = "#f87171"; return;
     }
     if (dataMode !== "live") { saveStatus.textContent = "Switch to Live mode first."; return; }
     saveStatus.textContent = "Sending test…"; saveStatus.style.color = "";
     testBtn.disabled = true;
     try {
       const svc = serviceSelect ? serviceSelect.value : "";
-      await ctx.actions.wsCall("padspan_ha/notify_test", { email, service: svc || undefined });
-      saveStatus.textContent = "Test sent — check your inbox."; saveStatus.style.color = "#52b788";
+      await ctx.actions.wsCall("padspan_ha/notify_test", { email: email || undefined, service: svc || undefined });
+      saveStatus.textContent = email ? "Test sent — check your inbox." : "Test sent — check your phone."; saveStatus.style.color = "#52b788";
     } catch (e) {
       saveStatus.textContent = "Test failed: " + (e?.message || String(e)).slice(0, 60);
       saveStatus.style.color = "#f87171";

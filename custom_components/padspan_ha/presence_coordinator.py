@@ -3679,8 +3679,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         cfg = alert_store.get_config(_addr)
                 if not cfg:
                     continue
+                # No email gate here: a phone picked as the notify target needs
+                # none, _send_follow_notify takes email as optional, and the
+                # arrive/depart alerts never required one — a phone-only
+                # room-change alert was silently never sent.
                 email = (cfg.get("email") or "").strip()
-                if not email:
+                if not email and not cfg.get("notify_service"):
                     continue
                 if not cfg.get("on_room_change"):
                     continue
