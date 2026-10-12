@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.112 — Traceback records all day, and quieter, steadier alerts (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Traceback
+- **Fixed:** Traceback now records whether or not a PadSpan page is open. It only recorded while someone had PadSpan on screen, so overnight and working hours were usually empty.
+
+### Follow alerts and Home Assistant events
+- **Fixed:** room-change alerts are limited to one a minute per device again. A tag sitting on the edge of two rooms could send an alert every few seconds.
+- **Fixed:** restarting Home Assistant no longer sends "moved from unknown to …" for every followed device, or a `padspan_room_change` event from nowhere.
+- **Fixed:** the `padspan_room_change` event now fires for followed Bluetooth devices and phones. Before, only followed iBeacons fired it.
+
+### Phones (Companion App)
+- **Fixed:** **Unfollow** in Overview's Track Your Phone works. It always showed Error.
+- **Fixed:** unfollowing a phone now removes its label everywhere, including the label on its IRK identity. Before, the phone stayed tagged and kept its Home Assistant entities.
+
+### Calibration and mapping
+- **Fixed:** a scanner set to a whole-metre height or position (like exactly 2 m) can be moved and saved again. Saving it failed every time.
+
+---
+
 ## 0.38.111 — Backups keep Lost & Found, and a setting that did nothing is gone (2026-10-12)
 
 ### Before you update
