@@ -179,6 +179,24 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.108</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">12 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>Fixed:</b> an alert sent to a phone you picked from the list now reaches the phone. Phones are older-style notify services, and PadSpan sent them the newer kind of call meant for notify entities. Home Assistant drops that call without an error, so the alert counted as sent and went nowhere, and <b>Test</b> said it worked. If you picked your phone and got no alerts, that was why.</li>
+          <li><b>Fixed:</b> opening the service list no longer writes a warning to Home Assistant's log every time.</li>
+          <li><b>Fixed:</b> each update walked every Bluetooth device in Home Assistant once for every Bermuda device it lists, looking for a match that could never be found. With thousands of each, that alone cost a large share of each update; 3,000 of them now take a tenth of the time.</li>
+          <li><b>Fixed:</b> a saved tag that no longer exists cost a walk over every Home Assistant state on every update, once per tag. All of them now share one.</li>
+          <li><b>Added:</b> how long each part of an update takes (the Bluetooth fetch, the pass over Home Assistant, the device list, the finishing touches), how many Home Assistant states there are, how many entities and devices Bermuda has, and how many saved tags can't be found. A third of the installs reporting take 1.4 to 18 seconds per update, every one with Bermuda, and this says which part.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.107</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>

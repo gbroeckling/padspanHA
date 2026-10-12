@@ -4,6 +4,25 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.108 — Alerts reach your phone, and Bermuda houses build faster (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Follow alerts
+- **Fixed:** an alert sent to a phone you picked from the list now reaches the phone. Phones are older-style notify services, and PadSpan sent them the newer kind of call meant for notify entities. Home Assistant drops that call without an error, so the alert counted as sent and went nowhere, and **Test** said it worked. If you picked your phone and got no alerts, that was why.
+- **Fixed:** opening the service list no longer writes a warning to Home Assistant's log every time.
+
+### With Bermuda installed
+- **Fixed:** each update walked every Bluetooth device in Home Assistant once for every Bermuda device it lists, looking for a match that could never be found. With thousands of each, that alone cost a large share of each update; 3,000 of them now take a tenth of the time.
+- **Fixed:** a saved tag that no longer exists cost a walk over every Home Assistant state on every update, once per tag. All of them now share one.
+
+### Help improve PadSpan (opt-in usage report)
+Only while the report is on, and counts and timings only.
+- **Added:** how long each part of an update takes (the Bluetooth fetch, the pass over Home Assistant, the device list, the finishing touches), how many Home Assistant states there are, how many entities and devices Bermuda has, and how many saved tags can't be found. A third of the installs reporting take 1.4 to 18 seconds per update, every one with Bermuda, and this says which part.
+
+---
+
 ## 0.38.107 — Beacon Tune saves for real, and zooms (2026-10-12)
 
 ### Before you update
