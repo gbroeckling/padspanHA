@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.109 — The phone wizard reaches your phone, and MQTT keeps publishing (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+- **MQTT users:** topics for labels without `#`, `+` or `/` are unchanged. A label with one of those now publishes under a topic with `_` in its place; it didn't publish before.
+
+### Phone setup (Companion App)
+- **Fixed:** turning on a phone's BLE Transmitter from the wizard now works. PadSpan sent the command to a notify service named after the phone's internal ID, which doesn't exist; the Companion App names it after the phone. If it can't find the phone's service, the wizard now says to turn the transmitter on in the app.
+- **Fixed:** a phone whose name has an apostrophe or hyphen (like "Garry's Pixel 8") is listed once, not twice with the second one saying its sensor isn't registered.
+
+### Devices
+- **Fixed:** an iBeacon and a plain Bluetooth address that belong to the same Home Assistant device are one device in PadSpan. The match by Home Assistant device never worked; only devices whose addresses happened to overlap were combined.
+
+### MQTT publishing
+- **Fixed:** a device label with `#` or `+` stopped MQTT publishing for every device after it, on every update. Each device now publishes on its own, and those characters (and `/`) become `_` in the topic.
+
+---
+
 ## 0.38.108 — Alerts reach your phone, and Bermuda houses build faster (2026-10-12)
 
 ### Before you update

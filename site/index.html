@@ -179,6 +179,24 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.109</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">12 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>MQTT users:</b> topics for labels without <code>#</code>, <code>+</code> or <code>/</code> are unchanged. A label with one of those now publishes under a topic with <code>_</code> in its place; it didn't publish before.</li>
+          <li><b>Fixed:</b> turning on a phone's BLE Transmitter from the wizard now works. PadSpan sent the command to a notify service named after the phone's internal ID, which doesn't exist; the Companion App names it after the phone. If it can't find the phone's service, the wizard now says to turn the transmitter on in the app.</li>
+          <li><b>Fixed:</b> a phone whose name has an apostrophe or hyphen (like "Garry's Pixel 8") is listed once, not twice with the second one saying its sensor isn't registered.</li>
+          <li><b>Fixed:</b> an iBeacon and a plain Bluetooth address that belong to the same Home Assistant device are one device in PadSpan. The match by Home Assistant device never worked; only devices whose addresses happened to overlap were combined.</li>
+          <li><b>Fixed:</b> a device label with <code>#</code> or <code>+</code> stopped MQTT publishing for every device after it, on every update. Each device now publishes on its own, and those characters (and <code>/</code>) become <code>_</code> in the topic.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.108</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>
