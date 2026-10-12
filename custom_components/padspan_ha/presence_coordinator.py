@@ -116,7 +116,7 @@ from .perf_sampler import record_duration
 from .presence_rules import (
     indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
     coverage_evidence, coverage_window_polls, outdoor_attribution,
-    outside_by_coverage,
+    outside_by_coverage, away_timeout_s, is_away,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -779,6 +779,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # ── Automation tracking ───────────────────────────────────────────────
         # Set of device keys present in the previous poll result (for arrive/depart)
         self._prev_present: set[str] = set()
+        # The first poll after a start only records who is present (see the
+        # arrive/depart block): without it every device "arrived" at startup.
+        self._presence_primed = False
 
         # Suspend: when set, use only raw radio + spatial centroid (no k-NN, no adaptive)
         self._suspend_until: float = 0.0  # monotonic timestamp when suspend ends
@@ -1584,9 +1587,24 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._evict_object(key)
 
         # ── PadSpan automations: arrive/depart triggers ──────────────────────
-        _cur_present = set(result.keys())
-        _arrived = _cur_present - self._prev_present
-        _departed = set(_evict_keys)  # keys that just got evicted = departed
+        # Present = in the result AND not past the away timeout — the trackers'
+        # own rule (presence_rules.is_away). It was every key in the result,
+        # and the object history replays a labelled device forever, so a
+        # tagged phone never left it: "arrived" fired once, the first time it
+        # was seen, and "departed" never — no on_arrive/on_depart alerts, no
+        # padspan_device_arrived/departed events, no arrive/depart rules.
+        # Departed is "was present, now not": gone quiet, or evicted.
+        _away_s = away_timeout_s(self.hass)
+        _cur_present = {k for k, o in result.items()
+                        if isinstance(o, dict) and not is_away(o, _away_s)}
+        if self._presence_primed:
+            _arrived = _cur_present - self._prev_present
+            _departed = self._prev_present - _cur_present
+        else:
+            # First poll since start: a baseline, not an arrival of everyone
+            # (that sent every on_arrive alert on each Home Assistant restart).
+            self._presence_primed = True
+            _arrived, _departed = set(), set()
         self._prev_present = _cur_present
 
         if _arrived or _departed:

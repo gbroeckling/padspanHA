@@ -130,3 +130,46 @@ async def test_repeated_arrival_within_60s_is_throttled():
     result = {"ble:AA:BB:CC:DD:EE:FF": {"user_label": "Garry's Phone", "address": "AA:BB:CC:DD:EE:FF"}}
     await coord._run_automations({"ble:AA:BB:CC:DD:EE:FF"}, set(), result, now=1030.0)  # 30s later
     coord.hass.services.async_call.assert_not_awaited()
+
+
+# ── Poll level: who counts as present (the caller, not the helper) ───────────
+#
+# Every test above calls _run_automations with hand-made sets. The sets came
+# from "every key in the result" — and the object history replays a labelled
+# device forever, so a tagged phone never left it: "arrived" fired once, the
+# first time it was seen, and "departed" never. And with nobody present before
+# the first poll, every device "arrived" at each start.
+
+from tests.test_poll_level import ble_object, make_coordinator as _poll_coord, run_poll, snapshot  # noqa: E402
+
+KEY = "ble:AA:BB:CC:DD:EE:01"
+
+
+def _poll(coord, age):
+    return run_poll(coord, snapshot([ble_object(KEY, "AA:BB:CC:DD:EE:01", age_s=age, user_label="Phone")]))
+
+
+def _recording(coord):
+    seen = []
+
+    async def _rec(arrived, departed, result, now):
+        seen.append((set(arrived), set(departed)))
+    coord._run_automations = _rec
+    return seen
+
+
+def test_a_start_is_a_baseline_not_an_arrival():
+    coord = _poll_coord()
+    seen = _recording(coord)
+    _poll(coord, 1.0)
+    assert seen == []
+
+
+def test_a_tagged_phone_departs_when_it_goes_quiet_and_arrives_when_it_is_back():
+    coord = _poll_coord()                  # away timeout: the 5 min default
+    seen = _recording(coord)
+    _poll(coord, 1.0)                      # baseline
+    _poll(coord, 400.0)                    # quiet past the timeout, still replayed from history
+    _poll(coord, 1.0)                      # heard again
+    _poll(coord, 2.0)                      # still home: nothing
+    assert seen == [(set(), {KEY}), ({KEY}, set())]
