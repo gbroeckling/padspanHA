@@ -3694,6 +3694,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         for key, old_room, new_room in self._pending_room_changes:
+            # A first confirmation (no room before it — after every restart,
+            # or after the re-entry reset) is not a move: it sent "moved from
+            # unknown to Kitchen" for every followed device on each restart.
+            if not old_room:
+                continue
             try:
                 cfg = alert_store.get_config(key)
                 if not cfg:

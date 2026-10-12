@@ -85,6 +85,11 @@ class TagIntegration:
         now = time.time()
 
         for key, old_room, new_room in changes:
+            # A first confirmation (no room before it, as after every restart)
+            # is not a room change: it fired padspan_room_change with
+            # from_room None for every followed device on each restart.
+            if not old_room:
+                continue
             # Only emit for followed objects
             if key.upper() not in followed_upper:
                 continue

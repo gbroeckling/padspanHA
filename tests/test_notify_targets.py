@@ -217,3 +217,13 @@ async def test_room_change_alerts_are_throttled_per_device():
     coord._pending_room_changes = [(f"ble:{ADDR}", "Kitchen", "Hall")]
     await coord._process_room_alerts(1061.0, RESULT)       # cooldown over
     assert coord.hass.services.async_call.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_a_first_confirmation_after_restart_is_not_a_move():
+    """Every restart sent "moved from unknown to Kitchen" per followed device."""
+    coord = _with_send_message(_make_coordinator({
+        ADDR: {"on_room_change": True, "notify_service": "notify.mobile_app_phone"}}))
+    coord._pending_room_changes = [(f"ble:{ADDR}", None, "Kitchen")]
+    await coord._process_room_alerts(1000.0, RESULT)
+    coord.hass.services.async_call.assert_not_awaited()
