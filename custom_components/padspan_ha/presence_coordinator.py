@@ -3423,12 +3423,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if not label:
                     continue
                 try:
-                    cfg = alert_store.get_config(key)
-                    if not cfg:
-                        _obj = result.get(key) or self._known_objs.get(key) or {}
-                        _addr = _obj.get("address") or ""
-                        if _addr:
-                            cfg = alert_store.get_config(_addr)
+                    cfg = self._alert_config(alert_store, key, result)
                     if not cfg or not cfg.get(f"on_{event}"):
                         continue
                     if (now - self._alert_last_sent.get(f"{key}:{suffix}", 0.0)) < 60:
@@ -3700,14 +3695,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not old_room:
                 continue
             try:
-                cfg = alert_store.get_config(key)
-                if not cfg:
-                    # UI saves alert config under address (e.g. "AA:BB:CC:DD:EE:FF")
-                    # but key is prefixed (e.g. "ble:AA:BB:CC:DD:EE:FF"). Try address.
-                    _obj = result.get(key) or self._known_objs.get(key) or {}
-                    _addr = _obj.get("address") or ""
-                    if _addr:
-                        cfg = alert_store.get_config(_addr)
+                cfg = self._alert_config(alert_store, key, result)
                 if not cfg:
                     continue
                 # No email gate here: a phone picked as the notify target needs
@@ -3750,6 +3738,29 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _LOGGER.warning("Follow alert: all send attempts failed for %s", label)
             except Exception as err:
                 _LOGGER.warning("Follow alert failed for %s: %s", key, err)
+
+    def _alert_config(self, alert_store: Any, key: str, result: dict[str, Any]) -> dict[str, Any] | None:
+        """The Follow alert config for this object. Follow saves it under the
+        object's address as the panel showed it; the object key is prefixed
+        ("ble:AA:..", "irk:.."), and an IRK phone's address rotates — so its
+        alerts stopped at the first rotation (~15 min). Tried: the key, the
+        current address, every address the object has used (all_addresses,
+        which keeps the one it was saved under), then a config whose stored
+        padspan_id or key matches the object's identity."""
+        cfg = alert_store.get_config(key)
+        if cfg:
+            return cfg
+        obj = result.get(key) or self._known_objs.get(key) or {}
+        for a in [obj.get("address"), *(obj.get("all_addresses") or [])]:
+            if a:
+                cfg = alert_store.get_config(str(a)) or alert_store.get_config(str(a).upper())
+                if cfg:
+                    return cfg
+        pid, cid = obj.get("padspan_id"), obj.get("canonical_id")
+        for k, c in (getattr(alert_store, "data", None) or {}).items():
+            if isinstance(c, dict) and ((pid and c.get("padspan_id") == pid) or (cid and k == cid)):
+                return c
+        return None
 
     async def _send_follow_notify(
         self, key: str, cfg: dict[str, Any], title: str, message: str,

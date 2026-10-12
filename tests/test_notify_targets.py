@@ -273,3 +273,17 @@ async def test_unfollow_removes_the_irk_identity_label_too(monkeypatch):
     await WC.ws_companion_unfollow(hass, conn, {"id": 1, "ibeacon_key": key, "device_name": "Garry's Pixel"})
     assert set(store.d) == {"IRK:CCDD"}
     assert "IRK identity label removed" in conn.send_result.call_args.args[1]["actions"]
+
+
+@pytest.mark.asyncio
+async def test_an_irk_phone_keeps_its_alerts_after_its_address_rotates():
+    """Follow saved the config under the phone's address of the moment; the
+    phone rotates (~15 min) and lookups by key / current address found none."""
+    old, new = "5A:11:22:33:44:55", "6B:99:88:77:66:55"
+    coord = _with_send_message(_make_coordinator({
+        old: {"on_room_change": True, "notify_service": "notify.mobile_app_phone"}}))
+    result = {"irk:abc": {"user_label": "Phone", "kind": "private_ble", "address": new,
+                          "all_addresses": [new, old], "room": "Kitchen"}}
+    coord._pending_room_changes = [("irk:abc", "Hall", "Kitchen")]
+    await coord._process_room_alerts(1000.0, result)
+    assert [c.args[:2] for c in coord.hass.services.async_call.call_args_list] == [("notify", "mobile_app_phone")]
