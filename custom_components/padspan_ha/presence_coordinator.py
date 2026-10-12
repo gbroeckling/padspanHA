@@ -59,12 +59,12 @@ Three-stage pipeline applied each poll cycle:
 
 HOME/AWAY PERSISTENCE
 ─────────────────────
-Devices that disappear from the live snapshot are kept in the result dict with a
-synthetic age_s that grows each poll.  A 2-poll grace period (≈20 s) prevents a
-momentary signal gap from triggering an away event.  Devices with confident
-presence (room_confidence ≥ 0.6) get an extended grace period controlled by the
-signal_loss_linger_s setting (default 90 s / ~9 polls) so that brief BLE dropouts
-don't erase established presence.  Entities read age_s and return "not_home" when
+Devices that disappear from the live snapshot are kept in the result dict for a
+fixed grace of _AWAY_GRACE_S (120 s, converted to polls) so a momentary signal
+gap does not end their presence; after it they are evicted.  (The old
+signal_loss_linger_s setting that tuned this was retired in 0.20.16 and is not
+read.)  Labelled devices also stay in the list through the object history, with
+an age_s that keeps growing.  Entities read age_s and return "not_home" when
 it exceeds the configured away timeout (Settings → Presence → Away timeout;
 default 300 s / 5 min).  Entities never go "unavailable" — "not_home" is a
 permanently valid HA state.
