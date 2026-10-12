@@ -179,6 +179,23 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.111</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">12 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>Fixed:</b> a PadSpan backup now includes Lost & Found, each tagged device's last confirmed room. Restoring a backup used to reset all of them to unknown.</li>
+          <li><b>Removed:</b> the <b>Linger time</b> card. It hasn't done anything since 0.20.16: a device keeps its room for two minutes after its last signal, whatever the card said.</li>
+          <li><b>Added:</b> how often tagged devices arrive and leave, how many Follow alerts were sent or failed, whether the phone setup's BLE Transmitter command reached the phone, failed MQTT publishes, and how many devices one update merged by their Home Assistant device. These say whether this week's fixes hold in real homes.</li>
+          <li><b>Added:</b> <code>docs/BUG_LOG.md</code>, a running record of each bug fixed: what people saw, why, the fix and release, and how the opt-in report shows it.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.110</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>
