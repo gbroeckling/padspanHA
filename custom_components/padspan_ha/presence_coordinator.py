@@ -3704,9 +3704,16 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return False
 
         preferred = cfg.get("notify_service") or ""
+        # The picker saves "notify.<name>" for both kinds of target. Only one
+        # that exists as a notify ENTITY goes through send_message: a phone
+        # (mobile_app) is a legacy SERVICE, and send_message aimed at an
+        # entity that does not exist logs and returns, no error — so an alert
+        # to a chosen phone counted as sent and went nowhere. A legacy one is
+        # called by its own name, with or without the prefix.
+        slug = preferred.split(".", 1)[1] if preferred.startswith("notify.") else preferred
         alert_data: dict[str, Any] = {"title": title, "message": message}
         sent = False
-        if preferred.startswith("notify.") and has_send_message:
+        if preferred in entity_ids and has_send_message:
             try:
                 payload = {**alert_data, "entity_id": preferred}
                 if email:
@@ -3715,15 +3722,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 sent = True
             except Exception:
                 pass
-        if not sent and preferred and preferred in services:
+        if not sent and slug and slug != "send_message" and slug in services:
             try:
                 await self.hass.services.async_call(
-                    "notify", preferred, {**alert_data, "target": email} if email else alert_data,
+                    "notify", slug, {**alert_data, "target": email} if email else alert_data,
                 )
                 sent = True
             except Exception:
                 try:
-                    await self.hass.services.async_call("notify", preferred, alert_data)
+                    await self.hass.services.async_call("notify", slug, alert_data)
                     sent = True
                 except Exception:
                     pass

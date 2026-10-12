@@ -106,7 +106,9 @@ async def ws_notify_services_list(hass: HomeAssistant, connection, msg) -> None:
         pass
 
     result = sorted(result_set)
-    _LOGGER.warning(
+    # Debug, not warning: a normal answer to the picker, every time it opens
+    # (it was the only WARNING the opt-in report saw across the fleet).
+    _LOGGER.debug(
         "notify_services_list result: %s (has_send_message=%s)",
         result, has_send_message,
     )
@@ -152,8 +154,11 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
         "message": "This is a test from PadSpan HA. If you see this, your notification pipeline is working correctly.",
     }
 
-    # Determine if the chosen value is an entity_id (e.g. "notify.smtp")
-    is_entity = chosen.startswith("notify.")
+    # A notify ENTITY only if one exists by that id (send_message to one that
+    # does not logs and returns, no error — the test "sent" to nothing). A
+    # phone (mobile_app) is a legacy SERVICE, saved as "notify.<name>" too.
+    is_entity = chosen in entity_ids
+    slug = chosen.split(".", 1)[1] if chosen.startswith("notify.") else chosen
     # `attempts` is an ordered list of things to actually try, most-likely-
     # to-work first, built up from whichever of (explicit choice / auto-pick)
     # applies below — each is tried in turn until one succeeds, because the
@@ -174,12 +179,12 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
             if email:
                 attempts.append(("legacy+target", slug, {**base_data, "target": email}))
             attempts.append(("legacy", slug, base_data))
-    elif chosen and chosen in services:
-        # Legacy service chosen directly
+    elif slug and slug != "send_message" and slug in services:
+        # Legacy service chosen ("notify.<name>" from the picker, or bare)
         if email:
-            attempts.append(("legacy+target", chosen, {**base_data, "target": email}))
-            attempts.append(("legacy+data.target", chosen, {**base_data, "data": {"target": email}}))
-        attempts.append(("legacy", chosen, base_data))
+            attempts.append(("legacy+target", slug, {**base_data, "target": email}))
+            attempts.append(("legacy+data.target", slug, {**base_data, "data": {"target": email}}))
+        attempts.append(("legacy", slug, base_data))
     else:
         # Nothing chosen or invalid — auto-pick
         # Prefer entity_ids with mail/smtp, then legacy with mail/smtp, then first available
