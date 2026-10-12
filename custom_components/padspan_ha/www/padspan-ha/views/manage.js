@@ -2045,7 +2045,10 @@ function _buildNotifications(ctx, el){
   const wrap = el("div",{style:"display:flex;flex-direction:column;gap:12px"});
 
   // ── Saved Alerts summary table — read-only view of all persisted configs ──
-  const savedEntries = Object.entries(configs).filter(([,c]) => c && c.email);
+  // An email or a picked notify target: a phone-only alert (no email) is a
+  // saved alert too, and was missing from this list — so it could not be
+  // seen or deleted here.
+  const savedEntries = Object.entries(configs).filter(([,c]) => c && (c.email || c.notify_service));
   const savedCard = el("div",{class:"card"});
   const activeCount = savedEntries.filter(([,c]) => c.on_room_change).length;
   savedCard.appendChild(el("div",{class:"row",style:"margin-bottom:6px"},[
@@ -2096,7 +2099,7 @@ function _buildNotifications(ctx, el){
 
       tbody.appendChild(el("tr",{},[
         el("td",{style:"font-weight:600;font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"},label),
-        el("td",{style:"font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace"},cfg.email),
+        el("td",{style:"font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace"},cfg.email || "—"),
         el("td",{class:"muted",style:"font-size:11px"},svc),
         el("td",{class:"muted",style:"font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"},rooms),
         el("td",{},
