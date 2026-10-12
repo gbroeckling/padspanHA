@@ -90,8 +90,17 @@ class TagIntegration:
             # from_room None for every followed device on each restart.
             if not old_room:
                 continue
-            # Only emit for followed objects
-            if key.upper() not in followed_upper:
+            # Only emit for followed objects. The panel follows a BLE or IRK
+            # device by its ADDRESS ("AA:BB:..."), the object's key is
+            # "ble:AA:BB:..." / "irk:...", so comparing the key alone matched
+            # only iBeacons (whose key is what is followed) — the coordinator's
+            # own follow test checks the address too.
+            _obj = result.get(key) or {}
+            _ids = {str(key).upper(), str(_obj.get("address") or "").upper(),
+                    str(_obj.get("canonical_id") or "").upper()}
+            if str(key).lower().startswith("ble:"):
+                _ids.add(str(key)[4:].upper())
+            if not (_ids - {""}) & followed_upper:
                 continue
 
             # Cooldown per object
