@@ -109,6 +109,11 @@ OVER_LAG_MS = 1000.0         # the event loop a second or more late
 STARTUP_GRACE_S = 300.0
 
 METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", "cycle", "loop",
+                            # the snapshot build by phase (snapshot_builder), and HA's state count
+                            "snap_ble", "snap_ha", "snap_objects", "snap_enrich", "states",
+                            # Bermuda: its entities and devices, and what the "ha" phase
+                            # works through for them (raw_counts in the snapshot)
+                            "bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing",
                             # the poll's object counts, and Lost & Found (padspan_sizes)
                             "smoothed", "background", "lostfound",
                             # PadSpan's size (padspan_sizes)
@@ -488,6 +493,35 @@ def padspan_sizes(hass: HomeAssistant, kb: dict[str, float], *, estimate: bool) 
     lf = getattr(dom.get(DATA_LOST_AND_FOUND), "records", None)
     if isinstance(lf, dict):
         out["lostfound"] = len(lf)
+    # Home Assistant's own state count: the snapshot build walks every state
+    # (Bermuda adds sensors per device and per scanner), so it is the size
+    # the "ha" phase is paid in.
+    try:
+        _cnt = getattr(hass.states, "async_entity_ids_count", None)
+        n_states = _cnt() if callable(_cnt) else len(hass.states.async_all())
+        if isinstance(n_states, int):
+            out["states"] = n_states
+    except Exception:
+        pass
+    # Bermuda (the installs with slow builds all have it): how many entities
+    # its config entries own, how many of its devices the build lists as
+    # receivers, how many HA entities pass as tag candidates, and how many
+    # saved tags resolve to nothing — each of those is a walk over every HA
+    # state, every build (snapshot_builder._resolve_saved_entity_id).
+    try:
+        from homeassistant.helpers import entity_registry as _er  # noqa: PLC0415
+        _ents = 0
+        _reg = _er.async_get(hass)
+        for _entry in hass.config_entries.async_entries("bermuda"):
+            _ents += len(_er.async_entries_for_config_entry(_reg, _entry.entry_id))
+        out["bermuda_ents"] = _ents
+    except Exception:
+        pass
+    raw = snap.get("raw_counts") if isinstance(snap.get("raw_counts"), dict) else {}
+    for _k, _m in (("receivers", "bermuda_rcv"), ("candidate_entities", "tag_cands"),
+                   ("saved_entities_missing", "saved_missing")):
+        if isinstance(raw.get(_k), int):
+            out[_m] = raw[_k]
     # The cached live snapshot: held between builds (and doubled while one is
     # built), and sent as JSON to every open panel every 5 s.
     obj_list = objs.get("list") if isinstance(objs, dict) and isinstance(objs.get("list"), list) else None

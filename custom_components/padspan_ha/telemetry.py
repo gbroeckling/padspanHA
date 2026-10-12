@@ -455,6 +455,22 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     # heard for a minute), and the Lost & Found records held — whether the
     # skip is doing its job, and that nothing grows without end.
     "loop_ms": ("loop", ("p50", "p95", "max")),
+    # The snapshot build by phase: Bluetooth fetch, the walk over Home
+    # Assistant's states and registries, the object list (history replay,
+    # dedup), enrichment — and how many HA states there are. A third of the
+    # installs reporting take 1.4-18 s per build, all with Bermuda installed.
+    "snap_ble_ms": ("snap_ble", ("p50",)),
+    "snap_ha_ms": ("snap_ha", ("p50",)),
+    "snap_objects_ms": ("snap_objects", ("p50",)),
+    "snap_enrich_ms": ("snap_enrich", ("p50",)),
+    "ha_states_n": ("states", ("max",)),
+    # Bermuda troubleshooting (perf_sampler.padspan_sizes): its entities and
+    # receiver devices, HA entities taken as tag candidates, and saved tags
+    # that resolve to nothing (each one a walk over every state, per build).
+    "bermuda_entities_n": ("bermuda_ents", ("max",)),
+    "bermuda_devices_n": ("bermuda_rcv", ("max",)),
+    "tag_candidates_n": ("tag_cands", ("max",)),
+    "saved_tags_missing_n": ("saved_missing", ("max",)),
     "smoothed_n": ("smoothed", ("p50", "max")),
     "background_n": ("background", ("max",)),
     "lostfound_n": ("lostfound", ("max",)),

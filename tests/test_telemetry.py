@@ -1182,6 +1182,8 @@ def _busy_day(h, hours: float = 24.0):
         w.add("snap", rnd.uniform(900, 8200))
         w.add("cycle", rnd.uniform(40, 2400))
         w.add("loop", rnd.uniform(20, 2000))
+        for ph in ("snap_ble", "snap_ha", "snap_objects", "snap_enrich"):
+            w.add(ph, rnd.uniform(20, 18000))
     # PadSpan's own size on a busy street, and Home Assistant by view
     # (Garry, 2026-10-05: the low-memory version and its minimum requirements).
     for i in range(1440):
@@ -1200,6 +1202,9 @@ def _busy_day(h, hours: float = 24.0):
         w.add("smoothed", rnd.uniform(5, 400))
         w.add("background", rnd.uniform(0, 80000))
         w.add("lostfound", rnd.uniform(10, 90000))
+        w.add("states", rnd.uniform(500, 120000))
+        for m in ("bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing"):
+            w.add(m, rnd.uniform(0, 40000))
         for v in ("atlas", "sim", "other", "none"):
             w.add(f"cpu@{v}", rnd.uniform(1, 99.4))
             w.add(f"lag@{v}", rnd.uniform(0.05, 1800))
@@ -1238,7 +1243,12 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     # house, takes. The whole report is still held under the 8 KB cap below.
     # 1600 -> 1700 (issue #91): the per-object loop's time, the objects it
     # smoothed vs. listed as background, and the Lost & Found records held.
-    assert section < 1700, section
+    # 1700 -> 1850: the snapshot build by phase and HA's state count — a third
+    # of the installs reporting take 1.4-18 s per build, all with Bermuda,
+    # and only the phase split says where. 1850 -> 2000 for the Bermuda
+    # counts beside it (its entities and devices, tag candidates, saved tags
+    # that resolve to nothing).
+    assert section < 2000, section
     assert len(json.dumps(p)) <= T._MAX_BYTES
 
 

@@ -254,6 +254,17 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         "raw_counts": {},
     }
 
+    # Each phase's time, for the opt-in report (perf_sampler "snap_<phase>";
+    # a no-op while it is off). The whole build has been timed since 0.38.103,
+    # and a third of the installs reporting take 1.4-18 s for it, all of them
+    # with Bermuda — this says which part.
+    _phase_t = [time.perf_counter()]
+
+    def _phase_done(name: str) -> None:
+        now = time.perf_counter()
+        record_duration(hass, "snap_" + name, (now - _phase_t[0]) * 1000.0)
+        _phase_t[0] = now
+
     # --- Bluetooth (scanners + advertisements) ---
     # Fetched FIRST because downstream sections (objects, room assignment) depend on it.
     try:
@@ -286,6 +297,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             ble["advertisements"].sort(key=lambda x: x.get("age_s", 1e9))
     except Exception:
         pass
+
+    _phase_done("ble")
 
     # --- Areas (rooms) ---
     area_by_id: dict[str, str] = {}
@@ -752,6 +765,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     # Preserve the older "receivers" device list under a clearer name too.
     if "bermuda_devices" not in snapshot:
         snapshot["bermuda_devices"] = snapshot.get("receivers") or []
+
+    _phase_done("ha")
 
     # --- Derived "objects" list (entities + BLE addresses) ---
     # This is the core data structure the UI consumes.  It merges three sources:
@@ -2545,6 +2560,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         _LOGGER.warning("Objects list build failed: %s", _obj_err, exc_info=True)
         snapshot["objects"] = {"list": [], "summary": {"total": 0, "identified": 0, "unidentified": 0, "entities": 0, "ble": 0, "common_prefixes": {}}}
 
+    _phase_done("objects")
+
     # ── Enrich objects with stable padspan_id from DeviceRegistry ──
     try:
         from .const import DATA_DEVICE_REGISTRY
@@ -2763,6 +2780,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     except Exception:
         pass
 
+    _phase_done("enrich")
     return snapshot
 
 

@@ -365,3 +365,33 @@ def test_diag_export_cuts_the_long_lists_but_keeps_every_own_object(tmp_path: Pa
     assert out == {"n": 200, "t": {"total": 5000, "kept": 200}, "mine": 2, "ads": 200,
                    "at": {"total": 5000, "kept": 200}, "radios": 1, "other": 1,
                    "orig": 5000, "small": 1}
+
+
+# ── Bermuda troubleshooting (opt-in report) ───────────────────────────────────
+
+class TestSnapshotBuildDiagnostics:
+    """A third of the installs reporting take 1.4-18 s per snapshot build, all
+    with Bermuda. The report says which phase, how many HA states and how
+    much of it is Bermuda's."""
+
+    def test_the_counts_reach_the_report(self):
+        from custom_components.padspan_ha import perf_sampler as ps
+        hass = MagicMock()
+        snap = {"objects": {"summary": {"total": 5}, "list": []},
+                "raw_counts": {"receivers": 7, "candidate_entities": 120, "saved_entities_missing": 3}}
+        hass.data = {DOMAIN: {"snapshot_cache": (0.0, snap)}}
+        hass.states.async_entity_ids_count.return_value = 31234
+        out = ps.padspan_sizes(hass, {}, estimate=False)
+        assert out["states"] == 31234
+        assert (out["bermuda_rcv"], out["tag_cands"], out["saved_missing"]) == (7, 120, 3)
+
+    @pytest.mark.asyncio
+    async def test_every_build_phase_is_timed(self, monkeypatch):
+        from custom_components.padspan_ha import snapshot_builder as SB
+        from tests.test_findmy_snapshot import _make_house
+        house = _make_house(monkeypatch, labels={}, followed=[])
+        seen = []
+        monkeypatch.setattr(SB, "record_duration", lambda h, m, ms: seen.append((m, ms)))
+        await house.poll(0, [])
+        assert [m for m, _ in seen] == ["snap_ble", "snap_ha", "snap_objects", "snap_enrich"]
+        assert all(ms >= 0 for _, ms in seen)
