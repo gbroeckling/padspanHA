@@ -179,6 +179,24 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.110</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">12 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>If you set up arrive or leave alerts,</b> expect them to start working. Restarting Home Assistant no longer sends an "arrived" alert for every device.</li>
+          <li><b>Fixed:</b> a tagged device now "leaves" when it hasn't been heard for the away timeout, and "arrives" when it's heard again. Before, PadSpan treated a tagged device as present whenever it was in its device list, and tagged devices never leave that list. So "arrived" fired only the first time a device was ever seen, and "left" never fired. That broke three things: Follow's arrive and leave alerts, the <code>padspan_device_arrived</code> and <code>padspan_device_departed</code> events for your Home Assistant automations, and PadSpan's own arrive/leave rules. They now use the same away timeout as the device trackers.</li>
+          <li><b>Fixed:</b> restarting Home Assistant no longer counts every device as having just arrived, which sent every arrive alert at each restart.</li>
+          <li><b>Fixed:</b> a room-change alert sent to a phone you picked, with no email address, now goes out. Before, room-change alerts needed an email even though arrive and leave alerts didn't.</li>
+          <li><b>Changed:</b> in Follow, <b>Send Test</b> works with just a phone picked, and an alert counts as <b>Active</b> with either an email or a picked phone. Manage's list of saved alerts now shows phone-only alerts too, so you can see and delete them.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.109</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>

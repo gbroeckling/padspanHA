@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.110 — Arrive and leave alerts actually fire (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+- **If you set up arrive or leave alerts,** expect them to start working. Restarting Home Assistant no longer sends an "arrived" alert for every device.
+
+### Follow alerts and automations
+- **Fixed:** a tagged device now "leaves" when it hasn't been heard for the away timeout, and "arrives" when it's heard again. Before, PadSpan treated a tagged device as present whenever it was in its device list, and tagged devices never leave that list. So "arrived" fired only the first time a device was ever seen, and "left" never fired. That broke three things: Follow's arrive and leave alerts, the `padspan_device_arrived` and `padspan_device_departed` events for your Home Assistant automations, and PadSpan's own arrive/leave rules. They now use the same away timeout as the device trackers.
+- **Fixed:** restarting Home Assistant no longer counts every device as having just arrived, which sent every arrive alert at each restart.
+- **Fixed:** a room-change alert sent to a phone you picked, with no email address, now goes out. Before, room-change alerts needed an email even though arrive and leave alerts didn't.
+- **Changed:** in Follow, **Send Test** works with just a phone picked, and an alert counts as **Active** with either an email or a picked phone. Manage's list of saved alerts now shows phone-only alerts too, so you can see and delete them.
+
+---
+
 ## 0.38.109 — The phone wizard reaches your phone, and MQTT keeps publishing (2026-10-12)
 
 ### Before you update
