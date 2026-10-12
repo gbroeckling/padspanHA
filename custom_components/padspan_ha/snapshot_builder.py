@@ -2821,6 +2821,8 @@ def _prune_lost_and_found_strangers(hass: HomeAssistant, lf: Any, objects: list)
         n = lf.prune(keep)
         if n:
             _LOGGER.info("Lost & Found: removed %d records of devices nobody tracks", n)
+            from .telemetry import bump as _bump  # noqa: PLC0415
+            _bump(hass, "lost_and_found_pruned", n)
     except Exception as err:
         _LOGGER.debug("Lost & Found stranger prune: %s", err)
 

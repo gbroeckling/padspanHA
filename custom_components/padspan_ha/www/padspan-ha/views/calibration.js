@@ -4566,6 +4566,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     } finally {
       bs._saving = false;
     }
+    // The opt-in report's view of it (telemetry.EVENTS): nothing when off.
+    if (ctx.actions.telemetryEvent) {
+      for (let i = 0; i < ok; i++) ctx.actions.telemetryEvent("beacon_tune_saved");
+      for (const _r of refused) ctx.actions.telemetryEvent("beacon_tune_save_refused");
+      if (failed.length > refused.length) ctx.actions.telemetryEvent("beacon_tune_save_failed");
+    }
     return { busy: false, ok, failed, refused };
   }
 

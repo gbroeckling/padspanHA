@@ -139,6 +139,13 @@ EVENTS: frozenset[str] = frozenset({
     #               there — the one result that would make the map indicator
     #               dishonest, and it cannot be seen from a single install.
     "scan_mode_flip_auto", "scan_mode_flip_pinned",
+    # Issues #89/#91 (0.38.106-107), so the betas can be judged from the
+    # field: Beacon Tune's save — a beacon that reached the fabric, a map
+    # refused because it is not placed in metres, a write that failed; the
+    # Lost & Found records the one-time stranger cleanup removed (by record);
+    # and a Diag Export built on request.
+    "beacon_tune_saved", "beacon_tune_save_refused", "beacon_tune_save_failed",
+    "lost_and_found_pruned", "diag_export_built",
     # The three guided wizards (v0.38.21): which step was REACHED, once per
     # distinct visit to that step (the wizard dedupes against its own last-
     # counted step, the same way a tab-open event never double-counts a

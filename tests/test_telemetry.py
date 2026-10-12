@@ -445,7 +445,10 @@ def test_every_event_name_has_a_real_call_site():
     src = "\n".join(p.read_text(encoding="utf-8", errors="ignore")
                     for p in list(root.rglob("*.py")) + list(root.rglob("*.js")) if "telemetry.py" not in p.name)
     dead = [e for e in sorted(T.EVENTS)
-            if not any(f'{fn}({arg}"{e}")' in src for fn in ("bump", "_bump", "self._count", "telemetryEvent", "ctx.actions.telemetryEvent")
+            if not any(f'{fn}({arg}"{e}"{end}' in src for fn in ("bump", "_bump", "self._count", "telemetryEvent", "ctx.actions.telemetryEvent")
+                       # `, ` — bump()'s count argument (lost_and_found_pruned
+                       # counts the records one cleanup removed).
+                       for end in (")", ", ")
                        # Call shapes actually used in the tree. `self.hass, ` is
                        # BluetoothLive's convention (it stores hass unprefixed);
                        # omitting it made a live counter look dead.

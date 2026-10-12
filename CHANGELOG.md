@@ -20,6 +20,10 @@ All notable changes to PadSpan HA are documented here.
 ### Calibration → Matrix
 - **Fixed:** pinned beacons now appear as anchor rows. The live snapshot never carried their pinned position, so the rows never showed.
 
+### Help improve PadSpan (opt-in usage report)
+Only while the report is on, and counts only.
+- **Added:** how many Beacon Tune saves reached the map, were refused because the map isn't placed in metres, or failed; how many records Lost & Found's one-time cleanup removed; and how often a Diag Export is built.
+
 ---
 
 ## 0.38.106 — A busy street costs less: CPU, memory, and a low-memory mode (2026-10-12)

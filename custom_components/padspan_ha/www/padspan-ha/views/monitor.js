@@ -838,6 +838,7 @@ function _diagExport(ctx, el){
     };
     ctx.state._diagExportText = JSON.stringify(payload,null,2);
     ctx.state._diagExportAt = new Date().toLocaleTimeString();
+    if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("diag_export_built");
     return ctx.state._diagExportText;
   };
   let text = ctx.state._diagExportText || "";
