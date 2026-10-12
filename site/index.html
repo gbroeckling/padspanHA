@@ -179,6 +179,25 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.107</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">12 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>Beacon Tune users:</b> since 0.30.0, a beacon placed or moved in Beacon Tune was never saved, though it said it was. Place or move it again after updating and it will be. Beacons placed in Mapping's editor were saved and are fine.</li>
+          <li><b>Fixed (issue #89):</b> placing, dragging or relocating a beacon now saves its position, in metres, the same way Mapping does. That is what makes PadSpan treat it as fixed: its room holds, and its drift from the live estimate is tracked. Only beacons you placed or moved are saved. Your labelled devices that Beacon Tune shows at their room's centre are never saved as fixed beacons, and a beacon you didn't touch is never rewritten. A map that isn't placed in metres yet can't be saved to, and Beacon Tune says so instead of pretending.</li>
+          <li><b>Added (issue #90):</b> zoom and pan on Beacon Tune's map, like Pin & Listen: scroll to zoom, drag the map to pan, pinch on a touch screen. Dragging a beacon still moves the beacon, and double-click still places one. <b>⟲</b> or the 0 key resets the view.</li>
+          <li><b>Fixed (issue #89):</b> a pinned beacon is drawn where it was pinned, not where the live estimate puts it.</li>
+          <li><b>Fixed:</b> pinned beacons now appear as anchor rows. The live snapshot never carried their pinned position, so the rows never showed.</li>
+          <li><b>Added:</b> how many Beacon Tune saves reached the map, were refused because the map isn't placed in metres, or failed; how many records Lost & Found's one-time cleanup removed; and how often a Diag Export is built.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.106</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>
