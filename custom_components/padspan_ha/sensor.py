@@ -116,9 +116,11 @@ async def async_setup_entry(
         _dist_on = _sd.get("ha_entity_distance_enabled", True)
         _scan_on = _sd.get("ha_entity_scanner_distance_enabled", True)
         new: list[SensorEntity] = []
-        # Sort by freshness — lowest age_s first so the active key wins dedup
+        # Sort by freshness — lowest age_s first so the active key wins dedup.
+        # Only labelled objects can have entities: sorting the whole street
+        # every poll was wasted work (issue #91).
         items = sorted(
-            coordinator.data.items(),
+            ((k, o) for k, o in coordinator.data.items() if _should_track(o)),
             key=lambda kv: kv[1].get("age_s") if isinstance(kv[1].get("age_s"), (int, float)) else 999999,
         )
         for key, obj in items:

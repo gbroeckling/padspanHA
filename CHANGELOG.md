@@ -4,6 +4,30 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.106 — A busy street costs less: CPU, memory, and a low-memory mode (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+- **Lost & Found:** the first start after updating removes the records it kept for passing devices nobody tracks (see below). Labelled, followed and registered devices keep theirs.
+
+### Performance (issue #91)
+- **Fixed:** next to a busy street PadSpan worked out a room for every device in its list on every update, including thousands nobody has identified that hadn't been heard for hours. On the install that reported it, about 4,980 devices were held and about 210 were on the air. A device nobody has labelled, identified, pinned or followed, not heard for a minute, is now listed as it is and not worked on. Heard again, it is worked on again.
+- **Fixed:** once more than about 1,000 devices were around, every device nobody has identified got a new internal ID on every update. Their IDs are now stable.
+- **Fixed:** Lost & Found recorded every passing stranger's phone, kept it forever and saved the file again on every update. It now records only your own devices: labelled, identified, or a phone known by its IRK.
+- **Fixed:** Monitor → Diag Export could freeze the browser on a busy street, because it turned the whole live snapshot into text every time the Monitor redrew. It's now built when you press **Build export**, with the device and advertisement lists cut to 200 each. All of your own devices are kept, and it says how many there were. The Debug tab is cut the same way.
+- **Changed:** the object history keeps at most 10,000 devices nobody has identified. Past that, the ones heard longest ago go first. Your own devices don't count toward it and are never dropped.
+- **Changed:** a Find My advertisement that hasn't changed isn't decoded again on every update, and the check for new Home Assistant entities looks only at labelled devices instead of sorting every device.
+
+### Settings → Presence
+- **Added:** **Low-memory mode**, for a Home Assistant machine with 2 GB of RAM. Off by default. When it's on, passing devices nobody has identified are kept for 15 minutes on the air and at most 2,000 of them, the device list keeps at most 2,000 of them for one day, and the Monitor's advertisement list shows at most 2,000. Your own devices, positioning, the Atlas and Live Aboard aren't changed by it. The card lists all of this and asks before it turns on. The details are on the Minimum requirements page (docs/MINIMUM_REQUIREMENTS.md).
+- **Fixed:** **BLE Advertisement Timeout** said its default was 900 s and its range ran to 30 minutes. The default has always been 4 hours (14,400 s) and the range is 60 s to 4 hours; it now says so. Lowering it now lowers what the Bluetooth cache holds too. Before, the cache kept 4 hours whatever it was set to. The same goes for ESPresense.
+
+### Help improve PadSpan (opt-in usage report)
+Only while the report is on, and counts only. The full list is in the README.
+- **Added:** how long each update's per-device step takes, how many devices it worked on and how many it skipped, how many Lost & Found records are held, and whether low-memory mode is on.
+
+---
+
 ## 0.38.105 — Stable: device heights on the map, open doors on the Atlas, and Live Aboard's house (2026-10-06)
 
 ### Before you update

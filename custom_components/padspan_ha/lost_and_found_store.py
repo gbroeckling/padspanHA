@@ -16,12 +16,13 @@ a busy house's churn can evict an infrequently-moving tag's only record
 long before 7 days, and the age prune alone guarantees eventual loss even
 with zero churn. This store has no log and no pruning at all — one
 {room, ts, label} value per key, overwritten in place, kept forever until
-the object itself is explicitly forgotten.
+the object itself is explicitly forgotten. (prune() exists only to clear out
+strangers that older versions recorded — never someone's object.)
 """
 
 import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -47,7 +48,8 @@ class LostAndFoundStore:
         return self.records
 
     async def record(self, key: str, room: str, label: str | None = None,
-                     padspan_id: str | None = None, seen_at: float | None = None) -> None:
+                     padspan_id: str | None = None, seen_at: float | None = None,
+                     identified: bool = True) -> None:
         """Overwrite this key's last-confirmed room.
 
         The caller (ws_live_snapshot) sees every away object on EVERY poll —
@@ -55,8 +57,13 @@ class LostAndFoundStore:
         is where "once per departure" is enforced: an unchanged room is not a
         new record, and writes nothing. It once rewrote the whole (~1 MB) file
         per away object per poll, which kept live_snapshot from ever answering
-        (2026-09-28). Saves are coalesced, never awaited inline."""
-        if not key or not room:
+        (2026-09-28). Saves are coalesced, never awaited inline.
+
+        Only someone's object (`identified`): one entry per TRACKED object, as
+        the header says. A stranger's phone passing the house is nobody's lost
+        item, and with no pruning here every one ever heard stayed in the file
+        — and in memory, and in every lost_and_found_get — forever (#91)."""
+        if not key or not room or not identified:
             return
         # seen_at is when the object was last heard (now - age_s): the same
         # departure reports the same moment every poll, give or take the
@@ -76,6 +83,17 @@ class LostAndFoundStore:
             entry["padspan_id"] = padspan_id
         self.records[key] = entry
         self.store.async_delay_save(lambda: self.records, 10)
+
+    def prune(self, keep: Callable[[str, dict[str, Any]], bool]) -> int:
+        """Drop each record `keep` says no to, with one coalesced save. For the
+        strangers recorded before `identified` existed (snapshot_builder runs
+        it once per start). Returns how many went."""
+        drop = [k for k, v in self.records.items() if not keep(k, v)]
+        for k in drop:
+            del self.records[k]
+        if drop:
+            self.store.async_delay_save(lambda: self.records, 10)
+        return len(drop)
 
     def get_all(self) -> dict[str, dict[str, Any]]:
         return self.records

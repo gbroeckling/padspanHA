@@ -965,6 +965,46 @@ function _settingsPresence(ctx, el){
     ),
   ]));
 
+  // ── Low-memory mode (low_memory.py) ────────────────────────────────────────
+  // For a 2 GB machine. What it turns off is listed on the card itself and
+  // again in the confirm, so nobody switches it on without reading it.
+  const lowMemOn = !!settings.low_memory_mode;
+  const lowMemLimits =
+    "• Passing Bluetooth devices nobody has identified are kept for 15 minutes on the air " +
+    "(not up to 4 hours) and at most 2,000 of them.\n" +
+    "• The device list keeps at most 2,000 unidentified devices, for 1 day at most.\n" +
+    "• The Monitor's advertisement list shows at most 2,000.\n" +
+    "Your tagged, labelled and followed devices, positioning, the Atlas and Live Aboard are not affected.";
+  const lowMemBtn = el("button", { class: "btn inline", style: lowMemOn
+    ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
+    : "color:#94a3b8" }, lowMemOn ? "On" : "Off");
+  lowMemBtn.addEventListener("click", async () => {
+    if (!lowMemOn && !confirm("Turn on low-memory mode?\n\n" + lowMemLimits)) return;
+    try {
+      await ctx.actions.settingsSet({ low_memory_mode: !lowMemOn });
+      ctx.toast(`Low-memory mode ${!lowMemOn ? "on" : "off"}`);
+      ctx.actions.renderRooms();
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Low-memory mode"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
+      "For a Home Assistant machine with 2 GB of RAM. Next to a busy street PadSpan hears " +
+      "thousands of passing devices, and holding them all can run a 2 GB machine out of memory. " +
+      "This caps how many it holds."
+    ),
+    el("div", { style: "font-size:12px;white-space:pre-line;margin-bottom:12px;padding:8px 10px;" +
+      "border:1px solid #b45309;border-radius:6px;background:rgba(180,83,9,.12);color:#fcd34d" },
+      "What it turns off:\n" + lowMemLimits),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Low-memory mode"),
+      lowMemBtn,
+    ]),
+    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
+      "Applies from the next update — no restart needed."
+    ),
+  ]));
+
   // ── Update Check ───────────────────────────────────────────────────────────
   const updChkOn = settings.update_check_enabled !== false;
   const updChkBtn = el("button", { class: "btn inline", style: updChkOn
@@ -1209,13 +1249,14 @@ function _settingsPresence(ctx, el){
   ]));
 
   // ── BLE Advertisement Timeout ─────────────────────────────────────────────
-  const currentBleAge = (settings.ble_max_age_s != null ? Number(settings.ble_max_age_s) : 3600);
+  // Unset means 14400 s: what the backend has always used (low_memory.py).
+  const currentBleAge = (settings.ble_max_age_s != null ? Number(settings.ble_max_age_s) : 14400);
   const bleAgeInp = el("input", {
     type: "number", min: "60", max: "14400", step: "60", value: String(currentBleAge), style: inpStyle,
   });
   const bleAgeSaveBtn = el("button", { class: "btn" }, "Save");
   bleAgeSaveBtn.addEventListener("click", async () => {
-    const v = Math.max(60, Math.min(14400, parseInt(bleAgeInp.value) || 3600));
+    const v = Math.max(60, Math.min(14400, parseInt(bleAgeInp.value) || 14400));
     try {
       await ctx.actions.settingsSet({ ble_max_age_s: v });
       ctx.toast(`BLE timeout set to ${v}s`);
@@ -1235,7 +1276,8 @@ function _settingsPresence(ctx, el){
       bleAgeSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentBleAge}s. Default: 900s (15 min). Range: 60s – 1800s (30 min).`
+      `Current: ${currentBleAge}s. Default: 14400s (4 h). Range: 60s – 14400s (4 h).` +
+      (settings.low_memory_mode ? " Low-memory mode holds it to 900s (15 min)." : "")
     ),
   ]));
 

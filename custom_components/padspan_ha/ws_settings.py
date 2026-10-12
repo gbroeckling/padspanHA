@@ -509,6 +509,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("phone_wizard_enabled"): bool,
         vol.Optional("mac_rotation_bridging"): bool,
         vol.Optional("apple_auto_classify"): bool,
+        vol.Optional("low_memory_mode"): bool,
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
         vol.Optional("bright_reveal_presence"): bool,
@@ -939,7 +940,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "radio_map_enabled", "distortion_map_enabled",
                     "rssi_capture_enabled",
                     "phone_wizard_enabled", "mac_rotation_bridging",
-                    "apple_auto_classify"):
+                    "apple_auto_classify", "low_memory_mode"):
             if key in msg:
                 payload[key] = bool(msg[key])
         if "license_tier_override" in msg:

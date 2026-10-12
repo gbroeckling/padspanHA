@@ -223,7 +223,9 @@ def test_nothing_from_the_house_is_in_the_report():
     # version and its minimum requirements need what sizes the object list and
     # whether the 3D house is on. A full day of PadSpan's own size, by-view
     # load and health.runs is bounded in the full-load-section test below.
-    assert len(text) < 4000
+    # Raised 4000 -> 4030 for features.low_memory_mode (~25 bytes): issue #91,
+    # whether an install runs with the low-memory caps on.
+    assert len(text) < 4030
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1176,6 +1178,7 @@ def _busy_day(h, hours: float = 24.0):
     for i in range(8640):
         w.add("snap", rnd.uniform(900, 8200))
         w.add("cycle", rnd.uniform(40, 2400))
+        w.add("loop", rnd.uniform(20, 2000))
     # PadSpan's own size on a busy street, and Home Assistant by view
     # (Garry, 2026-10-05: the low-memory version and its minimum requirements).
     for i in range(1440):
@@ -1191,6 +1194,9 @@ def _busy_day(h, hours: float = 24.0):
         w.add("snap_mb", rnd.uniform(15, 260))
         w.add("snap_json_mb", rnd.uniform(4, 90))
         w.add("snap_req", rnd.uniform(0, 1440))
+        w.add("smoothed", rnd.uniform(5, 400))
+        w.add("background", rnd.uniform(0, 80000))
+        w.add("lostfound", rnd.uniform(10, 90000))
         for v in ("atlas", "sim", "other", "none"):
             w.add(f"cpu@{v}", rnd.uniform(1, 99.4))
             w.add(f"lag@{v}", rnd.uniform(0.05, 1800))
@@ -1227,7 +1233,9 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     # and Home Assistant's load by view — what deciding the low-memory
     # version's object cap, and whether a 2 GB Pi keeps the Atlas and the 3D
     # house, takes. The whole report is still held under the 8 KB cap below.
-    assert section < 1600, section
+    # 1600 -> 1700 (issue #91): the per-object loop's time, the objects it
+    # smoothed vs. listed as background, and the Lost & Found records held.
+    assert section < 1700, section
     assert len(json.dumps(p)) <= T._MAX_BYTES
 
 

@@ -383,7 +383,7 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "ha_entity_scanner_distance_enabled", "ha_entity_occupancy_enabled",
     "tags_room_events_enabled", "tags_nfc_identify_enabled", "tags_phone_autolink_enabled",
     "update_check_enabled", "onboarding_completed",
-    "atlas_3d_enabled",
+    "atlas_3d_enabled", "low_memory_mode",
 )
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
@@ -443,6 +443,14 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "lag_ms": ("lag", ("p50", "p95", "max")),          # event loop
     "snap_ms": ("snap", ("p50", "p95", "max", "per_h")),    # live snapshot build
     "cycle_ms": ("cycle", ("p50", "p95", "max", "per_h")),  # presence poll (incl. its snapshot fetch)
+    # Issue #91: the per-object pipeline inside that poll, how many objects
+    # it smoothed and how many it listed as background (unidentified, not
+    # heard for a minute), and the Lost & Found records held — whether the
+    # skip is doing its job, and that nothing grows without end.
+    "loop_ms": ("loop", ("p50", "p95", "max")),
+    "smoothed_n": ("smoothed", ("p50", "max")),
+    "background_n": ("background", ("max",)),
+    "lostfound_n": ("lostfound", ("max",)),
     # PadSpan's own size (perf_sampler.padspan_sizes). Garry, 2026-10-05: the
     # low-memory version forces a safe maximum object count, and picking it
     # takes how many objects an install holds, what one costs and how fast a

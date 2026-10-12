@@ -804,19 +804,56 @@ function _escHtmlMon(str) {
 // ═══════════════════════════════════════════════════════════════════════════
 // DIAG EXPORT TAB (was "Diagnostics" in Manage)
 // ═══════════════════════════════════════════════════════════════════════════
+// Near a busy street the live snapshot holds thousands of objects and
+// advertisements. Stringified whole on every Monitor render (every ~20 s), it
+// froze the browser (issue #91). The export is built only when asked for, and
+// its two long lists are cut to DIAG_LIST_CAP — every one of the person's own
+// objects is kept, and the counts say what was left out.
+const DIAG_LIST_CAP = 200;
+const _isMine = (o) => !!(o && (o.identified || o.user_label || o.kind === "private_ble"));
+export function diagSnapshot(snap){
+  if(!snap || typeof snap !== "object") return snap;
+  const out = Object.assign({}, snap);
+  const objs = snap.objects;
+  if(objs && Array.isArray(objs.list) && objs.list.length > DIAG_LIST_CAP){
+    const mine = objs.list.filter(_isMine);
+    const rest = objs.list.filter(o => !_isMine(o)).slice(0, Math.max(0, DIAG_LIST_CAP - mine.length));
+    out.objects = Object.assign({}, objs, { list: mine.concat(rest),
+      trimmed: { total: objs.list.length, kept: mine.length + rest.length } });
+  }
+  const ble = snap.ble;
+  if(ble && Array.isArray(ble.advertisements) && ble.advertisements.length > DIAG_LIST_CAP){
+    out.ble = Object.assign({}, ble, { advertisements: ble.advertisements.slice(0, DIAG_LIST_CAP),
+      trimmed: { total: ble.advertisements.length, kept: DIAG_LIST_CAP } });
+  }
+  return out;
+}
+
 function _diagExport(ctx, el){
-  const payload = {
-    ui: { version:ctx.state.version, buildId:ctx.state.buildId, view:ctx.state.view, dataMode:ctx.state.dataMode, timing:ctx.state.timing, wsCounts:ctx.state.wsCounts },
-    backend: { versionInfo:ctx.state.versionInfo, status:ctx.state.status, roomTagMap:ctx.state.roomTagMap, liveSnapshot:ctx.state.live?.snapshot, liveSources:ctx.state.live?.sources, maps:ctx.state.maps?.list },
-    autoDiagnostics: ctx.state.diag,
+  const build = ()=>{
+    const payload = {
+      ui: { version:ctx.state.version, buildId:ctx.state.buildId, view:ctx.state.view, dataMode:ctx.state.dataMode, timing:ctx.state.timing, wsCounts:ctx.state.wsCounts },
+      backend: { versionInfo:ctx.state.versionInfo, status:ctx.state.status, roomTagMap:ctx.state.roomTagMap, liveSnapshot:diagSnapshot(ctx.state.live?.snapshot), liveSources:ctx.state.live?.sources, maps:ctx.state.maps?.list },
+      autoDiagnostics: ctx.state.diag,
+    };
+    ctx.state._diagExportText = JSON.stringify(payload,null,2);
+    ctx.state._diagExportAt = new Date().toLocaleTimeString();
+    return ctx.state._diagExportText;
   };
-  const text = JSON.stringify(payload,null,2);
+  let text = ctx.state._diagExportText || "";
 
   const ta = document.createElement("textarea");
   ta.className = "mono";
   ta.setAttribute("style","width:100%;height:420px;resize:vertical;white-space:pre;overflow:auto;");
   ta.readOnly = true;
   ta.value = text;
+  ta.placeholder = "Press Build export to collect the diagnostics.";
+
+  const stamp = el("div",{class:"muted",style:"font-size:11px"}, text ? `Built ${ctx.state._diagExportAt}` : "");
+  const btnBuild = el("button",{class:"btn"},"Build export");
+  btnBuild.addEventListener("click",()=>{
+    text = build(); ta.value = text; stamp.textContent = `Built ${ctx.state._diagExportAt}`;
+  });
 
   const selectAll = ()=>{ ta.focus(); ta.select(); };
   const btnSelect = el("button",{class:"btn"},"Select All");
@@ -824,6 +861,7 @@ function _diagExport(ctx, el){
 
   const btnCopy = el("button",{class:"btn"},"Copy");
   btnCopy.addEventListener("click", async()=>{
+    if(!text){ text = build(); ta.value = text; stamp.textContent = `Built ${ctx.state._diagExportAt}`; }
     try { await navigator.clipboard.writeText(text); ctx.toast("Copied diagnostics."); return; } catch(e){}
     try {
       const tmp = document.createElement("textarea");
@@ -843,8 +881,9 @@ function _diagExport(ctx, el){
       el("div",{style:"font-weight:700"},"Diagnostics Export"),
       el("div",{class:"muted"},"Paste this back into chat when something breaks."),
     ]),
-    el("div",{style:"display:flex;gap:8px;align-items:center"},[btnSelect,btnCopy]),
+    el("div",{style:"display:flex;gap:8px;align-items:center"},[btnBuild,btnSelect,btnCopy]),
   ]));
+  diagCard.appendChild(stamp);
   diagCard.appendChild(ta);
   wrap.appendChild(diagCard);
   wrap.appendChild(el("div",{class:"card"},[
@@ -865,7 +904,11 @@ function _debug(ctx, el){
   const pre = document.createElement("pre");
   pre.className = "mono";
   pre.setAttribute("style","max-height:520px;overflow:auto");
-  pre.textContent = JSON.stringify(ctx.state,(k,v)=>{ if(v instanceof Set) return Array.from(v); return v; },2);
+  // The live snapshot cut as in the export (diagSnapshot), and the export's
+  // own text left out: whole, they froze the browser on a busy street.
+  const _st = Object.assign({}, ctx.state, { _diagExportText: undefined,
+    live: ctx.state.live ? Object.assign({}, ctx.state.live, { snapshot: diagSnapshot(ctx.state.live.snapshot) }) : ctx.state.live });
+  pre.textContent = JSON.stringify(_st,(k,v)=>{ if(v instanceof Set) return Array.from(v); return v; },2);
   const card = el("div",{class:"card"},[
     el("div",{style:"font-weight:700"},"Debug (panel state)"),
     el("div",{class:"muted"},"Useful for UI-side issues (dead buttons, missing views)."),

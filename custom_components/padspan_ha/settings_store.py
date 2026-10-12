@@ -32,6 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_SETTINGS: dict[str, Any] = {
     "data_mode": "sample",  # "sample" | "live"
     "cpu_mode": "shared",  # "shared" | "single" | "dedicated" — see PresenceCoordinator
+    "low_memory_mode": False,  # caps for a 2 GB machine — see low_memory.py
     "update_check_enabled": True,  # daily version ping to padspan.traks.ca (see README)
     # Opt-in usage report (telemetry.py). OFF until a person turns it on;
     # the id is minted on first enable and can be replaced from Settings.

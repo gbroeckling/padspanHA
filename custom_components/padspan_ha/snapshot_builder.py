@@ -51,6 +51,7 @@ from .beacon_identity import (
 # minting objects for long.
 _SETTLED_POLLS = 3
 from .ble_enrichment import enrich_object as _enrich_ble_object
+from . import low_memory as _low_memory
 from .perf_sampler import record_duration
 from .presence_rules import away_timeout_s, is_away
 from .util import ha_devices
@@ -258,16 +259,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     try:
         bl = get_bluetooth_live(hass)
         if bl is not None:
-            # Max age is user-configurable (Settings → Presence).  Clamped to [60s, 4h].
-            _ble_age = 14400
-            try:
-                _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-                _v = ((_st.data if _st else {}).get("ble_max_age_s"))
-                if _v is not None:
-                    _ble_age = max(60, min(14400, int(_v)))
-            except Exception:
-                pass
-            snapshot["ble"] = bl.get_snapshot(max_ads=5000, max_age_s=_ble_age)
+            # Max age is user-configurable (Settings → Presence).  Clamped to
+            # [60s, 4h]; the cache itself keeps no longer, and low-memory mode
+            # caps both (low_memory.py).
+            _ble_age = _low_memory.ble_age_s(hass)
+            bl.cache_age_s = _ble_age
+            bl.cache_max_addrs = _low_memory.ble_max_addrs(hass)
+            snapshot["ble"] = bl.get_snapshot(max_ads=_low_memory.snapshot_ads(hass), max_age_s=_ble_age)
         else:
             snapshot["ble"] = {"radios": [], "advertisements": [], "diag": {"ok": False, "errors": ["no_bluetooth_live"]}}
     except Exception as e:
@@ -278,6 +276,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     try:
         esp_mqtt = hass.data.get(DOMAIN, {}).get(DATA_ESPRESENSE_MQTT)
         if esp_mqtt is not None:
+            esp_mqtt.cache_age_s = _low_memory.ble_age_s(hass)
             esp_snap = esp_mqtt.get_snapshot(max_age_s=_ble_age if "_ble_age" in dir() else 900)
             ble = snapshot.setdefault("ble", {"radios": [], "advertisements": [], "diag": {}})
             ble["radios"].extend(esp_snap.get("radios", []))
@@ -2290,6 +2289,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             obj["_cache_age_s"] = obj.get("age_s") or 0
             _cache[key] = dict(obj)  # snapshot copy
 
+        # Count cap (low_memory.py): next to a busy street a day of strangers
+        # is tens of thousands of entries (one install: 80,000), all held in
+        # memory, saved every 15 s and replayed into every build. Past the
+        # cap the unidentified entries heard longest ago go first; someone's
+        # object, and anything heard this cycle, never does.
+        cap_object_history(_cache, _low_memory.history_max(hass), _current_keys)
+
         # Merge cached objects not seen this cycle back into the list
         # Skip keys absorbed by deduplication — they are ghosts of merged objects
         _cached_added = 0
@@ -2760,6 +2766,65 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     return snapshot
 
 
+def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys: set[str]) -> int:
+    """Hold the object history to `cap` unidentified entries (low_memory.py).
+    Past it, the ones heard longest ago go, down to 90% of the cap so the sort
+    is not paid every build. Someone's object, and anything heard this build
+    (`current_keys`), is never dropped. Returns how many went."""
+    if len(cache) <= cap:
+        return 0
+    unid = [(o.get("_last_seen_ts") or 0, k) for k, o in cache.items()
+            if not (o.get("identified") or o.get("user_label"))]
+    if len(unid) <= cap:
+        return 0
+    excess = len(unid) - int(cap * 0.9)
+    drop = sorted(t for t in unid if t[1] not in current_keys)[:excess]
+    for _ts, k in drop:
+        del cache[k]
+    return len(drop)
+
+
+_LF_PRUNED = "_lost_and_found_strangers_pruned"
+
+
+def _prune_lost_and_found_strangers(hass: HomeAssistant, lf: Any, objects: list) -> None:
+    """Once per start: drop the Lost & Found records of plain-MAC objects that
+    nobody labelled, followed or registered — the strangers that versions
+    before 0.38.106 recorded (lost_and_found_store.record). Every other key
+    (iBeacon, IRK, a Find My identity, an entity) is kept, whatever it is.
+    Waits until the label stores are loaded: without them a labelled tag
+    would look like a stranger."""
+    dom = hass.data.get(DOMAIN, {})
+    dev_reg = dom.get(DATA_DEVICE_REGISTRY)
+    obj_store = dom.get(DATA_OBJECTS)
+    if dom.get(_LF_PRUNED) or dev_reg is None or obj_store is None:
+        return
+    dom[_LF_PRUNED] = True
+    from .presence_coordinator import obj_is_identified  # noqa: PLC0415
+    st = dom.get(DATA_SETTINGS)
+    followed = {str(f).upper() for f in ((st.data if st else {}).get("followed_addrs") or [])}
+    ident_now = {o.get("key") for o in objects if isinstance(o, dict) and obj_is_identified(o)}
+
+    def keep(key: str, rec: dict[str, Any]) -> bool:
+        mac = key[4:].upper() if key.startswith("ble:") else ""
+        if len(mac) != 17 or mac.count(":") != 5:
+            return True
+        return bool(
+            key in ident_now or mac in followed or key.upper() in followed
+            or obj_store.get_label(mac)
+            or dev_reg.get_label_by_key(key) or dev_reg.get_label_by_key(mac)
+            or dev_reg.get(str(rec.get("padspan_id") or ""))
+            or dev_reg.get(dev_reg.resolve(key) or "")
+        )
+
+    try:
+        n = lf.prune(keep)
+        if n:
+            _LOGGER.info("Lost & Found: removed %d records of devices nobody tracks", n)
+    except Exception as err:
+        _LOGGER.debug("Lost & Found stranger prune: %s", err)
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/live_snapshot"})
 @websocket_api.async_response
 async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
@@ -2824,8 +2889,12 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     # and `away` says so outright. Anything that reads `room` is now correct by
     # construction, including code not written yet.
     try:
+        from .presence_coordinator import obj_is_identified  # noqa: PLC0415
         _away_s = away_timeout_s(hass)
         _lost_and_found = hass.data.get(DOMAIN, {}).get(DATA_LOST_AND_FOUND)
+        if _lost_and_found:
+            _prune_lost_and_found_strangers(hass, _lost_and_found,
+                                            (snap.get("objects") or {}).get("list") or [])
         for _obj in (snap.get("objects") or {}).get("list") or []:
             if not is_away(_obj, _away_s):
                 continue
@@ -2844,6 +2913,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
                             label=_obj.get("user_label") or _obj.get("name"),
                             padspan_id=_obj.get("padspan_id"),
                             seen_at=time.time() - float(_obj.get("age_s") or 0),
+                            identified=obj_is_identified(_obj),
                         )
             _obj["room"] = ""
             _obj["away"] = True

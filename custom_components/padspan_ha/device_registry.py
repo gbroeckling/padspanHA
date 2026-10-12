@@ -17,6 +17,7 @@ reference padspan_id instead of volatile BLE addresses.
 Storage: ``.storage/padspan_ha.devices``
 """
 
+import hashlib
 import secrets
 import logging
 from collections import OrderedDict
@@ -51,6 +52,19 @@ def _now_iso() -> str:
 def _gen_padspan_id() -> str:
     """Generate a stable padspan device ID: ps_ + 12 hex chars."""
     return f"ps_{secrets.token_hex(6)}"
+
+
+def _ephemeral_padspan_id(nk: str) -> str:
+    """An unregistered device's ID, the same every time for the same key.
+
+    It was random, from a 2,000-key cache that holds about 1,000 devices (two
+    keys each). Near a busy street every build walks thousands of them in the
+    same order, so each was pushed out before it came round again and got a
+    new ID every build (issue #91) — and each new ID read as a new departure
+    to Lost & Found. Derived from the key, an evicted entry comes back as
+    itself. Same shape as a random one (ps_ + 12 hex)."""
+    return "ps_" + hashlib.blake2b(nk.encode("utf-8"), digest_size=6,
+                                   person=b"padspan-ephem").hexdigest()
 
 
 def _normalize_key(key: str) -> str:
@@ -157,12 +171,13 @@ class DeviceRegistry:
         if pid:
             return pid
 
-        # Create new padspan_id
-        pid = _gen_padspan_id()
+        nk = _normalize_key(volatile_key)
+
+        # Create new padspan_id: an ephemeral one is the key's own (see
+        # _ephemeral_padspan_id), a persisted one random.
+        pid = _gen_padspan_id() if persist else _ephemeral_padspan_id(nk)
         while pid in self._devices:
             pid = _gen_padspan_id()
-
-        nk = _normalize_key(volatile_key)
 
         if persist:
             self._devices[pid] = {

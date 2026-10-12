@@ -46,6 +46,7 @@ from .const import (
     HOUSE3D_STORE_KEY,
     LIGHT_SHAPE_KINDS,
 )
+from . import low_memory as _low_memory
 from .device_registry import DEVICE_REGISTRY_STORE_KEY
 from .tester import SETTINGS_KEY as _TESTER_KEY
 from .util import ha_devices
@@ -99,6 +100,8 @@ def _object_history_ttl_s(hass) -> int:
                 days = raw
     except Exception:
         pass
+    if _low_memory.enabled(hass):
+        days = min(days, _low_memory.LOW_MEM_HISTORY_DAYS)
     return days * 86400
 
 

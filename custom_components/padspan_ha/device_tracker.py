@@ -89,9 +89,12 @@ async def async_setup_entry(
         if not _tracker_on:
             return
         new: list[PadSpanDeviceTracker] = []
-        # Sort by freshness — lowest age_s first so the active key wins dedup
+        # Sort by freshness — lowest age_s first so the active key wins dedup.
+        # Everything below needs a label: sorting the whole street every poll
+        # was wasted work (issue #91).
         items = sorted(
-            coordinator.data.items(),
+            ((k, o) for k, o in coordinator.data.items()
+             if isinstance(o, dict) and o.get("user_label")),
             key=lambda kv: kv[1].get("age_s") if isinstance(kv[1].get("age_s"), (int, float)) else 999999,
         )
         for key, obj in items:

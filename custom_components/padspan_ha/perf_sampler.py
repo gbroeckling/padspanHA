@@ -87,7 +87,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_ESPRESENSE_MQTT, DATA_OBJECT_HISTORY, DOMAIN
+from .const import DATA_ESPRESENSE_MQTT, DATA_LOST_AND_FOUND, DATA_OBJECT_HISTORY, DOMAIN
 from .telemetry import enabled
 
 _LOGGER = logging.getLogger(__name__)
@@ -108,7 +108,9 @@ OVER_LAG_MS = 1000.0         # the event loop a second or more late
 # pegs a Pi for minutes; sampled, every restart would read as a max-out.
 STARTUP_GRACE_S = 300.0
 
-METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", "cycle",
+METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", "cycle", "loop",
+                            # the poll's object counts, and Lost & Found (padspan_sizes)
+                            "smoothed", "background", "lostfound",
                             # PadSpan's size (padspan_sizes)
                             "objects", "history", "obj_kb", "history_mb",
                             "ble_addrs", "ble_mb", "ble_new", "ble_old", "esp_addrs",
@@ -477,6 +479,15 @@ def padspan_sizes(hass: HomeAssistant, kb: dict[str, float], *, estimate: bool) 
     esp = getattr(dom.get(DATA_ESPRESENSE_MQTT), "_seen", None)
     if isinstance(esp, dict):
         out["esp_addrs"] = len(esp)
+    # The last poll's split (presence_coordinator.last_object_counts) and the
+    # Lost & Found records, which once grew by every passing stranger (#91).
+    counts = getattr(dom.get("presence_coordinator"), "last_object_counts", None)
+    if isinstance(counts, dict) and counts:
+        out["smoothed"] = counts.get("smoothed", 0)
+        out["background"] = counts.get("background", 0)
+    lf = getattr(dom.get(DATA_LOST_AND_FOUND), "records", None)
+    if isinstance(lf, dict):
+        out["lostfound"] = len(lf)
     # The cached live snapshot: held between builds (and doubled while one is
     # built), and sent as JSON to every open panel every 5 s.
     obj_list = objs.get("list") if isinstance(objs, dict) and isinstance(objs.get("list"), list) else None

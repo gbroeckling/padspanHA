@@ -84,6 +84,7 @@ each poll and persists its state.
 from __future__ import annotations
 
 from datetime import datetime
+from functools import lru_cache
 from typing import Any
 
 APPLE_COMPANY_ID = 76
@@ -160,14 +161,22 @@ def _payload_bytes(value: Any) -> bytes | None:
         except (TypeError, ValueError):
             return None
     if isinstance(value, str):
-        s = value.strip()
-        try:
-            if "0x" in s.lower() or " " in s:
-                return bytes(int(p, 16) for p in s.replace(",", " ").split() if p)
-            return bytes.fromhex(s)
-        except ValueError:
-            return None
+        return _hex_bytes(value)
     return None
+
+
+@lru_cache(maxsize=8192)
+def _hex_bytes(value: str) -> bytes | None:
+    """The string shape, cached: every build parses the same few thousand
+    payload strings again, byte by byte, and near a busy street that was a
+    tenth of PadSpan's CPU (issue #91). Same string, same bytes."""
+    s = value.strip()
+    try:
+        if "0x" in s.lower() or " " in s:
+            return bytes(int(p, 16) for p in s.replace(",", " ").split() if p)
+        return bytes.fromhex(s)
+    except ValueError:
+        return None
 
 
 def apple_payload(manufacturer_data: Any) -> bytes | None:

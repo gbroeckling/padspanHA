@@ -185,6 +185,45 @@ _EMA_SILENCE_DBM: float = -100.0
 # presence_poll_interval_s (e.g. 12 polls = 2 min at 10 s but 12 min at 60 s).
 _AWAY_GRACE_S: float = 120.0
 
+# ── Background objects (issue #91) ───────────────────────────────────────────
+# Near a busy street the object list holds thousands of devices nobody has
+# identified, nearly all of them not heard for minutes or hours (the object
+# history replays a day of them). Smoothing one of those works out a room
+# nobody looks at, and doing it for all of them every poll was most of
+# PadSpan's CPU: ~1,770 smoothing runs a poll for ~210 devices on the air.
+# An unidentified BLE or iBeacon object not heard for this long is listed as
+# it is, unsmoothed, and its smoothing state is let go. Heard again, it starts
+# fresh — exactly what the re-entry reset below does for one back from away.
+_BACKGROUND_AGE_S: float = 60.0
+
+
+def obj_is_identified(obj: dict) -> bool:
+    """Someone's object: labelled, identified, or a phone resolved through an IRK."""
+    return bool(
+        obj.get("user_label")
+        or obj.get("identified")
+        or obj.get("kind") == "private_ble"  # phone with IRK
+    )
+
+
+def is_background_object(obj: dict, pinned: Any, followed: set[str]) -> bool:
+    """An object the per-object pipeline skips (see _BACKGROUND_AGE_S): a BLE
+    or iBeacon object nobody has identified, pinned or followed, not heard
+    for _BACKGROUND_AGE_S. No age — an entity tracker, a test object — is
+    never background."""
+    if obj.get("kind") not in ("ble", "ibeacon") or obj_is_identified(obj):
+        return False
+    age = obj.get("age_s")
+    if not isinstance(age, (int, float)) or age < _BACKGROUND_AGE_S:
+        return False
+    key = str(obj.get("key") or "")
+    if key in pinned:
+        return False
+    if followed and (key.upper() in followed
+                     or str(obj.get("address") or "").upper() in followed):
+        return False
+    return True
+
 # ── Velocity gate ────────────────────────────────────────────────────────────
 # Prevents "teleportation" — objects jumping to non-adjacent rooms faster than
 # physically possible.  After a room change is confirmed, any subsequent change
@@ -654,6 +693,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # persistent failure logs its traceback once rather than every 10s, and
         # so the failure is reportable instead of silent.
         self._object_failures: list[str] = []
+        # Objects smoothed / listed as background in the last poll (issue #91).
+        self.last_object_counts: dict[str, int] = {}
         # {key: dict}  — last candidate info for diagnostics
         self._last_candidate: dict[str, dict[str, Any]] = {}
         # Throttle: {key: monotonic_ts} — last alert sent time per object
@@ -1223,6 +1264,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as _cov_err:
             _LOGGER.debug("Coverage floor: %s", _cov_err)
 
+        # Followed objects are never background (is_background_object). Read
+        # here, on the event loop: the loop below may run on the executor.
+        _st_bg = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        _followed_bg = {str(f).upper() for f in ((_st_bg.data if _st_bg else {}).get("followed_addrs") or [])}
+        _counts = {"smoothed": 0, "background": 0}
+
         def _object_loop() -> None:
             """CPU-heavy per-object smoothing pipeline (Kalman + k-NN + votes).
 
@@ -1238,6 +1285,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if not key:
                     continue
                 try:
+
+                    # ── Background objects: listed as they are (issue #91) ───────────
+                    if is_background_object(obj, _pinned, _followed_bg):
+                        if key in self._known_objs:
+                            self._evict_object(key)
+                        _counts["background"] += 1
+                        result[key] = obj
+                        continue
 
                     # ── Re-entry detection: clear stale smoothing state ──────────────
                     # If this device was absent (stale) in the previous poll and is now
@@ -1305,6 +1360,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if smoothed_room:
                             obj["room"] = smoothed_room
                         obj["_smoothed"] = True
+                        _counts["smoothed"] += 1
                         obj["room_confidence"] = self._room_confidence.get(key, 0.0)
                         obj["rssi_margin_confidence"] = self._rssi_margin_confidence.get(key, 0.0)
                         # Propagate sub-room position — prefer spatial (real-time geometry)
@@ -1352,6 +1408,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if smoothed_room:
                             obj["room"] = smoothed_room
                         obj["_smoothed"] = True
+                        _counts["smoothed"] += 1
                         obj["room_confidence"] = self._room_confidence.get(key, 0.0)
                         obj["rssi_margin_confidence"] = self._rssi_margin_confidence.get(key, 0.0)
                         # Propagate sub-room position — prefer spatial over k-NN
@@ -1444,11 +1501,16 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     len(_failed), len(objects), ", ".join(_failed[:5]),
                 )
         _cpu_mode = self._effective_cpu_mode()
+        _t_loop = time.perf_counter()
         if _cpu_mode == "shared":
             _object_loop()
         else:
             await self.hass.loop.run_in_executor(
                 self._compute_executor_for(_cpu_mode), _object_loop)
+        # The opt-in report's view of the work: how long the per-object
+        # pipeline took, and how many objects it smoothed vs. listed as-is.
+        record_duration(self.hass, "loop", (time.perf_counter() - _t_loop) * 1000.0)
+        self.last_object_counts = dict(_counts)
 
         # ── RSSI vector capture (opt-in, session-scoped, off by default) ─────
         # Observer only: it reads this poll's finished state and writes it to a
@@ -3219,12 +3281,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         reason: an ungated "objects positioned" is a count of the
         neighbourhood, not of the house.
         """
-        obj = self._known_objs.get(key) or {}
-        return bool(
-            obj.get("user_label")
-            or obj.get("identified")
-            or obj.get("kind") == "private_ble"  # phone with IRK
-        )
+        return obj_is_identified(self._known_objs.get(key) or {})
 
     def clear_object_state(self, key: str) -> None:
         """Public API: clear all coordinator state for an object.

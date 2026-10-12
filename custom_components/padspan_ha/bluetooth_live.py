@@ -227,6 +227,13 @@ class BluetoothLive:
         # {addr: {source: deque[(seen_dt, rssi)]}} — recent raw samples from
         # REAL callbacks (never the reseed path) for median-of-N filtering.
         self._rssi_samples: Dict[str, Dict[str, Any]] = {}
+        # How long the cache keeps an address, and how many it keeps at most
+        # (0: no cap). Set by snapshot_builder from Settings → Presence: the
+        # BLE Advertisement Timeout, and the low-memory switch's cap. Until
+        # 0.38.106 the age was a fixed 4 h whatever the setting said, so
+        # lowering the timeout saved no memory at all.
+        self.cache_age_s: float = 14400.0
+        self.cache_max_addrs: int = 0
         self._unsubs: List[Any] = []
         # Per-radio "last heard" timestamp — updated on every callback, independent of filtering.
         # Used by the frontend to show a radio as "listening" even when its ads are old/filtered.
@@ -500,6 +507,19 @@ class BluetoothLive:
                     del self._seen_by_source[addr]
         return cleared
 
+    def _cap_addresses(self, now: dt.datetime) -> None:
+        """Over cache_max_addrs: drop the addresses heard longest ago, down to
+        90% of the cap so the sort is not paid again on the next build."""
+        cap = self.cache_max_addrs
+        if not cap or len(self._seen_by_source) <= cap:
+            return
+        def _last(addr: str) -> dt.datetime:
+            return max((a.seen for a in self._seen_by_source[addr].values()), default=now)
+        keep = int(cap * 0.9)
+        for addr in sorted(self._seen_by_source, key=_last)[:len(self._seen_by_source) - keep]:
+            del self._seen_by_source[addr]
+            self._rssi_samples.pop(addr, None)
+
     def get_snapshot(self, max_ads: int = 1000, max_age_s: int = 900) -> Dict[str, Any]:
         """Return a lightweight BLE snapshot for the UI.
 
@@ -627,10 +647,11 @@ class BluetoothLive:
                     diag["errors"].append(f"seed_failed: {e!s}")
 
             ads: List[Dict[str, Any]] = []
-            # Prune very old entries from cache (>4 hours) to prevent unbounded growth
-            # Previously 30 min — too aggressive, caused beacons/tags to vanish
-            # from the objects list before users could find/tag them.
-            _prune_age = 14400
+            # Prune old entries from cache to prevent unbounded growth: past
+            # cache_age_s (4 h unless the timeout setting says otherwise).
+            # Previously a fixed 30 min — too aggressive, caused beacons/tags
+            # to vanish from the objects list before users could find/tag them.
+            _prune_age = self.cache_age_s
             _prune_addrs: List[str] = []
             for addr, src_map in self._seen_by_source.items():
                 _dead = [s for s, a in src_map.items() if (now - a.seen).total_seconds() > _prune_age]
@@ -641,6 +662,7 @@ class BluetoothLive:
             for addr in _prune_addrs:
                 del self._seen_by_source[addr]
                 self._rssi_samples.pop(addr, None)
+            self._cap_addresses(now)
 
             # Collect per-address records, keeping ALL per-source readings for
             # each address.  The max_ads cap applies to unique *addresses* (not

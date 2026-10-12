@@ -98,6 +98,9 @@ class EspresenseMqtt:
 
         # Cache: {address: {source: _EspAdv}}
         self._seen: Dict[str, Dict[str, _EspAdv]] = {}
+        # Kept no longer than this: bluetooth_live's cache_age_s, set the same
+        # way by snapshot_builder (the timeout setting, low-memory mode).
+        self.cache_age_s: float = _PRUNE_AGE_S
         # Scanners: {node_id: _EspScanner}
         self._scanners: Dict[str, _EspScanner] = {}
 
@@ -280,7 +283,7 @@ class EspresenseMqtt:
         # Prune stale entries
         prune_addrs = []
         for addr, src_map in self._seen.items():
-            dead = [s for s, a in src_map.items() if (now - a.seen).total_seconds() > _PRUNE_AGE_S]
+            dead = [s for s, a in src_map.items() if (now - a.seen).total_seconds() > self.cache_age_s]
             for s in dead:
                 del src_map[s]
             if not src_map:
