@@ -1442,12 +1442,14 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                                     all_addrs = sorted(pg.get("addrs") or [])
                                     break
 
-                        # 4) Match to regular BLE objects by device_id
-                        if not addr and ent.device_id:
-                            for _ba, _bd in addr_to_device.items():
-                                if isinstance(_bd, dict) and _bd.get("id") == ent.device_id:
-                                    addr = _ba.upper()
-                                    break
+                        # (A "4) match regular BLE objects by device_id" step
+                        # stood here: a walk over every Bluetooth device in
+                        # addr_to_device for each tag, comparing a "id" key
+                        # those entries do not have ("device_id"). It never
+                        # matched — and could add nothing if it did: the map
+                        # is built from the same dev.connections step 1 just
+                        # read for this device. With Bermuda, tags and devices
+                        # both run to the thousands; removed in 0.38.108.)
 
                 # 5) Check entity state attributes for MAC address hints
                 #    Bermuda entities often expose mac_address/address in attributes

@@ -395,3 +395,58 @@ class TestSnapshotBuildDiagnostics:
         await house.poll(0, [])
         assert [m for m, _ in seen] == ["snap_ble", "snap_ha", "snap_objects", "snap_enrich"]
         assert all(ms >= 0 for _, ms in seen)
+
+
+class TestBermudaTagAddresses:
+    """The entity objects Bermuda's area sensors become: each one's address
+    comes from its HA device (connections, then a MAC-shaped identifier). A
+    fourth step walked every Bluetooth device per tag comparing a key the
+    entries never had — removed; addresses resolve exactly as before."""
+
+    def _house(self, monkeypatch, n_tags):
+        from types import SimpleNamespace as NS
+        from custom_components.padspan_ha import snapshot_builder as SB
+        from tests.test_findmy_snapshot import _make_house
+        house = _make_house(monkeypatch, labels={}, followed=[])
+        states, ents, devs = [], {}, []
+        for i in range(n_tags):
+            eid = f"sensor.tag{i}_area_last_seen"
+            states.append(NS(entity_id=eid, state="Kitchen", attributes={"friendly_name": f"Tag {i}"}, name=eid))
+            ents[eid] = NS(entity_id=eid, device_id=f"d{i}", platform="bermuda", config_entry_id="b1",
+                           area_id=None, domain="sensor")
+            ident = {("bermuda", _mac(i).lower())} if i % 2 == 0 else {("bermuda", f"irk_{i}")}
+            devs.append(NS(id=f"d{i}", connections=set(), identifiers=ident, name=f"Tag {i}",
+                           name_by_user=None, model="", manufacturer="", config_entries={"b1"}, sw_version=""))
+        for j in range(n_tags):         # Bluetooth devices the dead step walked
+            devs.append(NS(id=f"p{j}", connections={("bluetooth", _mac(10_000 + j))}, identifiers=set(),
+                           name=f"P{j}", name_by_user=None, model="", manufacturer="", config_entries=set(), sw_version=""))
+        by = {s.entity_id: s for s in states}
+        house.hass.states = NS(async_all=lambda *a: states, get=lambda e: by.get(e))
+        er = NS(async_get=lambda eid: ents.get(eid), entities=ents)
+        dr = NS(devices={d.id: d for d in devs}, async_get=lambda i: None)
+        ar = NS(async_list_areas=lambda: [NS(id="k", name="Kitchen")])
+        monkeypatch.setattr(SB.entity_registry, "async_get", lambda h: er)
+        monkeypatch.setattr(SB.device_registry, "async_get", lambda h: dr)
+        monkeypatch.setattr(SB.area_registry, "async_get", lambda h: ar)
+        return house
+
+    @pytest.mark.asyncio
+    async def test_a_mac_identifier_still_gives_the_address(self, monkeypatch):
+        house = self._house(monkeypatch, 4)
+        objs, _x = await house.poll(0, [])
+        assert objs["entity:sensor.tag0_area_last_seen"]["address"] == _mac(0)
+        assert objs["entity:sensor.tag2_area_last_seen"]["address"] == _mac(2)
+        # no MAC on its device: unresolved, as it always was
+        assert objs["entity:sensor.tag1_area_last_seen"]["address"] is None
+
+    @pytest.mark.asyncio
+    async def test_thousands_of_bermuda_tags_build_in_linear_time(self, monkeypatch):
+        import time as _t
+        house = self._house(monkeypatch, 3000)
+        await house.poll(0, [])
+        t0 = _t.perf_counter()
+        objs, _x = await house.poll(5, [])
+        assert sum(1 for k in objs if k.startswith("entity:")) == 3000
+        # 1,500 unresolved tags x 3,000 Bluetooth devices: ~4.5M dead iterations,
+        # 0.63 s -> 0.06 s for this build when the step was removed
+        assert _t.perf_counter() - t0 < 5.0
