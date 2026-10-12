@@ -52,7 +52,8 @@ const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
         tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
-        tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock, tuneRadioSig } =
+        tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock, tuneRadioSig,
+        tuneBeaconBaseline, tuneBeaconWrites } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 
@@ -3862,6 +3863,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     _guideCanonical: null,
   };
   const bs = ctx.state._calibBeacon;
+  // mapId → {key: {x, y}}: each beacon's fractions when last synced
+  // (tuneBeaconBaseline). The save writes only what differs from it (#89).
+  if (!bs.editBaseline) bs.editBaseline = {};
 
   const _isFollowed = (obj) => ctx.actions.followedHas(obj.address || obj.entity_id || "");
   function _autoPinTracked() {
@@ -3907,6 +3911,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           label: bkLabel, key: obj.key, kind: obj.kind || "ble",
           x: c[0], y: c[1],
         });
+        // Shown at its room's centre, not placed by anyone: baselined, so
+        // the save never writes a phone or tag as a fixed beacon (#89).
+        // Dragged or relocated, it differs from this and is written.
+        (bs.editBaseline[m.id] = bs.editBaseline[m.id] || {})[obj.key] = { x: c[0], y: c[1] };
         pinnedKeys.add((obj.key||"").toUpperCase());
         if (lbl) pinnedLabels.add(lbl);
         for (const a of objAddrs) pinnedAddrs.add(a);
@@ -3930,6 +3938,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     for (const id of Object.keys(bs.draftBeacons)) {
       if (!maps_list.find(m => m.id === id)) delete bs.draftBeacons[id];
     }
+    bs.editBaseline = {};
+    for (const m of maps_list) bs.editBaseline[m.id] = tuneBeaconBaseline(bs.draftBeacons[m.id]);
     bs._mapsStamp = mapsStamp;
     _autoPinTracked();
     // Dedup: ensure each beacon key, label, AND address appears at most once.
@@ -4512,6 +4522,53 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   ctrlRow.appendChild(hgSlider);
   ctrlRow.appendChild(hgLbl);
 
+  // Write the beacons placed, dragged or relocated on these maps to the
+  // fabric, in metres (issue #89: this wrote nothing, and the toast said
+  // "saved"). Only what differs from the baseline goes (tuneBeaconWrites);
+  // a map whose placement cannot be read is refused whole and stays unsaved.
+  // A map's dirty flag clears only when all of its writes landed.
+  async function _saveBeacons(mapIds) {
+    if (bs._saving) return { busy: true, ok: 0, failed: [], refused: [] };
+    bs._saving = true;
+    let ok = 0;
+    const failed = [];
+    const refused = [];
+    try {
+      const tfs = (ctx.state.model && ctx.state.model.map_transforms) || {};
+      for (const mapId of mapIds) {
+        const m = maps_list.find(mm => mm.id === mapId);
+        if (!m) { failed.push(mapId); continue; }
+        const plan = tuneBeaconWrites(m, bs.draftBeacons[mapId] || [], tfs, bs.editBaseline[mapId]);
+        if (plan.refused) { failed.push(mapId); refused.push(mapId); continue; }
+        if (plan.invalid.length) { failed.push(mapId); continue; }
+        let mapOk = true;
+        for (const w of plan.writes) {
+          try {
+            const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_position_set",
+              key: w.key, x_m: w.x_m, y_m: w.y_m, floor_id: w.floor_id, kind: w.kind, label: w.label });
+            if (r && r.ok === false) { mapOk = false; continue; }
+            ok++;
+            (bs.editBaseline[mapId] = bs.editBaseline[mapId] || {})[w.key] = { x: w.x, y: w.y };
+            try {
+              const lm = ctx.state.model || (ctx.state.model = {});
+              const bpm = lm.beacon_positions_m || (lm.beacon_positions_m = {});
+              bpm[w.key] = Object.assign({}, bpm[w.key] || {}, { x_m: w.x_m, y_m: w.y_m,
+                floor_id: w.floor_id, room: (r && r.room) || "" });
+            } catch (_e) { /* publication is best-effort */ }
+          } catch (e) {
+            mapOk = false;
+            console.warn("[PadSpan] fabric_beacon_position_set failed", w.key, e);
+          }
+        }
+        if (mapOk) bs.dirtyMaps[mapId] = false;
+        else failed.push(mapId);
+      }
+    } finally {
+      bs._saving = false;
+    }
+    return { busy: false, ok, failed, refused };
+  }
+
   // Save button
   const statusLbl = document.createElement("span");
   statusLbl.style.cssText = "font-size:11px;color:#94a3b8;min-width:90px";
@@ -4527,14 +4584,24 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     saveBtn.disabled = true;
     statusLbl.textContent = "Saving...";
     try {
-      for (const mapId of dirtyIds) {
-        const origMap = maps_list.find(m => m.id === mapId);
-        if (!origMap) continue;
+      const res = await _saveBeacons(dirtyIds);
+      if (res.busy) {
+        statusLbl.textContent = "Already saving";
+        saveBtn.disabled = false;
+        return;
       }
-      bs.dirtyMaps = {};
+      if (res.failed.length) {
+        statusLbl.textContent = `Saved ${res.ok}, ${res.failed.length} map(s) failed`;
+        ctx.toast(`Saved ${res.ok} beacon(s); ${res.failed.length} map(s) could not be saved — kept unsaved` +
+          (res.refused.length ? ". A map that isn't placed in metres yet must be placed in Mapping first." : ""), true);
+        _refreshDirtyLabel();
+        saveBtn.disabled = false;
+        return;
+      }
       bs.selectedBk = null;
       await ctx.actions.mapsRefresh();
-      ctx.toast("Reference positions saved");
+      if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
+      ctx.toast(res.ok ? `Saved ${res.ok} beacon position(s)` : "No beacon positions changed");
       saveBtn.disabled = false;
       statusLbl.textContent = "";
     } catch (e) {
@@ -4567,6 +4634,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         kind: bk.kind || "", x: Number(bk.x || 0), y: Number(bk.y || 0),
       }));
     }
+    bs.editBaseline = {};
+    for (const m of maps_list) bs.editBaseline[m.id] = tuneBeaconBaseline(bs.draftBeacons[m.id]);
     bs.dirtyMaps = {};
     _autoPinTracked();
     // Dedup: ensure each beacon key, label, AND address appears at most once
@@ -4647,9 +4716,24 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   const isoWrap = document.createElement("div");
   isoWrap.style.cssText = "position:relative;margin-top:6px";
 
+  // isoDiv is the pan/zoom viewport (issue #90, the helper Pin & Listen and
+  // Roam use); isoInner the layer it moves, holding the SVG. Beacons keep
+  // their own drag ([data-bk-id] is excluded) and double-click still places
+  // one, so the helper's double-click reset is off — 0 or ⟲ resets instead.
+  // Placement reads the SVG's getScreenCTM(), which includes the zoom.
   const isoDiv = document.createElement("div");
-  isoDiv.style.cssText = "overflow:auto;border-radius:8px;background:#071008;padding:8px;touch-action:none";
-  isoDiv.innerHTML = buildBeaconSVG(_getFocusZ(bs.focusIdx));
+  isoDiv.style.cssText = "position:relative;overflow:hidden;border-radius:8px;background:#071008;padding:8px;touch-action:none;cursor:grab";
+  const isoInner = document.createElement("div");
+  isoInner.style.cssText = "transform-origin:0 0";
+  isoDiv.appendChild(isoInner);
+  isoInner.innerHTML = buildBeaconSVG(_getFocusZ(bs.focusIdx));
+  const _bkPanZoom = attachPanZoom(isoDiv, isoInner, { exclude: "[data-bk-id]", dblclickReset: false });
+  const _bkViewReset = document.createElement("button");
+  _bkViewReset.className = "btn inline";
+  _bkViewReset.style.cssText = "position:absolute;top:8px;right:8px;z-index:4;padding:2px 8px;font-size:12px";
+  _bkViewReset.textContent = "⟲";
+  _bkViewReset.title = "Reset zoom (or press 0). Scroll to zoom, drag the map to pan.";
+  _bkViewReset.addEventListener("click", () => _bkPanZoom.reset());
 
   // Hover tooltip
   const tipEl = document.createElement("div");
@@ -4659,6 +4743,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     "font-family:ui-monospace,SFMono-Regular,Consolas,monospace;line-height:1.5";
   isoWrap.appendChild(isoDiv);
   isoWrap.appendChild(tipEl);
+  isoWrap.appendChild(_bkViewReset);
 
   isoDiv.addEventListener("mouseover", e => {
     const g = e.target.closest("[data-tip]");
@@ -4937,7 +5022,11 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const origMap = maps_list.find(m => m.id === mapId);
     if (!origMap) return;
     try {
-      bs.dirtyMaps[mapId] = false;
+      // Saved for real now (#89): a placed beacon reaches the fabric, so the
+      // engine treats it as fixed. A failed save stays unsaved and says so.
+      const res = await _saveBeacons([mapId]);
+      if (res.refused.length) ctx.toast("Beacon position not saved: this map isn't placed in metres yet. Place it in Mapping first.", true);
+      else if (res.failed.length) ctx.toast("Beacon position not saved — press Save to retry", true);
       _refreshDirtyLabel();
     } catch (e) {
       console.warn("[PadSpan] auto-save failed:", e);
@@ -5246,7 +5335,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   function _refreshSVG() {
     if (bs._dragging) return; // Don't rebuild SVG mid-drag
     const scrollTop = isoDiv.scrollTop, scrollLeft = isoDiv.scrollLeft;
-    isoDiv.innerHTML = buildBeaconSVG(_getFocusZ(bs.focusIdx));
+    isoInner.innerHTML = buildBeaconSVG(_getFocusZ(bs.focusIdx));
     isoDiv.scrollTop = scrollTop;
     isoDiv.scrollLeft = scrollLeft;
   }
@@ -6632,7 +6721,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   function _refreshSVGPatched() {
     if (bs._dragging) return; // Don't rebuild SVG mid-drag (matches original)
     const scrollTop = isoDiv.scrollTop, scrollLeft = isoDiv.scrollLeft;
-    isoDiv.innerHTML = buildBeaconSVGWrapped(_getFocusZ(bs.focusIdx));
+    isoInner.innerHTML = buildBeaconSVGWrapped(_getFocusZ(bs.focusIdx));
     isoDiv.scrollTop = scrollTop;
     isoDiv.scrollLeft = scrollLeft;
     // Click handler for guide spiral
@@ -6660,7 +6749,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   wrap.appendChild(beaconListCard);
 
   // After assembly, patch SVG refresh to include guide overlay
-  isoDiv.innerHTML = buildBeaconSVGWrapped(_getFocusZ(bs.focusIdx));
+  isoInner.innerHTML = buildBeaconSVGWrapped(_getFocusZ(bs.focusIdx));
 
   return wrap;
 }

@@ -330,3 +330,50 @@ export function tuneReconcileDraft(mapObj, draftRows, fabricPositions, transform
   }
   return next;
 }
+
+// ── Beacon Tune (issue #89) ─────────────────────────────────────────────────
+// Beacon Tune's Save and its after-placement save went through the dirty
+// maps and wrote nothing, so a fixed beacon placed there never reached the
+// fabric. Same rule as the receivers above: EDIT INTENT = DIFFERENCE FROM
+// BASELINE, keyed by beacon key. A beacon is written only when its fractions
+// differ from the ones it had when last synced, or it has no baseline (placed
+// this session). Untouched beacons never post — a pin set in Mapping is never
+// restated from Beacon Tune's copy of it — and the view baselines the
+// tracked objects it pins for display itself, so a phone is never written as
+// a fixed beacon just because Beacon Tune showed it.
+export function tuneBeaconBaseline(draftRows) {
+  const out = {};
+  for (const b of draftRows || []) {
+    if (b && b.key) out[b.key] = { x: b.x, y: b.y };
+  }
+  return out;
+}
+
+// Returns { writes: [{key,x_m,y_m,floor_id,kind,label,x,y}], invalid: [key…],
+// refused: bool }. x/y are the submitted fractions, for the baseline. No
+// z_m: the backend keeps a stored height when it is left out.
+export function tuneBeaconWrites(mapObj, draftRows, transforms, baselineMap) {
+  const tf = transforms ? transforms[mapObj.id] : null;
+  if (!tunePlacementReadable(tf)) return { writes: [], invalid: [], refused: true };
+  const writes = [];
+  const invalid = [];
+  const seen = new Set();
+  const base = baselineMap || {};
+  for (const b of draftRows || []) {
+    const key = (b && b.key) || "";
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const was = base[key];
+    if (was && was.x === b.x && was.y === b.y) continue;
+    const fx = _finiteNum(b.x), fy = _finiteNum(b.y);
+    if (fx === null || fy === null) { invalid.push(key); continue; }
+    const m = mapFracToMetres(tf, fx, fy);
+    if (!m || !Number.isFinite(m[0]) || !Number.isFinite(m[1])) {
+      return { writes: [], invalid, refused: true };
+    }
+    writes.push({ key, x_m: Math.round(m[0] * 1000) / 1000,
+      y_m: Math.round(m[1] * 1000) / 1000, floor_id: mapObj.floor_id || "main",
+      kind: b.kind || "", label: b.label || "", x: b.x, y: b.y });
+  }
+  return { writes, invalid, refused: false };
+}

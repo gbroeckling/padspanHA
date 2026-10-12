@@ -52,7 +52,11 @@ export function attachPanZoom(viewport, inner, opts = {}) {
   // A drag handle inside the viewport (a light pin, a room vertex) handles
   // its own drag; the viewport's pan must not also fire for that same
   // mousedown, or the handle and the whole canvas would both move at once.
-  const isExcluded = (t) => t.closest && t.closest("button,input,select,a,[data-light-pin],[data-room-handle]");
+  // `opts.exclude` adds a caller's own handles (Beacon Tune's beacons,
+  // [data-bk-id] — issue #90).
+  const _excludeSel = "button,input,select,a,[data-light-pin],[data-room-handle]" +
+    (opts.exclude ? "," + opts.exclude : "");
+  const isExcluded = (t) => t.closest && t.closest(_excludeSel);
 
   viewport.addEventListener("wheel", (e) => {
     e.preventDefault();
@@ -103,7 +107,11 @@ export function attachPanZoom(viewport, inner, opts = {}) {
   }, { passive: false });
   viewport.addEventListener("touchend", () => { s.dragging = false; s.pinchDist = 0; });
 
-  viewport.addEventListener("dblclick", (e) => { if (!isExcluded(e.target)) reset(); });
+  // `opts.dblclickReset === false`: the caller uses double-click itself
+  // (Beacon Tune places a beacon with it); 0 and the returned reset() still work.
+  if (opts.dblclickReset !== false) {
+    viewport.addEventListener("dblclick", (e) => { if (!isExcluded(e.target)) reset(); });
+  }
 
   // Keyboard nav (gap #11): arrows pan, +/- zoom (about the viewport's own
   // centre, since there is no cursor position to zoom at from a keypress),

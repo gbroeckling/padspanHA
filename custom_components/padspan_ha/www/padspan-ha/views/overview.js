@@ -861,6 +861,14 @@ export function render(ctx){
         )) return false;
         return true;
       }).map(o => {
+        // A pinned beacon is drawn where it was pinned (issue #89). The
+        // server sends the solver's live estimate in x_m/y_m and the pin
+        // itself in anchor_true_* (the drift check compares the two); for a
+        // fixed object the pin is where it is.
+        if (o._pinned && typeof o.anchor_true_x_m === "number" && typeof o.anchor_true_y_m === "number") {
+          o = Object.assign({}, o, { x_m: o.anchor_true_x_m, y_m: o.anchor_true_y_m,
+            floor_id: o.anchor_true_floor_id || o.floor_id });
+        }
         if ((o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon") &&
             (!o.room || o.room === "unknown" || o.room === "not_home") && o.address) {
           const eRoom = _entityRoomByAddr[String(o.address).toUpperCase()];

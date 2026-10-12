@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.107 — Beacon Tune saves for real, and zooms (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+- **Beacon Tune users:** since 0.30.0, a beacon placed or moved in Beacon Tune was never saved, though it said it was. Place or move it again after updating and it will be. Beacons placed in Mapping's editor were saved and are fine.
+
+### Calibration → Beacon Tune
+- **Fixed (issue #89):** placing, dragging or relocating a beacon now saves its position, in metres, the same way Mapping does. That is what makes PadSpan treat it as fixed: its room holds, and its drift from the live estimate is tracked. Only beacons you placed or moved are saved. Your labelled devices that Beacon Tune shows at their room's centre are never saved as fixed beacons, and a beacon you didn't touch is never rewritten. A map that isn't placed in metres yet can't be saved to, and Beacon Tune says so instead of pretending.
+- **Added (issue #90):** zoom and pan on Beacon Tune's map, like Pin & Listen: scroll to zoom, drag the map to pan, pinch on a touch screen. Dragging a beacon still moves the beacon, and double-click still places one. **⟲** or the 0 key resets the view.
+
+### Overview
+- **Fixed (issue #89):** a pinned beacon is drawn where it was pinned, not where the live estimate puts it.
+
+### Calibration → Matrix
+- **Fixed:** pinned beacons now appear as anchor rows. The live snapshot never carried their pinned position, so the rows never showed.
+
+---
+
 ## 0.38.106 — A busy street costs less: CPU, memory, and a low-memory mode (2026-10-12)
 
 ### Before you update

@@ -2857,9 +2857,16 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     try:
         pc = hass.data.get(DOMAIN, {}).get("presence_coordinator")
         if pc and pc.data:
+            # The pin fields too (issue #89): a pinned beacon's declared
+            # position and its drift from the solve. The coordinator has
+            # always set them; left off this list, Overview could not draw a
+            # pinned beacon at its pin, and Calibration's matrix never got
+            # its anchor rows.
             _MERGE_KEYS = ("x_m", "y_m", "floor_id", "knn_confidence",
                            "room", "room_confidence", "rssi_margin_confidence",
-                           "outside", "_smoothed", "_stale")
+                           "outside", "_smoothed", "_stale",
+                           "_pinned", "anchor_true_x_m", "anchor_true_y_m",
+                           "anchor_true_floor_id", "anchor_drift_m", "anchor_drift_severity")
             obj_list = (snap.get("objects") or {}).get("list") or []
             for obj in obj_list:
                 key = obj.get("key", "")
