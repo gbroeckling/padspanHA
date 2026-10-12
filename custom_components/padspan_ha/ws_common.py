@@ -44,6 +44,8 @@ from .const import (
     WLED_LOOKS_STORE_KEY,
     DATA_HOUSE3D,
     HOUSE3D_STORE_KEY,
+    DATA_LOST_AND_FOUND,
+    LOST_AND_FOUND_STORE_KEY,
     LIGHT_SHAPE_KINDS,
 )
 from . import low_memory as _low_memory
@@ -336,6 +338,7 @@ _ALL_STORE_KEYS = [
     OBJECT_HISTORY_STORE_KEY,
     WLED_LOOKS_STORE_KEY,
     HOUSE3D_STORE_KEY,
+    LOST_AND_FOUND_STORE_KEY,
 ]
 
 
@@ -369,6 +372,11 @@ _DATA_KEY_MAP = {
     # "padspan_ha.house3d": {} comes only from commit e8a10ada, which was
     # never installed anywhere.
     HOUSE3D_STORE_KEY: DATA_HOUSE3D,
+    # Lost & Found (lost_and_found_store.py): each tracked object's last
+    # confirmed room, kept so it "never resets to Unknown" — and a restore
+    # reset all of it, because it was never in a backup. Its live data is
+    # `records` (ws_backup handles the attribute).
+    LOST_AND_FOUND_STORE_KEY: DATA_LOST_AND_FOUND,
 }
 
 

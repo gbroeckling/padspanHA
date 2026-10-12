@@ -204,6 +204,8 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
             stores_data[store_key] = store_obj.entries
         elif hasattr(store_obj, "frames"):
             stores_data[store_key] = store_obj.frames
+        elif hasattr(store_obj, "records"):
+            stores_data[store_key] = store_obj.records     # Lost & Found
         else:
             # Last resort: read from disk
             try:
@@ -464,6 +466,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             store_obj.entries = data
                         elif hasattr(store_obj, "frames") and isinstance(data, list):
                             store_obj.frames = data
+                        elif hasattr(store_obj, "records") and isinstance(data, dict):
+                            # Lost & Found: or its next save writes the old
+                            # records back over the restored file
+                            store_obj.records = data
             except Exception as e:
                 _LOGGER.warning("Failed to restore %s: %s", store_key, e)
 

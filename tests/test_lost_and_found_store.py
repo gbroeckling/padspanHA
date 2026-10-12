@@ -151,3 +151,19 @@ async def test_leaving_the_same_room_again_later_is_a_new_record_with_its_own_ti
     await store.record("ble:AA", "Kitchen", seen_at=wednesday)
     assert store.get_all()["ble:AA"]["ts"] == wednesday
     store.store.async_delay_save.assert_called_once()
+
+
+def test_a_backup_carries_lost_and_found_and_a_restore_takes_it_back():
+    """The store exists so a last-seen room "never resets to Unknown" — and a
+    restore reset all of it: it was never in a backup. Its live data is
+    `records`, which the backup reads and the restore must write back, or the
+    old records overwrite the restored file at the next save."""
+    import inspect
+    from custom_components.padspan_ha import ws_backup
+    from custom_components.padspan_ha.const import DATA_LOST_AND_FOUND, LOST_AND_FOUND_STORE_KEY
+    from custom_components.padspan_ha.ws_common import _ALL_STORE_KEYS, _DATA_KEY_MAP
+    assert LOST_AND_FOUND_STORE_KEY in _ALL_STORE_KEYS
+    assert _DATA_KEY_MAP[LOST_AND_FOUND_STORE_KEY] == DATA_LOST_AND_FOUND
+    src = inspect.getsource(ws_backup)
+    assert "stores_data[store_key] = store_obj.records" in src
+    assert "store_obj.records = data" in src
