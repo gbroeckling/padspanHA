@@ -113,3 +113,35 @@ def test_a_service_named_by_the_id_still_wins_if_it_exists():
 def test_no_matching_service_is_none_not_a_guess():
     hass = _phone_hass("mobile_app_someone_else")
     assert mobile_app_notify_service(hass, _device("Garry's Pixel 8")) is None
+
+
+@pytest.mark.asyncio
+async def test_a_phone_with_an_apostrophe_is_listed_once(monkeypatch):
+    """discover lists phones by their BLE Transmitter sensor, then adds any
+    mobile_app_<slug> notify service not already listed. "Garry's Pixel 8"
+    -> mobile_app_garry_s_pixel_8 never matched a lowercase compare, so the
+    phone showed twice, once as "sensor not registered"."""
+    from homeassistant.helpers import device_registry as dr_mod, entity_registry as er_mod
+    from custom_components.padspan_ha import ws_companion as WC
+    eid = "sensor.garry_s_pixel_8_ble_transmitter"
+    dev = SimpleNamespace(id="dev1", name="Garry's Pixel 8", name_by_user=None, model="Pixel 8",
+                          manufacturer="Google", identifiers={("mobile_app", "8f2c1e0b")}, connections=set())
+    ent = SimpleNamespace(entity_id=eid, platform="mobile_app", device_id="dev1", disabled_by=None,
+                          original_name="BLE Transmitter", name=None)
+    er = SimpleNamespace(entities={eid: ent}, async_get=lambda e: ent if e == eid else None)
+    drg = SimpleNamespace(devices={"dev1": dev}, async_get=lambda i: dev if i == "dev1" else None)
+    monkeypatch.setattr(er_mod, "async_get", lambda h: er, raising=False)
+    monkeypatch.setattr(dr_mod, "async_get", lambda h: drg, raising=False)
+    st = SimpleNamespace(entity_id=eid, state="Transmitting",
+                         attributes={"id": "e2c56db5-dffb-48d2-b060-d0f5a71096e0-100-1", "UUID": "e2c56db5-dffb-48d2-b060-d0f5a71096e0",
+                                     "Major": 100, "Minor": 1, "friendly_name": "Garry's Pixel 8 BLE Transmitter"})
+    hass = MagicMock()
+    hass.data = {}
+    hass.states.get = lambda e: st if e == eid else None
+    hass.states.async_all = lambda *a: [st]
+    hass.services.async_services.return_value = {"notify": {"mobile_app_garry_s_pixel_8": True, "send_message": True}}
+    conn = MagicMock()
+    await WC.ws_companion_discover(hass, conn, {"id": 1})
+    phones = conn.send_result.call_args.args[1]["phones"]
+    names = [p["device_name"] for p in phones]
+    assert len(phones) == 1, names

@@ -391,7 +391,11 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
         # Companion App registers, even if all sensors are disabled and
         # no entities exist.  This is the most reliable indicator.
         _debug_notify_services: list[str] = []
-        _phones_names_lc = {p.get("device_name", "").lower() for p in phones}
+        # Compared letters and digits only: the service is the SLUGIFIED name
+        # ("Garry's Pixel 8" -> mobile_app_garry_s_pixel_8), so a lowercase
+        # compare never matched an apostrophe or a hyphen, and the phone was
+        # listed twice — once as "sensor not registered".
+        _phones_names_lc = {_alnum(p.get("device_name", "")) for p in phones}
         try:
             all_services = hass.services.async_services()
             notify_svcs = all_services.get("notify", {})
@@ -401,7 +405,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                     # Derive a human-readable device name
                     dev_slug = svc_name[len("mobile_app_"):]
                     dev_name = dev_slug.replace("_", " ").title()
-                    if dev_name.lower() in _phones_names_lc:
+                    if _alnum(dev_slug) in _phones_names_lc:
                         continue  # already found via entity/device registry
                     # Try to find matching device in device registry
                     _dev_model = ""
@@ -411,8 +415,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                         from homeassistant.helpers import device_registry as dr
                         dev_reg = dr.async_get(hass)
                         for device in ha_devices(dev_reg):
-                            dn = (device.name or "").lower().replace(" ", "_")
-                            if dn == dev_slug or (device.name_by_user or "").lower().replace(" ", "_") == dev_slug:
+                            if _alnum(dev_slug) in {_alnum(device.name), _alnum(device.name_by_user)} - {""}:
                                 dev_name = device.name or device.name_by_user or dev_name
                                 _dev_model = device.model or ""
                                 _dev_manufacturer = device.manufacturer or ""
