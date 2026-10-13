@@ -3241,7 +3241,10 @@ export function render(ctx){
                   }
                   btn.textContent = "Enabled — restart HA";
                   btn.style.color = "#34d399"; btn.style.borderColor = "#065f46";
-                  meta.textContent = "Entity enabled & BLE command sent. Restart HA to complete.";
+                  // A disabled phone is found with no iBeacon key, so the command is
+                  // only sent when there is one: say which happened.
+                  meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent. Restart HA to complete."
+                    : "Entity enabled. Restart HA, then turn on the BLE Transmitter in the Companion app (or follow the phone here).";
                 } catch (e) {
                   btn.textContent = "Enable manually in HA";
                   btn.style.color = "#f59e0b";
@@ -3587,7 +3590,8 @@ export function render(ctx){
                 enableBtn.textContent = "Enabled — restart HA";
                 enableBtn.style.color = "#34d399";
                 enableBtn.style.borderColor = "#065f46";
-                meta.textContent = "Entity enabled & BLE command sent. Restart Home Assistant to complete setup.";
+                meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent. Restart Home Assistant to complete setup."
+                  : "Entity enabled. Restart Home Assistant, then turn on the BLE Transmitter in the Companion app (or follow the phone here).";
               } catch (e) {
                 enableBtn.textContent = "Enable manually";
                 enableBtn.disabled = false;

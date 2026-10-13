@@ -115,3 +115,10 @@ def test_buttons_come_back_after_a_failed_call():
     assert 'cancelBtn.disabled = false; cancelBtn.textContent = "Resume Normal";' in _src("views/overview.js")
     assert "try { await ctx.actions.mapsRefreshQuiet(); }" in _src("views/manage.js")
     assert "ctx.state._notifyServices = null;" in _src("views/follow.js")
+
+
+def test_enable_and_track_says_only_what_it_did():
+    """A disabled phone has no iBeacon key, so no command was sent, yet the
+    message said one was."""
+    s = _src("views/overview.js")
+    assert s.count('meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent.') == 2
