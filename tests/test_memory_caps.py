@@ -546,3 +546,29 @@ def test_the_history_cap_never_drops_an_irk_phone():
     cache["irk:abc"] = {"kind": "private_ble", "_last_seen_ts": -1}
     cap_object_history(cache, 5, set())
     assert "irk:abc" in cache
+
+
+@pytest.mark.asyncio
+async def test_the_object_history_save_is_not_awaited_inside_the_build(monkeypatch):
+    """The ~6 MB save (serialise, write, fsync) was awaited inside the
+    snapshot lock every interval, holding up the panel's and the presence
+    poll's builds. It is scheduled with async_delay_save."""
+    from tests.test_findmy_snapshot import _make_house
+    from custom_components.padspan_ha.const import DOMAIN
+    house = _make_house(monkeypatch, labels={}, followed=[])
+    calls = []
+
+    class _Rec:
+        async def async_load(self):
+            return None
+
+        async def async_save(self, data):
+            calls.append("save")
+
+        def async_delay_save(self, fn, delay):
+            calls.append("delay")
+            fn()
+    house.hass.data[DOMAIN]["_obj_hist_store"] = _Rec()
+    await house.poll(0, [])
+    await house.poll(120, [])
+    assert "delay" in calls and "save" not in calls

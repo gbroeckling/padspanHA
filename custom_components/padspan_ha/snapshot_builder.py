@@ -2606,15 +2606,20 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 from homeassistant.helpers.storage import Store as _Store
                 _hist_store = _Store(hass, 1, OBJECT_HISTORY_STORE_KEY)
                 _dom["_obj_hist_store"] = _hist_store
-            # Strip non-serializable fields before saving
-            _save_data = {}
-            for _k, _v in _cache.items():
-                _sv = dict(_v)
-                # Remove any fields that might not be JSON-serializable
-                _sv.pop("_smoothed", None)
-                _sv.pop("_stale", None)
-                _save_data[_k] = _sv
-            await _hist_store.async_save(_save_data)
+            # Strip non-serializable fields before saving. Scheduled, not
+            # awaited: the save (~6 MB at 7,800 entries: serialise, write,
+            # fsync - far slower on an SD card) ran inside the snapshot lock
+            # every interval, holding up the panel's and the presence poll's
+            # builds. HA calls the data function when it writes.
+            def _hist_data(cache=_cache) -> dict:
+                out = {}
+                for _k, _v in cache.items():
+                    _sv = dict(_v)
+                    _sv.pop("_smoothed", None)
+                    _sv.pop("_stale", None)
+                    out[_k] = _sv
+                return out
+            _hist_store.async_delay_save(_hist_data, 1)
             _dom["_obj_hist_last_save"] = _now_ts
 
         # Send first_seen to frontend, strip internal cache fields
