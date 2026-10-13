@@ -5,6 +5,7 @@
 // Deployed at https://pad.traks.ca/ (vhost /etc/apache2/sites-available/
 // pad.traks.ca.conf on bcmail, docroot web10/web/pad/) with, beside it:
 //   data.php        this folder's data.php (stats.php's numbers, signed in only)
+//   pro.php         this folder's pro.php (the free-Pro invite list and tester count, signed in only)
 //   installbase.js  custom_components/padspan_ha/www/padspan-ha/views/installbase.js, unchanged
 //   styles.css      custom_components/padspan_ha/www/padspan-ha/styles.css, unchanged
 //   robots.txt      Disallow everything
@@ -93,6 +94,17 @@ $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 0;
   .pad-login input{padding:10px 12px;border-radius:10px;border:1px solid #2a4a36;background:#0f1a12;color:#e8f0ea;font-size:15px}
   .pad-login button{padding:10px 12px;border-radius:10px;border:1px solid #45a878;background:#183a27;color:#e8f0ea;font-weight:700;cursor:pointer}
   .pad-login .m{min-height:1.2em;color:#f87171;font-size:13px}
+  .pro{max-width:1280px;margin:8px auto 16px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  .pro .k{font:600 11px/1 ui-monospace,Consolas,monospace;letter-spacing:.14em;text-transform:uppercase;color:#45a878;margin-bottom:8px}
+  .pro-nums{font-size:14px;color:#cbd5e1}
+  .pro-t{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+  .pro-t th,.pro-t td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line)}
+  .pro-t th{color:#94a3b8;font-weight:600}
+  .pro-t td:first-child{font-family:ui-monospace,Consolas,monospace}
+  .pro-t .s-claimed td{color:#8ee5b4}.pro-t .s-declined td{color:#94a3b8}.pro-t .s-delivered td{color:#fbbf24}
+  .pro-key{margin-top:10px;font-size:13px;color:#cbd5e1;line-height:1.55}
+  .pro-key summary{cursor:pointer;color:var(--accent);font-weight:700}
+  .pro-key code{font-size:12px;background:#0a150e;padding:1px 4px;border-radius:4px}
 </style>
 </head>
 <body>
@@ -106,7 +118,46 @@ $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 0;
 </form>
 <?php else: ?>
 <div class="pad-top"><a href="?logout=1">Sign out</a></div>
+<section class="pro" id="pro" aria-label="Free Pro push">
+  <div class="k">Free Pro push · 2026</div>
+  <div class="pro-nums" id="pro-nums">Loading…</div>
+  <table class="pro-t" id="pro-t" hidden><thead><tr><th>Install</th><th>Wave</th><th>Status</th><th>Delivered</th><th>Answered</th><th>Until</th></tr></thead><tbody></tbody></table>
+  <details class="pro-key"><summary>Key info</summary>
+    <ul>
+      <li><b>Invites (a free year of Pro).</b> Shown only to installs on the list, running 0.38.124 or later, after their next daily report. Overview card + Settings &rarr; PadSpan licence, administrators only, never with a working paid key, never in Bright.</li>
+      <li><b>Statuses.</b> invited = on the list, not reached yet &middot; delivered = the card can show &middot; claimed = key issued &middot; declined = No thanks (never sent again).</li>
+      <li><b>Claims.</b> A one-year Pro key emailed to them; garry@bcmail.net gets their address. New keys are tagged <code>invite-&hellip;</code> in the licence table. The list never holds an email.</li>
+      <li><b>Add a wave.</b> On bcmail: <code>sudo -u www-data python3 /var/www/clients/client1/web10/private/pro_invites.py add &lt;8-char ids&gt; --until 2026-12-31 --wave N</code> (ids from the Pro Candidates tab, marketing-engagement.xlsx on 5810).</li>
+      <li><b>Testers.</b> Two years of Pro free while the usage report stays on; keys issued by hand (licence API, plan <code>tester</code>). Overview offers it once per install.</li>
+      <li><b>Also running.</b> GitHub discussion #92: first 20 who email hello@traks.ca get a year (by hand, plan pro, 365 days), until December 31. Pro for life $89 CAD until December 31.</li>
+    </ul>
+  </details>
+</section>
 <div id="app"></div>
+<script>
+(async () => {
+  const nums = document.getElementById("pro-nums"), t = document.getElementById("pro-t");
+  try {
+    const r = await fetch("pro.php", { cache: "no-store" });
+    const d = await r.json();
+    if (!d.ok) throw new Error("answered " + r.status);
+    const c = { invited: 0, delivered: 0, claimed: 0, declined: 0 };
+    for (const i of d.invites) if (i.status in c) c[i.status]++;
+    nums.textContent = `${d.invites.length} invited in all · ${c.invited} waiting for an update · ${c.delivered} seeing the card · ` +
+      `${c.claimed} claimed · ${c.declined} declined · ${d.testers} tester sign-up${d.testers === 1 ? "" : "s"}`;
+    const body = t.querySelector("tbody");
+    for (const i of d.invites) {
+      const tr = document.createElement("tr");
+      for (const v of [i.id, i.wave, i.status, i.delivered, i.answered, i.until]) {
+        const td = document.createElement("td"); td.textContent = v === "" ? "–" : String(v); tr.appendChild(td);
+      }
+      tr.className = "s-" + i.status;
+      body.appendChild(tr);
+    }
+    t.hidden = !d.invites.length;
+  } catch (e) { nums.textContent = "Couldn't load the invite list: " + e.message; }
+})();
+</script>
 <script type="module">
 import { render } from "./installbase.js?v=<?= $v('installbase.js') ?>";
 
