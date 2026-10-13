@@ -1410,6 +1410,35 @@ async def switch_to_wled(hass: HomeAssistant, rec: dict, tgt: dict) -> dict:
     return {"backup": backup, "before": before, "after": after}
 
 
+async def async_give_back_all(hass: HomeAssistant) -> list[str]:
+    """PadSpan is being removed: every device it runs gets its WLED sync
+    back, as Switch to WLED sync would. Switching to PadSpan writes sync off
+    into the device's saved config and the originals live only in this
+    store, so once PadSpan is gone nothing could put them back. Returns the
+    names of devices that could not be reached (they keep sync off)."""
+    st = await async_get_store(hass)
+    missed: list[str] = []
+    for rec in list((st.data.get("devices") or {}).values()):
+        if not isinstance(rec, dict) or (rec.get("join") != "padspan" and not rec.get("sync_off")):
+            continue
+        ident = _identify(hass, device_id=rec.get("device_id"))
+        name = rec.get("name") or rec.get("mac") or "?"
+        if not ident or not ident.get("tgt"):
+            missed.append(name)
+            continue
+        try:
+            async with W.device_lock(hass, ident["tgt"]["host"]):
+                await switch_to_wled(hass, rec, ident["tgt"])
+        except Exception as err:  # noqa: BLE001 - removal must go on
+            _LOGGER.warning("Could not give %s back to WLED sync: %s", name, err)
+            missed.append(name)
+    await st.async_save()
+    if missed:
+        _LOGGER.warning("PadSpan removed; these WLED devices still have sync switched off "
+                        "(turn it back on in each device's Sync settings): %s", ", ".join(missed))
+    return missed
+
+
 # ── Websocket commands ───────────────────────────────────────────────────────
 
 

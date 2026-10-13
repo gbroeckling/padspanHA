@@ -692,6 +692,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """The integration is being deleted: give every WLED device PadSpan runs
+    its own sync back while PadSpan still knows the original settings."""
+    try:
+        from .wled_exact import async_give_back_all
+        await async_give_back_all(hass)
+    except Exception as err:  # noqa: BLE001 - never block the removal
+        _LOGGER.warning("WLED give-back on removal failed: %s", err)
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Tear down: unload platforms, stop BLE, flush stores to disk."""
     unload_ok = True

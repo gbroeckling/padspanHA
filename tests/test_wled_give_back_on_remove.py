@@ -1,0 +1,50 @@
+# PadSpan HA — BLE Room-Presence Tracking for Home Assistant
+# Copyright (C) 2026 Garry Broeckling
+# Licensed under the GNU General Public License v3.0
+"""Deleting PadSpan gives every WLED device it runs its sync back.
+
+Switching a device to PadSpan writes sync off into its saved config; the
+original settings live only in padspan_ha.wled_looks. There was no
+async_remove_entry, so deleting the integration left every such device with
+its WLED sync groups dead across reboots, and nothing left to restore them."""
+
+from __future__ import annotations
+
+import contextlib
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from custom_components.padspan_ha import wled_exact
+from custom_components.padspan_ha.wled_exact import new_record
+
+
+def test_the_integration_has_a_remove_hook():
+    import custom_components.padspan_ha as pkg
+    assert hasattr(pkg, "async_remove_entry")
+
+
+@pytest.mark.asyncio
+async def test_padspan_run_devices_are_switched_back_and_unreachable_ones_named():
+    run = new_record("AA", "dev1", "Deck")
+    run.update(join="padspan", exact=True, sync_off="saved", prior_sync={"cfg": {}})
+    off = new_record("BB", "dev2", "Porch")
+    off.update(join="padspan", exact=True, sync_off="saved", prior_sync={"cfg": {}})
+    plain = new_record("CC", "dev3", "Hall")
+    st = MagicMock()
+    st.data = {"devices": {"AA": run, "BB": off, "CC": plain}}
+    st.async_save = AsyncMock()
+    idents = {"dev1": {"tgt": {"host": "10.0.0.5"}}, "dev2": {"tgt": None}}
+    switched = []
+
+    async def fake_switch(hass, rec, tgt):
+        switched.append(rec["name"])
+
+    with patch.object(wled_exact, "async_get_store", AsyncMock(return_value=st)), \
+         patch.object(wled_exact, "_identify", lambda hass, device_id=None: idents.get(device_id)), \
+         patch.object(wled_exact, "switch_to_wled", fake_switch), \
+         patch.object(wled_exact.W, "device_lock", lambda hass, host: contextlib.nullcontext()):
+        missed = await wled_exact.async_give_back_all(MagicMock())
+    assert switched == ["Deck"]
+    assert missed == ["Porch"]
+    st.async_save.assert_awaited_once()
