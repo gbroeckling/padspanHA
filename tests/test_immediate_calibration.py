@@ -65,5 +65,7 @@ async def test_auto_point_drops_a_pin_room_that_is_not_a_room():
         coord._beacon_autocal_buf = {"ble:B1": {k: list(v) for k, v in buf.items()}}
         pinned = {"ble:B1": {"room": pin_room, "x_m": 1.0, "y_m": 2.0, "floor_id": "f1"}}
         result = {"ble:B1": {"room": live_room, "address": "B1"}}
-        await coord._inject_beacon_calibration(time.monotonic(), pinned, result, {}, {})
+        # Well past the 10-minute rate limit whatever the clock: a CI machine
+        # booted a few minutes ago has a monotonic clock below 600 s.
+        await coord._inject_beacon_calibration(time.monotonic() + 1e6, pinned, result, {}, {})
         assert cal.async_add_point.await_args.args[0]["room"] == want
