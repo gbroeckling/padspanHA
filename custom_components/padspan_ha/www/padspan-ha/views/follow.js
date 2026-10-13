@@ -69,8 +69,13 @@ export function render(ctx) {
       ctx.state._followMovementLoading = false;
     }).then(r => {
       if (ctx.state._followMovementKey !== movementKey) return;   // superseded by a later selection
-      ctx.state._followMovementEntries = (r && r.entries) || [];
-      ctx.actions.renderRooms();
+      // Redrawn only for something new, and only on Follow: an unchanged
+      // refresh redrew the whole view outside the poll's guards (flicker,
+      // and an unguarded render of whatever view was open by then).
+      const next = (r && r.entries) || [];
+      const changed = JSON.stringify(next) !== JSON.stringify(ctx.state._followMovementEntries);
+      ctx.state._followMovementEntries = next;
+      if (changed && ctx.state.view === "follow") ctx.actions.renderRooms();
     }).catch(() => {
       // A failed refresh keeps the log it had; a failed first fetch shows none.
       if (ctx.state._followMovementKey === movementKey && ctx.state._followMovementEntries == null) {

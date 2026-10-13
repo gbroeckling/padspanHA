@@ -100,3 +100,15 @@ def test_enable_and_track_says_only_what_it_did():
     message said one was."""
     s = _src("views/overview.js")
     assert s.count('meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent.') == 2
+
+
+def test_review_fixes_follow_log_force_flag_and_reset_mode():
+    """From the pre-release review: an unchanged movement-log refresh redrew
+    Follow (or whatever view was open by then); "Save unverified" stayed on
+    for an edited key; factory reset set the room filter to "all", which now
+    means intersection."""
+    f = _src("views/follow.js")
+    assert 'if (changed && ctx.state.view === "follow") ctx.actions.renderRooms();' in f
+    assert _src("views/overview.js").count('irkInput.addEventListener("input", () => { if (irkSaveBtn._force)') == 2
+    m = _src("views/manage.js")
+    assert 'ctx.state.mode = "all";' not in m and 'ctx.state.mode = "live";' in m

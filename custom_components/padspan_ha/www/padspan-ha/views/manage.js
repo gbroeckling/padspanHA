@@ -2973,7 +2973,7 @@ function _factoryReset(ctx, el){
       ctx.state.objStatus = "all";
       ctx.state.selectedRooms = [];
       ctx.state.tagFilter = "";
-      ctx.state.mode = "all";
+      ctx.state.mode = "live";      // the start-up default: "all" now means intersection
       _logStep("Cleared: followed list, filters, selections");
     } catch(e){
       _logStep("Frontend state reset error: " + e.message, false);
