@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.120 — Tasmota scanners, and no lost setup after a bad disk read (2026-10-13)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### New: Tasmota BLE (experimental, off by default)
+- Tasmota devices on an ESP32 (smart plugs, Sonoff switches) can be used as Bluetooth scanners. Turn it on in **Manage → Tasmota BLE** (needs Home Assistant's MQTT integration) and place each one in its room like any other scanner.
+- Tasmota's defaults aren't made for room presence. On each device, run `TelePeriod 10`, `BLEMaxAge 30` and `BLEAddrFilter 1` in its console; without the last one, phones and tags that use random addresses are never reported.
+
+### Fixes
+- **Fixed:** one failed disk read while Home Assistant starts can no longer replace your rooms, maps, settings (licence key, followed devices, IRKs) or calibration with defaults. The file is left untouched and read again at the next start.
+- **Fixed:** one store failing to load no longer stops the others loading.
+- **Fixed:** a Bermuda device is one object again. Its Area, Floor and per-scanner sensors each became an object of their own, sometimes in different rooms. This may also be what made snapshot builds slow on some Bermuda installs.
+- **Fixed:** Ignore Bermuda now really ignores it.
+- **Fixed:** ordinary sensors whose names happen to contain "tag" or "ble" (a kitchen voltage sensor, a dining table occupancy sensor) are no longer tracked as devices.
+
+---
+
 ## 0.38.119 — Fixing what the fixes broke (2026-10-12)
 
 A review of the 0.38.106-0.38.118 fixes found bugs those fixes introduced. This release fixes them.
