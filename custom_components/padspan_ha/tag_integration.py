@@ -44,6 +44,34 @@ def _sanitize_tag_id(key: str) -> str:
     return "padspan_" + re.sub(r"[^a-z0-9_]", "_", key.lower().strip())
 
 
+def _ha_tag_name(hass: HomeAssistant, tag_id: str) -> str:
+    """The name the user gave this NFC tag in Home Assistant. It lives on the
+    tag's entity (platform "tag", unique_id = the tag id); the tag store's
+    items are plain dicts, so reading .name off one never found it and every
+    object was labelled "NFC: <tag id>"."""
+    try:
+        from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+        reg = er.async_get(hass)
+        eid = reg.async_get_entity_id("tag", "tag", tag_id)
+        if eid:
+            ent = reg.async_get(eid)
+            name = (ent.name or ent.original_name) if ent else None
+            if not name:
+                st = hass.states.get(eid)
+                name = st.attributes.get("friendly_name") if st else None
+            if name:
+                return str(name)
+    except Exception:  # noqa: BLE001 - a missing name falls back to the id
+        pass
+    try:
+        store = hass.data.get("tag")
+        item = store.async_get_item(tag_id) if store is not None and hasattr(store, "async_get_item") else None
+        name = item.get("name") if isinstance(item, dict) else getattr(item, "name", None)
+        return str(name) if name else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 class TagIntegration:
     """Manages HA Tags ↔ PadSpan integration."""
 
@@ -278,16 +306,7 @@ class TagIntegration:
             # Use the tag name if available, otherwise "NFC Tagged Object"
             label = f"NFC: {tag_id[:20]}"
 
-            # Try to get a better name from HA's tag registry
-            try:
-                from homeassistant.helpers import collection
-                tag_store = self.hass.data.get("tag")
-                if tag_store and hasattr(tag_store, "async_get_item"):
-                    tag_item = tag_store.async_get_item(tag_id)
-                    if tag_item and hasattr(tag_item, "name") and tag_item.name:
-                        label = tag_item.name
-            except Exception:
-                pass
+            label = _ha_tag_name(self.hass, tag_id) or label
 
             # Label and follow the object
             follow_key = best_key.upper()

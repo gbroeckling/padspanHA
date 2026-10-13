@@ -106,3 +106,18 @@ async def test_a_flicker_back_inside_the_cooldown_sends_nothing(monkeypatch):
     clock[0] += 30
     await tags.async_emit_held({key: {"address": ADDR, "room": "Hall"}})
     assert len([c for c in hass.bus.async_fire.call_args_list if c.args[0] == "padspan_room_change"]) == 1
+
+
+def test_nfc_identify_uses_the_tag_name_from_its_entity(monkeypatch):
+    """The tag's name lives on its entity; the store's items are dicts, so
+    reading .name never worked and objects were labelled "NFC: <tag id>"."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.padspan_ha.tag_integration import _ha_tag_name
+    reg = MagicMock()
+    reg.async_get_entity_id = MagicMock(return_value="tag.car_keys")
+    reg.async_get = MagicMock(return_value=SimpleNamespace(name=None, original_name="Car keys"))
+    monkeypatch.setattr(er, "async_get", lambda hass: reg, raising=False)
+    hass = MagicMock()
+    hass.data = {}
+    assert _ha_tag_name(hass, "abc-123") == "Car keys"
+    reg.async_get_entity_id.assert_called_once_with("tag", "tag", "abc-123")
