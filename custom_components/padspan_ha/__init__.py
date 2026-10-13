@@ -235,8 +235,13 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         critical.append(_init_model())
 
     if critical:
-        results = await asyncio.gather(*critical)
-        for data_key, store, msg in results:
+        # One store that cannot be read must not cost the others theirs
+        # (a plain gather raised the first failure and dropped every result).
+        for res in await asyncio.gather(*critical, return_exceptions=True):
+            if isinstance(res, BaseException):
+                _LOGGER.error("PadSpan store failed to load: %s", res)
+                continue
+            data_key, store, msg = res
             hass.data[DOMAIN][data_key] = store
             _LOGGER.debug(msg)
 
@@ -269,8 +274,11 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         deferred.append(_init_wled_looks())
 
     if deferred:
-        results = await asyncio.gather(*deferred)
-        for data_key, store, msg in results:
+        for res in await asyncio.gather(*deferred, return_exceptions=True):
+            if isinstance(res, BaseException):
+                _LOGGER.error("PadSpan store failed to load: %s", res)
+                continue
+            data_key, store, msg = res
             hass.data[DOMAIN][data_key] = store
             _LOGGER.debug(msg)
 

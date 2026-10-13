@@ -68,16 +68,25 @@ class SafeStore:
         return True
 
     async def async_load(self) -> Any:
-        """Load data with error handling."""
+        """Load data, logging a failure and RAISING it.
+
+        Returning None for a failed read (an I/O error, a file it cannot
+        open) told every store "first boot", and each saved its defaults over
+        the real file: one bad read lost the rooms, maps, settings, licence
+        and calibration. A read that fails now leaves the store unloaded for
+        this run and the file untouched (house3d_store's ReadFailed rule).
+        A file that is missing or corrupt is not an error here: Home
+        Assistant returns None for the first and moves the second aside.
+        """
         try:
             return await self._store.async_load()
         except Exception as exc:  # noqa: BLE001
             _LOGGER.error(
-                "PadSpan load FAILED for %s: %s",
+                "PadSpan load FAILED for %s: %s (the file is left untouched)",
                 self._name,
                 exc,
             )
-            return None
+            raise
 
 
 def wrap_store(store: Store, hass: HomeAssistant, name: str = "") -> SafeStore:
