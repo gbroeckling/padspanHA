@@ -385,7 +385,7 @@ export function tuneBeaconHeldText(held, capture) {
 }
 
 // Returns { writes: [{key,x_m,y_m,floor_id,kind,label,x,y}], invalid: [key…],
-// refused: bool, held: [{key,label,reason}] }. x/y are the submitted
+// refused: bool, held: [{key,label,reason,x,y}] }. x/y are the submitted
 // fractions, for the baseline. No z_m: the backend keeps a stored height when
 // it is left out. `guard` (the view's): { pinned: the fabric's beacon pins
 // (model.beacon_positions_m), objs: Map key -> live object, followedHas }.
@@ -411,7 +411,7 @@ export function tuneBeaconWrites(mapObj, draftRows, transforms, baselineMap, gua
     if (was && was.x === b.x && was.y === b.y) continue;
     if (!pinned[key]) {
       const reason = tuneBeaconHeld(b, g.objs ? g.objs.get(key) : null, g.followedHas);
-      if (reason) { held.push({ key, label: b.label || "", reason }); continue; }
+      if (reason) { held.push({ key, label: b.label || "", reason, x: b.x, y: b.y }); continue; }
     }
     changed.push(b);
   }

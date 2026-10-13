@@ -96,6 +96,12 @@ out.placedBeacons = tuneBeaconWrites(map, [
 // (e) what was held back is reported, by name and why.
 out.heldText = tuneBeaconHeldText([...out.followedNotLive.held, ...out.placedPhone.held, ...out.trackedAppPhone.held]);
 out.heldTextNoCapture = tuneBeaconHeldText(out.followedNotLive.held, false);
+// A held row is recorded where it stands (the view sets its baseline from
+// plan.held): once its follow is gone, an unrelated save does not pin it there.
+const base2 = {};
+for (const h of out.followedNotLive.held) base2[h.key] = { x: h.x, y: h.y };
+out.afterUnfollow = tuneBeaconWrites(map, [{ key: 'ble:AA:BB:CC:DD:EE:09', label: 'Car Keys', kind: 'ble', x: 0.3, y: 0.3 }],
+  { m: tf }, base2, { pinned: {}, objs: new Map(), followedHas: () => false });
 console.log(JSON.stringify(out));
 """
 
@@ -178,7 +184,8 @@ class TestBeaconTuneWrites:
         was pinned, its room locked there and auto-calibration points added
         at the pin while it was elsewhere."""
         out = _run()
-        assert out["followedNotLive"]["held"] == [{"key": "ble:AA:BB:CC:DD:EE:09", "label": "Car Keys", "reason": "followed"}]
+        assert out["followedNotLive"]["held"] == [{"key": "ble:AA:BB:CC:DD:EE:09", "label": "Car Keys", "reason": "followed",
+                                                 "x": 0.3, "y": 0.3}]
         assert [h["reason"] for h in out["followedByKey"]["held"]] == ["followed"]
         for k in ("placedPhone", "livePhone"):
             assert [h["reason"] for h in out[k]["held"]] == ["phone"], k
@@ -238,8 +245,8 @@ class TestBeaconTuneFlows:
     def test_save_names_what_it_held_back(self):
         out = _flows()["saveHeld"]
         assert out["calls"] == []
-        assert out["toasts"] == ["Garry's Phone moves with someone (a phone or Find My tag) - not pinned; "
-                                 "its 60 s calibration still runs"]
+        # Save starts no capture, so it doesn't promise one.
+        assert out["toasts"] == ["Garry's Phone moves with someone (a phone or Find My tag) - not pinned"]
 
 
 class TestBeaconTuneIsWired:
@@ -301,3 +308,15 @@ class TestPanZoomOptions:
         i = self.SRC.index("opts.dblclickReset !== false")
         assert 'addEventListener("dblclick"' in self.SRC[i:i + 200]
         assert self.SRC.count('addEventListener("dblclick"') == 1
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_a_held_row_is_never_written_later_from_where_it_was_held():
+    out = _run()
+    held = out["followedNotLive"]["held"]
+    assert held and (held[0]["x"], held[0]["y"]) == (0.3, 0.3)
+    assert out["afterUnfollow"]["writes"] == [] and out["afterUnfollow"]["held"] == []
+    src = (_VIEWS / "calibration.js").read_text(encoding="utf-8")
+    assert "for (const h of plan.held) (bs.editBaseline[mapId] = bs.editBaseline[mapId] || {})[h.key] = { x: h.x, y: h.y };" in src
+    # Save starts no capture, so its held toast doesn't promise one.
+    assert src.count("tuneBeaconHeldText(res.held, false)") == 2
