@@ -474,8 +474,9 @@ class PadSpanHaApp extends HTMLElement {
       versionInfo: null,
       settings: {},               // full settings dict from settings_get
       // Followed beacons — persisted to localStorage
-      followedAddrs: new Set(JSON.parse(localStorage.getItem("padspan_followed") || "[]")),
-      followAddr: localStorage.getItem("padspan_followAddr") || "",
+      // Read guarded: a browser that blocks storage threw here and left a blank panel.
+      followedAddrs: new Set((() => { try { return JSON.parse(localStorage.getItem("padspan_followed") || "[]"); } catch (e) { return []; } })()),
+      followAddr: (() => { try { return localStorage.getItem("padspan_followAddr") || ""; } catch (e) { return ""; } })(),
     };
 
     // ── Shadow DOM references (set in connectedCallback) ─────────────────
@@ -2714,10 +2715,13 @@ class PadSpanHaApp extends HTMLElement {
     if(this._modalEsc) window.removeEventListener("keydown", this._modalEsc);
     const esc = (e)=>{ if(e.key === "Escape"){ this._closeModal(); } };
     this._modalEsc = esc;
-    window.addEventListener("keydown", esc, { once: true });
+    // Not { once: true }: typing a letter in the modal's own box (Tag,
+    // Rename) used the listener up, and Escape stopped closing it.
+    window.addEventListener("keydown", esc);
   }
 
   _closeModal(){
+    if(this._modalEsc){ window.removeEventListener("keydown", this._modalEsc); this._modalEsc = null; }
     if(!this.$modal) return;
     this.$modal.classList.add("hidden");
     this.$modal.innerHTML = "";

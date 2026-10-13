@@ -190,6 +190,7 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
   clearBtn.addEventListener("click", (ev) => {
     ev.stopPropagation();
     ctx.state.followAddr = "";
+    try { localStorage.removeItem("padspan_followAddr"); } catch (e) { /* storage blocked */ }
     ctx.actions.renderRooms();
   });
 
@@ -201,6 +202,8 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
     list.style.display = "none";
     input.value = "";
     ctx.state.followAddr = id;
+    // Remembered across reloads (the panel reads it at start; nothing wrote it).
+    try { localStorage.setItem("padspan_followAddr", id || ""); } catch (e) { /* storage blocked */ }
     if (id && !ctx.actions.followedHas(id)) {
       ctx.actions.followedToggle(id);
       return;

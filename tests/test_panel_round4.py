@@ -69,3 +69,17 @@ def test_a_calibration_confirm_does_not_block_other_views():
     sw = s[s.index("const _switchView = (id) => {"):]
     sw = sw[:sw.index("this._renderNav();")]
     assert "this.state._calibBeacon._confirming = false;" in sw and "this.state._calibTune._confirming = false;" in sw
+
+
+def test_escape_keeps_closing_a_modal_after_typing():
+    s = _src("panel.js")
+    assert 'window.addEventListener("keydown", esc, { once: true });' not in s
+    assert 'if(this._modalEsc){ window.removeEventListener("keydown", this._modalEsc); this._modalEsc = null; }' in s
+
+
+def test_follow_remembers_its_tag_across_reloads():
+    """The panel read padspan_followAddr at start; nothing had written it."""
+    f = _src("views/follow.js")
+    assert 'localStorage.setItem("padspan_followAddr", id || "")' in f
+    assert 'localStorage.removeItem("padspan_followAddr")' in f
+    assert 'try { return localStorage.getItem("padspan_followAddr") || ""; } catch (e) { return ""; }' in _src("panel.js")
