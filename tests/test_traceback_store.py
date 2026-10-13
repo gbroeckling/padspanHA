@@ -290,3 +290,11 @@ async def test_a_thinned_replay_keeps_its_newest_frame_when_the_clock_moves(tmp_
     monkeypatch.setattr(tb_mod.time, "time", clock)
     got, n = await tb.async_get_frames(start_ts=base - 100, end_ts=ts[-1], max_frames=5, with_count=True)
     assert got[-1]["ts"] == ts[-1]
+
+
+def test_a_pinned_beacon_is_not_recorded(tmp_path) -> None:
+    """A fixed reference sat in its room every frame and counted towards
+    every hour's occupancy in Insights and Busy Times."""
+    tb = _make_store(tmp_path)
+    tb.record_frame([{**_obj(key="ble:BEACON"), "_pinned": True}, _obj(key="ble:PHONE")])
+    assert [o["k"] for o in tb.frames[-1]["o"]] == ["ble:PHONE"]

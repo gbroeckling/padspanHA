@@ -127,3 +127,20 @@ def test_day_bucketing_respects_the_given_timezone_not_utc():
     # west of UTC is still the previous day at that instant.
     out = compute_dwell_stats([_frame(1000.0, [_obj("a", "Kitchen")])], tz_name="America/Vancouver")
     assert out["days"] == ["1969-12-31"]
+
+
+def test_occupancy_is_the_peak_at_one_moment_not_everyone_in_the_hour():
+    """Alice at 09:00 and Bob at 09:35 read as a peak of 2."""
+    frames = [_frame(1000.0, [_obj("a", "Kitchen")]), _frame(1000.0 + 35 * 60, [_obj("b", "Kitchen")])]
+    out = compute_dwell_stats(frames, tz_name="UTC")
+    day = out["days"][0]
+    hour = list(out["occupancy"][day].keys())[0]
+    assert out["occupancy"][day][hour]["Kitchen"] == 1
+
+
+def test_one_device_on_two_keys_is_one_in_the_room():
+    frames = [_frame(1000.0, [_obj("ibeacon:x", "Kitchen", n="Pixel"), _obj("irk:y", "Kitchen", n="Pixel")])]
+    out = compute_dwell_stats(frames, tz_name="UTC")
+    day = out["days"][0]
+    hour = list(out["occupancy"][day].keys())[0]
+    assert out["occupancy"][day][hour]["Kitchen"] == 1

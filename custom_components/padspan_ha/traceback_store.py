@@ -303,6 +303,11 @@ class TracebackStore:
             key = o.get("key") or o.get("address") or o.get("entity_id") or ""
             if not key:
                 continue
+            # A pinned beacon is a fixed reference, not something that moves:
+            # recorded, it sat in its room every frame and counted towards
+            # every hour's occupancy in Insights and Busy Times.
+            if o.get("_pinned"):
+                continue
             # Only record identified or followed objects (skip anonymous BLE noise)
             is_identified = o.get("identified") or o.get("user_label")
             is_followed = key in _fset or o.get("address", "") in _fset or o.get("entity_id", "") in _fset
