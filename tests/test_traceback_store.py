@@ -245,3 +245,30 @@ async def test_insights_stream_matches_the_in_memory_answer(tmp_path) -> None:
     tb._append_sync(frames)
     await tb.async_load()
     assert await tb.async_dwell(now - 86400, now, "UTC") == compute_dwell_stats(frames, tz_name="UTC")
+
+
+async def test_range_end_is_the_newest_frame_on_disk_with_nobody_home_now(tmp_path) -> None:
+    """Memory holds ten minutes; with nobody home in them the end fell back to
+    the start and a filtered replay's auto-expand searched [start, start]."""
+    tb = _make_store(tmp_path)
+    ts = _seed(tb, 50, time.time() - 7200)
+    await tb.async_load()
+    assert tb.frames == []
+    rng = await tb.async_get_time_range()
+    assert rng["end"] == ts[-1] and rng["start"] == ts[0]
+
+
+async def test_the_poll_does_not_wait_behind_a_reader(tmp_path) -> None:
+    tb = _make_store(tmp_path)
+    await tb.async_load()
+    tb.record_frame([_obj()])
+    tb._last_save_ts = 0
+    async with tb._io_lock:          # a replay or Insights reading the files
+        await tb.async_maybe_save()
+    assert tb._pending, "the poll flushed (it would have waited) while a reader held the files"
+
+
+def test_both_passes_of_a_replay_share_one_retention_floor() -> None:
+    import inspect
+    src = inspect.getsource(TracebackStore._get_frames_sync)
+    assert "start = max(start, time.time() - MAX_AGE_S)" in src

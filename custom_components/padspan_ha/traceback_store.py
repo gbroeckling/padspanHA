@@ -121,6 +121,7 @@ class TracebackStore:
         return out
 
     def _iter_lines_sync(self, start_ts: float, end_ts: float) -> Iterator[tuple[float, str]]:
+        # Callers that read twice clamp once and pass it in (_get_frames_sync).
         start_ts = max(start_ts, time.time() - MAX_AGE_S)
         for p in self._files(start_ts, end_ts):
             try:
@@ -361,8 +362,11 @@ class TracebackStore:
         self._prune()
 
     async def async_maybe_save(self) -> None:
-        """Flush new frames to disk if enough time has elapsed."""
-        if time.time() - self._last_save_ts < SAVE_INTERVAL_S:
+        """Flush new frames to disk if enough time has elapsed. Not while a
+        replay, Insights or the object list is reading the files: the poll
+        waited behind them (seconds on a Pi), delaying arrive/depart rules.
+        Readers include the pending frames, so the next poll flushes."""
+        if time.time() - self._last_save_ts < SAVE_INTERVAL_S or self._io_lock.locked():
             return
         await self.async_flush()
 
@@ -470,6 +474,10 @@ class TracebackStore:
             objs = [o for o in f.get("o", []) if o.get("k") == obj_key]
             return {"ts": f.get("ts"), "o": objs} if objs else None
 
+        # One retention floor for both passes: a frame crossing the cutoff
+        # between them shifted every kept index by one, and a thinned 7-day
+        # replay lost its newest frames.
+        start = max(start, time.time() - MAX_AGE_S)
         extra = [f for f in extra if start <= f.get("ts", 0) <= end and _one(f) is not None]
         # Pass 1 counts; pass 2 parses only the frames kept. Downsampled
         # evenly, never cut short, so a replay spans the whole window (a
@@ -546,8 +554,10 @@ class TracebackStore:
             start = max(min(firsts), cutoff)
         else:
             start = self._pending[0].get("ts", 0) if self._pending else 0
-        newest = self._pending or self.frames
-        end = newest[-1].get("ts", 0) if newest else start
+        # The newest frame anyone is in: memory holds only ten minutes, and
+        # with nobody home in them the end fell back to the start, so a
+        # filtered replay's auto-expand searched an empty range.
+        end = max((v.get("ts", 0) for v in self._keys.values()), default=start)
         return {"start": start, "end": end, "count": count}
 
     def _prune(self) -> None:

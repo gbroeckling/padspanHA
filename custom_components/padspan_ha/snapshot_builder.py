@@ -2851,6 +2851,8 @@ def _prune_lost_and_found_strangers(hass: HomeAssistant, lf: Any, objects: list)
     ident_now = {o.get("key") for o in objects if isinstance(o, dict) and obj_is_identified(o)}
 
     def keep(key: str, rec: dict[str, Any]) -> bool:
+        if rec.get("identified"):
+            return True     # recorded for someone's device (lost_and_found_store)
         mac = key[4:].upper() if key.startswith("ble:") else ""
         if len(mac) != 17 or mac.count(":") != 5:
             return True
@@ -2946,6 +2948,8 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
         from .presence_coordinator import obj_is_identified  # noqa: PLC0415
         _away_s = away_timeout_s(hass)
         _lost_and_found = hass.data.get(DOMAIN, {}).get(DATA_LOST_AND_FOUND)
+        _lf_st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        _lf_followed = {str(f).upper() for f in ((_lf_st.data if _lf_st else {}).get("followed_addrs") or [])}
         if _lost_and_found:
             _prune_lost_and_found_strangers(hass, _lost_and_found,
                                             (snap.get("objects") or {}).get("list") or [])
@@ -2967,7 +2971,11 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
                             label=_obj.get("user_label") or _obj.get("name"),
                             padspan_id=_obj.get("padspan_id"),
                             seen_at=time.time() - float(_obj.get("age_s") or 0),
-                            identified=obj_is_identified(_obj),
+                            # Followed counts too: the Follow button needs
+                            # no label, and the prune keeps followed devices.
+                            identified=(obj_is_identified(_obj)
+                                        or str(_obj.get("address") or "").upper() in _lf_followed
+                                        or _key.upper() in _lf_followed),
                         )
             _obj["room"] = ""
             _obj["away"] = True

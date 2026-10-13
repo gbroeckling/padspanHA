@@ -167,3 +167,36 @@ def test_a_backup_carries_lost_and_found_and_a_restore_takes_it_back():
     src = inspect.getsource(ws_backup)
     assert "stores_data[store_key] = store_obj.records" in src
     assert "store_obj.records = data" in src
+
+
+async def test_a_record_for_someones_device_survives_the_startup_prune(tmp_path):
+    """The once-per-start prune judged records by whether the device was still
+    heard, so an HA-linked tag away for two days lost its record at restart.
+    Records are marked when made; only unmarked (pre-0.38.106 stranger)
+    records are judged."""
+    import time as _t
+    from unittest.mock import MagicMock
+    from tests.conftest import MockHass
+    from custom_components.padspan_ha.lost_and_found_store import LostAndFoundStore
+    lf = LostAndFoundStore(MockHass(tmp_path))
+    lf.store = MagicMock()
+    await lf.record("ble:AA:BB:CC:DD:EE:02", "Garage", label="Suitcase tag", seen_at=_t.time() - 2 * 86400)
+    lf.records["ble:AA:BB:CC:DD:EE:09"] = {"room": "Street", "ts": 1.0}     # an old stranger
+    from custom_components.padspan_ha.snapshot_builder import _prune_lost_and_found_strangers
+    from custom_components.padspan_ha.const import DOMAIN, DATA_DEVICE_REGISTRY, DATA_OBJECTS, DATA_SETTINGS
+    from types import SimpleNamespace
+    dev_reg = MagicMock(); dev_reg.get_label_by_key.return_value = None
+    dev_reg.get.return_value = None; dev_reg.resolve.return_value = None
+    obj_store = MagicMock(); obj_store.get_label.return_value = None
+    hass = SimpleNamespace(data={DOMAIN: {DATA_DEVICE_REGISTRY: dev_reg, DATA_OBJECTS: obj_store,
+                                          DATA_SETTINGS: SimpleNamespace(data={"followed_addrs": []})}})
+    _prune_lost_and_found_strangers(hass, lf, [])
+    assert list(lf.records) == ["ble:AA:BB:CC:DD:EE:02"]
+
+
+def test_a_followed_unlabelled_device_is_recorded():
+    """The Follow button needs no label; the snapshot passed identified=
+    obj_is_identified(obj) alone, so a followed device was never recorded."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "snapshot_builder.py").read_text(encoding="utf-8")
+    assert 'or str(_obj.get("address") or "").upper() in _lf_followed' in src

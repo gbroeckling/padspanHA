@@ -76,7 +76,11 @@ class LostAndFoundStore:
                 and (not padspan_id or prev.get("padspan_id") == padspan_id)
                 and abs(float(prev.get("ts") or 0) - ts) < _SAME_DEPARTURE_S):
             return
-        entry: dict[str, Any] = {"room": room, "ts": ts}
+        # Marked: the start-up prune is for strangers recorded before
+        # `identified` existed, and judged the rest by whether the device was
+        # still heard, so an HA-linked tag away for two days lost its record
+        # at the next restart.
+        entry: dict[str, Any] = {"room": room, "ts": ts, "identified": True}
         if label:
             entry["label"] = label
         if padspan_id:
