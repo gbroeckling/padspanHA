@@ -85,6 +85,8 @@
 .toast{position:sticky;top:0;z-index:50;margin:0 0 10px 0;padding:10px 12px;border-radius:12px;background:rgba(82,183,136,.12);border:1px solid rgba(82,183,136,.35);color:var(--text)}
 .toast.error{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.35)}
 .toast.hidden{display:none}
+.stale-build{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px 0;padding:8px 12px;border-radius:12px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);color:var(--text);font-size:13px}
+.stale-build.hidden{display:none}
 
 /* Mobile nav helper */
 @media (max-width: 900px){

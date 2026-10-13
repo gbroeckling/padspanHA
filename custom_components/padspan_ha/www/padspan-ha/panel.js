@@ -46,6 +46,19 @@ const CHANNEL = "beta";
 // cache-buster as everything else; a failure here must not take the panel
 // down, so the fallback is "show everything" — the full edition's answer.
 let EDITIONS = null;
+// What to do when the backend isn't the build this page loaded. An open
+// panel keeps running the JS it loaded, so a wall screen left on through an
+// update ran the old UI against the new backend until someone reloaded it.
+// Build ids are YYYYMMDDTHHMMSSZ, so they compare as times. A newer backend
+// is an update: a kiosk screen reloads itself, once per build (a reload that
+// didn't help must not loop). An older one is a page newer than the running
+// backend: files updated, HA not restarted yet (or a downgrade).
+function staleBuildAction(pageBuild, backendBuild, kiosk, reloadedFor){
+  if(!pageBuild || !backendBuild || pageBuild === backendBuild) return null;
+  const newer = backendBuild > pageBuild;
+  return { newer, reload: newer && !!kiosk && reloadedFor !== backendBuild };
+}
+
 const _editionsPromise = import(`./views/editions.js?b=${BUILD_ID}`)
   .then(m => { EDITIONS = m; })
   .catch(err => console.warn("PadSpan: editions module failed to load", err));
@@ -658,6 +671,7 @@ class PadSpanHaApp extends HTMLElement {
             </span>
           </div>
           <div id="toast" class="toast hidden"></div>
+          <div id="staleBuild" class="stale-build hidden"></div>
           <div id="modal" class="modal hidden"></div>
           <div id="content"></div>
         </main>
@@ -1886,6 +1900,35 @@ class PadSpanHaApp extends HTMLElement {
     }
   }
 
+  /** The backend's build arrives with every full refresh: first load, and
+   *  each reconnect after Home Assistant restarts. */
+  _checkBuild(){
+    const vi = this.state.versionInfo;
+    const be = (vi && typeof vi.build_id === "string") ? vi.build_id : "";
+    let reloadedFor = "";
+    try { reloadedFor = sessionStorage.getItem("padspan_reloaded_for") || ""; } catch(e) {}
+    const act = staleBuildAction(RELEASE_BUILD_ID, be, this.state.kioskMode, reloadedFor);
+    if(act && act.reload){
+      let remembered = false;
+      try { sessionStorage.setItem("padspan_reloaded_for", be); remembered = true; } catch(e) {}
+      if(remembered){ location.reload(); return; }   // can't remember it: show the bar, don't risk a loop
+    }
+    const bar = this.$("#staleBuild");
+    if(!bar) return;
+    bar.textContent = "";
+    if(!act){ bar.classList.add("hidden"); return; }
+    const theirs = (vi && vi.version) || "?";
+    bar.appendChild(document.createTextNode(act.newer
+      ? `PadSpan was updated to v${theirs}. This page is still running v${APP_VERSION}.`
+      : `This page is v${APP_VERSION}, but Home Assistant is running PadSpan v${theirs}. If you just updated, restart Home Assistant.`));
+    const btn = document.createElement("button");
+    btn.className = "btn inline";
+    btn.textContent = "Reload";
+    btn.addEventListener("click", () => location.reload());
+    bar.appendChild(btn);
+    bar.classList.remove("hidden");
+  }
+
   async _getStatus(){
     const res = await this._callWS({ type: "padspan_ha/status" });
     const entry = (res?.entries && res.entries[0]) ? res.entries[0] : {};
@@ -2090,6 +2133,7 @@ class PadSpanHaApp extends HTMLElement {
     this._recomputeDerived();
     try { this.state.timing.lastRefreshMs = Math.round(performance.now() - t0); } catch(e){}
     try { this._updateBadges(); } catch(e){}
+    try { this._checkBuild(); } catch(e){}
     this._scheduleRender();
   }
 
