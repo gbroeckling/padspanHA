@@ -156,8 +156,9 @@ async def test_leaving_the_same_room_again_later_is_a_new_record_with_its_own_ti
 def test_a_backup_carries_lost_and_found_and_a_restore_takes_it_back():
     """The store exists so a last-seen room "never resets to Unknown" — and a
     restore reset all of it: it was never in a backup. Its live data is
-    `records`, which the backup reads and the restore must write back, or the
-    old records overwrite the restored file at the next save."""
+    `records`, which the backup reads; the restore joins the backup's into the
+    running store (async_merge), so the next save can't put the old ones back
+    and a record made since the backup isn't lost."""
     import inspect
     from custom_components.padspan_ha import ws_backup
     from custom_components.padspan_ha.const import DATA_LOST_AND_FOUND, LOST_AND_FOUND_STORE_KEY
@@ -166,7 +167,21 @@ def test_a_backup_carries_lost_and_found_and_a_restore_takes_it_back():
     assert _DATA_KEY_MAP[LOST_AND_FOUND_STORE_KEY] == DATA_LOST_AND_FOUND
     src = inspect.getsource(ws_backup)
     assert "stores_data[store_key] = store_obj.records" in src
-    assert "store_obj.records = data" in src
+    assert "await lf_obj.async_merge(data)" in src
+
+
+@pytest.mark.asyncio
+async def test_a_restore_keeps_the_newer_record_per_object_and_saves_what_it_holds():
+    store = _make_store()
+    store.records = {"ble:TAG": {"room": "Garage", "ts": 300.0},
+                     "ble:KEYS": {"room": "Hall", "ts": 300.0},
+                     "ble:PHONE": {"room": "Office", "ts": 150.0}}
+    await store.async_merge({"ble:KEYS": {"room": "Kitchen", "ts": 100.0},
+                             "ble:PHONE": {"room": "Lounge", "ts": 200.0},
+                             "ble:WALLET": {"room": "Bedroom", "ts": 100.0}})
+    assert {k: v["room"] for k, v in store.get_all().items()} == {
+        "ble:TAG": "Garage", "ble:KEYS": "Hall", "ble:PHONE": "Lounge", "ble:WALLET": "Bedroom"}
+    store.store.async_save.assert_awaited_once_with(store.records)
 
 
 async def test_a_record_for_someones_device_survives_the_startup_prune(tmp_path):
