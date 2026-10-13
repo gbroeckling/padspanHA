@@ -564,6 +564,19 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         except Exception:
             pass
 
+    def _bermuda_never_an_object(entity_id: str, attrs: Any, device_id: str) -> bool:
+        """A Bermuda device's entity that never becomes its object. The
+        selection below and the object-history purge both ask this, so what
+        one skips the other cannot replay."""
+        if "area_scanner_name" in attrs or "_distance_to_" in entity_id:
+            return True
+        # A device with an Area sensor is that sensor alone: it reads
+        # the current room, and "unknown" when the device is out of
+        # range - absent, not moved. Picking by state swapped to Area
+        # Last Seen while away and back again on return, leaving a
+        # second object in the old room.
+        return device_id in _bermuda_area_devices and not entity_id.endswith("_area")
+
     try:
         for st in hass.states.async_all():
             entity_id = st.entity_id
@@ -600,15 +613,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             # the SCANNER's area: one phone became two objects, or two per
             # scanner (devices x scanners x 2) - each in a room of its own.
             if _from_bermuda and getattr(_ent_entry, "device_id", None):
-                _attrs = st.attributes or {}
-                if "area_scanner_name" in _attrs or "_distance_to_" in entity_id:
-                    continue
-                # A device with an Area sensor is that sensor alone: it reads
-                # the current room, and "unknown" when the device is out of
-                # range - absent, not moved. Picking by state swapped to Area
-                # Last Seen while away and back again on return, leaving a
-                # second object in the old room.
-                if _ent_entry.device_id in _bermuda_area_devices and not entity_id.endswith("_area"):
+                if _bermuda_never_an_object(entity_id, st.attributes or {}, _ent_entry.device_id):
                     continue
                 _by_state = known_rooms.get(_norm(st.state)) is not None
                 _rank = (0 if _by_state and "last_seen" not in entity_id
@@ -2512,6 +2517,26 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if not is_identified and stale_s > _HISTORY_TTL:
                 del _cache[key]
                 continue
+            # 0.38.105 made a Bermuda device's Floor, Area Last Seen and each
+            # "Distance to" sensor objects of their own. The selection never
+            # makes them now; replayed, they sat frozen in their old rooms
+            # (an entity is never away), a labelled copy for good. Dropped by
+            # the selection's own rule, and saved with the history.
+            if _all_bermuda_entry_ids and cached_obj.get("kind") == "entity":
+                _cached_eid = cached_obj.get("entity_id") or ""
+                if _cached_eid:
+                    try:
+                        _cached_ent = er.async_get(_cached_eid)
+                        if (_cached_ent and _cached_ent.device_id
+                                and _cached_ent.config_entry_id in _all_bermuda_entry_ids):
+                            _cached_st = hass.states.get(_cached_eid)
+                            if _bermuda_never_an_object(
+                                    _cached_eid, (_cached_st.attributes or {}) if _cached_st else {},
+                                    _cached_ent.device_id):
+                                del _cache[key]
+                                continue
+                    except Exception:
+                        pass
             # Heal pre-cap poisoned address histories in place: cache entries
             # persisted before _ALL_ADDR_CAP existed can carry tens of
             # thousands of addresses, and resurrection shipped them uncapped —
