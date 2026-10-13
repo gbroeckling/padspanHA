@@ -384,6 +384,22 @@ async def test_placement_is_ground_truth_across_a_transform_change() -> None:
     assert m["receivers"][0]["x"] == pytest.approx(0.25)   # the PIN moved
 
 
+@pytest.mark.asyncio
+async def test_rederive_draws_only_this_maps_floor() -> None:
+    """Floors stack on the same footprint: every upstairs and basement
+    scanner and beacon "lands inside" the main plan, and was appended to it
+    and saved, drawn on the wrong floor from then on."""
+    transforms = {"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                         "scale_y_m": 10, "rotation_rad": 0, "floor_id": "main"}}
+    mdl = _make_model(transforms)
+    mdl.fabric = _spatial_fabric()
+    await mdl.async_set_scanner_position_m("rx_main", 2.0, 2.0, 2.4, "main")
+    await mdl.async_set_scanner_position_m("rx_up", 3.0, 3.0, 2.4, "upstairs")
+    m = {"id": "m1", "floor_id": "main", "stack": {}, "receivers": [], "beacons": []}
+    await mdl.async_rederive_map_fracs("m1", m)
+    assert [rx["source"] for rx in m["receivers"]] == ["rx_main"]
+
+
 def test_no_implicit_spatial_write_path_survives() -> None:
     """The invariant this pass buys: nothing writes spatial fabric except a
     placement. async_sync_spatial_from_map was the one exception and is gone;

@@ -1719,6 +1719,13 @@ class ModelStore:
         count = 0
         positions = self.scanner_positions_m()
         barriers_m = self.rf_barriers_m()
+        # Floors stack on one footprint, so "lands inside this image" holds
+        # for every storey's devices; only this map's floor is drawn on it.
+        map_floor = str((map_dict.get("stack") or {}).get("floor_id") or map_dict.get("floor_id") or "")
+
+        def _other_floor(pos: dict) -> bool:
+            fl = str(pos.get("floor_id") or "")
+            return bool(map_floor and fl and fl != map_floor)
 
         # ── Receivers ─────────────────────────────────────────────────────
         existing_receivers = map_dict.get("receivers") or []
@@ -1737,7 +1744,7 @@ class ModelStore:
 
         # Anything in the fabric that lands inside this image gets drawn on it.
         for src, pos in positions.items():
-            if src in existing_sources:
+            if src in existing_sources or _other_floor(pos):
                 continue
             fracs = self.metres_to_map_frac(float(pos["x_m"]), float(pos["y_m"]), map_id)
             if fracs and 0.0 <= fracs[0] <= 1.0 and 0.0 <= fracs[1] <= 1.0:
@@ -1778,7 +1785,7 @@ class ModelStore:
 
         # Anything in the fabric that lands inside this image gets drawn on it.
         for bk_key, bm in beacons_m.items():
-            if bk_key in existing_keys:
+            if bk_key in existing_keys or _other_floor(bm):
                 continue
             fracs = self.metres_to_map_frac(float(bm["x_m"]), float(bm["y_m"]), map_id)
             if fracs and 0.0 <= fracs[0] <= 1.0 and 0.0 <= fracs[1] <= 1.0:
