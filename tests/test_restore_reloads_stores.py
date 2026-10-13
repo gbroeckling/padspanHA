@@ -14,14 +14,16 @@ import pytest
 
 from custom_components.padspan_ha import device_registry as _drm
 from custom_components.padspan_ha import forensics_store as _fsm
+from custom_components.padspan_ha import lost_and_found_store as _lfm
 from custom_components.padspan_ha import traceback_store as _tbm
 from custom_components.padspan_ha import ws_backup
 from custom_components.padspan_ha.const import (
-    DATA_DEVICE_REGISTRY, DATA_FORENSICS, DATA_OBJECT_HISTORY, DATA_TRACEBACK, DOMAIN,
-    FORENSICS_STORE_KEY, OBJECT_HISTORY_STORE_KEY, TRACEBACK_STORE_KEY,
+    DATA_DEVICE_REGISTRY, DATA_FORENSICS, DATA_LOST_AND_FOUND, DATA_OBJECT_HISTORY, DATA_TRACEBACK, DOMAIN,
+    FORENSICS_STORE_KEY, LOST_AND_FOUND_STORE_KEY, OBJECT_HISTORY_STORE_KEY, TRACEBACK_STORE_KEY,
 )
 from custom_components.padspan_ha.device_registry import DEVICE_REGISTRY_STORE_KEY, DeviceRegistry
 from custom_components.padspan_ha.forensics_store import ForensicsStore
+from custom_components.padspan_ha.lost_and_found_store import LostAndFoundStore
 from custom_components.padspan_ha.traceback_store import TracebackStore
 from tests.test_backup_store_locks import _restore_msg
 from tests.test_house3d_store import _house, _run, store  # noqa: F401
@@ -29,7 +31,7 @@ from tests.test_house3d_store import _house, _run, store  # noqa: F401
 
 @pytest.fixture(autouse=True)
 def _patch(store, monkeypatch):
-    for m in (_fsm, _drm, _tbm):
+    for m in (_fsm, _drm, _tbm, _lfm):
         monkeypatch.setattr(m, "Store", store)
 
 
@@ -80,6 +82,31 @@ def test_a_restored_traceback_survives_a_restart(store, monkeypatch, tmp_path):
     assert len(tb2.frames) == 1
 
 
+def test_a_restore_joins_lost_and_found_keeping_the_newer_record(store, monkeypatch, tmp_path):
+    """Monday's backup restored on Friday put every object back in its Monday
+    room and dropped the only record of a tag lost on Wednesday. Each key now
+    keeps its newer record, and the file and the running store agree."""
+    h = _house(tmp_path)
+    lf = LostAndFoundStore(h)
+    lf.records = {
+        "ble:TAG": {"room": "Garage", "ts": 300.0, "identified": True},     # lost since the backup
+        "ble:KEYS": {"room": "Hall", "ts": 300.0, "identified": True},      # moved since
+        "ble:PHONE": {"room": "Office", "ts": 150.0, "identified": True},
+    }
+    h.data[DOMAIN][DATA_LOST_AND_FOUND] = lf
+    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), _restore_msg(monkeypatch, {LOST_AND_FOUND_STORE_KEY: {
+        "ble:KEYS": {"room": "Kitchen", "ts": 100.0, "identified": True},
+        "ble:PHONE": {"room": "Lounge", "ts": 200.0, "identified": True},  # the backup's is newer
+        "ble:WALLET": {"room": "Bedroom", "ts": 100.0, "identified": True},
+    }})))
+    rooms = {k: v["room"] for k, v in lf.records.items()}
+    assert rooms == {"ble:TAG": "Garage", "ble:KEYS": "Hall", "ble:PHONE": "Lounge", "ble:WALLET": "Bedroom"}
+    assert store.saved[LOST_AND_FOUND_STORE_KEY] == lf.records
+    after_restart = LostAndFoundStore(h)
+    _run(after_restart.async_load())
+    assert after_restart.records == lf.records
+
+
 def test_a_factory_reset_erases_the_traceback_history(store, monkeypatch, tmp_path):
     from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
     h = _house(tmp_path)
@@ -99,8 +126,6 @@ def test_a_factory_reset_also_empties_the_registry_lost_and_found_and_forensics(
     """The reset screen promises ALL PadSpan data and every label; the device
     registry put its labels back on every device, and Lost & Found and
     Forensics kept everything."""
-    from custom_components.padspan_ha.const import DATA_LOST_AND_FOUND, LOST_AND_FOUND_STORE_KEY
-    from custom_components.padspan_ha.lost_and_found_store import LostAndFoundStore
     from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
     h = _house(tmp_path)
     dr = DeviceRegistry(h)

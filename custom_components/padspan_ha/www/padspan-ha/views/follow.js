@@ -643,7 +643,9 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
   const testBtn = el("button", { class: "btn", style: "margin-top:10px" }, "Send Test");
   testBtn.addEventListener("click", async () => {
     const email = (emailInput.value || "").trim();
-    const chosenSvc = serviceSelect ? serviceSelect.value : "";
+    // The target alerts use (cfg): one that is gone (phone renamed or
+    // removed) has no option in the list, so the select shows Auto-detect.
+    const chosenSvc = cfg.notify_service || "";
     // A picked notify target (a phone) needs no email; an email typed must be valid.
     if ((!email && !chosenSvc) || (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
       saveStatus.textContent = "Enter a valid email or pick where to send."; saveStatus.style.color = "#f87171"; return;
@@ -652,8 +654,7 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
     saveStatus.textContent = "Sending test…"; saveStatus.style.color = "";
     testBtn.disabled = true;
     try {
-      const svc = serviceSelect ? serviceSelect.value : "";
-      await ctx.actions.wsCall("padspan_ha/notify_test", { email: email || undefined, service: svc || undefined });
+      await ctx.actions.wsCall("padspan_ha/notify_test", { email: email || undefined, service: chosenSvc || undefined });
       saveStatus.textContent = email ? "Test sent — check your inbox." : "Test sent — check your phone."; saveStatus.style.color = "#52b788";
     } catch (e) {
       saveStatus.textContent = "Test failed: " + (e?.message || String(e)).slice(0, 60);

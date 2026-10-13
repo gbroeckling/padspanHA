@@ -34,6 +34,8 @@ from .const import (
     TRACEBACK_STORE_KEY,
     DATA_WLED_LOOKS,
     WLED_LOOKS_STORE_KEY,
+    DATA_LOST_AND_FOUND,
+    LOST_AND_FOUND_STORE_KEY,
 )
 from .build_info import BUILD_VERSION
 from .ws_common import (
@@ -463,6 +465,15 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                         await tb_obj.async_merge(data)
                         restored += 1
                         continue
+                if store_key == LOST_AND_FOUND_STORE_KEY:
+                    # Joined by each record's time, like Traceback: replacing
+                    # it sent every object back to its room at backup time
+                    # and dropped the record of one lost since.
+                    lf_obj = hass.data.get(DOMAIN, {}).get(DATA_LOST_AND_FOUND)
+                    if lf_obj is not None and hasattr(lf_obj, "async_merge"):
+                        await lf_obj.async_merge(data)
+                        restored += 1
+                        continue
                 if store_key == HOUSE3D_STORE_KEY:
                     # Live Aboard's file: a backup with no furniture in it keeps
                     # the furniture placed since (house3d_store.async_restore_data).
@@ -533,10 +544,6 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             store_obj.entries = data
                         elif hasattr(store_obj, "frames") and isinstance(data, list):
                             store_obj.frames = data
-                        elif hasattr(store_obj, "records") and isinstance(data, dict):
-                            # Lost & Found: or its next save writes the old
-                            # records back over the restored file
-                            store_obj.records = data
                         elif isinstance(store_obj, dict) and isinstance(data, dict):
                             # The object history is a plain dict in hass.data,
                             # saved every 15 s from memory: replaced in place

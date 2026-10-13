@@ -99,6 +99,21 @@ class LostAndFoundStore:
             self.store.async_delay_save(lambda: self.records, 10)
         return len(drop)
 
+    async def async_merge(self, records: Any) -> None:
+        """A restore: the backup's records join these, the newer `ts` per key
+        kept. Replacing them sent every object back to the room it was in when
+        the backup was taken, and dropped the only record of one lost since —
+        never reset until explicitly forgotten, as the header says."""
+        if not isinstance(records, dict):
+            return
+        for key, rec in records.items():
+            cur = self.records.get(key)
+            if isinstance(rec, dict) and (
+                    not isinstance(cur, dict)
+                    or float(rec.get("ts") or 0) > float(cur.get("ts") or 0)):
+                self.records[key] = rec
+        await self.store.async_save(self.records)
+
     def get_all(self) -> dict[str, dict[str, Any]]:
         return self.records
 
