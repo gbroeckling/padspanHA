@@ -91,3 +91,8 @@ def test_the_phone_wizard_can_save_an_irk_unverified():
     s = _src("views/overview.js")
     assert s.count("force: irkSaveBtn._force === true,") == 2
     assert s.count('if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = "Save unverified"; }') == 2
+
+
+def test_no_re_anchor_button_that_does_nothing():
+    """It sent {map_id} alone, a backend no-op, and toasted 'Re-anchored'."""
+    assert "Re-anchor origin" not in _src("views/maps.js").replace('No "Re-anchor origin" button', "")
