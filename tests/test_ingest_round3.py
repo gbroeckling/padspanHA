@@ -52,6 +52,39 @@ async def test_a_reload_forgets_cached_unresolved_addresses():
     assert r.resolve_address(rpa) is not None
 
 
+@pytest.mark.asyncio
+async def test_a_reload_with_the_same_keys_keeps_the_cache():
+    """The 5-minute reload cleared the cache every time: every address was
+    AES-checked against every key again and counted as a first sighting
+    again. Only a change of keys clears it."""
+    from custom_components.padspan_ha import private_ble_resolver as pr
+    from custom_components.padspan_ha.const import DOMAIN
+    irk_a, irk_b = bytes(range(16)), bytes(range(16, 32))
+    rpa_a, rpa_b = _rpa(irk_a), _rpa(irk_b, b"\x55\x66\x77")
+    keys = [{"name": "A", "irk_hex": irk_a.hex()}]
+    hass = MagicMock()
+    hass.config_entries.async_entries = lambda domain: []
+    hass.async_add_executor_job = AsyncMock(return_value=[])
+    hass.states.async_all = lambda domain: []
+    hass.data = {DOMAIN: {"settings": types.SimpleNamespace(data={"irk_devices": keys})}}
+    r = pr.PrivateBLEResolver(hass)
+    counted: list[str] = []
+    r._count = counted.append
+    await r.async_load()
+    assert r.resolve_address(rpa_a)["canonical_id"] == f"irk:{irk_a.hex()}"
+    assert r.resolve_address(rpa_b) is None
+    assert counted == ["irk_resolved", "irk_unresolved_rpa"]
+
+    await r.async_load()                          # same keys
+    assert set(r._cache) == {rpa_a, rpa_b}
+    assert r.resolve_address(rpa_a) is not None
+    assert counted == ["irk_resolved", "irk_unresolved_rpa"]
+
+    keys.append({"name": "B", "irk_hex": irk_b.hex()})
+    await r.async_load()                          # B's address was cached unresolved
+    assert r.resolve_address(rpa_b)["canonical_id"] == f"irk:{irk_b.hex()}"
+
+
 def test_a_disconnected_proxy_is_not_shown_as_scanning(monkeypatch):
     bt = types.ModuleType("homeassistant.components.bluetooth")
     bt.async_current_scanners = lambda hass: []

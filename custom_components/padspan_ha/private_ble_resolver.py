@@ -280,10 +280,17 @@ class PrivateBLEResolver:
             _LOGGER.warning("PrivateBLEResolver load failed: %s", err)
         # Cached answers were given against the old key list: an address
         # cached as unresolved stayed so for up to 20 minutes after its
-        # phone's IRK was added, though the add said it matched.
+        # phone's IRK was added, though the add said it matched. Cleared
+        # only when the keys changed: cleared on every 5-minute reload, each
+        # address was AES-checked against every key again and counted as a
+        # first sighting again. Names are looked up per resolve, not cached.
+        def _keys(devs: list[dict[str, Any]]) -> set[tuple[str, bytes]]:
+            return {(d["canonical_id"], d["irk_bytes"]) for d in devs}
+        keys_changed = _keys(devices) != _keys(self._devices)
         self._devices = devices
         self._source_info = source_info
-        self._cache.clear()
+        if keys_changed:
+            self._cache.clear()
         self._loaded_at = time.monotonic()
 
     def resolve_address(self, address: str) -> dict[str, Any] | None:
