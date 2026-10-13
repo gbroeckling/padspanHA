@@ -44,3 +44,11 @@ def test_coming_back_to_the_window_keeps_what_was_being_typed():
     wake = wake[:wake.index("  }\n")]
     assert "this._scheduleRender(true);" in wake and "this._refreshAll(false, true);" in wake
     assert "async _refreshAll(userAction=false, guarded=false){" in s
+
+
+def test_suspend_and_resume_redraw_their_card():
+    """They called ctx.actions.refreshLive, which never existed, so after a
+    Suspend the card still offered Suspend (and restarted the hour)."""
+    s = _src("views/settings.js")
+    assert "ctx.actions.refreshLive" not in s
+    assert s.count("await ctx.actions.refreshSnapshot();   // refreshLive never existed") == 2

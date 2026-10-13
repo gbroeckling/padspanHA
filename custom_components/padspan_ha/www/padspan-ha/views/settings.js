@@ -2522,7 +2522,7 @@ function _settingsPresence(ctx, el){
           const r = await ctx.actions.wsCall("padspan_ha/unsuspend_databases");
           if (r && r.ok === false) { ctx.toast("Not resumed: " + (r.error || "try again in a moment"), true); return; }
           ctx.toast("Normal pipeline resumed \u2014 smoothing state cleared for fresh start");
-          ctx.actions.refreshLive && ctx.actions.refreshLive();
+          await ctx.actions.refreshSnapshot();   // refreshLive never existed: the card kept offering the old state
         } catch(e){ ctx.toast("Failed: "+String(e), true); }
         finally{ cancelBtn.disabled=false; cancelBtn.textContent="Resume Normal Pipeline"; }
       });
@@ -2537,7 +2537,7 @@ function _settingsPresence(ctx, el){
           const r = await ctx.actions.wsCall("padspan_ha/suspend_databases",{minutes:60});
           if (r && r.ok === false) { ctx.toast("Not suspended: " + (r.error || "try again in a moment"), true); return; }
           ctx.toast("Databases suspended \u2014 raw radio mode for 60 minutes");
-          ctx.actions.refreshLive && ctx.actions.refreshLive();
+          await ctx.actions.refreshSnapshot();   // refreshLive never existed: the card kept offering the old state
         } catch(e){ ctx.toast("Failed: "+String(e), true); }
         finally{ suspendBtn.disabled=false; suspendBtn.textContent="Suspend All Databases (60 min)"; }
       });
