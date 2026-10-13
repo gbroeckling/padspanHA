@@ -169,13 +169,17 @@ export function render(ctx){
   // Lost and found (gap #10, best-in-class roadmap): a PERSISTED last-
   // confirmed room + timestamp per object, survives an HA restart — unlike
   // the live snapshot's own o.last_room, which is session-only (in-memory
-  // on the coordinator, cleared on restart). Fetched once, lazily, and
-  // cached on ctx.state so a poll re-render doesn't refetch every 5s.
-  if (ctx.state._lostAndFound === undefined && !ctx.state._lostAndFoundLoading) {
+  // on the coordinator, cleared on restart). Cached on ctx.state so a poll
+  // re-render doesn't refetch every 5s, and fetched again after a minute:
+  // fetched once, a panel left open (a wall tablet) kept showing where a
+  // device was days ago, and one failed fetch cached nothing for good.
+  const _lfStale = Date.now() - (ctx.state._lostAndFoundAt || 0) > 60000;
+  if ((ctx.state._lostAndFound === undefined || _lfStale) && !ctx.state._lostAndFoundLoading) {
     ctx.state._lostAndFoundLoading = true;
+    ctx.state._lostAndFoundAt = Date.now();
     ctx.actions.wsCall("padspan_ha/lost_and_found_get", {})
       .then(res => { ctx.state._lostAndFound = (res && res.records) || {}; })
-      .catch(() => { ctx.state._lostAndFound = {}; })
+      .catch(() => { if (ctx.state._lostAndFound === undefined) ctx.state._lostAndFound = {}; })
       .finally(() => { ctx.state._lostAndFoundLoading = false; ctx.actions.renderRooms(); });
   }
   const _lostAndFound = ctx.state._lostAndFound || {};

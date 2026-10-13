@@ -98,3 +98,11 @@ def test_forensics_keeps_a_frequent_visitor_for_the_whole_retention():
     s.prune(30, now=day0 + 20 * 86400)
     assert len(s.addrs[car]["sessions"]) == 80
     assert [x["address"] for x in s.query(day0 + 3 * 86400, day0 + 4 * 86400)] == [car]
+
+
+def test_lost_and_found_is_fetched_again_after_a_minute():
+    """Fetched once per panel lifetime, a wall tablet kept showing where the
+    keys were yesterday; a failed fetch cached {} for good."""
+    src = (_VIEWS / "objects.js").read_text(encoding="utf-8")
+    assert "const _lfStale = Date.now() - (ctx.state._lostAndFoundAt || 0) > 60000;" in src
+    assert ".catch(() => { if (ctx.state._lostAndFound === undefined) ctx.state._lostAndFound = {}; })" in src
