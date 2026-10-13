@@ -3825,7 +3825,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       el("span", { style: "font-weight:700;font-size:14px;color:#f59e0b" }, "Beacon Tune"),
     ]),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
-      "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second radio capture starts automatically. After the timer finishes, calibration data is saved and the beacon returns to live tracking. Green circles show scanner positions for reference."),
+      "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second radio capture starts automatically. After the timer finishes, calibration data is saved. Phones, Find My tags and anything you follow then return to live tracking; any other beacon is pinned where you put it as a fixed beacon, so follow a tag that moves before placing it. Green circles show scanner positions for reference."),
   ]));
 
   // ── Constants & state ─────────────────────────────────────────────────────
