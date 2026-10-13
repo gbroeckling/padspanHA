@@ -197,7 +197,8 @@ class ForensicsStore:
 
     # ── Queries ──────────────────────────────────────────────────────────────
 
-    def query(self, from_ts: float, to_ts: float, limit: int = 500) -> list[dict[str, Any]]:
+    def query(self, from_ts: float, to_ts: float, limit: int = 500,
+              items: list[tuple[str, dict[str, Any]]] | None = None) -> list[dict[str, Any]]:
         """Return addresses with at least one session overlapping [from_ts, to_ts].
 
         Sorted by total dwell inside the window, descending.  dwell_s is
@@ -208,7 +209,10 @@ class ForensicsStore:
         live_snapshot incident in websocket.py.
         """
         results: list[dict[str, Any]] = []
-        for addr, entry in self.addrs.items():
+        # items: a copy made on the event loop - iterating self.addrs from
+        # the executor while the tick added or removed an address raised
+        # "changed size during iteration" (Search failed).
+        for addr, entry in (items if items is not None else list(self.addrs.items())):
             hits = []
             dwell = 0.0
             max_rssi = -127

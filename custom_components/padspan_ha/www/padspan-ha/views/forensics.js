@@ -179,6 +179,11 @@ export function render(ctx){
           new Date(s.start*1000).toISOString(), new Date(s.end*1000).toISOString(),
           Math.round(s.end - s.start) + "s", s.rssi, (r.sources||[]).join("; ") ].map(esc).join(","));
       }
+      const _left = (Number(r.session_count) || 0) - (r.sessions||[]).length;
+      if (_left > 0) {
+        lines.push([ "recorded", r.address, r.name, r.user_label||"", r.company_name||"", r.device_type||"",
+          "", "", `${_left} earlier session(s) in this window not included`, "", "" ].map(esc).join(","));
+      }
     }
     for(const p of possible){
       lines.push([ "possible", p.address||p.key, p.name, p.user_label||"", p.company_name||"", p.device_type||"",
@@ -225,8 +230,10 @@ export function render(ctx){
     for(const r of recorded){
       const name = r.user_label || (r.name && r.name !== r.address ? r.name : "");
       const sess = (r.sessions||[]);
+      // Only the last 10 sessions ship; session_count is the true total.
+      const total = Number(r.session_count) || sess.length;
       const sessStr = sess.slice(-4).map(s=>`${_fmtTs(s.start)}–${_fmtTs(s.end).split(" ").pop()}`).join(", ")
-        + (sess.length > 4 ? ` (+${sess.length-4} more)` : "");
+        + (total > 4 ? ` (+${total-4} more)` : "");
       tbody.appendChild(el("tr",{},[
         el("td",{},[
           name ? el("div",{style:"font-weight:600"},name) : null,

@@ -57,7 +57,8 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
     fs = _dom.get(DATA_FORENSICS)
     # The query is a sync scan over every stored session — run it off the
     # event loop (only the 60s tick otherwise touches the store's dict).
-    recorded = await hass.async_add_executor_job(fs.query, from_ts, to_ts, 500) if fs else []
+    recorded = (await hass.async_add_executor_job(fs.query, from_ts, to_ts, 500, list(fs.addrs.items()))
+                if fs else [])
     stats = fs.stats() if fs else {}
     _bump(hass, "forensics_query")
 

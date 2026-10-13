@@ -484,6 +484,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         """Return all tracked BLE devices — equivalent to Bermuda's dump_devices."""
         presence_coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
         data: dict[str, Any] = dict((presence_coord.data or {}) if presence_coord else {})
+        data = {k: v for k, v in data.items() if not str(k).startswith("__")}   # internal keys
 
         from homeassistant.util import dt as dt_util  # noqa: PLC0415
 
@@ -495,7 +496,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         }
 
         # Also create a persistent notification for easy human inspection
+        # (unless the call said notify: false - it was never read).
         try:
+            if not call.data.get("notify", True):
+                return result
             from homeassistant.components.persistent_notification import async_create  # noqa: PLC0415
             lines = []
             for key, obj in data.items():
@@ -743,6 +747,14 @@ async def _async_flush_history(hass: HomeAssistant) -> None:
             await _tb.async_flush()
     except Exception as err:
         _LOGGER.debug("Traceback flush at stop failed: %s", err)
+
+
+async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device: Any) -> bool:
+    """Let a PadSpan device be deleted from HA's device page. A label
+    removed or a factory reset left its entities "no longer provided"
+    for good, with no way to clear them. One still in use is created
+    again at the next poll."""
+    return True
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

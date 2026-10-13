@@ -2413,7 +2413,10 @@ export function render(ctx) {
             const _isRef = _stationarySet.has(String(o.k).toUpperCase());
             if (!objDist[o.k]) objDist[o.k] = {dist_m:0, transitions:0, lastPos:null, lastRoom:null, lastTs:0, label:o.n||o.k, steps:0, jitter_steps:0, max_step:0, isRef: _isRef, _recentSteps: []};
             let pos = null;
-            if (o.x!=null && o.y!=null && o.m) pos = _toMetres(o.x, o.y, o.m);
+            // Recorded positions are metres (x_m/y_m). It read x/y/m, which
+            // no frame carries, so every step fell back to room centres.
+            if (o.x_m != null && o.y_m != null) pos = [o.x_m, o.y_m];
+            else if (o.x!=null && o.y!=null && o.m) pos = _toMetres(o.x, o.y, o.m);
             if (!pos && o.r) pos = _centroid(o.r);
             const od = objDist[o.k];
             if (pos && od.lastPos) {

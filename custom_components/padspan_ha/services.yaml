@@ -13,7 +13,6 @@ dump_devices:
     Returns all tracked BLE devices with current room, RSSI, age, and smoothing state.
     Equivalent to Bermuda BLE Trilateration dump_devices service. Supports response data for
     use in templates, scripts, and automations. Also creates a persistent notification.
-  target:
   fields:
     notify:
       description: "Create a persistent notification summary in HA (default true)."

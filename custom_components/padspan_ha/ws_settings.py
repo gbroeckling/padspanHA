@@ -1050,6 +1050,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "light", "switch", "scene", "script"
                 ):
                     continue
+                if _domain == "scene" and _action == "turn_off":
+                    continue  # HA has no scene.turn_off: the rule could never run
                 _clean_rules.append({
                     "id": str(r.get("id", "")),
                     "trigger": str(r.get("trigger", ""))[:10],

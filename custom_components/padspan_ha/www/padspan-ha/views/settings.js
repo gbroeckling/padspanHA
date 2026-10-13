@@ -2443,6 +2443,9 @@ function _settingsPresence(ctx, el){
       const dev = deviceSel.value;
       const ent = entitySel.value;
       if (!dev || !ent) { ctx.toast("Select a device and entity", true); return; }
+      if (ent.startsWith("scene.") && actionSel.value === "turn_off") {
+        ctx.toast("A scene can only be turned on - Home Assistant has no way to turn one off", true); return;
+      }
       const devOpt = deviceOpts.find(d => d.label === dev);
       const newRule = {
         id: "auto_" + Date.now().toString(36),
