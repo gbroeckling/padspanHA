@@ -198,8 +198,11 @@ export function render(ctx){
               delAllWrap.innerHTML = "";
               delAllWrap.appendChild(el("span",{class:"muted",style:"font-size:12px"},"Cleaning up…"));
               // Same stale-tab guard as the single delete: rebuild every
-              // payload from a fresh fetch, never from this tab's copy.
-              await ctx.actions.mapsRefreshQuiet();
+              // payload from a fresh fetch, never from this tab's copy. A
+              // failed fetch says so and puts the button back (it sat at
+              // "Cleaning up…" for good).
+              try { await ctx.actions.mapsRefreshQuiet(); }
+              catch(e){ ctx.toast("Couldn't load the maps: " + String(e), true); delAllWrap.innerHTML = ""; delAllWrap.appendChild(makeDelAll()); return; }
               const freshList = ctx.state.maps?.list || [];
               // Group by map so we do one update per map
               const byMap = new Map();

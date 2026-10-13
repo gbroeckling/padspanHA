@@ -109,3 +109,9 @@ def test_follows_movement_log_refreshes():
     """Fetched only on a new selection, the log froze when the tag was picked."""
     f = _src("views/follow.js")
     assert "const _mvStale = Date.now() - (ctx.state._followMovementAt || 0) > 30000;" in f
+
+
+def test_buttons_come_back_after_a_failed_call():
+    assert 'cancelBtn.disabled = false; cancelBtn.textContent = "Resume Normal";' in _src("views/overview.js")
+    assert "try { await ctx.actions.mapsRefreshQuiet(); }" in _src("views/manage.js")
+    assert "ctx.state._notifyServices = null;" in _src("views/follow.js")

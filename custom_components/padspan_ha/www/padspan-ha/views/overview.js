@@ -2827,9 +2827,14 @@ export function render(ctx){
     cancelBtn.addEventListener("click", async () => {
       cancelBtn.disabled = true; cancelBtn.textContent = "Resuming...";
       try {
-        await ctx.actions.wsCall("padspan_ha/unsuspend_databases");
-        ctx.toast("Normal pipeline resumed");
+        const r = await ctx.actions.wsCall("padspan_ha/unsuspend_databases");
+        if (r && r.ok === false) { ctx.toast("Not resumed: " + (r.error || "try again in a moment"), true); }
+        else ctx.toast("Normal pipeline resumed");
       } catch(e) { ctx.toast("Failed: " + String(e), true); }
+      finally {
+        // Left disabled after a failure, the only way back was a reload.
+        cancelBtn.disabled = false; cancelBtn.textContent = "Resume Normal";
+      }
     });
 
     return el("div",{style:

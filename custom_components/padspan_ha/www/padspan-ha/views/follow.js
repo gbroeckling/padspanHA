@@ -577,7 +577,11 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
         if(cfg.notify_service === svc) opt.selected = true;
         serviceSelect.appendChild(opt);
       }
-    }).catch(() => { _noSvcHint.style.display = "block"; });
+    }).catch(() => {
+      // Not cached as "no services": a failed fetch is tried again next render.
+      ctx.state._notifyServices = null;
+      _noSvcHint.style.display = "block";
+    });
   } else {
     if (!ctx.state._notifyServices.length) _noSvcHint.style.display = "block";
     for(const svc of ctx.state._notifyServices){
