@@ -914,12 +914,21 @@ async def _plain_calls(hass: HomeAssistant, targets: list[tuple[str, int | None]
     """Plain HA light calls, noted so their own state changes coming back
     through HA are never taken for a member switched from outside."""
     sent = hass.data.setdefault(DOMAIN, {}).setdefault(_PLAIN_SENT, {})
+    # Every member is tried: one that is offline used to end the loop, so
+    # the members after it never switched. The first failure is raised once
+    # they all have been, so the caller still hears about it.
+    first_err: Exception | None = None
     for eid, bri in targets:
         sent[eid] = _mono()
         try:
             await _plain_call(hass, eid, on, bri, transition)
+        except Exception as err:  # noqa: BLE001 - HA raises HomeAssistantError and others
+            _LOGGER.warning("Team member %s did not switch: %s", eid, err)
+            first_err = first_err or err
         finally:
             sent[eid] = _mono()
+    if first_err is not None:
+        raise first_err
 
 
 async def async_power(hass: HomeAssistant, entity_id: str, on: bool, brightness: int | None = None, *,
