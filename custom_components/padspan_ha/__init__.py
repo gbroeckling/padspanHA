@@ -689,7 +689,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.debug("WLED exact look setup failed: %s", err)
 
+    # Home Assistant does not unload integrations when it stops, so the
+    # flushes in async_unload_entry never ran on a restart: up to 5 minutes
+    # of Forensics sessions and 30 s of Traceback were lost every time.
+    from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+    _stop = {"unsub": None}
+
+    async def _flush_on_stop(_event: Any) -> None:
+        _stop["unsub"] = None
+        await _async_flush_history(hass)
+
+    _stop["unsub"] = hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _flush_on_stop)
+    entry.async_on_unload(lambda: _stop["unsub"] and _stop["unsub"]())
+
     return True
+
+
+async def _async_flush_history(hass: HomeAssistant) -> None:
+    """Write what Forensics and Traceback hold in memory to disk."""
+    dom = hass.data.get(DOMAIN, {})
+    try:
+        _fs = dom.get(DATA_FORENSICS)
+        if _fs is not None:
+            await _fs.async_save_if_due(force=True)
+    except Exception as err:
+        _LOGGER.debug("Forensics flush at stop failed: %s", err)
+    try:
+        _tb = dom.get(DATA_TRACEBACK)
+        if _tb is not None:
+            await _tb.async_flush()
+    except Exception as err:
+        _LOGGER.debug("Traceback flush at stop failed: %s", err)
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
