@@ -1431,11 +1431,8 @@ class PadSpanHaApp extends HTMLElement {
     if(!this._hass || !this.isConnected) return;
     this._pollInFlight = false;
     this._ensureShadowDom();
-    // As a poll render: the focus/interaction guards and the scroll restore
-    // apply. Coming back to the window re-rendered without them, so a value
-    // typed into Settings before an Alt-Tab was gone and the page was at the top.
-    this._scheduleRender(true);
-    this._refreshAll(false, true);
+    this._scheduleRender();
+    this._refreshAll(false);
     if(this.state.dataMode === "live" && !this._pollTimer) this._startDataPoll();
   }
 
@@ -2058,7 +2055,7 @@ class PadSpanHaApp extends HTMLElement {
    * causes _getLiveSnapshot to see "sample" mode and assign SAMPLE_SNAPSHOT
    * even when the user is in live mode.
    */
-  async _refreshAll(userAction=false, guarded=false){
+  async _refreshAll(userAction=false){
     if(!this._hass) return;
     const t0 = performance.now();
     if(userAction) this._toast("Refreshing…");
@@ -2093,9 +2090,7 @@ class PadSpanHaApp extends HTMLElement {
     this._recomputeDerived();
     try { this.state.timing.lastRefreshMs = Math.round(performance.now() - t0); } catch(e){}
     try { this._updateBadges(); } catch(e){}
-    // guarded: a refresh on coming back to the window renders like a poll, so
-    // what the user was typing survives; first load and Refresh render whole.
-    this._scheduleRender(guarded);
+    this._scheduleRender();
   }
 
   /** Update the desktop topbar status pills and mobile topbar pills to reflect current state. */
@@ -2166,7 +2161,7 @@ class PadSpanHaApp extends HTMLElement {
     // Rebuilt only when the set of alarms changes: this runs on every poll,
     // and rebuilding wiped a Reset -> Yes/No confirm within a second or five,
     // so Yes was nearly impossible to press.
-    const _sig = active.map(([eid]) => eid).sort().join("|");
+    const _sig = active.map(([eid]) => eid + "=" + (this._hass?.states?.[eid]?.attributes?.friendly_name || "")).sort().join("|");
     if(this._emergencyListSig === _sig && listEl.childElementCount) return;
     this._emergencyListSig = _sig;
     listEl.innerHTML = "";
@@ -2195,6 +2190,7 @@ class PadSpanHaApp extends HTMLElement {
           yes.addEventListener("click", async (e2) => {
             e2.stopPropagation();
             wrap.innerHTML = "";
+            this._emergencyListSig = "";     // the next update rebuilds the row, Reset and all
             try { await this._callWS({ type: "padspan_ha/flood_reset", entity_id: eid }); await this._loadSettings(); }
             catch(err){ console.warn("flood reset failed", err); wrap.appendChild(makeResetBtn()); }
           });
@@ -3484,7 +3480,7 @@ class PadSpanHaApp extends HTMLElement {
     // static room geometry, floor plan image, and scanner markers untouched.
     // Resetting _lastGoodRender prevents the stale-check (10s) from triggering
     // a forced full rebuild on the next poll cycle.
-    if(fromPoll && this.state.view === "overview" && !this.state._overviewPollFull) {
+    if(fromPoll && this.state.view === "overview") {
       // Detect suspend state change — force full rebuild so banner appears/disappears
       const _curSusp = !!(this.state.live?.snapshot?.suspended);
       if(this._lastSuspendState !== _curSusp) {

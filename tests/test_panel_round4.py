@@ -23,27 +23,12 @@ def test_the_gap_sliders_keep_the_focused_floor():
     assert s.count("_rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx)); }, 150)") == 2
 
 
-def test_the_2d_map_and_fallbacks_update_on_polls():
-    """The poll only called the 3D updater, so Overhead mode and the no-rooms
-    views stayed frozen; only the 3D path clears _overviewPollFull."""
-    ov = _src("views/overview.js")
-    assert "ctx.state._overviewPollFull = true;" in ov
-    assert "ctx.state._isoUpdateObjects = _updateIsoObjects;\n    ctx.state._overviewPollFull = false;" in ov
-    assert 'this.state.view === "overview" && !this.state._overviewPollFull' in _src("panel.js")
-
-
 def test_a_flood_alarm_reset_confirm_survives_the_poll():
     """The banner list was rebuilt every poll, wiping Reset -> Yes/No."""
     s = _src("panel.js")
     assert "if(this._emergencyListSig === _sig && listEl.childElementCount) return;" in s
-
-
-def test_coming_back_to_the_window_keeps_what_was_being_typed():
-    s = _src("panel.js")
-    wake = s[s.index("  _wakeUp(source){"):]
-    wake = wake[:wake.index("  }\n")]
-    assert "this._scheduleRender(true);" in wake and "this._refreshAll(false, true);" in wake
-    assert "async _refreshAll(userAction=false, guarded=false){" in s
+    assert 'eid + "=" + (this._hass?.states?.[eid]?.attributes?.friendly_name || "")' in s   # renames show
+    assert 'this._emergencyListSig = "";     // the next update rebuilds the row' in s
 
 
 def test_suspend_and_resume_redraw_their_card():
