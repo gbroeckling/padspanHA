@@ -298,6 +298,21 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     except Exception:
         pass
 
+    # --- Tasmota BLE over MQTT (merged the same way, if enabled) ---
+    try:
+        from .tasmota_ble import DATA_TASMOTA_BLE  # noqa: PLC0415
+        _tas = hass.data.get(DOMAIN, {}).get(DATA_TASMOTA_BLE)
+        if _tas is not None:
+            _tas.cache_age_s = _low_memory.ble_age_s(hass)
+            _tas_snap = _tas.get_snapshot(max_age_s=_low_memory.ble_age_s(hass))
+            ble = snapshot.setdefault("ble", {"radios": [], "advertisements": [], "diag": {}})
+            ble.setdefault("radios", []).extend(_tas_snap.get("radios", []))
+            ble.setdefault("advertisements", []).extend(_tas_snap.get("advertisements", []))
+            ble.setdefault("diag", {})["tasmota"] = _tas_snap.get("diag", {})
+            ble["advertisements"].sort(key=lambda x: x.get("age_s", 1e9))
+    except Exception:
+        pass
+
     _phase_done("ble")
 
     # --- Areas (rooms) ---
@@ -420,10 +435,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if k in (st.attributes or {}):
                 return True
 
-        # Bluetooth-ish heuristics (fallback).
-        return any(k in eidn for k in ('ble', 'bluetooth', 'bermuda', 'tag', 'beacon')) or any(
-            k in n for k in ('ble', 'bluetooth', 'bermuda', 'tag', 'beacon')
-        )
+        # Bluetooth-ish heuristics (fallback), as whole words: substrings made
+        # sensor.kitchen_voltage ("tag") and binary_sensor.dining_table_occupancy
+        # ("ble") tracked objects, present in their area.
+        return bool(_BT_WORD.search(eidn) or _BT_WORD.search(n))
+
+    import re as _re  # noqa: PLC0415
+    _BT_WORD = _re.compile(r"(?:^|[^a-z0-9])(?:ble|bluetooth|bermuda|tags?|beacons?)(?:[^a-z0-9]|$)")
 
     def _looks_like_room_tracker(entity_id: str, st: State) -> bool:
         """Safety net for live mode: accept entities whose id/attrs look like location trackers."""
@@ -505,12 +523,36 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if any(k in eidn for k in ("area", "room", "bermuda", "ble", "beacon", "tag")):
                 _fuzzy_eids.append((st.entity_id, eidn))
 
-    cand = 0
     mapped = 0
+
+    def _add_tag(entity_id: str, st: Any, room: str) -> None:
+        nonlocal mapped
+        tag_label = st.attributes.get('friendly_name') or entity_id.split('.', 1)[-1]
+
+        extra: dict[str, Any] = {}
+        for k in ('nearest_receiver', 'receiver', 'rssi', 'distance', 'gateway',
+                   'mac_address', 'address', 'mac', 'scanner', 'scanners'):
+            if k in (st.attributes or {}):
+                extra[k] = st.attributes.get(k)
+
+        tags.append({
+            'entity_id': entity_id,
+            'name': str(tag_label),
+            'room': room,
+            'state': st.state,
+            **extra,
+        })
+
+        room_tag_map_live.setdefault(room, []).append(entity_id)
+        mapped += 1
+
+    cand = 0
+    _bermuda_best: dict[str, tuple[int, str, Any, str]] = {}   # device_id -> best entity
 
     try:
         for st in hass.states.async_all():
             entity_id = st.entity_id
+            _ent_entry = None
 
             # Skip our own derived sensor/tracker entities (area, distance) — they are
             # characteristics of BLE objects already in section B/C of the objects list.
@@ -527,29 +569,37 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if not room:
                 continue
 
+            # Bermuda Ignore covers both checks: the room-tracker one matched
+            # every sensor.*_area_last_seen, so ignored Bermuda still came in.
+            _from_bermuda = bool(_ent_entry and _ent_entry.config_entry_id in _all_bermuda_entry_ids)
+            if _bermuda_ignore and _from_bermuda:
+                continue
+
             # Candidate filter: accept Bermuda (by config_entry), common '*_area_last_seen' patterns, or receiver/rssi hints.
             if not (_is_candidate(entity_id, st) or _looks_like_room_tracker(entity_id, st)):
                 continue
             cand += 1
 
-            tag_label = st.attributes.get('friendly_name') or entity_id.split('.', 1)[-1]
+            # One Bermuda device, one object. Its Area and Floor sensors both
+            # carry area_name, and each per-scanner "Distance to" sensor carries
+            # the SCANNER's area: one phone became two objects, or two per
+            # scanner (devices x scanners x 2) - each in a room of its own.
+            if _from_bermuda and getattr(_ent_entry, "device_id", None):
+                _attrs = st.attributes or {}
+                if "area_scanner_name" in _attrs or "_distance_to_" in entity_id:
+                    continue
+                _by_state = known_rooms.get(_norm(st.state)) is not None
+                _rank = (0 if _by_state and "last_seen" not in entity_id
+                         else 1 if _by_state else 2)
+                _prev = _bermuda_best.get(_ent_entry.device_id)
+                if _prev is not None and _prev[0] <= _rank:
+                    continue
+                _bermuda_best[_ent_entry.device_id] = (_rank, entity_id, st, room)
+                continue
 
-            extra: dict[str, Any] = {}
-            for k in ('nearest_receiver', 'receiver', 'rssi', 'distance', 'gateway',
-                       'mac_address', 'address', 'mac', 'scanner', 'scanners'):
-                if k in (st.attributes or {}):
-                    extra[k] = st.attributes.get(k)
-
-            tags.append({
-                'entity_id': entity_id,
-                'name': str(tag_label),
-                'room': room,
-                'state': st.state,
-                **extra,
-            })
-
-            room_tag_map_live.setdefault(room, []).append(entity_id)
-            mapped += 1
+            _add_tag(entity_id, st, room)
+        for _rank, entity_id, st, room in _bermuda_best.values():
+            _add_tag(entity_id, st, room)
     except Exception:
         # If anything weird happens, keep the UI alive with whatever we collected.
         pass
