@@ -32,6 +32,8 @@ from .const import (
     HOUSE3D_STORE_KEY,
     DATA_TRACEBACK,
     TRACEBACK_STORE_KEY,
+    DATA_WLED_LOOKS,
+    WLED_LOOKS_STORE_KEY,
 )
 from .build_info import BUILD_VERSION
 from .ws_common import (
@@ -326,6 +328,7 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
     stores_data = backup.get("stores", {})
     selected_keys = msg.get("store_keys")  # None = restore all
     restored = 0
+    wled_touched = False
 
     # ── Maps and Model are ONE fact in two files ─────────────────────────
     #
@@ -438,6 +441,13 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                     # the furniture placed since (house3d_store.async_restore_data).
                     from .house3d_store import async_restore_data
                     data = await async_restore_data(hass, data)
+                if store_key == WLED_LOOKS_STORE_KEY:
+                    # Looks come back; what PadSpan did to each device's
+                    # flash (sync switched off, the originals kept) stays.
+                    from .wled_exact import restore_keeps_switch_state
+                    _wl = hass.data.get(DOMAIN, {}).get(DATA_WLED_LOOKS)
+                    data = restore_keeps_switch_state(getattr(_wl, "data", None), data)
+                    wled_touched = True
                 st = _St(hass, 1, store_key)
                 await st.async_save(data)
                 restored += 1
@@ -467,6 +477,12 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # its week (settings_store.trial_state_kept).
                             from .settings_store import trial_state_kept
                             data.update(trial_state_kept(store_obj.data or {}, data))
+                            # WLED teams: their mode and the members' kept
+                            # sync are the devices' state now (wled_exact).
+                            from .wled_exact import restore_keeps_team_state
+                            data["wled_teams"] = restore_keeps_team_state(
+                                (store_obj.data or {}).get("wled_teams"), data.get("wled_teams"))
+                            wled_touched = True
                             await st.async_save(data)
                         if hasattr(store_obj, "data") and isinstance(data, dict):
                             store_obj.data = data
@@ -494,6 +510,15 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             await store_obj.async_load()
             except Exception as e:
                 _LOGGER.warning("Failed to restore %s: %s", store_key, e)
+
+    if wled_touched:
+        # The hold / reconnect / team-follow listener tracks the restored
+        # set of devices, not the one before (it was until a restart).
+        try:
+            from .wled_exact import _refresh_listener
+            _refresh_listener(hass)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.debug("WLED listener refresh after restore failed: %s", e)
 
     # ── Restore map images to disk ────────────────────────────────────────────
     images_restored = 0

@@ -1203,6 +1203,46 @@ _LIVE_KEYS = ("send", "recv", "sgrp", "rgrp")
 _SWITCH_KEYS = ("join", "exact", "sync_off", "prior_sync")
 
 
+def restore_keeps_switch_state(current: dict | None, restored: Any) -> Any:
+    """A backup restore brings looks back, not what PadSpan did to each
+    device: whether it runs the device (join/exact), the sync it switched off
+    and the ORIGINAL sync it keeps to put back (prior_sync), and its team,
+    all describe the device's flash now. An older backup carried an earlier
+    picture - a device switched since read "WLED sync" while its sync stayed
+    off, and switching it again captured the already-off settings as the
+    originals. The live fields stay; a device only the live store knows
+    stays whole."""
+    if not isinstance(restored, dict):
+        return restored
+    live = (current or {}).get("devices") or {}
+    devices = dict(restored.get("devices") or {})
+    for mac, rec in live.items():
+        if not isinstance(rec, dict):
+            continue
+        old = devices.get(mac)
+        if isinstance(old, dict):
+            devices[mac] = {**old, **{k: copy.deepcopy(rec.get(k)) for k in (*_SWITCH_KEYS, "team_id")}}
+        elif rec.get("exact") or rec.get("team_id"):
+            devices[mac] = copy.deepcopy(rec)
+    return {**restored, "devices": devices}
+
+
+def restore_keeps_team_state(current_teams: Any, restored_teams: Any) -> list:
+    """The same for teams in settings: a team's mode and the members' prior
+    sync it keeps are the devices' state now. A team PadSpan runs now is
+    kept even if the backup predates it - dropping it would leave its
+    members with sync off and nothing that knows how to give it back."""
+    live = {t.get("id"): t for t in (current_teams or []) if isinstance(t, dict) and t.get("id")}
+    out = []
+    for t in (restored_teams or []):
+        if isinstance(t, dict) and t.get("id") in live:
+            cur = live.pop(t["id"])
+            t = {**t, "mode": cur.get("mode"), "prior": copy.deepcopy(cur.get("prior"))}
+        out.append(t)
+    out.extend(copy.deepcopy(t) for t in live.values() if t.get("mode") == "padspan")
+    return out
+
+
 def _sync_blocks(cfg: dict) -> dict:
     sync = (((cfg or {}).get("if") or {}).get("sync")) or {}
     return {"send": copy.deepcopy(sync.get("send") or {}), "recv": copy.deepcopy(sync.get("recv") or {})}
