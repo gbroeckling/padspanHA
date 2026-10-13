@@ -33,3 +33,18 @@ def test_moved_is_decided_by_id_not_list_position():
     src = _MAPS.read_text(encoding="utf-8")
     assert "allBarriers[i]?.points_m" not in src
     assert "_barById.get(barDraft[i].id)" in src
+
+
+def test_add_and_delete_room_keep_the_open_draft():
+    """Add room and Delete room nulled _roomsDraftFloorId, and the next render
+    re-copied everything from the model - every unsaved corner, scanner and
+    wall drag gone, with no warning."""
+    src = _MAPS.read_text(encoding="utf-8")
+    add = src[src.index('ctx.toast(`✔ "${name}" added'):]
+    add = add[:add.index("} catch (err)")]
+    assert "mapState._roomsDraft[name] = " in add
+    assert add.index("mapState._roomsDraftFloorId = null") > add.index("} else {")
+    dele = src[src.index('ctx.toast(`Deleted "${only}"`);'):]
+    dele = dele[:dele.index("} catch (err)")]
+    assert "_roomsDraftFloorId = null" not in dele
+    assert "delete mapState._roomsDraft[only]" in dele

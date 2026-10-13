@@ -10436,9 +10436,18 @@ function _roomsTab(ctx, maps) {
           });
           nameIn.value = "";
           ctx.toast(`✔ "${name}" added — drag it into place`);
-          mapState._roomsDraftFloorId = null;
           mapState._roomsTruthCache = null;
           await ctx.actions.modelRefresh();
+          // Into the open draft, not a fresh copy of the model: re-copying
+          // threw away every unsaved corner, scanner and wall drag.
+          const _added = (ctx.state.model?.room_geometry_m || {})[name];
+          if (_added && mapState._roomsDraft && mapState._roomsOrig) {
+            mapState._roomsDraft[name] = JSON.parse(JSON.stringify(_added));
+            mapState._roomsOrig[name] = JSON.parse(JSON.stringify(_added));
+          } else {
+            mapState._roomsDraftFloorId = null;
+          }
+          ctx.actions.renderRooms();
         } catch (err) {
           ctx.toast("Add failed: " + (err.message || err), true);
           btn.disabled = false;
@@ -11442,9 +11451,12 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               await ctx.actions.wsCall("padspan_ha/fabric_room_remove", { room: only });
               ctx.toast(`Deleted "${only}"`);
               mapState._roomsSel = [];
-              mapState._roomsDraftFloorId = null;
+              // Out of the open draft only; the other unsaved edits stay.
+              if (mapState._roomsDraft) delete mapState._roomsDraft[only];
+              if (mapState._roomsOrig) delete mapState._roomsOrig[only];
               mapState._roomsTruthCache = null;
               await ctx.actions.modelRefresh();
+              ctx.actions.renderRooms();
             } catch (err) { ctx.toast("Delete failed: " + (err.message || err), true); }
           },
         }, `Delete "${only}"`));
