@@ -69,3 +69,20 @@ async def test_auto_point_drops_a_pin_room_that_is_not_a_room():
         # booted a few minutes ago has a monotonic clock below 600 s.
         await coord._inject_beacon_calibration(time.monotonic() + 1e6, pinned, result, {}, {})
         assert cal.async_add_point.await_args.args[0]["room"] == want
+
+
+@pytest.mark.asyncio
+async def test_map_save_point_drops_a_pin_room_that_is_not_a_room():
+    """A map save carrying beacons (Revert migration, Restore) stamped the
+    pin's room unchecked: a legacy pin's device label became the room of a
+    permanent [auto] point. Same rule as the periodic pass."""
+    buf = {"s1": [-60.0] * 3, "s2": [-70.0] * 3}
+    for pin_room, live_room, want in (("Car Keys", "Kitchen", ""), ("Kitchen", "Kitchen", "Kitchen")):
+        # Fabric metres, and the map-fraction fallback.
+        for fb, bk in (({"x_m": 2.0, "y_m": 3.0}, {"key": "ble:B1"}), ({}, {"key": "ble:B1", "x": 0.4, "y": 0.6})):
+            coord, cal = _coord()
+            coord.hass.data[DOMAIN][DATA_MODEL].beacon_positions_m.return_value = {"ble:B1": dict(fb, room=pin_room)}
+            coord.data = {"ble:B1": {"room": live_room, "address": "B1"}}
+            coord._beacon_autocal_buf["ble:B1"] = {k: list(v) for k, v in buf.items()}
+            assert await coord.inject_immediate_calibration([bk], "m1", "f1", {}) == 1
+            assert cal.async_add_point.await_args.args[0]["room"] == want, (pin_room, fb)
