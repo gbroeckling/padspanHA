@@ -349,10 +349,27 @@ export function tuneBeaconBaseline(draftRows) {
   return out;
 }
 
+// Whether a device moves with someone, from what it is - never from how its
+// row was made (shown at its room's centre, placed from the list, relocated,
+// dragged). One that moves is never written as a fixed beacon: the pin locks
+// its room to the spot and adds auto-calibration points there while it is
+// elsewhere (#81). That is anything private_ble (an IRK-resolved phone or
+// watch, and Find My and bridged tags, findmy.py), an HA tracker entity (the
+// person's tracker itself, ws_occupancy), or anything followed. A ble or
+// ibeacon device nobody follows is a fixed beacon, written when placed or
+// moved. `obj` is the live object, or the draft row when it is not live.
+export function tuneBeaconMoves(obj, followed) {
+  if (followed) return true;
+  const kind = (obj && obj.kind) || "";
+  return kind === "private_ble" || kind === "entity";
+}
+
 // Returns { writes: [{key,x_m,y_m,floor_id,kind,label,x,y}], invalid: [key…],
 // refused: bool }. x/y are the submitted fractions, for the baseline. No
-// z_m: the backend keeps a stored height when it is left out.
-export function tuneBeaconWrites(mapObj, draftRows, transforms, baselineMap) {
+// z_m: the backend keeps a stored height when it is left out. `moving`: the
+// keys the view judged tuneBeaconMoves from the live objects; each row's own
+// kind is judged here too.
+export function tuneBeaconWrites(mapObj, draftRows, transforms, baselineMap, moving) {
   const tf = transforms ? transforms[mapObj.id] : null;
   const writes = [];
   const invalid = [];
@@ -360,14 +377,13 @@ export function tuneBeaconWrites(mapObj, draftRows, transforms, baselineMap) {
   const base = baselineMap || {};
   // What changed comes first: a map with nothing to write is not refused for
   // having no metre placement (it was, and stayed "unsaved" for good).
-  // Tracked devices shown for display (_tracked: a phone or tag drawn at its
-  // room's centre) are never written - a drag of one pinned a moving phone
-  // as a fixed beacon, locking its room and labelling auto-calibration
-  // points with a spot it had left.
+  // A device that moves (tuneBeaconMoves) is never written - a drag of one
+  // pinned a moving phone as a fixed beacon, locking its room and labelling
+  // auto-calibration points with a spot it had left.
   const changed = [];
   for (const b of draftRows || []) {
     const key = (b && b.key) || "";
-    if (!key || seen.has(key) || b._tracked) continue;
+    if (!key || seen.has(key) || tuneBeaconMoves(b) || (moving && moving.has(key))) continue;
     seen.add(key);
     const was = base[key];
     if (was && was.x === b.x && was.y === b.y) continue;

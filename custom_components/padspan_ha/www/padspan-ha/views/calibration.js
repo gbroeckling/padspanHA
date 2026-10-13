@@ -53,7 +53,7 @@ const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
 const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
         tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
         tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock, tuneRadioSig,
-        tuneBeaconBaseline, tuneBeaconWrites } =
+        tuneBeaconBaseline, tuneBeaconWrites, tuneBeaconMoves } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 
@@ -3915,10 +3915,11 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         bs.draftBeacons[m.id].push({
           id: "bk_" + Math.random().toString(16).slice(2, 10),
           label: bkLabel, key: obj.key, kind: obj.kind || "ble",
-          x: c[0], y: c[1], _tracked: true,
+          x: c[0], y: c[1],
         });
-        // Shown at its room's centre, not placed by anyone: never written
-        // as a fixed beacon (_tracked), dragged or not - a drag is a
+        // Shown at its room's centre, not placed by anyone: baselined, so it
+        // is written only once dragged or relocated, and then only if it is a
+        // fixed beacon (tuneBeaconMoves) - a phone or tag dragged is a
         // calibration capture where it is, as before #89.
         (bs.editBaseline[m.id] = bs.editBaseline[m.id] || {})[obj.key] = { x: c[0], y: c[1] };
         pinnedKeys.add((obj.key||"").toUpperCase());
@@ -4541,10 +4542,19 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const refused = [];
     try {
       const tfs = (ctx.state.model && ctx.state.model.map_transforms) || {};
+      // What each device is decides, whichever way its row was made
+      // (tuneBeaconMoves): its live object, else the row. Followed by key
+      // (iBeacons, objects.js) or by address or entity (_isFollowed).
+      const liveObjs = new Map((snap?.objects?.list || []).map(o => [o.key, o]));
       for (const mapId of mapIds) {
         const m = maps_list.find(mm => mm.id === mapId);
         if (!m) { failed.push(mapId); continue; }
-        const plan = tuneBeaconWrites(m, bs.draftBeacons[mapId] || [], tfs, bs.editBaseline[mapId]);
+        const moving = new Set();
+        for (const b of bs.draftBeacons[mapId] || []) {
+          const o = liveObjs.get(b.key) || b;
+          if (b.key && tuneBeaconMoves(o, _isFollowed(o) || ctx.actions.followedHas(b.key))) moving.add(b.key);
+        }
+        const plan = tuneBeaconWrites(m, bs.draftBeacons[mapId] || [], tfs, bs.editBaseline[mapId], moving);
         if (plan.refused) { failed.push(mapId); refused.push(mapId); continue; }
         if (plan.invalid.length) { failed.push(mapId); continue; }
         let mapOk = true;
