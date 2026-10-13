@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required).",
+        "description": "Local-first setup (no API required). Everything else, including how often PadSpan updates, is set in the PadSpan panel in the sidebar.",
         "data": {
           "scan_interval": "Update interval (seconds)"
         }

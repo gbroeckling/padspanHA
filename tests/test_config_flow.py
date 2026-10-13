@@ -113,3 +113,13 @@ def test_clamp_does_not_catch_overflow() -> None:
     """OverflowError is not caught (e.g. from float('inf'))."""
     with pytest.raises(OverflowError):
         _clamp_interval(float("inf"))
+
+
+def test_setup_asks_for_nothing_that_does_nothing():
+    """Setup asked for an "Update interval (seconds)" that was only copied
+    into diagnostics; presence polls at presence_poll_interval_s, set in the
+    panel."""
+    import inspect
+    from custom_components.padspan_ha import config_flow
+    src = inspect.getsource(config_flow.ConfigFlow.async_step_user)
+    assert 'data_schema=vol.Schema({})' in src

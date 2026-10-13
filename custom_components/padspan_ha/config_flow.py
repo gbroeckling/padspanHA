@@ -39,16 +39,6 @@ def _clamp_interval(value: Any) -> int:
         v = DEFAULT_SCAN_INTERVAL
     return max(1, min(3600, v))
 
-def _schema(default_interval: int) -> vol.Schema:
-    return vol.Schema(
-        {
-            vol.Required(
-                CONF_SCAN_INTERVAL,
-                default=_clamp_interval(default_interval),
-            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
-        }
-    )
-
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle initial setup."""
     VERSION = 1
@@ -63,10 +53,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="already_configured")
 
             if user_input is None:
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=_schema(DEFAULT_SCAN_INTERVAL),
-                )
+                # No fields: the "Update interval" it asked for did nothing
+                # (presence polls at presence_poll_interval_s, set in the
+                # panel). The form only confirms the setup.
+                return self.async_show_form(step_id="user", data_schema=vol.Schema({}))
 
             interval = _clamp_interval(user_input.get(CONF_SCAN_INTERVAL))
             data = {
