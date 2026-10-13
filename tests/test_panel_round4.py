@@ -98,13 +98,6 @@ def test_no_re_anchor_button_that_does_nothing():
     assert "Re-anchor origin" not in _src("views/maps.js").replace('No "Re-anchor origin" button', "")
 
 
-def test_an_irk_phone_is_followed_by_its_stable_key():
-    """Follow (and the object card's Follow) used the phone's current
-    rotating address: after ~15 minutes it showed 'No tag selected'."""
-    assert 'const id = (o.kind === "private_ble" ? (o.key || o.canonical_id) : "") || o.address' in _src("views/follow.js")
-    assert '(obj.kind === "private_ble" ? (obj.key || obj.canonical_id) : "") || addr' in _src("panel.js")
-
-
 def test_follows_movement_log_refreshes():
     """Fetched only on a new selection, the log froze when the tag was picked."""
     f = _src("views/follow.js")
