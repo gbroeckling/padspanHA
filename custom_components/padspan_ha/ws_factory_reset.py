@@ -372,7 +372,10 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
 
     # ── 10. Object history (plain dict, not a store class) ────────────────
     try:
-        st = _St(hass, 1, OBJECT_HISTORY_STORE_KEY)
+        # Through the snapshot builder's own Store when it has one: a save on
+        # that Store cancels its pending delayed save, which would otherwise
+        # write the pre-reset history back moments later.
+        st = domain.get("_obj_hist_store") or _St(hass, 1, OBJECT_HISTORY_STORE_KEY)
         await st.async_save({})
         cleared += 1
     except Exception as e:

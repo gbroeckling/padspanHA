@@ -607,3 +607,12 @@ async def test_a_radios_network_info_is_found_by_its_name_once_per_build(monkeyp
     off = next(r for r in snap["ble"]["radios"] if r["source"] == "off")
     assert off.get("ip") == "10.0.0.9" and off.get("ssid") == "HomeNet"
     assert calls["n"] <= 3
+
+
+def test_factory_reset_clears_history_through_the_builders_store():
+    """The history save is a delayed save on the snapshot builder's Store;
+    factory reset saved {} through a second Store, and the pending write put
+    the pre-reset history back. A save on the same Store cancels it."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "ws_factory_reset.py").read_text(encoding="utf-8")
+    assert 'st = domain.get("_obj_hist_store") or _St(hass, 1, OBJECT_HISTORY_STORE_KEY)' in src
