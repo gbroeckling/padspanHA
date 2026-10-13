@@ -673,6 +673,10 @@ export function render(ctx){
 
   // ---------- 3D Iso Floor Stack (uses uploaded maps data + live presence) ----------
   function renderIsoFloorStack(){
+    // Only the 3D house below keeps itself current between polls (it
+    // registers _isoUpdateObjects); the 2D map and the fallbacks need the
+    // poll's full render, or they stayed frozen at the moment they opened.
+    ctx.state._overviewPollFull = true;
     // ── Experimental 2D mode gate ──
     if(ctx.state.settings && ctx.state.settings.overview_2d_mode){
       return render2DMap(ctx, {
@@ -2008,6 +2012,7 @@ export function render(ctx){
 
     // Expose the light updater for poll use
     ctx.state._isoUpdateObjects = _updateIsoObjects;
+    ctx.state._overviewPollFull = false;
 
     // Initial load: show loading placeholder, defer heavy SVG build until DOM is ready
     // Set a flag so the 5s poll doesn't clobber us before the first build finishes
@@ -2197,7 +2202,7 @@ export function render(ctx){
       ovGapLbl.textContent = String(ctx.state._overviewFloorGap);
       _rebuildPositions();
       if (_ovGapDebounce) clearTimeout(_ovGapDebounce);
-      _ovGapDebounce = setTimeout(() => { _rebuildIso(ctx.state._overviewIsoFocus); }, 150);
+      _ovGapDebounce = setTimeout(() => { _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx)); }, 150);  // _overviewIsoFocus was never set: every floor drew unfocused, at 10%
     });
 
     // L/R horizontal offset slider
@@ -2214,7 +2219,7 @@ export function render(ctx){
       ovHorizLbl.textContent = String(ctx.state._overviewHorizGap);
       _rebuildPositions();
       if (_ovGapDebounce) clearTimeout(_ovGapDebounce);
-      _ovGapDebounce = setTimeout(() => { _rebuildIso(ctx.state._overviewIsoFocus); }, 150);
+      _ovGapDebounce = setTimeout(() => { _rebuildIso(_getFocusZ(ctx.state._overviewIsoFocusIdx)); }, 150);  // _overviewIsoFocus was never set: every floor drew unfocused, at 10%
     });
 
     const ctrlRow = document.createElement("div");
