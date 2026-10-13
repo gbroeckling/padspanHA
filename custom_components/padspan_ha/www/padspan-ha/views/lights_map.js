@@ -1779,7 +1779,28 @@ export function openControlCard(hass, eid, api){
     (async () => {
       let x = null;
       try { x = await hass.callWS({ type: "padspan_ha/wled_look_get", entity_id: eid }); } catch (_) { return; }
-      if (!x || x.join !== "padspan" || x.team_mode === "padspan") return;
+      if (!x || x.join !== "padspan") return;
+      if (x.team_mode === "padspan" && x.team_id) {
+        // A team PadSpan runs: its members can't leave one by one
+        // (wled_exact_set refuses in_team) and the Team card is in the
+        // Advanced tab, so without this there was no way back. Switching a
+        // team back to WLED sync never needs the licence (wled_team_mode).
+        slot.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;margin-top:10px" },
+          "PadSpan runs this light's team, with WLED's own sync switched off on every member. The licence for that has lapsed."));
+        slot.appendChild(el("button", {
+          style: "width:100%;margin-top:8px;padding:8px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;"
+            + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.35)",
+          onclick: async () => {
+            try {
+              await hass.callWS({ type: "padspan_ha/wled_team_mode", team_id: x.team_id, mode: "mirror" });
+              toast("The team is back on WLED sync — each member's sync settings from before the team are back");
+              ensureExactDevices(hass, rerender, { force: true });
+              close();
+            } catch (e) { toast("Couldn't switch: " + String((e && (e.message || e.code)) || e), true); }
+          },
+        }, "Give the whole team back to WLED sync"));
+        return;
+      }
       slot.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;margin-top:10px" },
         "PadSpan gives this light its instructions, with WLED's own sync switched off. The licence for that has lapsed."));
       slot.appendChild(el("button", {

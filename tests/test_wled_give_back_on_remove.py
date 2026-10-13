@@ -48,3 +48,14 @@ async def test_padspan_run_devices_are_switched_back_and_unreachable_ones_named(
     assert switched == ["Deck"]
     assert missed == ["Porch"]
     st.async_save.assert_awaited_once()
+
+
+def test_a_lapsed_licence_can_give_a_padspan_team_back():
+    """The fallback card skipped team members entirely; members can't leave a
+    team one by one and the Team card is behind the licence, so there was no
+    button anywhere although the backend allows it."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
+           / "padspan-ha" / "views" / "lights_map.js").read_text(encoding="utf-8")
+    assert 'x.team_mode === "padspan") return;' not in src
+    assert 'type: "padspan_ha/wled_team_mode", team_id: x.team_id, mode: "mirror"' in src
