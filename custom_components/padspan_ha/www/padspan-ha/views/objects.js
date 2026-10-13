@@ -897,7 +897,7 @@ export function render(ctx){
       cb.addEventListener("change", ()=>{ cb.checked ? selectedRooms.add(room) : selectedRooms.delete(room); ctx.state.selectedRooms = Array.from(selectedRooms); ctx.actions.renderTags(); });
       row.appendChild(cb);
       row.appendChild(el("span",{class:"roomdot", style:`background:${roomColor(room)}`}, ""));
-      row.appendChild(el("span",{}, room));   // a text node: esc() showed "Living &amp; Dining"
+      row.appendChild(el("span",{}, room));   // a text node: escaping it showed "Living &amp; Dining"
       row.appendChild(el("span",{class:"muted"}, `(${count})`));
       roomsList.appendChild(row);
     }
