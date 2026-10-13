@@ -84,3 +84,29 @@ async def test_a_word_inside_a_name_does_not_make_a_tracker(monkeypatch):
     ])
     objs, _ = await house.poll(0, [])
     assert _entity_objects(objs) == ["sensor.keys_ble_tag"]
+
+
+@pytest.mark.asyncio
+async def test_area_last_seen_never_becomes_the_device_while_it_has_an_area_sensor(monkeypatch):
+    """Picking by state swapped to Area Last Seen while the phone was out of
+    range and back on return, leaving a second object in the old room."""
+    house = _house(monkeypatch)
+    objs, _ = await house.poll(0, [])
+    assert _entity_objects(objs) == ["sensor.phone_area"]
+    for st in house.hass.states.async_all():          # out of range: Area unknown
+        if st.entity_id == "sensor.phone_area":
+            st.state = "unknown"
+    objs, _ = await house.poll(30, [])
+    assert "sensor.phone_area_last_seen" not in _entity_objects(objs)
+
+
+def test_bluetooth_words_with_digits_and_maker_prefixes_still_match():
+    import re
+    src = (__import__("pathlib").Path(SB.__file__)).read_text(encoding="utf-8")
+    pat = re.search(r'_BT_WORD = _re\.compile\(r"(.+?)"\)', src).group(1)
+    rx = re.compile(pat)
+    for name in ("sensor.beacon1", "sensor.tag1_room", "sensor.ble01", "device_tracker.airtag_keys",
+                 "galaxy_smarttag2", "sensor.ibeacon_kitchen", "bletag", "sensor.keys_ble_tag"):
+        assert rx.search(name), name
+    for name in ("sensor.kitchen_voltage", "binary_sensor.dining_table_occupancy", "sensor.cable_box"):
+        assert not rx.search(name), name

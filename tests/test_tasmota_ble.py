@@ -94,3 +94,33 @@ def test_it_is_off_by_default_and_a_setting_like_the_others():
     ws = (root / "ws_settings.py").read_text(encoding="utf-8")
     assert 'vol.Optional("tasmota_ble_enabled"): bool' in ws and '"tasmota_ble_enabled", "aggressive_ble_reseed"' in ws
     assert "_haTasmotaSection(ctx, el, settings)" in (root / "www/padspan-ha/views/manage.js").read_text(encoding="utf-8")
+
+
+def test_the_address_cap_follows_low_memory_mode():
+    tb = TasmotaBle(MagicMock())
+    tb.max_addrs = 3
+    tb.handle("t", {"BLEDevices": {f"AABBCCDDEE{i:02X}": {"r": -60} for i in range(6)}}, _t())
+    assert len(tb._seen) == 3
+
+
+@pytest.mark.asyncio
+async def test_switched_off_while_subscribing_it_is_not_registered(monkeypatch):
+    from custom_components.padspan_ha import tasmota_ble as T
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+    mod = types.ModuleType("homeassistant.components.mqtt")
+
+    async def _sub(hass, topic, cb, qos=0):
+        return lambda: None
+    mod.async_subscribe = _sub
+    monkeypatch.setitem(sys.modules, "homeassistant.components.mqtt", mod)
+    hass = MagicMock()
+    hass.data = {DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={"tasmota_ble_enabled": False})}}
+    await T.async_setup_tasmota_ble(hass)
+    assert T.DATA_TASMOTA_BLE not in hass.data[DOMAIN]
+
+
+def test_the_card_gives_the_tasmota_settings_presence_needs():
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    js = (root / "www/padspan-ha/views/manage.js").read_text(encoding="utf-8")
+    for cmd in ("TelePeriod 10", "BLEMaxAge 30", "BLEAddrFilter 1"):
+        assert cmd in js

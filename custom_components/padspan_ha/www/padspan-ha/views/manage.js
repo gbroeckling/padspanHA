@@ -1647,7 +1647,7 @@ function _haTasmotaSection(ctx, el, settings){
     el("span",{style:"font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid #8b5cf6;color:#8b5cf6"},"Experimental"),
   ]));
   card.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:10px"},
-    "Use Tasmota devices on ESP32 (smart plugs, Sonoff switches) as Bluetooth scanners. PadSpan reads the device list each one publishes to stat/<topic>/BLE over MQTT, and after a Tasmota restart it sends that device BLEDevices to start the list again. Readings arrive once per TelePeriod (300 s by default): for room presence set TelePeriod to 10–60 s on each device. Requires HA's MQTT integration."
+    "Use Tasmota devices on ESP32 (smart plugs, Sonoff switches) as Bluetooth scanners. PadSpan reads the device list each one publishes on tele/<topic>/BLE over MQTT, and after a Tasmota restart it sends that device BLEDevices to start the list again. Requires HA's MQTT integration."
   ));
   const chk = el("input",{type:"checkbox"});
   chk.checked = settings.tasmota_ble_enabled === true;
@@ -1661,9 +1661,19 @@ function _haTasmotaSection(ctx, el, settings){
   card.appendChild(el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
     chk, el("span",{},"Read Tasmota BLE over MQTT"),
   ]));
+  // Tasmota's defaults are built for an occasional device list, not room
+  // presence: a 300 s TelePeriod, a device kept listed 600 s after it was
+  // last heard, and random addresses (phones, tags) filtered out.
+  card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.6;margin-top:8px"},[
+    el("div",{},"On each Tasmota, in its console:"),
+    el("div",{style:"font-family:monospace;color:#e2e8f0"},"TelePeriod 10"),
+    el("div",{style:"font-family:monospace;color:#e2e8f0"},"BLEMaxAge 30"),
+    el("div",{style:"font-family:monospace;color:#e2e8f0"},"BLEAddrFilter 1"),
+    el("div",{},"Readings older than about 15 s don't count for rooms; a device that left stays listed for BLEMaxAge; and without BLEAddrFilter 1 phones and tags with random addresses are never reported."),
+  ]));
   if(settings.tasmota_ble_enabled){
     card.appendChild(el("div",{style:"font-size:11px;color:#64748b;padding:6px 8px;margin-top:8px;background:#0f0a1a;border:1px solid #2d1b4e;border-radius:6px"},
-      "Topics: stat/+/BLE \u2022 tele/+/BLE. Place each Tasmota scanner in its room (Mapping) like any other."
+      "Topics: tele/+/BLE \u2022 stat/+/BLE. Place each Tasmota scanner in its room (Mapping) like any other."
     ));
   }
   return card;

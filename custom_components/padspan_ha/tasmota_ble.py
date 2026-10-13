@@ -12,12 +12,17 @@ Default Tasmota topics (FullTopic %prefix%/%topic%/):
                        "D0C24BBBBBBB": {"i": 1, "n": "Some TV", "r": -76}}}
   tele/<topic>/BLE   {"Time": ..., "BLE": {"scans": .., "adverts": .., "devices": 2, ..}}
 
-The device list comes every TelePeriod (300 s by default). After a Tasmota
-reboot it only starts again once `cmnd/<topic>/BLEDevices` is sent, so when a
-device reports its scan counts but no list, PadSpan sends that (at most once
-every 15 minutes per device). A reading is as old as the message it came in:
-with a long TelePeriod a device reads as quiet between reports, so 10-60 s
-suits room presence.
+The device list comes every TelePeriod (300 s by default), on tele/ (and
+stat/ when asked). A tester found it stopped after a reboot until
+`cmnd/<topic>/BLEDevices` was sent, so when a device reports its scan counts
+but no list, PadSpan sends that (at most once every 15 minutes per device).
+
+A reading is as old as the message it came in, and Tasmota keeps listing a
+device for BLEMaxAge (600 s by default) after it was last heard, with its
+last RSSI. For room presence, on each Tasmota:
+  TelePeriod 10      positioning ignores readings older than 3 polls (15 s)
+  BLEMaxAge 30       a device that left stops being listed within 30 s
+  BLEAddrFilter 1    the default drops random addresses: phones, AirTags, tags
 """
 
 from __future__ import annotations
@@ -83,6 +88,7 @@ class TasmotaBle:
         self._seen: Dict[str, Dict[str, _Reading]] = {}     # address -> source -> reading
         self._scanners: Dict[str, _Scanner] = {}            # topic -> scanner
         self.cache_age_s: float = _PRUNE_AGE_S
+        self.max_addrs: int = _MAX_ADDRS          # low-memory mode lowers it
 
     async def async_start(self) -> None:
         try:
@@ -167,10 +173,11 @@ class TasmotaBle:
             _LOGGER.debug("Tasmota BLE: could not ask %s for its list: %s", sc.topic, err)
 
     def _cap(self) -> None:
-        if len(self._seen) <= _MAX_ADDRS:
+        cap = self.max_addrs
+        if len(self._seen) <= cap:
             return
         oldest_first = sorted(self._seen, key=lambda a: max(r.seen for r in self._seen[a].values()))
-        for addr in oldest_first[: len(self._seen) - _MAX_ADDRS]:
+        for addr in oldest_first[: len(self._seen) - cap]:
             del self._seen[addr]
 
     # ── Snapshot ─────────────────────────────────────────────────────────
@@ -226,5 +233,11 @@ class TasmotaBle:
 async def async_setup_tasmota_ble(hass: HomeAssistant) -> TasmotaBle:
     tb = TasmotaBle(hass)
     await tb.async_start()
+    # Switched off while it was subscribing: nothing to register.
+    from .const import DATA_SETTINGS  # noqa: PLC0415
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if st is not None and not (st.data or {}).get("tasmota_ble_enabled"):
+        await tb.async_stop()
+        return tb
     hass.data.setdefault(DOMAIN, {})[DATA_TASMOTA_BLE] = tb
     return tb

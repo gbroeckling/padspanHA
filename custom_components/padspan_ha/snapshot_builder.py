@@ -304,6 +304,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         _tas = hass.data.get(DOMAIN, {}).get(DATA_TASMOTA_BLE)
         if _tas is not None:
             _tas.cache_age_s = _low_memory.ble_age_s(hass)
+            _tas.max_addrs = min(5000, _low_memory.ble_max_addrs(hass) or 5000)
             _tas_snap = _tas.get_snapshot(max_age_s=_low_memory.ble_age_s(hass))
             ble = snapshot.setdefault("ble", {"radios": [], "advertisements": [], "diag": {}})
             ble.setdefault("radios", []).extend(_tas_snap.get("radios", []))
@@ -441,7 +442,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         return bool(_BT_WORD.search(eidn) or _BT_WORD.search(n))
 
     import re as _re  # noqa: PLC0415
-    _BT_WORD = _re.compile(r"(?:^|[^a-z0-9])(?:ble|bluetooth|bermuda|tags?|beacons?)(?:[^a-z0-9]|$)")
+    # Digits are a boundary (beacon1, tag1_room, ble01) and a tag can carry
+    # its maker's prefix (airtag, smarttag2, ibeacon, bletag); a word inside
+    # another word (kitchen_voltage, dining_table) is not one.
+    _BT_WORD = _re.compile(r"(?:^|[^a-z])(?:air|smart|i|ble)?(?:ble|bluetooth|bermuda|tags?|beacons?)(?:[^a-z]|$)")
 
     def _looks_like_room_tracker(entity_id: str, st: State) -> bool:
         """Safety net for live mode: accept entities whose id/attrs look like location trackers."""
@@ -548,6 +552,17 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
 
     cand = 0
     _bermuda_best: dict[str, tuple[int, str, Any, str]] = {}   # device_id -> best entity
+    # Bermuda devices that have an Area sensor (whatever it reads right now).
+    _bermuda_area_devices: set[str] = set()
+    if _all_bermuda_entry_ids:
+        try:
+            for _st0 in hass.states.async_all("sensor"):
+                if _st0.entity_id.endswith("_area"):
+                    _e0 = er.async_get(_st0.entity_id)
+                    if _e0 and _e0.device_id and _e0.config_entry_id in _all_bermuda_entry_ids:
+                        _bermuda_area_devices.add(_e0.device_id)
+        except Exception:
+            pass
 
     try:
         for st in hass.states.async_all():
@@ -588,11 +603,18 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 _attrs = st.attributes or {}
                 if "area_scanner_name" in _attrs or "_distance_to_" in entity_id:
                     continue
+                # A device with an Area sensor is that sensor alone: it reads
+                # the current room, and "unknown" when the device is out of
+                # range - absent, not moved. Picking by state swapped to Area
+                # Last Seen while away and back again on return, leaving a
+                # second object in the old room.
+                if _ent_entry.device_id in _bermuda_area_devices and not entity_id.endswith("_area"):
+                    continue
                 _by_state = known_rooms.get(_norm(st.state)) is not None
                 _rank = (0 if _by_state and "last_seen" not in entity_id
                          else 1 if _by_state else 2)
                 _prev = _bermuda_best.get(_ent_entry.device_id)
-                if _prev is not None and _prev[0] <= _rank:
+                if _prev is not None and (_prev[0], _prev[1]) <= (_rank, entity_id):
                     continue
                 _bermuda_best[_ent_entry.device_id] = (_rank, entity_id, st, room)
                 continue
