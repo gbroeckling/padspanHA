@@ -3724,6 +3724,16 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # ── Beacon auto-calibration ────────────────────────────────────────────
 
+    @staticmethod
+    def _autocal_room(pin: dict, live_obj: dict | None) -> str:
+        """A pin's room for an auto point: kept only when the live pass applied it.
+
+        The live pass applies a pin's room only when it is a real room (legacy
+        pins hold a device label there); anything else would put a phantom
+        room into k-NN's room vote. Both auto-calibration paths use this.
+        """
+        return pin.get("room", "") if pin.get("room") == (live_obj or {}).get("room") else ""
+
     async def _inject_beacon_calibration(
         self, now: float, pinned: dict[str, dict], result: dict[str, Any],
         addr_src_rssi: dict[str, dict[str, float]] | None = None,
@@ -3802,10 +3812,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "x_m": pin.get("x_m"),
                     "y_m": pin.get("y_m"),
                     "floor_id": pin.get("floor_id", ""),
-                    # The live pass applies a pin's room only when it is a real
-                    # room (legacy pins hold a device label there); anything
-                    # else would put a phantom room into k-NN's room vote.
-                    "room": pin.get("room", "") if pin.get("room") == obj.get("room") else "",
+                    "room": self._autocal_room(pin, obj),
                     "label": f"[auto] {obj.get('user_label') or key}",
                     "device_id": key,
                     "duration_s": 10,
@@ -3860,10 +3867,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             }
             # Fabric beacon position (metres, primary)
             _fb = (_model.beacon_positions_m().get(key) or {}) if _model else {}
+            # The pin's room, checked against the last poll's live object as
+            # the periodic pass checks it (legacy pins hold a device label).
+            _room = self._autocal_room(_fb, (self.data or {}).get(key))
             if _fb and _fb.get("x_m") is not None:
                 _pt["x_m"] = _fb["x_m"]
                 _pt["y_m"] = _fb["y_m"]
-                _pt["room"] = _fb.get("room", "")
+                _pt["room"] = _room
                 _pt["x_frac"] = 0.5
                 _pt["y_frac"] = 0.5
                 _pt["map_id"] = ""
@@ -3871,7 +3881,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _pt["map_id"] = map_id
                 _pt["x_frac"] = float(bk.get("x", 0))
                 _pt["y_frac"] = float(bk.get("y", 0))
-                _pt["room"] = _fb.get("room", "")
+                _pt["room"] = _room
             else:
                 continue
             self._beacon_autocal_last[key] = now

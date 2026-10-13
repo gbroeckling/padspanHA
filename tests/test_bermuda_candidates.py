@@ -100,6 +100,34 @@ async def test_area_last_seen_never_becomes_the_device_while_it_has_an_area_sens
     assert "sensor.phone_area_last_seen" not in _entity_objects(objs)
 
 
+@pytest.mark.asyncio
+async def test_an_upgrade_drops_the_old_extra_bermuda_objects_from_the_history(monkeypatch):
+    """0.38.105 made a device's Floor, Area Last Seen and each Distance to
+    sensor objects of their own. Nothing removed them from the saved object
+    history, which replayed them frozen in their old rooms (an entity is never
+    away) - a labelled copy forever. The history drops what the selection
+    never makes, and saves that; the Area sensor and other entities stay."""
+    from custom_components.padspan_ha.const import DATA_OBJECT_HISTORY, DATA_OBJECTS
+    other = "sensor.keys_distance_to_hall"      # not Bermuda's, and not live now
+    house = _house(monkeypatch, extra_states=[(
+        NS(entity_id=other, state="on", attributes={"friendly_name": other}, name=other),
+        NS(entity_id=other, device_id="d9", platform="x", config_entry_id="x", area_id=None))])
+    dom = house.hass.data[DOMAIN]
+    t0 = 1_800_000_000.0 - 3600                 # last heard an hour before the upgrade
+    old = ["sensor.phone_area", "sensor.phone_floor", "sensor.phone_area_last_seen",
+           "sensor.phone_distance_to_proxy_0", "sensor.phone_distance_to_proxy_1", other]
+    dom.pop(DATA_OBJECT_HISTORY)                # loaded from disk on the first build
+    dom["_obj_hist_store"].saved = {
+        f"entity:{e}": {"key": f"entity:{e}", "kind": "entity", "entity_id": e, "name": e, "room": "Office",
+                        "identified": True, "_last_seen_ts": t0, "_first_seen": t0} for e in old}
+    dom[DATA_OBJECTS].labels["ENTITY:SENSOR.PHONE_FLOOR"] = "Phone"
+    objs, _ = await house.poll(0, [])
+    assert _entity_objects(objs) == sorted(["sensor.phone_area", other])
+    await house.poll(20, [])                    # the history's next save
+    saved = sorted(k for k in dom["_obj_hist_store"].saved if k.startswith("entity:"))
+    assert saved == sorted(["entity:sensor.phone_area", f"entity:{other}"])
+
+
 def test_bluetooth_words_with_digits_and_maker_prefixes_still_match():
     import re
     src = (__import__("pathlib").Path(SB.__file__)).read_text(encoding="utf-8")
