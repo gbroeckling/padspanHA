@@ -40,7 +40,5 @@ def test_a_placement_during_another_save_waits_for_it():
     assert "res.busy" in block and "press Save" in block
 
 
-def test_tracked_devices_are_never_pinned():
-    """Marking the auto-pinned rows (_tracked) missed phones placed from the
-    list; the save judges each row by its device (test_beacon_tune_save)."""
-    assert "bs.editBaseline[mapId], moving)" in _src("calibration.js")
+def test_tracked_devices_are_marked_so_they_are_never_pinned():
+    assert "x: c[0], y: c[1], _tracked: true," in _src("calibration.js")

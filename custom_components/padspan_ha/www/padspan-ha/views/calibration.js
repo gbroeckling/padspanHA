@@ -53,7 +53,7 @@ const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
 const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
         tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
         tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock, tuneRadioSig,
-        tuneBeaconBaseline, tuneBeaconWrites, tuneBeaconMoves } =
+        tuneBeaconBaseline, tuneBeaconWrites, tuneBeaconHeldText } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 
@@ -3825,7 +3825,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       el("span", { style: "font-weight:700;font-size:14px;color:#f59e0b" }, "Beacon Tune"),
     ]),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
-      "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second radio capture starts automatically. After the timer finishes, calibration data is saved. Phones, Find My tags and anything you follow then return to live tracking; any other beacon is pinned where you put it as a fixed beacon, so follow a tag that moves before placing it. Green circles show scanner positions for reference."),
+      "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second radio capture starts automatically. After the timer finishes, calibration data is saved. A beacon you place from the list is pinned there as a fixed beacon, unless PadSpan knows it moves (a phone with its IRK, a Find My tag it has followed across an address change, anything you follow): that one goes back to live tracking after the capture, as does a labelled device shown at its room's centre. Moving a beacon that is already pinned moves its pin. Follow a tag that moves before placing it. Green circles show scanner positions for reference."),
   ]));
 
   // ── Constants & state ─────────────────────────────────────────────────────
@@ -3915,11 +3915,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         bs.draftBeacons[m.id].push({
           id: "bk_" + Math.random().toString(16).slice(2, 10),
           label: bkLabel, key: obj.key, kind: obj.kind || "ble",
-          x: c[0], y: c[1],
+          x: c[0], y: c[1], _tracked: true,
         });
-        // Shown at its room's centre, not placed by anyone: baselined, so it
-        // is written only once dragged or relocated, and then only if it is a
-        // fixed beacon (tuneBeaconMoves) - a phone or tag dragged is a
+        // Shown at its room's centre, not placed by anyone: never written
+        // as a fixed beacon (_tracked), dragged or not - a drag is a
         // calibration capture where it is, as before #89.
         (bs.editBaseline[m.id] = bs.editBaseline[m.id] || {})[obj.key] = { x: c[0], y: c[1] };
         pinnedKeys.add((obj.key||"").toUpperCase());
@@ -4535,26 +4534,24 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   // a map whose placement cannot be read is refused whole and stays unsaved.
   // A map's dirty flag clears only when all of its writes landed.
   async function _saveBeacons(mapIds) {
-    if (bs._saving) return { busy: true, ok: 0, failed: [], refused: [] };
+    if (bs._saving) return { busy: true, ok: 0, failed: [], refused: [], held: [] };
     bs._saving = true;
     let ok = 0;
     const failed = [];
     const refused = [];
+    const held = [];
     try {
       const tfs = (ctx.state.model && ctx.state.model.map_transforms) || {};
-      // What each device is decides, whichever way its row was made
-      // (tuneBeaconMoves): its live object, else the row. Followed by key
-      // (iBeacons, objects.js) or by address or entity (_isFollowed).
-      const liveObjs = new Map((snap?.objects?.list || []).map(o => [o.key, o]));
+      // A beacon with a fabric pin is moved whatever it is; one without is
+      // pinned unless it is known to move (tuneBeaconHeld), and that is said.
+      const guard = { pinned: (ctx.state.model && ctx.state.model.beacon_positions_m) || {},
+        objs: new Map((snap?.objects?.list || []).map(o => [o.key, o])),
+        followedHas: ctx.actions.followedHas };
       for (const mapId of mapIds) {
         const m = maps_list.find(mm => mm.id === mapId);
         if (!m) { failed.push(mapId); continue; }
-        const moving = new Set();
-        for (const b of bs.draftBeacons[mapId] || []) {
-          const o = liveObjs.get(b.key) || b;
-          if (b.key && tuneBeaconMoves(o, _isFollowed(o) || ctx.actions.followedHas(b.key))) moving.add(b.key);
-        }
-        const plan = tuneBeaconWrites(m, bs.draftBeacons[mapId] || [], tfs, bs.editBaseline[mapId], moving);
+        const plan = tuneBeaconWrites(m, bs.draftBeacons[mapId] || [], tfs, bs.editBaseline[mapId], guard);
+        held.push(...plan.held);
         if (plan.refused) { failed.push(mapId); refused.push(mapId); continue; }
         if (plan.invalid.length) { failed.push(mapId); continue; }
         let mapOk = true;
@@ -4588,7 +4585,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       for (const _r of refused) ctx.actions.telemetryEvent("beacon_tune_save_refused");
       if (failed.length > refused.length) ctx.actions.telemetryEvent("beacon_tune_save_failed");
     }
-    return { busy: false, ok, failed, refused };
+    return { busy: false, ok, failed, refused, held };
   }
 
   // Save button
@@ -4615,7 +4612,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (res.failed.length) {
         statusLbl.textContent = `Saved ${res.ok}, ${res.failed.length} map(s) failed`;
         ctx.toast(`Saved ${res.ok} beacon(s); ${res.failed.length} map(s) could not be saved — kept unsaved` +
-          (res.refused.length ? ". A map that isn't placed in metres yet must be placed in Mapping first." : ""), true);
+          (res.refused.length ? ". A map that isn't placed in metres yet must be placed in Mapping first." : "") +
+          (res.held.length ? `. ${tuneBeaconHeldText(res.held, ctx.state.settings?.beacon_auto_calibrate !== false)}` : ""), true);
         _refreshDirtyLabel();
         saveBtn.disabled = false;
         return;
@@ -4623,7 +4621,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       bs.selectedBk = null;
       await ctx.actions.mapsRefresh();
       if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
-      ctx.toast(res.ok ? `Saved ${res.ok} beacon position(s)` : "No beacon positions changed");
+      const heldText = tuneBeaconHeldText(res.held, ctx.state.settings?.beacon_auto_calibrate !== false);
+      ctx.toast(res.ok ? `Saved ${res.ok} beacon position(s)` + (heldText ? `. ${heldText}` : "")
+        : (heldText || "No beacon positions changed"));
       saveBtn.disabled = false;
       statusLbl.textContent = "";
     } catch (e) {
@@ -5053,7 +5053,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         await new Promise(r => setTimeout(r, 250));
         res = await _saveBeacons([mapId]);
       }
+      // This one known to move, and not pinned: say so, not nothing.
+      const mine = res.busy ? [] : res.held.filter(h => h.key === bkObj.key);
       if (res.busy) ctx.toast("Beacon position not saved yet - press Save", true);
+      else if (mine.length) ctx.toast(tuneBeaconHeldText(mine, ctx.state.settings?.beacon_auto_calibrate !== false));
       else if (res.refused.length) ctx.toast("Beacon position not saved: this map isn't placed in metres yet. Place it in Mapping first.", true);
       else if (res.failed.length) ctx.toast("Beacon position not saved — press Save to retry", true);
       _refreshDirtyLabel();
