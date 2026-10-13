@@ -1,0 +1,105 @@
+# PadSpan HA — BLE Room-Presence Tracking for Home Assistant
+# Copyright (C) 2026 Garry Broeckling
+# Licensed under the GNU General Public License v3.0
+"""One label on two keys (the phone wizard names a phone's iBeacon key and
+its IRK the same; naming a device copies the label onto several keys).
+
+- The Area/Distance sensors re-targeted only when a NEW key appeared, so once
+  both were known they stayed on the one that went quiet (not_home) while
+  the tracker followed the live one.
+- The unique_id came from whichever key polled first, so a restart with the
+  other key fresher created a second set of entities (device_tracker.phone_2).
+- Entities created before PadSpan's device list loaded were named after the
+  plain address instead of the saved id.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import sys
+import types
+from unittest.mock import MagicMock
+
+import pytest
+
+import tests.conftest  # noqa: F401  (HA stubs)
+from custom_components.padspan_ha.const import DATA_DEVICE_REGISTRY, DATA_SETTINGS, DOMAIN
+
+
+_ENT_REG = MagicMock()
+
+
+@pytest.fixture(autouse=True)
+def _stubs(monkeypatch):
+    mod = sys.modules["homeassistant.components.sensor"]
+    monkeypatch.setattr(mod, "SensorStateClass", types.SimpleNamespace(MEASUREMENT="measurement"), raising=False)
+    from homeassistant.helpers import entity_registry as er
+    monkeypatch.setattr(er, "async_get", lambda h: _ENT_REG, raising=False)
+
+
+def _boot(data, registry=True, registered=()):
+    from custom_components.padspan_ha import device_tracker as T, sensor as S
+    coord = MagicMock()
+    listeners = []
+    coord.async_add_listener = lambda cb: (listeners.append(cb), (lambda: None))[1]
+    st = MagicMock()
+    st.data = {}
+    hass = MagicMock()
+    hass.data = {DOMAIN: {DATA_SETTINGS: st}}
+    if registry:
+        reg = MagicMock()
+        reg.get = lambda pid: None
+        reg.resolve = lambda key: None
+        hass.data[DOMAIN][DATA_DEVICE_REGISTRY] = reg
+    coord.hass = hass
+    coord.data = data
+    hass.data[DOMAIN]["presence_coordinator"] = coord
+    _ENT_REG.async_get_entity_id = lambda domain, platform, uid: "x" if uid in registered else None
+    added = []
+
+    async def go():
+        await S.async_setup_entry(hass, MagicMock(), lambda e: added.extend(e))
+        await T.async_setup_entry(hass, MagicMock(), lambda e: added.extend(e))
+    asyncio.run(go())
+    return added, coord, listeners
+
+
+_IRK = {"kind": "private_ble", "user_label": "Phone", "room": "Kitchen", "address": "5A:11:22:33:44:55",
+        "_source_rssi": {"proxy_kitchen": -60}}
+_IB = {"kind": "ibeacon", "user_label": "Phone", "room": "Kitchen", "address": "ibeacon:u:1:2",
+       "_source_rssi": {"proxy_kitchen": -61}}
+
+
+def _uids(added):
+    return sorted(e.unique_id for e in added)
+
+
+def test_the_same_entities_whichever_key_is_fresher_at_startup():
+    a, _, _ = _boot({"irk:abc": {**_IRK, "age_s": 1}, "ibeacon:u:1:2": {**_IB, "age_s": 2}})
+    b, _, _ = _boot({"irk:abc": {**_IRK, "age_s": 2}, "ibeacon:u:1:2": {**_IB, "age_s": 1}})
+    assert _uids(a) == _uids(b)
+    assert "padspan_ha__irk_abc__tracker" in _uids(a)
+
+
+def test_an_entity_already_registered_keeps_its_name():
+    a, _, _ = _boot({"irk:abc": {**_IRK, "age_s": 1}, "ibeacon:u:1:2": {**_IB, "age_s": 2}},
+                    registered={"padspan_ha__ibeacon_u_1_2__tracker", "padspan_ha__ibeacon_u_1_2__area"})
+    assert "padspan_ha__ibeacon_u_1_2__tracker" in _uids(a)
+    assert "padspan_ha__ibeacon_u_1_2__area" in _uids(a)
+
+
+def test_the_area_sensor_follows_the_live_key_every_poll():
+    data = {"irk:abc": {**_IRK, "age_s": 1}, "ibeacon:u:1:2": {**_IB, "age_s": 50, "room": "Bedroom"}}
+    added, coord, listeners = _boot(data)
+    area = next(e for e in added if e.unique_id.endswith("__area"))
+    assert area._key == "irk:abc"
+    coord.data = {"irk:abc": {**_IRK, "age_s": 5000}, "ibeacon:u:1:2": {**_IB, "age_s": 1, "room": "Bedroom"}}
+    for cb in listeners:
+        cb()
+    assert area._key == "ibeacon:u:1:2"
+    assert area.native_value == "Bedroom"
+
+
+def test_entities_wait_for_the_device_list():
+    added, _, _ = _boot({"irk:abc": {**_IRK, "age_s": 1}}, registry=False)
+    assert added == []

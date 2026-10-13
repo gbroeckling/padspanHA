@@ -19,6 +19,7 @@ Person link:        Settings → People → Alice → add device_tracker.padspan
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -29,6 +30,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, DATA_SETTINGS, DATA_DEVICE_REGISTRY
 from .geo_bridge import accuracy_from_confidence, metres_to_latlon
 from .presence_coordinator import PresenceCoordinator
+from .entity_identity import pick_uid_key, registry_ready, uid_safe
 from .presence_rules import away_timeout_s, is_away
 
 # HA's own constant, with a literal fallback so an import change upstream
@@ -67,6 +69,7 @@ async def async_setup_entry(
     created: set[str] = set()
     # label → entity instance (for key migration on MAC rotation)
     label_entity: dict[str, PadSpanDeviceTracker] = {}
+    _since = time.monotonic()
 
     @callback
     def _check_new() -> None:
@@ -84,6 +87,8 @@ async def async_setup_entry(
         """
         if not coordinator.data:
             return
+        if not registry_ready(hass, _since):
+            return   # its saved ids decide the unique_ids (entity_identity)
         st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
         _tracker_on = ((st.data or {}) if st else {}).get("ha_entity_tracker_enabled", True)
         if not _tracker_on:
@@ -133,7 +138,10 @@ async def async_setup_entry(
                         entity._key = key
                     created.add(key)
                     continue
-                entity = PadSpanDeviceTracker(coordinator, key)
+                uid = pick_uid_key(
+                    hass, "device_tracker", lambda u: [f"padspan_ha__{uid_safe(u)}__tracker"],
+                    [(k, _stable_uid_key(hass, k, o)) for k, o in items if o.get("user_label") == label])
+                entity = PadSpanDeviceTracker(coordinator, key, uid)
                 new.append(entity)
                 created.add(key)
                 label_entity[label] = entity
@@ -188,7 +196,7 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: "PresenceCoordinator", key: str) -> None:
+    def __init__(self, coordinator: "PresenceCoordinator", key: str, uid_key: str | None = None) -> None:
         super().__init__(coordinator)
         self._key = key
         # Snapshot label and device UID at creation time (when coordinator.data has
@@ -198,7 +206,7 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
         self._init_label = str(obj.get("user_label") or obj.get("name") or key)
         self._init_uid = _device_uid(obj) or key
         # Snapshot at creation: unique_id must never follow _key migrations
-        self._uid_key = _stable_uid_key(coordinator.hass, key, obj)
+        self._uid_key = uid_key or _stable_uid_key(coordinator.hass, key, obj)
 
     # ── internal helpers ─────────────────────────────────────────────────────
 
