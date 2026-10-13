@@ -298,3 +298,10 @@ def test_a_pinned_beacon_is_not_recorded(tmp_path) -> None:
     tb = _make_store(tmp_path)
     tb.record_frame([{**_obj(key="ble:BEACON"), "_pinned": True}, _obj(key="ble:PHONE")])
     assert [o["k"] for o in tb.frames[-1]["o"]] == ["ble:PHONE"]
+
+
+def test_a_device_followed_by_its_key_is_recorded(tmp_path) -> None:
+    """followed_addrs is uppercase; an object key is lowercase ("irk:...")."""
+    tb = _make_store(tmp_path)
+    tb.record_frame([{"key": "irk:abc", "room": "Office"}], followed_set={"IRK:ABC"})
+    assert tb.frames and tb.frames[-1]["o"][0]["k"] == "irk:abc"

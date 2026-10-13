@@ -310,7 +310,8 @@ class TracebackStore:
                 continue
             # Only record identified or followed objects (skip anonymous BLE noise)
             is_identified = o.get("identified") or o.get("user_label")
-            is_followed = key in _fset or o.get("address", "") in _fset or o.get("entity_id", "") in _fset
+            is_followed = (str(key).upper() in _fset or str(o.get("address") or "").upper() in _fset
+                           or str(o.get("entity_id") or "").upper() in _fset)
             if not is_identified and not is_followed:
                 continue
             entry: dict[str, Any] = {

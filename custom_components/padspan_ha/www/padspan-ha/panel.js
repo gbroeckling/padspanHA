@@ -3150,7 +3150,8 @@ class PadSpanHaApp extends HTMLElement {
     // Actions row
     const actionsRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #1b3526;margin-top:8px"});
     // Follow toggle (multi-device Set)
-    const _followKey = (addr || obj.entity_id || "").toUpperCase();
+    // An IRK phone by its stable key, not its rotating address (as Follow).
+    const _followKey = ((obj.kind === "private_ble" ? (obj.key || obj.canonical_id) : "") || addr || obj.entity_id || "").toUpperCase();
     if(_followKey){
       const _isFollowed = this.state.followedAddrs.has(_followKey);
       const followBtn = el("button",{

@@ -158,7 +158,9 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
   // Build flat list of selectable items
   const items = [];
   for (const o of sorted) {
-    const id = o.address || o.entity_id || "";
+    // An IRK phone by its stable key: its address rotates every ~15 minutes,
+    // and following that address lost the phone at the next rotation.
+    const id = (o.kind === "private_ble" ? (o.key || o.canonical_id) : "") || o.address || o.entity_id || "";
     if (!id) continue;
     if (_isScanner(o)) continue;
     if (_quietMode && !o.user_label && !o.identified && !ctx.actions.followedHas(id)) continue;
