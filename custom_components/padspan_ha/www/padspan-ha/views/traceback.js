@@ -42,11 +42,37 @@ export function render(ctx) {
   // ── 3D Iso map setup (mirrors overview) ────────────────────────────────
   const maps_list = (ctx.state.maps?.list) || [];
   if (!maps_list.length) {
+    // No floor plan to replay on - but Insights and Busy Times need none.
+    // They live only here, so returning early left a rooms-only house (or
+    // one whose photos were deleted) with no way to reach either.
     const msg = document.createElement("div");
     msg.className = "card";
-    msg.style.cssText = "text-align:center;padding:30px;color:#94a3b8";
-    msg.textContent = "No maps uploaded yet. Go to Maps to add floor plans, then use Traceback to replay object movement.";
+    msg.style.cssText = "text-align:center;padding:20px;color:#94a3b8";
+    msg.textContent = "No floor plans yet, so there's no map to replay movement on. Add one in Maps. Insights and Busy Times work without one.";
     outer.appendChild(msg);
+    const initial = ctx.state._tracebackInitialMode;
+    delete ctx.state._tracebackInitialMode;
+    if (initial === "insights" || initial === "busytimes") ctx.state._tbNoMapMode = initial;
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:6px;margin:10px 0";
+    const pane = document.createElement("div");
+    const show = (mode) => {
+      ctx.state._tbNoMapMode = mode;
+      for (const b of row.children) b.style.fontWeight = b.dataset.mode === mode ? "700" : "400";
+      pane.innerHTML = "";
+      pane.appendChild(mode === "busytimes" ? busyTimesView.render(ctx) : insightsView.render(ctx));
+    };
+    for (const [label, mode] of [["Insights", "insights"], ["Busy Times", "busytimes"]]) {
+      const b = document.createElement("button");
+      b.className = "btn inline";
+      b.dataset.mode = mode;
+      b.textContent = label;
+      b.addEventListener("click", () => show(mode));
+      row.appendChild(b);
+    }
+    outer.appendChild(row);
+    outer.appendChild(pane);
+    show(ctx.state._tbNoMapMode || "insights");
     return outer;
   }
 

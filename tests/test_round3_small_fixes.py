@@ -106,3 +106,13 @@ def test_lost_and_found_is_fetched_again_after_a_minute():
     src = (_VIEWS / "objects.js").read_text(encoding="utf-8")
     assert "const _lfStale = Date.now() - (ctx.state._lostAndFoundAt || 0) > 60000;" in src
     assert ".catch(() => { if (ctx.state._lostAndFound === undefined) ctx.state._lostAndFound = {}; })" in src
+
+
+def test_insights_and_busy_times_need_no_floor_plan():
+    """Traceback returned "No maps uploaded yet" before anything else, and
+    Insights/Busy Times live only inside it - a rooms-only house had history
+    but no way to see it."""
+    src = (_VIEWS / "traceback.js").read_text(encoding="utf-8")
+    block = src[src.index("if (!maps_list.length) {"):]
+    block = block[:block.index("return outer;")]
+    assert "insightsView.render(ctx)" in block and "busyTimesView.render(ctx)" in block
