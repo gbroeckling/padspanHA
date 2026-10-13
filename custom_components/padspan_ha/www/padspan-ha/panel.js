@@ -714,7 +714,11 @@ class PadSpanHaApp extends HTMLElement {
       } catch(e) {}
     };
     requestAnimationFrame(() => this._fitHeight());
-    window.addEventListener("resize", () => this._fitHeight());
+    // One listener: connectedCallback runs again on every sidebar re-entry
+    // and watchdog rebuild, and each run added another that nothing removed.
+    if(this._resizeHandler) window.removeEventListener("resize", this._resizeHandler);
+    this._resizeHandler = () => this._fitHeight();
+    window.addEventListener("resize", this._resizeHandler);
 
     this.$("#refresh").addEventListener("click", ()=>this._refreshAll(true));
     this.$("#autodiag").addEventListener("click", ()=>this._runAutoDiag(true));
@@ -1204,6 +1208,10 @@ class PadSpanHaApp extends HTMLElement {
     if(this._modalEsc){
       window.removeEventListener("keydown", this._modalEsc);
       this._modalEsc = null;
+    }
+    if(this._resizeHandler){
+      window.removeEventListener("resize", this._resizeHandler);
+      this._resizeHandler = null;
     }
   }
 

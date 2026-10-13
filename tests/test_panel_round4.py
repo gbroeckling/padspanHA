@@ -112,3 +112,10 @@ def test_review_fixes_follow_log_force_flag_and_reset_mode():
     assert _src("views/overview.js").count('irkInput.addEventListener("input", () => { if (irkSaveBtn._force)') == 2
     m = _src("views/manage.js")
     assert 'ctx.state.mode = "all";' not in m and 'ctx.state.mode = "live";' in m
+
+
+def test_one_resize_listener_however_often_the_panel_reattaches():
+    s = _src("panel.js")
+    assert 'window.addEventListener("resize", () => this._fitHeight());' not in s
+    assert 'if(this._resizeHandler) window.removeEventListener("resize", this._resizeHandler);' in s
+    assert s.count('window.removeEventListener("resize", this._resizeHandler)') == 2   # re-attach and disconnect
