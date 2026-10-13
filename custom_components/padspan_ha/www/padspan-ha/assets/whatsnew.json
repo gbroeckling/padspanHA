@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.117",
+  "title": "Phones keep one set of entities, and Insights without a floor plan",
+  "date": "2026-10-12",
+  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Home Assistant entities\n- **Fixed:** a phone set up with the phone wizard (its iBeacon and its IRK share one name) no longer shows not_home on its Area sensor while its tracker follows it. A restart also no longer makes a second set of entities (`device_tracker.phone_2`) and leaves the one linked to your Person unavailable. Entities you already have keep their names.\n- **Changed:** setup no longer asks for an update interval. It never did anything; how often PadSpan updates is set in the PadSpan panel.\n\n### Traceback and Insights\n- **Fixed:** Insights and Busy Times now work on a house that has rooms but no floor-plan photo.\n- **Fixed:** a custom Traceback range entered backwards (start after end) now loads instead of showing \"No data in range\".\n\n### Tags\n- **Fixed:** NFC tap-to-identify names the object after the tag's name in Home Assistant, instead of \"NFC: \" and the tag's id."
+ },
+ {
   "version": "0.38.116",
   "title": "Traceback stops eating memory, licences behave, and a round of smaller fixes",
   "date": "2026-10-12",
@@ -28,11 +34,5 @@
   "title": "Traceback records all day, and quieter, steadier alerts",
   "date": "2026-10-12",
   "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Traceback\n- **Fixed:** Traceback now records whether or not a PadSpan page is open. It only recorded while someone had PadSpan on screen, so overnight and working hours were usually empty.\n\n### Follow alerts and Home Assistant events\n- **Fixed:** room-change alerts are limited to one a minute per device again. A tag sitting on the edge of two rooms could send an alert every few seconds.\n- **Fixed:** restarting Home Assistant no longer sends \"moved from unknown to …\" for every followed device, or a `padspan_room_change` event from nowhere.\n- **Fixed:** the `padspan_room_change` event now fires for followed Bluetooth devices and phones. Before, only followed iBeacons fired it.\n\n### Phones (Companion App)\n- **Fixed:** **Unfollow** in Overview's Track Your Phone works. It always showed Error.\n- **Fixed:** unfollowing a phone now removes its label everywhere, including the label on its IRK identity. Before, the phone stayed tagged and kept its Home Assistant entities.\n\n### Calibration and mapping\n- **Fixed:** a scanner set to a whole-metre height or position (like exactly 2 m) can be moved and saved again. Saving it failed every time."
- },
- {
-  "version": "0.38.111",
-  "title": "Backups keep Lost & Found, and a setting that did nothing is gone",
-  "date": "2026-10-12",
-  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Backups\n- **Fixed:** a PadSpan backup now includes Lost & Found, each tagged device's last confirmed room. Restoring a backup used to reset all of them to unknown.\n\n### Settings → Presence\n- **Removed:** the **Linger time** card. It hasn't done anything since 0.20.16: a device keeps its room for two minutes after its last signal, whatever the card said.\n\n### Help improve PadSpan (opt-in usage report)\nOnly while the report is on, and counts only.\n- **Added:** how often tagged devices arrive and leave, how many Follow alerts were sent or failed, whether the phone setup's BLE Transmitter command reached the phone, failed MQTT publishes, and how many devices one update merged by their Home Assistant device. These say whether this week's fixes hold in real homes.\n\n### For developers\n- **Added:** `docs/BUG_LOG.md`, a running record of each bug fixed: what people saw, why, the fix and release, and how the opt-in report shows it."
  }
 ]
