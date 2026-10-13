@@ -2513,7 +2513,10 @@ function _settingsPresence(ctx, el){
       cancelBtn.addEventListener("click", async()=>{
         cancelBtn.disabled=true; cancelBtn.textContent="Resuming\u2026";
         try {
-          await ctx.actions.wsCall("padspan_ha/unsuspend_databases");
+          // The handler answers {ok:false} (not an error) when the coordinator
+          // isn't ready yet; that read as success.
+          const r = await ctx.actions.wsCall("padspan_ha/unsuspend_databases");
+          if (r && r.ok === false) { ctx.toast("Not resumed: " + (r.error || "try again in a moment"), true); return; }
           ctx.toast("Normal pipeline resumed \u2014 smoothing state cleared for fresh start");
           ctx.actions.refreshLive && ctx.actions.refreshLive();
         } catch(e){ ctx.toast("Failed: "+String(e), true); }
@@ -2527,7 +2530,8 @@ function _settingsPresence(ctx, el){
         if(!confirm("Suspend all learned databases for 60 minutes?\n\nThis clears Kalman filters, vote windows, scanner reliability, and cached positions.\nOnly raw radio RSSI + spatial centroid positioning will be used.\n\nCalibration data and settings are NOT deleted.")) return;
         suspendBtn.disabled=true; suspendBtn.textContent="Suspending\u2026";
         try {
-          await ctx.actions.wsCall("padspan_ha/suspend_databases",{minutes:60});
+          const r = await ctx.actions.wsCall("padspan_ha/suspend_databases",{minutes:60});
+          if (r && r.ok === false) { ctx.toast("Not suspended: " + (r.error || "try again in a moment"), true); return; }
           ctx.toast("Databases suspended \u2014 raw radio mode for 60 minutes");
           ctx.actions.refreshLive && ctx.actions.refreshLive();
         } catch(e){ ctx.toast("Failed: "+String(e), true); }

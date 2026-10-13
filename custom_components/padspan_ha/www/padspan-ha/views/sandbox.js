@@ -84,7 +84,9 @@ export function render(ctx){
     const row = el("div",{style:`display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;${f.sub?"padding-left:24px":""}`});
     row.addEventListener("mouseenter", ()=>{ row.style.background = "rgba(255,255,255,0.04)"; });
     row.addEventListener("mouseleave", ()=>{ row.style.background = ""; });
-    row.addEventListener("click", ()=>{ ctx.actions.navigate(f.tab); });
+    // The panel has no navigate action (this threw a TypeError); views
+    // switch the way Calibration's "quality report" button does.
+    row.addEventListener("click", ()=>{ ctx.state.view = f.tab; ctx.actions.renderRooms(); });
     row.appendChild(el("div",{style:`width:6px;height:6px;border-radius:50%;background:${statusColor};flex-shrink:0`}));
     row.appendChild(el("div",{style:"flex:1;min-width:0"},[
       el("div",{style:"font-size:12px;font-weight:600;color:#e2e8f0"}, f.name),
