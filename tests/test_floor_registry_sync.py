@@ -31,7 +31,9 @@ class FakeFabric:
     def __init__(self, rooms: dict[str, str] | None = None) -> None:
         self._rooms = {r: {"floor_id": f} for r, f in (rooms or {}).items()}
 
-    def room_geometry_m(self) -> dict[str, Any]:
+    # The real FabricStore's method; it has no room_geometry_m, and the fake
+    # having one hid that the floor sync called a method that isn't there.
+    def rooms_flat(self) -> dict[str, Any]:
         return self._rooms
 
 

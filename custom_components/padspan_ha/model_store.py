@@ -503,14 +503,14 @@ class ModelStore:
 
         # Keep any floor the fabric still uses but the registry has dropped —
         # deleting it here would strand its rooms outside the stack entirely.
-        used = set()
-        fab = getattr(self, "fabric", None)
-        if fab:
-            try:
-                used = {str((g or {}).get("floor_id") or "")
-                        for g in (fab.room_geometry_m() or {}).values()}
-            except Exception:
-                used = set()
+        # (FabricStore has no room_geometry_m - that is ModelStore's own
+        # read-through; calling it on the fabric raised, so `used` was always
+        # empty and a floor with rooms was dropped with its heights.)
+        try:
+            used = {str((g or {}).get("floor_id") or "")
+                    for g in (self.room_geometry_m() or {}).values()}
+        except Exception:
+            used = set()
         reg_ids = {str(f["id"]) for f in incoming}
         kept = [prev for fid, prev in stored.items() if fid not in reg_ids and fid in used]
 
