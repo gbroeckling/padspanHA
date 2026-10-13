@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.115",
+  "title": "A cleaner opt-in report view",
+  "date": "2026-10-12",
+  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Developer view\n- **Changed:** Install Base, the developer's view of what the opt-in reports add up to, is laid out as a numbered report with readable bar charts, percentages next to counts and a table view for every chart. It now asks for a PIN first. It is only on the developer's menu; nothing changes for anyone else."
+ },
+ {
   "version": "0.38.114",
   "title": "Calibration tools that do what they say, walls that keep their doors, and WLED that can always go back",
   "date": "2026-10-12",
@@ -28,11 +34,5 @@
   "title": "Arrive and leave alerts actually fire",
   "date": "2026-10-12",
   "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n- **If you set up arrive or leave alerts,** expect them to start working. Restarting Home Assistant no longer sends an \"arrived\" alert for every device.\n\n### Follow alerts and automations\n- **Fixed:** a tagged device now \"leaves\" when it hasn't been heard for the away timeout, and \"arrives\" when it's heard again. Before, PadSpan treated a tagged device as present whenever it was in its device list, and tagged devices never leave that list. So \"arrived\" fired only the first time a device was ever seen, and \"left\" never fired. That broke three things: Follow's arrive and leave alerts, the `padspan_device_arrived` and `padspan_device_departed` events for your Home Assistant automations, and PadSpan's own arrive/leave rules. They now use the same away timeout as the device trackers.\n- **Fixed:** restarting Home Assistant no longer counts every device as having just arrived, which sent every arrive alert at each restart.\n- **Fixed:** a room-change alert sent to a phone you picked, with no email address, now goes out. Before, room-change alerts needed an email even though arrive and leave alerts didn't.\n- **Changed:** in Follow, **Send Test** works with just a phone picked, and an alert counts as **Active** with either an email or a picked phone. Manage's list of saved alerts now shows phone-only alerts too, so you can see and delete them."
- },
- {
-  "version": "0.38.109",
-  "title": "The phone wizard reaches your phone, and MQTT keeps publishing",
-  "date": "2026-10-12",
-  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n- **MQTT users:** topics for labels without `#`, `+` or `/` are unchanged. A label with one of those now publishes under a topic with `_` in its place; it didn't publish before.\n\n### Phone setup (Companion App)\n- **Fixed:** turning on a phone's BLE Transmitter from the wizard now works. PadSpan sent the command to a notify service named after the phone's internal ID, which doesn't exist; the Companion App names it after the phone. If it can't find the phone's service, the wizard now says to turn the transmitter on in the app.\n- **Fixed:** a phone whose name has an apostrophe or hyphen (like \"Garry's Pixel 8\") is listed once, not twice with the second one saying its sensor isn't registered.\n\n### Devices\n- **Fixed:** an iBeacon and a plain Bluetooth address that belong to the same Home Assistant device are one device in PadSpan. The match by Home Assistant device never worked; only devices whose addresses happened to overlap were combined.\n\n### MQTT publishing\n- **Fixed:** a device label with `#` or `+` stopped MQTT publishing for every device after it, on every update. Each device now publishes on its own, and those characters (and `/`) become `_` in the topic."
  }
 ]
