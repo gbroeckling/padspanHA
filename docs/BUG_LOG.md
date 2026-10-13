@@ -92,8 +92,6 @@ released), **watching** (fixed; confirming from the field).
 ## Open leads
 
 - **Traceback replays a floor with no photo at ground level**: its storey comes from the photos' stack levels; Overview's floor frame numbers storeys differently (HA levels or slab indices), so mixing them could put a floor on the wrong storey. Left until it can be done in one number space.
-- **README vs licence check**: README says no outbound requests with Update Check off; the daily licence revalidation still runs when a key is entered. Garry to decide: gate it, or reword the README.
-- **device_tracker state is the room name**: HA's Person counts any non-`home` state as away, so a Person linked only to PadSpan isn't counted in `zone.home`. Deliberate; changing it would change existing automations. Garry to decide.
 - **Insights on a full week** takes ~3 s on a desktop (streamed in the executor now); a Pi will be slower. Per-day caching would fix it if reports show it.
 
 - **Auto-calibration from a pinned beacon that was physically moved** keeps labelling new points with the old spot until the pin is updated. Gating on solver drift was considered and left out: the solver is least accurate exactly where auto-calibration is needed most.
@@ -101,6 +99,11 @@ released), **watching** (fixed; confirming from the field).
 
 - **Bermuda builds of 1.4–18 s**: waiting for the per-phase timings (0.38.108+) from b222e30f, f6e4e364, eb3e9ecf, eee7d648, 300fbac3.
 - **IRKs silent on 12 of 22 installs**: looks like phones away or wrong keys, not the resolver. Not a bug yet.
+
+### Decided
+
+- **README vs licence check** (2026-10-12): the README said PadSpan makes no outbound requests with Update Check off, but the daily licence revalidation runs whenever a key is entered. Garry: reword the README, keep the check (so a refunded key is caught).
+- **device_tracker state is the room name** (2026-10-12): HA's Person counts any non-`home` state as away, so a Person linked only to PadSpan isn't counted in `zone.home`. Garry: leave the tracker as is (existing automations depend on it).
 
 ### Earlier leads
 

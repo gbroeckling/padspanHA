@@ -1023,7 +1023,8 @@ function _settingsPresence(ctx, el){
       "Once a day PadSpan asks padspan.traks.ca whether a newer version exists and " +
       "notifies you when one is available. The request contains only your installed " +
       "version number; the server sees your IP address (as any web request does) and " +
-      "stores nothing else about you. Turn it off here if you prefer no contact."
+      "stores nothing else about you. Turning it off stops this check. If you've entered " +
+      "a licence key, it is still checked with traks.ca once a day, so a refunded key stops working."
     ),
     el("div", { style: rowStyle }, [
       el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Update check"),

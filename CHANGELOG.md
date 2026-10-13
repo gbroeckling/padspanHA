@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.118 — Saying plainly what the licence check sends (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Privacy
+- **Changed:** the README and the Update Check card used to say that turning Update Check off stops all contact. That isn't quite true: if you've entered a licence key, PadSpan still checks it with traks.ca once a day, sending the key and Home Assistant's instance ID, so a refunded key stops working. Both now say so. With no key entered there is no licence check.
+
+---
+
 ## 0.38.117 — Phones keep one set of entities, and Insights without a floor plan (2026-10-12)
 
 ### Before you update
