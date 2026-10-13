@@ -152,7 +152,7 @@ def _poll(coord, age):
 def _recording(coord):
     seen = []
 
-    async def _rec(arrived, departed, result, now):
+    async def _rec(arrived, departed, result, now, members=None):
         seen.append((set(arrived), set(departed)))
     coord._run_automations = _rec
     return seen
