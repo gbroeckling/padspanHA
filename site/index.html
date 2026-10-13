@@ -179,6 +179,27 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.113</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">12 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>Fixed:</b> alerts for a phone known by its IRK keep working after the phone changes its Bluetooth address, which phones do every 15 minutes or so. They used to stop after the first change.</li>
+          <li><b>Fixed:</b> a tagged device coming home is no longer reported, alerted or tracked in the room it left from. It starts fresh from where it is heard.</li>
+          <li><b>Fixed:</b> restoring a backup now really restores Forensics, PadSpan's device list and the object history. Before, each was written back to its old state within seconds.</li>
+          <li><b>Fixed:</b> a restored Traceback now survives a restart.</li>
+          <li><b>Fixed:</b> factory reset now erases Traceback history completely, plus PadSpan's device list (so tags and labels don't come back), Lost & Found and Forensics, as its screen promises.</li>
+          <li><b>Changed:</b> <b>Auto-Offset</b> never did anything: only the manual offset you save is applied, and the old advice to set manual to 0 left those scanners uncorrected. The Off/Partial/Full buttons are gone and each scanner shows a <b>suggested</b> offset you can type in.</li>
+          <li><b>Changed:</b> in Manage → Beacon Signal Profiles, the per-beacon <b>Tune</b> switch never did anything and is gone. The other switch only shows or hides the report, and it now says so.</li>
+          <li><b>Fixed:</b> Suspend All Databases and Resume now say when they didn't work (just after a restart) instead of reporting success.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.112</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>
