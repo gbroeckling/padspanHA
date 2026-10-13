@@ -572,3 +572,38 @@ async def test_the_object_history_save_is_not_awaited_inside_the_build(monkeypat
     await house.poll(0, [])
     await house.poll(120, [])
     assert "delay" in calls and "save" not in calls
+
+
+@pytest.mark.asyncio
+async def test_a_radios_network_info_is_found_by_its_name_once_per_build(monkeypatch):
+    """The fallback walked the whole entity registry per slug per radio
+    (25,000 Bermuda rows x 20 radios: 240 ms a build); network entities are
+    indexed once. The answer is the same: a proxy named 'off' gets the IP
+    and SSID from sensor.off_ip_address / sensor.off_wifi_ssid."""
+    from types import SimpleNamespace as NS
+    from custom_components.padspan_ha import snapshot_builder as SB
+    from tests.test_findmy_snapshot import _make_house
+    import tests.test_findmy_snapshot as FS
+    monkeypatch.setattr(FS, "RADIOS", FS.RADIOS + [{"source": f"px{i}", "name": f"proxy {i}"} for i in range(10)])
+    house = _make_house(monkeypatch, labels={}, followed=[])
+    states = [NS(entity_id="sensor.off_ip_address", state="10.0.0.9", attributes={}, name="ip"),
+              NS(entity_id="sensor.off_wifi_ssid", state="HomeNet", attributes={}, name="ssid")]
+    ents = {s.entity_id: NS(entity_id=s.entity_id, device_id=None, platform="esphome",
+                            config_entry_id="e", area_id=None) for s in states}
+    for i in range(2000):
+        eid = f"sensor.bermuda_{i}_distance_to_off"
+        ents[eid] = NS(entity_id=eid, device_id=f"d{i}", platform="bermuda", config_entry_id="b", area_id=None)
+    by = {s.entity_id: s for s in states}
+    house.hass.states = NS(async_all=lambda *a: states, get=lambda e: by.get(e))
+    calls = {"n": 0}
+
+    class _Ents(dict):
+        def values(self):
+            calls["n"] += 1
+            return super().values()
+    er = NS(async_get=lambda eid: ents.get(eid), entities=_Ents(ents))
+    monkeypatch.setattr(SB.entity_registry, "async_get", lambda h: er)
+    snap = await SB._build_live_snapshot(house.hass)
+    off = next(r for r in snap["ble"]["radios"] if r["source"] == "off")
+    assert off.get("ip") == "10.0.0.9" and off.get("ssid") == "HomeNet"
+    assert calls["n"] <= 3

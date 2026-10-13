@@ -769,15 +769,34 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     slugs_to_try.add(_name_to_slug(rsource))
                 for slug in slugs_to_try:
                     if slug and len(slug) >= 3:
-                        prefix_sensor = f"sensor.{slug}_"
-                        prefix_text = f"text_sensor.{slug}_"
-                        for ent in er_net.entities.values():
-                            eid = ent.entity_id or ""
-                            if eid.startswith(prefix_sensor) or eid.startswith(prefix_text):
-                                candidates.append(ent)
+                        candidates.extend(_net_by_slug().get(slug, ()))
                     if candidates:
                         break
             return candidates
+
+        # sensor./text_sensor. network entities by every "_"-prefix of their
+        # object id, built once per build: the fallback walked the whole entity
+        # registry per slug per radio (Bermuda adds devices x scanners x 2
+        # rows; 25,000 rows x 20 radios was 240 ms a build). Only entities
+        # _apply_net_info can use are indexed.
+        _net_idx: dict[str, list] = {}
+        _net_idx_built: list[bool] = [False]
+
+        def _net_by_slug() -> dict[str, list]:
+            if not _net_idx_built[0]:
+                _net_idx_built[0] = True
+                for ent in er_net.entities.values():
+                    eid = ent.entity_id or ""
+                    dom, _, obj_id = eid.partition(".")
+                    if dom not in ("sensor", "text_sensor"):
+                        continue
+                    low = obj_id.lower()
+                    if not any(k in low for k in ("ip", "ssid", "signal", "connection_type", "network_type")):
+                        continue
+                    parts = obj_id.split("_")
+                    for i in range(1, len(parts)):
+                        _net_idx.setdefault("_".join(parts[:i]), []).append(ent)
+            return _net_idx
 
         def _apply_net_info(radio: dict, entities: list) -> None:
             """Copy IP/SSID/signal/connection-type fields onto `radio` from
