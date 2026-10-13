@@ -63,7 +63,11 @@ _CACHE_TTL_S = 1200
 # RPAs from neighbours' phones that will never be seen again. Entries expired
 # but were never evicted, so the dict only ever grew. Sweeping on insert once
 # it is full keeps the AES-saving cache and bounds the memory.
-_CACHE_MAX = 4096
+# At least twice the addresses a snapshot carries (low_memory.SNAPSHOT_ADS,
+# 5,000): at 4,096 a busy street's 4,500 addresses evicted each other every
+# build, and every address cost an AES check per IRK again (13,500 checks,
+# 0.2 s a build on a desktop, with 5 IRKs).
+_CACHE_MAX = 16384
 
 
 def _looks_generic(name: str, entry_id: str = "") -> bool:

@@ -89,3 +89,11 @@ def test_bright_keeps_the_presence_coordinator_polling():
     unsub.assert_called_once()
     assert "presence_keepalive(hass, bool(_st and _st.data.get(\"bright_reveal_presence\")))" in \
         inspect.getsource(pkg.async_setup_entry)
+
+
+def test_the_irk_cache_holds_a_full_snapshot_of_addresses():
+    """At 4,096 a snapshot of 4,500 addresses evicted itself every build and
+    every address was AES-checked against every IRK again."""
+    from custom_components.padspan_ha import private_ble_resolver as pr
+    from custom_components.padspan_ha.low_memory import SNAPSHOT_ADS
+    assert pr._CACHE_MAX >= 2 * SNAPSHOT_ADS
