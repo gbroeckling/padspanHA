@@ -4439,6 +4439,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         // Un-pin from the fabric first — a batch save never deletes.
         try {
           if (t.bk.key) await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: t.bk.key });
+          // No longer an existing pin: placed again, it is judged as new (a phone is held back).
+          if (t.bk.key && ctx.state.model && ctx.state.model.beacon_positions_m) delete ctx.state.model.beacon_positions_m[t.bk.key];
         } catch(_) {}
         // Auto-save the deletion
         for (const mid of Object.keys(bs.dirtyMaps)) {
@@ -5552,6 +5554,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           // Un-pin from the fabric first — a batch save never deletes.
           if (removedBk && removedBk.key) {
             await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: removedBk.key });
+            // No longer an existing pin: placed again, it is judged as new.
+            if (ctx.state.model && ctx.state.model.beacon_positions_m) delete ctx.state.model.beacon_positions_m[removedBk.key];
           }
           bs.dirtyMaps[mapId] = false;
         } catch (e) { console.warn("[PadSpan] delete beacon save failed:", e); }
@@ -5878,6 +5882,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           if (origMap) {
             // Un-pin from the fabric first — a batch save never deletes.
             if (bk.key) await ctx.actions.callWS({ type: "padspan_ha/fabric_beacon_remove", key: bk.key });
+            // No longer an existing pin: placed again, it is judged as new.
+            if (bk.key && ctx.state.model && ctx.state.model.beacon_positions_m) delete ctx.state.model.beacon_positions_m[bk.key];
             bs.dirtyMaps[map.id] = false;
           }
         } catch(_) {}
