@@ -2443,9 +2443,9 @@ function _logs(ctx, el) {
 // auto-grouped by model (iBeacon UUID prefix, manufacturer, BLE name).
 //
 // Features:
-//   - Master toggle to enable/disable beacon profiling
-//   - Per-beacon "Tune" toggle: exclude specific beacons from adaptive tuning
-//   - Group/Ungroup: override auto-grouping for individual beacons
+//   - Show/hide toggle for the report (beacon_profiling_enabled)
+//   - Group/Ungroup: override the report's auto-grouping for one beacon
+//   - Display only: no setting here is read by positioning or adaptive tuning
 //   - Collapsible per-scanner breakdown table (mean RSSI, std, point count)
 //   - All overrides persisted to settings via beacon_tune_disabled and
 //     beacon_group_overrides keys
@@ -2458,19 +2458,22 @@ function _beaconChars(ctx, el){
   wrap.appendChild(el("div",{style:"font-weight:700;font-size:16px;color:#e2e8f0;margin-bottom:8px"},
     "Beacon Signal Profiles"));
   wrap.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:12px;line-height:1.5"},
-    "Per-beacon signal characteristics computed from calibration data. "
-    + "Beacons are automatically grouped by model (iBeacon UUID prefix, manufacturer, BLE name). "
-    + "Model defaults apply to new beacons of the same type until they build their own profile."));
+    "Per-beacon signal characteristics computed from calibration data, grouped by model "
+    + "(iBeacon UUID prefix, manufacturer, BLE name). A report: it shows how each beacon reads, "
+    + "and nothing here changes positioning."));
 
   // ── Master toggle ──
   const masterEnabled = settings.beacon_profiling_enabled !== false;
   const toggleRow = el("div",{style:"display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:10px 14px;border-radius:8px;"
     + `background:${masterEnabled ? "rgba(22,163,74,.08)" : "rgba(220,38,38,.08)"};border:1px solid ${masterEnabled ? "#16a34a" : "#dc2626"}`});
+  // Show/hide only: nothing in the backend reads beacon_profiling_enabled for
+  // positioning (it said "model defaults applied" / "raw calibration data
+  // only" — neither was true).
   toggleRow.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#e2e8f0;flex:1"},
-    "Beacon Profiling"));
+    "Beacon profiles"));
   const masterBtn = el("button",{
     style:`font-size:12px;padding:4px 14px;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${masterEnabled?"#16a34a":"#dc2626"};background:${masterEnabled?"#052e16":"#3d0c0c"};color:${masterEnabled?"#4ade80":"#fca5a5"}`,
-  }, masterEnabled ? "Enabled" : "Disabled");
+  }, masterEnabled ? "Shown" : "Hidden");
   masterBtn.addEventListener("click", () => {
     const newVal = !masterEnabled;
     ctx.actions.wsCall("padspan_ha/settings_set", {
@@ -2482,13 +2485,13 @@ function _beaconChars(ctx, el){
   });
   toggleRow.appendChild(masterBtn);
   toggleRow.appendChild(el("div",{style:"font-size:11px;color:#94a3b8"},
-    masterEnabled ? "Profiling active — model defaults applied to new beacons"
-                  : "Profiling disabled — all beacons use raw calibration data only"));
+    masterEnabled ? "Showing the signal profile report"
+                  : "The report is hidden"));
   wrap.appendChild(toggleRow);
 
   if (!masterEnabled) {
     wrap.appendChild(el("div",{style:"color:#94a3b8;font-size:13px;padding:20px;text-align:center"},
-      "Enable beacon profiling above to see signal profiles and model grouping."));
+      "Show beacon profiles above to see the report."));
     return wrap;
   }
 
@@ -2597,7 +2600,7 @@ function _beaconChars(ctx, el){
     // Per-beacon table
     const tbl = el("table",{style:"width:100%;border-collapse:collapse;font-size:11px"});
     const thead = el("tr",{style:"color:#94a3b8;text-align:left;border-bottom:1px solid #334155"});
-    for (const h of ["Beacon","Points","Scanners","Avg Reach","Multi%","Avg RSSI","Variance","Cells","Tune","Group"]) {
+    for (const h of ["Beacon","Points","Scanners","Avg Reach","Multi%","Avg RSSI","Variance","Cells","Group"]) {
       thead.appendChild(el("th",{style:"padding:4px 6px;font-weight:600"},h));
     }
     tbl.appendChild(thead);
@@ -2614,20 +2617,9 @@ function _beaconChars(ctx, el){
       tr.appendChild(el("td",{style:"padding:4px 6px"},b.avg_std != null ? `±${b.avg_std}` : "—"));
       tr.appendChild(el("td",{style:"padding:4px 6px"},String(b.grid_cells_hit)));
 
-      // Tune toggle
-      const tuneTd = el("td",{style:"padding:4px 6px"});
-      const tuneOff = ctx.state._bcTuneDisabled.has(b.device_id);
-      const tuneBtn = el("button",{
-        style:`font-size:10px;padding:2px 6px;border-radius:3px;cursor:pointer;border:1px solid ${tuneOff?"#dc2626":"#16a34a"};background:${tuneOff?"#3d0c0c":"#052e16"};color:${tuneOff?"#fca5a5":"#4ade80"}`,
-      }, tuneOff ? "Off" : "On");
-      tuneBtn.addEventListener("click", () => {
-        if (tuneOff) ctx.state._bcTuneDisabled.delete(b.device_id);
-        else ctx.state._bcTuneDisabled.add(b.device_id);
-        _saveBC();
-        ctx.actions.renderRooms();
-      });
-      tuneTd.appendChild(tuneBtn);
-      tr.appendChild(tuneTd);
+      // (A per-beacon "Tune" On/Off column stood here, labelled "exclude from
+      // adaptive tuning". Adaptive tuning never read beacon_tune_disabled, so
+      // it did nothing. Removed; the setting stays accepted for old files.)
 
       // Group action — the backend auto-groups beacons by model (iBeacon UUID
       // prefix, manufacturer, BLE name) so a new beacon of a known type can
@@ -2651,6 +2643,7 @@ function _beaconChars(ctx, el){
           const ungroupBtn = el("button",{
             style:"font-size:10px;padding:2px 6px;border-radius:3px;cursor:pointer;border:1px solid #f59e0b;background:#451a03;color:#fcd34d",
           },"Ungroup");
+          ungroupBtn.title = "Show this beacon on its own row (the report only)";
           ungroupBtn.addEventListener("click", () => {
             ctx.state._bcGroupOverrides[b.device_id] = `solo:${b.device_id.substring(0,12)}`;
             _saveBC();
@@ -2661,6 +2654,7 @@ function _beaconChars(ctx, el){
           const regroupBtn = el("button",{
             style:"font-size:10px;padding:2px 6px;border-radius:3px;cursor:pointer;border:1px solid #3b82f6;background:#1e3a5f;color:#93c5fd",
           },"Regroup");
+          regroupBtn.title = "Put it back with its model (the report only)";
           regroupBtn.addEventListener("click", () => {
             delete ctx.state._bcGroupOverrides[b.device_id];
             _saveBC();

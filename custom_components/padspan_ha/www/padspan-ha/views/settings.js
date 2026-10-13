@@ -2023,31 +2023,11 @@ function _settingsPresence(ctx, el){
   const savedOffsets = settings.scanner_offsets || {};
   const radios = (ctx.state.live?.snapshot?.ble?.radios) || [];
   if(radios.length){
-    // ── Auto-offset mode selector ──
-    const autoMode = settings.auto_offset_mode || "partial";
-    const autoModeRow = el("div",{style:"display:flex;align-items:center;gap:10px;margin-bottom:12px"});
-    autoModeRow.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"},"Auto-Offset:"));
-    for (const [val, label, desc] of [
-      ["off", "Off", "No automatic correction"],
-      ["partial", "Partial", "50% correction — recommended default"],
-      ["full", "Full", "100% correction to fleet median"],
-    ]) {
-      const btn = el("button",{class:"btn inline",style:
-        autoMode === val
-          ? "font-size:11px;padding:3px 10px;background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-          : "font-size:11px;padding:3px 10px;color:#94a3b8"
-      }, label);
-      btn.title = desc;
-      btn.addEventListener("click", async () => {
-        try {
-          await ctx.actions.settingsSet({ auto_offset_mode: val });
-          ctx.toast(`Auto-offset: ${label}`);
-          ctx.actions.renderRooms();
-        } catch(e) { ctx.toast("Failed to save", true); }
-      });
-      autoModeRow.appendChild(btn);
-    }
-
+    // (An Auto-Offset Off/Partial/Full selector stood here. Nothing in the
+    // backend ever read auto_offset_mode: positioning applies only the manual
+    // scanner_offsets. The card said auto and manual "stack" and to set manual
+    // to 0 "to use auto only" — which left those scanners uncorrected. The
+    // figure below is now shown for what it is: a suggestion to type in.)
     // ── Compute auto-offsets from live advertisement data ──
     // Uses MEDIAN RSSI per scanner (robust to outliers from distant devices).
     // Remote scanners naturally see weaker signals — that's geography, not hardware.
@@ -2072,9 +2052,9 @@ function _settingsPresence(ctx, el){
     medVals.sort((a, b) => a - b);
     const fleetMedian = medVals.length ? medVals[Math.floor(medVals.length / 2)] : -70;
 
-    // Auto-offset = fleet_median - scanner_median (positive = scanner reads weaker, boost it)
-    // Partial = 50% of the full offset
-    const autoScale = autoMode === "full" ? 1.0 : autoMode === "partial" ? 0.5 : 0;
+    // Suggested offset = 50% of (fleet_median - scanner_median), the former
+    // "Partial" default (positive = scanner reads weaker, boost it). Shown only.
+    const autoScale = 0.5;
 
     const offsetRows = el("div",{style:"display:flex;flex-direction:column;gap:8px;margin-top:8px"});
     for(const radio of radios){
@@ -2097,8 +2077,8 @@ function _settingsPresence(ctx, el){
       });
 
       const autoLabel = autoOff !== 0
-        ? el("span",{style:`font-size:10px;color:${autoOff > 0 ? "#52b788" : "#f59e0b"}`}, `auto: ${autoOff > 0?"+":""}${autoOff.toFixed(1)}`)
-        : el("span",{style:"font-size:10px;color:#64748b"}, "auto: 0");
+        ? el("span",{style:`font-size:10px;color:${autoOff > 0 ? "#52b788" : "#f59e0b"}`, title:"Not applied. Type it into the box and Save to use it."}, `suggested: ${autoOff > 0?"+":""}${autoOff.toFixed(1)}`)
+        : el("span",{style:"font-size:10px;color:#64748b"}, "suggested: 0");
       const medLabel = scanMed != null
         ? el("span",{style:"font-size:10px;color:#64748b"}, `med: ${scanMed}dBm`)
         : null;
@@ -2118,15 +2098,15 @@ function _settingsPresence(ctx, el){
     wrap.appendChild(el("div",{class:"card"},[
       el("div",{class:"h2"},"Scanner RSSI Offsets"),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        "Auto-offset normalizes scanner hardware differences using live median RSSI. " +
-        "Partial (default) applies 50% correction — enough to smooth hardware variation without overcorrecting. " +
-        "Remote scanners are NOT penalized — they naturally see weaker signals due to distance, not hardware."
+        "Only the manual offset you save is applied. The suggestion beside it is half the gap between this " +
+        "scanner's median signal and the fleet median, from live data — a starting point for hardware " +
+        "differences; type it in and Save to use it. A remote scanner reads weaker because of distance, " +
+        "not hardware, so don't copy its suggestion blindly."
       ),
-      autoModeRow,
       offsetRows,
       el("div",{class:"muted",style:"font-size:11px;margin-top:8px"},
         `Fleet median: ${fleetMedian} dBm \u2022 Manual range: \u221220 to +20 dB \u2022 ` +
-        "Auto + manual offsets stack. Set manual to 0 to use auto only."
+        "Only the manual offset is applied."
       ),
     ]));
   }
