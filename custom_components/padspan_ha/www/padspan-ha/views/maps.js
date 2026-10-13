@@ -10649,7 +10649,13 @@ function _roomsTab(ctx, maps) {
     b => String(b.floor_id || "main") === String(floorId) && (b.points_m || []).length >= 2);
   if (!mapState._roomsBarrierDraft) mapState._roomsBarrierDraft = JSON.parse(JSON.stringify(allBarriers));
   const barDraft = mapState._roomsBarrierDraft;
-  const _barMoved = (i) => JSON.stringify(barDraft[i]?.points_m) !== JSON.stringify(allBarriers[i]?.points_m);
+  // Matched by id, not list position: a wall added or removed elsewhere
+  // while the draft is open must not make every later wall look moved.
+  const _barById = new Map(allBarriers.map(b => [b.id, b]));
+  const _barMoved = (i) => {
+    const cur = barDraft[i] && _barById.get(barDraft[i].id);
+    return !!cur && JSON.stringify(barDraft[i].points_m) !== JSON.stringify(cur.points_m);
+  };
   const movedBarriers = barDraft.map((_, i) => i).filter(_barMoved);
   const fabricDraft = mapState._roomsDraft || {};
   const orig = mapState._roomsOrig || {};
@@ -11489,12 +11495,11 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           for (const i of movedBarriers) {
             const b = barDraft[i];
             try {
+              // The stored wall with its new corners. The set replaces the
+              // record by id, so a payload of name/material/points alone
+              // erased its door, opener and lock links and Invert.
               await ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_set", {
-                barrier: {
-                  id: b.id, name: b.name, material: b.material || "custom",
-                  attenuation_dbm: b.attenuation_dbm ?? 6,
-                  floor_id: floorId, points_m: b.points_m,
-                },
+                barrier: { ..._barById.get(b.id), floor_id: floorId, points_m: b.points_m },
               });
               ok++;
             } catch (err) { fail++; console.warn("fabric_rf_barrier_set failed", b.name, err); }
