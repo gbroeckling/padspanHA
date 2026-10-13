@@ -21,7 +21,6 @@ from .const import (
     DATA_SETTINGS,
     DATA_MAPS,
     DATA_MODEL,
-    DATA_COORDINATOR,
     DATA_CALIBRATION,
     DATA_ADAPTIVE,
     GRADE_A_ERROR_M,
@@ -395,7 +394,6 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
     domain = hass.data.get(DOMAIN, {})
     ad = domain.get(DATA_ADAPTIVE)
     calib = domain.get(DATA_CALIBRATION)
-    coord = domain.get(DATA_COORDINATOR)
     maps_store = domain.get(DATA_MAPS)
     st = domain.get(DATA_SETTINGS)
     settings: dict[str, Any] = (st.data if st else {}) or {}
@@ -679,13 +677,15 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
 
     # ── 3. Scanner Disagreement (from coordinator Phase 3 data) ───────────────
     scanner_critics: list[dict[str, Any]] = []
-    if coord and hasattr(coord, "_scanner_reliability"):
+    # The presence coordinator holds the reliability figures; the config
+    # holder ('coordinator') has none, so this section never ran.
+    pc = domain.get("presence_coordinator")
+    if pc and hasattr(pc, "_scanner_reliability"):
         # Get live radio names for friendly display
         live_radios: list[dict[str, Any]] = []
         try:
-            live_radios = (
-                coord.data.get("ble", {}).get("radios", []) if coord.data else []
-            )
+            from .snapshot_builder import _live_snapshot  # noqa: PLC0415
+            live_radios = ((await _live_snapshot(hass)).get("ble") or {}).get("radios") or []
         except Exception:
             pass
         radio_name_map: dict[str, str] = {}
@@ -695,8 +695,8 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
             if _src and _nm:
                 radio_name_map[_src] = _nm
 
-        for src, rel in coord._scanner_reliability.items():
-            q = coord._scanner_agree.get(src)
+        for src, rel in pc._scanner_reliability.items():
+            q = pc._scanner_agree.get(src)
             polls = len(q) if q else 0
             if polls < 12:
                 continue  # not enough data

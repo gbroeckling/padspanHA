@@ -21,7 +21,6 @@ from .const import (
     DATA_SETTINGS,
     DATA_MAPS,
     DATA_MODEL,
-    DATA_COORDINATOR,
     DATA_ADAPTIVE,
 )
 from .bluetooth_live import get_bluetooth_live
@@ -250,7 +249,9 @@ async def ws_radio_reset(hass: HomeAssistant, connection, msg) -> None:
         summary["adaptive"] = {"room_pairs_removed": ad_removed}
 
     # 5. Presence coordinator — clear Kalman smoothing state
-    coord = hass.data.get(DOMAIN, {}).get(DATA_COORDINATOR)
+    # The presence coordinator: the config holder ('coordinator') has no
+    # clear_scanner, so a Radio Reset never cleared the scanner's smoothing.
+    coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
     if coord and hasattr(coord, "clear_scanner"):
         pc_cleared = coord.clear_scanner(source)
         summary["presence"] = {"devices_cleared": pc_cleared}

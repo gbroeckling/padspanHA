@@ -22,7 +22,6 @@ from .const import (
     DATA_MODEL,
     DEFAULT_FLOOR_ID,
     OUTSIDE_FLOOR_ID,
-    DATA_COORDINATOR,
     DATA_CALIBRATION,
     CALIBRATION_STORE_KEY,
     MODEL_STORE_KEY,
@@ -146,13 +145,13 @@ async def ws_calibration_health_check(hass: HomeAssistant, connection, msg) -> N
 
     # ── Per-scanner summary for the UI ────────────────────────────────────────
     # Includes name from live radios, point count, and mean RSSI.
-    coord = hass.data.get(DOMAIN, {}).get(DATA_COORDINATOR)
+    # From the live snapshot: the config holder ('coordinator') has no .data,
+    # so every scanner was listed by the last 12 characters of its MAC.
     live_radios: list[dict[str, Any]] = []
-    if coord:
-        try:
-            live_radios = coord.data.get("ble", {}).get("radios", []) if coord.data else []
-        except Exception:
-            pass
+    try:
+        live_radios = ((await _live_snapshot(hass)).get("ble") or {}).get("radios") or []
+    except Exception:
+        pass
     radio_name_map: dict[str, str] = {}
     for _r in live_radios:
         _src = _r.get("source") or ""
