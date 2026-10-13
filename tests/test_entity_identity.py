@@ -37,7 +37,7 @@ def _stubs(monkeypatch):
     monkeypatch.setattr(er, "async_get", lambda h: _ENT_REG, raising=False)
 
 
-def _boot(data, registry=True, registered=()):
+def _boot(data, registry=True, registered=(), known_pids=()):
     from custom_components.padspan_ha import device_tracker as T, sensor as S
     coord = MagicMock()
     listeners = []
@@ -48,7 +48,7 @@ def _boot(data, registry=True, registered=()):
     hass.data = {DOMAIN: {DATA_SETTINGS: st}}
     if registry:
         reg = MagicMock()
-        reg.get = lambda pid: None
+        reg.get = lambda pid: {"padspan_id": pid} if pid in known_pids else None
         reg.resolve = lambda key: None
         hass.data[DOMAIN][DATA_DEVICE_REGISTRY] = reg
     coord.hass = hass
@@ -103,3 +103,28 @@ def test_the_area_sensor_follows_the_live_key_every_poll():
 def test_entities_wait_for_the_device_list():
     added, _, _ = _boot({"irk:abc": {**_IRK, "age_s": 1}}, registry=False)
     assert added == []
+
+
+def test_a_scanner_sensor_already_registered_keeps_its_name():
+    """Scanner sensors took the label's area-sensor identity without looking
+    in the registry, so one an older version had named after the other key
+    came back as a new entity."""
+    a, _, _ = _boot({"irk:abc": {**_IRK, "age_s": 1}, "ibeacon:u:1:2": {**_IB, "age_s": 2}},
+                    registered={"padspan_ha__ibeacon_u_1_2__dist__proxy_kitchen"})
+    assert "padspan_ha__ibeacon_u_1_2__dist__proxy_kitchen" in _uids(a)
+
+
+def test_a_plain_address_device_named_by_its_address_keeps_it():
+    """Before the wait for the device list, a plain-address device could be
+    registered under its address; once the list loads its saved id became
+    the name and a second set of entities appeared."""
+    from custom_components.padspan_ha.const import DATA_DEVICE_REGISTRY
+    obj = {"kind": "ble", "user_label": "Keys", "room": "Hall", "address": "AA:BB:CC:DD:EE:01",
+           "padspan_id": "ps_000000000001", "_source_rssi": {}, "age_s": 1}
+    fresh, _, _ = _boot({"ble:AA:BB:CC:DD:EE:01": obj}, known_pids={"ps_000000000001"})
+    assert "padspan_ha__ps_000000000001__tracker" in _uids(fresh)    # a new install: the saved id
+    added, _, _ = _boot({"ble:AA:BB:CC:DD:EE:01": obj}, known_pids={"ps_000000000001"},
+                        registered={"padspan_ha__ble_AA_BB_CC_DD_EE_01__tracker",
+                                    "padspan_ha__ble_AA_BB_CC_DD_EE_01__area"})
+    assert "padspan_ha__ble_AA_BB_CC_DD_EE_01__tracker" in _uids(added)
+    assert "padspan_ha__ble_AA_BB_CC_DD_EE_01__area" in _uids(added)

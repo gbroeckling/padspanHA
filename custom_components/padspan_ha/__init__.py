@@ -752,8 +752,20 @@ async def _async_flush_history(hass: HomeAssistant) -> None:
 async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device: Any) -> bool:
     """Let a PadSpan device be deleted from HA's device page. A label
     removed or a factory reset left its entities "no longer provided"
-    for good, with no way to clear them. One still in use is created
-    again at the next poll."""
+    for good, with no way to clear them. One still in use is refused:
+    its entities are not created again until a restart, so deleting it
+    lost them (the occupancy sensor's device likewise)."""
+    ids = {i[1] for i in (getattr(device, "identifiers", None) or set())
+           if isinstance(i, tuple) and len(i) == 2 and i[0] == DOMAIN}
+    if "padspan_occupancy" in ids:
+        return False
+    coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+    for key, obj in ((getattr(coord, "data", None) or {}) if coord else {}).items():
+        if isinstance(obj, dict) and obj.get("user_label"):
+            uid = (obj.get("padspan_id") or obj.get("canonical_id") or obj.get("address")
+                   or obj.get("entity_id") or key)
+            if uid in ids:
+                return False
     return True
 
 

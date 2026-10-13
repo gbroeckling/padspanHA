@@ -99,12 +99,11 @@ class PrivateBLEResolver:
 
     async def async_load(self) -> None:
         """Read IRKs from private_ble_device, system Bluetooth bonds, mobile_app, and PadSpan settings."""
-        self._devices.clear()
-        # Cached answers were given against the old key list: an address
-        # cached as unresolved stayed so for up to 20 minutes after its
-        # phone's IRK was added, though the add said it matched.
-        self._cache.clear()
-        self._source_info: list[dict[str, Any]] = []  # for UI status
+        # Built aside and swapped in at the end: cleared up front, a resolve
+        # during the executor read below saw a half-built list and cached
+        # "unresolved" for 20 minutes for phones whose IRK came later in it.
+        devices: list[dict[str, Any]] = []
+        source_info: list[dict[str, Any]] = []  # for UI status
         seen_irk_hex: dict[str, dict[str, Any]] = {}  # hex → the registered device dict
 
         def _add_device(irk_bytes: bytes, name: str, source: str, entry_id: str = "") -> None:
@@ -138,9 +137,9 @@ class PrivateBLEResolver:
                 "name": name,
                 "irk_bytes": irk_bytes,
             }
-            self._devices.append(dev)
+            devices.append(dev)
             seen_irk_hex[h] = seen_irk_hex[h_rev] = dev
-            self._source_info.append({
+            source_info.append({
                 "name": name, "source": source,
                 "entry_id": entry_id,
             })
@@ -265,16 +264,22 @@ class PrivateBLEResolver:
             except Exception as _ps_err:
                 _LOGGER.debug("PadSpan IRK load: %s", _ps_err)
 
-            if self._devices:
+            if devices:
                 _LOGGER.info(
                     "PrivateBLEResolver loaded %d private device(s): %s",
-                    len(self._devices),
-                    ", ".join(d["name"] for d in self._devices),
+                    len(devices),
+                    ", ".join(d["name"] for d in devices),
                 )
             else:
                 _LOGGER.debug("PrivateBLEResolver: no private BLE devices found")
         except Exception as err:
             _LOGGER.warning("PrivateBLEResolver load failed: %s", err)
+        # Cached answers were given against the old key list: an address
+        # cached as unresolved stayed so for up to 20 minutes after its
+        # phone's IRK was added, though the add said it matched.
+        self._devices = devices
+        self._source_info = source_info
+        self._cache.clear()
         self._loaded_at = time.monotonic()
 
     def resolve_address(self, address: str) -> dict[str, Any] | None:

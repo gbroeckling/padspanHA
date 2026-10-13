@@ -75,8 +75,18 @@ def test_dump_devices_honours_notify_false_and_has_no_target():
 
 
 def test_a_padspan_device_can_be_deleted_from_its_page():
+    """A device no labelled object uses any more can be deleted; one still in
+    use, or the occupancy sensor's, is refused - its entities would not be
+    created again until a restart."""
     import custom_components.padspan_ha as pkg
-    assert asyncio.run(pkg.async_remove_config_entry_device(MagicMock(), MagicMock(), MagicMock())) is True
+    coord = MagicMock()
+    coord.data = {"ble:AA": {"user_label": "Keys", "padspan_id": "ps_live"}}
+    hass = MagicMock()
+    hass.data = {DOMAIN: {"presence_coordinator": coord}}
+    dev = lambda uid: MagicMock(identifiers={(DOMAIN, uid)})
+    assert asyncio.run(pkg.async_remove_config_entry_device(hass, MagicMock(), dev("ps_gone"))) is True
+    assert asyncio.run(pkg.async_remove_config_entry_device(hass, MagicMock(), dev("ps_live"))) is False
+    assert asyncio.run(pkg.async_remove_config_entry_device(hass, MagicMock(), dev("padspan_occupancy"))) is False
 
 
 def test_forensics_keeps_a_frequent_visitor_for_the_whole_retention():

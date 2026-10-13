@@ -536,3 +536,13 @@ class TestSameDeviceObjectsMerge:
         await house.poll(0, self._ib(a) + self._plain(b))
         snap = await SB._build_live_snapshot(house.hass)
         assert snap["raw_counts"]["merged_by_device"] == 1
+
+
+def test_the_history_cap_never_drops_an_irk_phone():
+    """low_memory.py promises an IRK phone is never dropped; the cap checked
+    only identified/user_label, so an unlabelled one could go."""
+    from custom_components.padspan_ha.snapshot_builder import cap_object_history
+    cache = {f"ble:{i:02X}": {"_last_seen_ts": i} for i in range(20)}
+    cache["irk:abc"] = {"kind": "private_ble", "_last_seen_ts": -1}
+    cap_object_history(cache, 5, set())
+    assert "irk:abc" in cache

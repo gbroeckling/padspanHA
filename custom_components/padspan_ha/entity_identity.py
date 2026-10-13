@@ -30,28 +30,43 @@ def uid_safe(text: str) -> str:
     return text.replace(":", "_").replace(" ", "_").replace("/", "_")
 
 
+def alternates_of(key: str, obj: dict[str, Any]) -> list[str]:
+    """The other names an older version may have given this key's entities."""
+    return [u for u in (key, str(obj.get("canonical_id") or "")) if u]
+
+
 def registry_ready(hass: Any, since_mono: float) -> bool:
     return (DATA_DEVICE_REGISTRY in hass.data.get(DOMAIN, {})
             or time.monotonic() - since_mono > REGISTRY_WAIT_S)
 
 
 def pick_uid_key(hass: Any, platform: str, unique_ids: Callable[[str], list[str]],
-                 candidates: list[tuple[str, str]]) -> str:
+                 candidates: list[tuple[str, str]], alternates: list[str] | None = None,
+                 fallback: str | None = None) -> str:
     """The uid key for a label's new entity, from its (key, uid_key) pairs.
 
-    An entity already registered under one of them keeps it, so nothing
-    existing is renamed; otherwise a fixed order (IRK, then iBeacon, then
-    the rest alphabetically), not whichever key polled first.
+    An entity already registered under one of them - or under one of the
+    `alternates` (the raw key or canonical id an older version named it
+    after, e.g. before the device list loaded) - keeps it, so nothing
+    existing is renamed. Otherwise `fallback` if given (the label's other
+    entities' uid), else a fixed order (IRK, then iBeacon, then the rest
+    alphabetically), not whichever key polled first.
     """
     try:
         from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
         reg = er.async_get(hass)
-        for _key, uid in candidates:
+        tried: set[str] = set()
+        for uid in [u for _k, u in candidates] + list(alternates or []):
+            if not uid or uid in tried:
+                continue
+            tried.add(uid)
             for unique_id in unique_ids(uid):
                 if reg.async_get_entity_id(platform, DOMAIN, unique_id):
                     return uid
     except Exception:  # noqa: BLE001 - no registry answer: the fixed order decides
         pass
+    if fallback:
+        return fallback
 
     def _rank(c: tuple[str, str]) -> tuple[int, str]:
         key = c[0]

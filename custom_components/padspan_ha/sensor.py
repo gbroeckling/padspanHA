@@ -43,7 +43,7 @@ from .const import (
 )
 from .presence_coordinator import PresenceCoordinator
 from .presence_rules import away_timeout_s, calc_distance as _calc_distance
-from .entity_identity import pick_uid_key, registry_ready, uid_safe
+from .entity_identity import alternates_of, pick_uid_key, registry_ready, uid_safe
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,8 +100,10 @@ async def async_setup_entry(
             key=lambda kv: kv[1].get("age_s") if isinstance(kv[1].get("age_s"), (int, float)) else 999999,
         )
         by_label: dict[str, list[tuple[str, str]]] = {}
+        alt_label: dict[str, list[str]] = {}
         for key, obj in items:
             by_label.setdefault(obj["user_label"], []).append((key, _stable_uid_key(hass, key, obj)))
+            alt_label.setdefault(obj["user_label"], []).extend(alternates_of(key, obj))
 
         def _fresher(key: str, obj: dict[str, Any], cur_key: str) -> bool:
             if key == cur_key:
@@ -129,7 +131,7 @@ async def async_setup_entry(
             elif key not in created:
                 uid = pick_uid_key(hass, "sensor", lambda u: [f"padspan_ha__{uid_safe(u)}__area",
                                                               f"padspan_ha__{uid_safe(u)}__distance"],
-                                   by_label[label])
+                                   by_label[label], alt_label.get(label))
                 sensors: list[SensorEntity] = []
                 if _area_on:
                     s = PadSpanAreaSensor(coordinator, key, uid)
@@ -151,12 +153,15 @@ async def async_setup_entry(
                         if _fresher(key, obj, existing_s._key):
                             existing_s._key = key
                     elif pair not in created_scanner:
-                        # The same identity as the label's area/distance
-                        # sensors, so all of them sit on one HA device.
+                        # One already registered keeps its name (an older
+                        # version named a scanner sensor after the key it
+                        # was first heard on); a new one takes the label's
+                        # area/distance identity, so all sit on one device.
                         _lbl = label_sensors.get(label)
-                        uid = _lbl[0]._uid_key if _lbl else pick_uid_key(
+                        uid = pick_uid_key(
                             hass, "sensor", lambda u: [f"padspan_ha__{uid_safe(u)}__dist__{uid_safe(source)}"],
-                            by_label[label])
+                            by_label[label], alt_label.get(label),
+                            fallback=_lbl[0]._uid_key if _lbl else None)
                         s = PadSpanScannerDistanceSensor(coordinator, key, source, uid)
                         new.append(s)
                         label_scanner_sensors[label_pair] = s

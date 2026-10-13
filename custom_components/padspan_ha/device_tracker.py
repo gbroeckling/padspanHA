@@ -30,7 +30,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, DATA_SETTINGS, DATA_DEVICE_REGISTRY
 from .geo_bridge import accuracy_from_confidence, metres_to_latlon
 from .presence_coordinator import PresenceCoordinator
-from .entity_identity import pick_uid_key, registry_ready, uid_safe
+from .entity_identity import alternates_of, pick_uid_key, registry_ready, uid_safe
 from .presence_rules import away_timeout_s, is_away
 
 # HA's own constant, with a literal fallback so an import change upstream
@@ -138,9 +138,11 @@ async def async_setup_entry(
                         entity._key = key
                     created.add(key)
                     continue
+                _same = [(k, o) for k, o in items if o.get("user_label") == label]
                 uid = pick_uid_key(
                     hass, "device_tracker", lambda u: [f"padspan_ha__{uid_safe(u)}__tracker"],
-                    [(k, _stable_uid_key(hass, k, o)) for k, o in items if o.get("user_label") == label])
+                    [(k, _stable_uid_key(hass, k, o)) for k, o in _same],
+                    [a for k, o in _same for a in alternates_of(k, o)])
                 entity = PadSpanDeviceTracker(coordinator, key, uid)
                 new.append(entity)
                 created.add(key)

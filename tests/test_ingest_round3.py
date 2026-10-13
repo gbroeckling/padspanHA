@@ -43,7 +43,10 @@ async def test_a_reload_forgets_cached_unresolved_addresses():
     r._devices = []
     assert r.resolve_address(rpa) is None          # cached as unresolved
     src = inspect.getsource(pr.PrivateBLEResolver.async_load)
-    assert "self._cache.clear()" in src.split("self._devices.clear()")[1][:400]
+    # Swapped in, then the cache cleared, after the last await: a resolve
+    # during the load sees the old list, never a half-built one.
+    swap = src.index("self._devices = devices")
+    assert src.index("self._cache.clear()") > swap > src.rindex("await ")
     r._cache.clear()                               # what async_load now does
     r._devices = [{"canonical_id": "irk:b", "name": "B", "irk_bytes": irk}]
     assert r.resolve_address(rpa) is not None

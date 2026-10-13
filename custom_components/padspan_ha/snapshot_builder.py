@@ -2818,8 +2818,10 @@ def cap_object_history(cache: dict[str, dict[str, Any]], cap: int, current_keys:
     (`current_keys`), is never dropped. Returns how many went."""
     if len(cache) <= cap:
         return 0
+    # An IRK phone is someone's too, labelled or not (low_memory.py says so).
     unid = [(o.get("_last_seen_ts") or 0, k) for k, o in cache.items()
-            if not (o.get("identified") or o.get("user_label"))]
+            if not (o.get("identified") or o.get("user_label")
+                    or o.get("kind") == "private_ble" or str(k).startswith("irk:"))]
     if len(unid) <= cap:
         return 0
     excess = len(unid) - int(cap * 0.9)
