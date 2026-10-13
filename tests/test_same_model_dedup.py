@@ -55,3 +55,21 @@ async def test_a_rotation_still_merges_once_the_old_address_is_quiet(monkeypatch
     objs, _ = await house.poll(0, [_ad(A, "kit", -50, "Tile", age=90.0), _ad(B, "kit", -52, "Tile")])
     merged = [o for o in objs.values() if (o.get("_dedup_reason") or "").startswith("same_name")]
     assert len(merged) == 1 and merged[0]["address"] == B      # the live address is primary
+
+
+@pytest.mark.asyncio
+async def test_the_rotation_bridge_never_renames_a_labelled_tag(monkeypatch):
+    """mac_rotation_bridging: two labelled tags of one model, one quiet for a
+    few seconds - the other was bridged onto it and shown as "Alice tag"."""
+    P, Q = "5A:11:11:11:11:11", "6B:22:22:22:22:22"
+
+    def ad(addr, src, age):
+        return {"address": addr, "source": src, "rssi": -60, "age_s": age, "name": "",
+                "manufacturer_data": {"117": "0x42 0x09 0x01"}, "service_data": {},
+                "service_uuids": ["0000fd5a-0000-1000-8000-00805f9b34fb"], "connectable": True}
+    house = _make_house(monkeypatch, labels={P: "Alice tag", Q: "Bob tag"}, followed=[])
+    await house.poll(0, [ad(P, "kit", 1), ad(Q, "off", 1)])
+    objs, _ = await house.poll(5, [ad(P, "kit", 7), ad(Q, "off", 1)])   # Alice quiet 7 s
+    for o in objs.values():
+        addrs = o.get("all_addresses") or [o.get("address")]
+        assert not (Q in addrs and o.get("user_label") == "Alice tag"), o

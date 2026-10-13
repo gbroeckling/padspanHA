@@ -1171,6 +1171,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                         continue  # already resolved
                     if not _is_rpa_addr(addr):
                         continue  # not a rotating address
+                    # An address with its own identity (a label, an HA device
+                    # or entity) is its own device: bridged, Bob's labelled tag
+                    # was shown as "Alice tag" at Bob's location whenever
+                    # Alice's tag was quiet for a few seconds.
+                    if (addr in addr_to_device or addr in addr_to_entities
+                            or (_obj_store_br and _obj_store_br.get_label(addr))):
+                        continue
                     fp = _build_bridge_fingerprint(rec)
                     if not fp:
                         continue
