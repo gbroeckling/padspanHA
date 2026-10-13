@@ -397,11 +397,20 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
           const m = (ctx.state.maps?.list || []).find(x => x.id === _mig.targetMapId);
           if(!m){ ctx.toast("Target map not found", true); return; }
           const mig = _mig.migrated || {};
-          const movedRxLabels = new Set(mig.receivers || []);
-          const movedBkLabels = new Set(mig.beacons || []);
           const movedRooms = new Set(mig.rooms || []);
-          const newRx = (m.receivers||[]).filter(r => !movedRxLabels.has(r.label || r.source || r.id || ""));
-          const newBk = (m.beacons||[]).filter(b => !movedBkLabels.has(b.label || b.key || ""));
+          // By key: removing by label also took the target's own pin of the
+          // same name ("Kitchen" on both maps), which the migration had
+          // skipped by key. A label only for a moved pin with no key, or
+          // from a backend that sent no keys.
+          const _strip = (items, keyOf, labelOf, labels, keys) => {
+            labels = labels || [];
+            if(!Array.isArray(keys)){ const ls = new Set(labels); return items.filter(x => !ls.has(labelOf(x))); }
+            const ks = new Set(keys.filter(Boolean));
+            const keyless = new Set(labels.filter((_, i) => !keys[i]));
+            return items.filter(x => { const k = keyOf(x); return k ? !ks.has(k) : !keyless.has(labelOf(x)); });
+          };
+          const newRx = _strip(m.receivers||[], r => r.source || r.id || "", r => r.label || r.source || r.id || "", mig.receivers, mig.receiver_keys);
+          const newBk = _strip(m.beacons||[], b => b.key || "", b => b.label || b.key || "", mig.beacons, mig.beacon_keys);
           const newBounds = {};
           for(const [k,v] of Object.entries(m.room_bounds||{})){
             if(!movedRooms.has(k)) newBounds[k] = v;

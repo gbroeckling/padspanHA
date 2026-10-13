@@ -480,6 +480,10 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
 
     moved_receivers: list[str] = []
     moved_beacons: list[str] = []
+    # What Revert migration removes: labels repeat ("Kitchen" on both maps),
+    # keys don't, and the migration already told the two apart by key.
+    moved_receiver_keys: list[str] = []
+    moved_beacon_keys: list[str] = []
     moved_rooms: list[str] = []
     skipped_receivers: list[str] = []
     skipped_beacons: list[str] = []
@@ -503,6 +507,7 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
         all_migrated_pts.append((tx, ty))
         tgt_receivers.append(new_rx)
         moved_receivers.append(label)
+        moved_receiver_keys.append(src_key)
         if src_key:
             tgt_rx_sources.add(src_key)
 
@@ -521,6 +526,7 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
         all_migrated_pts.append((tx, ty))
         tgt_beacons.append(new_bk)
         moved_beacons.append(label)
+        moved_beacon_keys.append(bk_key)
         if bk_key:
             tgt_bk_keys.add(bk_key)
 
@@ -660,6 +666,8 @@ async def ws_maps_delete_migrate(hass: HomeAssistant, connection, msg) -> None:
         "migrated": {
             "receivers": moved_receivers,
             "beacons": moved_beacons,
+            "receiver_keys": moved_receiver_keys,
+            "beacon_keys": moved_beacon_keys,
             "rooms": moved_rooms,
             "calibration_points": cal_moved,
         },
