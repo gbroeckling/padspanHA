@@ -10,11 +10,43 @@ released), **watching** (fixed; confirming from the field).
 
 | # | Area | What people saw | Cause | Fix | Release | Field signal | Status |
 |---|---|---|---|---|---|---|---|
-| 79 | Entities | A phone's Area/Distance sensors stuck on not_home while its tracker followed it; restarts made `_2` entities | Sensors re-targeted only on a new key; unique_id from whichever key polled first; created before the device list loaded | fc66b76e | 0.38.117 | — | committed |
-| 78 | Traceback | A custom range typed backwards always read "No data in range" | Not swapped | bcdb092b | 0.38.117 | — | committed |
-| 77 | Traceback / Insights | No Insights or Busy Times on a house without a floor-plan photo | Traceback returned before drawing anything | 599cf895 | 0.38.117 | `tab:traceback` | committed |
-| 76 | NFC | Tap-to-identify labelled objects `NFC: <tag id>` | Tag names live on the tag's entity; read `.name` off a dict | 275d223e | 0.38.117 | — | committed |
-| 75 | Setup | Setup asked for an update interval that did nothing | Field only copied into diagnostics | 33346357 | 0.38.117 | — | committed |
+| 111 | Pre-existing | Forget object, clearing a removed beacon and immediate beacon calibration never did anything | Called PresenceCoordinator methods on the config holder (`coordinator`) | 430fb527 | 0.38.119 | — | committed |
+| 110 | WLED | Removing Bright after moving to HA would leave every light with sync off | Skipped all devices when the other edition was installed (from #89) | 430fb527 | 0.38.119 | — | committed |
+| 109 | Maps | Old floor's devices still drawn after a Stack move | Either floor counted (from #88) | 430fb527 | 0.38.119 | — | committed |
+| 108 | Alerts | Alerts to a telegram_bot.send_message-style target never sent | No direct call once the fallback went (from #99) | 430fb527 | 0.38.119 | — | committed |
+| 107 | Entities | The occupancy sensor's leftover device could never be deleted | Refused unconditionally (from #102) | 430fb527 | 0.38.119 | — | committed |
+| 106 | Traceback | Newest frames still lost in thinned 7-day replays | Each pass still re-clamped with its own clock (from #92) | 430fb527 | 0.38.119 | — | committed |
+| 105 | Presence | Naming a device that is home fired depart then arrive | Label groups keyed by text; a renamed group looked new (from #95) | 430fb527 | 0.38.119 | — | committed |
+| 104 | Low memory | An unlabelled IRK phone could be dropped by the history cap | Cap checked only identified/label (from #1) | dc48872d | 0.38.119 | — | committed |
+| 103 | IRK | A phone could stay unresolved 20 min after a routine reload | Cache cleared before the key list was rebuilt (from #62) | dc48872d | 0.38.119 | — | committed |
+| 102 | Entities | Deleting a device in use lost its entities until restart | Removal allowed for every device (from #70) | dc48872d | 0.38.119 | — | committed |
+| 101 | Entities | A plain-address device registered under its address got `_2` entities | Registry checked only the new uid form (from #79) | dc48872d | 0.38.119 | — | committed |
+| 100 | Entities | Per-scanner distance sensors could come back as new entities | Took the area sensor's uid without checking the registry (from #79) | dc48872d | 0.38.119 | — | committed |
+| 99 | Alerts | An alert whose phone was renamed went to some other notify target | Auto-pick ran after a missing saved target (from #12) | 8a5944dd | 0.38.119 | — | committed |
+| 98 | Alerts | Kitchen -> Hall -> Bedroom reported Hall only | 60 s cooldown dropped the latest room (from #24) | 8a5944dd | 0.38.119 | — | committed |
+| 97 | Presence | A move after a 60 s - 5 min gap was never reported | Re-entry reset cleared the room; next change had no "from" (from #30/#25) | 8a5944dd | 0.38.119 | — | committed |
+| 96 | Presence | Changing the away timeout fired arrivals or departures for everyone | Diffed against the previous poll (from #17) | 8a5944dd | 0.38.119 | — | committed |
+| 95 | Presence | A phone on two keys "left" while home (depart alert/rules) | Arrive/depart per key, not per device (from #17) | 8a5944dd | 0.38.119 | — | committed |
+| 94 | Lost & Found | Records of HA-linked devices away >1 day dropped at restart (records from 0.38.106-0.38.118 stay unmarked until their next departure) | Start-up prune judged by whether still heard (from #3) | db370862 | 0.38.119 | — | committed |
+| 93 | Lost & Found | Followed devices without a label stopped being recorded | `identified` ignored the followed list (from #3) | db370862 | 0.38.119 | — | committed |
+| 92 | Traceback | A thinned 7-day replay lost its newest frames | Retention floor computed separately in each pass (from #51) | db370862 | 0.38.119 | — | committed |
+| 91 | Presence | Arrive/depart rules delayed while a replay or Insights read history | Poll's save waited on the history lock (from #51) | db370862 | 0.38.119 | — | committed |
+| 90 | Traceback | Filtered replay auto-expand found nothing with nobody home | Range end taken from 10-min memory (from #51) | db370862 | 0.38.119 | — | committed |
+| 89 | WLED | Removing Bright could rewrite sync on devices PadSpan HA runs | Give-back ignored the other edition (from #49) | ba45a236 | 0.38.119 | — | committed |
+| 88 | Maps | Redraw after a Stack move added the old floor's devices | Preferred stale stack.floor_id (from #45) | ba45a236 | 0.38.119 | — | committed |
+| 87 | Licence | Last grace day said "stops in 0 days" | days_left rounds down (from #60) | ba45a236 | 0.38.119 | — | committed |
+| 86 | Traceback | ?view=insights deep link opened plain playback | Used up by a render before maps loaded (from #77) | ba45a236 | 0.38.119 | — | committed |
+| 85 | Install Base | Shares over 100% | Divided spool-wide distributions by the 30-day count (from the redesign) | ba45a236 | 0.38.119 | — | committed |
+| 84 | Licence / Backup | Restore kept an expired trial over the backup's paid key | Live licence always kept (from #56) | ba45a236 | 0.38.119 | — | committed |
+| 83 | Beacon Tune | A second drag during an auto-save was dropped silently | `busy` never checked (from #6) | ba45a236 | 0.38.119 | — | committed |
+| 82 | Beacon Tune | A map with no metre placement stayed "unsaved" for good | Refused before checking for changes (from #6) | ba45a236 | 0.38.119 | — | committed |
+| 81 | Beacon Tune | Dragging a phone pinned it as a fixed beacon | Tracked display rows written like beacons (from #6) | ba45a236 | 0.38.119 | — | committed |
+| 80 | Process | ~30 bugs introduced by the day's fixes (#81-#110), found by two reviews of the fixes | Fixes verified against the reported case only; callers and interactions between fixes unchecked; a beta per batch | — | — | — | changed: fix batches get a regression review before release |
+| 79 | Entities | A phone's Area/Distance sensors stuck on not_home while its tracker followed it; restarts made `_2` entities | Sensors re-targeted only on a new key; unique_id from whichever key polled first; created before the device list loaded | fc66b76e | 0.38.117 | — | fixed |
+| 78 | Traceback | A custom range typed backwards always read "No data in range" | Not swapped | bcdb092b | 0.38.117 | — | fixed |
+| 77 | Traceback / Insights | No Insights or Busy Times on a house without a floor-plan photo | Traceback returned before drawing anything | 599cf895 | 0.38.117 | `tab:traceback` | fixed |
+| 76 | NFC | Tap-to-identify labelled objects `NFC: <tag id>` | Tag names live on the tag's entity; read `.name` off a dict | 275d223e | 0.38.117 | — | fixed |
+| 75 | Setup | Setup asked for an update interval that did nothing | Field only copied into diagnostics | 33346357 | 0.38.117 | — | fixed |
 | 74 | MQTT | `home` ignored the away timeout; `/area` kept the last room when away; `/distance` never sent | Fixed 300 s; nothing set `obj["distance"]` | 8e883092 | 0.38.116 | — | fixed |
 | 73 | Lost & Found | A panel left open showed where a device was yesterday | Fetched once per panel lifetime and preferred over the live room | 1b91125e | 0.38.116 | — | fixed |
 | 72 | Forensics | A frequent visitor's older sessions vanished inside the retention; the search said its list was complete | Fixed 50 sessions per address | a595e03b | 0.38.116 | — | fixed |
@@ -102,6 +134,7 @@ released), **watching** (fixed; confirming from the field).
 
 ### Decided
 
+- **A kept floor's stored level decides the numbering** (2026-10-12): found in the regression review; it is the 2026-09-27 design (test_a_kept_floor_with_a_stored_level_keeps_the_stored_numbering), which #42 only made reachable. Not changed.
 - **README vs licence check** (2026-10-12): the README said PadSpan makes no outbound requests with Update Check off, but the daily licence revalidation runs whenever a key is entered. Garry: reword the README, keep the check (so a refunded key is caught).
 - **device_tracker state is the room name** (2026-10-12): HA's Person counts any non-`home` state as away, so a Person linked only to PadSpan isn't counted in `zone.home`. Garry: leave the tracker as is (existing automations depend on it).
 

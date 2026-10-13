@@ -4,6 +4,42 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.119 — Fixing what the fixes broke (2026-10-12)
+
+A review of the 0.38.106-0.38.118 fixes found bugs those fixes introduced. This release fixes them.
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Presence and alerts
+- **Fixed:** a phone set up with the phone wizard no longer "leaves" while it is home when one of its two Bluetooth identities goes quiet. Arrive and leave alerts, events and rules now treat it as one device. Naming or renaming a device that is home doesn't count as leaving and arriving either.
+- **Fixed:** changing the away timeout no longer makes everyone arrive or leave at once.
+- **Fixed:** a move after a phone was briefly out of range (a minute or two) is reported again.
+- **Fixed:** a room alert that comes within a minute of the last one is sent once the minute is up, instead of being dropped.
+- **Fixed:** an alert set to a phone that has since been renamed or removed is no longer sent to some other phone or mailbox.
+
+### Home Assistant entities
+- **Fixed:** updating no longer creates a second set of entities for some devices. Existing ones keep their names.
+- **Fixed:** a device that is still in use can't be deleted from Home Assistant's device page; its entities wouldn't come back until a restart.
+
+### Beacon Tune
+- **Fixed:** dragging a phone or tag in Beacon Tune no longer pins it as a fixed beacon.
+- **Fixed:** a floor plan that isn't measured yet no longer stays "unsaved" for good in Beacon Tune, and a second placement made straight after the first is saved too.
+
+### Traceback, Lost & Found, backups
+- **Fixed:** filtering a Traceback replay to one device finds its history again when nobody is home right now, and long replays keep their newest minutes.
+- **Fixed:** Lost & Found records devices you follow without a label again, and keeps the last-seen room of a device away for more than a day across restarts.
+- **Fixed:** restoring a backup brings back its working licence key if the one on this install has expired.
+
+### Smaller fixes
+- **Fixed:** the licence card no longer says "paid editing stops in 0 days" on the last day of grace.
+- **Fixed:** a link straight to Insights or Busy Times opens it, not the plain replay.
+- **Fixed:** removing PadSpan HA or PadSpan Bright while the other is still installed no longer changes WLED lights the other one is running, and still gives back the rest.
+- **Fixed:** alerts sent to another integration's message service (for example Telegram) work again.
+- **Fixed:** "forget this object" and removing a beacon now clear what PadSpan remembered about it. Neither had ever worked.
+
+---
+
 ## 0.38.118 — Saying plainly what the licence check sends (2026-10-12)
 
 ### Before you update
