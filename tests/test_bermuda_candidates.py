@@ -110,3 +110,22 @@ def test_bluetooth_words_with_digits_and_maker_prefixes_still_match():
         assert rx.search(name), name
     for name in ("sensor.kitchen_voltage", "binary_sensor.dining_table_occupancy", "sensor.cable_box"):
         assert not rx.search(name), name
+
+
+@pytest.mark.asyncio
+async def test_a_bermuda_device_that_left_is_away_not_in_its_last_room(monkeypatch):
+    """When Bermuda clears the area, the history replayed the entity object
+    with its old room, and an entity has no radio age to age out: it stayed
+    present in the Kitchen for as long as the history kept it."""
+    from custom_components.padspan_ha.presence_rules import is_away
+    house = _house(monkeypatch)
+    objs, _ = await house.poll(0, [])
+    assert _entity_objects(objs) == ["sensor.phone_area"]
+    for st in house.hass.states.async_all():
+        if st.entity_id.startswith("sensor.phone_"):
+            st.state = "unknown"
+            st.attributes = {k: v for k, v in st.attributes.items() if k not in ("area_id", "area_name")}
+    objs, _ = await house.poll(600, [])
+    ghost = [o for o in objs.values() if o.get("entity_id") == "sensor.phone_area"]
+    assert ghost and ghost[0]["room"] == "" and ghost[0].get("last_room") == "Kitchen"
+    assert is_away(ghost[0], 300)

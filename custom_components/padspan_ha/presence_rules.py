@@ -89,6 +89,10 @@ def is_away(obj: dict[str, Any], timeout_s: float) -> bool:
     """
     if not isinstance(obj, dict):
         return False
+    # The snapshot's own word: an HA entity that stopped reporting a room is
+    # replayed from the history marked away (it has no radio age to judge).
+    if obj.get("away") is True:
+        return True
     if obj.get("kind") not in RADIO_KINDS:
         return False
     age = obj.get("age_s")
