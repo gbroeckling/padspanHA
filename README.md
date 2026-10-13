@@ -220,10 +220,9 @@ No key yet? **Settings → Features → PadSpan licence** has a one-time 90-day 
 ### Via HACS (recommended)
 
 1. Open HACS in your Home Assistant instance
-2. Add this repository as a **custom repository** (Integration type)
-3. Search for and install **PadSpan HA**
-4. **Restart Home Assistant completely** (Settings → System → Restart)
-5. Add the integration: Settings → Devices & Services → Add Integration → PadSpan HA
+2. Search for and install **PadSpan HA** (it's in the HACS default list, no custom repository needed)
+3. **Restart Home Assistant completely** (Settings → System → Restart)
+4. Add the integration: Settings → Devices & Services → Add Integration → PadSpan HA
 
 ### Manual
 

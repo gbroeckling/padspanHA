@@ -505,7 +505,7 @@ def create_github_release(tag, channel, message=None):
         f"## PadSpan HA {tag} ({channel_label})\n\n"
         f"{summary}\n\n"
         "### Install / Update\n"
-        "Install or update via HACS using this repository as a custom repository."
+        "Install or update via HACS: search for PadSpan HA (it is in the HACS default list)."
     )
 
     # ── Attempt 1: gh release create (one-shot, preferred) ──
