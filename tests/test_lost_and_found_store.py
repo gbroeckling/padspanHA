@@ -184,6 +184,17 @@ async def test_a_restore_keeps_the_newer_record_per_object_and_saves_what_it_hol
     store.store.async_save.assert_awaited_once_with(store.records)
 
 
+@pytest.mark.asyncio
+async def test_a_restored_record_with_a_bad_time_is_skipped_not_the_whole_merge():
+    store = _make_store()
+    store.records = {"ble:TAG": {"room": "Garage", "ts": 300.0}}
+    await store.async_merge({"ble:TAG": {"room": "Kitchen", "ts": "monday"},
+                             "ble:ODD": {"room": "Hall", "ts": [1]},
+                             "ble:WALLET": {"room": "Bedroom", "ts": 100.0}})
+    assert {k: v["room"] for k, v in store.get_all().items()} == {"ble:TAG": "Garage", "ble:WALLET": "Bedroom"}
+    store.store.async_save.assert_awaited_once()
+
+
 async def test_a_record_for_someones_device_survives_the_startup_prune(tmp_path):
     """The once-per-start prune judged records by whether the device was still
     heard, so an HA-linked tag away for two days lost its record at restart.
