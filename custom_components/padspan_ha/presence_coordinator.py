@@ -4015,19 +4015,34 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         Returns the number of device entries that were cleaned.
         """
         cleared = 0
+        # Copy-on-write, never indexing after a check: in cpu_mode single or
+        # dedicated the object loop works on these dicts on the compute
+        # executor while Radio Reset runs this on the event loop, and a
+        # popped address raised KeyError (or a deleted source broke the
+        # loop's iteration of that device).
         for addr in list(self._ema_rssi):
-            if source in self._ema_rssi[addr]:
-                del self._ema_rssi[addr][source]
-                self._kalman_p.get(addr, {}).pop(source, None)
-                cleared += 1
-                if not self._ema_rssi[addr]:
-                    del self._ema_rssi[addr]
-                    self._kalman_p.pop(addr, None)
+            ema = self._ema_rssi.get(addr)
+            if not ema or source not in ema:
+                continue
+            cleared += 1
+            rest = {k: v for k, v in ema.items() if k != source}
+            if rest:
+                self._ema_rssi[addr] = rest
+                kp = self._kalman_p.get(addr)
+                if kp and source in kp:
+                    self._kalman_p[addr] = {k: v for k, v in kp.items() if k != source}
+            else:
+                self._ema_rssi.pop(addr, None)
+                self._kalman_p.pop(addr, None)
         for addr in list(self._silence_miss):
-            if source in self._silence_miss[addr]:
-                del self._silence_miss[addr][source]
-                if not self._silence_miss[addr]:
-                    del self._silence_miss[addr]
+            sm = self._silence_miss.get(addr)
+            if not sm or source not in sm:
+                continue
+            rest = {k: v for k, v in sm.items() if k != source}
+            if rest:
+                self._silence_miss[addr] = rest
+            else:
+                self._silence_miss.pop(addr, None)
         return cleared
 
     async def _record_movement(self, result: dict[str, Any]) -> None:

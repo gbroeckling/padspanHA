@@ -37,3 +37,20 @@ def test_no_handler_asks_the_config_holder_for_them():
                 if re.search(rf"\b{var}\.{name}\b|hasattr\({var}, \"{name}\"\)", rest):
                     bad.append(f"{path.name}: {var}.{name}")
     assert bad == []
+
+
+def test_clear_scanner_removes_a_source_without_touching_dicts_in_use():
+    """Radio Reset runs clear_scanner on the event loop while, in cpu_mode
+    single or dedicated, the object loop iterates these dicts on the
+    executor: it replaces a device's dicts instead of editing them."""
+    from custom_components.padspan_ha.presence_coordinator import PresenceCoordinator
+    pc = PresenceCoordinator.__new__(PresenceCoordinator)
+    a_ema = {"kit": -60.0, "off": -70.0}
+    pc._ema_rssi = {"A": a_ema, "B": {"kit": -55.0}, "C": {"off": -80.0}}
+    pc._kalman_p = {"A": {"kit": 1.0, "off": 2.0}, "B": {"kit": 1.0}}
+    pc._silence_miss = {"A": {"kit": 2}, "C": {"off": 1}}
+    assert pc.clear_scanner("kit") == 2
+    assert pc._ema_rssi == {"A": {"off": -70.0}, "C": {"off": -80.0}}
+    assert pc._kalman_p == {"A": {"off": 2.0}}
+    assert pc._silence_miss == {"C": {"off": 1}}
+    assert a_ema == {"kit": -60.0, "off": -70.0}      # the loop's reference was not edited
