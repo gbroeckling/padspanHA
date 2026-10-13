@@ -1475,6 +1475,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                         "service_uuids": [],
                     }
                 pg = _private_groups[cid]
+                # A group is a bridge guess only if none of its addresses
+                # resolved for real: a bridged address met first made an IRK
+                # phone heard on its own address a guess (unidentified, and
+                # dropped from occupancy's people).
+                if pg["canonical"].get("bridge_match") and not canonical.get("bridge_match"):
+                    pg["canonical"] = canonical
                 pg["addrs"].append(addr)
                 # Per-source merge: prefer the FRESHEST (lowest age_s) reading
                 # per scanner source across all rotating MACs — not the strongest
