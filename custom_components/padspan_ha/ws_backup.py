@@ -511,6 +511,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # made since (settings_store.py).
                             if (store_obj.data or {}).get("atlas_default_v1_applied"):
                                 data["atlas_default_v1_applied"] = True
+                            # A Pro invite is this install's now, answered or
+                            # not: an older backup must not bring one back.
+                            from .pro_invite import SETTINGS_KEY as _INVITE_KEY
+                            data[_INVITE_KEY] = (store_obj.data or {}).get(_INVITE_KEY) or {}
                             # Nor bring back the trial milestone card, or restart
                             # its week (settings_store.trial_state_kept).
                             from .settings_store import trial_state_kept

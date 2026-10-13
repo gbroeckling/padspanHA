@@ -306,11 +306,11 @@ def test_trial_state_kept_takes_an_answer_from_either_side_and_the_earliest_sigh
     k = ss.trial_state_kept
     assert k({"trial_nudge_done": True}, {"trial_nudge_done": False})["trial_nudge_done"] is True
     assert k({}, {"trial_nudge_done": True})["trial_nudge_done"] is True
-    assert k({}, {}) == {"trial_nudge_done": False}, "no sighting on either side: nothing invented"
+    assert k({}, {}) == {"trial_nudge_done": False, "tester_nudge_done": False}, "no sighting on either side: nothing invented"
     assert k({"first_seen_ts": 2_000.0}, {"first_seen_ts": 1_000.0})["first_seen_ts"] == 1_000.0
     assert k({"first_seen_ts": 0}, {"first_seen_ts": 1_000.0})["first_seen_ts"] == 1_000.0
     for bad in (0, -5, None, "yesterday", True):
-        assert k({"first_seen_ts": bad}, None) == {"trial_nudge_done": False}, bad
+        assert k({"first_seen_ts": bad}, None) == {"trial_nudge_done": False, "tester_nudge_done": False}, bad
 
 
 def test_a_restore_keeps_the_later_whats_new_version() -> None:

@@ -70,6 +70,12 @@ let TRIAL = null;
 const _trialPromise = import(`./views/trial_offer.js?b=${BUILD_ID}`)
   .then(m => { TRIAL = m; })
   .catch(err => console.warn("PadSpan: trial_offer module failed to load", err));
+// Free Pro (views/pro_invite.js): an invite the developer sent this install,
+// and the one-time "test it, get Pro free" card. Optional like the trial.
+let PRO_INVITE = null;
+import(`./views/pro_invite.js?b=${BUILD_ID}`)
+  .then(m => { PRO_INVITE = m; })
+  .catch(err => console.warn("PadSpan: pro_invite module failed to load", err));
 
 // Which PadSpan module an uncaught error came from (views/ui_error.js). Until
 // it lands, or if it never does, uncaught errors simply go uncounted.
@@ -1004,6 +1010,78 @@ class PadSpanHaApp extends HTMLElement {
       });
   }
 
+  // ── Free Pro: the invite and the tester card (views/pro_invite.js) ─────
+  // The trial milestone's rules: an administrator, live data, no kiosk, and
+  // one Overview card per page load (the caller, _overviewCardShown). The
+  // invite stays until it is answered ("Later" puts it off for a week in
+  // this browser). The tester card shows once per install and takes the
+  // trial milestone's place: both flags are saved the moment it shows.
+  _proOffersAllowed(){
+    if (!PRO_INVITE || !this.state.settings || this.state.kioskMode) return false;
+    if (!this.state._dataModeKnown || this.state.dataMode !== "live") return false;
+    return !!(this._hass && this._hass.user && this._hass.user.is_admin);
+  }
+
+  _proInviteOverviewCard(){
+    if (!this._proOffersAllowed()) return null;
+    const v = this._proInviteView || (this._proInviteView = { visible: false, hidden: false });
+    if (v.hidden) return null;
+    if (!v.visible) {
+      if (this._overviewCardShown || !PRO_INVITE.inviteDue(this.state.settings)) return null;
+      v.visible = true;
+      this._overviewCardShown = true;   // it holds the slot for this page load
+    }
+    const host = PRO_INVITE.inviteHostFromCtx(this._ctx());
+    host.rerender = () => this._scheduleRender();
+    return PRO_INVITE.inviteCard(host, {
+      onLater: () => { PRO_INVITE.inviteLater(); v.hidden = true; this._scheduleRender(); },
+      onDeclined: () => { v.hidden = true; },
+      onClose: () => { v.hidden = true; this._scheduleRender(); },
+    });
+  }
+
+  _testerOverviewCard(positioned){
+    if (!this._proOffersAllowed()) return null;
+    const st = this.state.settings;
+    const v = this._testerView || (this._testerView = { visible: false, hidden: false, saved: false });
+    if (v.hidden) return null;
+    if (!v.visible) {
+      if (this._overviewCardShown || !PRO_INVITE.testerCardDue(st, positioned)) return null;
+      v.visible = true;
+      this._overviewCardShown = true;
+    }
+    if (!v.saved) {
+      v.saved = true;
+      this._callWS({ type: "padspan_ha/settings_set", tester_nudge_done: true, trial_nudge_done: true })
+        .then(res => { if (res && res.settings) this.state.settings = res.settings; })
+        .catch(() => {});
+    }
+    const hide = () => { v.hidden = true; this._scheduleRender(); };
+    return PRO_INVITE.testerCard({ el, settings: st }, {
+      onClose: hide,
+      onNo: hide,
+      onSignUp: () => { v.hidden = true; this._openTesterSignup(); },
+    });
+  }
+
+  // Settings → Presence, where the report switch and the tester sign-up are;
+  // the sign-up opens itself there (tester_signup.js, state._testerFocus).
+  // Basic mode has no Presence tab: promote to Advanced, as Getting started
+  // does for calibration.
+  _openTesterSignup(){
+    if (this.state.complexity === "basic") {
+      this.state.complexity = "advanced";
+      try { localStorage.setItem("padspan_complexity", "advanced"); } catch(e) {}
+    }
+    this.state._testerScrolled = null;
+    this.state.view = "settings";
+    this.state._settingsTab = "presence";
+    this.state._testerFocus = true;
+    this._renderNav();
+    if (!VIEWS.settings && _VIEW_PATHS.settings) _loadView("settings").then(() => this._scheduleRender());
+    this._scheduleRender();
+  }
+
   // ── The trial's milestone card, once per install ─────────────────────────
   // A free install that never meets a paid wall never meets the trial either.
   // This tells it once, at a moment the free product has just proved itself:
@@ -1032,6 +1110,7 @@ class PadSpanHaApp extends HTMLElement {
       if (this._overviewCardShown) return null;
       if (!TRIAL.trialMilestoneDue(st, positioned)) return null;
       m.visible = true;
+      this._overviewCardShown = true;   // so a Pro card cannot take its place this load
     }
     // A key that arrives from elsewhere (Settings) takes the card away; a
     // trial started from it keeps it open to say so.
@@ -1144,7 +1223,8 @@ class PadSpanHaApp extends HTMLElement {
       "PadSpan is bleeding edge. Metre-level BLE positioning in an ordinary house is not a solved problem, and this one is developed against exactly one house. " +
       "It needs all the help it can find, and the biggest help is being able to see what other houses look like. " +
       "Opt in and once a day it sends counts only: scanners, floors, rooms, calibration points, which features are on, whether positioning and identity resolution are actually working, how hard the machine works and what class of machine it is, and how many warnings each part logged. " +
-      "Never addresses, keys, names, coordinates or timestamps. Off until you say yes, and Settings → Presence turns it off again any time."));
+      "Never addresses, keys, names, coordinates or timestamps. Off until you say yes, and Settings → Presence turns it off again any time. " +
+      "Now and then the developer invites houses that report to try something, like a free year of Pro. You can say no."));
     const out = el("pre", { class: "pre", style: "display:none;margin:0 0 8px;max-height:260px;overflow:auto;font-size:11px" });
     const yes = el("button", { class: "btn inline", style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" }, "Share usage report");
     yes.addEventListener("click", () => decide(true));
@@ -3857,7 +3937,10 @@ class PadSpanHaApp extends HTMLElement {
         // answer are in (no flash).
         if (!_new && !_ask && _setupKnown && _posKnown) {
           try {
-            const _ms = this._trialMilestoneCard(_hasPositioned);
+            // A Pro invite first, then the one-time tester card, then the
+            // trial's: whichever is first to be due, one at a time.
+            const _ms = this._proInviteOverviewCard() || this._testerOverviewCard(_hasPositioned)
+              || this._trialMilestoneCard(_hasPositioned);
             if (_ms) frag.appendChild(_ms);
           } catch(e) { console.warn("PadSpan: trial milestone failed", e); }
         }

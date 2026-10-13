@@ -306,7 +306,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "room_color", "setup_status", "stack_transform", "tune_save_plan", "ui_error",
     "wall_geom", "whatif_placement", "wled_advanced", "wled_model", "wled_tab_backup",
     "wled_tab_leds", "wled_tab_look", "wled_tab_presets", "wled_tab_settings",
-    "wled_tab_sync", "wled_ui", "trial_offer", "release_notes",
+    "wled_tab_sync", "wled_ui", "trial_offer", "release_notes", "pro_invite",
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
 UI_ERRORS: frozenset[str] = frozenset(
@@ -1523,6 +1523,10 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
                 _LOGGER.debug("Telemetry HTTP %s", resp.status)
                 _give_back_windows(hass, taken)
                 return {"sent": False, "reason": f"http {resp.status}", "bytes": len(body)}
+            try:
+                reply = await resp.json(content_type=None)
+            except Exception:
+                reply = None
     except Exception as err:  # network errors are expected and non-fatal
         _LOGGER.debug("Telemetry send failed: %s", err)
         _give_back_windows(hass, taken)
@@ -1532,6 +1536,12 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
             await st.async_set(telemetry_last_day=_today())
         except Exception:
             pass
+    # The reply may carry a free-year Pro invite (pro_invite.py). Never fatal.
+    try:
+        from .pro_invite import store_from_reply  # noqa: PLC0415
+        await store_from_reply(hass, reply)
+    except Exception as err:
+        _LOGGER.debug("Pro invite from the report reply not kept: %s", err)
     return {"sent": True, "reason": "", "bytes": len(body)}
 
 

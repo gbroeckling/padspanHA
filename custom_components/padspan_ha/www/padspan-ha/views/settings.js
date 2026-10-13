@@ -25,6 +25,10 @@ const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.
 // Optional: a card that fails to load must not take the Settings tab with it.
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
+// Optional: free Pro by invite or by testing (pro_invite.js).
+const PRO = await import(`./pro_invite.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: pro_invite failed to load", err);
+    return { inviteCard: () => null, inviteHostFromCtx: () => null, TESTER_CARD_BODY_SHORT: "" }; });
 // Optional as well: only the Atlas weather section's "Automatic — …" labels
 // and warning list need it.
 const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
@@ -1098,7 +1102,9 @@ function _settingsPresence(ctx, el){
     ),
     el("div", { class: "muted", style: "font-size:11px;margin-bottom:12px" },
       "The report carries a random ID so installs can be counted rather than pings; you can replace it any time. " +
-      "Preview shows the exact JSON \u2014 what you see is what goes, and anything identifier-shaped is refused before it leaves."),
+      "Preview shows the exact JSON \u2014 what you see is what goes, and anything identifier-shaped is refused before it leaves. " +
+      "The developer may invite an install that reports to something, like a free year of Pro: the invite comes back with " +
+      "the report's reply and shows on Overview and under PadSpan licence. Nothing about you is sent unless you accept it."),
     el("div", { style: rowStyle }, [
       el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Usage report"),
       telBtn,
@@ -2974,6 +2980,26 @@ function _settingsLicence(ctx, el){
   if (!hasKey) {
     const trial = trialOfferFromCtx(ctx, "settings", { buy: false });
     if (trial) card.appendChild(trial);
+  }
+  // Free Pro (views/pro_invite.js), for an administrator: an invite this
+  // install was sent stays here until it is answered, even after Overview's
+  // card was put off; and with no key, the tester route to Pro.
+  const _admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
+  if (_admin) {
+    const invite = PRO.inviteCard(PRO.inviteHostFromCtx(ctx));
+    if (invite) card.appendChild(invite);
+    if (!hasKey && s.tester_signed_up !== true && edition !== "PadSpan Bright") {
+      const go = el("button", { class: "btn inline", "data-licence": "tester",
+        style: "font-size:12px;margin-left:6px" }, "Become a tester");
+      go.addEventListener("click", () => {
+        ctx.state._settingsTab = "presence";
+        ctx.state._testerFocus = true;
+        ctx.state._testerScrolled = null;
+        ctx.actions.renderRooms();
+      });
+      card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;margin-top:8px;line-height:1.55" },
+        [PRO.TESTER_CARD_BODY_SHORT, go]));
+    }
   }
 
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.5" },

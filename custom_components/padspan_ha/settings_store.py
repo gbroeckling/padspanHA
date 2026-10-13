@@ -50,12 +50,17 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # The Overview's one-time trial milestone card was answered: "No thanks",
     # its ✕, or a trial started from it. Per install; it never shows again.
     "trial_nudge_done": False,
+    "tester_nudge_done": False,     # the Overview "test it, get Pro free" card was shown; never again (views/pro_invite.js)
     "telemetry_install_id": "",
     "telemetry_last_day": "",       # UTC day of the last accepted report (one per day)
     # "Become a tester" (tester.py) — NOT part of the usage report. What the
     # person typed, so they can update it; backend-only (padspan_ha/tester_*),
     # never in settings_get (ws_common._get_settings takes it out). {} = none.
     "tester_signup": {},
+    # A free year of Pro the developer invited this install to (pro_invite.py):
+    # the token and its last day, or what was answered. Backend-only, like
+    # tester_signup; the panel sees pro_invite_open / pro_invite_until.
+    "pro_invite": {},
     "vendor_lookup_enabled": True,  # Sends MAC prefixes to vendor lookup APIs when requested from UI
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)
@@ -279,7 +284,8 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
     the smaller positive value) — so an older backup can neither bring the
     card back nor restart its week."""
     a, b = live or {}, other or {}
-    out: dict[str, Any] = {"trial_nudge_done": bool(a.get("trial_nudge_done") or b.get("trial_nudge_done"))}
+    out: dict[str, Any] = {"trial_nudge_done": bool(a.get("trial_nudge_done") or b.get("trial_nudge_done")),
+                           "tester_nudge_done": bool(a.get("tester_nudge_done") or b.get("tester_nudge_done"))}
     seen = [v for v in (a.get("first_seen_ts"), b.get("first_seen_ts"))
             if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0]
     if seen:

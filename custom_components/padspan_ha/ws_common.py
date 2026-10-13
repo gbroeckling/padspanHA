@@ -202,6 +202,9 @@ def _get_settings(hass: HomeAssistant) -> dict:
     # padspan_ha/tester_status.
     _signup = out.pop(_TESTER_KEY, None)
     out["tester_signed_up"] = bool(isinstance(_signup, dict) and _signup.get("signed_up_at"))
+    # A Pro invite's token is what claims it: never for every user either.
+    from .pro_invite import SETTINGS_KEY as _INVITE_KEY, public_state as _invite_state  # noqa: PLC0415
+    out.update(_invite_state({_INVITE_KEY: out.pop(_INVITE_KEY, None)}))
     out["pro_has_key"] = state["has_key"]
     out["pro_active"] = state["active"]        # a valid key of any tier
     out["pro_days_left"] = state["days_left"]

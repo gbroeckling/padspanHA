@@ -14,6 +14,9 @@
 // a UUID other than install_id, a 32-hex string, a licence key, an IP or an
 // email address anywhere in it. Summarise with server/telemetry_summary.py.
 //
+// The reply is {"ok":true}, plus a free-year Pro invite for an install the
+// developer put on the invite list (the end of this file; pro_invite.py).
+//
 // "Become a tester" sign-ups are NOT reports and never come here: they go to
 // tester.php, which keeps them in its own file. Nothing here reads that file.
 
@@ -87,4 +90,35 @@ if ($lh && flock($lh, LOCK_EX)) {
     fflush($lh); flock($lh, LOCK_UN);
 }
 if ($lh) { fclose($lh); }
-echo '{"ok":true}';
+
+// A free-year Pro invite for this install, if the developer put its id on
+// the list (private/padspan-invites.json, written by hand; the licence
+// server's invite_claim / invite_decline answer it). The reply is the only
+// thing that changes: the report above is stored exactly as before. Best
+// effort: no list, or an unreadable one, is no invite.
+$out = array('ok' => true);
+$if = __DIR__ . '/../../../private/padspan-invites.json';
+$ih = file_exists($if) ? @fopen($if, 'c+') : false;
+if ($ih && flock($ih, LOCK_EX)) {
+    $inv = json_decode(stream_get_contents($ih) ?: '{}', true);
+    $e = (is_array($inv) && isset($inv[$id]) && is_array($inv[$id])) ? $inv[$id] : null;
+    $st = $e && isset($e['status']) ? $e['status'] : '';
+    // Only a version that can show it (0.38.124 brought the card): an older
+    // one would ignore it, and the list would say delivered when it was not.
+    $ver = isset($r['version']) ? (string)$r['version'] : '';
+    if (($st === 'invited' || $st === 'delivered') && isset($e['token'], $e['until'])
+        && preg_match('/^\d+\.\d+\.\d+$/', $ver) && version_compare($ver, '0.38.124', '>=')
+        && preg_match('/^[0-9a-f]{32}$/', $e['token']) && gmdate('Y-m-d') <= $e['until']) {
+        $out['invite'] = array('token' => $e['token'], 'until' => $e['until']);
+        if ($st === 'invited') {
+            $inv[$id]['status'] = 'delivered';
+            $inv[$id]['delivered'] = gmdate('Y-m-d');
+            ftruncate($ih, 0); rewind($ih);
+            fwrite($ih, json_encode($inv, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+            fflush($ih);
+        }
+    }
+    flock($ih, LOCK_UN);
+}
+if ($ih) { fclose($ih); }
+echo json_encode($out);

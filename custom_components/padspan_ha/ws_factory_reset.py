@@ -137,6 +137,11 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _reset = {**dict(DEFAULT_SETTINGS), **{
             k: v for k, v in _keep_licence.items() if v
         }, **_vac, **_tester_kept(_live), **_trial_kept(_live)}
+        # A Pro invite, open or answered, is this install's: a reset must not
+        # forget a No thanks (pro_invite.py).
+        from .pro_invite import SETTINGS_KEY as _INVITE_KEY
+        if isinstance(_live, dict) and _live.get(_INVITE_KEY):
+            _reset[_INVITE_KEY] = _live[_INVITE_KEY]
         await st.async_save(_reset)
         cleared += 1
         store_obj = domain.get(DATA_SETTINGS)

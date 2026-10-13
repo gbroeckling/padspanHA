@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.124 — Stable: two ways to get PadSpan Pro free, and Pro for life until December 31 (2026-10-13)
+
+### New
+- **Become a tester, get Pro free.** Testers get two years of PadSpan Pro, as long as the usage report stays on. The sign-up says so now, and Overview mentions it once (after someone is on the map, or after a week), in place of the trial card. "Sign me up" takes you straight to the form in Settings → Presence. Settings → PadSpan licence has a button for it too.
+- **Invites.** Now and then the developer may invite an install that sends the usage report to try a free year of Pro. The invite comes back with the report's reply and shows on Overview and in Settings → PadSpan licence, for an administrator only. Claim it with an email, put it off for a week with Later, or say No thanks, which is final. Nothing is sent unless you press one of those. The README's usage report section explains exactly what goes where.
+
+---
+
 ## 0.38.123 — PadSpan Pro for life runs until December 31 (2026-10-13)
 
 ### Changed

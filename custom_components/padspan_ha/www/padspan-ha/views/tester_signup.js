@@ -31,7 +31,11 @@ export const TESTER_INTERESTS = [
   ["other", "Other"],
 ];
 // Characters, as tester.py counts them.
-export const TESTER_LIMITS = { email: 254, github: 39, name: 64, interests_other: 80, notes: 500, timezone: 64 };
+// What a tester gets: the licence server's plan 'tester' (TESTER_YEARS = 2),
+// issued by hand to the sign-up's email, on the condition the report stays on.
+export const TESTER_PRO_LINE = "Testers get PadSpan Pro free for two years, sent to the email you sign up with, " +
+  "for as long as the usage report stays on.";
+export const TESTER_LIMITS ={ email: 254, github: 39, name: 64, interests_other: 80, notes: 500, timezone: 64 };
 // Character for character the patterns in tester.py (and tester.php).
 export const TESTER_PATTERNS = {
   email: /^[A-Za-z0-9._%+'-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.[A-Za-z]{2,24}$/,
@@ -137,6 +141,14 @@ function _loadTesterStatus(ctx, st){
   });
 }
 
+// Arriving from Overview: scroll to what is shown, once per step (the hint,
+// then the form), never again on the re-renders a poll causes.
+function _scrollOnce(ctx, step, node){
+  if (ctx.state._testerScrolled === step) return;
+  ctx.state._testerScrolled = step;
+  setTimeout(() => { try { node.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_) { /* not attached */ } }, 60);
+}
+
 /**
  * The section, or null when there is nothing to show: report off and not
  * signed up. `reportOn` is settings.telemetry_enabled, as the card reads it.
@@ -148,7 +160,19 @@ export function testerSection(ctx, reportOn){
   // An administrator's loaded status is the truth; before it arrives (and
   // for everyone else) the settings flag says whether there is a sign-up.
   const signedUp = st && st.status ? st.status.signed_up === true : settings.tester_signed_up === true;
-  if (!reportOn && !signedUp) return null;
+  // Sent here by Overview's "Sign me up" (views/pro_invite.js): bring the
+  // section into view once, and open the form once it can be filled in.
+  const focus = ctx.state._testerFocus === true;
+  if (!reportOn && !signedUp) {
+    if (!focus) return null;
+    const hint = el("div", { "data-tester": "section", style: "margin-top:16px;padding-top:14px;border-top:1px solid #1e3a2a" }, [
+      el("div", { style: "font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px" }, "Become a tester"),
+      el("div", { "data-tester": "needs-report", style: "font-size:12px;color:#cbd5e1;line-height:1.55" },
+        "Switch the usage report on above (Preview shows exactly what it sends), and the sign-up opens right here."),
+    ]);
+    _scrollOnce(ctx, "hint", hint);
+    return hint;
+  }
   const box = el("div", { "data-tester": "section",
     style: "margin-top:16px;padding-top:14px;border-top:1px solid #1e3a2a" });
   box.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px" }, "Become a tester"));
@@ -173,6 +197,11 @@ export function testerSection(ctx, reportOn){
       box.appendChild(el("div", { class: "muted", style: "font-size:12px" }, "Loading…"));
     }
     return box;
+  }
+  if (focus && s.status.signed_up !== true && reportOn) {
+    ctx.state._testerFocus = false;
+    s.open = true;
+    _scrollOnce(ctx, "form", box);
   }
   if (s.open) {
     box.appendChild(_testerForm(ctx, s));
@@ -206,6 +235,8 @@ function _testerInvite(ctx, s){
       "when there is something for your setup to try. This is separate from the anonymous report above: " +
       "it is your contact details, so it is sent only when you press Send, you see exactly what goes " +
       "first, and you can stop any time."),
+    el("div", { "data-tester": "pro", style: "font-size:12px;margin-bottom:10px;line-height:1.55;color:#a7f3d0" },
+      TESTER_PRO_LINE),
     open,
   ]);
 }
