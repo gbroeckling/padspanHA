@@ -4,6 +4,40 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.116 — Traceback stops eating memory, licences behave, and a round of smaller fixes (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Memory and history
+- **Fixed:** Traceback no longer holds its week of history in memory. Since 0.38.112 it records around the clock, and after a restart a full week could take about 600 MB with ten devices at home. It now reads the history from disk when you play it back.
+- **Fixed:** Insights and Busy Times no longer stall Home Assistant while they load.
+- **Changed:** a backup now includes the last day of Traceback instead of the whole week, which was around 120 MB per backup. Restoring a backup adds its Traceback to what you have instead of erasing everything recorded since.
+- **Fixed:** Forensics and Traceback are saved when Home Assistant stops. Each restart lost up to 5 minutes of Forensics.
+
+### Licences
+- **Fixed:** restoring an older backup keeps the licence key you have now. Restoring one from before you bought could lock paid editing.
+- **Fixed:** the grace period after a licence expires is the full 14 days, and the licence card now says it has expired and how many days are left, instead of "Trial active" with a negative count.
+- **Fixed:** a factory reset keeps a PadSpan Bright Pro key as Bright Pro.
+
+### Presence and devices
+- **Fixed:** ESPresense scanners and readings no longer drop out at random on busy houses.
+- **Fixed:** a phone resolves straight away after you add its IRK, instead of up to 20 minutes later.
+- **Fixed:** a Bluetooth proxy that has disconnected no longer shows as scanning.
+- **Fixed:** the `padspan_room_change` event no longer misses a room change that comes within 30 seconds of the last one.
+- **Fixed:** MQTT now reports a device as away on the same timeout as the HA sensors, publishes `not_home` for its area when away, and sends distance.
+- **Fixed:** PadSpan devices can now be deleted from Home Assistant's device page.
+- **Fixed:** `padspan_ha.dump_devices` with `notify: false` no longer creates a notification.
+- **Fixed:** an automation that turns a scene off is refused. Home Assistant can't turn scenes off, so it never did anything.
+
+### Traceback, Forensics, Lost & Found
+- **Fixed:** Distance Traveled counts movement within a room, not only jumps between rooms.
+- **Fixed:** Forensics keeps every visit inside the retention you chose. A device that comes and goes often lost its older visits after 50. The "+N more" count and the CSV export now include every session.
+- **Fixed:** a Forensics search no longer fails now and then with "Search failed".
+- **Fixed:** Lost & Found's "last seen" stays current on a screen left open.
+
+---
+
 ## 0.38.115 — A cleaner opt-in report view (2026-10-12)
 
 ### Before you update
