@@ -139,10 +139,16 @@ async def async_setup_entry(
                     created.add(key)
                     continue
                 _same = [(k, o) for k, o in items if o.get("user_label") == label]
+                _uids = [(k, _stable_uid_key(hass, k, o)) for k, o in _same]
+                # Only a BLE key names a NEW tracker, as for the sensors: a
+                # Bermuda entity object takes the label through its device's
+                # MAC, beat the saved id alphabetically (entity: < ps_), and a
+                # restart while it was gone made device_tracker.<label>_2.
+                # One already registered under any of the keys keeps it.
                 uid = pick_uid_key(
                     hass, "device_tracker", lambda u: [f"padspan_ha__{uid_safe(u)}__tracker"],
-                    [(k, _stable_uid_key(hass, k, o)) for k, o in _same],
-                    [a for k, o in _same for a in alternates_of(k, o)])
+                    [c for c, (_k, o) in zip(_uids, _same) if o.get("kind") in ("ble", "private_ble", "ibeacon")],
+                    [u for _k, u in _uids] + [a for k, o in _same for a in alternates_of(k, o)])
                 entity = PadSpanDeviceTracker(coordinator, key, uid)
                 new.append(entity)
                 created.add(key)

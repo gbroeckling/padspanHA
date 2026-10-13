@@ -128,3 +128,21 @@ def test_a_plain_address_device_named_by_its_address_keeps_it():
                                     "padspan_ha__ble_AA_BB_CC_DD_EE_01__area"})
     assert "padspan_ha__ble_AA_BB_CC_DD_EE_01__tracker" in _uids(added)
     assert "padspan_ha__ble_AA_BB_CC_DD_EE_01__area" in _uids(added)
+
+
+def test_a_bermuda_entity_never_names_a_new_tracker():
+    """A Bermuda entity object takes the label through its device's MAC and
+    beat the saved id alphabetically; a restart without it (Bermuda Ignore
+    on, Bermuda removed) made device_tracker.keys_2. One an older version
+    already named after it keeps that name."""
+    ble = {"kind": "ble", "user_label": "Keys", "room": "Hall", "address": "AA:BB:CC:DD:EE:01",
+           "padspan_id": "ps_000000000001", "_source_rssi": {}, "age_s": 5}
+    ent = {"kind": "entity", "user_label": "Keys", "room": "Hall", "entity_id": "sensor.keys_area",
+           "address": "AA:BB:CC:DD:EE:01", "age_s": 1}
+    data = {"ble:AA:BB:CC:DD:EE:01": ble, "entity:sensor.keys_area": ent}
+    fresh, _, _ = _boot(data, known_pids={"ps_000000000001"})
+    assert [e.unique_id for e in fresh if e.unique_id.endswith("__tracker")] == [
+        "padspan_ha__ps_000000000001__tracker"]
+    old = "padspan_ha__entity_sensor.keys_area__tracker"
+    added, _, _ = _boot(data, known_pids={"ps_000000000001"}, registered={old})
+    assert [e.unique_id for e in added if e.unique_id.endswith("__tracker")] == [old]
