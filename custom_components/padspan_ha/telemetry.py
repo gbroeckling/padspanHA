@@ -390,7 +390,7 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "lights_panel_enabled", "radio_map_enabled", "distortion_map_enabled",
     "occupancy_hybrid_enabled", "rssi_capture_enabled", "forensics_enabled",
     "mac_rotation_bridging", "beacon_auto_calibrate", "beacon_profiling_enabled",
-    "espresense_mqtt_enabled", "mqtt_publish_enabled", "bermuda_ignore",
+    "espresense_mqtt_enabled", "tasmota_ble_enabled", "mqtt_publish_enabled", "bermuda_ignore",
     "phone_wizard_enabled", "overview_show_walls", "overview_show_outdoor",
     "overview_2d_mode", "overview_persistent_pins",
     "walk_to_identify_enabled",

@@ -350,6 +350,16 @@ async def _async_start_live_feeds(hass: HomeAssistant) -> None:
         except Exception as err:
             _LOGGER.debug("ESPresense MQTT setup skipped: %s", err)
 
+        # Tasmota BLE over MQTT (off by default)
+        try:
+            from .tasmota_ble import DATA_TASMOTA_BLE, async_setup_tasmota_ble
+            _st = dom.get(DATA_SETTINGS)
+            if _st and _st.data.get("tasmota_ble_enabled") and DATA_TASMOTA_BLE not in dom:
+                await async_setup_tasmota_ble(hass)
+                _LOGGER.info("Tasmota BLE ingestion started")
+        except Exception as err:
+            _LOGGER.debug("Tasmota BLE setup skipped: %s", err)
+
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -870,6 +880,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         tag_int = hass.data.get(DOMAIN, {}).pop(DATA_TAG_INTEGRATION, None)
         if tag_int:
             tag_int.unload()
+    except Exception:
+        pass
+
+    # Stop the Tasmota BLE subscriber
+    try:
+        from .tasmota_ble import DATA_TASMOTA_BLE
+        _tbl = hass.data.get(DOMAIN, {}).pop(DATA_TASMOTA_BLE, None)
+        if _tbl:
+            await _tbl.async_stop()
     except Exception:
         pass
 

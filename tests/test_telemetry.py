@@ -225,7 +225,8 @@ def test_nothing_from_the_house_is_in_the_report():
     # load and health.runs is bounded in the full-load-section test below.
     # Raised 4000 -> 4030 for features.low_memory_mode (~25 bytes): issue #91,
     # whether an install runs with the low-memory caps on.
-    assert len(text) < 4030
+    # Raised 4030 -> 4060 for features.tasmota_ble_enabled (~25 bytes).
+    assert len(text) < 4060
 
 
 def test_presets_are_capped_at_ten_per_report():

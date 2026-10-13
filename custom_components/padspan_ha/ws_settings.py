@@ -470,6 +470,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("mqtt_publish_enabled"): bool,
         vol.Optional("espresense_mqtt_enabled"): bool,
         vol.Optional("espresense_topic_prefix"): str,
+        vol.Optional("tasmota_ble_enabled"): bool,
         vol.Optional("espresense_room_map"): dict,
         vol.Optional("espresense_companion_url"): str,
         vol.Optional("aggressive_ble_reseed"): bool,
@@ -924,7 +925,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["ui_skin"] = _skin if _skin in ("classic", "2025") else "classic"
         for key in ("ha_entity_tracker_enabled", "ha_entity_area_enabled",
                     "ha_entity_distance_enabled", "ha_entity_scanner_distance_enabled",
-                    "mqtt_publish_enabled", "espresense_mqtt_enabled", "aggressive_ble_reseed",
+                    "mqtt_publish_enabled", "espresense_mqtt_enabled", "tasmota_ble_enabled", "aggressive_ble_reseed",
                     "ha_entity_occupancy_enabled",
                     "lights_panel_enabled", "atlas_emergency_button", "bermuda_ignore", "bright_reveal_presence",
                     "atlas_weather_enabled",
@@ -1088,6 +1089,20 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     hass.async_create_task(_cal_ex._async_train_rf())
             except Exception as _ex_err:
                 _LOGGER.debug("Excluded-scanner retrain: %s", _ex_err)
+
+        # ── Tasmota BLE toggle (tasmota_ble.py) ───────────────────────────────
+        if "tasmota_ble_enabled" in msg:
+            try:
+                from .tasmota_ble import DATA_TASMOTA_BLE, async_setup_tasmota_ble  # noqa: PLC0415
+                if bool(msg["tasmota_ble_enabled"]):
+                    if DATA_TASMOTA_BLE not in hass.data.get(DOMAIN, {}):
+                        hass.async_create_task(async_setup_tasmota_ble(hass))
+                else:
+                    _tb = hass.data.get(DOMAIN, {}).pop(DATA_TASMOTA_BLE, None)
+                    if _tb:
+                        hass.async_create_task(_tb.async_stop())
+            except Exception:
+                pass
 
         # ── Dynamic ESPresense MQTT toggle ───────────────────────────────────
         if "espresense_mqtt_enabled" in msg:

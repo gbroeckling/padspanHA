@@ -891,6 +891,7 @@ function _haEntities(ctx, el){
   wrap.appendChild(_haMqttSection(ctx, el, settings));
   wrap.appendChild(_haBleReseedSection(ctx, el, settings));
   wrap.appendChild(_haEspresenseSection(ctx, el, settings));
+  wrap.appendChild(_haTasmotaSection(ctx, el, settings));
   return wrap;
 }
 
@@ -1637,6 +1638,37 @@ function _haMqttSection(ctx, el, settings){
  * to receive BLE data from ESPresense scanner nodes. Required when HA has
  * no Bluetooth adapter/integration installed.
  */
+// Tasmota BLE over MQTT (tasmota_ble.py): a Tasmota device on an ESP32 that
+// scans for Bluetooth becomes a scanner, read from stat/<topic>/BLE.
+function _haTasmotaSection(ctx, el, settings){
+  const card = el("div",{class:"card",style:"border-color:#8b5cf6"});
+  card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px"},[
+    el("span",{style:"font-weight:700;font-size:14px"},"Tasmota BLE"),
+    el("span",{style:"font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid #8b5cf6;color:#8b5cf6"},"Experimental"),
+  ]));
+  card.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:10px"},
+    "Use Tasmota devices on ESP32 (smart plugs, Sonoff switches) as Bluetooth scanners. PadSpan reads the device list each one publishes to stat/<topic>/BLE over MQTT, and after a Tasmota restart it sends that device BLEDevices to start the list again. Readings arrive once per TelePeriod (300 s by default): for room presence set TelePeriod to 10–60 s on each device. Requires HA's MQTT integration."
+  ));
+  const chk = el("input",{type:"checkbox"});
+  chk.checked = settings.tasmota_ble_enabled === true;
+  chk.addEventListener("change", async()=>{
+    try {
+      await ctx.actions.settingsSet({tasmota_ble_enabled: chk.checked});
+      ctx.toast(chk.checked ? "Tasmota BLE enabled — each device appears as a scanner when it next reports." : "Tasmota BLE disabled.");
+      ctx.actions.renderRooms();
+    } catch(e){ ctx.toast("Failed: "+String(e), true); chk.checked = !chk.checked; }
+  });
+  card.appendChild(el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
+    chk, el("span",{},"Read Tasmota BLE over MQTT"),
+  ]));
+  if(settings.tasmota_ble_enabled){
+    card.appendChild(el("div",{style:"font-size:11px;color:#64748b;padding:6px 8px;margin-top:8px;background:#0f0a1a;border:1px solid #2d1b4e;border-radius:6px"},
+      "Topics: stat/+/BLE \u2022 tele/+/BLE. Place each Tasmota scanner in its room (Mapping) like any other."
+    ));
+  }
+  return card;
+}
+
 function _haEspresenseSection(ctx, el, settings){
   const card = el("div",{class:"card",style:"border-color:#8b5cf6"});
 
