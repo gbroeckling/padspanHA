@@ -50,9 +50,10 @@ export function renderTags(ctx, tagsList) {
   const intersect = new Set(union);
   for (const s of sets) for (const v of Array.from(intersect)) if (!s.has(v)) intersect.delete(v);
 
+  // The selector's values are "all" (intersection) and "any" (union); this
+  // checked "union"/"intersect", so the intersection option never applied.
   let items = [];
-  if (mode === "union") items = Array.from(union);
-  else if (mode === "intersect") items = Array.from(intersect);
+  if (mode === "all" || mode === "intersect") items = Array.from(intersect);
   else items = Array.from(union);
 
   // Optional filter
@@ -130,7 +131,7 @@ export function renderTags(ctx, tagsList) {
 }
 
 export function render(ctx){
-  const { el, esc, roomColor, helpBtn } = ctx.helpers;
+  const { el, roomColor, helpBtn } = ctx.helpers;
   const { roomTagMap, mode, tagFilter } = ctx.state;
   const selectedRooms = new Set(Array.isArray(ctx.state.selectedRooms) ? ctx.state.selectedRooms : []);
   const isBasic = ctx.state.complexity === "basic";
@@ -619,7 +620,8 @@ export function render(ctx){
         try {
           const res = await ctx.actions.wsCall("padspan_ha/objects_clear_history", {});
           ctx.toast(`Cleared ${res.removed} object${res.removed!==1?"s":""}, kept ${res.kept} tagged/followed`);
-          ctx.actions.renderRooms();
+          // A fresh snapshot: re-rendering the old one kept the cleared devices on screen.
+          await ctx.actions.refreshSnapshot();
         } catch(e){ ctx.toast("Failed: " + (e.message||e), true); clearUnidentBtn.textContent = "Clear unidentified"; }
         clearUnidentBtn.disabled = false;
       });
@@ -819,7 +821,7 @@ export function render(ctx){
           try {
             const res = await ctx.actions.wsCall("padspan_ha/objects_clear_history", {});
             ctx.toast(`Cleared ${res.removed} object${res.removed!==1?"s":""}, kept ${res.kept} tagged/followed`);
-            ctx.actions.renderRooms();
+            await ctx.actions.refreshSnapshot();
           } catch(e) {
             clrBtn.textContent = "Error";
             ctx.toast("Failed: " + (e.message||e), true);
@@ -895,7 +897,7 @@ export function render(ctx){
       cb.addEventListener("change", ()=>{ cb.checked ? selectedRooms.add(room) : selectedRooms.delete(room); ctx.state.selectedRooms = Array.from(selectedRooms); ctx.actions.renderTags(); });
       row.appendChild(cb);
       row.appendChild(el("span",{class:"roomdot", style:`background:${roomColor(room)}`}, ""));
-      row.appendChild(el("span",{}, esc(room)));
+      row.appendChild(el("span",{}, room));   // a text node: esc() showed "Living &amp; Dining"
       row.appendChild(el("span",{class:"muted"}, `(${count})`));
       roomsList.appendChild(row);
     }
@@ -911,7 +913,7 @@ export function render(ctx){
   const optAll = el("option",{value:"all"},"Show tags in ALL selected rooms (intersection)");
   const optAny = el("option",{value:"any"},"Show tags in ANY selected room (union)");
   modeSel.appendChild(optAll); modeSel.appendChild(optAny);
-  modeSel.value = mode;
+  modeSel.value = mode === "all" ? "all" : "any";
   modeSel.addEventListener("change", ()=>{ ctx.state.mode = modeSel.value; ctx.actions.renderTags(); });
 
   const filter = el("input",{type:"text", id:"tagFilter", placeholder:"Filter tags… (e.g., keys)"});

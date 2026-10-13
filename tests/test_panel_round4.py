@@ -52,3 +52,10 @@ def test_suspend_and_resume_redraw_their_card():
     s = _src("views/settings.js")
     assert "ctx.actions.refreshLive" not in s
     assert s.count("await ctx.actions.refreshSnapshot();   // refreshLive never existed") == 2
+
+
+def test_objects_view_room_names_union_and_clear():
+    s = _src("views/objects.js")
+    assert 'el("span",{}, esc(room))' not in s                                   # "&amp;" shown literally
+    assert 'if (mode === "all" || mode === "intersect") items = Array.from(intersect);' in s
+    assert s.count("await ctx.actions.refreshSnapshot();") >= 2                  # cleared devices go
