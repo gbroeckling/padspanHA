@@ -3321,6 +3321,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._room_before_gap.pop(key, None)
         self._room_alert_held.pop(key, None)
         self._room_alert_reported.pop(key, None)
+        # Out of its device group (rebuilt every poll, but not before the
+        # next one, and an unlabelled key is its own group).
+        self._prev_groups.pop(key, None)
+        for _g, _ks in list(self._prev_groups.items()):
+            if key in _ks:
+                _ks.remove(key)
+                if not _ks:
+                    del self._prev_groups[_g]
         self._last_seen.pop(key, None)
         self._away_miss.pop(key, None)
         self._room_votes.pop(key, None)

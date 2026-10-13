@@ -78,4 +78,7 @@ async def test_nothing_is_touched_while_the_other_edition_is_installed():
     with patch.object(wled_exact, "async_get_store", AsyncMock(return_value=st)),          patch.object(wled_exact, "switch_to_wled", switch):
         await wled_exact.async_give_back_all(hass)
     switch.assert_not_awaited()
-    assert wled_exact._OTHER_EDITION_DOMAIN == "padspan_bright"
+    # The other edition, in either build (the Bright build renames this file's
+    # own domain; the full edition's name is spelled to survive that).
+    assert wled_exact._OTHER_EDITION_DOMAIN != wled_exact.DOMAIN
+    assert {wled_exact._OTHER_EDITION_DOMAIN, wled_exact.DOMAIN} == {"padspan" + "_ha", "padspan_bright"}

@@ -56,6 +56,12 @@ OBJECT_STATE: frozenset[str] = frozenset({
     "_beacon_autocal_last", "_beacon_autocal_buf", "_last_room_change_mono",
     "_room_dwell_start", "_floor_dwell_start", "_adaptive_last_vec",
     "_adaptive_last_obs", "_co_visible", "_device_floor",
+    # 2026-10-12: a short gap's "from" room, and Follow room alerts held by
+    # their cooldown with the last room each reported.
+    "_room_before_gap", "_room_alert_held", "_room_alert_reported",
+    # Keyed by device group (a label, or the key itself) -> present keys;
+    # rebuilt every poll, and _evict_object takes an evicted key out of it.
+    "_prev_groups",
 })
 
 # The subset of OBJECT_STATE that says WHERE the object was. An absence breaks
