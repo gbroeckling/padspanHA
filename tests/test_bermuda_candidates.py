@@ -128,6 +128,28 @@ async def test_an_upgrade_drops_the_old_extra_bermuda_objects_from_the_history(m
     assert saved == sorted(["entity:sensor.phone_area", f"entity:{other}"])
 
 
+@pytest.mark.asyncio
+async def test_the_report_counts_the_old_bermuda_objects_the_history_dropped(monkeypatch):
+    """#152 from the field: bermuda_history_purged is the entries one upgrade
+    from 0.38.105 removes, once, and nothing after."""
+    from custom_components.padspan_ha.const import DATA_OBJECT_HISTORY
+    from custom_components.padspan_ha.telemetry import _DATA_COUNTERS
+    house = _house(monkeypatch)
+    dom = house.hass.data[DOMAIN]
+    dom[DATA_SETTINGS].data["telemetry_enabled"] = True
+    t0 = 1_800_000_000.0 - 3600
+    old = ["sensor.phone_area", "sensor.phone_floor", "sensor.phone_area_last_seen",
+           "sensor.phone_distance_to_proxy_0", "sensor.phone_distance_to_proxy_1"]
+    dom.pop(DATA_OBJECT_HISTORY)
+    dom["_obj_hist_store"].saved = {
+        f"entity:{e}": {"key": f"entity:{e}", "kind": "entity", "entity_id": e, "name": e, "room": "Office",
+                        "identified": True, "_last_seen_ts": t0, "_first_seen": t0} for e in old}
+    await house.poll(0, [])
+    assert dom[_DATA_COUNTERS].get("bermuda_history_purged") == 4     # the Area sensor is live, not purged
+    await house.poll(20, [])
+    assert dom[_DATA_COUNTERS].get("bermuda_history_purged") == 4
+
+
 def test_bluetooth_words_with_digits_and_maker_prefixes_still_match():
     import re
     src = (__import__("pathlib").Path(SB.__file__)).read_text(encoding="utf-8")

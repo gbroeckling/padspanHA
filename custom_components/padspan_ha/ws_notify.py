@@ -134,6 +134,7 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
     another integration's service (telegram_bot.send_message) that they use.
     """
     from .presence_coordinator import FollowNotifyNotSent, async_send_follow_notify  # noqa: PLC0415
+    from .telemetry import bump  # noqa: PLC0415
     email = str(msg.get("email") or "").strip()
     chosen = str(msg.get("service") or "").strip()
     try:
@@ -142,6 +143,8 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
             "This is a test from PadSpan HA. If you see this, your notification pipeline is working correctly.",
         )
     except FollowNotifyNotSent as err:
+        # The opt-in report (#151): a Test that failed, as alerts to it would.
+        bump(hass, "follow_test_failed")
         if err.code == "no_notify":
             connection.send_error(
                 msg["id"], "no_notify",
@@ -163,4 +166,5 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
             )
         return
     _LOGGER.info("PadSpan test notification sent via %s", used)
+    bump(hass, "follow_test_sent")
     connection.send_result(msg["id"], {"ok": True, "service": used})

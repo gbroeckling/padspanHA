@@ -106,6 +106,7 @@ class LostAndFoundStore:
         never reset until explicitly forgotten, as the header says."""
         if not isinstance(records, dict):
             return
+        kept = 0
         for key, rec in records.items():
             if not isinstance(rec, dict):
                 continue
@@ -120,7 +121,15 @@ class LostAndFoundStore:
                 continue
             if newer:
                 self.records[key] = rec
+            elif float(cur.get("ts") or 0) > ts:
+                kept += 1
         await self.store.async_save(self.records)
+        # The opt-in report (#150): a restore merged, and the records here it
+        # did not roll back.
+        from .telemetry import bump  # noqa: PLC0415
+        bump(self.hass, "lost_and_found_restore_merged")
+        if kept:
+            bump(self.hass, "lost_and_found_restore_kept_current", kept)
 
     def get_all(self) -> dict[str, dict[str, Any]]:
         return self.records

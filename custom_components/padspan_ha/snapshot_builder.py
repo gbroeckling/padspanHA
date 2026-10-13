@@ -2450,6 +2450,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         # Merge cached objects not seen this cycle back into the list
         # Skip keys absorbed by deduplication — they are ghosts of merged objects
         _cached_added = 0
+        _bermuda_purged = 0
         for key, cached_obj in list(_cache.items()):
             if key in _current_keys:
                 continue  # already in this cycle's list
@@ -2534,6 +2535,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                                     _cached_eid, (_cached_st.attributes or {}) if _cached_st else {},
                                     _cached_ent.device_id):
                                 del _cache[key]
+                                _bermuda_purged += 1
                                 continue
                     except Exception:
                         pass
@@ -2561,6 +2563,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 ]
             objects.append(obj_copy)
             _cached_added += 1
+        if _bermuda_purged:
+            # The opt-in report (#152): once after an upgrade from 0.38.105, then none.
+            from .telemetry import bump as _bump  # noqa: PLC0415
+            _bump(hass, "bermuda_history_purged", _bermuda_purged)
 
         # Second dedup pass: catch cached objects that were reintroduced
         if _cached_added > 0:

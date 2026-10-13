@@ -290,6 +290,9 @@ class PrivateBLEResolver:
         self._devices = devices
         self._source_info = source_info
         if keys_changed:
+            if self._cache:
+                # The opt-in report (#148): about 0 a day, not every reload.
+                self._count("irk_cache_cleared")
             self._cache.clear()
         self._loaded_at = time.monotonic()
 

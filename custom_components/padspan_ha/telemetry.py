@@ -164,6 +164,16 @@ EVENTS: frozenset[str] = frozenset({
     "tagged_arrived", "tagged_departed", "follow_alert_sent", "follow_alert_failed",
     "companion_tx_sent", "companion_tx_no_service", "companion_tx_failed",
     "mqtt_publish_failed",
+    # 0.38.122's fixes, from the field: the IRK cache cleared because the keys
+    # changed (#148: about 0 a day, it was every 5-minute reload); an auto
+    # calibration point that dropped its pin's room (#149); a restore that
+    # merged Lost & Found, and the records it kept because the one here was
+    # newer (#150); Follow's Test sent or failed (#151); old Bermuda objects
+    # removed from the object history (#152: once after an upgrade from
+    # 0.38.105, then none).
+    "irk_cache_cleared", "autocal_pin_room_dropped",
+    "lost_and_found_restore_merged", "lost_and_found_restore_kept_current",
+    "follow_test_sent", "follow_test_failed", "bermuda_history_purged",
     # The three guided wizards (v0.38.21): which step was REACHED, once per
     # distinct visit to that step (the wizard dedupes against its own last-
     # counted step, the same way a tab-open event never double-counts a
@@ -1219,6 +1229,46 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "radios_unresolved": sum(1 for r in radios if r.get("device_match") == "none"),
         "radios_matched_partial": sum(1 for r in radios if r.get("device_match") == "partial"),
     }
+    # 0.38.122's fixes, read at the report. Each is left out, not a 0, when
+    # what it reads is not there, and a failure leaves out only that one.
+    # #149: calibration points whose room is no room (an [auto] point with a
+    # pin's device label) — should stop growing.
+    try:
+        if dom.get("calibration") is not None:
+            from homeassistant.helpers import area_registry as _ar  # noqa: PLC0415
+            _known = {str(r) for f in floors.values() if isinstance(f, dict) for r in (f.get("rooms") or {})}
+            _known |= {str(a.name) for a in _ar.async_get(hass).async_list_areas()}
+            _pt_rooms = (str(p.get("room") or "") for p in cal_points if isinstance(p, dict))
+            health["cal_points_phantom_room_n"] = sum(1 for r in _pt_rooms if r and r not in _known)
+    except Exception as err:
+        _LOGGER.debug("Telemetry: cal_points_phantom_room_n left out: %s", err)
+    # #147: Beacon Tune pins on a device that moves (tune_save_plan.js
+    # tuneBeaconMoves: private_ble, an HA tracker entity, or followed) —
+    # should not grow.
+    try:
+        if isinstance(objects.get("list"), list):
+            _live = {o.get("key"): o for o in obj_list if isinstance(o, dict)}
+            _followed = {str(f).upper() for f in (settings.get("followed_addrs") or []) if f}
+            _movers = 0
+            for _k in (fab.get("beacon_positions_m") or {}):
+                _o = _live.get(_k)
+                if _o is not None and (_o.get("kind") in ("private_ble", "entity") or any(
+                        str(_o.get(f) or "").upper() in _followed
+                        for f in ("key", "address", "entity_id", "canonical_id"))):
+                    _movers += 1
+            health["pinned_movers_n"] = _movers
+    except Exception as err:
+        _LOGGER.debug("Telemetry: pinned_movers_n left out: %s", err)
+    # #153: PadSpan trackers and sensors registered again as <entity_id>_2 —
+    # should not grow.
+    try:
+        from homeassistant.helpers import entity_registry as _er  # noqa: PLC0415
+        _ids = {str(e.entity_id) for e in _er.async_get(hass).entities.values()
+                if e.platform == DOMAIN and str(e.entity_id).startswith(("device_tracker.", "sensor."))}
+        _bases = (re.fullmatch(r"(.+)_\d+", _eid) for _eid in _ids)
+        health["entity_dup_n"] = sum(1 for _m in _bases if _m and _m.group(1) in _ids)
+    except Exception as err:
+        _LOGGER.debug("Telemetry: entity_dup_n left out: %s", err)
     try:
         from . import perf_sampler as _ps  # noqa: PLC0415
         _pw = _ps.take_window(hass) if consume else _ps.window(hass)
