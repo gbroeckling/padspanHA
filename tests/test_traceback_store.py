@@ -272,3 +272,21 @@ def test_both_passes_of_a_replay_share_one_retention_floor() -> None:
     import inspect
     src = inspect.getsource(TracebackStore._get_frames_sync)
     assert "start = max(start, time.time() - MAX_AGE_S)" in src
+
+
+async def test_a_thinned_replay_keeps_its_newest_frame_when_the_clock_moves(tmp_path, monkeypatch) -> None:
+    """Each pass took its own "now" for the retention floor, so a frame
+    crossing it between the passes shifted every kept index by one and the
+    newest frame was lost."""
+    tb = _make_store(tmp_path)
+    base = time.time() - tb_mod.MAX_AGE_S + 5
+    ts = _seed(tb, 10, base)
+    real = time.time
+    calls = {"n": 0}
+
+    def clock():
+        calls["n"] += 1
+        return real() + 10 * max(0, calls["n"] - 2)      # every later read of the clock is 10 s on
+    monkeypatch.setattr(tb_mod.time, "time", clock)
+    got, n = await tb.async_get_frames(start_ts=base - 100, end_ts=ts[-1], max_frames=5, with_count=True)
+    assert got[-1]["ts"] == ts[-1]

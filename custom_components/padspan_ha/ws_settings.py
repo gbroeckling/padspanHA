@@ -22,7 +22,6 @@ from .const import (
     DOMAIN,
     DATA_SETTINGS,
     DATA_OBJECTS,
-    DATA_COORDINATOR,
     DATA_CALIBRATION,
     DATA_ESPRESENSE_MQTT,
     LIGHT_TYPE_OVERRIDE_KINDS,
@@ -657,7 +656,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             try:
                 _removed_f = _old_followed - set(x.upper() for x in _new_followed)
                 if _removed_f:
-                    _coord_f = hass.data.get(DOMAIN, {}).get(DATA_COORDINATOR)
+                    _coord_f = hass.data.get(DOMAIN, {}).get("presence_coordinator")
                     if _coord_f:
                         for _rf in _removed_f:
                             _coord_f.clear_object_state(_rf)

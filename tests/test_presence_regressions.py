@@ -109,3 +109,34 @@ def test_a_missing_saved_target_is_not_replaced_by_another():
                                                                   "mobile_app_wifes_phone": True}}
     asyncio.run(coord._process_room_alerts(1000.0, RES, [(KEY, "Kitchen", "Hall")]))
     assert coord.hass.services.async_call.call_count == 0
+
+
+def test_naming_a_device_that_is_home_is_not_a_departure_and_arrival():
+    """Groups are keyed by label, so naming or renaming a present device, or
+    the wizard naming its second key, looked like one device leaving and
+    another arriving: depart rules turned lights off with the phone home."""
+    coord = make_coordinator()
+    seen = _rec(coord)
+    k = "ble:AA:BB:CC:DD:EE:01"
+    run_poll(coord, snapshot([ble_object(k, "AA:BB:CC:DD:EE:01", age_s=1.0)]))
+    run_poll(coord, snapshot([ble_object(k, "AA:BB:CC:DD:EE:01", age_s=1.0, user_label="Keys")]))
+    run_poll(coord, snapshot([ble_object(k, "AA:BB:CC:DD:EE:01", age_s=1.0, user_label="Car keys")]))
+    assert seen == []
+    # The wizard: the iBeacon is home as "Pixel", then the IRK is named too.
+    coord2 = make_coordinator()
+    seen2 = _rec(coord2)
+    irk_unnamed = {k2: v for k2, v in _IRK.items() if k2 != "user_label"}
+    run_poll(coord2, snapshot([dict(_IB, age_s=1.0), dict(irk_unnamed, age_s=1.0)]))
+    run_poll(coord2, snapshot([dict(_IB, age_s=1.0), dict(_IRK, age_s=1.0)]))
+    assert seen2 == []
+
+
+def test_a_target_from_another_integration_is_called_directly():
+    """The picker offers <domain>.send_message targets (telegram_bot); with
+    no fallback any more they never sent."""
+    coord = _make_coordinator({"AA:BB:CC:DD:EE:FF": {"on_room_change": True,
+                                                     "notify_service": "telegram_bot.send_message"}})
+    coord.hass.services.has_service = lambda d, s: (d, s) == ("telegram_bot", "send_message")
+    asyncio.run(coord._process_room_alerts(1000.0, RES, [(KEY, "Kitchen", "Hall")]))
+    calls = [(c.args[0], c.args[1]) for c in coord.hass.services.async_call.call_args_list]
+    assert calls == [("telegram_bot", "send_message")]

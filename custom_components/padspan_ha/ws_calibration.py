@@ -309,7 +309,7 @@ async def ws_object_evict(hass: HomeAssistant, connection, msg) -> None:
     if not key:
         connection.send_error(msg["id"], "invalid_key", "key is required")
         return
-    _coord = hass.data.get(DOMAIN, {}).get(DATA_COORDINATOR)
+    _coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")   # clear_object_state lives there
     if _coord:
         _coord.clear_object_state(key)
     connection.send_result(msg["id"], {"ok": True, "key": key})

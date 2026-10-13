@@ -86,7 +86,12 @@ def test_a_padspan_device_can_be_deleted_from_its_page():
     dev = lambda uid: MagicMock(identifiers={(DOMAIN, uid)})
     assert asyncio.run(pkg.async_remove_config_entry_device(hass, MagicMock(), dev("ps_gone"))) is True
     assert asyncio.run(pkg.async_remove_config_entry_device(hass, MagicMock(), dev("ps_live"))) is False
+    from custom_components.padspan_ha.const import DATA_SETTINGS
+    from types import SimpleNamespace
+    hass.data[DOMAIN][DATA_SETTINGS] = SimpleNamespace(data={"ha_entity_occupancy_enabled": True})
     assert asyncio.run(pkg.async_remove_config_entry_device(hass, MagicMock(), dev("padspan_occupancy"))) is False
+    hass.data[DOMAIN][DATA_SETTINGS] = SimpleNamespace(data={"ha_entity_occupancy_enabled": False})
+    assert asyncio.run(pkg.async_remove_config_entry_device(hass, MagicMock(), dev("padspan_occupancy"))) is True
 
 
 def test_forensics_keeps_a_frequent_visitor_for_the_whole_retention():

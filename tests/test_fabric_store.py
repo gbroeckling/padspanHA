@@ -483,7 +483,7 @@ def test_the_fabric_holds_every_kind_of_thing_with_a_position() -> None:
 
 
 @pytest.mark.asyncio
-async def test_rederive_counts_either_recorded_floor() -> None:
+async def test_rederive_uses_the_maps_own_floor() -> None:
     """Moving a map in the Stack table can leave the old stack.floor_id
     beside the new floor_id; preferring the stack's added the wrong floor's
     devices and skipped the right one's."""
@@ -492,6 +492,7 @@ async def test_rederive_counts_either_recorded_floor() -> None:
     mdl = _make_model(transforms)
     mdl.fabric = _spatial_fabric()
     await mdl.async_set_scanner_position_m("rx_up", 3.0, 3.0, 2.4, "upstairs")
+    await mdl.async_set_scanner_position_m("rx_main", 2.0, 2.0, 2.4, "main")
     m = {"id": "m1", "floor_id": "upstairs", "stack": {"floor_id": "main"}, "receivers": [], "beacons": []}
     await mdl.async_rederive_map_fracs("m1", m)
-    assert [rx["source"] for rx in m["receivers"]] == ["rx_up"]
+    assert [rx["source"] for rx in m["receivers"]] == ["rx_up"]   # not the old floor's

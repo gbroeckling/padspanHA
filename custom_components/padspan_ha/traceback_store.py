@@ -120,9 +120,12 @@ class TracebackStore:
             out.append(p)
         return out
 
-    def _iter_lines_sync(self, start_ts: float, end_ts: float) -> Iterator[tuple[float, str]]:
-        # Callers that read twice clamp once and pass it in (_get_frames_sync).
-        start_ts = max(start_ts, time.time() - MAX_AGE_S)
+    def _iter_lines_sync(self, start_ts: float, end_ts: float,
+                         clamp: bool = True) -> Iterator[tuple[float, str]]:
+        # A caller that reads twice clamps once and passes clamp=False
+        # (_get_frames_sync), or each pass took its own "now".
+        if clamp:
+            start_ts = max(start_ts, time.time() - MAX_AGE_S)
         for p in self._files(start_ts, end_ts):
             try:
                 with open(p, encoding="utf-8") as fh:
@@ -482,7 +485,7 @@ class TracebackStore:
         # Pass 1 counts; pass 2 parses only the frames kept. Downsampled
         # evenly, never cut short, so a replay spans the whole window (a
         # 7-day range once replayed only its oldest ~9 hours).
-        n = sum(1 for _ts, line in self._iter_lines_sync(start, end)
+        n = sum(1 for _ts, line in self._iter_lines_sync(start, end, clamp=False)
                 if needle is None or needle in line) + len(extra)
         if n > max_frames:
             wanted = ({round(i * (n - 1) / (max_frames - 1)) for i in range(max_frames)}
@@ -491,7 +494,7 @@ class TracebackStore:
             wanted = None
         out: list[dict[str, Any]] = []
         i = 0
-        for _ts, line in self._iter_lines_sync(start, end):
+        for _ts, line in self._iter_lines_sync(start, end, clamp=False):
             if needle is not None and needle not in line:
                 continue
             if wanted is None or i in wanted:

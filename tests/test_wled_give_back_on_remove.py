@@ -64,20 +64,36 @@ def test_a_lapsed_licence_can_give_a_padspan_team_back():
 
 
 @pytest.mark.asyncio
-async def test_nothing_is_touched_while_the_other_edition_is_installed():
-    """Someone who moved between PadSpan HA and Bright may run the device from
-    the other edition now; this store's record of it is old."""
-    run = new_record("AA", "dev1", "Deck")
-    run.update(join="padspan", exact=True, sync_off="saved", prior_sync={"cfg": {}})
+async def test_only_devices_the_other_edition_runs_are_left_alone(monkeypatch):
+    """Someone who moved between PadSpan HA and Bright may run a device from
+    the other edition now (left alone); every other device is given back -
+    skipping them all stranded a Bright-to-HA move."""
+    import homeassistant.helpers.storage as hs
+    theirs = new_record("AA", "dev1", "Deck")
+    theirs.update(join="padspan", exact=True, sync_off="saved", prior_sync={"cfg": {}})
+    ours = new_record("BB", "dev2", "Porch")
+    ours.update(join="padspan", exact=True, sync_off="saved", prior_sync={"cfg": {}})
     st = MagicMock()
-    st.data = {"devices": {"AA": run}}
+    st.data = {"devices": {"AA": theirs, "BB": ours}}
     st.async_save = AsyncMock()
-    switch = AsyncMock()
+    switched = []
+
+    async def fake_switch(hass, rec, tgt):
+        switched.append(rec["name"])
+
+    class _OtherStore:
+        def __init__(self, hass, ver, key):
+            self.key = key
+
+        async def async_load(self):
+            return {"devices": {"AA": {"join": "padspan"}}}
+
+    monkeypatch.setattr(hs, "Store", _OtherStore, raising=False)
     hass = MagicMock()
     hass.config_entries.async_entries = lambda domain: [object()] if domain == wled_exact._OTHER_EDITION_DOMAIN else []
-    with patch.object(wled_exact, "async_get_store", AsyncMock(return_value=st)),          patch.object(wled_exact, "switch_to_wled", switch):
+    with patch.object(wled_exact, "async_get_store", AsyncMock(return_value=st)),          patch.object(wled_exact, "_identify", lambda hass, device_id=None: {"tgt": {"host": "h"}}),          patch.object(wled_exact, "switch_to_wled", fake_switch),          patch.object(wled_exact.W, "device_lock", lambda hass, host: contextlib.nullcontext()):
         await wled_exact.async_give_back_all(hass)
-    switch.assert_not_awaited()
+    assert switched == ["Porch"]
     # The other edition, in either build (the Bright build renames this file's
     # own domain; the full edition's name is spelled to survive that).
     assert wled_exact._OTHER_EDITION_DOMAIN != wled_exact.DOMAIN

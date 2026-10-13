@@ -20,7 +20,6 @@ from .const import (
     DATA_MODEL,
     DEFAULT_FLOOR_ID,
     OUTSIDE_FLOOR_ID,
-    DATA_COORDINATOR,
     DATA_CALIBRATION,
     DATA_TRACEBACK,
 )
@@ -188,7 +187,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         _removed = _old_beacon_keys - _new_beacon_keys
         if _removed:
             try:
-                _coord = hass.data.get(DOMAIN, {}).get(DATA_COORDINATOR)
+                _coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
                 if _coord:
                     # Check if removed key still exists on another map
                     _all_map_keys: set[str] = set()
@@ -205,7 +204,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
     # ── Immediate calibration injection when beacons are saved ────────────
     if _beacons:
         try:
-            _coord = hass.data.get(DOMAIN, {}).get(DATA_COORDINATOR)
+            _coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
             if _coord:
                 _rb = updated.get("room_bounds") or {}
                 _fid = updated.get("floor_id") or ""

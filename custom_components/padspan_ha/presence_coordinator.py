@@ -1648,10 +1648,17 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _members: dict[str, set[str]] = {}
         if self._presence_primed and _away_s == self._prev_away_s:
             _arrived, _departed = set(), set()
+            # A device whose label changed (named, renamed, the wizard naming
+            # its second key) is a new group with a key that was already
+            # present: not an arrival, and the old group is not a departure.
             for _g in _cur_groups.keys() - self._prev_groups.keys():
+                if any(_k in self._prev_present for _k in _cur_groups[_g]):
+                    continue
                 _arrived.add(_cur_groups[_g][0])
                 _members[_cur_groups[_g][0]] = set(_cur_groups[_g]) | _label_keys.get(_g, set())
             for _g in self._prev_groups.keys() - _cur_groups.keys():
+                if any(_k in _cur_present for _k in self._prev_groups[_g]):
+                    continue
                 _departed.add(self._prev_groups[_g][0])
                 _members[self._prev_groups[_g][0]] = set(self._prev_groups[_g]) | _label_keys.get(_g, set())
         else:
@@ -3958,10 +3965,21 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     sent = True
                 except Exception:
                     pass
+        if not sent and "." in preferred and not preferred.startswith("notify."):
+            # Another integration's send service the picker offers
+            # (telegram_bot.send_message): called as itself.
+            _dom, _svc = preferred.split(".", 1)
+            if self.hass.services.has_service(_dom, _svc):
+                try:
+                    await self.hass.services.async_call(_dom, _svc, alert_data)
+                    sent = True
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning("Follow alert via %s failed: %s", preferred, err)
         if not sent and preferred:
-            # The chosen target is gone (phone renamed or removed): counted
-            # as failed, never sent to some other phone or mailbox instead.
-            _LOGGER.warning("Follow alert target %s not found; alert not sent", preferred)
+            # The chosen target is gone (phone renamed or removed) or its
+            # call failed: counted as failed, never sent to some other phone
+            # or mailbox instead.
+            _LOGGER.warning("Follow alert not sent via %s", preferred)
         elif not sent:
             auto_targets: list[tuple[str, str, dict[str, Any]]] = []
             for eid in entity_ids:

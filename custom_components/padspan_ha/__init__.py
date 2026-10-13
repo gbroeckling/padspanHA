@@ -758,7 +758,10 @@ async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEnt
     ids = {i[1] for i in (getattr(device, "identifiers", None) or set())
            if isinstance(i, tuple) and len(i) == 2 and i[0] == DOMAIN}
     if "padspan_occupancy" in ids:
-        return False
+        # Refused only while the sensor is on; switched off (the default),
+        # its leftover device is exactly what this exists to clear.
+        _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        return not bool(_st and (_st.data or {}).get("ha_entity_occupancy_enabled"))
     coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
     for key, obj in ((getattr(coord, "data", None) or {}) if coord else {}).items():
         if isinstance(obj, dict) and obj.get("user_label"):

@@ -18,7 +18,6 @@ from .const import (
     DOMAIN,
     DATA_SETTINGS,
     DATA_OBJECTS,
-    DATA_COORDINATOR,
 )
 from .bluetooth_live import get_bluetooth_live
 
@@ -899,7 +898,7 @@ async def ws_companion_unfollow(hass: HomeAssistant, connection, msg) -> None:
 
         # 3) Clear coordinator state so object doesn't linger as stale
         try:
-            _coord_uf = hass.data.get(DOMAIN, {}).get(DATA_COORDINATOR)
+            _coord_uf = hass.data.get(DOMAIN, {}).get("presence_coordinator")
             if _coord_uf:
                 _coord_uf.clear_object_state(ibeacon_key)
         except Exception:
