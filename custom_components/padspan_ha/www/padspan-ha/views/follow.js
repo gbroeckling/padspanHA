@@ -57,15 +57,25 @@ export function render(ctx) {
   // under `device`) rather than the raw followed address, which does not
   // always match it (rotating MACs, ibeacon/private_ble keys).
   const movementKey = chosen ? chosen.key : null;
-  if (movementKey && ctx.state._followMovementKey !== movementKey) {
+  // Fetched again every 30 s while the same tag stays selected: fetched only
+  // on a new selection, the log froze at the moment the tag was picked.
+  const _mvStale = Date.now() - (ctx.state._followMovementAt || 0) > 30000;
+  if (movementKey && (ctx.state._followMovementKey !== movementKey || (_mvStale && !ctx.state._followMovementLoading))) {
+    if (ctx.state._followMovementKey !== movementKey) ctx.state._followMovementEntries = null;
     ctx.state._followMovementKey = movementKey;
-    ctx.state._followMovementEntries = null;
-    ctx.actions.wsCall("padspan_ha/movement_history_get", { device: movementKey, limit: 60 }).then(r => {
+    ctx.state._followMovementAt = Date.now();
+    ctx.state._followMovementLoading = true;
+    ctx.actions.wsCall("padspan_ha/movement_history_get", { device: movementKey, limit: 60 }).finally(() => {
+      ctx.state._followMovementLoading = false;
+    }).then(r => {
       if (ctx.state._followMovementKey !== movementKey) return;   // superseded by a later selection
       ctx.state._followMovementEntries = (r && r.entries) || [];
       ctx.actions.renderRooms();
     }).catch(() => {
-      if (ctx.state._followMovementKey === movementKey) ctx.state._followMovementEntries = [];
+      // A failed refresh keeps the log it had; a failed first fetch shows none.
+      if (ctx.state._followMovementKey === movementKey && ctx.state._followMovementEntries == null) {
+        ctx.state._followMovementEntries = [];
+      }
     });
   }
 
