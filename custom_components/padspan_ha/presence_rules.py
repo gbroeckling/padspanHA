@@ -20,7 +20,9 @@ from typing import Any
 
 import math
 
-from .const import DATA_SETTINGS, DOMAIN, OUTDOOR_FLOOR_NAMES
+from .const import (
+    DATA_SETTINGS, DEFAULT_PATH_LOSS_EXP, DEFAULT_REF_POWER, DOMAIN, OUTDOOR_FLOOR_NAMES,
+)
 
 # Kinds that physically go away.  An HA entity has no radio and no age, so it
 # is never "away" — blanking those was how an earlier attempt at this rule
@@ -320,3 +322,32 @@ def outdoor_attribution(live: dict[str, float], source_to_area: dict[str, str],
         if best_val is None or rssi > best_val:
             best_src, best_val = src, rssi
     return source_to_area.get(best_src) if best_src else None
+
+
+def _distance_params(hass: Any) -> tuple[float, float]:
+    """Return (ref_power, path_loss_exp) from settings, with safe defaults."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    data = (st.data or {}) if st else {}
+    ref = float(data.get("ref_power", DEFAULT_REF_POWER))
+    exp = float(data.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
+    return max(-100.0, min(0.0, ref)), max(1.0, min(4.0, exp))
+
+
+def calc_distance(rssi: float, obj: dict, hass: Any) -> float:
+    """Calculate distance using path-loss formula, preferring device's own RSSI@1m.
+    Shared by the HA Distance sensors and the MQTT /distance topic."""
+    ref, n = _distance_params(hass)
+    # A device-advertised reference is only usable when it is a plausible
+    # RSSI@1m (e.g. iBeacon measured power, ~-59 dBm).  BLE AD 0x0A
+    # "Tx Power Level" is radiated power (0..+12 dBm), NOT RSSI@1m — using it
+    # raw yields ~900 m distances.  Mirror the coordinator's spatial-path
+    # validation: only trust values in [-90, -30], else keep configured ref.
+    tx_power = obj.get("tx_power")
+    if tx_power is not None:
+        try:
+            _tp = float(tx_power)
+        except (TypeError, ValueError):
+            _tp = None
+        if _tp is not None and -90.0 <= _tp <= -30.0:
+            ref = _tp
+    return round(max(0.0, 10 ** ((ref - rssi) / (10.0 * n))), 1)

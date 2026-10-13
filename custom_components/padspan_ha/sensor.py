@@ -39,45 +39,15 @@ from .const import (
     DOMAIN,
     DATA_SETTINGS,
     DATA_DEVICE_REGISTRY,
-    DEFAULT_REF_POWER,
-    DEFAULT_PATH_LOSS_EXP,
 )
 from .presence_coordinator import PresenceCoordinator
-from .presence_rules import away_timeout_s
+from .presence_rules import away_timeout_s, calc_distance as _calc_distance
 
 _LOGGER = logging.getLogger(__name__)
 
 # The away rule lives in presence_rules; this alias keeps existing call sites
 # reading naturally while there is exactly one implementation.
 _away_timeout_s = away_timeout_s
-
-
-def _distance_params(hass: HomeAssistant) -> tuple[float, float]:
-    """Return (ref_power, path_loss_exp) from settings, with safe defaults."""
-    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    data = (st.data or {}) if st else {}
-    ref = float(data.get("ref_power", DEFAULT_REF_POWER))
-    exp = float(data.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
-    return max(-100.0, min(0.0, ref)), max(1.0, min(4.0, exp))
-
-
-def _calc_distance(rssi: float, obj: dict, hass: HomeAssistant) -> float:
-    """Calculate distance using path-loss formula, preferring device's own RSSI@1m."""
-    ref, n = _distance_params(hass)
-    # A device-advertised reference is only usable when it is a plausible
-    # RSSI@1m (e.g. iBeacon measured power, ~-59 dBm).  BLE AD 0x0A
-    # "Tx Power Level" is radiated power (0..+12 dBm), NOT RSSI@1m — using it
-    # raw yields ~900 m distances.  Mirror the coordinator's spatial-path
-    # validation: only trust values in [-90, -30], else keep configured ref.
-    tx_power = obj.get("tx_power")
-    if tx_power is not None:
-        try:
-            _tp = float(tx_power)
-        except (TypeError, ValueError):
-            _tp = None
-        if _tp is not None and -90.0 <= _tp <= -30.0:
-            ref = _tp
-    return round(max(0.0, 10 ** ((ref - rssi) / (10.0 * n))), 1)
 
 
 async def async_setup_entry(

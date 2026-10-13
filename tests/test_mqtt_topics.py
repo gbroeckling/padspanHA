@@ -53,3 +53,29 @@ async def test_one_failing_device_does_not_stop_the_rest(monkeypatch):
     result = {"a": {"user_label": "First", "room": "Hall"}, "b": {"user_label": "Tag #2", "room": "Den"}}
     await coord._async_mqtt_publish(result)
     assert "padspan/devices/tag__2/state" in sent and "padspan/devices/tag__2/area" in sent
+
+
+@pytest.mark.asyncio
+async def test_away_and_distance_match_the_ha_sensors(monkeypatch):
+    """home used a fixed 300 s, /area kept the last room while the HA Area
+    sensor said not_home, and /distance (advertised in Manage) was never
+    sent because nothing set obj["distance"]."""
+    hass = MagicMock()
+    st = MagicMock()
+    st.data = {"mqtt_publish_enabled": True, "ble_away_timeout_s": 900}
+    hass.data = {DOMAIN: {DATA_SETTINGS: st}}
+    coord = PresenceCoordinator(hass)
+    sent = {}
+
+    async def _publish(h, topic, payload, retain=False):
+        sent[topic] = payload
+    mod = types.ModuleType("homeassistant.components.mqtt")
+    mod.async_publish = _publish
+    monkeypatch.setitem(sys.modules, "homeassistant.components.mqtt", mod)
+    result = {"ble:A": {"user_label": "Here", "room": "Hall", "kind": "ble", "age_s": 5, "rssi": -60},
+              "ble:B": {"user_label": "Gone", "room": "Den", "kind": "ble", "age_s": 99999, "rssi": -80}}
+    await coord._async_mqtt_publish(result)
+    assert sent["padspan/devices/here/area"] == "Hall" and "padspan/devices/here/distance" in sent
+    assert sent["padspan/devices/gone/area"] == "not_home" and "padspan/devices/gone/distance" not in sent
+    import json
+    assert json.loads(sent["padspan/devices/gone/state"])["home"] is False

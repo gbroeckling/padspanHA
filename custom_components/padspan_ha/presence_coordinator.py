@@ -1770,6 +1770,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return
             from homeassistant.components.mqtt import async_publish  # noqa: PLC0415
             import json as _json  # noqa: PLC0415
+            from .presence_rules import calc_distance  # noqa: PLC0415
+            # The same away rule as the HA Area/Distance sensors: "home" used a
+            # fixed 300 s, /area kept the last room while the sensor said
+            # not_home, and /distance was never sent (nothing set "distance").
+            _away_s = away_timeout_s(self.hass)
             for key, obj in result.items():
                 label = obj.get("user_label")
                 if not label:
@@ -1779,21 +1784,24 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     continue
                 topic_base = f"padspan/devices/{slug}"
                 # State JSON
+                _away = is_away(obj, _away_s)
                 payload = {
                     "room": obj.get("room"),
                     "rssi": obj.get("rssi"),
                     "age_s": obj.get("age_s"),
-                    "home": not (isinstance(obj.get("age_s"), (int, float)) and obj["age_s"] > 300),
+                    "home": not _away,
                     "room_confidence": obj.get("room_confidence"),
                 }
                 # One device's failure is that device's: the try once wrapped
                 # the whole loop, so one bad publish stopped every device after it.
                 try:
                     await async_publish(self.hass, f"{topic_base}/state", _json.dumps(payload), retain=True)
-                    await async_publish(self.hass, f"{topic_base}/area", obj.get("room") or "unknown", retain=True)
-                    dist = obj.get("distance")
-                    if dist is not None:
-                        await async_publish(self.hass, f"{topic_base}/distance", str(dist), retain=True)
+                    await async_publish(self.hass, f"{topic_base}/area",
+                                        "not_home" if _away else (obj.get("room") or "unknown"), retain=True)
+                    rssi = obj.get("rssi")
+                    if not _away and isinstance(rssi, (int, float)):
+                        await async_publish(self.hass, f"{topic_base}/distance",
+                                            str(calc_distance(float(rssi), obj, self.hass)), retain=True)
                 except Exception:
                     _LOGGER.debug("MQTT publish for %s failed", slug, exc_info=True)
                     from .telemetry import bump  # noqa: PLC0415
