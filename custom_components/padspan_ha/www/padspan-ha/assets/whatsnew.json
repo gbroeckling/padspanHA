@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.118",
+  "title": "Saying plainly what the licence check sends",
+  "date": "2026-10-12",
+  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Privacy\n- **Changed:** the README and the Update Check card used to say that turning Update Check off stops all contact. That isn't quite true: if you've entered a licence key, PadSpan still checks it with traks.ca once a day, sending the key and Home Assistant's instance ID, so a refunded key stops working. Both now say so. With no key entered there is no licence check."
+ },
+ {
   "version": "0.38.117",
   "title": "Phones keep one set of entities, and Insights without a floor plan",
   "date": "2026-10-12",
@@ -28,11 +34,5 @@
   "title": "Phones keep their alerts, restores stick, and settings that did nothing say so",
   "date": "2026-10-12",
   "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Follow alerts and presence\n- **Fixed:** alerts for a phone known by its IRK keep working after the phone changes its Bluetooth address, which phones do every 15 minutes or so. They used to stop after the first change.\n- **Fixed:** a tagged device coming home is no longer reported, alerted or tracked in the room it left from. It starts fresh from where it is heard.\n\n### Backups and factory reset\n- **Fixed:** restoring a backup now really restores Forensics, PadSpan's device list and the object history. Before, each was written back to its old state within seconds.\n- **Fixed:** a restored Traceback now survives a restart.\n- **Fixed:** factory reset now erases Traceback history completely, plus PadSpan's device list (so tags and labels don't come back), Lost & Found and Forensics, as its screen promises.\n\n### Settings\n- **Changed:** **Auto-Offset** never did anything: only the manual offset you save is applied, and the old advice to set manual to 0 left those scanners uncorrected. The Off/Partial/Full buttons are gone and each scanner shows a **suggested** offset you can type in.\n- **Changed:** in Manage → Beacon Signal Profiles, the per-beacon **Tune** switch never did anything and is gone. The other switch only shows or hides the report, and it now says so.\n- **Fixed:** Suspend All Databases and Resume now say when they didn't work (just after a restart) instead of reporting success."
- },
- {
-  "version": "0.38.112",
-  "title": "Traceback records all day, and quieter, steadier alerts",
-  "date": "2026-10-12",
-  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Traceback\n- **Fixed:** Traceback now records whether or not a PadSpan page is open. It only recorded while someone had PadSpan on screen, so overnight and working hours were usually empty.\n\n### Follow alerts and Home Assistant events\n- **Fixed:** room-change alerts are limited to one a minute per device again. A tag sitting on the edge of two rooms could send an alert every few seconds.\n- **Fixed:** restarting Home Assistant no longer sends \"moved from unknown to …\" for every followed device, or a `padspan_room_change` event from nowhere.\n- **Fixed:** the `padspan_room_change` event now fires for followed Bluetooth devices and phones. Before, only followed iBeacons fired it.\n\n### Phones (Companion App)\n- **Fixed:** **Unfollow** in Overview's Track Your Phone works. It always showed Error.\n- **Fixed:** unfollowing a phone now removes its label everywhere, including the label on its IRK identity. Before, the phone stayed tagged and kept its Home Assistant entities.\n\n### Calibration and mapping\n- **Fixed:** a scanner set to a whole-metre height or position (like exactly 2 m) can be moved and saved again. Saving it failed every time."
  }
 ]
