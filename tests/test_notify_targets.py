@@ -274,6 +274,18 @@ async def test_an_alert_with_nowhere_to_go_is_counted_failed(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_the_test_button_is_counted_sent_or_failed(monkeypatch):
+    """#151 from the field: a Test that reaches the phone, and one to a saved
+    phone that is gone (which alerts never reach either)."""
+    seen = _counting(monkeypatch)
+    await _test_button("notify.mobile_app_phone")
+    assert seen == ["follow_test_sent"]
+    seen.clear()
+    _calls, conn = await _test_button("notify.mobile_app_old_phone")
+    assert seen == ["follow_test_failed"] and conn.send_error.call_args.args[1] == "not_found"
+
+
+@pytest.mark.asyncio
 async def test_the_wizard_counts_a_phone_it_cannot_reach(monkeypatch):
     seen = _counting(monkeypatch)
     assert mobile_app_notify_service(_phone_hass("mobile_app_other"), _device("Pixel")) is None

@@ -226,7 +226,10 @@ def test_nothing_from_the_house_is_in_the_report():
     # Raised 4000 -> 4030 for features.low_memory_mode (~25 bytes): issue #91,
     # whether an install runs with the low-memory caps on.
     # Raised 4030 -> 4060 for features.tasmota_ble_enabled (~25 bytes).
-    assert len(text) < 4060
+    # Raised 4060 -> 4110 for health.cal_points_phantom_room_n, pinned_movers_n
+    # and entity_dup_n (~73 bytes): whether 0.38.122's fixes #149, #147 and
+    # #153 hold in houses the tests cannot see.
+    assert len(text) < 4110
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1430,3 +1433,73 @@ def test_the_first_report_after_a_start_waits_for_a_steady_window(monkeypatch):
             assert sent == [] and later[1][0] == T._STEADY_S - T._FIRST_DELAY_S, last
             _run(later[1][1]())
             assert sent == [1], last
+
+
+# ── 0.38.122's fixes, read at the report ─────────────────────────────────────
+# Each a count, and left out (not a 0 nobody measured) when its source is not
+# there; a failure leaves out that one field and never the report.
+
+def test_calibration_points_with_a_room_that_is_no_room_are_counted(monkeypatch):
+    """#149: a pin's device label stamped into an auto point's room. A room is
+    a fabric room or a Home Assistant area; a point with no room is not one."""
+    from homeassistant.helpers import area_registry as ar_mod
+    monkeypatch.setattr(ar_mod, "async_get", lambda h: SimpleNamespace(
+        async_list_areas=lambda: [SimpleNamespace(name="Hall")]), raising=False)
+    h = _hass()
+    h.data[DOMAIN]["calibration"].data["points"] += [
+        {"room": "Car Keys", "label": "[auto] Car Keys"}, {"room": "Hall"}, {"room": ""}, {}]
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["health"]["cal_points_phantom_room_n"] == 1
+    assert "Car Keys" not in json.dumps(p)
+    h.data[DOMAIN].pop("calibration")
+    assert "cal_points_phantom_room_n" not in T.build_payload(h)["health"]
+    monkeypatch.setattr(ar_mod, "async_get", lambda h: 1 / 0, raising=False)
+    h = _hass()
+    p = T.build_payload(h)
+    assert "cal_points_phantom_room_n" not in p["health"] and "pinned_movers_n" in p["health"]
+
+
+def test_beacon_pins_on_a_device_that_moves_are_counted():
+    """#147: a pin on a phone or Find My tag (private_ble) or anything
+    followed — what Beacon Tune no longer pins; an entity (a fixed beacon
+    Bermuda tracks) is not counted. A pin not on the air now is
+    not judged."""
+    h = _hass()
+    pins = {"irk:" + _IRK: {}, "ble:" + _MAC2: {}, "entity:device_tracker.keys": {},
+            "ble:11:22:33:44:55:66": {}, "ble:22:33:44:55:66:77": {}, "ble:not_on_the_air": {}}
+    h.data[DOMAIN][DATA_FABRIC].data["beacon_positions_m"] = pins
+    h.data[DOMAIN]["snapshot_cache"][1]["objects"]["list"] += [
+        {"key": "irk:" + _IRK, "kind": "private_ble"},
+        {"key": "ble:" + _MAC2, "kind": "ble", "address": _MAC2},              # followed by address
+        {"key": "entity:device_tracker.keys", "kind": "entity", "entity_id": "device_tracker.keys"},
+        {"key": "ble:11:22:33:44:55:66", "kind": "ble", "address": "11:22:33:44:55:66"},  # a fixed beacon
+        {"key": "ble:22:33:44:55:66:77", "kind": "ibeacon", "address": "22:33:44:55:66:77"},
+    ]
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["health"]["pinned_movers_n"] == 2
+    h.data[DOMAIN][DATA_SETTINGS].data["followed_addrs"].append("ble:22:33:44:55:66:77")   # followed by key
+    assert T.build_payload(h)["health"]["pinned_movers_n"] == 3
+    h.data[DOMAIN].pop("snapshot_cache")
+    assert "pinned_movers_n" not in T.build_payload(h)["health"]
+
+
+def test_padspan_entities_registered_twice_are_counted(monkeypatch):
+    """#153: device_tracker.<label>_2 beside device_tracker.<label>. Only
+    PadSpan's own trackers and sensors, and only when the plain one is there."""
+    from homeassistant.helpers import entity_registry as er_mod
+    ents = {eid: SimpleNamespace(entity_id=eid, platform=plat) for eid, plat in (
+        ("device_tracker.keys", "padspan_ha"), ("device_tracker.keys_2", "padspan_ha"),
+        ("sensor.phone_distance", "padspan_ha"), ("sensor.phone_distance_3", "padspan_ha"),
+        ("sensor.scanner_7", "padspan_ha"),                                   # nothing to be a copy of
+        ("device_tracker.car", "bermuda"), ("device_tracker.car_2", "padspan_ha"),
+        ("light.lamp", "padspan_ha"), ("light.lamp_2", "padspan_ha"),
+    )}
+    monkeypatch.setattr(er_mod, "async_get", lambda h: SimpleNamespace(entities=ents), raising=False)
+    p = T.build_payload(_hass())
+    T.assert_shareable(p)
+    assert p["health"]["entity_dup_n"] == 2
+    monkeypatch.setattr(er_mod, "async_get", lambda h: 1 / 0, raising=False)
+    p = T.build_payload(_hass())
+    assert "entity_dup_n" not in p["health"] and "pinned_movers_n" in p["health"]

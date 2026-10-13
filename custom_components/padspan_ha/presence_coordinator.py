@@ -3725,15 +3725,20 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # ── Beacon auto-calibration ────────────────────────────────────────────
 
-    @staticmethod
-    def _autocal_room(pin: dict, live_obj: dict | None) -> str:
+    def _autocal_room(self, pin: dict, live_obj: dict | None) -> str:
         """A pin's room for an auto point: kept only when the live pass applied it.
 
         The live pass applies a pin's room only when it is a real room (legacy
         pins hold a device label there); anything else would put a phantom
         room into k-NN's room vote. Both auto-calibration paths use this.
         """
-        return pin.get("room", "") if pin.get("room") == (live_obj or {}).get("room") else ""
+        if pin.get("room") == (live_obj or {}).get("room"):
+            return pin.get("room", "")
+        if pin.get("room"):
+            # The opt-in report (#149): a pin's room kept off an auto point.
+            from .telemetry import bump  # noqa: PLC0415
+            bump(self.hass, "autocal_pin_room_dropped")
+        return ""
 
     async def _inject_beacon_calibration(
         self, now: float, pinned: dict[str, dict], result: dict[str, Any],

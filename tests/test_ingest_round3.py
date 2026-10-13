@@ -85,6 +85,32 @@ async def test_a_reload_with_the_same_keys_keeps_the_cache():
     assert r.resolve_address(rpa_b)["canonical_id"] == f"irk:{irk_b.hex()}"
 
 
+@pytest.mark.asyncio
+async def test_the_report_counts_a_cache_clear_only_when_the_keys_changed():
+    """#148 from the field: irk_cache_cleared should read about 0 a day (every
+    5-minute reload cleared it, ~288). Not the first load (nothing cached),
+    not a reload with the same keys; once when a key is added."""
+    from custom_components.padspan_ha import private_ble_resolver as pr
+    from custom_components.padspan_ha.const import DOMAIN
+    irk_a, irk_b = bytes(range(16)), bytes(range(16, 32))
+    keys = [{"name": "A", "irk_hex": irk_a.hex()}]
+    hass = MagicMock()
+    hass.config_entries.async_entries = lambda domain: []
+    hass.async_add_executor_job = AsyncMock(return_value=[])
+    hass.states.async_all = lambda domain: []
+    hass.data = {DOMAIN: {"settings": types.SimpleNamespace(data={"irk_devices": keys})}}
+    r = pr.PrivateBLEResolver(hass)
+    counted: list[str] = []
+    r._count = counted.append
+    await r.async_load()
+    r.resolve_address(_rpa(irk_a))
+    await r.async_load()                          # same keys
+    assert "irk_cache_cleared" not in counted
+    keys.append({"name": "B", "irk_hex": irk_b.hex()})
+    await r.async_load()
+    assert counted.count("irk_cache_cleared") == 1
+
+
 def test_a_disconnected_proxy_is_not_shown_as_scanning(monkeypatch):
     bt = types.ModuleType("homeassistant.components.bluetooth")
     bt.async_current_scanners = lambda hass: []

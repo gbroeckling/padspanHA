@@ -86,3 +86,27 @@ async def test_map_save_point_drops_a_pin_room_that_is_not_a_room():
             coord._beacon_autocal_buf["ble:B1"] = {k: list(v) for k, v in buf.items()}
             assert await coord.inject_immediate_calibration([bk], "m1", "f1", {}) == 1
             assert cal.async_add_point.await_args.args[0]["room"] == want, (pin_room, fb)
+
+
+@pytest.mark.asyncio
+async def test_the_report_counts_a_pin_room_kept_off_an_auto_point():
+    """#149 from the field: autocal_pin_room_dropped, from both paths. A pin
+    whose room the live object carries, or with no room, is not counted."""
+    import time
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.const import DATA_SETTINGS
+    from custom_components.padspan_ha.telemetry import _DATA_COUNTERS
+    buf = {"s1": [-60.0] * 3, "s2": [-70.0] * 3}
+    for pin_room, want in (("Car Keys", 2), ("Kitchen", None), ("", None)):
+        coord, cal = _coord()
+        dom = coord.hass.data[DOMAIN]
+        dom[DATA_SETTINGS] = SimpleNamespace(data={"telemetry_enabled": True})
+        coord.data = {"ble:B1": {"room": "Kitchen", "address": "B1"}}
+        coord._beacon_autocal_buf = {"ble:B1": {k: list(v) for k, v in buf.items()}}
+        pinned = {"ble:B1": {"room": pin_room, "x_m": 1.0, "y_m": 2.0, "floor_id": "f1"}}
+        await coord._inject_beacon_calibration(time.monotonic() + 1e6, pinned, coord.data, {}, {})
+        dom[DATA_MODEL].beacon_positions_m.return_value = {"ble:B1": {"x_m": 2.0, "y_m": 3.0, "room": pin_room}}
+        coord._beacon_autocal_buf["ble:B1"] = {k: list(v) for k, v in buf.items()}
+        assert await coord.inject_immediate_calibration([{"key": "ble:B1"}], "m1", "f1", {}) == 1
+        assert cal.async_add_point.await_count == 2
+        assert (dom.get(_DATA_COUNTERS) or {}).get("autocal_pin_room_dropped") == want, pin_room

@@ -195,6 +195,29 @@ async def test_a_restored_record_with_a_bad_time_is_skipped_not_the_whole_merge(
     store.store.async_save.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_the_report_counts_each_restore_merge_and_the_records_it_kept():
+    """#150 from the field: lost_and_found_restore_merged once per merge, and
+    lost_and_found_restore_kept_current the records here newer than the
+    backup's (the ones a replacing restore rolled back); none, nothing sent."""
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+    from custom_components.padspan_ha.telemetry import _DATA_COUNTERS
+    store = _make_store()
+    store.hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={"telemetry_enabled": True})}})
+    store.records = {"ble:TAG": {"room": "Garage", "ts": 300.0},
+                     "ble:KEYS": {"room": "Hall", "ts": 300.0},
+                     "ble:PHONE": {"room": "Office", "ts": 150.0}}
+    await store.async_merge({"ble:TAG": {"room": "Garage", "ts": 300.0},       # the same record
+                             "ble:KEYS": {"room": "Kitchen", "ts": 100.0},     # older: this one kept
+                             "ble:PHONE": {"room": "Lounge", "ts": 200.0},
+                             "ble:WALLET": {"room": "Bedroom", "ts": 100.0}})
+    counters = store.hass.data[DOMAIN][_DATA_COUNTERS]
+    assert counters == {"lost_and_found_restore_merged": 1, "lost_and_found_restore_kept_current": 1}
+    await store.async_merge({"ble:BAG": {"room": "Hall", "ts": 100.0}})
+    assert counters == {"lost_and_found_restore_merged": 2, "lost_and_found_restore_kept_current": 1}
+
+
 async def test_a_record_for_someones_device_survives_the_startup_prune(tmp_path):
     """The once-per-start prune judged records by whether the device was still
     heard, so an HA-linked tag away for two days lost its record at restart.
