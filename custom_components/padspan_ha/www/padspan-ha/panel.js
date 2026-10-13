@@ -2270,6 +2270,13 @@ class PadSpanHaApp extends HTMLElement {
           this.state._traceback.playing = false;
         }
       }
+      // Leaving Calibration ends any confirm it had open (Delete radio, an
+      // overlapping-map popup): the render guard reads these flags panel-wide,
+      // so a pending one kept every other view from rendering.
+      if (this.state.view === "calibration" && id !== "calibration") {
+        if (this.state._calibTune) this.state._calibTune._confirming = false;
+        if (this.state._calibBeacon) this.state._calibBeacon._confirming = false;
+      }
       this.state.view = id;
       this._logEvent("view_change", id);
       // Opt-in usage report: count the tab open.
@@ -3461,7 +3468,7 @@ class PadSpanHaApp extends HTMLElement {
   // but user interactions are sacred (never destroy mid-action).
   _renderCurrentView(fromPoll){
     if(this.state._factoryResetInProgress) return;
-    if(this.state._calibTune?._dragging || this.state._calibBeacon?._dragging || this.state._calibTune?._confirming || this.state._calibBeacon?._confirming) return;
+    if(this.state.view === "calibration" && (this.state._calibTune?._dragging || this.state._calibBeacon?._dragging || this.state._calibTune?._confirming || this.state._calibBeacon?._confirming)) return;
     if(this.state.maps?._stackDragging || this.state.maps?._editDragging) return;
     if(this.state._traceback?.active && this.state.view === "traceback") return;
     // Maps upload/stack/edit tabs have fragile state (file inputs, drag handles)

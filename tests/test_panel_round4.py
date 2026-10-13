@@ -59,3 +59,13 @@ def test_objects_view_room_names_union_and_clear():
     assert 'el("span",{}, esc(room))' not in s                                   # "&amp;" shown literally
     assert 'if (mode === "all" || mode === "intersect") items = Array.from(intersect);' in s
     assert s.count("await ctx.actions.refreshSnapshot();") >= 2                  # cleared devices go
+
+
+def test_a_calibration_confirm_does_not_block_other_views():
+    """Delete radio (or an overlapping-map popup) set _confirming, and the
+    render guard read it panel-wide: the sidebar moved, the content stayed."""
+    s = _src("panel.js")
+    assert 'if(this.state.view === "calibration" && (this.state._calibTune?._dragging' in s
+    sw = s[s.index("const _switchView = (id) => {"):]
+    sw = sw[:sw.index("this._renderNav();")]
+    assert "this.state._calibBeacon._confirming = false;" in sw and "this.state._calibTune._confirming = false;" in sw
