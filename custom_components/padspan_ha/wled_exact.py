@@ -147,6 +147,12 @@ class WledLooksStore:
         await self.store.async_save(self.data)
 
 
+# The other edition's domain. The full edition's name is spelled in two
+# parts so the Bright build's rename of it leaves this one alone.
+_FULL_DOMAIN = "padspan" + "_ha"
+_OTHER_EDITION_DOMAIN = "padspan_bright" if DOMAIN == _FULL_DOMAIN else _FULL_DOMAIN
+
+
 def _store(hass: HomeAssistant) -> WledLooksStore | None:
     return (hass.data.get(DOMAIN) or {}).get(DATA_WLED_LOOKS)
 
@@ -1415,8 +1421,24 @@ async def async_give_back_all(hass: HomeAssistant) -> list[str]:
     back, as Switch to WLED sync would. Switching to PadSpan writes sync off
     into the device's saved config and the originals live only in this
     store, so once PadSpan is gone nothing could put them back. Returns the
-    names of devices that could not be reached (they keep sync off)."""
+    names of devices that could not be reached (they keep sync off).
+
+    Not while the other edition is installed: someone who moved between
+    PadSpan HA and PadSpan Bright may run the device from the other one now,
+    and this store's record of it is old."""
     st = await async_get_store(hass)
+    other = _OTHER_EDITION_DOMAIN
+    try:
+        other_installed = bool(hass.config_entries.async_entries(other))
+    except Exception:  # noqa: BLE001
+        other_installed = False
+    if other_installed:
+        names = [r.get("name") or r.get("mac") or "?" for r in (st.data.get("devices") or {}).values()
+                 if isinstance(r, dict) and (r.get("join") == "padspan" or r.get("sync_off"))]
+        if names:
+            _LOGGER.warning("PadSpan removed while %s is installed; WLED devices left as they are "
+                            "(switch them back from there if needed): %s", other, ", ".join(names))
+        return names
     missed: list[str] = []
     for rec in list((st.data.get("devices") or {}).values()):
         if not isinstance(rec, dict) or (rec.get("join") != "padspan" and not rec.get("sync_off")):

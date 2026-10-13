@@ -50,8 +50,11 @@ export function render(ctx) {
     msg.style.cssText = "text-align:center;padding:20px;color:#94a3b8";
     msg.textContent = "No floor plans yet, so there's no map to replay movement on. Add one in Maps. Insights and Busy Times work without one.";
     outer.appendChild(msg);
+    // A render before the maps list arrives lands here too: the deep link
+    // (?view=insights|busytimes) is used up only once the maps have loaded,
+    // or the real render opened plain playback.
     const initial = ctx.state._tracebackInitialMode;
-    delete ctx.state._tracebackInitialMode;
+    if (ctx.state._mapsLoaded) delete ctx.state._tracebackInitialMode;
     if (initial === "insights" || initial === "busytimes") ctx.state._tbNoMapMode = initial;
     const row = document.createElement("div");
     row.style.cssText = "display:flex;gap:6px;margin:10px 0";

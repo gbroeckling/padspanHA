@@ -51,6 +51,10 @@ out.unplaced = tuneBeaconWrites(map, rows, { m: {} }, base);
 out.noTransform = tuneBeaconWrites(map, rows, {}, base);
 out.invalid = tuneBeaconWrites(map, [{ key: 'ble:BAD', x: 'nope', y: 0.1 }], { m: tf }, {});
 out.dup = tuneBeaconWrites(map, [rows[2], { ...rows[2], x: 0.9 }], { m: tf }, {});
+// A tracked phone shown for display, then dragged: still never a fixed beacon.
+out.draggedPhone = tuneBeaconWrites(map, [{ ...rows[3], x: 0.1, y: 0.1, _tracked: true }], { m: tf }, base);
+// Nothing changed on a map with no metre placement: not refused.
+out.unplacedNothing = tuneBeaconWrites(map, [rows[0]], { m: {} }, base);
 console.log(JSON.stringify(out));
 """
 
@@ -98,6 +102,17 @@ class TestBeaconTuneWrites:
 
     def test_one_write_per_key(self):
         assert len(_run()["dup"]["writes"]) == 1
+
+    def test_a_dragged_tracked_phone_is_never_pinned(self):
+        """A drag pinned a moving phone as a fixed beacon: its room locked to
+        the pin and auto-calibration labelled points with a spot it had left."""
+        assert _run()["draggedPhone"]["writes"] == []
+
+    def test_an_unplaced_map_with_nothing_changed_is_not_refused(self):
+        """It was refused before anything was compared, so a map with no
+        metre placement stayed unsaved for good after any auto-pin."""
+        out = _run()["unplacedNothing"]
+        assert out["refused"] is False and out["writes"] == []
 
 
 class TestBeaconTuneIsWired:

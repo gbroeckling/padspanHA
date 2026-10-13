@@ -2896,7 +2896,7 @@ function _settingsLicence(ctx, el){
     colour = "#fbbf24";
   } else if (typeof daysLeft === "number" && daysLeft < 0) {
     // Expired but inside the grace period: still working, not for long.
-    const graceLeft = 14 + daysLeft;
+    const graceLeft = Math.max(1, 14 + daysLeft);   // days_left rounds down; the last day is still a day
     line = "\u26A0 " + (isTrial ? "Your trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
            " \u2014 paid editing stops in " + graceLeft + " day" + (graceLeft === 1 ? "" : "s") + ".";
     colour = "#fbbf24";

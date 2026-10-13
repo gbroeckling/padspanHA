@@ -354,17 +354,29 @@ export function tuneBeaconBaseline(draftRows) {
 // z_m: the backend keeps a stored height when it is left out.
 export function tuneBeaconWrites(mapObj, draftRows, transforms, baselineMap) {
   const tf = transforms ? transforms[mapObj.id] : null;
-  if (!tunePlacementReadable(tf)) return { writes: [], invalid: [], refused: true };
   const writes = [];
   const invalid = [];
   const seen = new Set();
   const base = baselineMap || {};
+  // What changed comes first: a map with nothing to write is not refused for
+  // having no metre placement (it was, and stayed "unsaved" for good).
+  // Tracked devices shown for display (_tracked: a phone or tag drawn at its
+  // room's centre) are never written - a drag of one pinned a moving phone
+  // as a fixed beacon, locking its room and labelling auto-calibration
+  // points with a spot it had left.
+  const changed = [];
   for (const b of draftRows || []) {
     const key = (b && b.key) || "";
-    if (!key || seen.has(key)) continue;
+    if (!key || seen.has(key) || b._tracked) continue;
     seen.add(key);
     const was = base[key];
     if (was && was.x === b.x && was.y === b.y) continue;
+    changed.push(b);
+  }
+  if (!changed.length) return { writes, invalid, refused: false };
+  if (!tunePlacementReadable(tf)) return { writes: [], invalid: [], refused: true };
+  for (const b of changed) {
+    const key = b.key;
     const fx = _finiteNum(b.x), fy = _finiteNum(b.y);
     if (fx === null || fy === null) { invalid.push(key); continue; }
     const m = mapFracToMetres(tf, fx, fy);

@@ -3915,11 +3915,11 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         bs.draftBeacons[m.id].push({
           id: "bk_" + Math.random().toString(16).slice(2, 10),
           label: bkLabel, key: obj.key, kind: obj.kind || "ble",
-          x: c[0], y: c[1],
+          x: c[0], y: c[1], _tracked: true,
         });
-        // Shown at its room's centre, not placed by anyone: baselined, so
-        // the save never writes a phone or tag as a fixed beacon (#89).
-        // Dragged or relocated, it differs from this and is written.
+        // Shown at its room's centre, not placed by anyone: never written
+        // as a fixed beacon (_tracked), dragged or not - a drag is a
+        // calibration capture where it is, as before #89.
         (bs.editBaseline[m.id] = bs.editBaseline[m.id] || {})[obj.key] = { x: c[0], y: c[1] };
         pinnedKeys.add((obj.key||"").toUpperCase());
         if (lbl) pinnedLabels.add(lbl);
@@ -5036,8 +5036,15 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     try {
       // Saved for real now (#89): a placed beacon reaches the fabric, so the
       // engine treats it as fixed. A failed save stays unsaved and says so.
-      const res = await _saveBeacons([mapId]);
-      if (res.refused.length) ctx.toast("Beacon position not saved: this map isn't placed in metres yet. Place it in Mapping first.", true);
+      let res = await _saveBeacons([mapId]);
+      // Another save was running (a second drag straight after the first):
+      // wait for it rather than drop this one without a word.
+      for (let i = 0; res.busy && i < 40; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        res = await _saveBeacons([mapId]);
+      }
+      if (res.busy) ctx.toast("Beacon position not saved yet - press Save", true);
+      else if (res.refused.length) ctx.toast("Beacon position not saved: this map isn't placed in metres yet. Place it in Mapping first.", true);
       else if (res.failed.length) ctx.toast("Beacon position not saved — press Save to retry", true);
       _refreshDirtyLabel();
     } catch (e) {

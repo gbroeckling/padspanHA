@@ -45,6 +45,27 @@ from .telemetry import bump as _bump
 _LOGGER = logging.getLogger(__name__)
 
 
+def _licence_rank(d: dict[str, Any]) -> tuple[int, float]:
+    """(has a working key, its expiry) - higher is better. A working key is
+    one with no expiry or one not past the grace period (ws_common's rule);
+    no expiry ranks above any date."""
+    from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+    from .ws_common import PRO_GRACE_DAYS  # noqa: PLC0415
+    if not str(d.get("forensics_license_key") or "").strip():
+        return (0, 0.0)
+    raw = str(d.get("forensics_license_expires") or "").strip()
+    if not raw:
+        return (2, float("inf"))
+    try:
+        exp = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return (2, float("inf"))      # an unreadable date never locks anyone out
+    working = exp - datetime.now(timezone.utc) > -timedelta(days=PRO_GRACE_DAYS)
+    return (2 if working else 1, exp.timestamp())
+
+
 async def _load_backups(hass: HomeAssistant) -> dict[str, Any]:
     """Load the backup index from HA persistent storage."""
     from homeassistant.helpers.storage import Store as _St
@@ -483,13 +504,14 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # its week (settings_store.trial_state_kept).
                             from .settings_store import trial_state_kept
                             data.update(trial_state_kept(store_obj.data or {}, data))
-                            # The licence on this install now stays: a backup
-                            # from before a purchase (or from a trial) blanked
-                            # the key or put the old one back, locking paid
-                            # editing. A fresh install with no key takes the
-                            # backup's (the rule bright_import uses).
+                            # The licence on this install stays when it is the
+                            # better one: a backup from before a purchase (or
+                            # from a trial) blanked the key or put the old one
+                            # back, locking paid editing. But an expired live
+                            # key never beats a working one in the backup, and
+                            # an install with no key takes the backup's.
                             _live = store_obj.data or {}
-                            if str(_live.get("forensics_license_key") or "").strip():
+                            if _licence_rank(_live) >= _licence_rank(data):
                                 for _k in ("forensics_license_key", "forensics_license_expires",
                                            "license_tier", "license_is_trial"):
                                     if _k in _live:

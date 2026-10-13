@@ -142,7 +142,10 @@ function renderUnlocked(ctx, root) {
     const s = _cache;
     const ins = s.installs || {}, pg = s.pings || {};
     const dist = s.dist || {};
-    const n = ins.reporting_window || Object.values(dist.version || {}).reduce((a, b) => a + b, 0) || 1;
+    // The distributions, features and table come from every install's latest
+    // report in the whole spool, not only the window: divided by the window's
+    // count they read over 100%. Their own total is the base for their shares.
+    const n = Object.values(dist.version || {}).reduce((a, b) => a + (Number(b) || 0), 0) || ins.reporting_window || 1;
     const W = s.window_days;
     const sections = [];
     const section = (title, lede, children) => {
@@ -172,7 +175,7 @@ function renderUnlocked(ctx, root) {
     const hero = el("div", { class: "ib-card ib-herofig" }, [
       el("div", { class: "ib-tile-label" }, "Reporting installs"),
       el("div", { class: "ib-herofig-value" }, fmt(ins.reporting_window ?? 0)),
-      el("div", { class: "ib-tile-sub" }, `opted in and reported within ${W}d. Every share on this page is of these installs unless it says otherwise.`),
+      el("div", { class: "ib-tile-sub" }, `opted in and reported within ${W}d.`),
     ]);
     const days = s.per_day || [];
     section("Reach", "Who is out there. A ping is an update check from any install; a report comes only from installs that opted in.", [
@@ -184,7 +187,7 @@ function renderUnlocked(ctx, root) {
     ]);
 
     // ── 02 versions ───────────────────────────────────────────────────────
-    section("Versions", `What people run, from each install's latest report. Shares are of the ${fmt(n)} reporting installs.`, [
+    section("Versions", `What people run, from each install's latest report. Shares on this page are of the ${fmt(n)} installs with a report on file unless they say otherwise.`, [
       grid([
         barCard(el, { title: "Version", ask: "PadSpan version", map: dist.version, total: n }),
         barCard(el, { title: "Home Assistant", ask: "Home Assistant version", map: dist.ha_version, total: n }),
@@ -278,7 +281,7 @@ function renderUnlocked(ctx, root) {
 
     // ── 07 installs ───────────────────────────────────────────────────────
     const rows = s.table || [];
-    section("Installs", `One row per install that reported within ${W}d, latest report first. ids are the first eight characters of a random id.`, [
+    section("Installs", `One row per install with a report on file, latest report first. ids are the first eight characters of a random id.`, [
       installsTable(el, rows),
       el("div", { class: "ib-note" },
         `Spool from ${s.spool_first_day || "?"}; pings log from ${pg.first_day || "?"}. A flag counts only where the report carries the field.`),

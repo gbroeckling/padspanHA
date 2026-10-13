@@ -480,3 +480,18 @@ def test_the_fabric_holds_every_kind_of_thing_with_a_position() -> None:
     for key in ("scanner_positions_m", "beacon_positions_m",
                 "rf_barriers_m", "light_positions_m"):
         assert key in fab.data, key
+
+
+@pytest.mark.asyncio
+async def test_rederive_counts_either_recorded_floor() -> None:
+    """Moving a map in the Stack table can leave the old stack.floor_id
+    beside the new floor_id; preferring the stack's added the wrong floor's
+    devices and skipped the right one's."""
+    transforms = {"m1": {"origin_x_m": 0, "origin_y_m": 0, "scale_x_m": 10,
+                         "scale_y_m": 10, "rotation_rad": 0, "floor_id": "upstairs"}}
+    mdl = _make_model(transforms)
+    mdl.fabric = _spatial_fabric()
+    await mdl.async_set_scanner_position_m("rx_up", 3.0, 3.0, 2.4, "upstairs")
+    m = {"id": "m1", "floor_id": "upstairs", "stack": {"floor_id": "main"}, "receivers": [], "beacons": []}
+    await mdl.async_rederive_map_fracs("m1", m)
+    assert [rx["source"] for rx in m["receivers"]] == ["rx_up"]

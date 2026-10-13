@@ -1059,3 +1059,33 @@ def test_a_factory_reset_keeps_the_licence_tier(monkeypatch):
     h.data[DOMAIN][DATA_SETTINGS].data.update(forensics_license_key="PSPAN-B", license_tier="bright")
     _run(ws_factory_reset(h, MagicMock(), {"id": 1, "confirm": "FACTORY RESET"}))
     assert h.data[DOMAIN][DATA_SETTINGS].data.get("license_tier") == "bright"
+
+
+def test_a_restore_takes_a_working_backup_key_over_an_expired_live_one(monkeypatch):
+    """The live-licence rule kept an expired trial over the backup's paid
+    key, leaving Pro off after a restore that would have turned it back on."""
+    from datetime import datetime, timedelta, timezone
+    import homeassistant.helpers.storage as _hs
+    from custom_components.padspan_ha import ws_backup
+    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    _FakeStore.saved = {}
+    monkeypatch.setattr(_hs, "Store", _FakeStore)
+    now = datetime.now(timezone.utc)
+    bk = {"backups": [{"id": "bk1", "created_at": "2026-01-01T00:00:00+00:00", "version": "0.38.80",
+                       "note": "", "map_images": {},
+                       "stores": {SETTINGS_STORE_KEY: {"quiet_mode": True, "forensics_license_key": "PSPAN-PAID",
+                                                       "forensics_license_expires": (now + timedelta(days=300)).isoformat(),
+                                                       "license_is_trial": False, "license_tier": "pro"}}}]}
+
+    async def _load(_hass):
+        return bk
+
+    monkeypatch.setattr(ws_backup, "_load_backups", _load)
+    h = _house()
+    h.data[DOMAIN][DATA_SETTINGS].data.update(
+        forensics_license_key="PSPAN-TRIAL", license_is_trial=True, license_tier="bright",
+        forensics_license_expires=(now - timedelta(days=60)).isoformat())
+    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), {"id": 1, "backup_id": "bk1",
+                                                              "store_keys": [SETTINGS_STORE_KEY]}))
+    after = h.data[DOMAIN][DATA_SETTINGS].data
+    assert after["forensics_license_key"] == "PSPAN-PAID" and after["license_tier"] == "pro"

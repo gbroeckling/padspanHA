@@ -1721,11 +1721,14 @@ class ModelStore:
         barriers_m = self.rf_barriers_m()
         # Floors stack on one footprint, so "lands inside this image" holds
         # for every storey's devices; only this map's floor is drawn on it.
-        map_floor = str((map_dict.get("stack") or {}).get("floor_id") or map_dict.get("floor_id") or "")
+        # Either recorded floor counts: moving a map in the Stack table can
+        # leave the old stack.floor_id beside the new floor_id.
+        map_floors = {str(f) for f in ((map_dict.get("stack") or {}).get("floor_id"),
+                                       map_dict.get("floor_id")) if f}
 
         def _other_floor(pos: dict) -> bool:
             fl = str(pos.get("floor_id") or "")
-            return bool(map_floor and fl and fl != map_floor)
+            return bool(map_floors and fl and fl not in map_floors)
 
         # ── Receivers ─────────────────────────────────────────────────────
         existing_receivers = map_dict.get("receivers") or []

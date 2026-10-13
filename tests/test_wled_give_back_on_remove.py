@@ -44,7 +44,9 @@ async def test_padspan_run_devices_are_switched_back_and_unreachable_ones_named(
          patch.object(wled_exact, "_identify", lambda hass, device_id=None: idents.get(device_id)), \
          patch.object(wled_exact, "switch_to_wled", fake_switch), \
          patch.object(wled_exact.W, "device_lock", lambda hass, host: contextlib.nullcontext()):
-        missed = await wled_exact.async_give_back_all(MagicMock())
+        hass = MagicMock()
+        hass.config_entries.async_entries = lambda domain: []
+        missed = await wled_exact.async_give_back_all(hass)
     assert switched == ["Deck"]
     assert missed == ["Porch"]
     st.async_save.assert_awaited_once()
@@ -59,3 +61,21 @@ def test_a_lapsed_licence_can_give_a_padspan_team_back():
            / "padspan-ha" / "views" / "lights_map.js").read_text(encoding="utf-8")
     assert 'x.team_mode === "padspan") return;' not in src
     assert 'type: "padspan_ha/wled_team_mode", team_id: x.team_id, mode: "mirror"' in src
+
+
+@pytest.mark.asyncio
+async def test_nothing_is_touched_while_the_other_edition_is_installed():
+    """Someone who moved between PadSpan HA and Bright may run the device from
+    the other edition now; this store's record of it is old."""
+    run = new_record("AA", "dev1", "Deck")
+    run.update(join="padspan", exact=True, sync_off="saved", prior_sync={"cfg": {}})
+    st = MagicMock()
+    st.data = {"devices": {"AA": run}}
+    st.async_save = AsyncMock()
+    switch = AsyncMock()
+    hass = MagicMock()
+    hass.config_entries.async_entries = lambda domain: [object()] if domain == wled_exact._OTHER_EDITION_DOMAIN else []
+    with patch.object(wled_exact, "async_get_store", AsyncMock(return_value=st)),          patch.object(wled_exact, "switch_to_wled", switch):
+        await wled_exact.async_give_back_all(hass)
+    switch.assert_not_awaited()
+    assert wled_exact._OTHER_EDITION_DOMAIN == "padspan_bright"
