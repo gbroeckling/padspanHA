@@ -1445,6 +1445,9 @@ export function render(ctx) {
       _stopPlayback();
       tb.startTs = new Date(sVal).getTime() / 1000;
       tb.endTs = new Date(eVal).getTime() / 1000;
+      // Typed the wrong way round: swapped, as Forensics does, instead of
+      // a negative range that always read "No data in range".
+      if (tb.startTs > tb.endTs) [tb.startTs, tb.endTs] = [tb.endTs, tb.startTs];
       tb.rangePreset = Math.round(tb.endTs - tb.startTs);
       await _loadTracebackData();
       _resetStaticBase();

@@ -116,3 +116,8 @@ def test_insights_and_busy_times_need_no_floor_plan():
     block = src[src.index("if (!maps_list.length) {"):]
     block = block[:block.index("return outer;")]
     assert "insightsView.render(ctx)" in block and "busyTimesView.render(ctx)" in block
+
+
+def test_a_backwards_custom_range_is_swapped():
+    src = (_VIEWS / "traceback.js").read_text(encoding="utf-8")
+    assert "if (tb.startTs > tb.endTs) [tb.startTs, tb.endTs] = [tb.endTs, tb.startTs];" in src
