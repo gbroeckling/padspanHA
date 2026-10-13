@@ -4,6 +4,33 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.114 — Calibration tools that do what they say, walls that keep their doors, and WLED that can always go back (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Calibration
+- **Fixed:** Settings → per-map **Clear (N)** now deletes those points. It deleted nothing and said "Cleared 0", and the points stopped showing on the map while still steering positioning.
+- **Fixed:** importing the same calibration file twice no longer saves every point again. Imported points keep the date they were collected, and Import shows up on an install with no points yet, which is when you need it.
+- **Fixed:** Beacon Tune's "replace old data" step saves the new reading first. If that save failed, the beacon's old data was already deleted.
+- **Fixed:** Replace Scanner and Relearn Radio take effect right away when you use the Random Forest. Before, they waited for the next point or a restart. Replace also no longer gives a point two readings from the same scanner.
+- **Fixed:** restoring maps from a backup no longer adds a junk one-scanner calibration point for every live beacon. Pinned-beacon auto points no longer pick up a device name as their room.
+
+### Maps and rooms
+- **Fixed:** dragging a wall in the Rooms editor keeps its linked door or window sensor, opener, lock and Invert.
+- **Fixed:** Add room and Delete room keep your other unsaved Rooms-editor changes.
+- **Fixed:** cropping, rotating or replacing a floor plan no longer pulls other floors' scanners and beacons onto it.
+- **Fixed:** a floor Home Assistant removes keeps its heights while PadSpan still has rooms on it.
+- **Fixed:** a newly placed light keeps the normal marker size and wall inset. It used to shrink to half size when you pressed Save. Lights you have already placed keep their current size.
+
+### WLED
+- **Fixed:** deleting PadSpan now gives every WLED light it runs its own sync settings back. Before, those lights kept sync switched off for good.
+- **Fixed:** restoring an older backup no longer forgets which lights PadSpan runs or their original sync settings.
+- **Fixed:** without a licence, one offline light no longer stops the rest of its team switching.
+- **Fixed:** if the licence lapses, a team PadSpan runs can be given back to WLED sync from the light's card.
+
+---
+
 ## 0.38.113 — Phones keep their alerts, restores stick, and settings that did nothing say so (2026-10-12)
 
 ### Before you update
