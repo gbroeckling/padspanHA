@@ -174,6 +174,10 @@ def _claim_objects(people: list[dict[str, Any]], objects: list[dict[str, Any]]) 
                 continue
             label = str(obj.get("user_label") or "").strip().lower()
             linked = {str(e) for e in (obj.get("linked_entities") or [])}
+            # An entity object (a Bermuda or other tracker in HA) is the
+            # person's tracker itself; only linked_entities was checked.
+            if obj.get("entity_id"):
+                linked.add(str(obj["entity_id"]))
             if (label and label in person["match_names"]) or (linked & person["trackers"]):
                 obj["_claimed"] = True
                 person["room"] = obj.get("room") or None
@@ -185,6 +189,11 @@ def _irk_phones(objects: list[dict[str, Any]], people: list[dict[str, Any]]) -> 
     """IRK-resolved phones are known people too; match to a person by name, else add one."""
     for obj in objects:
         if obj.get("kind") != "private_ble" or obj.get("_claimed"):
+            continue
+        # A phone, not everything shaped like one: a Find My tag (findmy.py)
+        # and a tag bridged across an address change are private_ble too,
+        # and each counted as another person in the house.
+        if obj.get("findmy") or obj.get("bridge_match"):
             continue
         name = str(obj.get("user_label") or obj.get("name") or "").strip()
         owner = next((p for p in people if name.lower() in p["match_names"]), None) if name else None

@@ -502,3 +502,33 @@ def test_accuracy_recent_window_is_the_last_20_only(monkeypatch):
     assert recent["observations"] == 20
     assert recent["exact_match_pct"] == 100.0
     assert recent["bias"] == 0.0
+
+
+def test_find_my_tags_and_bridged_tags_are_not_people(monkeypatch):
+    """findmy.py makes a labelled AirTag kind private_ble after its first
+    address change, and the rotation bridge does the same for a tag: each
+    counted as another person in the house."""
+    sc = {"s1": ("Office", "main"), "s2": ("Kitchen", "main"), "s3": ("Bedroom", "main")}
+    persons = [_person("person.garry", "Garry", "device_tracker.pixel")]
+    trackers = [_tracker("device_tracker.pixel", "Pixel")]
+    objs = {
+        "irk:pixel": _obj("irk:pixel", "private_ble", label="Pixel", room="Office"),
+        "ble:C1:22:33:44:55:66": dict(_obj("ble:C1:22:33:44:55:66", "private_ble", label="Car Keys", room="Kitchen"),
+                                      findmy=True, bridge_match=True),
+        "ble:5A:00:00:00:00:01": dict(_obj("ble:5A:00:00:00:00:01", "private_ble", label="Backpack", room="Bedroom"),
+                                      bridge_match=True),
+    }
+    res = _estimate(_hass(monkeypatch, persons=persons, trackers=trackers, objects=objs, scanners=sc))
+    assert res["total_estimate"] == 1, [(p["name"], p["via"]) for p in res["people"]]
+
+
+def test_a_person_tracked_by_an_entity_object_is_placed(monkeypatch):
+    sc = {"s1": ("Office", "main")}
+    persons = [_person("person.garry", "Garry", "device_tracker.garry_phone")]
+    trackers = [_tracker("device_tracker.garry_phone", "Garry Phone")]
+    objs = {"entity:device_tracker.garry_phone": dict(
+        _obj("entity:device_tracker.garry_phone", "entity", room="Office", age=None, name="Garry Phone"),
+        entity_id="device_tracker.garry_phone")}
+    res = _estimate(_hass(monkeypatch, persons=persons, trackers=trackers, objects=objs, scanners=sc))
+    garry = next(p for p in res["people"] if p["name"] == "Garry")
+    assert garry["room"] == "Office"
