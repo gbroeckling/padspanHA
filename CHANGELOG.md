@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.122 — Stable: everything since 0.38.105, and what a full review of it found (2026-10-13)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser after updating. From now on a wall screen opened with `?kiosk=1` reloads itself after an update.
+- **Coming from 0.38.105?** This stable brings in everything from the 0.38.106–0.38.121 betas below: less CPU and memory on busy streets (and a low-memory mode), Traceback recording all day without holding it in memory, alerts that reach your phone, Beacon Tune that saves, Tasmota scanners (experimental), and well over a hundred fixes.
+- **Going back to 0.38.105:** delete `.storage/padspan_ha.traceback_segments` first. Traceback now records all day, and 0.38.105 would load the whole week into memory, which can crash Home Assistant on a 2 GB machine.
+
+### Fixes
+- **Fixed:** in Beacon Tune, placing a phone, a Find My tag or anything you follow no longer pins it as a fixed beacon. A pin locked it to that room and kept adding calibration points where it no longer was. Beacon Tune now says when it holds one back, and moving a beacon that is already pinned always saves.
+- **Fixed:** houses on a busy street no longer re-check every Bluetooth address against every IRK every 5 minutes.
+- **Fixed:** saving a map with beacons (Revert migration, restoring a map) can no longer add a calibration point in a "room" that is really an old device label.
+- **Fixed:** restoring a backup no longer rolls Lost & Found back. Each device keeps whichever last-seen record is newer.
+- **Fixed:** Follow's Test button now fails when the chosen phone or service can't be reached, instead of sending somewhere else and saying it worked. Alerts to Telegram and other non-notify services go out even with no notify service set up. A chosen phone that has since been renamed or removed shows as "(not found)" instead of looking like Auto-detect.
+- **Fixed:** Follow alerts to a notify entity all failed when an email address was filled in too.
+- **Fixed:** after updating from 0.38.105, Bermuda devices no longer leave frozen copies of themselves in their old rooms.
+- **Fixed:** a labelled device's tracker no longer comes back as `device_tracker.<name>_2` when its Bermuda entity goes away.
+
+### Opt-in report
+- **Added:** if you've opted in, the report now also counts what shows whether these fixes work in your house: IRK cache clears, calibration points left without a room, Lost & Found restore merges, Follow Test results, old Bermuda objects removed, beacon pins on things that move, and entities registered twice. Counts only, as before.
+
+---
+
 ## 0.38.121 — Wall screens that notice updates, and a round of fixes (2026-10-13)
 
 ### Before you update
