@@ -2069,32 +2069,6 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     absorbed.add(secondary.get("key", ""))
                     _merge_into(primary, secondary)
 
-            # Two devices of one model share a name and often a payload. A
-            # rotation is one device whose old address has gone quiet; two
-            # tags heard at the same time are two tags. Merged only then, and
-            # never two that someone labelled or that HA knows separately:
-            # D3/D4 folded "Bob keys" into "Alice keys" (and a live tag into a
-            # stale ghost), and the absorbed one vanished.
-            _QUIET_S = 30.0
-
-            def _age(o: dict[str, Any]) -> float:
-                a = o.get("age_s")
-                return float(a) if isinstance(a, (int, float)) else 1e9
-
-            def _rotation_pairs(group: list[dict[str, Any]]):
-                group.sort(key=lambda o: (_age(o), -(o.get("rssi") or -999)))
-                primary = group[0]
-                out = []
-                for sec in group[1:]:
-                    if _age(sec) < _QUIET_S:
-                        continue                      # heard now: another device
-                    if primary.get("user_label") and sec.get("user_label"):
-                        continue
-                    if primary.get("device_id") and sec.get("device_id") and primary["device_id"] != sec["device_id"]:
-                        continue
-                    out.append(sec)
-                return primary, out
-
             # --- (D3) Same BLE name merging ──────────────────────────────────
             # Devices with identical non-generic broadcast names and random MACs
             # are very likely the same device with rotating addresses.
@@ -2126,12 +2100,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             for name, group in _name_groups.items():
                 if len(group) <= 1:
                     continue
-                # Same broadcast name + random MACs: a rotation only when the
-                # others have gone quiet (_rotation_pairs).
-                primary, rotated = _rotation_pairs(group)
-                if not rotated:
-                    continue
-                for secondary in rotated:
+                # All share the same broadcast name + have random MACs → likely same device
+                group.sort(key=lambda o: o.get("rssi") or -999, reverse=True)
+                primary = group[0]
+                for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
                     _merge_into(primary, secondary)
                 primary.setdefault("merged_protocols", [primary.get("kind", "ble")])
@@ -2173,10 +2145,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             for fp, group in _manuf_groups.items():
                 if len(group) <= 1:
                     continue
-                primary, rotated = _rotation_pairs(group)
-                if not rotated:
-                    continue
-                for secondary in rotated:
+                group.sort(key=lambda o: o.get("rssi") or -999, reverse=True)
+                primary = group[0]
+                for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
                     _merge_into(primary, secondary)
                 primary["_dedup_reason"] = "same_manuf_data"
