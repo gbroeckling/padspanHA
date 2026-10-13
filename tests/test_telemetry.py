@@ -1461,8 +1461,9 @@ def test_calibration_points_with_a_room_that_is_no_room_are_counted(monkeypatch)
 
 
 def test_beacon_pins_on_a_device_that_moves_are_counted():
-    """#147: a pin on a phone, a Find My tag, a tracker entity or anything
-    followed — what Beacon Tune no longer pins. A pin not on the air now is
+    """#147: a pin on a phone or Find My tag (private_ble) or anything
+    followed — what Beacon Tune no longer pins; an entity (a fixed beacon
+    Bermuda tracks) is not counted. A pin not on the air now is
     not judged."""
     h = _hass()
     pins = {"irk:" + _IRK: {}, "ble:" + _MAC2: {}, "entity:device_tracker.keys": {},
@@ -1477,9 +1478,9 @@ def test_beacon_pins_on_a_device_that_moves_are_counted():
     ]
     p = T.build_payload(h)
     T.assert_shareable(p)
-    assert p["health"]["pinned_movers_n"] == 3
+    assert p["health"]["pinned_movers_n"] == 2
     h.data[DOMAIN][DATA_SETTINGS].data["followed_addrs"].append("ble:22:33:44:55:66:77")   # followed by key
-    assert T.build_payload(h)["health"]["pinned_movers_n"] == 4
+    assert T.build_payload(h)["health"]["pinned_movers_n"] == 3
     h.data[DOMAIN].pop("snapshot_cache")
     assert "pinned_movers_n" not in T.build_payload(h)["health"]
 

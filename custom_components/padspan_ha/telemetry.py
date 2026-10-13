@@ -1243,7 +1243,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception as err:
         _LOGGER.debug("Telemetry: cal_points_phantom_room_n left out: %s", err)
     # #147: Beacon Tune pins on a device that moves (tune_save_plan.js
-    # tuneBeaconMoves: private_ble, an HA tracker entity, or followed) —
+    # tuneBeaconHeld: private_ble or followed; a Bermuda entity is a fixed
+    # beacon too, so not counted) —
     # should not grow.
     try:
         if isinstance(objects.get("list"), list):
@@ -1252,7 +1253,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             _movers = 0
             for _k in (fab.get("beacon_positions_m") or {}):
                 _o = _live.get(_k)
-                if _o is not None and (_o.get("kind") in ("private_ble", "entity") or any(
+                if _o is not None and (_o.get("kind") == "private_ble" or any(
                         str(_o.get(f) or "").upper() in _followed
                         for f in ("key", "address", "entity_id", "canonical_id"))):
                     _movers += 1
