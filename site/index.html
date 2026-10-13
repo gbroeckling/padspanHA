@@ -179,6 +179,38 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.121</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">13 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser after updating. From this version on, a wall screen opened with <code>?kiosk=1</code> reloads itself after an update, and other browsers show a bar with a Reload button.</li>
+          <li><b>The panel notices updates.</b> A page left open through an update used to keep running the old version. Now it says so, and a kiosk screen reloads itself once.</li>
+          <li><b>Fixed:</b> "Revert migration" no longer deletes the target map's own scanner or beacon when it has the same name as one that came over.</li>
+          <li><b>Fixed:</b> Overview's floor Gap and L/R sliders drew every floor faded.</li>
+          <li><b>Fixed:</b> a flood alarm's Reset → Yes was wiped by the next update before you could press it.</li>
+          <li><b>Fixed:</b> occupancy no longer counts Find My tags as people, and a person tracked by an HA entity is placed in their room.</li>
+          <li><b>Fixed:</b> Insights and Busy Times show the most people in a room at one moment, not everyone seen that hour, and fixed beacons aren't counted.</li>
+          <li><b>Fixed:</b> Radio Reset now clears the reset scanner's smoothing, Calibration Health shows scanner names, and System Critics' scanner reliability section runs.</li>
+          <li><b>Fixed:</b> deleting an area forgets its colour and floor.</li>
+          <li><b>Fixed:</b> in the Objects view, room names with "&" show properly, "ALL selected rooms" works, and Clear unidentified clears the screen too.</li>
+          <li><b>Fixed:</b> a pending Delete radio confirm in Calibration no longer freezes the other tabs.</li>
+          <li><b>Fixed:</b> Escape closes dialogs after you've typed in them, Follow remembers the selected tag after a reload, and a browser that blocks storage no longer gets a blank panel.</li>
+          <li><b>Fixed:</b> with rotation bridging on, a labelled tag can no longer take another tag's name.</li>
+          <li><b>Fixed:</b> the phone wizard can save an IRK for a phone that isn't advertising right now (Save unverified).</li>
+          <li><b>Fixed:</b> Follow's movement log keeps updating while a tag stays selected.</li>
+          <li><b>Fixed:</b> Vacation Mode no longer flicks lights on and off all evening. Each light's decision holds for its schedule window and still changes from day to day.</li>
+          <li><b>Fixed:</b> buttons that stayed stuck after a failed call (Resume Normal, Delete ALL orphans) come back.</li>
+          <li><b>Removed:</b> Mapping's "Re-anchor origin" button, which did nothing.</li>
+          <li>Less work per update on installs with Bermuda or a busy street: radio network details, the IRK cache, saving the device history and occupancy's phone grouping no longer slow each update down.</li>
+          <li>After Home Assistant starts, the daily report now waits until it has 6 hours of numbers. Before, it went out after 10 minutes, so it mostly described Home Assistant starting up. An install that hasn't reported for two days still sends after 10 minutes.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.120</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">13 October 2026</span>
