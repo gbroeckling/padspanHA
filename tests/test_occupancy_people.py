@@ -532,3 +532,37 @@ def test_a_person_tracked_by_an_entity_object_is_placed(monkeypatch):
     res = _estimate(_hass(monkeypatch, persons=persons, trackers=trackers, objects=objs, scanners=sc))
     garry = next(p for p in res["people"] if p["name"] == "Garry")
     assert garry["room"] == "Office"
+
+
+def test_clustering_matches_the_old_answer_and_is_fast():
+    """The old merge recomputed every pair's distances each round (2.5 s for
+    150 addresses on the event loop); the cached-sum one gives the same
+    clusters."""
+    import random
+    import time as _t
+    from custom_components.padspan_ha import ws_occupancy as O
+
+    def _old(fps, thresh):
+        addrs = list(fps)
+        clusters = [[i] for i in range(len(addrs))]
+        while len(clusters) > 1:
+            best = (thresh, -1, -1)
+            for ci in range(len(clusters)):
+                for cj in range(ci + 1, len(clusters)):
+                    d = [O._fp_distance(fps[addrs[a]], fps[addrs[b]]) for a in clusters[ci] for b in clusters[cj]]
+                    avg = sum(d) / len(d)
+                    if avg < best[0]:
+                        best = (avg, ci, cj)
+            if best[1] < 0:
+                break
+            clusters[best[1]].extend(clusters.pop(best[2]))
+        return sorted(sorted(addrs[i] for i in m) for m in clusters)
+
+    rnd = random.Random(7)
+    srcs = [f"s{i}" for i in range(6)]
+    fps = {f"a{i}": {s: float(-50 - rnd.randint(0, 40)) for s in rnd.sample(srcs, 4)} for i in range(40)}
+    assert sorted(sorted(c) for c in O._cluster(fps, 8.0)) == _old(fps, 8.0)
+    big = {f"b{i}": {s: float(-50 - rnd.randint(0, 40)) for s in rnd.sample(srcs, 4)} for i in range(150)}
+    t0 = _t.perf_counter()
+    O._cluster(big, 8.0)
+    assert _t.perf_counter() - t0 < 1.0
