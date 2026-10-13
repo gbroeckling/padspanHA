@@ -731,7 +731,10 @@ class BluetoothLive:
                     "source": src,
                     "name": src,  # best-effort; enrichment in websocket.py adds device name
                     "connectable": False,
-                    "scanning": True,
+                    # HA dropped this scanner; only its cached readings
+                    # remain (up to the BLE timeout, 4 h by default). It
+                    # is listening only if it was heard just now.
+                    "scanning": _lh_s < 120,
                     "scan_mode": None,
                     "requested_scan_mode": None,
                     "adapter": "",

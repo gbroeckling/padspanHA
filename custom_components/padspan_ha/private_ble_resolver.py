@@ -100,6 +100,10 @@ class PrivateBLEResolver:
     async def async_load(self) -> None:
         """Read IRKs from private_ble_device, system Bluetooth bonds, mobile_app, and PadSpan settings."""
         self._devices.clear()
+        # Cached answers were given against the old key list: an address
+        # cached as unresolved stayed so for up to 20 minutes after its
+        # phone's IRK was added, though the add said it matched.
+        self._cache.clear()
         self._source_info: list[dict[str, Any]] = []  # for UI status
         seen_irk_hex: dict[str, dict[str, Any]] = {}  # hex → the registered device dict
 

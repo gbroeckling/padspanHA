@@ -630,6 +630,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.info("Presence coordinator initial fetch deferred (BLE may not be ready yet): %s", err)
 
+    # Bright has no entity platforms, so nothing listened to the presence
+    # coordinator and Home Assistant scheduled no poll after the first:
+    # with the presence tabs revealed, alerts, rules, Traceback and the
+    # Overview's rooms stopped at startup.
+    if not PLATFORMS:
+        _st = hass.data[DOMAIN].get(DATA_SETTINGS)
+        presence_keepalive(hass, bool(_st and _st.data.get("bright_reveal_presence")))
+        entry.async_on_unload(lambda: presence_keepalive(hass, False))
+
     # Daily update check (disclosed in README; update_check_enabled setting)
     try:
         from .update_check import async_setup_update_check
@@ -703,6 +712,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(lambda: _stop["unsub"] and _stop["unsub"]())
 
     return True
+
+
+def presence_keepalive(hass: HomeAssistant, on: bool) -> None:
+    """Keep the presence coordinator polling with no entity listening
+    (Bright, presence revealed). HA polls a coordinator only while
+    something listens to it."""
+    dom = hass.data.get(DOMAIN, {})
+    unsub = dom.get("_presence_keepalive")
+    coord = dom.get("presence_coordinator")
+    if on and unsub is None and coord is not None:
+        dom["_presence_keepalive"] = coord.async_add_listener(lambda: None)
+    elif not on and unsub is not None:
+        dom.pop("_presence_keepalive", None)
+        unsub()
 
 
 async def _async_flush_history(hass: HomeAssistant) -> None:

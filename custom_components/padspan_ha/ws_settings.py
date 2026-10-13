@@ -1068,6 +1068,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             from .house3d_heights import async_move_heights  # noqa: PLC0415
             hass.async_create_task(async_move_heights(hass))
 
+        # ── Bright: presence revealed or hidden → it polls, or stops
+        if "bright_reveal_presence" in payload:
+            from . import PLATFORMS, presence_keepalive  # noqa: PLC0415
+            if not PLATFORMS:
+                presence_keepalive(hass, payload["bright_reveal_presence"])
+
         # ── Excluded scanners changed → retrain the forest (issue #59) ───────
         # k-NN masks per query, but the Random Forest bakes its feature columns
         # in at training time: without a retrain the masked scanner would keep

@@ -30,7 +30,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 from .const import DATA_ESPRESENSE_MQTT, DATA_SETTINGS, DOMAIN
 
@@ -141,6 +141,11 @@ class EspresenseMqtt:
 
     # ── MQTT Callbacks (must be fast — just cache, no async work) ─────────
 
+    # @callback: on the event loop. Without it HA's MQTT client runs a
+    # subscriber in a worker thread, and these inserts raced the snapshot
+    # iterating the same dicts ("dictionary changed size during
+    # iteration", swallowed: that build had no ESPresense at all).
+    @callback
     def _on_device_message(self, msg) -> None:
         """Handle espresense/devices/{device_id}/{node_id}.
 
@@ -222,6 +227,7 @@ class EspresenseMqtt:
         except Exception:
             pass  # fast path — never block MQTT thread
 
+    @callback
     def _on_room_message(self, msg) -> None:
         """Handle espresense/rooms/{node_id}/{sub_topic}.
 
