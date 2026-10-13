@@ -4554,6 +4554,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         if (!m) { failed.push(mapId); continue; }
         const plan = tuneBeaconWrites(m, bs.draftBeacons[mapId] || [], tfs, bs.editBaseline[mapId], guard);
         held.push(...plan.held);
+        // Held where it stands: judged again only when moved again, never written
+        // later from this spot once the reason (a follow, the live object) is gone.
+        for (const h of plan.held) (bs.editBaseline[mapId] = bs.editBaseline[mapId] || {})[h.key] = { x: h.x, y: h.y };
         if (plan.refused) { failed.push(mapId); refused.push(mapId); continue; }
         if (plan.invalid.length) { failed.push(mapId); continue; }
         let mapOk = true;
@@ -4615,7 +4618,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         statusLbl.textContent = `Saved ${res.ok}, ${res.failed.length} map(s) failed`;
         ctx.toast(`Saved ${res.ok} beacon(s); ${res.failed.length} map(s) could not be saved — kept unsaved` +
           (res.refused.length ? ". A map that isn't placed in metres yet must be placed in Mapping first." : "") +
-          (res.held.length ? `. ${tuneBeaconHeldText(res.held, ctx.state.settings?.beacon_auto_calibrate !== false)}` : ""), true);
+          (res.held.length ? `. ${tuneBeaconHeldText(res.held, false)}` : ""), true);
         _refreshDirtyLabel();
         saveBtn.disabled = false;
         return;
@@ -4623,7 +4626,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       bs.selectedBk = null;
       await ctx.actions.mapsRefresh();
       if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
-      const heldText = tuneBeaconHeldText(res.held, ctx.state.settings?.beacon_auto_calibrate !== false);
+      const heldText = tuneBeaconHeldText(res.held, false);
       ctx.toast(res.ok ? `Saved ${res.ok} beacon position(s)` + (heldText ? `. ${heldText}` : "")
         : (heldText || "No beacon positions changed"));
       saveBtn.disabled = false;
