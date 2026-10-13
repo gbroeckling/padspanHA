@@ -15,6 +15,7 @@ Calibration matrix's anchor rows could see a pin at all.
 """
 from __future__ import annotations
 
+import functools
 import json
 import re
 import shutil
@@ -29,7 +30,7 @@ _VIEWS = _PKG / "www" / "padspan-ha" / "views"
 _NODE = shutil.which("node")
 
 _DRIVER = r"""
-import { tuneSavePlanInit, tuneBeaconWrites, tuneBeaconBaseline, tuneBeaconMoves } from 'PLAN';
+import { tuneSavePlanInit, tuneBeaconWrites, tuneBeaconBaseline, tuneBeaconHeldText } from 'PLAN';
 import { mapFracToMetres, metresToMapFrac } from 'STACK';
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 const tf = { origin_x_m: 0, origin_y_m: 0, scale_x_m: 20, scale_y_m: 10,
@@ -55,19 +56,46 @@ out.dup = tuneBeaconWrites(map, [rows[2], { ...rows[2], x: 0.9 }], { m: tf }, {}
 out.draggedPhone = tuneBeaconWrites(map, [{ ...rows[3], x: 0.1, y: 0.1, _tracked: true }], { m: tf }, base);
 // Nothing changed on a map with no metre placement: not refused.
 out.unplacedNothing = tuneBeaconWrites(map, [rows[0]], { m: {} }, base);
-// Placed from the Available list (no auto-pinned row, no baseline): what the
-// device is decides, not which way its row was made.
-out.placedPhone = tuneBeaconWrites(map, [{ key: 'ble:IRK', label: 'Phone', kind: 'private_ble', x: 0.3, y: 0.3 }], { m: tf }, {});
-out.placedEntity = tuneBeaconWrites(map, [{ key: 'entity:tracker', label: 'Keys', kind: 'entity', x: 0.3, y: 0.3 }], { m: tf }, {});
-out.placedFollowed = tuneBeaconWrites(map, [{ key: 'ibeacon:app', label: 'Phone app', kind: 'ibeacon', x: 0.3, y: 0.3 }],
-  { m: tf }, {}, new Set(['ibeacon:app']));
-// A fixed beacon shown at its room's centre, then dragged: written.
-out.draggedBeacon = tuneBeaconWrites(map, [{ ...rows[0], x: 0.6 }], { m: tf }, base, new Set());
-out.moves = {
-  phone: tuneBeaconMoves({ kind: 'private_ble' }), findMy: tuneBeaconMoves({ kind: 'private_ble', findmy: true }),
-  entity: tuneBeaconMoves({ kind: 'entity' }), followed: tuneBeaconMoves({ kind: 'ibeacon' }, true),
-  ibeacon: tuneBeaconMoves({ kind: 'ibeacon' }, false), ble: tuneBeaconMoves({ kind: 'ble' }, false),
-};
+// Which rows may become a pin (r5). guard: the fabric's pins, the live
+// objects, and the follow list as panel.js keeps it (uppercase; a bare
+// address or entity id, an iBeacon's key).
+const follows = new Set(['AA:BB:CC:DD:EE:01', 'AA:BB:CC:DD:EE:09', 'IBEACON:APP']);
+const followedHas = (id) => !!id && follows.has(String(id).toUpperCase());
+const guard = (pinned, objs) => ({ pinned: pinned || {}, objs: new Map(objs || []), followedHas });
+const at = (x, y) => ({ x, y });
+// (a) an existing pin moves whatever the device is: a fixed beacon Bermuda
+// tracks (entity), a followed one, even a tracked phone.
+out.pinnedEntity = tuneBeaconWrites(map, [{ key: 'entity:device_tracker.hall', label: 'Hall', kind: 'entity', x: 0.6, y: 0.5 }],
+  { m: tf }, { 'entity:device_tracker.hall': at(0.5, 0.5) }, guard({ 'entity:device_tracker.hall': { x_m: 10, y_m: 5 } }));
+out.pinnedFollowed = tuneBeaconWrites(map, [{ key: 'ble:AA:BB:CC:DD:EE:01', label: 'Shelf', kind: 'ble', x: 0.6, y: 0.5 }],
+  { m: tf }, { 'ble:AA:BB:CC:DD:EE:01': at(0.5, 0.5) }, guard({ 'ble:AA:BB:CC:DD:EE:01': { x_m: 10, y_m: 5 } }));
+out.pinnedPhone = tuneBeaconWrites(map, [{ key: 'ble:IRK', label: 'Phone', kind: 'private_ble', x: 0.6, y: 0.5, _tracked: true }],
+  { m: tf }, { 'ble:IRK': at(0.5, 0.5) }, guard({ 'ble:IRK': { x_m: 10, y_m: 5 } }));
+// (b) shown at its room's centre (_tracked), then dragged: a Companion-app
+// iBeacon phone nobody follows, and a Find My tag on its first address.
+out.trackedAppPhone = tuneBeaconWrites(map, [{ key: 'ibeacon:companion', label: 'Pixel', kind: 'ibeacon', x: 0.1, y: 0.1, _tracked: true }],
+  { m: tf }, { 'ibeacon:companion': at(0.5, 0.5) }, guard({}, [['ibeacon:companion', { key: 'ibeacon:companion', kind: 'ibeacon' }]]));
+out.trackedFindMy = tuneBeaconWrites(map, [{ key: 'ble:AA:BB:CC:DD:EE:02', label: 'AirTag', kind: 'ble', x: 0.1, y: 0.1, _tracked: true }],
+  { m: tf }, { 'ble:AA:BB:CC:DD:EE:02': at(0.5, 0.5) }, guard());
+// (c) followed by its bare address and not in the snapshot; an iBeacon
+// followed by its key; a phone, private_ble live or on its row.
+out.followedNotLive = tuneBeaconWrites(map, [{ key: 'ble:AA:BB:CC:DD:EE:09', label: 'Car Keys', kind: 'ble', x: 0.3, y: 0.3 }],
+  { m: tf }, {}, guard());
+out.followedByKey = tuneBeaconWrites(map, [{ key: 'ibeacon:app', label: 'Phone app', kind: 'ibeacon', x: 0.3, y: 0.3 }],
+  { m: tf }, {}, guard());
+out.placedPhone = tuneBeaconWrites(map, [{ key: 'ble:IRK2', label: 'Watch', kind: 'private_ble', x: 0.3, y: 0.3 }], { m: tf }, {}, guard());
+out.livePhone = tuneBeaconWrites(map, [{ key: 'ble:IRK3', label: 'iPad', kind: 'ble', x: 0.3, y: 0.3 }],
+  { m: tf }, {}, guard({}, [['ble:IRK3', { key: 'ble:IRK3', kind: 'private_ble' }]]));
+// (d) placed from the list, nobody follows it, not tracked: pinned.
+out.placedBeacons = tuneBeaconWrites(map, [
+  { key: 'ble:AA:BB:CC:DD:EE:03', label: 'Tile', kind: 'ble', x: 0.3, y: 0.3 },
+  { key: 'ibeacon:door', label: 'Door', kind: 'ibeacon', x: 0.4, y: 0.3 },
+  { key: 'entity:device_tracker.fob', label: 'Fob', kind: 'entity', x: 0.5, y: 0.3 },
+], { m: tf }, {}, guard({}, [['entity:device_tracker.fob', { key: 'entity:device_tracker.fob', kind: 'entity',
+  address: 'AA:BB:CC:DD:EE:04', entity_id: 'device_tracker.fob' }]]));
+// (e) what was held back is reported, by name and why.
+out.heldText = tuneBeaconHeldText([...out.followedNotLive.held, ...out.placedPhone.held, ...out.trackedAppPhone.held]);
+out.heldTextNoCapture = tuneBeaconHeldText(out.followedNotLive.held, false);
 console.log(JSON.stringify(out));
 """
 
@@ -127,22 +155,91 @@ class TestBeaconTuneWrites:
         out = _run()["unplacedNothing"]
         assert out["refused"] is False and out["writes"] == []
 
-    def test_a_phone_or_tag_placed_from_the_list_is_never_pinned(self):
-        """Only rows the auto-pin made were skipped, and with no room polygon
-        it made none: every labelled phone or tag placed from the Available
-        list was pinned, its room locked there and auto-calibration points
-        added at the pin while it was elsewhere."""
+    def test_moving_an_existing_pin_moves_it_whatever_the_device_is(self):
+        """A fixed BLE beacon Bermuda tracks is an entity object, and a
+        followed one is followed; their pins came back from the fabric and a
+        drag or Relocate wrote nothing while the old pin kept locking the room."""
         out = _run()
-        for k in ("placedPhone", "placedEntity", "placedFollowed"):
+        for k, key in (("pinnedEntity", "entity:device_tracker.hall"),
+                       ("pinnedFollowed", "ble:AA:BB:CC:DD:EE:01"), ("pinnedPhone", "ble:IRK")):
+            assert [w["key"] for w in out[k]["writes"]] == [key], k
+            assert out[k]["held"] == [], k
+
+    def test_a_tracked_row_dragged_is_never_pinned(self):
+        """A Companion-app iBeacon phone nobody follows, and a Find My tag
+        still on its first address (plain ble): only _tracked tells."""
+        out = _run()
+        for k in ("trackedAppPhone", "trackedFindMy"):
+            assert out[k]["writes"] == [] and [h["reason"] for h in out[k]["held"]] == ["tracked"], k
+
+    def test_a_phone_or_followed_device_placed_from_the_list_is_never_pinned(self):
+        """Only rows the auto-pin made were skipped, and with no room polygon
+        it made none: a labelled phone or tag placed from the Available list
+        was pinned, its room locked there and auto-calibration points added
+        at the pin while it was elsewhere."""
+        out = _run()
+        assert out["followedNotLive"]["held"] == [{"key": "ble:AA:BB:CC:DD:EE:09", "label": "Car Keys", "reason": "followed"}]
+        assert [h["reason"] for h in out["followedByKey"]["held"]] == ["followed"]
+        for k in ("placedPhone", "livePhone"):
+            assert [h["reason"] for h in out[k]["held"]] == ["phone"], k
+        for k in ("followedNotLive", "followedByKey", "placedPhone", "livePhone"):
             assert out[k]["writes"] == [], k
 
-    def test_a_fixed_beacon_moved_from_its_room_centre_is_pinned(self):
-        out = _run()["draggedBeacon"]
-        assert [w["key"] for w in out["writes"]] == ["ibeacon:fixed"]
+    def test_a_beacon_nobody_follows_placed_from_the_list_is_pinned(self):
+        out = _run()["placedBeacons"]
+        assert [w["key"] for w in out["writes"]] == ["ble:AA:BB:CC:DD:EE:03", "ibeacon:door", "entity:device_tracker.fob"]
+        assert out["held"] == []
 
-    def test_phones_tags_trackers_and_followed_devices_move_beacons_do_not(self):
-        assert _run()["moves"] == {"phone": True, "findMy": True, "entity": True,
-                                   "followed": True, "ibeacon": False, "ble": False}
+    def test_what_was_held_back_is_said_by_name(self):
+        out = _run()
+        assert out["heldText"] == (
+            "Car Keys moves with someone (followed) - not pinned; its 60 s calibration still runs. "
+            "Watch moves with someone (a phone or Find My tag) - not pinned; its 60 s calibration still runs. "
+            "Pixel is only shown at its room's centre (tracked) - not pinned; its 60 s calibration still runs")
+        assert out["heldTextNoCapture"] == "Car Keys moves with someone (followed) - not pinned"
+
+
+_FLOWS = Path(__file__).resolve().parent / "js" / "beacon_tune_save.mjs"
+
+
+@functools.lru_cache(maxsize=1)
+def _flows() -> dict:
+    """The shipped Beacon Tune functions run against a stub tab
+    (tests/js/beacon_tune_save.mjs): what each flow wrote and said."""
+    res = subprocess.run([str(_NODE), str(_FLOWS), str(_VIEWS)],
+                         capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert res.returncode == 0, res.stderr
+    return json.loads(res.stdout.strip().splitlines()[-1])
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+class TestBeaconTuneFlows:
+    def test_on_a_fabric_only_install_only_fixed_beacons_placed_from_the_list_are_pinned(self):
+        """No room polygon, so nothing was auto-pinned and every labelled
+        phone or tag placed from the Available list became a fixed pin."""
+        out = _flows()["fabricOnly"]
+        assert out["autoPinned"] == 0
+        assert out["calls"] == ["ibeacon:door", "entity:device_tracker.fob"]
+        assert [t.split(" moves with someone")[0] for t in out["toasts"]] == ["Garry's Phone", "Pixel app", "Car Keys"]
+        # every placement still runs its 60 s capture
+        assert len(out["captures"]) == 5
+
+    def test_a_tracked_phone_or_find_my_tag_dragged_or_relocated_is_not_pinned(self):
+        out = _flows()["autoPinned"]
+        assert [r["tracked"] for r in out["shown"]] == [True, True]
+        assert out["calls"] == []
+        assert [t.split(" is only shown")[0] for t in out["toasts"]] == ["Pixel", "AirTag"]
+
+    def test_existing_pins_of_entity_and_followed_beacons_move(self):
+        out = _flows()["existingPins"]
+        assert out["calls"] == ["entity:device_tracker.hall", "ble:AA:BB:CC:DD:EE:01"]
+        assert out["toasts"] == []
+
+    def test_save_names_what_it_held_back(self):
+        out = _flows()["saveHeld"]
+        assert out["calls"] == []
+        assert out["toasts"] == ["Garry's Phone moves with someone (a phone or Find My tag) - not pinned; "
+                                 "its 60 s calibration still runs"]
 
 
 class TestBeaconTuneIsWired:
@@ -158,16 +255,6 @@ class TestBeaconTuneIsWired:
         auto = self.SRC[self.SRC.index("async function _autoSaveAndStartTimer("):]
         assert "_saveBeacons([mapId])" in auto[:auto.index("_startLiveTimer")]
         assert "await _saveBeacons(dirtyIds)" in self.SRC
-
-    def test_the_save_judges_every_row_by_its_device(self):
-        """Only rows the auto-pin marked were skipped (_tracked): a phone
-        placed from the list was pinned, and a fixed beacon the auto-pin
-        showed could never be - Relocate or a drag saved nothing."""
-        assert "_tracked: true" not in self.SRC
-        body = self.SRC[self.SRC.index("async function _saveBeacons("):]
-        body = body[:body.index("\n  }\n")]
-        assert "tuneBeaconMoves(o, _isFollowed(o) || ctx.actions.followedHas(b.key))" in body
-        assert "bs.editBaseline[mapId], moving)" in body
 
     def test_the_empty_save_loop_is_gone(self):
         assert not re.search(r"if \(!origMap\) continue;\s*\}\s*bs\.dirtyMaps = \{\};", self.SRC)
