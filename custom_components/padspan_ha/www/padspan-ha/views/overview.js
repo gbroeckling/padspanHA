@@ -3090,6 +3090,7 @@ export function render(ctx){
                   await ctx.actions.wsCall("padspan_ha/irk_add", {
                     name: phone.device_name || "Phone",
                     irk_hex: irk,
+                    force: irkSaveBtn._force === true,
                   });
                   irkRow.innerHTML = "";
                   const ok = document.createElement("span");
@@ -3106,7 +3107,10 @@ export function render(ctx){
                   errDiv.textContent = errMsg;
                   irkRow.appendChild(errDiv);
                   irkSaveBtn.disabled = false;
-                  irkSaveBtn.textContent = "Retry";
+                  // A phone asleep or away can't be checked against live traffic; the
+                  // backend asks for "save unverified", which Retry never sent.
+                  if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = "Save unverified"; }
+                  else irkSaveBtn.textContent = "Retry";
                 }
               });
 
@@ -3496,6 +3500,7 @@ export function render(ctx){
                 await ctx.actions.wsCall("padspan_ha/irk_add", {
                   name: phone.device_name || "Phone",
                   irk_hex: irk,
+                  force: irkSaveBtn._force === true,
                 });
                 irkRow.innerHTML = "";
                 const ok = document.createElement("span");
@@ -3511,7 +3516,10 @@ export function render(ctx){
                 errDiv.textContent = (err && err.message) || String(err);
                 irkRow.appendChild(errDiv);
                 irkSaveBtn.disabled = false;
-                irkSaveBtn.textContent = "Retry";
+                // A phone asleep or away can't be checked against live traffic; the
+                  // backend asks for "save unverified", which Retry never sent.
+                  if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = "Save unverified"; }
+                  else irkSaveBtn.textContent = "Retry";
               }
             });
             irkRow.appendChild(addIrkBtn);

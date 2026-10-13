@@ -83,3 +83,11 @@ def test_follow_remembers_its_tag_across_reloads():
     assert 'localStorage.setItem("padspan_followAddr", id || "")' in f
     assert 'localStorage.removeItem("padspan_followAddr")' in f
     assert 'try { return localStorage.getItem("padspan_followAddr") || ""; } catch (e) { return ""; }' in _src("panel.js")
+
+
+def test_the_phone_wizard_can_save_an_irk_unverified():
+    """irk_add answers code 'unverified' for a phone that isn't advertising;
+    the wizard had no way to save it anyway, and Retry sent the same call."""
+    s = _src("views/overview.js")
+    assert s.count("force: irkSaveBtn._force === true,") == 2
+    assert s.count('if (err && err.code === "unverified") { irkSaveBtn._force = true; irkSaveBtn.textContent = "Save unverified"; }') == 2
