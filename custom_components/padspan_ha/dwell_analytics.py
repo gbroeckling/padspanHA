@@ -80,7 +80,7 @@ def compute_dwell_stats(
     # Peak concurrent: the most things in a room AT ONCE in that hour. A
     # distinct count over the hour called Alice at 09:00 and Bob at 09:35 a
     # peak of 2; and one device on two keys (a label on an iBeacon and an
-    # IRK) is one thing (pid, else its name).
+    # IRK) is one thing when they share a pid (else each key is its own).
     occupancy_peak: dict[str, dict[str, dict[str, int]]] = {}
     days_seen: set[str] = set()
 

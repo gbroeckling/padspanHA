@@ -1437,7 +1437,7 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
 
     At most one report per UTC day: the day of the last successful send is
     persisted (`telemetry_last_day`), so a restart or reload does not send
-    again — the scheduler fires 10 minutes after every start. `force` is the
+    again — the scheduler fires after every start (async_setup_telemetry). `force` is the
     "Send a report now" button. The windows (counters, log counts, resolved
     keys) are taken once the report has passed the gate, before the POST is
     awaited — what is counted while it is in flight belongs to the next

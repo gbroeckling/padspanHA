@@ -56,3 +56,10 @@ def test_the_check_runs_on_every_full_refresh():
     body = body[:body.index("\n  }\n")]
     assert "this._checkBuild();" in body
     assert '<div id="staleBuild" class="stale-build hidden"></div>' in s
+
+
+def test_a_screen_that_never_refreshes_still_checks_every_ten_minutes():
+    s = _PANEL.read_text(encoding="utf-8")
+    assert "if(Date.now() - (this._versionPollTs || 0) > 600000){" in s
+    i = s.index("if(Date.now() - (this._versionPollTs || 0) > 600000){")
+    assert "await this._getVersionInfo();" in s[i:i + 300] and "this._checkBuild();" in s[i:i + 300]

@@ -1557,6 +1557,14 @@ class PadSpanHaApp extends HTMLElement {
             this._settingsPollTs = Date.now();
             await this._fetchSettings();
           }
+          // The build check also runs every 10 minutes: a wall screen never
+          // refreshes in full, and across an HA restart the panel can keep
+          // its connection object, so the refresh that carries it never ran.
+          if(Date.now() - (this._versionPollTs || 0) > 600000){
+            this._versionPollTs = Date.now();
+            await this._getVersionInfo();
+            try { this._checkBuild(); } catch(e){}
+          }
         })(),
         timeout,
       ]);
@@ -2141,6 +2149,7 @@ class PadSpanHaApp extends HTMLElement {
     this._recomputeDerived();
     try { this.state.timing.lastRefreshMs = Math.round(performance.now() - t0); } catch(e){}
     try { this._updateBadges(); } catch(e){}
+    this._versionPollTs = Date.now();
     try { this._checkBuild(); } catch(e){}
     this._scheduleRender();
   }
