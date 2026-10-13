@@ -569,6 +569,16 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
   const _noSvcHint = el("div", { style: "font-size:10px;color:#f59e0b;margin-top:2px;display:none" },
     "No notify services found — add SMTP or another notification integration in HA Settings → Integrations");
   serviceSelect.appendChild(el("option", { value: "" }, "Auto-detect"));
+  // A saved target that is gone (phone renamed or removed) is not in the
+  // list: shown and selected anyway, so the picker says what alerts use and
+  // choosing anything else, Auto-detect included, is a change.
+  const _showSavedTarget = () => {
+    const s = cfg.notify_service, list = ctx.state._notifyServices || [];
+    if (!s || list.includes(s)) return;
+    const opt = el("option", { value: s }, list.length ? s + " (not found)" : s);
+    opt.selected = true;
+    serviceSelect.appendChild(opt);
+  };
   if(!ctx.state._notifyServices){
     ctx.state._notifyServices = [];
     ctx.actions.wsCall("padspan_ha/notify_services_list", {}).then(r => {
@@ -580,10 +590,12 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
         if(cfg.notify_service === svc) opt.selected = true;
         serviceSelect.appendChild(opt);
       }
+      _showSavedTarget();
     }).catch(() => {
       // Not cached as "no services": a failed fetch is tried again next render.
       ctx.state._notifyServices = null;
       _noSvcHint.style.display = "block";
+      _showSavedTarget();
     });
   } else {
     if (!ctx.state._notifyServices.length) _noSvcHint.style.display = "block";
@@ -592,6 +604,7 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
       if(cfg.notify_service === svc) opt.selected = true;
       serviceSelect.appendChild(opt);
     }
+    _showSavedTarget();
   }
   serviceSelect.addEventListener("change", () => {
     cfg.notify_service = serviceSelect.value || undefined;
@@ -643,8 +656,7 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
   const testBtn = el("button", { class: "btn", style: "margin-top:10px" }, "Send Test");
   testBtn.addEventListener("click", async () => {
     const email = (emailInput.value || "").trim();
-    // The target alerts use (cfg): one that is gone (phone renamed or
-    // removed) has no option in the list, so the select shows Auto-detect.
+    // The target alerts use (cfg), even before the picker's list arrives.
     const chosenSvc = cfg.notify_service || "";
     // A picked notify target (a phone) needs no email; an email typed must be valid.
     if ((!email && !chosenSvc) || (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
@@ -657,7 +669,8 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
       await ctx.actions.wsCall("padspan_ha/notify_test", { email: email || undefined, service: chosenSvc || undefined });
       saveStatus.textContent = email ? "Test sent — check your inbox." : "Test sent — check your phone."; saveStatus.style.color = "#52b788";
     } catch (e) {
-      saveStatus.textContent = "Test failed: " + (e?.message || String(e)).slice(0, 60);
+      // Whole: cut at 60 it lost the advice ("pick where to send again").
+      saveStatus.textContent = "Test failed: " + (e?.message || String(e));
       saveStatus.style.color = "#f87171";
     } finally { testBtn.disabled = false; }
   });

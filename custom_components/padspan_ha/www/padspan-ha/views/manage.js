@@ -2274,6 +2274,14 @@ function _buildNotifications(ctx, el){
       if(cfg.notify_service === svc) opt.selected = true;
       serviceSelect.appendChild(opt);
     }
+    // A saved target that is gone has no option: shown and selected anyway
+    // (as in Follow), so choosing anything else, Auto-detect included, is a change.
+    const _saved = cfg.notify_service, _list = ctx.state._notifyServices || [];
+    if(_saved && !_list.includes(_saved)){
+      const opt = el("option",{value:_saved}, _list.length ? _saved + " (not found)" : _saved);
+      opt.selected = true;
+      serviceSelect.appendChild(opt);
+    }
     serviceSelect.addEventListener("change", () => {
       cfg.notify_service = serviceSelect.value || undefined;
       ctx.state.followAlertConfig[addr] = cfg;
@@ -2352,15 +2360,15 @@ function _buildNotifications(ctx, el){
       saveStatus.textContent = "Sending test…"; saveStatus.style.color = "";
       testBtn.disabled = true;
       try {
-        // The target alerts use (cfg): one that is gone has no option in the list.
+        // The target alerts use (cfg).
         const svc = cfg.notify_service || "";
         const payload = { service: svc || undefined };
         if(testEmail) payload.email = testEmail;
         await ctx.actions.wsCall("padspan_ha/notify_test", payload);
         saveStatus.textContent = "Test sent — check your notification app/inbox."; saveStatus.style.color = "#52b788";
       } catch(e){
-        const msg = (e?.message || String(e));
-        saveStatus.textContent = msg.length > 120 ? msg.slice(0, 120) + "…" : msg;
+        // Whole: cut at 120 it lost the advice ("pick where to send again").
+        saveStatus.textContent = (e?.message || String(e));
         saveStatus.style.color = "#f87171";
       } finally { if(!disabled) testBtn.disabled = false; }
     });

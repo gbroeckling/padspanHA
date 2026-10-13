@@ -107,10 +107,18 @@ class LostAndFoundStore:
         if not isinstance(records, dict):
             return
         for key, rec in records.items():
+            if not isinstance(rec, dict):
+                continue
             cur = self.records.get(key)
-            if isinstance(rec, dict) and (
-                    not isinstance(cur, dict)
-                    or float(rec.get("ts") or 0) > float(cur.get("ts") or 0)):
+            try:
+                ts = float(rec.get("ts") or 0)
+                newer = not isinstance(cur, dict) or ts > float(cur.get("ts") or 0)
+            except (TypeError, ValueError):
+                # A ts no PadSpan wrote (a hand-edited backup): that record is
+                # skipped and the one here kept, and the rest still merge. A
+                # new key's is skipped too: record() would trip over it later.
+                continue
+            if newer:
                 self.records[key] = rec
         await self.store.async_save(self.records)
 
