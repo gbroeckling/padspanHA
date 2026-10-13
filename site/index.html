@@ -179,6 +179,38 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.116</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">12 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li><b>Fixed:</b> Traceback no longer holds its week of history in memory. Since 0.38.112 it records around the clock, and after a restart a full week could take about 600 MB with ten devices at home. It now reads the history from disk when you play it back.</li>
+          <li><b>Fixed:</b> Insights and Busy Times no longer stall Home Assistant while they load.</li>
+          <li><b>Changed:</b> a backup now includes the last day of Traceback instead of the whole week, which was around 120 MB per backup. Restoring a backup adds its Traceback to what you have instead of erasing everything recorded since.</li>
+          <li><b>Fixed:</b> Forensics and Traceback are saved when Home Assistant stops. Each restart lost up to 5 minutes of Forensics.</li>
+          <li><b>Fixed:</b> restoring an older backup keeps the licence key you have now. Restoring one from before you bought could lock paid editing.</li>
+          <li><b>Fixed:</b> the grace period after a licence expires is the full 14 days, and the licence card now says it has expired and how many days are left, instead of "Trial active" with a negative count.</li>
+          <li><b>Fixed:</b> a factory reset keeps a PadSpan Bright Pro key as Bright Pro.</li>
+          <li><b>Fixed:</b> ESPresense scanners and readings no longer drop out at random on busy houses.</li>
+          <li><b>Fixed:</b> a phone resolves straight away after you add its IRK, instead of up to 20 minutes later.</li>
+          <li><b>Fixed:</b> a Bluetooth proxy that has disconnected no longer shows as scanning.</li>
+          <li><b>Fixed:</b> the <code>padspan_room_change</code> event no longer misses a room change that comes within 30 seconds of the last one.</li>
+          <li><b>Fixed:</b> MQTT now reports a device as away on the same timeout as the HA sensors, publishes <code>not_home</code> for its area when away, and sends distance.</li>
+          <li><b>Fixed:</b> PadSpan devices can now be deleted from Home Assistant's device page.</li>
+          <li><b>Fixed:</b> <code>padspan_ha.dump_devices</code> with <code>notify: false</code> no longer creates a notification.</li>
+          <li><b>Fixed:</b> an automation that turns a scene off is refused. Home Assistant can't turn scenes off, so it never did anything.</li>
+          <li><b>Fixed:</b> Distance Traveled counts movement within a room, not only jumps between rooms.</li>
+          <li><b>Fixed:</b> Forensics keeps every visit inside the retention you chose. A device that comes and goes often lost its older visits after 50. The "+N more" count and the CSV export now include every session.</li>
+          <li><b>Fixed:</b> a Forensics search no longer fails now and then with "Search failed".</li>
+          <li><b>Fixed:</b> Lost & Found's "last seen" stays current on a screen left open.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.115</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>
