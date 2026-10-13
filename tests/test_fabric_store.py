@@ -496,3 +496,26 @@ async def test_rederive_uses_the_maps_own_floor() -> None:
     m = {"id": "m1", "floor_id": "upstairs", "stack": {"floor_id": "main"}, "receivers": [], "beacons": []}
     await mdl.async_rederive_map_fracs("m1", m)
     assert [rx["source"] for rx in m["receivers"]] == ["rx_up"]   # not the old floor's
+
+
+@pytest.mark.asyncio
+async def test_deleting_an_area_forgets_its_room_colour_and_floor() -> None:
+    """async_update merges room_meta, so the delete handler's 'room_meta
+    without this room' removed nothing: an area recreated with the same name
+    got its old colour and floor back."""
+    from unittest.mock import AsyncMock, MagicMock
+    from custom_components.padspan_ha import ws_follow
+    from custom_components.padspan_ha.const import DATA_MODEL, DOMAIN
+    mdl = _make_model({})
+    mdl.data["room_meta"] = {"Den": {"floor_id": "up", "color": "#123456"}, "Hall": {"floor_id": "main", "color": "#654321"}}
+    area = MagicMock(); area.name = "Den"
+    ar = MagicMock(); ar.async_get_area.return_value = area
+    hass = MagicMock(); hass.data = {DOMAIN: {DATA_MODEL: mdl}}
+    orig = getattr(ws_follow.area_registry, "async_get", None)
+    ws_follow.area_registry.async_get = lambda h: ar
+    try:
+        await ws_follow.ws_area_delete(hass, MagicMock(), {"id": 1, "area_id": "den"})
+    finally:
+        if orig is not None:
+            ws_follow.area_registry.async_get = orig
+    assert list(mdl.room_meta()) == ["Hall"]

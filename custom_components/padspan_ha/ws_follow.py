@@ -166,10 +166,9 @@ async def ws_area_delete(hass: HomeAssistant, connection, msg) -> None:
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if mdl:
         try:
-            room_meta = mdl.room_meta() or {}
-            if area_name in room_meta:
-                updated_meta = {k: v for k, v in room_meta.items() if k != area_name}
-                await mdl.async_update(room_meta=updated_meta)
+            # Removed outright: async_update merges room_meta, so passing it
+            # without this room left the room's colour and floor in place.
+            await mdl.async_remove_room_meta(area_name)
         except Exception:
             # The HA area is already gone by this point (ar.async_delete
             # above succeeded) — a failure tidying up the PadSpan-side

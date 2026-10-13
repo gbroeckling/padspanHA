@@ -414,6 +414,16 @@ class ModelStore:
         """Return {room_name: {floor_id, color}} for every known room."""
         return dict(self.data.get("room_meta", {}))
 
+    async def async_remove_room_meta(self, room: str) -> bool:
+        """Forget a room's colour and floor (its HA area was deleted).
+        async_update merges room_meta, so it could add but never remove."""
+        rm = self.data.get("room_meta") or {}
+        if room not in rm:
+            return False
+        rm.pop(room, None)
+        await self.store.async_save(self.data)
+        return True
+
     # ── Fabric accessors ────────────────────────────────────────────────────
 
     def get_scanner_mappings(self) -> tuple[dict[str, str], dict[str, str]]:
