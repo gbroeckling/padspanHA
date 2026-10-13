@@ -10,30 +10,35 @@ released), **watching** (fixed; confirming from the field).
 
 | # | Area | What people saw | Cause | Fix | Release | Field signal | Status |
 |---|---|---|---|---|---|---|---|
-| 74 | MQTT | `home` ignored the away timeout; `/area` kept the last room when away; `/distance` never sent | Fixed 300 s; nothing set `obj["distance"]` | 8e883092 | 0.38.116 | — | committed |
-| 73 | Lost & Found | A panel left open showed where a device was yesterday | Fetched once per panel lifetime and preferred over the live room | 1b91125e | 0.38.116 | — | committed |
-| 72 | Forensics | A frequent visitor's older sessions vanished inside the retention; the search said its list was complete | Fixed 50 sessions per address | a595e03b | 0.38.116 | — | committed |
-| 71 | Tag events | A second room change within 30 s was never reported (automations on `to_room` missed it) | Cooldown dropped the change instead of holding it | 3061ccf7 | 0.38.116 | — | committed |
-| 70 | Entities | Stale PadSpan entities/devices could not be deleted | No `async_remove_config_entry_device` | 1bbd4382 | 0.38.116 | — | committed |
-| 69 | Services | `dump_devices` with `notify: false` still notified; target picker the schema rejects | `call.data` never read; empty `target:` | 1bbd4382 | 0.38.116 | — | committed |
-| 68 | Automations | A rule turning a scene OFF saved and never ran | HA has no `scene.turn_off` | 1bbd4382 | 0.38.116 | — | committed |
-| 67 | Forensics | Search failed at random | Executor iterated the live dict the tick changes | 1bbd4382 | 0.38.116 | `forensics_query` | committed |
-| 66 | Forensics | "+N more" too low; CSV held 10 sessions per device | Counted the 10 shipped, not `session_count` | 1bbd4382 | 0.38.116 | — | committed |
-| 65 | Traceback | Distance Traveled 0 m inside a room | Read `x/y/m`; frames carry `x_m/y_m` | 1bbd4382 | 0.38.116 | — | committed |
+| 79 | Entities | A phone's Area/Distance sensors stuck on not_home while its tracker followed it; restarts made `_2` entities | Sensors re-targeted only on a new key; unique_id from whichever key polled first; created before the device list loaded | fc66b76e | 0.38.117 | — | committed |
+| 78 | Traceback | A custom range typed backwards always read "No data in range" | Not swapped | bcdb092b | 0.38.117 | — | committed |
+| 77 | Traceback / Insights | No Insights or Busy Times on a house without a floor-plan photo | Traceback returned before drawing anything | 599cf895 | 0.38.117 | `tab:traceback` | committed |
+| 76 | NFC | Tap-to-identify labelled objects `NFC: <tag id>` | Tag names live on the tag's entity; read `.name` off a dict | 275d223e | 0.38.117 | — | committed |
+| 75 | Setup | Setup asked for an update interval that did nothing | Field only copied into diagnostics | 33346357 | 0.38.117 | — | committed |
+| 74 | MQTT | `home` ignored the away timeout; `/area` kept the last room when away; `/distance` never sent | Fixed 300 s; nothing set `obj["distance"]` | 8e883092 | 0.38.116 | — | fixed |
+| 73 | Lost & Found | A panel left open showed where a device was yesterday | Fetched once per panel lifetime and preferred over the live room | 1b91125e | 0.38.116 | — | fixed |
+| 72 | Forensics | A frequent visitor's older sessions vanished inside the retention; the search said its list was complete | Fixed 50 sessions per address | a595e03b | 0.38.116 | — | fixed |
+| 71 | Tag events | A second room change within 30 s was never reported (automations on `to_room` missed it) | Cooldown dropped the change instead of holding it | 3061ccf7 | 0.38.116 | — | fixed |
+| 70 | Entities | Stale PadSpan entities/devices could not be deleted | No `async_remove_config_entry_device` | 1bbd4382 | 0.38.116 | — | fixed |
+| 69 | Services | `dump_devices` with `notify: false` still notified; target picker the schema rejects | `call.data` never read; empty `target:` | 1bbd4382 | 0.38.116 | — | fixed |
+| 68 | Automations | A rule turning a scene OFF saved and never ran | HA has no `scene.turn_off` | 1bbd4382 | 0.38.116 | — | fixed |
+| 67 | Forensics | Search failed at random | Executor iterated the live dict the tick changes | 1bbd4382 | 0.38.116 | `forensics_query` | fixed |
+| 66 | Forensics | "+N more" too low; CSV held 10 sessions per device | Counted the 10 shipped, not `session_count` | 1bbd4382 | 0.38.116 | — | fixed |
+| 65 | Traceback | Distance Traveled 0 m inside a room | Read `x/y/m`; frames carry `x_m/y_m` | 1bbd4382 | 0.38.116 | — | fixed |
 | 64 | Bright | With presence revealed, presence polled once and stopped | No entity listens to the coordinator, so HA scheduled no refresh | f3dbbf05 | 0.38.116 (Bright: next stable) | — | committed |
-| 63 | Scanners | A disconnected proxy showed as scanning for up to 4 h | Orphan radio hard-coded `scanning: True` | f3dbbf05 | 0.38.116 | — | committed |
-| 62 | IRK | A phone stayed unresolved up to 20 min after adding its IRK | Reload kept cached "unresolved" answers | f3dbbf05 | 0.38.116 | `irks_resolving` | committed |
-| 61 | ESPresense | ESPresense radios and readings flickered out on busy houses | MQTT handlers ran in worker threads and raced the snapshot | f3dbbf05 | 0.38.116 | `errors` (snapshot) | committed |
-| 60 | Licence | Card said "Trial active, -5 days left" during grace | No grace branch | 19a423c5 | 0.38.116 | — | committed |
-| 59 | Licence | Factory reset turned Bright Pro into Pro | `license_tier` not kept | 19a423c5 | 0.38.116 | — | committed |
-| 58 | Licence | Grace ended after 13 days | Compared `.days` (rounded down) | 19a423c5 | 0.38.116 | — | committed |
-| 57 | Licence | A refunded key kept working until its date (lifetime: forever) | Revocation wrote "now" only when no expiry was stored | 19a423c5 | 0.38.116 | — | committed |
-| 56 | Licence / Backup | Restoring an older backup blanked a paid key | Settings restore replaced the licence fields | 19a423c5 | 0.38.116 | — | committed |
-| 55 | Forensics / Traceback | Up to 5 min of Forensics and 30 s of Traceback lost on every restart | Flushes ran only on unload, which HA doesn't do at stop | 95f3fe10 | 0.38.116 | — | committed |
-| 54 | Traceback / Backup | A restore erased all movement since the backup | Restore replaced the history | e3e49b86 | 0.38.116 | — | committed |
-| 53 | Insights | Insights/Busy Times stalled HA's event loop (~0.8 s per load) | Dwell computed on the loop over the in-memory week | e3e49b86 | 0.38.116 | `lag` | committed |
-| 52 | Backup | Each backup carried ~120 MB of Traceback | Backup copied the whole week | e3e49b86 | 0.38.116 | — | committed (backups carry the last day) |
-| 51 | Traceback (memory) | ~600 MB RAM after a restart with 10 devices home, on every install since 0.38.112 | The week of frames lived in memory (~1 KB per object per frame) | e3e49b86 | 0.38.116 | `rss_mb`, `runs.unclean` | committed |
+| 63 | Scanners | A disconnected proxy showed as scanning for up to 4 h | Orphan radio hard-coded `scanning: True` | f3dbbf05 | 0.38.116 | — | fixed |
+| 62 | IRK | A phone stayed unresolved up to 20 min after adding its IRK | Reload kept cached "unresolved" answers | f3dbbf05 | 0.38.116 | `irks_resolving` | fixed |
+| 61 | ESPresense | ESPresense radios and readings flickered out on busy houses | MQTT handlers ran in worker threads and raced the snapshot | f3dbbf05 | 0.38.116 | `errors` (snapshot) | fixed |
+| 60 | Licence | Card said "Trial active, -5 days left" during grace | No grace branch | 19a423c5 | 0.38.116 | — | fixed |
+| 59 | Licence | Factory reset turned Bright Pro into Pro | `license_tier` not kept | 19a423c5 | 0.38.116 | — | fixed |
+| 58 | Licence | Grace ended after 13 days | Compared `.days` (rounded down) | 19a423c5 | 0.38.116 | — | fixed |
+| 57 | Licence | A refunded key kept working until its date (lifetime: forever) | Revocation wrote "now" only when no expiry was stored | 19a423c5 | 0.38.116 | — | fixed |
+| 56 | Licence / Backup | Restoring an older backup blanked a paid key | Settings restore replaced the licence fields | 19a423c5 | 0.38.116 | — | fixed |
+| 55 | Forensics / Traceback | Up to 5 min of Forensics and 30 s of Traceback lost on every restart | Flushes ran only on unload, which HA doesn't do at stop | 95f3fe10 | 0.38.116 | — | fixed |
+| 54 | Traceback / Backup | A restore erased all movement since the backup | Restore replaced the history | e3e49b86 | 0.38.116 | — | fixed |
+| 53 | Insights | Insights/Busy Times stalled HA's event loop (~0.8 s per load) | Dwell computed on the loop over the in-memory week | e3e49b86 | 0.38.116 | `lag` | fixed |
+| 52 | Backup | Each backup carried ~120 MB of Traceback | Backup copied the whole week | e3e49b86 | 0.38.116 | — | fixed (backups carry the last day) |
+| 51 | Traceback (memory) | ~600 MB RAM after a restart with 10 devices home, on every install since 0.38.112 | The week of frames lived in memory (~1 KB per object per frame) | e3e49b86 | 0.38.116 | `rss_mb`, `runs.unclean` | watching |
 | 50 | WLED | With a lapsed licence, a team PadSpan runs could not be given back to WLED sync | The no-licence card skipped team members; the Team card is behind the licence | c4935d32 | 0.38.114 | — | fixed |
 | 49 | WLED | Deleting PadSpan left its WLED lights with sync switched off for good | No `async_remove_entry`; the original sync lives only in PadSpan's store | 95e14609 | 0.38.114 | — | fixed |
 | 48 | WLED / Backup | After restoring an older backup a light read "WLED sync" with sync off; switching again lost the original settings | Restore replaced the switch fields (join/exact/sync_off/prior_sync) and team mode/prior | 27d6b4ea | 0.38.114 | — | fixed |
@@ -86,10 +91,7 @@ released), **watching** (fixed; confirming from the field).
 
 ## Open leads
 
-- **One label on two keys (phone wizard: iBeacon + IRK)**: the Area/Distance sensors stay on the first key while the tracker follows the live one, and a restart can create `_2` entities (identity taken from whichever key polled first; a startup race before the device registry loads). Needs a fixed identity per label; not yet changed.
-- **Traceback/Insights with no floor-plan photo**: unreachable without a photo, and a floor with no photo replays at ground level.
-- **Setup's "Update interval" field does nothing** (presence uses `presence_poll_interval_s`).
-- **NFC tap-to-identify** labels objects `NFC: <tag id>`: the tag's name lives in the entity registry, not the tag item.
+- **Traceback replays a floor with no photo at ground level**: its storey comes from the photos' stack levels; Overview's floor frame numbers storeys differently (HA levels or slab indices), so mixing them could put a floor on the wrong storey. Left until it can be done in one number space.
 - **README vs licence check**: README says no outbound requests with Update Check off; the daily licence revalidation still runs when a key is entered. Garry to decide: gate it, or reword the README.
 - **device_tracker state is the room name**: HA's Person counts any non-`home` state as away, so a Person linked only to PadSpan isn't counted in `zone.home`. Deliberate; changing it would change existing automations. Garry to decide.
 - **Insights on a full week** takes ~3 s on a desktop (streamed in the executor now); a Pi will be slower. Per-day caching would fix it if reports show it.

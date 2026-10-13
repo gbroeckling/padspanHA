@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.117 — Phones keep one set of entities, and Insights without a floor plan (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Home Assistant entities
+- **Fixed:** a phone set up with the phone wizard (its iBeacon and its IRK share one name) no longer shows not_home on its Area sensor while its tracker follows it. A restart also no longer makes a second set of entities (`device_tracker.phone_2`) and leaves the one linked to your Person unavailable. Entities you already have keep their names.
+- **Changed:** setup no longer asks for an update interval. It never did anything; how often PadSpan updates is set in the PadSpan panel.
+
+### Traceback and Insights
+- **Fixed:** Insights and Busy Times now work on a house that has rooms but no floor-plan photo.
+- **Fixed:** a custom Traceback range entered backwards (start after end) now loads instead of showing "No data in range".
+
+### Tags
+- **Fixed:** NFC tap-to-identify names the object after the tag's name in Home Assistant, instead of "NFC: " and the tag's id.
+
+---
+
 ## 0.38.116 — Traceback stops eating memory, licences behave, and a round of smaller fixes (2026-10-12)
 
 ### Before you update
