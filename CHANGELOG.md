@@ -4,6 +4,40 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.121 — Wall screens that notice updates, and a round of fixes (2026-10-13)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser after updating. From this version on, a wall screen opened with `?kiosk=1` reloads itself after an update, and other browsers show a bar with a Reload button.
+
+### New
+- **The panel notices updates.** A page left open through an update used to keep running the old version. Now it says so, and a kiosk screen reloads itself once.
+
+### Fixes
+- **Fixed:** "Revert migration" no longer deletes the target map's own scanner or beacon when it has the same name as one that came over.
+- **Fixed:** Overview's floor Gap and L/R sliders drew every floor faded.
+- **Fixed:** a flood alarm's Reset → Yes was wiped by the next update before you could press it.
+- **Fixed:** occupancy no longer counts Find My tags as people, and a person tracked by an HA entity is placed in their room.
+- **Fixed:** Insights and Busy Times show the most people in a room at one moment, not everyone seen that hour, and fixed beacons aren't counted.
+- **Fixed:** Radio Reset now clears the reset scanner's smoothing, Calibration Health shows scanner names, and System Critics' scanner reliability section runs.
+- **Fixed:** deleting an area forgets its colour and floor.
+- **Fixed:** in the Objects view, room names with "&" show properly, "ALL selected rooms" works, and Clear unidentified clears the screen too.
+- **Fixed:** a pending Delete radio confirm in Calibration no longer freezes the other tabs.
+- **Fixed:** Escape closes dialogs after you've typed in them, Follow remembers the selected tag after a reload, and a browser that blocks storage no longer gets a blank panel.
+- **Fixed:** with rotation bridging on, a labelled tag can no longer take another tag's name.
+- **Fixed:** the phone wizard can save an IRK for a phone that isn't advertising right now (Save unverified).
+- **Fixed:** Follow's movement log keeps updating while a tag stays selected.
+- **Fixed:** Vacation Mode no longer flicks lights on and off all evening. Each light's decision holds for its schedule window and still changes from day to day.
+- **Fixed:** buttons that stayed stuck after a failed call (Resume Normal, Delete ALL orphans) come back.
+- **Removed:** Mapping's "Re-anchor origin" button, which did nothing.
+
+### Faster
+- Less work per update on installs with Bermuda or a busy street: radio network details, the IRK cache, saving the device history and occupancy's phone grouping no longer slow each update down.
+
+### Opt-in report
+- After Home Assistant starts, the daily report now waits until it has 6 hours of numbers. Before, it went out after 10 minutes, so it mostly described Home Assistant starting up. An install that hasn't reported for two days still sends after 10 minutes.
+
+---
+
 ## 0.38.120 — Tasmota scanners, and no lost setup after a bad disk read (2026-10-13)
 
 ### Before you update

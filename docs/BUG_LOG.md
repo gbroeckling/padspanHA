@@ -10,12 +10,41 @@ released), **watching** (fixed; confirming from the field).
 
 | # | Area | What people saw | Cause | Fix | Release | Field signal | Status |
 |---|---|---|---|---|---|---|---|
-| 117 | Bermuda | A device with Area Last Seen enabled could show twice, once in an old room | Entity picked by current state swapped between Area and Area Last Seen (from #114) | 0a4f1439 | 0.38.120 | — | committed |
-| 116 | Entities | Ordinary sensors (kitchen_voltage, dining_table_occupancy) became tracked objects | Bluetooth words matched as substrings | a6495d60, 0a4f1439 | 0.38.120 | `bermuda_entities_n` | committed |
-| 115 | Bermuda | Bermuda Ignore still let `*_area_last_seen` entities in | Ignore covered one of two candidate checks | a6495d60 | 0.38.120 | — | committed |
-| 114 | Bermuda | One Bermuda device became several objects (Area, Floor, one per scanner) - likely driver of slow builds | Every entity with an area attribute was a candidate | a6495d60 | 0.38.120 | `snap_ha_ms`, `bermuda_entities_n` | committed |
-| 113 | Startup | One store failing to load dropped every other store, and the device registry | Store loads gathered without return_exceptions | 6f333d25 | 0.38.120 | `runs` | committed |
-| 112 | Startup (data loss) | One failed disk read at startup could overwrite rooms, maps, settings (licence, followed devices, IRKs) and calibration with defaults | SafeStore turned a read error into "first boot" | 6f333d25 | 0.38.120 | — | committed |
+| 146 | Follow | An IRK phone followed in Follow showed "No tag selected" ~15 min later | Follow keyed it by its rotating address | 94c97d0d (reverted f87c35cb) | — | — | open: a fix keyed by the stable key broke Find My tags, which every other view follows by address; needs one id across views |
+| 145 | Positioning | Two people's tags of one model (two Tiles) became one object; one vanished | Same-name/same-payload merges ignore labels and live-ness | 01cf227d (reverted d854a010) | — | — | open: the fix's label and HA-device guards never fired and a 30 s quiet rule split rotations; needs a redesign |
+| 144 | Bermuda | A Bermuda device that left stayed present in its last room | Replayed entity objects have no radio age to time out | c9ef2afd (reverted bce01e60) | — | — | open: the fix marked away after one 5 s gap and folded a live device into the away entity |
+| 143 | Overview | Overhead (2D) Overview and the no-rooms views don't update between polls; a value typed in Settings is lost on Alt-Tab | The poll runs only the 3D updater; the wake-up render is unguarded | 536df140 (parts reverted 5d8160e9) | — | — | open: the fix rebuilt those views every 5 s and moved Pure Live's wake-up path |
+| 142 | Panel | Resize listeners piled up on a panel left open | connectedCallback added one per re-attach, never removed | 310f216f | 0.38.121 | — | committed |
+| 141 | Opt-in report | Half of all load reports described the first minutes after a start; a beta looked 10x slower on one install | First report sent 10 min after every start | 6de74cdb | 0.38.121 | `uptime` | committed |
+| 140 | Mapping | Revert migration also deleted the target map's own pin with the same name | Revert stripped by label; the migration matched by key | 4fba0c31 | 0.38.121 | — | committed |
+| 139 | Panel | A wall screen left on through an update ran the old UI until refreshed | Nothing compared the page's build with the backend's | b303d166 | 0.38.121 | — | committed |
+| 138 | Occupancy | An IRK phone read as a bridge guess (unidentified) when a guest iPhone was bridged onto its old address | A private group took its canonical from its first address | d3a2d678 | 0.38.121 | — | committed |
+| 137 | Overview | Overview's floor Gap and L/R sliders drew every floor faded | They rebuilt with a focus value nothing sets | 536df140 | 0.38.121 | — | committed |
+| 136 | Panel | A flood alarm's Reset -> Yes was wiped by the poll within seconds | The banner list was rebuilt every poll | 536df140, 5d8160e9 | 0.38.121 | — | committed |
+| 135 | Occupancy | Find My tags and bridged tags counted as extra people; a person tracked by an HA entity object wasn't placed | Every private_ble object counted; only linked_entities matched | 0d0df82e | 0.38.121 | — | committed |
+| 134 | Insights | Peak occupancy counted everyone seen in the hour; pinned beacons counted every hour | Hour-wide set; pinned objects recorded | 04bf8eef, 118b1110 | 0.38.121 | — | committed |
+| 133 | Performance | Every address AES-checked against every IRK each build on a busy street | IRK cache (4,096) smaller than the snapshot (5,000) | f7f0c603 | 0.38.121 | `snap_ble_ms` | committed |
+| 132 | Performance | Snapshot builds held up every save interval (bimodal timings, worse on SD cards) | Object-history save awaited inside the snapshot lock | 602d802f, 67c80453 | 0.38.121 | `snap_objects_ms` | committed |
+| 131 | Calibration | Radio Reset didn't clear the scanner's smoothing; Calibration Health showed scanners as MAC fragments; System Critics' reliability never ran | They asked the config holder for presence methods | 9e08ca0f, bd9bbeb8 | 0.38.121 | — | committed |
+| 130 | Areas | A deleted area recreated with the same name came back with its old colour and floor | room_meta removal merged instead of removing | 5e1ba8e8 | 0.38.121 | — | committed |
+| 129 | Settings | Suspend/Resume in Positioning Test Mode left the card showing the old state | Called ctx.actions.refreshLive, which never existed | e53d557e | 0.38.121 | — | committed |
+| 128 | Objects | "Living & Dining" showed as "Living &amp; Dining"; ALL selected rooms never applied; Clear unidentified left devices on screen | esc() into a text node; filter values mismatched; stale snapshot re-rendered | 04957e96, d69177d0 | 0.38.121 | — | committed |
+| 127 | Calibration | After Delete radio, other tabs showed Calibration's content | Its confirm flag blocked rendering panel-wide | 46b7499f | 0.38.121 | — | committed |
+| 126 | Panel | Escape stopped closing dialogs after typing; Follow forgot its tag on reload; a browser blocking storage got a blank panel | Escape listener once; follow tag never written; unguarded localStorage | 52bba8b5 | 0.38.121 | — | committed |
+| 125 | Positioning | With rotation bridging, Bob's labelled tag could show as "Alice tag" | The bridge renamed addresses with their own identity | 000d7339 | 0.38.121 | — | committed |
+| 124 | Phone wizard | An IRK for a phone not advertising could only be retried, never saved | Overview's wizard had no Save unverified | 308a270d, d69177d0 | 0.38.121 | — | committed |
+| 123 | Mapping | Re-anchor origin toasted "Re-anchored" and did nothing | It sent only the map id, a no-op | 1d13f9c9 | 0.38.121 | — | committed |
+| 122 | Follow | Follow's movement log froze when the tag was selected | Fetched only on a new selection | 6c3cbf2b, d69177d0 | 0.38.121 | — | committed |
+| 121 | Performance | Occupancy's phone clustering stalled HA (2.5 s for 150 addresses) | Pair distances recomputed every merge round | 66df0f16 | 0.38.121 | `lag_ms` | committed |
+| 120 | Vacation Mode | A light below 100% switched on and off all evening | A fresh random draw every 5-minute tick | 55ef6210 | 0.38.121 | — | committed |
+| 119 | Panel | Resume Normal, Delete ALL orphans and Follow's notify list stuck after a failed call; Enable & Track claimed a BLE command it didn't send | No finally / honest message | dec1a5e9, 22742397 | 0.38.121 | — | committed |
+| 118 | Performance | Radio network info walked the whole entity registry per radio (240 ms a build with Bermuda) | Per-slug registry scan | 5f4bf8b6 | 0.38.121 | `snap_ha_ms` | committed |
+| 117 | Bermuda | A device with Area Last Seen enabled could show twice, once in an old room | Entity picked by current state swapped between Area and Area Last Seen (from #114) | 0a4f1439 | 0.38.120 | — | fixed |
+| 116 | Entities | Ordinary sensors (kitchen_voltage, dining_table_occupancy) became tracked objects | Bluetooth words matched as substrings | a6495d60, 0a4f1439 | 0.38.120 | `bermuda_entities_n` | fixed |
+| 115 | Bermuda | Bermuda Ignore still let `*_area_last_seen` entities in | Ignore covered one of two candidate checks | a6495d60 | 0.38.120 | — | fixed |
+| 114 | Bermuda | One Bermuda device became several objects (Area, Floor, one per scanner) - likely driver of slow builds | Every entity with an area attribute was a candidate | a6495d60 | 0.38.120 | `snap_ha_ms`, `bermuda_entities_n` | fixed |
+| 113 | Startup | One store failing to load dropped every other store, and the device registry | Store loads gathered without return_exceptions | 6f333d25 | 0.38.120 | `runs` | fixed |
+| 112 | Startup (data loss) | One failed disk read at startup could overwrite rooms, maps, settings (licence, followed devices, IRKs) and calibration with defaults | SafeStore turned a read error into "first boot" | 6f333d25 | 0.38.120 | — | fixed |
 | 111 | Pre-existing | Forget object, clearing a removed beacon and immediate beacon calibration never did anything | Called PresenceCoordinator methods on the config holder (`coordinator`) | 430fb527 | 0.38.119 | — | fixed |
 | 110 | WLED | Removing Bright after moving to HA would leave every light with sync off | Skipped all devices when the other edition was installed (from #89) | 430fb527 | 0.38.119 | — | fixed |
 | 109 | Maps | Old floor's devices still drawn after a Stack move | Either floor counted (from #88) | 430fb527 | 0.38.119 | — | fixed |
