@@ -286,7 +286,7 @@ async def ws_calibration_clear_map(hass: HomeAssistant, connection, msg) -> None
         connection.send_error(msg["id"], "invalid_map_id", "map_id is required")
         return
     cal = await _get_cal_store(hass)
-    count = await cal.async_clear_map(map_id)
+    count = await cal.async_clear_map(map_id, delete=True)
     connection.send_result(msg["id"], {"ok": True, "map_id": map_id, "deleted": count})
 
 
@@ -381,9 +381,19 @@ async def ws_calibration_swap_radio(hass: HomeAssistant, connection, msg) -> Non
 
     cal = await _get_cal_store(hass)
     updated_readings = 0
+    dropped = 0
 
     for pt in cal.data.get("points", []):
-        for sr in pt.get("scanner_readings", []):
+        readings = pt.get("scanner_readings", [])
+        # A point the new scanner already heard keeps its own reading; the
+        # old one's would be a second reading under the same id that nothing
+        # could separate again.
+        if any(sr.get("source") == new_source for sr in readings):
+            kept = [sr for sr in readings if sr.get("source") != old_source]
+            dropped += len(readings) - len(kept)
+            pt["scanner_readings"] = kept
+            continue
+        for sr in readings:
             if sr.get("source") == old_source:
                 sr["source"] = new_source
                 updated_readings += 1
@@ -396,11 +406,14 @@ async def ws_calibration_swap_radio(hass: HomeAssistant, connection, msg) -> Non
             sec[new_source] = sec.pop(old_source)
 
     await cal.store.async_save(cal.data)
+    # The forest's scanner columns are fixed at training time.
+    await cal._async_train_rf()
     connection.send_result(msg["id"], {
         "ok": True,
         "old_source": old_source,
         "new_source": new_source,
         "updated_readings": updated_readings,
+        "dropped_readings": dropped,
     })
 
 
@@ -482,6 +495,7 @@ async def ws_calibration_relearn_radio(hass: HomeAssistant, connection, msg) -> 
             maps_data = ms.data if hasattr(ms, "data") else ms
         cal.compute_model(maps_data=maps_data)
         await cal.store.async_save(cal.data)
+        await cal._async_train_rf()
     except Exception as e:
         _LOGGER.warning("PadSpan HA relearn model recompute failed: %s", e)
 

@@ -54,6 +54,22 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _collected_at(value: Any) -> str:
+    """Keep the date a point was collected when it comes back from an
+    exported file: Import's duplicate check compares it, and staleness reads
+    it. Anything unparseable or in the future is "now"."""
+    if isinstance(value, str) and value:
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return _now_iso()
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if dt <= datetime.now(timezone.utc):
+            return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+    return _now_iso()
+
+
 def _gaussian(dist: float, sigma: float) -> float:
     return math.exp(-(dist ** 2) / (2 * sigma ** 2))
 
@@ -284,7 +300,7 @@ class CalibrationStore:
             "room": str(point.get("room") or "")[:120],
             "label": str(point.get("label") or "")[:200],
             "device_id": str(point.get("device_id") or "")[:80],
-            "collected_at": _now_iso(),
+            "collected_at": _collected_at(point.get("collected_at")),
             "duration_s": max(5, min(120, int(point.get("duration_s") or 15))),
             "weight": max(0.1, min(10.0, float(point.get("weight") or 1.0))),
             "scanner_readings": clean_readings,
@@ -341,10 +357,13 @@ class CalibrationStore:
         self._rf = RandomForestLocator()  # reset
         return count
 
-    async def async_clear_map(self, map_id: str) -> int:
+    async def async_clear_map(self, map_id: str, delete: bool = False) -> int:
         """Remove calibration points for a map. Points with metre coordinates
         are preserved (detached from map) — they survive map deletion.
         Points without metres are deleted (map-only, unusable without the map).
+        ``delete=True`` (Settings' per-map Clear) deletes the metre points too:
+        the user asked for them gone, and a detached point still steers k-NN
+        while no longer showing on the map to be found.
         """
         points = self.data.get("points", [])
         before = len(points)
@@ -353,7 +372,7 @@ class CalibrationStore:
         for p in points:
             if p.get("map_id") != map_id:
                 surviving.append(p)
-            elif p.get("x_m") is not None:
+            elif p.get("x_m") is not None and not delete:
                 # Phase 3: detach from map but keep (spatially anchored)
                 p["map_id"] = ""
                 detached += 1

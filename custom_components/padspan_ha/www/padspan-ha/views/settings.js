@@ -557,7 +557,7 @@ function _scannerMap(ctx, el, haFloors){
         try {
           const res = await ctx.actions.calibrationSwapRadio(old_source, new_source);
           ctx.state.calibration = null;  // force reload
-          ctx.toast(`Swapped ${res.updated_readings} reading${res.updated_readings!==1?"s":""} from ${radioName(old_source)} → ${radioName(new_source)}.`);
+          ctx.toast(`Swapped ${res.updated_readings} reading${res.updated_readings!==1?"s":""} from ${radioName(old_source)} → ${radioName(new_source)}.` + (res.dropped_readings ? ` ${res.dropped_readings} point(s) already had ${radioName(new_source)}'s own reading, kept instead.` : ""));
           ctx.actions.renderRooms();
         } catch(e){
           ctx.toast("Swap failed: " + String(e), true);

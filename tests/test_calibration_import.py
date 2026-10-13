@@ -82,3 +82,45 @@ def test_the_confirm_prompt_is_not_silently_removed():
     elsewhere (see Maps' own Restore from Backup, which confirms too)."""
     block = _model_tab_block()
     assert "if (!confirm(" in block
+
+
+# The dedupe key above only works if a saved point keeps the date it was
+# collected: async_add_point used to stamp every save with "now", so no file
+# point ever matched a stored one and a retry imported every point again.
+
+async def test_imported_point_keeps_its_collection_date():
+    from unittest.mock import AsyncMock
+    from tests.test_calibration_store import _make_store
+    store = _make_store()
+    store._async_train_rf = AsyncMock()
+    saved = await store.async_add_point({
+        "map_id": "", "x_m": 1.0, "y_m": 2.0, "room": "Kitchen",
+        "collected_at": "2026-03-01T10:20:30+00:00",
+        "scanner_readings": [{"source": "AA:01", "rssi_samples": [-60.0]}],
+    })
+    assert saved["collected_at"] == "2026-03-01T10:20:30+00:00"
+
+
+async def test_future_or_garbage_collection_date_becomes_now():
+    from datetime import datetime, timezone
+    from unittest.mock import AsyncMock
+    from tests.test_calibration_store import _make_store
+    store = _make_store()
+    store._async_train_rf = AsyncMock()
+    today = datetime.now(timezone.utc).date().isoformat()
+    for bad in ("2999-01-01T00:00:00+00:00", "yesterday", None):
+        saved = await store.async_add_point({
+            "map_id": "", "x_m": 1.0, "y_m": 2.0, "room": "Kitchen",
+            "collected_at": bad,
+            "scanner_readings": [{"source": "AA:01", "rssi_samples": [-60.0]}],
+        })
+        assert saved["collected_at"].startswith(today), bad
+
+
+def test_import_is_reachable_with_no_points():
+    """A fresh install or one after Clear All is exactly when Import is
+    needed; the empty state returned before the Actions card was built."""
+    block = _model_tab_block()
+    empty = block[block.index("if (!pts.length) {"):]
+    empty = empty[:empty.index("return wrap;")]
+    assert "_actionsCard(" in empty

@@ -1602,10 +1602,128 @@ function _modelTab(ctx, el, cs, calData) {
   }
   wrap.appendChild(computeCard);
 
+  // Actions (Export / Import / Clear All). Built before the empty-state
+  // return too: with no points is exactly when Import is needed.
+  const _actionsCard = () => {
+    const actCard = el("div", { class: "card" });
+    actCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Actions"));
+
+    // Export JSON
+    const expBtn = el("button", { class: "btn inline" }, "Export JSON");
+    expBtn.addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(calData, null, 2)], { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = "padspan_calibration.json";
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    });
+    actCard.appendChild(expBtn);
+
+    // Import — the counterpart Export JSON never had (Garry, 2026-09-10:
+    // "do 2-10" -> #10). Mirrors Maps' own "Backup All Maps (JSON)" /
+    // "Restore from Backup" round-trip (maps.js's Export tab), but there is
+    // no batch calibration-restore endpoint — calibration_save_point saves
+    // ONE point and always mints it a fresh id (calibration_store.py's
+    // async_add_point), so a point-by-point loop is correct here, not a
+    // shortcut, and duplicate detection has to happen on the client since the
+    // backend never sees the old id to compare against. The model itself is
+    // deliberately NOT restored from the file — it is a derived artifact of
+    // the points (calibration_compute_model), not raw data; recomputing it
+    // from the restored points is the right move, not re-injecting a stale
+    // serialized one.
+    const impWrap = el("div", { style: "margin-top:14px;border-top:1px solid #1b3526;padding-top:12px" });
+    impWrap.appendChild(el("div", { style: "font-weight:600;font-size:13px;margin-bottom:4px" }, "Import"));
+    impWrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px" },
+      "Choose a padspan_calibration.json file exported above. Points that already exist (same map, position and collection time) are skipped."));
+
+    const impInput = document.createElement("input");
+    impInput.type = "file"; impInput.accept = ".json,application/json"; impInput.style.display = "none";
+    const impPreview = el("div", { style: "font-size:12px;color:#94a3b8;min-height:18px;margin-top:6px" });
+    const impStatus = el("div", { class: "muted", style: "font-size:12px;min-height:18px;margin-top:4px" });
+    const impBtn = el("button", { class: "btn inline", style: "display:none" }, "Import Points");
+    let _importData = null;
+
+    const _dedupeKey = (p) => `${p.map_id}|${Number(p.x_frac).toFixed(4)}|${Number(p.y_frac).toFixed(4)}|${p.collected_at || ""}`;
+
+    impInput.addEventListener("change", async () => {
+      const file = impInput.files?.[0]; if (!file) return;
+      impPreview.textContent = "Reading…"; impBtn.style.display = "none"; _importData = null;
+      try {
+        const parsed = JSON.parse(await file.text());
+        if (!Array.isArray(parsed.points)) {
+          impPreview.textContent = "❌ Not a valid PadSpan calibration export."; return;
+        }
+        const existingKeys = new Set(pts.map(_dedupeKey));
+        const toImport = parsed.points.filter(p => !existingKeys.has(_dedupeKey(p)));
+        const skipCount = parsed.points.length - toImport.length;
+        impPreview.textContent = `${parsed.points.length} point${parsed.points.length !== 1 ? "s" : ""} in file: ${toImport.length} to import${skipCount ? `, ${skipCount} already present (skipped)` : ""}.`;
+        if (toImport.length) { _importData = toImport; impBtn.style.display = ""; }
+      } catch (e) { impPreview.textContent = "❌ Parse error: " + String(e); }
+    });
+
+    impBtn.addEventListener("click", async () => {
+      if (!_importData?.length) return;
+      if (!confirm(`Import ${_importData.length} calibration point(s)?`)) return;
+      impBtn.disabled = true; let ok = 0, fail = 0;
+      for (let i = 0; i < _importData.length; i++) {
+        const p = _importData[i];
+        impStatus.textContent = `Importing ${i + 1}/${_importData.length}…`;
+        try {
+          await ctx.actions.calibrationSavePoint(p);
+          ok++;
+        } catch (e) { fail++; console.error("Calibration import failed for point", i, e); }
+      }
+      impStatus.textContent = `Imported ${ok} point${ok !== 1 ? "s" : ""}${fail ? ` (${fail} failed)` : ""} ✓ — recompute the model to include them.`;
+      impBtn.disabled = false; _importData = null; impBtn.style.display = "none";
+      ctx.state.calibration = await ctx.actions.calibrationGet();
+      ctx.actions.renderRooms();
+    });
+
+    const impChooseBtn = el("button", { class: "btn inline", onclick: () => impInput.click() }, "Choose File…");
+    impWrap.appendChild(el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [impChooseBtn, impBtn]));
+    impWrap.appendChild(impInput);
+    impWrap.appendChild(impPreview);
+    impWrap.appendChild(impStatus);
+    actCard.appendChild(impWrap);
+
+    // Clear all
+    const clearWrap = el("div", { style: "margin-top:10px;display:flex;gap:8px;align-items:center" });
+    const makeClearBtn = () => {
+      const b = el("button", { class: "btn inline", style: "border-color:#dc2626;color:#fca5a5" },
+        `Clear All (${pts.length})`);
+      b.addEventListener("click", () => {
+        clearWrap.innerHTML = "";
+        const yes = el("button", { class: "btn", style: "background:#7f1d1d;border-color:#dc2626" },
+          `Yes, delete all ${pts.length} points`);
+        const no  = el("button", { class: "btn inline" }, "Cancel");
+        yes.addEventListener("click", async () => {
+          clearWrap.innerHTML = "";
+          try {
+            await ctx.actions.calibrationClear();
+            ctx.state.calibration = { points: [], model: {} };
+            ctx.toast("All calibration data cleared.");
+            ctx.actions.renderRooms();
+          } catch (e) {
+            ctx.toast("Failed: " + String(e), true);
+            clearWrap.appendChild(makeClearBtn());
+          }
+        });
+        no.addEventListener("click", () => { clearWrap.innerHTML = ""; clearWrap.appendChild(makeClearBtn()); });
+        clearWrap.appendChild(yes); clearWrap.appendChild(no);
+      });
+      return b;
+    };
+    clearWrap.appendChild(makeClearBtn());
+    if (pts.length) actCard.appendChild(clearWrap);
+    return actCard;
+  };
+
   if (!pts.length) {
     wrap.appendChild(el("div", { class: "card" }, [
       el("div", { class: "muted" }, "No calibration points yet. Use Tune, Beacon Tune, Pin & Listen, or Roam to collect data."),
     ]));
+    wrap.appendChild(_actionsCard());
     return wrap;
   }
 
@@ -1849,119 +1967,7 @@ function _modelTab(ctx, el, cs, calData) {
   ptsCard.appendChild(ptsList);
   wrap.appendChild(ptsCard);
 
-  // Actions
-  const actCard = el("div", { class: "card" });
-  actCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Actions"));
-
-  // Export JSON
-  const expBtn = el("button", { class: "btn inline" }, "Export JSON");
-  expBtn.addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify(calData, null, 2)], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = "padspan_calibration.json";
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
-  });
-  actCard.appendChild(expBtn);
-
-  // Import — the counterpart Export JSON never had (Garry, 2026-09-10:
-  // "do 2-10" -> #10). Mirrors Maps' own "Backup All Maps (JSON)" /
-  // "Restore from Backup" round-trip (maps.js's Export tab), but there is
-  // no batch calibration-restore endpoint — calibration_save_point saves
-  // ONE point and always mints it a fresh id (calibration_store.py's
-  // async_add_point), so a point-by-point loop is correct here, not a
-  // shortcut, and duplicate detection has to happen on the client since the
-  // backend never sees the old id to compare against. The model itself is
-  // deliberately NOT restored from the file — it is a derived artifact of
-  // the points (calibration_compute_model), not raw data; recomputing it
-  // from the restored points is the right move, not re-injecting a stale
-  // serialized one.
-  const impWrap = el("div", { style: "margin-top:14px;border-top:1px solid #1b3526;padding-top:12px" });
-  impWrap.appendChild(el("div", { style: "font-weight:600;font-size:13px;margin-bottom:4px" }, "Import"));
-  impWrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px" },
-    "Choose a padspan_calibration.json file exported above. Points that already exist (same map, position and collection time) are skipped."));
-
-  const impInput = document.createElement("input");
-  impInput.type = "file"; impInput.accept = ".json,application/json"; impInput.style.display = "none";
-  const impPreview = el("div", { style: "font-size:12px;color:#94a3b8;min-height:18px;margin-top:6px" });
-  const impStatus = el("div", { class: "muted", style: "font-size:12px;min-height:18px;margin-top:4px" });
-  const impBtn = el("button", { class: "btn inline", style: "display:none" }, "Import Points");
-  let _importData = null;
-
-  const _dedupeKey = (p) => `${p.map_id}|${Number(p.x_frac).toFixed(4)}|${Number(p.y_frac).toFixed(4)}|${p.collected_at || ""}`;
-
-  impInput.addEventListener("change", async () => {
-    const file = impInput.files?.[0]; if (!file) return;
-    impPreview.textContent = "Reading…"; impBtn.style.display = "none"; _importData = null;
-    try {
-      const parsed = JSON.parse(await file.text());
-      if (!Array.isArray(parsed.points)) {
-        impPreview.textContent = "❌ Not a valid PadSpan calibration export."; return;
-      }
-      const existingKeys = new Set(pts.map(_dedupeKey));
-      const toImport = parsed.points.filter(p => !existingKeys.has(_dedupeKey(p)));
-      const skipCount = parsed.points.length - toImport.length;
-      impPreview.textContent = `${parsed.points.length} point${parsed.points.length !== 1 ? "s" : ""} in file: ${toImport.length} to import${skipCount ? `, ${skipCount} already present (skipped)` : ""}.`;
-      if (toImport.length) { _importData = toImport; impBtn.style.display = ""; }
-    } catch (e) { impPreview.textContent = "❌ Parse error: " + String(e); }
-  });
-
-  impBtn.addEventListener("click", async () => {
-    if (!_importData?.length) return;
-    if (!confirm(`Import ${_importData.length} calibration point(s)?`)) return;
-    impBtn.disabled = true; let ok = 0, fail = 0;
-    for (let i = 0; i < _importData.length; i++) {
-      const p = _importData[i];
-      impStatus.textContent = `Importing ${i + 1}/${_importData.length}…`;
-      try {
-        await ctx.actions.calibrationSavePoint(p);
-        ok++;
-      } catch (e) { fail++; console.error("Calibration import failed for point", i, e); }
-    }
-    impStatus.textContent = `Imported ${ok} point${ok !== 1 ? "s" : ""}${fail ? ` (${fail} failed)` : ""} ✓ — recompute the model to include them.`;
-    impBtn.disabled = false; _importData = null; impBtn.style.display = "none";
-    ctx.state.calibration = await ctx.actions.calibrationGet();
-    ctx.actions.renderRooms();
-  });
-
-  const impChooseBtn = el("button", { class: "btn inline", onclick: () => impInput.click() }, "Choose File…");
-  impWrap.appendChild(el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [impChooseBtn, impBtn]));
-  impWrap.appendChild(impInput);
-  impWrap.appendChild(impPreview);
-  impWrap.appendChild(impStatus);
-  actCard.appendChild(impWrap);
-
-  // Clear all
-  const clearWrap = el("div", { style: "margin-top:10px;display:flex;gap:8px;align-items:center" });
-  const makeClearBtn = () => {
-    const b = el("button", { class: "btn inline", style: "border-color:#dc2626;color:#fca5a5" },
-      `Clear All (${pts.length})`);
-    b.addEventListener("click", () => {
-      clearWrap.innerHTML = "";
-      const yes = el("button", { class: "btn", style: "background:#7f1d1d;border-color:#dc2626" },
-        `Yes, delete all ${pts.length} points`);
-      const no  = el("button", { class: "btn inline" }, "Cancel");
-      yes.addEventListener("click", async () => {
-        clearWrap.innerHTML = "";
-        try {
-          await ctx.actions.calibrationClear();
-          ctx.state.calibration = { points: [], model: {} };
-          ctx.toast("All calibration data cleared.");
-          ctx.actions.renderRooms();
-        } catch (e) {
-          ctx.toast("Failed: " + String(e), true);
-          clearWrap.appendChild(makeClearBtn());
-        }
-      });
-      no.addEventListener("click", () => { clearWrap.innerHTML = ""; clearWrap.appendChild(makeClearBtn()); });
-      clearWrap.appendChild(yes); clearWrap.appendChild(no);
-    });
-    return b;
-  };
-  clearWrap.appendChild(makeClearBtn());
-  actCard.appendChild(clearWrap);
-  wrap.appendChild(actCard);
+  wrap.appendChild(_actionsCard());
 
   return wrap;
 }
@@ -5228,8 +5234,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           if (!confirmPurge) doRelocation = false;
         }
 
-        if (doRelocation) {
-          const protectedIds = new Set(bs._relocSavedIds[bkKey] || []);
+        // Runs only after the new point has saved: a failed save must not
+        // leave the beacon with its old data gone and nothing in its place.
+        const _purgeOldPoints = async (protectedIds) => {
           try {
             const calData = await ctx.actions.calibrationGet();
             const allPts = calData?.points || [];
@@ -5258,7 +5265,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           } catch (e) {
             console.warn("[PadSpan] relocation purge failed:", e);
           }
-        }
+        };
 
         // Transform readings object → scanner_readings array for backend
         const scannerReadings = Object.entries(entry.readings).map(([source, rd]) => ({
@@ -5285,6 +5292,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           } else if (saved?.id) {
             bs._relocSavedIds[bkKey].push(saved.id);
           }
+          if (doRelocation) await _purgeOldPoints(new Set(bs._relocSavedIds[bkKey]));
           const _bkName = entry.bk.label || entry.bk.key;
           const _scanInfo = `${_tActiveRadios.length} scanner(s), ${_tTotalSamples} samples`;
           const _roomInfo = room ? `, room: ${room}` : ", room: (undetected)";
@@ -5301,7 +5309,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           }
         } catch (e) {
           const _errMsg = (e && e.message) || String(e);
-          ctx.toast(`SAVE FAILED: ${entry.bk.label || entry.bk.key} — ${_errMsg}`, "error");
+          const _kept = doRelocation ? " (old data kept)" : "";
+          doRelocation = false;
+          ctx.toast(`SAVE FAILED: ${entry.bk.label || entry.bk.key} — ${_errMsg}${_kept}`, "error");
           console.error("[PadSpan] live timer save failed:", e);
         }
         if (doRelocation) {

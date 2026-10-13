@@ -470,6 +470,31 @@ class TestClearMap:
         assert removed == 0
         store.store.async_save.assert_not_awaited()
 
+    async def test_clear_button_deletes_metre_points(self) -> None:
+        """Settings' per-map Clear asks to delete the points; detaching kept
+        them in k-NN while hiding them from the map, and reported 0."""
+        pt = _make_point(map_id="mapA", readings={"s1": -50.0})
+        pt["x_m"] = 3.0
+        other = _make_point(map_id="mapB", readings={"s1": -60.0})
+        other["x_m"] = 1.0
+        store = _make_store(points=[pt, other])
+
+        removed = await store.async_clear_map("mapA", delete=True)
+
+        assert removed == 1
+        assert [p["map_id"] for p in store.data["points"]] == ["mapB"]
+
+    async def test_ws_clear_map_deletes(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from custom_components.padspan_ha import ws_calibration
+        cal = MagicMock()
+        cal.async_clear_map = AsyncMock(return_value=2)
+        conn = MagicMock()
+        with patch.object(ws_calibration, "_get_cal_store", AsyncMock(return_value=cal)):
+            await ws_calibration.ws_calibration_clear_map(
+                MagicMock(), conn, {"id": 1, "map_id": "mapA"})
+        cal.async_clear_map.assert_awaited_once_with("mapA", delete=True)
+
 
 # ---------------------------------------------------------------------------
 # Tests: loo_accuracy
@@ -1285,3 +1310,43 @@ async def test_one_scanner_auto_points_are_pruned_and_human_points_are_not() -> 
     n = await store.async_prune_one_scanner_auto_points()
     assert n == 1
     assert [p["id"] for p in store.data["points"]] == ["b", "c"]
+
+
+# ---------------------------------------------------------------------------
+# Replace Scanner / Relearn Radio retrain the forest
+# ---------------------------------------------------------------------------
+
+
+class TestSwapAndRelearn:
+    """The forest's scanner columns are fixed when it is trained; both tools
+    changed the readings without retraining it."""
+
+    @staticmethod
+    async def _call(handler, store, msg):
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from custom_components.padspan_ha import ws_calibration
+        conn = MagicMock()
+        store._async_train_rf = AsyncMock()
+        store.compute_model = MagicMock()
+        with patch.object(ws_calibration, "_get_cal_store", AsyncMock(return_value=store)):
+            await getattr(ws_calibration, handler)(MagicMock(), conn, msg)
+        return conn
+
+    async def test_swap_retrains_and_keeps_new_scanners_own_reading(self) -> None:
+        both = _make_point(readings={"old": -60.0, "new": -70.0})
+        only_old = _make_point(x_frac=0.2, readings={"old": -65.0})
+        store = _make_store(points=[both, only_old])
+        conn = await self._call("ws_calibration_swap_radio", store,
+                                {"id": 1, "old_source": "old", "new_source": "new"})
+        store._async_train_rf.assert_awaited_once()
+        assert [r["source"] for r in both["scanner_readings"]] == ["new"]
+        assert both["scanner_readings"][0]["mean_rssi"] == -70.0
+        assert [r["source"] for r in only_old["scanner_readings"]] == ["new"]
+        res = conn.send_result.call_args.args[1]
+        assert res["updated_readings"] == 1 and res["dropped_readings"] == 1
+
+    async def test_relearn_retrains(self) -> None:
+        store = _make_store(points=[_make_point(readings={"s1": -60.0})])
+        await self._call("ws_calibration_relearn_radio", store,
+                         {"id": 1, "source": "s1", "gain_db": 3})
+        store._async_train_rf.assert_awaited_once()
