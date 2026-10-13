@@ -742,7 +742,7 @@ async def ws_traceback_get(hass: HomeAssistant, connection, msg) -> None:
     if not tb:
         connection.send_result(msg["id"], {"frames": [], "range": {"start": 0, "end": 0, "count": 0}})
         return
-    frames, matched = tb.get_frames(
+    frames, matched = await tb.async_get_frames(
         start_ts=msg.get("start_ts"),
         end_ts=msg.get("end_ts"),
         obj_key=msg.get("obj_key"),
@@ -753,7 +753,7 @@ async def ws_traceback_get(hass: HomeAssistant, connection, msg) -> None:
         "frames": frames,
         # Frames the window held before evenly thinning to max_frames.
         "matched": matched,
-        "range": tb.get_time_range(),
+        "range": await tb.async_get_time_range(),
     })
 
 
@@ -767,8 +767,8 @@ async def ws_traceback_objects(hass: HomeAssistant, connection, msg) -> None:
         connection.send_result(msg["id"], {"objects": [], "range": {"start": 0, "end": 0, "count": 0}})
         return
     connection.send_result(msg["id"], {
-        "objects": tb.get_object_keys(),
-        "range": tb.get_time_range(),
+        "objects": await tb.async_get_object_keys(),
+        "range": await tb.async_get_time_range(),
     })
 
 
@@ -789,7 +789,6 @@ async def ws_insights_get(hass: HomeAssistant, connection, msg) -> None:
     """
     import time as _time
     from .const import DATA_TRACEBACK
-    from .dwell_analytics import compute_dwell_stats
     tb = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
     if not tb:
         connection.send_result(msg["id"], {"objects": {}, "days": [], "dwell": {}, "entries": {}, "occupancy": {}})
@@ -797,13 +796,10 @@ async def ws_insights_get(hass: HomeAssistant, connection, msg) -> None:
     days = msg.get("days", 7)
     end_ts = _time.time()
     start_ts = end_ts - days * 86400
-    # No obj_key filter — every tracked object's dwell matters here, and
-    # 60480 comfortably covers the full 7-day retention window at ~10s/frame
-    # without triggering get_frames()'s downsampling (which would corrupt
-    # per-day time-in-room by dropping frames unevenly).
-    frames = tb.get_frames(start_ts=start_ts, end_ts=end_ts, max_frames=60480)
+    # Every frame, unthinned (thinning would corrupt per-day time-in-room),
+    # streamed from Traceback's files in the executor.
     tz_name = getattr(hass.config, "time_zone", None) or "UTC"
-    stats = compute_dwell_stats(frames, tz_name=tz_name)
+    stats = await tb.async_dwell(start_ts, end_ts, tz_name)
     connection.send_result(msg["id"], stats)
 
 

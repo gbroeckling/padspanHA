@@ -139,23 +139,109 @@ def test_history_records_metres_not_photo_fractions() -> None:
     assert 'entry["m"] = str(knn_map)' not in src
 
 
-def test_a_long_range_is_downsampled_across_the_whole_window_not_cut_short(tmp_path) -> None:
+def _seed(tb, n: int, base: float, key: str = "ble:AA:BB") -> list[float]:
+    """n frames 10 s apart from base, written to the segment files."""
+    frames = [{"ts": base + i * 10.0, "o": [{"k": key, "r": "Office"}]} for i in range(n)]
+    tb._append_sync(frames)
+    return [f["ts"] for f in frames]
+
+
+async def test_a_long_range_is_downsampled_across_the_whole_window_not_cut_short(tmp_path) -> None:
     """get_frames stopped collecting at max_frames, so a 7-day range replayed
     only its oldest ~9 hours (review 2026-09-23, found through Traceback's
     Full house activity). It must sample the whole window evenly."""
     tb = _make_store(tmp_path)
-    tb.frames = [{"ts": float(i), "o": [_obj()]} for i in range(10_000)]
-    got = tb.get_frames(start_ts=0, end_ts=10_000, max_frames=100)
+    ts = _seed(tb, 10_000, time.time() - 200_000)
+    got = await tb.async_get_frames(start_ts=ts[0], end_ts=ts[-1], max_frames=100)
     assert len(got) == 100
-    assert got[0]["ts"] == 0.0
-    assert got[-1]["ts"] == 9_999.0         # the window's last frame is kept
+    assert got[0]["ts"] == ts[0]
+    assert got[-1]["ts"] == ts[-1]         # the window's last frame is kept
 
 
-
-def test_get_frames_reports_how_many_the_window_held(tmp_path) -> None:
+async def test_get_frames_reports_how_many_the_window_held(tmp_path) -> None:
     tb = _make_store(tmp_path)
-    tb.frames = [{"ts": float(i), "o": [_obj()]} for i in range(1000)]
-    frames, matched = tb.get_frames(start_ts=0, end_ts=1000, max_frames=100, with_count=True)
+    ts = _seed(tb, 1000, time.time() - 20_000)
+    frames, matched = await tb.async_get_frames(start_ts=ts[0], end_ts=ts[-1], max_frames=100, with_count=True)
     assert len(frames) == 100 and matched == 1000
-    frames, matched = tb.get_frames(start_ts=0, end_ts=10, max_frames=100, with_count=True)
+    frames, matched = await tb.async_get_frames(start_ts=ts[0], end_ts=ts[10], max_frames=100, with_count=True)
     assert matched == len(frames) == 11
+
+
+# ── The week lives on disk, not in memory ────────────────────────────────────
+# A week of frames read back into Python was ~1 KB per tracked object per
+# frame: ~600 MB for ten devices at home. Since 0.38.112 every install records
+# around the clock, so every install filled it.
+
+async def test_memory_holds_only_the_recent_window(tmp_path) -> None:
+    tb = _make_store(tmp_path)
+    ts = _seed(tb, 5000, time.time() - 50_000)
+    await tb.async_load()
+    assert all(f["ts"] > time.time() - tb_mod.MEM_WINDOW_S for f in tb.frames)
+    assert len(tb.frames) < 100
+    frames, matched = await tb.async_get_frames(start_ts=ts[0], end_ts=ts[-1], max_frames=6000, with_count=True)
+    assert matched == 5000 and len(frames) == 5000
+
+
+async def test_one_object_and_unflushed_frames_counted_once(tmp_path) -> None:
+    tb = _make_store(tmp_path)
+    base = time.time() - 1000
+    _seed(tb, 20, base, key="ble:ONE")
+    _seed(tb, 20, base + 5, key="ble:TWO")
+    await tb.async_load()
+    tb.record_frame([_obj(key="ble:ONE")])
+    got, n = await tb.async_get_frames(start_ts=base, end_ts=time.time() + 1, obj_key="ble:ONE", with_count=True)
+    assert n == 21 and all(o["k"] == "ble:ONE" for f in got for o in f["o"])
+    await tb.async_flush()
+    _got, n2 = await tb.async_get_frames(start_ts=base, end_ts=time.time() + 1, obj_key="ble:ONE", with_count=True)
+    assert n2 == 21
+
+
+async def test_a_restore_joins_the_history_instead_of_erasing_since(tmp_path) -> None:
+    """Restoring a backup replaced the history, so every movement recorded
+    after the backup was gone."""
+    tb = _make_store(tmp_path)
+    now = time.time()
+    _seed(tb, 3, now - 3000, key="ble:SINCE")
+    await tb.async_load()
+    backup = [{"ts": now - 90_000 + i, "o": [{"k": "ble:OLD", "r": "Garage"}]} for i in range(2)]
+    await tb.async_merge(backup)
+    got = await tb.async_get_frames(start_ts=now - 100_000, end_ts=now)
+    assert [o["k"] for f in got for o in f["o"]] == ["ble:OLD", "ble:OLD", "ble:SINCE", "ble:SINCE", "ble:SINCE"]
+    await tb.async_merge(backup)          # restoring twice adds nothing
+    assert len(await tb.async_get_frames(start_ts=now - 100_000, end_ts=now)) == 5
+
+
+async def test_a_backup_carries_the_last_day(tmp_path) -> None:
+    tb = _make_store(tmp_path)
+    now = time.time()
+    _seed(tb, 2, now - 3 * 86400)
+    _seed(tb, 2, now - 3600)
+    await tb.async_load()
+    out = await tb.async_export()
+    assert len(out) == 2 and all(f["ts"] > now - 86400 for f in out)
+
+
+async def test_object_list_and_range_come_from_the_files(tmp_path) -> None:
+    tb = _make_store(tmp_path)
+    now = time.time()
+    _seed(tb, 3, now - 5 * 86400, key="ble:OLDER")
+    _seed(tb, 3, now - 600, key="ble:NEWER")
+    await tb.async_load()
+    keys = [o["key"] for o in await tb.async_get_object_keys()]
+    assert keys == ["ble:NEWER", "ble:OLDER"]
+    rng = await tb.async_get_time_range()
+    assert rng["count"] == 6 and abs(rng["start"] - (now - 5 * 86400)) < 1
+    tb.record_frame([_obj(key="ble:LIVE")])
+    assert (await tb.async_get_object_keys())[0]["key"] == "ble:LIVE"
+    assert (await tb.async_get_time_range())["count"] == 7
+
+
+async def test_insights_stream_matches_the_in_memory_answer(tmp_path) -> None:
+    from custom_components.padspan_ha.dwell_analytics import compute_dwell_stats
+    tb = _make_store(tmp_path)
+    now = time.time()
+    frames = [{"ts": now - 7200 + i * 10.0, "o": [{"k": "ble:A", "r": "Office" if i < 300 else "Kitchen"}]}
+              for i in range(600)]
+    tb._append_sync(frames)
+    await tb.async_load()
+    assert await tb.async_dwell(now - 86400, now, "UTC") == compute_dwell_stats(frames, tz_name="UTC")

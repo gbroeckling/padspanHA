@@ -24,7 +24,7 @@ something already computed.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
 # A gap between two consecutive frames for the same object longer than this
@@ -37,8 +37,9 @@ MAX_DWELL_GAP_S = 300.0
 
 
 def compute_dwell_stats(
-    frames: list[dict[str, Any]],
+    frames: Iterable[dict[str, Any]],
     tz_name: str = "UTC",
+    presorted: bool = False,
 ) -> dict[str, Any]:
     """Aggregate TracebackStore frames into dwell/entry/occupancy stats.
 
@@ -79,7 +80,10 @@ def compute_dwell_stats(
     occupancy_sets: dict[str, dict[str, dict[str, set[str]]]] = {}
     days_seen: set[str] = set()
 
-    for frame in sorted(frames, key=lambda f: f.get("ts", 0)):
+    # presorted: a stream already in time order (TracebackStore's files),
+    # walked once without holding the week in memory.
+    ordered = frames if presorted else sorted(frames, key=lambda f: f.get("ts", 0))
+    for frame in ordered:
         ts = frame.get("ts")
         if ts is None:
             continue

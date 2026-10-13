@@ -200,7 +200,11 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
                 unread.append(store_key)
             continue
         # Each store class uses different attribute names for its data
-        if hasattr(store_obj, "data"):
+        if store_key == TRACEBACK_STORE_KEY and hasattr(store_obj, "async_export"):
+            # Traceback: its history is files on disk; a backup carries
+            # the last day of it (traceback_store.BACKUP_WINDOW_S).
+            stores_data[store_key] = await store_obj.async_export()
+        elif hasattr(store_obj, "data"):
             stores_data[store_key] = store_obj.data
         elif hasattr(store_obj, "_data"):
             stores_data[store_key] = store_obj._data
@@ -432,8 +436,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                     # Traceback's history is its daily segment files: written
                     # to the old single file, a restore was gone at restart.
                     tb_obj = hass.data.get(DOMAIN, {}).get(DATA_TRACEBACK)
-                    if tb_obj is not None and hasattr(tb_obj, "async_replace"):
-                        await tb_obj.async_replace(data)
+                    if tb_obj is not None and hasattr(tb_obj, "async_merge"):
+                        # Joined by timestamp: replacing it erased every
+                        # movement recorded since the backup was taken.
+                        await tb_obj.async_merge(data)
                         restored += 1
                         continue
                 if store_key == HOUSE3D_STORE_KEY:
