@@ -3613,7 +3613,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "x_m": pin.get("x_m"),
                     "y_m": pin.get("y_m"),
                     "floor_id": pin.get("floor_id", ""),
-                    "room": pin.get("room", ""),
+                    # The live pass applies a pin's room only when it is a real
+                    # room (legacy pins hold a device label there); anything
+                    # else would put a phantom room into k-NN's room vote.
+                    "room": pin.get("room", "") if pin.get("room") == obj.get("room") else "",
                     "label": f"[auto] {obj.get('user_label') or key}",
                     "device_id": key,
                     "duration_s": 10,
@@ -3633,11 +3636,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         Uses fabric beacon positions (metres) when available.
         Falls back to map fracs from beacon dict.
+
+        Only a real fingerprint goes in: the raw samples the auto-calibration
+        has buffered, with the same per-scanner and scanner-count minimums.
+        One smoothed reading per scanner was saved as one scanner's single
+        reading — the auto point AUTOCAL_HYGIENE deletes — on every map save
+        that carried beacons (Restore from backup, migration Revert).
         """
         cal_store = self.hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
         if not cal_store:
             return 0
         _model = self.hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        from .calibration_store import MIN_SCANNER_SAMPLES  # noqa: PLC0415
 
         injected = 0
         now = time.monotonic()
@@ -3645,23 +3655,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             key = bk.get("key", "")
             if not key:
                 continue
-            smoothed_rssi = dict(self._ema_rssi.get(key, {}))
-            if not smoothed_rssi:
-                smoothed_rssi = dict(self._ema_rssi.get(key.upper(), {}))
-            if not smoothed_rssi:
-                obj = self._known_objs.get(key) or {}
-                smoothed_rssi = obj.get("_source_rssi") or {}
-            if not smoothed_rssi:
+            ready = {src: list(lst) for src, lst in (self._beacon_autocal_buf.get(key) or {}).items()
+                     if len(lst) >= MIN_SCANNER_SAMPLES}
+            if len(ready) < _KNN_MIN_LIVE_SCANNERS:
                 continue
-            self._beacon_autocal_last[key] = now
             _pt: dict[str, Any] = {
                 "floor_id": floor_id,
                 "label": f"[auto] {(self._known_objs.get(key) or {}).get('user_label') or key}",
                 "device_id": key,
                 "duration_s": 10,
                 "scanner_readings": [
-                    {"source": src, "rssi_samples": [rssi]}
-                    for src, rssi in smoothed_rssi.items()
+                    {"source": src, "rssi_samples": samples}
+                    for src, samples in ready.items()
                 ],
             }
             # Fabric beacon position (metres, primary)
@@ -3680,6 +3685,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _pt["room"] = _fb.get("room", "")
             else:
                 continue
+            self._beacon_autocal_last[key] = now
+            self._beacon_autocal_buf[key] = {}
             try:
                 await cal_store.async_add_point(_pt)
                 await cal_store.async_prune_auto_points(max_per_beacon=50)
