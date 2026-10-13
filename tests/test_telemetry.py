@@ -1391,3 +1391,42 @@ def test_the_readme_and_the_panel_say_the_load_sections_go():
     assert "how hard the machine" in settings and "what class of machine it is" in settings
     panel = (root / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "panel.js").read_text(encoding="utf-8")
     assert "how hard the machine works and what class of machine it is" in panel
+
+
+def test_the_first_report_after_a_start_waits_for_a_steady_window(monkeypatch):
+    """Sent 10 minutes after every start, half of all reports were a few
+    minutes of Home Assistant starting, and every first report on a new
+    version was one. It waits for 6 hours, unless the install has gone two
+    days without a report."""
+    import sys
+    import types
+    ev = types.ModuleType("homeassistant.helpers.event")
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    later = []
+    ev.async_call_later = lambda h, d, cb: later.append((d, cb)) or (lambda: None)
+    ev.async_track_time_interval = lambda h, cb, i: (lambda: None)
+    sent = []
+
+    async def _send(h, **kw):
+        sent.append(1)
+        return {"sent": True}
+
+    monkeypatch.setattr(T, "send_now", _send)
+    import datetime as _dt
+    for last, expect_now in ((T._today(), False),
+                             ((_dt.date.fromisoformat(T._today()) - _dt.timedelta(days=1)).isoformat(), False),
+                             ((_dt.date.fromisoformat(T._today()) - _dt.timedelta(days=2)).isoformat(), True),
+                             ("", True)):
+        h = _hass()
+        h.data[DOMAIN].pop(T._DATA_UNSUBS, None)
+        h.data[DOMAIN][DATA_SETTINGS].data["telemetry_last_day"] = last
+        later.clear(); sent.clear()
+        T.async_setup_telemetry(h)
+        assert later[0][0] == T._FIRST_DELAY_S
+        _run(later[0][1]())
+        if expect_now:
+            assert sent == [1] and len(later) == 1, last
+        else:
+            assert sent == [] and later[1][0] == T._STEADY_S - T._FIRST_DELAY_S, last
+            _run(later[1][1]())
+            assert sent == [1], last

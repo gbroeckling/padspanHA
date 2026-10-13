@@ -78,7 +78,7 @@ import math
 import re
 import time
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -103,6 +103,15 @@ STATS_URL = "https://padspan.traks.ca/api/stats.php"
 SCHEMA = 1
 _INTERVAL = timedelta(hours=24)
 _FIRST_DELAY_S = 600           # after the update check, never during startup
+# The first minutes after a start describe the start, not the day. Sent at
+# _FIRST_DELAY_S, half of all reports were a few minutes of Home Assistant
+# starting, and since an update is a restart, every first report on a new
+# version was one. After a start the report waits for _STEADY_S of samples,
+# unless the install has gone _STALE_DAYS without one: one that restarts
+# more often than that still reports, with the short window its uptime
+# bucket ("<1h") marks.
+_STEADY_S = 6 * 3600
+_STALE_DAYS = 2
 _DATA_UNSUBS = "_telemetry_unsubs"
 _DATA_COUNTERS = "telemetry_counters"
 _DATA_STARTED = "_telemetry_started_mono"
@@ -1385,6 +1394,16 @@ def _today() -> str:
     return time.strftime("%Y-%m-%d", time.gmtime())
 
 
+def _days_since_report(hass: HomeAssistant) -> int:
+    """Whole UTC days since the last report went (a large number: never)."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    try:
+        last = date.fromisoformat(str((st.data if st else {}).get("telemetry_last_day") or ""))
+        return (date.fromisoformat(_today()) - last).days
+    except ValueError:
+        return 10_000
+
+
 async def ensure_snapshot(hass: HomeAssistant) -> None:
     """Make sure there IS a snapshot to read the environment from.
 
@@ -1510,8 +1529,16 @@ def async_setup_telemetry(hass: HomeAssistant) -> None:
         if enabled(hass):
             await send_now(hass)
 
+    async def _first(_now: Any = None) -> None:
+        if _days_since_report(hass) >= _STALE_DAYS:
+            await _run()
+            return
+        unsubs = hass.data.get(DOMAIN, {}).get(_DATA_UNSUBS)
+        if unsubs is not None:          # not stopped meanwhile
+            unsubs.append(async_call_later(hass, _STEADY_S - _FIRST_DELAY_S, _run))
+
     dom[_DATA_UNSUBS] = [
-        async_call_later(hass, _FIRST_DELAY_S, _run),
+        async_call_later(hass, _FIRST_DELAY_S, _first),
         async_track_time_interval(hass, _run, _INTERVAL),
     ]
 
