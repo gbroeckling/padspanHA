@@ -23,7 +23,7 @@ ever see 1-2 historical samples; MIN_SAMPLES below is the line between
 "trust this" and "say nothing for this slot" rather than confidently
 inventing a schedule from a single fluke.
 
-THE DECISION: decide_states draws a weighted random per (entity, tick)
+THE DECISION: decide_states draws a weighted random per (entity, window, day)
 against probability × (intensity / 100) — not a fixed replay of whatever
 happened most often. That is what "a bit more random" actually asks for:
 a real house doesn't do the identical thing at the identical minute every
@@ -50,7 +50,6 @@ decide_states — which carry the actual logic and are fully unit tested.
 """
 
 import logging
-import random
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -241,11 +240,20 @@ def entity_exclusions(changes: list[tuple[float, str]], periods: list, now_ts: f
     return out
 
 
+def _window_draw(entity_id: str, at: datetime, key: str) -> float:
+    """One number in [0, 1) per light per schedule window per day. A fresh
+    draw on every 5-minute tick made a light below 100% intensity flip
+    on and off all evening (24 switches in 4 hours at 50%)."""
+    import hashlib  # noqa: PLC0415
+    h = hashlib.blake2b(f"{entity_id}|{at.date().isoformat()}|{key}".encode(), digest_size=8).digest()
+    return int.from_bytes(h, "big") / 2 ** 64
+
+
 def decide_states(
     pattern: dict[str, dict[str, float]],
     at: datetime,
     intensity_pct: float,
-    rand_fn=random.random,
+    rand_fn=None,
 ) -> dict[str, bool]:
     """One decision per entity that has a real probability for `at`'s
     bucket — entities with no data for this slot are left out entirely
@@ -263,7 +271,8 @@ def decide_states(
             prob = buckets.get(any_key)       # this weekday too thin: any day
         if prob is None:
             continue
-        out[entity_id] = rand_fn() < (prob * intensity)
+        draw = rand_fn() if rand_fn is not None else _window_draw(entity_id, at, key)
+        out[entity_id] = draw < (prob * intensity)
     return out
 
 

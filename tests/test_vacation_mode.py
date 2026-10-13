@@ -781,3 +781,15 @@ async def test_the_upgrade_stamp_is_set_only_where_vacation_mode_ran(monkeypatch
                                       async_save=AsyncMock(side_effect=lambda d: saved.update(d)))
         data = await store.async_load()
         assert (data["vacation_mode_tracked_since"] > 0) is stamped, loaded
+
+
+def test_a_light_below_full_intensity_holds_its_decision_for_the_window():
+    """A fresh draw every 5-minute tick flipped a 50% light on and off all
+    evening; within one schedule window the decision holds."""
+    from datetime import datetime, timedelta
+    from custom_components.padspan_ha.vacation_mode import WINDOW_MINUTES, bucket_key
+    at0 = datetime(2026, 10, 13, 19, 0)
+    pattern = {"light.a": {bucket_key(at0): 1.0}}
+    seen = {decide_states(pattern, at0 + timedelta(minutes=m), 50).get("light.a")
+            for m in range(0, WINDOW_MINUTES, 5)}
+    assert len(seen) == 1
