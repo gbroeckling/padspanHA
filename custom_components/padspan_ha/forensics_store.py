@@ -53,6 +53,12 @@ SAVE_INTERVAL_S = 300       # write .storage at most every 5 minutes
 # every ~15 min, so the addr cap is what bounds disk/RAM.  5000 addrs × 50
 # sessions ≈ low-single-digit MB of JSON worst case (int timestamps).
 MAX_SESSIONS_PER_ADDR = 50
+# The per-address cap grows with the retention chosen: a fixed 50 dropped a
+# car that visits four times a day after 12 days, inside a 30-day retention,
+# while the search said its list was the complete answer. Rotating addresses
+# rarely pass a handful of sessions, so this only matters for the few devices
+# that keep one address and come and go often.
+SESSIONS_PER_DAY = 12
 MAX_ADDRS = 5000
 MAX_SOURCES_PER_SESSION = 8
 RETENTION_CHOICES = (7, 14, 30, 60, 90)
@@ -139,8 +145,9 @@ class ForensicsStore:
                         srcs.append(s)
             else:
                 sessions.append([now, now, rssi, sorted(m["sources"])[:MAX_SOURCES_PER_SESSION]])
-                if len(sessions) > MAX_SESSIONS_PER_ADDR:
-                    del sessions[0 : len(sessions) - MAX_SESSIONS_PER_ADDR]
+                cap = getattr(self, "_session_cap", MAX_SESSIONS_PER_ADDR)
+                if len(sessions) > cap:
+                    del sessions[0 : len(sessions) - cap]
         if merged:
             self._dirty = True
         return len(merged)
@@ -151,6 +158,7 @@ class ForensicsStore:
         """Drop sessions past retention and enforce the address cap."""
         now = now if now is not None else time.time()
         cutoff = now - retention_days * 86400
+        self._session_cap = max(MAX_SESSIONS_PER_ADDR, SESSIONS_PER_DAY * int(retention_days))
         removed = 0
         for addr in list(self.addrs):
             sessions = self.addrs[addr].get("sessions") or []

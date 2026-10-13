@@ -77,3 +77,24 @@ def test_dump_devices_honours_notify_false_and_has_no_target():
 def test_a_padspan_device_can_be_deleted_from_its_page():
     import custom_components.padspan_ha as pkg
     assert asyncio.run(pkg.async_remove_config_entry_device(MagicMock(), MagicMock(), MagicMock())) is True
+
+
+def test_forensics_keeps_a_frequent_visitor_for_the_whole_retention():
+    """A fixed 50-session cap dropped a car that visits four times a day after
+    12 days, inside a 30-day retention, and the search then called the list
+    complete. The cap grows with the retention chosen."""
+    from unittest.mock import AsyncMock
+    from custom_components.padspan_ha.forensics_store import ForensicsStore
+    s = ForensicsStore.__new__(ForensicsStore)
+    s.hass = MagicMock(); s.store = AsyncMock(); s.addrs = {}; s._dirty = False; s._last_save_ts = 0.0
+    car = "AA:BB:CC:DD:EE:01"
+    day0 = 1_760_000_000
+    s.prune(30, now=day0)                      # the 60 s tick sets the cap from the retention
+    for d in range(20):
+        for visit in range(4):
+            start = day0 + d * 86400 + visit * 6 * 3600
+            for m in range(3):
+                s.record_sightings([{"address": car, "rssi": -70, "source": "s1", "age_s": 1}], now=start + m * 60)
+    s.prune(30, now=day0 + 20 * 86400)
+    assert len(s.addrs[car]["sessions"]) == 80
+    assert [x["address"] for x in s.query(day0 + 3 * 86400, day0 + 4 * 86400)] == [car]
