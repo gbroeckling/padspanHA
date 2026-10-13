@@ -29,7 +29,7 @@ _VIEWS = _PKG / "www" / "padspan-ha" / "views"
 _NODE = shutil.which("node")
 
 _DRIVER = r"""
-import { tuneSavePlanInit, tuneBeaconWrites, tuneBeaconBaseline } from 'PLAN';
+import { tuneSavePlanInit, tuneBeaconWrites, tuneBeaconBaseline, tuneBeaconMoves } from 'PLAN';
 import { mapFracToMetres, metresToMapFrac } from 'STACK';
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 const tf = { origin_x_m: 0, origin_y_m: 0, scale_x_m: 20, scale_y_m: 10,
@@ -55,6 +55,19 @@ out.dup = tuneBeaconWrites(map, [rows[2], { ...rows[2], x: 0.9 }], { m: tf }, {}
 out.draggedPhone = tuneBeaconWrites(map, [{ ...rows[3], x: 0.1, y: 0.1, _tracked: true }], { m: tf }, base);
 // Nothing changed on a map with no metre placement: not refused.
 out.unplacedNothing = tuneBeaconWrites(map, [rows[0]], { m: {} }, base);
+// Placed from the Available list (no auto-pinned row, no baseline): what the
+// device is decides, not which way its row was made.
+out.placedPhone = tuneBeaconWrites(map, [{ key: 'ble:IRK', label: 'Phone', kind: 'private_ble', x: 0.3, y: 0.3 }], { m: tf }, {});
+out.placedEntity = tuneBeaconWrites(map, [{ key: 'entity:tracker', label: 'Keys', kind: 'entity', x: 0.3, y: 0.3 }], { m: tf }, {});
+out.placedFollowed = tuneBeaconWrites(map, [{ key: 'ibeacon:app', label: 'Phone app', kind: 'ibeacon', x: 0.3, y: 0.3 }],
+  { m: tf }, {}, new Set(['ibeacon:app']));
+// A fixed beacon shown at its room's centre, then dragged: written.
+out.draggedBeacon = tuneBeaconWrites(map, [{ ...rows[0], x: 0.6 }], { m: tf }, base, new Set());
+out.moves = {
+  phone: tuneBeaconMoves({ kind: 'private_ble' }), findMy: tuneBeaconMoves({ kind: 'private_ble', findmy: true }),
+  entity: tuneBeaconMoves({ kind: 'entity' }), followed: tuneBeaconMoves({ kind: 'ibeacon' }, true),
+  ibeacon: tuneBeaconMoves({ kind: 'ibeacon' }, false), ble: tuneBeaconMoves({ kind: 'ble' }, false),
+};
 console.log(JSON.stringify(out));
 """
 
@@ -114,6 +127,23 @@ class TestBeaconTuneWrites:
         out = _run()["unplacedNothing"]
         assert out["refused"] is False and out["writes"] == []
 
+    def test_a_phone_or_tag_placed_from_the_list_is_never_pinned(self):
+        """Only rows the auto-pin made were skipped, and with no room polygon
+        it made none: every labelled phone or tag placed from the Available
+        list was pinned, its room locked there and auto-calibration points
+        added at the pin while it was elsewhere."""
+        out = _run()
+        for k in ("placedPhone", "placedEntity", "placedFollowed"):
+            assert out[k]["writes"] == [], k
+
+    def test_a_fixed_beacon_moved_from_its_room_centre_is_pinned(self):
+        out = _run()["draggedBeacon"]
+        assert [w["key"] for w in out["writes"]] == ["ibeacon:fixed"]
+
+    def test_phones_tags_trackers_and_followed_devices_move_beacons_do_not(self):
+        assert _run()["moves"] == {"phone": True, "findMy": True, "entity": True,
+                                   "followed": True, "ibeacon": False, "ble": False}
+
 
 class TestBeaconTuneIsWired:
     """The view side, read from source: the pure helper is no use if the
@@ -128,6 +158,16 @@ class TestBeaconTuneIsWired:
         auto = self.SRC[self.SRC.index("async function _autoSaveAndStartTimer("):]
         assert "_saveBeacons([mapId])" in auto[:auto.index("_startLiveTimer")]
         assert "await _saveBeacons(dirtyIds)" in self.SRC
+
+    def test_the_save_judges_every_row_by_its_device(self):
+        """Only rows the auto-pin marked were skipped (_tracked): a phone
+        placed from the list was pinned, and a fixed beacon the auto-pin
+        showed could never be - Relocate or a drag saved nothing."""
+        assert "_tracked: true" not in self.SRC
+        body = self.SRC[self.SRC.index("async function _saveBeacons("):]
+        body = body[:body.index("\n  }\n")]
+        assert "tuneBeaconMoves(o, _isFollowed(o) || ctx.actions.followedHas(b.key))" in body
+        assert "bs.editBaseline[mapId], moving)" in body
 
     def test_the_empty_save_loop_is_gone(self):
         assert not re.search(r"if \(!origMap\) continue;\s*\}\s*bs\.dirtyMaps = \{\};", self.SRC)
