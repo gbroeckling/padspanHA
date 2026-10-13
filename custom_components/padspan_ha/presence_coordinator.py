@@ -645,9 +645,10 @@ async def async_send_follow_notify(
         last_err: Exception | None = None
         if preferred in entity_ids and has_send_message:
             try:
+                # Message, title and the entity only: send_message refuses any
+                # other key ("extra keys not allowed @ data['target']"), so an
+                # email filled in as well failed every alert to the entity.
                 payload = {**alert_data, "entity_id": preferred}
-                if email:
-                    payload["target"] = email
                 await hass.services.async_call("notify", "send_message", payload)
                 return preferred
             except Exception as err:  # noqa: BLE001 — reported below

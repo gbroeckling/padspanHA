@@ -84,6 +84,23 @@ async def test_the_test_button_uses_send_message_for_a_real_entity():
     assert calls == [("notify", "send_message")]
 
 
+@pytest.mark.asyncio
+async def test_an_entity_target_with_an_email_too_gets_no_target_key():
+    """notify.send_message takes the message, title and entity only: with the
+    email filled in as well, `target` was added and HA refused every alert
+    ("extra keys not allowed @ data['target']")."""
+    def _calls(hass):
+        return [(c.args[0], c.args[1], sorted(c.args[2])) for c in hass.services.async_call.call_args_list]
+    want = [("notify", "send_message", ["entity_id", "message", "title"])]
+    coord = _with_send_message(_make_coordinator({ADDR: {
+        "on_arrive": True, "email": "me@example.com", "notify_service": "notify.smtp_home"}}), ["notify.smtp_home"])
+    await coord._run_automations({f"ble:{ADDR}"}, set(), RESULT, now=1000.0)
+    assert _calls(coord.hass) == want
+    hass = _ws_hass(["notify.smtp_home"])
+    await ws_notify.ws_notify_test(hass, MagicMock(), {"id": 1, "service": "notify.smtp_home", "email": "me@example.com"})
+    assert _calls(hass) == want
+
+
 # ── The Test button sends the way an alert does (one dispatch) ───────────────
 # It fell back to auto-pick for any choice that was not a notify entity or
 # legacy service: a renamed phone's Test went to the first notify service and
