@@ -2550,15 +2550,6 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             obj_copy.pop("current_address", None)
             base_age = cached_obj.get("_cache_age_s") or 0
             obj_copy["age_s"] = base_age + stale_s
-            # An HA entity (Bermuda, a device_tracker) that no longer reports
-            # a room has left: replayed with its old room it stayed "present"
-            # there for as long as the history keeps it (forever, labelled) -
-            # it never ages out, since only radio objects have an age to judge.
-            if obj_copy.get("kind") == "entity":
-                if obj_copy.get("room"):
-                    obj_copy["last_room"] = obj_copy["room"]
-                obj_copy["room"] = ""
-                obj_copy["away"] = True
             # Update per-source age_s values too (they were frozen at cache time)
             if obj_copy.get("sources"):
                 obj_copy["sources"] = [
