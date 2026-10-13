@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.115 — A cleaner opt-in report view (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Developer view
+- **Changed:** Install Base, the developer's view of what the opt-in reports add up to, is laid out as a numbered report with readable bar charts, percentages next to counts and a table view for every chart. It now asks for a PIN first. It is only on the developer's menu; nothing changes for anyone else.
+
+---
+
 ## 0.38.114 — Calibration tools that do what they say, walls that keep their doors, and WLED that can always go back (2026-10-12)
 
 ### Before you update
