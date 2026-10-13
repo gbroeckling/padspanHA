@@ -179,6 +179,26 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.120</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">13 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Refresh the PadSpan page</b> in every browser and on any wall screen after updating.</li>
+          <li>Tasmota devices on an ESP32 (smart plugs, Sonoff switches) can be used as Bluetooth scanners. Turn it on in <b>Manage → Tasmota BLE</b> (needs Home Assistant's MQTT integration) and place each one in its room like any other scanner.</li>
+          <li>Tasmota's defaults aren't made for room presence. On each device, run <code>TelePeriod 10</code>, <code>BLEMaxAge 30</code> and <code>BLEAddrFilter 1</code> in its console; without the last one, phones and tags that use random addresses are never reported.</li>
+          <li><b>Fixed:</b> one failed disk read while Home Assistant starts can no longer replace your rooms, maps, settings (licence key, followed devices, IRKs) or calibration with defaults. The file is left untouched and read again at the next start.</li>
+          <li><b>Fixed:</b> one store failing to load no longer stops the others loading.</li>
+          <li><b>Fixed:</b> a Bermuda device is one object again. Its Area, Floor and per-scanner sensors each became an object of their own, sometimes in different rooms. This may also be what made snapshot builds slow on some Bermuda installs.</li>
+          <li><b>Fixed:</b> Ignore Bermuda now really ignores it.</li>
+          <li><b>Fixed:</b> ordinary sensors whose names happen to contain "tag" or "ble" (a kitchen voltage sensor, a dining table occupancy sensor) are no longer tracked as devices.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.119</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">12 October 2026</span>

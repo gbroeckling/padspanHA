@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.120",
+  "title": "Tasmota scanners, and no lost setup after a bad disk read",
+  "date": "2026-10-13",
+  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### New: Tasmota BLE (experimental, off by default)\n- Tasmota devices on an ESP32 (smart plugs, Sonoff switches) can be used as Bluetooth scanners. Turn it on in **Manage → Tasmota BLE** (needs Home Assistant's MQTT integration) and place each one in its room like any other scanner.\n- Tasmota's defaults aren't made for room presence. On each device, run `TelePeriod 10`, `BLEMaxAge 30` and `BLEAddrFilter 1` in its console; without the last one, phones and tags that use random addresses are never reported.\n\n### Fixes\n- **Fixed:** one failed disk read while Home Assistant starts can no longer replace your rooms, maps, settings (licence key, followed devices, IRKs) or calibration with defaults. The file is left untouched and read again at the next start.\n- **Fixed:** one store failing to load no longer stops the others loading.\n- **Fixed:** a Bermuda device is one object again. Its Area, Floor and per-scanner sensors each became an object of their own, sometimes in different rooms. This may also be what made snapshot builds slow on some Bermuda installs.\n- **Fixed:** Ignore Bermuda now really ignores it.\n- **Fixed:** ordinary sensors whose names happen to contain \"tag\" or \"ble\" (a kitchen voltage sensor, a dining table occupancy sensor) are no longer tracked as devices."
+ },
+ {
   "version": "0.38.119",
   "title": "Fixing what the fixes broke",
   "date": "2026-10-12",
@@ -28,11 +34,5 @@
   "title": "A cleaner opt-in report view",
   "date": "2026-10-12",
   "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Developer view\n- **Changed:** Install Base, the developer's view of what the opt-in reports add up to, is laid out as a numbered report with readable bar charts, percentages next to counts and a table view for every chart. It now asks for a PIN first. It is only on the developer's menu; nothing changes for anyone else."
- },
- {
-  "version": "0.38.114",
-  "title": "Calibration tools that do what they say, walls that keep their doors, and WLED that can always go back",
-  "date": "2026-10-12",
-  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser and on any wall screen after updating.\n\n### Calibration\n- **Fixed:** Settings → per-map **Clear (N)** now deletes those points. It deleted nothing and said \"Cleared 0\", and the points stopped showing on the map while still steering positioning.\n- **Fixed:** importing the same calibration file twice no longer saves every point again. Imported points keep the date they were collected, and Import shows up on an install with no points yet, which is when you need it.\n- **Fixed:** Beacon Tune's \"replace old data\" step saves the new reading first. If that save failed, the beacon's old data was already deleted.\n- **Fixed:** Replace Scanner and Relearn Radio take effect right away when you use the Random Forest. Before, they waited for the next point or a restart. Replace also no longer gives a point two readings from the same scanner.\n- **Fixed:** restoring maps from a backup no longer adds a junk one-scanner calibration point for every live beacon. Pinned-beacon auto points no longer pick up a device name as their room.\n\n### Maps and rooms\n- **Fixed:** dragging a wall in the Rooms editor keeps its linked door or window sensor, opener, lock and Invert.\n- **Fixed:** Add room and Delete room keep your other unsaved Rooms-editor changes.\n- **Fixed:** cropping, rotating or replacing a floor plan no longer pulls other floors' scanners and beacons onto it.\n- **Fixed:** a floor Home Assistant removes keeps its heights while PadSpan still has rooms on it.\n- **Fixed:** a newly placed light keeps the normal marker size and wall inset. It used to shrink to half size when you pressed Save. Lights you have already placed keep their current size.\n\n### WLED\n- **Fixed:** deleting PadSpan now gives every WLED light it runs its own sync settings back. Before, those lights kept sync switched off for good.\n- **Fixed:** restoring an older backup no longer forgets which lights PadSpan runs or their original sync settings.\n- **Fixed:** without a licence, one offline light no longer stops the rest of its team switching.\n- **Fixed:** if the licence lapses, a team PadSpan runs can be given back to WLED sync from the light's card."
  }
 ]
