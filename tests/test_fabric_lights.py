@@ -70,6 +70,25 @@ async def test_a_light_is_placed_in_metres_with_no_map_involved() -> None:
 
 
 @pytest.mark.asyncio
+async def test_a_fresh_drop_keeps_the_default_size_and_inset() -> None:
+    """The map sends width/height 0 for the default marker and no margin for
+    the scale-aware inset; stored, they came back as a 1 cm fixture (drawn at
+    half size) and a 0 cm inset (right on the wall line)."""
+    mdl, fab = _mdl(), _fab()
+    mdl.fabric = fab
+    await ws_fabric_light_position_set(_hass(mdl), MagicMock(), {
+        "id": 1, "entity_id": "light.kitchen", "x_m": 1.0, "y_m": 2.0,
+        "floor_id": "main", "color": "#fbbf24", "rotation": 0, "width_cm": 0, "height_cm": 0,
+    })
+    entry = mdl.light_positions_m()["light.kitchen"]
+    assert "width_cm" not in entry and "height_cm" not in entry and "margin_cm" not in entry
+    await ws_fabric_light_position_set(_hass(mdl), MagicMock(), {
+        "id": 2, "entity_id": "light.kitchen", "x_m": 1.0, "y_m": 2.0, "margin_cm": 0,
+    })
+    assert mdl.light_positions_m()["light.kitchen"]["margin_cm"] == 0.0   # a chosen 0 stays
+
+
+@pytest.mark.asyncio
 async def test_only_light_entities_are_accepted() -> None:
     mdl, fab = _mdl(), _fab()
     mdl.fabric = fab

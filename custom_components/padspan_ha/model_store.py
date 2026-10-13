@@ -1334,7 +1334,8 @@ class ModelStore:
     async def async_set_light_position_m(
         self, entity_id: str, x_m: float, y_m: float, floor_id: str,
         color: str = "", shape: str = "", rotation: float = 0.0,
-        width_cm: float = 0.0, height_cm: float = 0.0, margin_cm: float = 0.0,
+        width_cm: float | None = None, height_cm: float | None = None,
+        margin_cm: float | None = None,
         label: str = "", z_m: Any = KEEP_HEIGHT,
     ) -> None:
         """Place a light in real-world metres — the only way a light is placed.
@@ -1353,6 +1354,15 @@ class ModelStore:
         entry.update(light_appearance(color=color, shape=shape, rotation=rotation,
                                       width_cm=width_cm, height_cm=height_cm,
                                       margin_cm=margin_cm))
+        # The map sends a size of 0 for "the default marker" and leaves the
+        # margin out for the scale-aware inset. Stored, those came back as a
+        # real 1 cm fixture (drawn at half size) and a 0 cm inset (on the wall
+        # line), so they stay unset, as a migrated light's are.
+        for k, v in (("width_cm", width_cm), ("height_cm", height_cm)):
+            if not v:
+                entry.pop(k, None)
+        if margin_cm is None:
+            entry.pop("margin_cm", None)
         if label:
             entry["label"] = str(label)[:120]
         if z_m is not KEEP_HEIGHT:
