@@ -2890,6 +2890,12 @@ function _settingsLicence(ctx, el){
     line = "\u26A0 " + (isTrial ? "Your 90-day trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
            " \u2014 paid editing is off. Everything you already built is still here, still readable and still exportable.";
     colour = "#fbbf24";
+  } else if (typeof daysLeft === "number" && daysLeft < 0) {
+    // Expired but inside the grace period: still working, not for long.
+    const graceLeft = 14 + daysLeft;
+    line = "\u26A0 " + (isTrial ? "Your trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
+           " \u2014 paid editing stops in " + graceLeft + " day" + (graceLeft === 1 ? "" : "s") + ".";
+    colour = "#fbbf24";
   } else if (isTrial) {
     line = "\u2713 Trial active \u00B7 " + daysLeft + " day" + (daysLeft === 1 ? "" : "s") + " left" +
            (exp ? " (" + exp + ")" : "") + ". Buy anytime to keep editing after it ends \u2014 nothing is lost either way.";

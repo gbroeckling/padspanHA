@@ -246,8 +246,11 @@ def _pro_expiry_state(hass: HomeAssistant) -> dict[str, Any]:
             exp = _dt.fromisoformat(expires.replace("Z", "+00:00"))
             if exp.tzinfo is None:
                 exp = exp.replace(tzinfo=_tzinfo.utc)
-            days_left = (exp - _dt.now(_tzinfo.utc)).days
-            active = days_left > -PRO_GRACE_DAYS
+            from datetime import timedelta as _td  # noqa: PLC0415
+            left = exp - _dt.now(_tzinfo.utc)
+            days_left = left.days
+            # .days rounds down, so comparing it cut the grace to 13 days.
+            active = left > -_td(days=PRO_GRACE_DAYS)
         except Exception:
             days_left = None      # unreadable date → treat as non-expiring
     return {"has_key": has_key, "active": active, "expires": expires, "days_left": days_left}

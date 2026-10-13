@@ -1015,3 +1015,47 @@ def test_the_pull_is_read_only_private_and_uses_the_existing_telegram_sender():
     assert "CHAT=8841564535" in src, "the Telegram sender is no longer Garry's chat only"
     # The copy here is replaced whole each night, never accumulated.
     assert 'mv -f "$T_DEST/.testers.json.new" "$T_DEST/testers.json"' in block
+
+
+@pytest.mark.parametrize("live_key,backup_key,expect", [
+    ("PSPAN-PAID", "", "PSPAN-PAID"),           # bought after the backup
+    ("PSPAN-PAID", "PSPAN-TRIAL", "PSPAN-PAID"),  # trial key in the backup
+    ("", "PSPAN-OLD", "PSPAN-OLD"),             # a fresh install takes the backup's
+])
+def test_a_restore_keeps_the_live_licence(monkeypatch, live_key, backup_key, expect):
+    """Restoring a backup from before a purchase blanked the key (or put an
+    expired trial key back) and locked paid editing."""
+    import homeassistant.helpers.storage as _hs
+    from custom_components.padspan_ha import ws_backup
+    from custom_components.padspan_ha.const import SETTINGS_STORE_KEY
+    _FakeStore.saved = {}
+    monkeypatch.setattr(_hs, "Store", _FakeStore)
+    bk = {"backups": [{"id": "bk1", "created_at": "2026-01-01T00:00:00+00:00", "version": "0.38.80",
+                       "note": "", "map_images": {},
+                       "stores": {SETTINGS_STORE_KEY: {"quiet_mode": True, "forensics_license_key": backup_key,
+                                                       "license_is_trial": bool(backup_key)}}}]}
+
+    async def _load(_hass):
+        return bk
+
+    monkeypatch.setattr(ws_backup, "_load_backups", _load)
+    h = _house()
+    h.data[DOMAIN][DATA_SETTINGS].data.update(forensics_license_key=live_key, license_is_trial=False)
+    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), {"id": 1, "backup_id": "bk1",
+                                                              "store_keys": [SETTINGS_STORE_KEY]}))
+    after = h.data[DOMAIN][DATA_SETTINGS].data
+    assert after["quiet_mode"] is True, "the restore did not run"
+    assert after["forensics_license_key"] == expect
+
+
+def test_a_factory_reset_keeps_the_licence_tier(monkeypatch):
+    """The key, expiry and trial flag were kept but not the tier, and a key
+    with no tier reads as Pro: a Bright Pro key came back as Pro."""
+    import homeassistant.helpers.storage as _hs
+    from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
+    _FakeStore.saved = {}
+    monkeypatch.setattr(_hs, "Store", _FakeStore)
+    h = _house()
+    h.data[DOMAIN][DATA_SETTINGS].data.update(forensics_license_key="PSPAN-B", license_tier="bright")
+    _run(ws_factory_reset(h, MagicMock(), {"id": 1, "confirm": "FACTORY RESET"}))
+    assert h.data[DOMAIN][DATA_SETTINGS].data.get("license_tier") == "bright"

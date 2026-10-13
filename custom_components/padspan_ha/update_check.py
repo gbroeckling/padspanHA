@@ -151,9 +151,21 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         # the key: the grace window still applies, the user keeps their data,
         # and re-activating a reinstated licence restores everything.
         _LOGGER.warning("PadSpan Pro licence reported invalid by the licence server")
-        if not str(st.data.get("forensics_license_expires") or ""):
-            from homeassistant.util import dt as _dt_util  # noqa: PLC0415
-            await st.async_set(forensics_license_expires=_dt_util.utcnow().isoformat())
+        # Expired now unless it already has: a key with a date still ahead
+        # (an annual one, or a lifetime one stored as 2099) kept working
+        # after a refund until that date. One already past stays as it is,
+        # so repeated answers never stretch the grace period.
+        from datetime import datetime as _dt, timezone as _tz  # noqa: PLC0415
+        now = _dt.now(_tz.utc)
+        stored = str(st.data.get("forensics_license_expires") or "").strip()
+        try:
+            exp = _dt.fromisoformat(stored.replace("Z", "+00:00")) if stored else None
+            if exp is not None and exp.tzinfo is None:
+                exp = exp.replace(tzinfo=_tz.utc)
+        except ValueError:
+            exp = None
+        if exp is None or exp > now:
+            await st.async_set(forensics_license_expires=now.isoformat())
 
 
 def async_setup_update_check(hass: HomeAssistant) -> None:

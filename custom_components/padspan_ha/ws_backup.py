@@ -483,6 +483,19 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # its week (settings_store.trial_state_kept).
                             from .settings_store import trial_state_kept
                             data.update(trial_state_kept(store_obj.data or {}, data))
+                            # The licence on this install now stays: a backup
+                            # from before a purchase (or from a trial) blanked
+                            # the key or put the old one back, locking paid
+                            # editing. A fresh install with no key takes the
+                            # backup's (the rule bright_import uses).
+                            _live = store_obj.data or {}
+                            if str(_live.get("forensics_license_key") or "").strip():
+                                for _k in ("forensics_license_key", "forensics_license_expires",
+                                           "license_tier", "license_is_trial"):
+                                    if _k in _live:
+                                        data[_k] = _live[_k]
+                                    else:
+                                        data.pop(_k, None)
                             # WLED teams: their mode and the members' kept
                             # sync are the devices' state now (wled_exact).
                             from .wled_exact import restore_keeps_team_state

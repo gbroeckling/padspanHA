@@ -92,7 +92,7 @@ HOUSE_STORES: tuple[tuple[str, str], ...] = (
     ("settings", SETTINGS_STORE_KEY),
     ("house3d", HOUSE3D_STORE_KEY),   # Live Aboard (house3d_store.py); skipped when Bright has none
 )
-_LICENCE_KEYS = ("forensics_license_key", "forensics_license_expires", "license_tier")
+_LICENCE_KEYS = ("forensics_license_key", "forensics_license_expires", "license_tier", "license_is_trial")
 DONE_KEY = "bright_import_done"
 
 

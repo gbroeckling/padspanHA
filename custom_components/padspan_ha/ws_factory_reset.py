@@ -112,7 +112,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _live_settings = domain.get(DATA_SETTINGS)
         _keep_licence = {
             k: (_live_settings.data if _live_settings else {}).get(k, "")
-            for k in ("forensics_license_key", "forensics_license_expires", "license_is_trial")
+            for k in ("forensics_license_key", "forensics_license_expires", "license_is_trial", "license_tier")
         }
         # Vacation Mode's spans describe what is in HA's recorder, which a
         # PadSpan reset does not touch — a reset mid-vacation closes the span

@@ -94,3 +94,11 @@ def test_settings_payload_leaves_out_the_learned_vacation_patterns():
     assert "vacation_mode_pattern" not in out and "vacation_mode_pattern_prev" not in out
     assert out["vacation_mode_enabled"] is True
     assert "vacation_mode_pattern" in h.data[ws.DOMAIN][ws.DATA_SETTINGS].data, "the store itself keeps them"
+
+
+def test_the_grace_window_is_the_full_fourteen_days():
+    """.days rounds down: 13 days and an hour past expiry read as -14 and
+    stopped Pro a day early."""
+    h = _hass(forensics_license_key="PSPAN-AAAA",
+              forensics_license_expires=(datetime.now(timezone.utc) - timedelta(days=13, hours=1)).isoformat())
+    assert ws._padspan_pro_active(h) is True

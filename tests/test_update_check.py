@@ -97,3 +97,28 @@ async def test_a_server_that_does_not_name_the_plan_changes_nothing(monkeypatch)
     _server_says(monkeypatch, {"valid": True, "expires_at": "2026-12-27 00:00:00"})
     await _revalidate_license(hass)
     assert not st.async_set.called
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stored", ["2099-12-31 00:00:00", "2027-10-01T00:00:00+00:00", ""])
+async def test_a_revoked_key_expires_now_even_with_a_date_ahead(monkeypatch, stored):
+    """A refund or chargeback on an annual or lifetime key kept Pro on until
+    the stored date (2099 for lifetime)."""
+    from datetime import datetime, timezone
+    hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": stored})
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    st.async_set = AsyncMock()
+    _server_says(monkeypatch, {"valid": False})
+    await _revalidate_license(hass)
+    written = datetime.fromisoformat(st.async_set.call_args.kwargs["forensics_license_expires"])
+    assert abs((datetime.now(timezone.utc) - written).total_seconds()) < 60
+
+
+@pytest.mark.asyncio
+async def test_repeated_invalid_answers_never_stretch_the_grace(monkeypatch):
+    hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2026-01-01T00:00:00+00:00"})
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    st.async_set = AsyncMock()
+    _server_says(monkeypatch, {"valid": False})
+    await _revalidate_license(hass)
+    assert not st.async_set.called
