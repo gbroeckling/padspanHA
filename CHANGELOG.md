@@ -4,6 +4,27 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.113 — Phones keep their alerts, restores stick, and settings that did nothing say so (2026-10-12)
+
+### Before you update
+- **Refresh the PadSpan page** in every browser and on any wall screen after updating.
+
+### Follow alerts and presence
+- **Fixed:** alerts for a phone known by its IRK keep working after the phone changes its Bluetooth address, which phones do every 15 minutes or so. They used to stop after the first change.
+- **Fixed:** a tagged device coming home is no longer reported, alerted or tracked in the room it left from. It starts fresh from where it is heard.
+
+### Backups and factory reset
+- **Fixed:** restoring a backup now really restores Forensics, PadSpan's device list and the object history. Before, each was written back to its old state within seconds.
+- **Fixed:** a restored Traceback now survives a restart.
+- **Fixed:** factory reset now erases Traceback history completely, plus PadSpan's device list (so tags and labels don't come back), Lost & Found and Forensics, as its screen promises.
+
+### Settings
+- **Changed:** **Auto-Offset** never did anything: only the manual offset you save is applied, and the old advice to set manual to 0 left those scanners uncorrected. The Off/Partial/Full buttons are gone and each scanner shows a **suggested** offset you can type in.
+- **Changed:** in Manage → Beacon Signal Profiles, the per-beacon **Tune** switch never did anything and is gone. The other switch only shows or hides the report, and it now says so.
+- **Fixed:** Suspend All Databases and Resume now say when they didn't work (just after a restart) instead of reporting success.
+
+---
+
 ## 0.38.112 — Traceback records all day, and quieter, steadier alerts (2026-10-12)
 
 ### Before you update

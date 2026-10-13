@@ -10,12 +10,19 @@ released), **watching** (fixed; confirming from the field).
 
 | # | Area | What people saw | Cause | Fix | Release | Field signal | Status |
 |---|---|---|---|---|---|---|---|
-| 28 | Calibration | Scanner at a whole-metre height/position could not be saved again ("Saved N, failed 1") | Schema declared plain `float`; the browser sends 2.0 back as 2 | f7773235 | 0.38.112 | — | committed |
-| 27 | Phone wizard | Overview's phone Unfollow always showed Error; when it worked elsewhere the phone stayed labelled via its IRK | Schema refused the extra `device_name`; unfollow left the IRK canonical_id label | 0223c974 | 0.38.112 | — | committed |
-| 26 | Tag events | `padspan_room_change` never fired for followed BLE/IRK devices | Followed list holds addresses; compared against the object key | 16066183 | 0.38.112 | — | committed |
-| 25 | Alerts | Every restart sent "moved from unknown to X" per followed device | First room confirmation (old room None) treated as a move | cdbcb4fa | 0.38.112 | `follow_alert_sent` | committed |
-| 24 | Alerts | Room-change alerts never rate-limited (a tag on a boundary alerted every flip) | Cooldown read under `key`, written under `key:room` | 7b997d0b | 0.38.112 | `follow_alert_sent` | committed |
-| 23 | Traceback | No playback history for any time no PadSpan panel was open | Frames were recorded from the panel's snapshot request | 59f0089a | 0.38.112 | — | committed |
+| 35 | Sandbox / Settings | Sandbox rows did nothing; Suspend/Resume said they worked when the coordinator wasn't ready | Called a missing `navigate` action; ignored the handler's `{ok:false}` | a3d639bb | 0.38.113 | — | committed |
+| 34 | Settings | Auto-Offset and the Beacon Profile toggles changed nothing (and the help text said they did) | Nothing in the backend reads `auto_offset_mode`, `beacon_tune_disabled` or `beacon_profiling_enabled` | 40460818 | 0.38.113 | — | committed (screens made honest) |
+| 33 | Factory reset | Tagged devices came back labelled after a reset; Lost & Found and Forensics survived | Device registry, Lost & Found and Forensics weren't reset | 800e73e7 | 0.38.113 | — | committed |
+| 32 | Backup / reset | A restored Traceback vanished at restart; a factory reset's Traceback came back on reload | History lives in daily segment files; restore and reset only touched the legacy file | c2883af9 | 0.38.113 | — | committed |
+| 31 | Backup | Restoring Forensics, the device registry or the object history was undone at their next save | In-memory copies never reloaded (`.addrs`, `._devices`, plain dict) | c2883af9 | 0.38.113 | — | committed |
+| 30 | Presence | A tagged device coming home was reported in the room it left from | History replay kept it "present", so the re-entry reset never cleared old votes | 3fcd8a22 | 0.38.113 | `tagged_arrived` | committed |
+| 29 | Alerts | Alerts for an IRK phone stopped after its first address rotation (~15 min) | Config saved under the rotating address; lookups tried only key + current address | ef835776 | 0.38.113 | `follow_alert_sent` | committed |
+| 28 | Calibration | Scanner at a whole-metre height/position could not be saved again ("Saved N, failed 1") | Schema declared plain `float`; the browser sends 2.0 back as 2 | f7773235 | 0.38.112 | — | fixed |
+| 27 | Phone wizard | Overview's phone Unfollow always showed Error; when it worked elsewhere the phone stayed labelled via its IRK | Schema refused the extra `device_name`; unfollow left the IRK canonical_id label | 0223c974 | 0.38.112 | — | fixed |
+| 26 | Tag events | `padspan_room_change` never fired for followed BLE/IRK devices | Followed list holds addresses; compared against the object key | 16066183 | 0.38.112 | — | fixed |
+| 25 | Alerts | Every restart sent "moved from unknown to X" per followed device | First room confirmation (old room None) treated as a move | cdbcb4fa | 0.38.112 | `follow_alert_sent` | watching |
+| 24 | Alerts | Room-change alerts never rate-limited (a tag on a boundary alerted every flip) | Cooldown read under `key`, written under `key:room` | 7b997d0b | 0.38.112 | `follow_alert_sent` | watching |
+| 23 | Traceback | No playback history for any time no PadSpan panel was open | Frames were recorded from the panel's snapshot request | 59f0089a | 0.38.112 | — | fixed |
 | 21 | Backup | A restore reset every Lost & Found "last seen" | The Lost & Found store was never in a backup; a restore also wouldn't have reloaded it (its data is `records`) | 088b5303 | 0.38.111 | — | fixed |
 | 20 | Settings | Linger time could be set and did nothing | The linger logic was removed in 0.20.16 for a fixed 120 s grace; the card stayed | 3816e7af | 0.38.111 | — | fixed |
 | 19 | Alerts | A phone-only alert didn't appear in Manage's saved list | The list filtered on email | 7a56aeae | 0.38.110 | — | fixed |
@@ -40,13 +47,8 @@ released), **watching** (fixed; confirming from the field).
 
 ## Open leads
 
-- **IRK phone alerts stop after the first MAC rotation** (audit, reproduced): Follow saves the alert under the phone's current rotating address; lookups try the object key, then the current address.
-- **A tagged device that comes home is reported in the room it left from** (audit): history replay keeps it "present", so the re-entry reset never clears its old votes.
-- **Restore doesn't reload Forensics, the device registry or object history in memory** (audit, reproduced): their next save writes the old data back over the restored file.
-- **A restored Traceback is lost at the next restart** (audit, reproduced): restore writes the legacy file; history lives in daily segment files.
-- **Factory reset leaves Traceback history on disk** (audit, reproduced) — it returns after a reload; registry labels and Lost & Found also survive a reset.
-- **Auto-Offset and the Beacon Signal Profiles toggles do nothing** (audit): settings the UI shows as affecting positioning, read by nothing in the backend.
-- Minor: Sandbox feature rows call a missing `navigate`; Suspend/Resume toast success when the coordinator isn't ready.
+- **Bermuda builds of 1.4–18 s**: waiting for the per-phase timings (0.38.108+) from b222e30f, f6e4e364, eb3e9ecf, eee7d648, 300fbac3.
+- **IRKs silent on 12 of 22 installs**: looks like phones away or wrong keys, not the resolver. Not a bug yet.
 
 ### Earlier leads
 
