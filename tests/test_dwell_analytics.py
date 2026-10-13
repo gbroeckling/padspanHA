@@ -138,9 +138,12 @@ def test_occupancy_is_the_peak_at_one_moment_not_everyone_in_the_hour():
     assert out["occupancy"][day][hour]["Kitchen"] == 1
 
 
-def test_one_device_on_two_keys_is_one_in_the_room():
-    frames = [_frame(1000.0, [_obj("ibeacon:x", "Kitchen", n="Pixel"), _obj("irk:y", "Kitchen", n="Pixel")])]
+def test_one_device_on_two_keys_is_one_in_the_room_and_two_of_a_model_are_two():
+    one = dict(_obj("ibeacon:x", "Kitchen", n="Pixel"), pid="ps_1")
+    same = dict(_obj("irk:y", "Kitchen", n="Pixel"), pid="ps_1")
+    frames = [_frame(1000.0, [one, same, _obj("irk:a", "Office", n="iPhone"), _obj("irk:b", "Office", n="iPhone")])]
     out = compute_dwell_stats(frames, tz_name="UTC")
     day = out["days"][0]
     hour = list(out["occupancy"][day].keys())[0]
     assert out["occupancy"][day][hour]["Kitchen"] == 1
+    assert out["occupancy"][day][hour]["Office"] == 2     # by name they read as one

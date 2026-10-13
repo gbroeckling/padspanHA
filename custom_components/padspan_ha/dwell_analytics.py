@@ -115,7 +115,9 @@ def compute_dwell_stats(
             last_room[key] = room
             last_ts[key] = ts
 
-            frame_rooms.setdefault(room, set()).add(str(o.get("pid") or o.get("n") or key))
+            # One device on two keys counts once when they share a padspan_id.
+            # Not by name: two people's unlabelled "iPhone"s are two people.
+            frame_rooms.setdefault(room, set()).add(str(o.get("pid") or key))
 
         if frame_rooms:
             by_room = occupancy_peak.setdefault(day, {}).setdefault(hour, {})
