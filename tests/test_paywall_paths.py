@@ -97,7 +97,7 @@ def test_the_licence_card_names_the_lifetime_offer_while_it_lasts() -> None:
     out = json.loads(lines[-1])
     assert not out["failures"] and res.returncode == 0, out["failures"]
     cases = out["cases"]
-    line = "Or PadSpan Pro for life — $89 CAD, once, until October 31."
+    line = "Or PadSpan Pro for life — $89 CAD, once, until December 31."
     for kind in ("nokey", "trial", "lapsed"):
         assert cases[f"{kind}_during"]["buy"], kind
         assert cases[f"{kind}_during"]["lifetime"] == {"text": line, "href": BUY_URL}, (kind, cases[f"{kind}_during"])

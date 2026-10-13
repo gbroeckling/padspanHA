@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.123 — PadSpan Pro for life runs until December 31 (2026-10-13)
+
+### Changed
+- **PadSpan Pro for life ($89 CAD, once) is on until December 31, 2026**, not October 31. Settings → PadSpan licence and the trial offer say so, and padspan.traks.ca sells it until the same day.
+
+---
+
 ## 0.38.122 — Stable: everything since 0.38.105, and what a full review of it found (2026-10-13)
 
 ### Before you update

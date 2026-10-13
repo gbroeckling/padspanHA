@@ -124,7 +124,7 @@ _SKUS = {
     "padspan-bright-annual":        (35.00, ("bright",),               ("upgrade",)),
     "padspan-pro-annual":           (45.00, ("padspan",),              ("upgrade", "bright")),
     "padspan-bright-to-pro-upgrade": (12.00, ("upgrade", "padspan"),   ()),
-    # The launch offer (until Oct 31, 2026). The server decides a SKU with
+    # The launch offer (until Dec 31, 2026). The server decides a SKU with
     # BOTH 'padspan' and 'lifetime' before every other tier.
     "padspan-pro-lifetime":         (89.00, ("padspan", "lifetime"),   ("upgrade", "bright")),
 }

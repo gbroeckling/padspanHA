@@ -5,7 +5,7 @@
 // RUN Settings → Features → PadSpan licence (views/settings.js) for each kind
 // of licence, on a day inside the lifetime launch offer and a day after it.
 // The clock is set here, never read: the suite has to give the same answer
-// after October 31 as before it.
+// after December 31 as before it.
 //
 // usage: licence_card.mjs <views-dir>
 // prints one JSON line: { cases: { name: { buy, lifetime: {text, href} | null } }, failures }
@@ -49,7 +49,7 @@ const KINDS = {
   lifetime: { tier: "pro", pro_has_key: true, pro_active: true, license_tier: "pro", pro_days_left: 26000,
               forensics_license_expires: "2099-12-31" },
 };
-const DAYS = { during: Date.parse("2026-10-15T12:00:00Z"), after: Date.parse("2026-11-01T08:00:00Z") };
+const DAYS = { during: Date.parse("2026-10-15T12:00:00Z"), after: Date.parse("2027-01-01T09:00:00Z") };
 
 function licenceCard(settings) {
   const ctx = {

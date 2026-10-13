@@ -257,7 +257,7 @@ export function trialOfferCard(host, surface, opts = {}) {
     // keep the amber line.
     const quiet = _QUIET_SURFACES.includes(surface);
     const buyText = "Or buy PadSpan Pro — " + PRO_PRICE
-      + (proLifetimeOpen() ? ", or " + PRO_LIFETIME_PRICE + " for life until October 31" : "");
+      + (proLifetimeOpen() ? ", or " + PRO_LIFETIME_PRICE + " for life until December 31" : "");
     const buyStyle = quiet ? "color:#94a3b8;text-decoration:underline" : "color:#fbbf24;font-weight:600;text-decoration:none";
     card.appendChild(el("div", { style: "font-size:11px;margin-top:6px" }, [
       // A wall screen can't close the tab a link opens: say where instead.

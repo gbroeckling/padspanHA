@@ -2966,7 +2966,7 @@ function _settingsLicence(ctx, el){
   if (canBuy && proLifetimeOpen()) {
     card.appendChild(el("div", { style: "font-size:12px;margin-top:8px" },
       el("a", { href: BUY_URL, target: "_blank", rel: "noopener", style: "color:#a7f3d0;text-decoration:underline" },
-        "Or PadSpan Pro for life — " + PRO_LIFETIME_PRICE + ", once, until October 31.")));
+        "Or PadSpan Pro for life — " + PRO_LIFETIME_PRICE + ", once, until December 31.")));
   }
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
   // offers, shown here while there is no key at all. Its own Buy link is off —
