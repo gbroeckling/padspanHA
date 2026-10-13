@@ -610,6 +610,96 @@ def _within_floor_bounds(
     return (b[0] - margin) <= x <= (b[1] + margin) and (b[2] - margin) <= y <= (b[3] + margin)
 
 
+class FollowNotifyNotSent(Exception):
+    """A Follow alert (or Follow's Test) was not sent. `code` is why:
+    not_found (the chosen target is not in HA), send_failed (its call
+    failed), no_notify (nothing chosen and nothing to pick)."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+async def async_send_follow_notify(
+    hass: HomeAssistant, preferred: str, email: str, title: str, message: str,
+) -> str:
+    """Send one Follow alert: the one dispatch the alerts
+    (PresenceCoordinator._send_follow_notify) and Follow's Test button
+    (ws_notify_test) share, so a Test that passes is an alert that arrives.
+    A chosen target is tried as a notify entity (send_message), a legacy
+    notify service, then another integration's send service — and only it.
+    With none chosen, the notify targets are auto-picked, mail/smtp first.
+    Returns what it was sent through; raises FollowNotifyNotSent."""
+    services = hass.services.async_services().get("notify", {})
+    has_send_message = "send_message" in services
+    entity_ids = [s.entity_id for s in hass.states.async_all("notify")]
+    alert_data: dict[str, Any] = {"title": title, "message": message}
+    if preferred:
+        # The picker saves "notify.<name>" for both kinds of target. Only one
+        # that exists as a notify ENTITY goes through send_message: a phone
+        # (mobile_app) is a legacy SERVICE, and send_message aimed at an
+        # entity that does not exist logs and returns, no error — so an alert
+        # to a chosen phone counted as sent and went nowhere. A legacy one is
+        # called by its own name, with or without the prefix.
+        slug = preferred.split(".", 1)[1] if preferred.startswith("notify.") else preferred
+        last_err: Exception | None = None
+        if preferred in entity_ids and has_send_message:
+            try:
+                payload = {**alert_data, "entity_id": preferred}
+                if email:
+                    payload["target"] = email
+                await hass.services.async_call("notify", "send_message", payload)
+                return preferred
+            except Exception as err:  # noqa: BLE001 — reported below
+                last_err = err
+        if slug and slug != "send_message" and slug in services:
+            try:
+                await hass.services.async_call(
+                    "notify", slug, {**alert_data, "target": email} if email else alert_data,
+                )
+                return slug
+            except Exception:  # noqa: BLE001
+                try:
+                    await hass.services.async_call("notify", slug, alert_data)
+                    return slug
+                except Exception as err:  # noqa: BLE001 — reported below
+                    last_err = err
+        if "." in preferred and not preferred.startswith("notify."):
+            # Another integration's send service the picker offers
+            # (telegram_bot.send_message): called as itself.
+            _dom, _svc = preferred.split(".", 1)
+            if hass.services.has_service(_dom, _svc):
+                try:
+                    await hass.services.async_call(_dom, _svc, alert_data)
+                    return preferred
+                except Exception as err:  # noqa: BLE001 — reported below
+                    last_err = err
+        # The chosen target is gone (phone renamed or removed) or its call
+        # failed: counted as failed, never sent to some other phone or
+        # mailbox instead.
+        if last_err is not None:
+            raise FollowNotifyNotSent("send_failed", f"{preferred}: {last_err}")
+        raise FollowNotifyNotSent("not_found", f"{preferred} is not in Home Assistant")
+    auto_targets: list[tuple[str, str, dict[str, Any]]] = []
+    for eid in entity_ids:
+        if has_send_message:
+            auto_targets.append(("send_message", eid, {**alert_data, "entity_id": eid}))
+    for svc in services:
+        if svc != "send_message":
+            auto_targets.append((svc, svc, alert_data))
+    if not auto_targets:
+        raise FollowNotifyNotSent("no_notify", "no notify services available in HA")
+    auto_targets.sort(key=lambda t: (0 if "mail" in t[1].lower() or "smtp" in t[1].lower() else 1))
+    last_auto_err: Exception | None = None
+    for svc_name, label, payload in auto_targets:
+        try:
+            await hass.services.async_call("notify", svc_name, payload)
+            return label
+        except Exception as err:  # noqa: BLE001 — the next one is tried
+            last_auto_err = err
+    raise FollowNotifyNotSent("send_failed", f"auto-detect: {last_auto_err}")
+
+
 class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Central BLE room-presence engine for PadSpan HA.
 
@@ -3916,9 +4006,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _process_room_alerts (on_room_change) and _run_automations
         (on_arrive/on_depart) both call, so the three alert types can never
         disagree about how a notification actually gets sent, or drift
-        apart as one is fixed and the other forgotten. Tries the configured
-        service first (entity-based send_message, then legacy notify.*),
-        falling back to auto-detection (preferring mail/smtp). Returns
+        apart as one is fixed and the other forgotten. It sends through
+        async_send_follow_notify, as Follow's Test button does: the
+        configured target only, else auto-detection (preferring mail/smtp). Returns
         whether it sent. cooldown_suffix keys the 60s per-device throttle
         by ALERT TYPE, not just device — a room-change alert and an arrival
         alert commonly fire in the same poll for a newly-arrived device,
@@ -3926,75 +4016,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         second.
         """
         email = (cfg.get("email") or "").strip()
-        services = self.hass.services.async_services().get("notify", {})
-        has_send_message = "send_message" in services
-        entity_ids = [s.entity_id for s in self.hass.states.async_all("notify")]
-        legacy = [k for k in services if k != "send_message"]
-        if not services and not entity_ids:
-            _LOGGER.warning("Alert: no notify services available in HA")
-            return False
-
         preferred = cfg.get("notify_service") or ""
-        # The picker saves "notify.<name>" for both kinds of target. Only one
-        # that exists as a notify ENTITY goes through send_message: a phone
-        # (mobile_app) is a legacy SERVICE, and send_message aimed at an
-        # entity that does not exist logs and returns, no error — so an alert
-        # to a chosen phone counted as sent and went nowhere. A legacy one is
-        # called by its own name, with or without the prefix.
-        slug = preferred.split(".", 1)[1] if preferred.startswith("notify.") else preferred
-        alert_data: dict[str, Any] = {"title": title, "message": message}
-        sent = False
-        if preferred in entity_ids and has_send_message:
-            try:
-                payload = {**alert_data, "entity_id": preferred}
-                if email:
-                    payload["target"] = email
-                await self.hass.services.async_call("notify", "send_message", payload)
-                sent = True
-            except Exception:
-                pass
-        if not sent and slug and slug != "send_message" and slug in services:
-            try:
-                await self.hass.services.async_call(
-                    "notify", slug, {**alert_data, "target": email} if email else alert_data,
-                )
-                sent = True
-            except Exception:
-                try:
-                    await self.hass.services.async_call("notify", slug, alert_data)
-                    sent = True
-                except Exception:
-                    pass
-        if not sent and "." in preferred and not preferred.startswith("notify."):
-            # Another integration's send service the picker offers
-            # (telegram_bot.send_message): called as itself.
-            _dom, _svc = preferred.split(".", 1)
-            if self.hass.services.has_service(_dom, _svc):
-                try:
-                    await self.hass.services.async_call(_dom, _svc, alert_data)
-                    sent = True
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.warning("Follow alert via %s failed: %s", preferred, err)
-        if not sent and preferred:
-            # The chosen target is gone (phone renamed or removed) or its
-            # call failed: counted as failed, never sent to some other phone
-            # or mailbox instead.
-            _LOGGER.warning("Follow alert not sent via %s", preferred)
-        elif not sent:
-            auto_targets: list[tuple[str, str, dict[str, Any]]] = []
-            for eid in entity_ids:
-                if has_send_message:
-                    auto_targets.append(("send_message", eid, {**alert_data, "entity_id": eid}))
-            for svc in legacy:
-                auto_targets.append((svc, svc, alert_data))
-            auto_targets.sort(key=lambda t: (0 if "mail" in t[1].lower() or "smtp" in t[1].lower() else 1))
-            for svc_name, _label, payload in auto_targets:
-                try:
-                    await self.hass.services.async_call("notify", svc_name, payload)
-                    sent = True
-                    break
-                except Exception:
-                    continue
+        try:
+            await async_send_follow_notify(self.hass, preferred, email, title, message)
+            sent = True
+        except FollowNotifyNotSent as err:
+            _LOGGER.warning("Follow alert not sent via %s: %s", preferred or "auto-detect", err)
+            sent = False
         if sent:
             self._alert_last_sent[f"{key}:{cooldown_suffix}"] = now
         # The opt-in report's view of Follow alerts (0.38.108-110 fixed where

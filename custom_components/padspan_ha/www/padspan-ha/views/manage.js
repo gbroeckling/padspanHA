@@ -2352,7 +2352,8 @@ function _buildNotifications(ctx, el){
       saveStatus.textContent = "Sending test…"; saveStatus.style.color = "";
       testBtn.disabled = true;
       try {
-        const svc = serviceSelect ? serviceSelect.value : "";
+        // The target alerts use (cfg): one that is gone has no option in the list.
+        const svc = cfg.notify_service || "";
         const payload = { service: svc || undefined };
         if(testEmail) payload.email = testEmail;
         await ctx.actions.wsCall("padspan_ha/notify_test", payload);

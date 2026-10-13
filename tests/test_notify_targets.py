@@ -84,6 +84,69 @@ async def test_the_test_button_uses_send_message_for_a_real_entity():
     assert calls == [("notify", "send_message")]
 
 
+# ── The Test button sends the way an alert does (one dispatch) ───────────────
+# It fell back to auto-pick for any choice that was not a notify entity or
+# legacy service: a renamed phone's Test went to the first notify service and
+# said "Test sent", while every alert to it was refused; and a
+# telegram_bot.send_message target was never tried.
+
+@pytest.mark.asyncio
+async def test_the_test_button_fails_for_a_saved_phone_that_is_gone():
+    calls, conn = await _test_button("notify.mobile_app_old_phone")
+    assert calls == []
+    conn.send_result.assert_not_called()
+    assert conn.send_error.call_args.args[1] == "not_found"
+    assert "notify.mobile_app_old_phone" in conn.send_error.call_args.args[2]
+
+
+def _telegram(hass, notify=None):
+    if notify is not None:
+        hass.services.async_services.return_value = {"notify": notify}
+    hass.services.has_service = lambda d, s: (d, s) == ("telegram_bot", "send_message")
+    return hass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("notify", [{"send_message": True, "mobile_app_phone": True}, {}])
+async def test_the_test_button_calls_another_integrations_target(notify):
+    hass = _telegram(_ws_hass(), notify)
+    conn = MagicMock()
+    await ws_notify.ws_notify_test(hass, conn, {"id": 1, "service": "telegram_bot.send_message"})
+    assert [c.args[:2] for c in hass.services.async_call.call_args_list] == [("telegram_bot", "send_message")]
+    assert conn.send_result.call_args.args[1]["service"] == "telegram_bot.send_message"
+
+
+@pytest.mark.asyncio
+async def test_an_alert_to_another_integration_needs_no_notify_service():
+    coord = _make_coordinator({ADDR: {"on_arrive": True, "notify_service": "telegram_bot.send_message"}})
+    _telegram(coord.hass, {})
+    coord.hass.states.async_all.return_value = []
+    await coord._run_automations({f"ble:{ADDR}"}, set(), RESULT, now=1000.0)
+    assert [c.args[:2] for c in coord.hass.services.async_call.call_args_list] == [("telegram_bot", "send_message")]
+
+
+@pytest.mark.asyncio
+async def test_the_test_button_with_nothing_chosen_auto_picks_as_alerts_do():
+    calls, conn = await _test_button("")
+    assert calls == [("notify", "mobile_app_phone")]
+    assert conn.send_result.call_args.args[1]["ok"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", ["notify.mobile_app_phone", "mobile_app_phone", "notify.smtp_home",
+                                    "notify.mobile_app_old_phone", "telegram_bot.send_message", ""])
+async def test_the_test_button_reaches_exactly_what_an_alert_reaches(target):
+    def _targets(hass):
+        return [(c.args[0], c.args[1], c.args[2].get("entity_id")) for c in hass.services.async_call.call_args_list]
+    coord = _with_send_message(_make_coordinator({ADDR: {"on_arrive": True, "notify_service": target}}),
+                               ["notify.smtp_home"])
+    _telegram(coord.hass)
+    await coord._run_automations({f"ble:{ADDR}"}, set(), RESULT, now=1000.0)
+    hass = _telegram(_ws_hass(["notify.smtp_home"]))
+    await ws_notify.ws_notify_test(hass, MagicMock(), {"id": 1, "service": target})
+    assert _targets(hass) == _targets(coord.hass)
+
+
 # ── Companion App: the phone's own notify service (BLE Transmitter command) ──
 
 from custom_components.padspan_ha.ws_companion import mobile_app_notify_service  # noqa: E402
