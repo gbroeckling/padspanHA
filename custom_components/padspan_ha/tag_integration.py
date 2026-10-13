@@ -32,6 +32,10 @@ DATA_TAG_INTEGRATION = "tag_integration"
 # on a real, settled move. 30s is long enough to absorb that flicker while
 # still being short enough that a genuine walk-through-the-house sequence
 # still produces one event per room.
+# A change inside the cooldown is held, not dropped: once the cooldown
+# ends it is sent if the object is still somewhere other than the room
+# last reported (Kitchen -> Hall -> Bedroom 20 s apart used to report
+# Hall and never Bedroom).
 _ROOM_TAG_COOLDOWN_S = 30
 
 
@@ -47,6 +51,8 @@ class TagIntegration:
         self.hass = hass
         self._unsub: CALLBACK_TYPE | None = None
         self._room_tag_last: dict[str, float] = {}  # key → last emit ts
+        self._room_tag_sent: dict[str, str] = {}    # key → room last reported
+        self._room_tag_held: dict[str, str] = {}    # key → room held by the cooldown
         self._nfc_pending: dict[str, float] = {}  # tag_id → ts of pending NFC identify
 
     async def async_setup(self) -> None:
@@ -103,40 +109,67 @@ class TagIntegration:
             if not (_ids - {""}) & followed_upper:
                 continue
 
-            # Cooldown per object
+            # Cooldown per object: held, sent when it ends (async_emit_held)
             last = self._room_tag_last.get(key, 0.0)
             if now - last < _ROOM_TAG_COOLDOWN_S:
+                self._room_tag_held[key] = new_room
                 continue
-            self._room_tag_last[key] = now
-
-            tag_id = _sanitize_tag_id(key)
-
-            # Get display label
-            obj = result.get(key) or {}
-            label = obj.get("user_label") or obj.get("name") or key
-
-            try:
-                from homeassistant.components.tag import async_scan_tag
-                await async_scan_tag(self.hass, tag_id, device_id=None)
-                _LOGGER.debug(
-                    "TagIntegration: emitted tag_scanned for %s (%s → %s), tag_id=%s",
-                    label, old_room, new_room, tag_id,
-                )
-            except ImportError:
-                _LOGGER.debug("TagIntegration: HA tag component not available")
+            if not await self._emit_room_change(key, old_room, new_room, result, now):
                 return
-            except Exception as err:
-                _LOGGER.debug("TagIntegration: tag emit failed for %s: %s", key, err)
 
-            # Also fire a custom padspan event with richer data for automations
-            self.hass.bus.async_fire("padspan_room_change", {
-                "object_key": key,
-                "label": label,
-                "from_room": old_room,
-                "to_room": new_room,
-                "tag_id": tag_id,
-                "timestamp": now,
-            })
+    def has_held(self) -> bool:
+        return bool(self._room_tag_held)
+
+    async def async_emit_held(self, result: dict[str, Any]) -> None:
+        """Send the room changes held by the cooldown once it has passed,
+        if the object is still away from the room last reported."""
+        now = time.time()
+        for key, held_room in list(self._room_tag_held.items()):
+            if now - self._room_tag_last.get(key, 0.0) < _ROOM_TAG_COOLDOWN_S:
+                continue
+            self._room_tag_held.pop(key, None)
+            cur = (result.get(key) or {}).get("room") or held_room
+            sent = self._room_tag_sent.get(key)
+            if cur and sent and cur != sent:
+                if not await self._emit_room_change(key, sent, cur, result, now):
+                    return
+
+    async def _emit_room_change(self, key: str, old_room: str | None, new_room: str,
+                                result: dict[str, Any], now: float) -> bool:
+        """tag_scanned + padspan_room_change for one move. False when HA's
+        tag component is missing (nothing more can be sent)."""
+        self._room_tag_last[key] = now
+        self._room_tag_sent[key] = new_room
+
+        tag_id = _sanitize_tag_id(key)
+
+        # Get display label
+        obj = result.get(key) or {}
+        label = obj.get("user_label") or obj.get("name") or key
+
+        try:
+            from homeassistant.components.tag import async_scan_tag
+            await async_scan_tag(self.hass, tag_id, device_id=None)
+            _LOGGER.debug(
+                "TagIntegration: emitted tag_scanned for %s (%s → %s), tag_id=%s",
+                label, old_room, new_room, tag_id,
+            )
+        except ImportError:
+            _LOGGER.debug("TagIntegration: HA tag component not available")
+            return False
+        except Exception as err:
+            _LOGGER.debug("TagIntegration: tag emit failed for %s: %s", key, err)
+
+        # Also fire a custom padspan event with richer data for automations
+        self.hass.bus.async_fire("padspan_room_change", {
+            "object_key": key,
+            "label": label,
+            "from_room": old_room,
+            "to_room": new_room,
+            "tag_id": tag_id,
+            "timestamp": now,
+        })
+        return True
 
     # ── Feature 2 & 3: Handle incoming tag_scanned events ────────────────────
 

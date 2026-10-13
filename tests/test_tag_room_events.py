@@ -67,3 +67,42 @@ async def test_an_unfollowed_device_and_a_first_confirmation_do_not():
     await tags.async_emit_room_changes([(f"ble:{ADDR}", None, "Kitchen")],
                                        {f"ble:{ADDR}": {"address": ADDR}})
     assert _fired(hass) == []
+
+
+@pytest.mark.asyncio
+async def test_a_second_move_inside_the_cooldown_is_sent_when_it_ends(monkeypatch):
+    """Kitchen -> Hall -> Bedroom 20 s apart: the cooldown dropped Bedroom
+    for good, so nothing ever reported it."""
+    from custom_components.padspan_ha import tag_integration as ti
+    clock = [1000.0]
+    monkeypatch.setattr(ti.time, "time", lambda: clock[0])
+    tags, hass = _tags([ADDR])
+    key = f"ble:{ADDR}"
+    await tags.async_emit_room_changes([(key, "Kitchen", "Hall")], {key: {"address": ADDR, "room": "Hall"}})
+    clock[0] += 20
+    await tags.async_emit_room_changes([(key, "Hall", "Bedroom")], {key: {"address": ADDR, "room": "Bedroom"}})
+    assert tags.has_held()
+    clock[0] += 5
+    await tags.async_emit_held({key: {"address": ADDR, "room": "Bedroom"}})   # still inside the cooldown
+    clock[0] += 10
+    await tags.async_emit_held({key: {"address": ADDR, "room": "Bedroom"}})
+    events = [c.args[1] for c in hass.bus.async_fire.call_args_list if c.args[0] == "padspan_room_change"]
+    assert [(e["from_room"], e["to_room"]) for e in events] == [("Kitchen", "Hall"), ("Hall", "Bedroom")]
+    assert not tags.has_held()
+
+
+@pytest.mark.asyncio
+async def test_a_flicker_back_inside_the_cooldown_sends_nothing(monkeypatch):
+    from custom_components.padspan_ha import tag_integration as ti
+    clock = [1000.0]
+    monkeypatch.setattr(ti.time, "time", lambda: clock[0])
+    tags, hass = _tags([ADDR])
+    key = f"ble:{ADDR}"
+    await tags.async_emit_room_changes([(key, "Kitchen", "Hall")], {key: {"address": ADDR, "room": "Hall"}})
+    clock[0] += 10
+    await tags.async_emit_room_changes([(key, "Hall", "Kitchen")], {key: {"address": ADDR, "room": "Kitchen"}})
+    clock[0] += 5
+    await tags.async_emit_room_changes([(key, "Kitchen", "Hall")], {key: {"address": ADDR, "room": "Hall"}})
+    clock[0] += 30
+    await tags.async_emit_held({key: {"address": ADDR, "room": "Hall"}})
+    assert len([c for c in hass.bus.async_fire.call_args_list if c.args[0] == "padspan_room_change"]) == 1

@@ -1703,6 +1703,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except Exception:
                 pass
             self._pending_room_changes.clear()
+        # Room changes the tag events held back during their cooldown.
+        try:
+            from .const import DATA_TAG_INTEGRATION
+            _ti = self.hass.data.get(DOMAIN, {}).get(DATA_TAG_INTEGRATION)
+            if _ti is not None and _ti.has_held():
+                await _ti.async_emit_held(result)
+        except Exception:
+            pass
 
         # ── Proactive state cleanup ─────────────────────────────────────────────
         # Every 100 polls (~16 min at 10s interval), sweep all per-object state
