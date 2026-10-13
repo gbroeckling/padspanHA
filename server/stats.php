@@ -16,7 +16,9 @@
 // line). There is no "valid Pro key" path — a Pro customer is not the
 // developer, and this is other people's installs. A missing or unknown key
 // is a 403 with no detail. The integration shows the view only in Dev mode
-// at Pro tier, but that is a courtesy; this check is the gate.
+// at Pro tier, but that is a courtesy; this check is the gate. The one other
+// way in is server/pad_report/data.php (pad.traks.ca), which includes this
+// file after its own password check and defines PADSPAN_STATS_TRUSTED.
 //
 // The answer is cached for CACHE_S seconds in private/ so a panel polling
 // every minute re-reads the spool once.
@@ -36,8 +38,8 @@ header('Cache-Control: no-store');
 
 // ── gate ─────────────────────────────────────────────────────────────────────
 $presented = isset($_SERVER['HTTP_X_PADSPAN_KEY']) ? trim((string)$_SERVER['HTTP_X_PADSPAN_KEY']) : '';
-$ok = false;
-if ($presented !== '' && is_readable($KEYS)) {
+$ok = defined('PADSPAN_STATS_TRUSTED');
+if (!$ok && $presented !== '' && is_readable($KEYS)) {
     $want = hash('sha256', $presented);
     foreach (file($KEYS, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         $line = trim($line);
