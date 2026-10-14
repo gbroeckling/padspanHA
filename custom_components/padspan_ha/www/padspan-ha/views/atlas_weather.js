@@ -30,7 +30,9 @@
 // surface (a binary one) is overruled by a weather entity saying the sky is
 // clear: dew and frost wet it on clear mornings (Garry, 2026-10-06: rain on
 // the Atlas all morning, the sensor at 3029 mV, the sky partly cloudy). A
-// gauge (a number) catches rain that falls and is never overruled.
+// gauge (a number) catches rain that falls and is never overruled, nor is an
+// on/off sensor a template makes (from a gauge's rate, as a rule). The cost:
+// a shower the weather entity's hourly forecast missed shows no rain.
 
 // ── Vocabulary ───────────────────────────────────────────────────────────────
 export const WET_CONDITIONS = ["rainy", "pouring", "snowy", "snowy-rainy", "hail", "lightning-rainy"];
@@ -330,8 +332,10 @@ export function decideAtlasWeather(cfg, states, entities){
   if (wet === null) return off("no_source", "none");
   if (!wet) return off("dry", source);
   // A wet surface under a clear sky: dew or frost, not rain. A gauge (a
-  // number) is never overruled: what it caught fell.
-  if (source === "rain_sensor" && s.rainEntity.startsWith("binary_sensor.") && CLEAR_SKY.includes(cond)) {
+  // number) is never overruled: what it caught fell. Nor is an on/off one
+  // made by a template, usually from a gauge's rate.
+  const made = (eid) => { const r = entities && entities[eid]; return !!(r && r.platform === "template"); };
+  if (source === "rain_sensor" && s.rainEntity.startsWith("binary_sensor.") && CLEAR_SKY.includes(cond) && !made(s.rainEntity)) {
     notes.push("sensor_overruled");
     return off("overruled", "condition");
   }
@@ -423,12 +427,15 @@ export function hullOf(points){
  *  2026-10-14: rain fell between the floors): each indoor plate is joined
  *  to the next one up by the outline round both, so the stack is one shape
  *  and rain falls round the building, never between its storeys. Above the
- *  top floor nothing is drawn, so nothing is joined there. plates: the
- *  indoor ones, {z, polys}. */
-export function stackJoins(plates){
+ *  top floor nothing is drawn, so nothing is joined there, and nothing is
+ *  joined across an outdoor plate (a garden drawn between two floors keeps
+ *  its rain). plates: every plate drawn, {z, polys}; outdoorZ: theirs. */
+export function stackJoins(plates, outdoorZ){
+  const outZ = outdoorZ instanceof Set ? outdoorZ : new Set();
   const up = [...(plates || [])].filter(p => p && Array.isArray(p.polys) && p.polys.length).sort((a, b) => a.z - b.z);
   const out = [];
   for (let i = 0; i + 1 < up.length; i++) {
+    if (outZ.has(up[i].z) || outZ.has(up[i + 1].z)) continue;
     const h = hullOf([...up[i].polys.flat(), ...up[i + 1].polys.flat()]);
     if (h.length) out.push(h);
   }
@@ -756,8 +763,7 @@ function createSlot(slotKey){
         if (!geo) { err("mask_build"); detach(); return false; }
         const outZ = p.outdoorZ instanceof Set ? p.outdoorZ : new Set();
         // The indoor plates and the space between each and the next one up.
-        const indoor = geo.plates.filter(pl => !outZ.has(pl.z));
-        const polys = [...indoor.flatMap(pl => pl.polys), ...stackJoins(indoor)];
+        const polys = [...geo.plates.filter(pl => !outZ.has(pl.z)).flatMap(pl => pl.polys), ...stackJoins(geo.plates, outZ)];
         // ~3 px of feathered gap at every wall, whatever the zoom: the
         // stage's width in screen px over the viewBox's width in units.
         const ppu = Math.max(0.2, ((Number(p.stageWidth) || globalThis.innerWidth || 1000) * (Number(p.zoom) || 1)) / geo.viewBox[2]);

@@ -323,8 +323,9 @@ function reducedMotion(){
   catch (_) { return false; }
 }
 
-/** The weather in one 3D view. host = {scene, renderer, camera}: the view's
- *  own. update() at each poll, tick(t) on each frame the view draws,
+/** The weather in one 3D view. host = {scene, renderer, camera, shell?}:
+ *  the view's own; shell() → {roof, low}: the roof showing, and the height
+ *  every wall is cut to (0: they stand). update() at each poll, tick(t) on each frame the view draws,
  *  frameMs() for its live clock, dispose() when it goes. Never throws: a
  *  failure is counted (the flat Atlas's closed words) and the view simply
  *  has no weather until it is built again. */
@@ -496,37 +497,60 @@ export function createWeather(THREE, host){
   // Marked whatever stands in front of a floor: marking only the floor that
   // showed let a drop falling outside, in front of the house, be drawn over
   // a sofa or a wall, rain on the rooms (Garry, 2026-10-14). Drawn after the
-  // house, before the weather.
+  // house, before the weather. As the house is drawn (the view's shell(), on
+  // each frame): with the roof on nothing is marked, since rain falls in
+  // front of a roof; with every wall down, only as high as the walls stand.
+  // Each face's front is its outside, so from inside a room none is marked.
   let mask = null;
-  function makeMask(){
+  const shellNow = () => {
+    try {
+      const s = typeof host.shell === "function" ? host.shell() : null;
+      return { roof: !!(s && s.roof), low: Math.max(0, Number(s && s.low) || 0) };
+    } catch (_) { return { roof: false, low: 0 }; }
+  };
+  function makeMask(low){
     const tops = (area && area.tops) || [];
     if (!tops.length) return;
     const pos = [];
-    const face = (T, y) => {
-      const g = new THREE.ShapeGeometry(new THREE.Shape(T.pts.map(p => new THREE.Vector2(p[0], p[1])))).toNonIndexed();
-      g.rotateX(Math.PI / 2).translate(0, y, 0);
-      pos.push(...g.attributes.position.array);
-      g.dispose();
-    };
+    // (q - p) x (r - p), its y: below 0 the triangle's front looks down.
+    const upness = (p, q, r) => (q[2] - p[2]) * (r[0] - p[0]) - (q[0] - p[0]) * (r[2] - p[2]);
+    const tri = (p, q, r, up) => { if ((upness(p, q, r) > 0) !== up) [q, r] = [r, q]; pos.push(...p, ...q, ...r); };
     for (const T of tops) {
-      const y0 = T.y, y1 = T.y + (T.h || 2.8), P = T.pts;
-      face(T, y0);
-      face(T, y1);
-      // The walls: the plan's (x, y) is the world's (x, z), as the floor tiles are.
+      const h = T.h || 2.8, y0 = T.y, y1 = T.y + (low > 0 ? Math.min(low, h) : h);
+      // Clockwise on the plan (x, y: the world's x, z), so each wall below
+      // faces out.
+      const turn = T.pts.reduce((s, p, i) => { const q = T.pts[(i + 1) % T.pts.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0);
+      const P = turn > 0 ? [...T.pts].reverse() : T.pts;
+      const g = new THREE.ShapeGeometry(new THREE.Shape(P.map(p => new THREE.Vector2(p[0], p[1])))).toNonIndexed();
+      const a = g.attributes.position.array;                 // the shape's (x, y): the world's (x, z)
+      for (let i = 0; i + 8 < a.length; i += 9) {
+        const v = (k, y) => [a[i + k], y, a[i + k + 1]];
+        tri(v(0, y0), v(3, y0), v(6, y0), false);           // the floor, seen from below
+        tri(v(0, y1), v(3, y1), v(6, y1), true);            // the ceiling, from above
+      }
+      g.dispose();
       for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-        const [ax, az] = P[j], [bx, bz] = P[i];
-        pos.push(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y0, az, bx, y1, bz, ax, y1, az);
+        const A0 = [P[j][0], y0, P[j][1]], B0 = [P[i][0], y0, P[i][1]], A1 = [P[j][0], y1, P[j][1]], B1 = [P[i][0], y1, P[i][1]];
+        pos.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1);
       }
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    const m = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+    const m = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, depthTest: false, side: THREE.FrontSide,
       stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc,
       stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp, stencilZPass: THREE.ReplaceStencilOp });
     const obj = new THREE.Mesh(geo, m);
     obj.name = "weather:mask"; obj.renderOrder = 10; obj.frustumCulled = false;
     host.scene.add(obj);
-    mask = { obj, res: [geo, m] };
+    mask = { obj, res: [geo, m], low };
+  }
+  /** The mask as the house stands this frame: built again when the walls
+   *  go down or come back up, hidden while the roof shows. */
+  function fitMask(){
+    const s = shellNow();
+    if (mask && mask.low !== s.low) dropMask();
+    if (!mask && FALLING.some(n => L[n].obj)) makeMask(s.low);
+    if (mask) mask.obj.visible = !s.roof;
   }
   function dropMask(){
     if (!mask) return;
@@ -540,12 +564,13 @@ export function createWeather(THREE, host){
     Object.assign(L[name], made);
     host.scene.add(made.obj);
     built++;
-    if (!mask && FALLING.includes(name)) makeMask();
+    if (!mask && FALLING.includes(name)) makeMask(shellNow().low);
     return true;
   }
 
   // ── each frame ────────────────────────────────────────────────────────────
   function paint(t){
+    fitMask();
     const time = still ? STILL_S : ((t - t0) / 1000) % WRAP_S;
     let dpr = 1;
     try { host.renderer.getDrawingBufferSize(_view); dpr = host.renderer.getPixelRatio() || 1; } catch (_) { _view.set(1, 1); }

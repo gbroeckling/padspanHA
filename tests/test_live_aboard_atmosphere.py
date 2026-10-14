@@ -119,7 +119,8 @@ def test_the_weather_harness_covers_each_part(wx, prefix) -> None:
     catch what falls on them; budget: Low a few thousand at most; decision:
     the flat Atlas's own through holdVisual; dry: nothing built, no frame;
     mask: the house kept dry on screen, floor to ceiling, whatever stands in
-    front; frames: rain at most 30 a second on Low and 60 on High, snow 30,
+    front, faces out, none under the roof, low with the walls down; frames:
+    rain at most 30 a second on Low and 60 on High, snow 30,
     at 60, 120 and 144 Hz; still: reduced motion draws once; release: it
     goes with the view."""
     _case(wx, prefix)
@@ -127,6 +128,14 @@ def test_the_weather_harness_covers_each_part(wx, prefix) -> None:
 
 def test_every_weather_case_passes(wx) -> None:
     assert not wx["failures"], json.dumps(wx["failures"][:6], indent=2, ensure_ascii=False)
+
+
+def test_the_view_tells_the_weather_how_the_house_stands() -> None:
+    """The rain keeps off the house as it is drawn: the roof (roofWant, set
+    on each frame by roofTick) and the walls (Down cuts every one to CUT_H)."""
+    src = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
+    assert 'shell: () => ({ roof: !!roofWant, low: wallMode === "down" ? HOUSE.CUT_H : 0 })' in src
+    assert "if (wx) wx.tick(t);" in src
 
 
 def _code(p: Path) -> str:

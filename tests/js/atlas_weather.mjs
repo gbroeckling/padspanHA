@@ -138,9 +138,12 @@ tryCase("table: a wet rain sensor under a clear sky is dew, not rain", () => {
   const clear = ["sunny", "clear-night", "partlycloudy"].every(c => got[c].kind === "off" && got[c].why === "overruled"
     && got[c].source === "condition" && JSON.stringify(got[c].notes) === '["sensor_overruled"]');
   const kept = ["cloudy", "fog", "windy", "rainy"].every(c => is(got[c], "rain", false) && got[c].source === "rain_sensor" && !got[c].notes.length);
-  // A gauge caught what fell: a number is never overruled.
+  // A gauge caught what fell: a number is never overruled, nor an on/off
+  // sensor a template makes (from a gauge's rate, as a rule).
   const gauge = decide({ atlas_weather_rain_entity: "sensor.rain_rate" },
     { "sensor.rain_rate": S("0.4", { unit_of_measurement: "mm/h" }), ...wx("sunny") });
+  const made = decide(on, { [RAIN]: S("on"), ...wx("sunny") }, { [RAIN]: { platform: "template" } });
+  const tuya = decide(on, { [RAIN]: S("on"), ...wx("sunny") }, { [RAIN]: { platform: "mqtt" } });
   // Nothing says the sky is clear: the sensor stands.
   const alone = decide(on, { [RAIN]: S("on") });
   const down = decide({ ...on, atlas_weather_condition_entity: WEA }, { [RAIN]: S("on"), [WEA]: S("unavailable") });
@@ -150,9 +153,10 @@ tryCase("table: a wet rain sensor under a clear sky is dew, not rain", () => {
   const held = WX.holdVisual({ kind: "rain", heavy: false, rim: false }, 1000, got.sunny, 2000);
   check("table: a wet rain sensor under a clear sky is dew, not rain", clear && kept
     && is(gauge, "rain", false) && gauge.source === "rain_sensor" && !gauge.notes.length
+    && is(made, "rain", false) && !made.notes.length && tuya.why === "overruled"
     && is(alone, "rain", false) && is(down, "rain", false) && down.missing.includes("condition")
     && dry.why === "dry" && !dry.notes.length && frost.kind === "off" && frost.why === "overruled" && held.kind === "off",
-    { got, gauge, alone, down, dry, frost, held });
+    { got, gauge, made, tuya, alone, down, dry, frost, held });
 });
 
 // ── fallbacks and no-signal ─────────────────────────────────────────────────
@@ -481,11 +485,17 @@ tryCase("mask: stacked floors are one shape, so no rain falls between them", () 
   const rim = slot.element._all().find(n => n.className === "lv-wx-rim").innerHTML;
   const one = WX.stackJoins(indoor.slice(0, 1));
   const square = WX.hullOf([[0, 0], [4, 0], [4, 4], [0, 4], [2, 2], [1, 3]]);
+  // A garden drawn between two floors keeps its rain: nothing joins across it.
+  const tri = (y) => ({ polys: [[[0, y], [10, y], [10, y + 5]]] });
+  const three = [{ z: 0, ...tri(0) }, { z: 1, ...tri(-20) }, { z: 2, ...tri(-40) }];
+  const across = WX.stackJoins(three, new Set([1])), allIn = WX.stackJoins(three, new Set());
+  const allPlates = WX.stackJoins(geo.plates, outZ);                       // the drawing's own: the garden is on top
   check("mask: stacked floors are one shape, so no rain falls between them",
     indoor.length === 2 && joins.length === 1 && gap.length > 5 && gap.every(([x, y]) => inConvex(joins[0], x, y))
     && corners.every(([x, y]) => inConvex(joins[0], x, y)) && nBlack === 7 && (rim.match(/<polygon /g) || []).length === 7
-    && one.length === 0 && square.length === 4 && WX.hullOf([[0, 0], [1, 1]]).length === 0 && WX.stackJoins(null).length === 0,
-    { joins, gap: gap.length, nBlack, square });
+    && one.length === 0 && square.length === 4 && WX.hullOf([[0, 0], [1, 1]]).length === 0 && WX.stackJoins(null).length === 0
+    && across.length === 0 && allIn.length === 2 && allPlates.length === 1 && JSON.stringify(allPlates[0]) === JSON.stringify(joins[0]),
+    { joins, gap: gap.length, nBlack, square, across: across.length, allIn: allIn.length, allPlates: allPlates.length });
 });
 tryCase("mask: nothing to read, nothing built", () => {
   check("mask: nothing to read, nothing built", WX.atlasPlatesFromSvg("") === null && WX.atlasPlatesFromSvg("<svg viewBox=\"0 0 0 10\"></svg>") === null
