@@ -332,7 +332,7 @@ OFFER_EVENTS: frozenset[str] = frozenset(
     | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
     | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
 )
-# Atlas outdoor weather (views/atlas_weather.js — the same three lists there,
+# Atlas outdoor weather (views/atlas_weather.js — the same four lists there,
 # held equal by tests/test_atlas_weather.py). Each counted once per page load
 # per name, so a count is "pages that saw it", not "renders":
 #   weather_error:<kind>     the overlay caught its own failure and drew no
@@ -346,6 +346,10 @@ OFFER_EVENTS: frozenset[str] = frozenset(
 #                            (no sensor and no weather entity), and which
 #                            warning integration made it heavy — whether the
 #                            fallbacks work outside Canada.
+#   weather_note:<kind>      what the decision set aside on purpose (0.38.126):
+#                            sensor_overruled — a wet rain sensor under a
+#                            clear sky (dew or frost, not rain); warning_ignored
+#                            — the chosen warning entity is a leak detector.
 # Words only: never an entity id, never alert text.
 WEATHER_WARNING_PLATFORMS: tuple[str, ...] = ("env_canada", "meteoalarm", "dwd_weather_warnings", "nina",
                                               "meteo_france", "weatheralerts", "nws_alerts")
@@ -353,10 +357,12 @@ WEATHER_ERROR_KINDS: tuple[str, ...] = ("mask_build", "mask_unsupported", "tiles
 WEATHER_SHOWN_STATES: tuple[str, ...] = ("light_rain", "heavy_rain", "light_snow", "heavy_snow", "still")
 WEATHER_SOURCES: tuple[str, ...] = ("rain_sensor", "condition", "none",
                                     *(f"warning:{p}" for p in WEATHER_WARNING_PLATFORMS), "warning:other")
+WEATHER_NOTE_KINDS: tuple[str, ...] = ("sensor_overruled", "warning_ignored")
 WEATHER_EVENTS: frozenset[str] = frozenset(
     {f"weather_error:{k}" for k in WEATHER_ERROR_KINDS}
     | {f"weather_shown:{k}" for k in WEATHER_SHOWN_STATES}
     | {f"weather_source:{k}" for k in WEATHER_SOURCES}
+    | {f"weather_note:{k}" for k in WEATHER_NOTE_KINDS}
 )
 # Live Aboard, the 3D house (views/live_aboard_house.js — the same lists
 # there, held equal by tests/test_live_aboard_house.py). Each counted once per

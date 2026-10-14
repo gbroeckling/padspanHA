@@ -7,10 +7,12 @@
 //   decisions  every row of docs/IDEA_ATLAS_WEATHER.md's decision table, the
 //              fallbacks, warning auto-detect for every listed integration,
 //              the alert-text words, the temperature rule, numeric sensors,
-//              unavailable = no signal, and inputs that must never crash
+//              unavailable = no signal, a wet rain sensor under a clear sky
+//              (dew), a leak detector chosen as the warning, and inputs that
+//              must never crash
 //   mask       from a real buildIsoSVG drawing: the plates it drew, an ALPHA
 //              mask that is transparent exactly over them, outdoor plates left
-//              out
+//              out, stacked floors joined into one shape
 //   contract   the Atlas SVG is byte-identical with the feature absent, off,
 //              and raining (the overlay lives outside the drawing)
 //   overlay    mounted after the SVG, the same element moved into each new
@@ -126,6 +128,31 @@ tryCase("table: a snowfall warning without wet is still off", () => {
   const a = decide({}, { ...wx("cloudy", -5), ...ecSnow }, EC_ENT);
   const b = decide({ atlas_weather_rain_entity: RAIN }, { [RAIN]: S("off"), ...wx("snowy"), ...ecSnow }, EC_ENT);
   check("table: a snowfall warning without wet is still off", a.kind === "off" && b.kind === "off", { a, b });
+});
+tryCase("table: a wet rain sensor under a clear sky is dew, not rain", () => {
+  // Garry's house, 2026-10-06: the solar rain sensor on all morning at 3029 mV
+  // (3 mV dry) under a partly cloudy sky: dew on the sensor, rain on the Atlas.
+  const on = { atlas_weather_rain_entity: RAIN };
+  const got = {};
+  for (const c of ["sunny", "clear-night", "partlycloudy", "cloudy", "fog", "windy", "rainy"]) got[c] = decide(on, { [RAIN]: S("on"), ...wx(c) });
+  const clear = ["sunny", "clear-night", "partlycloudy"].every(c => got[c].kind === "off" && got[c].why === "overruled"
+    && got[c].source === "condition" && JSON.stringify(got[c].notes) === '["sensor_overruled"]');
+  const kept = ["cloudy", "fog", "windy", "rainy"].every(c => is(got[c], "rain", false) && got[c].source === "rain_sensor" && !got[c].notes.length);
+  // A gauge caught what fell: a number is never overruled.
+  const gauge = decide({ atlas_weather_rain_entity: "sensor.rain_rate" },
+    { "sensor.rain_rate": S("0.4", { unit_of_measurement: "mm/h" }), ...wx("sunny") });
+  // Nothing says the sky is clear: the sensor stands.
+  const alone = decide(on, { [RAIN]: S("on") });
+  const down = decide({ ...on, atlas_weather_condition_entity: WEA }, { [RAIN]: S("on"), [WEA]: S("unavailable") });
+  const dry = decide(on, { [RAIN]: S("off"), ...wx("sunny") });
+  const frost = decide(on, { [RAIN]: S("on"), ...wx("clear-night", -3) });
+  // Overruled is an answer, not a vanished reading: nothing is held.
+  const held = WX.holdVisual({ kind: "rain", heavy: false, rim: false }, 1000, got.sunny, 2000);
+  check("table: a wet rain sensor under a clear sky is dew, not rain", clear && kept
+    && is(gauge, "rain", false) && gauge.source === "rain_sensor" && !gauge.notes.length
+    && is(alone, "rain", false) && is(down, "rain", false) && down.missing.includes("condition")
+    && dry.why === "dry" && !dry.notes.length && frost.kind === "off" && frost.why === "overruled" && held.kind === "off",
+    { got, gauge, alone, down, dry, frost, held });
 });
 
 // ── fallbacks and no-signal ─────────────────────────────────────────────────
@@ -316,6 +343,27 @@ tryCase("fallback: the warnings list never offers a leak detector", () => {
     JSON.stringify(got) === JSON.stringify(["sensor.vancouver_warnings", "sensor.my_storm_alert"])
     && JSON.stringify(WX.warningPickerIds(null)) === "[]", got);
 });
+tryCase("warnings: a leak detector chosen as the warning is ignored; detection takes over", () => {
+  // Garry's house, 2026-10-06: the Sinopé leak detector was still the stored
+  // warning entity, picked before the list left leak detectors out.
+  const LEAK = "binary_sensor.sinope_technologies_wl4210";
+  const leak = (state) => ({ [LEAK]: S(state, { device_class: "moisture", friendly_name: "Emergency Flood Warning ⚠️" }) });
+  const set = { atlas_weather_warning_entity: LEAK };
+  const a = decide(set, { ...wx("rainy"), ...ecRain, ...leak("on") }, EC_ENT);               // a leak: no warning; Environment Canada's is
+  const b = decide(set, { ...wx("rainy"), ...leak("off") }, EC_ENT);                          // nothing detected: light, nothing missing
+  const c = decide(set, { ...wx("sunny"), ...leak("unavailable") }, EC_ENT);                  // dry: noted all the same
+  const d = decide(set, { ...wx("rainy"), [ECW]: S("unavailable"), ...leak("off") }, EC_ENT); // a detected one down is not the chosen one gone
+  const mine = decide({ atlas_weather_warning_entity: "sensor.mine" }, { ...wx("rainy"), "sensor.mine": S("on", { title: "Heavy Rainfall Statement" }) });
+  check("warnings: a leak detector chosen as the warning is ignored; detection takes over",
+    is(a, "rain", true) && a.warning === "warning:env_canada" && a.notes.includes("warning_ignored")
+    && is(b, "rain", false) && !b.missing.includes("warning") && b.notes.includes("warning_ignored")
+    && c.kind === "off" && JSON.stringify(c.notes) === '["warning_ignored"]'
+    && is(d, "rain", false) && !d.missing.includes("warning")
+    && WX.isLeakDetector(LEAK, leak("on")) && !WX.isLeakDetector(ECW, ecRain) && !WX.isLeakDetector(LEAK, {})
+    && WX.chosenWarning(cfg(set), leak("on")) === "" && WX.chosenWarning(cfg({ atlas_weather_warning_entity: "sensor.mine" }), {}) === "sensor.mine"
+    && is(mine, "rain", true) && mine.warning === "warning:other" && !mine.notes.length,
+    { a, b, c, d, mine });
+});
 tryCase("warnings: a dry day reads no warning source at all", () => {
   let touched = 0;
   const ents = new Proxy({ ...EC_ENT }, { get(t, k) { touched++; return t[k]; } });
@@ -396,6 +444,48 @@ tryCase("mask: an ALPHA mask, transparent over every indoor plate", () => {
     && black.length === 6                                   // Main + Upstairs, 3 each — never the Garden plate
     && JSON.stringify([...outZ]) === "[2]";
   check("mask: an ALPHA mask, transparent over every indoor plate", ok, { outZ: [...outZ], black: black.length, head: m.slice(0, 200) });
+});
+tryCase("mask: stacked floors are one shape, so no rain falls between them", () => {
+  // Spread far apart, so the two floors leave a gap between them.
+  const svg300 = ISO.buildIsoSVG(MODEL, {}, new Set(), null, 300, 0, {}, false, FLOORS, {});
+  const geo = WX.atlasPlatesFromSvg(svg300);
+  const outZ = WX.outdoorPlateLevels(ISO.fabricFrame(MODEL, FLOORS, 300, 0), ISO.isOutdoorFloorId);
+  const indoor = geo.plates.filter(p => !outZ.has(p.z)).sort((a, b) => a.z - b.z);
+  const joins = WX.stackJoins(indoor);
+  const inPoly = (P, x, y) => {
+    let c = false;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const a = P[i], b = P[j];
+      if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+    }
+    return c;
+  };
+  const inConvex = (H, x, y) => H.every((p, i) => { const q = H[(i + 1) % H.length]; return (q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0]) >= -1e-6; });
+  const centre = (P) => [P.reduce((s, q) => s + q[0], 0) / P.length, P.reduce((s, q) => s + q[1], 0) / P.length];
+  // Halfway up from the main floor's top to the one above: off both plates.
+  const [a, b] = [centre(indoor[0].polys[2]), centre(indoor[1].polys[2])];
+  const gap = [];
+  for (let i = 1; i < 60; i++) {
+    const t = i / 60, x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+    if (!indoor.some(pl => pl.polys.some(P => inPoly(P, x, y)))) gap.push([x, y]);
+  }
+  const corners = [...indoor[0].polys.flat(), ...indoor[1].polys.flat()];
+  // Through the overlay: the mask and the snow rim carry the join.
+  WX._resetWeatherSlotsForTests();
+  const slot = WX.atlasWeatherSlot("stack");
+  slot.attach(document.createElement("div"), { settings: cfg({}), states: { ...wx("snowy"), ...ecSnow }, entities: EC_ENT, svg: svg300,
+    outdoorZ: outZ, animate: true, colour: "#fff", zoom: 1, telemetry: () => {} });
+  const mask = decodeURIComponent(String(slot.element.style["mask-image"]));
+  const black = /<g fill="#000" filter="url\(#f\)">([\s\S]*?)<\/g>/.exec(mask);
+  const nBlack = black ? (black[1].match(/<polygon /g) || []).length : 0;
+  const rim = slot.element._all().find(n => n.className === "lv-wx-rim").innerHTML;
+  const one = WX.stackJoins(indoor.slice(0, 1));
+  const square = WX.hullOf([[0, 0], [4, 0], [4, 4], [0, 4], [2, 2], [1, 3]]);
+  check("mask: stacked floors are one shape, so no rain falls between them",
+    indoor.length === 2 && joins.length === 1 && gap.length > 5 && gap.every(([x, y]) => inConvex(joins[0], x, y))
+    && corners.every(([x, y]) => inConvex(joins[0], x, y)) && nBlack === 7 && (rim.match(/<polygon /g) || []).length === 7
+    && one.length === 0 && square.length === 4 && WX.hullOf([[0, 0], [1, 1]]).length === 0 && WX.stackJoins(null).length === 0,
+    { joins, gap: gap.length, nBlack, square });
 });
 tryCase("mask: nothing to read, nothing built", () => {
   check("mask: nothing to read, nothing built", WX.atlasPlatesFromSvg("") === null && WX.atlasPlatesFromSvg("<svg viewBox=\"0 0 0 10\"></svg>") === null
@@ -697,10 +787,22 @@ tryCase("telemetry: closed words, once per page load, never an id or text", () =
   check("telemetry: closed words, once per page load, never an id or text", dup && !leak.length && rejected.every(r => r === false)
     && JSON.stringify([...sent].sort()) === JSON.stringify(want), { sent: [...sent].sort(), leak });
 });
+tryCase("telemetry: what was set aside is counted, once", () => {
+  WX._resetWeatherSlotsForTests(); WX._resetWeatherCountsForTests(); sent.length = 0;
+  const slot = WX.atlasWeatherSlot("notes");
+  const stage = document.createElement("div");
+  const LEAK = "binary_sensor.basement_leak";
+  const st = { [RAIN]: S("on"), ...wx("partlycloudy"), [LEAK]: S("off", { device_class: "moisture", friendly_name: "Flood Warning" }) };
+  for (let i = 0; i < 3; i++) slot.attach(stage, { settings: cfg({ atlas_weather_rain_entity: RAIN, atlas_weather_warning_entity: LEAK }),
+    states: st, svg: svgStr, animate: true, colour: "#fff", zoom: 1, telemetry });
+  const notes = sent.filter(n => n.startsWith("weather_note:")).sort();
+  check("telemetry: what was set aside is counted, once", !overlayIn(stage) && sent.every(n => WX.WEATHER_EVENTS.includes(n))
+    && JSON.stringify(notes) === JSON.stringify(["weather_note:sensor_overruled", "weather_note:warning_ignored"]), { sent });
+});
 
 console.log(JSON.stringify({
   cases, failures,
   lists: { errors: WX.WEATHER_ERROR_KINDS, shown: WX.WEATHER_SHOWN_STATES, sources: WX.WEATHER_SOURCES,
-           platforms: WX.WARNING_PLATFORMS, events: WX.WEATHER_EVENTS },
+           notes: WX.WEATHER_NOTE_KINDS, platforms: WX.WARNING_PLATFORMS, events: WX.WEATHER_EVENTS },
 }));
 process.exit(failures.length ? 1 : 0);

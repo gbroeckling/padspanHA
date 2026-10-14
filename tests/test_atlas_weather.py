@@ -60,8 +60,8 @@ def test_every_case_in_the_harness_passes(harness) -> None:
 
 
 @pytest.mark.parametrize("prefix,least", [
-    ("table:", 11), ("fallback:", 3), ("no signal:", 3), ("warnings:", 5), ("mask:", 3),
-    ("contract:", 1), ("overlay:", 9), ("errors:", 2), ("telemetry:", 1),
+    ("table:", 12), ("fallback:", 3), ("no signal:", 3), ("warnings:", 6), ("mask:", 4),
+    ("contract:", 1), ("overlay:", 9), ("errors:", 2), ("telemetry:", 2),
 ])
 def test_the_harness_covers_each_part(harness, prefix, least) -> None:
     got = [k for k in harness["cases"] if k.startswith(prefix)]
@@ -78,10 +78,12 @@ def test_the_report_words_are_the_frontends(harness) -> None:
     assert tuple(lists["errors"]) == T.WEATHER_ERROR_KINDS
     assert tuple(lists["shown"]) == T.WEATHER_SHOWN_STATES
     assert tuple(lists["sources"]) == T.WEATHER_SOURCES
+    assert tuple(lists["notes"]) == T.WEATHER_NOTE_KINDS
     assert tuple(lists["platforms"]) == T.WEATHER_WARNING_PLATFORMS
     assert set(lists["events"]) == set(T.WEATHER_EVENTS)
     assert set(T.WEATHER_ERROR_KINDS) == {"mask_build", "mask_unsupported", "tiles", "decision", "mount", "source"}
     assert set(T.WEATHER_SHOWN_STATES) == {"light_rain", "heavy_rain", "light_snow", "heavy_snow", "still"}
+    assert set(T.WEATHER_NOTE_KINDS) == {"sensor_overruled", "warning_ignored"}
     assert {"rain_sensor", "condition", "none", "warning:env_canada", "warning:meteoalarm",
             "warning:dwd_weather_warnings", "warning:nina", "warning:meteo_france",
             "warning:weatheralerts", "warning:nws_alerts", "warning:other"} == set(T.WEATHER_SOURCES)
@@ -166,7 +168,8 @@ def test_the_summary_has_an_atlas_weather_section(tmp_path) -> None:
         pytest.skip("no server/ in this tree (the Bright derivation carries none)")
     a = {"install_id": "11111111-1111-4111-8111-111111111111", "version": "0.38.91",
          "usage": {"weather_error:mask_unsupported": 1, "weather_shown:light_rain": 2,
-                   "weather_source:condition": 2, "weather_source:warning:meteoalarm": 1, "tab:maps": 4}}
+                   "weather_source:condition": 2, "weather_source:warning:meteoalarm": 1,
+                   "weather_note:sensor_overruled": 2, "tab:maps": 4}}
     b = {"install_id": "22222222-2222-4222-8222-222222222222", "version": "0.38.91",
          "usage": {"weather_shown:light_rain": 1, "weather_shown:still": 1, "weather_source:condition": 1}}
     day = date.today().isoformat()
@@ -181,6 +184,7 @@ def test_the_summary_has_an_atlas_weather_section(tmp_path) -> None:
     assert re.search(r"still\s+1\s+1 installs", s), s
     assert re.search(r"condition\s+3\s+2 installs", s), s
     assert re.search(r"warning:meteoalarm\s+1\s+1 installs", s), s
+    assert re.search(r"set aside.*\n\s+sensor_overruled\s+2\s+1 installs", s), s
     usage_block = out.stdout[out.stdout.index("Usage (events"):out.stdout.index("Atlas weather")]
     assert "weather_" not in usage_block, "listed twice"
     # Nothing reported: the section says so rather than vanishing.
@@ -255,8 +259,10 @@ def test_the_settings_card_offers_each_setting_saved_on_its_own() -> None:
         assert f'"{k}"' in sec, k
     assert 'ctx.actions.wsCall("padspan_ha/settings_set"' in sec and "settingsSet(" not in sec
     assert 'eid.startsWith("weather.")' in sec
-    # The warnings list, leak detectors left out (the harness runs the rule).
+    # The warnings list, leak detectors left out (the harness runs the rule);
+    # one still stored is named, and said to be ignored.
     assert "WX.warningPickerIds(states, entities)" in sec
+    assert "WX.isLeakDetector(curWarn, states)" in sec and "is a water-leak detector, not a weather warning" in sec
     assert "lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));" in src
     # "Above 0 = wet" needs a sensor that means raining NOW (the harness runs the rule).
     assert "WX.rainSensorIds(states, entities)" in sec

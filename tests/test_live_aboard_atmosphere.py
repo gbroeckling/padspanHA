@@ -113,14 +113,15 @@ def wx() -> dict:
     return _harness("live_aboard_weather.mjs", _WWW)
 
 
-@pytest.mark.parametrize("prefix", ["spawn:", "budget:", "layers:", "decision:", "dry:", "frames:", "still:", "release:"])
+@pytest.mark.parametrize("prefix", ["spawn:", "budget:", "layers:", "decision:", "dry:", "mask:", "frames:", "still:", "release:"])
 def test_the_weather_harness_covers_each_part(wx, prefix) -> None:
     """spawn: nothing ever falls inside an indoor room on any floor, decks
     catch what falls on them; budget: Low a few thousand at most; decision:
     the flat Atlas's own through holdVisual; dry: nothing built, no frame;
-    frames: rain at most 30 a second on Low and 60 on High, snow 30, at 60,
-    120 and 144 Hz; still: reduced motion draws once; release: it goes with
-    the view."""
+    mask: the house kept dry on screen, floor to ceiling, whatever stands in
+    front; frames: rain at most 30 a second on Low and 60 on High, snow 30,
+    at 60, 120 and 144 Hz; still: reduced motion draws once; release: it
+    goes with the view."""
     _case(wx, prefix)
 
 
