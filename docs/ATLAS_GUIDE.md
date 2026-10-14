@@ -63,18 +63,19 @@ The **presets bar** saves a whole look — Showcase theme, Automorph style, and 
 
 ## Outdoor weather
 
-When it's raining or snowing, Atlas shows it: faint rain or snow falls everywhere around the house, never over a room or a floor. It's off while it's dry, so most of the time you won't see it. It's in both the Atlas sidebar and Mapping → Atlas. PadSpan Pro and Bright Pro animate it; the free map shows the same weather as a still texture. With the phone or tablet set to reduce motion, it's still there too.
+When it's raining or snowing, Atlas shows it: faint rain or snow falls everywhere around the house, never over a room or a floor, and never in the space between two stacked floors (that's inside the house). It's off while it's dry, so most of the time you won't see it. It's in both the Atlas sidebar and Mapping → Atlas. PadSpan Pro and Bright Pro animate it; the free map shows the same weather as a still texture. With the phone or tablet set to reduce motion, it's still there too.
 
 What it shows:
 
 - **Light rain** whenever it's wet. With a rain sensor chosen, that sensor decides. Without one, the weather entity decides (rainy, pouring, snowy, snowy-rainy, hail or lightning-rainy count as wet).
+- **Nothing** when an on/off rain sensor reads wet but the weather entity says *sunny*, *clear-night* or *partlycloudy*: dew and frost wet a rain sensor on clear mornings. A rain-rate sensor or a rain gauge isn't overruled; what it caught really fell.
 - **Heavy rain** only when something outside confirms it: a rainfall warning, or the weather entity saying *pouring*. A rain sensor alone only ever shows light rain, and a rain-rate sensor never makes it heavier.
 - **Snow** when the weather entity says *snowy* or *snowy-rainy*, or it's 1 °C (34 °F) or colder.
 - **Heavy snow** only on a snowfall warning, with a pale rim that builds up around the floors.
 
 Weather warnings are found by themselves from Environment Canada, MeteoAlarm (most of Europe), DWD and NINA (Germany) and Météo-France. In the USA, Home Assistant's own weather service has no warnings; the **weatheralerts** or **nws_alerts** custom integrations add them. The UK and Australia have nothing standard, so there, *pouring* is the only heavy-rain signal. If a sensor stops reporting for a moment (Home Assistant restarting, say), the weather on the map stays as it was for up to 2 minutes instead of blinking off.
 
-Set it up in **Settings → UI Structure** (Advanced mode) **→ Atlas — Mapped Light Control → Outdoor weather**: the on/off switch (on by default), the rain sensor (optional; the list shows only actual rain sensors: an on/off rain sensor, a rain rate, or a rain gauge's latest reading), the weather entity (automatic picks your first one), the warnings sensor (automatic finds them) and **Strength** (0.5× to 1.5×). Each saves as soon as you change it, and Atlas picks it up at its next refresh.
+Set it up in **Settings → UI Structure** (Advanced mode) **→ Atlas — Mapped Light Control → Outdoor weather**: the on/off switch (on by default), the rain sensor (optional; the list shows only actual rain sensors: an on/off rain sensor, a rain rate, or a rain gauge's latest reading), the weather entity (automatic picks your first one), the warnings sensor (automatic finds them) and **Strength** (0.5× to 1.5×). Each saves as soon as you change it, and Atlas picks it up at its next refresh. A water-leak detector saved as the warnings sensor before PadSpan left them out of that list is ignored (Atlas finds warnings itself), and Settings says so under the list.
 
 ## Heights
 

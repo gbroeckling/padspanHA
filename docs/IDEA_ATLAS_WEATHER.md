@@ -24,6 +24,10 @@ it shows at a glance what the weather is doing outside.
    heavy only on a snowfall warning (HA has no heavy-snow condition).
 6. Most clients are **not in Canada**, so every source needs a fallback.
 7. Keep it **subtle**.
+8. *(2026-10-14, after rain on a sunny day, 0.38.105.)* Rain stays **outside the building**: never in
+   the space between two stacked floors (the stack is one shape), and in Live Aboard never drawn over
+   the house on screen, not over a floor, a sofa or a wall. A wet on/off rain sensor under a clear sky
+   is dew, not rain.
 
 ## Decision rules
 
@@ -31,6 +35,7 @@ it shows at a glance what the weather is doing outside.
 |---|---|
 | Setting off | Nothing rendered, whatever the sensors say |
 | Rain sensor set, reading dry | Off (2.5 s fade-out) |
+| On/off rain sensor wet, weather entity sunny / clear-night / partlycloudy | Off: dew or frost (0.38.126). A rain rate or gauge is never overruled |
 | No rain sensor set | Wet = weather condition in {rainy, pouring, snowy, snowy-rainy, hail, lightning-rainy} |
 | Wet, alone | Light rain |
 | Wet + rainfall warning, or condition `pouring` | Heavy rain |

@@ -3317,8 +3317,9 @@ function _atlasWeatherSection(ctx, el, settings){
   const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🌧️ Outdoor weather"));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
-    "Rain or snow drawn around the house on the Atlas, never over a room, only while it is actually raining or snowing. " +
-    "A rain sensor alone shows light rain; heavy rain needs a rainfall warning or the weather entity saying “pouring”, heavy snow a snowfall warning. " +
+    "Rain or snow drawn around the house on the Atlas, never over a room or between floors, only while it is actually raining or snowing. " +
+    "A rain sensor alone shows light rain, and none while the weather entity says the sky is clear (dew wets a rain sensor too); " +
+    "heavy rain needs a rainfall warning or the weather entity saying “pouring”, heavy snow a snowfall warning. " +
     "PadSpan Pro animates it; the free map shows it still."));
   const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");
   const save = async (key, value, undo) => {
@@ -3369,6 +3370,14 @@ function _atlasWeatherSection(ctx, el, settings){
     firstWx ? `Automatic — ${nameOf(firstWx)}` : "Automatic — none found (no weather shows)", ids.filter(eid => eid.startsWith("weather.")));
   picker("Weather warnings", "atlas_weather_warning_entity",
     warnIds.length ? `Automatic — ${warnIds.length} found` : "Automatic — none found", warnList);
+  // A leak detector picked before the list left them out is still stored: the
+  // Atlas ignores it and finds warnings itself (atlas_weather.js chosenWarning).
+  const curWarn = String(settings.atlas_weather_warning_entity || "");
+  if (WX && curWarn && WX.isLeakDetector(curWarn, states)) {
+    box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
+      `${nameOf(curWarn)} is a water-leak detector, not a weather warning, so the Atlas ignores it and finds warnings on its own. ` +
+      "Pick a warning above, or Automatic."));
+  }
 
   const k = Number(settings.atlas_weather_strength);
   const start = Number.isFinite(k) ? Math.max(0.5, Math.min(1.5, k)) : 1;

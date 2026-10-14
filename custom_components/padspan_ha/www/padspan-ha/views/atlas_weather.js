@@ -4,7 +4,8 @@
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
 // Atlas outdoor weather (docs/IDEA_ATLAS_WEATHER.md): subtle rain or snow
-// drawn everywhere OUTSIDE the floor plates, never over a room or a slab.
+// drawn everywhere OUTSIDE the floor plates, never over a room or a slab,
+// and never between two stacked floors (that is inside the house).
 //
 // It is an HTML overlay laid over the Atlas SVG, not part of it. The SVG is
 // rebuilt from a string on every poll; the overlay is one persistent element
@@ -18,13 +19,18 @@
 // The rules (the owner's, final):
 //   setting off                                   -> nothing at all
 //   rain sensor set, reading dry                  -> off
+//   on/off rain sensor wet under a clear sky      -> off (dew or frost)
 //   no rain sensor (or no reading from it)        -> wet = weather condition
 //   wet, alone                                    -> light rain
 //   wet + rainfall warning, or condition pouring  -> heavy rain
 //   wet + condition snowy/snowy-rainy, or <= 1 °C -> light snow
 //   wet + snowfall warning                        -> heavy snow + rim
 // The rain sensor alone only ever means LIGHT rain; a numeric one is wet
-// above 0 and never scales the intensity.
+// above 0 and never scales the intensity. A rain sensor that is a wet
+// surface (a binary one) is overruled by a weather entity saying the sky is
+// clear: dew and frost wet it on clear mornings (Garry, 2026-10-06: rain on
+// the Atlas all morning, the sensor at 3029 mV, the sky partly cloudy). A
+// gauge (a number) catches rain that falls and is never overruled.
 
 // ── Vocabulary ───────────────────────────────────────────────────────────────
 export const WET_CONDITIONS = ["rainy", "pouring", "snowy", "snowy-rainy", "hail", "lightning-rainy"];
@@ -48,10 +54,14 @@ export const WEATHER_ERROR_KINDS = ["mask_build", "mask_unsupported", "tiles", "
 export const WEATHER_SHOWN_STATES = ["light_rain", "heavy_rain", "light_snow", "heavy_snow", "still"];
 export const WEATHER_SOURCES = ["rain_sensor", "condition", "none",
   ...WARNING_PLATFORMS.map(p => `warning:${p}`), "warning:other"];
+// What the decision set aside on purpose: a wet rain sensor overruled by a
+// clear sky; a chosen warning entity that is a leak detector, ignored.
+export const WEATHER_NOTE_KINDS = ["sensor_overruled", "warning_ignored"];
 export const WEATHER_EVENTS = [
   ...WEATHER_ERROR_KINDS.map(k => `weather_error:${k}`),
   ...WEATHER_SHOWN_STATES.map(k => `weather_shown:${k}`),
   ...WEATHER_SOURCES.map(k => `weather_source:${k}`),
+  ...WEATHER_NOTE_KINDS.map(k => `weather_note:${k}`),
 ];
 const _ALLOWED = new Set(WEATHER_EVENTS);
 const _counted = new Set();
@@ -183,9 +193,25 @@ function isWarningSensor(eid, platform, entities, states){
   return eid.startsWith("sensor.") || eid.startsWith("binary_sensor.");
 }
 
+/** A water-leak or flood detector (device class moisture), which a house
+ *  often names "… Flood Warning": it never says anything about rain or snow. */
+export function isLeakDetector(eid, states){
+  const st = states && eid ? states[eid] : null;
+  return !!(st && st.attributes && st.attributes.device_class === "moisture");
+}
+
+/** The chosen warning entity, unless it is a leak detector: one picked
+ *  before the list left them out (0.38.94) is still stored (Garry's
+ *  "Emergency Flood Warning", 2026-10-06), and is ignored. */
+export function chosenWarning(cfg, states){
+  const eid = cfg && cfg.warningEntity;
+  return eid && !isLeakDetector(eid, states) ? eid : "";
+}
+
 /** The warning entities to read: the chosen one, else every detected one. */
 export function warningEntities(cfg, states, entities){
-  if (cfg && cfg.warningEntity) return [cfg.warningEntity];
+  const chosen = chosenWarning(cfg, states);
+  if (chosen) return [chosen];
   const out = [];
   for (const eid of Object.keys(states || {})) {
     if (!eid.startsWith("sensor.") && !eid.startsWith("binary_sensor.")) continue;
@@ -204,9 +230,8 @@ export function warningPickerIds(states, entities){
   const st = states || {};
   const found = warningEntities({}, st, entities);
   const name = (eid) => String((st[eid] && st[eid].attributes && st[eid].attributes.friendly_name) || eid);
-  const dc = (eid) => String((st[eid] && st[eid].attributes && st[eid].attributes.device_class) || "");
   return [...found, ...Object.keys(st).sort().filter(eid => /^(binary_sensor|sensor)\./.test(eid) && !found.includes(eid)
-    && dc(eid) !== "moisture" && /warn|alert|avertissement|vigilance/i.test(`${name(eid)} ${eid}`))];
+    && !isLeakDetector(eid, st) && /warn|alert|avertissement|vigilance/i.test(`${name(eid)} ${eid}`))];
 }
 
 // An alert sensor is quiet at 0 / off / Vert (Météo-France's green).
@@ -255,9 +280,10 @@ export function textSaysSnow(t){ return SNOW_WORDS.some(r => r.test(String(t || 
 export function activeWarning(cfg, states, entities){
   const st = states || {};
   const out = { rain: false, snow: false, platform: null, missing: false };
+  const chosen = !!chosenWarning(cfg, st);
   for (const eid of warningEntities(cfg, st, entities)) {
     const s = st[eid];
-    if (reading(s) === null) { if (cfg && cfg.warningEntity) out.missing = true; continue; }
+    if (reading(s) === null) { if (chosen) out.missing = true; continue; }
     if (!alertActive(s)) continue;
     const texts = alertTexts(s.attributes || {});
     const rain = texts.some(textSaysRain), snow = texts.some(textSaysSnow);
@@ -269,19 +295,26 @@ export function activeWarning(cfg, states, entities){
   return out;
 }
 
+// The weather entity's word for a clear sky. A rain sensor that reads wet
+// under one is wet from dew or frost: a binary rain sensor is a wet surface.
+export const CLEAR_SKY = ["sunny", "clear-night", "partlycloudy"];
+
 // ── THE decision (pure: settings + hass.states [+ hass.entities]) ────────────
-// {kind:"off"|"rain"|"snow", heavy, rim, source, warning, why, missing[]}
-//   source   what made it wet (rain_sensor | condition), or none
+// {kind:"off"|"rain"|"snow", heavy, rim, source, warning, why, missing[], notes[]}
+//   source   what made it wet (rain_sensor | condition), or none; when a
+//            clear sky overruled the rain sensor, condition
 //   warning  "warning:<platform>" when a warning made it heavy, else null
-//   why      disabled | dry | no_source | wet
+//   why      disabled | dry | overruled | no_source | wet
 //   missing  configured entities that are missing or unavailable (the
 //            warning one only while wet: warnings are read only then)
+//   notes    what was set aside on purpose (WEATHER_NOTE_KINDS)
 export function decideAtlasWeather(cfg, states, entities){
   const s = cfg || {};
   const st = states || {};
-  const missing = [];
-  const off = (why, source) => ({ kind: "off", heavy: false, rim: false, source, warning: null, why, missing });
+  const missing = [], notes = [];
+  const off = (why, source) => ({ kind: "off", heavy: false, rim: false, source, warning: null, why, missing, notes });
   if (!s.enabled) return off("disabled", "none");
+  if (s.warningEntity && !chosenWarning(s, st)) notes.push("warning_ignored");
   let wet = null, source = "none";
   if (s.rainEntity) {
     const r = rainReading(st[s.rainEntity]);
@@ -296,6 +329,12 @@ export function decideAtlasWeather(cfg, states, entities){
   if (wet === null && cond !== null) { wet = WET_CONDITIONS.includes(cond); source = "condition"; }
   if (wet === null) return off("no_source", "none");
   if (!wet) return off("dry", source);
+  // A wet surface under a clear sky: dew or frost, not rain. A gauge (a
+  // number) is never overruled: what it caught fell.
+  if (source === "rain_sensor" && s.rainEntity.startsWith("binary_sensor.") && CLEAR_SKY.includes(cond)) {
+    notes.push("sensor_overruled");
+    return off("overruled", "condition");
+  }
   // A warning only ever makes it heavier, so warnings are read only while it
   // is wet — not a scan of every sensor on every dry poll.
   const warn = activeWarning(s, st, entities);
@@ -307,7 +346,7 @@ export function decideAtlasWeather(cfg, states, entities){
   const heavy = kind === "snow" ? warn.snow : (warn.rain || cond === "pouring");
   const plat = WARNING_PLATFORMS.includes(warn.platform) ? warn.platform : "other";
   return { kind, heavy, rim: kind === "snow" && heavy, source,
-           warning: heavy && byWarning ? `warning:${plat}` : null, why: "wet", missing };
+           warning: heavy && byWarning ? `warning:${plat}` : null, why: "wet", missing, notes };
 }
 
 /** The usage-report state name for what is drawn, or null. */
@@ -360,6 +399,39 @@ export function outdoorPlateLevels(frame, isOutdoor){
   for (const l of (frame && frame.lights) || []) add(l.z, l.floor_id);
   const out = new Set();
   for (const [z, flags] of byZ) if (flags.length && flags.every(Boolean)) out.add(z);
+  return out;
+}
+
+/** The outline round some points (a convex hull, Andrew's monotone chain). */
+export function hullOf(points){
+  const P = [...(points || [])].filter(q => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]))
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (P.length < 3) return [];
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower = [], upper = [];
+  for (const q of P) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop(); lower.push(q); }
+  for (let i = P.length - 1; i >= 0; i--) {
+    const q = P[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], q) <= 0) upper.pop();
+    upper.push(q);
+  }
+  const h = lower.slice(0, -1).concat(upper.slice(0, -1));
+  return h.length >= 3 ? h : [];
+}
+
+/** The space between two stacked floors is inside the house (Garry,
+ *  2026-10-14: rain fell between the floors): each indoor plate is joined
+ *  to the next one up by the outline round both, so the stack is one shape
+ *  and rain falls round the building, never between its storeys. Above the
+ *  top floor nothing is drawn, so nothing is joined there. plates: the
+ *  indoor ones, {z, polys}. */
+export function stackJoins(plates){
+  const up = [...(plates || [])].filter(p => p && Array.isArray(p.polys) && p.polys.length).sort((a, b) => a.z - b.z);
+  const out = [];
+  for (let i = 0; i + 1 < up.length; i++) {
+    const h = hullOf([...up[i].polys.flat(), ...up[i + 1].polys.flat()]);
+    if (h.length) out.push(h);
+  }
   return out;
 }
 
@@ -671,6 +743,7 @@ function createSlot(slotKey){
           .some(e => e && !has(p.states, e) && !has(p.entities, e))) err("source");
         countWeatherOnce(`weather_source:${d.source}`, send);
         if (d.warning) countWeatherOnce(`weather_source:${d.warning}`, send);
+        for (const n of d.notes || []) countWeatherOnce(`weather_note:${n}`, send);
         if (d.why !== "no_source") lastLive = now;
         const v = holdVisual(shown, lastLive, d, now);
         if (!same(v, shown)) { prev = shown; shown = v; since = now; }
@@ -682,7 +755,9 @@ function createSlot(slotKey){
         try { geo = atlasPlatesFromSvg(p.svg); } catch (_) { geo = null; }
         if (!geo) { err("mask_build"); detach(); return false; }
         const outZ = p.outdoorZ instanceof Set ? p.outdoorZ : new Set();
-        const polys = geo.plates.filter(pl => !outZ.has(pl.z)).flatMap(pl => pl.polys);
+        // The indoor plates and the space between each and the next one up.
+        const indoor = geo.plates.filter(pl => !outZ.has(pl.z));
+        const polys = [...indoor.flatMap(pl => pl.polys), ...stackJoins(indoor)];
         // ~3 px of feathered gap at every wall, whatever the zoom: the
         // stage's width in screen px over the viewBox's width in units.
         const ppu = Math.max(0.2, ((Number(p.stageWidth) || globalThis.innerWidth || 1000) * (Number(p.zoom) || 1)) / geo.viewBox[2]);

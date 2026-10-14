@@ -19,6 +19,9 @@
 //             Outdoor weather off is nothing
 //   dry       dry, or Rain and snow off: nothing built, and the view at rest
 //             draws no frame at all
+//   mask      the house is kept dry on screen: every indoor room on a floor
+//             that shows, floor to ceiling and its walls, marked with no
+//             depth test, so no drop is drawn over a floor, a sofa or a wall
 //   frames    while it shows the view draws on its own clock, capped: rain at
 //             most 30 a second on Low and 60 on High, snow 30; it stops when
 //             the weather does; prefers-reduced-motion draws it once, still
@@ -201,6 +204,44 @@ await tryCase("dry: nothing built, and nothing asks for a frame", async () => {
   const s = w._state();
   check("dry: nothing built, and nothing asks for a frame",
     !changed && s.built === 0 && s.frameMs === 0 && objs(scene).length === 0 && s.area === null && Object.keys(s.layers).length === 0, s);
+});
+await tryCase("mask: the whole house is kept dry on screen, whatever stands in front", async () => {
+  // Rain on the rooms (Garry, 2026-10-14): only the floor that showed was
+  // marked, so a drop falling outside, in front of the house, was drawn over
+  // a sofa or a wall. Every indoor room on a floor that shows is marked now,
+  // floor, ceiling and walls, with no depth test.
+  const maskOf = (shown) => {
+    const { scene, host } = bare();
+    const w = W.createWeather(THREE, host);
+    w.update({ settings: SET(), states: wxState("rainy"), entities: {}, profile: "low", house: HOUSE_P(shown), nowMs: Date.now(), colour: "#ffffff" });
+    const m = scene.getObjectByName("weather:mask"), rain = scene.getObjectByName("weather:drizzle");
+    const pos = m ? m.geometry.attributes.position : null, ys = new Set();
+    for (let i = 0; pos && i < pos.count; i++) ys.add(Math.round(pos.getY(i) * 1000) / 1000);
+    w.dispose();
+    return { m, rain, n: pos ? pos.count : 0, ys: [...ys].sort((a, b) => a - b) };
+  };
+  // What it must hold: each indoor room shown, its floor and its ceiling,
+  // and a wall on every side (a simple outline of n corners: n - 2 triangles a face).
+  const want = (shown) => {
+    const rooms = indoor.filter(r => shown(r.floor)), ys = new Set();
+    let n = 0;
+    for (const r of rooms) {
+      const e = Number(r.floor.elev) || 0;
+      ys.add(Math.round(e * 1000) / 1000); ys.add(Math.round((e + (Number(r.floor.h) || 2.8)) * 1000) / 1000);
+      n += 2 * (r.pts.length - 2) * 3 + r.pts.length * 6;
+    }
+    return { n, ys: [...ys].sort((a, b) => a - b) };
+  };
+  const all = () => true, low = (fl) => fl.id !== "upper";
+  const a = maskOf(all), b = maskOf(low), wa = want(all), wb = want(low);
+  const mat = a.m && a.m.material, rm = a.rain && a.rain.material;
+  check("mask: the whole house is kept dry on screen, whatever stands in front",
+    mat && mat.depthTest === false && mat.colorWrite === false && mat.depthWrite === false && mat.stencilWrite === true
+    && mat.stencilRef === 1 && mat.stencilFunc === THREE.AlwaysStencilFunc && mat.stencilZPass === THREE.ReplaceStencilOp
+    && rm && rm.stencilFunc === THREE.NotEqualStencilFunc && rm.stencilRef === 1
+    && a.n === wa.n && JSON.stringify(a.ys) === JSON.stringify(wa.ys) && wa.ys.length >= 3
+    && b.n === wb.n && JSON.stringify(b.ys) === JSON.stringify(wb.ys) && b.n < a.n,
+    { a: { n: a.n, ys: a.ys }, wa, b: { n: b.n, ys: b.ys }, wb });
 });
 
 // ── the view ────────────────────────────────────────────────────────────────
