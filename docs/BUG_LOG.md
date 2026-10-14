@@ -10,9 +10,9 @@ released), **watching** (fixed; confirming from the field).
 
 | # | Area | What people saw | Cause | Fix | Release | Field signal | Status |
 |---|---|---|---|---|---|---|---|
-| 158 | Atlas weather | Rain on the Atlas on a sunny morning | An on/off rain sensor wet from dew decided on its own; the weather entity (partly cloudy) had no say | 67d3eacc, 8ee075df | 0.38.126 | `weather_note:sensor_overruled` | committed |
+| 158 | Atlas weather | Rain on the Atlas on a sunny morning | An on/off rain sensor wet from dew decided on its own; the weather entity (partly cloudy) had no say | 67d3eacc, 8ee075df, 2c1bf8c5 | 0.38.126 | `weather_note:sensor_overruled` | committed |
 | 157 | Atlas weather | Rain fell in the space between two stacked floors, inside the house | The mask kept rain off each floor plate, never off the space between them | 67d3eacc, 8ee075df | 0.38.126 | — | committed |
-| 156 | Live Aboard | Rain drawn over sofas, beds and walls inside the house | Only the floor that showed was marked dry, so a drop falling outside, in front of the house, showed over whatever stood on it | 67d3eacc, 8ee075df | 0.38.126 | — | committed |
+| 156 | Live Aboard | Rain drawn over sofas, beds and walls inside the house | Only the floor that showed was marked dry, so a drop falling outside, in front of the house, showed over whatever stood on it | 67d3eacc, 8ee075df, 2c1bf8c5 | 0.38.126 | — | committed |
 | 155 | Atlas weather | A leak detector stayed the weather warnings sensor after that list stopped offering one | The stored pick was used as it was | 67d3eacc | 0.38.126 | `weather_note:warning_ignored` (should fall as people pick again) | committed |
 | 154 | Follow | Every Follow alert to a notify entity failed when an email was also filled in | The email was sent as `target`, which `notify.send_message` refuses; 0.38.105 fell back to auto-pick | 62d80a2a | 0.38.122 | `follow_alert_failed` | fixed |
 | 153 | Entities | A labelled device's tracker came back as `device_tracker.<label>_2` after its Bermuda entity went away | A Bermuda entity object could win the tie for a new tracker's unique_id (from 40430ed7) | f7f2b0c0 | 0.38.122 | `entity_dup_n` (should not grow) | fixed (a tracker a 0.38.117–0.38.121 beta already named from an entity key can still get a `_2`) |
