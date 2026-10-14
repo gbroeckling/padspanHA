@@ -143,6 +143,9 @@ tryCase("table: a wet rain sensor under a clear sky is dew, not rain", () => {
   const gauge = decide({ atlas_weather_rain_entity: "sensor.rain_rate" },
     { "sensor.rain_rate": S("0.4", { unit_of_measurement: "mm/h" }), ...wx("sunny") });
   const made = decide(on, { [RAIN]: S("on"), ...wx("sunny") }, { [RAIN]: { platform: "template" } });
+  const helpers = ["threshold", "bayesian"].map(platform => decide(on, { [RAIN]: S("on"), ...wx("sunny") }, { [RAIN]: { platform } }));
+  const yaml = decide(on, { [RAIN]: S("on"), ...wx("sunny") }, { "sensor.other": { platform: "met" } });   // not in a loaded registry
+  const unloaded = decide(on, { [RAIN]: S("on"), ...wx("sunny") }, {});
   const tuya = decide(on, { [RAIN]: S("on"), ...wx("sunny") }, { [RAIN]: { platform: "mqtt" } });
   // Nothing says the sky is clear: the sensor stands.
   const alone = decide(on, { [RAIN]: S("on") });
@@ -154,9 +157,10 @@ tryCase("table: a wet rain sensor under a clear sky is dew, not rain", () => {
   check("table: a wet rain sensor under a clear sky is dew, not rain", clear && kept
     && is(gauge, "rain", false) && gauge.source === "rain_sensor" && !gauge.notes.length
     && is(made, "rain", false) && !made.notes.length && tuya.why === "overruled"
+    && helpers.every(h => is(h, "rain", false)) && is(yaml, "rain", false) && unloaded.why === "overruled"
     && is(alone, "rain", false) && is(down, "rain", false) && down.missing.includes("condition")
     && dry.why === "dry" && !dry.notes.length && frost.kind === "off" && frost.why === "overruled" && held.kind === "off",
-    { got, gauge, made, tuya, alone, down, dry, frost, held });
+    { got, gauge, made, helpers, yaml, unloaded, tuya, alone, down, dry, frost, held });
 });
 
 // ── fallbacks and no-signal ─────────────────────────────────────────────────

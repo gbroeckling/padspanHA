@@ -68,7 +68,7 @@ When it's raining or snowing, Atlas shows it: faint rain or snow falls everywher
 What it shows:
 
 - **Light rain** whenever it's wet. With a rain sensor chosen, that sensor decides. Without one, the weather entity decides (rainy, pouring, snowy, snowy-rainy, hail or lightning-rainy count as wet).
-- **Nothing** when an on/off rain sensor reads wet but the weather entity says *sunny*, *clear-night* or *partlycloudy*: dew and frost wet a rain sensor on clear mornings. A rain-rate sensor, a rain gauge, or an on/off sensor made with a template isn't overruled; what it caught really fell. A shower your weather entity's forecast missed shows no rain.
+- **Nothing** when an on/off rain sensor reads wet but the weather entity says *sunny*, *clear-night* or *partlycloudy*: dew and frost wet a rain sensor on clear mornings. A rain-rate sensor, a rain gauge, or an on/off sensor a helper makes from one (a template, a threshold or a Bayesian sensor) isn't overruled; what it caught really fell. A shower your weather entity's forecast missed shows no rain.
 - **Heavy rain** only when something outside confirms it: a rainfall warning, or the weather entity saying *pouring*. A rain sensor alone only ever shows light rain, and a rain-rate sensor never makes it heavier.
 - **Snow** when the weather entity says *snowy* or *snowy-rainy*, or it's 1 °C (34 °F) or colder.
 - **Heavy snow** only on a snowfall warning, with a pale rim that builds up around the floors.

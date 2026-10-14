@@ -42,6 +42,7 @@ const REF_PX = 1600 * 900, MIN_SHARE = 0.25;
 const WRAP_S = 3600;                 // the shader's clock wraps hourly (float precision on a wall PC up for days)
 const STILL_S = 7.3;                 // the moment a still picture shows
 const CAP_H = 0.06, SETTLE_OP = 0.85, APRON_OP = 0.6, APRON_PAD = 2.4, APRON_BLUR = 1.2;
+const DOWN_H = 2;                    // m: every wall down, what still stands in a room (people, a wardrobe) is under it
 const SNOW_SHADE = 0.86;             // settled snow: the weather's colour a little greyer, never a glare
 
 /** The layers. rain: speed m/s, len the streak (m), width (CSS px), op the
@@ -324,8 +325,8 @@ function reducedMotion(){
 }
 
 /** The weather in one 3D view. host = {scene, renderer, camera, shell?}:
- *  the view's own; shell() → {roof, low}: the roof showing, and the height
- *  every wall is cut to (0: they stand). update() at each poll, tick(t) on each frame the view draws,
+ *  the view's own; shell() → {roof, down}: the roof showing, every wall
+ *  down. update() at each poll, tick(t) on each frame the view draws,
  *  frameMs() for its live clock, dispose() when it goes. Never throws: a
  *  failure is counted (the flat Atlas's closed words) and the view simply
  *  has no weather until it is built again. */
@@ -499,13 +500,14 @@ export function createWeather(THREE, host){
   // a sofa or a wall, rain on the rooms (Garry, 2026-10-14). Drawn after the
   // house, before the weather. As the house is drawn (the view's shell(), on
   // each frame): with the roof on nothing is marked, since rain falls in
-  // front of a roof; with every wall down, only as high as the walls stand.
+  // front of a roof; with every wall down, only as high as what still stands
+  // in a room (DOWN_H), so the ground beyond the low walls keeps its rain.
   // Each face's front is its outside, so from inside a room none is marked.
   let mask = null;
   const shellNow = () => {
     try {
       const s = typeof host.shell === "function" ? host.shell() : null;
-      return { roof: !!(s && s.roof), low: Math.max(0, Number(s && s.low) || 0) };
+      return { roof: !!(s && s.roof), low: s && s.down ? DOWN_H : 0 };
     } catch (_) { return { roof: false, low: 0 }; }
   };
   function makeMask(low){
