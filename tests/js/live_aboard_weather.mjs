@@ -21,7 +21,9 @@
 //             draws no frame at all
 //   mask      the house is kept dry on screen: every indoor room on a floor
 //             that shows, floor to ceiling and its walls, marked with no
-//             depth test, so no drop is drawn over a floor, a sofa or a wall
+//             depth test, so no drop is drawn over a floor, a sofa or a wall;
+//             each face's front its outside (inside a room, none); none
+//             under the roof; only as high as walls cut down
 //   frames    while it shows the view draws on its own clock, capped: rain at
 //             most 30 a second on Low and 60 on High, snow 30; it stops when
 //             the weather does; prefers-reduced-motion draws it once, still
@@ -238,10 +240,67 @@ await tryCase("mask: the whole house is kept dry on screen, whatever stands in f
   check("mask: the whole house is kept dry on screen, whatever stands in front",
     mat && mat.depthTest === false && mat.colorWrite === false && mat.depthWrite === false && mat.stencilWrite === true
     && mat.stencilRef === 1 && mat.stencilFunc === THREE.AlwaysStencilFunc && mat.stencilZPass === THREE.ReplaceStencilOp
-    && rm && rm.stencilFunc === THREE.NotEqualStencilFunc && rm.stencilRef === 1
+    && mat.side === THREE.FrontSide && rm && rm.stencilFunc === THREE.NotEqualStencilFunc && rm.stencilRef === 1
     && a.n === wa.n && JSON.stringify(a.ys) === JSON.stringify(wa.ys) && wa.ys.length >= 3
     && b.n === wb.n && JSON.stringify(b.ys) === JSON.stringify(wb.ys) && b.n < a.n,
     { a: { n: a.n, ys: a.ys }, wa, b: { n: b.n, ys: b.ys }, wb });
+});
+await tryCase("mask: every face's front is its outside, so from inside a room none is marked", async () => {
+  const { scene, host } = bare();
+  const w = W.createWeather(THREE, host);
+  w.update({ settings: SET(), states: wxState("rainy"), entities: {}, profile: "low", house: HOUSE_P(), nowMs: Date.now(), colour: "#ffffff" });
+  const pos = scene.getObjectByName("weather:mask").geometry.attributes.position;
+  const elevs = indoor.map(r => Number(r.floor.elev) || 0), ceils = indoor.map(r => (Number(r.floor.elev) || 0) + (Number(r.floor.h) || 2.8));
+  const lowest = Math.min(...elevs), highest = Math.max(...ceils);
+  let floors = 0, ceilings = 0, walls = 0, wrong = [];
+  for (let i = 0; i < pos.count; i += 3) {
+    const v = [0, 1, 2].map(k => [pos.getX(i + k), pos.getY(i + k), pos.getZ(i + k)]);
+    const u = v[1].map((x, k) => x - v[0][k]), s = v[2].map((x, k) => x - v[0][k]);
+    const n = [u[1] * s[2] - u[2] * s[1], u[2] * s[0] - u[0] * s[2], u[0] * s[1] - u[1] * s[0]];
+    if (Math.abs(n[0]) < 1e-9 && Math.abs(n[2]) < 1e-9) {        // flat: a floor or a ceiling
+      const y = v[0][1];
+      if (n[1] < 0) floors++; else ceilings++;
+      if ((Math.abs(y - lowest) < 1e-6 && n[1] > 0) || (Math.abs(y - highest) < 1e-6 && n[1] < 0)) wrong.push({ y, n });
+      continue;
+    }
+    // A wall: a step along its normal leaves its room, a step back is inside it.
+    walls++;
+    const y0 = Math.min(...v.map(p => p[1])), c = [0, 2].map(k => (v[0][k] + v[1][k] + v[2][k]) / 3), L = Math.hypot(n[0], n[2]);
+    const mine = indoor.filter(r => Math.abs((Number(r.floor.elev) || 0) - y0) < 1e-6);
+    const at = (d) => mine.some(r => HOUSE.inPoly(c[0] + n[0] / L * d, c[1] + n[2] / L * d, r.pts));
+    if (at(0.05) || !at(-0.05)) wrong.push({ c, n });
+  }
+  w.dispose();
+  check("mask: every face's front is its outside, so from inside a room none is marked",
+    !wrong.length && floors > 0 && floors === ceilings && walls > 0, { floors, ceilings, walls, wrong: wrong.slice(0, 4) });
+});
+await tryCase("mask: as the house is drawn: none under the roof, only as high as walls cut down", async () => {
+  let shell = { roof: false, low: 0 };
+  const { scene, host } = bare();
+  host.shell = () => shell;
+  const w = W.createWeather(THREE, host);
+  w.update({ settings: SET(), states: wxState("rainy"), entities: {}, profile: "low", house: HOUSE_P(), nowMs: Date.now(), colour: "#ffffff" });
+  const mask = () => scene.getObjectByName("weather:mask");
+  const top = () => { const p = mask().geometry.attributes.position; let m = -Infinity; for (let i = 0; i < p.count; i++) m = Math.max(m, p.getY(i)); return m; };
+  const up = { shown: mask().visible, top: top() };
+  shell = { roof: true, low: 0 }; w.tick(performance.now());
+  const roofed = { shown: mask().visible };
+  shell = { roof: false, low: 0.42 }; w.tick(performance.now());
+  const down = { shown: mask().visible, top: top() };
+  shell = { roof: false, low: 0 }; w.tick(performance.now());
+  const back = { shown: mask().visible, top: top() };
+  // A view that says nothing of its shell: the walls stand.
+  const { scene: s2, host: h2 } = bare();
+  h2.shell = () => { throw new Error("gone"); };
+  const w2 = W.createWeather(THREE, h2);
+  w2.update({ settings: SET(), states: wxState("rainy"), entities: {}, profile: "low", house: HOUSE_P(), nowMs: Date.now(), colour: "#ffffff" });
+  const sturdy = !!s2.getObjectByName("weather:mask") && !w2._state().broken;
+  const highest = Math.max(...indoor.map(r => (Number(r.floor.elev) || 0) + (Number(r.floor.h) || 2.8)));
+  const upper = Math.max(...indoor.map(r => Number(r.floor.elev) || 0));
+  w.dispose(); w2.dispose();
+  check("mask: as the house is drawn: none under the roof, only as high as walls cut down",
+    up.shown && Math.abs(up.top - highest) < 1e-6 && !roofed.shown && down.shown && Math.abs(down.top - (upper + 0.42)) < 1e-6
+    && back.shown && Math.abs(back.top - highest) < 1e-6 && sturdy, { up, roofed, down, back, highest, upper, sturdy });
 });
 
 // ── the view ────────────────────────────────────────────────────────────────
