@@ -31,7 +31,7 @@
 // clear: dew and frost wet it on clear mornings (Garry, 2026-10-06: rain on
 // the Atlas all morning, the sensor at 3029 mV, the sky partly cloudy). A
 // gauge (a number) catches rain that falls and is never overruled, nor is an
-// on/off sensor a template makes (from a gauge's rate, as a rule). The cost:
+// on/off sensor a helper makes from one (a template, a threshold). The cost:
 // a shower the weather entity's hourly forecast missed shows no rain.
 
 // ── Vocabulary ───────────────────────────────────────────────────────────────
@@ -300,6 +300,9 @@ export function activeWarning(cfg, states, entities){
 // The weather entity's word for a clear sky. A rain sensor that reads wet
 // under one is wet from dew or frost: a binary rain sensor is a wet surface.
 export const CLEAR_SKY = ["sunny", "clear-night", "partlycloudy"];
+// What makes an on/off sensor out of something else (a gauge's rate, as a
+// rule): its rain fell, so a clear sky never overrules it.
+export const MADE_BY = ["template", "threshold", "bayesian"];
 
 // ── THE decision (pure: settings + hass.states [+ hass.entities]) ────────────
 // {kind:"off"|"rain"|"snow", heavy, rim, source, warning, why, missing[], notes[]}
@@ -333,8 +336,14 @@ export function decideAtlasWeather(cfg, states, entities){
   if (!wet) return off("dry", source);
   // A wet surface under a clear sky: dew or frost, not rain. A gauge (a
   // number) is never overruled: what it caught fell. Nor is an on/off one
-  // made by a template, usually from a gauge's rate.
-  const made = (eid) => { const r = entities && entities[eid]; return !!(r && r.platform === "template"); };
+  // made from something else (MADE_BY), or one the loaded registry does not
+  // know (a YAML template has no unique_id).
+  const made = (eid) => {
+    const reg = entities && typeof entities === "object" ? entities : null;
+    if (!reg) return false;
+    const r = reg[eid];
+    return r ? MADE_BY.includes(r.platform) : Object.keys(reg).length > 0;
+  };
   if (source === "rain_sensor" && s.rainEntity.startsWith("binary_sensor.") && CLEAR_SKY.includes(cond) && !made(s.rainEntity)) {
     notes.push("sensor_overruled");
     return off("overruled", "condition");

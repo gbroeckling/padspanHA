@@ -4018,9 +4018,9 @@ function createSlot(slotKey){
     if (!w) { if (wx) { wx.dispose(); wx = null; requestRender(); } return; }
     try {
       // shell: how the house is drawn this frame, for what the rain keeps off
-      // (the roof on; every wall down to CUT_H).
+      // (the roof on; every wall down).
       if (!wx) wx = WEATHER.createWeather(THREE, { scene, renderer, camera,
-        shell: () => ({ roof: !!roofWant, low: wallMode === "down" ? HOUSE.CUT_H : 0 }) });
+        shell: () => ({ roof: !!roofWant, down: wallMode === "down" }) });
       const changed = wx.update({ settings: w.settings, states: w.states, entities: w.entities, telemetry: w.telemetry,
         // What falls: the flat Atlas's colour for the Showcase theme this view
         // wears (Classic: white), or the look's own where that would not show

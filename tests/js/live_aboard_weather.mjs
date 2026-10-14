@@ -23,7 +23,7 @@
 //             that shows, floor to ceiling and its walls, marked with no
 //             depth test, so no drop is drawn over a floor, a sofa or a wall;
 //             each face's front its outside (inside a room, none); none
-//             under the roof; only as high as walls cut down
+//             under the roof; with every wall down, up to head height (2 m)
 //   frames    while it shows the view draws on its own clock, capped: rain at
 //             most 30 a second on Low and 60 on High, snow 30; it stops when
 //             the weather does; prefers-reduced-motion draws it once, still
@@ -274,8 +274,8 @@ await tryCase("mask: every face's front is its outside, so from inside a room no
   check("mask: every face's front is its outside, so from inside a room none is marked",
     !wrong.length && floors > 0 && floors === ceilings && walls > 0, { floors, ceilings, walls, wrong: wrong.slice(0, 4) });
 });
-await tryCase("mask: as the house is drawn: none under the roof, only as high as walls cut down", async () => {
-  let shell = { roof: false, low: 0 };
+await tryCase("mask: as the house is drawn: none under the roof, head height with the walls down", async () => {
+  let shell = { roof: false, down: false };
   const { scene, host } = bare();
   host.shell = () => shell;
   const w = W.createWeather(THREE, host);
@@ -283,11 +283,11 @@ await tryCase("mask: as the house is drawn: none under the roof, only as high as
   const mask = () => scene.getObjectByName("weather:mask");
   const top = () => { const p = mask().geometry.attributes.position; let m = -Infinity; for (let i = 0; i < p.count; i++) m = Math.max(m, p.getY(i)); return m; };
   const up = { shown: mask().visible, top: top() };
-  shell = { roof: true, low: 0 }; w.tick(performance.now());
+  shell = { roof: true, down: false }; w.tick(performance.now());
   const roofed = { shown: mask().visible };
-  shell = { roof: false, low: 0.42 }; w.tick(performance.now());
+  shell = { roof: false, down: true }; w.tick(performance.now());
   const down = { shown: mask().visible, top: top() };
-  shell = { roof: false, low: 0 }; w.tick(performance.now());
+  shell = { roof: false, down: false }; w.tick(performance.now());
   const back = { shown: mask().visible, top: top() };
   // A view that says nothing of its shell: the walls stand.
   const { scene: s2, host: h2 } = bare();
@@ -298,8 +298,8 @@ await tryCase("mask: as the house is drawn: none under the roof, only as high as
   const highest = Math.max(...indoor.map(r => (Number(r.floor.elev) || 0) + (Number(r.floor.h) || 2.8)));
   const upper = Math.max(...indoor.map(r => Number(r.floor.elev) || 0));
   w.dispose(); w2.dispose();
-  check("mask: as the house is drawn: none under the roof, only as high as walls cut down",
-    up.shown && Math.abs(up.top - highest) < 1e-6 && !roofed.shown && down.shown && Math.abs(down.top - (upper + 0.42)) < 1e-6
+  check("mask: as the house is drawn: none under the roof, head height with the walls down",
+    up.shown && Math.abs(up.top - highest) < 1e-6 && !roofed.shown && down.shown && Math.abs(down.top - (upper + 2)) < 1e-6
     && back.shown && Math.abs(back.top - highest) < 1e-6 && sturdy, { up, roofed, down, back, highest, upper, sturdy });
 });
 
