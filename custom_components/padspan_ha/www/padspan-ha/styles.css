@@ -1109,7 +1109,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-tgl.tone-violet.on{background:linear-gradient(135deg,#4c1d95,#7c3aed);border-color:rgba(196,181,253,.65);box-shadow:0 0 14px rgba(124,58,237,.4),inset 0 1px 0 rgba(255,255,255,.14)}
 .lv-tgl.tone-ember.on {background:linear-gradient(135deg,#7c2d12,#ea580c);border-color:rgba(253,186,116,.65);box-shadow:0 0 14px rgba(234,88,12,.4),inset 0 1px 0 rgba(255,255,255,.14)}
 .lv-tgl.tone-green.on {background:linear-gradient(135deg,#14532d,#16a34a);border-color:rgba(134,239,172,.65);box-shadow:0 0 14px rgba(22,163,74,.4),inset 0 1px 0 rgba(255,255,255,.14)}
-.lv-tgl.tone-pink.on  {background:linear-gradient(135deg,#7c2d12,#db2777);border-color:rgba(249,168,212,.65);box-shadow:0 0 14px rgba(219,39,119,.4),inset 0 1px 0 rgba(255,255,255,.14)}
+.lv-tgl.tone-pink.on  {background:linear-gradient(135deg,#831843,#db2777);border-color:rgba(249,168,212,.65);box-shadow:0 0 14px rgba(219,39,119,.4),inset 0 1px 0 rgba(255,255,255,.14)}
 .lv-tgl.tone-blue.on  {background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-color:rgba(147,197,253,.65);box-shadow:0 0 14px rgba(59,130,246,.4),inset 0 1px 0 rgba(255,255,255,.14)}
 .lv-tgl.tone-teal.on  {background:linear-gradient(135deg,#134e4a,#0d9488);border-color:rgba(94,234,212,.65);box-shadow:0 0 14px rgba(13,148,136,.4),inset 0 1px 0 rgba(255,255,255,.14)}
 
@@ -1264,6 +1264,10 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   border-right:1px solid rgba(120,190,155,.14);z-index:5;transition:transform .18s ease}
 .lv-rail.hidden{transform:translateX(-100%)}
 .lv-rail.hidden ~ .lv-stage{width:100%;margin-left:0}
+/* The legend clears the rail like the stage does; the card has no padding
+   here, so it brings its own. */
+.lv-mapcard.lv-display .lv-legend{margin:0 0 0 44px;padding:9px 12px 10px}
+.lv-rail.hidden ~ .lv-legend{margin-left:0}
 .lv-railbtn{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.03);
   border:1px solid rgba(120,190,155,.16);color:rgba(226,240,232,.65);font-size:15px;cursor:pointer}
 .lv-railbtn.on{background:rgba(124,58,237,.3);border-color:rgba(196,181,253,.5);color:#f3edff}

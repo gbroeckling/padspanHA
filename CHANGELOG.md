@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.125 — Atlas touch-ups (2026-10-13)
+
+### Fixes
+- **Fixed:** on the Atlas sidebar, the legend under the map no longer slides under the icon rail on the left, which hid the first entry. Hide the rail and the legend moves back to the edge.
+- **Fixed:** the Automorph switch in Mapping lights up pink, not brown fading into pink, like the other switches do in their own colour.
+
+---
+
 ## 0.38.124 — Stable: two ways to get PadSpan Pro free, and Pro for life until December 31 (2026-10-13)
 
 ### New
