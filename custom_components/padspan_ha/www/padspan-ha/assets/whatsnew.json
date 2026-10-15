@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.129",
+  "title": "Live Aboard's building tools, smoother",
+  "date": "2026-10-15",
+  "body_markdown": "### Changed\n- **Doors and windows snap to 5 cm** as you draw them or drag their ends: you get 0.80 m or 1.60 m, not 1.59 m. A corner or another door still stops the line where it is.\n- **Keyboard shortcuts in Edit:** Ctrl+Z (⌘+Z) undoes, Ctrl+Y or Ctrl+Shift+Z redoes, Escape lets go of what you picked (or a first tap), and Delete removes a door or window you drew. They do nothing while you're typing in a box.\n- **Round this room is one tap.** In Strip, a light that's already in a room goes round that room straight away. Tap another room to go round that one instead. Ticking \"Leave gaps at doors\" or \"and windows\" changes the run right then.\n- While you're editing, the Motion chip and the rain chip step aside, so the tool's hints are never hidden under them.\n\n### Fixes\n- **Fixed:** sliding, pocket, barn, bifold and overhead doors showed a swing arc while editing, as if they were hinged. Only doors that swing show one now.\n- **Fixed:** a door's sheet cut \"Doorway\" off as \"Do\"."
+ },
+ {
   "version": "0.38.128",
   "title": "Scenes in the room sheet, and lit windows at night",
   "date": "2026-10-15",
@@ -28,11 +34,5 @@
   "title": "Stable: two ways to get PadSpan Pro free, and Pro for life until December 31",
   "date": "2026-10-13",
   "body_markdown": "### New\n- **Become a tester, get Pro free.** Testers get two years of PadSpan Pro, as long as the usage report stays on. The sign-up says so now, and Overview mentions it once (after someone is on the map, or after a week), in place of the trial card. \"Sign me up\" takes you straight to the form in Settings → Presence. Settings → PadSpan licence has a button for it too.\n- **Invites.** Now and then the developer may invite an install that sends the usage report to try a free year of Pro. The invite comes back with the report's reply and shows on Overview and in Settings → PadSpan licence, for an administrator only. Claim it with an email, put it off for a week with Later, or say No thanks, which is final. Nothing is sent unless you press one of those. The README's usage report section explains exactly what goes where."
- },
- {
-  "version": "0.38.123",
-  "title": "PadSpan Pro for life runs until December 31",
-  "date": "2026-10-13",
-  "body_markdown": "### Changed\n- **PadSpan Pro for life ($89 CAD, once) is on until December 31, 2026**, not October 31. Settings → PadSpan licence and the trial offer say so, and padspan.traks.ca sells it until the same day."
  }
 ]
