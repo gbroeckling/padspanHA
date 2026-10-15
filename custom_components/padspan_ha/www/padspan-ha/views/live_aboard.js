@@ -3184,6 +3184,23 @@ function createSlot(slotKey){
     applyCam();
   }
   /** Where the camera frames `pts` from (theta, phi): {target, radius, theta, phi}. */
+  /** How much of the view's top and bottom (px) the bars, the hint line and
+   *  the chips cover now: a framed house keeps clear of them. */
+  function uiPad(){
+    const out = { top: 0, bottom: 0, H: (canvas && canvas.clientHeight) || 0 };
+    if (!root || !out.H || typeof root.getBoundingClientRect !== "function") return out;
+    const r0 = root.getBoundingClientRect();
+    for (const el of root.querySelectorAll(".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
+      const r = el.getBoundingClientRect && el.getBoundingClientRect();
+      if (!r || !(r.height > 0) || !(r.width > 0) || getComputedStyle(el).visibility === "hidden") continue;
+      const t = r.top - r0.top, b = r.bottom - r0.top;
+      if ((t + b) / 2 < out.H / 2) out.top = Math.max(out.top, b + 6); else out.bottom = Math.max(out.bottom, out.H - t + 6);
+    }
+    // Never more than 40% of the view between them (a very short screen).
+    const k = Math.min(1, (out.H * 0.4) / Math.max(1, out.top + out.bottom));
+    out.top *= k; out.bottom *= k;
+    return out;
+  }
   function frameFor(theta, phi, pts){
     const keep = { p: camera.position.clone(), q: camera.quaternion.clone() };
     const dir = new THREE.Vector3(Math.sin(phi) * Math.sin(theta), Math.cos(phi), Math.sin(phi) * Math.cos(theta));
@@ -3197,10 +3214,14 @@ function createSlot(slotKey){
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const q of pts) { const o = q.clone().sub(c); x0 = Math.min(x0, o.dot(right)); x1 = Math.max(x1, o.dot(right)); y0 = Math.min(y0, o.dot(up)); y1 = Math.max(y1, o.dot(up)); }
     c.addScaledVector(right, (x0 + x1) / 2).addScaledVector(up, (y0 + y1) / 2);
+    // Clear of what covers the top and the bottom: the house fits the band
+    // the larger of the two leaves on both sides (6% clear), so it stays
+    // in the middle of the view and the camera still turns about it.
+    const pad = uiPad(), fr = pad.H ? Math.max(0.6, 1 - 2 * Math.max(pad.top, pad.bottom) / pad.H) : 1, vk = pad.H ? 1.06 : 1.12;
     let need = 2;
     for (const q of pts) {
       const o = q.clone().sub(c), z = o.dot(dir);
-      need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.08, z + Math.abs(o.dot(up)) / tv * 1.12);   // sides: 8% clear (4% ran a narrow screen's house to its edge)
+      need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.08, z + Math.abs(o.dot(up)) / (tv * fr) * vk);   // sides: 8% clear (4% ran a narrow screen's house to its edge)
     }
     camera.position.copy(keep.p); camera.quaternion.copy(keep.q);
     camera.updateMatrixWorld();
