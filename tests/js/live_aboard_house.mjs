@@ -65,6 +65,14 @@ tryCase("floors: the fabric's __outside__ is the registry's outside, at the grou
     withReg.floors.map(f => f.id).join() === "main,outside" && !withReg.byId.has("__outside__")
     && o && o.outdoor && o.elev === 0, { a: withReg.floors.map(f => f.id), o });
 });
+tryCase("explode: each indoor storey lifted one gap more than the one under it; floors sharing a storey stay together; outside stays", () => {
+  const model = { floors: [{ id: "b" }, { id: "m" }, { id: "m2" }, { id: "u" }, { id: "outside" }],
+                  floor_elevations: { b: -2.7, m: 0, m2: 0, u: 2.8, outside: -2.7 } };
+  const at = (F) => Object.fromEntries(F.floors.map(f => [f.id, f.elev]));
+  const flat = at(H.readFloors(model, model.floors)), ex = at(H.readFloors(model, model.floors, 4));
+  check("explode: each indoor storey lifted one gap more than the one under it; floors sharing a storey stay together; outside stays",
+    ex.b === -2.7 && ex.m === 4 && ex.m2 === 4 && ex.u === 10.8 && ex.outside === -2.7 && flat.m === 0 && flat.u === 2.8, { flat, ex });
+});
 tryCase("floorsTop: the chosen floor and below show, the floors above hide", () => {
   const F = H.readFloors({ floors: [{ id: "b" }, { id: "m" }, { id: "u" }], floor_elevations: { b: 0, m: 3, u: 5.8 } }, null);
   const t = H.topFloorElev(F.floors, new Set(["m"]));

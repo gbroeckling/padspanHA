@@ -160,7 +160,12 @@ export function floorCanon(floorList){
     return s === "__outside__" && ids.has("outside") ? "outside" : s;
   };
 }
-export function readFloors(model, floorList){
+/** gap (m): Explode (live_aboard.js) lifts each indoor storey this much more
+ *  than the one under it, so every floor shows with All picked (as
+ *  neonplan3d's explode does). Everything drawn reads its floor's elev, so
+ *  the house, its devices and its picking move together; nothing stored is
+ *  absolute, so nothing saved changes. */
+export function readFloors(model, floorList, gap = 0){
   const reg = Array.isArray(floorList) && floorList.length ? floorList : ((model && model.floors) || []);
   const canon = floorCanon(reg);
   const elev = (model && model.floor_elevations) || {};
@@ -189,6 +194,10 @@ export function readFloors(model, floorList){
   const ground = indoor.length ? Math.min(...indoor) : 0;
   for (const f of floors) if (f.elev === null) f.elev = ground;
   floors.sort((a, b) => a.elev - b.elev || Number(a.outdoor) - Number(b.outdoor));
+  if (gap > 0) {
+    const levels = [...new Set(floors.filter(f => !f.outdoor).map(f => f.elev))].sort((a, b) => a - b);
+    for (const f of floors) if (!f.outdoor) f.elev += Math.max(0, levels.indexOf(f.elev)) * gap;
+  }
   return { floors, byId, canon, ground };
 }
 
@@ -1516,8 +1525,8 @@ export function floorBadges(model, floorList, house){
  *  state); hidden: the Atlas's hidden lights (a Set). Per floor: its rooms
  *  and its wall pieces, barriers spliced in (a linked one as an opening of
  *  its sensor's kind). */
-export function readHouse(model, floorList, lightsByEid, hidden, overrides){
-  const F = readFloors(model, floorList);
+export function readHouse(model, floorList, lightsByEid, hidden, overrides, gap = 0){
+  const F = readFloors(model, floorList, gap);
   const rooms = readRooms(model, F);
   const barriers = Array.isArray(model && model.rf_barriers_m) ? model.rf_barriers_m : [];
   const kindOf = (b) => openingKind(b, lightsByEid && b && lightsByEid[b.linked_entity_id]);

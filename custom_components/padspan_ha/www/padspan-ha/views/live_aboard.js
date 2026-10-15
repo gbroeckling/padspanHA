@@ -140,6 +140,9 @@ const COVER_Z = SCREEN.COVER_Z;
 const NARROW_W = 560;                      // under this the bar is one compact row
 const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
 const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
+// Explode: with All floors showing, each storey lifted this much more (m)
+// than the one under it, so the floors under the top one show too.
+const PREF_EXPLODE = "explode", EXPLODE_M = 4;
 // Readable night: a floor keeps this much of its day colour, its outline and
 // the wall tops show, and a fixture that is off darkens with the house.
 const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
@@ -605,13 +608,15 @@ function createSlot(slotKey){
     // The floor stepper: ▲ the floor above, its name (a tap: the floor's
     // sheet), ▼ the floor below, All. It drives the floor chips' choice.
     const floor = seg(null, [["▲", "The floor above", () => stepFloor(1)], ["", "", () => openFloorSheet()],
-                             ["▼", "The floor below", () => stepFloor(-1)], ["All", "Every floor", () => stepFloor(0)]]);
+                             ["▼", "The floor below", () => stepFloor(-1)], ["All", "Every floor", () => stepFloor(0)],
+                             ["⇕", "Explode: pull the floors apart to see each one", () => toggleExplode()]]);
     floor.classList.add("la3d-floor");
     floor.setAttribute("data-la3d-floor", "");
     floor.setAttribute("aria-label", "Floor");
     floorEls = [...floor.querySelectorAll("button")];
     if (floorEls[1]) floorEls[1].classList.add("la3d-fname");
     if (floorEls[3]) floorEls[3].classList.add("la3d-w");           // narrow: All is in View ▾
+    if (floorEls[4]) floorEls[4].classList.add("la3d-w");
     floor.style.display = "none";
     // Views: every floor (to go straight to one), the whole house, and views
     // saved from the camera on this browser.
@@ -882,7 +887,8 @@ function createSlot(slotKey){
     const s = floorSteps, seg = floorEls[0] && floorEls[0].parentNode;
     if (seg) seg.style.display = s ? "" : "none";
     if (!s) return;
-    const [up, name, down, all] = floorEls, n = s.names.length;
+    const [up, name, down, all, xp] = floorEls, n = s.names.length;
+    if (xp) { xp.style.display = s.all && n > 1 ? "" : "none"; xp.setAttribute("aria-pressed", String(!!explodeGap())); }
     up.disabled = s.at >= n - 1;
     down.disabled = s.at <= 0;
     nameInto(name, s, s.at);
@@ -945,6 +951,17 @@ function createSlot(slotKey){
     if (!d) { if (!s.all) s.go(-1); return; }
     const i = s.at + d;
     if (i >= 0 && i < s.names.length && (i !== s.at || s.all)) s.go(i);
+  }
+  /** How far Explode lifts each storey now (m): only with All picked and more than one floor. */
+  function explodeGap(){
+    const s = floorSteps;
+    return prefGet(PREF_EXPLODE) === "1" && s && s.all && s.names.length > 1 ? EXPLODE_M : 0;
+  }
+  function toggleExplode(){
+    prefSet(PREF_EXPLODE, prefGet(PREF_EXPLODE) === "1" ? "0" : "1");
+    redraw();
+    paintFloors();
+    wholeHouse();
   }
   /** A tap on the floor's name: its sheet, as the Atlas's floor badge opens it. */
   function openFloorSheet(){
@@ -4096,7 +4113,8 @@ function createSlot(slotKey){
     shownFile();
     if (shownMemo.sig !== shownSig) { shownSig = shownMemo.sig; if (editor && file) editor.fileChanged(); }
     const vd = viewData();
-    const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid);
+    const xGap = explodeGap();
+    const mSig = HOUSE.shellSignature(p.model, p.floors, p.lightsByEid) + (xGap ? `|explode:${xGap}` : "");
     const mlSig = HOUSE.lightsSignature(p.model, p.lightsByEid, p.hidden, p.shapeOverrides), mxSig = HOUSE.sensorsSignature(p.model, p.lightsByEid, p.hidden);
     const sSig = mSig + DRAFT.openingsSignature(vd) + (STOREY ? STOREY.stairsSignature(vd.pieces) : "");
     const lSig = mlSig + DRAFT.heightsSignature(vd, "lights") + RUNS.runsSignature(vd);
@@ -4106,7 +4124,7 @@ function createSlot(slotKey){
       // The map is read again only when it changed; the 3D file's doors and
       // windows are cut into a copy of its walls.
       const rSig = [mSig, mlSig, mxSig].join("|");
-      if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden, p.shapeOverrides); readSig = rSig; work.reads++; }
+      if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden, p.shapeOverrides, xGap); readSig = rSig; work.reads++; }
       const shell = sSig !== shellSig;
       rebuilt = shell;
       if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); shellSig = sSig; }
