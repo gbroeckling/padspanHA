@@ -23,11 +23,8 @@ most popular 3D floorplans people use with Home Assistant, mainly
 
 ## Needs a decision
 
-1. **Blinds and shades that follow their position.** neonplan3d draws blinds at the cover's real
-   position. Live Aboard can drive a door from a cover, but a window can't be linked to one. Doing
-   it means a new key in the 3D file (`openings[<id>].blind`: a cover's entity id), the window
-   sheet's picker, and `ws_house3d` accepting it. Additive, but it's a stored format, so it's yours
-   to say yes to.
+1. ~~**Blinds and shades that follow their position.**~~ **Declined** (Garry, 2026-10-15: "No blinds
+   needed"). Not to be built.
 2. **Smoke, gas and CO alarms on the map.** The Emergency class is water leaks only
    (`isFloodSensor`: `moisture`). neonplan3d's pulsing alerts cover smoke, gas, CO and alarms too.
    Either a new class (its own glyph, code letter, chip and report bucket) or widen Emergency; the
