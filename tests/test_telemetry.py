@@ -229,7 +229,11 @@ def test_nothing_from_the_house_is_in_the_report():
     # Raised 4060 -> 4110 for health.cal_points_phantom_room_n, pinned_movers_n
     # and entity_dup_n (~73 bytes): whether 0.38.122's fixes #149, #147 and
     # #153 hold in houses the tests cannot see.
-    assert len(text) < 4110
+    # Raised 4110 -> 4140 for env.temp_fresh (~22 bytes as null here; ~150
+    # with readouts placed): Garry, 2026-10-15, "make sure opt in understands
+    # the HA temp behaviour" — whether a steady room's reading stays fresh by
+    # last_reported (0.38.126), and how often sensors report.
+    assert len(text) < 4140
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1503,3 +1507,24 @@ def test_padspan_entities_registered_twice_are_counted(monkeypatch):
     monkeypatch.setattr(er_mod, "async_get", lambda h: 1 / 0, raising=False)
     p = T.build_payload(_hass())
     assert "entity_dup_n" not in p["health"] and "pinned_movers_n" in p["health"]
+
+
+def test_temp_fresh_counts_each_ha_clock_and_the_newest_report():
+    """A steady room: its reading unchanged for two hours (last_changed and
+    last_updated old) while its sensor reported two minutes ago (last_reported,
+    HA 2024.3+). The report says so by each clock, and nothing identifying."""
+    from datetime import datetime, timedelta, timezone
+    h = _hass()
+    now = datetime.now(timezone.utc)
+    steady = SimpleNamespace(state="21.5", attributes={"device_class": "temperature"},
+                             last_changed=now - timedelta(hours=2), last_updated=now - timedelta(hours=2),
+                             last_reported=now - timedelta(minutes=2))
+    motion = SimpleNamespace(attributes={"device_class": "motion"})
+    h.states = SimpleNamespace(get=lambda eid, default=None: steady if eid == _TEMP else motion if eid == _MOTION else default)
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    assert payload["env"]["temp_fresh"] == {"n": 1, "changed": 0, "updated": 0, "reported": 1, "has_lr": 1, "age": {"lt5m": 1}}
+    # An older HA: no last_reported at all, so the panel's clock is last_updated.
+    del steady.last_reported
+    tf = T.build_payload(h)["env"]["temp_fresh"]
+    assert tf == {"n": 1, "changed": 0, "updated": 0, "reported": 0, "has_lr": 0, "age": {"1_6h": 1}}

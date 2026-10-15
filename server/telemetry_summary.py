@@ -199,6 +199,41 @@ def _num(v) -> float | None:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
+def temp_section(latest: dict[str, dict]) -> list[str]:
+    """How HA keeps placed temperature/humidity readouts fresh (env.temp_fresh,
+    0.38.126+): readings under an hour old by each of HA's clocks, and whether
+    the panel's states carry last_reported (usage client_dev:lastrep_*)."""
+    out = ["Temperature readouts (placed, latest report per install):"]
+    t = Counter()
+    age: Counter = Counter()
+    installs = 0
+    for r in latest.values():
+        tf = (r.get("env") or {}).get("temp_fresh")
+        if not isinstance(tf, dict) or not _num(tf.get("n")):
+            continue
+        installs += 1
+        for k in ("n", "changed", "updated", "reported", "has_lr"):
+            t[k] += int(_num(tf.get(k)) or 0)
+        for k, v in (tf.get("age") or {}).items():
+            age[k] += int(_num(v) or 0)
+    if not installs:
+        return out + ["  none yet"]
+    n = t["n"]
+    pct = lambda k: f"{t[k]} ({round(100 * t[k] / n)}%)"
+    out.append(f"  {installs} installs, {n} readouts; fresh under an hour by last_changed {pct('changed')},"
+               f" last_updated {pct('updated')}, last_reported {pct('reported')}")
+    out.append(f"  states with last_reported: {pct('has_lr')}; newest report: "
+               + ", ".join(f"{k} {age[k]}" for k in ("lt5m", "5_15m", "15_60m", "1_6h", "6h_up") if age[k]))
+    lr = Counter()
+    for r in latest.values():
+        for k, c in (r.get("usage") or {}).items():
+            if str(k) in ("client_dev:lastrep_yes", "client_dev:lastrep_no"):
+                lr[str(k).split("_")[-1]] += int(_num(c) or 0)
+    out.append(f"  panels seeing last_reported (page loads): yes {lr['yes']}, no {lr['no']}"
+               + ("  <- the panel falls back to last_updated: steady rooms still go stale" if lr["no"] else ""))
+    return out
+
+
 def memory_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
     """What deciding the low-memory version takes (Garry, 2026-10-05): per
     install, smallest machines first — what PadSpan holds and what it costs
@@ -483,6 +518,10 @@ def main() -> int:
     print()
 
     for line in memory_section(latest, reports):
+        print(line)
+    print()
+
+    for line in temp_section(latest):
         print(line)
     print()
 

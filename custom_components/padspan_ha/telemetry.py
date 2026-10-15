@@ -78,7 +78,7 @@ import math
 import re
 import time
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -698,6 +698,42 @@ def _hw_payload(hass: HomeAssistant) -> dict[str, Any]:
     return hw
 
 
+# How Home Assistant keeps a placed temperature or humidity readout fresh.
+# The Atlas and Live Aboard show a reading only while it is under an hour old
+# (lights_map.js gatherLights: last_reported, else last_updated). HA moves
+# last_changed only when the number changes, last_updated also on an attribute
+# change, last_reported (2024.3+) on every report, so a steady room goes stale
+# by the first two while its sensor keeps reporting. Counted by each clock
+# (under an hour), how many states carry last_reported at all, and how old
+# the newest report is: whether 0.38.126's switch to last_reported holds in
+# real houses, and how often sensors report. Counts only.
+TEMP_AGES: tuple[str, ...] = ("lt5m", "5_15m", "15_60m", "1_6h", "6h_up")
+
+
+def _temp_fresh_note(st: Any, now: Any, tf: dict[str, Any]) -> None:
+    try:
+        float(st.state)
+    except (TypeError, ValueError, AttributeError):
+        return
+    try:
+        ages = {}
+        for key, attr in (("changed", "last_changed"), ("updated", "last_updated"), ("reported", "last_reported")):
+            t = getattr(st, attr, None)
+            ages[key] = (now - t).total_seconds() if isinstance(t, datetime) else None
+    except Exception:
+        return
+    tf["n"] += 1
+    for key, a in ages.items():
+        if a is not None and 0 <= a < 3600:
+            tf[key] += 1
+    if ages["reported"] is not None:
+        tf["has_lr"] += 1
+    a = ages["reported"] if ages["reported"] is not None else ages["updated"]
+    if a is not None:
+        b = "lt5m" if a < 300 else "5_15m" if a < 900 else "15_60m" if a < 3600 else "1_6h" if a < 21600 else "6h_up"
+        tf["age"][b] = tf["age"].get(b, 0) + 1
+
+
 def _history_days(hass: HomeAssistant) -> float | None:
     try:
         from .ws_common import _object_history_ttl_s  # noqa: PLC0415
@@ -1031,6 +1067,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "flood_sensor": 0, "temp_sensor": 0, "humidity_sensor": 0,
         "air_quality_sensor": 0, "other": 0,
     }
+    _tf: dict[str, Any] = {"n": 0, "changed": 0, "updated": 0, "reported": 0, "has_lr": 0, "age": {}}
+    _tf_now = datetime.now(timezone.utc)
     for _eid in _light_ids:
         _eid = str(_eid)
         if _eid.startswith("light."):
@@ -1050,10 +1088,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                 placed_by_domain["flood_sensor"] += 1
             elif _dc == "humidity":
                 placed_by_domain["humidity_sensor"] += 1
+                _temp_fresh_note(_st, _tf_now, _tf)
             elif _dc in _AQ_DEVICE_CLASSES:
                 placed_by_domain["air_quality_sensor"] += 1
             elif _dc == "temperature" or (_eid.startswith("sensor.") and _dc is None):
                 placed_by_domain["temp_sensor"] += 1
+                if _st is not None:
+                    _temp_fresh_note(_st, _tf_now, _tf)
             else:
                 placed_by_domain["other"] += 1
         else:
@@ -1105,6 +1146,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "rooms": rooms,
         "placed_lights": _len(fab.get("light_positions_m") or {}),
         "placed_by_domain": placed_by_domain,
+        "temp_fresh": _tf if _tf["n"] else None,
         "light_type_overrides_by_kind": type_overrides_by_kind,
         "walls": _len(fab.get("rf_barriers_m") or []),
         "maps": _len(maps.get("maps") or []),
