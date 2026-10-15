@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.127 — Live Aboard: see every floor, a heat map, and a window left open in the rain (2026-10-15)
+
+### New
+- **Explode (⇕, next to All).** Pulls the floors apart so you can see into every storey at once instead of only the top one. Your browser remembers it. Stairs keep their real height.
+- **A heat map.** Pick Temps and each room's floor shows its temperature: blue when it's cool, green around 21°, red from 26°, shading in between. °F sensors work too.
+- **Window open in the rain.** While it's raining or snowing, any open window glows blue and a line under the Motion chip says which one ("☔ Window open in the rain · Bedroom window"). Tap it to go there. It uses the same rain sensor or weather the Atlas's rain uses, and works even with rain drawing turned off.
+
+### Opt-in report
+- It now counts, for the temperature and humidity sensors on your map, how many are under an hour old by each of Home Assistant's clocks, and how long ago they last reported. That's to check the fix in 0.38.126 holds in real houses. It also counts, once per page, whether the open-window alert ever showed. Counts only, as always.
+
+---
+
 ## 0.38.126 — Live Aboard: motion that reads at a glance, and heights you can see (2026-10-15)
 
 ### Changed

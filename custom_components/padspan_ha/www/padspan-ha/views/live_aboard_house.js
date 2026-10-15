@@ -196,6 +196,8 @@ export function readFloors(model, floorList, gap = 0){
   const ground = indoor.length ? Math.min(...indoor) : 0;
   for (const f of floors) if (f.elev === null) f.elev = ground;
   floors.sort((a, b) => a.elev - b.elev || Number(a.outdoor) - Number(b.outdoor));
+  // elev0: where it really is; a stair's rise is always worked from that.
+  for (const f of floors) f.elev0 = f.elev;
   if (gap > 0) {
     const levels = [...new Set(floors.filter(f => !f.outdoor).map(f => f.elev))].sort((a, b) => a - b);
     for (const f of floors) if (!f.outdoor) f.elev += Math.max(0, levels.indexOf(f.elev)) * gap;

@@ -186,6 +186,13 @@ await tryCase("stairs: the floor reached and the rise", () => {
     a.to.id === "upper" && near(a.rise, 2.3) && b.to.id === "upper" && near(b.rise, 5.3) && c.to.id === "main" && near(c.rise, 3)
     && d.to === null && near(d.rise, 2.8) && e.to.id === "main", { a, b, c, d });
 });
+await tryCase("stairs: Explode never changes a stair's rise (it is worked from where the floors really are)", () => {
+  const model = { floors: [{ id: "basement" }, { id: "main" }, { id: "upper" }], floor_elevations: { basement: 0, main: 3, upper: 5.3 } };
+  const flat = H.readFloors(model, model.floors).floors, ex = H.readFloors(model, model.floors, 4).floors;
+  const a = S.stairReach("main", null, flat), b = S.stairReach("main", null, ex), c = S.stairReach("basement", "upper", ex);
+  check("stairs: Explode never changes a stair's rise (it is worked from where the floors really are)",
+    near(a.rise, 2.3) && near(b.rise, 2.3) && b.to.id === "upper" && near(c.rise, 5.3) && ex.find(f => f.id === "upper").elev > 10, { a, b, c });
+});
 await tryCase("stairs: the opening is the footprint, cut in the floor reached", () => {
   const p = { id: "fur_00000001", floor_id: "main", x_m: 2, y_m: 3, rotation: 90, recipe: { kind: "stairs", params: {}, width_m: 1, depth_m: 3 } };
   const sofa = { ...p, id: "fur_00000002", recipe: { ...p.recipe, kind: "sofa" } };

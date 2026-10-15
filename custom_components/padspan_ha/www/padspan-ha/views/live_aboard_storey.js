@@ -497,13 +497,16 @@ export const isStairs = (p) => !!(p && p.recipe && p.recipe.kind === "stairs");
  *  nearest indoor floor above; none, and it rises its own floor's height.
  *  floors: [{id, elev, h, outdoor}]. {from, to, rise} (to null: none above). */
 export function stairReach(fromId, toId, floors){
-  const list = (floors || []).filter(f => f && !f.outdoor && num(f.elev) !== null);
+  // Its real elevation (elev0) where the floors carry one: Explode lifts the
+  // storeys apart on screen, and a stair's rise must never take that in.
+  const E = (f) => num(f.elev0) ?? num(f.elev);
+  const list = (floors || []).filter(f => f && !f.outdoor && E(f) !== null);
   const from = list.find(f => String(f.id) === String(fromId)) || null;
   if (!from) return { from: null, to: null, rise: clamp(2.8, ...STAIR_RISE_M) };
-  const up = list.filter(f => f.elev > from.elev + 0.05);
+  const up = list.filter(f => E(f) > E(from) + 0.05);
   const named = toId ? up.find(f => String(f.id) === String(toId)) : null;
-  const to = named || up.slice().sort((a, b) => a.elev - b.elev)[0] || null;
-  const rise = to ? to.elev - from.elev : (num(from.h) ?? 2.8);
+  const to = named || up.slice().sort((a, b) => E(a) - E(b))[0] || null;
+  const rise = to ? E(to) - E(from) : (num(from.h) ?? 2.8);
   return { from, to, rise: Math.round(clamp(rise, ...STAIR_RISE_M) * 1000) / 1000 };
 }
 /** The plan corners of a piece's footprint (rotation degrees clockwise on
