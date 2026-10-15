@@ -1285,6 +1285,25 @@ export function openAggregateSheet(api, { title, sub, items, actions }){
 }
 // The two sheets the map opens. setMany(eids, on) is the host's aggregate
 // action (optimistic, batched per domain).
+/** The scenes and scripts Home Assistant puts in a room (its area: the
+ *  entity's own, else its device's), by name, at most `max`: the room
+ *  sheet's one-tap buttons, as neonplan3d's room panel offers them. */
+export function roomScenes(hass, room, max = 6){
+  const ents = (hass && hass.entities) || {}, devs = (hass && hass.devices) || {}, areas = (hass && hass.areas) || {};
+  const want = String(room || "").trim().toLowerCase();
+  if (!want) return [];
+  const out = [];
+  for (const [eid, e] of Object.entries(ents)) {
+    if (!/^(scene|script)\./.test(eid) || !e || e.hidden || e.disabled_by || e.hidden_by) continue;
+    const aid = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id) || null;
+    const area = aid && areas[aid];
+    if (!area || String(area.name || "").trim().toLowerCase() !== want) continue;
+    const st = hass.states && hass.states[eid];
+    if (!st || st.state === "unavailable") continue;
+    out.push({ eid, name: String((st.attributes && st.attributes.friendly_name) || e.name || eid.split(".")[1]) });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name)).slice(0, max);
+}
 export function openRoomSheet(api, lights, room, onlyEids){
   const agg = roomAggregate(lights, room, api.floodLatches);
   const only = onlyEids ? new Set(onlyEids) : null;
@@ -1305,6 +1324,17 @@ export function openRoomSheet(api, lights, room, onlyEids){
   if (fanEids.length) {
     actions.push({ label: "Fans off", run: () => api.setMany(fanEids, false) });
     actions.push({ label: "Fans on", run: () => api.setMany(fanEids, true) });
+  }
+  // The room's own scenes and scripts, one tap each (never on the unplaced chip's sheet).
+  if (!only && api.hass && typeof api.hass.callService === "function") {
+    for (const sc of roomScenes(api.hass, room)) {
+      actions.push({ label: `▶ ${sc.name}`, run: () => {
+        const [domain] = sc.eid.split(".");
+        Promise.resolve(api.hass.callService(domain, "turn_on", { entity_id: sc.eid }))
+          .then(() => api.toast && api.toast(sc.name))
+          .catch((e) => api.toast && api.toast(`Could not run ${sc.name}: ${String(e && e.message || e)}`, true));
+      } });
+    }
   }
   openAggregateSheet(api, { title: only ? `Unplaced in ${room}` : room, sub: parts.join(" · "), items, actions });
 }
