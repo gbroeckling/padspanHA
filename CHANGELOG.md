@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.126 — Live Aboard: motion that reads at a glance, and heights you can see (2026-10-15)
+
+### Changed
+- **Motion in Live Aboard.** Only a sensor tripping now gets the big lit badge. One that tripped earlier gets a smaller badge ringed in its age colour, and from the whole house you see only the last 40 minutes (pick ☰ Motion to see them all). Each badge has a dashed line down to a ring on the floor, so a sensor on the ceiling shows over its spot in the room instead of looking stuck to the far wall. The room's floor is tinted, not flooded, so you can still tell the rooms apart.
+- **Hover a light, a fan or a sensor** that's up off the floor and a dashed line drops to its spot on the floor.
+- **Codes no longer pile up.** When two device codes would land on top of each other, the farther one steps aside. Its device still shows and still takes taps.
+- **Edit → Heights** has one-tap spots for the device you picked (Ceiling, Corner, Wall, Table and so on, the same as Mapping's Height row), and a line from the device down to the floor shows its height while you set it.
+- **The flat Atlas** starts right at the top of the house, with no empty band above it, so zooming in no longer opens on blank space. A motion sensor's rings lie flat on the floor like a light's pool, and a strip's code sits just under the strip.
+
+### Fixes
+- **Fixed:** a room's temperature showed "–°" after an hour even while the sensor kept reporting, if the reading didn't change. It now counts a report as a report (Home Assistant 2024.3 and later). The opt-in usage report says whether your Home Assistant gives the panel that.
+- **Fixed:** in Live Aboard's Edit, the tool bar no longer sits on top of the "Drag to turn" hint.
+
+---
+
 ## 0.38.125 — Atlas touch-ups (2026-10-13)
 
 ### Fixes

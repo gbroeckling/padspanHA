@@ -67,6 +67,14 @@ export function spotsFor(cls, kind){
   if (ON_A_WALL.has(kind)) return ["high", "wall", "switch", "ceiling"];
   return ["ceiling", "high", "wall", "table", "floor"];
 }
+/** The spots a device is offered, as [[key, label, z]] under `top` (its
+ *  floor's highest height): Mapping's Height row and Live Aboard's Heights
+ *  sheet offer the same. Under a low ceiling two spots can come to the same
+ *  height: the first says it. */
+export function spotsOf(l, kind, top){
+  return spotsFor(deviceClassOf(l).key, kind).map((k) => [k, SPOTS[k].label, DRAFT.mm(Math.min(top, SPOTS[k].z ?? top))])
+    .filter(([, , z], i, all) => all.findIndex((o) => o[2] === z) === i);
+}
 // What one of a kind is called, in words.
 const KIND_NAME = {
   glow: "light", fixture: "ceiling light", pot: "pot light", pot_ring: "pot light", perimeter: "light round a room",
@@ -111,9 +119,7 @@ export function infoOf(l, lp, ceil, stored, shape, at){
   }
   dflt = DRAFT.mm(Math.max(0, Math.min(top, dflt)));
   const what = fixture ? KIND_NAME[kind] || "light" : CLASS_NAME[cls] || "device";
-  // Under a low ceiling two spots can come to the same height: the first says it.
-  const spots = spotsFor(cls, kind).map((k) => [k, SPOTS[k].label, DRAFT.mm(Math.min(top, SPOTS[k].z ?? top))])
-    .filter(([, , z], i, all) => all.findIndex((o) => o[2] === z) === i);
+  const spots = spotsOf(l, kind, top);
   return { cls, kind, what, section, ceil, top, dflt, spots };
 }
 

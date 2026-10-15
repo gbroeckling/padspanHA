@@ -74,6 +74,7 @@ const CSS = `
 .la3d-editseg button[aria-pressed="true"]{background:rgba(245,176,65,.28)!important;color:#fff7e6!important}
 .la3d-tools{position:absolute;left:72px;right:10px;top:10px;z-index:4;display:none;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
 .la3d-tools.on{display:flex}
+.la3d:has(.la3d-tools.on) .la3d-tip{visibility:hidden;opacity:0}
 .la3d-tools > *{pointer-events:auto}
 .la3d .la3d-tools button:disabled{opacity:.38;cursor:default}
 .la3d-tools .la3d-save{color:#06210f!important;background:#52b788!important;font-weight:700}
@@ -111,7 +112,16 @@ const CSS = `
 .la3d-dot{position:absolute;z-index:3;display:none;box-sizing:border-box;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;
   border:2px solid #fff;background:#3b82f6;box-shadow:0 0 0 3px rgba(0,0,0,.35);pointer-events:none}
 .la3d-dot.stop{background:#ef4444}
-.la3d-dot.ring{background:transparent;border:3px solid #fbbf24;width:34px;height:34px;margin:-17px 0 0 -17px}`;
+.la3d-dot.ring{background:transparent;border:3px solid #fbbf24;width:34px;height:34px;margin:-17px 0 0 -17px}
+.la3d-hline{position:absolute;z-index:3;display:none;width:0;border-left:2px dashed #fbbf24;transform-origin:0 0;pointer-events:none;
+  filter:drop-shadow(0 0 2px rgba(0,0,0,.7))}
+.la3d-hfoot{position:absolute;z-index:3;display:none;box-sizing:border-box;width:18px;height:9px;margin:-4.5px 0 0 -9px;border-radius:50%;
+  border:2px solid #fbbf24;box-shadow:0 0 0 2px rgba(0,0,0,.3);pointer-events:none}
+.la3d-sheet .la3d-spots{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 2px}
+.la3d-sheet .la3d-spots button{all:unset;cursor:pointer;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
+  color:rgba(226,240,232,.8);background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.28)}
+.la3d-sheet .la3d-spots button:hover{border-color:rgba(120,190,155,.6);color:#fff}
+.la3d-sheet .la3d-spots button[aria-pressed=true]{color:#1a1205;background:#fbbf24;border-color:#fbbf24}`;
 
 /**
  * ctx = {
@@ -200,7 +210,10 @@ export function createEditor(ctx){
   const lenEl = d("div", "la3d-len");
   const ends = [d("div", "la3d-dot"), d("div", "la3d-dot")];
   const ring = d("div", "la3d-dot ring");
-  root.append(lenEl, ends[0], ends[1], ring);
+  // Heights: a dashed line from the picked device down to its spot on its
+  // floor, its height on it, so how high it is reads in the house itself.
+  const hLine = d("div", "la3d-hline"), hFoot = d("div", "la3d-hfoot"), hLab = d("div", "la3d-len");
+  root.append(lenEl, ends[0], ends[1], hLine, hFoot, ring, hLab);
   // Furniture (P2 Furnish, live_aboard_furnish.js): a tool of its own on this
   // same draft, so one Save writes doors, windows, heights and furniture.
   const FUR_HINT = "Build adds a piece. Drag a piece to move it; tap it to change it.";
@@ -880,10 +893,23 @@ export function createEditor(ctx){
     }
     head(info.label, `Height above its floor, 0 to ${DRAFT.metres(top)}. Default ${DRAFT.metres(info.zDefault)}.`);
     if (light) kindPicker(eid, info);
-    slider("Height", 0, top, setZ(cur) ? cur.z_m : info.z, (v, g) => {
-      // A light keeps what it is (its kind) as its height changes.
-      change((c) => { c[info.section][eid] = { ...(light ? c.lights[eid] : null), z_m: DRAFT.clampHeight(v, ceil, info.section) }; }, g);
+    const zNow = setZ(cur) ? cur.z_m : info.z;
+    // A light keeps what it is (its kind) as its height changes.
+    const setTo = (v, g) => change((c) => { c[info.section][eid] = { ...(light ? c.lights[eid] : null), z_m: DRAFT.clampHeight(v, ceil, info.section) }; }, g);
+    slider("Height", 0, top, zNow, (v, g) => {
+      setTo(v, g);
     }, { eid });
+    // Where its kind usually goes (Mapping's Height row offers the same), one tap each.
+    const spots = info.l && ctx.spotsOf ? ctx.spotsOf(info.l, info.kind || info.guess || null, top) : [];
+    if (spots.length) {
+      const row = d("div", "la3d-spots");
+      for (const [, label, z] of spots) {
+        const b = btn(`${label} ${DRAFT.metres(z)}`, `${label}: ${DRAFT.metres(z)} up`, () => { setTo(z); sheetFor(); });
+        b.setAttribute("aria-pressed", String(Math.abs(zNow - z) < 0.005));
+        row.appendChild(b);
+      }
+      sheet.appendChild(row);
+    }
     const acts = d("div", "la3d-acts");
     const reset = btn("Reset to default", "Back to the height its type gives it", () => {
       change((c) => {
@@ -1000,7 +1026,20 @@ export function createEditor(ctx){
       } else put(lenEl, null);
     } else put(lenEl, null);
     const dev = on && sel && sel.eid ? ctx.device(sel.eid) : null;
-    put(ring, dev && dev.at ? screenAt(dev.F, dev.at.x, dev.at.z, dev.at.y - dev.F.fl.elev) : null);
+    const devAt = dev && dev.at ? screenAt(dev.F, dev.at.x, dev.at.z, dev.at.y - dev.F.fl.elev) : null;
+    put(ring, devAt);
+    const up = dev && dev.at ? dev.at.y - dev.F.fl.elev : 0;
+    const foot = devAt && up > 0.05 ? screenAt(dev.F, dev.at.x, dev.at.z, 0) : null;
+    if (foot) {
+      const a = off(devAt), b = off(foot), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+      // Down from the ring's edge to the floor, turned to wherever the floor spot is on screen.
+      hLine.style.display = L > 20 ? "block" : "none";
+      hLine.style.left = `${a[0]}px`; hLine.style.top = `${a[1]}px`; hLine.style.height = `${L}px`;
+      hLine.style.transform = `rotate(${Math.atan2(-dx, dy)}rad)`;
+      put(hFoot, foot);
+      hLab.textContent = DRAFT.metres(up);
+      put(hLab, L > 50 ? [(devAt[0] + foot[0]) / 2 + 30, (devAt[1] + foot[1]) / 2] : null);
+    } else { hLine.style.display = "none"; put(hFoot, null); put(hLab, null); }
     placeSheet();
   }
 

@@ -67,12 +67,21 @@ export const WALL_REACH = 1.5;
  *  now, 5 min, 20, 40, 65, 90, 2 h): "just now" outshines "an hour ago". */
 export const STEP_K = [1, 0.8, 0.66, 0.55, 0.46, 0.38, 0.32];
 /** The floor's glow, by day and by night: its fill, its soft edge band; a
- *  presence hold's flat fill and solid line; a stuck sensor's hatch. */
-export const GLOW = { fill: [0.66, 0.55], band: [1, 1], steadyFill: 0.72, steadyBand: 0.3, line: 1, stuck: 0.5,
+ *  presence hold's flat fill and solid line; a stuck sensor's hatch. The fill
+ *  is a tint over the room's own colour, not a flood (Garry, 2026-10-14: the
+ *  motion looked ridiculous); the edge band carries the colour. */
+export const GLOW = { fill: [0.34, 0.42], band: [1, 1], steadyFill: 0.72, steadyBand: 0.3, line: 1, stuck: 0.5,
                       bandW: [0.15, 0.6], bandOf: 0.3, groundR: 2.2, near: 0.6 };
-/** The marker's size on screen (px): lit, quiet. Its tap target is the
- *  view's own (PICK_R, 44 px across). */
-export const MARK_PX = { lit: 34, quiet: 22 };
+/** The marker's size on screen (px): motion now (the largest), an earlier
+ *  step, quiet. Its tap target is the view's own (PICK_R, 44 px across). */
+export const MARK_PX = { lit: 30, recent: 22, quiet: 20 };
+/** An earlier step shows at whole-house scale up to this step (40 min);
+ *  older, only at room scale, as a quiet one does. The chip still names it. */
+export const WIDE_STEP = 3;
+/** Its drop line: from a marker this high (m) or more, down to a ring on its
+ *  floor this wide (m), so a sensor under a cut-away ceiling reads as over
+ *  its spot in the room, not stuck to the far wall. */
+export const STEM = { minZ: 0.3, ring: 0.13, a: 0.75, quiet: 0.35 };
 /** The marker hangs this far out from its wall into the room (m), and this
  *  far under the ceiling at most, so a floor above never covers it. */
 export const MARK_OUT = 0.35, MARK_UNDER = 0.15;
@@ -266,12 +275,16 @@ export function chipRooms(rows, max = 3){
     .slice(0, max)
     .map(r => ({ name: r.name, eid: r.eid, color: r.glow.color, words: ageWords(r.glow) }));
 }
-/** The marker as drawn: {lit, size, ink, ring, warn, steady, show (at whole-house scale too)}. */
+/** The marker as drawn: {lit, solid (filled with its colour: motion now,
+ *  held, stuck), size, ink, ring, warn, steady, wide (at whole-house scale
+ *  too)}. An earlier step is lit but not solid: a smaller dark disc ringed in
+ *  its step's colour, so only what is happening now stands out. */
 export function markerLook(g){
-  if (g && g.none) return { lit: false, size: MARK_PX.quiet, ink: NONE_INK, ring: "dashed", warn: false, steady: false, wide: false };
-  if (g && g.stuck) return { lit: true, size: MARK_PX.lit, ink: g.color, ring: "solid", warn: true, steady: false, wide: true };
-  if (g) return { lit: true, size: MARK_PX.lit, ink: g.color, ring: "solid", warn: false, steady: !!g.steady, wide: true };
-  return { lit: false, size: MARK_PX.quiet, ink: QUIET_INK, ring: "solid", warn: false, steady: false, wide: false };
+  if (g && g.none) return { lit: false, solid: false, size: MARK_PX.quiet, ink: NONE_INK, ring: "dashed", warn: false, steady: false, wide: false };
+  if (g && g.stuck) return { lit: true, solid: true, size: MARK_PX.lit, ink: g.color, ring: "solid", warn: true, steady: false, wide: true };
+  if (g && (g.active || g.steady)) return { lit: true, solid: true, size: MARK_PX.lit, ink: g.color, ring: "solid", warn: false, steady: !!g.steady, wide: true };
+  if (g) return { lit: true, solid: false, size: MARK_PX.recent, ink: g.color, ring: "solid", warn: false, steady: false, wide: g.step <= WIDE_STEP };
+  return { lit: false, solid: false, size: MARK_PX.quiet, ink: QUIET_INK, ring: "solid", warn: false, steady: false, wide: false };
 }
 
 // ── the floor: glow, band, rings and coverage ──────────────────────────────
@@ -435,26 +448,26 @@ export function createMotionLayer(ctx){
     const c = S.canvas, g = c.getContext("2d"), W = c.width, cx = W / 2, cy = W / 2, R = W * 0.36;
     g.clearRect(0, 0, W, W);
     g.save();
-    if (k.lit) { g.shadowColor = k.ink; g.shadowBlur = W * 0.12; }
+    if (k.solid) { g.shadowColor = k.ink; g.shadowBlur = W * 0.12; }
     g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2);
-    g.fillStyle = k.lit ? k.ink : "rgba(15,23,42,0.8)";
+    g.fillStyle = k.solid ? k.ink : "rgba(15,23,42,0.85)";
     g.fill();
     g.restore();
-    g.lineWidth = W * 0.045;
+    g.lineWidth = k.lit && !k.solid ? W * 0.07 : W * 0.045;
     if (k.ring === "dashed" && typeof g.setLineDash === "function") g.setLineDash([W * 0.09, W * 0.07]);
-    g.strokeStyle = k.ring === "dashed" ? "#94a3b8" : k.lit ? "rgba(255,255,255,0.95)" : "rgba(148,163,184,0.85)";
+    g.strokeStyle = k.ring === "dashed" ? "#94a3b8" : k.solid ? "rgba(255,255,255,0.95)" : k.lit ? k.ink : "rgba(148,163,184,0.85)";
     g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
     if (typeof g.setLineDash === "function") g.setLineDash([]);
     if (k.steady) { g.lineWidth = W * 0.025; g.strokeStyle = "rgba(255,255,255,0.9)"; g.beginPath(); g.arc(cx, cy, R * 0.8, 0, Math.PI * 2); g.stroke(); }
     // The Atlas's motion glyph: the ceiling-plan PIR dome and its lens lines.
-    const HW = R * 0.5, oy = cy + HW * 0.45, ink = k.lit ? "#ffffff" : k.ring === "dashed" ? NONE_INK : "#cbd5e1";
+    const HW = R * 0.5, oy = cy + HW * 0.45, ink = k.solid ? "#ffffff" : k.lit ? k.ink : k.ring === "dashed" ? NONE_INK : "#cbd5e1";
     g.beginPath();
     for (let i = 0; i <= 16; i++) {
       const a = (180 + 180 * i / 16) * Math.PI / 180, x = cx + HW * Math.cos(a), y = oy + HW * 1.15 * Math.sin(a);
       if (i) g.lineTo(x, y); else g.moveTo(x, y);
     }
     g.closePath(); g.fillStyle = ink; g.fill();
-    g.strokeStyle = k.lit ? k.ink : "rgba(15,23,42,0.85)"; g.lineWidth = W * 0.022;
+    g.strokeStyle = k.solid ? k.ink : "rgba(15,23,42,0.85)"; g.lineWidth = W * 0.022;
     g.beginPath();
     for (let i = 0; i <= 12; i++) {
       const a = (180 + 180 * i / 12) * Math.PI / 180, x = cx + HW * 0.6 * Math.cos(a), y = oy + HW * 0.7 * Math.sin(a);
@@ -478,6 +491,29 @@ export function createMotionLayer(ctx){
     const out = S.ceiling ? 0 : MARK_OUT, top = S.F.fl.h - HOUSE.SLAB_T - MARK_UNDER;
     S.at.set(S.mx + S.face[0] * out, S.F.fl.elev + Math.min(S.z, top), S.my + S.face[1] * out);
     if (S.sprite) S.sprite.position.copy(S.at);
+    if (S.stem) {
+      const y0 = S.F.fl.elev + 0.012, a = S.stem.line.geometry.attributes.position;
+      a.setXYZ(0, S.at.x, S.at.y, S.at.z); a.setXYZ(1, S.at.x, y0, S.at.z); a.needsUpdate = true;
+      S.stem.line.geometry.computeBoundingSphere();
+      S.stem.line.computeLineDistances();
+      S.stem.ring.position.set(S.at.x, y0, S.at.z);
+    }
+  }
+  // ── its drop line: from the marker down to a ring on its floor ────────────
+  function stem(S){
+    const lm = new THREE.LineDashedMaterial({ color: QUIET_INK, transparent: true, opacity: STEM.a, dashSize: 0.08, gapSize: 0.06, depthWrite: false });
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
+    const line = new THREE.Line(lg, lm);
+    const rg = new THREE.RingGeometry(STEM.ring * 0.62, STEM.ring, 32).rotateX(-Math.PI / 2);
+    const rm = new THREE.MeshBasicMaterial({ color: QUIET_INK, transparent: true, opacity: STEM.a, depthWrite: false, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+    const ring = new THREE.Mesh(rg, rm);
+    line.renderOrder = 4; ring.renderOrder = 4;
+    line.visible = false; ring.visible = false;
+    res.push(lg, lm, rg, rm);
+    S.group.add(line, ring);
+    return { line, ring, lm, rm };
   }
   // ── the floor patch: a room's, or the ground's round an outside sensor ────
   function floorPatch(F, room, list, ground){
@@ -567,6 +603,7 @@ export function createMotionLayer(ctx){
       res.push(tex, sm);
       S.canvas = c; S.tex = tex; S.sprite = sp;
       S.at = new THREE.Vector3();
+      S.stem = S.z >= STEM.minZ ? stem(S) : null;
       markAt(S);
       sp.position.copy(S.at);
       S.group.add(sp);
@@ -661,7 +698,7 @@ export function createMotionLayer(ctx){
         changed = true;
       }
       const lensNow = h.cls === "motion";
-      if (lensNow !== lens) { lens = lensNow; changed = true; }
+      if (lensNow !== lens) { lens = lensNow; changed = true; camKey = null; }
       if (Math.abs((h.night || 0) - night) > 1e-3) { night = h.night || 0; changed = true; for (const P of patches) P.key = null; }
       for (const S of sensors) {
         const r = read(S, h);
@@ -704,7 +741,8 @@ export function createMotionLayer(ctx){
       camKey = key;
       for (const S of sensors) {
         const L = S.look || markerLook(null);
-        let on = shown(S) && (!!room || L.wide);
+        // ☰ Motion picked: every motion sensor shows, whatever its age.
+        let on = shown(S) && (!!room || L.wide || lens);
         if (on && again) {
           _p.copy(S.at).project(c);
           S.out = !(_p.z > -1 && _p.z < 1 && Math.abs(_p.x) <= 1.05 && Math.abs(_p.y) <= 1.05);
@@ -714,6 +752,16 @@ export function createMotionLayer(ctx){
         on = on && !S.out && !S.hid;
         S.shownNow = on;
         S.sprite.visible = on;
+        if (S.stem) {
+          // A quiet one's is faint: it only says where.
+          const st = on;
+          S.stem.line.visible = st; S.stem.ring.visible = st;
+          if (st) {
+            S.stem.lm.color.set(L.ink); S.stem.rm.color.set(L.ink);
+            const a = S.dim ? DIM : L.lit ? STEM.a : STEM.quiet;
+            S.stem.lm.opacity = a; S.stem.rm.opacity = a;
+          }
+        }
         if (!on) continue;
         const px = L.size * (128 / (128 * 0.72));
         S.sprite.scale.set(px * k, px * k, 1);
@@ -748,7 +796,8 @@ export function createMotionLayer(ctx){
       if (!S) return false;
       const d = z - S.z;
       S.z = z;
-      for (const o of S.group.children) if (o !== S.sprite) o.position.y += d;
+      for (const o of S.group.children) if (o !== S.sprite && (!S.stem || (o !== S.stem.line && o !== S.stem.ring))) o.position.y += d;
+      if (!S.stem && z >= STEM.minZ) S.stem = stem(S);
       markAt(S);
       if (S.S0.pos && S.S0.pos.copy) S.S0.pos.copy(S.at);
       camKey = null;

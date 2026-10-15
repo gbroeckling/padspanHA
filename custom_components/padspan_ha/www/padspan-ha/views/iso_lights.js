@@ -2907,7 +2907,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // pad thin-to-nothing (Garry, 2026-09-11: "the top of the map is cut off"),
   // while the room itself still reaches just as far up as ever. Same fix as
   // LEGEND_Y0 above: measure the real top edge and pad from THAT.
-  const viewY = isFinite(contentMinY) ? Math.min(0, contentMinY - 50)
+  // Not capped at 0 any more: a house that starts low (one storey, or a
+  // width-fit frame) kept everything above it as dead canvas, and a zoomed
+  // view opened on that empty band. Every reader of the viewBox goes through
+  // getScreenCTM or viewBox.baseVal, never a fixed 0 origin.
+  const viewY = isFinite(contentMinY) ? contentMinY - 50
                                        : Math.min(0, CY - maxIsoZ*FG - 50);
   const HTOTAL  = LEGEND_Y0 + LEGEND_H - viewY;
   // Same idea, sideways: the fixed 0..W bound never reserved any slack at
@@ -3964,7 +3968,12 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // glyph and win the tap there instead. Same floor (never smaller
       // than the marker's own footprint) and same ceiling shape (never
       // past halfway to the nearest neighbour) as the halo.
-      const chipGap=Math.max(HEX_R, Math.min(HEX_R*Math.max(1,sx,sy)*1.15, nearestNeighborDist/2));
+      // Its real height on screen, not Math.max(sx,sy): the marker is scaled
+      // then turned by its own rotation, so a 3 m strip lying flat is a thin
+      // bar and its chip sits just under it (Garry, 2026-10-14: a valance's
+      // code floated far down the room, away from the strip it names).
+      const th=rot*Math.PI/180, tall=Math.max(1, Math.abs(sx*Math.sin(th))+Math.abs(sy*Math.cos(th)));
+      const chipGap=Math.max(HEX_R, Math.min(HEX_R*tall*1.15, nearestNeighborDist/2));
       // Garry: "devices telling the temperature can also act like a motion
       // sensor, so rule is if they gave the temperature in the last hour
       // and they are placed on the map, a shape can be chosen for that
@@ -5343,14 +5352,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     //      goes QUIET (motionRecentPulseSvg, below) — that is genuinely a
     //      "how long ago" question, and every class starts that clock at
     //      the same place (last_changed, the moment it went quiet).
+    // Both lie on the floor, as a light's pool does (its 0.577): squashed
+    // about the marker, the stroke kept even. Upright, they read as bubbles
+    // standing over the plan (Garry, 2026-10-14: "look ridiculous").
+    const onFloor=(hx,hy)=>`transform="translate(${hx.toFixed(1)},${hy.toFixed(1)}) scale(1,0.577) translate(${(-hx).toFixed(1)},${(-hy).toFixed(1)})"`;
     const motionPulseSvg=(hx,hy,eid,degSweep)=>{
       const r0=HEX_R*1.15;
       const col=`hsl(${degSweep.toFixed(0)},75%,58%)`;
-      return `<g class="lpulse" data-eid="${escSVG(eid)}" pointer-events="none">`+
+      return `<g class="lpulse" data-eid="${escSVG(eid)}" pointer-events="none" ${onFloor(hx,hy)}>`+
         `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${(r0*1.6).toFixed(1)}" fill="url(#psmotion)" opacity="0.55">`+
         `<animate attributeName="opacity" values="0.55;0.2;0.55" dur="1.6s" repeatCount="indefinite"/>`+
         `</circle>`+
-        `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${r0.toFixed(1)}" fill="none" stroke="${col}" stroke-width="1.6">`+
+        `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${r0.toFixed(1)}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke">`+
         `<animate attributeName="r" values="${(r0*0.7).toFixed(1)};${(r0*2.4).toFixed(1)}" dur="1.6s" repeatCount="indefinite"/>`+
         `<animate attributeName="opacity" values="0.8;0" dur="1.6s" repeatCount="indefinite"/>`+
         `</circle></g>`;
@@ -5393,7 +5406,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const col=`hsl(${degSweep.toFixed(0)},75%,58%)`;
       return `<circle class="lrecent" data-eid="${escSVG(eid)}" pointer-events="none" `+
         `cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" `+
-        `r="${r0.toFixed(1)}" fill="none" stroke="${col}" stroke-width="1.3" opacity="0.5">`+
+        `r="${r0.toFixed(1)}" fill="none" stroke="${col}" stroke-width="1.3" opacity="0.5" vector-effect="non-scaling-stroke" ${onFloor(hx,hy)}>`+
         `<animate attributeName="opacity" values="0.5;0.16;0.5" dur="3s" repeatCount="indefinite"/>`+
         `</circle>`;
     };

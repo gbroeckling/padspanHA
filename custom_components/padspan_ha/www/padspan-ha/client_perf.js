@@ -30,7 +30,7 @@ export const CLIENT_FPS = ["lt10", "10_24", "24_45", "45up"];
 export const CLIENT_HEAP = ["lt128m", "128_256m", "256_512m", "512m_1g", "1g_up"];
 export const CLIENT_DEV = ["mem_lt1g", "mem_1g", "mem_2g", "mem_4g", "mem_8g_up", "mem_unknown",
                            "cores_1_2", "cores_3_4", "cores_5_8", "cores_9_up", "cores_unknown",
-                           "webgl2_yes", "webgl2_no", "touch_yes", "touch_no"];
+                           "webgl2_yes", "webgl2_no", "touch_yes", "touch_no", "lastrep_yes", "lastrep_no"];
 
 const PERIOD_MS = 60000;
 const MEASURE_MS = 3000;
@@ -57,6 +57,17 @@ export function deviceWords(nav, hasWebGL2){
   out.push(hasWebGL2 ? "webgl2_yes" : "webgl2_no");
   out.push(Number(nav && nav.maxTouchPoints) > 0 ? "touch_yes" : "touch_no");
   return out;
+}
+
+// Whether this panel's sensor states carry last_reported (a steady room's
+// temperature stays fresh by it: lights_map.js gatherLights), or null with
+// no sensor to tell by.
+export function lastReportedWord(states){
+  if (!states || typeof states !== "object") return null;
+  for (const [eid, st] of Object.entries(states)) {
+    if (eid.startsWith("sensor.") && st && typeof st === "object") return st.last_reported ? "lastrep_yes" : "lastrep_no";
+  }
+  return null;
 }
 
 // The 3D house on screen: a visible three.js canvas (three.js marks its own
@@ -100,7 +111,7 @@ function frameRate(ms){
 // Start the probe for one panel. `viewClass()` says "atlas" or "other" for
 // what the caller is showing; `enabled()` is the report switch; `send(name)`
 // passes one event to the report. Returns { stop }.
-export function startClientPerf({ root, viewClass, enabled, send }){
+export function startClientPerf({ root, viewClass, enabled, send, states }){
   let stopped = false;
   let busy = false;
   let devSent = false;
@@ -114,6 +125,8 @@ export function startClientPerf({ root, viewClass, enabled, send }){
       if (!devSent){
         devSent = true;
         for (const w of deviceWords(navigator, typeof WebGL2RenderingContext !== "undefined")) send("client_dev:" + w);
+        const lr = lastReportedWord(states ? states() : null);
+        if (lr) send("client_dev:" + lr);
       }
       const fps = await frameRate(MEASURE_MS);
       if (stopped || !enabled() || !visible()) return;

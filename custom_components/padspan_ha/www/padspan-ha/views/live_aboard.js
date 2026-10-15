@@ -41,6 +41,7 @@ const USE = await import(`./live_aboard_use.js${new URL(import.meta.url).search}
 const DRAFT = await import(`./live_aboard_draft.js${new URL(import.meta.url).search}`);
 // The 3D editor (Door, Window, Heights), for those who may place lights.
 const EDIT = await import(`./live_aboard_edit.js${new URL(import.meta.url).search}`);
+const HEIGHTS = await import(`./atlas_heights.js${new URL(import.meta.url).search}`);
 // P2 Furnish: furniture's rules, the pieces drawn and the Furnish tool, and
 // the builders that draw each piece (missing or broken: every piece a box).
 const PIECES = await import(`./live_aboard_pieces.js${new URL(import.meta.url).search}`);
@@ -401,6 +402,7 @@ function createSlot(slotKey){
   let dropPointers = () => {};             // ends every one of them, as a cancel (wirePointer)
   // Shared, made once per slot.
   let shared = null;
+  let plumb = null;                          // the drop line under a hovered or pressed device
   let hemi = null, sun = null, lampPool = [], lampsDirty = true, ground = null, gridLines = null;
   const lampTarget = new THREE.Vector3(Infinity, 0, 0);
   // The live parts and the taps (part B). use: the press, the hover box and
@@ -524,6 +526,7 @@ function createSlot(slotKey){
     marks = null; codes = null; zoomCb = null;
     try { if (motionL) motionL.dispose(); if (mchip) mchip.dispose(); } catch (_) { /* gone with the view */ }
     try { if (storeyL) storeyL.dispose(); } catch (_) { /* gone with the view */ }
+    try { if (plumb) { plumb.dispose(); plumb = null; } } catch (_) { /* gone with the view */ }
     storeyL = null; roofWant = false;
     motionL = null; mchip = null;
     try { if (panel) panel.dispose(); } catch (_) { /* gone with the view */ }
@@ -1121,7 +1124,11 @@ function createSlot(slotKey){
       frame: () => { if (!pending && !failed && renderer) { pending = true; requestAnimationFrame(frame); } },
       cursor: (on) => { canvas.style.cursor = on ? "pointer" : ""; },
       // A motion sensor hovered or pressed shows its coverage.
-      marked: (t) => { if (motionL && motionL.focus(t && t.kind === "device" ? t.eid : null)) requestRender(); },
+      marked: (t) => {
+        const eid = t && t.kind === "device" ? t.eid : null;
+        const a = !!(motionL && motionL.focus(eid)), b = plumbTo(eid);
+        if (a || b) requestRender();
+      },
     });
     // Furniture (P2): every piece drawn on its floor, in every view.
     layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
@@ -1148,7 +1155,7 @@ function createSlot(slotKey){
     editor = EDIT.createEditor({
       THREE, HOUSE, DRAFT, root, canvas, bar, guard,
       camera: () => camera, scene: () => scene, floors: () => floorsUi, shellGen: () => shellGen,
-      pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid), doorClass: (eid) => classOf(eid),
+      pick: (x, y) => pickAt(x, y), blocked: (v, own) => blocked(v, own), device: (eid) => deviceInfo(eid), spotsOf: (l, kind, top) => HEIGHTS.spotsOf(l, kind, top), doorClass: (eid) => classOf(eid),
       // The file with the records' heights over it (what the draft edits).
       file: () => (file ? shownFile() : null), reload: () => reloadFile(), problem: () => fileErr, newer: () => setFileErr("house3d_newer"),
       saved: (data) => { fileRaw = data; file = DRAFT.ownedOf(data); setFileErr(DRAFT.writable(data) ? null : "house3d_newer"); },
@@ -3701,7 +3708,7 @@ function createSlot(slotKey){
     const L = lights.find(x => x.eid === eid), S = L ? null : sensorsUi.find(x => x.eid === eid), X = L || S;
     if (!X || typeof X.z !== "number") return markInfo(eid);
     const l = lbe[eid];
-    return { section: L ? "lights" : "devices", eid, F: X.F, z: X.z, zDefault: X.zDefault,
+    return { section: L ? "lights" : "devices", eid, F: X.F, z: X.z, zDefault: X.zDefault, l: l || X.l || null,
              kind: L ? L.drawn : null, guess: L ? L.guess : null,
              label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid,
              at: new THREE.Vector3(X.x, X.F.fl.elev + X.z, X.y) };
@@ -3855,11 +3862,47 @@ function createSlot(slotKey){
     if (motionL) motionL.size(camera, H, MARKS ? MARKS.codesAt(cam.radius, camera.aspect, FOV, fitR) : true);
   }
   /** A leak sensor or a lock, for the editor's Heights (as deviceInfo). */
+  // A device hovered or pressed, up off its floor (a ceiling light, a fan, a
+  // sensor on the wall), drops a dashed line to a ring on its floor: under a
+  // cut-away ceiling it reads as over its spot, not stuck to the far wall.
+  // A motion sensor has its own (live_aboard_motion.js).
+  function makePlumb(){
+    const lm = new THREE.LineDashedMaterial({ color: "#fbbf24", transparent: true, opacity: 0.85, dashSize: 0.08, gapSize: 0.06, depthWrite: false });
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
+    const line = new THREE.Line(lg, lm);
+    const rg = new THREE.RingGeometry(0.08, 0.13, 32).rotateX(-Math.PI / 2);
+    const rm = new THREE.MeshBasicMaterial({ color: "#fbbf24", transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+    const ring = new THREE.Mesh(rg, rm);
+    line.renderOrder = 4; ring.renderOrder = 4; line.frustumCulled = false;
+    line.visible = false; ring.visible = false;
+    scene.add(line, ring);
+    return { line, ring, dispose(){ for (const r of [lg, lm, rg, rm]) r.dispose(); } };
+  }
+  /** Point the drop line at eid (or put it away). True when that changed what is drawn. */
+  function plumbTo(eid){
+    if (!scene) return false;
+    if (!plumb) plumb = makePlumb();
+    const S = eid ? sensorsUi.find(x => x.eid === eid) : null;
+    const info = eid && !(S && S.kind === "motion") ? deviceInfo(eid) : null;
+    const up = info && info.at ? info.at.y - info.F.fl.elev : 0;
+    const on = !!info && up > 0.3 && !!(info.F.group && info.F.group.visible);
+    const was = plumb.line.visible;
+    if (on) {
+      const at = info.at, y0 = info.F.fl.elev + 0.012, a = plumb.line.geometry.attributes.position;
+      a.setXYZ(0, at.x, at.y, at.z); a.setXYZ(1, at.x, y0, at.z); a.needsUpdate = true;
+      plumb.line.computeLineDistances();
+      plumb.ring.position.set(at.x, y0, at.z);
+    }
+    plumb.line.visible = on; plumb.ring.visible = on;
+    return on || was;
+  }
   function markInfo(eid){
     const M = marks ? marks.info(eid) : null;
     if (!M) return null;
     const l = lbe[eid];
-    return { section: "devices", eid, F: M.F, z: M.z, zDefault: M.zDefault, kind: null, guess: null,
+    return { section: "devices", eid, F: M.F, z: M.z, zDefault: M.zDefault, l: l || null, kind: null, guess: null,
              label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid, at: new THREE.Vector3(M.x, M.F.fl.elev + M.z, M.y) };
   }
   // ⚙'s Zoom: − and + step out and in about the view's middle, 100% is the

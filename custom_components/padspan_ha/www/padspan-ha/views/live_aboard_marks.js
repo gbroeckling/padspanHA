@@ -462,14 +462,32 @@ export function createCodeLayer(ctx){
       const again = key !== camKey;
       camKey = key;
       shownN = 0;
+      const W = H * (c.aspect || 1), seen = [];
       for (const C of chips.values()) {
         let on = !!show && C.F.group.visible;
         if (on && again) {
           _p.copy(C.v).project(c);
           C.out = !(_p.z > -1 && _p.z < 1 && Math.abs(_p.x) <= 1.05 && Math.abs(_p.y) <= 1.05);
           C.hid = !C.out && !!(ctx.behind && ctx.behind(C.v));
+          C.crowd = false;
+          if (!C.out && !C.hid) seen.push({ C, x: (_p.x * 0.5 + 0.5) * W, y: (-_p.y * 0.5 + 0.5) * H, z: _p.z });
         }
-        on = on && !C.out && !C.hid;
+      }
+      if (again) {
+        // Two codes on top of each other read as neither: the nearer keeps
+        // its code, the other steps aside (its device still shows and takes
+        // taps; its hover box and sheet name it).
+        seen.sort((a, b) => a.z - b.z);
+        const kept = [];
+        for (const s of seen) {
+          const hw = CODE_PX * (200 / 56) * (s.C.w || 0.5) / 2 + 2, top = s.y + (s.C.gap ?? 10) - 1, bot = top + CODE_PX + 2;
+          s.C.crowd = kept.some(o => Math.abs(o.x - s.x) < hw + o.hw && top < o.bot && bot > o.top);
+          if (!s.C.crowd) kept.push({ x: s.x, hw, top, bot });
+        }
+      }
+      for (const C of chips.values()) {
+        let on = !!show && C.F.group.visible;
+        on = on && !C.out && !C.hid && !C.crowd;
         C.sprite.visible = on;
         if (!on) continue;
         shownN++;

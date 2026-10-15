@@ -1572,6 +1572,7 @@ class PadSpanHaApp extends HTMLElement {
         viewClass: () => (this.state.view === "maps" && this.state.mapsTab === "lights") ? "atlas" : "other",
         enabled: () => !!this.state.settings?.telemetry_enabled,
         send: (name) => this._telemetryEvent(name),
+        states: () => this._hass && this._hass.states,
       });
     }).catch(() => { this._clientPerfLoading = null; });
   }

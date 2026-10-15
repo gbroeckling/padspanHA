@@ -2549,7 +2549,10 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // paired primary reads its OWN last_changed only — see the fold
       // comment above "state" for why the occupancy half is never
       // consulted, here or there.
-      last_changed:  eid.startsWith("sensor.") ? (states[eid].last_updated || null)
+      // last_reported first (HA 2024.3+): a sensor that reports the same
+      // reading with the same attributes moves only that one, so a room
+      // holding 21.5° for an hour went to "–°" on last_updated alone.
+      last_changed:  eid.startsWith("sensor.") ? (states[eid].last_reported || states[eid].last_updated || null)
                      : eid.startsWith("binary_sensor.") ? _realLastChanged(states[eid].last_changed, reconnects && reconnects[eid])
                      : null,
       // The reading itself, rounded — "inside is simply the temperature, 3

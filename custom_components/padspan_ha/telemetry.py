@@ -391,7 +391,10 @@ CLIENT_FPS: tuple[str, ...] = ("lt10", "10_24", "24_45", "45up")
 CLIENT_HEAP: tuple[str, ...] = ("lt128m", "128_256m", "256_512m", "512m_1g", "1g_up")
 CLIENT_DEV: tuple[str, ...] = ("mem_lt1g", "mem_1g", "mem_2g", "mem_4g", "mem_8g_up", "mem_unknown",
                                "cores_1_2", "cores_3_4", "cores_5_8", "cores_9_up", "cores_unknown",
-                               "webgl2_yes", "webgl2_no", "touch_yes", "touch_no")
+                               "webgl2_yes", "webgl2_no", "touch_yes", "touch_no",
+                               # Do sensor states reach the panel with last_reported? (a steady
+                               # room's temperature stays fresh by it, 0.38.126)
+                               "lastrep_yes", "lastrep_no")
 CLIENT_EVENTS: frozenset[str] = frozenset(
     {f"client_fps:{v}:{b}" for v in CLIENT_VIEWS for b in CLIENT_FPS}
     | {f"client_heap:{v}:{b}" for v in CLIENT_VIEWS for b in CLIENT_HEAP}

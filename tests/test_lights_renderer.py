@@ -5809,12 +5809,15 @@ def test_motion_strip_sits_on_the_same_row_as_the_floor_index(tmp_path):
         f"const FLOORS={json.dumps(floors)};\n"
         "const svg=M.buildIsoSVG(MODEL,{},new Set(),null,150,0,{},false,FLOORS,{});\n"
         "const h=/height=\"([0-9.]+)\"/.exec(svg);\n"
+        "const vb=/viewBox=\"[-0-9.]+ ([-0-9.]+) /.exec(svg);\n"
         "const stripM=/<rect x=\"[0-9.]+\" y=\"([0-9.]+)\" width=\"120\"[^>]*fill=\"url\\(#psmotionlegend\\)\"/.exec(svg);\n"
         "const badgeM=/<circle cx=\"[0-9.]+\" cy=\"([0-9.]+)\" r=\"7\" fill=/.exec(svg);\n"
-        "console.log(JSON.stringify({height:h?Number(h[1]):null, stripY:stripM?Number(stripM[1]):null, badgeCy:badgeM?Number(badgeM[1]):null}));\n"
+        "console.log(JSON.stringify({height:h?Number(h[1]):null, top:vb?Number(vb[1]):null, stripY:stripM?Number(stripM[1]):null, badgeCy:badgeM?Number(badgeM[1]):null}));\n"
     ))
-    assert out["height"] is not None and out["stripY"] is not None and out["badgeCy"] is not None, out
-    assert out["stripY"] + 12 <= out["height"], (
+    assert out["height"] is not None and out["stripY"] is not None and out["badgeCy"] is not None and out["top"] is not None, out
+    # The viewBox no longer starts at 0 (its top is trimmed to the house), so
+    # its bottom is its top plus its height.
+    assert out["stripY"] + 12 <= out["top"] + out["height"], (
         "the motion legend strip must fit fully inside the SVG's own declared height", out
     )
     assert abs((out["stripY"] + 2) - out["badgeCy"]) < 0.01, (
