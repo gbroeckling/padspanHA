@@ -143,6 +143,7 @@ const NARROW_W = 560;                      // under this the bar is one compact 
 const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
 const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
 const WET_INK = "#38bdf8", WET_WORD = "☔ Window open in the rain";
+const WINDOW_GLOW = "#ffc978";                           // a lit room's window at night, from outside
 const HEAT_A = 0.66;                                     // the heat map's strength over a room's floor
 const WET_CSS = `.la3d-wet{position:absolute;left:50%;top:82px;z-index:2;transform:translateX(-50%);display:none;max-width:calc(100% - 140px);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 12px;border-radius:999px;cursor:pointer;
@@ -1295,6 +1296,8 @@ function createSlot(slotKey){
       // Part B: an unlocked lock's flash (every one in step, as on the
       // Atlas), the motion ring, and the air bars' stripe.
       flashMat: new THREE.MeshBasicMaterial({ color: HOUSE.LOCK_FLASH.to, transparent: true, opacity: 0.55, depthWrite: false }),
+      // A lit room's windows at night, seen from outside (Walls: Up), as in the Sims.
+      glowMat: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide }),
       // A window open while it rains or snows: a still rain-blue glow over it.
       wetMat: new THREE.MeshBasicMaterial({ color: WET_INK, transparent: true, opacity: 0.6, depthWrite: false }),
       ringGeo: new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2),
@@ -1498,7 +1501,12 @@ function createSlot(slotKey){
         // Lengthened only at its wall's own corners, so joints close and a
         // door, window or gap keeps its width (drawnSpan).
         const span = HOUSE.drawnSpan(pc);
-        const els = HOUSE.wallElements(pc, fl.h).map(e => ({ ...e, list: e.glass ? glasses : solids }));
+        // The room a pane looks out of (either side of its wall): it glows at night while that room is lit.
+        const paneRoom = () => {
+          const nx = Number(pc.nx) || 0, ny = Number(pc.ny) || 0;
+          return HOUSE.roomAt(per.rooms, span.mx + nx * 0.4, span.my + ny * 0.4) || HOUSE.roomAt(per.rooms, span.mx - nx * 0.4, span.my - ny * 0.4) || null;
+        };
+        const els = HOUSE.wallElements(pc, fl.h).map(e => ({ ...e, list: e.glass ? glasses : solids, room: e.glass ? paneRoom() : null }));
         for (const e of els) { e.i = e.list.length; e.list.push(e); }
         F.pieces.push({ pc, mx: span.mx, my: span.my, yaw: HOUSE.yawOf([pc.x1 - pc.x0, pc.y1 - pc.y0]),
                         len: span.len, els, cut: null, lights: [] });
@@ -1515,6 +1523,17 @@ function createSlot(slotKey){
       };
       F.solid = inst(solids, shared.wallBox, { vc: true, r: 0.92, top: 1 }, true);
       F.glass = inst(glasses, shared.glassBox, { tr: true, op: 0.32, r: 0.08 }, false);
+      // Its night glow: the same panes (the glass's own matrices, shared, so a
+      // window that swings carries it), warm where the room behind is lit.
+      if (F.glass) {
+        const gm = new THREE.InstancedMesh(shared.glassBox, shared.glowMat, glasses.length);
+        gm.instanceMatrix = F.glass.instanceMatrix;
+        gm.frustumCulled = false; gm.renderOrder = 3; gm.visible = false;
+        glasses.forEach((e, i) => gm.setColorAt(i, _c.set(0x000000)));
+        shellRes.push({ dispose: () => gm.dispose() });
+        group.add(gm);
+        F.glow = gm; F.panes = glasses.map(e => e.room);
+      }
       // A door, window or lock linked to a sensor opens with it (part B).
       for (const P of F.pieces) setupOpening(F, P, per.rooms);
       if (STOREY) typedPanels(F);                            // doors of a type other than hinged: their own panels
@@ -1628,7 +1647,26 @@ function createSlot(slotKey){
     if (storeyL) storeyL.night(k);                           // the roof keeps a little of its colour
     if (gridLines) gridLines.material.opacity = 1 - NIGHT_GRID * k;
     for (const L of lights) if (L.look) paintLight(L);
+    paintWindows();
     requestRender();
+  }
+  /** At night with the walls up, a window glows warm while a light in the
+   *  room behind it is on, stronger the darker it is; otherwise nothing. */
+  function paintWindows(){
+    // The walls stand: Up, or Cut while the roof shows (updateCutaway's own rule).
+    const k = Math.min(1, Math.max(0, nightK)), on = k > 0.05 && (wallMode === "up" || (wallMode === "cut" && !!roofWant));
+    const lit = new Set();
+    if (on) for (const L of lights) if (L.look && L.look.on && L.F) { const r = HOUSE.roomAt(L.F.rooms, L.x, L.y); if (r) lit.add(r); }
+    for (const F of floorsUi) {
+      if (!F.glow) continue;
+      const key = on ? F.panes.map(r => (r && lit.has(r) ? 1 : 0)).join("") + "|" + k.toFixed(2) : "off";
+      if (key === F.glowKey) continue;
+      F.glowKey = key;
+      F.glow.visible = on;
+      if (!on) continue;
+      F.panes.forEach((r, i) => F.glow.setColorAt(i, r && lit.has(r) ? _c.set(WINDOW_GLOW).multiplyScalar(k) : _c.set(0x000000)));
+      F.glow.instanceColor.needsUpdate = true;
+    }
   }
   // The sun's light sits out along the sun's direction from the middle of the
   // house, its shadow box (High) fitted round the house's bounds.
@@ -2865,6 +2903,7 @@ function createSlot(slotKey){
     if (!HOUSE.WALL_MODES.includes(m)) return;
     wallMode = m;
     paintWallButtons();
+    paintWindows();
     recheckCovers();
     requestRender();
   }
@@ -2894,7 +2933,9 @@ function createSlot(slotKey){
     const want = STOREY.roofShown({ setting: roofPick(), editing: !!(editor && editor.active), furnish: furnishOn, topElev,
                                     topStorey: storeyL.topElev(), wallMode, phi: cam.phi, radius: cam.radius, fitR });
     const f = storeyL.fade(want, performance.now());
+    const was = roofWant;
     roofWant = want;
+    if (!!was !== !!want) paintWindows();                    // Cut stands the walls up under the roof: lit windows show
     if (f.crossed) recheckCovers();                          // markers and codes under it hide, or show again
     return want;
   }
@@ -4277,6 +4318,7 @@ function createSlot(slotKey){
     syncDevices(p, vd);
     syncTracked(p, vd, rebuilt);
     paintLights(p.lightsByEid);
+    paintWindows();
     paintLive();
     paintWet(p);
     paintHeat();
