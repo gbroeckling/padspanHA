@@ -6,6 +6,8 @@ PadSpan™ HA goes far beyond "home or away." It tells you **which room** every 
 
 🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
 
+🎁 **PadSpan Pro free:** testers get two years of Pro while the anonymous usage report stays on ([how](#become-a-tester-separate-from-the-usage-report)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
+
 ![PadSpan HA — room-level Bluetooth presence on a 3D multi-floor plan](images/demo-montage.gif)
 
 <sub>20-second tour. The same shots at full size are in the table below, and the full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
