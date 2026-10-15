@@ -19,7 +19,7 @@ Organisation:
 
 DOMAIN = "padspan_ha"
 NAME = "PadSpan HA"
-VERSION = "0.38.130"
+VERSION = "0.38.131"
 
 # ── Config-flow option keys ───────────────────────────────────────────────────
 CONF_ENABLE_CLOUD = "enable_cloud"
