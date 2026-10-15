@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.128 — Scenes in the room sheet, and lit windows at night (2026-10-15)
+
+### New
+- **A room's scenes, one tap away.** Tap a room's name and its sheet now lists that room's Home Assistant scenes and scripts as ▶ buttons, next to All lights on and off. It works on the flat Atlas and in Live Aboard.
+- **Lit windows at night.** In Live Aboard after dark, a window glows warm while a light is on in the room behind it, the way houses look in the Sims. You see it from outside, with the walls up.
+
+### Fixes
+- **Fixed:** in Live Aboard, the Motion chip could sit on top of the house after Top, Fit or Whole house. The house now stays clear of the chips and the buttons.
+
+---
+
 ## 0.38.127 — Live Aboard: see every floor, a heat map, and a window left open in the rain (2026-10-15)
 
 ### New
