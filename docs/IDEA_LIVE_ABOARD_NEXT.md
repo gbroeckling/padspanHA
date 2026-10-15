@@ -20,15 +20,16 @@ most popular 3D floorplans people use with Home Assistant, mainly
 | The room sheet's own scenes and scripts as ▶ buttons (neonplan3d's room panel) | 0.38.128 |
 | Lit windows glowing at night from outside (The Sims) | 0.38.128 |
 | Going back to the home view after a while untouched (neonplan3d's kiosk) | already there |
+| Building tools: 5 cm snapping, Edit keyboard shortcuts, one-tap Round this room, arcs only on doors that swing | 0.38.129 |
+| Guides: Live Aboard, Furnish, Wall Screen, PadSpan Pro; Views ▾ → How it works | 0.38.130 |
+| Smoke, gas and CO alarms in the Emergency class (neonplan3d's alerts) | 0.38.131 |
 
 ## Needs a decision
 
 1. ~~**Blinds and shades that follow their position.**~~ **Declined** (Garry, 2026-10-15: "No blinds
    needed"). Not to be built.
-2. **Smoke, gas and CO alarms on the map.** The Emergency class is water leaks only
-   (`isFloodSensor`: `moisture`). neonplan3d's pulsing alerts cover smoke, gas, CO and alarms too.
-   Either a new class (its own glyph, code letter, chip and report bucket) or widen Emergency; the
-   leak's "WET" word and water ripples would need a smoke/alarm look of their own.
+2. ~~**Smoke, gas and CO alarms on the map.**~~ **Done** in 0.38.131 (Garry, 2026-10-15: "Widen
+   emergency"): the Emergency class, each in its own words, drawn as a detector.
 3. **Floor and wall materials.** Rooms are flat colours. The Sims look is wood, tile and carpet on
    the floors and paint on the walls. That's a big look change and a per-room setting; worth
    trying as a Showcase look first.
@@ -44,6 +45,12 @@ most popular 3D floorplans people use with Home Assistant, mainly
    and reverted (it moved the camera's target, which Find and saved views rely on).
 
 ## To check on the real house (nothing else can)
+
+- 0.38.129: the building tools on a touch screen (none of it was tried by finger).
+- 0.38.131: a real smoke or CO sensor's device class is `smoke`, `gas` or `carbon_monoxide`.
+
+The [test harness](../tools/live_aboard_harness/README.md) reproduces everything else.
+
 
 - 0.38.126: motion badges and drop lines, the hover line, Heights spots, codes stepping aside.
 - 0.38.127: Explode on a real multi-floor house (stairs keep their real height), the heat map, the

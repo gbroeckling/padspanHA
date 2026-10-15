@@ -1,0 +1,136 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../custom_components/padspan_ha/www/padspan-ha/styles.css">
+<style>body{background:#07110a;color:#e8f0ea;font-family:system-ui;margin:0;padding:16px}#mount{max-width:1400px}</style>
+</head><body><div id="mount"></div>
+<script type="module">
+// Local-only harness (never committed): renders the Atlas card / Live Aboard
+// from a fixture house. Params: one=1 (one floor), la=0 (flat), edit=1,
+// click=A,B (buttons by text), wheel=N wx wy (zoom), tapeid / hovereid,
+// probe=<js returning JSON>, js=<js>.
+if (new URLSearchParams(location.search).get("w")) document.getElementById("mount").style.width = new URLSearchParams(location.search).get("w") + "px";
+const W = "../../custom_components/padspan_ha/www/padspan-ha/";
+const LM = await import(W + "views/lights_map.js");
+const q = new URLSearchParams(location.search);
+const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
+const one = q.get("one") === "1";
+const MODEL = {
+  floors: one ? [{ id: "main", name: "Main", level: 0 }]
+    : [{ id: "base", name: "Basement", level: -1 }, { id: "main", name: "Main", level: 0 }, { id: "upper", name: "Upper", level: 1 }],
+  floor_elevations: { base: -2.7, main: 0, upper: 2.8 },
+  room_geometry_m: Object.assign({
+    Kitchen: rect("main", 0, 0, 5, 4), "Living Room": rect("main", 5.1, 0, 11, 6), Hall: rect("main", 0, 4.1, 5, 6),
+    Den: rect("main", 0, 6.1, 5, 10), Laundry: rect("main", 5.1, 6.1, 11, 10),
+  }, one ? {} : { Office: rect("upper", 0, 0, 5, 5), Bedroom: rect("upper", 5.1, 0, 11, 6), Bath: rect("upper", 0, 5.1, 5, 10),
+                  Rec: rect("base", 0, 0, 8, 10), Shop: rect("base", 8.1, 0, 11, 10) }),
+  light_positions_m: Object.assign({
+    "light.kitchen_pots": { x_m: 2.5, y_m: 2, floor_id: "main" },
+    "light.living_lamp": { x_m: 9, y_m: 4, floor_id: "main" },
+    "light.living_valance": { x_m: 8, y_m: 0.3, floor_id: "main", width_cm: 300, height_cm: 5 },
+    "light.den_lamp": { x_m: 0.6, y_m: 9.4, floor_id: "main", z_m: 1.2 },
+    "fan.den_fan": { x_m: 2.5, y_m: 7.5, floor_id: "main" },
+    "sensor.den_temperature": { x_m: 4.8, y_m: 7, floor_id: "main" },
+    "sensor.kitchen_temperature": { x_m: 0.3, y_m: 2, floor_id: "main" },
+    "sensor.living_temperature": { x_m: 10.7, y_m: 5, floor_id: "main" },
+    "sensor.laundry_temperature": { x_m: 6, y_m: 9.7, floor_id: "main" },
+    "lock.front": { x_m: 0.1, y_m: 5.5, floor_id: "main" },
+    "binary_sensor.laundry_leak": { x_m: 10, y_m: 9.5, floor_id: "main" },
+    "binary_sensor.hall_smoke": { x_m: 3.2, y_m: 5, floor_id: "main" },
+    "binary_sensor.kitchen_motion": { x_m: 4.6, y_m: 0.4, floor_id: "main" },
+    "binary_sensor.living_motion": { x_m: 7, y_m: 2, floor_id: "main" },
+    "binary_sensor.hall_motion": { x_m: 1, y_m: 5, floor_id: "main" },
+    "binary_sensor.den_motion": { x_m: 2.5, y_m: 8, floor_id: "main" },
+    "binary_sensor.laundry_motion": { x_m: 8, y_m: 8, floor_id: "main" },
+  }, one ? {} : { "binary_sensor.office_motion": { x_m: 2, y_m: 2, floor_id: "upper" }, "light.bed": { x_m: 8, y_m: 3, floor_id: "upper" },
+                  "light.rec_cans": { x_m: 4, y_m: 5, floor_id: "base" }, "sensor.office_temperature": { x_m: 4.8, y_m: 2, floor_id: "upper" } }),
+  rf_barriers_m: [{ id: "w1", name: "Living window", material: "glass", floor_id: "main", points_m: [[11, 2], [11, 3.6]], linked_entity_id: "binary_sensor.living_window" },
+                  { id: "w2", name: "Kitchen window", material: "glass", floor_id: "main", points_m: [[1, 0], [2.6, 0]], linked_entity_id: "binary_sensor.kitchen_window" }],
+  scanner_positions_m: {}, scanners: {},
+};
+const ago = (min) => new Date(Date.now() - min * 60e3).toISOString();
+const S = (state, fn, a = {}, min = 60) => ({ state, attributes: { friendly_name: fn, ...a }, last_changed: ago(min), last_updated: ago(min), last_reported: ago(Math.min(min, 3)) });
+const M = { device_class: "motion" };
+const STATES = {
+  "light.kitchen_pots": S("on", "Kitchen pots", { brightness: 200 }),
+  "light.living_lamp": S("off", "Living lamp"),
+  "light.bed": S("on", "Bed light", { brightness: 120 }),
+  "light.rec_cans": S("on", "Rec cans"),
+  "light.living_valance": S("on", "Living valance", { rgb_color: [255, 120, 40], brightness: 255 }),
+  "light.den_lamp": S("on", "Den lamp", { brightness: 150 }),
+  "fan.den_fan": S("on", "Den fan"),
+  "sensor.den_temperature": S("21.5", "Den temperature", { device_class: "temperature", unit_of_measurement: "°C" }),
+  "sensor.kitchen_temperature": S("19", "Kitchen temperature", { device_class: "temperature", unit_of_measurement: "°C" }),
+  "sensor.living_temperature": S("72", "Living temperature", { device_class: "temperature", unit_of_measurement: "°F" }),
+  "sensor.laundry_temperature": S("26.5", "Laundry temperature", { device_class: "temperature", unit_of_measurement: "°C" }),
+  "sensor.office_temperature": S("24.5", "Office temperature", { device_class: "temperature", unit_of_measurement: "°C" }),
+  "lock.front": S("locked", "Front lock"),
+  "binary_sensor.living_window": S(q.get("wopen") === "0" ? "off" : "on", "Living room window", { device_class: "window" }),
+  "binary_sensor.kitchen_window": S("off", "Kitchen window", { device_class: "window" }),
+  "sun.sun": { state: q.get("night") ? "below_horizon" : "above_horizon", attributes: { elevation: q.get("night") ? -20 : 35, azimuth: 200 }, last_changed: ago(30) },
+  "weather.home": S(q.get("sky") || "rainy", "Home", { temperature: 12 }),
+  "binary_sensor.laundry_leak": S("off", "Laundry leak", { device_class: "moisture" }),
+  "binary_sensor.hall_smoke": S(q.get("smoke") === "0" ? "off" : "on", "Hall smoke alarm", { device_class: "smoke" }, 1),
+  "binary_sensor.kitchen_motion": S("on", "Kitchen motion", M, 0.2),
+  "binary_sensor.living_motion": S("off", "Living motion", M, 12),
+  "binary_sensor.hall_motion": S("off", "Hall motion", M, 70),
+  "binary_sensor.den_motion": S("off", "Den motion", M, 600),
+  "binary_sensor.laundry_motion": S("unavailable", "Laundry motion", M, 30),
+  "binary_sensor.office_motion": S("off", "Office motion", M, 3),
+};
+const tier = q.get("tier") || "pro";
+const LIGHTS = LM.gatherLights(STATES, {}, {}, tier, {}, {}, {}, {}, Date.now());
+const LBE = Object.fromEntries(LIGHTS.map(l => [l.entity_id, l]));
+function el(tag, attrs = {}, children = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v;
+    else if (k === "style") n.setAttribute("style", v);
+    else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null) n.setAttribute(k, String(v));
+  }
+  for (const c of (Array.isArray(children) ? children : [children])) {
+    if (c === null || c === undefined) continue;
+    n.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c);
+  }
+  return n;
+}
+localStorage.setItem("padspan_lv_3d_atlas", q.get("la") === "0" ? "0" : "1");
+const view = { floorGap: Number(q.get("gap") || 260), horizGap: 0, focusIdx: Number(q.get("focus") || 0), zoom: Number(q.get("zoom") || 1) };
+let host;
+const render = () => { const m = document.getElementById("mount"); m.innerHTML = ""; m.appendChild(LM.buildLightsMapCard(host)); };
+host = { el, view, floors: MODEL.floors, model: MODEL, byRoom: {}, hiddenEids: new Set(), lightsByEid: LBE, lightsLoading: false, tier,
+  layoutV2: true, displayMode: q.get("display") !== "0", codeChip: true, hitHalo: true, collapseUnplaced: true,
+  screen: { slot: "atlas", shownAt: 1 },
+  house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto" },
+    telemetry: () => {}, useApi: () => ({ lbe: LBE, states: STATES, hass: { states: STATES, callService: () => Promise.resolve() } }),
+    edit: q.get("edit") ? (ch) => Promise.resolve({ data: {} }) : undefined,
+    states: STATES, people: { read: () => Promise.resolve({ objects: { list: [] } }), everyMs: 5000 }, load: () => Promise.resolve({ data: {} }) },
+  classFilter: q.get("cls") || "all", onClassFilter: () => {},
+  weather: { settings: { atlas_weather_enabled: true }, states: STATES, entities: {} },
+  saveView: async () => {}, onHexesBuilt() {}, render, rerender: render, states: STATES };
+render();
+const out = (v) => { const o = document.createElement("pre"); o.id = "out"; o.textContent = typeof v === "string" ? v : JSON.stringify(v); document.body.appendChild(o); };
+setTimeout(async () => {
+  for (const b of document.querySelectorAll("button")) if (b.textContent === "Got it") b.click();
+  for (const name of (q.get("click") || "").split(",").filter(Boolean)) for (const b of document.querySelectorAll("button")) if (b.textContent.trim() === name) { b.click(); break; }
+  const cv = document.querySelector("canvas"); const n = Number(q.get("wheel") || 0);
+  if (cv && n) { const r = cv.getBoundingClientRect(); const x = r.left + r.width * Number(q.get("wx") || 0.5), y = r.top + r.height * Number(q.get("wy") || 0.5);
+    for (let i = 0; i < Math.abs(n); i++) cv.dispatchEvent(new WheelEvent("wheel", { deltaY: n > 0 ? -120 : 120, clientX: x, clientY: y, bubbles: true, cancelable: true })); }
+  const LA = await import(W + "views/live_aboard.js"), slot = LA.liveAboardSlot("atlas");
+  setTimeout(() => {
+    const ev = (t, x, y, b) => cv.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse", isPrimary: true, button: 0, buttons: b }));
+    if (q.get("tapeid")) { const pt = slot._where({ eid: q.get("tapeid") }); if (pt) { ev("pointerdown", pt[0], pt[1], 1); setTimeout(() => ev("pointerup", pt[0], pt[1], 0), 60); } }
+    if (q.get("hovereid")) { const pt = slot._where({ eid: q.get("hovereid") }); if (pt) { ev("pointermove", pt[0] + 3, pt[1], 0); ev("pointermove", pt[0], pt[1], 0); } }
+    if (q.get("draw")) setTimeout(() => {
+      const [fid, x0, y0, x1, y1] = q.get("draw").split(","); const z = Number(q.get("dz") || 1.1);
+      const A = slot._whereOf(fid, +x0, +y0, z), B = slot._whereOf(fid, +x1, +y1, z);
+      if (!A || !B) { out("no where " + JSON.stringify([A, B])); return; }
+      ev("pointerdown", A[0], A[1], 1);
+      for (let i = 1; i <= 8; i++) ev("pointermove", A[0] + (B[0] - A[0]) * i / 8, A[1] + (B[1] - A[1]) * i / 8, 1);
+      ev("pointerup", B[0], B[1], 0);
+      for (const name of (q.get("after") || "").split(",").filter(Boolean)) setTimeout(() => { for (const b of document.querySelectorAll("button")) if (b.textContent.trim() === name) { b.click(); break; } }, 800);
+    }, 2500);
+    if (q.get("js")) try { new Function("slot", q.get("js"))(slot); } catch (e) { out("ERR " + e); }
+    if (q.get("probe")) setTimeout(() => { try { out(new Function("slot", q.get("probe"))(slot)); } catch (e) { out("ERR " + e); } }, Number(q.get("pd") || 800));
+  }, 1500);
+}, 2500);
+</script></body></html>

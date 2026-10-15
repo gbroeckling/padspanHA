@@ -1,0 +1,14 @@
+import time
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    b = p.chromium.launch(channel="msedge", headless=True, args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
+    pg = b.new_page(viewport={"width": 1300, "height": 950})
+    errs = []
+    pg.on("pageerror", lambda e: errs.append("pageerror " + str(e)))
+    pg.on("console", lambda m: errs.append(m.type + ": " + m.text[:200]) if m.type in ("error", "warning") else None)
+    pg.on("response", lambda r: errs.append(f"{r.status} {r.url}") if r.status >= 400 else None)
+    pg.goto("http://127.0.0.1:8765/tools/live_aboard_harness/index.html?one=1&sky=sunny&edit=1"); time.sleep(6)
+    pg.screenshot(path="load.png")
+    print("buttons", pg.evaluate("[...document.querySelectorAll('button')].filter(b=>b.offsetParent).map(b=>b.textContent.trim()).slice(0,30)"))
+    print("errs", errs[:10])
+    b.close()
