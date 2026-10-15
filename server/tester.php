@@ -42,6 +42,7 @@ $DIR = __DIR__ . '/../../../private/padspan-testers';
 $MAX = 4096;
 $MAX_RECORDS = 500;
 $MAX_NEW_PER_DAY = 100;
+$MAX_KEYS_PER_DAY = 5;           // automatic tester keys a day (tester_key below)
 
 $INTERESTS = array('findmy', 'wled', 'floors', 'calibration', 'iphone_irk', 'bermuda', 'esphome_proxies', 'other');
 $SETUP_KEYS = array('ha_version', 'padspan_version', 'edition', 'tier', 'scanners', 'floors', 'rooms',
@@ -134,8 +135,77 @@ function with_store($dir, $mutate) {
     @chmod($file, 0640);
     return $result;
 }
-
-header('Content-Type: application/json');
+
+// A new tester gets their key at once: the panel promises testers two years
+// of PadSpan Pro while the usage report stays on. The licence server issues
+// it (plan 'tester', emailed to them by the licence server) after being asked
+// what this email already holds, because this form is public:
+//   - a tester or lifetime key already: nothing more (leaving and joining
+//     again never adds more years);
+//   - a paid Pro key: the developer decides by hand;
+//   - nothing, a trial or Bright: the tester key, which upgrades it in place.
+// At most $MAX_KEYS_PER_DAY automatic keys a day across everyone, so nobody
+// can collect keys by script. Past that, or on any failure, the developer is
+// emailed to decide by hand. The developer is told about every key sent.
+// Never makes the sign-up fail. The admin secret is read from the licence
+// server's own file at the moment it is needed, never copied anywhere.
+function tester_note($subject, $body) {
+    @mail('garry@bcmail.net', '[PadSpan] ' . $subject, $body,
+        "From: PadSpan <hello@traks.ca>\r\nContent-Type: text/plain; charset=UTF-8", '-f hello@traks.ca');
+}
+function licence_call($action, $fields, $secret) {
+    $ch = curl_init('https://traks.ca/license/?action=' . $action . '&product=padspan');
+    curl_setopt_array($ch, array(CURLOPT_POST => 1, CURLOPT_RETURNTRANSFER => 1, CURLOPT_TIMEOUT => 8,
+        CURLOPT_HTTPHEADER => array('X-Admin-Secret: ' . $secret), CURLOPT_POSTFIELDS => http_build_query($fields)));
+    $out = curl_exec($ch);
+    curl_close($ch);
+    $d = is_string($out) ? json_decode(ltrim($out, "\xEF\xBB\xBF"), true) : null;
+    return is_array($d) ? $d : null;
+}
+function tester_key($email, $dir, $max_per_day) {
+    $hand = "Issue it by hand if it should go (licence API, plan tester).\n\n  email: $email\n";
+    $src = @file_get_contents(__DIR__ . '/../../license/index.php');
+    $secret = ($src && preg_match("/ADMIN_SECRET\s*=\s*'([^']+)'/", $src, $m)) ? $m[1] : '';
+    if ($secret === '') { tester_note('Tester key needs you', "A new tester signed up; the licence secret could not be read.\n" . $hand); return; }
+    $look = licence_call('staff_lookup', array('email' => $email, 'secret' => $secret), $secret);
+    if (!$look || empty($look['ok']) || !isset($look['licenses']) || !is_array($look['licenses'])) {
+        tester_note('Tester key needs you', "A new tester signed up; the licence server did not answer the lookup.\n" . $hand); return;
+    }
+    foreach ($look['licenses'] as $l) {
+        $plan = isset($l['plan']) ? (string)$l['plan'] : '';
+        $live = empty($l['expired']);
+        if ($plan === 'tester' || $plan === 'lifetime') {
+            tester_note('Tester signed up (already keyed)', "A new tester signed up who already holds a $plan key, so nothing more was sent.\n\n  email: $email\n"); return;
+        }
+        if ($plan === 'pro' && $live) {
+            tester_note('Tester key needs you', "A new tester signed up who already has a paid Pro key; two free years were NOT added.\n" . $hand); return;
+        }
+    }
+    // The daily cap, counted only for keys actually sent.
+    $cf = $dir . '/autokeys.json';
+    $h = @fopen($cf, 'c+');
+    if (!$h || !flock($h, LOCK_EX)) { tester_note('Tester key needs you', "A new tester signed up; the daily count could not be read.\n" . $hand); return; }
+    $c = json_decode(stream_get_contents($h) ?: '{}', true);
+    $today = gmdate('Y-m-d');
+    if (!is_array($c) || ($c['day'] ?? '') !== $today) { $c = array('day' => $today, 'sent' => 0); }
+    if ((int)$c['sent'] >= $max_per_day) {
+        flock($h, LOCK_UN); fclose($h);
+        tester_note('Tester key needs you', "A new tester signed up after today's $max_per_day automatic keys.\n" . $hand); return;
+    }
+    $r = licence_call('issue', array('email' => $email, 'plan' => 'tester', 'product' => 'padspan', 'email_it' => 1), $secret);
+    if ($r && !empty($r['ok'])) {
+        $c['sent'] = (int)$c['sent'] + 1;
+        ftruncate($h, 0); rewind($h); fwrite($h, json_encode($c)); fflush($h);
+    }
+    flock($h, LOCK_UN); fclose($h);
+    if ($r && !empty($r['ok'])) {
+        tester_note('Tester key sent', "A new tester signed up and their two-year key went out automatically.\n\n  email   : $email\n  expires : " . ($r['expires_at'] ?? '?') . "\n");
+    } else {
+        tester_note('Tester key needs you', "A new tester signed up; the licence server refused or failed the key.\n" . $hand);
+    }
+}
+
+header('Content-Type: application/json');
 header('Cache-Control: no-store');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { reply(405, 'method', 'POST only.'); }
 $raw = file_get_contents('php://input', false, null, 0, $MAX + 1);
@@ -256,9 +326,10 @@ $result = with_store($DIR, function (&$db) use ($id, $rec, $today, $now, $MAX_RE
     $rec['created'] = ($old !== null && isset($old['created'])) ? $old['created'] : $now;
     $rec['updated'] = $now;
     $db['testers'][$id] = $rec;   // replaced whole: whatever was left out is gone
-    return array('ok', true);
+    return array($old === null ? 'new' : 'ok', true);
 });
 if ($result === null) { reply(500, 'store', 'The server could not save it right now. Nothing was kept - please try again later.'); }
 if ($result === 'full') { reply(503, 'full', 'The tester list is full at the moment. Thank you - please try again later.'); }
 if ($result === 'busy') { reply(429, 'busy', 'Too many sign-ups today. Please try again tomorrow.'); }
+if ($result === 'new') { tester_key($rec['contact']['email'], $DIR, $MAX_KEYS_PER_DAY); }
 reply(200);

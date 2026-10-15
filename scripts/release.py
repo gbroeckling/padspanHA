@@ -489,6 +489,15 @@ def git_commit_tag_push(version, tag, message=None):
 
 # ───────────────────────── GitHub release ────────────────────────────
 
+# Every release's notes end with this. HACS shows the notes to everyone who
+# updates, the widest audience PadSpan has (Garry, 2026-10-15). Change or
+# empty it here; an empty string adds nothing.
+RELEASE_NOTES_FOOTER = (
+    "\n\n### PadSpan Pro free\n"
+    "Testers get two years of PadSpan Pro while the anonymous usage report stays on: "
+    "Settings → Presence → Help improve PadSpan. More ways: https://padspan.traks.ca/#pro-free"
+)
+
 def create_github_release(tag, channel, message=None):
     """
     Create a GitHub release and upload the zip asset.
@@ -506,6 +515,7 @@ def create_github_release(tag, channel, message=None):
         f"{summary}\n\n"
         "### Install / Update\n"
         "Install or update via HACS: search for PadSpan HA (it is in the HACS default list)."
+        + RELEASE_NOTES_FOOTER
     )
 
     # ── Attempt 1: gh release create (one-shot, preferred) ──
