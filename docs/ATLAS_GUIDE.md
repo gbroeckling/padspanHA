@@ -9,7 +9,7 @@ Atlas works two ways depending on which PadSpan you installed:
 - **[PadSpan HA](https://github.com/gbroeckling/padspanHA)** — Atlas sits alongside BLE presence tracking. Free by default; a **PadSpan Pro** key unlocks placement.
 - **[PadSpan Bright](https://github.com/gbroeckling/padspanBright)** — the same Atlas map on its own, no BLE tracking. Free by default; a **PadSpan Bright Pro** key unlocks placement.
 
-Either free tier gets floors, rooms and one marker per light — tap the marker (or its sidebar row) to toggle it. A Pro/Bright Pro key on either install unlocks everything below: real placement, shapes, sensors, Automorph and Showcase. See [Editions](../README.md#editions) in the README for the full breakdown, and **Settings → Features → PadSpan licence** for a one-time 3-month free trial if you don't have a key yet.
+Either free tier gets floors, rooms and one marker per light — tap the marker (or its sidebar row) to toggle it. A Pro/Bright Pro key on either install unlocks everything below: real placement, shapes, sensors, Automorph and Showcase. See [Editions](../README.md#editions) in the README for the full breakdown, and **Settings → Features → PadSpan licence** for a one-time 90-day free trial if you don't have a key yet (see [PadSpan Pro](PADSPAN_PRO.md)).
 
 ## Getting there
 
@@ -76,6 +76,71 @@ Weather warnings are found by themselves from Environment Canada, MeteoAlarm (mo
 
 Set it up in **Settings → UI Structure** (Advanced mode) **→ Atlas — Mapped Light Control → Outdoor weather**: the on/off switch (on by default), the rain sensor (optional; the list shows only actual rain sensors: an on/off rain sensor, a rain rate, or a rain gauge's latest reading), the weather entity (automatic picks your first one), the warnings sensor (automatic finds them) and **Strength** (0.5× to 1.5×). Each saves as soon as you change it, and Atlas picks it up at its next refresh.
 
+## Heights
+
+Every placed device has a height above its floor, used by [Live Aboard](LIVE_ABOARD_GUIDE.md) (the
+3D house) to put it where it really is. In **Mapping → Atlas**, pick a device and use its **Height**
+row: tap one of the spots offered for its kind (a motion sensor: Corner, Ceiling, High on the
+wall…; a leak sensor: Floor), type centimetres, or **Default**. The **Heights** list shows every
+placed device with its height (or "default"); tick several and set them all at once. Hovering a
+device shows its height ("2.40 m up"). Live Aboard's Edit → Heights sets the same heights.
+
+## Room sheets and scenes
+
+Tap a room's name on the map for its sheet: every device in the room, **All lights on / off**,
+fans on / off, and a **▶ button for each of the room's scenes and scripts** in Home Assistant (the
+ones in that room's area, up to six). Tap a floor's badge for the floor's sheet.
+
+**◎ Find active** (in the floor and device-type bar) scrolls the map to the first device that's
+doing something right now, a light on or motion, and points it out.
+
+## Emergency lighting test
+
+A round red button at the top right of the map, **Test emergency lighting**. It only appears when
+PadSpan finds emergency lights: any Home Assistant group with "emergency" in its name (nested groups
+included), or else WLED lights named "emergency".
+
+- **Tap the red centre** to start the test: every emergency light comes on. The dial pulses and says
+  **Test on — tap to end**; tap again to end it. Lights that were already on before the test stay on.
+- **Tap the ring** round it for the list of emergency lights and their controls.
+- **Force off** turns off every emergency light, including ones that were on before. It asks for a
+  second tap (**Tap again**).
+- If a Home Assistant automation with "emergency" in its name is running (a real emergency), the
+  test won't switch those lights off under it.
+- To hide the button (a screen anyone can tap): **Settings → UI Structure → Atlas — Mapped Light
+  Control → Show the Test emergency lighting button on the Atlas**. It saves straight away, no restart.
+
+## WLED: Advanced and Exact look
+
+With PadSpan Pro or Bright Pro, a WLED light's card has **Controls | Advanced**. Advanced is a full
+WLED workbench in tabs: **Layout** (segments), **Effect**, **Presets & playlists**, **LEDs**,
+**Sync & team**, **Exact look**, **Settings**, **Backup** and **Info**.
+
+**Exact look** makes a WLED light come on looking exactly the same every time:
+
+1. Set the light the way you like it, then on **Exact look** press **Remember this look** (or
+   **Remember team look** for every light in its WLED sync team at once).
+2. On **Sync & team**, under **Who gives this light its instructions**, pick **PadSpan (exact
+   look)** instead of **WLED sync**. PadSpan then sends every setting each time the light turns on.
+   WLED's own sync is switched off on that device, and put back if you switch back.
+
+Only an administrator can change who runs a light.
+
+## Openers, locks and lights from relays
+
+Got a garage door, window opener, door strike or light wired to plain relays (a ProDino channel, a
+PoE port, any switch or light entity)? **Build an Opener, Lock, or Light from Relays** turns them
+into a proper Home Assistant cover, lock or light. Find it in **Mapping → Atlas** (**+ Build an
+opener, lock, or light from relays** in the device list) or on the **Devices** page. PadSpan Pro.
+
+- **Opener:** pick the open and close relays (they must be different), the **travel time** for a
+  full open or close, and a position sensor if you have one (**Invert** if it reads backwards).
+  Without a sensor, the position is remembered from the open and close commands.
+- **Lock:** the relay, the **unlock pulse** in seconds, and **auto re-lock after** in seconds.
+- **Light:** the relay and its **pulse** in seconds.
+
+**Build** creates the script, automation and entity for you; **Remove** takes them away again.
+
 ## On a touchscreen or phone
 
 Atlas is tuned for touch, not just a mouse: pinch-zoom is the map's own gesture (it no longer fights the browser's page-zoom for the same pinch), panning survives the map's periodic background refresh instead of resetting to the top-left, and tap targets line up with what's actually drawn on screen — including Automorph's aura, so the tappable area matches the visible glow rather than a small fixed circle at the fixture's anchor.
@@ -89,5 +154,6 @@ Atlas used to be called "Lights" — both the Mapping tab and the standalone sid
 - [Live Aboard Guide](LIVE_ABOARD_GUIDE.md) — the Atlas in 3D (Pro): getting around, motion, the heat map, room scenes, and building doors, windows, heights and strips
 - [Getting Started](GETTING_STARTED.md) — if you haven't done the BLE presence onboarding yet
 - [Floor Plan Setup](FLOOR_PLAN_SETUP.md) — uploading maps and drawing rooms, before there's anything to place fixtures onto
+- [Wall Screen Guide](WALL_SCREEN_GUIDE.md) — the Atlas on a tablet or a screen on the wall
 - The in-app **Training Hub** has animated walkthroughs alongside this guide
 - [Editions](../README.md#editions) — what's free vs. what needs a Pro/Bright Pro key

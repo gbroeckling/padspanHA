@@ -1,0 +1,72 @@
+# Furnish Guide
+
+Furnish puts furniture, devices and people into [Live Aboard](LIVE_ABOARD_GUIDE.md), the 3D house.
+It needs PadSpan Pro and Live Aboard turned on, and it's in **Mapping → Furnish** (the tab appears
+next to Atlas once Live Aboard is on, in Advanced mode). Like Edit, nothing is stored until you press **Save**, and
+**Undo** steps back through everything.
+
+## Adding a piece
+
+**Build ▾** adds a piece of furniture or a device: a sofa, a bed, a table, a lamp, a TV, stairs
+and more, or a plain **Box**. Each kind has its own sliders (a sofa's seats and arms, a bed's size,
+a table's shape). The builders are simple shapes in the Sims' spirit, not scans.
+
+The other ways in:
+
+- **From a photo:** photograph a real piece and PadSpan builds a matching one. This needs Home
+  Assistant 2025.8 or newer with an **AI Task** that can read images, picked in **Settings → UI
+  Structure → 🏠 Live Aboard → AI Task for photos**. A cloud AI Task means the photo leaves your
+  house to be read; it's never stored. If the answer makes no sense, you get a box, never an error.
+- **Library:** furniture other PadSpan houses shared. Turn on **Shared library** in the Live Aboard
+  settings and accept its terms first. Off, Live Aboard never contacts the library.
+- **Import:** doors, windows and furniture from a Sweet Home 3D file (`.sh3d`). You see them first
+  and pick what to keep; nothing is written until you commit.
+- **People & devices:** see below.
+
+## Moving and setting a piece
+
+- **Drag** a piece across the floor. Its back snaps to the walls, and two short lines show how far
+  it is from the nearest walls.
+- **Arrow keys** nudge the picked piece 1 cm (Shift: 10 cm) the way you're looking; **[** and **]**
+  turn it 15° (Shift: 1°).
+- The piece's panel has its label, size, its builder's settings, colours, **Turn**, **Floor ▲ / ▼**
+  (the view follows it), **Height in room**, exact **X, Y, Height and Angle**, **Duplicate** and
+  **Delete**. **Stand on what's under it** puts a lamp on its table; **Hang on wall** at a height
+  you pick.
+- Warnings tell you when a piece doesn't fit (through a wall, off the floor).
+- **Stairs** (Build ▾ → House → Stairs): straight, L or U, which way they turn and the floor they
+  go up to. Their height is always the gap up to that floor, and they open a hole in it.
+
+## A piece that's a real device
+
+**This is a device…** links a piece to a Home Assistant entity, and it then behaves like it: a lamp
+glows in its light's colour, a TV lights up while it's playing, a fan's blades turn, a washer or
+dryer shakes while it runs, a robot vacuum or mower leaves its dock while it's working, a radiator
+glows while heating, a car or charger shows when it's charging. If the entity is renamed, the piece
+follows it; if it's deleted, the piece shows an **Unlinked** badge and stays put.
+
+## People
+
+**People & devices** shows each Home Assistant person in the house:
+
+- **A figure** made by hand with sliders (height, build, hair, colours), or **from a photo**. A
+  figure is a few simple shapes, never a likeness. The photo path asks first that the person
+  agrees, and nothing is sent until that's ticked. It recommends a local AI Task.
+- **Carries:** pick which phones and tags each person carries, from what PadSpan tracks. Those are
+  what place that person in Live Aboard and on the Atlas. This stays in your house only.
+- People are never shared: figures live only in this house's 3D file. Deleting a person in Home
+  Assistant takes their figure with it.
+
+Show or hide people (and tags and scanners) with **Show people** and **Show tags & scanners** in
+Settings or in Live Aboard's **Views ▾**.
+
+## Sharing a piece
+
+A piece you built can be shared to the library with **Share…**. Only its shape, sizes, colours and
+the details you fill in are shared, never a photo or anything about your house. A title with an
+email, phone number, address or link is refused. You can withdraw a share later.
+
+## Clearing it out
+
+**Settings → UI Structure → 🏠 Live Aboard** has **Remove all furniture…** (administrators). A
+backup is taken first; to bring the furniture back, restore that backup from Backup & Restore.

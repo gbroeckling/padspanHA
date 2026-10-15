@@ -551,7 +551,7 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
   ].filter(Boolean)));
 
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:12px" },
-    "Email notifications when this tag moves rooms. Sent via HA's notify service."
+    "Alerts to your phone or by email when this tag moves rooms, arrives home or leaves. Sent through Home Assistant's notify service."
   ));
 
   // Email input
@@ -689,13 +689,13 @@ function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic
         ]),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
-        chkChange, el("span", {}, `Email me when ${name} moves`),
+        chkChange, el("span", {}, `Alert me when ${name} moves`),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
-        chkArrive, el("span", {}, `Email me when ${name} arrives home`),
+        chkArrive, el("span", {}, `Alert me when ${name} arrives home`),
       ]),
       el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" }, [
-        chkDepart, el("span", {}, `Email me when ${name} leaves`),
+        chkDepart, el("span", {}, `Alert me when ${name} leaves`),
       ]),
     ]));
   } else {

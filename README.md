@@ -260,8 +260,11 @@ No key yet? **Settings → Features → PadSpan licence** has a one-time 90-day 
 |-------|-------------|
 | [Getting Started](docs/GETTING_STARTED.md) | First 30 minutes: install, explore, track |
 | [Floor Plan Setup](docs/FLOOR_PLAN_SETUP.md) | Upload, draw rooms, place scanners, set scale |
-| [Atlas Guide](docs/ATLAS_GUIDE.md) | The device map: placing fixtures, doors/locks/sensors, Automorph, Showcase |
+| [Atlas Guide](docs/ATLAS_GUIDE.md) | The device map: placing fixtures, doors/locks/sensors, heights, room scenes, Automorph, Showcase, the emergency lighting test, WLED Advanced and Exact look, and openers/locks/lights from relays |
 | [Live Aboard Guide](docs/LIVE_ABOARD_GUIDE.md) | The Atlas in 3D: getting around, motion, the heat map, scenes, and building doors, windows, heights and strips |
+| [Furnish Guide](docs/FURNISH_GUIDE.md) | Furniture, devices and people in the 3D house: builders, from a photo, the shared library, Sweet Home 3D import |
+| [Wall Screen Guide](docs/WALL_SCREEN_GUIDE.md) | PadSpan on a tablet or wall screen: kiosk links, full screen, going back home by itself |
+| [PadSpan Pro](docs/PADSPAN_PRO.md) | The 90-day trial, entering a key, getting Pro free as a tester, and invites |
 | [Troubleshooting](docs/90_TROUBLESHOOTING.md) | Common issues and fixes |
 | [Architecture](docs/00_REPO_LOGIC_OVERVIEW.md) | High-level codebase architecture |
 | [WebSocket API](docs/02_WEBSOCKET_API.md) | API reference for custom integrations |

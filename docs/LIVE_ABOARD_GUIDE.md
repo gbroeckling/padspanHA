@@ -195,7 +195,7 @@ row, or the **Heights** list to set several at once. They're the same heights.
 
 ### Furniture
 
-**Mapping → Furnish** adds furniture: build a sofa, bed, table and more with sliders, make one
+**Mapping → Furnish** (see the [Furnish Guide](FURNISH_GUIDE.md)) adds furniture: build a sofa, bed, table and more with sliders, make one
 from a photo, or find one in the shared library. Drag a piece across the floor (its back snaps to
 the walls), use the arrow keys to nudge it (Shift for 10 cm) and **[ ]** to turn it. A piece can
 be linked to a device ("This is a device…") so a lamp glows, a fan turns or a washer shakes when

@@ -28,6 +28,19 @@ I started with about a dozen old ESP32 boards from a project three years ago and
 - **ESP32-S3 or ESP32-C3** chip (newer BLE 5.0 support)
 - Any board running **ESPresense** or **Bluetooth Proxy** firmware
 
+### Already have Tasmota devices? (experimental)
+
+Tasmota devices with BLE (for example an ESP32 running Tasmota) can be scanners too, over MQTT:
+
+1. Make sure Home Assistant's **MQTT** integration is set up and the Tasmota devices talk to it.
+2. In PadSpan, **Manage → Tasmota BLE → Read Tasmota BLE over MQTT**.
+3. In each Tasmota's console, run `TelePeriod 10`, `BLEMaxAge 30` and `BLEAddrFilter 1`. Without
+   `BLEAddrFilter 1`, phones and tags with random addresses are never reported.
+4. Each device shows up as a scanner the next time it reports. Place it in its room in Mapping like
+   any other scanner.
+
+Readings older than about 15 seconds don't count towards rooms, so keep `TelePeriod` short.
+
 ### What to avoid
 
 - **Onboard chip/PCB antennas only** — the tiny antennas on most dev boards produce noisy RSSI readings that make room discrimination unreliable

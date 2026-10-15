@@ -4,11 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.130 — A guide to Live Aboard (2026-10-15)
+## 0.38.130 — Guides for everything new (2026-10-15)
 
 ### New
+- **New guides:** the [Furnish Guide](docs/FURNISH_GUIDE.md) (furniture, devices and people in the 3D house), the [Wall Screen Guide](docs/WALL_SCREEN_GUIDE.md) (kiosk links, full screen, going back home by itself) and [PadSpan Pro](docs/PADSPAN_PRO.md) (the trial, keys, becoming a tester, invites).
+- **The Atlas Guide** now covers heights, room sheets and scenes, ◎ Find active, the emergency lighting test, WLED Advanced and Exact look, and building openers, locks and lights from relays. **Getting Started** covers Tasmota BLE scanners.
 - **The Live Aboard Guide** ([docs/LIVE_ABOARD_GUIDE.md](docs/LIVE_ABOARD_GUIDE.md)) covers turning it on, getting around, what the motion badges, colours and lines mean, the heat map, room scenes, and building doors, windows, heights and strips.
 - In Live Aboard, **Views ▾ → How it works** brings back the first-time card, which now links to the full guide.
+
+### Fixes
+- **Fixed:** Follow's Movement Alerts said "Email me when…" and its help said alerts were email-only. Alerts go to your phone (pick it under Notify service, no email needed) or by email; the card and its help now say so, with Send Test and the arrive and leave events explained.
+- **Fixed:** the help for Monitor's Diag Export now says to press **Build export**, and the Objects help explains the 📍 last-seen line (Lost & Found).
 
 ### Opt-in report
 - The README now lists everything the report has said about Live Aboard: whether it opened or fell back to the flat map, the open-window alert, and the temperature-freshness counts added in 0.38.127.

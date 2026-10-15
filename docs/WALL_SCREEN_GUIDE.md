@@ -1,0 +1,60 @@
+# Wall Screen Guide
+
+How to put PadSpan on a tablet or a screen on the wall and leave it there.
+
+## Which page to show
+
+PadSpan has two pages in the Home Assistant sidebar:
+
+- **PadSpan HA** (`/padspan-ha`): everything, with its menu.
+- **Atlas** (`/padspan-lights`): the device map alone, made for a screen. Turn it on in
+  **Settings → UI Structure → 💡 Atlas — Mapped Light Control → Show the Atlas in the Home
+  Assistant sidebar** (restart Home Assistant once).
+
+For a wall screen the Atlas page is usually the one you want: the map fills the screen and the
+controls fold into a slim rail down the left (☰ floors and device types, ★ presets, ⚙ zoom and
+view, 🏠 Live Aboard, ‹ hide the rail).
+
+## Kiosk links for the main page
+
+Add these to the PadSpan HA page's address to open it ready for a screen:
+
+| Address | What it does |
+|---|---|
+| `/padspan-ha?kiosk=1` | Hides PadSpan's own menu and chrome, and never shows trial or invite offers |
+| `/padspan-ha?view=follow` | Opens on one view (any view's id: `overview`, `follow`, `traceback`, `maps`, …), whatever the browser last used |
+| `/padspan-ha?view=maps&tab=lights&light=light.kitchen` | Opens Mapping → Atlas with one light picked |
+
+You can combine them: `/padspan-ha?view=follow&kiosk=1`. To hide Home Assistant's own header and
+sidebar as well, use a kiosk add-on for Home Assistant (for example kiosk-mode from HACS) or the
+tablet's own kiosk browser.
+
+## After an update
+
+A screen opened with `?kiosk=1` reloads itself once after PadSpan updates, so it never runs old
+code. Any other browser shows a bar with a **Reload** button instead.
+
+## Making the map fill the screen
+
+- **⛶** (bottom right of the map) makes it full screen.
+- Zoom in past the whole house and the bars step aside so you see only the map. **☰** or
+  **Escape** brings them back.
+- Double-tap a room to zoom to it.
+
+## Live Aboard on a wall
+
+With [Live Aboard](LIVE_ABOARD_GUIDE.md) on:
+
+- Get the view you want and pick **Views ▾ → Set as home**.
+- In **Settings → UI Structure → 🏠 Live Aboard**, set **Back to home view** (30 s, 1 min or 5 min).
+  The screen flies back home after that long untouched. It waits while someone is editing, has a
+  card open, or made it full screen by hand.
+- When nothing is moving, Live Aboard draws nothing, so an idle screen costs almost nothing.
+
+## Tips
+
+- On an old or slow tablet, turn **Low-memory mode** on in Settings → Presence if Home Assistant
+  itself runs on a small machine, and leave Live Aboard on **Low** quality if the screen struggles.
+  See [Minimum Requirements](MINIMUM_REQUIREMENTS.md).
+- The **Test emergency lighting** button sits top right on the Atlas. If the screen is somewhere
+  anyone can tap it, hide it in Settings (see the [Atlas Guide](ATLAS_GUIDE.md#emergency-lighting-test)).
