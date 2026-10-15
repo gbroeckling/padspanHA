@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.128",
+  "title": "Scenes in the room sheet, and lit windows at night",
+  "date": "2026-10-15",
+  "body_markdown": "### New\n- **A room's scenes, one tap away.** Tap a room's name and its sheet now lists that room's Home Assistant scenes and scripts as ▶ buttons, next to All lights on and off. It works on the flat Atlas and in Live Aboard.\n- **Lit windows at night.** In Live Aboard after dark, a window glows warm while a light is on in the room behind it, the way houses look in the Sims. You see it from outside, with the walls up.\n\n### Fixes\n- **Fixed:** in Live Aboard, the Motion chip could sit on top of the house after Top, Fit or Whole house. The house now stays clear of the chips and the buttons."
+ },
+ {
   "version": "0.38.127",
   "title": "Live Aboard: see every floor, a heat map, and a window left open in the rain",
   "date": "2026-10-15",
@@ -28,11 +34,5 @@
   "title": "PadSpan Pro for life runs until December 31",
   "date": "2026-10-13",
   "body_markdown": "### Changed\n- **PadSpan Pro for life ($89 CAD, once) is on until December 31, 2026**, not October 31. Settings → PadSpan licence and the trial offer say so, and padspan.traks.ca sells it until the same day."
- },
- {
-  "version": "0.38.122",
-  "title": "Stable: everything since 0.38.105, and what a full review of it found",
-  "date": "2026-10-13",
-  "body_markdown": "### Before you update\n- **Refresh the PadSpan page** in every browser after updating. From now on a wall screen opened with `?kiosk=1` reloads itself after an update.\n- **Coming from 0.38.105?** This stable brings in everything from the 0.38.106–0.38.121 betas below: less CPU and memory on busy streets (and a low-memory mode), Traceback recording all day without holding it in memory, alerts that reach your phone, Beacon Tune that saves, Tasmota scanners (experimental), and well over a hundred fixes.\n- **Going back to 0.38.105:** delete `.storage/padspan_ha.traceback_segments` first. Traceback now records all day, and 0.38.105 would load the whole week into memory, which can crash Home Assistant on a 2 GB machine.\n\n### Fixes\n- **Fixed:** in Beacon Tune, placing a phone, a Find My tag or anything you follow no longer pins it as a fixed beacon. A pin locked it to that room and kept adding calibration points where it no longer was. Beacon Tune now says when it holds one back, and moving a beacon that is already pinned always saves.\n- **Fixed:** houses on a busy street no longer re-check every Bluetooth address against every IRK every 5 minutes.\n- **Fixed:** saving a map with beacons (Revert migration, restoring a map) can no longer add a calibration point in a \"room\" that is really an old device label.\n- **Fixed:** restoring a backup no longer rolls Lost & Found back. Each device keeps whichever last-seen record is newer.\n- **Fixed:** Follow's Test button now fails when the chosen phone or service can't be reached, instead of sending somewhere else and saying it worked. Alerts to Telegram and other non-notify services go out even with no notify service set up. A chosen phone that has since been renamed or removed shows as \"(not found)\" instead of looking like Auto-detect.\n- **Fixed:** Follow alerts to a notify entity all failed when an email address was filled in too.\n- **Fixed:** after updating from 0.38.105, Bermuda devices no longer leave frozen copies of themselves in their old rooms.\n- **Fixed:** a labelled device's tracker no longer comes back as `device_tracker.<name>_2` when its Bermuda entity goes away.\n\n### Opt-in report\n- **Added:** if you've opted in, the report now also counts what shows whether these fixes work in your house: IRK cache clears, calibration points left without a room, Lost & Found restore merges, Follow Test results, old Bermuda objects removed, beacon pins on things that move, and entities registered twice. Counts only, as before."
  }
 ]
