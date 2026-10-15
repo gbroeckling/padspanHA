@@ -93,7 +93,8 @@ def test_the_report_words_are_the_frontends(house) -> None:
     assert tuple(house["lists"]["fallbacks"]) == T.HOUSE3D_FALLBACK_KINDS
     assert set(house["lists"]["events"]) == set(T.HOUSE3D_EVENTS)
     assert set(T.HOUSE3D_EVENTS) == {"house3d_opened", "house3d_fallback:no_webgl", "house3d_fallback:slow_gpu",
-                                     "house3d_fallback:context_lost", "house3d_fallback:error"}
+                                     "house3d_fallback:context_lost", "house3d_fallback:error",
+                                     "house3d_wet_window"}   # 0.38.127: the open-window-in-the-rain alert showed
 
 
 def _hass(on: bool = True):

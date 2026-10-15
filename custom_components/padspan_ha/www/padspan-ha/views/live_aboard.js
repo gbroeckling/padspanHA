@@ -54,6 +54,8 @@ const STRIP = await import(`./live_aboard_strip.js${new URL(import.meta.url).sea
 const NO_FILE = DRAFT.ownedOf(null);
 // P8 atmosphere: rain and snow (the flat Atlas's own weather, drawn here).
 // Optional: a module that fails to load leaves the house as it was.
+// The flat Atlas's rain decision, for the open-window alert (optional too).
+const AW = await import(`./atlas_weather.js${new URL(import.meta.url).search}`).catch(() => null);
 const WEATHER = await import(`./live_aboard_weather.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_weather failed to load", err); return null; });
 // And the Atlas's Showcase look as this view's lighting (optional too).
@@ -140,6 +142,13 @@ const COVER_Z = SCREEN.COVER_Z;
 const NARROW_W = 560;                      // under this the bar is one compact row
 const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
 const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
+const WET_INK = "#38bdf8", WET_WORD = "☔ Window open in the rain";
+const WET_CSS = `.la3d-wet{position:absolute;left:50%;top:82px;z-index:2;transform:translateX(-50%);display:none;max-width:calc(100% - 140px);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 12px;border-radius:999px;cursor:pointer;
+  font:600 12px system-ui,"Segoe UI",sans-serif;color:#e0f2fe;background:rgba(7,28,44,.92);border:1px solid ${WET_INK};
+  box-shadow:0 0 0 3px rgba(56,189,248,.18)}
+.la3d-wet.on{display:block}
+.la3d-wet:hover{background:rgba(12,45,70,.95)}`;
 // Explode: with All floors showing, each storey lifted this much more (m)
 // than the one under it, so the floors under the top one show too.
 const PREF_EXPLODE = "explode", EXPLODE_M = 4;
@@ -466,6 +475,7 @@ function createSlot(slotKey){
   let marks = null, codes = null, classF = null, zoomCb = null, zoomShown = null;
   // live_aboard_motion.js: motion in the house (motionL) and the Motion chip.
   let motionL = null, mchip = null;
+  let wetEl = null, wetRows = [], wetKey = "";           // a window open while it rains: its glow and its chip
   // live_aboard_panel.js: the home view, going back to it, Follow, the People chip.
   let panel = null;
   // live_aboard_storey.js: each storey's floor and roof (storeyL); roofWant:
@@ -668,6 +678,13 @@ function createSlot(slotKey){
     tipEl.textContent = "Drag to turn · pinch or wheel to zoom · tap a light · hold for controls · double-tap a room to go there";
     root.appendChild(tipEl);
     mchip = MOTION ? MOTION.createMotionChip({ root, fly: (eid) => findDevice(eid) }) : null;
+    // A window open while it rains: one line under the Motion chip; a tap flies there.
+    const wetCss = d("style");
+    wetCss.textContent = WET_CSS;
+    wetEl = d("button", "la3d-wet");
+    wetEl.type = "button";
+    wetEl.addEventListener("click", guard((e) => { e.stopPropagation(); if (wetRows[0]) flyToOpening(wetRows[0]); }));
+    root.append(wetCss, wetEl);
     showCss = d("style");
     showCss.textContent = CSS_SHOWING;
     root.appendChild(showCss);
@@ -963,6 +980,49 @@ function createSlot(slotKey){
     paintFloors();
     wholeHouse();
   }
+  // ── a window open while it rains or snows (as neonplan3d warns) ───────────
+  /** Wet now, by the flat Atlas's own decision (rain sensor, else the weather
+   *  condition), whether or not the rain is drawn. No weather set up: dry. */
+  function wetNow(p){
+    const w = p && p.weather && p.weather.settings ? p.weather : null;
+    if (!w || !AW) return false;
+    try { return AW.decideAtlasWeather(AW.weatherSettingsFrom(w.settings), w.states || {}, w.entities).kind !== "off"; }
+    catch (_) { return false; }
+  }
+  function paintWet(p){
+    const wet = wetNow(p), rows = [];
+    for (const { F, P } of openings) {
+      const o = P.open, e = o.leaf, on = wet && o.kind === "window" && o.state === "open" && !!e;
+      if (on) {
+        if (!o.wet) { o.wet = new THREE.Mesh(shared.glassBox, shared.wetMat); o.wet.matrixAutoUpdate = false; o.wet.renderOrder = 4; F.group.add(o.wet); }
+        const z1 = P.cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
+        o.wet.matrix.copy(compose(P.mx, F.fl.elev + e.z0 - 0.02, P.my, P.yaw, P.len + 0.08, z1 - e.z0 + 0.05, e.thick + 0.08));
+        o.wet.matrixWorldNeedsUpdate = true;
+        const dl = lbe[o.eid];
+        rows.push({ F, P, name: String((dl && dl.friendly_name) || (o.bar && o.bar.name) || "A window") });
+      } else if (o.wet) { o.wet.matrix.copy(ZERO); o.wet.matrixWorldNeedsUpdate = true; }
+    }
+    wetRows = rows;
+    if (rows.length) HOUSE.countHouse3dOnce("house3d_wet_window", send);
+    const text = rows.length ? `${WET_WORD} · ${rows[0].name}${rows.length > 1 ? ` and ${rows.length - 1} more` : ""}` : "";
+    if (wetEl && text !== wetKey) {
+      wetKey = text;
+      wetEl.textContent = text;
+      wetEl.title = rows.map(r => r.name).join(", ");
+      wetEl.classList.toggle("on", !!text);
+      requestRender();
+    }
+  }
+  /** Fly to a wet window: its floor shown, framed with a little of the room. */
+  function flyToOpening(r){
+    if (!renderer || failed || !camera) return;
+    if (!r.F.group.visible && lastP && typeof lastP.setTopFloor === "function") lastP.setTopFloor(r.F.fl.id);
+    const F = r.F, x = r.P.mx, y = r.P.my, pts = [];
+    for (const dx of [-2.5, 2.5]) for (const dy of [-2.5, 2.5]) pts.push(new THREE.Vector3(x + dx, F.fl.elev, y + dy), new THREE.Vector3(x + dx, F.fl.elev + 1.6, y + dy));
+    const g = frameFor(cam.theta, Math.max(0.35, Math.min(cam.phi, 1.05)), pts);
+    g.radius = Math.max(MIN_R, g.radius);
+    flyTo(g, false);
+  }
   /** A tap on the floor's name: its sheet, as the Atlas's floor badge opens it. */
   function openFloorSheet(){
     const s = floorSteps, a = apiNow || (apiOf ? (apiNow = apiOf()) : null);
@@ -1234,6 +1294,8 @@ function createSlot(slotKey){
       // Part B: an unlocked lock's flash (every one in step, as on the
       // Atlas), the motion ring, and the air bars' stripe.
       flashMat: new THREE.MeshBasicMaterial({ color: HOUSE.LOCK_FLASH.to, transparent: true, opacity: 0.55, depthWrite: false }),
+      // A window open while it rains or snows: a still rain-blue glow over it.
+      wetMat: new THREE.MeshBasicMaterial({ color: WET_INK, transparent: true, opacity: 0.6, depthWrite: false }),
       ringGeo: new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2),
       barsTex: barsTexture(),
       poolGeo: new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2),
@@ -4143,6 +4205,7 @@ function createSlot(slotKey){
     syncTracked(p, vd, rebuilt);
     paintLights(p.lightsByEid);
     paintLive();
+    paintWet(p);
     syncMarks(p, vd);
     selIds = p.topFloorIds ? new Set([...(p.topFloorIds instanceof Set ? p.topFloorIds : [].concat(p.topFloorIds))].map(String)) : null;
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);

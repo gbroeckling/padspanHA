@@ -368,8 +368,10 @@ WEATHER_EVENTS: frozenset[str] = frozenset(
 # Nothing is sent while the feature is off (settings.atlas_3d_enabled) or the
 # tier is below Pro: the shared card draws no 3D at all then.
 HOUSE3D_FALLBACK_KINDS: tuple[str, ...] = ("no_webgl", "slow_gpu", "context_lost", "error")
+# house3d_wet_window: a window showed open while it rains or snows (Live
+# Aboard's alert, 0.38.127), once per page load.
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
-    {"house3d_opened"} | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
+    {"house3d_opened", "house3d_wet_window"} | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo
 # sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or

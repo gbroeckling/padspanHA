@@ -49,7 +49,9 @@ export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArro
 // name, and only ever while the feature is on (the host passes no sender
 // otherwise). Words only: never an entity id, a room or a floor.
 export const HOUSE3D_FALLBACK_KINDS = ["no_webgl", "slow_gpu", "context_lost", "error"];
-export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`)];
+// house3d_wet_window: a window showed open while it rains or snows (the alert
+// below the Motion chip), once per page load.
+export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window"];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();
 /** Count `name` once per page load, and only a name from the closed list. */
