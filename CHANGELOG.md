@@ -11,6 +11,10 @@ All notable changes to PadSpan HA are documented here.
 - **A heat map.** Pick Temps and each room's floor shows its temperature: blue when it's cool, green around 21°, red from 26°, shading in between. °F sensors work too.
 - **Window open in the rain.** While it's raining or snowing, any open window glows blue and a line under the Motion chip says which one ("☔ Window open in the rain · Bedroom window"). Tap it to go there. It uses the same rain sensor or weather the Atlas's rain uses, and works even with rain drawing turned off.
 
+### Fixes
+- **Fixed:** with every floor showing, a room's name hid whenever a floor above overlapped it on the plan, even where you could see the room. In Explode a name moves to a corner of the room you can see, with its readout under it.
+- **Fixed:** on a phone, "Whole house" left no room at the sides, so the house ran to the edge of the screen.
+
 ### Opt-in report
 - It now counts, for the temperature and humidity sensors on your map, how many are under an hour old by each of Home Assistant's clocks, and how long ago they last reported. That's to check the fix in 0.38.126 holds in real houses. It also counts, once per page, whether the open-window alert ever showed. Counts only, as always.
 

@@ -2781,7 +2781,9 @@ function createSlot(slotKey){
     sizeMarks();
   }
   /** The names (and each room's chip under its name) for camera `c` over a view `H` px high. */
+  const _v2 = new THREE.Vector3();
   function sizeNames(c, H){
+    const xGapNow = explodeGap();
     const persp = !!c.isPerspectiveCamera, k = persp ? 2 * Math.tan(FOV / 2 * D2R) / H : (c.top - c.bottom) / H;
     const mppAt = (v) => (persp ? c.position.distanceTo(v) * k : k);           // metres per px there
     // Drawn over the fixtures, a name must still not show through a wall
@@ -2800,17 +2802,29 @@ function createSlot(slotKey){
     for (const F of floorsUi) {
       if (!F.group.visible) continue;
       const occ = above(F);
-      for (const lbl of F.labels) {
-        const u = lbl.userData, mpp = mppAt(lbl.position), roomPx = u.ext / mpp;
+      F.labels.forEach((lbl, li) => {
+        const u = lbl.userData;
+        if (!u.home) u.home = lbl.position.clone();
+        lbl.position.copy(u.home);
+        const mpp = mppAt(lbl.position), roomPx = u.ext / mpp;
         const letters = Math.max(NAME_PX[0], Math.min(NAME_PX[1], roomPx / 9)), hPx = letters / u.letters, wPx = hPx * u.aspect;
         if (persp) u.behind = !u.covered && (underRoof(F, lbl.position) || behind(lbl.position, occ));
+        // Exploded, a storey above can hang over a room's middle while the
+        // rest of it shows: the name moves toward a corner that is in view.
+        if (persp && u.behind && xGapNow && F.rooms[li]) {
+          for (const q of F.rooms[li].pts) {
+            _v2.set(u.home.x + (q[0] - u.home.x) * 0.55, u.home.y, u.home.z + (q[1] - u.home.z) * 0.55);
+            if (!underRoof(F, _v2) && !behind(_v2, occ)) { lbl.position.copy(_v2); u.behind = false; break; }
+          }
+        }
         lbl.visible = !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
         u.px = lbl.visible ? hPx : 0;
         lbl.scale.set(wPx * k, hPx * k, 1);
-      }
+      });
     }
     for (const C of chips) {
       if (!C.F.group.visible) continue;
+      if (C.label) C.sprite.position.copy(C.label.position);   // under its name, wherever the name went
       const mpp = mppAt(C.sprite.position);
       const hPx = Math.max(READ_PX[0], Math.min(READ_PX[1], READ_H / mpp)) * READ_C / (READ_C - 8);
       C.sprite.scale.set(hPx * READ_W / READ_C * k, hPx * k, 1);
@@ -2830,7 +2844,8 @@ function createSlot(slotKey){
     for (const F of shown) {
       F.labels.forEach((lbl, i) => {
         const at = F.rooms[i].spot;
-        lbl.userData.covered = shown.some(G => G !== F && !G.fl.outdoor && G.fl.elev > F.fl.elev + 0.5
+        // Exploded, the floors stand apart: what covers a name is only what the eye's ray meets.
+        lbl.userData.covered = !explodeGap() && shown.some(G => G !== F && !G.fl.outdoor && G.fl.elev > F.fl.elev + 0.5
           && G.rooms.some(r => HOUSE.inPoly(at.x, at.y, r.pts)));
       });
     }
@@ -3185,7 +3200,7 @@ function createSlot(slotKey){
     let need = 2;
     for (const q of pts) {
       const o = q.clone().sub(c), z = o.dot(dir);
-      need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.04, z + Math.abs(o.dot(up)) / tv * 1.12);
+      need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.08, z + Math.abs(o.dot(up)) / tv * 1.12);   // sides: 8% clear (4% ran a narrow screen's house to its edge)
     }
     camera.position.copy(keep.p); camera.quaternion.copy(keep.q);
     camera.updateMatrixWorld();
