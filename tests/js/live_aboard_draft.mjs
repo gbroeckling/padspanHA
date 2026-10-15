@@ -250,6 +250,19 @@ tryCase("stops: a line stops at the corner and at a wall that meets it", () => {
     { toCorner, toT, stops });
 });
 
+tryCase("snap: a free line's length steps 5 cm; a corner or an opening still stops it where it is", () => {
+  const pcs = piecesOf(house()), runs = D.wallRuns(pcs), back = runAtY(runs, 0, 2), stops = D.runStops(back, pcs), ops = D.runOpenings(back);
+  const f = D.tOn(back, 1, 0);
+  const free = D.spanOf(back, stops, ops, f, f + 1.587, null, D.SNAP_M);         // 1.59 m drawn: 1.60 m
+  const down = D.spanOf(back, stops, ops, f, f + 1.212, null, D.SNAP_M);         // 1.21 m drawn: 1.20 m
+  const back2 = D.spanOf(back, stops, ops, f + 2, f + 2 - 0.837, null, D.SNAP_M); // the other way: 0.85 m
+  const corner = D.spanOf(back, stops, ops, f, D.tOn(back, -5, 0), null, D.SNAP_M);
+  const plain = D.spanOf(back, stops, ops, f, D.tOn(back, -5, 0));
+  check("snap: a free line's length steps 5 cm; a corner or an opening still stops it where it is",
+    free.stop === null && near(free.len, 1.6, 1e-9) && near(down.len, 1.2, 1e-9) && near(back2.len, 0.85, 1e-9) && near(back2.t1, f + 2, 1e-9)
+    && corner.stop === "corner" && near(corner.len, plain.len, 1e-9), { free, down, back2, corner, plain });
+});
+
 // ── overlap ─────────────────────────────────────────────────────────────────
 tryCase("overlap: a line stops at a window already there; a start inside one is refused", () => {
   const pcs = piecesOf(house()), runs = D.wallRuns(pcs), front = runAtY(runs, 3, 3), stops = D.runStops(front, pcs);

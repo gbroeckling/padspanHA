@@ -364,7 +364,20 @@ export const insideOpening = (openings, t, skip = null) =>
   (openings || []).some(o => o.id !== skip && t > o.lo + EPS && t < o.hi - EPS);
 /** The line from `from` toward `to` on the run, stopped at the first corner
  *  or opening in its way. {t0, t1, len, stop: null | "corner" | "opening"}. */
-export function spanOf(run, stops, openings, from, to, skip = null){
+/** A drawn or dragged line's length steps this much (m): a door drawn by
+ *  hand comes out 0.80 m or 1.60 m, never 1.59 m. A corner or an opening in
+ *  the way still stops it where it is. */
+export const SNAP_M = 0.05;
+export function spanOf(run, stops, openings, from, to, skip = null, snap = 0){
+  if (snap > 0) {
+    const raw = spanOf(run, stops, openings, from, to, skip);
+    if (raw.stop !== null || !(raw.len > 0)) return raw;
+    const f0 = clamp(from, run.t0, run.t1), dir = to >= f0 ? 1 : -1;
+    const L = Math.max(snap, Math.round(raw.len / snap) * snap);
+    const out = spanOf(run, stops, openings, from, f0 + dir * L, skip);
+    // Rounding up into a corner or an opening: the step below instead.
+    return out.stop === null ? out : spanOf(run, stops, openings, from, f0 + dir * Math.max(snap, L - snap), skip);
+  }
   const f = clamp(from, run.t0, run.t1);
   const dir = to >= f ? 1 : -1;
   let end = to, stop = null;

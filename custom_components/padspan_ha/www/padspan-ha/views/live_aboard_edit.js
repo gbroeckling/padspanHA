@@ -1112,12 +1112,12 @@ export function createEditor(ctx){
     if (t === null) return;
     if (g.kind === "line") {
       g.to = t;
-      g.span = DRAFT.spanOf(g.w.run, g.w.stops, g.w.ops, g.from, t);
+      g.span = DRAFT.spanOf(g.w.run, g.w.stops, g.w.ops, g.from, t, null, DRAFT.SNAP_M);
     } else {
       // An end never passes its other end: back past it is no width at all.
       const dir = Math.sign(g.startT - g.fixedT) || 1;
       const to = (t - g.fixedT) * dir < 0 ? g.fixedT : t;
-      g.span = DRAFT.spanOf(g.w.run, g.w.stops, g.w.ops, g.fixedT, to, g.id);
+      g.span = DRAFT.spanOf(g.w.run, g.w.stops, g.w.ops, g.fixedT, to, g.id, DRAFT.SNAP_M);
     }
     paint3d();
   }
@@ -1149,7 +1149,7 @@ export function createEditor(ctx){
     const same = pending && pending.F.fl.id === w.F.fl.id && Math.abs(pending.run.ux * w.run.ux + pending.run.uy * w.run.uy) > 0.999
       && Math.abs(pending.run.c - w.run.c) < 0.02;
     if (same) {
-      const sp = DRAFT.spanOf(w.run, w.stops, w.ops, DRAFT.tOn(w.run, ...DRAFT.pointOf(pending.run, pending.t)), w.t);
+      const sp = DRAFT.spanOf(w.run, w.stops, w.ops, DRAFT.tOn(w.run, ...DRAFT.pointOf(pending.run, pending.t)), w.t, null, DRAFT.SNAP_M);
       pending = null;
       addOpening(w, sp);
       return;
