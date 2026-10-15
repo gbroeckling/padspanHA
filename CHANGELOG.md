@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.131 — Smoke, gas and CO alarms join Emergency (2026-10-15)
+
+### New
+- **Emergency now covers smoke, gas and carbon monoxide alarms**, not just water leaks. Place one on the Atlas like any device. When it goes off it latches and alarms exactly as a leak does: alarm rings across its room, the banner on every PadSpan page until you reset it, and a red word over Live Aboard. Each says what it found (**SMOKE**, **GAS**, **CO**, or **WET** for a leak), **ALARM** while latched, and **CLEAR** (or **DRY**) when quiet.
+- An alarm is drawn as a round detector, a leak sensor still as a puddle. In Live Aboard a smoke alarm sits on the ceiling by default and a gas or CO alarm on the wall, with matching one-tap spots in Heights.
+
+### Opt-in report
+- Placed smoke, gas and CO alarms are counted on their own (`alarm_sensor`), apart from leak sensors.
+
+---
+
 ## 0.38.130 — Guides for everything new (2026-10-15)
 
 ### New

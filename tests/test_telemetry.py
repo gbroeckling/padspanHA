@@ -146,7 +146,7 @@ def test_nothing_from_the_house_is_in_the_report():
     assert payload["env"]["placed_lights"] == 4 and payload["env"]["walls"] == 1 and payload["env"]["irks"] == 1
     assert payload["env"]["placed_by_domain"] == {
         "light": 1, "fan": 1, "lock": 0, "motion_sensor": 1, "door_sensor": 0,
-        "flood_sensor": 0, "temp_sensor": 1, "humidity_sensor": 0,
+        "flood_sensor": 0, "alarm_sensor": 0, "temp_sensor": 1, "humidity_sensor": 0,
         "air_quality_sensor": 0, "other": 0,
     }
     assert payload["env"]["light_type_overrides_by_kind"] == {"wled": 1}
@@ -233,7 +233,11 @@ def test_nothing_from_the_house_is_in_the_report():
     # with readouts placed): Garry, 2026-10-15, "make sure opt in understands
     # the HA temp behaviour" — whether a steady room's reading stays fresh by
     # last_reported (0.38.126), and how often sensors report.
-    assert len(text) < 4140
+    # Raised 4140 -> 4165 for placed_by_domain.alarm_sensor (~19 bytes): Garry,
+    # 2026-10-15, "Widen emergency": smoke, gas and CO alarms joined leaks in
+    # the Emergency class; counted apart from leaks so the report can tell
+    # whether anyone places them.
+    assert len(text) < 4165
 
 
 def test_presets_are_capped_at_ten_per_report():

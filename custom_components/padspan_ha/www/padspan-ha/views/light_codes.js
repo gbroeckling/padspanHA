@@ -86,9 +86,21 @@ export function isDoorSensor(l) {
 // same "make the room itself react" idea air quality's rising bars use, for
 // an alarm rather than a gradual reading — so unlike air quality there's no
 // badness scale, just on/off.
+// Emergency, widened (Garry, 2026-10-15: "Widen emergency"): smoke, gas and
+// carbon monoxide alarms are Emergency too, latched and alarmed the same way
+// as a leak, each in its own words and (but a leak) the detector's glyph.
+export const EMERGENCY_CLASSES = { moisture: "water", smoke: "smoke", gas: "gas", carbon_monoxide: "co" };
 export function isFloodSensor(l) {
   return String(l.entity_id || "").startsWith("binary_sensor.")
-    && l.device_class === "moisture";
+    && Object.prototype.hasOwnProperty.call(EMERGENCY_CLASSES, l.device_class);
+}
+/** What an Emergency device warns of: "water" (a leak), "smoke", "gas" or "co". */
+export function emergencyKind(l){ return (l && EMERGENCY_CLASSES[l.device_class]) || "water"; }
+const EMERGENCY_ON = { water: "WET", smoke: "SMOKE", gas: "GAS", co: "CO" };
+/** Its word: alarming now (WET, SMOKE, GAS, CO), latched (ALARM), or quiet (DRY for a leak, else CLEAR). */
+export function emergencyWord(l, on, latched){
+  const k = emergencyKind(l);
+  return on ? EMERGENCY_ON[k] : latched ? "ALARM" : k === "water" ? "DRY" : "CLEAR";
 }
 
 // A sensor.* entity reporting device_class "temperature" — "same as WLED or
@@ -476,7 +488,8 @@ export const LIGHT_SHAPES = [
   ["airquality", "Air quality sensor"],
   ["lock",      "Door lock"],
   ["door",      "Door/window sensor"],
-  ["flood",     "Emergency (flood) sensor"],
+  ["flood",     "Leak sensor"],
+  ["smokealarm", "Smoke / gas / CO alarm"],
 ];
 
 // "perimeter" is drawn once, structurally differently from every shape
@@ -507,7 +520,7 @@ export function deriveLightShape(l) {
   // detector must never reach the has("flood") FLOODLIGHT-name match: the
   // two "flood"s are unrelated (one is a spotlight naming convention, the
   // other a water sensor).
-  for (const c of DEVICE_CLASSES) if (c.shape && c.test(l)) return c.shape;
+  for (const c of DEVICE_CLASSES) if (c.shape && c.test(l)) return c.key === "flood" && emergencyKind(l) !== "water" ? "smokealarm" : c.shape;
   // A fan exposed as a light entity is not a light at all — worth seeing.
   if (has("fan")) return "fan";
   if (has("chandelier")) return "chandelier";

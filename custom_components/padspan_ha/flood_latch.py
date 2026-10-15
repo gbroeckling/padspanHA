@@ -119,6 +119,10 @@ async def _async_latch(hass: HomeAssistant, entity_id: str) -> None:
         await st.async_set(flood_latches=latches)
 
 
+# The device classes that latch: the Atlas's Emergency class (light_codes.js
+# EMERGENCY_CLASSES holds the same).
+EMERGENCY_DEVICE_CLASSES: frozenset[str] = frozenset({"moisture", "smoke", "gas", "carbon_monoxide"})
+
 @ha_callback
 def _on_state_changed(hass: HomeAssistant, event: Event) -> None:
     new_state = event.data.get("new_state")
@@ -126,7 +130,9 @@ def _on_state_changed(hass: HomeAssistant, event: Event) -> None:
         return
     if not new_state.entity_id.startswith("binary_sensor."):
         return
-    if new_state.attributes.get("device_class") != "moisture":
+    # A leak, and since 0.38.131 smoke, gas and carbon monoxide alarms: the
+    # Atlas's Emergency class (light_codes.js EMERGENCY_CLASSES).
+    if new_state.attributes.get("device_class") not in EMERGENCY_DEVICE_CLASSES:
         return
     if not hass.data.get(DOMAIN, {}).get(DATA_SETTINGS):
         return

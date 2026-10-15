@@ -1066,7 +1066,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     _light_ids = list((fab.get("light_positions_m") or {}).keys())
     placed_by_domain = {
         "light": 0, "fan": 0, "lock": 0, "motion_sensor": 0, "door_sensor": 0,
-        "flood_sensor": 0, "temp_sensor": 0, "humidity_sensor": 0,
+        "flood_sensor": 0, "alarm_sensor": 0, "temp_sensor": 0, "humidity_sensor": 0,
         "air_quality_sensor": 0, "other": 0,
     }
     _tf: dict[str, Any] = {"n": 0, "changed": 0, "updated": 0, "reported": 0, "has_lr": 0, "age": {}}
@@ -1088,6 +1088,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                 placed_by_domain["door_sensor"] += 1
             elif _dc == "moisture":
                 placed_by_domain["flood_sensor"] += 1
+            elif _dc in ("smoke", "gas", "carbon_monoxide"):
+                placed_by_domain["alarm_sensor"] += 1
             elif _dc == "humidity":
                 placed_by_domain["humidity_sensor"] += 1
                 _temp_fresh_note(_st, _tf_now, _tf)

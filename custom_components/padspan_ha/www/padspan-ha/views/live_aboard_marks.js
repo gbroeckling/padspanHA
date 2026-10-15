@@ -38,7 +38,7 @@
 const HOUSE = await import(`./live_aboard_house.js${new URL(import.meta.url).search}`);
 const { classMatches } = await import(`./lights_map.js${new URL(import.meta.url).search}`);
 const { floodLatchActive } = await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { deviceClassOf, LOCK_BORDER, FLOOD_BORDER } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
+const { deviceClassOf, LOCK_BORDER, FLOOD_BORDER, emergencyKind, emergencyWord } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 /** Each kind's height above its floor (m) until Heights sets one. */
 export const MARK_Z = { flood: 0.02, lock: 1.0 };
@@ -94,9 +94,16 @@ export function marksSignature(model, lightsByEid, hidden){
   return JSON.stringify(rows);
 }
 /** Its height above its floor: Heights' if set, else its kind's (as deviceZ). */
-export function markZ(kind, ceil, stored){
+/** Its height above its floor: Heights' if set, else its kind's (as deviceZ).
+ *  l (optional): the device, for an Emergency alarm's own default: a leak
+ *  sensor on the floor, a smoke alarm on the ceiling, a gas or CO alarm on
+ *  the wall. */
+export const ALARM_Z = { smoke: 99, gas: 1.5, co: 1.5 };
+export function markZ(kind, ceil, stored, l = null){
   const z = num(stored && stored.z_m);
-  return HOUSE.deviceZ(kind, ceil, { z_m: z !== null ? z : (MARK_Z[kind] ?? 1) });
+  const k = kind === "flood" && l ? emergencyKind(l) : null;
+  const dflt = k && k !== "water" ? ALARM_Z[k] : (MARK_Z[kind] ?? 1);
+  return HOUSE.deviceZ(kind, ceil, { z_m: z !== null ? z : dflt });
 }
 /** A leak sensor now: alarming while wet or latched (the Atlas's floodFx
  *  rule), its ripple, and the Atlas's words for it (stateWordOf: WET,
@@ -108,7 +115,7 @@ export function floodLook(l, latches, nowMs){
   const latched = !wet && floodLatchActive(latch ? num(latch.triggered_at) : NaN, nowMs);
   const none = !l || s === "unavailable" || s === "unknown";
   return { alarm: wet || latched, wet, latched, none, ripple: wet ? FLOOD_RIPPLE.wet : latched ? FLOOD_RIPPLE.latched : null,
-           word: wet ? "WET" : latched ? "ALARM" : "DRY" };
+           word: emergencyWord(l, wet, latched) };
 }
 /** A lock now, as the Atlas's glyph reads it (markerSvg: lit only while
  *  locked); no reading (barrierNoReading) grey. color: its pin colour. */
@@ -324,7 +331,7 @@ export function createMarkLayer(ctx){
         const want = h.F ? readMarks(h.model, h.F, h.lbe, h.hidden).map(R => {
           const F = h.floors.find(q => q.fl.id === R.floor.id);
           const ceil = F ? F.fl.h - HOUSE.SLAB_T : 2.65;
-          return { ...R, z: markZ(R.kind, ceil, zs[R.eid] || null), zDefault: markZ(R.kind, ceil, null) };
+          return { ...R, z: markZ(R.kind, ceil, zs[R.eid] || null, R.l), zDefault: markZ(R.kind, ceil, null, R.l) };
         }) : [];
         build(want, h.floors || []);
         changed = true;
@@ -363,7 +370,7 @@ export function createMarkLayer(ctx){
     move(eid, stored){
       const M = marks.find(x => x.eid === eid);
       if (!M) return false;
-      const z = markZ(M.kind, M.F.fl.h - HOUSE.SLAB_T, stored || null), d = z - M.z;
+      const z = markZ(M.kind, M.F.fl.h - HOUSE.SLAB_T, stored || null, M.l || null), d = z - M.z;
       M.z = z;
       // The sensor itself goes up or down; its ripple stays on the floor.
       for (const o of M.lock ? [M.lock.g] : [M.puck, M.rim, M.badge.sprite]) o.position.y += d;

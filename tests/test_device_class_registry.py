@@ -250,3 +250,22 @@ def test_is_atlas_entity_excludes_the_occupancy_half_only_via_the_caller_not_its
     not something the admission predicate itself should know about."""
     out = _run(tmp_path, "console.log(JSON.stringify(LC.isAtlasEntity('binary_sensor.occ_secondary', {device_class:'occupancy'})));\n")
     assert out is True
+
+
+def test_emergency_is_leaks_and_smoke_gas_co_alarms_each_in_its_own_words(tmp_path):
+    """Garry, 2026-10-15: "Widen emergency". Smoke, gas and CO alarms are the
+    Emergency class with leaks, each in its own words, and drawn as a detector,
+    not the leak's puddle; anything else stays out."""
+    out = _run(tmp_path, (
+        "const b=(dc)=>({entity_id:'binary_sensor.x',device_class:dc});\n"
+        "const r={};\n"
+        "for(const dc of ['moisture','smoke','gas','carbon_monoxide','problem','safety']){const l=b(dc); LC.assignLightCodes([l]);\n"
+        "  r[dc]={em:LC.isFloodSensor(l),key:LC.deviceClassOf(l).key,on:LC.emergencyWord(l,true,false),"
+        "latched:LC.emergencyWord(l,false,true),quiet:LC.emergencyWord(l,false,false),shape:LC.resolveLightShape(l,null)};}\n"
+        "console.log(JSON.stringify(r));\n"))
+    assert out["moisture"] == {**out["moisture"], "em": True, "key": "flood", "on": "WET", "latched": "ALARM", "quiet": "DRY", "shape": "flood"}
+    for dc, word in (("smoke", "SMOKE"), ("gas", "GAS"), ("carbon_monoxide", "CO")):
+        assert out[dc]["em"] is True and out[dc]["key"] == "flood", dc
+        assert (out[dc]["on"], out[dc]["latched"], out[dc]["quiet"]) == (word, "ALARM", "CLEAR"), dc
+        assert out[dc]["shape"] == "smokealarm", dc
+    assert out["problem"]["em"] is False and out["safety"]["em"] is False

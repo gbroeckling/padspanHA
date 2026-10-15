@@ -18,7 +18,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, floorNameAtLevel, sa
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         TEMP_BORDER, healthOf,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
-        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf } =
+        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -620,7 +620,7 @@ export function stateWordOf(l, floodLatches, doorInvert){
     const on = l.state === "on";
     const latch = (floodLatches || {})[l.entity_id];
     const latched = floodLatchActive(latch && latch.triggered_at, Date.now());
-    return { text: on ? "WET" : (latched ? "ALARM" : "DRY"), lit: on || latched, sortValue: (on || latched) ? 1 : 0, latched };
+    return { text: emergencyWord(l, on, latched), lit: on || latched, sortValue: (on || latched) ? 1 : 0, latched };
   }
   return null;
 }

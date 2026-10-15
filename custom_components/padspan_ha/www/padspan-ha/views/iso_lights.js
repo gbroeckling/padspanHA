@@ -1868,6 +1868,13 @@ export function shapeSvg(kind, cx, cy, r, attrs){
       }
       return poly(pts.join(" "));
     }
+    // A smoke, gas or CO alarm: the round detector on its ceiling or wall,
+    // a disc with a raised centre, never the leak's puddle.
+    // A ring with its middle open, so it never reads as a pot light's disc.
+    case "smokealarm": {
+      const R=HW*0.95, r0=HW*0.42, arc=(rr)=>`M${n(cx-rr)},${n(cy)}a${n(rr)},${n(rr)} 0 1,0 ${n(rr*2)},0a${n(rr)},${n(rr)} 0 1,0 ${n(-rr*2)},0Z`;
+      return `<path d="${arc(R)}${arc(r0)}" fill-rule="evenodd" ${attrs}/>`;
+    }
     // A padlock: solid shackle arch over a solid body — the universal
     // access-control symbol, so a lock reads as a lock even to someone
     // who has never seen this map before. Solid, like every glyph here
@@ -2005,6 +2012,8 @@ export function shapeDetailSvg(kind, cx, cy, r, ink, sw){
       const arc=(rr)=>path(sub(arcPts(cx,cy+HW*0.10,rr*1.6,rr*0.75,0,360,20)));
       return arc(HW*0.5)+arc(HW*0.24);
     }
+    // The detector's vent ring and its sounder in the middle.
+    case "smokealarm": return ring(cx,cy,HW*0.6)+dot(cx,cy,HW*0.2);
     // A plain fixture plate: bevel, plus the lamp behind it.
     default:         return path(sub(arcPts(cx,cy,r*0.6,r*0.6,90,450,6)))+dot(cx,cy,HW*0.15);
   }

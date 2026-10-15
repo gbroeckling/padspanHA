@@ -72,7 +72,10 @@ export function spotsFor(cls, kind){
  *  sheet offer the same. Under a low ceiling two spots can come to the same
  *  height: the first says it. */
 export function spotsOf(l, kind, top){
-  return spotsFor(deviceClassOf(l).key, kind).map((k) => [k, SPOTS[k].label, DRAFT.mm(Math.min(top, SPOTS[k].z ?? top))])
+  const cls = deviceClassOf(l).key;
+  // A smoke alarm goes on the ceiling, a gas or CO alarm on a wall; a leak sensor on the floor.
+  const alarm = cls === "flood" && l && l.device_class && l.device_class !== "moisture";
+  return (alarm ? (l.device_class === "smoke" ? ["ceiling", "high", "wall"] : ["wall", "high", "ceiling", "floor"]) : spotsFor(cls, kind)).map((k) => [k, SPOTS[k].label, DRAFT.mm(Math.min(top, SPOTS[k].z ?? top))])
     .filter(([, , z], i, all) => all.findIndex((o) => o[2] === z) === i);
 }
 // What one of a kind is called, in words.
@@ -115,7 +118,7 @@ export function infoOf(l, lp, ceil, stored, shape, at){
     }
   } else {
     const sk = HOUSE.sensorKindOf(l), mk = MARKS.markKindOf(l);
-    dflt = mk ? MARKS.markZ(mk, ceil, null) : HOUSE.deviceZ(sk || cls, ceil, null);
+    dflt = mk ? MARKS.markZ(mk, ceil, null, l) : HOUSE.deviceZ(sk || cls, ceil, null);
   }
   dflt = DRAFT.mm(Math.max(0, Math.min(top, dflt)));
   const what = fixture ? KIND_NAME[kind] || "light" : CLASS_NAME[cls] || "device";

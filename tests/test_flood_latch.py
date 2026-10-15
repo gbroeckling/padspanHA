@@ -348,3 +348,19 @@ def test_the_phone_alarm_pill_hides_with_nothing_latched() -> None:
     assert "all:unset" in css[base:css.index("}", base)]
     hidden = css.find(".mobile-topbar-pill.hidden{display:none}")
     assert hidden > base, "the pill's .hidden rule is missing or before the rule that undoes it"
+
+
+def test_smoke_gas_and_co_alarms_latch_like_a_leak() -> None:
+    """Emergency, widened (0.38.131): a smoke, gas or carbon monoxide alarm
+    going on schedules the same latch a leak does; any other class never."""
+    from custom_components.padspan_ha.flood_latch import EMERGENCY_DEVICE_CLASSES
+    assert EMERGENCY_DEVICE_CLASSES == {"moisture", "smoke", "gas", "carbon_monoxide"}
+    for dc in ("smoke", "gas", "carbon_monoxide"):
+        st = _settings()
+        hass = _hass(st)
+        _on_state_changed(hass, _state_event(f"binary_sensor.hall_{dc}", "on", device_class=dc))
+        assert hass.async_create_task.called, f"{dc} must latch"
+    st = _settings()
+    hass = _hass(st)
+    _on_state_changed(hass, _state_event("binary_sensor.hall_problem", "on", device_class="problem"))
+    assert not hass.async_create_task.called

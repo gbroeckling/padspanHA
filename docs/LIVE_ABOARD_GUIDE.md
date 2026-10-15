@@ -110,6 +110,8 @@ there. It needs a window drawn on the map with its sensor linked, and weather se
 **At night** the house darkens with the real sun. With the walls up, the windows of lit rooms glow
 warm from outside.
 
+**Emergency:** a leak sensor, smoke alarm, gas alarm or CO alarm that goes off sends alarm rings across its room's floor and shows a red word over everything (**WET**, **SMOKE**, **GAS**, **CO**, or **ALARM** while it's still latched), so you see it from anywhere in the house. The banner across the top of every PadSpan page lists it until you reset it.
+
 **Doors and windows** linked to sensors open and shut as they do. A lock linked to a door glows red
 while it's unlocked.
 
