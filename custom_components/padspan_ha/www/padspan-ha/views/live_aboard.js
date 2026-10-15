@@ -142,6 +142,7 @@ const COVER_Z = SCREEN.COVER_Z;
 const NARROW_W = 560;                      // under this the bar is one compact row
 const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
 const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
+const GUIDE_URL = "https://github.com/gbroeckling/padspanHA/blob/main/docs/LIVE_ABOARD_GUIDE.md";
 const WET_INK = "#38bdf8", WET_WORD = "☔ Window open in the rain";
 const WINDOW_GLOW = "#ffc978";                           // a lit room's window at night, from outside
 const HEAT_A = 0.66;                                     // the heat map's strength over a room's floor
@@ -248,6 +249,7 @@ const CSS = `
   box-shadow:0 14px 36px rgba(0,0,0,.55);color:#e8f0ea;font-size:13px;line-height:1.45}
 .la3d-card b{display:block;font-size:15px;margin-bottom:8px}
 .la3d-card ul{margin:0 0 12px;padding-left:18px}
+.la3d-card a.la3d-guide{display:block;margin:-4px 0 12px;color:#86efac;font-size:12.5px;text-decoration:underline}
 .la3d-card li{margin:3px 0}
 .la3d-card button{all:unset;box-sizing:border-box;cursor:pointer;padding:7px 16px;border-radius:9px;font-weight:700;
   background:rgba(82,183,136,.3);color:#f0fdf4;float:right}
@@ -1042,7 +1044,7 @@ function createSlot(slotKey){
   function writeViews(v){ prefSet(PREF_VIEWS + slotKey, JSON.stringify(v.slice(-VIEWS_MAX))); }
   function viewItems(){
     const saved = readViews();
-    return [{ text: "Whole house", act: () => wholeHouse() },
+    return [{ text: "Whole house", act: () => wholeHouse() }, { text: "How it works", act: () => showHint(true) },
             ...saved.map((v, i) => ({ text: v.name, act: () => goView(v), del: () => { saved.splice(i, 1); writeViews(saved); } })),
             { text: "Save this view", act: () => saveView() }, ...(panel ? panel.menuItems() : [])];
   }
@@ -1129,11 +1131,11 @@ function createSlot(slotKey){
 
   // ── the first time: a card with the ways round ────────────────────────────
   let hintShown = false;
-  function showHint(){
-    if (hintShown || hintCard || furnishOn || !root) return;
+  function showHint(again = false){
+    if ((hintShown && !again) || hintCard || furnishOn || !root) return;
     const seen = prefGet(PREF_HINT) === "1";
     hintShown = true;
-    if (seen) return;
+    if (seen && !again) return;
     const d = (tag, text) => { const n = document.createElement(tag); if (text) n.textContent = text; return n; };
     const card = document.createElement("div");
     card.className = "la3d-card";
@@ -1157,7 +1159,11 @@ function createSlot(slotKey){
       if (card.parentNode) card.parentNode.removeChild(card);
       hintCard = null;
     }));
-    card.append(d("b", "Live Aboard"), ul, ok);
+    // The whole guide, in a new tab (Views ▾ → How it works brings this card back).
+    const more = d("a", "The full guide: everything Live Aboard does, and building in Edit");
+    more.href = GUIDE_URL; more.target = "_blank"; more.rel = "noopener";
+    more.className = "la3d-guide";
+    card.append(d("b", "Live Aboard"), ul, more, ok);
     root.appendChild(card);
     hintCard = card;
   }

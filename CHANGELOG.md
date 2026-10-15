@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.130 — A guide to Live Aboard (2026-10-15)
+
+### New
+- **The Live Aboard Guide** ([docs/LIVE_ABOARD_GUIDE.md](docs/LIVE_ABOARD_GUIDE.md)) covers turning it on, getting around, what the motion badges, colours and lines mean, the heat map, room scenes, and building doors, windows, heights and strips.
+- In Live Aboard, **Views ▾ → How it works** brings back the first-time card, which now links to the full guide.
+
+### Opt-in report
+- The README now lists everything the report has said about Live Aboard: whether it opened or fell back to the flat map, the open-window alert, and the temperature-freshness counts added in 0.38.127.
+
+---
+
 ## 0.38.129 — Live Aboard's building tools, smoother (2026-10-15)
 
 ### Changed

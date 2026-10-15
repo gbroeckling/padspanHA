@@ -86,6 +86,7 @@ Atlas used to be called "Lights" — both the Mapping tab and the standalone sid
 
 ## Where to go next
 
+- [Live Aboard Guide](LIVE_ABOARD_GUIDE.md) — the Atlas in 3D (Pro): getting around, motion, the heat map, room scenes, and building doors, windows, heights and strips
 - [Getting Started](GETTING_STARTED.md) — if you haven't done the BLE presence onboarding yet
 - [Floor Plan Setup](FLOOR_PLAN_SETUP.md) — uploading maps and drawing rooms, before there's anything to place fixtures onto
 - The in-app **Training Hub** has animated walkthroughs alongside this guide
