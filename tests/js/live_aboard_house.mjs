@@ -73,6 +73,13 @@ tryCase("explode: each indoor storey lifted one gap more than the one under it; 
   check("explode: each indoor storey lifted one gap more than the one under it; floors sharing a storey stay together; outside stays",
     ex.b === -2.7 && ex.m === 4 && ex.m2 === 4 && ex.u === 10.8 && ex.outside === -2.7 && flat.m === 0 && flat.u === 2.8, { flat, ex });
 });
+tryCase("heat: blue cool, green at 21, red from 26, graded between; °F converted", () => {
+  const c = { cold: H.heatColor(10), cool: H.heatColor(16), mid: H.heatColor(21), half: H.heatColor(18.5), hot: H.heatColor(26), hotter: H.heatColor(35) };
+  const f = H.tempC({ temperature: 72, air_unit: "°F" }), cc = H.tempC({ temperature: 22, air_unit: "°C" }), none = H.tempC({ temperature: null });
+  check("heat: blue cool, green at 21, red from 26, graded between; °F converted",
+    c.cold === "#3b82f6" && c.cool === "#3b82f6" && c.mid === "#22c55e" && c.hot === "#ef4444" && c.hotter === "#ef4444"
+    && c.half !== c.cool && c.half !== c.mid && Math.abs(f - 22.22) < 0.01 && cc === 22 && none === null, { c, f, cc, none });
+});
 tryCase("floorsTop: the chosen floor and below show, the floors above hide", () => {
   const F = H.readFloors({ floors: [{ id: "b" }, { id: "m" }, { id: "u" }], floor_elevations: { b: 0, m: 3, u: 5.8 } }, null);
   const t = H.topFloorElev(F.floors, new Set(["m"]));

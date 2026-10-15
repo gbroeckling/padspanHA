@@ -143,6 +143,7 @@ const NARROW_W = 560;                      // under this the bar is one compact 
 const TAP_MS = 320, TAP2_MS = 420, TAP_PX = 10, TAP2_PX = 44, FLY_MS = 650;
 const PREF_VIEWS = "views_", PREF_HINT = "hint_seen", VIEWS_MAX = 8;
 const WET_INK = "#38bdf8", WET_WORD = "☔ Window open in the rain";
+const HEAT_A = 0.66;                                     // the heat map's strength over a room's floor
 const WET_CSS = `.la3d-wet{position:absolute;left:50%;top:82px;z-index:2;transform:translateX(-50%);display:none;max-width:calc(100% - 140px);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 12px;border-radius:999px;cursor:pointer;
   font:600 12px system-ui,"Segoe UI",sans-serif;color:#e0f2fe;background:rgba(7,28,44,.92);border:1px solid ${WET_INK};
@@ -423,7 +424,7 @@ function createSlot(slotKey){
   let use = null, apiOf = null, apiNow = null, lbe = {}, haStarted = 0;
   // readouts: the sensors that read out; chips: one pill per room (or per
   // sensor outside every room) saying what they read.
-  let openings = [], sensorsUi = [], tints = [], readouts = [], chips = [];
+  let openings = [], sensorsUi = [], tints = [], readouts = [], chips = [], heats = [];
   let sensorRes = [], sensorsSig = null;
   let liveMs = 0, lastAmbient = 0, rehoverDue = false;   // liveMs: how often something moving by itself is drawn (0: still)
   let northDismissed = null;               // the pointerdown that only put north back
@@ -2427,7 +2428,7 @@ function createSlot(slotKey){
   function clearSensors(){
     for (const F of floorsUi) { if (F.sensorGroup) F.group.remove(F.sensorGroup); F.sensorGroup = null; }
     disposeList(sensorRes); sensorRes = [];
-    sensorsUi = []; tints = []; readouts = []; chips = [];
+    sensorsUi = []; tints = []; readouts = []; chips = []; heats = [];
     if (motionL) motionL.clear();
   }
   function buildSensors(h){
@@ -2472,6 +2473,10 @@ function createSlot(slotKey){
         byRoom.get(key)[S.kind].push(S);
       }
       for (const T of byRoom.values()) tints.push(makeTint(T, g));
+      // The heat map: one floor per room with a temperature in it, shown only with Temps picked.
+      const warmRooms = new Map();
+      for (const S of here) if (S.kind === "temp" && S.room) { if (!warmRooms.has(S.room)) warmRooms.set(S.room, []); warmRooms.get(S.room).push(S); }
+      for (const [room, list] of warmRooms) heats.push(makeHeat(F, room, list, g));
       // One chip per room for what its sensors read; one each outside.
       const groups = new Map();
       for (const S of here) {
@@ -2483,6 +2488,38 @@ function createSlot(slotKey){
       for (const [key, list] of groups) chips.push(makeChip(F, key === list[0] ? null : key, list, g));
     }
     if (motionL) motionL.build(sensorsUi.filter(S => S.kind === "motion"));
+  }
+  function makeHeat(F, room, list, g){
+    const geo = new THREE.ShapeGeometry(new THREE.Shape(room.pts.map(p => new THREE.Vector2(p[0], p[1]))));
+    geo.rotateX(Math.PI / 2).translate(0, F.fl.elev + 0.007, 0);
+    const mat = new THREE.MeshBasicMaterial({ color: "#22c55e", transparent: true, opacity: HEAT_A, depthWrite: false, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 1;
+    mesh.visible = false;
+    g.add(mesh);
+    sensorRes.push(geo, mat);
+    return { F, room, list, mat, mesh, key: null };
+  }
+  /** Temps picked: each room's floor in its fresh temperature (the mean of its
+   *  readouts); a room with none fresh, or any other pick, shows nothing. */
+  function paintHeat(){
+    const on = classF === "temp", now = Date.now();
+    let changed = false;
+    for (const H of heats) {
+      let sum = 0, n = 0;
+      if (on) for (const S of H.list) {
+        const l = lbe[S.eid] || S.l, r = l ? HOUSE.readoutOf(l, now) : null, c = r && r.live ? HOUSE.tempC(l) : null;
+        if (c !== null) { sum += c; n++; }
+      }
+      const col = n ? HOUSE.heatColor(sum / n) : null;
+      if (col === H.key) continue;
+      H.key = col;
+      H.mesh.visible = !!col;
+      if (col) H.mat.color.set(col);
+      changed = true;
+    }
+    if (changed) requestRender();
   }
   function makeTint(T, g){
     const y = T.F.fl.elev + 0.008;
@@ -4206,6 +4243,7 @@ function createSlot(slotKey){
     paintLights(p.lightsByEid);
     paintLive();
     paintWet(p);
+    paintHeat();
     syncMarks(p, vd);
     selIds = p.topFloorIds ? new Set([...(p.topFloorIds instanceof Set ? p.topFloorIds : [].concat(p.topFloorIds))].map(String)) : null;
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);

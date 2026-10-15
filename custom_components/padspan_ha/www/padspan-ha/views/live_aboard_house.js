@@ -1475,6 +1475,28 @@ export const TEMP_TINT = { hot: { wash: "#f97316", ink: "#fb923c" }, warm: { was
                            cool: { wash: "#3b82f6", ink: "#93c5fd" } };
 export const tempBand = (t) => (t > TEMP_HOT_OVER ? "hot" : t >= TEMP_WARM_AT ? "warm" : "cool");
 export const STALE_INK = "#94a3b8";
+// The heat map (Temps picked in the class chips, as neonplan3d's climate
+// view): each room's floor in its temperature, blue cool, green comfortable,
+// red warm, graded between (°C).
+export const HEAT_STOPS = [[16, [59, 130, 246]], [21, [34, 197, 94]], [26, [239, 68, 68]]];
+export function heatColor(c){
+  const S = HEAT_STOPS;
+  if (!(c > S[0][0])) return rgbHex(S[0][1]);
+  for (let i = 1; i < S.length; i++) {
+    if (c <= S[i][0]) {
+      const k = (c - S[i - 1][0]) / (S[i][0] - S[i - 1][0]);
+      return rgbHex(S[i - 1][1].map((v, j) => v + (S[i][1][j] - v) * k));
+    }
+  }
+  return rgbHex(S[S.length - 1][1]);
+}
+function rgbHex(c){ return "#" + c.map(v => Math.round(v).toString(16).padStart(2, "0")).join(""); }
+/** A temperature record's reading in °C (its unit says °F: converted), or null. */
+export function tempC(l){
+  const v = l ? Number(l.temperature) : NaN;
+  if (!Number.isFinite(v) || l.temperature === null) return null;
+  return /f/i.test(String(l.air_unit || "")) ? (v - 32) * 5 / 9 : v;
+}
 /** A readout's words and colour: the Atlas's own state word (stateWordOf —
  *  "21°", "57%", "Fair", "409 ppm · Good") while it is live, in the Atlas's
  *  colours; stale or no reading, the device's code, quiet. */
