@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.129 — Live Aboard's building tools, smoother (2026-10-15)
+
+### Changed
+- **Doors and windows snap to 5 cm** as you draw them or drag their ends: you get 0.80 m or 1.60 m, not 1.59 m. A corner or another door still stops the line where it is.
+- **Keyboard shortcuts in Edit:** Ctrl+Z (⌘+Z) undoes, Ctrl+Y or Ctrl+Shift+Z redoes, Escape lets go of what you picked (or a first tap), and Delete removes a door or window you drew. They do nothing while you're typing in a box.
+- **Round this room is one tap.** In Strip, a light that's already in a room goes round that room straight away. Tap another room to go round that one instead. Ticking "Leave gaps at doors" or "and windows" changes the run right then.
+- While you're editing, the Motion chip and the rain chip step aside, so the tool's hints are never hidden under them.
+
+### Fixes
+- **Fixed:** sliding, pocket, barn, bifold and overhead doors showed a swing arc while editing, as if they were hinged. Only doors that swing show one now.
+- **Fixed:** a door's sheet cut "Doorway" off as "Do".
+
+---
+
 ## 0.38.128 — Scenes in the room sheet, and lit windows at night (2026-10-15)
 
 ### New
