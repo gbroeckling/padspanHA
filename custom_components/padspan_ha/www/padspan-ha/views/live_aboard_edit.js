@@ -236,7 +236,9 @@ export function createEditor(ctx){
       if (del) { e.preventDefault(); del.click(); }
     }
   });
-  window.addEventListener("keydown", onKey);
+  // Listened to only while editing: nothing listens at rest.
+  let keysOn = false;
+  const keys = (on) => { if (on === keysOn) return; keysOn = on; window[on ? "addEventListener" : "removeEventListener"]("keydown", onKey); };
   // Furniture (P2 Furnish, live_aboard_furnish.js): a tool of its own on this
   // same draft, so one Save writes doors, windows, heights and furniture.
   const FUR_HINT = "Build adds a piece. Drag a piece to move it; tap it to change it.";
@@ -609,6 +611,7 @@ export function createEditor(ctx){
     }
     draft = DRAFT.createDraft(f);
     editing = true; tool = t === "furnish" && fur ? "furnish" : null; sel = null; gesture = null; pending = null;
+    keys(true);
     ctx.clearUse();
     hint(tool === "furnish" ? FUR_HINT : DRAW_HINT);
     syncArcs();
@@ -618,6 +621,7 @@ export function createEditor(ctx){
   }
   function stop(){
     editing = false; draft = null; tool = null; sel = null; gesture = null; pending = null; askGo = null; afterSave = null;
+    keys(false);
     clearArcs();
     line.visible = false;
     canvas.style.cursor = "";
@@ -1301,7 +1305,7 @@ export function createEditor(ctx){
     /** A plan point on floor fid at height z, in client px (the harness presses it). */
     whereOf(fid, x, y, z = 1){ const F = ctx.floors().find(q => q.fl.id === fid); return F ? screenAt(F, x, y, z) : null; },
     dispose(){
-      window.removeEventListener("keydown", onKey);
+      keys(false);
       if (fur) fur.dispose();
       if (strip) strip.dispose();
       clearArcs();
