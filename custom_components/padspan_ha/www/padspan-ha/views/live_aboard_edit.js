@@ -98,6 +98,7 @@ const CSS = `
   background:#0b1410;color:#e8f0ea;border:1px solid rgba(120,190,155,.35)}
 .la3d-sheet .la3d-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .la3d-sheet .lv-zoomseg{box-shadow:none}
+.la3d-sheet .la3d-row > .lv-zoomseg{grid-column:2 / span 2;justify-self:start;max-width:100%;flex-wrap:wrap}
 .la3d-sheet button.la3d-x{all:unset;cursor:pointer;padding:0 4px;font-size:16px;color:rgba(226,240,232,.6)}
 .la3d-sheet .la3d-del{color:#fca5a5!important}
 .la3d-ask{position:absolute;inset:0;z-index:7;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.46)}
@@ -265,6 +266,7 @@ export function createEditor(ctx){
   }
   // Every door on the floors showing, hinge and swing drawn on its floor as
   // a quarter circle: what a tap on it changes.
+  const SWINGING = new Set(["hinged", "double", "gate"]);
   function syncArcs(){
     arcsGen = ctx.shellGen();
     clearArcs();
@@ -273,6 +275,10 @@ export function createEditor(ctx){
       for (const P of F.pieces) {
         const pc = P.pc, len = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
         if (pc.kind !== "door" || len > 1.8 || len < 0.3) continue;
+        // Only a door that swings has a swing: a sliding, pocket, barn,
+        // bifold or overhead door (or a gate set to slide) drew one anyway.
+        const t = ctx.STOREY && typeof ctx.STOREY.doorTypeOf === "function" ? ctx.STOREY.doorTypeOf(pc, F.rooms) : null;
+        if (t && (!SWINGING.has(t.type) || (t.type === "gate" && t.slide))) continue;   // slide defaults to "right" on every type but a gate
         const sw = HOUSE.openingSwing(pc, F.rooms, pc.override || null);
         const hb = sw.hinge === "b", hx = hb ? pc.x1 : pc.x0, hy = hb ? pc.y1 : pc.y0;
         const ux = ((hb ? pc.x0 : pc.x1) - hx) / len, uy = ((hb ? pc.y0 : pc.y1) - hy) / len;

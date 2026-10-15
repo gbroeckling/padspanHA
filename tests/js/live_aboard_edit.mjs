@@ -1054,4 +1054,23 @@ await tryCase("card: a tag's card closes when its floor is hidden", async () => 
 });
 
 check("the view never failed", !st().failed, { failed: st().failed });
+await tryCase("arcs: a door that swings shows its swing while editing; a sliding one none", async () => {
+  await openEdit();
+  if (ed().tool) await pickTool(ed().tool);
+  await pickTool("door");
+  await settle();
+  const before = ed().arcs, n0 = Object.keys(ed().draft.openings).length;
+  const a = where("main", 4.55, 1, WALL_Z), b = where("main", 4.55, 2, WALL_Z);
+  if (a && b) drag(a, b);
+  await settle(6);
+  const drawn = Object.keys(ed().draft.openings).length - n0, hinged = ed().arcs;
+  const sel = root().querySelectorAll(".la3d-sheet")[0], pick = sel && sel.querySelectorAll("select")[0];
+  if (pick) { pick.value = "sliding"; pick.dispatchEvent({ type: "change" }); }
+  await settle(6);
+  const sliding = ed().arcs;
+  while (click("Undo", "la3d-tools")) await settle();
+  await closeEdit();
+  check("arcs: a door that swings shows its swing while editing; a sliding one none",
+    drawn === 1 && !!pick && hinged === before + 1 && sliding === before, { before, drawn, hinged, sliding, picked: !!pick });
+});
 console.log(JSON.stringify({ cases, failures, payloads, start: FILE0 }));
