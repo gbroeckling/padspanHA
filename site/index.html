@@ -179,6 +179,25 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.126</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">15 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Motion in Live Aboard.</b> Only a sensor tripping now gets the big lit badge. One that tripped earlier gets a smaller badge ringed in its age colour, and from the whole house you see only the last 40 minutes (pick ☰ Motion to see them all). Each badge has a dashed line down to a ring on the floor, so a sensor on the ceiling shows over its spot in the room instead of looking stuck to the far wall. The room's floor is tinted, not flooded, so you can still tell the rooms apart.</li>
+          <li><b>Hover a light, a fan or a sensor</b> that's up off the floor and a dashed line drops to its spot on the floor.</li>
+          <li><b>Codes no longer pile up.</b> When two device codes would land on top of each other, the farther one steps aside. Its device still shows and still takes taps.</li>
+          <li><b>Edit → Heights</b> has one-tap spots for the device you picked (Ceiling, Corner, Wall, Table and so on, the same as Mapping's Height row), and a line from the device down to the floor shows its height while you set it.</li>
+          <li><b>The flat Atlas</b> starts right at the top of the house, with no empty band above it, so zooming in no longer opens on blank space. A motion sensor's rings lie flat on the floor like a light's pool, and a strip's code sits just under the strip.</li>
+          <li><b>Fixed:</b> a room's temperature showed "–°" after an hour even while the sensor kept reporting, if the reading didn't change. It now counts a report as a report (Home Assistant 2024.3 and later). The opt-in usage report says whether your Home Assistant gives the panel that.</li>
+          <li><b>Fixed:</b> in Live Aboard's Edit, the tool bar no longer sits on top of the "Drag to turn" hint.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.125</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">13 October 2026</span>
