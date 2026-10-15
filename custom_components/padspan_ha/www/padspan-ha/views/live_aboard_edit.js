@@ -74,7 +74,7 @@ const CSS = `
 .la3d-editseg button[aria-pressed="true"]{background:rgba(245,176,65,.28)!important;color:#fff7e6!important}
 .la3d-tools{position:absolute;left:72px;right:10px;top:10px;z-index:4;display:none;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
 .la3d-tools.on{display:flex}
-.la3d:has(.la3d-tools.on) .la3d-tip{visibility:hidden;opacity:0}
+.la3d:has(.la3d-tools.on) .la3d-tip,.la3d:has(.la3d-tools.on) .la3d-mchip,.la3d:has(.la3d-tools.on) .la3d-wet{visibility:hidden;opacity:0}
 .la3d-tools > *{pointer-events:auto}
 .la3d .la3d-tools button:disabled{opacity:.38;cursor:default}
 .la3d-tools .la3d-save{color:#06210f!important;background:#52b788!important;font-weight:700}
@@ -256,7 +256,7 @@ export function createEditor(ctx){
   const strip = bStrip ? ctx.STRIP.createStrip({
     THREE, HOUSE, RUNS: ctx.RUNS, root, guard, sheet, layer: ctx.layer,
     draft: () => draft, active: () => active() && tool === "strip",
-    change: (fn, group) => change(fn, group), redraw: () => redrawSoon(), render: () => ctx.render(), hint: (text, bad) => hint(text, bad),
+    change: (fn, group) => change(fn, group), redraw: () => redrawSoon(), render: () => ctx.render(), hint: (text, bad) => hint(text, bad), hintText: () => hintMsg,
     floors: () => ctx.floors(), lights: () => (ctx.lights ? ctx.lights() : []), pick: (x, y) => ctx.pick(x, y),
     device: (eid) => ctx.device(eid), camera: () => ctx.camera(), scene: () => ctx.scene(), rect: () => viewRect(), shellGen: () => ctx.shellGen(),
   }) : null;

@@ -299,6 +299,25 @@ await tryCase("areas: Round this room leaves a gap at the door", async () => {
     && (r.gaps || []).length === 1 && r.pts.every(p => near(p[2], 2.0)), { r, ticks, hint: ed().hint });
 });
 
+await tryCase("areas: Round this room is one tap for a light already in a room; the gap ticks redo the run there", async () => {
+  if (run("light.cove")) { S().select("light.cove"); await settle(); click("Remove run", "la3d-sheet"); await settle(); }
+  S().select("light.cove");
+  await settle();
+  pickKind("cove");
+  click("Round this room", "la3d-sheet");
+  await settle();
+  const r1 = run("light.cove"), hint1 = ed().hint;
+  const win = sheet().querySelectorAll("input").filter(i => i.type === "checkbox")[1];
+  if (win) { win.checked = true; win.dispatchEvent({ type: "change" }); }
+  await settle();
+  const r2 = run("light.cove");
+  if (win) { win.checked = false; win.dispatchEvent({ type: "change" }); }
+  await settle();
+  check("areas: Round this room is one tap for a light already in a room; the gap ticks redo the run there",
+    !!r1 && r1.loop && /^Round the /.test(hint1) && /Tap another room/.test(hint1) && !!r2 && r2 !== r1 && r2.loop,
+    { r1: !!r1, hint1, r2: !!r2, same: r1 === r2 });
+});
+
 await tryCase("areas: Behind the TV: a loop on its back, on the piece", async () => {
   S().select("light.tv");
   await settle();

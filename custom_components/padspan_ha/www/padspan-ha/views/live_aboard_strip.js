@@ -387,16 +387,29 @@ export function createStrip(ctx){
   function pickArea(kind){
     drawing = null; ptSel = null;
     area = area === kind ? null : kind;
+    lastRound = null;
     ctx.hint(area ? AREA_HINT[area] : "");
+    // One tap means one tap: a light already in a room goes round that room
+    // at once (another room tapped next goes round that one instead).
+    if (area === "room") {
+      const I = info(), room = I && I.at ? HOUSE.roomAt(I.F.rooms, I.at.x, I.at.z) : null;
+      if (room) {
+        roundRoom(I.F, room);
+        const said = ctx.hintText ? ctx.hintText() : "";
+        if (lastRound && said) ctx.hint(`${said} Tap another room to go round it instead.`);
+      }
+    }
     sheet(); paint();
   }
   /** "Round this room": the room's walls at the run's height (or the kind's). */
+  let lastRound = null;                 // the room the run last went round (its gap ticks redo it)
   function roundRoom(F, room){
+    lastRound = { F, room };
     const run = placedOf(sel), h = run ? run.pts.reduce((s, q) => s + q[2], 0) / run.pts.length : defaultH(F);
     const ops = F.pieces.map(P => P.pc).filter(pc => pc.kind === "door" || pc.kind === "window" || pc.kind === "open" || pc.kind === "doorway")
       .map(pc => ({ kind: pc.kind, a: [pc.x0, pc.y0], b: [pc.x1, pc.y1], sill: pc.sill_m, head: pc.head_m }));
     const r = RUNS.roundRoom(RUNS.insetLoop(room.pts, 0.015), Math.min(h, ceilOf(F) - 0.012), ops, { ...opts, face: faceFor() });
-    if (r.error) { ctx.hint(r.error, true); return; }
+    if (r.error) { lastRound = null; ctx.hint(r.error, true); return; }
     setRun(withString(r.run));
     const gaps = (r.run.gaps || []).length;
     ctx.hint(`Round the ${room.name}: ${RUNS.metres(RUNS.lengthOf(r.run.pts, true))}${gaps ? `, ${gaps} gap${gaps === 1 ? "" : "s"} at the doors${opts.windows ? " and windows" : ""}` : ""}.`);
@@ -527,7 +540,10 @@ export function createStrip(ctx){
     const tick = (label, key, title) => {
       const l = d("label", "la3d-tick"), c = d("input");
       c.type = "checkbox"; c.checked = opts[key]; c.title = title;
-      c.addEventListener("change", guard(() => { opts[key] = c.checked; }));
+      c.addEventListener("change", guard(() => {
+        opts[key] = c.checked;
+        if (area === "room" && lastRound && sel) { roundRoom(lastRound.F, lastRound.room); paint(); }   // the gaps change on the run already there
+      }));
       l.append(c, d("span", null, label));
       return l;
     };
