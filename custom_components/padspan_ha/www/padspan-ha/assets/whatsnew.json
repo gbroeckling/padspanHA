@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.130",
+  "title": "Guides for everything new",
+  "date": "2026-10-15",
+  "body_markdown": "### New\n- **New guides:** the [Furnish Guide](docs/FURNISH_GUIDE.md) (furniture, devices and people in the 3D house), the [Wall Screen Guide](docs/WALL_SCREEN_GUIDE.md) (kiosk links, full screen, going back home by itself) and [PadSpan Pro](docs/PADSPAN_PRO.md) (the trial, keys, becoming a tester, invites).\n- **The Atlas Guide** now covers heights, room sheets and scenes, ◎ Find active, the emergency lighting test, WLED Advanced and Exact look, and building openers, locks and lights from relays. **Getting Started** covers Tasmota BLE scanners.\n- **The Live Aboard Guide** ([docs/LIVE_ABOARD_GUIDE.md](docs/LIVE_ABOARD_GUIDE.md)) covers turning it on, getting around, what the motion badges, colours and lines mean, the heat map, room scenes, and building doors, windows, heights and strips.\n- In Live Aboard, **Views ▾ → How it works** brings back the first-time card, which now links to the full guide.\n\n### Fixes\n- **Fixed:** Follow's Movement Alerts said \"Email me when…\" and its help said alerts were email-only. Alerts go to your phone (pick it under Notify service, no email needed) or by email; the card and its help now say so, with Send Test and the arrive and leave events explained.\n- **Fixed:** the help for Monitor's Diag Export now says to press **Build export**, and the Objects help explains the 📍 last-seen line (Lost & Found).\n\n### Opt-in report\n- The README now lists everything the report has said about Live Aboard: whether it opened or fell back to the flat map, the open-window alert, and the temperature-freshness counts added in 0.38.127."
+ },
+ {
   "version": "0.38.129",
   "title": "Live Aboard's building tools, smoother",
   "date": "2026-10-15",
@@ -28,11 +34,5 @@
   "title": "Atlas touch-ups",
   "date": "2026-10-13",
   "body_markdown": "### Fixes\n- **Fixed:** on the Atlas sidebar, the legend under the map no longer slides under the icon rail on the left, which hid the first entry. Hide the rail and the legend moves back to the edge.\n- **Fixed:** the Automorph switch in Mapping lights up pink, not brown fading into pink, like the other switches do in their own colour."
- },
- {
-  "version": "0.38.124",
-  "title": "Stable: two ways to get PadSpan Pro free, and Pro for life until December 31",
-  "date": "2026-10-13",
-  "body_markdown": "### New\n- **Become a tester, get Pro free.** Testers get two years of PadSpan Pro, as long as the usage report stays on. The sign-up says so now, and Overview mentions it once (after someone is on the map, or after a week), in place of the trial card. \"Sign me up\" takes you straight to the form in Settings → Presence. Settings → PadSpan licence has a button for it too.\n- **Invites.** Now and then the developer may invite an install that sends the usage report to try a free year of Pro. The invite comes back with the report's reply and shows on Overview and in Settings → PadSpan licence, for an administrator only. Claim it with an email, put it off for a week with Later, or say No thanks, which is final. Nothing is sent unless you press one of those. The README's usage report section explains exactly what goes where."
  }
 ]
