@@ -1074,4 +1074,37 @@ await tryCase("arcs: a door that swings shows its swing while editing; a sliding
   check("arcs: a door that swings shows its swing while editing; a sliding one none",
     drawn === 1 && !!pick && hinged === before + 1 && sliding === before, { before, drawn, hinged, sliding, picked: !!pick });
 });
+await tryCase("keys: Delete deletes a door drawn here, Ctrl+Z and Ctrl+Y undo and redo, Escape lets go of a first tap; never while typing", async () => {
+  const key = (k, o = {}) => {
+    const ev = { type: "keydown", key: k, ctrlKey: !!o.ctrl, metaKey: false, shiftKey: !!o.shift, altKey: false, defaultPrevented: false,
+                 target: o.target || canvas(), preventDefault(){ this.defaultPrevented = true; } };
+    for (const fn of [...(winL.keydown || [])]) fn(ev);
+  };
+  await openEdit();
+  if (ed().tool) await pickTool(ed().tool);
+  await pickTool("door");
+  const n = () => Object.keys(ed().draft.openings).length, n0 = n();
+  drag(where("main", 4.55, 1, WALL_Z), where("main", 4.55, 2, WALL_Z));
+  await settle();
+  const drawn = n() - n0, picked = !!(ed().sel && ed().sel.opening);
+  key("Delete", { target: { tagName: "INPUT" } });                      // typing in a box: nothing
+  const kept = n() - n0;
+  key("Delete"); await settle();
+  const deleted = n() - n0;
+  key("z", { ctrl: true }); await settle();
+  const back = n() - n0;
+  key("z", { ctrl: true }); await settle();
+  const none = n() - n0;
+  key("y", { ctrl: true }); await settle();
+  const again = n() - n0;
+  tap(where("main", 0, 6.5, WALL_Z), { kind: "touch", id: 23 });
+  const pend = !!ed().pending;
+  key("Escape"); await settle();
+  const after = { pending: !!ed().pending, editing: ed().editing, failed: st().failed };
+  while (click("Undo", "la3d-tools")) await settle();
+  await closeEdit();
+  check("keys: Delete deletes a door drawn here, Ctrl+Z and Ctrl+Y undo and redo, Escape lets go of a first tap; never while typing",
+    drawn === 1 && picked && kept === 1 && deleted === 0 && back === 1 && none === 0 && again === 1 && pend && !after.pending && after.editing && !after.failed,
+    { drawn, picked, kept, deleted, back, none, again, pend, after });
+});
 console.log(JSON.stringify({ cases, failures, payloads, start: FILE0 }));

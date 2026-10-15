@@ -215,6 +215,28 @@ export function createEditor(ctx){
   // floor, its height on it, so how high it is reads in the house itself.
   const hLine = d("div", "la3d-hline"), hFoot = d("div", "la3d-hfoot"), hLab = d("div", "la3d-len");
   root.append(lenEl, ends[0], ends[1], hLine, hFoot, ring, hLab);
+  // The keyboard, while editing: Ctrl/⌘+Z undo, Ctrl+Y or Ctrl+Shift+Z redo,
+  // Escape lets go (a half-drawn line's first tap, else what is picked), and
+  // Delete or Backspace deletes a door or window drawn here, each exactly as
+  // its button does. Never while typing in a box, or while Edit asks.
+  const typing = (e) => { const t = e.target, tag = t && t.tagName; return !!(t && (t.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT")); };
+  const onKey = guard((e) => {
+    if (!editing || saving || e.defaultPrevented || askEl.classList.contains("on") || typing(e)) return;
+    const k = e.key, mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.altKey && (k === "z" || k === "Z")) { e.preventDefault(); (e.shiftKey ? bRedo : bUndo).click(); return; }
+    if (mod && !e.altKey && (k === "y" || k === "Y")) { e.preventDefault(); bRedo.click(); return; }
+    if (mod || e.altKey) return;
+    if (k === "Escape") {
+      if (pending) { e.preventDefault(); pending = null; hint(["door", "window", "doorway"].includes(tool) ? "Press on a wall and drag along it, or tap its two ends." : DRAW_HINT); paint(); }
+      else if (sel) { e.preventDefault(); select(null); }
+      return;
+    }
+    if ((k === "Delete" || k === "Backspace") && sel && sel.opening && sel.opening.added && tool !== "furnish" && tool !== "strip") {
+      const del = sheet.querySelector(".la3d-del");
+      if (del) { e.preventDefault(); del.click(); }
+    }
+  });
+  window.addEventListener("keydown", onKey);
   // Furniture (P2 Furnish, live_aboard_furnish.js): a tool of its own on this
   // same draft, so one Save writes doors, windows, heights and furniture.
   const FUR_HINT = "Build adds a piece. Drag a piece to move it; tap it to change it.";
@@ -1279,6 +1301,7 @@ export function createEditor(ctx){
     /** A plan point on floor fid at height z, in client px (the harness presses it). */
     whereOf(fid, x, y, z = 1){ const F = ctx.floors().find(q => q.fl.id === fid); return F ? screenAt(F, x, y, z) : null; },
     dispose(){
+      window.removeEventListener("keydown", onKey);
       if (fur) fur.dispose();
       if (strip) strip.dispose();
       clearArcs();
