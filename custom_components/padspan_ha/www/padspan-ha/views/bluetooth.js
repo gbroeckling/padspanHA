@@ -46,6 +46,25 @@ function sigEl(el, rssi, opts) {
 
 // One relative-time formatter. There were two, character-identical, one in
 // each sub-tab; a third would have been written the next time.
+// "Find the one in my hand": what got louder at one receiver since Start.
+// base: {ADDR: rssi} when Start was pressed; ads: one row per address now.
+// An address not heard at Start counts from -100. Strongest jump first; only
+// jumps of HOLD_MIN_JUMP dB that now read at least HOLD_MIN_RSSI are kept
+// (a device held against a receiver reads well above that).
+export const HOLD_MIN_JUMP = 10, HOLD_MIN_RSSI = -70, HOLD_MAX = 15;
+export function holdNearRank(base, ads) {
+  const out = [];
+  for (const a of ads || []) {
+    const addr = String(a.address || "").toUpperCase();
+    if (!addr || !Number.isFinite(a.rssi)) continue;
+    const was = Number.isFinite(base && base[addr]) ? base[addr] : -100;
+    const jump = a.rssi - was;
+    if (jump >= HOLD_MIN_JUMP && a.rssi >= HOLD_MIN_RSSI) out.push({ ad: a, jump, fresh: !(base && addr in base) });
+  }
+  out.sort((x, y) => (y.jump - x.jump) || (y.ad.rssi - x.ad.rssi));
+  return out.slice(0, HOLD_MAX);
+}
+
 export function btAgo(sec) {
   const v = Number(sec);
   if (!isFinite(v)) return "\u2014";
@@ -606,7 +625,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
 
   const row = r => {
     const src  = String(r.source || "");
-    const name = String(r.name || "");
+    const name = String(r.display_name || r.name || "");
     const sid  = radioShortId ? radioShortId(src) : "";
     const meta = [];
     if (r.adapter) meta.push(`adapter: ${r.adapter}`);
@@ -936,9 +955,30 @@ function renderScanners(ctx, radios, sources, adsAll) {
       })
     : uniqueAds;
 
+  // Find the one in my hand: a baseline of this receiver's readings at Start,
+  // then what jumped since. Fresh ads only (a device just held up is fresh).
+  const hold = ctx.state._holdNear && ctx.state._holdNear.src === selSrc ? ctx.state._holdNear : null;
+  const freshAds = uniqueAds.filter(a => (a.age_s ?? 0) <= 30);
+  const holdRows = hold ? holdNearRank(hold.base, freshAds) : null;
+  if (hold && holdRows.length && !hold.found) {
+    hold.found = true;
+    if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("hold_near_found");
+  }
+  const startHold = () => {
+    const base = {};
+    for (const a of freshAds) base[String(a.address || "").toUpperCase()] = a.rssi;
+    ctx.state._holdNear = { src: selSrc, at: Date.now(), base };
+    if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("hold_near_started");
+    ctx.actions.renderRooms();
+  };
+  const stopHold = () => { ctx.state._holdNear = null; ctx.actions.renderRooms(); };
+  const tagAddrOf = (obj, addr) => !obj ? addr
+    : obj.kind === "private_ble" ? (obj.canonical_id || addr)
+    : obj.kind === "ibeacon" ? (obj.key || addr) : addr;
+
   const detailCard = el("div", { class: "bt-panel", style: "max-height:80vh;overflow-y:auto" });
   const selRadio = radios.find(r => String(r.source || "") === selSrc);
-  const selName = selRadio ? (selRadio.name || selSrc) : selSrc;
+  const selName = selRadio ? (selRadio.display_name || selRadio.name || selSrc) : selSrc;
   const _sid = ctx.helpers.radioShortId ? ctx.helpers.radioShortId(selSrc) : "";
   detailCard.appendChild(el("div", { class: "bt-panel-head" }, [
     _sid ? chip(el, _sid, "sid", selSrc) : null,
@@ -946,6 +986,42 @@ function renderScanners(ctx, radios, sources, adsAll) {
     el("div", { class: "bt-panel-sub" }, "Everything this scanner can hear, strongest first."),
     chip(el, `${_filteredAds.length} ${_quietMode ? "tracked" : "devices"}`, "quiet"),
   ].filter(Boolean)));
+
+  const holdBox = el("div", { class: "bt-hold", style: "margin:6px 0 10px;padding:8px 10px;border-radius:8px;background:rgba(82,183,136,.08);font-size:12px;line-height:1.45" });
+  if (!hold) {
+    holdBox.appendChild(el("div", {}, [
+      el("b", {}, "Find the one in your hand. "),
+      "Hold the device a few metres from this receiver and press Start. Then hold it right against the receiver for about 20 seconds (press a button on it if it has one). Whatever got louder comes up here, ready to tag.",
+    ]));
+    holdBox.appendChild(el("div", { style: "margin-top:6px" }, el("button", { class: "btn tiny", onclick: startHold }, "Start")));
+  } else {
+    const secs = Math.round((Date.now() - hold.at) / 1000);
+    holdBox.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
+      el("b", {}, holdRows.length ? "Got louder since Start:" : (secs < 20 ? `Listening… ${secs} s` : "Nothing got louder yet")),
+      el("button", { class: "btn tiny", onclick: startHold }, "Start again"),
+      el("button", { class: "btn tiny", onclick: stopHold }, "Done"),
+    ]));
+    for (const r of holdRows) {
+      const addr = String(r.ad.address || "").toUpperCase();
+      const obj = objByAddr.get(addr);
+      const label = obj ? (obj.user_label || obj.name || addr) : (r.ad.name && r.ad.name !== addr ? r.ad.name : addr);
+      holdBox.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:4px" }, [
+        el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, label),
+        el("span", { style: "color:#52b788;white-space:nowrap" }, r.fresh ? "new" : `+${Math.round(r.jump)} dB`),
+        sigEl(el, r.ad.rssi),
+        el("button", { class: "btn tiny", onclick: () => {
+          if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("hold_near_tagged");
+          ctx.actions.tagObjectPrompt(tagAddrOf(obj, addr), obj && obj.user_label || "");
+        } },
+          obj && obj.user_label ? "Relabel" : "Tag"),
+      ]));
+    }
+    if (!holdRows.length && secs >= 20) {
+      holdBox.appendChild(el("div", { style: "margin-top:4px;color:#94a3b8" },
+        "Readings here are smoothed over about 15 seconds, so give it a little longer. Most TV and air-conditioner remotes are infrared and send no Bluetooth at all, so they never show up."));
+    }
+  }
+  detailCard.appendChild(holdBox);
 
   if (!_filteredAds.length) {
     detailCard.appendChild(emptyState(el, "\u25CC",
@@ -1354,7 +1430,8 @@ function renderVisualization(ctx, radios, ads, objIndex) {
   const scannerNodes = srcs.map((src, i) => {
     const y = pad + 20 + (i + 1) * ((h - pad * 2 - 20) / (srcs.length + 1));
     const sid = _vizSid(src);
-    const name = radios.find(r => String(r.source || "") === src)?.name || src;
+    const _r = radios.find(r => String(r.source || "") === src);
+    const name = _r?.display_name || _r?.name || src;
     return { id: src, label: (sid ? "[" + sid + "] " : "") + name, x: scannerNodeX, y };
   });
 

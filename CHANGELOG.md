@@ -4,6 +4,23 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.132 — One name per receiver, find the device in your hand, walls explained (2026-10-16)
+
+### New
+- **Find the one in your hand.** In **Bluetooth → Scanners**, pick a receiver and press **Start** with the device a few metres away. Then hold it right against the receiver for about 20 seconds. Whatever got louder comes up with how much it jumped and a **Tag** button. Easier than hunting through thousands of unnamed devices. (Most TV and air-conditioner remotes are infrared and send no Bluetooth, so they won't show.)
+- **Custom walls take your own number.** In the map editor's RF Barriers, pick **Custom** and a **Loss through it** box (0–30 dB) appears. Under the material list there's a short note on what the numbers mean and a link to the new **Walls Guide**.
+- **Walls Guide** (docs/WALLS_GUIDE.md): where PadSpan's wall numbers come from (they're round starting points, and Custom 6 dB is the "don't know" wall), real-world ranges for drywall, brick, concrete, plaster on wire lath, coated glass and metal, and how to tell a wall is drawn too weak or too strong.
+- **Unknown phone** in Occupancy's Counted list has a **?** that says what it is (a phone changing its Bluetooth address) and what to do if it's yours, a visitor's or a neighbour's.
+
+### Fixed
+- **Each receiver now goes by one name everywhere.** It used to show as its HA area in one place, the scanner's own name with its MAC in another, "Room scanner (D7:1E)" in Live Aboard, and the bare MAC in others. Now it's the name you gave the device in Home Assistant, else HA's device name, else the scanner's own name without the MAC. Shown in Bluetooth, Monitor, Overview, Calibration's Live Radios, Settings, Presence, the Atlas radio list, scanner details and Live Aboard. Shelly and other proxies that only showed a MAC now show their HA name.
+- A door cut into a Custom wall kept 6 dB instead of the wall's own number.
+
+### Opt-in report
+- Find the one in your hand: `hold_near_started`, `hold_near_found` (something got louder) and `hold_near_tagged` (Tag pressed on one).
+
+---
+
 ## 0.38.131 — Smoke, gas and CO alarms join Emergency (2026-10-15)
 
 ### New

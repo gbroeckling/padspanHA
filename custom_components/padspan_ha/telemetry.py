@@ -245,6 +245,9 @@ EVENTS: frozenset[str] = frozenset({
     # The Atlas emergency lighting test (emergency_test.py): a test started,
     # ended (the lights already on left on), or ended with Force off.
     "emergency_test_on", "emergency_test_off", "emergency_force_off",
+    # Bluetooth → Scanners → Find the one in your hand (0.38.132): started,
+    # something got louder, and Tag was pressed on one of those.
+    "hold_near_started", "hold_near_found", "hold_near_tagged",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.

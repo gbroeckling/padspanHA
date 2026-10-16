@@ -154,7 +154,7 @@ export function render(ctx){
   const ads = (snap && snap.ble && snap.ble.advertisements) || [];
   if(radios.length > 0){
     const scannerData = {};
-    for(const r of radios) scannerData[r.source] = { name: r.name || r.source, devs: 0, radio: r };
+    for(const r of radios) scannerData[r.source] = { name: r.display_name || r.name || r.source, devs: 0, radio: r };
     for(const ad of ads){
       const src = ad.source || "";
       if(!scannerData[src]) scannerData[src] = { name: src, devs: 0, radio: null };
@@ -483,7 +483,7 @@ function _insights(ctx, el, _sid){
       const avg = q && q.count > 0 ? Math.round(q.rssiSum / q.count) : null;
       const { label: grade, color: gradeColor } = _qualityGrade(avg);
       const radio = radios.find(r=>r.source===src);
-      const name = (radio && radio.name) || src;
+      const name = (radio && (radio.display_name || radio.name)) || src;
       const tr = el("tr",{style:"cursor:pointer"});
       tr.addEventListener("mouseenter", ()=>{ tr.style.background = "rgba(255,255,255,0.04)"; });
       tr.addEventListener("mouseleave", ()=>{ tr.style.background = ""; });
@@ -566,7 +566,7 @@ function _insights(ctx, el, _sid){
   if(unmappedScanners.length > 0){
     const scanLinks = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
     for(const s of unmappedScanners){
-      const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, s.name||s.source);
+      const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, s.display_name||s.name||s.source);
       chip.addEventListener("click", ()=>ctx.actions.showScannerDetail(s));
       scanLinks.appendChild(chip);
     }

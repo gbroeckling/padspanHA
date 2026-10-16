@@ -475,7 +475,7 @@ function _scannerMap(ctx, el, haFloors){
       el("span",{class:"badge warn",style:"font-size:9px;margin-left:auto"},unplacedRadios.length),
     ]));
     for(const r of unplacedRadios){
-      const name = r.area_name || r.area || r.name || r.source || "?";
+      const name = r.display_name || r.area_name || r.area || r.name || r.source || "?";
       unplacedCard.appendChild(el("div",{
         style:"display:grid;grid-template-columns:1fr auto auto;gap:5px;align-items:center;padding:3px 6px;background:#0a150e;border-radius:5px;margin-bottom:2px"
       },[
@@ -508,7 +508,7 @@ function _scannerMap(ctx, el, haFloors){
     // Name lookup helper
     const radioName = (src) => {
       const r = radios.find(r=>r.source===src);
-      return r ? (r.area_name||r.area||r.name||src) : src;
+      return r ? (r.display_name||r.area_name||r.area||r.name||src) : src;
     };
     const sortedSources = [...calSources].sort((a,b)=>radioName(a).localeCompare(radioName(b)));
 
@@ -587,7 +587,7 @@ function _scannerMap(ctx, el, haFloors){
 
     const radioName = (src) => {
       const r = radios.find(r=>r.source===src);
-      return r ? (r.area_name||r.area||r.name||src) : src;
+      return r ? (r.display_name||r.area_name||r.area||r.name||src) : src;
     };
     const rlSorted = [...calSources].sort((a,b)=>radioName(a).localeCompare(radioName(b)));
 

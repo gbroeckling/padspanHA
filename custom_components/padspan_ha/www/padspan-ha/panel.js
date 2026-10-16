@@ -2578,7 +2578,8 @@ class PadSpanHaApp extends HTMLElement {
           const s = String(source || "");
           const radios = (self.state.live?.snapshot?.ble?.radios) || [];
           const r = radios.find(r => String(r.source || "") === s);
-          return (r && r.name && r.name !== s) ? r.name : "";
+          const n = r && (r.display_name || r.name);
+          return (n && n !== s) ? n : "";
         },
         scannerStatus,
         roomColor: (n)=>roomColor(n, this.state.model),
@@ -3472,7 +3473,7 @@ class PadSpanHaApp extends HTMLElement {
       };
     }).sort((a,b) => (b.srcRssi ?? -999) - (a.srcRssi ?? -999));
 
-    const name = scanner.name || scanner.source || "Scanner";
+    const name = scanner.display_name || scanner.name || scanner.source || "Scanner";
     const sid  = radioShortId(scanner.source || "");
     const body = el("div", {style:"display:flex;flex-direction:column;gap:14px"});
 

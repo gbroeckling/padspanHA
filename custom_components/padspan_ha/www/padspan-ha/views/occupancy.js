@@ -86,6 +86,7 @@ async function _loadOccupancy(ctx, el, container) {
           p.name + ((p.aliases || []).length ? ` (${p.aliases.join(", ")})` : "")),
         el("span", { style: "color:#e2e8f0" }, (p.room || "not placed") + (p.assumed ? " (assumed)" : "")),
         el("span", { style: "color:#64748b;font-size:11px" }, p.via || ""),
+        p.name === "Unknown phone" && ctx.helpers.helpBtn ? ctx.helpers.helpBtn("unknown_phone") : null,
       ]));
     }
     container.appendChild(peopleCard);

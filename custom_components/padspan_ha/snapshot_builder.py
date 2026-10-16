@@ -57,6 +57,7 @@ from .presence_rules import away_timeout_s, is_away
 from .util import ha_devices
 from .ws_common import (
     RadioDeviceIndex,
+    radio_display_name,
     _ALL_ADDR_CAP,
     _DATA_SNAPSHOT_CACHE,
     _DATA_SNAPSHOT_CACHE_LOCK,
@@ -727,14 +728,14 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         for radio in ((snapshot.get("ble") or {}).get("radios") or []):
             match = index.resolve(radio.get("source"), radio.get("name"))
             radio["device_match"] = match.reason
-            if match.device is None:
-                continue
-            if not radio.get("device_id"):
-                radio["device_id"] = match.device.id
-            if not radio.get("area_name") and match.device.area_id:
-                area = area_names.get(match.device.area_id, "")
-                if area:
-                    radio["area_name"] = area
+            if match.device is not None:
+                if not radio.get("device_id"):
+                    radio["device_id"] = match.device.id
+                if not radio.get("area_name") and match.device.area_id:
+                    area = area_names.get(match.device.area_id, "")
+                    if area:
+                        radio["area_name"] = area
+            radio["display_name"] = radio_display_name(radio, match.device)
     except Exception:
         pass
 

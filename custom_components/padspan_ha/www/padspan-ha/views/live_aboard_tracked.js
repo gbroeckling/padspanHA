@@ -258,9 +258,12 @@ export function seenText(age){
   if (a < 5400) return `Seen ${Math.round(a / 60)} min ago`;
   return `Seen ${Math.round(a / 3600)} h ago`;
 }
-/** A scanner's name: its room on the map and the end of its address, as
- *  People & devices names it ("Living Room scanner (D7:1E)"). */
-export function scannerName(addr, model){
+/** A scanner's name: the one name the panel gives it everywhere (the live
+ *  radio's display_name), else its room on the map and the end of its
+ *  address ("Living Room scanner (D7:1E)"). */
+export function scannerName(addr, model, radios){
+  const live = Array.isArray(radios) ? radios.find(r => r && String(r.source || "") === String(addr || "")) : null;
+  if (live && live.display_name) return live.display_name;
   const info = model && model.scanners && typeof model.scanners === "object" ? model.scanners[addr] : null;
   const end = String(addr || "").slice(-5);
   return info && info.room ? `${info.room} scanner (${end})` : `Scanner ${addr}`;
@@ -268,7 +271,7 @@ export function scannerName(addr, model){
 /** What a tapped tag says: {title, lines}. Its room, when last heard, and
  *  which scanners hear it, the strongest first; pinned, that it is, and how
  *  far from its pin PadSpan reads it now. */
-export function tagCard(o, model, pin){
+export function tagCard(o, model, pin, radios){
   const lines = [o.room ? `In ${o.room}` : "Room not known"];
   if (pin) {
     lines.push("Pinned on the map: it stands at its pin");
@@ -278,7 +281,7 @@ export function tagCard(o, model, pin){
   if (seen) lines.push(seen);
   const heard = (o.heard || []).slice().sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
   if (heard.length) {
-    const names = heard.slice(0, HEARD_MAX).map(s => scannerName(s.source, model).replace(/ scanner \(/, " ("));
+    const names = heard.slice(0, HEARD_MAX).map(s => scannerName(s.source, model, radios).replace(/ scanner \(/, " ("));
     lines.push(`Heard by: ${names.join(", ")}${heard.length > HEARD_MAX ? ` and ${heard.length - HEARD_MAX} more` : ""}`);
   } else lines.push("No scanner hears it right now");
   return { title: o.label || "Tag", lines };
@@ -306,9 +309,9 @@ export function personCard(P, st, roomSince){
   return { title: P.name, lines };
 }
 /** What a tapped scanner says: where it is and how high. */
-export function scannerCard(addr, model, z){
+export function scannerCard(addr, model, z, radios){
   const info = model && model.scanners && typeof model.scanners === "object" ? model.scanners[addr] : null;
-  return { title: scannerName(addr, model), lines: [info && info.room ? `In ${info.room}` : "On the map", `${(Math.round(z * 100) / 100).toFixed(2)} m above the floor`] };
+  return { title: scannerName(addr, model, radios), lines: [info && info.room ? `In ${info.room}` : "On the map", `${(Math.round(z * 100) / 100).toFixed(2)} m above the floor`] };
 }
 
 /** What is drawn now, Live Aboard's and the flat Atlas's alike (the sidebar's
@@ -321,13 +324,14 @@ export function wantedOf(d){
   const out = [];
   const looks = d.looks && typeof d.looks === "object" ? d.looks : {};
   const lookOf = (k) => (looks[k] && looks[k].recipe && typeof looks[k].recipe === "object" ? looks[k].recipe : null);
+  const radios = (d.snapshot && d.snapshot.ble && d.snapshot.ble.radios) || null;
   const sp = d.model && d.model.scanner_positions_m && typeof d.model.scanner_positions_m === "object" ? d.model.scanner_positions_m : {};
   for (const [addr, s] of Object.entries(sp)) {
     const r = lookOf(addr), x = fin(s && s.x_m), y = fin(s && s.y_m);
     if ((!r && !d.tags) || x === null || y === null) continue;
     const z = fin(s.z_m) ?? SCANNER_Z;
     out.push({ key: "scanner:" + addr, kind: "scanner", recipe: r, floor_id: s.floor_id, x, y, z, centre: true,
-               card: scannerCard(addr, d.model, z) });
+               card: scannerCard(addr, d.model, z, radios) });
   }
   if (!d.people && !d.tags) return out;
   const tracked = trackedOf(d.snapshot);
@@ -339,7 +343,7 @@ export function wantedOf(d){
       if (!o.beacon || !(o.shown || r) || theirs.has(o.key) || (o.roomOnly && !pin)) continue;
       out.push({ key: "beacon:" + o.key, kind: "beacon", recipe: r, floor_id: pin ? pin.floor_id || o.floor_id : o.floor_id,
                  x: pin ? pin.x : o.x, y: pin ? pin.y : o.y, z: pin && pin.z !== null ? pin.z : CARRY_H, centre: true, pinned: !!pin,
-                 name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin) });
+                 name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin, radios) });
     }
   }
   const figs = d.figures && typeof d.figures === "object" ? d.figures : {};

@@ -183,7 +183,7 @@ export function render(ctx){
       const _ovRn = ctx.helpers.radioName(x.source);
       const tr = el("tr",{},[
         el("td",{style:"font-family:monospace;font-weight:700;font-size:12px;letter-spacing:.04em",title:(_ovRn?_ovRn+" \u00b7 ":"")+(x.source||"")}, _sid(x.source)),
-        el("td",{}, x.name || ""),
+        el("td",{}, x.display_name || x.name || ""),
         el("td",{}, x.source || ""),
         el("td",{}, (x.adapter!=null?String(x.adapter):"")),
         el("td",{}, (x.scanning==null?"":String(x.scanning))),

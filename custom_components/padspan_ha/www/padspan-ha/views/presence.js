@@ -66,7 +66,7 @@ export function render(ctx){
     for(const r of radios){
       const src = String(r.source || "");
       if(src){
-        radioNames[src] = r.name || src;
+        radioNames[src] = r.display_name || r.name || src;
         if(r.area_name) radioAreas[src] = r.area_name;
       }
     }

@@ -902,10 +902,10 @@ function _setup(ctx, el, cs, calData) {
       for (const r of radios) {
         const seen = ads.filter(a => a.source === r.source).length;
         const beaconHere = cs.deviceId ? !!_beaconResult.perRadio[r.source] : false;
-        // Prefer area name (room) over raw adapter name
+        // The receiver's one name (as everywhere else), its room underneath
         const sid = _sid(r.source || "");
-        const displayName = (sid ? sid+" " : "") + (r.area_name || r.area || r.name || r.source || "?");
-        const subLabel = (r.area_name || r.area) && r.name && r.name !== r.source ? r.name : "";
+        const displayName = (sid ? sid+" " : "") + (r.display_name || r.area_name || r.area || r.name || r.source || "?");
+        const subLabel = r.display_name ? (r.area_name || r.area || "") : ((r.area_name || r.area) && r.name && r.name !== r.source ? r.name : "");
         const nameEl = el("div", { style: "flex:1;min-width:80px" }, [
           el("span", { style: "font-size:12px;font-weight:600" }, displayName),
           ...(subLabel ? [el("span", { style: "font-size:10px;color:#78909c;display:block;font-family:monospace" }, subLabel)] : []),

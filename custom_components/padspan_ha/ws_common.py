@@ -522,6 +522,33 @@ def _device_label(dev: Any) -> str:
                or getattr(dev, "id", "") or "")
 
 
+_NAME_MAC_TAIL_RE = re.compile(r"\s*\((?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\)\s*$")
+
+
+def radio_display_name(radio: dict, device: Any = None) -> str:
+    """The one name a receiver goes by everywhere in the panel.
+
+    The name the user gave it in Home Assistant first (that's what they see in
+    HA too), then HA's own device name, then the scanner's name with its
+    "(AA:BB:..)" tail dropped, then "<area> receiver", then the raw source.
+    """
+    src = str(radio.get("source") or "")
+    if device is not None:
+        for attr in ("name_by_user", "name"):
+            v = str(getattr(device, attr, None) or "").strip()
+            if v:
+                return v
+    raw = str(radio.get("name") or "").strip()
+    if raw and raw != src:
+        cleaned = _NAME_MAC_TAIL_RE.sub("", raw).strip()
+        if cleaned and _norm_mac(cleaned) == "":
+            return cleaned
+    area = str(radio.get("area_name") or "").strip()
+    if area:
+        return f"{area} receiver"
+    return src
+
+
 class RadioMatch(NamedTuple):
     """device is None unless exactly one device was identified.
 

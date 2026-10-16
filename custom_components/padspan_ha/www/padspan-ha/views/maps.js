@@ -174,6 +174,7 @@ function _tabBtn(id,label,active,setTab){
 // Sentinel floor_id for outdoor/exterior maps — treated specially in the
 // 3D stack (fitted inside the indoor bounding box rather than its own slab).
 const OUTSIDE_FLOOR_ID = "__outside__";
+const WALLS_GUIDE_URL = "https://github.com/gbroeckling/padspanHA/blob/main/docs/WALLS_GUIDE.md";
 function _isOutsideMap(m) { return (m.floor_id || "") === OUTSIDE_FLOOR_ID; }
 
 // Resolve a floor_id to a human-readable name from the HA floor registry.
@@ -1693,6 +1694,13 @@ function _edit(ctx, map, allMaps){
   const _wallFloor = () => String(ctx.state.maps._draftFloorId || map.floor_id || "main");
   const _MAT_ATTEN = {metal:12, concrete:8, brick:4, custom:6, open:0};
   const _MAT_COLORS = {metal:"#ef4444",concrete:"#f97316",brick:"#eab308",custom:"#a855f7",open:"#38bdf8"};
+  // Custom is the one material with a number the user sets (0–30 dB, 6 until
+  // they do): an old plaster-and-lath wall, a thick stone one, a glass block.
+  const _customDb = () => {
+    const v = Number(ctx.state.maps._barrierCustomDb);
+    return Number.isFinite(v) && ctx.state.maps._barrierCustomDb !== "" ? Math.max(0, Math.min(30, v)) : 6;
+  };
+  const _attenFor = (mat) => mat === "custom" ? _customDb() : (_MAT_ATTEN[mat] ?? 6);
   const _fabricWallsHere = () => {
     const tf = _wallTx(); if (!tf) return [];
     const fid = _wallFloor();
@@ -1751,7 +1759,9 @@ function _edit(ctx, map, allMaps){
     const toMetres = (fracPts) => fracPts.map(p => mapFracToMetres(tf, clamp01(p[0]), clamp01(p[1])))
       .map(q => [Math.round(q[0] * 1000) / 1000, Math.round(q[1] * 1000) / 1000]);
     const fid = _wallFloor();
-    const atten = _MAT_ATTEN[material] ?? bar.attenuation_dbm ?? 6;
+    // A custom door in a custom wall keeps the wall's own number.
+    const atten = (material === "custom" && bar.material === "custom")
+      ? (bar.attenuation_dbm ?? 6) : (_MAT_ATTEN[material] ?? bar.attenuation_dbm ?? 6);
     const setBarrier = (barrier) => ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier });
     try {
       let doorId = null;
@@ -2213,7 +2223,7 @@ function _edit(ctx, map, allMaps){
           row.appendChild(el("span",{style:"font-family:monospace;font-weight:700;font-size:10px;color:#94a3b8;white-space:nowrap"}, sid));
           // Name + room
           const info = el("div",{style:"flex:1;min-width:0"});
-          info.appendChild(el("div",{style:"font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, radio.name || radio.source || "Unknown"));
+          info.appendChild(el("div",{style:"font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, radio.display_name || radio.name || radio.source || "Unknown"));
           const _netParts = [radio.area_name || "no room"];
           if(radio.ip) _netParts.push(radio.ip);
           if(radio.ssid) _netParts.push(radio.ssid);
@@ -2266,10 +2276,21 @@ function _edit(ctx, map, allMaps){
         matSel.appendChild(o);
       }
       matSel.value = ctx.state.maps._barrierMaterial || "metal";
-      matSel.addEventListener("change", ()=>{ ctx.state.maps._barrierMaterial = matSel.value; });
+      matSel.addEventListener("change", ()=>{ ctx.state.maps._barrierMaterial = matSel.value; renderTools(); });
       right.appendChild(el("div",{style:"margin-top:8px"},[
         el("div",{class:"muted",style:"font-size:12px;margin-bottom:4px"}, "Material"),
         matSel,
+      ]));
+      if (matSel.value === "custom") {
+        const dbIn = el("input",{type:"number", class:"input", min:"0", max:"30", step:"1",
+          value:String(_customDb()), style:"width:70px"});
+        dbIn.addEventListener("change", ()=>{ ctx.state.maps._barrierCustomDb = dbIn.value; dbIn.value = String(_customDb()); });
+        right.appendChild(el("div",{style:"margin-top:6px;display:flex;align-items:center;gap:6px;font-size:12px"},
+          [el("span",{class:"muted"},"Loss through it"), dbIn, el("span",{class:"muted"},"dB")]));
+      }
+      right.appendChild(el("div",{class:"muted", style:"margin-top:6px;font-size:11px;line-height:1.4"}, [
+        "These are rough starting points, not measurements of your house. Drywall is about 3 dB, an old plaster wall on wire mesh can be 10+ (pick Metal or Custom). ",
+        el("a",{href:WALLS_GUIDE_URL, target:"_blank", rel:"noopener"}, "Which material?"),
       ]));
 
       // Drawing controls
@@ -2286,7 +2307,7 @@ function _edit(ctx, map, allMaps){
         const mat = ctx.state.maps._barrierMaterial || "metal";
         const pts = d.points.slice();
         ctx.state.maps._drawing = null;
-        const id = await _placeWall(`Wall ${_fabricWallsHere().length + 1}`, mat, _MAT_ATTEN[mat] ?? 6, pts);
+        const id = await _placeWall(`Wall ${_fabricWallsHere().length + 1}`, mat, _attenFor(mat), pts);
         if (id) ctx.state.maps._selectedBarrierId = id;
         renderAll(); renderTools();
       }}, `Finish (${bPts} pts)`);
@@ -2855,7 +2876,7 @@ function _edit(ctx, map, allMaps){
       ctx.state.maps._drawing = null;
       if(pts.length >= 2){
         const mat = ctx.state.maps._barrierMaterial || "metal";
-        _placeWall(`Wall ${_fabricWallsHere().length + 1}`, mat, _MAT_ATTEN[mat] ?? 6, pts)
+        _placeWall(`Wall ${_fabricWallsHere().length + 1}`, mat, _attenFor(mat), pts)
           .then(id => { if (id) ctx.state.maps._selectedBarrierId = id; renderAll(); renderTools(); });
       }
       renderAll(); renderTools();
