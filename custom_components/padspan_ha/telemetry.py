@@ -521,6 +521,12 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "snap_ha_areas_ms": ("snap_ha_areas", ("p50", "p95")),
     "snap_ha_tags_ms": ("snap_ha_tags", ("p50", "p95")),
     "snap_ha_radios_ms": ("snap_ha_radios", ("p50", "p95")),
+    # HA's registries (devices, entity rows) and the most devices sharing one
+    # name: the receiver match was quadratic in that (4,000 → 1.5 s a build,
+    # fixed 0.38.136); whether that shape is what slows the "ha" phase.
+    "ha_devices_n": ("ha_devices", ("max",)),
+    "ha_entities_n": ("ha_entities", ("max",)),
+    "dev_same_name_max": ("dev_dup", ("max",)),
     # How steady the house's own (identified) objects sit, per poll: how many,
     # the share with no room, receivers hearing each in the last 30 s, and room
     # changes per hour (all of them; per object = that over pos_objects_n).

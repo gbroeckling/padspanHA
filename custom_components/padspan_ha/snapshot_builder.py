@@ -745,6 +745,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         ar_reg = area_registry.async_get(hass)
         area_names = {a.id: a.name for a in ar_reg.async_list_areas()}
         index = RadioDeviceIndex(hass)
+        # The registries' size, and the most devices sharing one name: the
+        # match above was quadratic in that (fixed 0.38.136), and a slow "ha"
+        # phase on some Bermuda houses is still unexplained (opt-in report).
+        record_duration(hass, "ha_devices", float(index.devices_n))
+        record_duration(hass, "dev_dup", float(index.same_name_max))
+        record_duration(hass, "ha_entities", float(len(entity_registry.async_get(hass).entities)))
         for radio in ((snapshot.get("ble") or {}).get("radios") or []):
             match = index.resolve(radio.get("source"), radio.get("name"))
             radio["device_match"] = match.reason

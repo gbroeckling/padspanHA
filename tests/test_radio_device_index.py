@@ -180,3 +180,28 @@ def test_a_two_character_name_is_not_a_containment_match(index) -> None:
 def test_a_device_with_no_name_is_not_a_candidate(index) -> None:
     m = index([_Dev("d1", None), _Dev("d2", "Kitchen Hub")]).resolve("kitchen_hub")
     assert m.device.id == "d2"
+
+
+def test_many_same_named_devices_index_in_linear_time():
+    """The index de-duplicated with `dev not in bucket`, comparing whole
+    entries field by field (HA's DeviceEntry): quadratic in devices sharing a
+    name (4,000 took 1.5 s with real HA objects, on every snapshot build).
+    Membership is by identity now, so no entry is ever compared."""
+    compared = [0]
+
+    class _Costly(_Dev):
+        def __eq__(self, other):
+            compared[0] += 1
+            return self is other
+        __hash__ = object.__hash__
+
+    devs = [_Costly(f"d{i}", "Same Name") for i in range(3000)]
+    reg = MagicMock()
+    reg.devices = {d.id: d for d in devs}
+    from unittest.mock import patch
+    import custom_components.padspan_ha.ws_common as WC
+    with patch.object(_dr_mod, "async_get", return_value=reg), patch.object(WC, "ha_devices", lambda r: devs):
+        idx = RadioDeviceIndex(MagicMock())
+        assert idx.resolve("same_name").reason == "ambiguous"
+    assert compared[0] == 0
+    assert idx.same_name_max == 3000 and idx.devices_n == 3000

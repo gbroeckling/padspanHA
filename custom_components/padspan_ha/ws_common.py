@@ -587,6 +587,11 @@ class RadioDeviceIndex:
     def __init__(self, hass: HomeAssistant) -> None:
         self._by_slug: dict[str, list] = {}
         self._by_mac: dict[str, list] = {}
+        # Membership by id, beside each list: `dev not in bucket` compared
+        # whole DeviceEntry objects, quadratic in devices sharing a name
+        # (4,000 same-named devices took 1.5 s, on every snapshot build).
+        seen_slug: dict[str, set[int]] = {}
+        seen_mac: dict[str, set[int]] = {}
         try:
             from homeassistant.helpers import device_registry  # noqa: PLC0415
             devices = ha_devices(device_registry.async_get(hass))
@@ -597,19 +602,26 @@ class RadioDeviceIndex:
         for dev in sorted(devices, key=lambda d: str(getattr(d, "id", ""))):
             for cand in (getattr(dev, "name_by_user", None), getattr(dev, "name", None)):
                 slug = radio_slug(cand)
-                if slug:
-                    bucket = self._by_slug.setdefault(slug, [])
-                    if dev not in bucket:
-                        bucket.append(dev)
+                if slug and id(dev) not in seen_slug.setdefault(slug, set()):
+                    seen_slug[slug].add(id(dev))
+                    self._by_slug.setdefault(slug, []).append(dev)
             for conn in (getattr(dev, "connections", None) or set()):
                 try:
                     mac = _norm_mac(conn[1])
                 except (IndexError, TypeError):
                     continue
-                if mac:
-                    bucket = self._by_mac.setdefault(mac, [])
-                    if dev not in bucket:
-                        bucket.append(dev)
+                if mac and id(dev) not in seen_mac.setdefault(mac, set()):
+                    seen_mac[mac].add(id(dev))
+                    self._by_mac.setdefault(mac, []).append(dev)
+
+    @property
+    def devices_n(self) -> int:
+        return len({id(d) for b in self._by_slug.values() for d in b})
+
+    @property
+    def same_name_max(self) -> int:
+        """The most devices sharing one name (for the opt-in report)."""
+        return max((len(b) for b in self._by_slug.values()), default=0)
 
     def _result(self, hits: list, reason: str) -> RadioMatch | None:
         if len(hits) == 1:
@@ -634,9 +646,11 @@ class RadioDeviceIndex:
         # 2. The whole name, not part of one. "btproxy_livingroom" matches the
         #    device of that name and does not match "btproxy".
         exact: list = []
+        seen: set[int] = set()
         for key in sorted(keys):
             for dev in self._by_slug.get(key, []):
-                if dev not in exact:
+                if id(dev) not in seen:
+                    seen.add(id(dev))
                     exact.append(dev)
         found = self._result(exact, "name")
         if found:
@@ -648,12 +662,14 @@ class RadioDeviceIndex:
         #    Room Hub BLE Proxy" against "living_room_hub"). Demanding
         #    uniqueness is what stops a shared prefix claiming three scanners.
         partial: list = []
+        seen = set()
         for slug, devs in self._by_slug.items():
             if len(slug) < _MIN_PARTIAL_LEN:
                 continue
             if any(slug in k or (len(k) >= _MIN_PARTIAL_LEN and k in slug) for k in keys):
                 for dev in devs:
-                    if dev not in partial:
+                    if id(dev) not in seen:
+                        seen.add(id(dev))
                         partial.append(dev)
         found = self._result(partial, "partial")
         if found:

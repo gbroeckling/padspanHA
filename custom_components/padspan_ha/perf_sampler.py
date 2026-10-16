@@ -116,6 +116,8 @@ METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", 
                             # how steady identified objects sit (presence_coordinator
                             # _note_steadiness), and the occupancy estimate (ws_occupancy)
                             "pos_n", "pos_unk", "pos_heard", "pos_chg", "occ_unk", "occ_conf",
+                            # HA's device and entity registries, the most same-named devices
+                            "ha_devices", "ha_entities", "dev_dup",
                             # Bermuda: its entities and devices, and what the "ha" phase
                             # works through for them (raw_counts in the snapshot)
                             "bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing",

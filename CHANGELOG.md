@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.136 — Faster snapshot builds in houses with many same-named devices (2026-10-16)
+
+### Fixed
+- Matching each receiver to its Home Assistant device took longer the more devices shared a name, and it ran on every snapshot build. 4,000 same-named devices cost 1.5 seconds a build, during which Home Assistant was frozen. It now takes a few milliseconds whatever the count.
+
+### Opt-in report
+- The size of Home Assistant's device and entity registries, and the most devices sharing one name. Some Bermuda houses spend 3 to 16 seconds per build in this part, and this shows whether that shape is why.
+
+---
+
 ## 0.38.135 — Stable: Live Aboard grows up, one name per receiver, smoke and CO alarms (2026-10-16)
 
 - **Coming from 0.38.124?** This stable brings in everything from the 0.38.125–0.38.134 betas below:

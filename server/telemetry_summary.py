@@ -355,6 +355,9 @@ def snapshot_section(latest: dict[str, dict]) -> list[str]:
                      f" tags {pp(r, 'snap_ha_tags_ms')} radios {pp(r, 'snap_ha_radios_ms')}")
         st = _perf_stat(r, "ha_states_n", "max")
         line += f" | states {st:g}" if st is not None else ""
+        for label, m in (("devices", "ha_devices_n"), ("entity rows", "ha_entities_n"), ("same-name max", "dev_same_name_max")):
+            v = _perf_stat(r, m, "max")
+            line += f" {label} {v:g}" if v is not None else ""
         out.append(line)
     return out
 
