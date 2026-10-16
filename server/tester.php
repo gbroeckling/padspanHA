@@ -40,7 +40,7 @@
 // home read-only.
 $DIR = __DIR__ . '/../../../private/padspan-testers';
 $MAX = 4096;
-$MAX_RECORDS = 500;
+$MAX_RECORDS = 30;              // Garry, 2026-10-16: no more than 30 testers for now (each gets two years of Pro)
 $MAX_NEW_PER_DAY = 100;
 $MAX_KEYS_PER_DAY = 5;           // automatic tester keys a day (tester_key below)
 
@@ -162,6 +162,29 @@ function licence_call($action, $fields, $secret) {
     $d = is_string($out) ? json_decode(ltrim($out, "\xEF\xBB\xBF"), true) : null;
     return is_array($d) ? $d : null;
 }
+// The list is full: switch the tester offer off in private/padspan-offers.json,
+// the same switch pro_invites.py flips, so panels from 0.38.133 stop offering
+// it (the update check's answer) and the developer hears about it. A place
+// that opens later does not switch it back on: that is the developer's call.
+function tester_offer_full($count) {
+    $f = __DIR__ . '/../../../private/padspan-offers.json';
+    $cur = json_decode((string)@file_get_contents($f), true);
+    if (!is_array($cur)) { $cur = array(); }
+    $was_on = !isset($cur['tester']) || $cur['tester'] !== false;
+    $out = array('tester' => false, 'invite' => !(isset($cur['invite']) && $cur['invite'] === false));
+    $tmp = $f . '.tmp';
+    $ok = @file_put_contents($tmp, json_encode($out)) !== false && @rename($tmp, $f);
+    if ($was_on) {
+        tester_note('Tester list full: offer switched off',
+            "The tester list reached $count, so the tester offer was switched " . ($ok ? 'off' : 'OFF FAILED - do it by hand') .
+            ".
+New sign-ups are refused politely until a place opens; the offer stays off until you switch it on:
+" .
+            "  sudo -u www-data python3 /var/www/clients/client1/web10/private/pro_invites.py offer tester on
+");
+    }
+}
+
 function tester_key($email, $dir, $max_per_day) {
     $hand = "Issue it by hand if it should go (licence API, plan tester).\n\n  email: $email\n";
     // The offer switched off in private/padspan-offers.json ({"tester": false}).
@@ -318,7 +341,8 @@ if (isset($r['link_install_id']) && is_string($r['link_install_id'])
 
 $today = gmdate('Y-m-d');
 $now = gmdate('c');
-$result = with_store($DIR, function (&$db) use ($id, $rec, $today, $now, $MAX_RECORDS, $MAX_NEW_PER_DAY) {
+$count = 0;
+$result = with_store($DIR, function (&$db) use ($id, $rec, $today, $now, $MAX_RECORDS, $MAX_NEW_PER_DAY, &$count) {
     $old = (isset($db['testers'][$id]) && is_array($db['testers'][$id])) ? $db['testers'][$id] : null;
     if ($old === null) {
         if (count($db['testers']) >= $MAX_RECORDS) { return array('full', false); }
@@ -331,6 +355,7 @@ $result = with_store($DIR, function (&$db) use ($id, $rec, $today, $now, $MAX_RE
     $rec['created'] = ($old !== null && isset($old['created'])) ? $old['created'] : $now;
     $rec['updated'] = $now;
     $db['testers'][$id] = $rec;   // replaced whole: whatever was left out is gone
+    $count = count($db['testers']);
     return array($old === null ? 'new' : 'ok', true);
 });
 if ($result === null) { reply(500, 'store', 'The server could not save it right now. Nothing was kept - please try again later.'); }
@@ -345,6 +370,7 @@ if ($result === 'new') {
     echo json_encode(array('ok' => true));
     if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
     tester_key($rec['contact']['email'], $DIR, $MAX_KEYS_PER_DAY);
+    if ($count >= $MAX_RECORDS) { tester_offer_full($count); }
     exit;
 }
 reply(200);
