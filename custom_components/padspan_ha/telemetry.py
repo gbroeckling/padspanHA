@@ -330,10 +330,21 @@ UI_ERRORS: frozenset[str] = frozenset(
 TRIAL_SURFACES: tuple[str, ...] = ("overview", "atlas", "placement", "maps", "locate", "busy_times", "settings",
                                    "update_banner", "milestone", "sidebar")
 GETTING_STARTED_STEPS: tuple[str, ...] = ("upload", "scale", "rooms", "scanners", "calibrate", "positioned", "trial")
+# The free-Pro cards (views/pro_invite.js): an invite shown (once per page, on
+# Overview or in Settings → PadSpan licence), put off, claimed, refused by the
+# server, or declined; the one-time "test it, get Pro free" card shown, and
+# its "No thanks" / ✕ (free_pro_card_*: no word of testing or signing up
+# may enter the report, tests/test_tester.py). Whether anyone sees them, and
+# what they do. Never who.
+PRO_OFFER_EVENTS: frozenset[str] = frozenset(
+    {"pro_invite_shown:overview", "pro_invite_shown:settings", "pro_invite_later", "pro_invite_claimed",
+     "pro_invite_claim_failed", "pro_invite_declined", "free_pro_card_shown", "free_pro_card_no"}
+)
 OFFER_EVENTS: frozenset[str] = frozenset(
     {f"{what}:{s}" for what in ("trial_offer_shown", "trial_started", "trial_failed") for s in TRIAL_SURFACES}
     | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
     | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
+    | PRO_OFFER_EVENTS
 )
 # Atlas outdoor weather (views/atlas_weather.js — the same three lists there,
 # held equal by tests/test_atlas_weather.py). Each counted once per page load

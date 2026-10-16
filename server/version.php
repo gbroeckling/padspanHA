@@ -29,4 +29,18 @@ $manifest = @file_get_contents($manifest_file);
 if ($manifest === false) {
     $manifest = json_encode(array('latest_stable' => null, 'latest_beta' => null));
 }
+// The free-Pro offers' switches (private/padspan-offers.json, e.g.
+// {"tester": true, "invite": true}), merged in as "offers". Kept apart from
+// latest.json, which every release rewrites. An install from 0.38.133 on hides
+// an offer switched off here; telemetry.php, tester.php and the licence
+// server's invite_claim read the same file. Only these two names, as booleans.
+$offers = json_decode((string)@file_get_contents('/var/www/clients/client1/web10/private/padspan-offers.json'), true);
+$m = json_decode($manifest, true);
+if (is_array($offers) && is_array($m)) {
+    $out = array();
+    foreach (array('tester', 'invite') as $k) {
+        if (isset($offers[$k]) && is_bool($offers[$k])) { $out[$k] = $offers[$k]; }
+    }
+    if ($out) { $m['offers'] = $out; $manifest = json_encode($m, JSON_UNESCAPED_SLASHES); }
+}
 echo $manifest;

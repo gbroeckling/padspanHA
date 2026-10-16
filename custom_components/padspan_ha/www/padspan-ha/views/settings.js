@@ -28,7 +28,7 @@ const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.met
 // Optional: free Pro by invite or by testing (pro_invite.js).
 const PRO = await import(`./pro_invite.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: pro_invite failed to load", err);
-    return { inviteCard: () => null, inviteHostFromCtx: () => null, TESTER_CARD_BODY_SHORT: "" }; });
+    return { inviteCard: () => null, inviteHostFromCtx: () => null, TESTER_CARD_BODY_SHORT: "", testerOfferOn: () => false }; });
 // Optional as well: only the Atlas weather section's "Automatic — …" labels
 // and warning list need it.
 const WX = await import(`./atlas_weather.js${new URL(import.meta.url).search}`)
@@ -2986,9 +2986,9 @@ function _settingsLicence(ctx, el){
   // card was put off; and with no key, the tester route to Pro.
   const _admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   if (_admin) {
-    const invite = PRO.inviteCard(PRO.inviteHostFromCtx(ctx));
+    const invite = PRO.inviteCard(PRO.inviteHostFromCtx(ctx), { surface: "settings" });
     if (invite) card.appendChild(invite);
-    if (!hasKey && s.tester_signed_up !== true && edition !== "PadSpan Bright") {
+    if (!hasKey && s.tester_signed_up !== true && edition !== "PadSpan Bright" && PRO.testerOfferOn(s)) {
       const go = el("button", { class: "btn inline", "data-licence": "tester",
         style: "font-size:12px;margin-left:6px" }, "Become a tester");
       go.addEventListener("click", () => {

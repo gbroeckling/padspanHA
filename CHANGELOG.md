@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.133 — Free Pro offers can be switched off from the server (2026-10-16)
+
+### Changed
+- **The update notification mentions the tester offer.** While it's running and no licence key is entered, the "update available" notice has one line: testers get PadSpan Pro free for two years.
+- **Offers that have ended disappear on their own.** The daily update check's answer can now switch the free-Pro offers (becoming a tester, and invites) off or back on, so an ended offer leaves the panel without an update. It only carries those two on/off switches and can't add anything. The README's Updates & Privacy section says so.
+
+### Opt-in report
+- Counts whether the free-Pro cards are seen and what's done with them: an invite shown, put off, claimed or declined, and the "test it, get Pro free" card shown or turned down. Never who.
+
+---
+
 ## 0.38.132 — One name per receiver, find the device in your hand, walls explained (2026-10-16)
 
 ### New

@@ -142,6 +142,10 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         from .pro_invite import SETTINGS_KEY as _INVITE_KEY
         if isinstance(_live, dict) and _live.get(_INVITE_KEY):
             _reset[_INVITE_KEY] = _live[_INVITE_KEY]
+        # And the offers' server switches: an ended offer must not come back
+        # until the next update check (or ever, with it turned off).
+        if isinstance(_live, dict) and _live.get("server_offers"):
+            _reset["server_offers"] = _live["server_offers"]
         await st.async_save(_reset)
         cleared += 1
         store_obj = domain.get(DATA_SETTINGS)

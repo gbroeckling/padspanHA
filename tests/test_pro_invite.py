@@ -258,3 +258,53 @@ def test_the_cards_run():
     out = json.loads(lines[-1])
     assert out["failed"] == [] and res.returncode == 0, res.stdout[-3000:]
     assert out["passed"] >= 10, out
+
+
+# ── The offers' server switches (update_check._keep_offers) and the update
+#    notification's tester line ─────────────────────────────────────────────
+
+def test_the_update_answer_can_only_switch_the_two_offers(monkeypatch):
+    from custom_components.padspan_ha import update_check as U
+    h = _house()
+    _run(U._keep_offers(h, {"latest_stable": "1.0.0"}))
+    assert not _settings(h).get("server_offers"), "no offers in the answer: nothing changes"
+    _run(U._keep_offers(h, {"offers": {"tester": False, "invite": True, "banner": "BUY NOW", "lifetime": False}}))
+    assert _settings(h)["server_offers"] == {"tester": False, "invite": True}, "only the two names, only booleans"
+    _run(U._keep_offers(h, {"offers": {"tester": "no", "invite": 0}}))
+    assert _settings(h)["server_offers"] == {"tester": False, "invite": True}, "junk keeps the last answer"
+    assert U.offer_on({}, "tester") and U.offer_on({"server_offers": {}}, "invite"), "before any answer, offers are on"
+    assert not U.offer_on({"server_offers": {"tester": False}}, "tester")
+
+
+def test_the_update_notice_names_the_tester_offer_only_when_it_fits(monkeypatch):
+    from custom_components.padspan_ha import update_check as U
+    from custom_components.padspan_ha import licence
+    monkeypatch.setattr(licence, "edition", lambda: "full")
+    h = _house()
+    assert "Testers get PadSpan Pro free" in U._tester_line(h)
+    _settings(h)["server_offers"] = {"tester": False}
+    assert U._tester_line(h) == "", "the offer is switched off"
+    _settings(h)["server_offers"] = {}
+    _settings(h)["forensics_license_key"] = "PSPAN-ANY"
+    assert U._tester_line(h) == "", "a house with a key is not pitched"
+    _settings(h).pop("forensics_license_key")
+    _settings(h)["tester_signup"] = {"signed_up_at": "2026-10-16T10:00:00Z"}
+    assert U._tester_line(h) == "", "a tester already signed up is not pitched"
+    _settings(h).pop("tester_signup")
+    monkeypatch.setattr(licence, "edition", lambda: "bright")
+    assert U._tester_line(h) == "", "Bright is not pitched"
+
+
+def test_the_panel_gets_the_switches_never_the_raw_answer():
+    src = (_CC / "ws_common.py").read_text(encoding="utf-8")
+    assert 'out.pop("server_offers", None)' in src
+    assert 'out["offer_tester"]' in src and 'out["offer_invite"]' in src
+    uc = (_CC / "update_check.py").read_text(encoding="utf-8")
+    assert "await _keep_offers(hass, manifest)" in uc
+    assert uc.index("await _keep_offers(hass, manifest)") < uc.index("if not latest or not current"), (
+        "the switches must be kept even when there is no newer version")
+
+
+def test_restore_and_reset_keep_todays_offer_switches():
+    assert 'data["server_offers"] = (store_obj.data or {}).get("server_offers") or {}' in         (_CC / "ws_backup.py").read_text(encoding="utf-8")
+    assert '_reset["server_offers"] = _live["server_offers"]' in (_CC / "ws_factory_reset.py").read_text(encoding="utf-8")

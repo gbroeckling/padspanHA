@@ -141,7 +141,8 @@ def test_settings_load_before_the_panel_is_registered() -> None:
 def test_the_offer_events_are_allowed_and_closed() -> None:
     want = ({f"{w}:{s}" for w in ("trial_offer_shown", "trial_started", "trial_failed") for s in T.TRIAL_SURFACES}
             | {f"getting_started_step:{s}" for s in T.GETTING_STARTED_STEPS}
-            | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"})
+            | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
+            | T.PRO_OFFER_EVENTS)
     assert T.OFFER_EVENTS == frozenset(want)
     assert all(T.event_allowed(e) for e in T.OFFER_EVENTS)
     for bad in ("trial_offer_shown:kitchen", "trial_started:", "trial_started:someone@example.com",

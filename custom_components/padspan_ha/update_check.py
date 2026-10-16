@@ -44,6 +44,56 @@ def _enabled(hass: HomeAssistant) -> bool:
     return bool((st.data if st else {}).get("update_check_enabled", True))
 
 
+# The free-Pro offers' switches, from the same answer: {"tester": bool,
+# "invite": bool}, set on padspan.traks.ca (server/version.php reads
+# private/padspan-offers.json). Kept in settings so the last answer stands
+# through a restart or an offline day; before any answer, every offer is on.
+# Only these names, only booleans: the answer can switch an offer off or on,
+# never add anything. ws_common._get_settings hands the panel offer_tester /
+# offer_invite.
+_OFFER_NAMES = ("tester", "invite")
+
+
+async def _keep_offers(hass: HomeAssistant, manifest: dict) -> None:
+    offers = manifest.get("offers")
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if not isinstance(offers, dict) or not st:
+        return
+    vals = {k: offers[k] for k in _OFFER_NAMES if isinstance(offers.get(k), bool)}
+    if vals and (st.data.get("server_offers") or {}) != vals:
+        try:
+            await st.async_set(server_offers=vals)
+        except Exception as err:  # never at the cost of the update notice
+            _LOGGER.debug("Offer switches not kept: %s", err)
+
+
+def offer_on(settings: dict | None, name: str) -> bool:
+    """An offer is on unless the server's last answer switched it off."""
+    return ((settings or {}).get("server_offers") or {}).get(name, True) is not False
+
+
+def _tester_line(hass: HomeAssistant) -> str:
+    """One line about the tester offer under the update notice: only while
+    the offer is on, in the full edition, with no licence key here."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    data = (st.data if st else {}) or {}
+    try:
+        from .licence import edition  # noqa: PLC0415
+        full = edition() == "full"
+    except Exception:
+        full = False
+    if not full or not offer_on(data, "tester") or str(data.get("forensics_license_key") or "").strip():
+        return ""
+    try:
+        from .tester import SETTINGS_KEY as _TESTER_KEY, signed_up  # noqa: PLC0415
+        if signed_up(data.get(_TESTER_KEY) or {}):
+            return ""          # signed up already: the key is on its way
+    except Exception:
+        pass
+    return ("\n\nTesters get PadSpan Pro free for two years. "
+            "Sign up under Help improve PadSpan in PadSpan's Settings.")
+
+
 async def _check(hass: HomeAssistant) -> None:
     if not _enabled(hass):
         return
@@ -65,6 +115,7 @@ async def _check(hass: HomeAssistant) -> None:
     if not isinstance(manifest, dict):
         return
     hass.data.setdefault(DOMAIN, {})[_DATA_MANIFEST] = manifest
+    await _keep_offers(hass, manifest)
 
     latest = _parse_version(manifest.get("latest_stable"))
     current = _parse_version(VERSION)
@@ -82,7 +133,7 @@ async def _check(hass: HomeAssistant) -> None:
         async_create(
             hass,
             f"PadSpan HA {latest_str} is available (you run {VERSION}). "
-            f"Update via HACS. [Release notes]({notes})",
+            f"Update via HACS. [Release notes]({notes})" + _tester_line(hass),
             title="PadSpan HA update available",
             notification_id="padspan_ha_update_available",
         )

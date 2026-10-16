@@ -98,7 +98,10 @@ if ($lh) { fclose($lh); }
 // effort: no list, or an unreadable one, is no invite.
 $out = array('ok' => true);
 $if = __DIR__ . '/../../../private/padspan-invites.json';
-$ih = file_exists($if) ? @fopen($if, 'c+') : false;
+// Switched off in private/padspan-offers.json ({"invite": false}): no invites go.
+$offers = json_decode((string)@file_get_contents(__DIR__ . '/../../../private/padspan-offers.json'), true);
+$invites_on = !(is_array($offers) && isset($offers['invite']) && $offers['invite'] === false);
+$ih = ($invites_on && file_exists($if)) ? @fopen($if, 'c+') : false;
 if ($ih && flock($ih, LOCK_EX)) {
     $inv = json_decode(stream_get_contents($ih) ?: '{}', true);
     $e = (is_array($inv) && isset($inv[$id]) && is_array($inv[$id])) ? $inv[$id] : null;

@@ -51,6 +51,24 @@ function _hasPro(s) {
   return s.pro_active === true && tierAtLeast(currentTier(s), "pro");
 }
 
+/** The tester offer is on unless the update check's answer switched it off
+ *  (update_check._keep_offers → settings.offer_tester). Everything that
+ *  promises testers free Pro reads this: the Overview card, the sign-up's
+ *  line, the licence card's button. */
+export function testerOfferOn(settings) {
+  return (settings || {}).offer_tester !== false;
+}
+
+// The opt-in report counts these, once per page where it says so
+// (telemetry.OFFER_EVENTS): whether the cards are seen at all, and what
+// people do with them. Never who, never the email.
+const _counted = new Set();
+function _count(host, name, once) {
+  if (!host || !host.telemetry) return;
+  if (once) { if (_counted.has(name)) return; _counted.add(name); }
+  try { if (host && host.telemetry) host.telemetry(name); } catch (_) { /* never fatal */ }
+}
+
 /** "2026-12-31" → "December 31". */
 export function untilText(day) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ""));
@@ -71,7 +89,8 @@ function _paidKeyActive(s) {
  *  trial or a lapsed key may take it. */
 export function inviteOpen(settings) {
   const s = settings || {};
-  return s.pro_invite_open === true && currentEdition(s) !== "bright" && !_hasPro(s) && !_paidKeyActive(s);
+  return s.pro_invite_open === true && s.offer_invite !== false && currentEdition(s) !== "bright"
+    && !_hasPro(s) && !_paidKeyActive(s);
 }
 
 /** The Overview card is due: open, and not put off with "Later" this week. */
@@ -93,7 +112,7 @@ export function testerCardDue(settings, positioned, nowMs = Date.now()) {
   const s = settings || {};
   if (!("tester_nudge_done" in s) || s.tester_nudge_done) return false;
   if (s.tester_signed_up === true || s.pro_has_key !== false || _hasPro(s)) return false;
-  if (currentEdition(s) === "bright") return false;
+  if (currentEdition(s) === "bright" || !testerOfferOn(s)) return false;
   if (positioned) return true;
   const since = Number(s.first_seen_ts);
   return Number.isFinite(since) && since > 0 && nowMs - since * 1000 >= TESTER_MILESTONE_DAYS * 86400e3;
@@ -102,14 +121,14 @@ export function testerCardDue(settings, positioned, nowMs = Date.now()) {
 // This page's claim state: what was typed, a request in flight, the last
 // failure, and a claim that worked (kept so the card can say so).
 const _claim = { email: "", busy: false, error: "", done: null };
-export function _resetProInvite() { Object.assign(_claim, { email: "", busy: false, error: "", done: null }); }
+export function _resetProInvite() { Object.assign(_claim, { email: "", busy: false, error: "", done: null }); _counted.clear(); }
 
 const _cardStyle = "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px;text-align:left";
 
 /**
  * The invite card, or null.
  * host = { el, settings, callWS(type, data) -> Promise, toast(msg, isErr), rerender(), onSettings(settings) }
- * opts = { onLater, onDeclined, onClose }
+ * opts = { onLater, onDeclined, onClose, surface ("overview" | "settings") }
  */
 export function inviteCard(host, opts = {}) {
   const el = host.el;
@@ -125,13 +144,14 @@ export function inviteCard(host, opts = {}) {
     return note;
   }
   if (!inviteOpen(host.settings)) return null;
+  _count(host, "pro_invite_shown:" + (opts.surface === "settings" ? "settings" : "overview"), true);
   const card = el("div", { "data-invite": "card", style: _cardStyle });
   const head = el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" },
     [el("div", { style: "font-weight:700;font-size:13px;color:#52b788" }, INVITE_TITLE)]);
   if (typeof opts.onLater === "function") {
     const later = el("button", { class: "btn inline", "data-invite": "later", title: "Hide this for a week",
       style: "margin-left:auto;font-size:11px;padding:2px 8px;color:#94a3b8" }, "Later");
-    later.addEventListener("click", () => opts.onLater());
+    later.addEventListener("click", () => { _count(host, "pro_invite_later"); opts.onLater(); });
     head.appendChild(later);
   }
   card.appendChild(head);
@@ -165,9 +185,11 @@ export function inviteCard(host, opts = {}) {
     _claim.busy = false;
     if (why) {
       _claim.error = why;
+      _count(host, "pro_invite_claim_failed");
       host.toast("Not claimed: " + why, true);
     } else {
       _claim.done = email; _claim.email = "";
+      _count(host, "pro_invite_claimed");
       host.toast("PadSpan Pro is on. Thanks for helping.");
       if (r.settings) host.onSettings(r.settings);
     }
@@ -181,6 +203,7 @@ export function inviteCard(host, opts = {}) {
     try {
       const r = await host.callWS("padspan_ha/pro_invite_decline", {});
       if (r && r.settings) host.onSettings(r.settings);
+      _count(host, "pro_invite_declined");
       if (typeof opts.onDeclined === "function") opts.onDeclined();
     } catch (e) { host.toast("Couldn't save that: " + _errText(e), true); }
     _claim.busy = false; host.rerender();
@@ -201,10 +224,11 @@ export function inviteCard(host, opts = {}) {
 export function testerCard(host, { onSignUp, onNo, onClose }) {
   const el = host.el;
   const s = host.settings || {};
+  _count(host, "free_pro_card_shown", true);
   const card = el("div", { "data-tester-card": "card", style: _cardStyle });
   const close = el("button", { class: "btn inline", "data-tester-card": "close", title: "Hide this",
     style: "margin-left:auto;font-size:12px;padding:0 8px;color:#94a3b8" }, "✕");
-  close.addEventListener("click", () => onClose());
+  close.addEventListener("click", () => { _count(host, "free_pro_card_no"); onClose(); });
   card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" }, [
     el("div", { style: "font-weight:700;font-size:13px;color:#52b788" }, TESTER_CARD_TITLE), close]));
   card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55" }, TESTER_CARD_BODY));
@@ -216,7 +240,7 @@ export function testerCard(host, { onSignUp, onNo, onClose }) {
     style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700" }, TESTER_CARD_BUTTON);
   yes.addEventListener("click", () => onSignUp());
   const no = el("button", { class: "btn inline", "data-tester-card": "no", style: "color:#94a3b8" }, "No thanks");
-  no.addEventListener("click", () => onNo());
+  no.addEventListener("click", () => { _count(host, "free_pro_card_no"); onNo(); });
   card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" }, [yes, no]));
   return card;
 }
@@ -229,6 +253,7 @@ export function inviteHostFromCtx(ctx) {
     callWS: (type, data) => ctx.actions.wsCall(type, data),
     toast: (m, isErr) => { if (ctx.toast) ctx.toast(m, isErr); },
     rerender: () => ctx.actions.renderRooms(),
+    telemetry: (name) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(name); },
     onSettings: (s) => { ctx.state.settings = s; if (ctx.actions.renderNav) ctx.actions.renderNav(); },
   };
 }

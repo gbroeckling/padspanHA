@@ -165,6 +165,32 @@ await check("the tester sign-up says what a tester gets", () => {
   assert(/Pro free for two years/.test(TS.TESTER_PRO_LINE) && /usage report stays on/.test(TS.TESTER_PRO_LINE), TS.TESTER_PRO_LINE);
 });
 
+await check("an offer switched off on the server disappears", () => {
+  assert(!P.inviteOpen({ ...OPEN, offer_invite: false }), "invite shown while switched off");
+  assert(P.inviteCard(host({ ...OPEN, offer_invite: false }), {}) === null, "invite card while switched off");
+  const base = { tier: "free", pro_has_key: false, tester_nudge_done: false, tester_signed_up: false };
+  assert(!P.testerCardDue({ ...base, offer_tester: false }, true), "tester card while switched off");
+  assert(P.testerOfferOn({}) && !P.testerOfferOn({ offer_tester: false }), "testerOfferOn");
+});
+
+await check("the cards are counted, once per page where it matters, never with the email", async () => {
+  const seen = [];
+  const h = host(OPEN, { ok: true, settings: {} });
+  h.telemetry = (n) => seen.push(n);
+  P.inviteCard(h, {}); P.inviteCard(h, {}); P.inviteCard(h, { surface: "settings" });
+  type(find(P.inviteCard(h, {}), "email"), "me@example.com");
+  find(P.inviteCard(h, {}), "claim").dispatchEvent(new Event("click"));
+  await settle();
+  assert(JSON.stringify(seen) === JSON.stringify(["pro_invite_shown:overview", "pro_invite_shown:settings", "pro_invite_claimed"]),
+    JSON.stringify(seen));
+  assert(!seen.some(n => n.includes("@")), "an email in a count");
+  const t = [];
+  const card = P.testerCard({ el, settings: {}, telemetry: (n) => t.push(n) }, { onSignUp() {}, onNo() {}, onClose() {} });
+  P.testerCard({ el, settings: {}, telemetry: (n) => t.push(n) }, { onSignUp() {}, onNo() {}, onClose() {} });
+  card.querySelector("[data-tester-card=yes]").dispatchEvent(new Event("click"));
+  assert(JSON.stringify(t) === JSON.stringify(["free_pro_card_shown"]), JSON.stringify(t));
+});
+
 for (const n of ok) console.log("ok   " + n);
 for (const f of fail) console.log("FAIL " + f);
 console.log(JSON.stringify({ passed: ok.length, failed: fail }));

@@ -515,6 +515,8 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # not: an older backup must not bring one back.
                             from .pro_invite import SETTINGS_KEY as _INVITE_KEY
                             data[_INVITE_KEY] = (store_obj.data or {}).get(_INVITE_KEY) or {}
+                            # The offers' server switches are today's, not the backup's.
+                            data["server_offers"] = (store_obj.data or {}).get("server_offers") or {}
                             # Nor bring back the trial milestone card, or restart
                             # its week (settings_store.trial_state_kept).
                             from .settings_store import trial_state_kept

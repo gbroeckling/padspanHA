@@ -164,6 +164,11 @@ function licence_call($action, $fields, $secret) {
 }
 function tester_key($email, $dir, $max_per_day) {
     $hand = "Issue it by hand if it should go (licence API, plan tester).\n\n  email: $email\n";
+    // The offer switched off in private/padspan-offers.json ({"tester": false}).
+    $offers = json_decode((string)@file_get_contents(__DIR__ . '/../../../private/padspan-offers.json'), true);
+    if (is_array($offers) && isset($offers['tester']) && $offers['tester'] === false) {
+        tester_note('Tester signed up (offer off)', "A new tester signed up while the tester offer is switched off, so no key went out.\n" . $hand); return;
+    }
     $src = @file_get_contents(__DIR__ . '/../../license/index.php');
     $secret = ($src && preg_match("/ADMIN_SECRET\s*=\s*'([^']+)'/", $src, $m)) ? $m[1] : '';
     if ($secret === '') { tester_note('Tester key needs you', "A new tester signed up; the licence secret could not be read.\n" . $hand); return; }

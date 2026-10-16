@@ -205,6 +205,12 @@ def _get_settings(hass: HomeAssistant) -> dict:
     # A Pro invite's token is what claims it: never for every user either.
     from .pro_invite import SETTINGS_KEY as _INVITE_KEY, public_state as _invite_state  # noqa: PLC0415
     out.update(_invite_state({_INVITE_KEY: out.pop(_INVITE_KEY, None)}))
+    # The free-Pro offers' server switches (update_check._keep_offers): the
+    # panel hides an offer that is off.
+    from .update_check import offer_on as _offer_on  # noqa: PLC0415
+    _switches = {"server_offers": out.pop("server_offers", None)}
+    out["offer_tester"] = _offer_on(_switches, "tester")
+    out["offer_invite"] = _offer_on(_switches, "invite")
     out["pro_has_key"] = state["has_key"]
     out["pro_active"] = state["active"]        # a valid key of any tier
     out["pro_days_left"] = state["days_left"]

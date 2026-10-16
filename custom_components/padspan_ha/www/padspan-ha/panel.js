@@ -1033,6 +1033,7 @@ class PadSpanHaApp extends HTMLElement {
     }
     const host = PRO_INVITE.inviteHostFromCtx(this._ctx());
     host.rerender = () => this._scheduleRender();
+    host.telemetry = (n) => this._telemetryEvent(n);
     return PRO_INVITE.inviteCard(host, {
       onLater: () => { PRO_INVITE.inviteLater(); v.hidden = true; this._scheduleRender(); },
       onDeclined: () => { v.hidden = true; },
@@ -1057,7 +1058,7 @@ class PadSpanHaApp extends HTMLElement {
         .catch(() => {});
     }
     const hide = () => { v.hidden = true; this._scheduleRender(); };
-    return PRO_INVITE.testerCard({ el, settings: st }, {
+    return PRO_INVITE.testerCard({ el, settings: st, telemetry: (n) => this._telemetryEvent(n) }, {
       onClose: hide,
       onNo: hide,
       onSignUp: () => { v.hidden = true; this._openTesterSignup(); },

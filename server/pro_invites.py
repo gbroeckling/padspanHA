@@ -7,6 +7,8 @@ This is the hand that writes the list. Run on the web host as the web user:
 
     sudo -u www-data python3 pro_invites.py add 83902182 d89ebbcb --until 2026-12-31 --wave 1
     sudo -u www-data python3 pro_invites.py list
+    sudo -u www-data python3 pro_invites.py offer tester off     (or on; invite too)
+    sudo -u www-data python3 pro_invites.py offer                 (show both)
 
 An install is named by its anonymous id or the first 8 characters of it (the
 Pro Candidates tab), resolved against the report ledger. Adding an install
@@ -24,6 +26,29 @@ import sys
 PRIVATE = "/var/www/clients/client1/web10/private"
 LIST = os.path.join(PRIVATE, "padspan-invites.json")
 LEDGER = os.path.join(PRIVATE, "padspan-telemetry", "installs.json")
+# The offers' on/off switches: version.php hands them to every install's
+# update check (0.38.133 and later hide an offer that is off); telemetry.php,
+# tester.php and the licence server's invite_claim obey them too.
+OFFERS = os.path.join(PRIVATE, "padspan-offers.json")
+
+
+def offer(name, state):
+    try:
+        with open(OFFERS, encoding="utf-8") as f:
+            cur = json.load(f)
+    except (OSError, ValueError):
+        cur = {}
+    cur = {k: bool(cur.get(k, True)) for k in ("tester", "invite")}
+    if name:
+        if name not in cur or state not in ("on", "off"):
+            sys.exit("offer tester|invite on|off")
+        cur[name] = state == "on"
+        tmp = OFFERS + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cur, f)
+        os.replace(tmp, OFFERS)
+    for k, v in cur.items():
+        print(f"{k:7} {'on' if v else 'off'}")
 
 
 def resolve(name, ids):
@@ -41,7 +66,13 @@ def main():
     a.add_argument("--until", required=True)
     a.add_argument("--wave", type=int, default=1)
     sub.add_parser("list")
+    o = sub.add_parser("offer")
+    o.add_argument("name", nargs="?")
+    o.add_argument("state", nargs="?")
     args = ap.parse_args()
+    if args.cmd == "offer":
+        offer(args.name, args.state)
+        return
 
     with open(LIST, "r+", encoding="utf-8") as f:
         fcntl.flock(f, fcntl.LOCK_EX)

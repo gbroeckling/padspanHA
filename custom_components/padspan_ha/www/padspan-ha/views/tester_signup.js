@@ -235,8 +235,12 @@ function _testerInvite(ctx, s){
       "when there is something for your setup to try. This is separate from the anonymous report above: " +
       "it is your contact details, so it is sent only when you press Send, you see exactly what goes " +
       "first, and you can stop any time."),
-    el("div", { "data-tester": "pro", style: "font-size:12px;margin-bottom:10px;line-height:1.55;color:#a7f3d0" },
-      TESTER_PRO_LINE),
+    // Only while the offer is on (the update check's answer can switch it
+    // off: settings.offer_tester, views/pro_invite.js testerOfferOn).
+    (ctx.state.settings || {}).offer_tester !== false
+      ? el("div", { "data-tester": "pro", style: "font-size:12px;margin-bottom:10px;line-height:1.55;color:#a7f3d0" },
+        TESTER_PRO_LINE)
+      : null,
     open,
   ]);
 }

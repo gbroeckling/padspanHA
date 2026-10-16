@@ -61,6 +61,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # the token and its last day, or what was answered. Backend-only, like
     # tester_signup; the panel sees pro_invite_open / pro_invite_until.
     "pro_invite": {},
+    # The free-Pro offers' on/off switches from the update check's answer
+    # (update_check._keep_offers): {"tester": bool, "invite": bool}; {} = all on.
+    "server_offers": {},
     "vendor_lookup_enabled": True,  # Sends MAC prefixes to vendor lookup APIs when requested from UI
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)
