@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.134",
+  "title": "More in the opt-in report",
+  "date": "2026-10-16",
+  "body_markdown": "Nothing changes in how PadSpan works. The opt-in report (Settings → Presence → Help improve PadSpan) says more, still as counts and buckets only: no names, addresses or entity ids.\n\n### Opt-in report\n- **Where a slow snapshot build goes.** The reports show one part of the build (going through Home Assistant's states and registries) taking 90% or more of the time on every slow install, up to 16 seconds, and only where Bermuda is installed and not ignored. The report now carries that part's CPU time next to its wall time (is it PadSpan's own work, or Home Assistant too busy to give it the processor?), its three pieces, and p95 for every part.\n- **How steady positioning is**, for your own (identified) devices only: room changes per hour, the share of the time with no room, and how many receivers hear each one. The report's first measure of whether positioning is any good.\n- **Receivers:** Tasmota counted apart, and where each receiver's name comes from (your HA name, HA's, the scanner's own, its area, or only its MAC).\n- **Occupancy:** how many Unknown phones each estimate counts, and its confidence.\n- **Walk-to-Identify:** \"Who's here?\" pressed, and Tag pressed on one of its candidates."
+ },
+ {
   "version": "0.38.133",
   "title": "Free Pro offers can be switched off from the server",
   "date": "2026-10-16",
@@ -28,11 +34,5 @@
   "title": "Live Aboard's building tools, smoother",
   "date": "2026-10-15",
   "body_markdown": "### Changed\n- **Doors and windows snap to 5 cm** as you draw them or drag their ends: you get 0.80 m or 1.60 m, not 1.59 m. A corner or another door still stops the line where it is.\n- **Keyboard shortcuts in Edit:** Ctrl+Z (⌘+Z) undoes, Ctrl+Y or Ctrl+Shift+Z redoes, Escape lets go of what you picked (or a first tap), and Delete removes a door or window you drew. They do nothing while you're typing in a box.\n- **Round this room is one tap.** In Strip, a light that's already in a room goes round that room straight away. Tap another room to go round that one instead. Ticking \"Leave gaps at doors\" or \"and windows\" changes the run right then.\n- While you're editing, the Motion chip and the rain chip step aside, so the tool's hints are never hidden under them.\n\n### Fixes\n- **Fixed:** sliding, pocket, barn, bifold and overhead doors showed a swing arc while editing, as if they were hinged. Only doors that swing show one now.\n- **Fixed:** a door's sheet cut \"Doorway\" off as \"Do\"."
- },
- {
-  "version": "0.38.128",
-  "title": "Scenes in the room sheet, and lit windows at night",
-  "date": "2026-10-15",
-  "body_markdown": "### New\n- **A room's scenes, one tap away.** Tap a room's name and its sheet now lists that room's Home Assistant scenes and scripts as ▶ buttons, next to All lights on and off. It works on the flat Atlas and in Live Aboard.\n- **Lit windows at night.** In Live Aboard after dark, a window glows warm while a light is on in the room behind it, the way houses look in the Sims. You see it from outside, with the walls up.\n\n### Fixes\n- **Fixed:** in Live Aboard, the Motion chip could sit on top of the house after Top, Fit or Whole house. The house now stays clear of the chips and the buttons."
  }
 ]
