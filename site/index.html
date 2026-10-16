@@ -179,6 +179,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.136</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">16 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li>Matching each receiver to its Home Assistant device took longer the more devices shared a name, and it ran on every snapshot build. 4,000 same-named devices cost 1.5 seconds a build, during which Home Assistant was frozen. It now takes a few milliseconds whatever the count.</li>
+          <li>The size of Home Assistant's device and entity registries, and the most devices sharing one name. Some Bermuda houses spend 3 to 16 seconds per build in this part, and this shows whether that shape is why.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.135</span>
         <span class="pill stable">Stable</span>
         <span class="reldate">16 October 2026</span>

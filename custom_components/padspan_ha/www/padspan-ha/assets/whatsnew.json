@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.136",
+  "title": "Faster snapshot builds in houses with many same-named devices",
+  "date": "2026-10-16",
+  "body_markdown": "### Fixed\n- Matching each receiver to its Home Assistant device took longer the more devices shared a name, and it ran on every snapshot build. 4,000 same-named devices cost 1.5 seconds a build, during which Home Assistant was frozen. It now takes a few milliseconds whatever the count.\n\n### Opt-in report\n- The size of Home Assistant's device and entity registries, and the most devices sharing one name. Some Bermuda houses spend 3 to 16 seconds per build in this part, and this shows whether that shape is why."
+ },
+ {
   "version": "0.38.135",
   "title": "Stable: Live Aboard grows up, one name per receiver, smoke and CO alarms",
   "date": "2026-10-16",
@@ -28,11 +34,5 @@
   "title": "Smoke, gas and CO alarms join Emergency",
   "date": "2026-10-15",
   "body_markdown": "### New\n- **Emergency now covers smoke, gas and carbon monoxide alarms**, not just water leaks. Place one on the Atlas like any device. When it goes off it latches and alarms exactly as a leak does: alarm rings across its room, the banner on every PadSpan page until you reset it, and a red word over Live Aboard. Each says what it found (**SMOKE**, **GAS**, **CO**, or **WET** for a leak), **ALARM** while latched, and **CLEAR** (or **DRY**) when quiet.\n- An alarm is drawn as a round detector, a leak sensor still as a puddle. In Live Aboard a smoke alarm sits on the ceiling by default and a gas or CO alarm on the wall, with matching one-tap spots in Heights.\n\n### Opt-in report\n- Placed smoke, gas and CO alarms are counted on their own (`alarm_sensor`), apart from leak sensors."
- },
- {
-  "version": "0.38.130",
-  "title": "Guides for everything new",
-  "date": "2026-10-15",
-  "body_markdown": "### New\n- **New guides:** the [Furnish Guide](docs/FURNISH_GUIDE.md) (furniture, devices and people in the 3D house), the [Wall Screen Guide](docs/WALL_SCREEN_GUIDE.md) (kiosk links, full screen, going back home by itself) and [PadSpan Pro](docs/PADSPAN_PRO.md) (the trial, keys, becoming a tester, invites).\n- **The Atlas Guide** now covers heights, room sheets and scenes, ◎ Find active, the emergency lighting test, WLED Advanced and Exact look, and building openers, locks and lights from relays. **Getting Started** covers Tasmota BLE scanners.\n- **The Live Aboard Guide** ([docs/LIVE_ABOARD_GUIDE.md](docs/LIVE_ABOARD_GUIDE.md)) covers turning it on, getting around, what the motion badges, colours and lines mean, the heat map, room scenes, and building doors, windows, heights and strips.\n- In Live Aboard, **Views ▾ → How it works** brings back the first-time card, which now links to the full guide.\n\n### Fixes\n- **Fixed:** Follow's Movement Alerts said \"Email me when…\" and its help said alerts were email-only. Alerts go to your phone (pick it under Notify service, no email needed) or by email; the card and its help now say so, with Send Test and the arrive and leave events explained.\n- **Fixed:** the help for Monitor's Diag Export now says to press **Build export**, and the Objects help explains the 📍 last-seen line (Lost & Found).\n\n### Opt-in report\n- The README now lists everything the report has said about Live Aboard: whether it opened or fell back to the flat map, the open-window alert, and the temperature-freshness counts added in 0.38.127."
  }
 ]
