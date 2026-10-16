@@ -815,7 +815,9 @@ def test_the_port_is_held_to_the_php_source_and_to_tester_py():
     assert _php_anchored(_php_string(src, "TIMEZONE_RX")) == tester.TIMEZONE_PATTERN
     assert _php_secrets(src) == list(tester.SECRET_PATTERNS)
     assert f"$MAX = {tester.MAX_BYTES};" in src
-    assert "$MAX_RECORDS = 500;" in src and "$MAX_NEW_PER_DAY = 100;" in src
+    # 30: Garry, 2026-10-16, "no more than 30 testers right now" (the 30th
+    # switches the tester offer off, tester_offer_full).
+    assert "$MAX_RECORDS = 30;" in src and "$MAX_NEW_PER_DAY = 100;" in src
     assert f"'/^{tester._SETUP_STR_PATTERN}$/D'" in src and f"'/^{tester._SETUP_SUBKEY_PATTERN}$/D'" in src
     assert "count($v) > 12" in src and "1000000" in src
     # The port's own fixed patterns are the PHP's.
@@ -910,14 +912,18 @@ def test_the_abuse_guard(server):
     raw = lambda tid: json.dumps({"schema": 1, "action": "signup", "tester_id": tid, "consent": True,
                                   "contact": {"email": "a@example.com"}}).encode()
     ids = [f"00000000-0000-4000-8000-{i:012d}" for i in range(102)]
+    cap = server.max_records          # the list's own cap (30), read from tester.php
+    server.max_records = 10_000       # room to reach the day's limit first
     for tid in ids[:100]:
         assert server.handle(raw(tid))[0] == 200
     assert server.handle(raw(ids[100])) == (429, {"ok": False, "why": "busy"})
     assert server.handle(raw(ids[5]))[0] == 200, "an update is not a new sign-up"
     server.today = "2026-09-29"
     assert server.handle(raw(ids[100]))[0] == 200, "the day's count did not reset"
-    server.db["testers"] = {f"10000000-0000-4000-8000-{i:012d}": {"created": "x"} for i in range(500)}
+    server.max_records = cap
+    server.db["testers"] = {f"10000000-0000-4000-8000-{i:012d}": {"created": "x"} for i in range(cap)}
     assert server.handle(raw(ids[101])) == (503, {"ok": False, "why": "full"})
+    assert cap == 30
 
 
 def test_an_unreadable_server_list_changes_nothing_and_the_sign_up_stays_here(monkeypatch, server):
