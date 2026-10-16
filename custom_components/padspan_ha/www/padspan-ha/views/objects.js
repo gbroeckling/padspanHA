@@ -375,7 +375,8 @@ export function render(ctx){
                     : addr;
       if ((kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") || !tagAddr) return el("td",{}, "");
       const btn = el("button",{class:"btn tiny"}, userLabel ? "Relabel" : "Tag");
-      btn.addEventListener("click",(e)=>{ e.stopPropagation(); if (ctx.state._wtiRoom && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_tag"); ctx.actions.tagObjectPrompt(tagAddr, userLabel); });
+      const _isWtiCand = !!(_wtiRoomAdv && _wtiScoresAdv && (_wtiScoresAdv[(addr || "").toUpperCase()] || 0) > Math.max(0, _wtiMaxScoreAdv * 0.4));
+      btn.addEventListener("click",(e)=>{ e.stopPropagation(); if (_isWtiCand && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_tag"); ctx.actions.tagObjectPrompt(tagAddr, userLabel); });
       return el("td",{}, btn);
     })();
 
@@ -543,6 +544,8 @@ export function render(ctx){
       helpBtn("objects"),
     ]);
 
+    // Walk-to-Identify candidates shown with a "Likely in" badge (for wti_tag).
+    const _wtiCandAddrs = new Set();
     const mkCard = (o) => {
       const addr = o.address || o.entity_id || "";
       const name = o.user_label || o.name || o.entity_id || addr || "Unknown";
@@ -576,7 +579,7 @@ export function render(ctx){
                      : addr;
       if((o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon") && tagAddr2){
         const btn = el("button",{class:"btn tiny"}, o.user_label ? "Relabel" : "Tag");
-        btn.addEventListener("click", ()=> { if (ctx.state._wtiRoom && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_tag"); ctx.actions.tagObjectPrompt(tagAddr2, o.user_label || ""); });
+        btn.addEventListener("click", ()=> { if (_wtiCandAddrs.has(o) && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_tag"); ctx.actions.tagObjectPrompt(tagAddr2, o.user_label || ""); });
         actions.appendChild(btn);
       }
       const detailsBtn = el("button",{class:"btn tiny", onclick:()=> ctx.actions.showObjectDetail(o)}, "Details");
@@ -762,6 +765,7 @@ export function render(ctx){
         if (_wtiRoom && _wtiScores && _wtiMaxScore > 0) {
           const score = _wtiScores[(o.address || "").toUpperCase()] || 0;
           if (score > _wtiThreshold) {
+            _wtiCandAddrs.add(o);
             const scorePct = Math.min(100, Math.round(score / _wtiMaxScore * 100));
             card.appendChild(el("div",{style:"display:flex;align-items:center;gap:4px;margin-top:4px"}, [
               el("span",{style:"font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, `Likely in ${_wtiRoom}`),

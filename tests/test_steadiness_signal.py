@@ -18,6 +18,7 @@ from custom_components.padspan_ha import presence_coordinator as PC
 def test_steadiness_counts_the_house_not_the_street(monkeypatch):
     got: list[tuple[str, float]] = []
     monkeypatch.setattr(PC, "record_duration", lambda h, m, v: got.append((m, v)))
+    monkeypatch.setattr(PC, "_telemetry_on", lambda h: True)
     me = SimpleNamespace(hass=None, is_identified_object=lambda k: k.startswith("mine"))
     poll = lambda rooms: PC.PresenceCoordinator._note_steadiness(me, {
         "mine1": {"room": rooms[0], "sources": [{"age_s": 2}, {"age_s": 5}, {"age_s": 90}]},
@@ -32,3 +33,12 @@ def test_steadiness_counts_the_house_not_the_street(monkeypatch):
     got.clear()
     poll(("Office", "Hall"))        # mine2 back in Hall after unknown: no change
     assert ("pos_chg", 1.0) not in got
+
+
+def test_nothing_is_walked_while_the_report_is_off(monkeypatch):
+    got = []
+    monkeypatch.setattr(PC, "record_duration", lambda h, m, v: got.append(m))
+    monkeypatch.setattr(PC, "_telemetry_on", lambda h: False)
+    me = SimpleNamespace(hass=None, is_identified_object=lambda k: True)
+    PC.PresenceCoordinator._note_steadiness(me, {"a": {"room": "Kitchen"}})
+    assert got == [] and not hasattr(me, "_steady_rooms")

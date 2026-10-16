@@ -113,6 +113,7 @@ from .const import (
 from . import fabric_truth as _fabric_truth
 from .beacon_drift import compute_drift_m, drift_severity
 from .perf_sampler import record_duration
+from .telemetry import enabled as _telemetry_on
 from .presence_rules import (
     indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
     coverage_evidence, coverage_window_polls, outdoor_attribution,
@@ -1071,7 +1072,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         hour). Identified only, so it is the house and not the street. A
         change is room to another room; losing the room counts as unknown."""
         try:
-            if not isinstance(result, dict):
+            if not isinstance(result, dict) or not _telemetry_on(self.hass):
                 return
             prev = getattr(self, "_steady_rooms", None)
             if prev is None:

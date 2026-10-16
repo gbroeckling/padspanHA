@@ -567,7 +567,8 @@ function createSlot(slotKey){
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
-    openings = []; sensorsUi = []; tints = []; readouts = []; chips = []; liveMs = 0;
+    openings = []; sensorsUi = []; tints = []; readouts = []; chips = []; heats = []; liveMs = 0;
+    wetEl = null; wetRows = []; wetKey = "";
     // Nothing of the host's is kept: its card, its data, its callbacks.
     lastP = null; apiOf = null; apiNow = null; lbe = {}; stage = null; send = null; touchCb = null; saveNorthCb = null;
   }
@@ -926,7 +927,9 @@ function createSlot(slotKey){
     return [{ text: "All floors", on: s.all, act: () => stepFloor(0) },
             ...s.names.map((name, i) => ({ text: name, on: !s.all && s.at === i, dot: s.counts ? s.counts[i] : null, badge: i,
                                            title: s.counts ? `${name}: ${activityText(s.counts[i])}` : name,
-                                           act: () => { const q = floorSteps; if (q && i < q.names.length && (q.all || i !== q.at)) q.go(i); } }))];
+                                           act: () => { const q = floorSteps; if (q && i < q.names.length && (q.all || i !== q.at)) q.go(i); } })),
+            // ⇕ is hidden on a narrow screen: Explode is here too.
+            ...(s.all && s.names.length > 1 ? [{ text: "⇕ Explode", on: !!explodeGap(), act: () => toggleExplode() }] : [])];
   }
   /** The floors listed over `anchor`; with the map alone too (the corner's). */
   function openFloorList(anchor){
@@ -997,11 +1000,10 @@ function createSlot(slotKey){
     const wet = wetNow(p), rows = [];
     for (const { F, P } of openings) {
       const o = P.open, e = o.leaf, on = wet && o.kind === "window" && o.state === "open" && !!e;
+      o.wetOn = on;
       if (on) {
         if (!o.wet) { o.wet = new THREE.Mesh(shared.glassBox, shared.wetMat); o.wet.matrixAutoUpdate = false; o.wet.renderOrder = 4; F.group.add(o.wet); }
-        const z1 = P.cut ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
-        o.wet.matrix.copy(compose(P.mx, F.fl.elev + e.z0 - 0.02, P.my, P.yaw, P.len + 0.08, z1 - e.z0 + 0.05, e.thick + 0.08));
-        o.wet.matrixWorldNeedsUpdate = true;
+        placeWet(F, P, !!P.cut);
         const dl = lbe[o.eid];
         rows.push({ F, P, name: String((dl && dl.friendly_name) || (o.bar && o.bar.name) || "A window") });
       } else if (o.wet) { o.wet.matrix.copy(ZERO); o.wet.matrixWorldNeedsUpdate = true; }
@@ -1016,6 +1018,16 @@ function createSlot(slotKey){
       wetEl.classList.toggle("on", !!text);
       requestRender();
     }
+  }
+  /** An open window's rain glow over its pane as the wall stands now: cut
+   *  down with the wall (placePiece calls this as the camera turns), gone
+   *  where the cut leaves no pane. */
+  function placeWet(F, P, cut){
+    const o = P.open, e = o && o.leaf;
+    if (!o || !o.wet || !o.wetOn || !e) return;
+    const z1 = cut && e.cuttable ? Math.min(e.z1, HOUSE.CUT_H) : e.z1, hgt = z1 - e.z0;
+    o.wet.matrix.copy(hgt < 0.005 ? ZERO : compose(P.mx, F.fl.elev + e.z0 - 0.02, P.my, P.yaw, P.len + 0.08, hgt + 0.05, e.thick + 0.08));
+    o.wet.matrixWorldNeedsUpdate = true;
   }
   /** Fly to a wet window: its floor shown, framed with a little of the room. */
   function flyToOpening(r){
@@ -1913,6 +1925,7 @@ function createSlot(slotKey){
         : compose(P.mx, F.fl.elev + e.z0, P.my, P.yaw, P.len, hgt, e.thick));
       e.mesh.instanceMatrix.needsUpdate = true;
     }
+    if (P.open && P.open.wet) placeWet(F, P, cut);
     if (P.open && P.open.slots) placePanels(F, P, cut);
     if (P.open && P.open.flash) placeFlash(F, P, cut);
   }

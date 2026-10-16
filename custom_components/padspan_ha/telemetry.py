@@ -923,7 +923,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "ip_known": sum(1 for r in radios if r.get("ip")),
         "espresense": sum(1 for r in radios if str(r.get("source") or "").lower().startswith("espresense")),
     }
-    scanner_kinds["tasmota"] = sum(1 for r in radios if str(r.get("source") or "").lower().startswith("tasmota_"))
+    scanner_kinds["tasmota"] = sum(1 for r in radios if not r.get("ip")
+                                   and str(r.get("source") or "").lower().startswith("tasmota_"))
     scanner_kinds["other"] = max(0, len(radios) - scanner_kinds["ip_known"] - scanner_kinds["espresense"]
                                  - scanner_kinds["tasmota"])
     # Where each receiver's one name came from (ws_common.radio_display,
@@ -1412,6 +1413,16 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     # a day too full for all ten, fewer go, and the counts still do.
     while presets and len(json.dumps(payload)) > _MAX_BYTES:
         presets.pop()
+    # Then the rarest usage counters (fewest counts first), so a day with
+    # more kinds of event than fit still reports; how many went is said.
+    if len(json.dumps(payload)) > _MAX_BYTES and usage:
+        dropped = 0
+        for k in sorted(usage, key=lambda k: (usage[k], k)):
+            del usage[k]
+            dropped += 1
+            health["usage_dropped"] = dropped
+            if len(json.dumps(payload)) <= _MAX_BYTES:
+                break
     return payload
 
 

@@ -1546,3 +1546,20 @@ def test_temp_fresh_counts_each_ha_clock_and_the_newest_report():
     del steady.last_reported
     tf = T.build_payload(h)["env"]["temp_fresh"]
     assert tf == {"n": 1, "changed": 0, "updated": 0, "reported": 0, "has_lr": 0, "age": {"1_6h": 1}}
+
+
+def test_a_day_with_too_many_kinds_of_event_still_reports():
+    """The cap refuses the whole report and a refused one keeps its counters,
+    so an over-full day would silence an install until HA restarts. After the
+    presets, the rarest usage counters go, and the report says how many."""
+    h = _hass()
+    _busy_day(h)
+    names = sorted(T.EVENTS | T.TAB_EVENTS | T.CLIENT_EVENTS)
+    for i, name in enumerate(names):
+        T.bump(h, name, 1 + i)
+    p = T.build_payload(h)
+    T.assert_shareable(p)                                    # fits, so it goes
+    dropped = p["health"].get("usage_dropped", 0)
+    assert dropped > 0 and len(p["usage"]) == len(names) - dropped
+    kept = min(p["usage"].values())
+    assert all(v >= kept for v in p["usage"].values()) and p["usage"][names[-1]] == len(names)

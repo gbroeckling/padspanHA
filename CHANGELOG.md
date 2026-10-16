@@ -4,6 +4,29 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.135 — Stable: Live Aboard grows up, one name per receiver, smoke and CO alarms (2026-10-16)
+
+- **Coming from 0.38.124?** This stable brings in everything from the 0.38.125–0.38.134 betas below:
+  - **Live Aboard (the 3D house):** motion that reads at a glance (only "now" is lit, with lines down to the floor), Explode to see every floor at once, a heat map with Temps, a warning for a window left open in the rain, lit windows at night, the room sheet's own scenes and scripts as ▶ buttons, and smoother building tools (5 cm snapping, keyboard shortcuts, one-tap Round this room).
+  - **Emergency** covers smoke, gas and CO alarms as well as leaks.
+  - **One name per receiver** everywhere (your Home Assistant name for it), **Find the one in your hand** in Bluetooth → Scanners, and **Custom walls** that take your own dB.
+  - **Guides:** Live Aboard, Furnish, Wall Screen, PadSpan Pro and Walls, and a much fuller Atlas Guide.
+  - Free-Pro offers can be switched off from the server, and the opt-in report says more (counts only).
+
+### Fixed
+- Live Aboard: an open window's rain glow drew as a floating box where Cut had lowered the wall, and didn't follow the walls as the view turned.
+- Live Aboard: after switching to the flat map and back, the "window open in the rain" line could stay blank, and the old heat map stayed in memory.
+- Live Aboard: **⇕ Explode** is in the floor list too, so it can be reached on a phone, where the ⇕ button is hidden.
+- Tester sign-up: a slow licence server could make Home Assistant say the sign-up failed when it had gone through and the key had been sent.
+
+### Opt-in report
+- A day with more kinds of event than fit no longer stops the report: the rarest counters are left out instead, and it says how many.
+- Positioning steadiness is only worked out while the report is on.
+- A receiver is counted under one kind only.
+- "Tag pressed from Walk-to-Identify" counts only presses on its candidates.
+
+---
+
 ## 0.38.134 — More in the opt-in report (2026-10-16)
 
 Nothing changes in how PadSpan works. The opt-in report (Settings → Presence → Help improve PadSpan) says more, still as counts and buckets only: no names, addresses or entity ids.
