@@ -179,6 +179,25 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.132</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">16 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Find the one in your hand.</b> In <b>Bluetooth → Scanners</b>, pick a receiver and press <b>Start</b> with the device a few metres away. Then hold it right against the receiver for about 20 seconds. Whatever got louder comes up with how much it jumped and a <b>Tag</b> button. Easier than hunting through thousands of unnamed devices. (Most TV and air-conditioner remotes are infrared and send no Bluetooth, so they won't show.)</li>
+          <li><b>Custom walls take your own number.</b> In the map editor's RF Barriers, pick <b>Custom</b> and a <b>Loss through it</b> box (0–30 dB) appears. Under the material list there's a short note on what the numbers mean and a link to the new <b>Walls Guide</b>.</li>
+          <li><b>Walls Guide</b> (docs/WALLS_GUIDE.md): where PadSpan's wall numbers come from (they're round starting points, and Custom 6 dB is the "don't know" wall), real-world ranges for drywall, brick, concrete, plaster on wire lath, coated glass and metal, and how to tell a wall is drawn too weak or too strong.</li>
+          <li><b>Unknown phone</b> in Occupancy's Counted list has a <b>?</b> that says what it is (a phone changing its Bluetooth address) and what to do if it's yours, a visitor's or a neighbour's.</li>
+          <li><b>Each receiver now goes by one name everywhere.</b> It used to show as its HA area in one place, the scanner's own name with its MAC in another, "Room scanner (D7:1E)" in Live Aboard, and the bare MAC in others. Now it's the name you gave the device in Home Assistant, else HA's device name, else the scanner's own name without the MAC. Shown in Bluetooth, Monitor, Overview, Calibration's Live Radios, Settings, Presence, the Atlas radio list, scanner details and Live Aboard. Shelly and other proxies that only showed a MAC now show their HA name.</li>
+          <li>A door cut into a Custom wall kept 6 dB instead of the wall's own number.</li>
+          <li>Find the one in your hand: <code>hold_near_started</code>, <code>hold_near_found</code> (something got louder) and <code>hold_near_tagged</code> (Tag pressed on one).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.131</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">15 October 2026</span>
