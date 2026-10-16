@@ -57,7 +57,7 @@ from .presence_rules import away_timeout_s, is_away
 from .util import ha_devices
 from .ws_common import (
     RadioDeviceIndex,
-    radio_display_name,
+    radio_display,
     _ALL_ADDR_CAP,
     _DATA_SNAPSHOT_CACHE,
     _DATA_SNAPSHOT_CACHE_LOCK,
@@ -260,11 +260,27 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     # and a third of the installs reporting take 1.4-18 s for it, all of them
     # with Bermuda — this says which part.
     _phase_t = [time.perf_counter()]
+    # The "ha" phase never awaits, so this thread's CPU time over it is
+    # PadSpan's own work: next to its wall time it says whether a slow build
+    # is PadSpan's code or the process starved by other threads (0.38.133;
+    # 13-16 s "ha" phases on two VMs with only ~5k states).
+    _phase_c = [time.thread_time()]
+    _sub_t = [time.perf_counter()]
 
     def _phase_done(name: str) -> None:
         now = time.perf_counter()
         record_duration(hass, "snap_" + name, (now - _phase_t[0]) * 1000.0)
+        if name == "ha":
+            record_duration(hass, "snap_ha_cpu", (time.thread_time() - _phase_c[0]) * 1000.0)
+            record_duration(hass, "snap_ha_radios", (now - _sub_t[0]) * 1000.0)
         _phase_t[0] = now
+        _phase_c[0] = time.thread_time()
+        _sub_t[0] = now
+
+    def _sub_done(name: str) -> None:
+        now = time.perf_counter()
+        record_duration(hass, "snap_" + name, (now - _sub_t[0]) * 1000.0)
+        _sub_t[0] = now
 
     # --- Bluetooth (scanners + advertisements) ---
     # Fetched FIRST because downstream sections (objects, room assignment) depend on it.
@@ -366,6 +382,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         snapshot["receivers"] = sorted(receivers, key=lambda d: (d.get("name") or "").lower())
     except Exception:
         snapshot["receivers"] = []
+
+    _sub_done("ha_areas")   # areas, Bermuda entries, receivers
 
     # --- Tag candidates + room mapping ---
     # Walk every HA entity and heuristically determine which ones represent
@@ -704,6 +722,8 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     }
 
 
+    _sub_done("ha_tags")    # the walk over every state, saved tags
+
     # NOTE: snapshot["ble"] was already set at the top of this function.
     # Do NOT overwrite it here — a second bl.get_snapshot() call could return
     # empty data if get_bluetooth_live() returns None, wiping all BLE ads.
@@ -735,7 +755,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     area = area_names.get(match.device.area_id, "")
                     if area:
                         radio["area_name"] = area
-            radio["display_name"] = radio_display_name(radio, match.device)
+            radio["display_name"], radio["name_from"] = radio_display(radio, match.device)
     except Exception:
         pass
 

@@ -531,8 +531,12 @@ def _device_label(dev: Any) -> str:
 _NAME_MAC_TAIL_RE = re.compile(r"\s*\((?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\)\s*$")
 
 
-def radio_display_name(radio: dict, device: Any = None) -> str:
-    """The one name a receiver goes by everywhere in the panel.
+NAME_FROM: tuple[str, ...] = ("ha_user", "ha", "scanner", "area", "source")
+
+
+def radio_display(radio: dict, device: Any = None) -> tuple[str, str]:
+    """The one name a receiver goes by everywhere in the panel, and where it
+    came from (one of NAME_FROM, for the opt-in report).
 
     The name the user gave it in Home Assistant first (that's what they see in
     HA too), then HA's own device name, then the scanner's name with its
@@ -540,19 +544,23 @@ def radio_display_name(radio: dict, device: Any = None) -> str:
     """
     src = str(radio.get("source") or "")
     if device is not None:
-        for attr in ("name_by_user", "name"):
+        for attr, origin in (("name_by_user", "ha_user"), ("name", "ha")):
             v = str(getattr(device, attr, None) or "").strip()
             if v:
-                return v
+                return v, origin
     raw = str(radio.get("name") or "").strip()
     if raw and raw != src:
         cleaned = _NAME_MAC_TAIL_RE.sub("", raw).strip()
         if cleaned and _norm_mac(cleaned) == "":
-            return cleaned
+            return cleaned, "scanner"
     area = str(radio.get("area_name") or "").strip()
     if area:
-        return f"{area} receiver"
-    return src
+        return f"{area} receiver", "area"
+    return src, "source"
+
+
+def radio_display_name(radio: dict, device: Any = None) -> str:
+    return radio_display(radio, device)[0]
 
 
 class RadioMatch(NamedTuple):

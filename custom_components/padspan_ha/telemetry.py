@@ -248,6 +248,9 @@ EVENTS: frozenset[str] = frozenset({
     # Bluetooth → Scanners → Find the one in your hand (0.38.132): started,
     # something got louder, and Tag was pressed on one of those.
     "hold_near_started", "hold_near_found", "hold_near_tagged",
+    # Walk-to-Identify (objects.js): "Who's here?" pressed, and Tag pressed on
+    # one of its candidates — the switch is on at a third of installs.
+    "wti_who", "wti_tag",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
@@ -506,10 +509,30 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     # Assistant's states and registries, the object list (history replay,
     # dedup), enrichment — and how many HA states there are. A third of the
     # installs reporting take 1.4-18 s per build, all with Bermuda installed.
-    "snap_ble_ms": ("snap_ble", ("p50",)),
-    "snap_ha_ms": ("snap_ha", ("p50",)),
-    "snap_objects_ms": ("snap_objects", ("p50",)),
-    "snap_enrich_ms": ("snap_enrich", ("p50",)),
+    "snap_ble_ms": ("snap_ble", ("p50", "p95")),
+    "snap_ha_ms": ("snap_ha", ("p50", "p95")),
+    "snap_objects_ms": ("snap_objects", ("p50", "p95")),
+    "snap_enrich_ms": ("snap_enrich", ("p50", "p95")),
+    # 0.38.133: "ha" was 90%+ of every slow build in the reports (13-16 s on
+    # two VMs with ~5k states, where 12k states elsewhere take 60 ms). Its CPU
+    # time (it never awaits) says whether that is PadSpan's own work or the
+    # process starved by other threads; its parts say which walk it is.
+    "snap_ha_cpu_ms": ("snap_ha_cpu", ("p50", "p95")),
+    "snap_ha_areas_ms": ("snap_ha_areas", ("p50", "p95")),
+    "snap_ha_tags_ms": ("snap_ha_tags", ("p50", "p95")),
+    "snap_ha_radios_ms": ("snap_ha_radios", ("p50", "p95")),
+    # How steady the house's own (identified) objects sit, per poll: how many,
+    # the share with no room, receivers hearing each in the last 30 s, and room
+    # changes per hour (all of them; per object = that over pos_objects_n).
+    # The first measure in the report of whether positioning is any good.
+    "pos_objects_n": ("pos_n", ("p50",)),
+    "pos_unknown_pc": ("pos_unk", ("p50", "p95")),
+    "pos_heard_n": ("pos_heard", ("p50",)),
+    "pos_room_changes": ("pos_chg", ("per_h",)),
+    # Occupancy estimates: Unknown phones counted, and confidence (0 low,
+    # 1 medium, 2 high) and estimates per hour — phones through a wall.
+    "occ_unknown_n": ("occ_unk", ("p50", "max")),
+    "occ_conf": ("occ_conf", ("p50", "per_h")),
     "ha_states_n": ("states", ("max",)),
     # Bermuda troubleshooting (perf_sampler.padspan_sizes): its entities and
     # receiver devices, HA entities taken as tag candidates, and saved tags
@@ -900,7 +923,18 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "ip_known": sum(1 for r in radios if r.get("ip")),
         "espresense": sum(1 for r in radios if str(r.get("source") or "").lower().startswith("espresense")),
     }
-    scanner_kinds["other"] = max(0, len(radios) - scanner_kinds["ip_known"] - scanner_kinds["espresense"])
+    scanner_kinds["tasmota"] = sum(1 for r in radios if str(r.get("source") or "").lower().startswith("tasmota_"))
+    scanner_kinds["other"] = max(0, len(radios) - scanner_kinds["ip_known"] - scanner_kinds["espresense"]
+                                 - scanner_kinds["tasmota"])
+    # Where each receiver's one name came from (ws_common.radio_display,
+    # 0.38.132): the user's HA name, HA's device name, the scanner's own, its
+    # area, or nothing but its source. Fixed words and counts, zeros left out.
+    from .ws_common import NAME_FROM  # noqa: PLC0415
+    scanner_names: dict[str, int] = {}
+    for r in radios:
+        k = r.get("name_from")
+        if k in NAME_FROM:
+            scanner_names[k] = scanner_names.get(k, 0) + 1
     scanner_state = {
         "lost": sum(1 for r in radios if r.get("lost")),
         "disabled": sum(1 for r in radios if r.get("disabled")),
@@ -1157,6 +1191,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     env = {
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
+        "scanner_names": scanner_names,
         "scanner_state": scanner_state,
         "scan_modes": scan_modes,
         "scan_modes_requested": scan_modes_requested,

@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.134 — More in the opt-in report (2026-10-16)
+
+Nothing changes in how PadSpan works. The opt-in report (Settings → Presence → Help improve PadSpan) says more, still as counts and buckets only: no names, addresses or entity ids.
+
+### Opt-in report
+- **Where a slow snapshot build goes.** The reports show one part of the build (going through Home Assistant's states and registries) taking 90% or more of the time on every slow install, up to 16 seconds, and only where Bermuda is installed and not ignored. The report now carries that part's CPU time next to its wall time (is it PadSpan's own work, or Home Assistant too busy to give it the processor?), its three pieces, and p95 for every part.
+- **How steady positioning is**, for your own (identified) devices only: room changes per hour, the share of the time with no room, and how many receivers hear each one. The report's first measure of whether positioning is any good.
+- **Receivers:** Tasmota counted apart, and where each receiver's name comes from (your HA name, HA's, the scanner's own, its area, or only its MAC).
+- **Occupancy:** how many Unknown phones each estimate counts, and its confidence.
+- **Walk-to-Identify:** "Who's here?" pressed, and Tag pressed on one of its candidates.
+
+---
+
 ## 0.38.133 — Free Pro offers can be switched off from the server (2026-10-16)
 
 ### Changed

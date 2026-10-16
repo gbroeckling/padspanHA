@@ -329,6 +329,113 @@ def memory_section(latest: dict[str, dict], reports: list[dict]) -> list[str]:
     return out
 
 
+def snapshot_section(latest: dict[str, dict]) -> list[str]:
+    """Where each slow install's snapshot build goes (health.perf snap_*):
+    the phases, and inside "ha" its CPU time and its three parts (0.38.133+).
+    "ha" CPU far below "ha" wall time: the process starved by other threads,
+    not PadSpan's own work."""
+    out = ["Snapshot build, slowest installs (ms; p50/p95):"]
+    rows = []
+    for iid, r in latest.items():
+        p95 = _perf_stat(r, "snap_ms", "p95")
+        if p95 is None or _perf_stat(r, "snap_ha_ms", "p50") is None:
+            continue
+        rows.append((p95, iid, r))
+    if not rows:
+        return out + ["  none with phases yet"]
+    pp = lambda r, m: "/".join(f"{v:g}" if v is not None else "-" for v in
+                               (_perf_stat(r, m, "p50"), _perf_stat(r, m, "p95")))
+    for p95, iid, r in sorted(rows, key=lambda x: -x[0])[:12]:
+        hw = (r.get("env") or {}).get("hw") or {}
+        line = (f"  {iid[:8]} v{r.get('version')} {hw.get('board', '?')}/{hw.get('cpus', '?')}cpu"
+                f" build p95 {p95:g} | ble {pp(r, 'snap_ble_ms')} ha {pp(r, 'snap_ha_ms')}"
+                f" objects {pp(r, 'snap_objects_ms')} enrich {pp(r, 'snap_enrich_ms')}")
+        if _perf_stat(r, "snap_ha_cpu_ms", "p50") is not None:
+            line += (f" || ha cpu {pp(r, 'snap_ha_cpu_ms')}: areas {pp(r, 'snap_ha_areas_ms')}"
+                     f" tags {pp(r, 'snap_ha_tags_ms')} radios {pp(r, 'snap_ha_radios_ms')}")
+        st = _perf_stat(r, "ha_states_n", "max")
+        line += f" | states {st:g}" if st is not None else ""
+        out.append(line)
+    return out
+
+
+def steadiness_section(latest: dict[str, dict]) -> list[str]:
+    """How steady identified objects sit (health.perf pos_*, 0.38.133+): room
+    changes per object per hour, the share of polls with no room, and how
+    many receivers hear each one."""
+    out = ["Positioning steadiness (identified objects, latest report per install):"]
+    chg, unk, heard = [], [], []
+    for r in latest.values():
+        n = _perf_stat(r, "pos_objects_n", "p50")
+        if not n:
+            continue
+        c = _perf_stat(r, "pos_room_changes", "per_h")
+        chg.append(round((c or 0) / n, 2))
+        u = _perf_stat(r, "pos_unknown_pc", "p50")
+        if u is not None:
+            unk.append(u)
+        hd = _perf_stat(r, "pos_heard_n", "p50")
+        if hd is not None:
+            heard.append(hd)
+    if not chg:
+        return out + ["  none yet"]
+    out.append(f"  room changes per object per hour  {_spread(chg)}")
+    out.append(f"  share with no room (%)            {_spread(unk)}")
+    out.append(f"  receivers hearing each            {_spread(heard)}")
+    return out
+
+
+def receivers_section(latest: dict[str, dict]) -> list[str]:
+    """Receivers by kind, and where their one name comes from (env.scanner_names, 0.38.133+)."""
+    kinds: Counter = Counter()
+    names: Counter = Counter()
+    for r in latest.values():
+        env = r.get("env") or {}
+        for k, v in (env.get("scanner_kinds") or {}).items():
+            kinds[k] += int(_num(v) or 0)
+        for k, v in (env.get("scanner_names") or {}).items():
+            names[k] += int(_num(v) or 0)
+    out = ["Receivers (latest report per install):"]
+    out.append("  by kind: " + (", ".join(f"{k} {v}" for k, v in kinds.most_common()) or "-"))
+    out.append("  name from: " + (", ".join(f"{k} {v}" for k, v in names.most_common()) or "none yet")
+               + ("  <- receivers known only by a MAC" if names.get("source") else ""))
+    return out
+
+
+def setup_section(latest: dict[str, dict]) -> list[str]:
+    """How far setup got: installs past each step, from env counts."""
+    steps = (("a map", "maps"), ("receivers placed", "scanner_positions"), ("rooms", "rooms"),
+             ("walls", "walls"), ("calibrated", "calibration_points"), ("an IRK", "irks"),
+             ("lights placed (Atlas)", "placed_lights"))
+    n = len(latest)
+    out = [f"Setup reached (installs with at least one, of {n}):"]
+    for label, key in steps:
+        k = sum(1 for r in latest.values() if (_num((r.get("env") or {}).get(key)) or 0) > 0)
+        out.append(f"  {label:<26} {k:>4}  ({100 * k // max(1, n)}%)")
+    return out
+
+
+def occupancy_section(latest: dict[str, dict]) -> list[str]:
+    """Occupancy estimates (health.perf occ_*, 0.38.133+): Unknown phones each
+    counts, and its usual confidence."""
+    out = ["Occupancy estimates (latest report per install):"]
+    unk, peak, conf = [], [], Counter()
+    for r in latest.values():
+        u = _perf_stat(r, "occ_unknown_n", "p50")
+        if u is None:
+            continue
+        unk.append(u)
+        peak.append(_perf_stat(r, "occ_unknown_n", "max") or 0)
+        c = _perf_stat(r, "occ_conf", "p50")
+        conf[{0: "low", 1: "medium", 2: "high"}.get(int(round(c or 0)), "low")] += 1
+    if not unk:
+        return out + ["  none yet"]
+    out.append(f"  Unknown phones, usual    {_spread(unk)}")
+    out.append(f"  Unknown phones, most     {_spread(peak)}")
+    out.append("  usual confidence: " + ", ".join(f"{k} {conf[k]}" for k in ("low", "medium", "high")))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("dir")
@@ -524,6 +631,11 @@ def main() -> int:
     for line in temp_section(latest):
         print(line)
     print()
+
+    for sec in (snapshot_section, steadiness_section, receivers_section, setup_section, occupancy_section):
+        for line in sec(latest):
+            print(line)
+        print()
 
     h: dict[str, int] = defaultdict(int)
     for r in latest.values():

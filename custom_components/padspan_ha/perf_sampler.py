@@ -111,6 +111,11 @@ STARTUP_GRACE_S = 300.0
 METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", "cycle", "loop",
                             # the snapshot build by phase (snapshot_builder), and HA's state count
                             "snap_ble", "snap_ha", "snap_objects", "snap_enrich", "states",
+                            # inside "ha": its CPU time, and its three parts (0.38.133)
+                            "snap_ha_cpu", "snap_ha_areas", "snap_ha_tags", "snap_ha_radios",
+                            # how steady identified objects sit (presence_coordinator
+                            # _note_steadiness), and the occupancy estimate (ws_occupancy)
+                            "pos_n", "pos_unk", "pos_heard", "pos_chg", "occ_unk", "occ_conf",
                             # Bermuda: its entities and devices, and what the "ha" phase
                             # works through for them (raw_counts in the snapshot)
                             "bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing",

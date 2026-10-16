@@ -393,7 +393,9 @@ class TestSnapshotBuildDiagnostics:
         seen = []
         monkeypatch.setattr(SB, "record_duration", lambda h, m, ms: seen.append((m, ms)))
         await house.poll(0, [])
-        assert [m for m, _ in seen] == ["snap_ble", "snap_ha", "snap_objects", "snap_enrich"]
+        # 0.38.133: inside "ha", its parts and its CPU time.
+        assert [m for m, _ in seen] == ["snap_ble", "snap_ha_areas", "snap_ha_tags", "snap_ha", "snap_ha_cpu",
+                                        "snap_ha_radios", "snap_objects", "snap_enrich"]
         assert all(ms >= 0 for _, ms in seen)
 
 

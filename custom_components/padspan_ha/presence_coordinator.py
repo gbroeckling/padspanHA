@@ -1057,9 +1057,46 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         while the report is off, never raises) — the poll itself unchanged."""
         _t0 = time.perf_counter()
         try:
-            return await self._async_poll()
+            result = await self._async_poll()
+            self._note_steadiness(result)
+            return result
         finally:
             record_duration(self.hass, "cycle", (time.perf_counter() - _t0) * 1000.0)
+
+    def _note_steadiness(self, result: Any) -> None:
+        """How steady the house's own objects sit, for the opt-in report
+        (0.38.133; perf_sampler, a no-op while it is off). Per poll: how many
+        identified objects, the share with no room, the receivers hearing each
+        in the last 30 s; one "pos_chg" per room change (read as changes per
+        hour). Identified only, so it is the house and not the street. A
+        change is room to another room; losing the room counts as unknown."""
+        try:
+            if not isinstance(result, dict):
+                return
+            prev = getattr(self, "_steady_rooms", None)
+            if prev is None:
+                prev = self._steady_rooms = {}
+            n = unknown = heard = 0
+            for key, obj in result.items():
+                if not isinstance(obj, dict) or not self.is_identified_object(key):
+                    continue
+                n += 1
+                room = str(obj.get("room") or "")
+                if not room:
+                    unknown += 1
+                else:
+                    was = prev.get(key)
+                    if was and was != room:
+                        record_duration(self.hass, "pos_chg", 1.0)
+                    prev[key] = room
+                heard += sum(1 for x in (obj.get("sources") or ())
+                             if isinstance(x, dict) and float(x.get("age_s") or 0) <= 30)
+            if n:
+                record_duration(self.hass, "pos_n", float(n))
+                record_duration(self.hass, "pos_unk", 100.0 * unknown / n)
+                record_duration(self.hass, "pos_heard", heard / n)
+        except Exception:
+            pass
 
     async def _async_poll(self) -> dict[str, Any]:
         """Main poll loop — called every _SCAN_INTERVAL (10s) by HA's coordinator.

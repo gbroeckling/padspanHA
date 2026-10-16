@@ -48,3 +48,18 @@ def test_bare_mac_name_falls_to_area_then_source():
 def test_blank_device_names_skipped():
     r = {"source": "s", "name": "kitchen-proxy"}
     assert radio_display_name(r, _dev("", "  ")) == "kitchen-proxy"
+
+
+def test_where_the_name_came_from():
+    from custom_components.padspan_ha.ws_common import NAME_FROM, radio_display
+    mac = "AA:BB:CC:DD:EE:FF"
+    cases = [
+        (({"source": mac}, _dev("X", "Mine")), "ha_user"),
+        (({"source": mac}, _dev("X")), "ha"),
+        (({"source": mac, "name": f"p ({mac})"}, None), "scanner"),
+        (({"source": mac, "name": mac, "area_name": "Hall"}, None), "area"),
+        (({"source": mac, "name": mac}, None), "source"),
+    ]
+    for (radio, dev), want in cases:
+        assert radio_display(radio, dev)[1] == want
+        assert want in NAME_FROM

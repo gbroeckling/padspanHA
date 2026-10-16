@@ -141,7 +141,7 @@ def test_nothing_from_the_house_is_in_the_report():
     for secret in _SECRETS:
         assert secret not in text, f"{secret!r} leaked into the report"
     # and it still says the useful things
-    assert payload["env"]["scanners"] == 2 and payload["env"]["scanner_kinds"] == {"ip_known": 1, "espresense": 0, "other": 1}
+    assert payload["env"]["scanners"] == 2 and payload["env"]["scanner_kinds"] == {"ip_known": 1, "espresense": 0, "tasmota": 0, "other": 1}
     assert payload["env"]["rooms"] == 3 and payload["env"]["floors"] == 2
     assert payload["env"]["placed_lights"] == 4 and payload["env"]["walls"] == 1 and payload["env"]["irks"] == 1
     assert payload["env"]["placed_by_domain"] == {
@@ -237,7 +237,11 @@ def test_nothing_from_the_house_is_in_the_report():
     # 2026-10-15, "Widen emergency": smoke, gas and CO alarms joined leaks in
     # the Emergency class; counted apart from leaks so the report can tell
     # whether anyone places them.
-    assert len(text) < 4165
+    # Raised 4165 -> 4200 for env.scanner_kinds.tasmota and env.scanner_names
+    # (~35 bytes): Garry, 2026-10-16, "All" (more opt-in elements): Tasmota
+    # receivers counted apart, and where each receiver's one name comes from
+    # (0.38.132's one-name fix needed its field signal).
+    assert len(text) < 4200
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1194,8 +1198,15 @@ def _busy_day(h, hours: float = 24.0):
         w.add("snap", rnd.uniform(900, 8200))
         w.add("cycle", rnd.uniform(40, 2400))
         w.add("loop", rnd.uniform(20, 2000))
-        for ph in ("snap_ble", "snap_ha", "snap_objects", "snap_enrich"):
+        for ph in ("snap_ble", "snap_ha", "snap_objects", "snap_enrich",
+                   "snap_ha_cpu", "snap_ha_areas", "snap_ha_tags", "snap_ha_radios"):
             w.add(ph, rnd.uniform(20, 18000))
+        w.add("pos_n", rnd.uniform(1, 60))
+        w.add("pos_unk", rnd.uniform(0, 100))
+        w.add("pos_heard", rnd.uniform(0, 12))
+        w.add("pos_chg", 1.0)
+        w.add("occ_unk", rnd.uniform(0, 9))
+        w.add("occ_conf", rnd.choice((0.0, 1.0, 2.0)))
     # PadSpan's own size on a busy street, and Home Assistant by view
     # (Garry, 2026-10-05: the low-memory version and its minimum requirements).
     for i in range(1440):
@@ -1260,7 +1271,10 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     # and only the phase split says where. 1850 -> 2000 for the Bermuda
     # counts beside it (its entities and devices, tag candidates, saved tags
     # that resolve to nothing).
-    assert section < 2000, section
+    # 2000 -> 2500 (Garry, 2026-10-16, "All"): p95 for the four phases, the
+    # "ha" phase's CPU time and its three parts (90%+ of every slow build),
+    # how steady identified objects sit, and the occupancy estimate.
+    assert section < 2500, section
     assert len(json.dumps(p)) <= T._MAX_BYTES
 
 

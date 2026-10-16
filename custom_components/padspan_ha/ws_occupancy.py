@@ -44,6 +44,7 @@ from .ble_enrichment import decode_apple_subtype, lookup_company, lookup_service
 from .bluetooth_live import get_bluetooth_live
 from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .presence_rules import away_timeout_s, is_away, is_outdoor_floor
+from .perf_sampler import record_duration
 from .ws_common import _is_rpa_addr
 
 _LOGGER = logging.getLogger(__name__)
@@ -536,6 +537,12 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
         seen_ids.add(ident)
         things.append({"label": obj.get("user_label") or obj.get("name") or obj.get("key"),
                        "kind": obj.get("kind"), "room": obj.get("room") or None})
+
+    # For the opt-in report (0.38.133; a no-op while it is off): how many
+    # Unknown phones each estimate counts, and its confidence (0 low, 1
+    # medium, 2 high) — whether phones through a shared wall are common.
+    record_duration(hass, "occ_unk", float(len(unknown_phones)))
+    record_duration(hass, "occ_conf", {"low": 0.0, "medium": 1.0, "high": 2.0}.get(confidence, 0.0))
 
     return {
         "total_estimate": estimate,

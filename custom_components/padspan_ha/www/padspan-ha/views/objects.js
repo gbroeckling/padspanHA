@@ -375,7 +375,7 @@ export function render(ctx){
                     : addr;
       if ((kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") || !tagAddr) return el("td",{}, "");
       const btn = el("button",{class:"btn tiny"}, userLabel ? "Relabel" : "Tag");
-      btn.addEventListener("click",(e)=>{ e.stopPropagation(); ctx.actions.tagObjectPrompt(tagAddr, userLabel); });
+      btn.addEventListener("click",(e)=>{ e.stopPropagation(); if (ctx.state._wtiRoom && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_tag"); ctx.actions.tagObjectPrompt(tagAddr, userLabel); });
       return el("td",{}, btn);
     })();
 
@@ -576,7 +576,7 @@ export function render(ctx){
                      : addr;
       if((o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon") && tagAddr2){
         const btn = el("button",{class:"btn tiny"}, o.user_label ? "Relabel" : "Tag");
-        btn.addEventListener("click", ()=> ctx.actions.tagObjectPrompt(tagAddr2, o.user_label || ""));
+        btn.addEventListener("click", ()=> { if (ctx.state._wtiRoom && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_tag"); ctx.actions.tagObjectPrompt(tagAddr2, o.user_label || ""); });
         actions.appendChild(btn);
       }
       const detailsBtn = el("button",{class:"btn tiny", onclick:()=> ctx.actions.showObjectDetail(o)}, "Details");
@@ -699,6 +699,7 @@ export function render(ctx){
           const room = roomSel.value;
           if (!room) { ctx.toast("Select a room first", true); return; }
           ctx.state._wtiRoom = room;
+          if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_who"); 
           _wtiRoom = room;
           _wtiScores = _computeWtiScores(room);
           ctx.actions.renderRooms();
@@ -848,6 +849,7 @@ export function render(ctx){
       const room = roomSel.value;
       if (!room) { ctx.toast("Select a room first", true); return; }
       ctx.state._wtiRoom = room;
+      if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wti_who"); 
       ctx.state.objStatus = "unidentified";
       ctx.actions.renderRooms();
     });
