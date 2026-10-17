@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.140",
+  "title": "Suggest an idea",
+  "date": "2026-10-17",
+  "body_markdown": "### New\n- **💡 Suggest an idea**, in Settings (above Help improve PadSpan) and at the bottom of What's New: post an idea on GitHub Discussions → Ideas, where other people can vote on it, see and vote on the ideas already there, or email one to hello@traks.ca if you'd rather not use GitHub. Not shown on a wall screen.\n\n### Opt-in report\n- Which of the three ways people take (posted, browsed, emailed). Nothing about the idea itself."
+ },
+ {
   "version": "0.38.139",
   "title": "A minimum signal per receiver, and find a device by hiding it",
   "date": "2026-10-17",
@@ -28,11 +34,5 @@
   "title": "Stable: Live Aboard grows up, one name per receiver, smoke and CO alarms",
   "date": "2026-10-16",
   "body_markdown": "- **Coming from 0.38.124?** This stable brings in everything from the 0.38.125–0.38.134 betas below:\n  - **Live Aboard (the 3D house):** motion that reads at a glance (only \"now\" is lit, with lines down to the floor), Explode to see every floor at once, a heat map with Temps, a warning for a window left open in the rain, lit windows at night, the room sheet's own scenes and scripts as ▶ buttons, and smoother building tools (5 cm snapping, keyboard shortcuts, one-tap Round this room).\n  - **Emergency** covers smoke, gas and CO alarms as well as leaks.\n  - **One name per receiver** everywhere (your Home Assistant name for it), **Find the one in your hand** in Bluetooth → Scanners, and **Custom walls** that take your own dB.\n  - **Guides:** Live Aboard, Furnish, Wall Screen, PadSpan Pro and Walls, and a much fuller Atlas Guide.\n  - Free-Pro offers can be switched off from the server, and the opt-in report says more (counts only).\n\n### Fixed\n- Live Aboard: an open window's rain glow drew as a floating box where Cut had lowered the wall, and didn't follow the walls as the view turned.\n- Live Aboard: after switching to the flat map and back, the \"window open in the rain\" line could stay blank, and the old heat map stayed in memory.\n- Live Aboard: **⇕ Explode** is in the floor list too, so it can be reached on a phone, where the ⇕ button is hidden.\n- Tester sign-up: a slow licence server could make Home Assistant say the sign-up failed when it had gone through and the key had been sent.\n\n### Opt-in report\n- A day with more kinds of event than fit no longer stops the report: the rarest counters are left out instead, and it says how many.\n- Positioning steadiness is only worked out while the report is on.\n- A receiver is counted under one kind only.\n- \"Tag pressed from Walk-to-Identify\" counts only presses on its candidates."
- },
- {
-  "version": "0.38.134",
-  "title": "More in the opt-in report",
-  "date": "2026-10-16",
-  "body_markdown": "Nothing changes in how PadSpan works. The opt-in report (Settings → Presence → Help improve PadSpan) says more, still as counts and buckets only: no names, addresses or entity ids.\n\n### Opt-in report\n- **Where a slow snapshot build goes.** The reports show one part of the build (going through Home Assistant's states and registries) taking 90% or more of the time on every slow install, up to 16 seconds, and only where Bermuda is installed and not ignored. The report now carries that part's CPU time next to its wall time (is it PadSpan's own work, or Home Assistant too busy to give it the processor?), its three pieces, and p95 for every part.\n- **How steady positioning is**, for your own (identified) devices only: room changes per hour, the share of the time with no room, and how many receivers hear each one. The report's first measure of whether positioning is any good.\n- **Receivers:** Tasmota counted apart, and where each receiver's name comes from (your HA name, HA's, the scanner's own, its area, or only its MAC).\n- **Occupancy:** how many Unknown phones each estimate counts, and its confidence.\n- **Walk-to-Identify:** \"Who's here?\" pressed, and Tag pressed on one of its candidates."
  }
 ]
