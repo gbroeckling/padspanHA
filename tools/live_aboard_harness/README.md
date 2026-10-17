@@ -36,6 +36,10 @@ Then open `http://127.0.0.1:8765/tools/live_aboard_harness/index.html`.
 
 The house's fixture (rooms, lights, sensors, states) is at the top of `index.html`.
 
+`wizard.html?step=<id>` shows the Live Aboard setup wizard (views/aboard_wizard.js) on its own, with
+a small fixture house, opened on that step (on, floors, rooms, devices, heights, openings, strips,
+furniture, extras, screen).
+
 ## Screenshots
 
 Static views (no interaction after load) work with headless Edge's own screenshot:

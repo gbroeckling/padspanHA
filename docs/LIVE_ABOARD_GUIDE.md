@@ -35,6 +35,13 @@ The same card has a few more choices:
   home view (Off, 30 s, 1 min, 5 min).
 - **Show people** and **Show tags & scanners:** on the map and in Live Aboard.
 
+**Set it up step by step:** the **✨ Set it up step by step** button on that card (or **🏠 Set up
+Live Aboard** at the top of Mapping → Atlas) opens a wizard that builds the whole house with you:
+turn it on, floor heights, rooms, devices, heights, doors and windows, LED strips, furniture, the
+optional extras (look, quality, rain and snow, people, tags and scanners, the shared furniture
+library, furniture from a photo, back to home view) and making it your screen, including the
+**Show the Atlas as Overview** switch. Each step says what it found in your house and what's left.
+
 If 🏠 is greyed out, the reason shows beside it (an old browser without WebGL, for example). Tap
 it to try again.
 

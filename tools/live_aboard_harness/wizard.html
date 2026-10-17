@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../custom_components/padspan_ha/www/padspan-ha/styles.css">
+<style>body{background:#0a150e;color:#e2e8f0;font-family:Inter,system-ui,Arial,sans-serif;padding:20px}
+#modal{max-width:720px;border:1px solid #1e3a2a;border-radius:12px;padding:16px;background:#0f1f16}</style></head>
+<body><div id="modal"><div id="title" style="font-weight:700;margin-bottom:8px"></div><div id="body"></div></div>
+<script type="module">
+// The Live Aboard setup wizard on its own (tools/live_aboard_harness/README.md). ?step=<id>
+const W = await import("../../custom_components/padspan_ha/www/padspan-ha/views/aboard_wizard.js?b=h");
+function el(tag, attrs = {}, children = []) { const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (k === "class") n.className = v; else if (k === "style") n.setAttribute("style", v);
+    else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2), v); else if (v != null) n.setAttribute(k, String(v)); }
+  for (const c of [].concat(children)) { if (c == null) continue; n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); } return n; }
+const st = (id, dc, name) => ({ entity_id: id, state: "off", attributes: { device_class: dc, friendly_name: name || id } });
+const states = {};
+[["binary_sensor.front_door","door","Front door"],["binary_sensor.garage","garage_door","Garage door sensor"],["binary_sensor.kitchen_window","opening","Kitchen window"],
+ ["binary_sensor.hall_motion","motion"],["sensor.living_temp","temperature"]].forEach(([i,d,n]) => states[i] = st(i,d,n));
+["light.kitchen_valance","light.quinled_far_west_valance","light.lamp"].forEach(i => states[i] = st(i,null,i.split(".")[1].replace(/_/g," ")));
+states["ai_task.openai"] = st("ai_task.openai"); states["person.garry"] = st("person.garry");
+const settings = { tier: "pro", atlas_3d_enabled: true, atlas_weather_enabled: true, atlas_3d_weather: true, atlas_weather_rain_entity: "binary_sensor.rain" };
+const model = { floors: [{id:"basement",name:"Basement",floor_to_floor_m:3},{id:"main",name:"Main",floor_to_floor_m:2.3},{id:"upper",name:"Upper"}],
+  room_geometry_m: {A:{floor_id:"main"},B:{floor_id:"main"},C:{floor_id:"basement"},D:{floor_id:"upper"}},
+  light_positions_m: {"light.kitchen_valance":{},"light.lamp":{},"binary_sensor.front_door":{}}, rf_barriers_m: [{linked_entity_id:"binary_sensor.front_door"}] };
+const ctx = { hass: { states }, toast: (m) => console.log("toast", m), state: { settings, model }, helpers: { el },
+  actions: { openModal: (t, b) => { document.getElementById("title").textContent = t; document.getElementById("body").replaceChildren(b); },
+    closeModal: () => {}, renderRooms: () => {}, settingsSet: async (p) => { Object.assign(settings, p); return { settings }; },
+    callWS: async () => ({ data: { pieces: {}, lights: {}, openings: {}, devices: {} } }) } };
+await W.openLiveAboardWizard(ctx, new URLSearchParams(location.search).get("step") || undefined);
+document.title = "ready";
+</script></body></html>

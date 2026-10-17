@@ -8786,7 +8786,18 @@ function _lightsTab(ctx, maps, active) {
         });
         return b;
       })(),
-    ]),
+      // Pro: the Live Aboard setup wizard (views/aboard_wizard.js).
+      _tierAtLeast(ctx.state.settings?.tier, "pro") ? (() => {
+        const b = el("button", { class: "btn inline", style: "font-size:11px",
+          title: "Build the 3D house step by step: floors, heights, doors and windows, strips, furniture and the extras" }, "🏠 Set up Live Aboard");
+        b.addEventListener("click", () => {
+          import(`./aboard_wizard.js${new URL(import.meta.url).search}`)
+            .then(m => m.openLiveAboardWizard(ctx))
+            .catch(e => ctx.toast("Could not open the wizard: " + String((e && e.message) || e), true));
+        });
+        return b;
+      })() : null,
+    ].filter(Boolean)),
   ]);
   wrap.appendChild(head);
   // First visit to the builder, ever: open the tour once on its own. Same

@@ -253,6 +253,9 @@ EVENTS: frozenset[str] = frozenset({
     "wti_who", "wti_tag",
     # Pure Live's switch while the Atlas is Overview (0.38.137): which side people pick.
     "live_switch_classic", "live_switch_purelive",
+    # The Live Aboard setup wizard (views/aboard_wizard.js): opened, and
+    # finished (its last step's "open Live Aboard").
+    "wizard_la_opened", "wizard_la_finished",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
@@ -315,6 +318,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "wall_geom", "whatif_placement", "wled_advanced", "wled_model", "wled_tab_backup",
     "wled_tab_leds", "wled_tab_look", "wled_tab_presets", "wled_tab_settings",
     "wled_tab_sync", "wled_ui", "trial_offer", "release_notes", "pro_invite",
+    "aboard_wizard",                                # the Live Aboard setup wizard (Settings, Mapping → Atlas)
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
 UI_ERRORS: frozenset[str] = frozenset(

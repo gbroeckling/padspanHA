@@ -3385,6 +3385,15 @@ function _atlas3dSection(ctx, el, settings){
     "EXPERIMENTAL — still changing; tell us what you find"));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
     "Adds a Map / Live Aboard switch to the Atlas: walk around your floors, rooms, walls, lights and furniture, built from the map you already drew. Off by default."));
+  // The setup wizard (views/aboard_wizard.js): every step from scratch,
+  // with the optional extras below exposed along the way.
+  const wizBtn = el("button",{class:"btn inline",style:"margin:0 0 8px;background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"},"✨ Set it up step by step");
+  wizBtn.addEventListener("click", ()=>{
+    import(`./aboard_wizard.js${new URL(import.meta.url).search}`)
+      .then(m => m.openLiveAboardWizard(ctx))
+      .catch(e => ctx.toast("Could not open the wizard: " + String((e && e.message) || e), true));
+  });
+  box.appendChild(wizBtn);
   const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:6px 0 0"}, "Saves as soon as you change it. No restart needed.");
   const save = async (key, value, undo) => {
     try {
