@@ -535,6 +535,9 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "ha_devices_n": ("ha_devices", ("max",)),
     "ha_entities_n": ("ha_entities", ("max",)),
     "dev_same_name_max": ("dev_dup", ("max",)),
+    # Per-receiver minimum signal (opt-in, 0.38.139): readings each poll kept
+    # out of positioning, while any receiver has a floor set.
+    "floor_dropped_n": ("floor_drop", ("p50", "max")),
     # How steady the house's own (identified) objects sit, per poll: how many,
     # the share with no room, receivers hearing each in the last 30 s, and room
     # changes per hour (all of them; per object = that over pos_objects_n).
@@ -1207,6 +1210,8 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
         "scanner_names": scanner_names,
+        # Receivers with a minimum signal set (opt-in; a count, never which).
+        "scanner_floors": len(settings.get("scanner_min_rssi") or {}) if isinstance(settings.get("scanner_min_rssi"), dict) else 0,
         "scanner_state": scanner_state,
         "scan_modes": scan_modes,
         "scan_modes_requested": scan_modes_requested,

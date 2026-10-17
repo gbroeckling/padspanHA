@@ -55,6 +55,18 @@ neighbours' phones show up inside.
 
 Pick **Custom** in the Material list and a **Loss through it** box appears (0–30 dB). Set it before you draw; every wall drawn after that gets that number until you change it.
 
+## A receiver that hears the neighbours
+
+Walls only help if they're between the phone and the receiver. A receiver on an outside wall, or on
+a floor above a shop or a flat, also hears the street and the people downstairs. For that one
+receiver, **Bluetooth → Scanners → Min signal** (off unless you set it) ignores anything it hears
+weaker than the level you pick, say -90 on an outside wall or -80 by a front door:
+
+- Positioning and Occupancy's phone count stop counting those faint readings from that receiver.
+- Everything else still sees them: the scanner and advert lists, Forensics, Traceback, Find My
+  following and calibration.
+- A phone in the room reads far stronger than that at the nearest receiver, so it isn't lost.
+
 ## How to tell a wall is wrong
 
 - **A phone or tag sticks to the room on the other side of a wall:** the wall is weaker in the map

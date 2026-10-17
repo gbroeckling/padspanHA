@@ -42,6 +42,7 @@ SITE_STATE: frozenset[str] = frozenset({
     "_scanner_positions", "_scanner_abs_z", "_scanner_reliability",
     "_scanner_agree", "_room_centroids", "_floor_bounds", "_floor_bases",
     "_floor_rooms", "_floor_stack_idx", "_pl_fits", "_door_debounce",
+    "_floor_cache",                     # each receiver's minimum signal, from settings (by scanner)
 })
 
 # Keyed by an object key or by a resolved address. These belong to one object

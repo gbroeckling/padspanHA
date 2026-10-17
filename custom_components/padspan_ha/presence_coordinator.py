@@ -113,6 +113,7 @@ from .const import (
 from . import fabric_truth as _fabric_truth
 from .beacon_drift import compute_drift_m, drift_severity
 from .perf_sampler import record_duration
+from .presence_rules import below_floor as _below_floor
 from .telemetry import enabled as _telemetry_on
 from .presence_rules import (
     indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
@@ -747,6 +748,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._silence_miss: dict[str, dict[str, int]] = {}
         # Sources masked out of positioning (issue #59), read from settings.
         self._excluded_cache: frozenset[str] = frozenset()
+        self._floor_cache: dict[str, float] = {}
         # {key: addr} — object key → Kalman state key (RPA-resolved address
         # for ble/private_ble).  Lets _evict_object clean the address-keyed
         # Kalman dicts above, which are NOT keyed by object key.
@@ -1049,6 +1051,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
             self._excluded_cache = excluded_sources((_st.data if _st else {}) or {})
+            from .presence_rules import scanner_floors  # noqa: PLC0415
+            self._floor_cache = scanner_floors((_st.data if _st else {}) or {})
         except Exception:
             pass
         return self._excluded_cache
@@ -1172,6 +1176,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # masked went on entering the RSSI maps while the smoothed-state purge
         # a few lines below was busy removing it.
         _excluded_srcs: set[str] = set(self._excluded_sources())
+        # Per-receiver minimum signal (opt-in; presence_rules.scanner_floors),
+        # read with the masks above. Empty: nothing below changes.
+        _floors: dict[str, float] = getattr(self, "_floor_cache", None) or {}
+        _floor_drops = 0
         _es_map: dict[str, dict[str, float]] = {}
         _ad_ages: dict[tuple[str, str], float] = {}
         for ad in (snap.get("ble") or {}).get("advertisements") or []:
@@ -1188,6 +1196,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if isinstance(_age, (int, float)) and _age > _max_ad_age_s:
                 continue
             if src and str(src) in _excluded_srcs:
+                continue
+            if _floors and _below_floor(_floors, src, rssi):
+                _floor_drops += 1
                 continue
             if addr and src and rssi is not None:
                 existing = addr_src_rssi.setdefault(addr, {})
@@ -1213,6 +1224,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except (TypeError, ValueError):
                     pass
         self._espresense_dist = _es_map
+        if _floors:
+            # Readings the receivers' floors kept out this poll (opt-in report).
+            record_duration(self.hass, "floor_drop", float(_floor_drops))
         self._addr_tx_power = addr_tx_power
         # Per-receiver path-loss fits (metres-based) from the calibration
         # store, refreshed once per poll for the spatial distance conversion.

@@ -118,6 +118,8 @@ METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", 
                             "pos_n", "pos_unk", "pos_heard", "pos_chg", "occ_unk", "occ_conf",
                             # HA's device and entity registries, the most same-named devices
                             "ha_devices", "ha_entities", "dev_dup",
+                            # readings the receivers' minimum signal kept out of positioning, per poll
+                            "floor_drop",
                             # Bermuda: its entities and devices, and what the "ha" phase
                             # works through for them (raw_counts in the snapshot)
                             "bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing",

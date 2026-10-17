@@ -1203,6 +1203,7 @@ def _busy_day(h, hours: float = 24.0):
         for ph in ("snap_ble", "snap_ha", "snap_objects", "snap_enrich",
                    "snap_ha_cpu", "snap_ha_areas", "snap_ha_tags", "snap_ha_radios"):
             w.add(ph, rnd.uniform(20, 18000))
+        w.add("floor_drop", rnd.uniform(0, 400))
         for m in ("ha_devices", "ha_entities", "dev_dup"):
             w.add(m, rnd.uniform(0, 40000))
         w.add("pos_n", rnd.uniform(1, 60))
@@ -1280,7 +1281,8 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     # how steady identified objects sit, and the occupancy estimate.
     # 2500 -> 2600 (0.38.136): HA's device and entity registry sizes and the
     # most same-named devices, beside the "ha" phase they may explain.
-    assert section < 2600, section
+    # 2600 -> 2650 (0.38.139): readings the per-receiver minimum signal kept out.
+    assert section < 2650, section
     assert len(json.dumps(p)) <= T._MAX_BYTES
 
 

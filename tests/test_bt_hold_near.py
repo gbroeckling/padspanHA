@@ -29,5 +29,7 @@ def test_hold_near_ranks_what_got_louder_and_offers_tag():
     assert r.returncode == 0, r.stderr[-2000:]
     out = json.loads(r.stdout.strip().splitlines()[-1])
     # A new address counts from -100; a 2-3 dB wobble or a weak one never shows.
-    assert out == {"rank": [["DD", 45, True], ["AA", 32, False]], "idleStart": True, "liveJump": True,
+    assert out == {"quiet": [["DD", -30, True], ["AA", -24, False]], "quietIdle": True, "quietLive": True,
+                   "louderDefault": True,
+                   "rank": [["DD", 45, True], ["AA", 32, False]], "idleStart": True, "liveJump": True,
                    "liveOnlyHeld": True, "tagBtn": True, "oneName": True}, out

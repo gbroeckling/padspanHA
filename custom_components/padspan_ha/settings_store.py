@@ -74,6 +74,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Sources masked out of positioning (issue #59). A MASK, never a delete:
     # stored calibration samples, positions and registry entries are untouched,
     # so removing a source from this list restores its influence exactly.
+    "scanner_min_rssi": {},    # {source: dBm} — opt-in per-receiver minimum signal (presence_rules.scanner_floors)
     "excluded_scanners": [],   # [source_name, ...] — ignored by every matcher
     # Devices masked at INGEST — they never become objects, so they cost no CPU,
     # no cache, no history. A MASK, never a delete: clear the list and the

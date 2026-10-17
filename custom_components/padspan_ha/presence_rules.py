@@ -34,6 +34,61 @@ _MIN_AWAY_TIMEOUT_M = 1.0
 _MAX_AWAY_TIMEOUT_M = 1440.0
 
 
+FLOOR_MIN_DBM = -110.0
+FLOOR_MAX_DBM = -30.0
+
+
+def scanner_floors(settings: dict[str, Any] | None) -> dict[str, float]:
+    """Each receiver's minimum signal, in dBm (opt-in, Ben Hines 2026-10-16).
+
+    `scanner_min_rssi` = {source: dBm}; empty unless the user sets one (Bluetooth
+    → Scanners). A reading weaker than its receiver's floor is ignored by
+    POSITIONING (the coordinator's per-scanner RSSI maps) and by the OCCUPANCY
+    phone count, and by nothing else: the raw advertisement lists, Forensics,
+    Traceback, Find My following and calibration capture all still see it. A
+    receiver on an outside wall can drop the street and the flat below without
+    losing anything another receiver hears well.
+    """
+    out: dict[str, float] = {}
+    raw = (settings or {}).get("scanner_min_rssi") or {}
+    if not isinstance(raw, dict):
+        return out
+    for src, v in raw.items():
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if src and FLOOR_MIN_DBM <= f <= FLOOR_MAX_DBM:
+            out[str(src)] = f
+    return out
+
+
+def below_floor(floors: dict[str, float] | None, src: Any, rssi: Any) -> bool:
+    """A reading weaker than its receiver's minimum signal (no floor: never)."""
+    if not floors or src is None or rssi is None:
+        return False
+    try:
+        return float(rssi) < floors.get(str(src), -999.0)
+    except (TypeError, ValueError):
+        return False
+
+
+def clean_floors(raw: Any) -> dict[str, int]:
+    """What settings_set keeps of a scanner_min_rssi write: sources with a
+    whole dBm in range; anything else dropped. {} turns every floor off."""
+    out: dict[str, int] = {}
+    if not isinstance(raw, dict):
+        return out
+    for k, v in raw.items():
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(k, str) and k.strip() and FLOOR_MIN_DBM <= f <= FLOOR_MAX_DBM:
+            out[k] = int(round(f))
+    return out
+
+
 def excluded_sources(settings: dict[str, Any] | None) -> frozenset[str]:
     """Scanner sources masked out of positioning — all three ways at once.
 

@@ -25,13 +25,20 @@ const R = BT.holdNearRank({ "AA": -80, "BB": -60, "CC": -75 }, [
   { address: "EE", rssi: -90 },   // new but far
 ]);
 const rank = R.map(r => [String(r.ad.address).toUpperCase(), Math.round(r.jump), r.fresh]);
+// Quieter (the saucepan): heard well at Start and fell 10 dB, or went silent.
+const Q = BT.holdNearRank({ "AA": -60, "BB": -62, "CC": -90, "DD": -70 }, [
+  { address: "AA", rssi: -84 },   // -24: in the pan
+  { address: "BB", rssi: -64 },   // -2: background
+  // CC was too weak at Start to count; DD went silent
+], "quieter");
+const quiet = Q.map(r => [String(r.ad.address).toUpperCase(), Math.round(r.jump), !!r.gone]);
 
 const ads = [{ address: "AA:00:00:00:00:01", source: "kit", rssi: -45, age_s: 1, name: "AA:00:00:00:00:01" },
              { address: "AA:00:00:00:00:02", source: "kit", rssi: -70, age_s: 1, name: "AA:00:00:00:00:02" }];
 const tagged = [];
-function draw(hold) {
+function draw(hold, mode) {
   const recorder = () => new Proxy(() => document.createElement("span"), { get: (t, k) => k === "then" ? undefined : recorder() });
-  const state = { btTab: "scanners", _scannerSel: "kit", dataMode: "live", settings: {}, _holdNear: hold,
+  const state = { btTab: "scanners", _scannerSel: "kit", dataMode: "live", settings: {}, _holdNear: hold, _holdMode: mode,
     live: { snapshot: { ble: { radios: [{ source: "kit", name: "kit (AA:BB:CC:DD:EE:FF)", display_name: "Kitchen proxy", area_name: "Kitchen" }],
       advertisements: ads, diag: { ok: true, errors: [] } }, objects: { list: [] } } } };
   const helpers = new Proxy({ el, esc, helpBtn: () => el("button", {}, "?"), radioShortId: s => s, isScanner: () => false, roomColor: () => "#fff" }, { get: (t, k) => k in t ? t[k] : recorder() });
@@ -43,6 +50,9 @@ function draw(hold) {
 }
 const idle = draw(null).html;
 const live = draw({ src: "kit", at: Date.now() - 25000, base: { "AA:00:00:00:00:01": -80, "AA:00:00:00:00:02": -72 } }).html;
-console.log(JSON.stringify({ rank, idleStart: /Find the one in your hand/.test(idle) && /Start/.test(idle),
+const idleQuiet = draw(null, "quieter").html;
+const liveQuiet = draw({ src: "kit", at: Date.now() - 25000, mode: "quieter", base: { "AA:00:00:00:00:01": -45, "AA:00:00:00:00:09": -60 } }).html;
+console.log(JSON.stringify({ quiet, quietIdle: /saucepan/.test(idleQuiet) && /Quieter/.test(idleQuiet), quietLive: /Went quiet since Start/.test(liveQuiet) && /gone quiet/.test(liveQuiet),
+  louderDefault: /Hold the device a few metres/.test(idle), rank, idleStart: /Find the one in your hand/.test(idle) && /Start/.test(idle),
   liveJump: /\+35 dB/.test(live), liveOnlyHeld: !/AA:00:00:00:00:02[^]*\+2 dB/.test(live), tagBtn: /Tag/.test(live),
   oneName: /Kitchen proxy/.test(idle) }));

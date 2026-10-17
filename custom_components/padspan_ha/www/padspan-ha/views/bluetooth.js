@@ -51,9 +51,28 @@ function sigEl(el, rssi, opts) {
 // An address not heard at Start counts from -100. Strongest jump first; only
 // jumps of HOLD_MIN_JUMP dB that now read at least HOLD_MIN_RSSI are kept
 // (a device held against a receiver reads well above that).
-export const HOLD_MIN_JUMP = 10, HOLD_MIN_RSSI = -70, HOLD_MAX = 15;
-export function holdNearRank(base, ads) {
+export const HOLD_MIN_JUMP = 10, HOLD_MIN_RSSI = -70, HOLD_MAX = 15, HOLD_HEARD_RSSI = -85;
+// mode "quieter" (Ben Hines' saucepan, 2026-10-16): the device hidden in a
+// metal bin or pan drops away. Anything heard at HOLD_HEARD_RSSI or better at
+// Start that fell HOLD_MIN_JUMP dB, or went silent (counted from -100).
+export function holdNearRank(base, ads, mode = "louder") {
   const out = [];
+  if (mode === "quieter") {
+    const now = {};
+    for (const a of ads || []) {
+      const addr = String(a.address || "").toUpperCase();
+      if (addr && Number.isFinite(a.rssi)) now[addr] = a;
+    }
+    for (const [addr, was] of Object.entries(base || {})) {
+      if (!Number.isFinite(was) || was < HOLD_HEARD_RSSI) continue;
+      const a = now[addr];
+      const cur = a ? a.rssi : -100;
+      const drop = was - cur;
+      if (drop >= HOLD_MIN_JUMP) out.push({ ad: a || { address: addr, rssi: null }, jump: -drop, gone: !a });
+    }
+    out.sort((x, y) => (x.jump - y.jump));
+    return out.slice(0, HOLD_MAX);
+  }
   for (const a of ads || []) {
     const addr = String(a.address || "").toUpperCase();
     if (!addr || !Number.isFinite(a.rssi)) continue;
@@ -702,6 +721,35 @@ function renderScanners(ctx, radios, sources, adsAll) {
       isExcluded ? el("span", { class: "bt-mini-lbl" }, "ignored \u00b7 data kept") : null,
     ].filter(Boolean));
 
+    // ── Minimum signal (opt-in; presence_rules.scanner_floors) ────────────
+    // Readings weaker than this, at THIS receiver, are ignored by positioning
+    // and the occupancy count only: the lists here, Forensics, Traceback and
+    // calibration still get everything. Off (no floor) unless chosen.
+    const floors = (ctx.state.settings && ctx.state.settings.scanner_min_rssi) || {};
+    const curFloor = typeof floors[src] === "number" ? floors[src] : null;
+    const floorSel = el("select", { class: "select", style: "font-size:11px;padding:1px 4px;max-width:120px",
+      title: "Ignore anything this receiver hears weaker than this, for positioning and the occupancy count only. For a receiver on an outside wall or floor that hears the street or the neighbours. Off: everything counts." });
+    for (const [v, label] of [["", "Min signal: off"], ["-95", "Ignore < -95"], ["-90", "Ignore < -90"], ["-85", "Ignore < -85"],
+                              ["-80", "Ignore < -80"], ["-75", "Ignore < -75"], ["-70", "Ignore < -70"]]) {
+      const o = el("option", { value: v }, label);
+      if ((curFloor === null && v === "") || String(curFloor) === v) o.selected = true;
+      floorSel.appendChild(o);
+    }
+    if (curFloor !== null && ![-95, -90, -85, -80, -75, -70].includes(curFloor)) {
+      const o = el("option", { value: String(curFloor) }, `Ignore < ${curFloor}`); o.selected = true; floorSel.appendChild(o);
+    }
+    floorSel.addEventListener("click", (ev) => ev.stopPropagation());
+    floorSel.addEventListener("change", async (ev) => {
+      ev.stopPropagation();
+      const next = { ...floors };
+      if (floorSel.value === "") delete next[src]; else next[src] = Number(floorSel.value);
+      try {
+        await ctx.actions.settingsSet({ scanner_min_rssi: next });
+        ctx.toast(floorSel.value === "" ? `${name || src}: every reading counts again`
+          : `${name || src}: readings weaker than ${floorSel.value} dBm are ignored for positioning`);
+      } catch (e) { ctx.toast("Could not save the minimum signal", true); }
+    });
+
     // Reset radio button — two-step confirmation to prevent accidental data loss.
     // First click shows "Erase all data? [Yes, reset] [No]"; second click executes.
     // Clears calibration readings, map placements, fingerprints, and offsets for this radio.
@@ -865,6 +913,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
       relearnWrap,
       resetWrap,
       exclRow,
+      floorSel,
     ].filter(Boolean));
     // Remove margin-top from relearn/reset since they're inline now
     relearnWrap.style.cssText = "display:flex;align-items:center;gap:4px";
@@ -959,7 +1008,8 @@ function renderScanners(ctx, radios, sources, adsAll) {
   // then what jumped since. Fresh ads only (a device just held up is fresh).
   const hold = ctx.state._holdNear && ctx.state._holdNear.src === selSrc ? ctx.state._holdNear : null;
   const freshAds = uniqueAds.filter(a => (a.age_s ?? 0) <= 30);
-  const holdRows = hold ? holdNearRank(hold.base, freshAds) : null;
+  const holdMode = ctx.state._holdMode === "quieter" ? "quieter" : "louder";
+  const holdRows = hold ? holdNearRank(hold.base, freshAds, hold.mode || "louder") : null;
   if (hold && holdRows.length && !hold.found) {
     hold.found = true;
     if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("hold_near_found");
@@ -967,7 +1017,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
   const startHold = () => {
     const base = {};
     for (const a of freshAds) base[String(a.address || "").toUpperCase()] = a.rssi;
-    ctx.state._holdNear = { src: selSrc, at: Date.now(), base };
+    ctx.state._holdNear = { src: selSrc, at: Date.now(), base, mode: holdMode };
     if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("hold_near_started");
     ctx.actions.renderRooms();
   };
@@ -989,15 +1039,23 @@ function renderScanners(ctx, radios, sources, adsAll) {
 
   const holdBox = el("div", { class: "bt-hold", style: "margin:6px 0 10px;padding:8px 10px;border-radius:8px;background:rgba(82,183,136,.08);font-size:12px;line-height:1.45" });
   if (!hold) {
+    const modeBtn = (m, label) => el("button", { class: "btn tiny" + (holdMode === m ? " bt-btn-accent" : ""), "aria-pressed": String(holdMode === m),
+      onclick: () => { ctx.state._holdMode = m; ctx.actions.renderRooms(); } }, label);
     holdBox.appendChild(el("div", {}, [
       el("b", {}, "Find the one in your hand. "),
-      "Hold the device a few metres from this receiver and press Start. Then hold it right against the receiver for about 20 seconds (press a button on it if it has one). Whatever got louder comes up here, ready to tag.",
+      holdMode === "louder"
+        ? "Hold the device a few metres from this receiver and press Start. Then hold it right against the receiver for about 20 seconds (press a button on it if it has one). Whatever got louder comes up here, ready to tag."
+        : "Keep the device near this receiver and press Start. Then hide it in a metal bin or a saucepan with a lid for about 20 seconds. Whatever went quiet comes up here, ready to tag. Good for checking a guess too.",
     ]));
-    holdBox.appendChild(el("div", { style: "margin-top:6px" }, el("button", { class: "btn tiny", onclick: startHold }, "Start")));
+    holdBox.appendChild(el("div", { style: "margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap" }, [
+      el("span", { style: "color:#94a3b8" }, "Find what got:"), modeBtn("louder", "Louder"), modeBtn("quieter", "Quieter"),
+      el("button", { class: "btn tiny", onclick: startHold, style: "margin-left:6px" }, "Start"),
+    ]));
   } else {
     const secs = Math.round((Date.now() - hold.at) / 1000);
     holdBox.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
-      el("b", {}, holdRows.length ? "Got louder since Start:" : (secs < 20 ? `Listening… ${secs} s` : "Nothing got louder yet")),
+      el("b", {}, holdRows.length ? (hold.mode === "quieter" ? "Went quiet since Start:" : "Got louder since Start:")
+        : (secs < 20 ? `Listening… ${secs} s` : (hold.mode === "quieter" ? "Nothing went quiet yet" : "Nothing got louder yet"))),
       el("button", { class: "btn tiny", onclick: startHold }, "Start again"),
       el("button", { class: "btn tiny", onclick: stopHold }, "Done"),
     ]));
@@ -1007,8 +1065,8 @@ function renderScanners(ctx, radios, sources, adsAll) {
       const label = obj ? (obj.user_label || obj.name || addr) : (r.ad.name && r.ad.name !== addr ? r.ad.name : addr);
       holdBox.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:4px" }, [
         el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, label),
-        el("span", { style: "color:#52b788;white-space:nowrap" }, r.fresh ? "new" : `+${Math.round(r.jump)} dB`),
-        sigEl(el, r.ad.rssi),
+        el("span", { style: "color:#52b788;white-space:nowrap" }, r.gone ? "gone quiet" : r.fresh ? "new" : `${r.jump > 0 ? "+" : ""}${Math.round(r.jump)} dB`),
+        r.ad.rssi != null ? sigEl(el, r.ad.rssi) : null,
         el("button", { class: "btn tiny", onclick: () => {
           if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("hold_near_tagged");
           ctx.actions.tagObjectPrompt(tagAddrOf(obj, addr), obj && obj.user_label || "");

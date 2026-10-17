@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.139 — A minimum signal per receiver, and find a device by hiding it (2026-10-17)
+
+Both are options: nothing changes unless you use them.
+
+### New
+- **Min signal, per receiver** (Bluetooth → Scanners, on each receiver's row; off unless you set it). A receiver on an outside wall, or on a floor above a shop or a flat, hears the street and the neighbours. Pick **Ignore < -90** (or -95 to -70) and that receiver ignores anything weaker, for **positioning and Occupancy's phone count only**. The scanner and advert lists, Forensics, Traceback, Find My following and calibration still see every reading. A phone in the room reads far stronger than that at the nearest receiver, so it isn't lost. The Walls Guide and the Unknown phone help explain when to use it.
+- **Find the one in your hand: Louder or Quieter.** Louder is as before: hold it against the receiver. **Quieter** is new: start with the device near the receiver, then hide it in a metal bin or a saucepan with a lid; whatever went quiet (or silent) comes up, ready to tag. Handy for checking a guess too.
+
+### Opt-in report
+- How many receivers have a minimum signal, and how many readings it keeps out each poll.
+
+---
+
 ## 0.38.138 — Set up Live Aboard step by step (2026-10-17)
 
 ### New

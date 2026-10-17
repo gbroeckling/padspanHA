@@ -43,7 +43,7 @@ from homeassistant.core import HomeAssistant
 from .ble_enrichment import decode_apple_subtype, lookup_company, lookup_service_uuid
 from .bluetooth_live import get_bluetooth_live
 from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN
-from .presence_rules import away_timeout_s, is_away, is_outdoor_floor
+from .presence_rules import away_timeout_s, below_floor, is_away, is_outdoor_floor
 from .perf_sampler import record_duration
 from .ws_common import _is_rpa_addr
 
@@ -226,7 +226,8 @@ def _phone_class(manuf: dict[str, Any], service_uuids: list[Any]) -> bool:
     return any(lookup_service_uuid(str(u)) == "Heart Rate" for u in (service_uuids or []))
 
 
-def _phone_candidates(ads: list[dict[str, Any]], claimed_addrs: set[str]) -> dict[str, dict[str, float]]:
+def _phone_candidates(ads: list[dict[str, Any]], claimed_addrs: set[str],
+                      floors: dict[str, float] | None = None) -> dict[str, dict[str, float]]:
     """Rotating addresses that look like a phone or watch inside the building.
 
     Returns {address: {scanner: best_rssi}}. The locally-administered bit is
@@ -242,6 +243,10 @@ def _phone_candidates(ads: list[dict[str, Any]], claimed_addrs: set[str]) -> dic
         entry = by_addr.setdefault(addr, {"fp": {}, "manuf": {}, "svc": [], "named": False})
         src = str(ad.get("source") or "")
         rssi = ad.get("rssi")
+        # A receiver's minimum signal (opt-in, presence_rules.scanner_floors):
+        # weaker than that, it doesn't count that phone as heard.
+        if floors and below_floor(floors, src, rssi):
+            rssi = None
         if src and rssi is not None:
             entry["fp"][src] = max(entry["fp"].get(src, -999.0), float(rssi))
         name = str(ad.get("name") or "").strip()
@@ -415,7 +420,9 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
                 claimed_addrs.add(str(a).upper())
     bl = get_bluetooth_live(hass)
     ads = (bl.get_snapshot(max_ads=10000, max_age_s=PHONE_AD_MAX_AGE_S).get("advertisements") or []) if bl else []
-    fps = _phone_candidates(ads, claimed_addrs)
+    from .presence_rules import scanner_floors  # noqa: PLC0415
+    _st_fl = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    fps = _phone_candidates(ads, claimed_addrs, scanner_floors((_st_fl.data if _st_fl else {}) or {}))
     clusters = []
     for members in _cluster(fps, thresh):
         strongest = max(members, key=lambda a: max(fps[a].values()))

@@ -591,7 +591,7 @@ export const HELP = {
       "An Unknown phone is a phone or watch PadSpan can hear in that room but can't tie to anyone. Phones change their Bluetooth address every few minutes for privacy (iPhones and most Androids do), so on its own the signal says \"a phone is here\" but not whose.",
       "IF IT'S YOURS (or someone who lives with you): link the phone so PadSpan knows it. The Home Assistant Companion app with its Bluetooth sensor, or the phone's IRK under Private BLE Device in Home Assistant, both work. After that it's counted as that person.",
       "IF IT'S A VISITOR: nothing to do. It goes when they do.",
-      "IF IT'S A NEIGHBOUR through the wall: it has to be heard by two or more of your receivers, fairly strongly, to be counted. A receiver on a shared wall makes that easy. Move that receiver away from the wall, or draw the wall as a stronger material on the map (see the Walls Guide), and the count should drop.",
+      "IF IT'S A NEIGHBOUR through the wall: it has to be heard by two or more of your receivers, fairly strongly, to be counted. A receiver on a shared wall makes that easy. Move that receiver away from the wall, draw the wall as a stronger material on the map (see the Walls Guide), or give that receiver a minimum signal in Bluetooth → Scanners (Ignore < -85, say): it then ignores anything weaker for positioning and this count, while every list still shows everything.",
     ],
   },
 
