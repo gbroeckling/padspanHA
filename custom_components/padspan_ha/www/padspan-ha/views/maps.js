@@ -8786,8 +8786,20 @@ function _lightsTab(ctx, maps, active) {
         });
         return b;
       })(),
-      // Pro: the Live Aboard setup wizard (views/aboard_wizard.js).
+      // Pro: the Live Aboard setup wizard (views/aboard_wizard.js); while one
+      // of its steps sent you here, the way back to it.
       _tierAtLeast(ctx.state.settings?.tier, "pro") ? (() => {
+        const away = ctx.state._laWizard && ctx.state._laWizard.away;
+        if (away) {
+          const back = el("button", { class: "btn inline", style: "font-size:11px;background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700",
+            title: "Back to the step you came from; it checks again what's done" }, "← Back to the setup wizard");
+          back.addEventListener("click", () => {
+            import(`./aboard_wizard.js${new URL(import.meta.url).search}`)
+              .then(m => m.openLiveAboardWizard(ctx, away))
+              .catch(e => ctx.toast("Could not open the wizard: " + String((e && e.message) || e), true));
+          });
+          return back;
+        }
         const b = el("button", { class: "btn inline", style: "font-size:11px",
           title: "Build the 3D house step by step: floors, heights, doors and windows, strips, furniture and the extras" }, "🏠 Set up Live Aboard");
         b.addEventListener("click", () => {
@@ -9623,6 +9635,9 @@ function _lightsTab(ctx, maps, active) {
       // The 3D file (doors and windows drawn in 3D, heights): read when the
       // 3D view shows, never on the poll.
       load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),
+      // A tool the setup wizard (aboard_wizard.js) asked for: Live Aboard
+      // takes it once on its way in and opens Edit there.
+      openTool: { take: () => { const t = ctx.state.maps && ctx.state.maps._laOpenTool; if (ctx.state.maps) ctx.state.maps._laOpenTool = null; return t || null; } },
       // The 3D editor's Save, on the same gate as placing a light here
       // (paid, not Preview): without it the 3D view offers no Edit.
       edit: paid && !preview ? (changes) => ctx.actions.wsCall("padspan_ha/house3d_edit", changes)

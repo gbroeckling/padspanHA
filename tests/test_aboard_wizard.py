@@ -39,4 +39,8 @@ def test_the_wizard_surveys_the_house_and_walks_every_step():
     assert out["freeOn"] == "Live Aboard comes with PadSpan Pro."
     assert out["firstStep"] == 1                                   # the first step not done
     assert out["allRendered"] and out["finish"] and out["overviewMentioned"]
-    assert out["events"] == ["wizard_la_opened"]
+    assert out["events"] == ["wizard_la_opened", "wizard_la_opened"]
+    # The way into Live Aboard: the tool (and light) asked for, and the step to come back to.
+    assert out["stripLink"] == {"tool": "strip", "eid": "light.kitchen_valance", "away": "strips"}
+    assert out["awayCleared"] is True
+    assert out["windowLink"] == {"tool": "window", "eid": None, "away": "openings"}

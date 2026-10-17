@@ -4424,6 +4424,10 @@ function createSlot(slotKey){
         prefs = p.prefs && typeof p.prefs.get === "function" && typeof p.prefs.set === "function" ? p.prefs : null;
         update(p);
         if (editor) editor.setFurnish(!!furnishP);           // after update: a file read needs the card's data
+        // A tool asked for on the way in (the setup wizard's "Open Live
+        // Aboard (Edit → Heights)"), taken once: {tool, eid}.
+        const want = editor && p.openTool && typeof p.openTool.take === "function" ? p.openTool.take() : null;
+        if (want && want.tool) Promise.resolve(editor.startTool(want.tool, want.eid || null)).catch(() => {});
         if (failed) return false;
         place(s);
         paintFloors(); paintFull(); showHint(); peopleClock();

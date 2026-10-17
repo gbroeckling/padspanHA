@@ -8,7 +8,8 @@ All notable changes to PadSpan HA are documented here.
 
 ### New
 - **The Live Aboard setup wizard** (PadSpan Pro): **✨ Set it up step by step** in Settings → UI Structure → Live Aboard, or **🏠 Set up Live Aboard** at the top of Mapping → Atlas. Ten steps build the 3D house from scratch: turn it on, floor heights (set right in the wizard), rooms, devices on the Atlas, heights, doors and windows, LED strips, furniture, the extras, and making it your screen. Each step says what it found in your house (which floors have no height, which door and window sensors aren't on a door or window yet, which lights look like strips and aren't laid out) and opens the right tool for the rest.
-- Every optional setting is in it, so nothing cool stays hidden: look, quality, rain and snow, show people, tags and scanners, the shared furniture library, furniture from a photo (AI Task), back to home view, and the **Show the Atlas as Overview** switch (off unless you choose it). It opens on the first step that isn't done, and you can come back any time.
+- **It takes you straight to the tool.** "Open Live Aboard at Heights", "Draw a door", "Draw a window" open Live Aboard in Mapping → Atlas with Edit already on that tool. Every door or window sensor that isn't on a door or window yet has its own **Draw its door** / **Draw its window**, and every light that looks like a strip has **Lay it out**, which opens Strip with that light picked. While you're out, Mapping → Atlas has **← Back to the setup wizard**, which checks again what's done.
+- Every optional setting is in it, so nothing cool stays hidden: look, quality, outdoor weather and rain and snow, show people, tags and scanners, the shared furniture library, furniture from a photo (AI Task), back to home view, and the **Show the Atlas as Overview** switch (off unless you choose it). It opens on the first step that isn't done, and you can come back any time.
 
 ### Opt-in report
 - The wizard opened, and finished.

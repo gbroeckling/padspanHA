@@ -122,9 +122,12 @@ const api = { calls: [], toast(){}, toggle(...a){ api.calls.push(["toggle", ...a
 const slot = LA.liveAboardSlot("edit-harness");
 let card = null, topIds = null;                  // topIds: the floor chips (null: every floor)
 let tagsHook = null;                             // Show tags & scanners: the live snapshot through the host (null: off)
+// The setup wizard's way in (aboard_wizard.js → Mapping's openTool): taken once.
+let openNext = null;
+const toolHook = { take: () => { const t = openNext; openNext = null; return t; } };
 const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: topIds, quality: "low",
   telemetry: () => {}, states: {}, config: {}, bearing: 0, saveNorth: null, useApi: () => api, haStartedMs: 0,
-  load: async () => ({ data: clone(server.file) }), edit: editFn, tags: tagsHook });
+  load: async () => ({ data: clone(server.file) }), edit: editFn, tags: tagsHook, openTool: toolHook });
 /** A fresh card, as the Atlas builds one every 5 s: the view moves into it. */
 function poll(){
   card = document.createElement("div");
@@ -1106,5 +1109,21 @@ await tryCase("keys: Delete deletes a door drawn here, Ctrl+Z and Ctrl+Y undo an
   check("keys: Delete deletes a door drawn here, Ctrl+Z and Ctrl+Y undo and redo, Escape lets go of a first tap; never while typing",
     drawn === 1 && picked && kept === 1 && deleted === 0 && back === 1 && none === 0 && again === 1 && pend && !after.pending && after.editing && !after.failed,
     { drawn, picked, kept, deleted, back, none, again, pend, after });
+});
+await tryCase("tool: the setup wizard's way in opens Edit at its tool, once", async () => {
+  await closeEdit();
+  openNext = { tool: "heights" };
+  poll(); await settle();
+  const first = { editing: ed().editing, tool: ed().tool };
+  poll(); await settle();                       // the next card: nothing asked, nothing changes
+  const second = { editing: ed().editing, tool: ed().tool };
+  await closeEdit();
+  openNext = { tool: "window" };
+  poll(); await settle();
+  const third = { editing: ed().editing, tool: ed().tool };
+  await closeEdit();
+  check("tool: the setup wizard's way in opens Edit at its tool, once",
+    first.editing && first.tool === "heights" && second.editing && second.tool === "heights" && third.tool === "window" && openNext === null,
+    { first, second, third });
 });
 console.log(JSON.stringify({ cases, failures, payloads, start: FILE0 }));

@@ -1225,6 +1225,16 @@ export function createEditor(ctx){
   }
 
   return {
+    /** Open Edit at a tool (the setup wizard, aboard_wizard.js, asks on the
+     *  way in): "door" | "window" | "doorway" | "heights" | "strip", and for
+     *  Strip the light `eid` picked. False when Edit can't open here. */
+    async startTool(t, eid){
+      if (!editing) await begin();
+      if (!editing || tool === "furnish") return false;
+      if (tool !== t) pickTool(t);
+      if (t === "strip" && strip && eid) strip.select(eid);
+      return tool === t;
+    },
     /** The host's edit (the light-placement gate), or null: no Edit. */
     setEdit(fn){
       const had = !!editFn;

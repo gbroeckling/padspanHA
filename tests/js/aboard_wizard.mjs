@@ -68,5 +68,14 @@ for (let i = 0; i < W.STEPS.length; i++) {
 out.allRendered = seen.every(Boolean);
 out.finish = !!find(modal, "Finish");
 out.overviewMentioned = text(modal).includes("Show the Atlas as Overview");
+// Deep links: "Lay it out" opens Strip with that light; "Draw its window" opens Window; both remember the step.
+ctx.state._laWizard.i = W.STEPS.findIndex(x => x.id === "strips");
+find(modal, "LED strips").dispatchEvent(new Event("click"));
+find(modal, "Lay it out").dispatchEvent(new Event("click"));
+out.stripLink = { ...ctx.state.maps._laOpenTool, away: ctx.state._laWizard.away };
+await W.openLiveAboardWizard(ctx, "openings");
+out.awayCleared = ctx.state._laWizard.away === null;
+find(modal, "Draw its window").dispatchEvent(new Event("click"));
+out.windowLink = { ...ctx.state.maps._laOpenTool, away: ctx.state._laWizard.away };
 out.events = calls.filter(x => typeof x === "string");
 console.log(JSON.stringify(out));

@@ -162,6 +162,7 @@ export async function openLiveAboardWizard(ctx, step) {
     W.i = first < 0 ? 0 : first;
   }
   W.started = true;
+  W.away = null;
   if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_la_opened");
 
   const body = el("div", { class: "la-wiz", style: "min-width:min(560px,92vw);max-width:680px" });
@@ -170,9 +171,14 @@ export async function openLiveAboardWizard(ctx, step) {
     catch (e) { if (note) { note.textContent = "Could not save: " + String((e && e.message) || e); note.style.color = "#f87171"; } }
     draw();
   };
+  // Off to a tool: Live Aboard picked for Mapping → Atlas, the tool asked for
+  // (Live Aboard opens Edit there on its way in), and the step remembered so
+  // Mapping → Atlas offers "← Back to the setup wizard".
   const go = (where) => {
     ctx.actions.closeModal();
     if (where.liveAboard) { try { localStorage.setItem("padspan_lv_3d_builder", "1"); } catch (_) { /* private mode */ } }
+    if (where.tool) { ctx.state.maps = ctx.state.maps || {}; ctx.state.maps._laOpenTool = { tool: where.tool, eid: where.eid || null }; }
+    W.away = where.finish ? null : STEPS[W.i].id;
     if (where.settings) { ctx.state.view = "settings"; ctx.state._settingsTab = "ui"; ctx.actions.renderRooms(); return; }
     ctx.state.view = "maps";
     if (ctx.actions.setMapsTab) ctx.actions.setMapsTab(where.tab); else { ctx.state.mapsTab = where.tab; ctx.actions.renderRooms(); }
@@ -259,22 +265,42 @@ export async function openLiveAboardWizard(ctx, step) {
     heights(s) {
       return [p("Live Aboard puts each device at the height it really is: a pot light on the ceiling, a lamp on a table, a switch at switch height. Anything without its own height uses the usual height for its kind, so this is about the ones that are wrong."),
         tip("In Live Aboard: Edit → Heights, tap a device, then a spot (Ceiling, Corner, Wall, Switch height, Table, Floor…) or the slider. For a light, What is this? (pot light, pendant, lamp…) sets its look and height together. Mapping → Atlas also has a Heights list for setting several at once."),
-        btn("Open Live Aboard (Edit → Heights)", () => go({ tab: "lights", liveAboard: true, toast: "Press Edit, then Heights." }), true)];
+        btn("Open Live Aboard at Heights", () => go({ tab: "lights", liveAboard: true, tool: "heights" }), true)];
     },
     openings(s) {
       const unl = s.doorSensors.filter(d => !d.linked);
       const out = [p("Doors and windows open and shut as their sensors do. Draw each one on its wall and pick the sensor it Follows.")];
-      if (unl.length) out.push(p("Not on a door or window yet:"), list(unl.map(d => `${d.name} (${d.cls.replace("_", " ")})`)));
+      if (unl.length) {
+        out.push(p("Not on a door or window yet (the button opens the right tool; pick this sensor under Follows):"));
+        out.push(el("div", { style: "max-height:180px;overflow:auto;margin:4px 0" }, unl.map(d => {
+          const t = d.cls === "door" || d.cls === "garage_door" ? "door" : "window";
+          return el("div", { style: "display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:#cbd5e1" }, [
+            el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, `${d.name} (${d.cls.replace("_", " ")})`),
+            btn(t === "door" ? "Draw its door" : "Draw its window", () => go({ tab: "lights", liveAboard: true, tool: t })),
+          ]);
+        })));
+      }
       out.push(tip("In Live Aboard: Edit → Door, Window or Doorway, then press on a wall and drag along it (it snaps every 5 cm and stops at corners). On the sheet that opens: Type, hinge and swing, sill and head for a window, and Follows for its sensor. An open window in the rain glows blue and gets a warning, so link your windows if you have sensors on them."),
-        btn("Open Live Aboard (Edit → Door / Window)", () => go({ tab: "lights", liveAboard: true, toast: "Press Edit, then Door or Window." }), true));
+        el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [
+          btn("Draw a door", () => go({ tab: "lights", liveAboard: true, tool: "door" }), true),
+          btn("Draw a window", () => go({ tab: "lights", liveAboard: true, tool: "window" }), true),
+          btn("Draw a doorway", () => go({ tab: "lights", liveAboard: true, tool: "doorway" })),
+        ]));
       return out;
     },
     strips(s) {
       const out = [p("An LED strip, valance, cove or under-cabinet light is a line, not a point. Lay each one out so it glows along the right wall at the right height.")];
       const todo = s.strips.filter(x => !x.run);
-      if (todo.length) out.push(p("Look like strips and aren't laid out:"), list(todo.map(x => x.name)));
+      if (todo.length) {
+        out.push(p("Look like strips and aren't laid out:"));
+        out.push(el("div", { style: "max-height:180px;overflow:auto;margin:4px 0" }, todo.map(x =>
+          el("div", { style: "display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:#cbd5e1" }, [
+            el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, x.name),
+            btn("Lay it out", () => go({ tab: "lights", liveAboard: true, tool: "strip", eid: x.id })),
+          ]))));
+      }
       out.push(tip("In Live Aboard: Edit → Strip, tap the light (or pick it from Lights to lay out). Round this room runs it round the walls in one tap, with gaps at doors and windows if you like; Under, Behind or Top edge follows a piece of furniture; Draw lets you trace it. Then pick its height (Toe-kick, Counter, Under cabinets, Valance, Cove, Ceiling edge) and which way it shines."),
-        btn("Open Live Aboard (Edit → Strip)", () => go({ tab: "lights", liveAboard: true, toast: "Press Edit, then Strip." }), true));
+        btn("Open Live Aboard at Strip", () => go({ tab: "lights", liveAboard: true, tool: "strip" }), true));
       return out;
     },
     furniture(s) {
@@ -297,6 +323,8 @@ export async function openLiveAboardWizard(ctx, step) {
       out.push(select("Quality", set.atlas_3d_quality || "auto",
         [["auto", "Auto: picked for this screen"], ["low", "Low: wall tablets and phones"], ["high", "High: sun shadows and more lamps"]],
         (v, n) => save({ atlas_3d_quality: v }, n)));
+      if (!s.weather.on) out.push(toggle("Outdoor weather on the Atlas", false, (v, n) => save({ atlas_weather_enabled: v }, n),
+        "Rain and snow (and the open-window warning) follow the Atlas's outdoor weather: your weather entity's condition, or a rain sensor. Pick those in Mapping → Atlas."));
       out.push(toggle("Rain and snow", s.weather.rain, (v, n) => save({ atlas_3d_weather: v }, n),
         s.weather.on ? `Falls outside the house when your weather says so${s.weather.source ? ` (${s.weather.source})` : ""}. With windows linked to sensors, an open window in the rain glows blue and gets a warning.`
           : "Needs the Atlas's Outdoor weather on (Mapping → Atlas), with a rain sensor or weather entity."));
@@ -347,7 +375,7 @@ export async function openLiveAboardWizard(ctx, step) {
       : btn("Finish: open Live Aboard", () => {
           if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_la_finished");
           W.started = false;
-          go({ tab: "lights", liveAboard: true });
+          go({ tab: "lights", liveAboard: true, finish: true });
         }, true));
     body.appendChild(nav);
   }

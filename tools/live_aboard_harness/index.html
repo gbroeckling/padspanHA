@@ -103,6 +103,8 @@ host = { el, view, floors: MODEL.floors, model: MODEL, byRoom: {}, hiddenEids: n
   house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto" },
     telemetry: () => {}, useApi: () => ({ lbe: LBE, states: STATES, hass: { states: STATES, callService: () => Promise.resolve() } }),
     edit: q.get("edit") ? (ch) => Promise.resolve({ data: {} }) : undefined,
+    // tool=heights|door|window|doorway|strip[&teid=light.x]: the setup wizard's way in (taken once).
+    openTool: q.get("tool") ? { take: (() => { let t = { tool: q.get("tool"), eid: q.get("teid") || null }; return () => { const r = t; t = null; return r; }; })() } : undefined,
     states: STATES, people: { read: () => Promise.resolve({ objects: { list: [] } }), everyMs: 5000 }, load: () => Promise.resolve({ data: {} }) },
   classFilter: q.get("cls") || "all", onClassFilter: () => {},
   weather: { settings: { atlas_weather_enabled: true }, states: STATES, entities: {} },
