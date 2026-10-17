@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.139",
+  "title": "A minimum signal per receiver, and find a device by hiding it",
+  "date": "2026-10-17",
+  "body_markdown": "Both are options: nothing changes unless you use them.\n\n### New\n- **Min signal, per receiver** (Bluetooth → Scanners, on each receiver's row; off unless you set it). A receiver on an outside wall, or on a floor above a shop or a flat, hears the street and the neighbours. Pick **Ignore < -90** (or -95 to -70) and that receiver ignores anything weaker, for **positioning and Occupancy's phone count only**. The scanner and advert lists, Forensics, Traceback, Find My following and calibration still see every reading. A phone in the room reads far stronger than that at the nearest receiver, so it isn't lost. The Walls Guide and the Unknown phone help explain when to use it.\n- **Find the one in your hand: Louder or Quieter.** Louder is as before: hold it against the receiver. **Quieter** is new: start with the device near the receiver, then hide it in a metal bin or a saucepan with a lid; whatever went quiet (or silent) comes up, ready to tag. Handy for checking a guess too.\n\n### Opt-in report\n- How many receivers have a minimum signal, and how many readings it keeps out each poll."
+ },
+ {
   "version": "0.38.138",
   "title": "Set up Live Aboard step by step",
   "date": "2026-10-17",
@@ -28,11 +34,5 @@
   "title": "More in the opt-in report",
   "date": "2026-10-16",
   "body_markdown": "Nothing changes in how PadSpan works. The opt-in report (Settings → Presence → Help improve PadSpan) says more, still as counts and buckets only: no names, addresses or entity ids.\n\n### Opt-in report\n- **Where a slow snapshot build goes.** The reports show one part of the build (going through Home Assistant's states and registries) taking 90% or more of the time on every slow install, up to 16 seconds, and only where Bermuda is installed and not ignored. The report now carries that part's CPU time next to its wall time (is it PadSpan's own work, or Home Assistant too busy to give it the processor?), its three pieces, and p95 for every part.\n- **How steady positioning is**, for your own (identified) devices only: room changes per hour, the share of the time with no room, and how many receivers hear each one. The report's first measure of whether positioning is any good.\n- **Receivers:** Tasmota counted apart, and where each receiver's name comes from (your HA name, HA's, the scanner's own, its area, or only its MAC).\n- **Occupancy:** how many Unknown phones each estimate counts, and its confidence.\n- **Walk-to-Identify:** \"Who's here?\" pressed, and Tag pressed on one of its candidates."
- },
- {
-  "version": "0.38.133",
-  "title": "Free Pro offers can be switched off from the server",
-  "date": "2026-10-16",
-  "body_markdown": "### Changed\n- **The update notification mentions the tester offer.** While it's running and no licence key is entered, the \"update available\" notice has one line: testers get PadSpan Pro free for two years.\n- **Offers that have ended disappear on their own.** The daily update check's answer can now switch the free-Pro offers (becoming a tester, and invites) off or back on, so an ended offer leaves the panel without an update. It only carries those two on/off switches and can't add anything. The README's Updates & Privacy section says so.\n\n### Opt-in report\n- Counts whether the free-Pro cards are seen and what's done with them: an invite shown, put off, claimed or declined, and the \"test it, get Pro free\" card shown or turned down. Never who."
  }
 ]
