@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.137",
+  "title": "The Atlas as Overview (Pro option)",
+  "date": "2026-10-17",
+  "body_markdown": "### New\n- **Show the Atlas as Overview** (PadSpan Pro, off unless you turn it on): in **Settings → UI Structure**, a new switch makes Overview, the first tab, show the Atlas (the same screen as the Atlas in the sidebar, with Live Aboard if it's on) instead of the classic map. The classic Overview isn't gone: **Pure Live** gets a **⚡ Pure Live | ▦ Overview** switch at the top while this is on. Turning it off puts everything back.\n\n### Opt-in report\n- Whether the option is on, and which side of Pure Live's switch people pick."
+ },
+ {
   "version": "0.38.136",
   "title": "Faster snapshot builds in houses with many same-named devices",
   "date": "2026-10-16",
@@ -28,11 +34,5 @@
   "title": "One name per receiver, find the device in your hand, walls explained",
   "date": "2026-10-16",
   "body_markdown": "### New\n- **Find the one in your hand.** In **Bluetooth → Scanners**, pick a receiver and press **Start** with the device a few metres away. Then hold it right against the receiver for about 20 seconds. Whatever got louder comes up with how much it jumped and a **Tag** button. Easier than hunting through thousands of unnamed devices. (Most TV and air-conditioner remotes are infrared and send no Bluetooth, so they won't show.)\n- **Custom walls take your own number.** In the map editor's RF Barriers, pick **Custom** and a **Loss through it** box (0–30 dB) appears. Under the material list there's a short note on what the numbers mean and a link to the new **Walls Guide**.\n- **Walls Guide** (docs/WALLS_GUIDE.md): where PadSpan's wall numbers come from (they're round starting points, and Custom 6 dB is the \"don't know\" wall), real-world ranges for drywall, brick, concrete, plaster on wire lath, coated glass and metal, and how to tell a wall is drawn too weak or too strong.\n- **Unknown phone** in Occupancy's Counted list has a **?** that says what it is (a phone changing its Bluetooth address) and what to do if it's yours, a visitor's or a neighbour's.\n\n### Fixed\n- **Each receiver now goes by one name everywhere.** It used to show as its HA area in one place, the scanner's own name with its MAC in another, \"Room scanner (D7:1E)\" in Live Aboard, and the bare MAC in others. Now it's the name you gave the device in Home Assistant, else HA's device name, else the scanner's own name without the MAC. Shown in Bluetooth, Monitor, Overview, Calibration's Live Radios, Settings, Presence, the Atlas radio list, scanner details and Live Aboard. Shelly and other proxies that only showed a MAC now show their HA name.\n- A door cut into a Custom wall kept 6 dB instead of the wall's own number.\n\n### Opt-in report\n- Find the one in your hand: `hold_near_started`, `hold_near_found` (something got louder) and `hold_near_tagged` (Tag pressed on one)."
- },
- {
-  "version": "0.38.131",
-  "title": "Smoke, gas and CO alarms join Emergency",
-  "date": "2026-10-15",
-  "body_markdown": "### New\n- **Emergency now covers smoke, gas and carbon monoxide alarms**, not just water leaks. Place one on the Atlas like any device. When it goes off it latches and alarms exactly as a leak does: alarm rings across its room, the banner on every PadSpan page until you reset it, and a red word over Live Aboard. Each says what it found (**SMOKE**, **GAS**, **CO**, or **WET** for a leak), **ALARM** while latched, and **CLEAR** (or **DRY**) when quiet.\n- An alarm is drawn as a round detector, a leak sensor still as a puddle. In Live Aboard a smoke alarm sits on the ceiling by default and a gas or CO alarm on the wall, with matching one-tap spots in Heights.\n\n### Opt-in report\n- Placed smoke, gas and CO alarms are counted on their own (`alarm_sensor`), apart from leak sensors."
  }
 ]
