@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.141",
+  "title": "Polish",
+  "date": "2026-10-17",
+  "body_markdown": "### Fixed\n- Overview's People in building card said \"undefined people\" when the estimate hadn't come in (an older backend or a failed read); it shows a dash now.\n- The Live Aboard setup wizard sits centred in its window instead of hugging the left with Next floating mid-way.\n- Suggest an idea's buttons match the other buttons on the page."
+ },
+ {
   "version": "0.38.140",
   "title": "Suggest an idea",
   "date": "2026-10-17",
@@ -28,11 +34,5 @@
   "title": "Faster snapshot builds in houses with many same-named devices",
   "date": "2026-10-16",
   "body_markdown": "### Fixed\n- Matching each receiver to its Home Assistant device took longer the more devices shared a name, and it ran on every snapshot build. 4,000 same-named devices cost 1.5 seconds a build, during which Home Assistant was frozen. It now takes a few milliseconds whatever the count.\n\n### Opt-in report\n- The size of Home Assistant's device and entity registries, and the most devices sharing one name. Some Bermuda houses spend 3 to 16 seconds per build in this part, and this shows whether that shape is why."
- },
- {
-  "version": "0.38.135",
-  "title": "Stable: Live Aboard grows up, one name per receiver, smoke and CO alarms",
-  "date": "2026-10-16",
-  "body_markdown": "- **Coming from 0.38.124?** This stable brings in everything from the 0.38.125–0.38.134 betas below:\n  - **Live Aboard (the 3D house):** motion that reads at a glance (only \"now\" is lit, with lines down to the floor), Explode to see every floor at once, a heat map with Temps, a warning for a window left open in the rain, lit windows at night, the room sheet's own scenes and scripts as ▶ buttons, and smoother building tools (5 cm snapping, keyboard shortcuts, one-tap Round this room).\n  - **Emergency** covers smoke, gas and CO alarms as well as leaks.\n  - **One name per receiver** everywhere (your Home Assistant name for it), **Find the one in your hand** in Bluetooth → Scanners, and **Custom walls** that take your own dB.\n  - **Guides:** Live Aboard, Furnish, Wall Screen, PadSpan Pro and Walls, and a much fuller Atlas Guide.\n  - Free-Pro offers can be switched off from the server, and the opt-in report says more (counts only).\n\n### Fixed\n- Live Aboard: an open window's rain glow drew as a floating box where Cut had lowered the wall, and didn't follow the walls as the view turned.\n- Live Aboard: after switching to the flat map and back, the \"window open in the rain\" line could stay blank, and the old heat map stayed in memory.\n- Live Aboard: **⇕ Explode** is in the floor list too, so it can be reached on a phone, where the ⇕ button is hidden.\n- Tester sign-up: a slow licence server could make Home Assistant say the sign-up failed when it had gone through and the key had been sent.\n\n### Opt-in report\n- A day with more kinds of event than fit no longer stops the report: the rarest counters are left out instead, and it says how many.\n- Positioning steadiness is only worked out while the report is on.\n- A receiver is counted under one kind only.\n- \"Tag pressed from Walk-to-Identify\" counts only presses on its candidates."
  }
 ]
