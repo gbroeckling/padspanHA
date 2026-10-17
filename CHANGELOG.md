@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.141 — Polish (2026-10-17)
+
+### Fixed
+- Overview's People in building card said "undefined people" when the estimate hadn't come in (an older backend or a failed read); it shows a dash now.
+- The Live Aboard setup wizard sits centred in its window instead of hugging the left with Next floating mid-way.
+- Suggest an idea's buttons match the other buttons on the page.
+
+---
+
 ## 0.38.140 — Suggest an idea (2026-10-17)
 
 ### New

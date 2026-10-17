@@ -165,7 +165,8 @@ export async function openLiveAboardWizard(ctx, step) {
   W.away = null;
   if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_la_opened");
 
-  const body = el("div", { class: "la-wiz", style: "min-width:min(560px,92vw);max-width:680px" });
+  // Centred in the modal at a readable width, whatever the modal's own width.
+  const body = el("div", { class: "la-wiz", style: "width:min(760px,100%);min-width:min(560px,92vw);margin:0 auto" });
   const save = async (payload, note) => {
     try { await ctx.actions.settingsSet(payload); if (note) { note.textContent = "Saved."; note.style.color = "#52b788"; } }
     catch (e) { if (note) { note.textContent = "Could not save: " + String((e && e.message) || e); note.style.color = "#f87171"; } }

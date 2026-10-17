@@ -1092,7 +1092,7 @@ function _settingsPresence(ctx, el){
   // GitHub Discussions → Ideas: where ideas are posted and voted on (a GitHub
   // account), or by email to hello@traks.ca for anyone without one.
   {
-    const link = (href, label) => el("a", { class: "btn inline", href, target: "_blank", rel: "noopener", style: "text-decoration:none" }, label);
+    const link = (href, label) => el("a", { class: "btn inline", href, target: "_blank", rel: "noopener", style: "text-decoration:none;font-size:13.333px;padding:7px 10px" }, label);
     const post = link(IDEAS_NEW_URL, "Post an idea");
     post.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_posted"); });
     const browse = link(IDEAS_URL, "See and vote on ideas");

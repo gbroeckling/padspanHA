@@ -3839,12 +3839,13 @@ export function renderClassic(ctx){
 
     const _plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     const _fill = (res) => {
-      const n = res.total_estimate;
-      const col = _confColor(res.confidence);
+      // No estimate in the answer (an older backend, a failed read): a dash, never "undefined".
+      const n = Number.isFinite(res.total_estimate) ? res.total_estimate : null;
+      const col = n === null ? "#94a3b8" : _confColor(res.confidence);
       const ev = res.evidence || {};
-      occNum.textContent = String(n); occNum.style.color = col;
+      occNum.textContent = n === null ? "–" : String(n); occNum.style.color = col;
       occUnit.textContent = n === 1 ? "person" : "people";
-      if (res.total_low !== res.total_high) {
+      if (n !== null && res.total_low !== res.total_high) {
         occBadge.textContent = `${res.total_low}–${res.total_high}`;
         occBadge.title = "possible range";
         occBadge.style.display = ""; occBadge.style.borderColor = col + "44"; occBadge.style.color = col;
