@@ -26,6 +26,9 @@ export const NOTES_CLOSE = "Close";
 export const NOTES_LOADING = "Loading the release notes…";
 export const NOTES_FAILED = "The release notes couldn't be loaded. Refresh the page and try again.";
 export const NOTES_HISTORY = "Full history on padspan.traks.ca";
+export const NOTES_IDEA = "💡 Suggest an idea";
+// GitHub Discussions → Ideas; the same as editions.js IDEAS_NEW_URL (this file imports nothing).
+export const IDEAS_NEW_URL = "https://github.com/gbroeckling/padspanHA/discussions/new?category=ideas";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
   "August", "September", "October", "November", "December"];
@@ -152,6 +155,13 @@ export function openReleaseNotes(host, { url, history = null } = {}) {
     a.setAttribute("href", history);
     a.setAttribute("target", "_blank");
     a.setAttribute("rel", "noopener");
+    // Suggest an idea, with the history link (never on a wall screen: no links there).
+    const idea = foot.appendChild(node("a", "notes-idea", NOTES_IDEA));
+    idea.setAttribute("href", IDEAS_NEW_URL);
+    idea.setAttribute("target", "_blank");
+    idea.setAttribute("rel", "noopener");
+    idea.setAttribute("style", "margin-left:12px");
+    idea.setAttribute("title", "Post an idea where others can vote on it (a GitHub account), or email hello@traks.ca");
   }
   const closeBtn = foot.appendChild(node("button", "btn notes-close", NOTES_CLOSE));
   closeBtn.setAttribute("data-notes-close", "button");

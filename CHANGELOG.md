@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.140 — Suggest an idea (2026-10-17)
+
+### New
+- **💡 Suggest an idea**, in Settings (above Help improve PadSpan) and at the bottom of What's New: post an idea on GitHub Discussions → Ideas, where other people can vote on it, see and vote on the ideas already there, or email one to hello@traks.ca if you'd rather not use GitHub. Not shown on a wall screen.
+
+### Opt-in report
+- Which of the three ways people take (posted, browsed, emailed). Nothing about the idea itself.
+
+---
+
 ## 0.38.139 — A minimum signal per receiver, and find a device by hiding it (2026-10-17)
 
 Both are options: nothing changes unless you use them.

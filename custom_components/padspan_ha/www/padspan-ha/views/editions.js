@@ -28,6 +28,12 @@
 // refusal can always answer "then what?".
 export const BUY_URL = "https://padspan.traks.ca/#pro";
 export const LIGHTS_URL = "https://padspan.traks.ca/#lights";
+// Suggest an idea: GitHub Discussions → Ideas (where ideas are voted on), or
+// by email for anyone without GitHub. release_notes.js has its own copy of
+// IDEAS_NEW_URL (it imports nothing); tests/test_suggest_idea.py holds them equal.
+export const IDEAS_URL = "https://github.com/gbroeckling/padspanHA/discussions/categories/ideas";
+export const IDEAS_NEW_URL = "https://github.com/gbroeckling/padspanHA/discussions/new?category=ideas";
+export const IDEAS_MAIL = "mailto:hello@traks.ca?subject=PadSpan%20idea";
 export const PRO_PRICE = "$45 CAD/year";
 // The other two SKUs padspan.traks.ca#editions actually sells — pinned exactly
 // against the site's own PayPal forms by tests/test_site_claims.py. Added so

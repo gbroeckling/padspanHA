@@ -17,7 +17,7 @@
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
 const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
-        tierAtLeast, currentTier } =
+        tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Optional too: the tester sign-up must not take the Settings tab with it.
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
@@ -1088,6 +1088,26 @@ function _settingsPresence(ctx, el){
     idBtn.disabled = false;
     ctx.actions.renderRooms();
   });
+  // ── Suggest an idea ───────────────────────────────────────────────────────
+  // GitHub Discussions → Ideas: where ideas are posted and voted on (a GitHub
+  // account), or by email to hello@traks.ca for anyone without one.
+  {
+    const link = (href, label) => el("a", { class: "btn inline", href, target: "_blank", rel: "noopener", style: "text-decoration:none" }, label);
+    const post = link(IDEAS_NEW_URL, "Post an idea");
+    post.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_posted"); });
+    const browse = link(IDEAS_URL, "See and vote on ideas");
+    browse.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_browsed"); });
+    const mail = link(IDEAS_MAIL, "Email an idea");
+    mail.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_mail"); });
+    wrap.appendChild(el("div", { class: "card" }, [
+      el("div", { class: "h2" }, "💡 Suggest an idea"),
+      el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
+        "Something PadSpan should do, or do better? Post it where other people can vote on it, or vote on ideas already there. No GitHub account? Email it instead."),
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, [
+        post, browse, mail,
+      ]),
+    ]));
+  }
   wrap.appendChild(el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Help improve PadSpan"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },

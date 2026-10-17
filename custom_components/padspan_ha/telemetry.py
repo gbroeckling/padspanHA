@@ -256,6 +256,8 @@ EVENTS: frozenset[str] = frozenset({
     # The Live Aboard setup wizard (views/aboard_wizard.js): opened, and
     # finished (its last step's "open Live Aboard").
     "wizard_la_opened", "wizard_la_finished",
+    # Settings → Suggest an idea: which way people take (0.38.140).
+    "suggest_idea_posted", "suggest_idea_browsed", "suggest_idea_mail",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
