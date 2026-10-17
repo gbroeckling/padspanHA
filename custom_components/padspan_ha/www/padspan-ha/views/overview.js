@@ -17,6 +17,62 @@ const { render2DMap } =
 // for why this exists: without it, every tracked dot teleports each poll.
 const { mergeObjectLayer, trailPush, trailSvg } =
   await import(`./iso_motion.js${new URL(import.meta.url).search}`);
+const { tierAtLeast: _ovTierAtLeast } =
+  await import(`./editions.js${new URL(import.meta.url).search}`);
+
+/** Pro, with Settings → UI Structure → "Overview shows the Atlas" on. */
+export function atlasHomeOn(ctx){
+  const s = (ctx && ctx.state && ctx.state.settings) || {};
+  return s.overview_atlas === true && _ovTierAtLeast(s.tier, "pro");
+}
+
+/** The Atlas as Overview: the sidebar's own Atlas page (lights_panel.js,
+ *  <padspan-lights-app>), so both are the same screen. ONE element, kept on
+ *  ctx.state across redraws: a fresh one per redraw would reload its map and
+ *  restart its poll every time. It polls for itself; the panel's poll leaves
+ *  it alone (no _isoUpdateObjects), and panel.js hands it each new hass. */
+function _renderAtlasHome(ctx){
+  ctx.state._isoUpdateObjects = null;
+  let app = ctx.state._overviewAtlas;
+  if (!app) {
+    app = ctx.state._overviewAtlas = document.createElement("padspan-lights-app");
+    import(`../lights_panel.js${new URL(import.meta.url).search}`)
+      .catch(() => { if (ctx.toast) ctx.toast("The Atlas could not load. Turn \"Overview shows the Atlas\" off in Settings → UI Structure.", true); });
+  }
+  if (ctx.hass) app.hass = ctx.hass;
+  const wrap = document.createElement("div");
+  wrap.className = "ov-atlas";
+  wrap.style.cssText = ctx.state.kioskMode ? "margin:0;" : "margin:-14px;";
+  wrap.appendChild(app);
+  return wrap;
+}
+
+/** Pure Live's switch while the Atlas is Overview: Pure Live, or the classic
+ *  Overview (which would otherwise have nowhere to live). */
+export function liveSwitch(ctx){
+  const { el } = ctx.helpers;
+  const classic = !!ctx.state._liveClassic;
+  const btn = (on, label, title, val) => {
+    const b = el("button", { class: "btn inline", title, "aria-pressed": String(on),
+      style: "font-size:12px;padding:4px 12px;border-radius:999px;" + (on
+        ? "background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700"
+        : "background:transparent;border-color:#2d4a3a;color:#94a3b8") }, label);
+    b.addEventListener("click", () => {
+      if (ctx.state._liveClassic === val) return;
+      ctx.state._liveClassic = val;
+      if (ctx.actions.telemetryEvent) {
+        if (val) ctx.actions.telemetryEvent("live_switch_classic");
+        else ctx.actions.telemetryEvent("live_switch_purelive");
+      }
+      ctx.actions.renderRooms();
+    });
+    return b;
+  };
+  return el("div", { class: "live-switch", style: "display:flex;gap:6px;align-items:center;margin:0 0 12px" }, [
+    btn(!classic, "⚡ Pure Live", "The live view", false),
+    btn(classic, "▦ Overview", "The classic Overview (the Overview tab shows the Atlas)", true),
+  ]);
+}
 
 /**
  * Overview — "control tower" dashboard
@@ -46,6 +102,13 @@ function _presentInRoom(ctx, o, room){
 }
 
 export function render(ctx){
+  if (atlasHomeOn(ctx)) return _renderAtlasHome(ctx);
+  return renderClassic(ctx);
+}
+
+/** The classic Overview: the Overview tab normally; Pure Live's "Overview"
+ *  side while the Atlas is Overview. */
+export function renderClassic(ctx){
   const { el, esc, pill, helpBtn, radioShortId } = ctx.helpers;
   const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
   const isBasic = ctx.state.complexity === "basic";

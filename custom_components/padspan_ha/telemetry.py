@@ -251,6 +251,8 @@ EVENTS: frozenset[str] = frozenset({
     # Walk-to-Identify (objects.js): "Who's here?" pressed, and Tag pressed on
     # one of its candidates — the switch is on at a third of installs.
     "wti_who", "wti_tag",
+    # Pure Live's switch while the Atlas is Overview (0.38.137): which side people pick.
+    "live_switch_classic", "live_switch_purelive",
 })
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
@@ -441,6 +443,8 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "tags_room_events_enabled", "tags_nfc_identify_enabled", "tags_phone_autolink_enabled",
     "update_check_enabled", "onboarding_completed",
     "atlas_3d_enabled", "low_memory_mode",
+    # Pro: the Atlas as Overview (0.38.137) — whether anyone wants it as the front door.
+    "overview_atlas",
 )
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).

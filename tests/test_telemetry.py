@@ -241,7 +241,9 @@ def test_nothing_from_the_house_is_in_the_report():
     # (~35 bytes): Garry, 2026-10-16, "All" (more opt-in elements): Tasmota
     # receivers counted apart, and where each receiver's one name comes from
     # (0.38.132's one-name fix needed its field signal).
-    assert len(text) < 4200
+    # Raised 4200 -> 4230 for features.overview_atlas (~25 bytes): Garry,
+    # 2026-10-17, a Pro option to show the Atlas as Overview.
+    assert len(text) < 4230
 
 
 def test_presets_are_capped_at_ten_per_report():

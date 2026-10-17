@@ -544,6 +544,9 @@ class PadSpanHaApp extends HTMLElement {
   set hass(hass){
     const prevHass = this._hass;
     this._hass = hass;
+    // The Atlas as Overview (views/overview.js) is the sidebar Atlas page,
+    // which reads states off its own hass: hand it each new one.
+    if(this.state && this.state._overviewAtlas) this.state._overviewAtlas.hass = hass;
     // Motion sensors back from an offline blip (motion_reconnects.py), pushed
     // on every change — one subscription per connection (a new connection,
     // or a re-entry after disconnectedCallback, subscribes afresh), kept
@@ -3656,6 +3659,16 @@ class PadSpanHaApp extends HTMLElement {
     }
     // Preact overview: let Preact handle its own diffing — just re-call render()
     // which diffs efficiently instead of rebuilding the entire DOM.
+    // Pure Live showing the classic Overview (the Atlas is Overview): a poll
+    // moves its dots, as on the Overview tab, instead of rebuilding it.
+    if(fromPoll && this.state.view === "purelive" && this.state._liveClassic && VIEWS.overview
+       && VIEWS.overview.atlasHomeOn && VIEWS.overview.atlasHomeOn(this._ctx())) {
+      if (typeof this.state._isoUpdateObjects === "function") {
+        try { this.state._isoUpdateObjects(); } catch(e) {}
+      }
+      this._lastGoodRender = performance.now();
+      return;
+    }
     if(fromPoll && this.state.view === "purelive") {
       try {
         const mod = VIEWS["purelive"];
@@ -3969,7 +3982,20 @@ class PadSpanHaApp extends HTMLElement {
       return;
     }
     try {
-      const node = mod.render(this._ctx());
+      let node;
+      const _ov = VIEWS.overview;
+      if (v === "purelive" && _ov && _ov.atlasHomeOn && _ov.atlasHomeOn(this._ctx())) {
+        // The Atlas is Overview: Pure Live carries a switch to the classic one.
+        const _c = this._ctx();
+        node = document.createElement("div");
+        const _sw = _ov.liveSwitch(_c);
+        // Pure Live's own view pulls itself up 14px (margin:-14px): room for that.
+        if (!this.state._liveClassic) _sw.style.marginBottom = "26px";
+        node.appendChild(_sw);
+        node.appendChild(this.state._liveClassic ? _ov.renderClassic(_c) : mod.render(_c));
+      } else {
+        node = mod.render(this._ctx());
+      }
 
       // If the view returned a cached DOM node already displayed in $content,
       // skip the destructive swap on poll renders to preserve scroll positions.

@@ -3781,6 +3781,41 @@ function _settingsUI(ctx, el){
   if (tierAtLeast(currentTier(settings), "pro")) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));
   wrap.appendChild(lightsCard);
 
+  // ── The Atlas as Overview (Pro) ──
+  // Overview (first in the menu) shows the Atlas instead of the classic map;
+  // Pure Live (below it) gets a switch to the classic Overview. Saved the
+  // moment it changes; nothing to restart.
+  const ovPro = tierAtLeast(settings.tier, "pro");
+  const ovCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
+  ovCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"},"\uD83D\uDDFA\uFE0F Overview \u2014 the Atlas as your main map"));
+  ovCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
+    "Overview, the first tab, shows the Atlas (your lights, devices and rooms, and Live Aboard if it's on) instead of the classic map. The classic Overview moves under Pure Live, which gets a switch between the two."));
+  const ovRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:" + (ovPro ? "pointer" : "not-allowed")});
+  const ovCb = el("input",{type:"checkbox"});
+  ovCb.checked = ovPro && settings.overview_atlas === true;
+  ovCb.disabled = !ovPro;
+  ovRow.appendChild(ovCb);
+  ovRow.appendChild(el("span",{style:"color:" + (ovPro ? "#e2e8f0" : "#64748b") + ";font-size:14px"}, "Show the Atlas as Overview"));
+  ovCard.appendChild(ovRow);
+  const ovNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
+    ovPro ? "Saves right away." : "PadSpan Pro (Settings \u2192 PadSpan licence).");
+  ovCard.appendChild(ovNote);
+  ovCb.addEventListener("change", async ()=>{
+    try {
+      await ctx.actions.settingsSet({ overview_atlas: ovCb.checked });
+      ctx.state._liveClassic = false;
+      ovNote.textContent = ovCb.checked
+        ? "Saved \u2014 Overview now shows the Atlas; the classic Overview is under Pure Live."
+        : "Saved \u2014 Overview is back to the classic map.";
+      ovNote.style.color = "#52b788";
+    } catch (e) {
+      ovCb.checked = !ovCb.checked;
+      ovNote.textContent = "Could not save: " + String(e && e.message || e);
+      ovNote.style.color = "#f87171";
+    }
+  });
+  wrap.appendChild(ovCard);
+
   // ── Edition & tier ──
   // What this build is and what the key lets it do (licence.py). The reveal
   // switch exists only on a Bright build: hide-by-default, never hidden for

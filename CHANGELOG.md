@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.137 — The Atlas as Overview (Pro option) (2026-10-17)
+
+### New
+- **Show the Atlas as Overview** (PadSpan Pro, off unless you turn it on): in **Settings → UI Structure**, a new switch makes Overview, the first tab, show the Atlas (the same screen as the Atlas in the sidebar, with Live Aboard if it's on) instead of the classic map. The classic Overview isn't gone: **Pure Live** gets a **⚡ Pure Live | ▦ Overview** switch at the top while this is on. Turning it off puts everything back.
+
+### Opt-in report
+- Whether the option is on, and which side of Pure Live's switch people pick.
+
+---
+
 ## 0.38.136 — Faster snapshot builds in houses with many same-named devices (2026-10-16)
 
 ### Fixed

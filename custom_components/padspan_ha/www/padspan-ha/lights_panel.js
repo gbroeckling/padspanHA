@@ -1206,6 +1206,13 @@ class PadSpanLightsApp extends HTMLElement {
       <div id="content"></div>
     `;
     if(this._booted) this._render();
+    // Back on screen after a disconnect (the Atlas as the main panel's
+    // Overview is moved between redraws and tabs): disconnectedCallback
+    // stopped the poll, and only _boot starts it.
+    if(this._booted && !this._pollTimer){
+      this._pollTimer = setInterval(()=>this._poll(), 5000);
+      this._poll();
+    }
   }
 
   disconnectedCallback(){
