@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.142 — Atlas rain: not on a sunny day, not inside the house (2026-10-18)
+## 0.38.142 — Atlas rain: not on a sunny day, not inside the house (2026-10-19)
 
 ### Fixes
 - **Fixed:** the Atlas no longer shows rain on a sunny morning. An on/off rain sensor that reads wet while the weather entity says sunny, clear or partly cloudy is wet from dew or frost, so it's ignored. A rain-rate sensor, a rain gauge, or an on/off sensor a helper makes from one (a template or a threshold) still counts: what it caught really fell.
