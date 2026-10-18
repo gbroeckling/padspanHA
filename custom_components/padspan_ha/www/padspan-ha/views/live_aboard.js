@@ -395,7 +395,7 @@ function createSlot(slotKey){
   let shellSig = null, lightsSig = null, house = null, floorsUi = [], lights = [];
   // The map's house as last read (readHouse) and what it was read from: a
   // change in the 3D file alone (the editor's draft) draws from it again.
-  let reading = null, readSig = null;
+  let reading = null, readSig = null, readGap = 0;         // readGap: the Explode gap the house was read (and drawn) with
   const work = { reads: 0, shells: 0, lights: 0, sensors: 0, moves: 0 };   // how often each was done (the harness)
   let shellRes = [], lightRes = [];       // geometries, materials and textures a rebuild disposes
   let topElev = null, wallMode = "cut";
@@ -4268,16 +4268,18 @@ function createSlot(slotKey){
    *  and what was showing is let go of. Never the view's failure: weather
    *  that cannot be drawn is simply not drawn. */
   const plainSky = () => lookKey === "classic" || (!!atlas && !atlas.on);
+  /** How the house is drawn this frame, for what the rain keeps off: the
+   *  roof closing the house (at least half in, as it covers and hides, and
+   *  not over floors pulled apart: exploded, it is only over the top floor
+   *  and the floors under it show through the gaps), and every wall down.
+   *  Explode as the house was drawn, not as the setting now says: another
+   *  view can change that before this one draws again. */
+  function rainShell(){ return { roof: !!(storeyL && storeyL.covering) && !readGap, down: wallMode === "down" }; }
   function applyWeather(p){
     const w = WEATHER && p.weather3d !== false && p.weather && p.weather.settings ? p.weather : null;
     if (!w) { if (wx) { wx.dispose(); wx = null; requestRender(); } return; }
     try {
-      // shell: how the house is drawn this frame, for what the rain keeps off
-      // (the roof on and closing the house; every wall down). Exploded, the
-      // roof is only over the top floor and the floors under it show through
-      // the gaps, so they are kept dry as with no roof.
-      if (!wx) wx = WEATHER.createWeather(THREE, { scene, renderer, camera,
-        shell: () => ({ roof: !!roofWant && !explodeGap(), down: wallMode === "down" }) });
+      if (!wx) wx = WEATHER.createWeather(THREE, { scene, renderer, camera, shell: rainShell });
       const changed = wx.update({ settings: w.settings, states: w.states, entities: w.entities, telemetry: w.telemetry,
         // What falls: the flat Atlas's colour for the Showcase theme this view
         // wears (Classic: white), or the look's own where that would not show
@@ -4324,7 +4326,7 @@ function createSlot(slotKey){
       // The map is read again only when it changed; the 3D file's doors and
       // windows are cut into a copy of its walls.
       const rSig = [mSig, mlSig, mxSig].join("|");
-      if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden, p.shapeOverrides, xGap); readSig = rSig; work.reads++; }
+      if (rSig !== readSig) { reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden, p.shapeOverrides, xGap); readGap = xGap; readSig = rSig; work.reads++; }
       const shell = sSig !== shellSig;
       rebuilt = shell;
       if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); shellSig = sSig; }
@@ -4480,7 +4482,7 @@ function createSlot(slotKey){
                                             angle: L.spin ? L.spin.angle : null })),
                walls: floorsUi.reduce((a, F) => a + F.pieces.length, 0),
                // The house itself: each storey's floor and roof, the roof's pick, the doors with no sensor.
-               house: storeyL ? { ...storeyL.state(), roofPick: roofPick(), roofWant } : null,
+               house: storeyL ? { ...storeyL.state(), roofPick: roofPick(), roofWant, rainShell: rainShell() } : null,
                doors: floorsUi.flatMap(F => F.pieces.filter(P => P.open && P.open.still).map(P => ({ id: P.pc.added || (P.pc.barrier && P.pc.barrier.id) || null,
                                                                                                      floor: F.fl.id, shown: P.open.shown, at: P.open.at, deg: Math.round(P.open.max / D2R),
                                                                                                      type: P.open.t ? P.open.t.type : null, guessed: !!(P.open.t && P.open.t.guessed),

@@ -385,9 +385,9 @@ const FILE = { schema: 1, pieces: { [STAIRS.id]: STAIRS }, lights: {}, devices: 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const server = { file: clone(FILE) };
 const api = { toast(){}, toggle(){}, openRoom(){}, openFloor(){}, openControls(){}, openActivity(){}, controlsFor: () => null, lightsByEid: {}, hass: null };
-let topIds = null;
+let topIds = null, stepsNow = null;                  // stepsNow: the card's floor steps (Explode needs All)
 const prefStore = new Map();
-const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: {}, hidden: new Set(), topFloorIds: topIds, quality: "low",
+const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: {}, hidden: new Set(), topFloorIds: topIds, floorSteps: stepsNow, quality: "low",
   telemetry: () => {}, onTouch: () => {}, states: { "binary_sensor.big_door": { entity_id: "binary_sensor.big_door", state: "off", attributes: { device_class: "garage_door", friendly_name: "Big door" } } },
   config: {}, bearing: 0, saveNorth: async () => true, useApi: () => api, haStartedMs: 0,
   prefs: { get: (k) => (prefStore.has(k) ? prefStore.get(k) : null), set: (k, v) => prefStore.set(k, v) },
@@ -466,6 +466,42 @@ await tryCase("view: zoomed in, a floor below the top, Top, walls Down, Edit or 
   check("view: zoomed in, a floor below the top, Top, walls Down, Edit or Roof Off: the roof lifts away",
     res.base === 1 && res.zoomIn === 0 && res.again === 1 && res.floor === 0 && res.again2 === 1 && res.top === 0 && res.again3 === 1
     && res.down === 0 && res.again4 === 1 && res.edit === 0 && res.again5 === 1 && res.off === 0 && res.pick === "off" && res.on === 1, res);
+});
+await tryCase("view: the rain takes the roof as closing the house once it is half in, never over floors pulled apart (Explode)", async () => {
+  const res = { mid: [] };
+  let xp = null, flips = 0;
+  try {
+    slot.wholeHouse(); await later(1500, 20);
+    res.fit = R().rainShell;
+    slot.zoom("out");
+    for (let i = 0; i < 12; i++) { await later(50, 3); const h = R(); res.mid.push([h.k, h.rainShell.roof]); }
+    res.shown = { k: R().k, roof: R().rainShell.roof };
+    // Explode: with the card's floor steps, All picked (as the Atlas passes them).
+    stepsNow = { names: ["Main", "Upper"], zs: ["0", "1"], at: 1, all: true, go: () => {} };
+    poll(); await later(1500, 20);
+    xp = button("⇕", null);
+    res.xp = !!xp;
+    if (xp) { xp.click(); flips++; }
+    await later(1500, 20); slot.zoom("out"); await fade();
+    res.exploded = { k: R().k, roof: R().rainShell.roof, elevs: R().storeys.map(s => s.elev) };
+    // Another view turns Explode off (the setting is shared): this one still
+    // draws its floors apart until it draws again, and the rain goes by that.
+    res.prefWas = prefStore.get("explode");
+    prefStore.set("explode", "0"); res.otherView = R().rainShell.roof; prefStore.set("explode", res.prefWas);
+    if (xp) { xp.click(); flips++; }
+    await later(1500, 20); slot.zoom("out"); await fade();
+    res.back = { k: R().k, roof: R().rainShell.roof, elevs: R().storeys.map(s => s.elev) };
+  } finally {
+    if (flips % 2 && xp) xp.click();
+    stepsNow = null; poll(); await later(300, 10);
+  }
+  check("view: the rain takes the roof as closing the house once it is half in, never over floors pulled apart (Explode)",
+    res.fit && res.fit.roof === false && res.fit.down === false
+    && res.mid.every(([k, roof]) => roof === (k >= 0.5)) && res.mid.some(([k]) => k > 0 && k < 0.5) && res.mid.some(([k]) => k >= 0.5 && k < 1)
+    && res.shown.k === 1 && res.shown.roof === true
+    && res.xp && res.exploded.elevs.some(e => e > 6) && res.exploded.k === 1 && res.exploded.roof === false
+    && res.prefWas === "1" && res.otherView === false
+    && res.back.elevs.every(e => e < 3) && res.back.k === 1 && res.back.roof === true, res);
 });
 await tryCase("view: a door's sheet sets Shown: open, ajar or shut", async () => {
   slot.zoom("fit"); await later(500, 10);

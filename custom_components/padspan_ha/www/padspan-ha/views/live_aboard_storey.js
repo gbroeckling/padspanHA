@@ -660,6 +660,8 @@ export function createStoreyLayer(ctx){
     topElev(){ return model && model.storeys.length ? model.storeys[model.storeys.length - 1].elev : null; },
     get moving(){ return moving; },
     get shown(){ return (k ?? 0) > 0.001; },
+    /** At least half in: what the roof covers and hides from then on (covers, hides). */
+    get covering(){ return (k ?? 0) >= 0.5; },
     fade(w, now){
       want = !!w;
       if (k === null) { k = want ? 1 : 0; moving = false; last = now; paint(); return { moving, crossed: want }; }   // the first look is how it is
