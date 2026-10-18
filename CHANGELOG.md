@@ -8,6 +8,7 @@ All notable changes to PadSpan HA are documented here.
 
 ### Fixes
 - **Fixed:** the Atlas no longer shows rain on a sunny morning. An on/off rain sensor that reads wet while the weather entity says sunny, clear or partly cloudy is wet from dew or frost, so it's ignored. A rain-rate sensor, a rain gauge, or an on/off sensor a helper makes from one (a template or a threshold) still counts: what it caught really fell.
+- **Fixed:** for the same reason, a window left open on a sunny morning no longer glows blue in Live Aboard as if it were open in the rain.
 - **Fixed:** rain no longer falls in the space between two stacked floors on the Atlas. That space is inside the house, so the floors and the space between them now stay dry and rain falls only around the building. An outdoor floor drawn between two indoor ones keeps its rain.
 - **Fixed:** in Live Aboard, rain is no longer drawn over the house. Drops falling outside, in front of the house, showed over sofas, beds and walls; now nothing falls across the house on screen. With the roof on, rain falls in front of it as before; with the walls down, the rooms stay dry up to head height and the ground beyond still gets rain.
 - **Fixed:** a water-leak detector picked as the weather warnings sensor, before that list left them out, is now ignored, and the Atlas finds warnings itself. Settings → Outdoor weather says so under the list: pick a warning there, or Automatic.
