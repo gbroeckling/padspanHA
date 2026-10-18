@@ -325,8 +325,8 @@ function reducedMotion(){
 }
 
 /** The weather in one 3D view. host = {scene, renderer, camera, shell?}:
- *  the view's own; shell() → {roof, down}: the roof showing, every wall
- *  down. update() at each poll, tick(t) on each frame the view draws,
+ *  the view's own; shell() → {roof, down}: the roof showing and closing the
+ *  house (not over floors pulled apart), every wall down. update() at each poll, tick(t) on each frame the view draws,
  *  frameMs() for its live clock, dispose() when it goes. Never throws: a
  *  failure is counted (the flat Atlas's closed words) and the view simply
  *  has no weather until it is built again. */

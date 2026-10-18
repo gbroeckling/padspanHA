@@ -132,9 +132,11 @@ def test_every_weather_case_passes(wx) -> None:
 
 def test_the_view_tells_the_weather_how_the_house_stands() -> None:
     """The rain keeps off the house as it is drawn: the roof (roofWant, set
-    on each frame by roofTick) and the walls (Down: every one cut low)."""
+    on each frame by roofTick) and the walls (Down: every one cut low).
+    Exploded, the roof covers only the top floor and the floors under it
+    show through the gaps, so the roof does not lift the mask then."""
     src = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
-    assert 'shell: () => ({ roof: !!roofWant, down: wallMode === "down" })' in src
+    assert 'shell: () => ({ roof: !!roofWant && !explodeGap(), down: wallMode === "down" })' in src
     assert "if (wx) wx.tick(t);" in src
 
 
