@@ -179,6 +179,24 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.142</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">19 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> the Atlas no longer shows rain on a sunny morning. An on/off rain sensor that reads wet while the weather entity says sunny, clear or partly cloudy is wet from dew or frost, so it's ignored. A rain-rate sensor, a rain gauge, or an on/off sensor a helper makes from one (a template or a threshold) still counts: what it caught really fell.</li>
+          <li><b>Fixed:</b> for the same reason, a window left open on a sunny morning no longer glows blue in Live Aboard as if it were open in the rain.</li>
+          <li><b>Fixed:</b> rain no longer falls in the space between two stacked floors on the Atlas. That space is inside the house, so the floors and the space between them now stay dry and rain falls only around the building. An outdoor floor drawn between two indoor ones keeps its rain.</li>
+          <li><b>Fixed:</b> in Live Aboard, rain is no longer drawn over the house. Drops falling outside, in front of the house, showed over sofas, beds and walls; now nothing falls across the house on screen. With the roof on, rain falls in front of it as before; with the walls down, the rooms stay dry up to head height and the ground beyond still gets rain.</li>
+          <li><b>Fixed:</b> a water-leak detector picked as the weather warnings sensor, before that list left them out, is now ignored, and the Atlas finds warnings itself. Settings → Outdoor weather says so under the list: pick a warning there, or Automatic.</li>
+          <li><b>Added:</b> it counts how often a clear sky overrules a wet rain sensor, and whether a leak detector is still set as the warnings sensor.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.141</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">17 October 2026</span>

@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.142",
+  "title": "Atlas rain: not on a sunny day, not inside the house",
+  "date": "2026-10-19",
+  "body_markdown": "### Fixes\n- **Fixed:** the Atlas no longer shows rain on a sunny morning. An on/off rain sensor that reads wet while the weather entity says sunny, clear or partly cloudy is wet from dew or frost, so it's ignored. A rain-rate sensor, a rain gauge, or an on/off sensor a helper makes from one (a template or a threshold) still counts: what it caught really fell.\n- **Fixed:** for the same reason, a window left open on a sunny morning no longer glows blue in Live Aboard as if it were open in the rain.\n- **Fixed:** rain no longer falls in the space between two stacked floors on the Atlas. That space is inside the house, so the floors and the space between them now stay dry and rain falls only around the building. An outdoor floor drawn between two indoor ones keeps its rain.\n- **Fixed:** in Live Aboard, rain is no longer drawn over the house. Drops falling outside, in front of the house, showed over sofas, beds and walls; now nothing falls across the house on screen. With the roof on, rain falls in front of it as before; with the walls down, the rooms stay dry up to head height and the ground beyond still gets rain.\n- **Fixed:** a water-leak detector picked as the weather warnings sensor, before that list left them out, is now ignored, and the Atlas finds warnings itself. Settings → Outdoor weather says so under the list: pick a warning there, or Automatic.\n\n### Opt-in report\n- **Added:** it counts how often a clear sky overrules a wet rain sensor, and whether a leak detector is still set as the warnings sensor."
+ },
+ {
   "version": "0.38.141",
   "title": "Polish",
   "date": "2026-10-17",
@@ -28,11 +34,5 @@
   "title": "The Atlas as Overview (Pro option)",
   "date": "2026-10-17",
   "body_markdown": "### New\n- **Show the Atlas as Overview** (PadSpan Pro, off unless you turn it on): in **Settings → UI Structure**, a new switch makes Overview, the first tab, show the Atlas (the same screen as the Atlas in the sidebar, with Live Aboard if it's on) instead of the classic map. The classic Overview isn't gone: **Pure Live** gets a **⚡ Pure Live | ▦ Overview** switch at the top while this is on. Turning it off puts everything back.\n\n### Opt-in report\n- Whether the option is on, and which side of Pure Live's switch people pick."
- },
- {
-  "version": "0.38.136",
-  "title": "Faster snapshot builds in houses with many same-named devices",
-  "date": "2026-10-16",
-  "body_markdown": "### Fixed\n- Matching each receiver to its Home Assistant device took longer the more devices shared a name, and it ran on every snapshot build. 4,000 same-named devices cost 1.5 seconds a build, during which Home Assistant was frozen. It now takes a few milliseconds whatever the count.\n\n### Opt-in report\n- The size of Home Assistant's device and entity registries, and the most devices sharing one name. Some Bermuda houses spend 3 to 16 seconds per build in this part, and this shows whether that shape is why."
  }
 ]
