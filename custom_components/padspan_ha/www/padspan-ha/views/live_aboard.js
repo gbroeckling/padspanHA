@@ -4269,12 +4269,14 @@ function createSlot(slotKey){
    *  that cannot be drawn is simply not drawn. */
   const plainSky = () => lookKey === "classic" || (!!atlas && !atlas.on);
   /** How the house is drawn this frame, for what the rain keeps off: the
-   *  roof closing the house (at least half in, as it covers and hides, and
-   *  not over floors pulled apart: exploded, it is only over the top floor
-   *  and the floors under it show through the gaps), and every wall down.
-   *  Explode as the house was drawn, not as the setting now says: another
-   *  view can change that before this one draws again. */
-  function rainShell(){ return { roof: !!(storeyL && storeyL.covering) && !readGap, down: wallMode === "down" }; }
+   *  roof closing the house (wanted and at least half in, as it covers and
+   *  hides: coming, from halfway; going, at once, as the walls are cut the
+   *  moment it lifts away; and not over floors pulled apart: exploded, it is
+   *  only over the top floor and the floors under it show through the
+   *  gaps), and every wall down. Explode as the house was drawn, not as the
+   *  setting now says: another view can change that before this one draws
+   *  again. */
+  function rainShell(){ return { roof: !!roofWant && !!(storeyL && storeyL.covering) && !readGap, down: wallMode === "down" }; }
   function applyWeather(p){
     const w = WEATHER && p.weather3d !== false && p.weather && p.weather.settings ? p.weather : null;
     if (!w) { if (wx) { wx.dispose(); wx = null; requestRender(); } return; }

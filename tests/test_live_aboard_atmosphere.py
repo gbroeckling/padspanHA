@@ -131,14 +131,15 @@ def test_every_weather_case_passes(wx) -> None:
 
 
 def test_the_view_tells_the_weather_how_the_house_stands() -> None:
-    """The rain keeps off the house as it is drawn: the roof (at least half
-    in, as storeyL.covers and hides have it, faded on each frame by
-    roofTick) and the walls (Down: every one cut low). Exploded, the roof
-    covers only the top floor and the floors under it show through the
-    gaps, so the roof does not lift the mask then, by the gap the house was
-    drawn with (readGap), not the setting another view can change."""
+    """The rain keeps off the house as it is drawn: the roof (wanted, set on
+    each frame by roofTick, and at least half in, as storeyL.covers and
+    hides have it: the walls are cut the moment it is no longer wanted) and
+    the walls (Down: every one cut low). Exploded, the roof covers only the
+    top floor and the floors under it show through the gaps, so the roof
+    does not lift the mask then, by the gap the house was drawn with
+    (readGap), not the setting another view can change."""
     src = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
-    assert ('function rainShell(){ return { roof: !!(storeyL && storeyL.covering) && !readGap, '
+    assert ('function rainShell(){ return { roof: !!roofWant && !!(storeyL && storeyL.covering) && !readGap, '
             'down: wallMode === "down" }; }') in src
     assert "shell: rainShell" in src
     assert "reading = HOUSE.readHouse(p.model, p.floors, p.lightsByEid, p.hidden, p.shapeOverrides, xGap); readGap = xGap;" in src
