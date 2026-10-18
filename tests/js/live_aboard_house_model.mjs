@@ -470,39 +470,46 @@ await tryCase("view: zoomed in, a floor below the top, Top, walls Down, Edit or 
 await tryCase("view: the rain takes the roof as closing the house once it is half in, never over floors pulled apart (Explode)", async () => {
   const res = { mid: [], out: [] };
   let xp = null, flips = 0;
+  // The roof all the way to k, however fast the machine runs its frames on this clock.
+  const until = async (k) => { for (let i = 0; i < 40 && R().k !== k; i++) await later(50, 3); };
   try {
-    slot.wholeHouse(); await later(1500, 20);
-    res.fit = R().rainShell;
+    // From the roof fully gone: the case before leaves it up.
+    slot.wholeHouse(); await later(1500, 20); await until(0);
+    res.fit = { ...R().rainShell, k: R().k };
     slot.zoom("out");
     for (let i = 0; i < 12; i++) { await later(50, 3); const h = R(); res.mid.push([h.k, h.roofWant, h.rainShell.roof]); }
+    await until(1);
     res.shown = { k: R().k, roof: R().rainShell.roof };
     // Zoomed back in, the roof lifts away and the walls are cut at once: the rain's roof goes then too,
     // not when the fading roof is half out.
     slot.zoom("in"); slot.zoom("in");
     for (let i = 0; i < 12; i++) { await later(50, 3); const h = R(); res.out.push([h.k, h.roofWant, h.rainShell.roof]); }
+    await until(0);
+    res.gone = R().k;
     // Explode: with the card's floor steps, All picked (as the Atlas passes them).
     stepsNow = { names: ["Main", "Upper"], zs: ["0", "1"], at: 1, all: true, go: () => {} };
     poll(); await later(1500, 20);
     xp = button("⇕", null);
     res.xp = !!xp;
     if (xp) { xp.click(); flips++; }
-    await later(1500, 20); slot.zoom("out"); await fade();
+    await later(1500, 20); slot.zoom("out"); await until(1);
     res.exploded = { k: R().k, roof: R().rainShell.roof, elevs: R().storeys.map(s => s.elev) };
     // Another view turns Explode off (the setting is shared): this one still
     // draws its floors apart until it draws again, and the rain goes by that.
     res.prefWas = prefStore.get("explode");
     prefStore.set("explode", "0"); res.otherView = R().rainShell.roof; prefStore.set("explode", res.prefWas);
     if (xp) { xp.click(); flips++; }
-    await later(1500, 20); slot.zoom("out"); await fade();
+    await later(1500, 20); slot.zoom("out"); await until(1);
     res.back = { k: R().k, roof: R().rainShell.roof, elevs: R().storeys.map(s => s.elev) };
   } finally {
     if (flips % 2 && xp) xp.click();
     stepsNow = null; poll(); await later(300, 10);
   }
   check("view: the rain takes the roof as closing the house once it is half in, never over floors pulled apart (Explode)",
-    res.fit && res.fit.roof === false && res.fit.down === false
-    && res.mid.every(([k, want, roof]) => roof === (want && k >= 0.5)) && res.mid.some(([k]) => k > 0 && k < 0.5) && res.mid.some(([k]) => k >= 0.5 && k < 1)
-    && res.out.every(([k, want, roof]) => roof === (want && k >= 0.5)) && res.out.some(([k, want]) => !want && k >= 0.5 && k < 1) && res.out[res.out.length - 1][0] === 0
+    res.fit && res.fit.k === 0 && res.fit.roof === false && res.fit.down === false
+    // Coming, wanted but under half in: not yet. Going, half in or more but no longer wanted: gone.
+    && res.mid.every(([k, want, roof]) => roof === (want && k >= 0.5)) && res.mid.some(([k, want]) => want && k > 0 && k < 0.5)
+    && res.out.every(([k, want, roof]) => roof === (want && k >= 0.5)) && res.out.some(([k, want]) => !want && k >= 0.5 && k < 1) && res.gone === 0
     && res.shown.k === 1 && res.shown.roof === true
     && res.xp && res.exploded.elevs.some(e => e > 6) && res.exploded.k === 1 && res.exploded.roof === false
     && res.prefWas === "1" && res.otherView === false
