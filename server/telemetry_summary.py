@@ -509,7 +509,7 @@ def main() -> int:
     # it. Errors mean that page drew no weather (the map was unaffected) —
     # except source: a chosen entity no longer exists (a fallback may draw);
     # the sources say whether the fallbacks work outside Canada. Notes
-    # (0.38.126+): a wet rain sensor overruled by a clear sky (dew, not rain);
+    # (0.38.142+): a wet rain sensor overruled by a clear sky (dew, not rain);
     # a leak detector chosen as the warning entity, ignored.
     print("Atlas weather (page loads; installs)")
     any_wx = False

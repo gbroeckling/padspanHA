@@ -35,7 +35,7 @@ it shows at a glance what the weather is doing outside.
 |---|---|
 | Setting off | Nothing rendered, whatever the sensors say |
 | Rain sensor set, reading dry | Off (2.5 s fade-out) |
-| On/off rain sensor wet, weather entity sunny / clear-night / partlycloudy | Off: dew or frost (0.38.126). A rain rate or gauge is never overruled |
+| On/off rain sensor wet, weather entity sunny / clear-night / partlycloudy | Off: dew or frost (0.38.142). A rain rate or gauge is never overruled |
 | No rain sensor set | Wet = weather condition in {rainy, pouring, snowy, snowy-rainy, hail, lightning-rainy} |
 | Wet, alone | Light rain |
 | Wet + rainfall warning, or condition `pouring` | Heavy rain |

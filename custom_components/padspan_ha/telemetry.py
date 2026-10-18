@@ -371,7 +371,7 @@ OFFER_EVENTS: frozenset[str] = frozenset(
 #                            (no sensor and no weather entity), and which
 #                            warning integration made it heavy — whether the
 #                            fallbacks work outside Canada.
-#   weather_note:<kind>      what the decision set aside on purpose (0.38.126):
+#   weather_note:<kind>      what the decision set aside on purpose (0.38.142):
 #                            sensor_overruled — a wet rain sensor under a
 #                            clear sky (dew or frost, not rain); warning_ignored
 #                            — the chosen warning entity is a leak detector.
