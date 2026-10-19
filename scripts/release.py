@@ -857,15 +857,19 @@ def main():
 
     print(f"\n=== Done! {tag} ({channel}) is live on GitHub. ===\n")
 
-    if not manifest_ok or not site_ok or not whatsnew_ok:
-        sys.exit(3)
-
+    # The site, manifest and notes steps above don't touch Bright, so a miss
+    # there still releases Bright (it used to exit first and leave Bright
+    # users on the old version, the miss seen only in the exit code).
     if "--no-bright" in flags:
         print("PadSpan Bright pass skipped (--no-bright).\n")
-        return
-    print("PadSpan Bright pass...")
-    bright_pass(version, channel, message)
-    print()
+    else:
+        print("PadSpan Bright pass...")
+        bright_pass(version, channel, message)
+        print()
+
+    if not manifest_ok or not site_ok or not whatsnew_ok:
+        print("  !! Released, but a step above failed (look for '!!'): exit 3.")
+        sys.exit(3)
 
 
 if __name__ == "__main__":

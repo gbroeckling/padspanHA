@@ -27,3 +27,27 @@ def ha_devices(dev_reg: Any) -> list[Any]:
     if isinstance(devices, Mapping):
         return list(devices.values())
     return list(devices)
+
+
+def ha_device_config_entries(dev: Any) -> set[str]:
+    """The config entry ids a device belongs to, read without HA's deprecation shim.
+
+    HA 2026.9 gave every device a single `config_entry_id` and kept
+    `config_entries` as a compatibility property. From 2026.10 every read of
+    that property calls `report_usage`, which walks the stack and copies
+    `sys.modules` to name the caller: about a millisecond a read. Read once
+    per device per snapshot build, that was 1-4 s per build on the event loop
+    in houses with Bermuda (the opt-in report's `snap_ha_areas_ms`), and the
+    warning it logs only once never showed it.
+
+    A composite device (only ever made by `async_get` for an old id, never
+    stored) still belongs to several entries, and its property does not report.
+    Before 2026.9 `config_entries` is a plain set.
+    """
+    cid = getattr(dev, "config_entry_id", None)
+    if isinstance(cid, str):
+        if getattr(dev, "is_composite_device", False) is True:
+            return set(dev.config_entries or ())
+        return {cid}
+    return set(getattr(dev, "config_entries", None) or ())
+

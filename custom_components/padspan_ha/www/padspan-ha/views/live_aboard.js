@@ -4434,9 +4434,10 @@ function createSlot(slotKey){
         update(p);
         if (editor) editor.setFurnish(!!furnishP);           // after update: a file read needs the card's data
         // A tool asked for on the way in (the setup wizard's "Open Live
-        // Aboard (Edit → Heights)"), taken once: {tool, eid}.
-        const want = editor && p.openTool && typeof p.openTool.take === "function" ? p.openTool.take() : null;
-        if (want && want.tool) Promise.resolve(editor.startTool(want.tool, want.eid || null)).catch(() => {});
+        // Aboard (Edit → Heights)"), taken once: {tool, eid}. Taken even with
+        // no editor (no WebGL), or it would open that tool on a later visit.
+        const want = p.openTool && typeof p.openTool.take === "function" ? p.openTool.take() : null;
+        if (editor && want && want.tool) Promise.resolve(editor.startTool(want.tool, want.eid || null)).catch(() => {});
         if (failed) return false;
         place(s);
         paintFloors(); paintFull(); showHint(); peopleClock();

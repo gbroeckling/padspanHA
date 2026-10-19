@@ -187,6 +187,8 @@ def build_header(
             "presence_poll_interval_s", "positioning_algorithm",
             "excluded_scanners", "lost_radios", "disabled_radios",
             "scanner_offsets", "ble_max_age_s", "signal_loss_linger_s",
+            # Readings below a receiver's floor never reach the frames.
+            "scanner_min_rssi",
         )
         if k in settings
     }

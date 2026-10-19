@@ -128,8 +128,8 @@ EVENTS: frozenset[str] = frozenset({
     "showcase_on", "backup_created", "backup_restored", "factory_reset",
     "bright_import",
     # A floor-plan image asked for with a link that no longer works (expired,
-    # or signed before a restart): the panel renews its links every 6 h and
-    # on reconnect, so this should stay near zero (map_image_view.py).
+    # or signed before a restart): the panel renews its links every 10
+    # minutes and on reconnect, so this should stay near zero (map_image_view.py).
     "map_image_stale",
     # A map's placement committed from the align editor, and one the writer
     # refused because it would have stranded the calibration pins. Both halves

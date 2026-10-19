@@ -10,7 +10,7 @@
 //
 // survey() and the step checks are pure, for tests (tests/js/aboard_wizard.mjs).
 
-const { tierAtLeast } = await import(`./editions.js${new URL(import.meta.url).search}`);
+const { tierAtLeast, surfacesForEdition } = await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export const GUIDE_URL = "https://github.com/gbroeckling/padspanHA/blob/main/docs/LIVE_ABOARD_GUIDE.md";
 
@@ -81,6 +81,9 @@ export function survey({ settings = {}, model = {}, states = {}, house = null, w
     on: settings.atlas_3d_enabled === true,
     webgl,
     overviewAtlas: settings.overview_atlas === true,
+    // Bright hides Overview (a presence surface) unless presence is revealed:
+    // no Overview, no "Show the Atlas as Overview".
+    hasOverview: surfacesForEdition(["overview"], settings).length > 0,
     floors: floors.map(f => ({ id: f.id, name: f.name || f.id, f2f: f.floor_to_floor_m ?? null, base: f.base_elevation_m ?? null,
                                 rooms: roomsByFloor[f.id] || 0 })),
     rooms: Object.keys(rooms).length,
@@ -133,7 +136,8 @@ export function checks(s) {
                     `${s.strips.length - noRun.length} of ${s.strips.length} lights that look like strips are laid out.` },
     furniture: { done: s.pieces > 0, line: s.pieces ? `${s.pieces} pieces of furniture.` : "No furniture yet." },
     extras: { done: true, line: "All optional." },
-    screen: { done: s.overviewAtlas, line: s.overviewAtlas ? "Overview shows the Atlas." : "Overview shows the classic map." },
+    screen: !s.hasOverview ? { done: true, line: "The sidebar Atlas is your screen." }
+          : { done: s.overviewAtlas, line: s.overviewAtlas ? "Overview shows the Atlas." : "Overview shows the classic map." },
   };
 }
 
@@ -224,7 +228,7 @@ export async function openLiveAboardWizard(ctx, step) {
       out.push(toggle("Show Live Aboard on the Atlas", s.on, (v, n) => save({ atlas_3d_enabled: v }, n),
         "Saves right away. In the sidebar Atlas, 🏠 on the left switches between the flat map and Live Aboard; in Mapping → Atlas, the Map | Live Aboard switch does."));
       if (s.webgl === false) out.push(tip("This browser can't draw 3D (no WebGL). Live Aboard still works on other screens; this one keeps the flat map."));
-      out.push(toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); },
+      if (s.hasOverview) out.push(toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); },
         "Optional, off unless you turn it on. Overview, the first tab, shows the Atlas (and Live Aboard) instead of the classic map; Pure Live gets a switch to the classic Overview. You can change it any time in Settings → UI Structure."));
       return out;
     },
@@ -346,8 +350,8 @@ export async function openLiveAboardWizard(ctx, step) {
           "Views ▾ → Save this view for other angles you use a lot.",
           "On a wall tablet: the sidebar Atlas, full screen with the corner button. With nothing changing, it draws nothing.",
         ]),
-        toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); },
-          "Optional, off unless you turn it on. Overview shows the Atlas instead of the classic map; the classic Overview moves under Pure Live, behind a ⚡ Pure Live | ▦ Overview switch."),
+        s.hasOverview ? toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); },
+          "Optional, off unless you turn it on. Overview shows the Atlas instead of the classic map; the classic Overview moves under Pure Live, behind a ⚡ Pure Live | ▦ Overview switch.") : null,
         el("div", { style: "margin-top:8px;font-size:12px" }, [el("a", { href: GUIDE_URL, target: "_blank", rel: "noopener" }, "The Live Aboard Guide"), " has every tool in detail."]),
       ];
     },

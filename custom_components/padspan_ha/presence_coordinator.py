@@ -1180,6 +1180,11 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # read with the masks above. Empty: nothing below changes.
         _floors: dict[str, float] = getattr(self, "_floor_cache", None) or {}
         _floor_drops = 0
+        # The same readings with nothing floored, for auto-calibration only:
+        # a floor is a positioning choice and must never change what is saved
+        # as a calibration point. With no floors set it IS addr_src_rssi.
+        _cal_rssi: dict[str, dict[str, float]] = {} if _floors else addr_src_rssi
+        _cal_ages: dict[tuple[str, str], float] = {}
         _es_map: dict[str, dict[str, float]] = {}
         _ad_ages: dict[tuple[str, str], float] = {}
         for ad in (snap.get("ble") or {}).get("advertisements") or []:
@@ -1197,23 +1202,32 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 continue
             if src and str(src) in _excluded_srcs:
                 continue
-            if _floors and _below_floor(_floors, src, rssi):
+            _floored = bool(_floors) and _below_floor(_floors, src, rssi)
+            if _floored:
                 _floor_drops += 1
-                continue
             if addr and src and rssi is not None:
-                existing = addr_src_rssi.setdefault(addr, {})
                 # For merged RPAs, prefer the FRESHEST reading per scanner —
                 # keeping the strongest let an old strong ad from a previous
                 # rotating-MAC generation permanently outrank the live weaker
                 # one.  Near-simultaneous readings (±0.5 s) break strongest.
                 _k2 = (addr, str(src))
                 _a = float(_age) if isinstance(_age, (int, float)) else 0.0
-                _prev_a = _ad_ages.get(_k2)
-                if (str(src) not in existing
-                        or _a < _prev_a - 0.5
-                        or (abs(_a - _prev_a) <= 0.5 and float(rssi) > existing[str(src)])):
-                    existing[str(src)] = float(rssi)
-                    _ad_ages[_k2] = _a
+                if not _floors:
+                    _targets = ((addr_src_rssi, _ad_ages),)
+                elif _floored:            # calibration still takes it
+                    _targets = ((_cal_rssi, _cal_ages),)
+                else:
+                    _targets = ((addr_src_rssi, _ad_ages), (_cal_rssi, _cal_ages))
+                for _map, _ages in _targets:
+                    existing = _map.setdefault(addr, {})
+                    _prev_a = _ages.get(_k2)
+                    if (str(src) not in existing
+                            or _a < _prev_a - 0.5
+                            or (abs(_a - _prev_a) <= 0.5 and float(rssi) > existing[str(src)])):
+                        existing[str(src)] = float(rssi)
+                        _ages[_k2] = _a
+            if _floored:
+                continue
             # ESPresense nodes publish a node-calibrated, node-filtered
             # distance — collect it so the spatial path can use it directly
             # instead of re-deriving distance via the global path-loss model.
@@ -1306,7 +1320,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
             _scanner_offsets: dict[str, float] = ((_st.data if _st else {}).get("scanner_offsets") or {})
             if _scanner_offsets:
-                for _am in addr_src_rssi.values():
+                for _am in (list(addr_src_rssi.values())
+                            + (list(_cal_rssi.values()) if _cal_rssi is not addr_src_rssi else [])):
                     for _src in _am:
                         _off = _scanner_offsets.get(_src)
                         if _off:
@@ -1338,7 +1353,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for _src in _excluded:
                 source_to_area.pop(_src, None)
                 source_to_floor.pop(_src, None)
-            for _am in addr_src_rssi.values():
+            for _am in (list(addr_src_rssi.values())
+                        + (list(_cal_rssi.values()) if _cal_rssi is not addr_src_rssi else [])):
                 for _src in _excluded:
                     _am.pop(_src, None)
             for _sm in self._ema_rssi.values():
@@ -1730,7 +1746,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # ── Auto-calibration from pinned beacons ─────────────────────────────
         if _pinned:
-            await self._inject_beacon_calibration(now, _pinned, result, addr_src_rssi, _rpa_map)
+            await self._inject_beacon_calibration(now, _pinned, result, _cal_rssi, _rpa_map)
 
         # ── Grace period for missing objects ──────────────────────────────────
         # Devices that vanish from BLE get a 120s grace period (12 polls) to

@@ -72,3 +72,30 @@ def test_nothing_that_needs_every_reading_reads_the_floors():
             assert "scanner_min_rssi" not in p.read_text(encoding="utf-8") and "scanner_floors" not in p.read_text(encoding="utf-8"), f
     used = [f.name for f in ROOT.glob("*.py") if "scanner_floors(" in f.read_text(encoding="utf-8") and f.name != "presence_rules.py"]
     assert sorted(used) == ["presence_coordinator.py", "ws_occupancy.py", "ws_settings.py"] or sorted(used) == ["presence_coordinator.py", "ws_occupancy.py"], used
+
+
+def test_a_floor_never_changes_what_auto_calibration_saves():
+    """A floor is a positioning choice. The pinned-beacon auto-calibration
+    still gets every reading, or a floor set on one receiver would write
+    calibration points that lack it, biased to the beacon's stronger samples,
+    and those points outlive the floor (pre-stable review, 0.38.139)."""
+    from unittest.mock import AsyncMock, MagicMock
+    from custom_components.padspan_ha.const import DATA_MODEL, DOMAIN
+    from tests.test_poll_level import ble_object, make_coordinator, run_poll
+
+    coord = make_coordinator({"scanner_min_rssi": {"wall": -85}})
+    model = MagicMock()
+    model.beacon_positions_m.return_value = {"bk1": {"room": "Kitchen", "floor_id": "main", "x_m": 1.0, "y_m": 1.0}}
+    model.get_scanner_mappings.return_value = ({"wall": "Kitchen", "door": "Hall"}, {"wall": "main", "door": "main"})
+    model.sync_mode.return_value = "manual"
+    model.async_sync_floors = AsyncMock()
+    coord.hass.data[DOMAIN][DATA_MODEL] = model
+    coord._inject_beacon_calibration = AsyncMock()
+    ads = [{"address": "AA:BB:CC:DD:EE:01", "source": "wall", "rssi": -90, "age_s": 1.0},
+           {"address": "AA:BB:CC:DD:EE:01", "source": "door", "rssi": -60, "age_s": 1.0}]
+    from tests.test_poll_level import snapshot
+    run_poll(coord, snapshot([ble_object("bk1", "AA:BB:CC:DD:EE:01")], ads))
+
+    assert coord._inject_beacon_calibration.await_count == 1
+    cal_map = coord._inject_beacon_calibration.await_args.args[3]
+    assert cal_map["AA:BB:CC:DD:EE:01"] == {"wall": -90.0, "door": -60.0}, cal_map

@@ -51,7 +51,7 @@ from homeassistant.helpers.storage import Store
 from . import fabric_truth
 from .const import MODEL_STORE_KEY, DEFAULT_FLOOR_ID, MAX_HEIGHT_M, LIGHT_SHAPE_KINDS, OUTDOOR_FLOOR_NAMES
 from .safe_store import wrap_store
-from .util import ha_devices
+from .util import ha_device_config_entries, ha_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -713,7 +713,7 @@ class ModelStore:
                 continue
             # Check if this device is from a BLE-relevant integration
             _dev_domains = {c[0] for c in (dev.identifiers or set())}
-            _config_domains = {c for c in (dev.config_entries or set())}
+            _config_domains = ha_device_config_entries(dev)
             # Also check connections for MAC-based matching
             _has_ble_domain = bool(_dev_domains & _BLE_DOMAINS)
 

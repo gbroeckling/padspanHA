@@ -17,14 +17,14 @@
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
 const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
-        tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL } =
+        tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Optional too: the tester sign-up must not take the Settings tab with it.
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: tester_signup failed to load", err); return { testerSection: () => null }; });
 // Optional: a card that fails to load must not take the Settings tab with it.
-const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
-  .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
+const { trialOfferFromCtx, newTabOk } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null, newTabOk: () => true }; });
 // Optional: free Pro by invite or by testing (pro_invite.js).
 const PRO = await import(`./pro_invite.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: pro_invite failed to load", err);
@@ -1090,8 +1090,9 @@ function _settingsPresence(ctx, el){
   });
   // ── Suggest an idea ───────────────────────────────────────────────────────
   // GitHub Discussions → Ideas: where ideas are posted and voted on (a GitHub
-  // account), or by email to hello@traks.ca for anyone without one.
-  {
+  // account), or by email to hello@traks.ca for anyone without one. Not on a
+  // wall screen, which could open a tab it can never close.
+  if (newTabOk(ctx.state.kioskMode)) {
     const link = (href, label) => el("a", { class: "btn inline", href, target: "_blank", rel: "noopener", style: "text-decoration:none;font-size:13.333px;padding:7px 10px" }, label);
     const post = link(IDEAS_NEW_URL, "Post an idea");
     post.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_posted"); });
@@ -3822,7 +3823,9 @@ function _settingsUI(ctx, el){
   // ── The Atlas as Overview (Pro) ──
   // Overview (first in the menu) shows the Atlas instead of the classic map;
   // Pure Live (below it) gets a switch to the classic Overview. Saved the
-  // moment it changes; nothing to restart.
+  // moment it changes; nothing to restart. Not on a Bright build that hides
+  // Overview (a presence surface) — there is no Overview there to change.
+  const ovShown = surfacesForEdition(["overview"], settings).length > 0;
   const ovPro = tierAtLeast(settings.tier, "pro");
   const ovCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
   ovCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"},"\uD83D\uDDFA\uFE0F Overview \u2014 the Atlas as your main map"));
@@ -3852,7 +3855,7 @@ function _settingsUI(ctx, el){
       ovNote.style.color = "#f87171";
     }
   });
-  wrap.appendChild(ovCard);
+  if (ovShown) wrap.appendChild(ovCard);
 
   // ── Edition & tier ──
   // What this build is and what the key lets it do (licence.py). The reveal

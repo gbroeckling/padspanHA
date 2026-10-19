@@ -4,6 +4,27 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.144 — Stable: floor plans only for people logged in, and a faster PadSpan with Bermuda (2026-10-19)
+
+- **Coming from 0.38.135?** This stable brings in everything from the 0.38.136–0.38.143 betas below:
+  - **Floor plans are private:** they move out of Home Assistant's public `www` folder by themselves on the first start and are shown only to someone logged in. Uploading or replacing one needs an admin. If you go back to 0.38.135 or older afterwards, floor plans show blank until you update again; nothing is lost.
+  - **The Atlas as Overview** (Pro option), and **Set up Live Aboard step by step**, a guide through floors, heights, walls, doors, lights and making it your screen.
+  - **Min signal per receiver** (Bluetooth → Scanners) for a receiver that hears the street or the neighbours, and **Quieter** in Find the one in your hand.
+  - **Atlas rain** that doesn't fall on a sunny morning when only dew wets a rain sensor, or between stacked floors, or over the rooms in Live Aboard.
+  - **💡 Suggest an idea**, in Settings and at the bottom of What's New.
+
+### Fixed
+- **Home Assistant 2026.10 and Bermuda:** every snapshot build read a property Home Assistant 2026.10 marks as old, once for each device in the registry. Each read now costs Home Assistant about a millisecond to note who made it, so a house with Bermuda and a few thousand devices lost 1 to 4 seconds a build, with Home Assistant frozen meanwhile. PadSpan reads the new field instead, there and in the receiver sync and the receiver and phone lists.
+- **Min signal per receiver** no longer changes what a pinned beacon saves as a calibration point. The faint readings it keeps out of positioning still go into calibration, as before the setting existed.
+- On PadSpan Bright, the "Atlas as Overview" switch is gone where Bright has no Overview, and Set up Live Aboard's last step no longer waits for it.
+- Set up Live Aboard's "open this tool" no longer waits for a later visit on a screen that can't draw 3D.
+- The Suggest an idea card isn't shown on a wall screen, which couldn't close the tab it would open.
+
+### Opt-in report
+- The registry sizes are counted only while the report is on.
+
+---
+
 ## 0.38.143 — Floor plans only for people logged in (2026-10-19)
 
 ### Security

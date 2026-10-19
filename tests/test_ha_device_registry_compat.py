@@ -23,6 +23,7 @@ import ast
 from collections import UserDict
 from pathlib import Path
 from typing import Any
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import homeassistant.helpers.device_registry as _dr_mod
@@ -137,3 +138,64 @@ def test_the_ha_device_registry_is_read_in_one_place() -> None:
         "read HA's device registry through util.ha_devices — `.devices` as a "
         f"mapping is deprecated in HA 2026.9 and gone in 2027.9: {found}"
     )
+
+
+# ── A device's config entries, without the 2026.10 deprecation shim ──────────
+#
+# HA 2026.10's DeviceEntry.config_entries calls report_usage on every read: a
+# stack walk and a copy of sys.modules, about a millisecond each. Read once per
+# device per snapshot build, that was the 1-4 s `snap_ha_areas_ms` the opt-in
+# report showed in every house with Bermuda. util.ha_device_config_entries reads
+# config_entry_id instead.
+
+class _Dev2026_10:
+    """A 2026.10 DeviceEntry: one config_entry_id; the old set reports when read."""
+
+    def __init__(self, cid: str, composite: frozenset[str] | None = None) -> None:
+        self.config_entry_id = cid
+        self._composite = composite
+        self.reads = 0
+
+    @property
+    def is_composite_device(self) -> bool:
+        return self._composite is not None
+
+    @property
+    def config_entries(self) -> set[str]:
+        if not self.is_composite_device:
+            self.reads += 1          # report_usage(...) in HA
+            return {self.config_entry_id}
+        return set(self._composite)
+
+
+def test_a_device_s_config_entries_without_the_shim():
+    from custom_components.padspan_ha.util import ha_device_config_entries
+
+    new = _Dev2026_10("entry_a")
+    assert ha_device_config_entries(new) == {"entry_a"}
+    assert new.reads == 0, "read the deprecated property, which reports on every read"
+
+    # A restored composite device belongs to several entries and does not report.
+    comp = _Dev2026_10("entry_a", composite=frozenset({"entry_a", "entry_b"}))
+    assert ha_device_config_entries(comp) == {"entry_a", "entry_b"}
+
+    # Before 2026.9 there is no config_entry_id, only the set.
+    old = SimpleNamespace(config_entries={"entry_x", "entry_y"})
+    assert ha_device_config_entries(old) == {"entry_x", "entry_y"}
+    assert ha_device_config_entries(SimpleNamespace(config_entries=None)) == set()
+
+
+def test_nothing_reads_a_device_s_config_entries_directly():
+    """Only util.py may touch DeviceEntry.config_entries."""
+    offenders = []
+    for p in _ROOT.glob("*.py"):
+        if p.name == "util.py":
+            continue
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Attribute) and node.attr in ("config_entries", "primary_config_entry",
+                                                                  "config_entries_subentries")
+                    and not (isinstance(node.value, ast.Attribute) and node.value.attr in ("hass", "_hass"))
+                    and not (isinstance(node.value, ast.Name) and node.value.id in ("hass", "homeassistant"))):
+                offenders.append(f"{p.name}:{node.lineno}")
+    assert not offenders, "read through util.ha_device_config_entries: " + ", ".join(offenders)

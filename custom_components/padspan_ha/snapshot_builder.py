@@ -54,7 +54,7 @@ from .ble_enrichment import enrich_object as _enrich_ble_object
 from . import low_memory as _low_memory
 from .perf_sampler import record_duration
 from .presence_rules import away_timeout_s, is_away
-from .util import ha_devices
+from .util import ha_device_config_entries, ha_devices
 from .ws_common import (
     RadioDeviceIndex,
     radio_display,
@@ -369,7 +369,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         dr = device_registry.async_get(hass)
         receivers: list[dict[str, Any]] = []
         for dev in ha_devices(dr):
-            if bermuda_entry_ids and any(entry_id in bermuda_entry_ids for entry_id in dev.config_entries):
+            if bermuda_entry_ids and not bermuda_entry_ids.isdisjoint(ha_device_config_entries(dev)):
                 receivers.append(
                     {
                         "id": dev.id,
@@ -748,9 +748,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         # The registries' size, and the most devices sharing one name: the
         # match above was quadratic in that (fixed 0.38.136), and a slow "ha"
         # phase on some Bermuda houses is still unexplained (opt-in report).
-        record_duration(hass, "ha_devices", float(index.devices_n))
-        record_duration(hass, "dev_dup", float(index.same_name_max))
-        record_duration(hass, "ha_entities", float(len(entity_registry.async_get(hass).entities)))
+        # Counted only while the report is on: each is a pass over every device.
+        from .telemetry import enabled as _telemetry_on  # noqa: PLC0415
+        if _telemetry_on(hass):
+            record_duration(hass, "ha_devices", float(index.devices_n))
+            record_duration(hass, "dev_dup", float(index.same_name_max))
+            record_duration(hass, "ha_entities", float(len(entity_registry.async_get(hass).entities)))
         for radio in ((snapshot.get("ble") or {}).get("radios") or []):
             match = index.resolve(radio.get("source"), radio.get("name"))
             radio["device_match"] = match.reason
