@@ -179,6 +179,25 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.144</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">19 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Coming from 0.38.135?</b> This stable brings in everything from the 0.38.136–0.38.143 betas below:</li>
+          <li><b>Home Assistant 2026.10 and Bermuda:</b> every snapshot build read a property Home Assistant 2026.10 marks as old, once for each device in the registry. Each read now costs Home Assistant about a millisecond to note who made it, so a house with Bermuda and a few thousand devices lost 1 to 4 seconds a build, with Home Assistant frozen meanwhile. PadSpan reads the new field instead, there and in the receiver sync and the receiver and phone lists.</li>
+          <li><b>Min signal per receiver</b> no longer changes what a pinned beacon saves as a calibration point. The faint readings it keeps out of positioning still go into calibration, as before the setting existed.</li>
+          <li>On PadSpan Bright, the "Atlas as Overview" switch is gone where Bright has no Overview, and Set up Live Aboard's last step no longer waits for it.</li>
+          <li>Set up Live Aboard's "open this tool" no longer waits for a later visit on a screen that can't draw 3D.</li>
+          <li>The Suggest an idea card isn't shown on a wall screen, which couldn't close the tab it would open.</li>
+          <li>The registry sizes are counted only while the report is on.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.143</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">19 October 2026</span>
