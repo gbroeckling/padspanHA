@@ -179,6 +179,24 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.143</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">19 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Fixed:</b> uploaded floor plans were saved in <code>/config/www/padspan_ha/maps/</code>, and Home Assistant serves everything in <code>www</code> at <code>/local/</code> without a login. On an install reachable from the internet, anyone with the address could open a home's floor plan. They now live in <code>/config/padspan_ha/maps/</code> and are served only to someone logged in to Home Assistant, the same way camera snapshots are. Thanks to @frenck for spotting it in the HACS review.</li>
+          <li><b>Moved for you:</b> on the first start of this version, existing floor plans move out of <code>www</code> by themselves. Nothing is overwritten: if a file of the same name is already in the new folder, the old one is left in place and the log says so. Placements, rooms, pins and calibration don't change.</li>
+          <li><b>Changed:</b> uploading or replacing a floor plan now needs an admin account, like deleting one already did. Everyone can still see them.</li>
+          <li><b>Going back:</b> if you install 0.38.142 or older after this, floor plans show blank until you update again, because the older version looks for them in <code>www</code>. Nothing is lost. A floor plan replaced while you're on the older version is kept in <code>www</code> when you update again, and the log says which: replace it once more after updating.</li>
+          <li><b>Fixed:</b> making or restoring a backup, factory reset, and deleting, extending or replacing a floor plan no longer check files on Home Assistant's main loop, which could stall it briefly on a slow SD card.</li>
+          <li><b>Added:</b> how many floor plans this version moved out of <code>www</code>, how many it had to leave, and how often a floor-plan link was refused for being out of date.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.142</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">19 October 2026</span>

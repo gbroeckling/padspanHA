@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.143",
+  "title": "Floor plans only for people logged in",
+  "date": "2026-10-19",
+  "body_markdown": "### Security\n- **Fixed:** uploaded floor plans were saved in `/config/www/padspan_ha/maps/`, and Home Assistant serves everything in `www` at `/local/` without a login. On an install reachable from the internet, anyone with the address could open a home's floor plan. They now live in `/config/padspan_ha/maps/` and are served only to someone logged in to Home Assistant, the same way camera snapshots are. Thanks to @frenck for spotting it in the HACS review.\n- **Moved for you:** on the first start of this version, existing floor plans move out of `www` by themselves. Nothing is overwritten: if a file of the same name is already in the new folder, the old one is left in place and the log says so. Placements, rooms, pins and calibration don't change.\n- **Changed:** uploading or replacing a floor plan now needs an admin account, like deleting one already did. Everyone can still see them.\n- **Going back:** if you install 0.38.142 or older after this, floor plans show blank until you update again, because the older version looks for them in `www`. Nothing is lost. A floor plan replaced while you're on the older version is kept in `www` when you update again, and the log says which: replace it once more after updating.\n\n### Fixes\n- **Fixed:** making or restoring a backup, factory reset, and deleting, extending or replacing a floor plan no longer check files on Home Assistant's main loop, which could stall it briefly on a slow SD card.\n\n### Opt-in report\n- **Added:** how many floor plans this version moved out of `www`, how many it had to leave, and how often a floor-plan link was refused for being out of date."
+ },
+ {
   "version": "0.38.142",
   "title": "Atlas rain: not on a sunny day, not inside the house",
   "date": "2026-10-19",
@@ -28,11 +34,5 @@
   "title": "Set up Live Aboard step by step",
   "date": "2026-10-17",
   "body_markdown": "### New\n- **The Live Aboard setup wizard** (PadSpan Pro): **✨ Set it up step by step** in Settings → UI Structure → Live Aboard, or **🏠 Set up Live Aboard** at the top of Mapping → Atlas. Ten steps build the 3D house from scratch: turn it on, floor heights (set right in the wizard), rooms, devices on the Atlas, heights, doors and windows, LED strips, furniture, the extras, and making it your screen. Each step says what it found in your house (which floors have no height, which door and window sensors aren't on a door or window yet, which lights look like strips and aren't laid out) and opens the right tool for the rest.\n- **It takes you straight to the tool.** \"Open Live Aboard at Heights\", \"Draw a door\", \"Draw a window\" open Live Aboard in Mapping → Atlas with Edit already on that tool. Every door or window sensor that isn't on a door or window yet has its own **Draw its door** / **Draw its window**, and every light that looks like a strip has **Lay it out**, which opens Strip with that light picked. While you're out, Mapping → Atlas has **← Back to the setup wizard**, which checks again what's done.\n- Every optional setting is in it, so nothing cool stays hidden: look, quality, outdoor weather and rain and snow, show people, tags and scanners, the shared furniture library, furniture from a photo (AI Task), back to home view, and the **Show the Atlas as Overview** switch (off unless you choose it). It opens on the first step that isn't done, and you can come back any time.\n\n### Opt-in report\n- The wizard opened, and finished."
- },
- {
-  "version": "0.38.137",
-  "title": "The Atlas as Overview (Pro option)",
-  "date": "2026-10-17",
-  "body_markdown": "### New\n- **Show the Atlas as Overview** (PadSpan Pro, off unless you turn it on): in **Settings → UI Structure**, a new switch makes Overview, the first tab, show the Atlas (the same screen as the Atlas in the sidebar, with Live Aboard if it's on) instead of the classic map. The classic Overview isn't gone: **Pure Live** gets a **⚡ Pure Live | ▦ Overview** switch at the top while this is on. Turning it off puts everything back.\n\n### Opt-in report\n- Whether the option is on, and which side of Pure Live's switch people pick."
  }
 ]
