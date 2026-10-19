@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.145",
+  "title": "Wall screens catch up after an update, and links open what they name",
+  "date": "2026-10-19",
+  "body_markdown": "### Fixed\n- **A wall screen left on the Atlas now reloads itself after an update.** The sidebar Atlas never checked which version Home Assistant was running, so a wall left on it kept showing the old Atlas until someone reloaded it by hand (found on a real wall screen today, still on 0.38.105 hours after the update). It now checks every 10 minutes, as the PadSpan panel does, and a wall screen reloads once for each new version.\n- **A full-screen window counts as a wall screen.** A browser in kiosk mode or full screen reloads itself after an update, as a `?kiosk=1` link already did, once nobody has touched it for two minutes (it may be a tablet somebody is using). Until then it shows the Reload bar.\n- **`?view=` links open the view they name** ([#93](https://github.com/gbroeckling/padspanHA/issues/93)). `?view=forensics`, `monitor`, `bluetooth` and `presence` landed on Overview, Forensics even when it was switched on. A link now stays on its view, unless that view isn't there: Forensics while it's off, or a view your edition doesn't have.\n- **The update note says what its version really is** ([#94](https://github.com/gbroeckling/padspanHA/issues/94)). \"This install was on v0.38.89\" named the last update anyone opened or dismissed the note for, not the version installed before. It now says \"The last update anyone here looked at was v0.38.89\", and the release notes still cover everything since.\n\n### Testing\n- One command for the whole test pass on Windows or macOS: `python tools/test_all.py` runs the suite, the 14 Live Aboard browser checks and, with a Home Assistant address and token set, a read-only check of a live install ([#97](https://github.com/gbroeckling/padspanHA/issues/97)).\n- The Live Aboard browser checks run on a Mac in Chrome, say why when the 3D view doesn't start instead of waiting on a button that never comes, and fail when they find a problem instead of only printing it ([#95](https://github.com/gbroeckling/padspanHA/issues/95)). They can also run in another machine's browser, such as a wall screen's, on its own graphics.\n- The test suite no longer prints \"coroutine was never awaited\" warnings from its own stand-ins, so a real one would stand out ([#96](https://github.com/gbroeckling/padspanHA/issues/96))."
+ },
+ {
   "version": "0.38.144",
   "title": "Stable: floor plans only for people logged in, and a faster PadSpan with Bermuda",
   "date": "2026-10-19",
@@ -28,11 +34,5 @@
   "title": "Suggest an idea",
   "date": "2026-10-17",
   "body_markdown": "### New\n- **💡 Suggest an idea**, in Settings (above Help improve PadSpan) and at the bottom of What's New: post an idea on GitHub Discussions → Ideas, where other people can vote on it, see and vote on the ideas already there, or email one to hello@traks.ca if you'd rather not use GitHub. Not shown on a wall screen.\n\n### Opt-in report\n- Which of the three ways people take (posted, browsed, emailed). Nothing about the idea itself."
- },
- {
-  "version": "0.38.139",
-  "title": "A minimum signal per receiver, and find a device by hiding it",
-  "date": "2026-10-17",
-  "body_markdown": "Both are options: nothing changes unless you use them.\n\n### New\n- **Min signal, per receiver** (Bluetooth → Scanners, on each receiver's row; off unless you set it). A receiver on an outside wall, or on a floor above a shop or a flat, hears the street and the neighbours. Pick **Ignore < -90** (or -95 to -70) and that receiver ignores anything weaker, for **positioning and Occupancy's phone count only**. The scanner and advert lists, Forensics, Traceback, Find My following and calibration still see every reading. A phone in the room reads far stronger than that at the nearest receiver, so it isn't lost. The Walls Guide and the Unknown phone help explain when to use it.\n- **Find the one in your hand: Louder or Quieter.** Louder is as before: hold it against the receiver. **Quieter** is new: start with the device near the receiver, then hide it in a metal bin or a saucepan with a lid; whatever went quiet (or silent) comes up, ready to tag. Handy for checking a guess too.\n\n### Opt-in report\n- How many receivers have a minimum signal, and how many readings it keeps out each poll."
  }
 ]

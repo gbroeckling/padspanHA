@@ -179,6 +179,25 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.145</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">19 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>A wall screen left on the Atlas now reloads itself after an update.</b> The sidebar Atlas never checked which version Home Assistant was running, so a wall left on it kept showing the old Atlas until someone reloaded it by hand (found on a real wall screen today, still on 0.38.105 hours after the update). It now checks every 10 minutes, as the PadSpan panel does, and a wall screen reloads once for each new version.</li>
+          <li><b>A full-screen window counts as a wall screen.</b> A browser in kiosk mode or full screen reloads itself after an update, as a <code>?kiosk=1</code> link already did, once nobody has touched it for two minutes (it may be a tablet somebody is using). Until then it shows the Reload bar.</li>
+          <li><b><code>?view=</code> links open the view they name</b> (<a href="https://github.com/gbroeckling/padspanHA/issues/93">#93</a>). <code>?view=forensics</code>, <code>monitor</code>, <code>bluetooth</code> and <code>presence</code> landed on Overview, Forensics even when it was switched on. A link now stays on its view, unless that view isn't there: Forensics while it's off, or a view your edition doesn't have.</li>
+          <li><b>The update note says what its version really is</b> (<a href="https://github.com/gbroeckling/padspanHA/issues/94">#94</a>). "This install was on v0.38.89" named the last update anyone opened or dismissed the note for, not the version installed before. It now says "The last update anyone here looked at was v0.38.89", and the release notes still cover everything since.</li>
+          <li>One command for the whole test pass on Windows or macOS: <code>python tools/test_all.py</code> runs the suite, the 14 Live Aboard browser checks and, with a Home Assistant address and token set, a read-only check of a live install (<a href="https://github.com/gbroeckling/padspanHA/issues/97">#97</a>).</li>
+          <li>The Live Aboard browser checks run on a Mac in Chrome, say why when the 3D view doesn't start instead of waiting on a button that never comes, and fail when they find a problem instead of only printing it (<a href="https://github.com/gbroeckling/padspanHA/issues/95">#95</a>). They can also run in another machine's browser, such as a wall screen's, on its own graphics.</li>
+          <li>The test suite no longer prints "coroutine was never awaited" warnings from its own stand-ins, so a real one would stand out (<a href="https://github.com/gbroeckling/padspanHA/issues/96">#96</a>).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.144</span>
         <span class="pill stable">Stable</span>
         <span class="reldate">19 October 2026</span>
