@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.146",
+  "title": "Smoke, gas and CO alarms aren't weather warnings either",
+  "date": "2026-10-19",
+  "body_markdown": "### Fixed\n- **Settings → Outdoor weather → Weather warnings no longer offers a smoke, gas or CO alarm.** Water-leak detectors were left out of that list in 0.38.94, but Emergency has since learned smoke, gas and CO alarms (0.38.135), and one named like a warning (\"Hall Smoke Alert\") still showed up. Picked, it stopped the Atlas finding real weather warnings on its own. One already picked is now ignored and Settings says so under the list, as it did for a leak detector: pick a warning there, or Automatic.\n\n### Opt-in report\n- An alarm set aside like that is counted the same way a leak detector already was (`weather_note:warning_ignored`)."
+ },
+ {
   "version": "0.38.145",
   "title": "Wall screens catch up after an update, and links open what they name",
   "date": "2026-10-19",
@@ -28,11 +34,5 @@
   "title": "Polish",
   "date": "2026-10-17",
   "body_markdown": "### Fixed\n- Overview's People in building card said \"undefined people\" when the estimate hadn't come in (an older backend or a failed read); it shows a dash now.\n- The Live Aboard setup wizard sits centred in its window instead of hugging the left with Next floating mid-way.\n- Suggest an idea's buttons match the other buttons on the page."
- },
- {
-  "version": "0.38.140",
-  "title": "Suggest an idea",
-  "date": "2026-10-17",
-  "body_markdown": "### New\n- **💡 Suggest an idea**, in Settings (above Help improve PadSpan) and at the bottom of What's New: post an idea on GitHub Discussions → Ideas, where other people can vote on it, see and vote on the ideas already there, or email one to hello@traks.ca if you'd rather not use GitHub. Not shown on a wall screen.\n\n### Opt-in report\n- Which of the three ways people take (posted, browsed, emailed). Nothing about the idea itself."
  }
 ]

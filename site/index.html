@@ -179,6 +179,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.146</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">19 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Settings → Outdoor weather → Weather warnings no longer offers a smoke, gas or CO alarm.</b> Water-leak detectors were left out of that list in 0.38.94, but Emergency has since learned smoke, gas and CO alarms (0.38.135), and one named like a warning ("Hall Smoke Alert") still showed up. Picked, it stopped the Atlas finding real weather warnings on its own. One already picked is now ignored and Settings says so under the list, as it did for a leak detector: pick a warning there, or Automatic.</li>
+          <li>An alarm set aside like that is counted the same way a leak detector already was (<code>weather_note:warning_ignored</code>).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.145</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">19 October 2026</span>
