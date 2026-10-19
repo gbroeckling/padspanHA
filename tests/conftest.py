@@ -25,6 +25,8 @@ _HA_MODULE_NAMES: list[str] = [
     "homeassistant",
     "homeassistant.components",
     "homeassistant.components.device_tracker",
+    "homeassistant.components.http",
+    "homeassistant.components.http.auth",
     "homeassistant.components.sensor",
     "homeassistant.components.websocket_api",
     "homeassistant.config_entries",
@@ -86,6 +88,30 @@ class _FakeOptionsFlow:
 
 _ce.ConfigFlow = _FakeConfigFlow  # type: ignore[attr-defined]
 _ce.OptionsFlowWithReload = _FakeOptionsFlow  # type: ignore[attr-defined]
+
+# homeassistant.components.http — map_image_view.py's base class and signer
+class _FakeHomeAssistantView:
+    """Stand-in for http.HomeAssistantView (only class attributes are read)."""
+    url: str = ""
+    name: str = ""
+    requires_auth: bool = True
+
+
+_ha_mods["homeassistant.components.http"].HomeAssistantView = _FakeHomeAssistantView  # type: ignore[attr-defined]
+_ha_mods["homeassistant.components.http"].KEY_AUTHENTICATED = "ha_authenticated"  # type: ignore[attr-defined]
+
+
+def _fake_sign_path(hass: Any, path: str, expiration: Any, *, refresh_token_id: Any = None) -> str:
+    # Like the real one, every call returns a different signature (the real
+    # one carries its issue time), so a test can tell a reused link from a
+    # fresh one.
+    _fake_sign_path.calls += 1  # type: ignore[attr-defined]
+    sep = "&" if "?" in path else "?"
+    return f"{path}{sep}authSig={refresh_token_id}.{_fake_sign_path.calls}"  # type: ignore[attr-defined]
+
+
+_fake_sign_path.calls = 0  # type: ignore[attr-defined]
+_ha_mods["homeassistant.components.http.auth"].async_sign_path = _fake_sign_path  # type: ignore[attr-defined]
 
 # homeassistant.helpers.storage
 _ha_mods["homeassistant.helpers.storage"].Store = MagicMock  # type: ignore[attr-defined]

@@ -127,6 +127,10 @@ EVENTS: frozenset[str] = frozenset({
     "calibration_point_added", "capture_started", "forensics_query",
     "showcase_on", "backup_created", "backup_restored", "factory_reset",
     "bright_import",
+    # A floor-plan image asked for with a link that no longer works (expired,
+    # or signed before a restart): the panel renews its links every 6 h and
+    # on reconnect, so this should stay near zero (map_image_view.py).
+    "map_image_stale",
     # A map's placement committed from the align editor, and one the writer
     # refused because it would have stranded the calibration pins. Both halves
     # matter: a refusal nobody ever hits is a guard nobody needs, and a
@@ -924,6 +928,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     rooms = sum(_len(f.get("rooms") or {}) for f in floors.values() if isinstance(f, dict))
     mdl = getattr(dom.get(DATA_MODEL), "data", None) or {}
     maps = getattr(dom.get(DATA_MAPS), "data", None) or {}
+    _mw_moved, _mw_left = (
+        n if isinstance(n, int) else 0
+        for n in (getattr(dom.get(DATA_MAPS), "legacy_moved", 0), getattr(dom.get(DATA_MAPS), "legacy_left", 0)))
     snap_entry = dom.get("snapshot_cache")
     snap = snap_entry[1] if isinstance(snap_entry, tuple) and len(snap_entry) == 2 and isinstance(snap_entry[1], dict) else {}
     ble = snap.get("ble") if isinstance(snap.get("ble"), dict) else {}
@@ -1231,6 +1238,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "light_type_overrides_by_kind": type_overrides_by_kind,
         "walls": _len(fab.get("rf_barriers_m") or []),
         "maps": _len(maps.get("maps") or []),
+        # This start's move of floor plans out of the public www/ folder
+        # (0.38.143): images moved, and any left because a file of the same
+        # name was already in the new folder. Only when one is not zero.
+        **({"maps_www": {"moved": _mw_moved, "left": _mw_left}} if (_mw_moved or _mw_left) else {}),
         "scanner_positions": _len(fab.get("scanner_positions_m") or {}),
         "beacon_positions": _len(fab.get("beacon_positions_m") or {}),
         "calibration_points": _len(cal_points),

@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.143 — Floor plans only for people logged in (2026-10-19)
+
+### Security
+- **Fixed:** uploaded floor plans were saved in `/config/www/padspan_ha/maps/`, and Home Assistant serves everything in `www` at `/local/` without a login. On an install reachable from the internet, anyone with the address could open a home's floor plan. They now live in `/config/padspan_ha/maps/` and are served only to someone logged in to Home Assistant, the same way camera snapshots are. Thanks to @frenck for spotting it in the HACS review.
+- **Moved for you:** on the first start of this version, existing floor plans move out of `www` by themselves. Nothing is overwritten: if a file of the same name is already in the new folder, the old one is left in place and the log says so. Placements, rooms, pins and calibration don't change.
+- **Changed:** uploading or replacing a floor plan now needs an admin account, like deleting one already did. Everyone can still see them.
+- **Going back:** if you install 0.38.142 or older after this, floor plans show blank until you update again, because the older version looks for them in `www`. Nothing is lost. A floor plan replaced while you're on the older version is kept in `www` when you update again, and the log says which: replace it once more after updating.
+
+### Fixes
+- **Fixed:** making or restoring a backup, factory reset, and deleting, extending or replacing a floor plan no longer check files on Home Assistant's main loop, which could stall it briefly on a slow SD card.
+
+### Opt-in report
+- **Added:** how many floor plans this version moved out of `www`, how many it had to leave, and how often a floor-plan link was refused for being out of date.
+
+---
+
 ## 0.38.142 — Atlas rain: not on a sunny day, not inside the house (2026-10-19)
 
 ### Fixes

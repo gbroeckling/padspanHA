@@ -260,16 +260,22 @@ async def ws_store_backup_create(hass: HomeAssistant, connection, msg) -> None:
     import base64 as _b64
     map_images: dict[str, str] = {}  # filename -> base64-encoded image data
     try:
-        from .const import MAPS_DIR
-        maps_dir = Path(hass.config.path("www")) / MAPS_DIR
-        if maps_dir.is_dir():
-            for fp in maps_dir.iterdir():
-                if fp.is_file() and fp.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
-                    try:
-                        raw = await asyncio.get_event_loop().run_in_executor(None, fp.read_bytes)
-                        map_images[fp.name] = _b64.b64encode(raw).decode("ascii")
-                    except Exception:
-                        pass
+        from .maps_store import maps_dir_for
+        maps_dir = maps_dir_for(hass)
+
+        def _image_files() -> list[Path]:
+            # is_dir / iterdir / is_file all touch the disk: not on the loop.
+            if not maps_dir.is_dir():
+                return []
+            return [fp for fp in maps_dir.iterdir()
+                    if fp.is_file() and fp.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")]
+
+        for fp in await asyncio.get_event_loop().run_in_executor(None, _image_files):
+            try:
+                raw = await asyncio.get_event_loop().run_in_executor(None, fp.read_bytes)
+                map_images[fp.name] = _b64.b64encode(raw).decode("ascii")
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -337,7 +343,7 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
       1. Write to HA's on-disk JSON storage (survives restarts)
       2. Hot-patch the in-memory store object so the UI reflects changes immediately
 
-    Map images are restored to www/padspan_ha/maps/ with path traversal protection.
+    Map images are restored to <config>/padspan_ha/maps/ with path traversal protection.
     """
     from homeassistant.helpers.storage import Store as _St
 
@@ -579,18 +585,19 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
     if msg.get("restore_map_images") and backup.get("map_images"):
         import base64 as _b64
         try:
-            from .const import MAPS_DIR
-            maps_dir = Path(hass.config.path("www")) / MAPS_DIR
+            from .maps_store import maps_dir_for
+            maps_dir = maps_dir_for(hass)
             await asyncio.get_event_loop().run_in_executor(
                 None, lambda: maps_dir.mkdir(parents=True, exist_ok=True)
             )
+            maps_root = await asyncio.get_event_loop().run_in_executor(None, maps_dir.resolve)
             for fname, b64data in backup["map_images"].items():
                 # Sanitize filename
                 safe = Path(fname).name
                 if not safe or "/" in safe or "\\" in safe:
                     continue
-                fp = (maps_dir / safe).resolve()
-                if not str(fp).startswith(str(maps_dir.resolve())):
+                fp = await asyncio.get_event_loop().run_in_executor(None, (maps_dir / safe).resolve)
+                if not str(fp).startswith(str(maps_root)):
                     continue
                 try:
                     raw = _b64.b64decode(b64data)

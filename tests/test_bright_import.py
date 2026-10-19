@@ -215,9 +215,10 @@ def test_the_house_comes_across_and_the_entry_reloads(tmp_path):
     settings = _read_target(tmp_path, SETTINGS_STORE_KEY)
     assert settings["light_shapes"] == {"light.k": "circle"} and settings["lights_showcase"] is True
     assert settings[bi.DONE_KEY], "the receipt was not stamped"
-    # The images, and only the images.
-    assert (tmp_path / "www" / "padspan_ha" / "maps" / "m1.png").read_bytes() == b"\x89PNG-fake"
-    assert not (tmp_path / "www" / "padspan_ha" / "maps" / "notes.txt").exists()
+    # The images, and only the images — into the private folder, not www/.
+    assert (tmp_path / "padspan_ha" / "maps" / "m1.png").read_bytes() == b"\x89PNG-fake"
+    assert not (tmp_path / "padspan_ha" / "maps" / "notes.txt").exists()
+    assert not (tmp_path / "www" / "padspan_ha").exists()
     # The source is left where it was.
     assert (tmp_path / ".storage" / "padspan_bright.fabric").is_file()
     assert (img_dir / "m1.png").is_file()
@@ -369,3 +370,26 @@ def test_the_status_says_how_much_furniture_bright_brings(tmp_path):
     assert st["source"]["has"][-1] == "2 pieces of furniture" and st["target_has"] == []
     res = _import(h, _backup_ok)
     assert res["ok"] is True and _read_target(tmp_path, HOUSE3D_STORE_KEY) == _FURNITURE
+
+
+def test_images_come_from_bright_s_new_folder_and_its_old_one(tmp_path):
+    """Bright 0.38.143+ keeps its images in <config>/padspan_bright/maps; an
+    older Bright still has them under www/. Both are read, and where the two
+    hold the same name the newer folder's copy is the one that comes across."""
+    _write_bright(tmp_path, "maps", _HOUSE_MAPS)
+    new_dir = tmp_path / "padspan_bright" / "maps"
+    old_dir = tmp_path / "www" / "padspan_bright" / "maps"
+    new_dir.mkdir(parents=True)
+    old_dir.mkdir(parents=True)
+    (new_dir / "m1.png").write_bytes(b"new-m1")
+    (old_dir / "m1.png").write_bytes(b"old-m1")
+    (old_dir / "m2.png").write_bytes(b"old-m2")
+    h = _hass(tmp_path)
+    _backup_ok.calls.clear()
+
+    res = _run(bi.async_import(h, _backup_ok))
+    assert res["ok"] is True, res
+    assert res["images"] == 2
+    dst = tmp_path / "padspan_ha" / "maps"
+    assert (dst / "m1.png").read_bytes() == b"new-m1"
+    assert (dst / "m2.png").read_bytes() == b"old-m2"

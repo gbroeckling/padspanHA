@@ -1571,3 +1571,20 @@ def test_a_day_with_too_many_kinds_of_event_still_reports():
     assert dropped > 0 and len(p["usage"]) == len(names) - dropped
     kept = min(p["usage"].values())
     assert all(v >= kept for v in p["usage"].values()) and p["usage"][names[-1]] == len(names)
+
+
+def test_the_move_out_of_www_is_reported_only_when_it_did_something():
+    """0.38.143 moves floor plans out of the public www/ folder at startup.
+    The report says how many moved and how many were left (a name already in
+    the new folder), and only when one of them is not zero."""
+    h = _hass()
+    assert "maps_www" not in T.build_payload(h)["env"]
+    ms = h.data[DOMAIN][DATA_MAPS]
+    ms.legacy_moved, ms.legacy_left = 3, 1
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    assert payload["env"]["maps_www"] == {"moved": 3, "left": 1}
+
+
+def test_a_stale_floor_plan_link_is_a_known_event():
+    assert T.event_allowed("map_image_stale")

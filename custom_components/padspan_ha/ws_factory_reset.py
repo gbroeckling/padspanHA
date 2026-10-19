@@ -87,7 +87,6 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         return
 
     import asyncio as _aio
-    from pathlib import Path as _Path
     from homeassistant.helpers.storage import Store as _St
     from .settings_store import DEFAULT_SETTINGS
     from .model_store import DEFAULT_DATA as _model_defaults
@@ -167,14 +166,21 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         if maps_obj and hasattr(maps_obj, "maps_dir"):
             _mdir = maps_obj.maps_dir
         else:
-            _mdir = _Path(hass.config.path("www")) / "padspan_ha" / "maps"
-        if await _aio.to_thread(_mdir.is_dir):
-            for f in await _aio.to_thread(list, _mdir.iterdir()):
-                if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
-                    try:
-                        await _aio.to_thread(f.unlink)
-                    except Exception:
-                        pass
+            from .maps_store import maps_dir_for
+            _mdir = maps_dir_for(hass)
+
+        def _image_files() -> list:
+            # is_dir / iterdir / is_file all touch the disk: not on the loop.
+            if not _mdir.is_dir():
+                return []
+            return [f for f in _mdir.iterdir()
+                    if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")]
+
+        for f in await _aio.to_thread(_image_files):
+            try:
+                await _aio.to_thread(f.unlink)
+            except Exception:
+                pass
     except Exception as e:
         _LOGGER.warning("Factory reset: maps — %s", e)
         errors.append(MAPS_STORE_KEY)

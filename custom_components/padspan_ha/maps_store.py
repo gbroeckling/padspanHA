@@ -12,7 +12,8 @@ alignment stack) and the associated PNG image files on disk.
 
 Data layout:
   - Metadata: .storage/padspan_ha.maps  →  {"maps": [MapDict, ...]}
-  - Images:   www/padspan_ha/maps/{map_id}.png
+  - Images:   padspan_ha/maps/{map_id}.png under the config dir, served only
+              to a logged-in user (map_image_view.py)
 
 Each map dict holds:
   - id, name, created, updated
@@ -34,9 +35,12 @@ dimensions (x = left-to-right, y = top-to-bottom).
 
 import asyncio
 import base64
+import filecmp
 import hashlib
+import logging
 import math
 import os
+import shutil
 import struct
 import zlib
 from dataclasses import dataclass, field
@@ -50,7 +54,88 @@ from homeassistant.helpers.storage import Store
 from .const import MAPS_STORE_KEY, MAPS_DIR, DEFAULT_FLOOR_ID, MAX_HEIGHT_M
 from .safe_store import wrap_store
 
+_LOGGER = logging.getLogger(__name__)
+
 MAX_MAP_BYTES = 20 * 1024 * 1024  # 20 MB decoded limit — prevents OOM on large uploads
+_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def maps_dir_for(hass: HomeAssistant) -> Path:
+    """Where map images live: <config>/padspan_ha/maps.
+
+    Not under www/: everything there is served at /local/ WITHOUT a login, so
+    a floor plan kept there could be fetched by anyone who has the URL.
+    """
+    return Path(hass.config.path(MAPS_DIR))
+
+
+def legacy_maps_dir_for(hass: HomeAssistant) -> Path:
+    """Where map images lived up to 0.38.142: <config>/www/padspan_ha/maps."""
+    return Path(hass.config.path("www")) / MAPS_DIR
+
+
+def _move_one(src: Path, dest: Path) -> None:
+    """Move one file so that dest is either absent or complete, never partial.
+
+    A rename is atomic on the same disk (the usual case: both folders are under
+    /config). Across disks it is a copy to a temporary name, renamed into place
+    only once complete, and the source is deleted last.
+    """
+    try:
+        os.rename(src, dest)
+        return
+    except OSError:
+        pass
+    tmp = dest.with_name(dest.name + ".part")
+    try:
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dest)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
+    src.unlink()
+
+
+def _move_legacy_images(old_dir: Path, new_dir: Path) -> tuple[int, int]:
+    """Move map images out of the public www/ folder. Blocking: run in a thread.
+
+    Never overwrites. A name already in new_dir: if the two files are the
+    same bytes (a move cut short after the copy), the public copy is deleted;
+    if they differ, both are kept and the caller logs it. A move that fails
+    leaves the image in the old folder, where the next start finds it again.
+    The old folder is removed only once it is empty. Returns (moved, left).
+    """
+    if not old_dir.is_dir():
+        return 0, 0
+    new_dir.mkdir(parents=True, exist_ok=True)
+    moved = left = 0
+    for f in list(old_dir.iterdir()):
+        if not f.is_file() or f.suffix.lower() not in _IMAGE_SUFFIXES:
+            continue
+        dest = new_dir / f.name
+        if dest.exists():
+            try:
+                if filecmp.cmp(f, dest, shallow=False):
+                    f.unlink()
+                    moved += 1
+                    continue
+            except OSError:
+                pass
+            left += 1
+            continue
+        try:
+            _move_one(f, dest)
+            moved += 1
+        except OSError:
+            left += 1
+    # Tidy the empty folders away; rmdir refuses a folder that isn't empty,
+    # so anything still there (a kept duplicate, a stray file) stays put.
+    for d in (old_dir, old_dir.parent):
+        try:
+            d.rmdir()
+        except OSError:
+            break
+    return moved, left
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -65,8 +150,8 @@ def _sha256(data: bytes) -> str:
 class MapsStore:
     """Manages floor-plan map metadata and image files.
 
-    Images live on disk at www/padspan_ha/maps/{map_id}.png so HA's
-    built-in static file server exposes them at /local/padspan_ha/maps/.
+    Images live on disk at <config>/padspan_ha/maps/{map_id}.png and reach
+    the panel only through map_image_view.py, which needs a login.
     Metadata lives in HA Storage (.storage/padspan_ha.maps).
     """
 
@@ -85,8 +170,13 @@ class MapsStore:
         self.hass = hass
         self._raw_store = Store(hass, 1, MAPS_STORE_KEY)
         self.store = wrap_store(self._raw_store, hass, "maps")
-        self.maps_dir = Path(hass.config.path("www")) / MAPS_DIR
+        self.maps_dir = maps_dir_for(hass)
         self.data = {"maps": []}
+        # What this start's move out of www/ did — for the opt-in report
+        # (env.maps_www), read after startup because settings may not be
+        # loaded yet when this runs.
+        self.legacy_moved = 0
+        self.legacy_left = 0
 
     async def async_setup(self) -> None:
         """Load stored map data and ensure the image directory exists.
@@ -96,6 +186,18 @@ class MapsStore:
         downstream code never needs defensive .get() chains.
         """
         await asyncio.to_thread(self.maps_dir.mkdir, parents=True, exist_ok=True)
+        moved, left = await asyncio.to_thread(
+            _move_legacy_images, legacy_maps_dir_for(self.hass), self.maps_dir)
+        self.legacy_moved, self.legacy_left = moved, left
+        if moved:
+            _LOGGER.info("Moved %d map image(s) out of www/ to %s", moved, self.maps_dir)
+        if left:
+            _LOGGER.warning(
+                "%d floor plan image(s) are still in %s, which Home Assistant serves "
+                "without a login: a different file of the same name is already in %s, "
+                "or the move failed. Nothing was overwritten. Compare the two and "
+                "delete the copy in www/ once you have the one you want.",
+                left, legacy_maps_dir_for(self.hass), self.maps_dir)
         loaded = await self.store.async_load()
         if isinstance(loaded, dict) and "maps" in loaded:
             self.data = loaded
@@ -146,6 +248,17 @@ class MapsStore:
             if m.get("id") == map_id:
                 return m
         return None
+
+    def image_file(self, filename: str, *, must_exist: bool) -> Path | None:
+        """The image's path inside maps_dir, or None if it escapes (or, with
+        must_exist, isn't there). Touches the disk: call it in a thread.
+        """
+        fp = (self.maps_dir / str(filename)).resolve()
+        if not str(fp).startswith(str(self.maps_dir.resolve())):
+            return None
+        if must_exist and not fp.exists():
+            return None
+        return fp
 
     async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None) -> dict[str, Any]:
         """Create a new map from an uploaded PNG image.
@@ -398,8 +511,9 @@ class MapsStore:
         _old_h = int((m.get("image") or {}).get("height") or 0)
 
         # Overwrite the same file so the browser cache-busts via map.updated timestamp
-        file_path = (self.maps_dir / m["image"]["filename"]).resolve()
-        if not str(file_path).startswith(str(self.maps_dir.resolve())):
+        file_path = await asyncio.to_thread(
+            self.image_file, m["image"]["filename"], must_exist=False)
+        if file_path is None:
             raise ValueError("Invalid filename")
         await asyncio.to_thread(file_path.write_bytes, raw)
 
@@ -575,8 +689,8 @@ class MapsStore:
             return
         fn = m.get("image", {}).get("filename")
         if fn:
-            fp = (self.maps_dir / str(fn)).resolve()
-            if str(fp).startswith(str(self.maps_dir.resolve())) and fp.exists():
+            fp = await asyncio.to_thread(self.image_file, fn, must_exist=True)
+            if fp is not None:
                 try:
                     await asyncio.to_thread(fp.unlink)
                 except Exception:
@@ -633,8 +747,8 @@ class MapsStore:
         fn = img.get("filename")
         if not fn:
             raise ValueError("Map has no image file")
-        fp = (self.maps_dir / str(fn)).resolve()
-        if not str(fp).startswith(str(self.maps_dir.resolve())) or not fp.exists():
+        fp = await asyncio.to_thread(self.image_file, fn, must_exist=True)
+        if fp is None:
             raise ValueError("Image file not found")
         old_png = await asyncio.to_thread(fp.read_bytes)
 
@@ -725,8 +839,8 @@ class MapsStore:
         # Read current (extended) PNG and crop back to original
         fn = (m.get("image") or {}).get("filename")
         if fn:
-            fp = (self.maps_dir / str(fn)).resolve()
-            if str(fp).startswith(str(self.maps_dir.resolve())) and fp.exists():
+            fp = await asyncio.to_thread(self.image_file, fn, must_exist=True)
+            if fp is not None:
                 cur_png = await asyncio.to_thread(fp.read_bytes)
                 orig_png = _crop_png(cur_png, new_w, new_h, add_l, add_t, old_w, old_h)
                 if orig_png:

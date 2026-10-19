@@ -24,6 +24,7 @@ from .const import (
     DATA_TRACEBACK,
 )
 import time as _time
+from .map_image_view import signed_image_urls
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,7 +48,33 @@ async def ws_maps_list(hass: HomeAssistant, connection, msg) -> None:
         _rb = _dm.get("room_bounds") or {}
         if _rb:
             _LOGGER.debug("maps_list: map %s has %d room_bounds: %s", _dm.get("id","?")[:8], len(_rb), list(_rb.keys()))
-    connection.send_result(msg["id"], {"maps": maps})
+    # Signed links beside the maps, never inside them (map_image_view.py).
+    connection.send_result(msg["id"], {
+        "maps": maps,
+        "image_urls": _image_urls(hass, maps, connection),
+    })
+
+
+def _image_urls(hass: HomeAssistant, maps: list, connection) -> dict:
+    """Signed image links; on a failure, none — the maps still load without them."""
+    try:
+        return signed_image_urls(hass, maps, connection.refresh_token_id)
+    except Exception:  # noqa: BLE001 — pins and rooms must not go blank with the pictures
+        _LOGGER.exception("Could not sign the floor plan image links")
+        return {}
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/maps_image_urls"})
+@websocket_api.async_response
+async def ws_maps_image_urls(hass: HomeAssistant, connection, msg) -> None:
+    """Fresh signed image links only — the panel's keep-alive for them.
+
+    Separate from maps_list so the refresh never replaces the map objects a
+    view may be in the middle of editing.
+    """
+    ms = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    maps = ms.list_maps() if ms else []
+    connection.send_result(msg["id"], {"image_urls": _image_urls(hass, maps, connection)})
 
 
 @websocket_api.websocket_command(
@@ -62,6 +89,7 @@ async def ws_maps_list(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("floor_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
     """Upload a new floor plan image and create a map entry.
@@ -258,6 +286,7 @@ async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("pixel_op"): dict,  # {deg, sx, sy} baked rotate/scale (canvas op)
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_maps_replace_image(hass: HomeAssistant, connection, msg) -> None:
     """Replace the stored PNG for an existing map and renormalize coordinates."""

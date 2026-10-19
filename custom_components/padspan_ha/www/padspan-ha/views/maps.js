@@ -1231,7 +1231,7 @@ function _loadImage(url){
 }
 
 // Like _preparePng but loads from a URL (for trim/bake operations on
-// already-uploaded map images that are served by HA at /local/...).
+// already-uploaded map images, through their signed links).
 async function _preparePngFromUrl(imgUrl, maxDim, crop=null){
   const img = await _loadImage(imgUrl);
   let w = img.naturalWidth || img.width;
@@ -4357,7 +4357,7 @@ function _help(ctx){
     const card = el("div",{class:"card"});
     card.appendChild(el("div",{style:"font-weight:700"},"Presence & BLE mapping"));
     card.appendChild(el("div",{class:"muted", style:"margin-top:8px;line-height:1.5"},[
-      "• Upload any floorplan image; the UI converts it to optimized PNG and stores it under /config/www/padspan_ha/maps/ so HA can serve it at /local/padspan_ha/maps/.",
+      "• Upload any floorplan image; the UI converts it to optimized PNG and stores it under /config/padspan_ha/maps/, where only people logged in to Home Assistant can see it.",
       el("br"),
       "• Place receivers as normalized coordinates (0–1). This is the common industry approach (web GIS, indoor positioning) because it survives resizing.",
       el("br"),

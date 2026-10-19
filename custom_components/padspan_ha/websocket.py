@@ -143,6 +143,7 @@ from .ws_maps import (  # noqa: F401  (re-exported: registration, tests, callers
     _last_receiver_prune,
     ws_maps_delete,
     ws_maps_delete_migrate,
+    ws_maps_image_urls,
     ws_maps_list,
     ws_maps_replace_image,
     ws_maps_revert_extend,
@@ -292,6 +293,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_live_snapshot)
     websocket_api.async_register_command(hass, ws_vendor_lookup)
     websocket_api.async_register_command(hass, ws_maps_list)
+    websocket_api.async_register_command(hass, ws_maps_image_urls)
     websocket_api.async_register_command(hass, ws_maps_upload)
     websocket_api.async_register_command(hass, ws_maps_update)
     websocket_api.async_register_command(hass, ws_maps_replace_image)

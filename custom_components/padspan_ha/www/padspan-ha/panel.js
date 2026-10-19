@@ -334,21 +334,24 @@ function el(tag, attrs={}, children=[]){
 }
 
 /**
- * URL for a map's image, versioned so a stale browser cache can never serve
- * the pre-edit picture.
+ * URL for a map's image: the signed link maps_list handed out for it.
  *
- * The PNG is overwritten in place on trim/rotate/replace (maps_store's
- * async_replace_image), so the filename is NOT a stable identity for its
- * contents — a bare path renders the OLD image stretched into the NEW
- * dimensions, which is what a trimmed map looked like in issue #62.
+ * Floor plans are served only to a logged-in user (map_image_view.py), and an
+ * <img> cannot send a login header, so each map gets a link signed for this
+ * user. The backend versions it on the picture, so a trimmed or rotated map
+ * never shows its stale pre-edit image (issue #62).
+ *
+ * The links are kept here, not on the map objects: Diagnostics and the Maps
+ * backup write those out whole, and a working link has no business in a file
+ * somebody may attach to an issue.
  * Every map image URL must be built here; tests/test_map_image_url.py fails
- * the build if a bare path reappears.
+ * the build if a hand-built path reappears.
  */
+let _mapImageUrls = {};
 function mapImageUrl(map){
   const fn = map && map.image && map.image.filename;
   if(!fn) return null;
-  const v = String((map.updated || map.image.sha256 || "")).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
-  return "/local/padspan_ha/maps/" + fn + (v ? "?v=" + v : "");
+  return _mapImageUrls[map.id] || null;
 }
 
 /**
@@ -1358,6 +1361,17 @@ class PadSpanHaApp extends HTMLElement {
         try {
           if(!this.isConnected) return;
 
+          // 0. Floor-plan links, every 10 minutes. Here and not in the data
+          // poll because this timer runs in sample mode too, which shows real
+          // maps. Timed from the last attempt as well, so a failing re-read
+          // waits its 10 minutes instead of retrying every tick.
+          if(this._hass && this._mapUrlsAt && !this._mapUrlsBusy
+             && Date.now() - Math.max(this._mapUrlsAt, this._mapUrlsTry || 0) > 600000){
+            this._mapUrlsBusy = true;
+            this._mapUrlsTry = Date.now();
+            this._renewMapImageUrls().catch(() => {}).finally(() => { this._mapUrlsBusy = false; });
+          }
+
           // 1. Stale shadow DOM references — fix before anything else
           const rebuilt = this._ensureShadowDom();
           if(rebuilt){ this._scheduleRender(); return; }
@@ -2116,6 +2130,53 @@ class PadSpanHaApp extends HTMLElement {
     }
   }
 
+  /**
+   * Keep the signed floor-plan links working on a screen left open
+   * (called from the watchdog every 10 minutes).
+   *
+   * A link lasts 24 h and dies with an HA restart, which an open panel may
+   * not see as a reconnect. The server hands back the same link until one of
+   * those happens, so asking costs no image downloads. Two different answers:
+   *  - a link whose ?v= differs: the picture changed on another screen. Its
+   *    width and height changed with it, and drawing the new picture in this
+   *    screen's old frame is the stretched map of issue #62, so the whole map
+   *    list is re-read and the links come with it (not in the maps view,
+   *    which may be mid-edit; it re-reads the list on its own saves).
+   *  - only the signatures differ (a restart, or a link near its end): swap
+   *    them in.
+   */
+  async _renewMapImageUrls(){
+    const r = await this._callWS({ type: "padspan_ha/maps_image_urls" });
+    if(!r || !r.image_urls) return;
+    const fresh = r.image_urls, old = _mapImageUrls;
+    const ver = (u) => { const m = /[?&]v=([^&]*)/.exec(u || ""); return m ? m[1] : ""; };
+    const ids = Object.keys(fresh);
+    const pictureChanged = ids.length !== Object.keys(old).length
+      || ids.some(id => !(id in old) || ver(old[id]) !== ver(fresh[id]));
+    if(pictureChanged){
+      if(this.state.view !== "maps"){
+        await this._getMapsList(false);   // sets the links and their time
+        this._scheduleRender(true);
+      } else {
+        // Mid-edit: the changed pictures wait for the list, the unchanged
+        // ones still get their fresh signatures (they may have died with a
+        // restart).
+        const kept = {};
+        for(const id of Object.keys(old)){
+          kept[id] = (id in fresh && ver(fresh[id]) === ver(old[id])) ? fresh[id] : old[id];
+        }
+        _mapImageUrls = kept;
+        this._mapUrlsAt = Date.now();     // ask again in 10 minutes, not every tick
+      }
+      return;
+    }
+    this._mapUrlsAt = Date.now();
+    if(ids.some(id => old[id] !== fresh[id])){
+      _mapImageUrls = fresh;
+      if(this.state.view !== "maps") this._scheduleRender(true);
+    }
+  }
+
   async _getMapsList(retry = true){
     // The floor plan is invisible without this list, so unlike other fetches
     // a failure here gets one retry, and a failed/malformed response never
@@ -2123,6 +2184,8 @@ class PadSpanHaApp extends HTMLElement {
     try {
       const res = await this._callWS({ type: "padspan_ha/maps_list" });
       if(Array.isArray(res?.maps)){
+        _mapImageUrls = res.image_urls || {};
+        this._mapUrlsAt = Date.now();
         this.state.maps.list = res.maps;
         this.state._mapsLoaded = true;      // an empty list is still an ANSWER
         if(this.state.activeMapId && !this.state.maps.list.find(m=>m.id===this.state.activeMapId)){

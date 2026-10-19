@@ -14,7 +14,7 @@ What moves is what a PERSON built — the four "house" stores:
 
     fabric     floors, rooms, walls, placed lights (metres)
     model      floor names/levels, room meta, map transforms
-    maps       the floor-plan records — plus their images under www/
+    maps       the floor-plan records — plus their images
     settings   light shapes, hidden lights, view sliders, the licence key
 
 Everything else PadSpan keeps (objects, calibration, movement, adaptive,
@@ -72,7 +72,6 @@ from .const import (
     DOMAIN,
     FABRIC_STORE_KEY,
     HOUSE3D_STORE_KEY,
-    MAPS_DIR,
     MAPS_STORE_KEY,
     MODEL_STORE_KEY,
     SETTINGS_STORE_KEY,
@@ -270,20 +269,29 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
         from .const import DATA_HOUSE3D  # noqa: PLC0415
         hass.data.get(DOMAIN, {}).pop(DATA_HOUSE3D, None)
 
-    # The map images live beside the records, under www/<domain>/maps.
+    # The map images: <config>/<domain>/maps from 0.38.143, and under www/
+    # before that — a Bright install not yet updated still keeps them there.
     images = 0
-    src_dir = Path(hass.config.path("www")) / BRIGHT_DOMAIN / "maps"
-    dst_dir = Path(hass.config.path("www")) / MAPS_DIR
+    src_dirs = [Path(hass.config.path(BRIGHT_DOMAIN, "maps")),
+                Path(hass.config.path("www")) / BRIGHT_DOMAIN / "maps"]
+    from .maps_store import maps_dir_for  # noqa: PLC0415
+    dst_dir = maps_dir_for(hass)
 
     def _copy_images() -> int:
         n = 0
-        if not src_dir.is_dir():
-            return 0
-        dst_dir.mkdir(parents=True, exist_ok=True)
-        for f in src_dir.iterdir():
-            if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
-                shutil.copy2(f, dst_dir / f.name)
-                n += 1
+        copied: set[str] = set()
+        for src_dir in src_dirs:
+            if not src_dir.is_dir():
+                continue
+            dst_dir.mkdir(parents=True, exist_ok=True)
+            for f in src_dir.iterdir():
+                # The newer folder is read first and wins a name both have.
+                if f.name in copied:
+                    continue
+                if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
+                    shutil.copy2(f, dst_dir / f.name)
+                    copied.add(f.name)
+                    n += 1
         return n
     images = await asyncio.to_thread(_copy_images)
 

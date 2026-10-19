@@ -1,4 +1,4 @@
-"""Map image URLs must be built through the versioned helper.
+"""Map image URLs must come through the one helper, and be versioned.
 
 A map's PNG is overwritten in place whenever it is trimmed, rotated or
 replaced (MapsStore.async_replace_image writes the same filename), while the
@@ -16,16 +16,21 @@ The buster existed in maps.js and was independently re-implemented five more
 times there, while calibration.js, overview.js and settings.js built the path
 bare and were broken. One helper now owns it (panel.js mapImageUrl); this
 test fails the build if a bare path or a hand-rolled copy comes back.
+
+Since 0.38.143 the images are served only to a logged-in user, through a link
+the backend signs (map_image_view.py). The version moved with it: it sits
+inside the signed link, because anything appended to a signed link breaks
+its signature.
 """
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 _WWW = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
 _PANEL = _WWW / "padspan-ha" / "panel.js"
-_MAPS_PATH = "/local/padspan_ha/maps/"
+# The old public path, and the new private one: neither is built in the browser.
+_MAPS_PATHS = ("/local/padspan_ha/maps/", "/api/padspan_ha/maps/image")
 
 
 def _js_files() -> list[Path]:
@@ -33,36 +38,49 @@ def _js_files() -> list[Path]:
 
 
 def test_only_the_helper_builds_map_image_urls():
-    """No view may construct a map image URL from the raw path."""
+    """No view may construct a map image URL from a path."""
     offenders: list[str] = []
     for path in _js_files():
-        if path == _PANEL:
-            continue
         src = path.read_text(encoding="utf-8", errors="replace")
-        for m in re.finditer(re.escape(_MAPS_PATH), src):
-            # Prose mentioning the serve path is fine; building a URL is not.
-            window = src[m.end():m.end() + 60]
-            if "filename" in window or "${" in window:
-                line = src.count("\n", 0, m.start()) + 1
-                offenders.append(f"{path.name}:{line}")
+        for maps_path in _MAPS_PATHS:
+            at = src.find(maps_path)
+            if at != -1:
+                offenders.append(f"{path.name}:{src.count(chr(10), 0, at) + 1}")
     assert not offenders, (
-        "map image URL built without the cache-busting version — a trimmed or "
-        "rotated map will render as its stale pre-edit image; use "
-        f"ctx.helpers.mapImageUrl(map) instead: {offenders}"
+        "map image URL built in the browser — it would be unsigned (so refused) "
+        "or unversioned (so stale after a trim); use ctx.helpers.mapImageUrl(map) "
+        f"instead: {offenders}"
     )
 
 
-def test_helper_versions_the_url():
-    """The helper itself must append a version derived from the map."""
+def test_helper_hands_out_the_signed_link():
+    """The helper returns the backend's signed link and builds nothing."""
     src = _PANEL.read_text(encoding="utf-8", errors="replace")
     assert "function mapImageUrl(" in src, "panel.js lost the mapImageUrl helper"
     body = src[src.index("function mapImageUrl("):]
     body = body[:body.index("\n}\n") + 3]
-    assert "?v=" in body, "mapImageUrl no longer cache-busts the URL"
-    assert "updated" in body and "sha256" in body, (
-        "mapImageUrl must version on map.updated (falling back to the image "
-        "sha256), or an in-place image rewrite goes unnoticed by the browser"
+    assert "_mapImageUrls[map.id]" in body
+    # The links arrive from maps_list and maps_image_urls, and nothing else sets them.
+    assert src.count("_mapImageUrls = ") == 4, "declared once, set by maps_list and by the renewal (in full, or kept per map mid-edit)"
+    assert "_mapImageUrls = res.image_urls" in src
+    renew = src[src.index("async _renewMapImageUrls("):src.index("async _getMapsList(")]
+    assert "padspan_ha/maps_image_urls" in renew and "_mapImageUrls = fresh" in renew
+    # A changed picture re-reads the map list, so its size and picture match (issue #62).
+    assert "this._getMapsList(false)" in renew
+
+
+def test_the_backend_versions_the_link():
+    """The version (map.updated, else the image sha256) is inside the signed link."""
+    from custom_components.padspan_ha.map_image_view import image_path
+
+    m = {"id": "m1", "updated": "2026-01-01T00:00:00",
+         "image": {"filename": "m1.png", "sha256": "ab" * 32}}
+    assert "?v=" in image_path(m)
+    trimmed = dict(m, updated="2026-01-02T00:00:00")
+    assert image_path(trimmed) != image_path(m), (
+        "an in-place image rewrite must change the link, or the browser shows the stale picture"
     )
+    assert "?v=abab" in image_path({"id": "m1", "image": m["image"]}), "no sha256 fallback"
 
 
 def test_helper_is_exposed_to_views():

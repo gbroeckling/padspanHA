@@ -89,6 +89,13 @@ async def async_setup_panel(hass: HomeAssistant) -> None:
     hass.data[DOMAIN][DATA_PANEL_REGISTERED] = False
 
     await _register_static(hass, Path(__file__).parent / "www")
+    # Floor-plan images, for logged-in users only (map_image_view.py)
+    # A failure here must not cost the panel itself.
+    try:
+        from .map_image_view import async_register_map_image_view
+        async_register_map_image_view(hass)
+    except Exception:
+        _LOGGER.exception("Map image view registration failed: floor plans will not show")
     # Also serve the integration root so icon.png is accessible at /padspan_ha_int/icon.png
     await _register_static(hass, Path(__file__).parent, url=ICON_STATIC_URL)
 
