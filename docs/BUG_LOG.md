@@ -10,6 +10,7 @@ released), **watching** (fixed; confirming from the field).
 
 | # | Area | What people saw | Cause | Fix | Release | Field signal | Status |
 |---|---|---|---|---|---|---|---|
+| 159 | Atlas weather | A smoke, gas or CO alarm named like a warning could be picked as the weather warnings sensor | The leak-detector check looked only at moisture; Emergency had since added smoke, gas and CO | 9f19f95f | 0.38.146 | `weather_note:warning_ignored` | fixed |
 | 158 | Atlas weather | Rain on the Atlas on a sunny morning | An on/off rain sensor wet from dew decided on its own; the weather entity (partly cloudy) had no say | 218dc8a6, 33e5a262, 26e65289 | 0.38.142 | `weather_note:sensor_overruled` | fixed |
 | 157 | Atlas weather | Rain fell in the space between two stacked floors, inside the house | The mask kept rain off each floor plate, never off the space between them | 218dc8a6, 33e5a262 | 0.38.142 | — | fixed |
 | 156 | Live Aboard | Rain drawn over sofas, beds and walls inside the house | Only the floor that showed was marked dry, so a drop falling outside, in front of the house, showed over whatever stood on it | 218dc8a6, 33e5a262, 26e65289, de7f2efb, 755b4a5e, 1ddf7720 | 0.38.142 | — | fixed |
