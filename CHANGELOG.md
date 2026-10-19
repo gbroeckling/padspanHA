@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.146 — Smoke, gas and CO alarms aren't weather warnings either (2026-10-19)
+
+### Fixed
+- **Settings → Outdoor weather → Weather warnings no longer offers a smoke, gas or CO alarm.** Water-leak detectors were left out of that list in 0.38.94, but Emergency has since learned smoke, gas and CO alarms (0.38.135), and one named like a warning ("Hall Smoke Alert") still showed up. Picked, it stopped the Atlas finding real weather warnings on its own. One already picked is now ignored and Settings says so under the list, as it did for a leak detector: pick a warning there, or Automatic.
+
+### Opt-in report
+- An alarm set aside like that is counted the same way a leak detector already was (`weather_note:warning_ignored`).
+
+---
+
 ## 0.38.145 — Wall screens catch up after an update, and links open what they name (2026-10-19)
 
 ### Fixed

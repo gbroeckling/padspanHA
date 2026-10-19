@@ -195,19 +195,23 @@ function isWarningSensor(eid, platform, entities, states){
   return eid.startsWith("sensor.") || eid.startsWith("binary_sensor.");
 }
 
-/** A water-leak or flood detector (device class moisture), which a house
- *  often names "… Flood Warning": it never says anything about rain or snow. */
-export function isLeakDetector(eid, states){
+/** The house's own alarms, the device classes Emergency covers (light_codes.js
+ *  EMERGENCY_CLASSES, held equal by tests/test_atlas_weather.py): a water-leak,
+ *  smoke, gas or CO detector. A house often names one "… Flood Warning" or
+ *  "… Smoke Alert", and none says anything about rain or snow. */
+const HOUSE_ALARM_CLASSES = ["moisture", "smoke", "gas", "carbon_monoxide"];
+export function isHouseAlarm(eid, states){
   const st = states && eid ? states[eid] : null;
-  return !!(st && st.attributes && st.attributes.device_class === "moisture");
+  return !!(st && st.attributes && HOUSE_ALARM_CLASSES.includes(st.attributes.device_class));
 }
 
-/** The chosen warning entity, unless it is a leak detector: one picked
- *  before the list left them out (0.38.94) is still stored (Garry's
- *  "Emergency Flood Warning", 2026-10-06), and is ignored. */
+/** The chosen warning entity, unless it is one of the house's alarms: a leak
+ *  detector picked before the list left them out (0.38.94) is still stored
+ *  (Garry's "Emergency Flood Warning", 2026-10-06), and so could a smoke or
+ *  CO alarm picked before 0.38.146 (engram #1459); either is ignored. */
 export function chosenWarning(cfg, states){
   const eid = cfg && cfg.warningEntity;
-  return eid && !isLeakDetector(eid, states) ? eid : "";
+  return eid && !isHouseAlarm(eid, states) ? eid : "";
 }
 
 /** The warning entities to read: the chosen one, else every detected one. */
@@ -225,15 +229,13 @@ export function warningEntities(cfg, states, entities){
 
 /** The warnings setting's list: the detected warning sensors first, then
  *  anything else that calls itself a warning or an alert (a template sensor
- *  of your own, say) — but never a water-leak or flood detector (device class
- *  moisture), which a house often names "… Flood Warning" and which never
- *  says anything about rain or snow. */
+ *  of your own, say) — but never one of the house's alarms (isHouseAlarm). */
 export function warningPickerIds(states, entities){
   const st = states || {};
   const found = warningEntities({}, st, entities);
   const name = (eid) => String((st[eid] && st[eid].attributes && st[eid].attributes.friendly_name) || eid);
   return [...found, ...Object.keys(st).sort().filter(eid => /^(binary_sensor|sensor)\./.test(eid) && !found.includes(eid)
-    && !isLeakDetector(eid, st) && /warn|alert|avertissement|vigilance/i.test(`${name(eid)} ${eid}`))];
+    && !isHouseAlarm(eid, st) && /warn|alert|avertissement|vigilance/i.test(`${name(eid)} ${eid}`))];
 }
 
 // An alert sensor is quiet at 0 / off / Vert (Météo-France's green).

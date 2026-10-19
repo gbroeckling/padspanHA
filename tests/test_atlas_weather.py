@@ -259,10 +259,10 @@ def test_the_settings_card_offers_each_setting_saved_on_its_own() -> None:
         assert f'"{k}"' in sec, k
     assert 'ctx.actions.wsCall("padspan_ha/settings_set"' in sec and "settingsSet(" not in sec
     assert 'eid.startsWith("weather.")' in sec
-    # The warnings list, leak detectors left out (the harness runs the rule);
+    # The warnings list, the house's alarms left out (the harness runs the rule);
     # one still stored is named, and said to be ignored.
     assert "WX.warningPickerIds(states, entities)" in sec
-    assert "WX.isLeakDetector(curWarn, states)" in sec and "is a water-leak detector, not a weather warning" in sec
+    assert "WX.isHouseAlarm(curWarn, states)" in sec and "is an alarm (a leak, smoke, gas or CO detector), not a weather warning" in sec
     assert "lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));" in src
     # "Above 0 = wet" needs a sensor that means raining NOW (the harness runs the rule).
     assert "WX.rainSensorIds(states, entities)" in sec
@@ -315,3 +315,16 @@ def test_the_overlay_is_quiet_by_css() -> None:
     assert int(re.search(r"\.lv-wx\{[^}]*z-index:(\d+)", block).group(1)) < 4
     wx = (_VIEWS / "atlas_weather.js").read_text(encoding="utf-8")
     assert "requestAnimationFrame" not in wx and "setInterval" not in wx and "setTimeout" not in wx
+
+
+def test_the_house_alarms_are_emergency_s_classes():
+    """atlas_weather.js keeps the house's alarms out of the weather warnings;
+    its list must be Emergency's (light_codes.js EMERGENCY_CLASSES), or the
+    next alarm Emergency learns gets back into the picker (engram #1459)."""
+    import re as _re
+    wx = (_VIEWS / "atlas_weather.js").read_text(encoding="utf-8")
+    lc = (_VIEWS / "light_codes.js").read_text(encoding="utf-8")
+    mine = set(_re.findall(r'"([a-z_]+)"', _re.search(r"const HOUSE_ALARM_CLASSES = \[(.*?)\];", wx).group(1)))
+    emergency = set(_re.findall(r"([a-z_]+):", _re.search(r"export const EMERGENCY_CLASSES = \{(.*?)\};", lc).group(1)))
+    assert mine == emergency, (mine, emergency)
+

@@ -3364,19 +3364,19 @@ function _atlasWeatherSection(ctx, el, settings){
   const firstWx = WX ? WX.firstWeatherEntity(states) : "";
   const warnIds = WX ? WX.warningEntities({}, states, entities) : [];
   // The detected ones first, then anything else that calls itself a warning
-  // or an alert — never a water-leak detector (atlas_weather.js warningPickerIds).
+  // or an alert — never one of the house's alarms (atlas_weather.js warningPickerIds).
   const warnList = WX ? WX.warningPickerIds(states, entities) : [];
   picker("Rain sensor", "atlas_weather_rain_entity", "None — use the weather entity", rainIds);
   picker("Weather entity", "atlas_weather_condition_entity",
     firstWx ? `Automatic — ${nameOf(firstWx)}` : "Automatic — none found (no weather shows)", ids.filter(eid => eid.startsWith("weather.")));
   picker("Weather warnings", "atlas_weather_warning_entity",
     warnIds.length ? `Automatic — ${warnIds.length} found` : "Automatic — none found", warnList);
-  // A leak detector picked before the list left them out is still stored: the
-  // Atlas ignores it and finds warnings itself (atlas_weather.js chosenWarning).
+  // An alarm picked before the list left it out is still stored: the Atlas
+  // ignores it and finds warnings itself (atlas_weather.js chosenWarning).
   const curWarn = String(settings.atlas_weather_warning_entity || "");
-  if (WX && curWarn && WX.isLeakDetector(curWarn, states)) {
+  if (WX && curWarn && WX.isHouseAlarm(curWarn, states)) {
     box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
-      `${nameOf(curWarn)} is a water-leak detector, not a weather warning, so the Atlas ignores it and finds warnings on its own. ` +
+      `${nameOf(curWarn)} is an alarm (a leak, smoke, gas or CO detector), not a weather warning, so the Atlas ignores it and finds warnings on its own. ` +
       "Pick a warning above, or Automatic."));
   }
 

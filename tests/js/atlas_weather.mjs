@@ -362,12 +362,26 @@ tryCase("warnings: a leak detector chosen as the warning is ignored; detection t
   const c = decide(set, { ...wx("sunny"), ...leak("unavailable") }, EC_ENT);                  // dry: noted all the same
   const d = decide(set, { ...wx("rainy"), [ECW]: S("unavailable"), ...leak("off") }, EC_ENT); // a detected one down is not the chosen one gone
   const mine = decide({ atlas_weather_warning_entity: "sensor.mine" }, { ...wx("rainy"), "sensor.mine": S("on", { title: "Heavy Rainfall Statement" }) });
+  // engram #1459: smoke, gas and CO alarms joined Emergency (916ae266), and one
+  // named like a warning ("… Smoke Alert") got into the list and, once picked,
+  // stopped warnings being found. Every house alarm is out, and ignored if stored.
+  const SMOKE = "binary_sensor.hall_smoke_alert", CO = "binary_sensor.basement_co_warning", GAS = "binary_sensor.kitchen_gas_alert";
+  const alarms = { [SMOKE]: S("off", { device_class: "smoke", friendly_name: "Hall Smoke Alert" }),
+                   [CO]: S("off", { device_class: "carbon_monoxide", friendly_name: "Basement CO Warning" }),
+                   [GAS]: S("off", { device_class: "gas", friendly_name: "Kitchen Gas Alert" }),
+                   "sensor.my_storm_alert": S("off", { friendly_name: "My Storm Alert" }) };
+  const listed = WX.warningPickerIds(alarms, {});
+  const picked = decide({ atlas_weather_warning_entity: SMOKE }, { ...wx("rainy"), ...ecRain, ...alarms }, EC_ENT);
+  check("warnings: smoke, gas and CO alarms are not weather warnings either",
+    [SMOKE, CO, GAS].every(e => WX.isHouseAlarm(e, alarms) && !listed.includes(e)) && listed.includes("sensor.my_storm_alert")
+    && picked.warning === "warning:env_canada" && picked.notes.includes("warning_ignored"),
+    { listed, picked });
   check("warnings: a leak detector chosen as the warning is ignored; detection takes over",
     is(a, "rain", true) && a.warning === "warning:env_canada" && a.notes.includes("warning_ignored")
     && is(b, "rain", false) && !b.missing.includes("warning") && b.notes.includes("warning_ignored")
     && c.kind === "off" && JSON.stringify(c.notes) === '["warning_ignored"]'
     && is(d, "rain", false) && !d.missing.includes("warning")
-    && WX.isLeakDetector(LEAK, leak("on")) && !WX.isLeakDetector(ECW, ecRain) && !WX.isLeakDetector(LEAK, {})
+    && WX.isHouseAlarm(LEAK, leak("on")) && !WX.isHouseAlarm(ECW, ecRain) && !WX.isHouseAlarm(LEAK, {})
     && WX.chosenWarning(cfg(set), leak("on")) === "" && WX.chosenWarning(cfg({ atlas_weather_warning_entity: "sensor.mine" }), {}) === "sensor.mine"
     && is(mine, "rain", true) && mine.warning === "warning:other" && !mine.notes.length,
     { a, b, c, d, mine });
