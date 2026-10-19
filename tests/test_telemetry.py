@@ -10,6 +10,8 @@ identifier-shaped value ever got in.
 
 from __future__ import annotations
 
+from tests.conftest import keep_task
+
 import asyncio
 import json
 import re
@@ -44,6 +46,7 @@ _SIG_RPA = "70:81:94:0D:FB:AA"
 
 def _hass():
     h = MagicMock()
+    h.async_create_task = MagicMock(side_effect=keep_task)   # issue #96
     settings = SimpleNamespace(data={
         "telemetry_enabled": True,
         "telemetry_install_id": "8f0d0f7e-2c8f-4c8a-9d1c-0f2c3d4e5f60",

@@ -345,6 +345,35 @@ for _name, _mod in _ha_mods.items():
 import pytest  # noqa: E402 — must come after sys.modules patching
 
 
+# ---------------------------------------------------------------------------
+# hass.async_create_task doubles (issue #96)
+#
+# A double that keeps the coroutine it is handed and never runs it left
+# "coroutine ... was never awaited" warnings scattered over the suite, landing
+# on whichever test the garbage collector happened to run in. A real missing
+# await then hides among them. Doubles hand their coroutine to keep_task; a
+# test may still run it, and any it didn't start is closed when the test ends.
+# ---------------------------------------------------------------------------
+import inspect as _inspect  # noqa: E402
+
+_KEPT_TASKS: list = []
+
+
+def keep_task(coro, *args, **kwargs):
+    """A hass.async_create_task double: keeps the coroutine and returns it."""
+    _KEPT_TASKS.append(coro)
+    return coro
+
+
+@pytest.fixture(autouse=True)
+def _close_unstarted_tasks():
+    yield
+    for coro in _KEPT_TASKS:
+        if _inspect.iscoroutine(coro) and _inspect.getcoroutinestate(coro) == _inspect.CORO_CREATED:
+            coro.close()
+    _KEPT_TASKS.clear()
+
+
 class MockStore:
     """Minimal stand-in for homeassistant.helpers.storage.Store."""
 

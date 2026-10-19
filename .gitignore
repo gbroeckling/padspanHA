@@ -19,3 +19,9 @@ dist/bright/
 
 # Intermediate frames for scripts/make_demo_montage.py — the MP4/GIF are committed, these are not
 build/
+
+# Test output: harness logs and screenshots, and the live check's screenshots
+# of a real house (tools/test_all.py, tools/ha_live_check.py) — never publish
+tools/test_runs/
+tools/live_out/
+tools/live_aboard_harness/out/

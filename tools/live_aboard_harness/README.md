@@ -5,15 +5,32 @@ with no Home Assistant needed, plus Playwright scripts that drive it in a real-t
 check visual and interactive changes before a release. Not part of the integration (nothing here is
 in the release zip).
 
+## Run all the checks
+
+```
+python tools/live_aboard_harness/run_all.py
+```
+
+It serves the repo on 127.0.0.1:8765, runs every `pw_*.py` in a fresh headless browser and judges
+each log (`check_log.py`: the scripts print their state rather than assert). A check whose 3D view
+never started gets up to 3 tries. `tools/test_all.py` runs this with the test suite and the live check.
+
+`browser.py` picks the browser: Edge with SwiftShader on Windows, Chrome on the machine's GPU on
+macOS and Linux (SwiftShader breaks the editor there, and headless frame pacing needs the steady-frame
+flags). `PADSPAN_HARNESS_BROWSER` overrides it; `PADSPAN_HARNESS_CDP=http://127.0.0.1:<port>` drives a
+browser already running on another machine (a wall screen's own GPU) through an SSH tunnel, with the
+harness forwarded back to it (`ssh -L <port>:127.0.0.1:9333 -R 8765:127.0.0.1:8765 <host>`).
+
 ## Serve it
 
 From the repo root:
 
 ```
-python -m http.server 8765 --bind 127.0.0.1
+python tools/live_aboard_harness/serve.py
 ```
 
-Then open `http://127.0.0.1:8765/tools/live_aboard_harness/index.html`.
+(`python -m http.server 8765 --bind 127.0.0.1` works too; serve.py answers /favicon.ico with 204 so
+the only 404s in a check's console are real.) Then open `http://127.0.0.1:8765/tools/live_aboard_harness/index.html`.
 
 ## Page options (query string)
 

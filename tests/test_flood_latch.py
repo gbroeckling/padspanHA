@@ -39,6 +39,8 @@ test to await, rather than a bare MagicMock that silently drops them.
 
 from __future__ import annotations
 
+from tests.conftest import keep_task
+
 import asyncio
 import functools
 import time
@@ -79,7 +81,7 @@ def _hass(st):
     hass = SimpleNamespace(
         data={DOMAIN: {DATA_SETTINGS: st}},
         bus=MagicMock(),
-        async_create_task=MagicMock(side_effect=lambda coro, *a, **k: tasks.append(coro)),
+        async_create_task=MagicMock(side_effect=lambda coro, *a, **k: tasks.append(keep_task(coro))),
         tasks=tasks,
     )
     return hass

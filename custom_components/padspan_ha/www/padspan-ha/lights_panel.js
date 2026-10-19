@@ -70,6 +70,37 @@ function el(tag, attrs={}, children=[]){
 // views/lights_map.js, shared with the Mapping → Lights tab.
 
 // ── Persistence keys ─────────────────────────────────────────────────────────
+// What to do when the backend isn't the build this page loaded (the same
+// function as panel.js, held equal by tests/test_stale_build.py). A wall
+// screen left on the Atlas through an update kept running the old Atlas
+// against the new backend until someone reloaded it (2026-10-19): the Atlas
+// had no build check at all. A wall screen reloads itself, once per build.
+function staleBuildAction(pageBuild, backendBuild, kiosk, reloadedFor){
+  if(!pageBuild || !backendBuild || pageBuild === backendBuild) return null;
+  const newer = backendBuild > pageBuild;
+  return { newer, reload: newer && !!kiosk && reloadedFor !== backendBuild };
+}
+// A wall screen: ?kiosk=1, or a window that fills the screen (Chrome
+// --kiosk, a full-screen tablet), which nobody is there to press Reload on.
+// The same test trial_offer.js newTabOk makes, the other way round.
+function wallScreen(kiosk, win = globalThis){
+  if(kiosk) return true;
+  try {
+    const s = win.screen;
+    return !!(s && win.innerWidth >= s.width - 1 && win.innerHeight >= s.height - 1);
+  } catch(e) { return false; }
+}
+// The last time anybody touched this screen. A full-screen window may be a
+// tablet somebody is using (or a desktop at F11), so it reloads itself only
+// after two minutes with nobody at it; ?kiosk=1 reloads straight away.
+let _lastInputAt = Date.now();
+for (const ev of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+  try { globalThis.addEventListener(ev, () => { _lastInputAt = Date.now(); }, { capture: true, passive: true }); } catch(e) {}
+}
+function untouchedFor(ms){
+  return Date.now() - _lastInputAt >= ms;
+}
+
 const LS_HIDDEN = "padspan_ha_lights_hidden";
 // The one-time coach mark ("tap to switch · code or hold for controls") —
 // per browser, because that is where the hands are.
@@ -180,6 +211,24 @@ class PadSpanLightsApp extends HTMLElement {
     const active = this.shadowRoot && this.shadowRoot.activeElement;
     if(active && /^(INPUT|SELECT)$/.test(active.tagName)) return;
     if(this._pointerDown) return;
+    // The build check, every 10 minutes (staleBuildAction above).
+    if(Date.now() - (this._versionTs || 0) > 600000){
+      this._versionTs = Date.now();
+      this._hass.callWS({ type:"padspan_ha/version" }).then(vi => {
+        const be = (vi && typeof vi.build_id === "string") ? vi.build_id : "";
+        let reloadedFor = "";
+        try { reloadedFor = sessionStorage.getItem("padspan_reloaded_for") || ""; } catch(_) {}
+        let kiosk = false;
+        try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
+        const wall = kiosk || (wallScreen(false) && untouchedFor(120000));
+        const act = staleBuildAction(BUILD_ID, be, wall, reloadedFor);
+        if(act && act.reload){
+          let remembered = false;
+          try { sessionStorage.setItem("padspan_reloaded_for", be); remembered = true; } catch(_) {}
+          if(remembered) location.reload();   // can't remember it: don't risk a loop
+        }
+      }).catch(() => {});
+    }
     // Hidden lights / hidden maps live in settings and are edited from the
     // Mapping tab. Without re-reading them, the two "identical" views drift
     // apart until this panel is reloaded.

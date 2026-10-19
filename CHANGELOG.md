@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.145 — Wall screens catch up after an update, and links open what they name (2026-10-19)
+
+### Fixed
+- **A wall screen left on the Atlas now reloads itself after an update.** The sidebar Atlas never checked which version Home Assistant was running, so a wall left on it kept showing the old Atlas until someone reloaded it by hand (found on a real wall screen today, still on 0.38.105 hours after the update). It now checks every 10 minutes, as the PadSpan panel does, and a wall screen reloads once for each new version.
+- **A full-screen window counts as a wall screen.** A browser in kiosk mode or full screen reloads itself after an update, as a `?kiosk=1` link already did, once nobody has touched it for two minutes (it may be a tablet somebody is using). Until then it shows the Reload bar.
+- **`?view=` links open the view they name** ([#93](https://github.com/gbroeckling/padspanHA/issues/93)). `?view=forensics`, `monitor`, `bluetooth` and `presence` landed on Overview, Forensics even when it was switched on. A link now stays on its view, unless that view isn't there: Forensics while it's off, or a view your edition doesn't have.
+- **The update note says what its version really is** ([#94](https://github.com/gbroeckling/padspanHA/issues/94)). "This install was on v0.38.89" named the last update anyone opened or dismissed the note for, not the version installed before. It now says "The last update anyone here looked at was v0.38.89", and the release notes still cover everything since.
+
+### Testing
+- One command for the whole test pass on Windows or macOS: `python tools/test_all.py` runs the suite, the 14 Live Aboard browser checks and, with a Home Assistant address and token set, a read-only check of a live install ([#97](https://github.com/gbroeckling/padspanHA/issues/97)).
+- The Live Aboard browser checks run on a Mac in Chrome, say why when the 3D view doesn't start instead of waiting on a button that never comes, and fail when they find a problem instead of only printing it ([#95](https://github.com/gbroeckling/padspanHA/issues/95)). They can also run in another machine's browser, such as a wall screen's, on its own graphics.
+- The test suite no longer prints "coroutine was never awaited" warnings from its own stand-ins, so a real one would stand out ([#96](https://github.com/gbroeckling/padspanHA/issues/96)).
+
+---
+
 ## 0.38.144 — Stable: floor plans only for people logged in, and a faster PadSpan with Bermuda (2026-10-19)
 
 - **Coming from 0.38.135?** This stable brings in everything from the 0.38.136–0.38.143 betas below:

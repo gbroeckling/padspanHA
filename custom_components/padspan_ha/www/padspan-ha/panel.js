@@ -58,6 +58,26 @@ function staleBuildAction(pageBuild, backendBuild, kiosk, reloadedFor){
   const newer = backendBuild > pageBuild;
   return { newer, reload: newer && !!kiosk && reloadedFor !== backendBuild };
 }
+// A wall screen: ?kiosk=1, or a window that fills the screen (Chrome
+// --kiosk, a full-screen tablet), which nobody is there to press Reload on.
+// The same test trial_offer.js newTabOk makes, the other way round.
+function wallScreen(kiosk, win = globalThis){
+  if(kiosk) return true;
+  try {
+    const s = win.screen;
+    return !!(s && win.innerWidth >= s.width - 1 && win.innerHeight >= s.height - 1);
+  } catch(e) { return false; }
+}
+// The last time anybody touched this screen. A full-screen window may be a
+// tablet somebody is using (or a desktop at F11), so it reloads itself only
+// after two minutes with nobody at it; ?kiosk=1 reloads straight away.
+let _lastInputAt = Date.now();
+for (const ev of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+  try { globalThis.addEventListener(ev, () => { _lastInputAt = Date.now(); }, { capture: true, passive: true }); } catch(e) {}
+}
+function untouchedFor(ms){
+  return Date.now() - _lastInputAt >= ms;
+}
 
 const _editionsPromise = import(`./views/editions.js?b=${BUILD_ID}`)
   .then(m => { EDITIONS = m; })
@@ -921,7 +941,10 @@ class PadSpanHaApp extends HTMLElement {
     card.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#52b788;margin-bottom:4px" },
       `PadSpan HA updated to v${APP_VERSION}`));
     card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin-bottom:8px" },
-      `This install was on v${seen}. The release notes say what changed and why, in plain terms.`));
+      // `seen` is the last version somebody here opened or dismissed this card
+      // for, not necessarily the one installed before (issue #94): an update
+      // nobody looked at leaves it behind. The notes cover everything since.
+      `The last update anyone here looked at was v${seen}. The release notes cover everything since then, and why, in plain terms.`));
 
     // The paid half, once per version, and only to someone it could be news to.
     // The rule lives in editions.js next to the tier vocabulary and is pure, so
@@ -1747,6 +1770,11 @@ class PadSpanHaApp extends HTMLElement {
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       if(res?.settings){
         this.state.settings = res.settings;
+        const first = !this._settingsLoaded;
+        this._settingsLoaded = true;
+        // The first settings decide what the menu shows (Forensics, Bright):
+        // a ?view= link kept until now is checked against them (issue #93).
+        if (first && this.$nav) this._renderNav();
         this._telemetryFlush();
         if ("cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
         this._applyDataMode(res.settings.data_mode);
@@ -1860,6 +1888,7 @@ class PadSpanHaApp extends HTMLElement {
       if(!this._hass) return;
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       this.state.settings = res?.settings || {};
+      if (res?.settings) this._settingsLoaded = true;
       this._applyTheme();
       this._applySkin();
       if (res && "cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
@@ -2022,7 +2051,8 @@ class PadSpanHaApp extends HTMLElement {
     const be = (vi && typeof vi.build_id === "string") ? vi.build_id : "";
     let reloadedFor = "";
     try { reloadedFor = sessionStorage.getItem("padspan_reloaded_for") || ""; } catch(e) {}
-    const act = staleBuildAction(RELEASE_BUILD_ID, be, this.state.kioskMode, reloadedFor);
+    const wall = this.state.kioskMode || (wallScreen(false) && untouchedFor(120000));
+    const act = staleBuildAction(RELEASE_BUILD_ID, be, wall, reloadedFor);
     if(act && act.reload){
       let remembered = false;
       try { sessionStorage.setItem("padspan_reloaded_for", be); remembered = true; } catch(e) {}
@@ -2449,6 +2479,21 @@ class PadSpanHaApp extends HTMLElement {
     return out;
   }
 
+  /** Whether a view opened by a ?view= link stays open though the menu
+   *  doesn't list it (issue #93): it opens "regardless of the complexity
+   *  mode", so only what really isn't there sends it back to the menu's
+   *  first item: a view this edition doesn't have (Bright), or Forensics
+   *  while it is switched off. Until settings arrive neither can be known,
+   *  and the first nav render comes before them, so the link is kept. */
+  _keepsLinkedView(view){
+    if (!view || view !== this._urlPinnedView) return false;
+    if (!this._settingsLoaded) return true;
+    const settings = this.state.settings || {};
+    if (view === "forensics" && settings.forensics_enabled !== true) return false;
+    if (EDITIONS && EDITIONS.surfacesForEdition && !EDITIONS.surfacesForEdition([view], settings).length) return false;
+    return true;
+  }
+
   /** Rebuild the sidebar nav, mobile bottom nav, and mobile topbar to match current state. */
   _renderNav(){
     const isBasic = this.state.complexity === "basic";
@@ -2461,8 +2506,10 @@ class PadSpanHaApp extends HTMLElement {
     const items = MENU.filter(x => visible.has(x[0]));
     // A view this build does not show cannot stay current: a Bright install
     // starts on Overview by default and Overview is a presence surface, so it
-    // lands on the first surface it does show (Mapping).
-    if (items.length && !visible.has(this.state.view) && !_VIEW_PATHS_HIDDEN_OK.has(this.state.view)) {
+    // lands on the first surface it does show (Mapping). A ?view= link is
+    // kept, as the deep-link block promises (_keepsLinkedView, issue #93).
+    if (items.length && !visible.has(this.state.view) && !_VIEW_PATHS_HIDDEN_OK.has(this.state.view)
+        && !this._keepsLinkedView(this.state.view)) {
       this.state.view = items[0][0];
       this._scheduleRender();
     }

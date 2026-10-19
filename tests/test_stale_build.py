@@ -63,3 +63,51 @@ def test_a_screen_that_never_refreshes_still_checks_every_ten_minutes():
     assert "if(Date.now() - (this._versionPollTs || 0) > 600000){" in s
     i = s.index("if(Date.now() - (this._versionPollTs || 0) > 600000){")
     assert "await this._getVersionInfo();" in s[i:i + 300] and "this._checkBuild();" in s[i:i + 300]
+
+
+# ── The Atlas panel and wall screens (2026-10-19) ────────────────────────────
+# A wall left on the sidebar Atlas through 0.38.105 -> 0.38.144 kept running
+# the 0.38.105 Atlas: lights_panel.js had no build check at all. And the main
+# panel only reloaded itself with ?kiosk=1, which a Chrome --kiosk wall
+# screen does not carry.
+
+_ATLAS = _PANEL.parent / "lights_panel.js"
+
+
+def _fn(path: Path, name: str) -> str:
+    src = path.read_text(encoding="utf-8")
+    return re.search(rf"^function {name}\(.*?^}}", src, re.S | re.M).group(0)
+
+
+def test_the_atlas_has_the_same_build_check():
+    for name in ("staleBuildAction", "wallScreen", "untouchedFor"):
+        assert _fn(_ATLAS, name) == _fn(_PANEL, name), f"{name} differs between panel.js and lights_panel.js"
+    atlas = _ATLAS.read_text(encoding="utf-8")
+    assert 'type:"padspan_ha/version"' in atlas
+    assert "const wall = kiosk || (wallScreen(false) && untouchedFor(120000));" in atlas
+    assert "staleBuildAction(BUILD_ID, be, wall, reloadedFor)" in atlas
+    assert 'sessionStorage.setItem("padspan_reloaded_for", be)' in atlas, "a reload must be remembered, or it can loop"
+
+
+def test_the_main_panel_treats_a_full_screen_window_as_a_wall():
+    # ?kiosk=1 reloads at once; a full-screen window only after two idle minutes,
+    # as it may be a tablet in use, or a desktop at F11, with unsaved work.
+    src = _PANEL.read_text(encoding="utf-8")
+    assert "const wall = this.state.kioskMode || (wallScreen(false) && untouchedFor(120000));" in src
+    assert "staleBuildAction(RELEASE_BUILD_ID, be, wall, reloadedFor)" in src
+
+
+@pytest.mark.parametrize("kiosk,w,h,sw,sh,want", [
+    (True, 800, 600, 1920, 1080, True),     # ?kiosk=1
+    (False, 1920, 1080, 1920, 1080, True),  # Chrome --kiosk, a full-screen tablet
+    (False, 1280, 900, 1920, 1080, False),  # a normal browser window
+])
+def test_what_counts_as_a_wall_screen(kiosk, w, h, sw, sh, want):
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    js = _fn(_PANEL, "wallScreen") + (
+        f"\nconsole.log(JSON.stringify(wallScreen({json.dumps(kiosk)}, "
+        f"{{innerWidth: {w}, innerHeight: {h}, screen: {{width: {sw}, height: {sh}}}}})));")
+    res = subprocess.run([_NODE, "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=30)
+    assert res.returncode == 0, res.stderr
+    assert json.loads(res.stdout) is want

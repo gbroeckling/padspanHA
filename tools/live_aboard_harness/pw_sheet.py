@@ -1,18 +1,19 @@
 """Real-time: draw a door, then work its sheet (hinge, swing, type, shown) and Save."""
 import sys, time
 from playwright.sync_api import sync_playwright
+from browser import launch, wait_ready   # the machine's browser (issue #95)
 
 out = sys.argv[1]
 url = "http://127.0.0.1:8765/tools/live_aboard_harness/index.html?one=1&sky=sunny&edit=1"
 SLOT = "async () => { const LA = await import('../../custom_components/padspan_ha/www/padspan-ha/views/live_aboard.js'); return LA.liveAboardSlot('atlas'); }"
 
 with sync_playwright() as p:
-    b = p.chromium.launch(channel="msedge", headless=True, args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
+    b = launch(p)
     pg = b.new_page(viewport={"width": 1300, "height": 950})
     bad = []
     pg.on("response", lambda r: bad.append(f"{r.status} {r.url}") if r.status >= 400 else None)
     pg.on("pageerror", lambda e: bad.append("pageerror " + str(e)))
-    pg.goto(url); time.sleep(5)
+    pg.goto(url); wait_ready(pg)
     pg.get_by_role("button", name="Edit", exact=True).click(); time.sleep(1)
     pg.get_by_role("button", name="Door", exact=True).first.click(); time.sleep(2.5)
     a, c = pg.evaluate("""async () => { const LA = await import('../../custom_components/padspan_ha/www/padspan-ha/views/live_aboard.js');

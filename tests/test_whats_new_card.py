@@ -87,3 +87,13 @@ def test_panel_never_blocks_on_the_editions_import() -> None:
     assert not offenders, (
         "panel.js has a top-level `await import(...)`, so a failed module load would "
         f"stop the whole panel evaluating: {offenders[:2]}")
+
+
+def test_the_card_names_the_version_for_what_it_is():
+    """`whatsnew_seen_version` moves only when someone opens or dismisses the
+    card, so after an update nobody looked at it is NOT the version that was
+    installed before (issue #94: "was on v0.38.89" on a 0.38.105 install)."""
+    src = _PANEL.read_text(encoding="utf-8")
+    card = src[src.index("_whatsNewCard(){"):src.index("_whatsNewCard(){") + 3000]
+    assert "This install was on" not in card
+    assert "The last update anyone here looked at was v${seen}" in card

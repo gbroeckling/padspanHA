@@ -4,6 +4,7 @@ usage: python pw_flow.py <scenario> <outprefix>
 """
 import sys, time, json
 from playwright.sync_api import sync_playwright
+from browser import launch, wait_ready   # the machine's browser (issue #95)
 
 scen, pre = sys.argv[1], sys.argv[2]
 url = "http://127.0.0.1:8765/tools/live_aboard_harness/index.html?one=1&sky=sunny&edit=1" + (sys.argv[3] if len(sys.argv) > 3 else "")
@@ -23,11 +24,11 @@ def shot(pg, name):
 
 
 with sync_playwright() as p:
-    b = p.chromium.launch(channel="msedge", headless=True, args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
+    b = launch(p)
     pg = b.new_page(viewport={"width": 1300, "height": 950})
     errs = []
     pg.on("pageerror", lambda e: errs.append("pageerror " + str(e)))
-    pg.goto(url); time.sleep(9)
+    pg.goto(url); wait_ready(pg)
     def press(name):
         for _ in range(4):
             try:

@@ -7,6 +7,8 @@ the receipt stamped into settings, the licence carry-over, and the reload.
 
 from __future__ import annotations
 
+from tests.conftest import keep_task
+
 import asyncio
 import json
 from pathlib import Path
@@ -59,7 +61,7 @@ def _hass(tmp_path: Path, *, fabric=None, model=None, maps=None, settings=None):
         DATA_SETTINGS: SimpleNamespace(data=settings if settings is not None else {}),
     }}
     h.tasks = []
-    h.async_create_task = lambda coro: h.tasks.append(coro)
+    h.async_create_task = lambda coro: h.tasks.append(keep_task(coro))
     h.reloaded = []
     entry = SimpleNamespace(entry_id="entry-1")
     h.config_entries = SimpleNamespace(
