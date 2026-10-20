@@ -192,6 +192,8 @@ function renderUnlocked(ctx, root) {
         barCard(el, { title: "Version", ask: "PadSpan version", map: dist.version, total: n }),
         barCard(el, { title: "Home Assistant", ask: "Home Assistant version", map: dist.ha_version, total: n }),
         barCard(el, { title: "Edition / tier", ask: "Edition and licence tier", map: dist.tier, total: n }),
+        barCard(el, { title: "Country", ask: "Country set in Home Assistant (? = not set, or before 0.38.148)", map: dist.country, total: n }),
+        barCard(el, { title: "Language", ask: "Language set in Home Assistant (? = before 0.38.148)", map: dist.language, total: n }),
         barCard(el, { title: "Pinging by version", ask: `Update-check callers over ${W}d, by version`, map: pg.by_version, total: pg.distinct_window || 1, unit: "callers", limit: 8 }),
       ]),
     ]);

@@ -197,6 +197,7 @@ if (is_readable($PINGS)) {
 
 // ── distributions from the latest report of each install ─────────────────────
 $dist = array('version' => array(), 'ha_version' => array(), 'python' => array(), 'tier' => array(),
+              'country' => array(), 'language' => array(),
               'scanners' => array(), 'floors' => array(), 'rooms' => array(), 'maps' => array(),
               'calibration_points' => array(), 'irks' => array(), 'walls' => array(),
               'placed_lights' => array(), 'objects_total' => array());
@@ -233,6 +234,9 @@ foreach ($latest as $id => $r) {
     incr($dist['version'], isset($r['version']) ? (string)$r['version'] : '?');
     incr($dist['ha_version'], isset($r['ha_version']) ? (string)$r['ha_version'] : '?');
     incr($dist['python'], isset($r['python']) ? (string)$r['python'] : '?');
+    // HA's configured country and language (0.38.148+); older reports have neither.
+    incr($dist['country'], isset($r['country']) && is_string($r['country']) ? $r['country'] : '?');
+    incr($dist['language'], isset($r['language']) && is_string($r['language']) ? $r['language'] : '?');
     incr($dist['tier'], (isset($r['edition']) ? $r['edition'] : '?') . '/' . (isset($r['tier']) ? $r['tier'] : '?'));
     foreach ($edges as $k => $ed) { incr($dist[$k], bucket((int)(isset($e[$k]) ? $e[$k] : 0), $ed)); }
     foreach ($env_sum as $k => $_) { $env_sum[$k] += (int)(isset($e[$k]) ? $e[$k] : 0); }
