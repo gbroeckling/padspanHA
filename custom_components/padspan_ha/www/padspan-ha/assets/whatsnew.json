@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.154",
+  "title": "Four more themes: Graphite, Ocean, Dusk and High contrast",
+  "date": "2026-10-20",
+  "body_markdown": "### New\n- **Settings → Appearance → Theme has seven choices.** Beside Night, Light (inverted) and Day:\n  - **Graphite**, **Ocean** and **Dusk** are Night in neutral charcoal, deep navy or plum. Every surface and text keeps Night's lightness, so they read exactly as well; only the tint changes.\n  - **High contrast** is black with white text and solid light edges on every card, button and field, for eyes that need it.\n\n  All four keep PadSpan's green accent and every colour that means something (alarms, warnings, tracking blue). Maps, charts, the 3D house and Pure Live keep their night colours, as with Day. Light and Day are unchanged."
+ },
+ {
   "version": "0.38.153",
   "title": "Hide Home Assistant's sidebar from PadSpan",
   "date": "2026-10-20",
@@ -28,11 +34,5 @@
   "title": "Wall screens in the opt-in report",
   "date": "2026-10-20",
   "body_markdown": "### Opt-in report\n- **Wall screens.** Once per page load, the main panel and the sidebar Atlas say what kind of screen they are on: opened with `?kiosk=1`, filling the screen and untouched for two minutes, filling the screen and in use, or an ordinary window. A wall screen that reloaded itself after an update (0.38.145) says whether it came back on the new version or the old one. This shows whether those wall-screen fixes work in real houses and whether the full-screen rule mistakes desktops for walls.\n- **`?view=` links.** Whether a link that opens a view stayed on it, or went back to the menu because Forensics is off or the edition has no such view. Never the link itself."
- },
- {
-  "version": "0.38.148",
-  "title": "Country and language in the opt-in report",
-  "date": "2026-10-20",
-  "body_markdown": "### Opt-in report\n- **The report now includes the country and language set in Home Assistant** (Settings → System → General): a two-letter code such as `CA` and a language tag such as `en-GB`, so we can see where PadSpan is used and which translations to do first. Either one is left out when blank, and neither is ever worked out from your IP address. If you've already opted in, this goes with your next report; Preview in Settings → Presence → Help improve PadSpan shows it, and switching the report off stops it."
  }
 ]
