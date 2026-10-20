@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.155",
+  "title": "Show HA on the sidebar Atlas too",
+  "date": "2026-10-20",
+  "body_markdown": "### New\n- **The sidebar Atlas has Hide HA / Show HA too**, beside Refresh, so with Home Assistant's sidebar hidden there is a way back from the Atlas as well as from PadSpan. It is the same switch as PadSpan's (0.38.153), on that browser only, and not offered on a phone. The panel and the Atlas now share one copy of it."
+ },
+ {
   "version": "0.38.154",
   "title": "Four more themes: Graphite, Ocean, Dusk and High contrast",
   "date": "2026-10-20",
@@ -28,11 +34,5 @@
   "title": "One look across the panel",
   "date": "2026-10-20",
   "body_markdown": "### Changed\n- **The panel's colours match from tab to tab.** Settings, Overview, Manage, QA, Calibration, Follow, Traceback and the other tabs had picked up cold blue-grey boxes, borders and dropdowns over the years; they now use the same dark forest greens as the rest of the panel. Checkboxes, radio buttons and sliders are green instead of the browser's blue, in the panel and on the Atlas. Greens that were nearly the same colour are now one accent, one \"good\" green and one light green, and grey hint text is the same grey everywhere.\n- **Text sizes snap to one scale.** Half-pixel sizes are rounded to whole pixels, and the smallest 9 px labels are now 10 px so they can be read.\n- Blue still marks phone tracking and the calibration target (the blue spiral), and maps, charts, the 3D house and Pure Live are unchanged."
- },
- {
-  "version": "0.38.149",
-  "title": "Wall screens in the opt-in report",
-  "date": "2026-10-20",
-  "body_markdown": "### Opt-in report\n- **Wall screens.** Once per page load, the main panel and the sidebar Atlas say what kind of screen they are on: opened with `?kiosk=1`, filling the screen and untouched for two minutes, filling the screen and in use, or an ordinary window. A wall screen that reloaded itself after an update (0.38.145) says whether it came back on the new version or the old one. This shows whether those wall-screen fixes work in real houses and whether the full-screen rule mistakes desktops for walls.\n- **`?view=` links.** Whether a link that opens a view stayed on it, or went back to the menu because Forensics is off or the edition has no such view. Never the link itself."
  }
 ]
