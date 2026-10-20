@@ -4,6 +4,27 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.157 — Stable: mezzanines in 3D, one look for the Atlas and Live Aboard, and more themes (2026-10-20)
+
+- **Coming from 0.38.144?** This stable brings in everything from the 0.38.145–0.38.156 betas below:
+  - **Mezzanines and open edges in Live Aboard:** an Open (Loft) edge over a hall that rises past it shows as a glass railing, a mezzanine inside a tall hall sits under the hall's roof, and LED strips can follow a mezzanine's railing.
+  - **The Atlas and Live Aboard match the rest of PadSpan:** the same buttons, text colours and sizes, ✕ to close, and one set of glass, borders and shadows for the 3D house's floating controls. In the Day theme, the Atlas card and its tools in Mapping are readable.
+  - **Themes:** Settings → Appearance → Theme offers Night and Light (inverted) to everyone, and Day, Graphite, Ocean, Dusk and High contrast with PadSpan Pro.
+  - **Hide HA:** a button beside Toggle, and on the sidebar Atlas beside Refresh, hides Home Assistant's own sidebar on that browser and brings it back as it was.
+  - **Wall screens catch up after an update by themselves**, `?view=` links open the view they name, and the update note names the last version anyone looked at.
+  - **Smoke, gas and CO alarms aren't weather warnings**, so the Atlas finds real weather warnings on its own again.
+  - **The opt-in report** says which country and language Home Assistant is set to, what kind of screen PadSpan is on, and whether railings, mezzanines and Hide HA are used.
+
+### Fixed
+- **Day theme no longer turns some text back to light on a light card.** When a view changed an element's style after it was drawn (hiding it, resizing it), the Day theme took its day colours for night ones and turned them back; switching back to Night could also leave day colours behind until the next redraw. Each colour is now changed once.
+- The Day theme does less work on a page that changes often, and a wall left on it for days no longer slowly holds on to old stylesheets.
+- **On PadSpan Bright**, the themes that need PadSpan Pro are not shown greyed out; Bright shows Night and Light, as it did before.
+- **Show HA stays on a phone or narrow tablet while Home Assistant's sidebar is hidden**, so there is always a way to bring it back.
+- On the sidebar Atlas, Refresh keeps its place on a phone.
+- The What's New panel now holds the last fourteen releases, so going from one stable to the next shows every step.
+
+---
+
 ## 0.38.156 — The extra themes are PadSpan Pro's (2026-10-20)
 
 ### Changed
