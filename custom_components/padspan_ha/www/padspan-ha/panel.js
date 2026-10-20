@@ -592,6 +592,7 @@ class PadSpanHaApp extends HTMLElement {
   set hass(hass){
     const prevHass = this._hass;
     this._hass = hass;
+    if (hass && (!prevHass || prevHass.dockedSidebar !== hass.dockedSidebar)) this._paintHaSide();
     // The Atlas as Overview (views/overview.js) is the sidebar Atlas page,
     // which reads states off its own hass: hand it each new one.
     if(this.state && this.state._overviewAtlas) this.state._overviewAtlas.hass = hass;
@@ -690,6 +691,7 @@ class PadSpanHaApp extends HTMLElement {
             <button class="btn inline" id="refresh">Refresh</button>
             <button class="btn inline" id="autodiag">Auto Diagnostics</button>
             <button class="btn inline" id="toggleSide">Toggle</button>
+            <button class="btn inline" id="haSide" title="Hide or show Home Assistant's sidebar, on this browser only">Hide HA</button>
           </div>
 
           <!-- Flood alarm latches (flood_latch.py) — always visible off to
@@ -780,6 +782,8 @@ class PadSpanHaApp extends HTMLElement {
     this.$("#refresh").addEventListener("click", ()=>this._refreshAll(true));
     this.$("#autodiag").addEventListener("click", ()=>this._runAutoDiag(true));
     this.$("#toggleSide").addEventListener("click", ()=>this.$("#app").classList.toggle("mini"));
+    this.$("#haSide").addEventListener("click", ()=>this._toggleHaSidebar());
+    this._paintHaSide();
 
     // Mobile navigation wiring
     const _openDrawer = () => {
@@ -1916,6 +1920,31 @@ class PadSpanHaApp extends HTMLElement {
   // wait here until the switch is KNOWN, then go or are discarded; the
   // backend checks the switch again and is the authority. Nothing leaves the
   // browser while the report is off or unknown.
+  // Home Assistant's own sidebar, hidden or shown from PadSpan's toolbar: the
+  // frontend's "hass-dock-sidebar" event, the same switch as Profile >
+  // "Always hide the sidebar", kept by HA per browser. Hiding remembers what
+  // it was (docked or auto) and showing puts that back. The button stays on
+  // the collapsed rail too: with HA's sidebar gone it is the way back.
+  _haDock(){ return (this._hass && this._hass.dockedSidebar) || "docked"; }
+  _paintHaSide(){
+    const b = this.shadowRoot && this.shadowRoot.querySelector("#haSide");
+    if (!b) return;
+    const hidden = this._haDock() === "always_hidden";
+    b.textContent = hidden ? "Show HA" : "Hide HA";
+    b.setAttribute("aria-pressed", String(hidden));
+  }
+  _toggleHaSidebar(){
+    const hidden = this._haDock() === "always_hidden";
+    let dock = "always_hidden";
+    if (hidden) {
+      try { dock = localStorage.getItem("padspan_ha_dock_before") || "docked"; } catch (e) { dock = "docked"; }
+      if (dock !== "auto") dock = "docked";
+    } else {
+      try { localStorage.setItem("padspan_ha_dock_before", this._haDock()); } catch (e) {}
+    }
+    this.dispatchEvent(new CustomEvent("hass-dock-sidebar", { detail: { dock }, bubbles: true, composed: true }));
+    this._telemetryEvent(hidden ? "ha_sidebar:shown" : "ha_sidebar:hidden");
+  }
   _telemetryEvent(name){
     const s = this.state.settings;
     if (!s || !("telemetry_enabled" in s)) {

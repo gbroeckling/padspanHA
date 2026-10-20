@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.153 — Hide Home Assistant's sidebar from PadSpan (2026-10-20)
+
+### New
+- **Hide HA, beside Toggle.** A button in PadSpan's toolbar hides Home Assistant's own sidebar, and gives PadSpan the whole screen. It reads **Show HA** while the sidebar is hidden, and brings it back as it was, docked or automatic. It's Home Assistant's own setting (Profile → "Always hide the sidebar"), so it holds on that browser only, through reloads, and your phone and other screens keep theirs. The button stays on the collapsed menu too, so the way back is always there. It isn't offered on a phone or a narrow tablet, where Home Assistant's sidebar is a drawer anyway. The sidebar Atlas has no button of its own yet: with the sidebar hidden, go back through PadSpan, or Profile in Home Assistant.
+
+### Opt-in report
+- Counts the sidebar hidden and shown again from PadSpan (`ha_sidebar:hidden`, `ha_sidebar:shown`).
+
+---
+
 ## 0.38.152 — The Atlas and Live Aboard match the rest of PadSpan (2026-10-20)
 
 ### Fixed

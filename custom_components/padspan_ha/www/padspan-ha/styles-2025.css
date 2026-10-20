@@ -194,6 +194,7 @@ svg text, svg tspan { letter-spacing: normal; }
 .app.mini #refresh::after{content:"\21BB"}
 .app.mini #autodiag::after{content:"\2699"}
 .app.mini #toggleSide::after{content:"\00BB"}
+.app.mini #haSide::after{content:"\25E7"}
 .app.mini #navLabel{display:none}
 .app.mini .navgrp{
   font-size:0;padding:7px 0;width:22px;height:1px;
@@ -360,3 +361,4 @@ svg text, svg tspan { letter-spacing: normal; }
 .mobile-topbar-pill.live{
   border-color:var(--ps-ac-ln);background:var(--ps-ac-bg);color:var(--ps-tx);
 }
+@media (max-width:870px){#haSide{display:none}}

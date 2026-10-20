@@ -466,6 +466,9 @@ SCREEN_EVENTS: frozenset[str] = frozenset(
     {f"wall_screen:{p}:{k}" for p in SCREEN_PANELS for k in SCREEN_KINDS}
     | {f"wall_reload:{p}:{k}" for p in SCREEN_PANELS for k in RELOAD_OUTCOMES}
     | {f"view_link:{k}" for k in VIEW_LINK_OUTCOMES}
+    # Home Assistant's sidebar hidden or shown again from PadSpan's toolbar
+    # (0.38.153): used at all, and whether people come back to it.
+    | {"ha_sidebar:hidden", "ha_sidebar:shown"}
 )
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
