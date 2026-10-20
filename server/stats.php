@@ -234,7 +234,7 @@ foreach ($latest as $id => $r) {
     incr($dist['version'], isset($r['version']) ? (string)$r['version'] : '?');
     incr($dist['ha_version'], isset($r['ha_version']) ? (string)$r['ha_version'] : '?');
     incr($dist['python'], isset($r['python']) ? (string)$r['python'] : '?');
-    // HA's configured country and language (0.38.148+); older reports have neither.
+    // The country and language set in HA (0.38.148+); older reports have neither.
     incr($dist['country'], isset($r['country']) && is_string($r['country']) ? $r['country'] : '?');
     incr($dist['language'], isset($r['language']) && is_string($r['language']) ? $r['language'] : '?');
     incr($dist['tier'], (isset($r['edition']) ? $r['edition'] : '?') . '/' . (isset($r['tier']) ? $r['tier'] : '?'));

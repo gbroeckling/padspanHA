@@ -38,7 +38,7 @@ foreach (array_keys($r) as $k) {
     if (!in_array($k, $allowed, true)) { http_response_code(400); echo '{"ok":false,"why":"key"}'; exit; }
 }
 if (!isset($r['schema']) || (int)$r['schema'] !== 1) { http_response_code(400); echo '{"ok":false,"why":"schema"}'; exit; }
-// Optional: HA's configured country (two letters) and language tag (0.38.148+).
+// Optional: the country (two letters) and language tag set in HA (0.38.148+).
 if (isset($r['country']) && !(is_string($r['country']) && preg_match('/^[A-Z]{2}\z/', $r['country']))) {
     http_response_code(400); echo '{"ok":false,"why":"country"}'; exit;
 }
