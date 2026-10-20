@@ -179,6 +179,20 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.153</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">20 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Hide HA, beside Toggle.</b> A button in PadSpan's toolbar hides Home Assistant's own sidebar, and gives PadSpan the whole screen. It reads <b>Show HA</b> while the sidebar is hidden, and brings it back as it was, docked or automatic. It's Home Assistant's own setting (Profile → "Always hide the sidebar"), so it holds on that browser only, through reloads, and your phone and other screens keep theirs. The button stays on the collapsed menu too, so the way back is always there. It isn't offered on a phone or a narrow tablet, where Home Assistant's sidebar is a drawer anyway. The sidebar Atlas has no button of its own yet: with the sidebar hidden, go back through PadSpan, or Profile in Home Assistant.</li>
+          <li>Counts the sidebar hidden and shown again from PadSpan (<code>ha_sidebar:hidden</code>, <code>ha_sidebar:shown</code>).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.152</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">20 October 2026</span>

@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.153",
+  "title": "Hide Home Assistant's sidebar from PadSpan",
+  "date": "2026-10-20",
+  "body_markdown": "### New\n- **Hide HA, beside Toggle.** A button in PadSpan's toolbar hides Home Assistant's own sidebar, and gives PadSpan the whole screen. It reads **Show HA** while the sidebar is hidden, and brings it back as it was, docked or automatic. It's Home Assistant's own setting (Profile → \"Always hide the sidebar\"), so it holds on that browser only, through reloads, and your phone and other screens keep theirs. The button stays on the collapsed menu too, so the way back is always there. It isn't offered on a phone or a narrow tablet, where Home Assistant's sidebar is a drawer anyway. The sidebar Atlas has no button of its own yet: with the sidebar hidden, go back through PadSpan, or Profile in Home Assistant.\n\n### Opt-in report\n- Counts the sidebar hidden and shown again from PadSpan (`ha_sidebar:hidden`, `ha_sidebar:shown`)."
+ },
+ {
   "version": "0.38.152",
   "title": "The Atlas and Live Aboard match the rest of PadSpan",
   "date": "2026-10-20",
@@ -28,11 +34,5 @@
   "title": "Country and language in the opt-in report",
   "date": "2026-10-20",
   "body_markdown": "### Opt-in report\n- **The report now includes the country and language set in Home Assistant** (Settings → System → General): a two-letter code such as `CA` and a language tag such as `en-GB`, so we can see where PadSpan is used and which translations to do first. Either one is left out when blank, and neither is ever worked out from your IP address. If you've already opted in, this goes with your next report; Preview in Settings → Presence → Help improve PadSpan shows it, and switching the report off stops it."
- },
- {
-  "version": "0.38.147",
-  "title": "Mezzanines and open edges in Live Aboard",
-  "date": "2026-10-20",
-  "body_markdown": "### New\n- **An open edge over a drop gets a railing.** A wall drawn with the Open (Loft) material along a mezzanine or gallery now shows in Live Aboard as a 1 m glass railing, where it looks out over a hall that rises past it: a lower floor at least 76 cm down (the drop at which building codes ask for a guard) whose height in Floor Heights reaches above the mezzanine. Anywhere else (between two rooms on one floor, over an ordinary storey below, or over nothing) it stays an open gap as before, so an Open doorway upstairs never grows a railing. The railing is still an opening: no wall lights hang on it, and the signal through it is unchanged. Explode, Cut and Down show it too.\n- **LED strips can follow a mezzanine's railing.** The strip tool's **Along a rail** is offered for a mezzanine as well as a deck, and lays the strip on the rail's top.\n\n### Fixed\n- **A mezzanine inside a tall hall is drawn under the hall's roof.** With the hall given its full height and the mezzanine its real base elevation (Mapping → Floor Heights), Live Aboard put a second roof on the mezzanine halfway up the hall and left the hall roofed only over part of it. The hall now gets one roof, and the mezzanine is roofed only where it reaches past the hall. Ordinary stacked floors are unchanged.\n\n### Help\n- Floor Heights, the wall material help, the Live Aboard guide and the Walls Guide explain how to set up a mezzanine and its open edges.\n\n### Opt-in report\n- Counts a house that has a railing over a drop (`house3d_loft_rail`) and one with a mezzanine inside a taller floor (`house3d_mezzanine`), so we can tell whether these houses show up.\n\n### Testing\n- The Live Aboard harness has a hall with a mezzanine (`?gym=1`) and open edges on the sample house (`?loft=1`), and finds a free port by itself when 8765 is taken."
  }
 ]
