@@ -42,7 +42,8 @@ def _well_formed(r) -> bool:
     PadSpan sends is skipped rather than taking the whole summary down."""
     if not isinstance(r, dict):
         return False
-    if not all(isinstance(r.get(k) or "", str) for k in ("install_id", "day", "version", "edition", "tier", "ha_version")):
+    if not all(isinstance(r.get(k) or "", str) for k in ("install_id", "day", "version", "edition", "tier", "ha_version",
+                                                         "country", "language")):
         return False
     if not all(isinstance(r.get(k) or {}, dict) for k in ("env", "features", "usage", "health", "errors")):
         return False
@@ -464,6 +465,8 @@ def main() -> int:
     dist("Versions", lambda r: r.get("version"))
     dist("Edition / tier", lambda r: f"{r.get('edition')}/{r.get('tier')}")
     dist("Home Assistant", lambda r: r.get("ha_version"))
+    dist("Country", lambda r: r.get("country") or "?")
+    dist("Language", lambda r: r.get("language") or "?")
     for k, edges in _ENV_BUCKETS:
         dist(f"env.{k}", lambda r, k=k, edges=edges: _bucket(int((r.get("env") or {}).get(k) or 0), edges))
 

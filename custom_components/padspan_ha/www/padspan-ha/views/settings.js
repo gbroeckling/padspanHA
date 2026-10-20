@@ -1113,7 +1113,7 @@ function _settingsPresence(ctx, el){
     el("div", { class: "h2" }, "Help improve PadSpan"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
-      "Home Assistant; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
+      "Home Assistant; the country and language set in Home Assistant (never looked up from your address); how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
       "IRKs and objects you have and which related integrations are installed; which feature switches " +
       "are on; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine " +
       "works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the " +

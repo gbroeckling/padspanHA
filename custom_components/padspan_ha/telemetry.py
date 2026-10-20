@@ -9,6 +9,9 @@ Presence → Help improve PadSpan, where a Preview button shows the exact JSON
 that will go. What goes out is COUNTS and VERSIONS, never things:
 
     which version, which edition and tier, which Home Assistant
+    the country and language set in Home Assistant (Settings → System →
+        General): a two-letter code and a language tag such as "en-GB",
+        left out when blank — never looked up from the address
     how many scanners / floors / rooms / placed lights / walls / maps / IRKs
     which feature switches are on
     how many times each tab was opened and each feature used since the
@@ -620,7 +623,12 @@ RUNS_KEYS: tuple[str, ...] = ("starts", "unclean", "rss_mb", "mem_avail_pc", "sw
 _TOP_KEYS: frozenset[str] = frozenset({
     "schema", "install_id", "day", "version", "edition", "tier", "ha_version",
     "python", "env", "features", "usage", "health", "errors", "presets",
+    "country", "language",
 })
+# HA's configured country (ISO 3166 alpha-2) and language (a short BCP 47
+# tag: "en", "en-GB", "zh-Hant", "es-419"). Anything else is left out.
+_COUNTRY_RE = re.compile(r"[A-Z]{2}")
+_LANGUAGE_RE = re.compile(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,4})?")
 
 # Identifier shapes that must never appear in any value.
 _MAC_RE = re.compile(r"\b[0-9A-Fa-f]{2}(?:[:\-.][0-9A-Fa-f]{2}){5}\b|\b[0-9A-Fa-f]{12}\b")   # 48:87:…, 48-87-…, 48.87.…, 48872D9DBC88
@@ -1449,6 +1457,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "errors": errors,
         "presets": presets,
     }
+    # Where installs are and which translations matter: only what the person
+    # set in Home Assistant, never anything looked up from the address.
+    cfg = getattr(hass, "config", None)
+    country, language = getattr(cfg, "country", None), getattr(cfg, "language", None)
+    if isinstance(country, str) and _COUNTRY_RE.fullmatch(country.strip().upper()):
+        payload["country"] = country.strip().upper()
+    if isinstance(language, str) and _LANGUAGE_RE.fullmatch(language.strip()):
+        payload["language"] = language.strip()
     # The cap refuses the WHOLE report, and a refused one keeps its counters,
     # so the next is no smaller: one busy day silenced an install until HA
     # restarted. The presets are a courtesy sample (popular_presets.py) — on
@@ -1496,6 +1512,10 @@ def assert_shareable(payload: dict[str, Any]) -> None:
                 if node and not _UUID_RE.fullmatch(node):
                     raise ValueError("install_id is not a UUID")
                 return
+            if path == ".country" and not _COUNTRY_RE.fullmatch(node):
+                raise ValueError("country is not a two-letter code")
+            if path == ".language" and not _LANGUAGE_RE.fullmatch(node):
+                raise ValueError("language is not a language tag")
             # Most specific first, so the message names the real shape (a
             # UUID's tail is also twelve hex digits).
             for name, rx in (("UUID", _UUID_RE), ("32-hex", _HEX32_RE), ("licence key", _KEY_RE),

@@ -33,11 +33,18 @@ if ($raw === false || strlen($raw) > $MAX) { http_response_code(413); echo '{"ok
 $r = json_decode($raw, true);
 if (!is_array($r)) { http_response_code(400); echo '{"ok":false}'; exit; }
 
-$allowed = array('schema','install_id','day','version','edition','tier','ha_version','python','env','features','usage','health','errors','presets');
+$allowed = array('schema','install_id','day','version','edition','tier','ha_version','python','env','features','usage','health','errors','presets','country','language');
 foreach (array_keys($r) as $k) {
     if (!in_array($k, $allowed, true)) { http_response_code(400); echo '{"ok":false,"why":"key"}'; exit; }
 }
 if (!isset($r['schema']) || (int)$r['schema'] !== 1) { http_response_code(400); echo '{"ok":false,"why":"schema"}'; exit; }
+// Optional: HA's configured country (two letters) and language tag (0.38.148+).
+if (isset($r['country']) && !(is_string($r['country']) && preg_match('/^[A-Z]{2}\z/', $r['country']))) {
+    http_response_code(400); echo '{"ok":false,"why":"country"}'; exit;
+}
+if (isset($r['language']) && !(is_string($r['language']) && preg_match('/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,4})?\z/', $r['language']))) {
+    http_response_code(400); echo '{"ok":false,"why":"language"}'; exit;
+}
 $id = isset($r['install_id']) ? (string)$r['install_id'] : '';
 if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id)) {
     http_response_code(400); echo '{"ok":false,"why":"id"}'; exit;

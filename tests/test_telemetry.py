@@ -304,6 +304,25 @@ def test_the_gate_refuses_every_identifier_shape():
         T.assert_shareable(p)
 
 
+def test_country_and_language_come_from_ha_settings_and_nothing_else():
+    h = _hass()
+    h.config.country, h.config.language = "ca", "en-GB"
+    p = T.build_payload(h)
+    assert (p["country"], p["language"]) == ("CA", "en-GB")
+    T.assert_shareable(p)
+    for country, language in ((None, None), ("", ""), ("Canada", "English (UK)"), ("C1", "en_GB.UTF-8")):
+        h.config.country, h.config.language = country, language
+        p = T.build_payload(h)
+        assert "country" not in p and "language" not in p
+        T.assert_shareable(p)
+    p = json.loads(json.dumps(p)); p["country"] = "Vancouver"
+    with pytest.raises(ValueError, match="country"):
+        T.assert_shareable(p)
+    p = json.loads(json.dumps(p)); p["country"] = "CA"; p["language"] = "192.168.3.155"
+    with pytest.raises(ValueError):
+        T.assert_shareable(p)
+
+
 def test_off_means_nothing_counted_and_nothing_sent():
     h = _hass()
     h.data[DOMAIN][DATA_SETTINGS].data["telemetry_enabled"] = False

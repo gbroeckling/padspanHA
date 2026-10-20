@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.148 — Country and language in the opt-in report (2026-10-20)
+
+### Opt-in report
+- **The report now includes the country and language set in Home Assistant** (Settings → System → General): a two-letter code such as `CA` and a language tag such as `en-GB`, so we can see where PadSpan is used and which translations to do first. Either one is left out when blank, and neither is ever worked out from your IP address. If you've already opted in, this goes with your next report; Preview in Settings → Presence → Help improve PadSpan shows it, and switching the report off stops it.
+
+---
+
 ## 0.38.147 — Mezzanines and open edges in Live Aboard (2026-10-20)
 
 ### New
