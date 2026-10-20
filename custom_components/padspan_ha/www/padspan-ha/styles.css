@@ -121,6 +121,10 @@
   filter: invert(1) hue-rotate(180deg);
 }
 
+/* Day theme (day_theme.js): native controls (slider tracks, scrollbars,
+   dropdown lists) drawn light too. */
+:host([data-theme="day"]){color-scheme:light}
+
 .marker.selected{
   outline: 2px solid rgba(255,255,255,0.85);
   box-shadow: 0 0 0 3px rgba(82,183,136,0.35);

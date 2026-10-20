@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.151 — A Day theme, beside Night and Light (2026-10-20)
+
+### New
+- **Settings → Appearance → Theme now offers three choices: Night, Light (inverted) and Day.** Night is the dark forest green you know. Light is the same colour inversion as before, unchanged, for anyone who can't use a dark screen; it just moved here from Settings → Presence. Day is new: the whole panel redrawn in light colours, with pale surfaces, dark text and the same green accent, in both the Classic and 2025 styles. Maps, charts, the 3D house and Pure Live keep their night colours in Day, so what they show reads the same either way.
+
+### Fixed
+- A panel whose settings arrived on a full refresh did not show its chosen panel style (Classic or 2025) or theme until a setting was changed. Both now follow every settings read.
+
+---
+
 ## 0.38.150 — One look across the panel (2026-10-20)
 
 ### Changed

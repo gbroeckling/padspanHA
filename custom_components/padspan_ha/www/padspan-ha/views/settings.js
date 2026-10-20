@@ -244,6 +244,36 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     ]));
   }
 
+  // ── Theme: Night, Light (inverted) or Day ───────────────────────────────
+  // Light is the accessibility inversion (settings.light_theme), kept as it
+  // always was for anyone who needs it; Day is the designed light palette
+  // (settings.day_theme, day_theme.js). One is on at a time.
+  {
+    const settings = ctx.state.settings || {};
+    const now = settings.day_theme === true ? "day" : settings.light_theme === true ? "light" : "night";
+    const mkTheme = (val, label) => {
+      const b = el("button",{class:"btn inline"+(now===val?" on":"")}, label);
+      b.addEventListener("click", async()=>{
+        if (now === val) return;
+        try {
+          await ctx.actions.settingsSet({ light_theme: val === "light", day_theme: val === "day" });
+          ctx.toast(val === "day" ? "Day theme on" : val === "light" ? "Light theme on" : "Night theme on");
+        } catch(e){ ctx.toast("Failed to save", true); }
+      });
+      return b;
+    };
+    wrap.appendChild(el("div",{class:"card",style:"margin-top:12px;border-color:" + (now !== "night" ? "#52b788" : "#2d4a38")},[
+      el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Theme"),
+      el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
+        "Night is PadSpan's dark forest green. Light inverts every colour in the panel (white " +
+        "becomes black, black becomes white) for anyone who can't use a dark screen; photos and " +
+        "map images are turned back so they still look normal. Day is the panel redrawn in light " +
+        "colours: pale surfaces, dark text, the same green accent; maps, charts, the 3D house and " +
+        "Pure Live keep their night colours. It takes effect immediately, in every browser."),
+      el("div",{class:"row"},[ mkTheme("night","Night"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ]),
+    ]));
+  }
+
   // ── 2D Map Mode (Experimental) ────────────────────────────────────────────
   {
     const settings = ctx.state.settings || {};
@@ -770,33 +800,6 @@ function _settingsPresence(ctx, el){
         "Scanning continues in the background so tracked objects still work. " +
         "Ideal for busy environments (condos, offices) where you only care about your own devices. " +
         "Turn off when you need to discover and tag new objects."),
-    ]));
-  }
-
-  // ── Light Theme (inverted) ────────────────────────────────────────────────
-  {
-    const themeOn = settings.light_theme === true;
-    const themeToggle = el("input",{type:"checkbox",id:"lightThemeToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
-    themeToggle.checked = themeOn;
-    themeToggle.addEventListener("change", async()=>{
-      try {
-        await ctx.actions.settingsSet({ light_theme: themeToggle.checked });
-        ctx.toast(themeToggle.checked ? "Light theme on" : "Dark theme restored");
-      } catch(e){ ctx.toast("Failed to save", true); }
-    });
-    wrap.appendChild(el("div",{class:"card",style:"border-color:" + (themeOn ? "#52b788" : "#2d4a38")},[
-      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
-        el("div",{class:"h2",style:"margin:0;color:#52b788"}, "Light Theme"),
-      ]),
-      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
-        themeToggle,
-        el("label",{for:"lightThemeToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-          "Invert the panel colours (light background)"),
-      ]),
-      el("div",{class:"muted",style:"font-size:12px"},
-        "Inverts every colour in the panel — white becomes black, black becomes white — for an " +
-        "accessible light appearance. Photos and map images are automatically counter-inverted so " +
-        "they still look normal. Applies instantly to this PadSpan panel."),
     ]));
   }
 

@@ -57,6 +57,12 @@ def test_light_theme_is_accepted():
     assert "light_theme" in _schema_keys()
 
 
+def test_day_theme_is_accepted():
+    """0.38.151: the designed day theme is its own setting beside the inverted
+    light theme, which stays for people who need it."""
+    assert "day_theme" in _schema_keys()
+
+
 def test_every_default_setting_is_settable():
     missing = sorted(
         k for k in DEFAULT_SETTINGS

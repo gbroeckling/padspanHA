@@ -123,6 +123,8 @@ import(`./views/pro_invite.js?b=${BUILD_ID}`)
 // Which PadSpan module an uncaught error came from (views/ui_error.js). Until
 // it lands, or if it never does, uncaught errors simply go uncounted.
 let UI_ERROR = null;
+// The day theme (day_theme.js), imported the first time it is turned on.
+let DAY_THEME = null;
 import(`./views/ui_error.js?b=${BUILD_ID}`)
   .then(m => { UI_ERROR = m; })
   .catch(err => console.warn("PadSpan: ui_error module failed to load", err));
@@ -1796,6 +1798,10 @@ class PadSpanHaApp extends HTMLElement {
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       if(res?.settings){
         this.state.settings = res.settings;
+        // Skin and theme follow every settings read, not only _loadSettings
+        // (both return at once when nothing changed).
+        this._applySkin();
+        this._applyTheme();
         const first = !this._settingsLoaded;
         this._settingsLoaded = true;
         // The first settings decide what the menu shows (Forensics, Bright):
@@ -1840,14 +1846,41 @@ class PadSpanHaApp extends HTMLElement {
   // They are called from _refreshAll (full bootstrap) and individually
   // from specific actions (e.g. after tagging an object, after map upload).
 
-  // Light theme = full colour inversion of the panel (accessibility: the
-  // dark theme is unusable for some eye conditions). Applied as a filter on
-  // the host element; styles.css counter-inverts photos/map images via the
-  // data-invert attribute so they don't render as negatives.
-  _applyTheme(){
-    const on = !!this.state.settings?.light_theme;
-    this.style.filter = on ? "invert(1) hue-rotate(180deg)" : "";
-    if (on) this.setAttribute("data-invert", ""); else this.removeAttribute("data-invert");
+  // Three themes (Settings → Appearance → Theme). Night is the panel as
+  // drawn. Light (settings.light_theme) is a full colour inversion of the
+  // host (accessibility: the dark theme is unusable for some eye
+  // conditions); styles.css counter-inverts photos/map images via the
+  // data-invert attribute so they don't render as negatives. Day
+  // (settings.day_theme, which wins over light_theme) is a designed light
+  // palette made from the night colours by day_theme.js, loaded only when
+  // someone picks it; Pure Live is never touched. Day re-applies when the
+  // skin changes, since the skin's stylesheet changes.
+  async _applyTheme(){
+    const on = !!this.state.settings?.day_theme;
+    const invert = !on && !!this.state.settings?.light_theme;
+    this.style.filter = invert ? "invert(1) hue-rotate(180deg)" : "";
+    if (invert) this.setAttribute("data-invert", ""); else this.removeAttribute("data-invert");
+    const want = on ? "day:" + (this._skin || "classic") : "";
+    if ((this._dayKey || "") === want) return;
+    this._dayKey = want;
+    if (this._dayOff) { this._dayOff(); this._dayOff = null; }
+    this.removeAttribute("data-theme");
+    if (!on) return;
+    try {
+      if (!DAY_THEME) DAY_THEME = await import(`./day_theme.js?b=${BUILD_ID}`);
+      const urls = Array.from(this.shadowRoot.querySelectorAll('link[rel="stylesheet"][href]')).map(l => l.href);
+      const css = await Promise.all(urls.map(u => fetch(u).then(r => r.ok ? r.text() : "").catch(() => "")));
+      if (this._dayKey !== want) return;   // switched again while loading
+      const content = this.shadowRoot.querySelector("#content");
+      this._dayOff = DAY_THEME.attachDayTheme(this.shadowRoot, {
+        extraCss: css.filter(Boolean),
+        frozen: (n) => this.state.view === "purelive" && !!content && content.contains(n),
+      });
+      this.setAttribute("data-theme", "day");
+    } catch (e) {
+      this._dayKey = "";
+      console.warn("PadSpan: day theme failed to load", e);
+    }
   }
 
   // Chrome skin. "classic" is v0.35.0 untouched; "2025" links styles-2025.css
@@ -1855,10 +1888,9 @@ class PadSpanHaApp extends HTMLElement {
   // Anything other than the exact string "2025" means classic, so a bad or
   // missing setting can never strand someone on a skin that failed to load.
   //
-  // Note this is independent of light_theme: both skins still invert the host
-  // for light mode, because the view modules carry ~4,500 hardcoded hex
-  // literals that currently depend on that inversion. Converting those to
-  // tokens is a separate, view-by-view job.
+  // Independent of the theme (_applyTheme): both skins still invert the host
+  // for the Light theme, and the Day theme re-applies itself to the skin's
+  // stylesheet as well.
   _applySkin(){
     const skin = (this.state.settings?.ui_skin === "2025") ? "2025" : "classic";
     if (this._skin === skin) return false;
@@ -1931,8 +1963,8 @@ class PadSpanHaApp extends HTMLElement {
       const res = await this._callWS({ type: "padspan_ha/settings_get" });
       this.state.settings = res?.settings || {};
       if (res?.settings) this._settingsLoaded = true;
-      this._applyTheme();
       this._applySkin();
+      this._applyTheme();
       if (res && "cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
       this._applyDataMode(res?.settings?.data_mode);
       this._updateBadges();
@@ -2916,8 +2948,8 @@ class PadSpanHaApp extends HTMLElement {
           // untouched when the message omits it).
           const res = await this._callWS(Object.assign({ type: "padspan_ha/settings_set" }, payload));
           this.state.settings = res?.settings || this.state.settings;
-          this._applyTheme();
           this._applySkin();
+          this._applyTheme();
           this._renderNav();
           this._scheduleRender();
           return res;

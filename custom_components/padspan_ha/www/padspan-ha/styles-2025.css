@@ -6,10 +6,9 @@
    a single setting (Settings → Appearance) — no redeploy, no HA restart.
 
    It restyles chrome only: tokens, sidebar nav, sub-tab bars, top bar,
-   buttons, cards, pills. It deliberately does NOT touch the light-theme
-   filter — panel.js still inverts the host for light_theme in both skins,
-   because ~4,500 hardcoded hex literals inside the view modules currently
-   depend on that inversion. Converting those is a separate, view-by-view job.
+   buttons, cards, pills. The Light theme still inverts the host in both
+   skins; the Day theme (day_theme.js) makes its own light copy of this
+   file when it is on.
 
    Selectors here match or exceed the specificity of their styles.css
    counterparts; where they tie, this file wins because it loads second.
