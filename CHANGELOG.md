@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.149 — Wall screens in the opt-in report (2026-10-20)
+
+### Opt-in report
+- **Wall screens.** Once per page load, the main panel and the sidebar Atlas say what kind of screen they are on: opened with `?kiosk=1`, filling the screen and untouched for two minutes, filling the screen and in use, or an ordinary window. A wall screen that reloaded itself after an update (0.38.145) says whether it came back on the new version or the old one. This shows whether those wall-screen fixes work in real houses and whether the full-screen rule mistakes desktops for walls.
+- **`?view=` links.** Whether a link that opens a view stayed on it, or went back to the menu because Forensics is off or the edition has no such view. Never the link itself.
+
+---
+
 ## 0.38.148 — Country and language in the opt-in report (2026-10-20)
 
 ### Opt-in report

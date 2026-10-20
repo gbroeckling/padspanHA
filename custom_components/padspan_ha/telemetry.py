@@ -47,6 +47,10 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         run that ran out of memory still reports (health.runs); and the
         panels' frame rate and heap by view, and their device class, in
         buckets (CLIENT_EVENTS)
+    wall screens: whether a screen is opened with ?kiosk=1, fills the
+        screen untouched or in use, or is an ordinary window; whether a
+        wall screen's reload after an update landed on the new build; and
+        whether a ?view= link stayed on its view (SCREEN_EVENTS)
 
 The reason, in one sentence: the developer has one house to test on, and
 this is how features that only exist elsewhere (an iPhone with an IRK, a
@@ -445,6 +449,25 @@ CLIENT_EVENTS: frozenset[str] = frozenset(
     | {f"client_dev:{d}" for d in CLIENT_DEV}
 )
 
+# Wall screens (panel.js, and lights_panel.js: the sidebar Atlas), once per
+# page load after two and a half minutes. wall_screen:<panel>:kiosk (?kiosk=1),
+# :fullscreen_idle (a window filling the screen, untouched for two minutes:
+# what a self-reload after an update treats as a wall), :fullscreen_used, or
+# :windowed. wall_reload:<panel>:kiosk|fullscreen: this page is the build a
+# self-reload went for (0.38.145); :stuck: it reloaded and came back on the
+# old build. view_link:kept|forensics_off|edition: a ?view= link (#93) stayed
+# open, or went back to the menu (Forensics off, or no such view in this
+# edition). Never the URL or the screen's size.
+SCREEN_PANELS: tuple[str, ...] = ("panel", "atlas")
+SCREEN_KINDS: tuple[str, ...] = ("kiosk", "fullscreen_idle", "fullscreen_used", "windowed")
+RELOAD_OUTCOMES: tuple[str, ...] = ("kiosk", "fullscreen", "stuck")
+VIEW_LINK_OUTCOMES: tuple[str, ...] = ("kept", "forensics_off", "edition")
+SCREEN_EVENTS: frozenset[str] = frozenset(
+    {f"wall_screen:{p}:{k}" for p in SCREEN_PANELS for k in SCREEN_KINDS}
+    | {f"wall_reload:{p}:{k}" for p in SCREEN_PANELS for k in RELOAD_OUTCOMES}
+    | {f"view_link:{k}" for k in VIEW_LINK_OUTCOMES}
+)
+
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
 # here must be READ by something outside the settings plumbing — a switch
 # that drives nothing is not a feature, and reporting it would put a fiction
@@ -652,7 +675,7 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS
-            or name in CLIENT_EVENTS)
+            or name in CLIENT_EVENTS or name in SCREEN_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

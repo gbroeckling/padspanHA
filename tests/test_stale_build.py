@@ -111,3 +111,65 @@ def test_what_counts_as_a_wall_screen(kiosk, w, h, sw, sh, want):
     res = subprocess.run([_NODE, "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert res.returncode == 0, res.stderr
     assert json.loads(res.stdout) is want
+
+
+# ── The opt-in report's view of wall screens (0.38.149) ───────────────────────
+# 0.38.145's self-reload and full-screen rule could only be confirmed on real
+# walls: the report says what kind of screen each page is, how a self-reload
+# went, and how a ?view= link fared.
+
+def _node(js):
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    res = subprocess.run([_NODE, "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=30)
+    assert res.returncode == 0, res.stderr
+    return json.loads(res.stdout)
+
+
+def test_both_panels_judge_screens_and_reloads_alike():
+    for name in ("screenKind", "reloadOutcome"):
+        assert _fn(_ATLAS, name) == _fn(_PANEL, name), f"{name} differs between panel.js and lights_panel.js"
+
+
+@pytest.mark.parametrize("panel,page,reloaded_for,how,want", [
+    ("panel", NEW, NEW, "panel:kiosk", "kiosk"),           # came back on the build it went for
+    ("atlas", NEW, NEW, "atlas:fullscreen", "fullscreen"),
+    ("panel", OLD, NEW, "panel:fullscreen", "stuck"),      # came back on the old build
+    ("panel", NEW, NEW, "atlas:kiosk", None),              # the other panel's reload
+    ("panel", NEW, NEW, "", None),                         # an ordinary reload
+    ("atlas", NEW, OLD, "atlas:kiosk", None),              # an older note, nothing to say
+])
+def test_how_a_self_reload_went(panel, page, reloaded_for, how, want):
+    js = _fn(_PANEL, "reloadOutcome") + (
+        f"\nconsole.log(JSON.stringify(reloadOutcome({json.dumps(panel)}, {json.dumps(page)}, "
+        f"{json.dumps(reloaded_for)}, {json.dumps(how)})));")
+    assert _node(js) == want
+
+
+@pytest.mark.parametrize("kiosk,w,idle,want", [
+    (True, 800, False, "kiosk"),
+    (False, 1920, True, "fullscreen_idle"),
+    (False, 1920, False, "fullscreen_used"),
+    (False, 1280, True, "windowed"),
+])
+def test_what_kind_of_screen(kiosk, w, idle, want):
+    stub = f"function untouchedFor(ms){{ return {json.dumps(idle)}; }}\n"
+    js = stub + _fn(_PANEL, "wallScreen") + "\n" + _fn(_PANEL, "screenKind") + (
+        f"\nconsole.log(JSON.stringify(screenKind({json.dumps(kiosk)}, "
+        f"{{innerWidth: {w}, innerHeight: 1080, screen: {{width: 1920, height: 1080}}}})));")
+    assert _node(js) == want
+
+
+def test_the_reports_are_wired_and_in_the_vocabulary():
+    from custom_components.padspan_ha import telemetry as T
+    panel, atlas = _PANEL.read_text(encoding="utf-8"), _ATLAS.read_text(encoding="utf-8")
+    for src, name in ((panel, "panel"), (atlas, "atlas")):
+        assert f'"wall_screen:{name}:" + screenKind(' in src
+        assert f'"wall_reload:{name}:" + _reloadNote' in src
+        assert f'sessionStorage.setItem("padspan_reload_how", "{name}:" +' in src
+        assert all(T.event_allowed(f"wall_screen:{name}:{k}") for k in T.SCREEN_KINDS)
+        assert all(T.event_allowed(f"wall_reload:{name}:{k}") for k in T.RELOAD_OUTCOMES)
+    assert '"view_link:" + (this._keepsLinkedView(v) ? "kept" : off ? "forensics_off" : "edition")' in panel
+    assert "this._countViewLink();" in panel
+    assert all(T.event_allowed(f"view_link:{k}") for k in T.VIEW_LINK_OUTCOMES)
+    assert not T.event_allowed("wall_screen:panel:huge") and not T.event_allowed("view_link:https")

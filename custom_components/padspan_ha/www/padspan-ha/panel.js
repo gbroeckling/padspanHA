@@ -78,6 +78,29 @@ for (const ev of ["pointerdown", "keydown", "wheel", "touchstart"]) {
 function untouchedFor(ms){
   return Date.now() - _lastInputAt >= ms;
 }
+// What kind of screen this is, for the opt-in report (wall_screen:*): does
+// the full-screen rule above find real wall screens, or desktops at F11?
+function screenKind(kiosk, win = globalThis){
+  if(kiosk) return "kiosk";
+  if(!wallScreen(false, win)) return "windowed";
+  return untouchedFor(120000) ? "fullscreen_idle" : "fullscreen_used";
+}
+// How a self-reload went, for the opt-in report (wall_reload:*). The page
+// that reloaded wrote "<panel>:<kiosk|fullscreen>" beside padspan_reloaded_for;
+// the page that comes back is the build it went for, or still the old one.
+function reloadOutcome(panel, pageBuild, reloadedFor, how){
+  if(!how || !reloadedFor || !how.startsWith(panel + ":")) return null;
+  if(reloadedFor === pageBuild) return how.slice(panel.length + 1);
+  return reloadedFor > pageBuild ? "stuck" : null;
+}
+// Read once per page load: this panel's self-reload, if it just made one.
+const _PAGE_START = Date.now();
+let _reloadNote = null, _screenReported = false;
+try {
+  const how = sessionStorage.getItem("padspan_reload_how") || "";
+  _reloadNote = reloadOutcome("panel", RELEASE_BUILD_ID, sessionStorage.getItem("padspan_reloaded_for") || "", how);
+  if (_reloadNote) sessionStorage.removeItem("padspan_reload_how");
+} catch(e) {}
 
 const _editionsPromise = import(`./views/editions.js?b=${BUILD_ID}`)
   .then(m => { EDITIONS = m; })
@@ -866,6 +889,9 @@ class PadSpanHaApp extends HTMLElement {
     // Load persisted mode (sample/live) even before hass is set.
     // When hass arrives we refresh.
     this._loadSettings();
+    // Once per page load, after the two idle minutes a full-screen window
+    // needs to count as a wall (_screenReport).
+    if (!this._screenTimer) this._screenTimer = setTimeout(() => this._screenReport(), Math.max(0, 150000 - (Date.now() - _PAGE_START)));
 
     // Always start keep-alive (activity ping + watchdog) regardless of data mode.
     this._startKeepAlive();
@@ -1871,6 +1897,22 @@ class PadSpanHaApp extends HTMLElement {
   // Called whenever settings land. Counts the view that was already open
   // once — it was set directly, never through setView — then releases
   // whatever waited. Idempotent: a later settings refresh finds nothing.
+  // What kind of screen this is and how a self-reload went (screenKind,
+  // reloadOutcome), once per page load.
+  _screenReport(){
+    if (_screenReported) return;
+    _screenReported = true;
+    this._telemetryEvent("wall_screen:panel:" + screenKind(this.state.kioskMode));
+    if (_reloadNote) this._telemetryEvent("wall_reload:panel:" + _reloadNote);
+  }
+  // A ?view= link (#93), once settings say whether it stays open.
+  _countViewLink(){
+    const v = this._urlPinnedView;
+    if (this._viewLinkCounted || !v || !this._settingsLoaded) return;
+    this._viewLinkCounted = true;
+    const off = v === "forensics" && (this.state.settings || {}).forensics_enabled !== true;
+    this._telemetryEvent("view_link:" + (this._keepsLinkedView(v) ? "kept" : off ? "forensics_off" : "edition"));
+  }
   _telemetryFlush(){
     const s = this.state.settings;
     if (!s || !("telemetry_enabled" in s)) return;
@@ -1897,6 +1939,7 @@ class PadSpanHaApp extends HTMLElement {
       this._renderNav();
       this._scheduleRender();
       this._telemetryFlush();
+      this._countViewLink();
     } catch (e) {
       // Non-fatal
       this._toast("Settings load failed (will retry on refresh).", true);
@@ -2055,7 +2098,10 @@ class PadSpanHaApp extends HTMLElement {
     const act = staleBuildAction(RELEASE_BUILD_ID, be, wall, reloadedFor);
     if(act && act.reload){
       let remembered = false;
-      try { sessionStorage.setItem("padspan_reloaded_for", be); remembered = true; } catch(e) {}
+      try {
+        sessionStorage.setItem("padspan_reloaded_for", be); remembered = true;
+        sessionStorage.setItem("padspan_reload_how", "panel:" + (this.state.kioskMode ? "kiosk" : "fullscreen"));
+      } catch(e) {}
       if(remembered){ location.reload(); return; }   // can't remember it: show the bar, don't risk a loop
     }
     const bar = this.$("#staleBuild");

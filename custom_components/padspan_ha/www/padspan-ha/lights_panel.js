@@ -100,6 +100,29 @@ for (const ev of ["pointerdown", "keydown", "wheel", "touchstart"]) {
 function untouchedFor(ms){
   return Date.now() - _lastInputAt >= ms;
 }
+// What kind of screen this is, for the opt-in report (wall_screen:*): does
+// the full-screen rule above find real wall screens, or desktops at F11?
+function screenKind(kiosk, win = globalThis){
+  if(kiosk) return "kiosk";
+  if(!wallScreen(false, win)) return "windowed";
+  return untouchedFor(120000) ? "fullscreen_idle" : "fullscreen_used";
+}
+// How a self-reload went, for the opt-in report (wall_reload:*). The page
+// that reloaded wrote "<panel>:<kiosk|fullscreen>" beside padspan_reloaded_for;
+// the page that comes back is the build it went for, or still the old one.
+function reloadOutcome(panel, pageBuild, reloadedFor, how){
+  if(!how || !reloadedFor || !how.startsWith(panel + ":")) return null;
+  if(reloadedFor === pageBuild) return how.slice(panel.length + 1);
+  return reloadedFor > pageBuild ? "stuck" : null;
+}
+// Read once per page load: this panel's self-reload, if it just made one.
+const _PAGE_START = Date.now();
+let _reloadNote = null, _screenReported = false;
+try {
+  const how = sessionStorage.getItem("padspan_reload_how") || "";
+  _reloadNote = reloadOutcome("atlas", BUILD_ID, sessionStorage.getItem("padspan_reloaded_for") || "", how);
+  if (_reloadNote) sessionStorage.removeItem("padspan_reload_how");
+} catch(e) {}
 
 const LS_HIDDEN = "padspan_ha_lights_hidden";
 // The one-time coach mark ("tap to switch · code or hold for controls") —
@@ -198,6 +221,20 @@ class PadSpanLightsApp extends HTMLElement {
     // either assigns, and the first timer would be orphaned beyond reach.
     if(this._pollTimer) clearInterval(this._pollTimer);
     this._pollTimer = setInterval(()=>this._poll(), 5000);
+    if(!this._screenTimer) this._screenTimer = setTimeout(()=>this._screenReport(), Math.max(0, 150000 - (Date.now() - _PAGE_START)));
+  }
+
+  // What kind of screen this is and how a self-reload went (screenKind,
+  // reloadOutcome), once per page load, after the two idle minutes a
+  // full-screen window needs to count as a wall. Only with the report on.
+  _screenReport(){
+    if(_screenReported || !this._hass || !this.state._telemetryOn) return;
+    _screenReported = true;
+    let kiosk = false;
+    try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
+    const send = (name)=>{ Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{}); };
+    send("wall_screen:atlas:" + screenKind(kiosk));
+    if(_reloadNote) send("wall_reload:atlas:" + _reloadNote);
   }
 
   async _poll(){
@@ -224,7 +261,10 @@ class PadSpanLightsApp extends HTMLElement {
         const act = staleBuildAction(BUILD_ID, be, wall, reloadedFor);
         if(act && act.reload){
           let remembered = false;
-          try { sessionStorage.setItem("padspan_reloaded_for", be); remembered = true; } catch(_) {}
+          try {
+            sessionStorage.setItem("padspan_reloaded_for", be); remembered = true;
+            sessionStorage.setItem("padspan_reload_how", "atlas:" + (kiosk ? "kiosk" : "fullscreen"));
+          } catch(_) {}
           if(remembered) location.reload();   // can't remember it: don't risk a loop
         }
       }).catch(() => {});
