@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.151",
+  "title": "A Day theme, beside Night and Light",
+  "date": "2026-10-20",
+  "body_markdown": "### New\n- **Settings → Appearance → Theme now offers three choices: Night, Light (inverted) and Day.** Night is the dark forest green you know. Light is the same colour inversion as before, unchanged, for anyone who can't use a dark screen; it just moved here from Settings → Presence. Day is new: the whole panel redrawn in light colours, with pale surfaces, dark text and the same green accent, in both the Classic and 2025 styles. Maps, charts, the 3D house and Pure Live keep their night colours in Day, so what they show reads the same either way.\n\n### Fixed\n- A panel whose settings arrived on a full refresh did not show its chosen panel style (Classic or 2025) or theme until a setting was changed. Both now follow every settings read."
+ },
+ {
   "version": "0.38.150",
   "title": "One look across the panel",
   "date": "2026-10-20",
@@ -28,11 +34,5 @@
   "title": "Smoke, gas and CO alarms aren't weather warnings either",
   "date": "2026-10-19",
   "body_markdown": "### Fixed\n- **Settings → Outdoor weather → Weather warnings no longer offers a smoke, gas or CO alarm.** Water-leak detectors were left out of that list in 0.38.94, but Emergency has since learned smoke, gas and CO alarms (0.38.135), and one named like a warning (\"Hall Smoke Alert\") still showed up. Picked, it stopped the Atlas finding real weather warnings on its own. One already picked is now ignored and Settings says so under the list, as it did for a leak detector: pick a warning there, or Automatic.\n\n### Opt-in report\n- An alarm set aside like that is counted the same way a leak detector already was (`weather_note:warning_ignored`)."
- },
- {
-  "version": "0.38.145",
-  "title": "Wall screens catch up after an update, and links open what they name",
-  "date": "2026-10-19",
-  "body_markdown": "### Fixed\n- **A wall screen left on the Atlas now reloads itself after an update.** The sidebar Atlas never checked which version Home Assistant was running, so a wall left on it kept showing the old Atlas until someone reloaded it by hand (found on a real wall screen today, still on 0.38.105 hours after the update). It now checks every 10 minutes, as the PadSpan panel does, and a wall screen reloads once for each new version.\n- **A full-screen window counts as a wall screen.** A browser in kiosk mode or full screen reloads itself after an update, as a `?kiosk=1` link already did, once nobody has touched it for two minutes (it may be a tablet somebody is using). Until then it shows the Reload bar.\n- **`?view=` links open the view they name** ([#93](https://github.com/gbroeckling/padspanHA/issues/93)). `?view=forensics`, `monitor`, `bluetooth` and `presence` landed on Overview, Forensics even when it was switched on. A link now stays on its view, unless that view isn't there: Forensics while it's off, or a view your edition doesn't have.\n- **The update note says what its version really is** ([#94](https://github.com/gbroeckling/padspanHA/issues/94)). \"This install was on v0.38.89\" named the last update anyone opened or dismissed the note for, not the version installed before. It now says \"The last update anyone here looked at was v0.38.89\", and the release notes still cover everything since.\n\n### Testing\n- One command for the whole test pass on Windows or macOS: `python tools/test_all.py` runs the suite, the 14 Live Aboard browser checks and, with a Home Assistant address and token set, a read-only check of a live install ([#97](https://github.com/gbroeckling/padspanHA/issues/97)).\n- The Live Aboard browser checks run on a Mac in Chrome, say why when the 3D view doesn't start instead of waiting on a button that never comes, and fail when they find a problem instead of only printing it ([#95](https://github.com/gbroeckling/padspanHA/issues/95)). They can also run in another machine's browser, such as a wall screen's, on its own graphics.\n- The test suite no longer prints \"coroutine was never awaited\" warnings from its own stand-ins, so a real one would stand out ([#96](https://github.com/gbroeckling/padspanHA/issues/96))."
  }
 ]
