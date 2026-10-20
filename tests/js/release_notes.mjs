@@ -237,7 +237,7 @@ await t("history link: none on ?kiosk=1 or a page filling the screen (Chrome --k
 
 // ── The shipped notes ──────────────────────────────────────────────────────
 await t("whatsnew.json: every release renders, with no markdown left showing", () => {
-  assert(Array.isArray(SHIPPED) && SHIPPED.length >= 1 && SHIPPED.length <= 6, "length " + SHIPPED.length);
+  assert(Array.isArray(SHIPPED) && SHIPPED.length >= 1 && SHIPPED.length <= 14, "length " + SHIPPED.length);
   const out = N.renderNotes(SHIPPED);
   assert(qa(out, ".notes-rel").length === SHIPPED.length, "not every release rendered");
   const text = out.textContent;

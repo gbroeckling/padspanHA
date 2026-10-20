@@ -53,7 +53,7 @@ def test_the_overlay_opens_closes_every_way_and_never_parses_markup() -> None:
 
 def test_the_shipped_notes_are_the_newest_releases_in_order() -> None:
     notes = json.loads(_NOTES.read_text(encoding="utf-8"))
-    assert isinstance(notes, list) and 1 <= len(notes) <= 6, len(notes)
+    assert isinstance(notes, list) and 1 <= len(notes) <= 14, len(notes)   # release.py PANEL_NOTES_COUNT
     for n in notes:
         assert set(n) == {"version", "title", "date", "body_markdown"}, n.keys()
         assert re.fullmatch(r"\d+\.\d+\.\d+", n["version"]), n["version"]
