@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.152",
+  "title": "The Atlas and Live Aboard match the rest of PadSpan",
+  "date": "2026-10-20",
+  "body_markdown": "### Fixed\n- **In the Day theme, the Atlas's tools above the map are readable.** In Mapping → Atlas, the Atlas card (its title, help and buttons) and the Transform, Place and Spread rows kept their night colours on a light page, so they were almost invisible. They now follow the Day theme like every other card. The map itself, its toolbar and the 3D house stay dark, as before.\n- **In the Day theme with the 2025 style, the Atlas's name fields stay dark.** \"Type a name to save as…\" and \"Type a name to set…\" turned white on the dark map.\n\n### Changed\n- **One look for buttons and text across the panel, the Atlas and Live Aboard.** The main buttons in the Atlas and Live Aboard (Apply, a chosen chip, the furniture library's Place and Share, the 3D card's button, WLED's main button) are the panel's deep green with a green edge instead of a brighter gradient. Text uses the panel's colours, links are green rather than blue, and text sizes are whole pixels with 10 px the smallest, as in the rest of the panel since 0.38.150.\n- **The 3D house's floating controls are one family.** Its bars, menus, sheets, toasts and cards had drifted to eight shades of glass and a handful of borders and shadows; they now share three glass strengths, three border strengths and two shadows, and faint grey-green text is the panel's muted grey, easier to read over a busy scene. The Atlas's pop-up sheets and toolbars use the same values, and Undo's amber is the panel's.\n- **Close is ✕ everywhere.** Live Aboard's sheets and cards used ×, the Atlas and the panel ✕.\n\nThe map and 3D drawings, light colours, the coloured mode buttons and Pure Live are unchanged."
+ },
+ {
   "version": "0.38.151",
   "title": "A Day theme, beside Night and Light",
   "date": "2026-10-20",
@@ -28,11 +34,5 @@
   "title": "Mezzanines and open edges in Live Aboard",
   "date": "2026-10-20",
   "body_markdown": "### New\n- **An open edge over a drop gets a railing.** A wall drawn with the Open (Loft) material along a mezzanine or gallery now shows in Live Aboard as a 1 m glass railing, where it looks out over a hall that rises past it: a lower floor at least 76 cm down (the drop at which building codes ask for a guard) whose height in Floor Heights reaches above the mezzanine. Anywhere else (between two rooms on one floor, over an ordinary storey below, or over nothing) it stays an open gap as before, so an Open doorway upstairs never grows a railing. The railing is still an opening: no wall lights hang on it, and the signal through it is unchanged. Explode, Cut and Down show it too.\n- **LED strips can follow a mezzanine's railing.** The strip tool's **Along a rail** is offered for a mezzanine as well as a deck, and lays the strip on the rail's top.\n\n### Fixed\n- **A mezzanine inside a tall hall is drawn under the hall's roof.** With the hall given its full height and the mezzanine its real base elevation (Mapping → Floor Heights), Live Aboard put a second roof on the mezzanine halfway up the hall and left the hall roofed only over part of it. The hall now gets one roof, and the mezzanine is roofed only where it reaches past the hall. Ordinary stacked floors are unchanged.\n\n### Help\n- Floor Heights, the wall material help, the Live Aboard guide and the Walls Guide explain how to set up a mezzanine and its open edges.\n\n### Opt-in report\n- Counts a house that has a railing over a drop (`house3d_loft_rail`) and one with a mezzanine inside a taller floor (`house3d_mezzanine`), so we can tell whether these houses show up.\n\n### Testing\n- The Live Aboard harness has a hall with a mezzanine (`?gym=1`) and open edges on the sample house (`?loft=1`), and finds a free port by itself when 8765 is taken."
- },
- {
-  "version": "0.38.146",
-  "title": "Smoke, gas and CO alarms aren't weather warnings either",
-  "date": "2026-10-19",
-  "body_markdown": "### Fixed\n- **Settings → Outdoor weather → Weather warnings no longer offers a smoke, gas or CO alarm.** Water-leak detectors were left out of that list in 0.38.94, but Emergency has since learned smoke, gas and CO alarms (0.38.135), and one named like a warning (\"Hall Smoke Alert\") still showed up. Picked, it stopped the Atlas finding real weather warnings on its own. One already picked is now ignored and Settings says so under the list, as it did for a leak detector: pick a warning there, or Automatic.\n\n### Opt-in report\n- An alarm set aside like that is counted the same way a leak detector already was (`weather_note:warning_ignored`)."
  }
 ]
