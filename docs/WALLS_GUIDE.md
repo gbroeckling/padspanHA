@@ -10,7 +10,7 @@ Each material is one number, in dB (more dB = more signal lost going through it)
 
 | Material | PadSpan uses | What it's for |
 |---|---|---|
-| Open (Loft) | 0 dB | No wall: an opening to the floor above or below |
+| Open (Loft) | 0 dB | No wall: an opening to the floor above or below. In Live Aboard, an open edge over a hall that rises past it (a mezzanine, a gallery) gets a railing |
 | Brick | 4 dB | A single brick or block wall |
 | Custom | 6 dB, or what you set | Anything else. **This is PadSpan's "don't know" wall**; a wall with no material is treated as Custom 6 dB |
 | Concrete | 8 dB | Poured concrete, foundation walls |

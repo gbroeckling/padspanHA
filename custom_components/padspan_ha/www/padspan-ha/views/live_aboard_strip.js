@@ -39,6 +39,10 @@
 // Imports nothing: three.js, the house's rules and the runs' rules
 // (live_aboard_runs.js) are handed in by the editor.
 
+// A railing: a deck's ("rail" pieces) or an open edge's over a drop (loftRail,
+// live_aboard_house.js applyBarriers): a strip can run along its top, and a
+// round-the-room run never hangs on one.
+const isRail = (pc) => !!pc && (pc.kind === "rail" || !!pc.loftRail);
 const SLOP = 6;                                     // px a press may move and still be a tap
 const GRAB = { mouse: 14, touch: 24 };              // px round a handle or a point
 const ON_RUN = { mouse: 10, touch: 18 };            // px from the run for a tap that adds a point
@@ -201,7 +205,7 @@ export function createStrip(ctx){
           let best = null;
           for (const P of F.pieces) {
             const pc = P.pc;
-            if (pc.kind === "rail") continue;
+            if (isRail(pc)) continue;
             const dd = segDist(m, [pc.x0, pc.y0], [pc.x1, pc.y1]);
             if (dd < 0.4 && (!best || dd < best.d)) best = { d: dd, P };
           }
@@ -423,7 +427,7 @@ export function createStrip(ctx){
     ctx.hint({ under: "Under it.", behind: "Round its back: a halo on the wall.", top: "Along its top edge." }[mode] + " It moves with the piece.");
   }
   function alongRail(F, room){
-    const rails = F.pieces.map(P => P.pc).filter(pc => pc.kind === "rail").map(pc => ({ a: [pc.x0, pc.y0], b: [pc.x1, pc.y1] }));
+    const rails = F.pieces.map(P => P.pc).filter(isRail).map(pc => ({ a: [pc.x0, pc.y0], b: [pc.x1, pc.y1] }));
     const r = RUNS.alongRail(RUNS.insetLoop(room.pts, 0.03), rails, { face: faceFor() });
     if (r.error) { ctx.hint(r.error, true); return; }
     setRun(withString(r.run));
@@ -535,7 +539,7 @@ export function createStrip(ctx){
     acts.appendChild(seg(areaBtn("room", "Round this room", "Tap a room: the run goes along every wall")));
     acts.appendChild(seg(areaBtn("under", "Under", "Under a piece: wall cabinets, a bed"), areaBtn("behind", "Behind", "Behind a piece: a TV, a headboard"),
       areaBtn("top", "Top edge", "Along the top of a piece: a shelf, a cabinet")));
-    if (F.fl.outdoor || F.rooms.some(r => r.outdoor)) acts.appendChild(seg(areaBtn("rail", "Along a rail", "Tap a deck: along its rail or edge")));
+    if (F.fl.outdoor || F.rooms.some(r => r.outdoor) || F.pieces.some(P => P.pc.loftRail)) acts.appendChild(seg(areaBtn("rail", "Along a rail", "Tap a deck or a mezzanine: along its rail or edge")));
     if (!acts.parentNode) S.appendChild(acts);
     const tick = (label, key, title) => {
       const l = d("label", "la3d-tick"), c = d("input");
@@ -935,7 +939,7 @@ export function createStrip(ctx){
         roundPiece(ph.id, area);
       } else {
         const p = r ? onLevel(F, r, 0) : null, room = p ? F.rooms.find(q => HOUSE.inPoly(p[0], p[1], q.pts)) : null;
-        if (!room) { ctx.hint(area === "rail" ? "Tap the deck." : "Tap inside a room on this floor.", true); return; }
+        if (!room) { ctx.hint(area === "rail" ? "Tap the deck or the mezzanine." : "Tap inside a room on this floor.", true); return; }
         if (area === "rail") alongRail(F, room); else roundRoom(F, room);
       }
       area = null;
@@ -955,7 +959,7 @@ export function createStrip(ctx){
       // Near a deck's rail: on its top.
       for (const P of drawing.F.pieces) {
         const pc = P.pc;
-        if (pc.kind !== "rail") continue;
+        if (!isRail(pc)) continue;
         const L = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0) || 1, t = Math.max(0, Math.min(L, ((p[0] - pc.x0) * (pc.x1 - pc.x0) + (p[1] - pc.y0) * (pc.y1 - pc.y0)) / L));
         const q = [pc.x0 + (pc.x1 - pc.x0) * t / L, pc.y0 + (pc.y1 - pc.y0) * t / L];
         if (Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.3) { addAnchor({ kind: "free", x: q[0], y: q[1], h: RUNS.RAIL_TOP_M }); paint(); return; }

@@ -335,8 +335,19 @@ export function houseModel(h, cuts = null){
     // The roof: where no storey is above this one. Every bit of it is under
     // a roof — a hipped part, a higher storey's eaves, or where neither
     // reaches (a slanted wall's wedge, a sliver) a flat lid at the walls' tops.
+    // A storey above takes this roof only where it rises above this one's
+    // top; one that stays inside this storey's height (a mezzanine at 3.2 m
+    // in a hall 7.5 m high) is under this roof and has none of its own there
+    // (2026-10-20). Floors stacked one on another never meet either case.
     const roofCells = filled[k].slice();
-    for (let m = k + 1; m < st.length; m++) for (let i = 0; i < roofCells.length; i++) if (filled[m][i]) roofCells[i] = 0;
+    for (let m = 0; m < st.length; m++) {
+      if (m === k) continue;
+      const M = st[m];
+      const over = M.elev > s.elev + 1e-3 && M.elev + M.h > s.elev + s.h + 0.05;      // above, and rising above our top
+      const within = M.elev < s.elev - 1e-3 && M.elev + M.h >= s.elev + s.h - 0.05;   // we are inside M's height
+      if (!over && !within) continue;
+      for (let i = 0; i < roofCells.length; i++) if (filled[m][i]) roofCells[i] = 0;
+    }
     const parts = rectsOf(close(roofCells, g, 2), g, roofed);
     const bare = roofCells.map((v, i) => (v && !roofed[i] ? 1 : 0));
     out[k] = { elev: s.elev, h: s.h, top: s.elev + s.h, floors: s.floors.map(f => f.id), shapes: shapesOf(loopsOf(floorCells, g)), roof: parts,
@@ -344,13 +355,14 @@ export function houseModel(h, cuts = null){
   }
   return { axis, grid: { u0: g.u0, v0: g.v0, nx: g.nx, ny: g.ny, cell: g.cell }, frame, storeys: out };
 }
-/** Is plan point (x, y) under a roof shown over storey `s` or one above it? */
+/** Is plan point (x, y) under a roof shown over storey `s` or one above it,
+ *  or over a lower storey that rises well above it (a mezzanine in a hall)? */
 export function underRoof(model, x, y, elev){
   const g = model && model.grid;
   if (!g) return false;
   const [u, v] = model.frame.toLocal([x, y]), i = Math.floor((u - g.u0) / g.cell), j = Math.floor((v - g.v0) / g.cell);
   if (i < 0 || j < 0 || i >= g.nx || j >= g.ny) return false;
-  return model.storeys.some(s => s.elev >= elev - 1e-3 && s.roofCells[j * g.nx + i]);
+  return model.storeys.some(s => (s.elev >= elev - 1e-3 || s.top > elev + 0.5) && s.roofCells[j * g.nx + i]);
 }
 /** Is the point at plan (x, y), `h` metres up, under a roof: in a roofed
  *  part of a storey whose roof is no lower than it? */

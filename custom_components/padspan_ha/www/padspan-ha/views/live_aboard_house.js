@@ -51,7 +51,8 @@ export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArro
 export const HOUSE3D_FALLBACK_KINDS = ["no_webgl", "slow_gpu", "context_lost", "error"];
 // house3d_wet_window: a window showed open while it rains or snows (the alert
 // below the Motion chip), once per page load.
-export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window"];
+export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window",
+  "house3d_loft_rail", "house3d_mezzanine"];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();
 /** Count `name` once per page load, and only a name from the closed list. */
@@ -62,6 +63,12 @@ export function countHouse3dOnce(name, send){
   return true;
 }
 export function _resetHouse3dCountsForTests(){ _counted.clear(); }
+/** A floor inside a taller one's height: a mezzanine in a hall (its roof is
+ *  the hall's, live_aboard_storey.js houseModel). Real heights, not Explode's. */
+export function hasNestedFloor(h){
+  const fl = ((h && h.floors) || []).filter(f => !f.outdoor);
+  return fl.some(B => fl.some(A => B.elev0 > A.elev0 + 1e-3 && B.elev0 + B.h <= A.elev0 + A.h + 0.05));
+}
 
 // ── Tunables (metres) ────────────────────────────────────────────────────────
 export const FLOOR_TO_FLOOR_M = 2.8;      // the Floor Heights table's blank (maps.js)
@@ -73,6 +80,9 @@ export const EXT_T = 0.14;                // outside wall thickness
 const MIN_T = 0.10;                       // the thinnest shared wall
 export const CUT_H = 0.42;                // what is left of a wall that is cut away
 const BAR_TOL = 0.40, BAR_COS = Math.cos(8 * Math.PI / 180);   // a barrier this close to a wall's line replaces that stretch
+// An open edge needs a guard where it drops more than this (the IBC and IRC's
+// 30 in: a step down, a split level, gets none).
+export const GUARD_DROP_M = 0.76;
 export const DOOR_H = DRAFT.DOOR_HEAD_M, SILL_H = DRAFT.WINDOW_SILL_M, HEAD_H = DRAFT.WINDOW_HEAD_M, RAIL_H = 1.0;
 // A room on an indoor floor that is really outdoors (no walls, a rail if raised).
 const OUTDOOR_ROOM = /\b(deck|patio|porch|balcony|terrace|veranda|yard|garden|lawn|driveway|outside|outdoor)\b/i;
@@ -340,12 +350,14 @@ export function barrierKind(b){
  *  stays where it was cut. */
 export function drawnSpan(pc){
   const L = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
-  const ext = pc.kind === "wall" || pc.kind === "rail" ? pc.thick / 2 : 0;
+  // A railing on an open edge too (loftRail): its ends close the gap between
+  // two rooms' outlines at a corner, as a wall's do.
+  const ext = pc.kind === "wall" || pc.kind === "rail" || pc.loftRail ? pc.thick / 2 : 0;
   const e0 = pc.corner0 === false ? 0 : ext, e1 = pc.corner1 === false ? 0 : ext;
   const k = L > 0 ? (e1 - e0) / 2 / L : 0;              // the middle moves toward the longer end
   return { mx: (pc.x0 + pc.x1) / 2 + (pc.x1 - pc.x0) * k, my: (pc.y0 + pc.y1) / 2 + (pc.y1 - pc.y0) * k, len: L + e0 + e1 };
 }
-export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKind){
+export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKind, looksDown = null){
   for (const b of barriers || []) {
     if (!b || typeof b !== "object" || canon(b.floor_id) !== floor.id) continue;
     const kind = kindOf(b), mat = String(b.material || "").toLowerCase();
@@ -375,6 +387,25 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
       }
       if (!hit) pieces.push({ x0: a[0], y0: a[1], x1: c[0], y1: c[1], nx: uy, ny: -ux, cls: "int", thick: 0.12,
                               shared: false, kind, mat, barrier: b, free: true });
+    }
+  }
+  // An open edge that looks down into the house gets a railing (a mezzanine
+  // over a hall, a gallery, an open stairwell; 2026-10-20): an Open (Loft)
+  // barrier on an outside edge of its floor (cls "ext", not shared:
+  // deriveWalls found no indoor room behind it on this floor) whose far side
+  // lies over an indoor room of a lower floor whose space rises past this
+  // one (looksDown): a hall given its full height. A plain storey under it
+  // is a floor, not a drop (an Open doorway upstairs onto a landing nobody
+  // drew as a room keeps its gap; regression review). It stays an
+  // opening everywhere else ("open" kind: no wall lights on it, still an
+  // opening to the edit tools); only how it is drawn changes. Between two
+  // rooms on one floor, or on an edge with nothing under it (the street from
+  // the main floor), it stays a plain gap.
+  if (looksDown && !floor.outdoor) {
+    for (const pc of pieces) {
+      if (pc.kind !== "open" || pc.cls !== "ext" || pc.shared || pc.free) continue;
+      pc.loftRail = [0.25, 0.5, 0.75].some(t => looksDown(pc.x0 + (pc.x1 - pc.x0) * t + pc.nx * 0.4,
+                                                           pc.y0 + (pc.y1 - pc.y0) * t + pc.ny * 0.4));
     }
   }
   return pieces;
@@ -416,7 +447,13 @@ export function wallElements(pc, floorH){
       solid(head, top, base);
       break;
     }
-    case "open": solid(-SLAB_T, 0, base); break;
+    case "open":
+      solid(-SLAB_T, 0, base);
+      if (pc.loftRail) {   // applyBarriers: an open edge over a drop
+        E.push({ z0: RAIL_H - 0.05, z1: RAIL_H, col: RAIL_COL, thick: 0.06, glass: false, cuttable: false });
+        E.push({ z0: 0, z1: RAIL_H - 0.05, col: RAIL_GLASS, thick: 0.02, glass: true, cuttable: false });
+      }
+      break;
     case "doorway": {
       // An opening with no door in it (an archway, an open plan): the slab
       // edge, the gap, the wall over it.
@@ -1559,7 +1596,13 @@ export function readHouse(model, floorList, lightsByEid, hidden, overrides, gap 
   const perFloor = new Map();
   for (const fl of F.floors) {
     const mine = rooms.filter(r => r.floor === fl);
-    const pieces = applyBarriers(fl, deriveWalls(fl, mine, F.ground), barriers, F.canon, kindOf);
+    // Under the far side of an open edge: a room of a lower floor at least
+    // GUARD_DROP_M down whose floor reaches a railing's height past this one
+    // (a deck on a real floor counts; the outside floor, drawn at the lowest
+    // floor's level, does not). Real heights (elev0), so Explode never changes it.
+    const looksDown = (x, y) => rooms.some(r => r.floor !== fl && !r.floor.outdoor && r.floor.elev0 < fl.elev0 - GUARD_DROP_M
+                                                && r.floor.elev0 + r.floor.h >= fl.elev0 + RAIL_H && inPoly(x, y, r.pts));
+    const pieces = applyBarriers(fl, deriveWalls(fl, mine, F.ground), barriers, F.canon, kindOf, looksDown);
     perFloor.set(fl, { rooms: mine, pieces });
   }
   return { floors: F.floors, byId: F.byId, canon: F.canon, ground: F.ground, rooms, perFloor,

@@ -4,6 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.147 — Mezzanines and open edges in Live Aboard (2026-10-20)
+
+### New
+- **An open edge over a drop gets a railing.** A wall drawn with the Open (Loft) material along a mezzanine or gallery now shows in Live Aboard as a 1 m glass railing, where it looks out over a hall that rises past it: a lower floor at least 76 cm down (the drop at which building codes ask for a guard) whose height in Floor Heights reaches above the mezzanine. Anywhere else (between two rooms on one floor, over an ordinary storey below, or over nothing) it stays an open gap as before, so an Open doorway upstairs never grows a railing. The railing is still an opening: no wall lights hang on it, and the signal through it is unchanged. Explode, Cut and Down show it too.
+- **LED strips can follow a mezzanine's railing.** The strip tool's **Along a rail** is offered for a mezzanine as well as a deck, and lays the strip on the rail's top.
+
+### Fixed
+- **A mezzanine inside a tall hall is drawn under the hall's roof.** With the hall given its full height and the mezzanine its real base elevation (Mapping → Floor Heights), Live Aboard put a second roof on the mezzanine halfway up the hall and left the hall roofed only over part of it. The hall now gets one roof, and the mezzanine is roofed only where it reaches past the hall. Ordinary stacked floors are unchanged.
+
+### Help
+- Floor Heights, the wall material help, the Live Aboard guide and the Walls Guide explain how to set up a mezzanine and its open edges.
+
+### Opt-in report
+- Counts a house that has a railing over a drop (`house3d_loft_rail`) and one with a mezzanine inside a taller floor (`house3d_mezzanine`), so we can tell whether these houses show up.
+
+### Testing
+- The Live Aboard harness has a hall with a mezzanine (`?gym=1`) and open edges on the sample house (`?loft=1`), and finds a free port by itself when 8765 is taken.
+
+---
+
 ## 0.38.146 — Smoke, gas and CO alarms aren't weather warnings either (2026-10-19)
 
 ### Fixed

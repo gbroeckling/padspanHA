@@ -13,7 +13,9 @@ Every pw_*.py launches through launch() so the choice lives in one place
 PADSPAN_HARNESS_BROWSER=msedge|chrome|chromium overrides the choice.
 PADSPAN_HARNESS_CDP=http://127.0.0.1:9333 drives a browser that is already
 running instead (another machine's, through an SSH tunnel: a wall screen's
-own GPU). Its page must reach the harness on 127.0.0.1:8765 too (ssh -R).
+own GPU). Its page must reach the harness on 127.0.0.1:<port> too (ssh -R).
+PADSPAN_HARNESS_PORT (default 8765) is where the harness is served; run_all.py
+picks a free one when 8765 is taken by something else.
 
 wait_ready() replaces a fixed sleep after page load: it returns once the 3D
 view is drawing, and exits with code 2 and the reason (slow_gpu, no WebGL...)
@@ -27,6 +29,8 @@ import time
 SWIFTSHADER = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
 STEADY_FRAMES = ["--disable-gpu-vsync", "--disable-frame-rate-limit", "--disable-renderer-backgrounding",
                  "--disable-background-timer-throttling", "--disable-backgrounding-occluded-windows"]
+PORT = int(os.environ.get("PADSPAN_HARNESS_PORT", "8765"))
+HARNESS = f"http://127.0.0.1:{PORT}/tools/live_aboard_harness/"
 SLOT = ("const LA = await import('../../custom_components/padspan_ha/www/padspan-ha/views/live_aboard.js');"
         " const s = LA.liveAboardSlot('atlas');")
 

@@ -43,9 +43,33 @@ const MODEL = {
   }, one ? {} : { "binary_sensor.office_motion": { x_m: 2, y_m: 2, floor_id: "upper" }, "light.bed": { x_m: 8, y_m: 3, floor_id: "upper" },
                   "light.rec_cans": { x_m: 4, y_m: 5, floor_id: "base" }, "sensor.office_temperature": { x_m: 4.8, y_m: 2, floor_id: "upper" } }),
   rf_barriers_m: [{ id: "w1", name: "Living window", material: "glass", floor_id: "main", points_m: [[11, 2], [11, 3.6]], linked_entity_id: "binary_sensor.living_window" },
-                  { id: "w2", name: "Kitchen window", material: "glass", floor_id: "main", points_m: [[1, 0], [2.6, 0]], linked_entity_id: "binary_sensor.kitchen_window" }],
+                  { id: "w2", name: "Kitchen window", material: "glass", floor_id: "main", points_m: [[1, 0], [2.6, 0]], linked_entity_id: "binary_sensor.kitchen_window" }].concat(q.get("loft") === "1" && !one ? [
+                  // ?loft=1: Open (Loft) edges, the railing cases (live_aboard_house.js applyBarriers):
+                  // all gaps: over the Laundry, an ordinary storey below (no drop: ?gym=1 has the railings),
+                  // between two rooms upstairs and onto the street
+                  { id: "loft", name: "Loft edge", material: "open", attenuation_dbm: 0, floor_id: "upper", points_m: [[5.1, 6], [11, 6]] },
+                  { id: "between", name: "Office to bath", material: "open", attenuation_dbm: 0, floor_id: "upper", points_m: [[0.5, 5.05], [4.5, 5.05]] },
+                  { id: "street", name: "Living room east", material: "open", attenuation_dbm: 0, floor_id: "main", points_m: [[11, 4], [11, 6]] }] : []),
   scanner_positions_m: {}, scanners: {},
 };
+// ?gym=1: a hall with a mezzanine (a sports hall, say): a 20 x 12 m hall
+// 7.5 m to the roof, and at 3.2 m a gallery across the back, a walkway in
+// front of the toilets. Open (Loft) edges: the gallery's front and the
+// walkway's front, both over the hall (railings), and gallery-to-walkway
+// (one floor: a gap).
+if (q.get("gym") === "1") Object.assign(MODEL, {
+  floors: [{ id: "hall", name: "Hall", level: 0, floor_to_floor_m: 7.5 }, { id: "mezz", name: "Mezzanine", level: 1, floor_to_floor_m: 3 }],
+  floor_elevations: { hall: 0, mezz: 3.2 },
+  room_geometry_m: { Hall: rect("hall", 0, 0, 20, 12), Gallery: rect("mezz", 0, 0, 14, 4),
+                     Toilets: rect("mezz", 14.12, 0, 20, 2.5), Walkway: rect("mezz", 14.12, 2.62, 20, 4) },
+  rf_barriers_m: [
+    { id: "gal", name: "Gallery edge", material: "open", attenuation_dbm: 0, floor_id: "mezz", points_m: [[0, 4], [14, 4]] },
+    { id: "walk", name: "Walkway edge", material: "open", attenuation_dbm: 0, floor_id: "mezz", points_m: [[14.12, 4], [20, 4]] },
+    { id: "galwalk", name: "Gallery to walkway", material: "open", attenuation_dbm: 0, floor_id: "mezz", points_m: [[14.06, 2.62], [14.06, 4]] },
+  ],
+  light_positions_m: { "light.kitchen_pots": { x_m: 10, y_m: 8, floor_id: "hall" }, "light.bed": { x_m: 6, y_m: 2, floor_id: "mezz" },
+                       "light.living_valance": { x_m: 7, y_m: 3.8, floor_id: "mezz", width_cm: 300, height_cm: 5 } },
+});
 const ago = (min) => new Date(Date.now() - min * 60e3).toISOString();
 const S = (state, fn, a = {}, min = 60) => ({ state, attributes: { friendly_name: fn, ...a }, last_changed: ago(min), last_updated: ago(min), last_reported: ago(Math.min(min, 3)) });
 const M = { device_class: "motion" };

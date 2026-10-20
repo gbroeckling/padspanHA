@@ -4107,7 +4107,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
         "steps": [
           "In the Edit tab, click RF Barriers.",
-          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map.",
+          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the hall given its full height in Floor Heights) gets a railing; anywhere else it stays an open gap.",
           "Click along the wall on the photo, one point per corner or bend.",
           "Click Undo point to remove the last point.",
           "Double-click, or click Finish, once you have at least two points."
@@ -4585,7 +4585,8 @@ function _floorHeights(ctx){
     el("div",{class:"muted",style:"font-size:13px;font-weight:600"},"Floor Heights"),
     el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},
       "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
-      "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine."),
+      "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine. "+
+      "For a mezzanine, give the hall under it its full height (floor to roof) and the mezzanine its real base elevation: Live Aboard draws it inside the hall, under the hall's roof."),
   ]);
   if(!floors.length){
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"No floors defined in Home Assistant yet."));

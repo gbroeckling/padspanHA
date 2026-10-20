@@ -3,9 +3,9 @@ Edit at that tool (views/live_aboard_edit.js startTool). Prints which tool butto
 is pressed and the hint, per tool."""
 import sys
 from playwright.sync_api import sync_playwright
-from browser import launch, wait_ready   # the machine's browser (issue #95)
+from browser import HARNESS, launch, wait_ready   # the machine's browser (issue #95)
 
-BASE = "http://127.0.0.1:8765/tools/live_aboard_harness/index.html?display=0&edit=1"
+BASE = f"{HARNESS}index.html?display=0&edit=1"
 with sync_playwright() as p:
     b = launch(p)
     errs = []

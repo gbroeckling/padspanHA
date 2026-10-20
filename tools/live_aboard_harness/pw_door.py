@@ -4,12 +4,12 @@ usage: python pw_door.py <tool> <fid,x0,y0,x1,y1> <out.png> [extra query]
 """
 import sys, time
 from playwright.sync_api import sync_playwright
-from browser import launch, wait_ready   # the machine's browser (issue #95)
+from browser import HARNESS, launch, wait_ready   # the machine's browser (issue #95)
 
 tool, seg, out = sys.argv[1], sys.argv[2], sys.argv[3]
 extra = sys.argv[4] if len(sys.argv) > 4 else ""
 fid, x0, y0, x1, y1 = seg.split(",")
-url = f"http://127.0.0.1:8765/tools/live_aboard_harness/index.html?one=1&sky=sunny&edit=1{extra}"
+url = f"{HARNESS}index.html?one=1&sky=sunny&edit=1{extra}"
 
 with sync_playwright() as p:
     b = launch(p)

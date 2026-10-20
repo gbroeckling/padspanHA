@@ -1562,6 +1562,10 @@ function createSlot(slotKey){
     // A solid floor under each storey (halls never drawn as rooms are no
     // holes), and the roof over it (live_aboard_storey.js).
     if (storeyL) shellRes.push(...storeyL.build(h, floorsUi, cuts, storeyLook(tileSum)));
+    // The opt-in report (closed words, once per page load): an open edge drawn
+    // as a railing, and a floor inside a taller one (a mezzanine in a hall).
+    if ([...h.perFloor.values()].some(per => per.pieces.some(pc => pc.loftRail))) HOUSE.countHouse3dOnce("house3d_loft_rail", send);
+    if (HOUSE.hasNestedFloor(h)) HOUSE.countHouse3dOnce("house3d_mezzanine", send);
     if (atlas) platesOf(h);
     // The ground and the sun, sized to the house.
     const cx = (houseBox.x0 + houseBox.x1) / 2, cy = (houseBox.y0 + houseBox.y1) / 2;

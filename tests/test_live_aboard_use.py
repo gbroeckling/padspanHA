@@ -166,6 +166,7 @@ def test_no_new_report_word_and_the_new_file_is_credited() -> None:
     an uncaught throw in the new file is credited to it."""
     assert set(T.HOUSE3D_EVENTS) == {"house3d_opened", "house3d_fallback:no_webgl", "house3d_fallback:slow_gpu",
                                      "house3d_fallback:context_lost", "house3d_fallback:error",
-                                     "house3d_wet_window"}   # 0.38.127: the open-window-in-the-rain alert showed
+                                     "house3d_wet_window",   # 0.38.127: the open-window-in-the-rain alert showed
+                                     "house3d_loft_rail", "house3d_mezzanine"}   # 0.38.147: a railing on an open edge, a mezzanine
     assert "live_aboard_use" in T.UI_ERROR_HELPERS and T.event_allowed("ui_error:live_aboard_use")
     assert "telemetry" not in _code(_VIEWS / "live_aboard_use.js")

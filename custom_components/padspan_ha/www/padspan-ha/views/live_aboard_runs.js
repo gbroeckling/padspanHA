@@ -321,7 +321,7 @@ export function alongRail(loop, rails, opts = {}){
       if (!near) gaps.push(i);
     });
   }
-  if (gaps.length >= loop.length) return { error: "No rail along that deck." };
+  if (gaps.length >= loop.length) return { error: "No rail along that room's edge." };
   return tidy({ pts, face: opts.face || "room", loop: true, ...(gaps.length ? { gaps } : null) });
 }
 function segDist(p, a, b){

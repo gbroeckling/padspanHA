@@ -27,6 +27,8 @@ if (!WWW) { console.error("usage: live_aboard_house.mjs <www/padspan-ha dir>"); 
 const H = await import(pathToFileURL(join(WWW, "views", "live_aboard_house.js")).href);
 const LC = await import(pathToFileURL(join(WWW, "views", "light_codes.js")).href);
 const DR = await import(pathToFileURL(join(WWW, "views", "live_aboard_draft.js")).href);
+const ST = await import(pathToFileURL(join(WWW, "views", "live_aboard_storey.js")).href);
+const RU = await import(pathToFileURL(join(WWW, "views", "live_aboard_runs.js")).href);
 
 const failures = [];
 const cases = {};
@@ -504,6 +506,121 @@ tryCase("spin: the needle angle is what a real camera draws at the middle of the
     }
   }
   check("spin: the needle angle is what a real camera draws at the middle of the view", !bad.length, bad.slice(0, 5));
+});
+
+// ── open edges over a drop: railings (2026-10-20) ───────────────────────────
+// A gym: a 20 x 10 m hall, a mezzanine 3 m up over its first 4 m, split into
+// a gallery and a walkway. Open (Loft) edges: the gallery's edge over the hall
+// (a drop into the house: a railing), between the gallery and the walkway (one
+// floor: a gap), the hall's own outside edge (the ground: a gap), and the
+// walkway's far end, which stands past the hall (nothing under it: a gap).
+const GYM = { floors: [{ id: "hall", floor_to_floor_m: 7.5 }, { id: "mezz", floor_to_floor_m: 3 }], floor_elevations: { hall: 0, mezz: 3 },
+  room_geometry_m: { Hall: rect("hall", 0, 0, 20, 10), Gallery: rect("mezz", 0, 0, 12, 4), Walkway: rect("mezz", 12.12, 0, 23, 4) },
+  rf_barriers_m: [
+    { id: "edge", material: "open", floor_id: "mezz", points_m: [[0, 4], [12, 4]] },
+    { id: "between", material: "open", floor_id: "mezz", points_m: [[12.06, 0.5], [12.06, 3.5]] },
+    { id: "hallside", material: "open", floor_id: "hall", points_m: [[20, 2], [20, 8]] },
+    { id: "pastit", material: "open", floor_id: "mezz", points_m: [[23, 0.5], [23, 3.5]] },
+  ] };
+tryCase("open edges: a railing where an open edge looks down into the house, a gap everywhere else", () => {
+  const h = H.readHouse(GYM, GYM.floors, {}, null);
+  const at = (fl, id) => h.perFloor.get(h.byId.get(fl)).pieces.filter(p => p.barrier && p.barrier.id === id);
+  const edge = at("mezz", "edge"), between = at("mezz", "between"), hallside = at("hall", "hallside"), past = at("mezz", "pastit");
+  const glass = (pc) => H.wallElements(pc, 3).some(e => e.glass && e.z1 <= H.RAIL_H + 1e-9);
+  check("open edges: a railing where an open edge looks down into the house, a gap everywhere else",
+    edge.length && edge.every(p => p.kind === "open" && p.loftRail && glass(p))
+    && between.length && between.every(p => p.kind === "open" && !p.loftRail && !glass(p))
+    && hallside.length && hallside.every(p => !p.loftRail)
+    && past.length && past.every(p => !p.loftRail),
+    { edge, between, hallside, past });
+});
+tryCase("open edges: a railing edge is still an opening, never a wall a light hangs on", () => {
+  const h = H.readHouse(GYM, GYM.floors, {}, null);
+  const pieces = h.perFloor.get(h.byId.get("mezz")).pieces;
+  const hung = H.nearestWall(pieces, 6, 3.9, 0.5);
+  check("open edges: a railing edge is still an opening, never a wall a light hangs on",
+    !hung || !(hung.pc.barrier && hung.pc.barrier.id === "edge"), hung && hung.pc);
+});
+
+// The same house's other cases: one change each to the gym.
+const gymWith = (patch) => JSON.parse(JSON.stringify({ ...GYM, ...patch }));
+const railOf = (h, fl, id) => h.perFloor.get(h.byId.get(fl)).pieces.filter(p => p.barrier && p.barrier.id === id);
+tryCase("open edges: over a deck below a railing; over a step under the guard drop (0.76 m) a gap", () => {
+  const deck = gymWith({ floor_elevations: { hall: 0, mezz: 3 }, room_meta: { Hall: { outdoor: true } } });
+  const step = gymWith({ floor_elevations: { hall: 0, mezz: 0.6 } });
+  const d = railOf(H.readHouse(deck, deck.floors, {}, null), "mezz", "edge");
+  const st = railOf(H.readHouse(step, step.floors, {}, null), "mezz", "edge");
+  check("open edges: over a deck below a railing; over a step under the guard drop (0.76 m) a gap",
+    H.GUARD_DROP_M === 0.76 && d.length && d.every(p => p.loftRail) && st.length && st.every(p => !p.loftRail), { d, st });
+});
+tryCase("open edges: over a plain storey (an upstairs doorway onto an undrawn landing) a gap, not a railing", () => {
+  // The hall only 3 m tall: the mezzanine is the floor above, not inside it.
+  const stacked = gymWith({ floors: [{ id: "hall", floor_to_floor_m: 3 }, { id: "mezz", floor_to_floor_m: 3 }] });
+  const ps = ["edge", "pastit"].flatMap(id => railOf(H.readHouse(stacked, stacked.floors, {}, null), "mezz", id));
+  check("open edges: over a plain storey (an upstairs doorway onto an undrawn landing) a gap, not a railing",
+    ps.length && ps.every(p => p.kind === "open" && !p.loftRail), { ps });
+});
+tryCase("open edges: Explode never changes which edges get a railing", () => {
+  const plain = H.readHouse(GYM, GYM.floors, {}, null), exploded = H.readHouse(GYM, GYM.floors, {}, null, null, 2.6);
+  const flags = (h) => ["edge", "between", "pastit"].map(id => railOf(h, "mezz", id).map(p => !!p.loftRail).join(",")).join("|");
+  // A step (0.6 m) stays a step when Explode lifts the mezzanine 2.6 m apart.
+  const step = gymWith({ floor_elevations: { hall: 0, mezz: 0.6 } });
+  const sPlain = H.readHouse(step, step.floors, {}, null), sExp = H.readHouse(step, step.floors, {}, null, null, 2.6);
+  check("open edges: Explode never changes which edges get a railing", flags(plain) === flags(exploded) && flags(plain).startsWith("true")
+    && flags(sPlain) === flags(sExp) && !flags(sExp).includes("true"),
+    { plain: flags(plain), exploded: flags(exploded), step: flags(sPlain), stepExploded: flags(sExp) });
+});
+tryCase("open edges: part of an edge open: the railing on that part only, the rest stays wall", () => {
+  const part = gymWith({ rf_barriers_m: [{ id: "edge", material: "open", floor_id: "mezz", points_m: [[2, 4], [7, 4]] }] });
+  const hp = H.readHouse(part, part.floors, {}, null), pieces = hp.perFloor.get(hp.byId.get("mezz")).pieces;
+  const front = pieces.filter(p => near(p.y0, p.y1, 1e-6) && Math.abs(p.y0 - 4) < 0.2 && Math.max(p.x0, p.x1) <= 12.01);
+  const rails = front.filter(p => p.loftRail), walls = front.filter(p => p.kind === "wall");
+  const span = rails.reduce((a, p) => a + len(p), 0);
+  check("open edges: part of an edge open: the railing on that part only, the rest stays wall",
+    rails.length >= 1 && near(span, 5, 0.02) && walls.length >= 2 && walls.every(w => !w.loftRail), { front });
+});
+tryCase("open edges: one barrier round a corner: a railing where it drops, a gap where it meets a room", () => {
+  const multi = gymWith({ rf_barriers_m: [{ id: "edge", material: "open", floor_id: "mezz", points_m: [[0, 4], [12, 4], [12, 0.5]] }] });
+  const ps = railOf(H.readHouse(multi, multi.floors, {}, null), "mezz", "edge");
+  const front = ps.filter(p => near(p.y0, p.y1, 1e-6)), side = ps.filter(p => !near(p.y0, p.y1, 1e-6));
+  check("open edges: one barrier round a corner: a railing where it drops, a gap where it meets a room",
+    front.length && front.every(p => p.loftRail) && side.length && side.every(p => !p.loftRail), { front, side });
+});
+tryCase("open edges: a railing's ends close the gap between two rooms, as a wall's do", () => {
+  const h = H.readHouse(GYM, GYM.floors, {}, null);
+  const pc = railOf(h, "mezz", "edge")[0];
+  const sp = H.drawnSpan(pc), gap = H.drawnSpan({ ...pc, loftRail: false });
+  check("open edges: a railing's ends close the gap between two rooms, as a wall's do",
+    sp && gap && sp.len > gap.len + pc.thick * 0.99, { sp, gap, thick: pc.thick });
+});
+tryCase("roof: a mezzanine inside a taller hall is under the hall's roof, roofed only past it", () => {
+  const m = ST.houseModel(H.readHouse(GYM, GYM.floors, {}, null));
+  const hall = m.storeys.find(s => s.elev === 0), mezz = m.storeys.find(s => s.elev === 3);
+  const stacked = gymWith({ floors: [{ id: "hall", floor_to_floor_m: 3 }, { id: "mezz", floor_to_floor_m: 3 }] });
+  const ms = ST.houseModel(H.readHouse(stacked, stacked.floors, {}, null));
+  const sHall = ms.storeys.find(s => s.elev === 0), sMezz = ms.storeys.find(s => s.elev === 3);
+  const cells = (s) => s.roofCells.reduce((a, v) => a + v, 0);
+  check("roof: a mezzanine inside a taller hall is under the hall's roof, roofed only past it",
+    // the hall: all of it roofed; the mezzanine: roofed only where it stands
+    // past the hall (the walkway's last 3 m), never over the hall
+    cells(hall) === hall.cells.reduce((a, v) => a + v, 0)
+    && cells(mezz) > 0 && mezz.roofCells.every((v, i) => !v || !hall.cells[i])
+    && ST.underRoof(m, 6, 2, 3) && ST.underRoof(m, 6, 8, 0) && ST.underRoof(m, 22, 2, 3)
+    // the opt-in report's word for it: the gym has one, a stacked house none
+    && H.hasNestedFloor(H.readHouse(GYM, GYM.floors, {}, null)) && !H.hasNestedFloor(H.readHouse(stacked, stacked.floors, {}, null))
+    // floors stacked one on another, as before: the upper one roofed, the hall only where it isn't
+    && cells(sMezz) > 0 && cells(sHall) < sHall.cells.reduce((a, v) => a + v, 0),
+    { hall: cells(hall), mezz: cells(mezz), sHall: cells(sHall), sMezz: cells(sMezz) });
+});
+tryCase("strip: along a mezzanine's railing, on the rail's top; the rest of the room is wire", () => {
+  const h = H.readHouse(GYM, GYM.floors, {}, null);
+  const mezz = h.perFloor.get(h.byId.get("mezz"));
+  const rails = mezz.pieces.filter(p => p.kind === "rail" || p.loftRail).map(p => ({ a: [p.x0, p.y0], b: [p.x1, p.y1] }));
+  const gallery = mezz.rooms.find(r => r.name === "Gallery");
+  const r = RU.alongRail(RU.insetLoop(gallery.pts, 0.03), rails, {});
+  const run = r.run || r;
+  check("strip: along a mezzanine's railing, on the rail's top; the rest of the room is wire",
+    !r.error && rails.length && run.pts.every(q => near(q[2], RU.RAIL_TOP_M, 1e-9)) && run.gaps && run.gaps.length === 3, r);
 });
 
 // ── telemetry ───────────────────────────────────────────────────────────────

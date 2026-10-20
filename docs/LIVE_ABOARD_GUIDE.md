@@ -119,6 +119,13 @@ warm from outside.
 
 **Emergency:** a leak sensor, smoke alarm, gas alarm or CO alarm that goes off sends alarm rings across its room's floor and shows a red word over everything (**WET**, **SMOKE**, **GAS**, **CO**, or **ALARM** while it's still latched), so you see it from anywhere in the house. The banner across the top of every PadSpan page lists it until you reset it.
 
+**Mezzanines and open edges:** draw a mezzanine, gallery or loft as its own floor in Home Assistant.
+In Mapping → Floor Heights, give the hall underneath its full height (floor to roof) and the
+mezzanine its real **base elevation**. Live Aboard then draws the mezzanine inside the hall, under
+the hall's roof. Where its edge has a railing in real life, draw that edge in Mapping as a wall
+with the **Open (Loft)** material: over the hall it gets a glass railing. Anywhere else (between
+two rooms on one floor, or over an ordinary storey below) it stays an open gap.
+
 **Doors and windows** linked to sensors open and shut as they do. A lock linked to a door glows red
 while it's unlocked.
 
@@ -189,6 +196,8 @@ row, or the **Heights** list to set several at once. They're the same heights.
      to go round that one instead. **Leave gaps at doors** (and **windows**) changes the run right
      away.
    - **Under**, **Behind** or **Top edge** of a piece of furniture.
+   - **Along a rail** runs it along a deck's or a mezzanine's railing, on the rail's top, and as
+     plain wire where there's no rail.
    - **Draw** to press on a wall and drag, or tap points one at a time (double-tap or Done ends it).
 3. Set its **height** with the chips (Toe-kick, Counter, Under cabinets, Valance, Cove, Ceiling
    edge) or in centimetres, and **which way it shines**.

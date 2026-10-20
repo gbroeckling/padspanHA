@@ -405,8 +405,12 @@ WEATHER_EVENTS: frozenset[str] = frozenset(
 HOUSE3D_FALLBACK_KINDS: tuple[str, ...] = ("no_webgl", "slow_gpu", "context_lost", "error")
 # house3d_wet_window: a window showed open while it rains or snows (Live
 # Aboard's alert, 0.38.127), once per page load.
+# house3d_loft_rail: an open (Loft) edge over a drop was drawn as a railing;
+# house3d_mezzanine: a floor sits inside a taller one (a mezzanine in a hall,
+# roofed by the hall). Both once per page load (0.38.147).
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
-    {"house3d_opened", "house3d_wet_window"} | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
+    {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine"}
+    | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo
 # sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or

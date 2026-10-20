@@ -1,4 +1,4 @@
-"""Serve the repo for the harness on 127.0.0.1:8765.
+"""Serve the repo for the harness on 127.0.0.1:8765 (or PADSPAN_HARNESS_PORT, or the port given).
 
     python tools/live_aboard_harness/serve.py [port]
 
@@ -9,11 +9,12 @@ are real ones (issue #95).
 
 import functools
 import http.server
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PADSPAN_HARNESS_PORT", "8765"))
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):

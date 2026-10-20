@@ -4,10 +4,10 @@ usage: python pw_flow.py <scenario> <outprefix>
 """
 import sys, time, json
 from playwright.sync_api import sync_playwright
-from browser import launch, wait_ready   # the machine's browser (issue #95)
+from browser import HARNESS, launch, wait_ready   # the machine's browser (issue #95)
 
 scen, pre = sys.argv[1], sys.argv[2]
-url = "http://127.0.0.1:8765/tools/live_aboard_harness/index.html?one=1&sky=sunny&edit=1" + (sys.argv[3] if len(sys.argv) > 3 else "")
+url = f"{HARNESS}index.html?one=1&sky=sunny&edit=1" + (sys.argv[3] if len(sys.argv) > 3 else "")
 SLOT = "const LA = await import('../../custom_components/padspan_ha/www/padspan-ha/views/live_aboard.js'); const s = LA.liveAboardSlot('atlas');"
 
 

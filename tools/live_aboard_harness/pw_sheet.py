@@ -1,10 +1,10 @@
 """Real-time: draw a door, then work its sheet (hinge, swing, type, shown) and Save."""
 import sys, time
 from playwright.sync_api import sync_playwright
-from browser import launch, wait_ready   # the machine's browser (issue #95)
+from browser import HARNESS, launch, wait_ready   # the machine's browser (issue #95)
 
 out = sys.argv[1]
-url = "http://127.0.0.1:8765/tools/live_aboard_harness/index.html?one=1&sky=sunny&edit=1"
+url = f"{HARNESS}index.html?one=1&sky=sunny&edit=1"
 SLOT = "async () => { const LA = await import('../../custom_components/padspan_ha/www/padspan-ha/views/live_aboard.js'); return LA.liveAboardSlot('atlas'); }"
 
 with sync_playwright() as p:

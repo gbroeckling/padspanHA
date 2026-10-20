@@ -2,8 +2,11 @@
 
     python tools/live_aboard_harness/run_all.py [out_dir]
 
-Serves the repo itself on 127.0.0.1:8765 unless something already answers
-there, runs each pw_*.py in a fresh headless browser (browser.py picks it),
+Serves the repo itself on 127.0.0.1:8765 (or PADSPAN_HARNESS_PORT) unless a
+harness already answers there, which is then used as it is (make sure it serves
+this checkout). If something else holds the port, it serves on a free port
+instead, handed to every check as PADSPAN_HARNESS_PORT. Runs each pw_*.py in a
+fresh headless browser (browser.py picks it),
 and judges each log with check_log.py. A check that never got going (its 3D
 view didn't start) gets up to 3 tries; earlier tries' logs are kept as
 <name>.try<N>.log. Exit 0 only when all pass.
@@ -20,7 +23,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from check_log import verdict  # noqa: E402
 
-URL = "http://127.0.0.1:8765/tools/live_aboard_harness/index.html"
+import socket  # noqa: E402
+
+PATH = "/tools/live_aboard_harness/index.html"
 SEG = "main,6,10,7,10"   # the main-floor wall pw_sheet.py draws its door on
 TRIES = 3
 CHECKS = (
@@ -42,14 +47,27 @@ def main() -> int:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else HERE / "out" / time.strftime("%Y%m%d-%H%M%S")).resolve()
     out.mkdir(parents=True, exist_ok=True)
     server = None
-    if not answers(URL):
-        server = subprocess.Popen([sys.executable, str(HERE / "serve.py")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    port = int(os.environ.get("PADSPAN_HARNESS_PORT", "8765"))
+    if not answers(f"http://127.0.0.1:{port}{PATH}"):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                busy = True     # something answers there, but not the harness
+        except OSError:
+            busy = False
+        if busy:
+            busy_port = port
+            with socket.socket() as s:
+                s.bind(("127.0.0.1", 0))
+                port = s.getsockname()[1]
+            print(f"(port {busy_port} is in use by something else: serving the harness on {port})")
+        server = subprocess.Popen([sys.executable, str(HERE / "serve.py"), str(port)],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for _ in range(30):
-            if answers(URL):
+            if answers(f"http://127.0.0.1:{port}{PATH}"):
                 break
             time.sleep(0.5)
         else:
-            print("The harness server didn't come up on 127.0.0.1:8765.")
+            print(f"The harness server didn't come up on 127.0.0.1:{port}.")
             server.terminate()
             return 1
     passed = flagged = failed = retried = 0
@@ -63,7 +81,8 @@ def main() -> int:
                     # UTF-8 out: the scripts print ▾ and − (Windows would write cp1252 and crash).
                     code = subprocess.run([sys.executable, str(HERE / cmd[0]), *cmd[1:]], cwd=out,
                                           stdout=fh, stderr=subprocess.STDOUT,
-                                          env={**os.environ, "PYTHONIOENCODING": "utf-8"}).returncode
+                                          env={**os.environ, "PYTHONIOENCODING": "utf-8",
+                                               "PADSPAN_HARNESS_PORT": str(port)}).returncode
                 rc, problems = verdict(log.read_text(encoding="utf-8", errors="replace"), code)
                 if rc != 2:
                     break
