@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.156",
+  "title": "The extra themes are PadSpan Pro's",
+  "date": "2026-10-20",
+  "body_markdown": "### Changed\n- **Graphite, Ocean, Dusk, High contrast and Day come with PadSpan Pro.** Without Pro they show greyed out in Settings → Appearance → Theme, with a line pointing to Settings → Features → PadSpan licence. **Night and Light (inverted) stay in every edition**, so the accessibility inversion never needs a licence. An install that was using Day without Pro goes back to Night; the choice is kept, and comes back with a Pro key."
+ },
+ {
   "version": "0.38.155",
   "title": "Show HA on the sidebar Atlas too",
   "date": "2026-10-20",
@@ -28,11 +34,5 @@
   "title": "A Day theme, beside Night and Light",
   "date": "2026-10-20",
   "body_markdown": "### New\n- **Settings → Appearance → Theme now offers three choices: Night, Light (inverted) and Day.** Night is the dark forest green you know. Light is the same colour inversion as before, unchanged, for anyone who can't use a dark screen; it just moved here from Settings → Presence. Day is new: the whole panel redrawn in light colours, with pale surfaces, dark text and the same green accent, in both the Classic and 2025 styles. Maps, charts, the 3D house and Pure Live keep their night colours in Day, so what they show reads the same either way.\n\n### Fixed\n- A panel whose settings arrived on a full refresh did not show its chosen panel style (Classic or 2025) or theme until a setting was changed. Both now follow every settings read."
- },
- {
-  "version": "0.38.150",
-  "title": "One look across the panel",
-  "date": "2026-10-20",
-  "body_markdown": "### Changed\n- **The panel's colours match from tab to tab.** Settings, Overview, Manage, QA, Calibration, Follow, Traceback and the other tabs had picked up cold blue-grey boxes, borders and dropdowns over the years; they now use the same dark forest greens as the rest of the panel. Checkboxes, radio buttons and sliders are green instead of the browser's blue, in the panel and on the Atlas. Greens that were nearly the same colour are now one accent, one \"good\" green and one light green, and grey hint text is the same grey everywhere.\n- **Text sizes snap to one scale.** Half-pixel sizes are rounded to whole pixels, and the smallest 9 px labels are now 10 px so they can be read.\n- Blue still marks phone tracking and the calibration target (the blue spiral), and maps, charts, the 3D house and Pure Live are unchanged."
  }
 ]
