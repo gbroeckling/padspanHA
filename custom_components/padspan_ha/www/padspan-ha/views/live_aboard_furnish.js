@@ -56,41 +56,41 @@ const SENSOR_LIVE = ["run", "charge"], SENSOR_DOMAINS = ["sensor", "binary_senso
 const CSS = `
 .la3d-furbar{display:contents}
 .la3d-furmenu{position:absolute;z-index:6;display:none;max-height:min(420px,calc(100% - 80px));overflow:auto;min-width:200px;
-  padding:6px;border-radius:12px;background:rgba(6,14,9,.97);border:1px solid rgba(120,190,155,.26);box-shadow:0 10px 26px rgba(0,0,0,.55)}
+  padding:6px;border-radius:12px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);box-shadow:0 12px 32px rgba(0,0,0,.5)}
 .la3d-furmenu.on{display:block}
-.la3d-furmenu h5{margin:6px 8px 4px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(226,240,232,.5)}
+.la3d-furmenu h5{margin:6px 8px 4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8}
 .la3d-furmenu button{all:unset;box-sizing:border-box;display:block;width:100%;padding:7px 10px;border-radius:8px;cursor:pointer;
-  color:#e8f0ea;font-size:13px}
+  color:#e2e8f0;font-size:13px}
 .la3d-furmenu button:hover,.la3d-furmenu button:focus-visible{background:rgba(82,183,136,.22)}
 .la3d-sheet.fur{max-height:calc(100% - 120px);overflow-y:auto;right:calc(var(--la3d-plan-w, 0px) + 10px)}
 @media (max-width:600px){.la3d-sheet.fur{left:10px;right:10px;width:auto;top:auto!important;bottom:58px;max-height:46%}}
-.la3d-sheet .la3d-fin{width:100%;box-sizing:border-box;padding:5px 8px;border-radius:8px;border:1px solid rgba(120,190,155,.3);
-  background:#0a150e;color:#e8f0ea;font-size:12.5px}
+.la3d-sheet .la3d-fin{width:100%;box-sizing:border-box;padding:5px 8px;border-radius:8px;border:1px solid rgba(120,190,155,.26);
+  background:#0a150e;color:#e2e8f0;font-size:13px}
 .la3d-sheet select.la3d-fin{width:auto;max-width:100%}
 .la3d-sheet .la3d-cols{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
-.la3d-sheet .la3d-cols label{display:flex;gap:5px;align-items:center;font-size:11.5px;color:rgba(226,240,232,.75)}
+.la3d-sheet .la3d-cols label{display:flex;gap:5px;align-items:center;font-size:12px;color:rgba(226,240,232,.75)}
 .la3d-sheet input[type=color]{width:34px;height:24px;padding:0;border:1px solid rgba(255,255,255,.25);border-radius:6px;background:none}
-.la3d-sheet .la3d-sec{margin:10px 0 2px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(226,240,232,.5)}
+.la3d-sheet .la3d-sec{margin:10px 0 2px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8}
 .la3d-sheet .la3d-warn{margin:8px 0 2px;padding:6px 8px;border-radius:8px;border:1px solid #f59e0b;background:rgba(245,158,11,.1);color:#fde68a;font-size:12px}
 .la3d-sheet .la3d-warn div+div{margin-top:3px}
-.la3d-sheet .la3d-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:700;
+.la3d-sheet .la3d-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;
   color:#06210f;background:#52b788;vertical-align:1px}
-.la3d-sheet .la3d-ents{max-height:180px;overflow:auto;margin-top:6px;border-radius:8px;border:1px solid rgba(120,190,155,.2)}
-.la3d-sheet .la3d-ents button{all:unset;box-sizing:border-box;display:block;width:100%;padding:6px 8px;cursor:pointer;font-size:12px;color:#e8f0ea}
-.la3d-sheet .la3d-ents button small{display:block;color:rgba(226,240,232,.5);font-size:10.5px}
+.la3d-sheet .la3d-ents{max-height:180px;overflow:auto;margin-top:6px;border-radius:8px;border:1px solid rgba(120,190,155,.18)}
+.la3d-sheet .la3d-ents button{all:unset;box-sizing:border-box;display:block;width:100%;padding:6px 8px;cursor:pointer;font-size:12px;color:#e2e8f0}
+.la3d-sheet .la3d-ents button small{display:block;color:#94a3b8;font-size:11px}
 .la3d-sheet .la3d-ents button:hover{background:rgba(82,183,136,.2)}
 .la3d-flow{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5)}
 .la3d-flow > div{box-sizing:border-box;width:min(560px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;padding:12px 14px;
-  border-radius:14px;background:#0b1410;border:1px solid rgba(120,190,155,.3);color:#e8f0ea;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  border-radius:14px;background:#0b1410;border:1px solid rgba(120,190,155,.26);color:#e2e8f0;box-shadow:0 12px 32px rgba(0,0,0,.5)}
 .la3d-flow h4{margin:0 0 8px;display:flex;gap:8px;align-items:center;font-size:14px}
 .la3d-flow h4 span{flex:1}
 .la3d-sheet .la3d-xy{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin:4px 0 6px}
-.la3d-sheet .la3d-fld{display:flex;align-items:center;gap:5px;min-width:0;font-size:11.5px;color:rgba(226,240,232,.75)}
+.la3d-sheet .la3d-fld{display:flex;align-items:center;gap:5px;min-width:0;font-size:12px;color:rgba(226,240,232,.75)}
 .la3d-sheet .la3d-fld span{min-width:42px}
 .la3d-sheet .la3d-fld input{min-width:0;flex:1;padding:4px 6px}
-.la3d-sheet .la3d-fld small{color:rgba(226,240,232,.5)}
+.la3d-sheet .la3d-fld small{color:#94a3b8}
 .la3d-sheet input.la3d-hang{width:64px;padding:4px 6px}
-.la3d-sheet .la3d-keys{margin:6px 0 0;font-size:10.5px;color:rgba(226,240,232,.5)}`;
+.la3d-sheet .la3d-keys{margin:6px 0 0;font-size:11px;color:#94a3b8}`;
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const copy = (x) => JSON.parse(JSON.stringify(x));
@@ -489,7 +489,7 @@ export function createFurnish(ctx){
     for (const [k] of FLOWS) flowBtns[k].style.display = mods[k] ? "" : "none";
     return mods;
   }
-  /** × , leaving Furnish or another flow opening: the flow is told (ctx.signal),
+  /** ✕, leaving Furnish or another flow opening: the flow is told (ctx.signal),
    *  so it ends and lets go of what it holds (a thumbnail or preview renderer). */
   function closeFlow(){ flowGen++; if (flowStop) { flowStop.abort(); flowStop = null; } if (flowEl) { flowEl.remove(); flowEl = null; } }
   async function openFlow(k, piece = null){
@@ -503,7 +503,7 @@ export function createFurnish(ctx){
     flowEl = d("div", "la3d-flow");
     const card = d("div"), h = d("h4"), body = d("div");
     h.appendChild(d("span", null, k === "share" ? "Share" : FLOWS.find(f => f[0] === k)[1]));
-    h.appendChild(btn("×", "Close", () => closeFlow(), "la3d-x"));
+    h.appendChild(btn("✕", "Close", () => closeFlow(), "la3d-x"));
     card.append(h, body);
     flowEl.appendChild(card);
     root.appendChild(flowEl);
@@ -587,7 +587,7 @@ export function createFurnish(ctx){
     const h = d("h4");
     const title = d("span", null, pieceName(p, B));
     if (p.entity_id) title.appendChild(d("span", "la3d-badge", "linked"));
-    h.append(title, btn("×", "Close", () => select(null), "la3d-x"));
+    h.append(title, btn("✕", "Close", () => select(null), "la3d-x"));
     el.appendChild(h);
     // Under its name: what it is (once it has a name of its own) and where it came from.
     const what = [p.label ? (spec ? spec.name : pieceName({ recipe: { kind } }, null)) : null,

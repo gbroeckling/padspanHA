@@ -478,7 +478,7 @@ const flowBody = () => { const b = flowBox(); return b ? b.children[0].children[
 const inFlow = (label) => { const b = flowBox(); return b ? b._all().find(n => n.localName === "button" && n.textContent.startsWith(label)) || null : null; };
 async function openFlowNamed(label){ click(label, "la3d-tools"); await settle(30); return flowBody(); }
 async function closeX(){
-  const b = flowBox(), x = b ? b.children[0].children[0].querySelectorAll("button").find(n => n.textContent === "×") : null;
+  const b = flowBox(), x = b ? b.children[0].children[0].querySelectorAll("button").find(n => n.textContent === "✕") : null;
   if (x) x.click();
   await settle(20);
 }

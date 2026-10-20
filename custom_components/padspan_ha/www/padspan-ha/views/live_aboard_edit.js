@@ -71,7 +71,7 @@ const NOT_SAVED = {
 };
 
 const CSS = `
-.la3d-editseg button[aria-pressed="true"]{background:rgba(245,176,65,.28)!important;color:#fff7e6!important}
+.la3d-editseg button[aria-pressed="true"]{background:rgba(245,158,11,.28)!important;color:#fff7e6!important}
 .la3d-tools{position:absolute;left:72px;right:10px;top:10px;z-index:4;display:none;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
 .la3d-tools.on{display:flex}
 .la3d:has(.la3d-tools.on) .la3d-tip,.la3d:has(.la3d-tools.on) .la3d-mchip,.la3d:has(.la3d-tools.on) .la3d-wet{visibility:hidden;opacity:0}
@@ -84,30 +84,30 @@ const CSS = `
 .la3d-editwhy{align-self:center;padding:0 8px;font-size:11px;line-height:1.3;color:#fde2e2;max-width:300px;white-space:normal}
 .la3d-sheet{position:absolute;right:10px;z-index:4;display:none;box-sizing:border-box;width:min(300px,calc(100% - 20px));
   padding:10px 12px 12px;border-radius:12px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);
-  color:#e8f0ea;font-size:12.5px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
+  color:#e2e8f0;font-size:13px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
 .la3d-sheet.on{display:block}
 .la3d-sheet.busy{opacity:.55}
-.la3d-sheet h4{margin:0 0 2px;font-size:13.5px;font-weight:700;color:#f3f6f4;display:flex;gap:8px;align-items:center}
+.la3d-sheet h4{margin:0 0 2px;font-size:14px;font-weight:700;color:#f3f6f4;display:flex;gap:8px;align-items:center}
 .la3d-sheet h4 span{flex:1}
-.la3d-sheet .la3d-sub{margin:0 0 8px;color:rgba(226,240,232,.6);font-size:11.5px}
+.la3d-sheet .la3d-sub{margin:0 0 8px;color:#94a3b8;font-size:12px}
 .la3d-sheet .la3d-row{display:grid;grid-template-columns:52px 1fr 54px;gap:8px;align-items:center;margin:6px 0}
 .la3d-sheet .la3d-row b{text-align:right;font-variant-numeric:tabular-nums}
 .la3d-sheet input[type=range]{width:100%;margin:0;accent-color:#52b788}
 .la3d-sheet .la3d-row.la3d-kind{grid-template-columns:auto 1fr}
 .la3d-sheet select{width:100%;min-width:0;box-sizing:border-box;padding:5px 6px;border-radius:8px;font:inherit;
-  background:#0b1410;color:#e8f0ea;border:1px solid rgba(120,190,155,.35)}
+  background:#0b1410;color:#e2e8f0;border:1px solid rgba(120,190,155,.45)}
 .la3d-sheet .la3d-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .la3d-sheet .lv-zoomseg{box-shadow:none}
 .la3d-sheet .la3d-row > .lv-zoomseg{grid-column:2 / span 2;justify-self:start;max-width:100%;flex-wrap:wrap}
-.la3d-sheet button.la3d-x{all:unset;cursor:pointer;padding:0 4px;font-size:16px;color:rgba(226,240,232,.6)}
+.la3d-sheet button.la3d-x{all:unset;cursor:pointer;padding:0 4px;font-size:16px;color:#94a3b8}
 .la3d-sheet .la3d-del{color:#fca5a5!important}
 .la3d-ask{position:absolute;inset:0;z-index:7;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.46)}
 .la3d-ask.on{display:flex}
-.la3d-ask > div{max-width:calc(100% - 40px);padding:14px 16px;border-radius:14px;background:#0b1410;border:1px solid rgba(120,190,155,.3);
-  color:#e8f0ea;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+.la3d-ask > div{max-width:calc(100% - 40px);padding:14px 16px;border-radius:14px;background:#0b1410;border:1px solid rgba(120,190,155,.26);
+  color:#e2e8f0;font-size:13px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
 .la3d-ask p{margin:0 0 10px}
 .la3d-len{position:absolute;z-index:3;display:none;transform:translate(-50%,-50%);padding:3px 9px;border-radius:999px;
-  background:rgba(6,14,9,.92);border:1px solid rgba(255,255,255,.3);color:#fff;font:700 12px system-ui,sans-serif;
+  background:rgba(6,14,9,.95);border:1px solid rgba(255,255,255,.3);color:#fff;font:700 12px system-ui,sans-serif;
   white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
 .la3d-len.bad{border-color:#ef4444;color:#fecaca}
 .la3d-dot{position:absolute;z-index:3;display:none;box-sizing:border-box;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;
@@ -119,8 +119,8 @@ const CSS = `
 .la3d-hfoot{position:absolute;z-index:3;display:none;box-sizing:border-box;width:18px;height:9px;margin:-4.5px 0 0 -9px;border-radius:50%;
   border:2px solid #fbbf24;box-shadow:0 0 0 2px rgba(0,0,0,.3);pointer-events:none}
 .la3d-sheet .la3d-spots{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 2px}
-.la3d-sheet .la3d-spots button{all:unset;cursor:pointer;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
-  color:rgba(226,240,232,.8);background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.28)}
+.la3d-sheet .la3d-spots button{all:unset;cursor:pointer;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;
+  color:rgba(226,240,232,.8);background:rgba(255,255,255,.04);border:1px solid rgba(120,190,155,.26)}
 .la3d-sheet .la3d-spots button:hover{border-color:rgba(120,190,155,.6);color:#fff}
 .la3d-sheet .la3d-spots button[aria-pressed=true]{color:#1a1205;background:#fbbf24;border-color:#fbbf24}`;
 
@@ -732,7 +732,7 @@ export function createEditor(ctx){
   function head(title, sub){
     const h = d("h4");
     h.appendChild(d("span", null, title));
-    h.appendChild(btn("×", "Close", () => select(null), "la3d-x"));
+    h.appendChild(btn("✕", "Close", () => select(null), "la3d-x"));
     sheet.appendChild(h);
     if (sub) sheet.appendChild(d("p", "la3d-sub", sub));
   }

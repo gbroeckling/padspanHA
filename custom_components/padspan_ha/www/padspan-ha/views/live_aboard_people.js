@@ -366,7 +366,7 @@ const CSS = `
 .la3d-people .item .who{flex:1 1 150px;min-width:0}
 .la3d-people .item .who small{display:block;color:var(--secondary-text-color,#9aa3ab)}
 .la3d-people .item button{padding:6px 10px;min-height:34px}
-.la3d-people .changed{color:#f5b041;font-size:12px;margin-left:6px}
+.la3d-people .changed{color:#f59e0b;font-size:12px;margin-left:6px}
 .la3d-people .edit{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:14px;align-items:start}
 .la3d-people .ctl{display:grid;grid-template-columns:110px minmax(0,1fr) 54px;gap:6px 8px;align-items:center}
 .la3d-people .ctl input[type=range]{width:100%}

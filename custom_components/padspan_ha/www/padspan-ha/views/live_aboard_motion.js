@@ -845,10 +845,10 @@ function chipName(l){
 
 // ── the Motion chip ─────────────────────────────────────────────────────────
 const CHIP_CSS = `.la3d-mchip{position:absolute;left:50%;top:44px;z-index:2;transform:translateX(-50%);display:flex;align-items:center;gap:2px;
-  max-width:calc(100% - 150px);padding:3px 4px 3px 12px;border-radius:999px;background:rgba(6,14,9,.8);border:1px solid rgba(120,190,155,.22);
-  box-shadow:0 4px 14px rgba(0,0,0,.35);color:rgba(226,240,232,.75);font:600 12.5px/1.2 system-ui,"Segoe UI",Roboto,sans-serif;white-space:nowrap}
+  max-width:calc(100% - 150px);padding:3px 4px 3px 12px;border-radius:999px;background:rgba(6,14,9,.86);border:1px solid rgba(120,190,155,.26);
+  box-shadow:0 4px 14px rgba(0,0,0,.35);color:rgba(226,240,232,.75);font:600 13px/1.2 system-ui,"Segoe UI",Roboto,sans-serif;white-space:nowrap}
 .la3d-mchip[hidden]{display:none}
-.la3d.la3d-narrow .la3d-mchip{top:auto;bottom:58px;max-width:calc(100% - 20px);padding:2px 2px 2px 9px;font-size:11.5px}
+.la3d.la3d-narrow .la3d-mchip{top:auto;bottom:58px;max-width:calc(100% - 20px);padding:2px 2px 2px 9px;font-size:12px}
 .la3d.la3d-narrow .la3d-mchip button{padding:4px 4px}
 .la3d.la3d-narrow .la3d-mchip .la3d-mage{margin-left:3px}
 .la3d-mchip button{all:unset;box-sizing:border-box;cursor:pointer;padding:4px 7px;border-radius:999px;font-weight:800;overflow:hidden;text-overflow:ellipsis}
@@ -857,7 +857,7 @@ const CHIP_CSS = `.la3d-mchip{position:absolute;left:50%;top:44px;z-index:2;tran
 .la3d-mchip .la3d-msep{opacity:.45}
 .la3d-mchip .la3d-minfo{font-weight:600;color:rgba(226,240,232,.7);padding:4px 8px}
 .la3d-mkey{position:absolute;left:50%;top:84px;z-index:5;transform:translateX(-50%);padding:9px 12px;border-radius:12px;background:rgba(6,14,9,.95);
-  border:1px solid rgba(120,190,155,.24);box-shadow:0 10px 26px rgba(0,0,0,.5);color:#e8f0ea;font:600 12.5px/1.3 system-ui,"Segoe UI",Roboto,sans-serif}
+  border:1px solid rgba(120,190,155,.26);box-shadow:0 12px 32px rgba(0,0,0,.5);color:#e2e8f0;font:600 13px/1.3 system-ui,"Segoe UI",Roboto,sans-serif}
 .la3d-mkey[hidden]{display:none}
 .la3d.la3d-narrow .la3d-mkey{top:auto;bottom:100px;max-width:calc(100% - 20px)}
 .la3d-mkey b{display:block;margin-bottom:6px}

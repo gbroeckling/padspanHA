@@ -111,13 +111,55 @@ export function dayDecls(text) {
 // Rules for the drawings keep their night colours.
 const KEEP_SELECTOR_RE = /\.(lv|la|la3d|pl)[-_]/;
 
+// The Atlas's controls (.lv-) are also used on plain cards (Mapping's Atlas
+// header and tools, Floor Heights): there they follow the day, and stay night
+// only on the Atlas's own card (lv-atlascard), in a kept drawing's box or in the
+// 3D house.
+const LV_ONLY_RE = /\.lv[-_]/, NOT_LV_RE = /\.(la3d|la|pl)(?![A-Za-z0-9])/;
+const NIGHT_BOXES = ".lv-atlascard,.la3d,[data-keep-night]";
+const OFF_MAP = ":not(.lv-atlascard):not(.lv-atlascard *):not([data-keep-night]):not([data-keep-night] *):not(.la3d *)";
+const offMap = (sels) => sels.split(",").map(s => {
+  const t = s.trim(), m = t.match(/::?(before|after|placeholder|marker|selection|-webkit-[\w-]+|-moz-[\w-]+)(?![\w-]).*$/);
+  return m ? t.slice(0, m.index) + OFF_MAP + m[0] : t + OFF_MAP;
+}).join(",");
+
+/** Only a rule's colours, in day colours, and only the colour part of a
+ *  shorthand: a day copy that repeated sizes, or a whole border, would
+ *  outrank a more particular night rule (.lv-tgl-big's size, a last row's
+ *  border:none). */
+const EDGE_RE = /^(border(-(top|right|bottom|left))?|outline)$/;
+function dayColorsOnly(body) {
+  const out = [];
+  for (const [, , prop, raw] of body.matchAll(DECL_RE)) {
+    const role = roleOf(prop), val = raw.trim(), cols = role ? (val.match(COLOR_RE) || []) : [];
+    if (!cols.length) continue;
+    const day = val.replace(COLOR_RE, c => dayColor(c, role));
+    if (EDGE_RE.test(prop)) { if (cols.length === 1) out.push(`${prop}-color:${dayColor(cols[0], role)}`); }
+    else if (prop === "background") {
+      if (/gradient\(/.test(val)) out.push(`background-image:${day}`);
+      else if (cols.length === 1 && cols[0] === val.replace(/\s*!important$/, "")) out.push(`background-color:${day}`);
+    } else out.push(`${prop}:${day}`);
+  }
+  return out.join(";");
+}
+
 /** A stylesheet in day colours, rule by rule. */
 export function dayCss(css) {
-  return css.split("}").map(chunk => {
+  // Comments first: one holding a { or } would split a rule in two.
+  return css.replace(/\/\*[\s\S]*?\*\//g, "").split("}").map(chunk => {
     const i = chunk.lastIndexOf("{");
     if (i < 0) return chunk;
-    const sel = chunk.slice(0, i);
-    return KEEP_SELECTOR_RE.test(sel) ? chunk : sel + "{" + dayDecls(chunk.slice(i + 1));
+    const sel = chunk.slice(0, i), body = chunk.slice(i + 1);
+    if (!KEEP_SELECTOR_RE.test(sel)) {
+      // The host's colour variables, back at night inside what stays night
+      // (the 2025 skin's inputs read --ps-s2: white fields on the dark map).
+      const vars = sel.trim() === ":host" ? body.match(/--[\w-]+\s*:[^;]+/g) : null;
+      return sel + "{" + dayDecls(body) + (vars ? "}" + NIGHT_BOXES + "{" + vars.join(";") : "");
+    }
+    const own = sel.slice(sel.lastIndexOf("{") + 1);          // inside an @media, the rule's own selector
+    if (!LV_ONLY_RE.test(own) || NOT_LV_RE.test(own) || own.includes("@")) return chunk;
+    const day = dayColorsOnly(body);
+    return day ? chunk + "}" + offMap(own) + "{" + day : chunk;
   }).join("}");
 }
 

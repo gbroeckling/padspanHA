@@ -563,7 +563,7 @@ function thumbnailer(tools){
 
 // ── The page ─────────────────────────────────────────────────────────────────
 const CSS = `
-.lal{font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#e2e8f0;background:#0b1410;border:1px solid rgba(120,190,155,.28);
+.lal{font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#e2e8f0;background:#0b1410;border:1px solid rgba(120,190,155,.26);
   border-radius:14px;padding:12px;box-sizing:border-box;max-width:100%}
 .lal *{box-sizing:border-box}
 .lal-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
@@ -571,12 +571,12 @@ const CSS = `
 .lal button{font:inherit;color:#e2e8f0;background:#16241c;border:1px solid #2d4a37;border-radius:9px;padding:7px 12px;cursor:pointer;min-height:36px}
 .lal button:hover{border-color:#52b788}
 .lal button:disabled{opacity:.45;cursor:default}
-.lal button.lal-go{background:#52b788;color:#06210f;border-color:#52b788;font-weight:700}
-.lal button.lal-link{background:none;border:none;color:#7dd3fc;padding:4px 6px;min-height:0;text-decoration:underline}
+.lal button.lal-go{background:#2d6a4f;color:#e2e8f0;border-color:#52b788;font-weight:700}
+.lal button.lal-link{background:none;border:none;color:#a7f3d0;padding:4px 6px;min-height:0;text-decoration:underline}
 .lal input[type=text],.lal input[type=search],.lal input[type=number],.lal select{font:inherit;color:#e2e8f0;background:#0a150e;
   border:1px solid #2d4a37;border-radius:8px;padding:7px 9px;min-height:36px;max-width:100%}
 .lal-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
-.lal-row > label{display:flex;align-items:center;gap:6px;color:#cbd5e1}
+.lal-row > label{display:flex;align-items:center;gap:6px;color:#e2e8f0}
 .lal-search{flex:1 1 220px;min-width:0}
 .lal-filters{display:none;padding:8px;border:1px solid #1e3a2a;border-radius:10px;margin:6px 0 4px;background:#0d1a13}
 .lal-filters.on{display:block}
@@ -584,33 +584,33 @@ const CSS = `
 .lal-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
 .lal-chip{border-radius:999px!important;padding:5px 11px!important;min-height:32px!important;font-size:13px}
 .lal-chip[aria-pressed=true]{background:rgba(82,183,136,.28)!important;border-color:#52b788!important;color:#ecfdf5!important}
-.lal-status{font-size:12.5px;color:#94a3b8;margin:8px 2px}
+.lal-status{font-size:13px;color:#94a3b8;margin:8px 2px}
 .lal-status.warn{color:#fcd34d}
 .lal-sec{margin-top:12px}
-.lal-sec h4{margin:0 0 6px;font-size:14px;color:#cbd5e1}
+.lal-sec h4{margin:0 0 6px;font-size:14px;color:#e2e8f0}
 .lal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px}
 .lal-card{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:12px;background:#101c15;border:1px solid #1f3a2a;min-width:0}
 .lal-card canvas{width:100%;height:auto;aspect-ratio:4/3;border-radius:8px;background:radial-gradient(circle at 50% 35%,#1d3326,#0d1812)}
 .lal-card .t{font-weight:600;color:#f1f5f9;overflow-wrap:anywhere}
 .lal-card .m{font-size:12px;color:#94a3b8}
 .lal-tags{display:flex;flex-wrap:wrap;gap:4px}
-.lal-tag{font-size:11px;padding:1px 7px;border-radius:999px;background:#17291f;color:#cbd5e1;display:inline-flex;align-items:center;gap:4px}
+.lal-tag{font-size:11px;padding:1px 7px;border-radius:999px;background:#17291f;color:#e2e8f0;display:inline-flex;align-items:center;gap:4px}
 .lal-dot{width:9px;height:9px;border-radius:50%;border:1px solid rgba(255,255,255,.4);display:inline-block}
-.lal-ok{color:#86efac}
+.lal-ok{color:#a7f3d0}
 .lal-card .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
 .lal-card .acts button{flex:1 1 auto}
-.lal-report{font-size:12.5px;color:#cbd5e1}
+.lal-report{font-size:13px;color:#e2e8f0}
 .lal-terms{max-width:760px}
-.lal-draft{display:inline-block;margin:0 0 8px;padding:3px 10px;border-radius:999px;background:#3b2a07;color:#fcd34d;font-size:12.5px;font-weight:600}
+.lal-draft{display:inline-block;margin:0 0 8px;padding:3px 10px;border-radius:999px;background:#3b2a07;color:#fcd34d;font-size:13px;font-weight:600}
 .lal-terms ul{margin:6px 0 10px;padding-left:20px}
 .lal-terms li{margin:6px 0}
 .lal-sheet{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);gap:12px}
 .lal-sheet .lal-side canvas{width:100%;height:auto;aspect-ratio:4/3;border-radius:10px;background:radial-gradient(circle at 50% 35%,#1d3326,#0d1812)}
 .lal-field{display:flex;flex-direction:column;gap:3px;margin:8px 0}
-.lal-field > span{font-size:12.5px;color:#cbd5e1}
+.lal-field > span{font-size:13px;color:#e2e8f0}
 .lal-field > span b{color:#fca5a5;font-weight:600}
 .lal-field.bad input,.lal-field.bad select{border-color:#ef4444}
-.lal-field .why{font-size:12.5px;color:#fca5a5}
+.lal-field .why{font-size:13px;color:#fca5a5}
 .lal-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0 12px}
 .lal-fixed{font-size:13px;color:#e2e8f0;padding:6px 0}
 .lal-note{font-size:12px;color:#94a3b8}

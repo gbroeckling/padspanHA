@@ -60,18 +60,18 @@ const CSS = `
 .la3d-sheet.strip{max-height:calc(100% - 120px);overflow-y:auto}
 @media (max-width:600px){.la3d-sheet.strip{left:10px;right:10px;width:auto;top:auto!important;bottom:58px;max-height:40%}}
 .la3d-sheet .la3d-sl{display:flex;flex-direction:column;gap:2px;max-height:260px;overflow:auto;margin-top:4px}
-.la3d-sheet .la3d-sl button{all:unset;box-sizing:border-box;display:block;width:100%;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;color:#e8f0ea}
+.la3d-sheet .la3d-sl button{all:unset;box-sizing:border-box;display:block;width:100%;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:#e2e8f0}
 .la3d-sheet .la3d-sl button:hover,.la3d-sheet .la3d-sl button:focus-visible{background:rgba(82,183,136,.2)}
-.la3d-sheet .la3d-sl small{display:block;color:rgba(226,240,232,.55);font-size:10.5px}
-.la3d-sheet .la3d-sl h5{margin:6px 8px 2px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(226,240,232,.5)}
+.la3d-sheet .la3d-sl small{display:block;color:#94a3b8;font-size:11px}
+.la3d-sheet .la3d-sl h5{margin:6px 8px 2px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8}
 .la3d-sheet .la3d-chips{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 6px}
-.la3d-sheet .la3d-chips button{all:unset;cursor:pointer;padding:4px 9px;border-radius:999px;font-size:11.5px;color:#e8f0ea;
-  background:rgba(255,255,255,.07);border:1px solid rgba(120,190,155,.28)}
+.la3d-sheet .la3d-chips button{all:unset;cursor:pointer;padding:4px 9px;border-radius:999px;font-size:12px;color:#e2e8f0;
+  background:rgba(255,255,255,.07);border:1px solid rgba(120,190,155,.26)}
 .la3d-sheet .la3d-chips button[aria-pressed="true"]{background:rgba(82,183,136,.32);border-color:#52b788}
 .la3d-sheet .la3d-chips button:disabled{opacity:.4;cursor:default}
 .la3d-sheet .la3d-cm{display:flex;gap:6px;align-items:center;margin:4px 0}
-.la3d-sheet .la3d-cm input{width:72px;box-sizing:border-box;padding:4px 6px;border-radius:8px;border:1px solid rgba(120,190,155,.3);
-  background:#0a150e;color:#e8f0ea;font:inherit}
+.la3d-sheet .la3d-cm input{width:72px;box-sizing:border-box;padding:4px 6px;border-radius:8px;border:1px solid rgba(120,190,155,.26);
+  background:#0a150e;color:#e2e8f0;font:inherit}
 .la3d-sheet .la3d-tick{display:flex;gap:6px;align-items:center;font-size:12px;margin:2px 0}
 .la3d-hnd{position:absolute;z-index:3;display:none;box-sizing:border-box;min-width:24px;height:24px;margin:-12px 0 0 -12px;padding:0 4px;
   border-radius:12px;border:2px solid #fff;background:#f59e0b;color:#1f1300;font:700 14px/20px system-ui,sans-serif;text-align:center;
@@ -82,7 +82,7 @@ const CSS = `
 .la3d-sring{position:absolute;z-index:3;display:none;box-sizing:border-box;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;
   border:3px solid #fbbf24;pointer-events:none}
 .la3d-spill{position:absolute;z-index:3;display:none;transform:translate(-50%,-50%);padding:3px 9px;border-radius:999px;
-  background:rgba(6,14,9,.92);border:1px solid rgba(255,255,255,.3);color:#fff;font:700 12px system-ui,sans-serif;
+  background:rgba(6,14,9,.95);border:1px solid rgba(255,255,255,.3);color:#fff;font:700 12px system-ui,sans-serif;
   white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
 .la3d-spill.corner{border-color:#38bdf8;color:#e0f2fe}`;
 
@@ -491,7 +491,7 @@ export function createStrip(ctx){
     const fold = btn(folded ? "▴" : "▾", folded ? "Show the panel" : "Fold the panel away", () => { folded = !folded; sheet(); }, "la3d-x");
     fold.setAttribute("aria-expanded", String(!folded));
     h4.appendChild(fold);
-    if (sel) h4.appendChild(btn("×", "Back to the list", () => select(null), "la3d-x"));
+    if (sel) h4.appendChild(btn("✕", "Back to the list", () => select(null), "la3d-x"));
     S.appendChild(h4);
     if (folded) { S.classList.add("on"); return true; }
     if (!sel || !info()) { listOf(S); S.classList.add("on"); return true; }

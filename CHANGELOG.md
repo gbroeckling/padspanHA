@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.152 — The Atlas and Live Aboard match the rest of PadSpan (2026-10-20)
+
+### Fixed
+- **In the Day theme, the Atlas's tools above the map are readable.** In Mapping → Atlas, the Atlas card (its title, help and buttons) and the Transform, Place and Spread rows kept their night colours on a light page, so they were almost invisible. They now follow the Day theme like every other card. The map itself, its toolbar and the 3D house stay dark, as before.
+- **In the Day theme with the 2025 style, the Atlas's name fields stay dark.** "Type a name to save as…" and "Type a name to set…" turned white on the dark map.
+
+### Changed
+- **One look for buttons and text across the panel, the Atlas and Live Aboard.** The main buttons in the Atlas and Live Aboard (Apply, a chosen chip, the furniture library's Place and Share, the 3D card's button, WLED's main button) are the panel's deep green with a green edge instead of a brighter gradient. Text uses the panel's colours, links are green rather than blue, and text sizes are whole pixels with 10 px the smallest, as in the rest of the panel since 0.38.150.
+- **The 3D house's floating controls are one family.** Its bars, menus, sheets, toasts and cards had drifted to eight shades of glass and a handful of borders and shadows; they now share three glass strengths, three border strengths and two shadows, and faint grey-green text is the panel's muted grey, easier to read over a busy scene. The Atlas's pop-up sheets and toolbars use the same values, and Undo's amber is the panel's.
+- **Close is ✕ everywhere.** Live Aboard's sheets and cards used ×, the Atlas and the panel ✕.
+
+The map and 3D drawings, light colours, the coloured mode buttons and Pure Live are unchanged.
+
+---
+
 ## 0.38.151 — A Day theme, beside Night and Light (2026-10-20)
 
 ### New

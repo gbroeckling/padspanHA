@@ -1182,15 +1182,15 @@ const _S = {
   overlay: "position:fixed;inset:0;z-index:10000;background:rgba(3,8,5,.58);backdrop-filter:blur(6px);"
     + "-webkit-backdrop-filter:blur(6px);display:flex;justify-content:center;align-items:flex-end",
   sheet: "width:100%;max-width:520px;max-height:78vh;overflow:auto;padding:14px 16px 18px;box-sizing:border-box;"
-    + "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"
+    + "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
     + "border-radius:18px 18px 0 0;color:#e2e8f0;font-family:Inter,system-ui,sans-serif;box-shadow:0 -12px 50px rgba(0,0,0,.6)",
   head: "display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px",
   title: "font-weight:800;font-size:16px;letter-spacing:-.01em",
-  sub: "font-size:11.5px;color:rgba(226,240,232,.5);margin-top:2px",
+  sub: "font-size:12px;color:#94a3b8;margin-top:2px",
   act: "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:34px;"
     + "background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18);color:rgba(226,240,232,.75)",
   actPrimary: "font-size:12px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;min-height:34px;"
-    + "color:#f0fdf4;background:linear-gradient(135deg,#166534,#22c55e);border:1px solid rgba(134,239,172,.6)",
+    + "color:#e2e8f0;background:#2d6a4f;border:1px solid #52b788",
   actions: "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px",
   row: "display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid rgba(120,190,155,.08)",
   code: "font-family:ui-monospace,monospace;font-weight:700;font-size:12px;min-width:34px",
@@ -1200,7 +1200,7 @@ const _S = {
           : "background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35)"),
   state: (on) => "display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;"
     + (on ? "color:#3b82f6;background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.5)"
-          : "color:rgba(226,240,232,.4);background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.14)"),
+          : "color:#94a3b8;background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18)"),
 };
 export function openAggregateSheet(api, { title, sub, items, actions }){
   const mk = (tag, style, text) => { const n = document.createElement(tag); if (style) n.style.cssText = style; if (text !== undefined) n.textContent = text; return n; };
@@ -1442,7 +1442,7 @@ export function motionWeeklyGrid(history, endMs, days = 7) {
 
 const _CAL_S = {
   wrap: "display:grid;grid-template-columns:26px repeat(7,1fr);gap:2px;margin-top:6px",
-  hourLbl: "font-size:9px;color:rgba(226,240,232,.4);text-align:right;padding-right:4px;line-height:14px",
+  hourLbl: "font-size:10px;color:#94a3b8;text-align:right;padding-right:4px;line-height:14px",
   dayLbl: "font-size:10px;color:rgba(226,240,232,.65);text-align:center;font-weight:700;padding-bottom:3px",
   cellOff: "width:100%;aspect-ratio:1;border-radius:3px;background:rgba(255,255,255,.04)",
   cellOn: "width:100%;aspect-ratio:1;border-radius:3px;background:#3b82f6;box-shadow:0 0 5px rgba(59,130,246,.6)",
@@ -1473,7 +1473,7 @@ export async function openActivityCalendar(hass, eid) {
   head.appendChild(hl);
   const x = mk("button", _S.act, "✕"); x.addEventListener("click", close); head.appendChild(x);
   sheet.appendChild(head);
-  const body = mk("div", "font-size:12px;color:rgba(226,240,232,.5)", "Loading…");
+  const body = mk("div", "font-size:12px;color:#94a3b8", "Loading…");
   sheet.appendChild(body);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
@@ -1490,7 +1490,7 @@ export async function openActivityCalendar(hass, eid) {
 
     body.textContent = "";
     const totalOnHours = grid.reduce((a, row) => a + row.filter(Boolean).length, 0);
-    body.appendChild(mk("div", "font-size:11.5px;color:rgba(226,240,232,.5);margin-bottom:6px",
+    body.appendChild(mk("div", "font-size:12px;color:#94a3b8;margin-bottom:6px",
       totalOnHours ? `Tripped in ${totalOnHours} hour${totalOnHours === 1 ? "" : "s"} this week.` : "No activity in the last 7 days."));
 
     const gridEl = mk("div", _CAL_S.wrap);
@@ -1567,7 +1567,7 @@ export function openControlCard(hass, eid, api){
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
 
   const box = el("div", { style:
-    "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"
+    "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
     + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
     + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
     + "box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 30px rgba(82,183,136,.08),inset 0 1px 0 rgba(255,255,255,.05)" });
@@ -1715,7 +1715,7 @@ export function openControlCard(hass, eid, api){
     const colorInput = document.createElement("input");
     colorInput.type = "color";
     colorInput.value = toHex(rgb);
-    colorInput.style.cssText = "width:52px;height:32px;border:1px solid rgba(120,190,155,.25);border-radius:8px;"
+    colorInput.style.cssText = "width:52px;height:32px;border:1px solid rgba(120,190,155,.26);border-radius:8px;"
       + "background:rgba(255,255,255,.04);cursor:pointer;padding:2px";
     colorInput.addEventListener("change", async () => {
       try { await hass.callService("light", "turn_on", { entity_id: eid, rgb_color: fromHex(colorInput.value) }); }
@@ -1729,7 +1729,7 @@ export function openControlCard(hass, eid, api){
 
   if (effectList.length) {
     const effSel = document.createElement("select");
-    effSel.style.cssText = "width:100%;background:rgba(15,26,18,.9);color:#8ee5b4;border:1px solid rgba(120,190,155,.28);"
+    effSel.style.cssText = "width:100%;background:rgba(15,26,18,.9);color:#8ee5b4;border:1px solid rgba(120,190,155,.26);"
       + "border-radius:8px;padding:7px;font-size:12px;cursor:pointer";
     for (const eff of effectList) {
       const o = document.createElement("option");
@@ -1819,7 +1819,7 @@ export function openControlCard(hass, eid, api){
           "PadSpan runs this light's team, with WLED's own sync switched off on every member. The licence for that has lapsed."));
         slot.appendChild(el("button", {
           style: "width:100%;margin-top:8px;padding:8px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;"
-            + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.35)",
+            + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.45)",
           onclick: async () => {
             try {
               await hass.callWS({ type: "padspan_ha/wled_team_mode", team_id: x.team_id, mode: "mirror" });
@@ -1835,7 +1835,7 @@ export function openControlCard(hass, eid, api){
         "PadSpan gives this light its instructions, with WLED's own sync switched off. The licence for that has lapsed."));
       slot.appendChild(el("button", {
         style: "width:100%;margin-top:8px;padding:8px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;"
-          + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.35)",
+          + "background:rgba(255,255,255,.05);color:#e2e8f0;border:1px solid rgba(120,190,155,.45)",
         onclick: async () => {
           try {
             await hass.callWS({ type: "padspan_ha/wled_exact_set", entity_id: eid, exact: false });
@@ -1891,7 +1891,7 @@ function _pickEntityOverlay(title, candidates, onPick){
   const close = () => { overlay.remove(); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   const box = el("div", { style:
-    "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"
+    "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
     + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
     + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
     + "box-shadow:0 20px 60px rgba(0,0,0,.65)" });
@@ -1914,7 +1914,7 @@ function _pickEntityOverlay(title, candidates, onPick){
   box.appendChild(el("div", { style: "display:flex;gap:8px" }, [
     el("button", {
       style: "flex:1;padding:9px;font-weight:700;font-size:13px;border-radius:10px;cursor:pointer;"
-        + "background:linear-gradient(135deg,#166534,#22c55e);color:#f0fdf4;border:1px solid rgba(134,239,172,.6)",
+        + "background:#2d6a4f;color:#e2e8f0;border:1px solid #52b788",
       onclick: () => { if (!sel.value) return; onPick(sel.value); close(); },
     }, "Link"),
     el("button", {
@@ -2002,7 +2002,7 @@ export function openBarrierCard(hass, bar, api){
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
 
   const box = el("div", { style:
-    "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);"
+    "background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);"
     + "border-radius:16px;padding:20px;width:300px;max-width:90vw;"
     + "color:#e2e8f0;font-family:Inter,system-ui,sans-serif;"
     + "box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 30px rgba(82,183,136,.08),inset 0 1px 0 rgba(255,255,255,.05)" });
@@ -2034,7 +2034,7 @@ export function openBarrierCard(hass, bar, api){
       + "font-size:12px;font-weight:700;letter-spacing:.04em;margin-bottom:14px;"
       + (isAlert
         ? "color:#fca5a5;background:rgba(248,113,113,.14);border:1px solid rgba(248,113,113,.5)"
-        : "color:#86efac;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4)"),
+        : "color:#a7f3d0;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4)"),
   }, stateLabel));
 
   const lockCtx = { toast, rerender, close };
@@ -2860,7 +2860,9 @@ export function buildLightsMapCard(hostIn){
   const host = lightsHostForTier(hostIn);
   const { el, view } = host;
   const floors = host.floors || [];
-  const mapCard = el("div", { class: "card lv-mapcard" });
+  // lv-atlascard: this card (the map and its bars) keeps its night colours in
+  // the Day theme, whatever its size (day_theme.js OFF_MAP).
+  const mapCard = el("div", { class: "card lv-mapcard lv-atlascard" });
   // Layout v2 — see layoutTierFor's note. DISPLAY is the sidebar panel's
   // variant: that screen IS the house map, so nothing sits beside it but a
   // slim icon rail, and every bar below opens OVER the map as a drawer.
@@ -3833,7 +3835,7 @@ export function buildLightsMapCard(hostIn){
     const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); else la3dRetry(); } }, "Live Aboard");
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B, whyEl]));
     la3dPaints.push(() => {
-      const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e8f0ea";
+      const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e2e8f0";
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;
       mapB.setAttribute("title", "The flat map");
       d3B.setAttribute("aria-pressed", String(on)); d3B.style.cssText = on ? lit : "";
@@ -3850,7 +3852,7 @@ export function buildLightsMapCard(hostIn){
   if (abFile) {
     const fb = el("button", { "data-lv-furniture": "", title: "Show the furniture, doors and windows placed in Live Aboard on this map",
       onclick: () => { try { localStorage.setItem(abFurnKey, abFurn() ? "0" : "1"); } catch (_) { /* kept for this card only */ } paintFb(); rebuildISO(); } }, "Show furniture");
-    const paintFb = () => { const on = abFurn(); fb.setAttribute("aria-pressed", String(on)); fb.style.cssText = on ? "background:rgba(82,183,136,.24);color:#e8f0ea" : ""; };
+    const paintFb = () => { const on = abFurn(); fb.setAttribute("aria-pressed", String(on)); fb.style.cssText = on ? "background:rgba(82,183,136,.24);color:#e2e8f0" : ""; };
     paintFb();
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg" }, [fb]));
   }

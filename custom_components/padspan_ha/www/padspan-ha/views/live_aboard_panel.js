@@ -112,19 +112,19 @@ const CSS = `
 .la3d-chiprow>*{pointer-events:auto}
 .la3d.la3d-narrow .la3d-chiprow{top:auto;bottom:58px;max-width:calc(100% - 20px)}
 .la3d-chiprow .la3d-mchip{position:static;left:auto;top:auto;bottom:auto;transform:none;max-width:none;min-width:0;flex:0 1 auto}
-.la3d-pchip{display:flex;align-items:center;gap:2px;flex:none;padding:3px 4px 3px 12px;border-radius:999px;background:rgba(6,14,9,.8);
-  border:1px solid rgba(120,190,155,.22);box-shadow:0 4px 14px rgba(0,0,0,.35);color:rgba(226,240,232,.75);
-  font:600 12.5px/1.2 system-ui,"Segoe UI",Roboto,sans-serif;white-space:nowrap}
+.la3d-pchip{display:flex;align-items:center;gap:2px;flex:none;padding:3px 4px 3px 12px;border-radius:999px;background:rgba(6,14,9,.86);
+  border:1px solid rgba(120,190,155,.26);box-shadow:0 4px 14px rgba(0,0,0,.35);color:rgba(226,240,232,.75);
+  font:600 13px/1.2 system-ui,"Segoe UI",Roboto,sans-serif;white-space:nowrap}
 .la3d-pchip[hidden]{display:none}
 .la3d-pchip button{all:unset;box-sizing:border-box;cursor:pointer;padding:4px 7px;border-radius:999px;font-weight:800;color:#7dd3fc}
 .la3d-pchip button:hover,.la3d-pchip button:focus-visible{background:rgba(255,255,255,.1)}
 .la3d-pchip .la3d-pstop{color:rgba(226,240,232,.75);font-weight:700}
-.la3d.la3d-narrow .la3d-pchip{padding:2px 2px 2px 9px;font-size:11.5px}
+.la3d.la3d-narrow .la3d-pchip{padding:2px 2px 2px 9px;font-size:12px}
 .la3d.la3d-bare .la3d-pchip{opacity:0;visibility:hidden;pointer-events:none}
 .la3d-menu button:disabled{cursor:default;opacity:.6}
 .la3d-tagcard .la3d-cbtns{display:flex;gap:6px;margin-top:7px}
 .la3d-tagcard .la3d-cbtns button{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 12px;border-radius:8px;font-weight:700;
-  background:rgba(82,183,136,.2);border:1px solid rgba(82,183,136,.45);color:#e8f0ea}
+  background:rgba(82,183,136,.2);border:1px solid rgba(82,183,136,.45);color:#e2e8f0}
 .la3d-tagcard .la3d-cbtns button:hover,.la3d-tagcard .la3d-cbtns button:focus-visible{background:rgba(82,183,136,.32)}`;
 
 /**

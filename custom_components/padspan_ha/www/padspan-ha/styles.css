@@ -1020,21 +1020,21 @@
      .lv-state     ON/OFF as a lit pill with a glowing dot                  */
 
 .lv-hero{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.lv-hero-title{font-size:20px;font-weight:800;letter-spacing:-.02em;color:#e8f0ea;display:flex;align-items:center;gap:10px;line-height:1.1}
+.lv-hero-title{font-size:20px;font-weight:800;letter-spacing:-.02em;color:#e2e8f0;display:flex;align-items:center;gap:10px;line-height:1.1}
 .lv-hero-title::before{content:"";flex:0 0 10px;width:10px;height:10px;border-radius:50%;
   background:radial-gradient(circle at 35% 35%,#ffe9a8,#fbbf24 60%,#b45309);
   box-shadow:0 0 14px rgba(251,191,36,.75),0 0 34px rgba(251,191,36,.3)}
-.lv-ver{font-size:10.5px;padding:2px 9px;border-radius:999px;border:1px solid rgba(120,190,155,.22);
-  background:rgba(82,183,136,.08);color:rgba(226,240,232,.55);font-variant-numeric:tabular-nums;font-weight:600}
-.lv-hint{font-size:11.5px;color:rgba(226,240,232,.45);line-height:1.5}
+.lv-ver{font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid rgba(120,190,155,.26);
+  background:rgba(82,183,136,.08);color:#94a3b8;font-variant-numeric:tabular-nums;font-weight:600}
+.lv-hint{font-size:12px;color:#94a3b8;line-height:1.5}
 
 .lv-mapcard{background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
-  border:1px solid rgba(120,190,155,.16);border-radius:16px;padding:12px;margin-bottom:16px;
+  border:1px solid rgba(120,190,155,.18);border-radius:16px;padding:12px;margin-bottom:16px;
   box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 10px 30px rgba(0,0,0,.25)}
 
 /* ── the control row ────────────────────────────────────────────────────── */
 .lv-toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;
-  padding:6px 8px;border:1px solid rgba(120,190,155,.14);border-radius:12px;
+  padding:6px 8px;border:1px solid rgba(120,190,155,.18);border-radius:12px;
   background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.2))}
 /* Mapping → Lights only (Garry, 2026-09-09: "the scroll hides the controls,
    needs fixing for mapping area, but works better this way in lights and
@@ -1067,15 +1067,15 @@
    whole house items need only take up 1 row combined" — this is why they
    didn't). Adding the element type here matches that specificity and
    wins on source order (this rule comes later in the file). */
-input.lv-preset-name{background:rgba(15,26,18,.85);color:#e8f0ea;
+input.lv-preset-name{background:rgba(15,26,18,.85);color:#e2e8f0;
   border:1px solid rgba(196,181,253,.3);border-radius:8px;padding:2px 8px;
   font-size:11px;width:150px}
 input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-sep{width:1px;align-self:stretch;margin:2px 3px;
-  background:linear-gradient(180deg,transparent,rgba(120,190,155,.3),transparent)}
-.lv-lbl{font-size:9.5px;font-weight:600;white-space:nowrap;text-transform:uppercase;
-  letter-spacing:.09em;color:rgba(226,240,232,.38)}
-.lv-val{font-size:11.5px;color:#cbd5e1;font-variant-numeric:tabular-nums;min-width:34px}
+  background:linear-gradient(180deg,transparent,rgba(120,190,155,.26),transparent)}
+.lv-lbl{font-size:10px;font-weight:600;white-space:nowrap;text-transform:uppercase;
+  letter-spacing:.09em;color:#94a3b8}
+.lv-val{font-size:12px;color:#e2e8f0;font-variant-numeric:tabular-nums;min-width:34px}
 
 /* A GROUP header, not a value label (Garry, 2026-09-11: "the large number of
    controls is very poorly structured... group by what they do") — forces a
@@ -1086,7 +1086,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
    Floor, Room %); this means "everything until the next one of these is
    part of the same topic." */
 .lv-grouplbl{flex-basis:100%;font-size:10px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.12em;color:rgba(226,240,232,.5);margin-top:6px;padding-top:6px;
+  letter-spacing:.12em;color:#94a3b8;margin-top:6px;padding-top:6px;
   border-top:1px solid rgba(120,190,155,.1)}
 .lv-grouplbl:first-child{margin-top:0;padding-top:0;border-top:none}
 
@@ -1103,7 +1103,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18);
   color:rgba(226,240,232,.65);
   transition:border-color .15s ease,background .15s ease,color .15s ease,box-shadow .15s ease}
-.lv-tgl:hover{border-color:rgba(120,190,155,.42);background:rgba(255,255,255,.06);color:#e8f0ea}
+.lv-tgl:hover{border-color:rgba(120,190,155,.45);background:rgba(255,255,255,.06);color:#e2e8f0}
 /* Garry, 2026-09-21: "the transform button and the save button should be
    bigger" — the Atlas builder's Transform toggle and its Save placements
    button specifically, not every lv-tgl/.btn on the page. */
@@ -1121,15 +1121,15 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-act{width:auto;margin-top:0;font-size:11px;font-weight:600;padding:3px 10px;border-radius:8px;
   cursor:pointer;background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18);
   color:rgba(226,240,232,.75);transition:border-color .15s ease,background .15s ease,color .15s ease}
-.lv-act:hover:not(:disabled){border-color:rgba(120,190,155,.45);background:rgba(255,255,255,.06);color:#e8f0ea}
+.lv-act:hover:not(:disabled){border-color:rgba(120,190,155,.45);background:rgba(255,255,255,.06);color:#e2e8f0}
 .lv-act:disabled{opacity:.45;cursor:default}
-.lv-act.primary{color:#f0fdf4;background:linear-gradient(135deg,#166534,#22c55e);border-color:rgba(134,239,172,.6)}
-.lv-act.primary:hover:not(:disabled){border-color:rgba(134,239,172,.9);background:linear-gradient(135deg,#15803d,#22c55e)}
-.lv-status{font-size:11px;color:rgba(226,240,232,.5);min-width:50px;display:inline-block}
+.lv-act.primary{color:#e2e8f0;background:#2d6a4f;border-color:#52b788}
+.lv-act.primary:hover:not(:disabled){border-color:#a7f3d0;background:#357a5b}
+.lv-status{font-size:11px;color:#94a3b8;min-width:50px;display:inline-block}
 
 /* sliders: a slim track with a lit thumb */
 .lv-range{-webkit-appearance:none;appearance:none;height:4px;border-radius:999px;
-  background:rgba(120,190,155,.2);outline:none;cursor:pointer;vertical-align:middle}
+  background:rgba(120,190,155,.18);outline:none;cursor:pointer;vertical-align:middle}
 .lv-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;
   background:#52b788;border:2px solid #0a150e;
   box-shadow:0 0 0 1px rgba(82,183,136,.5),0 0 10px rgba(82,183,136,.4);
@@ -1137,21 +1137,21 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-range::-webkit-slider-thumb:hover{box-shadow:0 0 0 1px rgba(82,183,136,.85),0 0 16px rgba(82,183,136,.65)}
 .lv-range::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:#52b788;
   border:2px solid #0a150e;box-shadow:0 0 0 1px rgba(82,183,136,.5),0 0 10px rgba(82,183,136,.4)}
-.lv-range::-moz-range-track{height:4px;border-radius:999px;background:rgba(120,190,155,.2)}
+.lv-range::-moz-range-track{height:4px;border-radius:999px;background:rgba(120,190,155,.18)}
 
 /* zoom: one segmented control instead of three loose buttons */
 .lv-zoomseg{display:inline-flex;border:1px solid rgba(120,190,155,.18);border-radius:9px;
   overflow:hidden;background:rgba(0,0,0,.25)}
 .lv-zoomseg button{all:unset;box-sizing:border-box;padding:3px 10px;font-size:11px;font-weight:600;
-  color:rgba(226,240,232,.7);cursor:pointer;border-right:1px solid rgba(120,190,155,.14);
+  color:rgba(226,240,232,.7);cursor:pointer;border-right:1px solid rgba(120,190,155,.18);
   font-variant-numeric:tabular-nums;transition:background .13s ease,color .13s ease}
 .lv-zoomseg button:last-child{border-right:none}
-.lv-zoomseg button:hover{background:rgba(82,183,136,.16);color:#e8f0ea}
+.lv-zoomseg button:hover{background:rgba(82,183,136,.16);color:#e2e8f0}
 
 /* ── the drawing ────────────────────────────────────────────────────────── */
 .lv-stage{overflow:auto;width:100%;padding:10px;border-radius:14px;
   background:radial-gradient(120% 90% at 50% 0%,#0b1a10 0%,#071008 55%,#040a05 100%);
-  border:1px solid rgba(120,190,155,.14);
+  border:1px solid rgba(120,190,155,.18);
   box-shadow:inset 0 0 44px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.03);
   /* touch-action: pan-x pan-y, not none and not left unset. This map
      relies on the browser's OWN native one-finger scroll to pan
@@ -1177,7 +1177,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   touch-action:pan-x pan-y;
   -webkit-touch-callout:none}
 .lv-stage::-webkit-scrollbar{height:9px;width:9px}
-.lv-stage::-webkit-scrollbar-thumb{background:rgba(120,190,155,.25);border-radius:999px;border:2px solid #040a05}
+.lv-stage::-webkit-scrollbar-thumb{background:rgba(120,190,155,.26);border-radius:999px;border:2px solid #040a05}
 
 /* ── Atlas outdoor weather (views/atlas_weather.js) ─────────────────────────
    Rain or snow everywhere outside the floor plates, never over a room. An
@@ -1241,11 +1241,11 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
    Same shaded-pill body .lv-ctrlgroup already uses, opened by a one-line
    summary instead of always showing every control inside it. */
 .lv-fold{display:inline-flex;flex-direction:column;background:rgba(255,255,255,.025);
-  border:1px solid rgba(120,190,155,.14);border-radius:9px;margin:2px 2px;overflow:hidden}
+  border:1px solid rgba(120,190,155,.18);border-radius:9px;margin:2px 2px;overflow:hidden}
 .lv-fold summary{list-style:none;cursor:pointer;padding:4px 10px;font-size:11px;font-weight:600;
   color:rgba(226,240,232,.75);display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap}
 .lv-fold summary::-webkit-details-marker{display:none}
-.lv-fold summary::before{content:"\25b8";font-size:9px;color:rgba(226,240,232,.4);transition:transform .12s ease}
+.lv-fold summary::before{content:"\25b8";font-size:10px;color:#94a3b8;transition:transform .12s ease}
 .lv-fold[open] summary::before{transform:rotate(90deg)}
 .lv-fold[open] summary{border-bottom:1px solid rgba(120,190,155,.12)}
 .lv-fold-body{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;padding:6px 10px 8px}
@@ -1265,7 +1265,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-mapcard.lv-display .lv-stage{border-radius:0;border:none;width:calc(100% - 44px);margin-left:44px}
 .lv-rail{position:absolute;left:0;top:0;bottom:0;width:44px;display:flex;flex-direction:column;
   align-items:center;gap:4px;padding:8px 0;background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
-  border-right:1px solid rgba(120,190,155,.14);z-index:5;transition:transform .18s ease}
+  border-right:1px solid rgba(120,190,155,.18);z-index:5;transition:transform .18s ease}
 .lv-rail.hidden{transform:translateX(-100%)}
 .lv-rail.hidden ~ .lv-stage{width:100%;margin-left:0}
 /* The legend clears the rail like the stage does; the card has no padding
@@ -1273,12 +1273,12 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-mapcard.lv-display .lv-legend{margin:0 0 0 44px;padding:9px 12px 10px}
 .lv-rail.hidden ~ .lv-legend{margin-left:0}
 .lv-railbtn{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.03);
-  border:1px solid rgba(120,190,155,.16);color:rgba(226,240,232,.65);font-size:15px;cursor:pointer}
+  border:1px solid rgba(120,190,155,.18);color:rgba(226,240,232,.65);font-size:15px;cursor:pointer}
 .lv-railbtn.on{background:rgba(124,58,237,.3);border-color:rgba(196,181,253,.5);color:#f3edff}
 .lv-drawer{position:absolute;left:44px;top:0;right:0;max-height:0;overflow:hidden;z-index:4;
   background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
   box-shadow:0 10px 24px -8px rgba(0,0,0,.6);transition:max-height .16s ease}
-.lv-drawer.open{max-height:220px;overflow-y:auto;border-bottom:1px solid rgba(120,190,155,.16)}
+.lv-drawer.open{max-height:220px;overflow-y:auto;border-bottom:1px solid rgba(120,190,155,.18)}
 .lv-drawer .lv-toolbar,.lv-drawer .lv-presetbar{margin:0;border:none;background:none;border-radius:0}
 
 /* ── Emergency lighting test (the Atlas sidebar; lights_panel.js) ─────────
@@ -1335,7 +1335,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 @media (prefers-reduced-motion:reduce){
   .lv-emerg-dial.on .lv-emerg-ring{animation:none;box-shadow:0 0 0 2px rgba(127,29,29,.6),0 0 22px 4px rgba(239,68,68,.8)}}
 .lv-emerg-force{all:unset;box-sizing:border-box;height:32px;padding:0 12px;border-radius:999px;cursor:pointer;
-  font-size:11.5px;font-weight:700;color:#fecaca;background:rgba(40,8,8,.92);border:1px solid #dc2626;
+  font-size:12px;font-weight:700;color:#fecaca;background:rgba(40,8,8,.92);border:1px solid #dc2626;
   box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .lv-emerg-force:hover{background:rgba(127,29,29,.95);color:#fff}
 /* "Tap again": a real emergency ran during the test, Force off confirms. */
@@ -1380,24 +1380,24 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-legend{display:flex;flex-wrap:wrap;gap:5px 8px;align-items:center;margin-top:10px;
   padding-top:9px;border-top:1px solid rgba(120,190,155,.12)}
 .lv-legend-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 5px;
-  border-radius:999px;border:1px solid rgba(120,190,155,.14);background:rgba(255,255,255,.025);
-  font-size:10.5px;color:rgba(226,240,232,.6)}
+  border-radius:999px;border:1px solid rgba(120,190,155,.18);background:rgba(255,255,255,.025);
+  font-size:11px;color:#94a3b8}
 
 /* ── the light index ────────────────────────────────────────────────────── */
 .lv-tablecard{background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
-  border:1px solid rgba(120,190,155,.16);border-radius:16px;padding:12px;
+  border:1px solid rgba(120,190,155,.18);border-radius:16px;padding:12px;
   box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
 .lv-tbl-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px}
-.lv-tbl-title{font-weight:700;font-size:13px;letter-spacing:.01em;color:#e8f0ea}
+.lv-tbl-title{font-weight:700;font-size:13px;letter-spacing:.01em;color:#e2e8f0}
 /* The index header stays on one line; the builder's light inspector reuses
    .lv-tbl-title for "code · name", which must still wrap. */
 .lv-index .lv-tbl-title{white-space:nowrap}
 .lv-count{font-size:10px;font-weight:700;padding:1px 8px;border-radius:999px;
-  border:1px solid rgba(120,190,155,.25);background:rgba(82,183,136,.1);
+  border:1px solid rgba(120,190,155,.26);background:rgba(82,183,136,.1);
   color:#8ee5b4;font-variant-numeric:tabular-nums}
-.lv-note{font-size:12px;color:rgba(226,240,232,.5);margin-bottom:10px}
-.lv-table th{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-  color:rgba(226,240,232,.38);border-bottom:1px solid rgba(120,190,155,.18);padding:7px 8px}
+.lv-note{font-size:12px;color:#94a3b8;margin-bottom:10px}
+.lv-table th{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:#94a3b8;border-bottom:1px solid rgba(120,190,155,.18);padding:7px 8px}
 .lv-table td{border-bottom:1px solid rgba(120,190,155,.07);padding:7px 8px;vertical-align:middle}
 .lv-table tbody tr{transition:background .12s ease}
 .lv-table tbody tr:hover{background:rgba(255,255,255,.03)}
@@ -1439,8 +1439,8 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-state::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
 .lv-state.on{color:#fbbf24;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4)}
 .lv-state.on::before{box-shadow:0 0 7px rgba(251,191,36,.9)}
-.lv-state.off{color:rgba(226,240,232,.4);background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.14)}
-.lv-select{background:rgba(15,26,18,.85);color:#8ee5b4;border:1px solid rgba(120,190,155,.25);
+.lv-state.off{color:#94a3b8;background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18)}
+.lv-select{background:rgba(15,26,18,.85);color:#8ee5b4;border:1px solid rgba(120,190,155,.26);
   border-radius:8px;padding:2px 6px;font-size:11px;cursor:pointer;width:auto;margin-top:0}
 .lv-select:focus{border-color:rgba(82,183,136,.65);outline:none}
 
@@ -1456,11 +1456,11 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   border:1px solid rgba(255,255,255,.25);box-shadow:0 0 14px rgba(251,191,36,.3)}
 .lv-onoff.off{background:rgba(255,255,255,.05);color:#fbbf24;border:1px solid rgba(251,191,36,.35)}
 .lv-field{display:flex;gap:6px;align-items:center;font-size:11px;font-weight:600;
-  color:rgba(226,240,232,.5);white-space:nowrap}
-.lv-num{width:64px;background:rgba(0,0,0,.3);color:#e8f0ea;border:1px solid rgba(120,190,155,.25);
-  border-radius:8px;padding:3px 7px;font-size:11.5px;font-variant-numeric:tabular-nums;margin-top:0}
+  color:#94a3b8;white-space:nowrap}
+.lv-num{width:64px;background:rgba(0,0,0,.3);color:#e2e8f0;border:1px solid rgba(120,190,155,.26);
+  border-radius:8px;padding:3px 7px;font-size:12px;font-variant-numeric:tabular-nums;margin-top:0}
 .lv-num:focus{border-color:rgba(82,183,136,.65);outline:none}
-.lv-swatch{width:40px;height:28px;border:1px solid rgba(120,190,155,.25);border-radius:8px;
+.lv-swatch{width:40px;height:28px;border:1px solid rgba(120,190,155,.26);border-radius:8px;
   background:rgba(255,255,255,.04);cursor:pointer;padding:2px}
 
 /* ── layers + navigation bar (class chips, floor chips, Find active) ────── */
@@ -1469,14 +1469,14 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   padding:4px 11px;border-radius:999px;cursor:pointer;min-height:30px;
   background:rgba(255,255,255,.03);border:1px solid rgba(120,190,155,.18);color:rgba(226,240,232,.65);
   transition:border-color .15s ease,background .15s ease,color .15s ease}
-.lv-chipbtn:hover{border-color:rgba(120,190,155,.45);color:#e8f0ea}
-.lv-chipbtn.on{color:#f0fdf4;background:linear-gradient(135deg,#166534,#22c55e);border-color:rgba(134,239,172,.6);
+.lv-chipbtn:hover{border-color:rgba(120,190,155,.45);color:#e2e8f0}
+.lv-chipbtn.on{color:#e2e8f0;background:#2d6a4f;border-color:#52b788;
   box-shadow:0 0 12px rgba(34,197,94,.3)}
 .lv-chipbtn.floor.on{background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-color:rgba(147,197,253,.65);
   box-shadow:0 0 12px rgba(59,130,246,.35)}
-.lv-chipn{font-size:9.5px;font-weight:700;padding:0 6px;border-radius:999px;background:rgba(0,0,0,.3);
+.lv-chipn{font-size:10px;font-weight:700;padding:0 6px;border-radius:999px;background:rgba(0,0,0,.3);
   color:inherit;opacity:.85;font-variant-numeric:tabular-nums}
-.lv-dot{min-width:14px;height:14px;padding:0 4px;border-radius:999px;font-size:9px;font-weight:800;line-height:14px;
+.lv-dot{min-width:14px;height:14px;padding:0 4px;border-radius:999px;font-size:10px;font-weight:800;line-height:14px;
   text-align:center;background:#fbbf24;color:#111827;box-shadow:0 0 8px rgba(251,191,36,.7)}
 .lv-dot.motion{background:#3b82f6;color:#fff;box-shadow:0 0 8px rgba(59,130,246,.8)}
 
@@ -1505,16 +1505,16 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-sheet-overlay{position:fixed;inset:0;z-index:10000;background:rgba(3,8,5,.58);
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center}
 .lv-sheet{width:100%;max-width:520px;max-height:78vh;overflow:auto;padding:14px 16px 18px;
-  background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.28);border-bottom:none;
+  background:linear-gradient(180deg,#101f15,#0b1710);border:1px solid rgba(120,190,155,.26);border-bottom:none;
   border-radius:18px 18px 0 0;color:#e2e8f0;font-family:Inter,system-ui,sans-serif;
   box-shadow:0 -12px 50px rgba(0,0,0,.6)}
 @media(min-width:769px){
   .lv-sheet-overlay{align-items:center}
-  .lv-sheet{border-radius:16px;border-bottom:1px solid rgba(120,190,155,.28)}
+  .lv-sheet{border-radius:16px;border-bottom:1px solid rgba(120,190,155,.26)}
 }
 .lv-sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
 .lv-sheet-title{font-weight:800;font-size:16px;letter-spacing:-.01em}
-.lv-sheet-sub{font-size:11.5px;color:rgba(226,240,232,.5);margin-top:2px}
+.lv-sheet-sub{font-size:12px;color:#94a3b8;margin-top:2px}
 .lv-sheet-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .lv-sheet-actions .lv-act{min-height:34px;padding:6px 14px;font-size:12px}
 .lv-sheet-list{display:flex;flex-direction:column}
@@ -1526,7 +1526,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 
 /* ── coach mark, selected index row, the builder's EDITING badge ────────── */
 .lv-coach{display:flex;gap:12px;align-items:center;padding:10px 14px;margin-bottom:12px;border-radius:12px;
-  font-size:12.5px;line-height:1.5;color:#fde68a;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.4);
+  font-size:13px;line-height:1.5;color:#fde68a;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.4);
   box-shadow:0 0 18px rgba(251,191,36,.08)}
 .lv-coach .lv-act{flex-shrink:0}
 .lv-table tbody tr.lv-row-sel{background:rgba(232,121,249,.12);box-shadow:inset 3px 0 0 #e879f9}
@@ -1552,16 +1552,16 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-hoverhud-anchor{position:sticky;top:0;left:0;height:0;overflow:visible;z-index:5}
 .lv-hoverhud{position:absolute;top:0;left:0;min-width:180px;max-width:320px;padding:6px 8px;
   border-radius:10px;background:rgba(7,16,8,.92);border:1px solid rgba(232,121,249,.35);
-  box-shadow:0 8px 24px rgba(0,0,0,.5);font-size:11.5px;line-height:1.35;color:#e8f0ea;pointer-events:auto}
-.lv-hoverhud-k{display:inline-block;min-width:38px;margin-right:6px;font-size:9.5px;font-weight:700;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-size:12px;line-height:1.35;color:#e2e8f0;pointer-events:auto}
+.lv-hoverhud-k{display:inline-block;min-width:38px;margin-right:6px;font-size:10px;font-weight:700;
   text-transform:uppercase;letter-spacing:.1em;color:rgba(232,121,249,.85)}
 .lv-hoverhud-hit{font-weight:600;padding:1px 0}
 .lv-hoverhud-under{display:block;width:100%;text-align:left;margin:2px 0 0;padding:2px 4px;border-radius:6px;
   border:1px solid transparent;background:none;color:rgba(226,240,232,.75);font:inherit;font-size:11px;cursor:pointer}
-.lv-hoverhud-under:hover{border-color:rgba(232,121,249,.5);color:#e8f0ea;background:rgba(232,121,249,.08)}
-.lv-hoverhud-hint{margin-top:4px;font-size:9.5px;color:rgba(226,240,232,.45)}
+.lv-hoverhud-under:hover{border-color:rgba(232,121,249,.5);color:#e2e8f0;background:rgba(232,121,249,.08)}
+.lv-hoverhud-hint{margin-top:4px;font-size:10px;color:#94a3b8}
 
-.lv-check{display:inline-flex;gap:8px;align-items:center;font-size:11px;color:rgba(226,240,232,.6);
+.lv-check{display:inline-flex;gap:8px;align-items:center;font-size:11px;color:#94a3b8;
   font-variant-numeric:tabular-nums}
 .lv-check b{color:#8ee5b4}
 

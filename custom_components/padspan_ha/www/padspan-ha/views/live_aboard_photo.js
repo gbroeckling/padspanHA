@@ -162,7 +162,7 @@ export const CSS = `
 .la3d-pflow p{margin:0}
 .la3d-pflow .muted{color:var(--secondary-text-color,#9aa3ab);font-size:13px}
 .la3d-pflow .note{padding:8px 10px;border-radius:8px;background:rgba(127,151,173,.14);font-size:13px}
-.la3d-pflow .warn{padding:8px 10px;border-radius:8px;background:rgba(245,176,65,.16);font-size:13px}
+.la3d-pflow .warn{padding:8px 10px;border-radius:8px;background:rgba(245,158,11,.16);font-size:13px}
 .la3d-pflow .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .la3d-pflow button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
   background:rgba(255,255,255,.06);color:inherit;cursor:pointer;min-height:38px}

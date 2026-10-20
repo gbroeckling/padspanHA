@@ -322,11 +322,11 @@ await tryCase("pick: under the floor above is never picked; on a floor below in 
     return s && s.opening ? s.opening.id : null;
   };
   const under = pickOf("basement", 7.55, 3.75);
-  click("×", "la3d-sheet");
+  click("✕", "la3d-sheet");
   const shop = pickOf("basement", 14, 3.75);
-  click("×", "la3d-sheet");
+  click("✕", "la3d-sheet");
   const mine = pickOf("main", 0, 3.75);
-  click("×", "la3d-sheet");
+  click("✕", "la3d-sheet");
   check("pick: under the floor above is never picked; on a floor below in plain view still is",
     under === null && shop === "win_0000b002" && mine === "win_0000a001", { under, shop, mine });
   await closeEdit();
@@ -616,7 +616,7 @@ await tryCase("widths: drawn or dragged to its least width on a sloped wall, Sav
         dragged.push({ id, kind: g && g.kind, len: len2 });
         await settle();
       }
-      click("×", "la3d-sheet");                   // its ends no longer grab the next press
+      click("✕", "la3d-sheet");                   // its ends no longer grab the next press
     }
   }
   const mine = made.map(m => ed().draft.openings[m.id]).filter(Boolean);
@@ -656,7 +656,7 @@ await tryCase("limits: a window's Sill and Head sliders reach exactly as high as
     out[key] = { id: s && s.opening && s.opening.id, sill, head, top: [top.z0, top.z1], rec: [rec.sill_m, rec.head_m], drawn: [drawn.z0, drawn.z1],
                  ok: !!(sill && head) && Math.abs(sill[1] - top.z0) < 1e-9 && Math.abs(head[1] - top.z1) < 1e-9
                      && Math.abs(drawn.z0 - rec.sill_m) < 1e-9 && Math.abs(drawn.z1 - rec.head_m) < 1e-9 };
-    click("×", "la3d-sheet");
+    click("✕", "la3d-sheet");
   }
   click("Save", "la3d-tools");
   await settle();
@@ -692,7 +692,7 @@ await tryCase("limits: a readout's and a light's Height sliders reach exactly as
     await settle();
     const z = (st().heights[eid.startsWith("light.") ? "lights" : "devices"].find(x => x.eid === eid) || {}).z;
     out[eid] = { sel: s && s.eid, h, z };
-    click("×", "la3d-sheet");
+    click("✕", "la3d-sheet");
   }
   const ceilM = 2.8 - H.SLAB_T;
   click("Save", "la3d-tools");
@@ -727,7 +727,7 @@ await tryCase("drag: a window's Sill moves it in place, never reading or rebuild
     const w2 = st().work;
     out[id] = { sel, drawn, after: glassAt(id), moving: [w1.reads - w0.reads, w1.shells - w0.shells, w1.lights - w0.lights, w1.sensors - w0.sensors],
                 moves: w1.moves - w0.moves, letGo: [w2.reads - w1.reads, w2.shells - w1.shells] };
-    click("×", "la3d-sheet");
+    click("✕", "la3d-sheet");
   }
   await closeEdit();
   check("drag: a window's Sill moves it in place, never reading or rebuilding; let go, the walls are built once",
@@ -753,7 +753,7 @@ await tryCase("drag: a light's and a readout's Height move them in place; let go
                  moves: w1.moves - w0.moves, letGo: [w2.reads - w1.reads, w2.shells - w1.shells, w2.lights - w1.lights, w2.sensors - w1.sensors],
                  // a press where it was moved to finds it, moved in place and built again
                  same: hitMoved && hitBuilt && zBuilt === 1.89 };
-    click("×", "la3d-sheet");
+    click("✕", "la3d-sheet");
   }
   await closeEdit();
   const L = out["light.den"], S = out["sensor.den_temp"];
@@ -783,7 +783,7 @@ await tryCase("split: a window split over two walls moves whole as its Sill is d
   letGo("Sill");
   await settle();
   const w2 = st().work, after = glassOf();
-  click("×", "la3d-sheet");
+  click("✕", "la3d-sheet");
   await closeEdit();
   delete server.file.openings[id];
   slot.detach(); poll(); await settle(40);

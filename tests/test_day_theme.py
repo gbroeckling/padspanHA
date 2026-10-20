@@ -69,11 +69,56 @@ def test_atlas_live_aboard_and_pure_live_rules_keep_their_colours():
     assert ".card{background:#0f1a12}" not in out
 
 
+def test_atlas_controls_on_a_plain_card_follow_the_day():
+    # .lv-hint / .lv-act are used in Mapping and Floor Heights too: pale night
+    # text on a day card all but vanished. Night stays in a kept drawing's box
+    # (the map card) and the 3D house; a day copy covers everywhere else.
+    css = ".lv-hint{color:rgba(226,240,232,.45)}@media (max-width:600px){.lv-act,.lv-tgl::before{color:#e2e8f0}}.la3d .lv-zoomseg{color:#e2e8f0}"
+    out = _js(f"m.dayCss({json.dumps(css)})")
+    off = ":not(.lv-atlascard):not(.lv-atlascard *):not([data-keep-night]):not([data-keep-night] *):not(.la3d *)"
+    assert out.startswith(".lv-hint{color:rgba(226,240,232,.45)}"), out
+    assert f".lv-hint{off}{{" in out and f".lv-act{off},.lv-tgl{off}::before{{" in out, out
+    assert "rgba(226,240,232,.45)}.lv-hint" in out, "the night rule comes first, the day copy after it"
+    day = out.split(f".lv-hint{off}{{", 1)[1].split("}", 1)[0]
+    assert "226,240,232" not in day, day
+    assert out.count(".la3d .lv-zoomseg") == 1, "a rule of the 3D house gets no day copy"
+    assert out.count("@media") == 1 and out.endswith("}"), out
+    # colours only: a copy carrying font-size would outrank .lv-tgl-big's own
+    out2 = _js('m.dayCss(".lv-tgl{font-size:11px;color:#e2e8f0}.lv-tgl-big{font-size:14px}")')
+    assert f".lv-tgl{off}{{color:" in out2 and out2.count("font-size:11px") == 1, out2
+    # a shorthand gives only its colour: `.lv-row:last-child{border-bottom:none}`
+    # must still win over the copy of `.lv-row{border-bottom:1px solid ...}`
+    out3 = _js('m.dayCss(".lv-row{border-bottom:1px solid #1b3526;background:#0f1a12}.lv-row:last-child{border-bottom:none}'
+               '.lv-r::-webkit-slider-thumb{background:#0f1a12}")')
+    assert f".lv-row{off}{{border-bottom-color:" in out3 and ";background-color:" in out3, out3
+    assert out3.count("1px solid") == 1, out3
+    assert f".lv-r{off}::-webkit-slider-thumb{{background-color:" in out3, "the :not goes before a vendor pseudo-element"
+
+
+def test_a_comment_with_braces_never_splits_a_rule():
+    # styles.css explains a selector in a comment that quotes `{width:100%}`:
+    # split on its braces, the day copy landed inside the comment and every
+    # rule after it was lost.
+    css = "/* a bare .lv-x{width:150px} lost */.lv-x{color:#e2e8f0}.card{color:#e2e8f0}"
+    out = _js(f"m.dayCss({json.dumps(css)})")
+    assert "/*" not in out and out.startswith(".lv-x{color:#e2e8f0}"), out
+    assert ".card{color:#e2e8f0}" not in out and ".card{" in out, out
+
+
+def test_what_stays_night_keeps_the_hosts_night_variables():
+    # the 2025 skin's inputs read --ps-s2: in the Day theme they turned white
+    # on the dark Atlas map card.
+    out = _js('m.dayCss(":host{--ps-s2:#121816;display:block}")')
+    assert ".lv-atlascard,.la3d,[data-keep-night]{--ps-s2:#121816}" in out, out
+    assert out.startswith(":host{") and "#121816;display" not in out, out
+
+
 def test_skin_variables_with_digits_are_themed():
     # styles-2025.css names its colours --ps-s2, --ps-tx2 ...: missed once, they
     # left the 2025 cards dark and their text light-on-light.
     out = _js('m.dayCss(":host{--ps-s2:#121816;--ps-tx2:#93A29C}")')
-    assert "#121816" not in out and "#93A29C" not in out
+    host = out.split("}", 1)[0]
+    assert "#121816" not in host and "#93A29C" not in host, out
 
 
 def test_three_theme_choices_and_light_is_still_the_inversion():

@@ -166,7 +166,7 @@ const NAME_PX = [12, 17];                  // a room's name on screen (px), neve
 // control (.lv-zoomseg) so they wear the same face.
 const CSS = `
 .la3d{position:relative;display:block;width:100%;height:calc(100vh - 260px);min-height:360px;box-sizing:border-box;
-  border-radius:14px;overflow:hidden;background:${BG};border:1px solid rgba(120,190,155,.14);
+  border-radius:14px;overflow:hidden;background:${BG};border:1px solid rgba(120,190,155,.18);
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .lv-mapcard.lv-display .la3d{border-radius:0;border:none;width:calc(100% - 44px);margin-left:44px;height:calc(100vh - 84px)}
 .lv-rail.hidden ~ .la3d{width:100%;margin-left:0}
@@ -178,27 +178,27 @@ const CSS = `
 .la3d-bar > *{pointer-events:auto}
 .la3d .lv-zoomseg{background:rgba(6,14,9,.86);box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .la3d .lv-zoomseg button{padding:7px 12px;font-size:12px}
-.la3d .lv-zoomseg button[aria-pressed="true"]{background:rgba(82,183,136,.32);color:#f0fdf4}
-.la3d-lbl{align-self:center;padding:0 6px 0 10px;font-size:10.5px;font-weight:600;letter-spacing:.06em;
-  text-transform:uppercase;color:rgba(226,240,232,.45)}
+.la3d .lv-zoomseg button[aria-pressed="true"]{background:rgba(82,183,136,.32);color:#e2e8f0}
+.la3d-lbl{align-self:center;padding:0 6px 0 10px;font-size:11px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:#94a3b8}
 .la3d-compass{position:absolute;left:10px;top:10px;z-index:2;width:52px;height:52px;padding:0;border-radius:50%;
-  border:1px solid rgba(120,190,155,.22);background:rgba(6,14,9,.8);box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer;
+  border:1px solid rgba(120,190,155,.26);background:rgba(6,14,9,.86);box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer;
   touch-action:none}
 .la3d-compass svg{display:block;width:100%;height:100%;pointer-events:none}
 .la3d .la3d-north{position:absolute;left:10px;top:70px;z-index:3;display:none}
 .la3d .la3d-north.on{display:inline-flex}
 .la3d-toast{position:absolute;left:50%;bottom:64px;z-index:3;transform:translateX(-50%);display:flex;align-items:center;gap:10px;
-  padding:6px 7px 6px 14px;border-radius:12px;background:rgba(6,14,9,.94);border:1px solid rgba(120,190,155,.24);
-  color:#e8f0ea;font-size:12.5px;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.45);animation:la3d-toast 6s ease forwards}
+  padding:6px 7px 6px 14px;border-radius:12px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);
+  color:#e2e8f0;font-size:13px;white-space:nowrap;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:la3d-toast 6s ease forwards}
 .la3d-toast button{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 11px;border-radius:8px;font-weight:700;
-  color:#f5b041;background:rgba(245,176,65,.12)}
+  color:#f59e0b;background:rgba(245,158,11,.12)}
 @keyframes la3d-toast{0%{opacity:0;visibility:visible}5%{opacity:1}85%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
 .la3d-ov{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
 .la3d-hud{position:absolute;left:72px;top:10px;z-index:3;max-width:calc(100% - 84px)}
 .la3d-hud .lv-hoverhud{position:static}
 .la3d-side{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
 .la3d-side:last-child{justify-content:flex-end;margin-left:auto}
-.la3d .la3d-floor .la3d-fname{min-width:64px;text-align:center;color:#f0fdf4}
+.la3d .la3d-floor .la3d-fname{min-width:64px;text-align:center;color:#e2e8f0}
 .la3d .lv-zoomseg button[disabled]{opacity:.35;cursor:default}
 .la3d .lv-zoomseg svg{display:block;width:14px;height:14px}
 .la3d.la3d-narrow .la3d-w,.la3d:not(.la3d-narrow) .la3d-n{display:none}
@@ -216,43 +216,43 @@ const CSS = `
 .la3d-menu .la3d-fb{margin-right:7px;vertical-align:1px}
 .la3d.la3d-narrow .la3d-floor .la3d-fname:has(.la3d-fb) .la3d-fn{display:none}
 .la3d-corner{all:unset;box-sizing:border-box;position:absolute;left:12px;bottom:12px;z-index:4;display:inline-flex;align-items:center;gap:6px;
-  padding:5px 12px;border-radius:999px;background:rgba(6,14,9,.5);color:#f0fdf4;font-size:12.5px;font-weight:600;cursor:pointer;
+  padding:5px 12px;border-radius:999px;background:rgba(6,14,9,.6);color:#e2e8f0;font-size:13px;font-weight:600;cursor:pointer;
   opacity:0;visibility:hidden;pointer-events:none}
 .la3d.la3d-bare .la3d-corner.on{pointer-events:auto;animation:la3d-corner 2s ease forwards}
 @keyframes la3d-corner{0%{opacity:0;visibility:visible}12%{opacity:.7}70%{opacity:.7;visibility:visible}100%{opacity:0;visibility:hidden}}
 .la3d.la3d-bare .la3d-menu.la3d-keep{opacity:1;visibility:visible;pointer-events:auto}
 .la3d-menu{position:absolute;z-index:5;min-width:170px;max-width:min(280px,calc(100% - 20px));padding:5px;border-radius:12px;
-  background:rgba(6,14,9,.96);border:1px solid rgba(120,190,155,.24);box-shadow:0 10px 26px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:2px}
+  background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:2px}
 .la3d-menu .la3d-mrow{display:flex;align-items:center;gap:2px}
-.la3d-menu button{all:unset;box-sizing:border-box;cursor:pointer;flex:1;padding:8px 11px;border-radius:8px;font-size:13px;color:#e8f0ea;
+.la3d-menu button{all:unset;box-sizing:border-box;cursor:pointer;flex:1;padding:8px 11px;border-radius:8px;font-size:13px;color:#e2e8f0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .la3d-menu button:hover,.la3d-menu button:focus-visible{background:rgba(82,183,136,.18)}
-.la3d-menu button[aria-checked="true"]{color:#86efac;font-weight:700}
-.la3d-menu button.la3d-mx{flex:none;padding:8px 10px;color:rgba(226,240,232,.6)}
-.la3d-menu hr{border:none;border-top:1px solid rgba(120,190,155,.16);margin:3px 4px}
+.la3d-menu button[aria-checked="true"]{color:#a7f3d0;font-weight:700}
+.la3d-menu button.la3d-mx{flex:none;padding:8px 10px;color:#94a3b8}
+.la3d-menu hr{border:none;border-top:1px solid rgba(120,190,155,.18);margin:3px 4px}
 .la3d-tip{position:absolute;left:50%;top:12px;z-index:2;transform:translateX(-50%);max-width:calc(100% - 340px);padding:4px 12px;
-  border-radius:999px;background:rgba(6,14,9,.55);color:rgba(226,240,232,.62);font-size:11.5px;white-space:nowrap;overflow:hidden;
+  border-radius:999px;background:rgba(6,14,9,.6);color:#94a3b8;font-size:12px;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;pointer-events:none}
 .la3d.la3d-narrow .la3d-tip{display:none}
 .la3d-bar,.la3d-compass,.la3d-tip{transition:opacity .25s ease,visibility .25s}
 .la3d.la3d-bare .la3d-bar,.la3d.la3d-bare .la3d-compass,.la3d.la3d-bare .la3d-tip,.la3d.la3d-bare .la3d-north,
 .la3d.la3d-bare .la3d-menu{opacity:0;visibility:hidden;pointer-events:none}
 .la3d-solo{all:unset;box-sizing:border-box;position:absolute;right:12px;top:12px;z-index:4;width:40px;height:40px;border-radius:50%;
-  display:none;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:#e8f0ea;background:rgba(6,14,9,.62);
-  border:1px solid rgba(120,190,155,.24);box-shadow:0 4px 14px rgba(0,0,0,.35);opacity:.72}
+  display:none;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:#e2e8f0;background:rgba(6,14,9,.6);
+  border:1px solid rgba(120,190,155,.26);box-shadow:0 4px 14px rgba(0,0,0,.35);opacity:.72}
 .la3d-solo:hover,.la3d-solo:focus-visible{opacity:1}
 .la3d.la3d-bare .la3d-solo{display:flex}
 .la3d.la3d-cover{transition:left .25s ease,top .25s ease,width .25s ease,height .25s ease}
 .la3d:fullscreen{border-radius:0;border:none}
 .la3d-card{position:absolute;left:50%;top:50%;z-index:6;transform:translate(-50%,-50%);width:min(360px,calc(100% - 32px));box-sizing:border-box;
-  padding:16px 18px 14px;border-radius:14px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.3);
-  box-shadow:0 14px 36px rgba(0,0,0,.55);color:#e8f0ea;font-size:13px;line-height:1.45}
+  padding:16px 18px 14px;border-radius:14px;background:rgba(6,14,9,.95);border:1px solid rgba(120,190,155,.26);
+  box-shadow:0 12px 32px rgba(0,0,0,.5);color:#e2e8f0;font-size:13px;line-height:1.45}
 .la3d-card b{display:block;font-size:15px;margin-bottom:8px}
 .la3d-card ul{margin:0 0 12px;padding-left:18px}
-.la3d-card a.la3d-guide{display:block;margin:-4px 0 12px;color:#86efac;font-size:12.5px;text-decoration:underline}
+.la3d-card a.la3d-guide{display:block;margin:-4px 0 12px;color:#a7f3d0;font-size:13px;text-decoration:underline}
 .la3d-card li{margin:3px 0}
 .la3d-card button{all:unset;box-sizing:border-box;cursor:pointer;padding:7px 16px;border-radius:9px;font-weight:700;
-  background:rgba(82,183,136,.3);color:#f0fdf4;float:right}
+  background:#2d6a4f;border:1px solid #52b788;color:#e2e8f0;float:right}
 @media (prefers-reduced-motion:reduce){.la3d.la3d-cover,.la3d-bar,.la3d-compass,.la3d-tip{transition:none}}`;
 // While Live Aboard shows (its sheet travels with it): the flat Atlas's
 // symbol legend matches nothing in 3D; on the sidebar the header's flat hint
@@ -1122,7 +1122,7 @@ function createSlot(slotKey){
       row.appendChild(b);
       if (it.del) {
         const x = d("button", "la3d-mx");
-        x.type = "button"; x.textContent = "×"; x.title = `Forget "${it.text}"`;
+        x.type = "button"; x.textContent = "✕"; x.title = `Forget "${it.text}"`;
         x.setAttribute("aria-label", x.title);
         x.addEventListener("click", guard((e) => { e.stopPropagation(); closeMenu(); it.del(); }));
         row.appendChild(x);

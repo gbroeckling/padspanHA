@@ -152,10 +152,10 @@ function inkOn(hex){
 export const personCard = TRACKED.personCard;
 
 // The card a tap opens: Live Aboard's face (live_aboard_use.js), fixed by the
-// spot that was tapped; the next press anywhere, or ×, closes it.
+// spot that was tapped; the next press anywhere, or ✕, closes it.
 const CARD = "position:fixed;z-index:60;box-sizing:border-box;min-width:170px;max-width:min(280px,calc(100vw - 12px));padding:8px 10px 9px;"
-  + "border-radius:10px;background:rgba(6,14,9,.95);border:1px solid rgba(94,234,212,.45);color:#e8f0ea;font:12.5px/1.45 Inter,system-ui,sans-serif;"
-  + "box-shadow:0 8px 22px rgba(0,0,0,.5);pointer-events:auto";
+  + "border-radius:10px;background:rgba(6,14,9,.95);border:1px solid rgba(94,234,212,.45);color:#e2e8f0;font:13px/1.45 Inter,system-ui,sans-serif;"
+  + "box-shadow:0 12px 32px rgba(0,0,0,.5);pointer-events:auto";
 let _card = null;
 export function closeCard(){
   if (!_card) return;
@@ -174,9 +174,9 @@ export function showCard(c, at, home, key){
   el.style.cssText = CARD;
   const head = document.createElement("div"), name = document.createElement("b"), x = document.createElement("button");
   head.style.cssText = "display:flex;gap:8px;align-items:flex-start;margin-bottom:3px";
-  name.style.cssText = "flex:1;font-size:13.5px;color:#5eead4";
+  name.style.cssText = "flex:1;font-size:14px;color:#5eead4";
   name.textContent = c.title;
-  x.type = "button"; x.textContent = "×"; x.title = "Close";
+  x.type = "button"; x.textContent = "✕"; x.title = "Close";
   x.style.cssText = "all:unset;cursor:pointer;padding:0 4px;font-size:16px;line-height:1;color:rgba(226,240,232,.7)";
   x.addEventListener("click", (e) => { e.stopPropagation(); closeCard(); });
   head.append(name, x);

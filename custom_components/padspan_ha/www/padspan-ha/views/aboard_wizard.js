@@ -194,7 +194,7 @@ export async function openLiveAboardWizard(ctx, step) {
     b.addEventListener("click", fn);
     return b;
   };
-  const p = (text, style) => el("p", { style: "margin:6px 0;font-size:13px;line-height:1.55;color:#cbd5e1;" + (style || "") }, text);
+  const p = (text, style) => el("p", { style: "margin:6px 0;font-size:13px;line-height:1.55;color:#e2e8f0;" + (style || "") }, text);
   const tip = (text) => el("div", { style: "margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(82,183,136,.08);font-size:12px;line-height:1.5;color:#a7c4b5" }, text);
   const toggle = (label, on, fn, sub) => {
     const cb = el("input", { type: "checkbox" }); cb.checked = !!on;
@@ -215,7 +215,7 @@ export async function openLiveAboardWizard(ctx, step) {
       sub ? el("div", { style: "font-size:11px;color:#94a3b8;margin:2px 0 0 0;line-height:1.45" }, sub) : null,
     ]);
   };
-  const list = (rows) => el("ul", { style: "margin:6px 0 6px 18px;padding:0;font-size:12px;color:#cbd5e1;line-height:1.6;max-height:160px;overflow:auto" },
+  const list = (rows) => el("ul", { style: "margin:6px 0 6px 18px;padding:0;font-size:12px;color:#e2e8f0;line-height:1.6;max-height:160px;overflow:auto" },
     rows.map(r => el("li", {}, r)));
 
   const STEP = {
@@ -279,7 +279,7 @@ export async function openLiveAboardWizard(ctx, step) {
         out.push(p("Not on a door or window yet (the button opens the right tool; pick this sensor under Follows):"));
         out.push(el("div", { style: "max-height:180px;overflow:auto;margin:4px 0" }, unl.map(d => {
           const t = d.cls === "door" || d.cls === "garage_door" ? "door" : "window";
-          return el("div", { style: "display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:#cbd5e1" }, [
+          return el("div", { style: "display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:#e2e8f0" }, [
             el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, `${d.name} (${d.cls.replace("_", " ")})`),
             btn(t === "door" ? "Draw its door" : "Draw its window", () => go({ tab: "lights", liveAboard: true, tool: t })),
           ]);
@@ -299,7 +299,7 @@ export async function openLiveAboardWizard(ctx, step) {
       if (todo.length) {
         out.push(p("Look like strips and aren't laid out:"));
         out.push(el("div", { style: "max-height:180px;overflow:auto;margin:4px 0" }, todo.map(x =>
-          el("div", { style: "display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:#cbd5e1" }, [
+          el("div", { style: "display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:#e2e8f0" }, [
             el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, x.name),
             btn("Lay it out", () => go({ tab: "lights", liveAboard: true, tool: "strip", eid: x.id })),
           ]))));

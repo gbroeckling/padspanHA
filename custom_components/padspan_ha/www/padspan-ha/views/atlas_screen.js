@@ -119,7 +119,7 @@ export const fullIconSvg = (on) => `<svg viewBox="0 0 16 16" fill="none" stroke=
 const FLAT_CSS = `
 .lv-alone-anchor{position:relative;height:1px;margin-top:-1px;pointer-events:none}
 .lv-alone-anchor > button{all:unset;box-sizing:border-box;position:absolute;display:flex;align-items:center;justify-content:center;
-  cursor:pointer;pointer-events:auto;color:#e8f0ea;background:rgba(6,14,9,.62);border:1px solid rgba(120,190,155,.24);
+  cursor:pointer;pointer-events:auto;color:#e2e8f0;background:rgba(6,14,9,.62);border:1px solid rgba(120,190,155,.24);
   box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .lv-alone-anchor > .lv-alone-full{right:12px;bottom:12px;width:38px;height:32px;border-radius:9px;background:rgba(6,14,9,.86)}
 .lv-alone-full svg{display:block;width:14px;height:14px}

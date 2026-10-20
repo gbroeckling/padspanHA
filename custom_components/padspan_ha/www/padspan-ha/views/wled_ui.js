@@ -18,7 +18,7 @@ export const S = {
     + "font-size:12px;cursor:pointer;padding:5px 10px;white-space:nowrap",
   btnOn: `background:rgba(192,132,252,.16);border:1px solid ${C.purple};border-radius:8px;color:${C.purple};`
     + "font-size:12px;cursor:pointer;padding:5px 10px;font-weight:700;white-space:nowrap",
-  btnPrimary: "background:linear-gradient(135deg,#166534,#22c55e);border:1px solid rgba(255,255,255,.2);border-radius:8px;"
+  btnPrimary: "background:#2d6a4f;border:1px solid #52b788;border-radius:8px;"
     + "color:#fff;font-size:12px;cursor:pointer;padding:6px 12px;font-weight:700;white-space:nowrap",
   input: `background:rgba(15,26,18,.9);color:${C.mint};border:1px solid ${C.line};border-radius:6px;padding:4px 6px;font-size:12px`,
   card: `background:${C.panel};border:1px solid ${C.line};border-radius:10px;padding:10px;margin-bottom:10px`,
