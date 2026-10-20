@@ -95,6 +95,30 @@ def test_atlas_controls_on_a_plain_card_follow_the_day():
     assert f".lv-r{off}::-webkit-slider-thumb{{background-color:" in out3, "the :not goes before a vendor pseudo-element"
 
 
+def test_a_painted_style_its_view_changes_is_never_painted_twice():
+    # Review before 0.38.157: a view setting el.style.display on a painted
+    # element made the watcher take the day colours for night ones and flip
+    # them back (white text on a pale card), and lose the night copy.
+    got = _js('(() => { const night = "color:#e2e8f0;background:#0f1a12"; const day = m.dayDecls(night);'
+              ' return [day, m.unpaint(day + ";display:none", day, night),'
+              ' m.unpaint("color: rgb(15, 21, 29); display: none;", day, night),'
+              ' m.unpaint("color:#ff0000;background:#0f1a12", day, night)]; })()')
+    day, back, reserialised, newcolour = got
+    assert back == "color:#e2e8f0;background:#0f1a12;display:none", back
+    assert reserialised.startswith("color:#e2e8f0;"), "the browser's rgb() spelling of what we wrote still matches"
+    assert newcolour == "color:#ff0000;background:#0f1a12", "a colour the view set itself is night already"
+    src = (_WWW / "day_theme.js").read_text(encoding="utf-8")
+    assert "written.has(el) ? unpaint(cur, written.get(el)" in src
+    assert "if (added) keepDrawings();" in src, "no layout pass per style change"
+    assert "styleOrig.delete(n)" in src, "a removed stylesheet is forgotten"
+
+
+def test_bright_is_not_shown_looks_it_cannot_unlock():
+    settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    assert 'const hideLocked = String(settings.edition || "").toLowerCase() === "bright" && !proOk;' in settings
+    assert "if (locked && hideLocked) return null;" in settings
+
+
 def test_a_comment_with_braces_never_splits_a_rule():
     # styles.css explains a selector in a comment that quotes `{width:100%}`:
     # split on its braces, the day copy landed inside the comment and every

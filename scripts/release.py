@@ -91,6 +91,7 @@ COMMON PITFALLS (so Claude doesn't repeat them):
 
 import sys
 import re
+import html
 import json
 import zipfile
 import pathlib
@@ -614,7 +615,9 @@ def _changelog_section(version):
 # lives under custom_components/, so the zip and the release commit both
 # carry it with no list to add it to.
 PANEL_NOTES = INTEGRATION / "www" / "padspan-ha" / "assets" / "whatsnew.json"
-PANEL_NOTES_COUNT = 6
+# Enough to reach back past the last stable: someone going stable to stable
+# (0.38.144 to 0.38.157 was thirteen versions) sees every step in the panel.
+PANEL_NOTES_COUNT = 14
 _SECTION_HEAD = re.compile(r"^## (\d+\.\d+\.\d+)\s*[—-]\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)\s*$")
 
 
@@ -652,6 +655,9 @@ def write_panel_notes(count=PANEL_NOTES_COUNT):
 
 
 def _md_inline_to_html(text):
+    # Escaped first: `device_tracker.<name>_2` in a changelog line was eaten by
+    # the browser as a tag on the live page.
+    text = html.escape(text, quote=False)
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
     text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)

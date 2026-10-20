@@ -83,12 +83,12 @@ def test_sections_are_parsed_from_the_changelog_shape_newest_first() -> None:
     assert s[2]["body_markdown"] == "- Older."
 
 
-def test_the_real_changelog_gives_the_newest_six() -> None:
+def test_the_real_changelog_gives_the_newest_fourteen() -> None:
     text = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     s = R.changelog_sections(text)
     first = next(ln for ln in text.splitlines() if ln.startswith("## "))
     assert first.startswith(f"## {s[0]['version']} "), f"the newest section is {first!r}, parsed {s[0]['version']}"
-    assert len(s) > R.PANEL_NOTES_COUNT == 6
+    assert len(s) > R.PANEL_NOTES_COUNT == 14
     vs = [tuple(map(int, n["version"].split("."))) for n in s]
     assert vs == sorted(vs, reverse=True)
     for n in s[:6]:
@@ -96,17 +96,17 @@ def test_the_real_changelog_gives_the_newest_six() -> None:
         assert "\n## " not in n["body_markdown"], n["version"]
 
 
-def test_write_panel_notes_writes_the_newest_six(tmp_path, monkeypatch) -> None:
+def test_write_panel_notes_writes_the_newest_fourteen(tmp_path, monkeypatch) -> None:
     (tmp_path / "CHANGELOG.md").write_text(
-        "".join(f"## 1.0.{i} — Release {i} (2026-09-{i + 10:02d})\n\n- Change {i}.\n\n---\n\n" for i in range(9)),
+        "".join(f"## 1.0.{i} — Release {i} (2026-09-{i + 1:02d})\n\n- Change {i}.\n\n---\n\n" for i in range(20)),
         encoding="utf-8")
     out = tmp_path / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "assets" / "whatsnew.json"
     monkeypatch.setattr(R, "ROOT", tmp_path)
     monkeypatch.setattr(R, "PANEL_NOTES", out)
     R.write_panel_notes()
     notes = json.loads(out.read_text(encoding="utf-8"))
-    assert [n["version"] for n in notes] == [f"1.0.{i}" for i in (8, 7, 6, 5, 4, 3)]
-    assert notes[0] == {"version": "1.0.8", "title": "Release 8", "date": "2026-09-18", "body_markdown": "- Change 8."}
+    assert [n["version"] for n in notes] == [f"1.0.{i}" for i in range(19, 5, -1)]
+    assert notes[0] == {"version": "1.0.19", "title": "Release 19", "date": "2026-09-20", "body_markdown": "- Change 19."}
     assert b"\r\n" not in out.read_bytes()
 
 

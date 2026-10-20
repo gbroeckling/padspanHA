@@ -732,7 +732,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           <li><b>Fixed:</b> Follow's Test button now fails when the chosen phone or service can't be reached, instead of sending somewhere else and saying it worked. Alerts to Telegram and other non-notify services go out even with no notify service set up. A chosen phone that has since been renamed or removed shows as "(not found)" instead of looking like Auto-detect.</li>
           <li><b>Fixed:</b> Follow alerts to a notify entity all failed when an email address was filled in too.</li>
           <li><b>Fixed:</b> after updating from 0.38.105, Bermuda devices no longer leave frozen copies of themselves in their old rooms.</li>
-          <li><b>Fixed:</b> a labelled device's tracker no longer comes back as <code>device_tracker.<name>_2</code> when its Bermuda entity goes away.</li>
+          <li><b>Fixed:</b> a labelled device's tracker no longer comes back as <code>device_tracker.&lt;name&gt;_2</code> when its Bermuda entity goes away.</li>
           <li><b>Added:</b> if you've opted in, the report now also counts what shows whether these fixes work in your house: IRK cache clears, calibration points left without a room, Lost & Found restore merges, Follow Test results, old Bermuda objects removed, beacon pins on things that move, and entities registered twice. Counts only, as before.</li>
         </ul>
       </div>

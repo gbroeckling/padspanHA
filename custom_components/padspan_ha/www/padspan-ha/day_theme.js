@@ -161,6 +161,28 @@ function roleOf(prop) {
 
 const DECL_RE = /(^|[;{\s])([-a-zA-Z0-9]+)\s*:\s*([^;{}]+)/g;
 
+// A declaration's value with its colours in one spelling, so a value the
+// browser re-serialised ("rgb(15, 21, 29)") still matches the "#0f151d" we wrote.
+const canon = (v) => String(v).trim().toLowerCase().replace(COLOR_RE, c => {
+  const p = parseColor(c); return p ? `${p.r},${p.g},${p.b},${+p.a.toFixed(3)}` : c;
+}).replace(/\s+/g, " ");
+const declMap = (text) => {
+  const m = new Map();
+  for (const [, , prop, val] of String(text).matchAll(DECL_RE)) m.set(prop.trim().toLowerCase(), val);
+  return m;
+};
+
+/** A painted style its view has since changed, back in night colours: each
+ *  declaration still holding the value we wrote gets its night value again;
+ *  one the view set itself is already night. */
+export function unpaint(cur, wrote, night) {
+  const w = declMap(wrote), n = declMap(night);
+  return cur.replace(DECL_RE, (m, pre, prop, val) => {
+    const k = prop.trim().toLowerCase();
+    return w.has(k) && n.has(k) && canon(w.get(k)) === canon(val) ? `${pre}${prop}:${n.get(k).trim()}` : m;
+  });
+}
+
 /** A declaration list (a style attribute, or a rule body) in day colours. */
 export function dayDecls(text, color = dayColor) {
   return text.replace(DECL_RE, (m, pre, prop, val) => {
@@ -248,10 +270,14 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [], colo
     if (!el.getAttribute || skip(el)) return;
     const cur = el.getAttribute("style");
     if (cur == null || cur === written.get(el)) return;
-    const day = dayDecls(cur, color);
-    el.setAttribute(NIGHT, cur);
-    if (day !== cur) { written.set(el, day); el.setAttribute("style", day); }
-    else written.set(el, cur);
+    // Already painted, then changed by its view (a display, a width): what
+    // still holds the colour we wrote goes back to its night colour first,
+    // or it would be painted twice and flip back (review before 0.38.157).
+    const night = written.has(el) ? unpaint(cur, written.get(el), el.getAttribute(NIGHT) || "") : cur;
+    const day = dayDecls(night, color);
+    el.setAttribute(NIGHT, night);
+    if (day !== night) { written.set(el, day); el.setAttribute("style", day); }
+    else written.set(el, night);
   };
   const paintSheet = (st) => {
     if (styleOrig.has(st) || frozen(st) || KEEP_SELECTOR_RE.test(st.textContent.slice(0, 400))) return;
@@ -309,12 +335,22 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [], colo
   root.querySelectorAll("style:not([data-day-css])").forEach(paintSheet);
   keepDrawings();
 
+  const forget = (n) => {
+    if (n.nodeType !== 1) return;
+    if (n.tagName === "STYLE") styleOrig.delete(n);
+    else n.querySelectorAll("style").forEach(st => styleOrig.delete(st));
+  };
   const mo = new MutationObserver(list => {
+    let added = false;
     for (const m of list) {
       if (m.type === "attributes") paint(m.target);
-      else m.addedNodes.forEach(n => { if (!(n.hasAttribute && n.hasAttribute("data-day-css"))) sweep(n); });
+      else {
+        m.addedNodes.forEach(n => { if (!(n.hasAttribute && n.hasAttribute("data-day-css"))) { sweep(n); added = true; } });
+        m.removedNodes.forEach(n => { if (!n.isConnected) forget(n); });
+      }
     }
-    keepDrawings();
+    // Only a new node can be a new drawing: no layout pass per style change.
+    if (added) keepDrawings();
   });
   mo.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["style"] });
 

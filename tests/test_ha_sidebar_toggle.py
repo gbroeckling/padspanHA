@@ -72,8 +72,8 @@ def test_the_panels_button_sits_beside_toggle_and_stays_on_the_rail():
     rail = (_WWW / "styles-2025.css").read_text(encoding="utf-8")
     assert ".app.mini #haSide::after{content:" in rail, "the collapsed rail keeps it: with HA's sidebar gone it is the way back"
     for css in ("styles.css", "styles-2025.css"):
-        assert "@media (max-width:870px){#haSide{display:none}}" in (_WWW / css).read_text(encoding="utf-8"), (
-            f"{css}: not offered where HA's sidebar is a drawer anyway")
+        assert '@media (max-width:870px){#haSide:not([aria-pressed="true"]){display:none}}' in (_WWW / css).read_text(encoding="utf-8"), (
+            f"{css}: not offered where HA's sidebar is a drawer anyway, unless it is hidden now (the way back)")
     assert "import(`./ha_sidebar.js?b=${BUILD_ID}`)" in src
     assert "this._telemetryEvent(HA_SIDEBAR.toggleHaSidebar(this, this._hass));" in src
     setter = src[src.index("  set hass(hass){"):]
@@ -86,7 +86,7 @@ def test_the_atlas_has_one_too_beside_refresh():
     head = src[src.index('el("div",{class:"lv-hero-title"},"Atlas")'):]
     head = head[:head.index("\\u21bb Refresh")]
     assert 'id:"haSide"' in head and "HA_SIDEBAR.toggleHaSidebar(this, this._hass)" in head, "beside Refresh"
-    assert "was.dockedSidebar !== hass.dockedSidebar)) this._haBtn.textContent = HA_SIDEBAR.haLabel(hass);" in src
+    assert "was.dockedSidebar !== hass.dockedSidebar)){" in src and 'this._haBtn.setAttribute("aria-pressed"' in src
 
 
 def test_its_use_is_counted_in_the_closed_vocabulary():

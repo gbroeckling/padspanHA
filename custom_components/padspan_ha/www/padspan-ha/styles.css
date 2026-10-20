@@ -1573,4 +1573,4 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 }
 /* Hide HA: under Home Assistant's 870 px its sidebar is always a drawer, so
    hiding it there would only be remembered for a wider screen later. */
-@media (max-width:870px){#haSide{display:none}}
+@media (max-width:870px){#haSide:not([aria-pressed="true"]){display:none}}

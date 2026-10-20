@@ -361,4 +361,4 @@ svg text, svg tspan { letter-spacing: normal; }
 .mobile-topbar-pill.live{
   border-color:var(--ps-ac-ln);background:var(--ps-ac-bg);color:var(--ps-tx);
 }
-@media (max-width:870px){#haSide{display:none}}
+@media (max-width:870px){#haSide:not([aria-pressed="true"]){display:none}}

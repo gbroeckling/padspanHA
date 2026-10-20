@@ -187,7 +187,10 @@ class PadSpanLightsApp extends HTMLElement {
   set hass(hass){
     const was = this._hass;
     this._hass = hass;
-    if(this._haBtn && HA_SIDEBAR && hass && (!was || was.dockedSidebar !== hass.dockedSidebar)) this._haBtn.textContent = HA_SIDEBAR.haLabel(hass);
+    if(this._haBtn && HA_SIDEBAR && hass && (!was || was.dockedSidebar !== hass.dockedSidebar)){
+      this._haBtn.textContent = HA_SIDEBAR.haLabel(hass);
+      this._haBtn.setAttribute("aria-pressed", String(HA_SIDEBAR.haHidden(hass)));
+    }
     if(!this._booted){ this._booted=true; this._boot(); }
     // Motion sensors back from an offline blip (motion_reconnects.py), pushed
     // on every change — one subscription per connection, kept across HA
@@ -814,17 +817,18 @@ class PadSpanLightsApp extends HTMLElement {
       el("span",{class:"lv-ver"},`v${APP_VERSION}`),
       el("span",{class:"lv-hint"},"Tap a light to switch it \u00b7 tap its code or hold for controls \u00b7 tap a room name for the whole room \u00b7 motion, temperature and air-quality tiles are read-only"),
       // Admin only: the pencil to the builder. Same map, the other tool.
-      ...(this._isAdmin() ? [el("button",{class:"lv-act",style:"margin-left:auto",title:"Open Mapping \u2192 Atlas",
+      el("span",{style:"margin-left:auto"}),
+      ...(this._isAdmin() ? [el("button",{class:"lv-act",title:"Open Mapping \u2192 Atlas",
         onclick:()=>this._gotoBuilder(null)},"\u270e Edit map")] : []),
       // Home Assistant's sidebar, hidden or shown (ha_sidebar.js): with it
       // hidden, this is the way back from the Atlas. Not on a phone, where
       // the sidebar is a drawer anyway (styles.css #haSide).
-      ...(HA_SIDEBAR ? [this._haBtn = el("button",{class:"lv-act",id:"haSide",style:this._isAdmin()?"":"margin-left:auto",
+      ...(HA_SIDEBAR ? [this._haBtn = el("button",{class:"lv-act",id:"haSide","aria-pressed":String(HA_SIDEBAR.haHidden(this._hass)),
         title:"Hide or show Home Assistant's sidebar, on this browser only",onclick:()=>{
           const word = HA_SIDEBAR.toggleHaSidebar(this, this._hass);
           if(this.state._telemetryOn && this._hass) Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:word })).catch(()=>{});
         }}, HA_SIDEBAR.haLabel(this._hass))] : []),
-      el("button",{class:"lv-act",style:this._isAdmin()||HA_SIDEBAR?"":"margin-left:auto",onclick:()=>{
+      el("button",{class:"lv-act",onclick:()=>{
         this._regStore.reg=null; this._boot().then(()=>this._render());
       }},"\u21bb Refresh"),
     ]));
