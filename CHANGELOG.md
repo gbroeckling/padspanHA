@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.156 — The extra themes are PadSpan Pro's (2026-10-20)
+
+### Changed
+- **Graphite, Ocean, Dusk, High contrast and Day come with PadSpan Pro.** Without Pro they show greyed out in Settings → Appearance → Theme, with a line pointing to Settings → Features → PadSpan licence. **Night and Light (inverted) stay in every edition**, so the accessibility inversion never needs a licence. An install that was using Day without Pro goes back to Night; the choice is kept, and comes back with a Pro key.
+
+---
+
 ## 0.38.155 — Show HA on the sidebar Atlas too (2026-10-20)
 
 ### New

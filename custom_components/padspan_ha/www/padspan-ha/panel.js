@@ -1869,9 +1869,12 @@ class PadSpanHaApp extends HTMLElement {
   async _applyTheme(){
     // Day wins, then Light (the inversion), then a palette (day_theme.js
     // PALETTES); none of them is Night.
-    const day = !!this.state.settings?.day_theme;
+    // Day and the four palettes are PadSpan Pro's: without Pro (a lapsed key
+    // too) it is Night. Light, the accessibility inversion, is everyone's.
+    const pro = String(this.state.settings?.tier || "").toLowerCase() === "pro";
+    const day = pro && !!this.state.settings?.day_theme;
     const named = String(this.state.settings?.theme_palette || "");
-    const pal = !day && !this.state.settings?.light_theme && ["graphite", "ocean", "dusk", "contrast"].includes(named) ? named : "";
+    const pal = !day && !this.state.settings?.light_theme && pro && ["graphite", "ocean", "dusk", "contrast"].includes(named) ? named : "";
     const on = day || !!pal;
     const invert = !on && !!this.state.settings?.light_theme;
     this.style.filter = invert ? "invert(1) hue-rotate(180deg)" : "";

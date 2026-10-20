@@ -181,6 +181,19 @@ def test_seven_theme_choices_and_light_is_still_the_inversion():
     assert 'settingsSet({ light_theme: val === "light", day_theme: val === "day", theme_palette: palette })' in settings
 
 
+def test_day_and_the_palettes_are_pro_light_is_everyones():
+    panel = (_WWW / "panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    body = panel[panel.index("  async _applyTheme(){"):]
+    body = body[:body.index("\n  }\n")]
+    assert 'const pro = String(this.state.settings?.tier || "").toLowerCase() === "pro";' in body
+    assert "const day = pro && !!this.state.settings?.day_theme;" in body
+    assert '&& pro && ["graphite", "ocean", "dusk", "contrast"].includes(named)' in body
+    assert "const invert = !on && !!this.state.settings?.light_theme;" in body, "Light never needs Pro"
+    settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    assert 'const PRO_LOOKS = PAL.concat(["day"]);' in settings
+    assert "const locked = PRO_LOOKS.includes(val) && !proOk;" in settings
+
+
 def test_every_settings_read_applies_skin_and_theme():
     # _fetchSettings (the full-refresh path) used to skip both, so a panel whose
     # settings came that way never showed its chosen skin or theme.

@@ -251,13 +251,17 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   {
     const settings = ctx.state.settings || {};
     const PAL = ["graphite", "ocean", "dusk", "contrast"];   // day_theme.js PALETTES
-    const now = settings.day_theme === true ? "day" : settings.light_theme === true ? "light"
-      : PAL.includes(settings.theme_palette) ? settings.theme_palette : "night";
+    const PRO_LOOKS = PAL.concat(["day"]);                    // PadSpan Pro; Night and Light are everyone's
+    const proOk = tierAtLeast(currentTier(settings), "pro");
+    const now = proOk && settings.day_theme === true ? "day" : settings.light_theme === true ? "light"
+      : proOk && PAL.includes(settings.theme_palette) ? settings.theme_palette : "night";
     const NAMES = { night: "Night", graphite: "Graphite", ocean: "Ocean", dusk: "Dusk", contrast: "High contrast", light: "Light", day: "Day" };
     const mkTheme = (val, label) => {
-      const b = el("button",{class:"btn inline"+(now===val?" on":"")}, label);
+      const locked = PRO_LOOKS.includes(val) && !proOk;
+      const b = el("button",{class:"btn inline"+(now===val?" on":""), ...(locked ? { disabled:"", style:"opacity:.45;cursor:default",
+        title:"PadSpan Pro: " + LICENCE_PATH } : {})}, label);
       b.addEventListener("click", async()=>{
-        if (now === val) return;
+        if (now === val || locked) return;
         try {
           const palette = PAL.includes(val) ? val : "";
           await ctx.actions.settingsSet({ light_theme: val === "light", day_theme: val === "day", theme_palette: palette });
@@ -278,6 +282,8 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         "house and Pure Live keep their night colours. It takes effect immediately, in every browser."),
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night","Night"), mkTheme("graphite","Graphite"), mkTheme("ocean","Ocean"),
         mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ]),
+      ...(proOk ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
+        "Graphite, Ocean, Dusk, High contrast and Day come with PadSpan Pro (" + LICENCE_PATH + "). Night and Light are in every edition.")]),
     ]));
   }
 
