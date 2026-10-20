@@ -121,7 +121,50 @@ def test_skin_variables_with_digits_are_themed():
     assert "#121816" not in host and "#93A29C" not in host, out
 
 
-def test_three_theme_choices_and_light_is_still_the_inversion():
+_NIGHT = ["#071008", "#0f1a12", "#1b3526", "#2d4a38"]          # Night's surfaces and edges
+_MEANING = ["#52b788", "#2d6a4f", "#f59e0b", "#f87171", "#3b82f6", "#a7f3d0"]   # accent, warning, alarm, tracking
+
+
+def test_graphite_ocean_and_dusk_are_night_retinted():
+    got = _js('m.PALETTES.filter(n => n !== "contrast").map(n => { const f = m.paletteColor(n); return ['
+              f'{json.dumps(_NIGHT)}.map(c => f(c, "surface")), ["#e2e8f0", "#94a3b8"].map(c => f(c, "text")),'
+              f'{json.dumps(_MEANING)}.map(c => f(c, "surface")).concat({json.dumps(_MEANING)}.map(c => f(c, "text")))]; }})')
+    for surfaces, texts, meaning in got:
+        assert surfaces != _NIGHT, "a new tint"
+        for night, new in zip(_NIGHT + ["#e2e8f0", "#94a3b8"], surfaces + texts):
+            assert abs(_lum(night) - _lum(new)) < 0.03, (night, new)   # same lightness: the same contrast as Night
+        assert meaning == _MEANING + _MEANING, "a colour that means something never changes"
+
+
+def test_high_contrast_is_black_white_and_solid_edges():
+    got = _js('(f => [' + json.dumps(_NIGHT) + '.map(c => f(c, "surface", "background")), '
+              '["#e2e8f0", "#94a3b8"].map(c => f(c, "text")), f("rgba(120,190,155,.18)", "surface", "border"), '
+              f'{json.dumps(_MEANING)}.map(c => f(c, "surface", "background"))])(m.paletteColor("contrast"))')
+    surfaces, texts, edge, meaning = got
+    assert all(_lum(c) < 0.12 for c in surfaces), surfaces
+    assert texts[0] == "#ffffff" and _lum(texts[1]) > 0.8, texts
+    assert edge.startswith("rgba(") and float(edge.rstrip(")").split(",")[-1]) >= 0.75, "a faint edge becomes a solid one"
+    assert meaning == _MEANING
+
+
+def test_the_accent_stays_the_accent_at_any_strength():
+    # review: the active tab's green haze and the focus ring turned grey or blue
+    got = _js('["graphite","ocean","dusk"].map(n => m.paletteColor(n)("rgba(82,183,136,.14)", "surface", "background"))'
+              '.concat([m.paletteColor("contrast")("rgba(82,183,136,.55)", "surface", "border"),'
+              ' m.paletteColor("contrast")("#475569", "text")])')
+    assert got[:3] == ["rgba(82,183,136,.14)"] * 3, got
+    assert got[3] == "rgba(82,183,136,1)", "a coloured edge stays, solid, so focus still shows"
+    assert _lum(got[4]) > 0.7, "the dimmest grey text is readable on black"
+
+
+def test_a_palette_name_from_anywhere_is_checked():
+    from custom_components.padspan_ha import ws_settings
+    src = Path(ws_settings.__file__).read_text(encoding="utf-8")
+    assert 'payload["theme_palette"] = _pal if _pal in ("graphite", "ocean", "dusk", "contrast") else ""' in src
+    assert _js("m.PALETTES") == ["graphite", "ocean", "dusk", "contrast"]
+
+
+def test_seven_theme_choices_and_light_is_still_the_inversion():
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     body = panel[panel.index("  async _applyTheme(){"):]
     body = body[:body.index("\n  }\n")]
@@ -132,8 +175,10 @@ def test_three_theme_choices_and_light_is_still_the_inversion():
     css = (_WWW / "styles.css").read_text(encoding="utf-8")
     assert ":host([data-invert]) img," in css, "the inversion's photo counter-invert must stay"
     settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
-    assert 'mkTheme("night","Night"), mkTheme("light","Light (inverted)"), mkTheme("day","Day")' in settings
-    assert 'settingsSet({ light_theme: val === "light", day_theme: val === "day" })' in settings
+    for val, label in (("night", "Night"), ("graphite", "Graphite"), ("ocean", "Ocean"), ("dusk", "Dusk"),
+                       ("contrast", "High contrast"), ("light", "Light (inverted)"), ("day", "Day")):
+        assert f'mkTheme("{val}","{label}")' in settings, val
+    assert 'settingsSet({ light_theme: val === "light", day_theme: val === "day", theme_palette: palette })' in settings
 
 
 def test_every_settings_read_applies_skin_and_theme():

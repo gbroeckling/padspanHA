@@ -1860,11 +1860,16 @@ class PadSpanHaApp extends HTMLElement {
   // someone picks it; Pure Live is never touched. Day re-applies when the
   // skin changes, since the skin's stylesheet changes.
   async _applyTheme(){
-    const on = !!this.state.settings?.day_theme;
+    // Day wins, then Light (the inversion), then a palette (day_theme.js
+    // PALETTES); none of them is Night.
+    const day = !!this.state.settings?.day_theme;
+    const named = String(this.state.settings?.theme_palette || "");
+    const pal = !day && !this.state.settings?.light_theme && ["graphite", "ocean", "dusk", "contrast"].includes(named) ? named : "";
+    const on = day || !!pal;
     const invert = !on && !!this.state.settings?.light_theme;
     this.style.filter = invert ? "invert(1) hue-rotate(180deg)" : "";
     if (invert) this.setAttribute("data-invert", ""); else this.removeAttribute("data-invert");
-    const want = on ? "day:" + (this._skin || "classic") : "";
+    const want = on ? (day ? "day" : pal) + ":" + (this._skin || "classic") : "";
     if ((this._dayKey || "") === want) return;
     this._dayKey = want;
     if (this._dayOff) { this._dayOff(); this._dayOff = null; }
@@ -1878,9 +1883,10 @@ class PadSpanHaApp extends HTMLElement {
       const content = this.shadowRoot.querySelector("#content");
       this._dayOff = DAY_THEME.attachDayTheme(this.shadowRoot, {
         extraCss: css.filter(Boolean),
+        color: day ? DAY_THEME.dayColor : DAY_THEME.paletteColor(pal),
         frozen: (n) => this.state.view === "purelive" && !!content && content.contains(n),
       });
-      this.setAttribute("data-theme", "day");
+      this.setAttribute("data-theme", day ? "day" : pal);
     } catch (e) {
       this._dayKey = "";
       console.warn("PadSpan: day theme failed to load", e);

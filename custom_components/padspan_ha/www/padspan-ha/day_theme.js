@@ -85,6 +85,69 @@ export function dayColor(css, role) {
   return fmt(fromHsl(hsl), c.a, c.hex);
 }
 
+// ── more palettes ───────────────────────────────────────────────────────────
+// Four more looks beside Night, Light and Day (Settings → UI → Theme), made
+// the same way as Day. Graphite, Ocean and Dusk keep every lightness of
+// Night and change only its tint: the green-grey surfaces and the slate text
+// become charcoal, navy or plum. High contrast is for eyes that need it:
+// black surfaces, white text, solid light borders. In all four a real colour
+// (the green accent, an amber warning, a red alarm, tracking blue) is kept,
+// so what a colour means never changes with the look.
+
+export const PALETTES = ["graphite", "ocean", "dusk", "contrast"];
+
+// A tint: one of Night's greyish surfaces or texts, green-grey (75-175°)
+// or slate (195-235°), as opposed to a colour that means something. Very
+// dark ones and see-through ones count however saturated they read: #071008
+// is a near-black, rgba(120,190,155,.18) a faint edge, not the accent.
+const isTint = ({ h, s, l }, a) => ((h >= 75 / 360 && h <= 175 / 360) || (h >= 195 / 360 && h <= 235 / 360))
+  && (s < 0.35 || l < 0.12 || (a < 0.6 && s < 0.4));      // the accent (#52b788, s .41) at any alpha stays the accent
+
+const TINTS = {
+  graphite: { hue: 220, sat: s => Math.min(s, 0.06), ink: 220, inkSat: s => Math.min(s, 0.04) },
+  ocean:    { hue: 213, sat: s => Math.min(s * 1.3, 0.5), ink: 213, inkSat: s => s },
+  dusk:     { hue: 278, sat: s => Math.min(s * 1.1, 0.42), ink: 270, inkSat: s => s * 0.55 },
+};
+
+function tintColor(css, role, t) {
+  const c = parseColor(css);
+  if (!c || role === "shadow") return css;
+  const hsl = toHsl(c);
+  if (!isTint(hsl, c.a)) return css;
+  if (role === "text") { hsl.h = t.ink / 360; hsl.s = t.inkSat(hsl.s); }
+  else { hsl.h = t.hue / 360; hsl.s = t.sat(hsl.s); }
+  return fmt(fromHsl(hsl), c.a, c.hex);
+}
+
+const EDGE_PROP_RE = /^(border|outline|column-rule)|^--.*(line|border|edge|rule)/;
+
+function contrastColor(css, role, prop = "") {
+  const c = parseColor(css);
+  if (!c || role === "shadow") return css;
+  const hsl = toHsl(c), coloured = hsl.s >= 0.35 && hsl.l >= 0.25 && hsl.l <= 0.9;
+  if (role === "text") {
+    if (coloured) hsl.l = Math.max(hsl.l, 0.7);                       // a coloured word, bright on black
+    else if (hsl.l >= 0.8) { hsl.l = 1; hsl.s = 0; }                  // text → white
+    else if (hsl.l >= 0.45) { hsl.l = 0.86; hsl.s = 0; }              // quieter text → light grey, still a step down
+    else if (hsl.l >= 0.25) { hsl.l = 0.74; hsl.s = 0; }              // the dimmest grey text, still readable on black
+    else return css;                                                  // dark ink on a light button
+    return fmt(fromHsl(hsl), c.a, c.hex);
+  }
+  if (EDGE_PROP_RE.test(prop.trim().toLowerCase())) {
+    if (coloured) return fmt(fromHsl(hsl), 1, c.hex);                  // a coloured edge (focus, the active tab) stays, solid
+    return fmt(fromHsl({ h: 0, s: 0, l: 0.66 }), Math.max(c.a, 0.75), c.hex);   // every other edge, solid and light
+  }
+  if (coloured || (hsl.l > 0.9 && c.a < 1)) return css;               // accent fills, white hazes
+  return fmt(fromHsl({ h: 0, s: 0, l: hsl.l * 0.45 }), c.a, c.hex);  // surfaces → near black
+}
+
+/** The colour rule for a look: Day's, a tint's or High contrast's. */
+export function paletteColor(name) {
+  if (name === "contrast") return contrastColor;
+  const t = TINTS[name];
+  return t ? (css, role) => tintColor(css, role, t) : dayColor;
+}
+
 // Which job a property's colours do. Anything else (fill, stroke, a
 // gradient mask) is left alone.
 function roleOf(prop) {
@@ -99,12 +162,12 @@ function roleOf(prop) {
 const DECL_RE = /(^|[;{\s])([-a-zA-Z0-9]+)\s*:\s*([^;{}]+)/g;
 
 /** A declaration list (a style attribute, or a rule body) in day colours. */
-export function dayDecls(text) {
+export function dayDecls(text, color = dayColor) {
   return text.replace(DECL_RE, (m, pre, prop, val) => {
     const role = roleOf(prop);
     if (!role || !COLOR_RE.test(val)) { COLOR_RE.lastIndex = 0; return m; }
     COLOR_RE.lastIndex = 0;
-    return `${pre}${prop}:${val.replace(COLOR_RE, c => dayColor(c, role))}`;
+    return `${pre}${prop}:${val.replace(COLOR_RE, c => color(c, role, prop))}`;
   });
 }
 
@@ -128,13 +191,13 @@ const offMap = (sels) => sels.split(",").map(s => {
  *  outrank a more particular night rule (.lv-tgl-big's size, a last row's
  *  border:none). */
 const EDGE_RE = /^(border(-(top|right|bottom|left))?|outline)$/;
-function dayColorsOnly(body) {
+function dayColorsOnly(body, color) {
   const out = [];
   for (const [, , prop, raw] of body.matchAll(DECL_RE)) {
     const role = roleOf(prop), val = raw.trim(), cols = role ? (val.match(COLOR_RE) || []) : [];
     if (!cols.length) continue;
-    const day = val.replace(COLOR_RE, c => dayColor(c, role));
-    if (EDGE_RE.test(prop)) { if (cols.length === 1) out.push(`${prop}-color:${dayColor(cols[0], role)}`); }
+    const day = val.replace(COLOR_RE, c => color(c, role, prop));
+    if (EDGE_RE.test(prop)) { if (cols.length === 1) out.push(`${prop}-color:${color(cols[0], role, prop)}`); }
     else if (prop === "background") {
       if (/gradient\(/.test(val)) out.push(`background-image:${day}`);
       else if (cols.length === 1 && cols[0] === val.replace(/\s*!important$/, "")) out.push(`background-color:${day}`);
@@ -144,7 +207,7 @@ function dayColorsOnly(body) {
 }
 
 /** A stylesheet in day colours, rule by rule. */
-export function dayCss(css) {
+export function dayCss(css, color = dayColor) {
   // Comments first: one holding a { or } would split a rule in two.
   return css.replace(/\/\*[\s\S]*?\*\//g, "").split("}").map(chunk => {
     const i = chunk.lastIndexOf("{");
@@ -154,11 +217,11 @@ export function dayCss(css) {
       // The host's colour variables, back at night inside what stays night
       // (the 2025 skin's inputs read --ps-s2: white fields on the dark map).
       const vars = sel.trim() === ":host" ? body.match(/--[\w-]+\s*:[^;]+/g) : null;
-      return sel + "{" + dayDecls(body) + (vars ? "}" + NIGHT_BOXES + "{" + vars.join(";") : "");
+      return sel + "{" + dayDecls(body, color) + (vars ? "}" + NIGHT_BOXES + "{" + vars.join(";") : "");
     }
     const own = sel.slice(sel.lastIndexOf("{") + 1);          // inside an @media, the rule's own selector
     if (!LV_ONLY_RE.test(own) || NOT_LV_RE.test(own) || own.includes("@")) return chunk;
-    const day = dayColorsOnly(body);
+    const day = dayColorsOnly(body, color);
     return day ? chunk + "}" + offMap(own) + "{" + day : chunk;
   }).join("}");
 }
@@ -172,8 +235,11 @@ const BIG_W = 250, BIG_H = 150;
 /** Turn the day theme on for a shadow root. `frozen(node)` says a node must
  *  not be touched at all (Pure Live). Returns a function that turns it off
  *  and puts every night colour back. */
-export function attachDayTheme(root, { frozen = () => false, extraCss = [] } = {}) {
+export function attachDayTheme(root, { frozen = () => false, extraCss = [], color = dayColor } = {}) {
   const written = new WeakMap();
+  // The ground a kept drawing gets when its box would be light or see-through:
+  // Night's under Day, the palette's own under a dark palette.
+  const ground = color === dayColor ? "#0a150e" : color("#0a150e", "surface", "background");
   const styleOrig = new Map();
 
   const skip = (el) => frozen(el) || !!el.closest(`[${KEEP}]`) || (el.namespaceURI === "http://www.w3.org/2000/svg");
@@ -182,7 +248,7 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [] } = {
     if (!el.getAttribute || skip(el)) return;
     const cur = el.getAttribute("style");
     if (cur == null || cur === written.get(el)) return;
-    const day = dayDecls(cur);
+    const day = dayDecls(cur, color);
     el.setAttribute(NIGHT, cur);
     if (day !== cur) { written.set(el, day); el.setAttribute("style", day); }
     else written.set(el, cur);
@@ -190,7 +256,7 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [] } = {
   const paintSheet = (st) => {
     if (styleOrig.has(st) || frozen(st) || KEEP_SELECTOR_RE.test(st.textContent.slice(0, 400))) return;
     styleOrig.set(st, st.textContent);
-    st.textContent = dayCss(st.textContent);
+    st.textContent = dayCss(st.textContent, color);
   };
   const restore = (el) => {
     if (!el.hasAttribute(NIGHT)) return;
@@ -220,7 +286,7 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [] } = {
       const bg = parseColor(getComputedStyle(box).backgroundColor || "") || { r: 255, g: 255, b: 255, a: 0 };
       if (bg.a < 0.9 || toHsl(bg).l > 0.3) {
         box.setAttribute(NIGHT, box.getAttribute("style") || "");
-        box.style.backgroundColor = "#0a150e";
+        box.style.backgroundColor = ground;
       }
     });
   };
@@ -235,7 +301,7 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [] } = {
   const extra = extraCss.map(css => {
     const st = document.createElement("style");
     st.setAttribute("data-day-css", "");
-    st.textContent = dayCss(css);
+    st.textContent = dayCss(css, color);
     root.appendChild(st);
     return st;
   });

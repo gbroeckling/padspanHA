@@ -104,6 +104,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "fabric_bearing_deg": 0.0,   # compass bearing (clockwise from true north) the fabric's +Y axis points toward
     "light_theme": False,   # invert the panel colours (accessibility — dark theme unusable for some)
     "day_theme": False,     # the designed light palette (www/padspan-ha/day_theme.js); wins over light_theme
+    "theme_palette": "",    # "" (Night) | "graphite" | "ocean" | "dusk" | "contrast" — day_theme and light_theme win over it
     # Panel chrome skin. "2025" loads the styles-2025.css overlay and the
     # grouped icon nav; "classic" is v0.35.0 chrome byte-for-byte, kept as a
     # first-class option rather than dead code. Anyone who has already chosen a

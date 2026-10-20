@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.154 — Four more themes: Graphite, Ocean, Dusk and High contrast (2026-10-20)
+
+### New
+- **Settings → Appearance → Theme has seven choices.** Beside Night, Light (inverted) and Day:
+  - **Graphite**, **Ocean** and **Dusk** are Night in neutral charcoal, deep navy or plum. Every surface and text keeps Night's lightness, so they read exactly as well; only the tint changes.
+  - **High contrast** is black with white text and solid light edges on every card, button and field, for eyes that need it.
+
+  All four keep PadSpan's green accent and every colour that means something (alarms, warnings, tracking blue). Maps, charts, the 3D house and Pure Live keep their night colours, as with Day. Light and Day are unchanged.
+
+---
+
 ## 0.38.153 — Hide Home Assistant's sidebar from PadSpan (2026-10-20)
 
 ### New

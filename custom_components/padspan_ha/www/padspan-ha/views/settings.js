@@ -250,14 +250,18 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   // (settings.day_theme, day_theme.js). One is on at a time.
   {
     const settings = ctx.state.settings || {};
-    const now = settings.day_theme === true ? "day" : settings.light_theme === true ? "light" : "night";
+    const PAL = ["graphite", "ocean", "dusk", "contrast"];   // day_theme.js PALETTES
+    const now = settings.day_theme === true ? "day" : settings.light_theme === true ? "light"
+      : PAL.includes(settings.theme_palette) ? settings.theme_palette : "night";
+    const NAMES = { night: "Night", graphite: "Graphite", ocean: "Ocean", dusk: "Dusk", contrast: "High contrast", light: "Light", day: "Day" };
     const mkTheme = (val, label) => {
       const b = el("button",{class:"btn inline"+(now===val?" on":"")}, label);
       b.addEventListener("click", async()=>{
         if (now === val) return;
         try {
-          await ctx.actions.settingsSet({ light_theme: val === "light", day_theme: val === "day" });
-          ctx.toast(val === "day" ? "Day theme on" : val === "light" ? "Light theme on" : "Night theme on");
+          const palette = PAL.includes(val) ? val : "";
+          await ctx.actions.settingsSet({ light_theme: val === "light", day_theme: val === "day", theme_palette: palette });
+          ctx.toast(NAMES[val] + " theme on");
         } catch(e){ ctx.toast("Failed to save", true); }
       });
       return b;
@@ -265,12 +269,15 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
     wrap.appendChild(el("div",{class:"card",style:"margin-top:12px;border-color:" + (now !== "night" ? "#52b788" : "#2d4a38")},[
       el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Theme"),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
-        "Night is PadSpan's dark forest green. Light inverts every colour in the panel (white " +
-        "becomes black, black becomes white) for anyone who can't use a dark screen; photos and " +
-        "map images are turned back so they still look normal. Day is the panel redrawn in light " +
-        "colours: pale surfaces, dark text, the same green accent; maps, charts, the 3D house and " +
-        "Pure Live keep their night colours. It takes effect immediately, in every browser."),
-      el("div",{class:"row"},[ mkTheme("night","Night"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ]),
+        "Night is PadSpan's dark forest green. Graphite, Ocean and Dusk are Night in charcoal, " +
+        "navy or plum. High contrast is black with white text and solid edges, for eyes that need " +
+        "it. Light inverts every colour in the panel (white becomes black, black becomes white) for " +
+        "anyone who can't use a dark screen; photos and map images are turned back so they still " +
+        "look normal. Day is the panel redrawn in light colours. Every one keeps the green accent " +
+        "and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D " +
+        "house and Pure Live keep their night colours. It takes effect immediately, in every browser."),
+      el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night","Night"), mkTheme("graphite","Graphite"), mkTheme("ocean","Ocean"),
+        mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ]),
     ]));
   }
 
