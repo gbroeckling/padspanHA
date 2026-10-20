@@ -406,7 +406,7 @@ export function render(ctx) {
         style: "width:270px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
       });
       const irkAddBtn = el("button", { class: "btn inline" }, "Add");
-      const irkMsg = el("div", { style: "font-size:11.5px;margin-top:5px;min-height:16px;width:100%" });
+      const irkMsg = el("div", { style: "font-size:12px;margin-top:5px;min-height:16px;width:100%" });
 
       // Submit IRK to backend — accepts hex (32 chars), base64, or colon-separated
       irkAddBtn.addEventListener("click", async (e) => {
@@ -464,7 +464,7 @@ export function render(ctx) {
       detail.appendChild(irkForm);
 
       // ── How to find IRK ──
-      detail.appendChild(el("div", { class: "muted", style: "font-size:11.5px;margin-top:10px;line-height:1.6" }, [
+      detail.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:10px;line-height:1.6" }, [
         el("div", { class: "bt-kv-title", style: "margin-top:0;border:none;padding:0" }, "Where to find the IRK"),
         el("div", {}, "Android: Companion App \u2192 Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 look for \"IRK\" in the settings/attributes."),
         el("div", {}, [
@@ -1771,7 +1771,7 @@ function renderVisualization(ctx, radios, ads, objIndex) {
       el("span", { class: "bt-chip quiet" }, `${scannerNodes.length} \u00d7 ${deviceNodes.length}`),
     ]),
     svgWrap,
-    el("div", { class: "muted", style: "margin-top:10px;font-size:11.5px" },
+    el("div", { class: "muted", style: "margin-top:10px;font-size:12px" },
       "Narrow it with the scanner and search filters above."),
   ]);
 }
@@ -2452,7 +2452,7 @@ function renderIrkPanel(ctx, snap) {
     class: "input", type: "text", placeholder: "IRK (hex, base64 or colon-separated)",
     style: "width:100%;box-sizing:border-box;margin-top:6px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
   });
-  const addMsg = el("div", { style: "font-size:11.5px;margin-top:7px;min-height:16px" });
+  const addMsg = el("div", { style: "font-size:12px;margin-top:7px;min-height:16px" });
 
   const btnRow = el("div", { style: "display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center" });
   // "Add & Validate" was full width because .btn is; it is one action among
@@ -2570,7 +2570,7 @@ function renderIrkPanel(ctx, snap) {
     // three differently-coloured cards.
     const _path = (title, tone) => {
       const d = el("div", { style: "padding:11px 12px;background:var(--bt-inset);border:1px solid var(--bt-line);border-radius:10px;margin-bottom:8px" });
-      d.appendChild(el("div", { style: `font-weight:700;font-size:12.5px;color:var(--bt-${tone});margin-bottom:5px` }, title));
+      d.appendChild(el("div", { style: `font-weight:700;font-size:13px;color:var(--bt-${tone});margin-bottom:5px` }, title));
       return d;
     };
 
@@ -2579,7 +2579,7 @@ function renderIrkPanel(ctx, snap) {
     pathA.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55;margin-bottom:8px" },
       "With DerekSeaman's irk-capture flashed on an ESP32, PadSpan can pick the captured key up by itself."));
     const wizScanBtn = el("button", { class: "btn inline bt-btn-info" }, "Scan for IRK Capture devices");
-    const wizScanMsg = el("div", { style: "font-size:11.5px;margin-top:7px;min-height:16px" });
+    const wizScanMsg = el("div", { style: "font-size:12px;margin-top:7px;min-height:16px" });
     wizScanBtn.addEventListener("click", async () => {
       wizScanBtn.disabled = true; wizScanBtn.textContent = "Scanning...";
       wizScanMsg.textContent = ""; wizScanMsg.style.color = "var(--bt-dim)";
@@ -2660,7 +2660,7 @@ function renderIrkPanel(ctx, snap) {
     if (appsWithoutIrk.length) {
       compCard.appendChild(el("div", { class: "bt-note ok" },
         `${appsWithoutIrk.length} companion app${appsWithoutIrk.length !== 1 ? "s" : ""} without one: ${appsWithoutIrk.join(", ")}`));
-      compCard.appendChild(el("div", { class: "muted", style: "font-size:11.5px;line-height:1.6;margin-top:8px" },
+      compCard.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.6;margin-top:8px" },
         "The HA Companion App stores an IRK when BLE Transmitter is enabled. " +
         "If the app registered before BLE Transmitter was added (or the IRK field wasn't populated), " +
         "you may need to manually extract the IRK. On Android: HA Settings → Companion App → Manage Sensors → BLE Transmitter → look for the IRK. " +

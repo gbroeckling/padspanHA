@@ -92,7 +92,7 @@ export function render(ctx){
       el("div",{style:"font-size:12px;font-weight:600;color:#e2e8f0"}, f.name),
       el("div",{style:"font-size:10px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, f.desc),
     ]));
-    row.appendChild(el("div",{style:`font-size:9px;font-weight:700;color:${statusColor};letter-spacing:.05em;flex-shrink:0`}, statusText));
+    row.appendChild(el("div",{style:`font-size:10px;font-weight:700;color:${statusColor};letter-spacing:.05em;flex-shrink:0`}, statusText));
     expList.appendChild(row);
   }
   expCard.appendChild(expList);
@@ -136,7 +136,7 @@ export function render(ctx){
       ? Math.round(ads.reduce((s,a)=>s+(a.rssi||0),0) / ads.filter(a=>a.rssi!=null).length)
       : 0;
 
-    inspectorCard.appendChild(el("div",{style:"display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid #1e293b;margin-bottom:8px"},[
+    inspectorCard.appendChild(el("div",{style:"display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid #1b3526;margin-bottom:8px"},[
       el("div",{style:"font-weight:700"},"RSSI Distribution"),
       el("div",{style:"font-size:11px;color:#94a3b8"}, `avg ${avgRssi} dBm`),
     ]));
@@ -149,9 +149,9 @@ export function render(ctx){
       else if(range < -70) barColor = "#ffd54f";
       else if(range < -60) barColor = "#81c784";
       const col = el("div",{style:"display:flex;flex-direction:column;align-items:center;flex:1;min-width:0"});
-      col.appendChild(el("div",{style:`font-size:9px;color:${barColor};font-weight:600;margin-bottom:2px`}, String(count)));
+      col.appendChild(el("div",{style:`font-size:10px;color:${barColor};font-weight:600;margin-bottom:2px`}, String(count)));
       col.appendChild(el("div",{style:`height:${barH}px;width:100%;background:${barColor};border-radius:2px 2px 0 0;min-height:2px`}));
-      col.appendChild(el("div",{style:"font-size:9px;color:#64748b;margin-top:2px;white-space:nowrap"}, `${range}`));
+      col.appendChild(el("div",{style:"font-size:10px;color:#64748b;margin-top:2px;white-space:nowrap"}, `${range}`));
       chart.appendChild(col);
     }
     inspectorCard.appendChild(chart);
@@ -231,7 +231,7 @@ export function render(ctx){
       const tower = el("div",{style:"border-radius:6px;overflow:hidden;border:1px solid #1e3a2a;background:#0a1a0f"});
 
       if(floorRooms.length === 0){
-        tower.appendChild(el("div",{style:"height:40px;display:flex;align-items:center;justify-content:center;color:#253e2e;font-size:9px;font-style:italic"},"empty"));
+        tower.appendChild(el("div",{style:"height:40px;display:flex;align-items:center;justify-content:center;color:#253e2e;font-size:10px;font-style:italic"},"empty"));
       } else {
         for(let i = 0; i < floorRooms.length; i++){
           const r = floorRooms[i];
@@ -278,7 +278,7 @@ export function render(ctx){
 
       // Floor device total at base
       const floorTotal = floorRooms.reduce((s,r)=>s+r.count, 0);
-      col.appendChild(el("div",{style:"font-size:9px;color:#475569;text-align:center;margin-top:4px"}, floorTotal > 0 ? `${floorTotal} device${floorTotal!==1?"s":""}` : "\u00B7"));
+      col.appendChild(el("div",{style:"font-size:10px;color:#64748b;text-align:center;margin-top:4px"}, floorTotal > 0 ? `${floorTotal} device${floorTotal!==1?"s":""}` : "\u00B7"));
 
       towerWrap.appendChild(col);
     }
@@ -395,7 +395,7 @@ export function render(ctx){
 
       const wrap = el("div",{style:"display:flex;flex-direction:column;align-items:center;gap:2px"});
       wrap.appendChild(dot);
-      wrap.appendChild(el("div",{style:`font-size:9px;color:${rc};max-width:${size+20}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center`}, rs.room));
+      wrap.appendChild(el("div",{style:`font-size:10px;color:${rc};max-width:${size+20}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center`}, rs.room));
       pulseWrap.appendChild(wrap);
     }
 

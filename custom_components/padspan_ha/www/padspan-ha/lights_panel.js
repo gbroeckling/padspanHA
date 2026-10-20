@@ -642,7 +642,7 @@ class PadSpanLightsApp extends HTMLElement {
       sheet.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px"},[
         el("div",{},[
           el("div",{style:"font-weight:800;font-size:16px;letter-spacing:-.01em"},"Emergency lights"),
-          el("div",{style:"font-size:11.5px;color:rgba(226,240,232,.5);margin-top:2px"}, from),
+          el("div",{style:"font-size:12px;color:rgba(226,240,232,.5);margin-top:2px"}, from),
         ]),
         el("button",{style:act, title:"Close", onclick:close},"✕"),
       ]));
@@ -655,7 +655,7 @@ class PadSpanLightsApp extends HTMLElement {
           title: armed ? "Tap again to turn off every emergency light"
             : "Turn off every emergency light, including the ones that were already on",
           onclick:()=>this._emergencyForceOff()}, armed ? "Tap again" : "Force off")] : []),
-        ...(busy ? [el("span",{style:"font-size:11.5px;color:rgba(254,226,226,.75)"},"Switching…")] : []),
+        ...(busy ? [el("span",{style:"font-size:12px;color:rgba(254,226,226,.75)"},"Switching…")] : []),
       ]));
       for(const m of s.members || []){
         const st = states[m.entity_id] ? states[m.entity_id].state : m.state;
@@ -1288,7 +1288,7 @@ class PadSpanLightsApp extends HTMLElement {
     this.shadowRoot.innerHTML=`
       <link rel="stylesheet" href="/padspan_ha_static/padspan-ha/styles.css?v=${APP_VERSION}&b=${BUILD_ID}">
       <style>
-        :host{display:block;min-height:100vh;background:#0a150e;color:#e2e8f0;
+        :host{display:block;min-height:100vh;background:#0a150e;color:#e2e8f0;accent-color:#52b788;
               font-family:Inter,system-ui,Arial,sans-serif;box-sizing:border-box}
         #content{padding:16px}
       </style>

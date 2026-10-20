@@ -625,12 +625,12 @@ export function renderClassic(ctx){
                 o.company_name ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#7dd3fc;border:1px solid #1e4976"}, o.company_name) : null,
                 (o.auto_class || o.device_type) ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, o.auto_class || o.device_type) : null,
                 ...(o.service_names || []).slice(0,3).map(sn =>
-                  el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a3a2a;color:#86efac;border:1px solid #166534"}, sn)
+                  el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a3a2a;color:#a7f3d0;border:1px solid #166534"}, sn)
                 ),
               ].filter(Boolean))
             : (kind==="ble" && o.manufacturer_data && Object.keys(o.manufacturer_data).length ? el("div",{style:"color:#94a3b8;font-size:11px"}, `Manuf ID: ${Object.keys(o.manufacturer_data).slice(0,3).join(", ")}`) : null)),
           (o.device && (o.device.manufacturer || o.device.model) ? el("div",{style:"color:#94a3b8"}, `${o.device.manufacturer||""} ${o.device.model||""}`.trim()) : null),
-          (o.connectable === true ? el("span",{style:"font-size:9px;color:#52b788"}, "connectable") : null),
+          (o.connectable === true ? el("span",{style:"font-size:10px;color:#52b788"}, "connectable") : null),
         ].filter(Boolean)),
         el("td",{}, addr || "—"),
         // An object keeps its last known room forever — deliberately, so
@@ -2201,7 +2201,7 @@ export function renderClassic(ctx){
 
         const roomCell = el("td",{style:"padding:5px 8px"},[
           el("span",{style:"font-weight:600;color:#e2e8f0"}, rr.room),
-          hasFollowed ? el("span",{style:"margin-left:6px;font-size:9px;color:#fbbf24;font-weight:700"}, "\u25C9 tracked") : null,
+          hasFollowed ? el("span",{style:"margin-left:6px;font-size:10px;color:#fbbf24;font-weight:700"}, "\u25C9 tracked") : null,
         ].filter(Boolean));
 
         const tr2 = el("tr",{style:"border-bottom:1px solid #0f2017;cursor:pointer"},[
@@ -2323,7 +2323,7 @@ export function renderClassic(ctx){
     // areas that are not a storey of the building.
     const ovOutBtn = document.createElement("button");
     ovOutBtn.className = "btn inline";
-    const _outStyle = (on) => `padding:1px 6px;font-size:10px;margin-left:4px;${on ? "background:#0f2a1a;border-color:#34d399;color:#6ee7b7;font-weight:700" : "color:#94a3b8"}`;
+    const _outStyle = (on) => `padding:1px 6px;font-size:10px;margin-left:4px;${on ? "background:#0f2a1a;border-color:#4ade80;color:#a7f3d0;font-weight:700" : "color:#94a3b8"}`;
     const _outLabel = (on) => on ? "Outdoor ON" : "Outdoor";
     ovOutBtn.style.cssText = _outStyle(ctx.state._overviewShowOutdoor);
     ovOutBtn.textContent = _outLabel(ctx.state._overviewShowOutdoor);
@@ -2566,7 +2566,7 @@ export function renderClassic(ctx){
       progressBar.appendChild(progressFill);
 
       const statusLbl = document.createElement("span");
-      statusLbl.style.cssText = "font-size:9px;color:#64748b;min-width:40px";
+      statusLbl.style.cssText = "font-size:10px;color:#64748b;min-width:40px";
       statusLbl.textContent = "";
 
       const _showProgress = (pct, text) => {
@@ -2629,7 +2629,7 @@ export function renderClassic(ctx){
       const legendWrap = document.createElement("span");
       legendWrap.style.cssText = "display:none;align-items:center;gap:5px;margin-left:4px";
       const legendLo = document.createElement("span");
-      legendLo.style.cssText = "font-size:9px;color:#94a3b8;font-variant-numeric:tabular-nums";
+      legendLo.style.cssText = "font-size:10px;color:#94a3b8;font-variant-numeric:tabular-nums";
       const legendBar = document.createElement("span");
       legendBar.style.cssText = "display:inline-block;width:96px;height:8px;border-radius:4px;border:1px solid #1a4228";
       const legendHi = document.createElement("span");
@@ -2913,11 +2913,11 @@ export function renderClassic(ctx){
 
   // ── Positioning Diagnostics panel ────────────────────────────────────
   const _buildDiagPanel = () => {
-    const wrap = el("div",{class:"card",style:"border-color:#334155"});
+    const wrap = el("div",{class:"card",style:"border-color:#2d4a38"});
     const hdr = el("div",{style:"display:flex;align-items:center;gap:8px;cursor:pointer"});
-    const arrow = el("span",{style:"font-size:11px;color:#60a5fa;transition:transform .2s"},"\u25B6");
+    const arrow = el("span",{style:"font-size:11px;color:#52b788;transition:transform .2s"},"\u25B6");
     hdr.appendChild(arrow);
-    hdr.appendChild(el("span",{style:"font-weight:700;font-size:13px;color:#60a5fa"},"Positioning Diagnostics"));
+    hdr.appendChild(el("span",{style:"font-weight:700;font-size:13px;color:#52b788"},"Positioning Diagnostics"));
     hdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"},"Tap to load"));
     wrap.appendChild(hdr);
     const body = el("div",{style:"display:none;margin-top:8px"});
@@ -2932,7 +2932,7 @@ export function renderClassic(ctx){
         const devices = res.devices || [];
         if (!devices.length) { body.textContent = "No labelled devices found."; return; }
         body.textContent = "";
-        const pre = el("pre",{style:"font-size:11px;color:#e2e8f0;background:#0f172a;padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;user-select:all;cursor:text"});
+        const pre = el("pre",{style:"font-size:11px;color:#e2e8f0;background:#071008;padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;user-select:all;cursor:text"});
         const lines = [];
         // System health summary
         const st = res.stats || {};
@@ -3039,7 +3039,7 @@ export function renderClassic(ctx){
         return el("div",{style:"text-align:center"},[
           el("div",{class:"basic-summary-num",style:`color:${color}`}, liveLoading ? "--" : String(usable)),
           el("div",{class:"basic-summary-lbl"}, "Cal pts"),
-          el("div",{style:`font-size:9px;color:${knnColor};margin-top:2px`}, knnLabel),
+          el("div",{style:`font-size:10px;color:${knnColor};margin-top:2px`}, knnLabel),
         ]);
       })(),
     ].filter(Boolean));
@@ -3090,7 +3090,7 @@ export function renderClassic(ctx){
 
           for (const phone of phones) {
             const row = document.createElement("div");
-            row.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;background:#0f172a;margin-bottom:6px";
+            row.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;background:#071008;margin-bottom:6px";
 
             // Name + status
             const info = document.createElement("div");
@@ -3131,7 +3131,7 @@ export function renderClassic(ctx){
               irkInput.placeholder = "Paste IRK (hex or base64)";
               // "Save unverified" is for the key it was offered for: an edited key is checked again.
               irkInput.addEventListener("input", () => { if (irkSaveBtn._force) { irkSaveBtn._force = false; irkSaveBtn.textContent = "Save"; irkSaveBtn.style.color = "#4ade80"; irkSaveBtn.style.borderColor = "#16a34a"; } });
-              irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:3px;width:220px;display:none;font-family:monospace";
+              irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:3px;width:220px;display:none;font-family:monospace";
 
               const irkSaveBtn = document.createElement("button");
               irkSaveBtn.style.cssText = "font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #16a34a;background:#052e16;color:#4ade80;display:none";
@@ -3185,7 +3185,7 @@ export function renderClassic(ctx){
 
               // Help text
               const helpText = document.createElement("div");
-              helpText.style.cssText = "font-size:9px;color:#64748b;width:100%;margin-top:2px;display:none";
+              helpText.style.cssText = "font-size:10px;color:#64748b;width:100%;margin-top:2px;display:none";
               helpText.textContent = "IRK is optional — your phone is already tracked via iBeacon. For IRK (enhanced tracking), see Settings \u2192 Phone Tracking for extraction methods.";
               irkRow.appendChild(helpText);
               addIrkBtn.addEventListener("click", () => { helpText.style.display = "block"; });
@@ -3300,7 +3300,7 @@ export function renderClassic(ctx){
                     });
                   }
                   btn.textContent = "Enabled — restart HA";
-                  btn.style.color = "#34d399"; btn.style.borderColor = "#065f46";
+                  btn.style.color = "#4ade80"; btn.style.borderColor = "#065f46";
                   // A disabled phone is found with no iBeacon key, so the command is
                   // only sent when there is one: say which happened.
                   meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent. Restart HA to complete."
@@ -3440,9 +3440,9 @@ export function renderClassic(ctx){
           `${empty} point(s) have no RSSI data — re-calibrate to fix`) : null,
         // k-NN diagnostic: collapsible
         cs.source_overlap !== undefined ? (() => {
-          const diagWrap = el("div",{style:"font-size:10px;margin-top:6px;padding:6px;background:#0f172a;border:1px solid #1e293b;border-radius:4px;color:#94a3b8"});
+          const diagWrap = el("div",{style:"font-size:10px;margin-top:6px;padding:6px;background:#071008;border:1px solid #1b3526;border-radius:4px;color:#94a3b8"});
           const diagHdr = el("div",{style:"display:flex;align-items:center;gap:6px;cursor:pointer"});
-          const diagArrow = el("span",{style:"font-size:9px;color:#60a5fa;transition:transform .2s"}, "\u25B6");
+          const diagArrow = el("span",{style:"font-size:10px;color:#52b788;transition:transform .2s"}, "\u25B6");
           diagHdr.appendChild(diagArrow);
           diagHdr.appendChild(el("span",{style:"font-weight:600;color:#e2e8f0"}, `${algoLabel} Diagnostic`));
           diagWrap.appendChild(diagHdr);
@@ -3454,7 +3454,7 @@ export function renderClassic(ctx){
             diagBody.appendChild(el("div",{style:"color:#f59e0b;margin-top:3px"},
               `Cal: ${(cs.cal_sources||[]).slice(0,3).join(", ")} · Live: ${(cs.ema_sources||[]).slice(0,3).join(", ")}`));
           (cs.knn_diag||[]).forEach(d => {
-            diagBody.appendChild(el("div",{style:"margin-top:3px;border-top:1px solid #1e293b;padding-top:3px"}, [
+            diagBody.appendChild(el("div",{style:"margin-top:3px;border-top:1px solid #1b3526;padding-top:3px"}, [
               el("div",{}, `${d.key}: ${d.ema_scanners} EMA, ${d.shared_with_cal} overlap cal`),
               d.knn_result ? el("div",{style:"color:#52b788"},
                 `→ conf=${(d.knn_result.confidence*100).toFixed(0)}% room=${d.knn_result.room} k=${d.knn_result.k_used} shared=${d.knn_result.shared_scanners||"?"}`) :
@@ -3507,7 +3507,7 @@ export function renderClassic(ctx){
 
         for (const phone of phones) {
           const row = document.createElement("div");
-          row.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;background:#0f172a;margin-bottom:6px";
+          row.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;background:#071008;margin-bottom:6px";
 
           // Phone icon + name
           const info = document.createElement("div");
@@ -3548,7 +3548,7 @@ export function renderClassic(ctx){
             irkInput.placeholder = "Paste IRK (hex or base64)";
             // "Save unverified" is for the key it was offered for: an edited key is checked again.
             irkInput.addEventListener("input", () => { if (irkSaveBtn._force) { irkSaveBtn._force = false; irkSaveBtn.textContent = "Save"; irkSaveBtn.style.color = "#4ade80"; irkSaveBtn.style.borderColor = "#16a34a"; } });
-            irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:3px;width:220px;display:none;font-family:monospace";
+            irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:3px;width:220px;display:none;font-family:monospace";
             const irkSaveBtn = document.createElement("button");
             irkSaveBtn.style.cssText = "font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #16a34a;background:#052e16;color:#4ade80;display:none";
             irkSaveBtn.textContent = "Save";
@@ -3596,7 +3596,7 @@ export function renderClassic(ctx){
             irkRow.appendChild(irkInput);
             irkRow.appendChild(irkSaveBtn);
             const irkHelp = document.createElement("div");
-            irkHelp.style.cssText = "font-size:9px;color:#64748b;width:100%;margin-top:2px;display:none";
+            irkHelp.style.cssText = "font-size:10px;color:#64748b;width:100%;margin-top:2px;display:none";
             irkHelp.textContent = "IRK is optional — your phone is already tracked via iBeacon. For IRK (enhanced tracking), see Settings \u2192 Phone Tracking for extraction methods.";
             irkRow.appendChild(irkHelp);
             info.appendChild(irkRow);
@@ -3650,7 +3650,7 @@ export function renderClassic(ctx){
                   });
                 }
                 enableBtn.textContent = "Enabled — restart HA";
-                enableBtn.style.color = "#34d399";
+                enableBtn.style.color = "#4ade80";
                 enableBtn.style.borderColor = "#065f46";
                 meta.textContent = phone.ibeacon_key ? "Entity enabled & BLE command sent. Restart Home Assistant to complete setup."
                   : "Entity enabled. Restart Home Assistant, then turn on the BLE Transmitter in the Companion app (or follow the phone here).";
@@ -3671,7 +3671,7 @@ export function renderClassic(ctx){
             btnWrap.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap";
             const badge = document.createElement("span");
             if (phone.is_visible) {
-              badge.style.cssText = "font-size:11px;color:#34d399;font-weight:600;padding:3px 8px;border:1px solid #065f46;border-radius:4px";
+              badge.style.cssText = "font-size:11px;color:#4ade80;font-weight:600;padding:3px 8px;border:1px solid #065f46;border-radius:4px";
               badge.textContent = "Tracked";
             } else if (phone.is_transmitting) {
               badge.style.cssText = "font-size:11px;color:#fbbf24;font-weight:600;padding:3px 8px;border:1px solid #92400e;border-radius:4px";
@@ -3699,7 +3699,7 @@ export function renderClassic(ctx){
                 try { localStorage.setItem("padspan_followed", JSON.stringify([...ctx.state.followedAddrs])); } catch(e){}
                 badge.textContent = "Removed";
                 badge.style.color = "#64748b";
-                badge.style.borderColor = "#334155";
+                badge.style.borderColor = "#2d4a38";
                 unBtn.style.display = "none";
                 setTimeout(() => ctx.actions.renderRooms(), 1500);
               } catch (e) {
@@ -3733,7 +3733,7 @@ export function renderClassic(ctx){
                 if (r.verified_label && r.verified_followed) {
                   if (phone.is_visible) {
                     btn.textContent = "Tracked!";
-                    btn.style.cssText = "font-size:12px;padding:4px 14px;color:#34d399;border-color:#065f46;font-weight:600";
+                    btn.style.cssText = "font-size:12px;padding:4px 14px;color:#4ade80;border-color:#065f46;font-weight:600";
                     meta.textContent = `Tagged as "${r.verified_label}" · visible to scanners`;
                   } else if (phone.is_transmitting || r.transmitter_enabled) {
                     btn.textContent = "Registered — waiting for signal";
@@ -3764,7 +3764,7 @@ export function renderClassic(ctx){
         }
 
         // Help note
-        const helpNote = el("div",{style:"font-size:11px;color:#475569;margin-top:8px"},
+        const helpNote = el("div",{style:"font-size:11px;color:#64748b;margin-top:8px"},
           "Not seeing your phone? Open Companion App \u2192 Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable. The phone will appear here once the transmitter is active.");
         _aPhoneBody.appendChild(helpNote);
       } catch (e) {
@@ -3953,7 +3953,7 @@ export function renderClassic(ctx){
         const trainInput = document.createElement("input");
         trainInput.type="number";trainInput.min="0";trainInput.max="500";trainInput.step="1";
         trainInput.placeholder="people";
-        trainInput.style.cssText="width:80px;padding:4px 8px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;font-size:12px";
+        trainInput.style.cssText="width:80px;padding:4px 8px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:12px";
         trainRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Actual count:"));
         trainRow.appendChild(trainInput);
         const trainBtn = el("button",{class:"btn save-pulse",style:"width:auto;padding:4px 14px;font-size:11px"});

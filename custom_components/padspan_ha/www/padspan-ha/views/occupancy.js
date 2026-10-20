@@ -233,7 +233,7 @@ async function _loadOccupancy(ctx, el, container) {
     const trainInput = document.createElement("input");
     trainInput.type = "number"; trainInput.min = "0"; trainInput.max = "500"; trainInput.step = "1";
     trainInput.placeholder = "Actual headcount";
-    trainInput.style.cssText = "width:120px;padding:6px 10px;border:1px solid #334155;border-radius:6px;background:#1e293b;color:#e2e8f0;font-size:13px";
+    trainInput.style.cssText = "width:120px;padding:6px 10px;border:1px solid #2d4a38;border-radius:6px;background:#1b3526;color:#e2e8f0;font-size:13px";
     trainRow.appendChild(trainInput);
     const trainBtn = el("button", { class: "btn", style: "padding:6px 16px;font-size:12px" }, "Save");
     trainBtn.addEventListener("click", async () => {
@@ -261,7 +261,7 @@ async function _loadOccupancy(ctx, el, container) {
       trainCard.appendChild(el("div", { style: "margin-top:12px;font-weight:600;font-size:11px;color:#64748b" }, `History (${training.length} observations)`));
       const histGrid = el("div", { style: "display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:3px 10px;font-size:10px;margin-top:4px" });
       for (const h of ["When", "Actual", "Estimated", "Known / unknown"]) {
-        histGrid.appendChild(el("div", { style: "font-weight:600;color:#475569" }, h));
+        histGrid.appendChild(el("div", { style: "font-weight:600;color:#64748b" }, h));
       }
       for (const obs of [...training].reverse().slice(0, 20)) {
         const d = obs.ts ? new Date(obs.ts).toLocaleString() : "?";

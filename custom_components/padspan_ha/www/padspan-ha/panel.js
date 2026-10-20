@@ -680,7 +680,7 @@ class PadSpanHaApp extends HTMLElement {
             <img src="/padspan_ha_static/padspan-ha/assets/padspan-mark.svg?b=${BUILD_ID}" alt="PadSpan" onerror="this.style.display='none'">
             <div>
               <div class="label">PadSpan™ HA</div>
-              <div class="muted" style="margin-top:2px">v${APP_VERSION}${CHANNEL==='stable'?` <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#2e7d32;color:#fff;vertical-align:middle">${CHANNEL}</span>`:''}</div>
+              <div class="muted" style="margin-top:2px">v${APP_VERSION}${CHANNEL==='stable'?` <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#2e7d32;color:#fff;vertical-align:middle">${CHANNEL}</span>`:''}</div>
             </div>
           </div>
 
@@ -3151,7 +3151,7 @@ class PadSpanHaApp extends HTMLElement {
             obj.company_name ? el("span",{class:"badge",style:"background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, obj.company_name) : null,
             (obj.auto_class || obj.device_type) ? el("span",{class:"badge",style:"background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, obj.auto_class || obj.device_type) : null,
             ...(obj.service_names || []).map(sn =>
-              el("span",{class:"badge",style:"background:#1a3a2a;color:#86efac;border-color:#166534"}, sn)
+              el("span",{class:"badge",style:"background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)
             ),
             obj.connectable === true  ? el("span",{class:"badge",style:"font-size:10px"}, "Connectable") : null,
             obj.connectable === false ? el("span",{class:"badge",style:"font-size:10px;background:#2a1a0a;color:#fbbf24;border-color:#92400e"}, "Non-connectable") : null,

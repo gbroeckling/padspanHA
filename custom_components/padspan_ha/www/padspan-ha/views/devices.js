@@ -231,11 +231,11 @@ function _renderAll(ctx) {
 
   // ── Device rows ───────────────────────────────────────────────────────────
   const rows = filtered.slice(0, 300).map(d => {
-    const kindBadge = d.type === "entity"      ? el("span", { class: "badge", style: "font-size:9px" }, "Entity")
-                    : d.type === "private_ble"  ? el("span", { class: "badge", style: "font-size:9px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976" }, "Private BLE")
-                    : d.type === "ibeacon"      ? el("span", { class: "badge", style: "font-size:9px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6" }, "iBeacon")
-                    : d.tagged                  ? el("span", { class: "badge", style: "font-size:9px" }, "Tagged")
-                    : el("span", { class: "badge warn", style: "font-size:9px" }, "Untagged");
+    const kindBadge = d.type === "entity"      ? el("span", { class: "badge", style: "font-size:10px" }, "Entity")
+                    : d.type === "private_ble"  ? el("span", { class: "badge", style: "font-size:10px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976" }, "Private BLE")
+                    : d.type === "ibeacon"      ? el("span", { class: "badge", style: "font-size:10px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6" }, "iBeacon")
+                    : d.tagged                  ? el("span", { class: "badge", style: "font-size:10px" }, "Tagged")
+                    : el("span", { class: "badge warn", style: "font-size:10px" }, "Untagged");
 
     const statusBadge = d.missing
       ? el("span", { class: "pill bad" }, "MISSING")
@@ -471,7 +471,7 @@ async function _loadRegistryAsync(ctx, el, container) {
       const lblInput = document.createElement("input");
       lblInput.type = "text"; lblInput.value = d.label || "";
       lblInput.placeholder = "unlabeled";
-      lblInput.style.cssText = "background:transparent;border:1px solid #334155;border-radius:4px;padding:2px 6px;color:#e2e8f0;font-size:12px;font-weight:600;width:140px";
+      lblInput.style.cssText = "background:transparent;border:1px solid #2d4a38;border-radius:4px;padding:2px 6px;color:#e2e8f0;font-size:12px;font-weight:600;width:140px";
       lblInput.addEventListener("keydown", async (e) => {
         if (e.key !== "Enter") return;
         const newLabel = lblInput.value.trim();
@@ -504,7 +504,7 @@ async function _loadRegistryAsync(ctx, el, container) {
         const pillRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:4px;margin-top:4px" });
         for (const id of idents) {
           const kindColor = id.kind === "mac" ? "#60a5fa" : id.kind === "ibeacon" ? "#c4b5fd" : id.kind === "irk" ? "#fbbf24" : "#94a3b8";
-          pillRow.appendChild(el("span", { style: `font-size:9px;padding:1px 6px;border-radius:3px;background:${kindColor}22;color:${kindColor};border:1px solid ${kindColor}44` },
+          pillRow.appendChild(el("span", { style: `font-size:10px;padding:1px 6px;border-radius:3px;background:${kindColor}22;color:${kindColor};border:1px solid ${kindColor}44` },
             `${id.kind}: ${(id.value || "").substring(0, 25)}`));
         }
         row.appendChild(pillRow);
@@ -513,11 +513,11 @@ async function _loadRegistryAsync(ctx, el, container) {
       // Add Identity inline
       const addRow = el("div", { style: "display:none;margin-top:4px;gap:4px;align-items:center;font-size:10px" });
       const addKind = document.createElement("select");
-      addKind.style.cssText = "padding:2px;border:1px solid #334155;border-radius:3px;background:#1e293b;color:#e2e8f0;font-size:10px";
+      addKind.style.cssText = "padding:2px;border:1px solid #2d4a38;border-radius:3px;background:#1b3526;color:#e2e8f0;font-size:10px";
       for (const k of ["mac","ibeacon","irk","entity"]) { const o = document.createElement("option"); o.value = k; o.textContent = k; addKind.appendChild(o); }
       const addVal = document.createElement("input");
       addVal.type = "text"; addVal.placeholder = "address or key";
-      addVal.style.cssText = "flex:1;padding:2px 4px;border:1px solid #334155;border-radius:3px;background:#1e293b;color:#e2e8f0;font-size:10px;min-width:120px";
+      addVal.style.cssText = "flex:1;padding:2px 4px;border:1px solid #2d4a38;border-radius:3px;background:#1b3526;color:#e2e8f0;font-size:10px;min-width:120px";
       const addGo = el("button", { class: "btn tiny", style: "font-size:10px;padding:1px 6px" }, "Add");
       addGo.addEventListener("click", async () => {
         const v = addVal.value.trim(); if (!v) return;
@@ -535,7 +535,7 @@ async function _loadRegistryAsync(ctx, el, container) {
 
       // Merged from
       if (d.merged_from && d.merged_from.length) {
-        row.appendChild(el("div", { style: "font-size:9px;color:#64748b;margin-top:2px" }, `Merged from: ${d.merged_from.join(", ")}`));
+        row.appendChild(el("div", { style: "font-size:10px;color:#64748b;margin-top:2px" }, `Merged from: ${d.merged_from.join(", ")}`));
       }
 
       container.appendChild(row);
@@ -1204,7 +1204,7 @@ function _renderRelayWizard(ctx) {
   form.appendChild(errorMsg);
 
   const buildBtn = el("button", {
-    style: "background:linear-gradient(135deg,#166534,#22c55e);color:#f0fdf4;border:1px solid rgba(134,239,172,.6);"
+    style: "background:linear-gradient(135deg,#166534,#4ade80);color:#f0fdf4;border:1px solid rgba(134,239,172,.6);"
       + "border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;padding:7px 14px;margin-right:6px",
     onclick: async () => {
       errorMsg.style.display = "none";

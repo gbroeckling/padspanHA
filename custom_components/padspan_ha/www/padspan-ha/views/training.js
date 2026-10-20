@@ -698,8 +698,8 @@ function _svgCompanionTrack() {
 <text x="60" y="68" fill="#64748b" font-size="9" font-family="system-ui">BLE active · visible to scanners</text>
 <rect class="pBtn" x="260" y="42" width="80" height="28" rx="6" fill="none" stroke="#2563eb" stroke-width="1.5"/>
 <text x="300" y="60" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600" font-family="system-ui">Track</text>
-<path class="chk" d="M 180 140 l 10 10 l 20 -20" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round"/>
-<text class="chk" x="200" y="175" text-anchor="middle" fill="#34d399" font-size="11" font-weight="600" font-family="system-ui">Tracked! Labels, follows, and enables BLE</text>
+<path class="chk" d="M 180 140 l 10 10 l 20 -20" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round"/>
+<text class="chk" x="200" y="175" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="600" font-family="system-ui">Tracked! Labels, follows, and enables BLE</text>
 <text x="200" y="200" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Auto-enables BLE Transmitter on the phone</text>
 </svg>`;
 }
@@ -753,7 +753,7 @@ function _svgPrivateBle() {
 <text x="300" y="50" text-anchor="middle" fill="#60a5fa" font-size="10" font-weight="600" font-family="system-ui">With IRK</text>
 <rect x="250" y="60" width="100" height="24" rx="6" fill="#1a2744" stroke="#60a5fa" stroke-width="1"/>
 <text x="300" y="76" text-anchor="middle" fill="#60a5fa" font-size="10" font-family="system-ui">Garry's iPhone</text>
-<text x="300" y="100" text-anchor="middle" fill="#34d399" font-size="9" font-family="system-ui">1 stable identity</text>
+<text x="300" y="100" text-anchor="middle" fill="#4ade80" font-size="9" font-family="system-ui">1 stable identity</text>
 <text x="300" y="130" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">Blue badge in all views</text>
 <text x="200" y="175" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Settings → Private BLE → Add IRK</text>
 <text x="200" y="195" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Works with iPhones, Apple Watches, and Android phones</text>

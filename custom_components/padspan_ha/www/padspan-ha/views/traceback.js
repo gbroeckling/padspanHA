@@ -1386,7 +1386,7 @@ export function render(ctx) {
     const _customInput = document.createElement("input");
     _customInput.type = "number"; _customInput.min = "1"; _customInput.max = "99999"; _customInput.step = "1";
     _customInput.placeholder = "min";
-    _customInput.style.cssText = "width:55px;padding:2px 6px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;font-size:10px";
+    _customInput.style.cssText = "width:55px;padding:2px 6px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:10px";
     const _customBtn = document.createElement("button");
     _customBtn.className = "btn inline";
     _customBtn.style.cssText = "font-size:10px;padding:2px 8px;color:#94a3b8";
@@ -2040,7 +2040,7 @@ export function render(ctx) {
       // Kind
       const kindTd = document.createElement("td");
       const kindBadge = document.createElement("span");
-      kindBadge.style.cssText = "font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600;" +
+      kindBadge.style.cssText = "font-size:10px;padding:1px 5px;border-radius:3px;font-weight:600;" +
         "background:" + col + "22;color:" + col + ";border:1px solid " + col + "44";
       kindBadge.textContent = obj.kind === "ibeacon" ? "iBeacon" : obj.kind === "private_ble" ? "pBLE" : obj.kind === "entity" ? "Entity" : "BLE";
       kindTd.appendChild(kindBadge);
@@ -2345,7 +2345,7 @@ export function render(ctx) {
     const customInput = document.createElement("input");
     customInput.type = "number"; customInput.min = "1"; customInput.max = "99999"; customInput.step = "1";
     customInput.placeholder = "min";
-    customInput.style.cssText = "width:60px;padding:2px 6px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;font-size:10px";
+    customInput.style.cssText = "width:60px;padding:2px 6px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:10px";
     customInput.value = ctx.state._distWindow && !windows.some(w => w.mins === ctx.state._distWindow) ? ctx.state._distWindow : "";
     const customBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px"});
     customBtn.textContent = "Go";
@@ -2500,7 +2500,7 @@ export function render(ctx) {
         // Object filter dropdown
         const filterRow = el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px"});
         const filterSel = document.createElement("select");
-        filterSel.style.cssText = "padding:3px 6px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;font-size:11px";
+        filterSel.style.cssText = "padding:3px 6px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:11px";
         const allOpt = document.createElement("option");
         allOpt.value = ""; allOpt.textContent = `All objects (${sorted.length})`;
         filterSel.appendChild(allOpt);
@@ -2556,7 +2556,7 @@ export function render(ctx) {
             // Action buttons
             const actDiv = el("div",{style:"display:flex;gap:3px;justify-content:flex-end"});
             // Investigate button
-            const invBtn = el("button",{class:"btn tiny",style:"font-size:9px;padding:1px 4px"}, "\ud83d\udd0d");
+            const invBtn = el("button",{class:"btn tiny",style:"font-size:10px;padding:1px 4px"}, "\ud83d\udd0d");
             invBtn.title = `Investigate: ${totalSteps} steps, ${od.jitter_steps||0} filtered as jitter, max step ${od.max_step?.toFixed(1)||0}m`;
             invBtn.addEventListener("click", () => {
               const msg = [
@@ -2574,7 +2574,7 @@ export function render(ctx) {
             actDiv.appendChild(invBtn);
             // Mark as stationary reference — still tracked, but flagged for accuracy monitoring
             const isStationary = _stationarySet.has(String(key).toUpperCase());
-            const statBtn = el("button",{class:"btn tiny",style:`font-size:9px;padding:1px 4px;${isStationary ? "color:#52b788;border-color:#52b788" : "color:#f59e0b;border-color:#92400e"}`}, isStationary ? "\u2713 Ref" : "\ud83d\udccc Ref");
+            const statBtn = el("button",{class:"btn tiny",style:`font-size:10px;padding:1px 4px;${isStationary ? "color:#52b788;border-color:#52b788" : "color:#f59e0b;border-color:#92400e"}`}, isStationary ? "\u2713 Ref" : "\ud83d\udccc Ref");
             statBtn.title = isStationary ? "This device is a stationary reference — click to remove" : "Mark as stationary reference (known-fixed device for accuracy monitoring)";
             statBtn.addEventListener("click", async () => {
               try {

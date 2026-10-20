@@ -195,7 +195,7 @@ export function render(ctx){
     for(const iss of issues) consistCard.appendChild(iss);
   }
   // ── Quick Actions (merged into Data Consistency card) ──
-  consistCard.appendChild(el("div",{style:"font-weight:700;margin-top:14px;padding-top:10px;border-top:1px solid #1e293b;margin-bottom:8px"},"Quick Actions"));
+  consistCard.appendChild(el("div",{style:"font-weight:700;margin-top:14px;padding-top:10px;border-top:1px solid #1b3526;margin-bottom:8px"},"Quick Actions"));
   {
     const btnRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"});
     const refreshBtn = el("button",{class:"btn"}, "Refresh Snapshot");
@@ -253,7 +253,7 @@ export function render(ctx){
         el("span",{class:"muted"}, label),
         el("span",{style:`font-weight:600;color:${color}`}, typeof value==="number" && max<=1 ? `${Math.round(value*100)}%` : String(Math.round(value))),
       ]),
-      el("div",{style:"background:#1e293b;border-radius:4px;height:6px;overflow:hidden"},[
+      el("div",{style:"background:#1b3526;border-radius:4px;height:6px;overflow:hidden"},[
         el("div",{style:`width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s`}),
       ]),
     ]);
@@ -336,12 +336,12 @@ export function render(ctx){
     propStatusDiv.appendChild(detailToggle);
 
     if(ctx.state._qaExpandedProp){
-      const detailDiv = el("div",{style:"margin-top:12px;border-top:1px solid #1e293b;padding-top:10px"});
+      const detailDiv = el("div",{style:"margin-top:12px;border-top:1px solid #1b3526;padding-top:10px"});
       // Per-room fingerprint table
       if(ph.per_room && ph.per_room.length > 0){
         detailDiv.appendChild(el("div",{style:"font-weight:600;font-size:12px;margin-bottom:6px;color:#94a3b8"},"Per-Room Fingerprint Quality"));
         const tbl = el("div",{style:"font-size:11px;overflow-x:auto"});
-        tbl.appendChild(el("div",{style:"display:grid;grid-template-columns:1fr 60px 70px 60px 70px;gap:4px;padding:4px 0;border-bottom:1px solid #1e293b;font-weight:600;color:#94a3b8"},
+        tbl.appendChild(el("div",{style:"display:grid;grid-template-columns:1fr 60px 70px 60px 70px;gap:4px;padding:4px 0;border-bottom:1px solid #1b3526;font-weight:600;color:#94a3b8"},
           ["Room","Scanners","Observations","Avg Var","Status"].map(h=>el("span",{},h))));
         for(const r of ph.per_room.slice(0,15)){
           const sColor = r.status==="stable"?"#52b788":r.status==="building"?"#38bdf8":r.status==="sparse"?"#ffd54f":"#64748b";
@@ -359,7 +359,7 @@ export function render(ctx){
       if(ph.per_scanner_pl && ph.per_scanner_pl.length > 0){
         detailDiv.appendChild(el("div",{style:"font-weight:600;font-size:12px;margin:12px 0 6px;color:#94a3b8"},"Per-Scanner Path-Loss Model"));
         const tbl2 = el("div",{style:"font-size:11px;overflow-x:auto"});
-        tbl2.appendChild(el("div",{style:"display:grid;grid-template-columns:1fr 50px 55px 45px 55px;gap:4px;padding:4px 0;border-bottom:1px solid #1e293b;font-weight:600;color:#94a3b8"},
+        tbl2.appendChild(el("div",{style:"display:grid;grid-template-columns:1fr 50px 55px 45px 55px;gap:4px;padding:4px 0;border-bottom:1px solid #1b3526;font-weight:600;color:#94a3b8"},
           ["Scanner","n","RSSI@1m","R\u00b2","Quality"].map(h=>el("span",{},h))));
         for(const pl of ph.per_scanner_pl){
           const qColor = pl.quality==="good"?"#52b788":pl.quality==="fair"?"#ffd54f":"#ef5350";
@@ -447,7 +447,7 @@ export function render(ctx){
   backupCard.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
     "Create a snapshot of all PadSpan data before enabling experimental features. Restore to roll back if needed."));
 
-  const noteInp = el("input",{type:"text",placeholder:"Optional note (e.g. Before adaptive learning)",style:"flex:1;min-width:180px;padding:4px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:12px"});
+  const noteInp = el("input",{type:"text",placeholder:"Optional note (e.g. Before adaptive learning)",style:"flex:1;min-width:180px;padding:4px 8px;border-radius:4px;border:1px solid #2d4a38;background:#071008;color:#e2e8f0;font-size:12px"});
   const createBkBtn = el("button",{class:"btn",style:"font-size:12px"},"Create Backup");
   createBkBtn.addEventListener("click", async()=>{
     createBkBtn.disabled=true; createBkBtn.textContent="Saving\u2026";
@@ -472,7 +472,7 @@ export function render(ctx){
     }
     for(const bk of list){
       const dt = bk.created_at ? new Date(bk.created_at).toLocaleString() : "Unknown";
-      const row = el("div",{style:"display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1e293b;font-size:12px"});
+      const row = el("div",{style:"display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1b3526;font-size:12px"});
       row.appendChild(el("div",{style:"flex:1"},[
         el("div",{style:"font-weight:600;color:#e2e8f0"}, `${dt} (v${bk.version || "?"})`),
         bk.note ? el("div",{class:"muted",style:"font-size:11px"}, bk.note) : null,
@@ -747,7 +747,7 @@ export function render(ctx){
         el("span",{class:"muted"}, label),
         el("span",{style:`font-weight:600;color:${color}`}, `${value}/100`),
       ]),
-      el("div",{style:"background:#1e293b;border-radius:3px;height:5px;overflow:hidden"},[
+      el("div",{style:"background:#1b3526;border-radius:3px;height:5px;overflow:hidden"},[
         el("div",{style:`width:${value}%;height:100%;background:${color};border-radius:3px;transition:width .3s`}),
       ]),
     ]);
@@ -767,8 +767,8 @@ export function render(ctx){
     for(const a of analyses){
       const r = a.radio;
       const isOpen = expanded.has(a.src);
-      const borderCol = a.health==="Unhealthy" ? "#7f1d1d" : a.health==="Unknown" ? "#334155" : a.health==="Fair" ? "#5c4b1f" : "#1a4228";
-      const bgCol = a.health==="Unhealthy" ? "#1a0a0a" : a.health==="Unknown" ? "#0f172a" : a.health==="Fair" ? "#1a1808" : "#0f1a12";
+      const borderCol = a.health==="Unhealthy" ? "#7f1d1d" : a.health==="Unknown" ? "#2d4a38" : a.health==="Fair" ? "#5c4b1f" : "#1a4228";
+      const bgCol = a.health==="Unhealthy" ? "#1a0a0a" : a.health==="Unknown" ? "#071008" : a.health==="Fair" ? "#1a1808" : "#0f1a12";
 
       // Collapsed summary row — 3 lines: rank + name, metrics, score
       const summary = el("div",{style:`padding:8px 10px;cursor:pointer;border-radius:${isOpen?"8px 8px 0 0":"8px"};border:1px solid ${borderCol};background:${bgCol}`});
@@ -820,7 +820,7 @@ export function render(ctx){
         rankGrid.appendChild(_scoreBar(`Hardware \u2014 ${hwLabel}`, a.hwScore, _scoreColor(a.hwScore)));
         rankGrid.appendChild(_scoreBar(`Coverage \u2014 ${a.totalDevices} devices, ${a.overlaps.length} neighbor${a.overlaps.length!==1?"s":""}`, a.covScore, _scoreColor(a.covScore)));
         rankGrid.appendChild(_scoreBar(`Reliability \u2014 ${a.freshestAge!=null?Math.round(a.freshestAge)+"s fresh":"no ads"}`, a.relScore, _scoreColor(a.relScore)));
-        rankGrid.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px solid #1e293b"},[
+        rankGrid.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px solid #1b3526"},[
           el("span",{style:"font-weight:700;font-size:12px;color:#e2e8f0"}, "Overall"),
           el("span",{style:`font-weight:800;font-size:14px;color:${_scoreColor(a.overallScore)}`}, `${a.overallScore}/100`),
         ]));

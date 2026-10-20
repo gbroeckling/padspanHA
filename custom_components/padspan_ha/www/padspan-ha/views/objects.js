@@ -431,7 +431,7 @@ export function render(ctx){
           if (sc > thr && sc > 0) {
             const pct = Math.min(100, Math.round(sc / _wtiMaxScoreAdv * 100));
             return el("div",{style:"display:flex;align-items:center;gap:4px;margin-top:2px"}, [
-              el("span",{style:"font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, `Likely in ${_wtiRoomAdv}`),
+              el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, `Likely in ${_wtiRoomAdv}`),
               el("span",{style:"font-size:10px;color:#94a3b8"}, `${pct}% match`),
             ]);
           }
@@ -440,10 +440,10 @@ export function render(ctx){
         // Enrichment: company + device type + services
         ((o.company_name || o.auto_class || o.device_type || (o.service_names && o.service_names.length))
           ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
-              o.company_name ? el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, o.company_name) : null,
-              (o.auto_class || o.device_type) ? el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, o.auto_class || o.device_type) : null,
+              o.company_name ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, o.company_name) : null,
+              (o.auto_class || o.device_type) ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, o.auto_class || o.device_type) : null,
               ...(o.service_names || []).slice(0,2).map(sn =>
-                el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#1a3a2a;color:#86efac;border-color:#166534"}, sn)
+                el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)
               ),
             ].filter(Boolean))
           : null),
@@ -589,8 +589,8 @@ export function render(ctx){
         el("div",{},[
           el("div",{class:"basic-obj-name",style:"display:flex;align-items:center;gap:6px"},[
             el("span",{}, name),
-            o._ghost ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:9px"}, "Waiting for signal") : null,
-            isObjAway && !o._ghost ? el("span",{class:"badge",style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:9px"}, "Away") : null,
+            o._ghost ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:10px"}, "Waiting for signal") : null,
+            isObjAway && !o._ghost ? el("span",{class:"badge",style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, "Away") : null,
           ].filter(Boolean)),
           el("div",{class:"basic-obj-room"}, o._ghost
             ? "Enable BLE Transmitter in Companion App"
@@ -716,7 +716,7 @@ export function render(ctx){
         });
 
         wtiBar = el("div",{style:"display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px"},[
-          el("span",{style:"font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.15);color:#a855f7;font-weight:600;text-transform:uppercase"}, "walk-to-identify"),
+          el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.15);color:#a855f7;font-weight:600;text-transform:uppercase"}, "walk-to-identify"),
           roomSel,
           wtiBtn,
           wtiClear,
@@ -768,7 +768,7 @@ export function render(ctx){
             _wtiCandAddrs.add(o);
             const scorePct = Math.min(100, Math.round(score / _wtiMaxScore * 100));
             card.appendChild(el("div",{style:"display:flex;align-items:center;gap:4px;margin-top:4px"}, [
-              el("span",{style:"font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, `Likely in ${_wtiRoom}`),
+              el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.2);color:#d8b4fe;font-weight:700"}, `Likely in ${_wtiRoom}`),
               el("span",{style:"font-size:10px;color:#94a3b8"}, `${scorePct}% match`),
             ]));
           }
@@ -872,7 +872,7 @@ export function render(ctx){
     }
 
     const wtiBar = el("div",{style:"display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:8px 12px;background:#0f0a1e;border:1px solid rgba(168,85,247,.3);border-radius:8px"},[
-      el("span",{style:"font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.15);color:#a855f7;font-weight:600;text-transform:uppercase"}, "walk-to-identify"),
+      el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.15);color:#a855f7;font-weight:600;text-transform:uppercase"}, "walk-to-identify"),
       roomSel, wtiBtn, wtiClear, wtiResults,
     ].filter(Boolean));
 

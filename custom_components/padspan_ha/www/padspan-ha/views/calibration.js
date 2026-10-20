@@ -427,7 +427,7 @@ function _calibSearchSelect(opts) {
   }
 
   const list = document.createElement("div");
-  list.style.cssText = "position:absolute;left:0;right:0;top:100%;max-height:280px;overflow-y:auto;background:#1e293b;border:1px solid #334155;border-radius:0 0 8px 8px;z-index:100;display:none";
+  list.style.cssText = "position:absolute;left:0;right:0;top:100%;max-height:280px;overflow-y:auto;background:#1b3526;border:1px solid #2d4a38;border-radius:0 0 8px 8px;z-index:100;display:none";
   list.id = listId;
   list.setAttribute("role", "listbox");
   list.setAttribute("aria-label", "Matching devices");
@@ -445,7 +445,7 @@ function _calibSearchSelect(opts) {
   const _paintHighlight = () => {
     visibleRows.forEach((row, idx) => {
       if (idx === highlighted) {
-        row.style.background = "#334155";
+        row.style.background = "#1b3526";
       } else if (visibleIsCur[idx]) {
         row.style.background = "#1a3a2a";
       } else {
@@ -479,10 +479,10 @@ function _calibSearchSelect(opts) {
   const _row = (text, isHeader) => {
     const d = document.createElement("div");
     if (isHeader) {
-      d.style.cssText = "padding:6px 12px;font-size:11px;color:#64748b;background:#0f172a;position:sticky;top:0";
+      d.style.cssText = "padding:6px 12px;font-size:11px;color:#64748b;background:#071008;position:sticky;top:0";
       d.setAttribute("role", "presentation");
     } else {
-      d.style.cssText = "padding:8px 12px;font-size:13px;color:#e2e8f0;cursor:pointer;border-bottom:1px solid #1e293b";
+      d.style.cssText = "padding:8px 12px;font-size:13px;color:#e2e8f0;cursor:pointer;border-bottom:1px solid #1b3526";
     }
     d.textContent = text;
     return d;
@@ -5979,7 +5979,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const kindBadge = document.createElement("span");
       const kindLabel = bk.kind === "ibeacon" ? "iBeacon" : bk.kind === "private_ble" ? "Private BLE" : "BLE";
       const kindColor = bk.kind === "ibeacon" ? "#c4b5fd" : bk.kind === "private_ble" ? "#7dd3fc" : "#5eead4";
-      kindBadge.style.cssText = `font-size:9px;padding:1px 6px;border-radius:3px;background:${kindColor}18;color:${kindColor};border:1px solid ${kindColor}40`;
+      kindBadge.style.cssText = `font-size:10px;padding:1px 6px;border-radius:3px;background:${kindColor}18;color:${kindColor};border:1px solid ${kindColor}40`;
       kindBadge.textContent = kindLabel;
       badgeRow.appendChild(kindBadge);
       // Room badge
@@ -5987,7 +5987,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (roomName) {
         const roomBadge = document.createElement("span");
         const rc = roomColorFn(roomName);
-        roomBadge.style.cssText = `font-size:9px;padding:1px 6px;border-radius:3px;background:${rc}18;color:${rc};border:1px solid ${rc}40`;
+        roomBadge.style.cssText = `font-size:10px;padding:1px 6px;border-radius:3px;background:${rc}18;color:${rc};border:1px solid ${rc}40`;
         roomBadge.textContent = roomName;
         badgeRow.appendChild(roomBadge);
       }
@@ -5995,19 +5995,19 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (isTimerActive) {
         const rem = Math.max(0, Math.ceil((timerEntry.endTime - Date.now()) / 1000));
         const tmBadge = document.createElement("span");
-        tmBadge.style.cssText = "font-size:9px;padding:1px 6px;border-radius:3px;background:#f59e0b18;color:#f59e0b;border:1px solid #f59e0b40;font-weight:600";
+        tmBadge.style.cssText = "font-size:10px;padding:1px 6px;border-radius:3px;background:#f59e0b18;color:#f59e0b;border:1px solid #f59e0b40;font-weight:600";
         tmBadge.textContent = `Calibrating ${rem}s`;
         badgeRow.appendChild(tmBadge);
       } else if (isLive) {
         const liveBadge = document.createElement("span");
-        liveBadge.style.cssText = "font-size:9px;padding:1px 6px;border-radius:3px;background:#52b78818;color:#52b788;border:1px solid #52b78840;font-weight:600";
+        liveBadge.style.cssText = "font-size:10px;padding:1px 6px;border-radius:3px;background:#52b78818;color:#52b788;border:1px solid #52b78840;font-weight:600";
         liveBadge.textContent = "LIVE";
         badgeRow.appendChild(liveBadge);
       }
       // Cal rounds badge
       if (calRounds > 0) {
         const calBadge = document.createElement("span");
-        calBadge.style.cssText = "font-size:9px;padding:1px 6px;border-radius:3px;background:#60a5fa18;color:#60a5fa;border:1px solid #60a5fa40";
+        calBadge.style.cssText = "font-size:10px;padding:1px 6px;border-radius:3px;background:#60a5fa18;color:#60a5fa;border:1px solid #60a5fa40";
         calBadge.textContent = `${calRounds} cal round${calRounds > 1 ? "s" : ""}`;
         badgeRow.appendChild(calBadge);
       }
@@ -6027,7 +6027,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       posMetric.style.cssText = "white-space:nowrap;display:inline-flex;align-items:center;gap:3px";
       posMetric.innerHTML = `<span style="color:#64748b">Pos:</span> <span style="color:#d1d5db">${_esc(`${(bk.x*100).toFixed(1)}%, ${(bk.y*100).toFixed(1)}%`)}</span>`;
       const posHelp2 = document.createElement("button");
-      posHelp2.style.cssText = "background:none;border:1px solid #4a6052;color:#94a3b8;cursor:pointer;font-size:9px;font-weight:700;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;line-height:1";
+      posHelp2.style.cssText = "background:none;border:1px solid #4a6052;color:#94a3b8;cursor:pointer;font-size:10px;font-weight:700;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;line-height:1";
       posHelp2.textContent = "?";
       posHelp2.title = "What do these percentages mean?";
       posHelp2.addEventListener("click", (ev) => { ev.stopPropagation(); _showPosHelp(ctx); });

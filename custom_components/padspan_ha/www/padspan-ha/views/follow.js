@@ -211,7 +211,7 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
 
   // Dropdown results list
   const list = document.createElement("div");
-  list.style.cssText = "position:absolute;left:0;right:0;top:100%;max-height:280px;overflow-y:auto;background:#1e293b;border:1px solid #334155;border-radius:0 0 8px 8px;z-index:100;display:none";
+  list.style.cssText = "position:absolute;left:0;right:0;top:100%;max-height:280px;overflow-y:auto;background:#1b3526;border:1px solid #2d4a38;border-radius:0 0 8px 8px;z-index:100;display:none";
 
   const _select = (id) => {
     list.style.display = "none";
@@ -239,9 +239,9 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
     }
     for (const item of filtered.slice(0, 50)) {
       const row = document.createElement("div");
-      row.style.cssText = "padding:8px 12px;font-size:13px;color:#e2e8f0;cursor:pointer;border-bottom:1px solid #1e293b";
+      row.style.cssText = "padding:8px 12px;font-size:13px;color:#e2e8f0;cursor:pointer;border-bottom:1px solid #1b3526";
       row.textContent = item.label;
-      row.addEventListener("mouseenter", () => { row.style.background = "#334155"; });
+      row.addEventListener("mouseenter", () => { row.style.background = "#1b3526"; });
       row.addEventListener("mouseleave", () => { row.style.background = ""; });
       row.addEventListener("mousedown", (ev) => { ev.preventDefault(); _select(item.id); });
       if (item.id === currentAddr) row.style.cssText += ";background:#1a3a2a;color:#52b788;font-weight:600";

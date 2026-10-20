@@ -1120,7 +1120,7 @@ function _haEntityAudit(ctx, el){
       // Last changed
       const changedCell = el("td",{},[
         el("div",{style:"font-size:11px;color:#94a3b8;white-space:nowrap"},_ago(ent.last_changed)),
-        ent.health === "stale" && ent.health_detail ? el("div",{style:"font-size:9px;color:#f59e0b"},ent.health_detail.replace(/— .*/,"")) : null,
+        ent.health === "stale" && ent.health_detail ? el("div",{style:"font-size:10px;color:#f59e0b"},ent.health_detail.replace(/— .*/,"")) : null,
       ].filter(Boolean));
 
       // Used by automations/scripts
@@ -1128,9 +1128,9 @@ function _haEntityAudit(ctx, el){
       if(ent.automations.length){
         usedParts.push(el("div",{style:"font-size:10px;color:#8b5cf6"},`${ent.automations.length} automation${ent.automations.length>1?"s":""}`));
         for(const a of ent.automations.slice(0,2)){
-          usedParts.push(el("div",{style:"font-size:9px;color:#64748b;padding-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"},a));
+          usedParts.push(el("div",{style:"font-size:10px;color:#64748b;padding-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px"},a));
         }
-        if(ent.automations.length > 2) usedParts.push(el("div",{style:"font-size:9px;color:#64748b;padding-left:6px"},`+${ent.automations.length-2} more`));
+        if(ent.automations.length > 2) usedParts.push(el("div",{style:"font-size:10px;color:#64748b;padding-left:6px"},`+${ent.automations.length-2} more`));
       }
       if(ent.scripts.length){
         usedParts.push(el("div",{style:"font-size:10px;color:#06b6d4"},`${ent.scripts.length} script${ent.scripts.length>1?"s":""}`));
@@ -1537,7 +1537,7 @@ function _exampleBlock(el, ex){
   const arrow = el("span",{style:"color:#5eead4;font-size:10px;transition:transform 0.15s"},"▶");
   headerBtn.appendChild(arrow);
   headerBtn.appendChild(el("span",{style:"font-weight:600;flex:1"},ex.title));
-  headerBtn.appendChild(el("span",{style:"font-size:10px;color:#64748b;border:1px solid #334155;padding:1px 6px;border-radius:8px"},"YAML"));
+  headerBtn.appendChild(el("span",{style:"font-size:10px;color:#64748b;border:1px solid #2d4a38;padding:1px 6px;border-radius:8px"},"YAML"));
 
   headerBtn.addEventListener("click",()=>{
     expanded.v = !expanded.v;
@@ -2217,7 +2217,7 @@ function _buildNotifications(ctx, el){
         "3. Configure it with your email/credentials\n" +
         "4. Restart HA, then click Refresh Services above"
       ),
-      el("div",{style:"font-size:10px;color:#475569;margin-top:8px;font-family:monospace;word-break:break-all"}, "Debug: " + _dbg + " | UI: v" + (ctx.state.version||"?") + " | Backend: v" + (ctx.state.versionInfo?.version||"?") + " | Mode: " + (ctx.state.dataMode||"?")),
+      el("div",{style:"font-size:10px;color:#64748b;margin-top:8px;font-family:monospace;word-break:break-all"}, "Debug: " + _dbg + " | UI: v" + (ctx.state.version||"?") + " | Backend: v" + (ctx.state.versionInfo?.version||"?") + " | Mode: " + (ctx.state.dataMode||"?")),
     ]));
   } else {
     editCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"},[
@@ -2653,14 +2653,14 @@ function _beaconChars(ctx, el){
 
     // Per-beacon table
     const tbl = el("table",{style:"width:100%;border-collapse:collapse;font-size:11px"});
-    const thead = el("tr",{style:"color:#94a3b8;text-align:left;border-bottom:1px solid #334155"});
+    const thead = el("tr",{style:"color:#94a3b8;text-align:left;border-bottom:1px solid #2d4a38"});
     for (const h of ["Beacon","Points","Scanners","Avg Reach","Multi%","Avg RSSI","Variance","Cells","Group"]) {
       thead.appendChild(el("th",{style:"padding:4px 6px;font-weight:600"},h));
     }
     tbl.appendChild(thead);
 
     for (const b of group) {
-      const tr = el("tr",{style:"border-bottom:1px solid #1e293b"});
+      const tr = el("tr",{style:"border-bottom:1px solid #1b3526"});
       const lbl = b.label || b.device_id.substring(0,16);
       tr.appendChild(el("td",{style:"padding:4px 6px;color:#e2e8f0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",title:b.device_id},lbl));
       tr.appendChild(el("td",{style:"padding:4px 6px"},String(b.cal_points)));
@@ -2742,7 +2742,7 @@ function _beaconChars(ctx, el){
     }
     if (allScanners.size > 0) {
       const st = el("table",{style:"width:100%;border-collapse:collapse;font-size:10px;margin-top:4px"});
-      const sHead = el("tr",{style:"color:#94a3b8;text-align:left;border-bottom:1px solid #334155"});
+      const sHead = el("tr",{style:"color:#94a3b8;text-align:left;border-bottom:1px solid #2d4a38"});
       sHead.appendChild(el("th",{style:"padding:3px 5px"},"Beacon"));
       for (const src of allScanners) {
         sHead.appendChild(el("th",{style:"padding:3px 5px;max-width:80px;overflow:hidden;text-overflow:ellipsis",title:src},
@@ -2751,7 +2751,7 @@ function _beaconChars(ctx, el){
       st.appendChild(sHead);
 
       for (const b of group) {
-        const sr = el("tr",{style:"border-bottom:1px solid #1e293b"});
+        const sr = el("tr",{style:"border-bottom:1px solid #1b3526"});
         sr.appendChild(el("td",{style:"padding:3px 5px;color:#cbd5e1"},b.label||b.device_id.substring(0,12)));
         for (const src of allScanners) {
           const ps = (b.per_scanner || {})[src];
@@ -2760,7 +2760,7 @@ function _beaconChars(ctx, el){
             sr.appendChild(el("td",{style:`padding:3px 5px;color:${color}`},
               `${ps.mean_rssi} (±${ps.std_rssi}) ×${ps.point_count}`));
           } else {
-            sr.appendChild(el("td",{style:"padding:3px 5px;color:#475569"},"—"));
+            sr.appendChild(el("td",{style:"padding:3px 5px;color:#64748b"},"—"));
           }
         }
         st.appendChild(sr);
@@ -2825,7 +2825,7 @@ function _factoryReset(ctx, el){
     ]),
   ]));
 
-  wrap.appendChild(el("div",{style:"background:#1e293b;border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:#94a3b8;line-height:1.6"},[
+  wrap.appendChild(el("div",{style:"background:#1b3526;border:1px solid #2d4a38;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:#94a3b8;line-height:1.6"},[
     el("strong",{style:"color:#e2e8f0"},"What this does NOT delete: "),
     "Home Assistant areas, floors, entities, and devices are managed by HA itself and will not be touched. ",
     "You may want to remove those separately from Settings > Devices & Services after the reset.",
@@ -2849,7 +2849,7 @@ function _factoryReset(ctx, el){
     placeholder:"Type FACTORY RESET here",
     autocomplete:"off",
     spellcheck:"false",
-    style:"width:100%;max-width:300px;padding:8px 12px;background:#0f172a;border:2px solid #475569;border-radius:6px;color:#e2e8f0;font-size:14px;font-family:monospace",
+    style:"width:100%;max-width:300px;padding:8px 12px;background:#071008;border:2px solid #2d4a38;border-radius:6px;color:#e2e8f0;font-size:14px;font-family:monospace",
   });
   confirmWrap.appendChild(input);
   wrap.appendChild(confirmWrap);
@@ -2876,7 +2876,7 @@ function _factoryReset(ctx, el){
   // ── Progress UI (hidden until reset starts) ──
   // Shows a green progress bar, step label, and scrollable log of completed steps.
   const progressWrap = el("div",{style:"display:none;margin-top:16px"});
-  const progressBar = el("div",{style:"width:100%;height:8px;background:#1e293b;border-radius:4px;overflow:hidden;margin-bottom:10px"});
+  const progressBar = el("div",{style:"width:100%;height:8px;background:#1b3526;border-radius:4px;overflow:hidden;margin-bottom:10px"});
   const progressFill = el("div",{style:"width:0%;height:100%;background:#52b788;border-radius:4px;transition:width 0.3s ease"});
   progressBar.appendChild(progressFill);
   progressWrap.appendChild(progressBar);

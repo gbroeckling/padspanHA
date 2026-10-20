@@ -889,7 +889,7 @@ async function _capList(ctx, host) {
   if (!list.length) { host.appendChild(el("div",{style:"color:#64748b"},"No recorded sessions.")); return; }
 
   for (const s of list) {
-    const rowEl = el("div", {style:"display:flex;gap:8px;align-items:center;padding:3px 0;border-top:1px solid #1e293b"});
+    const rowEl = el("div", {style:"display:flex;gap:8px;align-items:center;padding:3px 0;border-top:1px solid #1b3526"});
     const when = new Date((s.t0 || 0) * 1000).toLocaleString();
     rowEl.appendChild(el("div", {style:"flex:1;color:#cbd5e1"},
       `${s.label || s.id} · ${when} · ${s.frames} frames · ${_capFmt(s.bytes || 0)}`

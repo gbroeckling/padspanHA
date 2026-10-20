@@ -359,7 +359,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
   if(!maps.length){
     const empty = el("div",{style:"margin-top:14px;padding:18px;border-radius:10px;background:#0a1a12;border:1px solid #1a4228;text-align:center"});
     empty.appendChild(el("div",{style:"font-weight:700;font-size:15px;margin-bottom:6px"}, "No floor plans yet"));
-    empty.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;font-size:12.5px"},
+    empty.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;font-size:13px"},
       "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing scanners, one step at a time."));
     const startBtn = el("button",{class:"btn primary", style:"font-size:13px;padding:8px 18px"}, "Start Setup Wizard");
     startBtn.addEventListener("click", ()=>{
@@ -368,8 +368,8 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     });
     empty.appendChild(startBtn);
     empty.appendChild(el("div",{style:"margin-top:10px"},[
-      el("span",{class:"muted", style:"font-size:11.5px"}, "Prefer to do it by hand? "),
-      (()=>{ const a = el("span",{style:"font-size:11.5px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
+      el("span",{class:"muted", style:"font-size:12px"}, "Prefer to do it by hand? "),
+      (()=>{ const a = el("span",{style:"font-size:12px;color:#5eead4;cursor:pointer;text-decoration:underline"}, "Go to the Upload tab");
         a.addEventListener("click", ()=>ctx.actions.setMapsTab("upload")); return a; })(),
     ]));
     wrap.appendChild(empty);
@@ -831,7 +831,7 @@ function _deleteMapModal(ctx, srcMap, allMaps){
     previewDiv.innerHTML = "";
     if(willMove.length){
       previewDiv.appendChild(el("div",{style:"font-size:12px;color:#52b788;margin-bottom:4px;font-weight:600"}, `Will migrate (${willMove.length}):`));
-      previewDiv.appendChild(el("div",{style:"font-size:11px;color:#86efac;max-height:120px;overflow-y:auto;padding-left:8px"},
+      previewDiv.appendChild(el("div",{style:"font-size:11px;color:#a7f3d0;max-height:120px;overflow-y:auto;padding-left:8px"},
         willMove.map(m => el("div",{}, m))
       ));
     }
@@ -943,7 +943,7 @@ function _upload(ctx, helpBtn, isBasic){
 
   // First-upload tip: shown only when no maps exist yet
   if(!(ctx.state.maps?.list||[]).length){
-    card.appendChild(el("div",{style:"margin:10px 0 4px;padding:10px 12px;border-radius:8px;background:#0a1a0a;border:1px solid #52b788;font-size:12px;color:#86efac;line-height:1.6"},
+    card.appendChild(el("div",{style:"margin:10px 0 4px;padding:10px 12px;border-radius:8px;background:#0a1a0a;border:1px solid #52b788;font-size:12px;color:#a7f3d0;line-height:1.6"},
       "💡 First map tip — Upload your most precise, to-scale floor plan first. " +
       "It makes the best Reference when you line up your other floors in 3D Stack, so accuracy starts here."
     ));
@@ -1361,7 +1361,7 @@ function _wizardScale(ctx, map, maps, w){
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
     "Measure two points you know the real distance between — a doorway, a wall — so distances on the map match distances in the house. " +
     "Rooms can be drawn without this, but wall attenuation and any real-world measurement need it, so it's worth doing now while you're here."));
-  if (done) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#86efac;font-size:12.5px"},
+  if (done) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     "✓ Scale is set for this house."));
   wrap.appendChild(_edit(ctx, map, maps));
   wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later" }));
@@ -1379,7 +1379,7 @@ function _wizardRooms(ctx, map, maps, w){
     "Trace the outline of each room from your Home Assistant areas onto the floor plan. Pick a room from the dropdown below the map, click around its outline, then Save Layout."));
   if (areaNames.length) {
     const check = el("div",{style:"margin-bottom:10px;padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px"});
-    check.appendChild(el("div",{style:"font-weight:700;font-size:12.5px;color:#52b788;margin-bottom:6px"},
+    check.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788;margin-bottom:6px"},
       `${drawnCount} of ${areaNames.length} room${areaNames.length===1?"":"s"} drawn`));
     if (undrawn.length) {
       const list = el("div",{style:"display:flex;flex-wrap:wrap;gap:6px"});
@@ -1388,7 +1388,7 @@ function _wizardRooms(ctx, map, maps, w){
       }
       check.appendChild(list);
     } else {
-      check.appendChild(el("div",{style:"font-size:12px;color:#86efac"}, "Every room from Home Assistant has a boundary here."));
+      check.appendChild(el("div",{style:"font-size:12px;color:#a7f3d0"}, "Every room from Home Assistant has a boundary here."));
     }
     wrap.appendChild(check);
   }
@@ -1404,7 +1404,7 @@ function _wizardScanners(ctx, map, maps, w){
   const count = map && map.receivers ? map.receivers.length : 0;
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.5"},
     "Place a marker for every Bluetooth scanner on this floor, where it's actually mounted. Double-click the map to add one, then drag it into position."));
-  wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:6px;color:#86efac;font-size:12.5px"},
+  wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     count ? `${count} scanner${count===1?"":"s"} placed on this floor.` : "No scanners placed on this floor yet."));
   wrap.appendChild(_edit(ctx, map, maps));
   wrap.appendChild(_wizardFooter(ctx, w, { skip: count === 0, skipLabel: "Skip — place scanners later", nextLabel: "Finish →" }));
@@ -2685,7 +2685,7 @@ function _edit(ctx, map, allMaps){
         const distInput = document.createElement("input");
         distInput.type = "number"; distInput.min = "0.1"; distInput.max = "500"; distInput.step = "0.1";
         distInput.placeholder = "metres";
-        distInput.style.cssText = "width:100px;padding:4px 8px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;font-size:12px";
+        distInput.style.cssText = "width:100px;padding:4px 8px;border:1px solid #2d4a38;border-radius:4px;background:#1b3526;color:#e2e8f0;font-size:12px";
         inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"Real distance:"));
         inputRow.appendChild(distInput);
         inputRow.appendChild(el("span",{style:"font-size:11px;color:#94a3b8"},"m"));
@@ -2760,7 +2760,7 @@ function _edit(ctx, map, allMaps){
         const _preview_y_m = Math.round((imgH / avgPpm) * 10000) / 10000;
 
         // Save button — prominent green to make it clear this is the save action
-        const applyBtn = el("button",{class:"btn save-pulse",style:"margin-top:12px;width:100%;padding:12px;font-size:15px;background:#1a3a0a;border:2px solid #52b788;color:#86efac;font-weight:800;border-radius:8px;cursor:pointer"},
+        const applyBtn = el("button",{class:"btn save-pulse",style:"margin-top:12px;width:100%;padding:12px;font-size:15px;background:#1a3a0a;border:2px solid #52b788;color:#a7f3d0;font-weight:800;border-radius:8px;cursor:pointer"},
           `\ud83d\udcbe  Save Scale: ${avgPpm.toFixed(1)} px/m \u2192 ${_preview_x_m.toFixed(1)}m \u00d7 ${_preview_y_m.toFixed(1)}m`);
         applyBtn.addEventListener("click", async () => {
           applyBtn.disabled = true; applyBtn.textContent = "Saving\u2026";
@@ -4303,7 +4303,7 @@ function _renderManualSection(el, sec){
     }
     for (const n of (sub.notes || [])){
       subWrap.appendChild(el("div", {class:"muted",
-        style:"font-size:11.5px;margin-top:4px;padding-left:8px;border-left:2px solid rgba(120,190,155,.3);line-height:1.5"}, n));
+        style:"font-size:12px;margin-top:4px;padding-left:8px;border-left:2px solid rgba(120,190,155,.3);line-height:1.5"}, n));
     }
     card.appendChild(subWrap);
   }
@@ -8287,7 +8287,7 @@ function _wireLightsPicker(ctx, isoDiv, svg, o, toVB) {
       + "border-radius:10px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,0.7);"
       + "max-height:260px;overflow:auto;min-width:196px" });
     menu.appendChild(el("div", { style:
-      "font-size:9px;color:#64748b;padding:3px 8px 6px;text-transform:uppercase;"
+      "font-size:10px;color:#64748b;padding:3px 8px 6px;text-transform:uppercase;"
       + "letter-spacing:0.07em;border-bottom:1px solid #16281d;margin-bottom:3px" },
       hits.length + " here · smallest first"));
     for (const h of hits) {
@@ -8640,7 +8640,7 @@ function _lightsTourCard(ctx, wrap, paid){
   ]);
   card.appendChild(head);
   card.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, s.title));
-  card.appendChild(el("div", { class: "muted", style: "font-size:12.5px;line-height:1.55;margin-bottom:10px" }, s.body));
+  card.appendChild(el("div", { class: "muted", style: "font-size:13px;line-height:1.55;margin-bottom:10px" }, s.body));
 
   const target = s.find ? s.find(wrap) : null;
   if (target) {
@@ -9987,7 +9987,7 @@ function _lightsTab(ctx, maps, active) {
   // the light-placement tools are this tab's, not Furnish's.
   if (furnish) {
     return el("div", {}, [
-      el("div", { class: "card", style: "padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.5" },
+      el("div", { class: "card", style: "padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.5" },
         "Furnish Live Aboard: Build adds a piece; drag it into place. Floor ▲ / ▼ moves it to another floor, and Height in room raises it onto a table, a shelf or a wall. Nothing is kept until Save."),
       mapCardEl]);
   }
@@ -11669,7 +11669,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
   }
 
   // ── Finalize controls ───────────────────────────────────────────────────
-  const admin = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #1e293b" });
+  const admin = el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #1b3526" });
   const refreshAfter = async () => {
     mapState._roomsDraftFloorId = null;
     mapState._roomsTruthCache = null;

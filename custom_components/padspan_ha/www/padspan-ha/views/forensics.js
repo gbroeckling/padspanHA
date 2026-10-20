@@ -239,8 +239,8 @@ export function render(ctx){
           name ? el("div",{style:"font-weight:600"},name) : null,
           el("div",{style:"font-family:monospace;font-size:11px;color:#94a3b8"},r.address),
           (r.company_name || r.device_type) ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"},[
-            r.company_name ? el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, r.company_name) : null,
-            r.device_type ? el("span",{class:"badge",style:"font-size:9px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, r.device_type) : null,
+            r.company_name ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, r.company_name) : null,
+            r.device_type ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, r.device_type) : null,
           ].filter(Boolean)) : null,
         ].filter(Boolean)),
         el("td",{style:"font-size:11px"},sessStr),

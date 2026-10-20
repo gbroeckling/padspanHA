@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.150 — One look across the panel (2026-10-20)
+
+### Changed
+- **The panel's colours match from tab to tab.** Settings, Overview, Manage, QA, Calibration, Follow, Traceback and the other tabs had picked up cold blue-grey boxes, borders and dropdowns over the years; they now use the same dark forest greens as the rest of the panel. Checkboxes, radio buttons and sliders are green instead of the browser's blue, in the panel and on the Atlas. Greens that were nearly the same colour are now one accent, one "good" green and one light green, and grey hint text is the same grey everywhere.
+- **Text sizes snap to one scale.** Half-pixel sizes are rounded to whole pixels, and the smallest 9 px labels are now 10 px so they can be read.
+- Blue still marks phone tracking and the calibration target (the blue spiral), and maps, charts, the 3D house and Pure Live are unchanged.
+
+---
+
 ## 0.38.149 — Wall screens in the opt-in report (2026-10-20)
 
 ### Opt-in report
