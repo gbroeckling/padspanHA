@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.155 — Show HA on the sidebar Atlas too (2026-10-20)
+
+### New
+- **The sidebar Atlas has Hide HA / Show HA too**, beside Refresh, so with Home Assistant's sidebar hidden there is a way back from the Atlas as well as from PadSpan. It is the same switch as PadSpan's (0.38.153), on that browser only, and not offered on a phone. The panel and the Atlas now share one copy of it.
+
+---
+
 ## 0.38.154 — Four more themes: Graphite, Ocean, Dusk and High contrast (2026-10-20)
 
 ### New

@@ -120,6 +120,13 @@ import(`./views/pro_invite.js?b=${BUILD_ID}`)
   .then(m => { PRO_INVITE = m; })
   .catch(err => console.warn("PadSpan: pro_invite module failed to load", err));
 
+// Hide HA / Show HA (ha_sidebar.js), shared with the sidebar Atlas. Until it
+// lands the button keeps its first word and a press does nothing.
+let HA_SIDEBAR = null;
+import(`./ha_sidebar.js?b=${BUILD_ID}`)
+  .then(m => { HA_SIDEBAR = m; })
+  .catch(err => console.warn("PadSpan: ha_sidebar module failed to load", err));
+
 // Which PadSpan module an uncaught error came from (views/ui_error.js). Until
 // it lands, or if it never does, uncaught errors simply go uncounted.
 let UI_ERROR = null;
@@ -1926,30 +1933,18 @@ class PadSpanHaApp extends HTMLElement {
   // wait here until the switch is KNOWN, then go or are discarded; the
   // backend checks the switch again and is the authority. Nothing leaves the
   // browser while the report is off or unknown.
-  // Home Assistant's own sidebar, hidden or shown from PadSpan's toolbar: the
-  // frontend's "hass-dock-sidebar" event, the same switch as Profile >
-  // "Always hide the sidebar", kept by HA per browser. Hiding remembers what
-  // it was (docked or auto) and showing puts that back. The button stays on
-  // the collapsed rail too: with HA's sidebar gone it is the way back.
-  _haDock(){ return (this._hass && this._hass.dockedSidebar) || "docked"; }
+  // Home Assistant's own sidebar, hidden or shown from PadSpan's toolbar
+  // (ha_sidebar.js). The button stays on the collapsed rail too: with HA's
+  // sidebar gone it is the way back.
   _paintHaSide(){
     const b = this.shadowRoot && this.shadowRoot.querySelector("#haSide");
-    if (!b) return;
-    const hidden = this._haDock() === "always_hidden";
-    b.textContent = hidden ? "Show HA" : "Hide HA";
-    b.setAttribute("aria-pressed", String(hidden));
+    if (!b || !HA_SIDEBAR) return;
+    b.textContent = HA_SIDEBAR.haLabel(this._hass);
+    b.setAttribute("aria-pressed", String(HA_SIDEBAR.haHidden(this._hass)));
   }
   _toggleHaSidebar(){
-    const hidden = this._haDock() === "always_hidden";
-    let dock = "always_hidden";
-    if (hidden) {
-      try { dock = localStorage.getItem("padspan_ha_dock_before") || "docked"; } catch (e) { dock = "docked"; }
-      if (dock !== "auto") dock = "docked";
-    } else {
-      try { localStorage.setItem("padspan_ha_dock_before", this._haDock()); } catch (e) {}
-    }
-    this.dispatchEvent(new CustomEvent("hass-dock-sidebar", { detail: { dock }, bubbles: true, composed: true }));
-    this._telemetryEvent(hidden ? "ha_sidebar:shown" : "ha_sidebar:hidden");
+    if (!HA_SIDEBAR) return;
+    this._telemetryEvent(HA_SIDEBAR.toggleHaSidebar(this, this._hass));
   }
   _telemetryEvent(name){
     const s = this.state.settings;
