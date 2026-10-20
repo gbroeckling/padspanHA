@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.147",
+  "title": "Mezzanines and open edges in Live Aboard",
+  "date": "2026-10-20",
+  "body_markdown": "### New\n- **An open edge over a drop gets a railing.** A wall drawn with the Open (Loft) material along a mezzanine or gallery now shows in Live Aboard as a 1 m glass railing, where it looks out over a hall that rises past it: a lower floor at least 76 cm down (the drop at which building codes ask for a guard) whose height in Floor Heights reaches above the mezzanine. Anywhere else (between two rooms on one floor, over an ordinary storey below, or over nothing) it stays an open gap as before, so an Open doorway upstairs never grows a railing. The railing is still an opening: no wall lights hang on it, and the signal through it is unchanged. Explode, Cut and Down show it too.\n- **LED strips can follow a mezzanine's railing.** The strip tool's **Along a rail** is offered for a mezzanine as well as a deck, and lays the strip on the rail's top.\n\n### Fixed\n- **A mezzanine inside a tall hall is drawn under the hall's roof.** With the hall given its full height and the mezzanine its real base elevation (Mapping → Floor Heights), Live Aboard put a second roof on the mezzanine halfway up the hall and left the hall roofed only over part of it. The hall now gets one roof, and the mezzanine is roofed only where it reaches past the hall. Ordinary stacked floors are unchanged.\n\n### Help\n- Floor Heights, the wall material help, the Live Aboard guide and the Walls Guide explain how to set up a mezzanine and its open edges.\n\n### Opt-in report\n- Counts a house that has a railing over a drop (`house3d_loft_rail`) and one with a mezzanine inside a taller floor (`house3d_mezzanine`), so we can tell whether these houses show up.\n\n### Testing\n- The Live Aboard harness has a hall with a mezzanine (`?gym=1`) and open edges on the sample house (`?loft=1`), and finds a free port by itself when 8765 is taken."
+ },
+ {
   "version": "0.38.146",
   "title": "Smoke, gas and CO alarms aren't weather warnings either",
   "date": "2026-10-19",
@@ -28,11 +34,5 @@
   "title": "Atlas rain: not on a sunny day, not inside the house",
   "date": "2026-10-19",
   "body_markdown": "### Fixes\n- **Fixed:** the Atlas no longer shows rain on a sunny morning. An on/off rain sensor that reads wet while the weather entity says sunny, clear or partly cloudy is wet from dew or frost, so it's ignored. A rain-rate sensor, a rain gauge, or an on/off sensor a helper makes from one (a template or a threshold) still counts: what it caught really fell.\n- **Fixed:** for the same reason, a window left open on a sunny morning no longer glows blue in Live Aboard as if it were open in the rain.\n- **Fixed:** rain no longer falls in the space between two stacked floors on the Atlas. That space is inside the house, so the floors and the space between them now stay dry and rain falls only around the building. An outdoor floor drawn between two indoor ones keeps its rain.\n- **Fixed:** in Live Aboard, rain is no longer drawn over the house. Drops falling outside, in front of the house, showed over sofas, beds and walls; now nothing falls across the house on screen. With the roof on, rain falls in front of it as before; with the walls down, the rooms stay dry up to head height and the ground beyond still gets rain.\n- **Fixed:** a water-leak detector picked as the weather warnings sensor, before that list left them out, is now ignored, and the Atlas finds warnings itself. Settings → Outdoor weather says so under the list: pick a warning there, or Automatic.\n\n### Opt-in report\n- **Added:** it counts how often a clear sky overrules a wet rain sensor, and whether a leak detector is still set as the warnings sensor."
- },
- {
-  "version": "0.38.141",
-  "title": "Polish",
-  "date": "2026-10-17",
-  "body_markdown": "### Fixed\n- Overview's People in building card said \"undefined people\" when the estimate hadn't come in (an older backend or a failed read); it shows a dash now.\n- The Live Aboard setup wizard sits centred in its window instead of hugging the left with Next floating mid-way.\n- Suggest an idea's buttons match the other buttons on the page."
  }
 ]
