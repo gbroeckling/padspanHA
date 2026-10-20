@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.148",
+  "title": "Country and language in the opt-in report",
+  "date": "2026-10-20",
+  "body_markdown": "### Opt-in report\n- **The report now includes the country and language set in Home Assistant** (Settings → System → General): a two-letter code such as `CA` and a language tag such as `en-GB`, so we can see where PadSpan is used and which translations to do first. Either one is left out when blank, and neither is ever worked out from your IP address. If you've already opted in, this goes with your next report; Preview in Settings → Presence → Help improve PadSpan shows it, and switching the report off stops it."
+ },
+ {
   "version": "0.38.147",
   "title": "Mezzanines and open edges in Live Aboard",
   "date": "2026-10-20",
@@ -28,11 +34,5 @@
   "title": "Floor plans only for people logged in",
   "date": "2026-10-19",
   "body_markdown": "### Security\n- **Fixed:** uploaded floor plans were saved in `/config/www/padspan_ha/maps/`, and Home Assistant serves everything in `www` at `/local/` without a login. On an install reachable from the internet, anyone with the address could open a home's floor plan. They now live in `/config/padspan_ha/maps/` and are served only to someone logged in to Home Assistant, the same way camera snapshots are. Thanks to @frenck for spotting it in the HACS review.\n- **Moved for you:** on the first start of this version, existing floor plans move out of `www` by themselves. Nothing is overwritten: if a file of the same name is already in the new folder, the old one is left in place and the log says so. Placements, rooms, pins and calibration don't change.\n- **Changed:** uploading or replacing a floor plan now needs an admin account, like deleting one already did. Everyone can still see them.\n- **Going back:** if you install 0.38.142 or older after this, floor plans show blank until you update again, because the older version looks for them in `www`. Nothing is lost. A floor plan replaced while you're on the older version is kept in `www` when you update again, and the log says which: replace it once more after updating.\n\n### Fixes\n- **Fixed:** making or restoring a backup, factory reset, and deleting, extending or replacing a floor plan no longer check files on Home Assistant's main loop, which could stall it briefly on a slow SD card.\n\n### Opt-in report\n- **Added:** how many floor plans this version moved out of `www`, how many it had to leave, and how often a floor-plan link was refused for being out of date."
- },
- {
-  "version": "0.38.142",
-  "title": "Atlas rain: not on a sunny day, not inside the house",
-  "date": "2026-10-19",
-  "body_markdown": "### Fixes\n- **Fixed:** the Atlas no longer shows rain on a sunny morning. An on/off rain sensor that reads wet while the weather entity says sunny, clear or partly cloudy is wet from dew or frost, so it's ignored. A rain-rate sensor, a rain gauge, or an on/off sensor a helper makes from one (a template or a threshold) still counts: what it caught really fell.\n- **Fixed:** for the same reason, a window left open on a sunny morning no longer glows blue in Live Aboard as if it were open in the rain.\n- **Fixed:** rain no longer falls in the space between two stacked floors on the Atlas. That space is inside the house, so the floors and the space between them now stay dry and rain falls only around the building. An outdoor floor drawn between two indoor ones keeps its rain.\n- **Fixed:** in Live Aboard, rain is no longer drawn over the house. Drops falling outside, in front of the house, showed over sofas, beds and walls; now nothing falls across the house on screen. With the roof on, rain falls in front of it as before; with the walls down, the rooms stay dry up to head height and the ground beyond still gets rain.\n- **Fixed:** a water-leak detector picked as the weather warnings sensor, before that list left them out, is now ignored, and the Atlas finds warnings itself. Settings → Outdoor weather says so under the list: pick a warning there, or Automatic.\n\n### Opt-in report\n- **Added:** it counts how often a clear sky overrules a wet rain sensor, and whether a leak detector is still set as the warnings sensor."
  }
 ]
