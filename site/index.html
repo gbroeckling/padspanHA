@@ -2479,6 +2479,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <h2>See it in action</h2>
   <p class="lede">Click any screenshot to view it full size.</p>
   <div class="grid">
+    <a class="shot" href="images/atlas-lighting-map.jpg" target="_blank"><img src="images/atlas-lighting-map.jpg" alt="The Atlas: every light on a two-floor house, lit" loading="lazy"><div class="cap"><b>The Atlas</b>Every light, sensor and door on your real floor plan, its own page in the Home Assistant sidebar. Tap a light to switch it</div></a>
+    <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental</div></a>
     <a class="shot" href="images/overview-3d-multifloor.jpg" target="_blank"><img src="images/overview-3d-multifloor.jpg" alt="3D multi-floor tracking" loading="lazy"><div class="cap"><b>3D Multi-Floor Tracking</b>Live isometric view with tracked devices across 3 floors</div></a>
     <a class="shot" href="images/overview-3d-heatmap.jpg" target="_blank"><img src="images/overview-3d-heatmap.jpg" alt="3D heatmap overlay" loading="lazy"><div class="cap"><b>3D Heatmap + Signal Overlay</b>RSSI heatmap crosshatch with live device positions</div></a>
     <a class="shot" href="images/maps-library-live.jpg" target="_blank"><img src="images/maps-library-live.jpg" alt="Maps library" loading="lazy"><div class="cap"><b>Maps Library</b>Uploaded floor plans organized by floor</div></a>
@@ -2578,6 +2580,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <li>Sample mode — full demo, no hardware needed</li>
       <li>11 languages</li>
       <li>NVR-style movement playback</li>
+      <li>Seven themes: Night and Light (inverted) for everyone; Day, Graphite, Ocean, Dusk and High contrast with Pro <span class="pill soon">Beta</span></li>
+      <li>Hide Home Assistant's sidebar from PadSpan or the Atlas, for a wall screen <span class="pill soon">Beta</span></li>
     </ul></div>
     <div class="feat"><h3>Experimental Features</h3><ul>
       <li>Phone Setup Wizard with irk-capture auto-detection</li>
@@ -2594,7 +2598,11 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <section class="wrap" id="lights">
   <div class="kick">Lighting</div>
   <h2>Your lights on the same floor plan</h2>
-  <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Lights</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names.</p>
+  <p class="lede">PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr));margin-bottom:22px">
+    <a class="shot" href="images/atlas-lighting-map.jpg" target="_blank"><img src="images/atlas-lighting-map.jpg" alt="The Atlas: every light on a two-floor house, lit" loading="lazy"><div class="cap"><b>The Atlas</b>Every light, sensor and door on your real floor plan, its own page in the Home Assistant sidebar. Tap a light to switch it</div></a>
+    <a class="shot" href="images/live-aboard-3d-house.jpg" target="_blank"><img src="images/live-aboard-3d-house.jpg" alt="Live Aboard: the house in 3D at night with its lights on" loading="lazy"><div class="cap"><b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental</div></a>
+  </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
     <div class="feat">
       <h3>Free, in every install <span class="pill free">No key</span></h3>
@@ -2602,7 +2610,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li>The lighting map — rooms and floors drawn from your real geometry</li>
         <li>One marker per light, in the room it belongs to</li>
         <li>Click a light to switch it</li>
-        <li>Never hidden: the Lights tab is visible whether or not you hold a key</li>
+        <li>Never hidden: the Atlas is there whether or not you hold a key</li>
       </ul>
     </div>
     <div class="feat">
@@ -2618,6 +2626,15 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li><b>Showcase</b> presentation mode, now with 20 selectable themes <a href="/showcase-themes.html" style="color:var(--acc)">— sneak peek <span class="pill soon">New</span></a></li>
       </ul>
       <p style="font-size:13.5px;color:var(--mut);margin-top:6px">Unlocked by either key: <a href="#editions">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href="#pro">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.</p>
+    </div>
+    <div class="feat">
+      <h3>With PadSpan Pro</h3>
+      <ul>
+        <li><b>Live Aboard</b> — the whole house in 3D: walls cut away to see in, doors and windows, lights and LED strips, furniture, people and the weather outside (experimental, off until you turn it on)</li>
+        <li>A step-by-step guide builds the 3D house from the map you already have</li>
+        <li>Mezzanines and galleries drawn inside a tall room, with glass railings on the open edges <span class="pill soon">Beta</span></li>
+        <li>The Atlas as your Overview, the first thing PadSpan opens</li>
+      </ul>
     </div>
   </div>
 </section>
@@ -2652,6 +2669,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <li>Everything in PadSpan HA</li>
         <li><b>Forensics</b> — who was near which scanner, when</li>
         <li><b>Light placement</b>, shapes, WLED, Showcase</li>
+        <li><b>Live Aboard</b>, the house in 3D</li>
+        <li>Day and four more themes</li>
         <li>One key, no separate install</li>
       </ul>
       <a class="btn primary" href="#pro" style="margin-top:auto">Get Pro</a>
