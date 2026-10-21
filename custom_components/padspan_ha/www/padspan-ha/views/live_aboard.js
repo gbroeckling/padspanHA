@@ -296,7 +296,7 @@ const CSS = `
 :host([data-wall]) .la3d-hud{zoom:var(--wall-ui,1)}
 :host([data-wall]) .la3d-bar,:host([data-wall]) .la3d-compass,:host([data-wall]) .la3d-north,
 :host([data-wall]) .la3d-menu,:host([data-wall]) .la3d-toast,:host([data-wall]) .la3d-solo,:host([data-wall]) .la3d-corner,
-:host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ctl,var(--wall-ui,1))}
+:host([data-wall]) .la3d-dircard,:host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ctl,var(--wall-ui,1))}
 :host([data-wall]) .la3d-tip{display:none}`;
 // While Live Aboard shows (its sheet travels with it): the flat Atlas's
 // symbol legend matches nothing in 3D; on the sidebar the header's flat hint

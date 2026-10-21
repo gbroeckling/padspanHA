@@ -168,3 +168,16 @@ def test_the_settings_row_is_an_administrators_and_says_what_it_does() -> None:
         assert words in fn, words
     box = sec[sec.index("function _atlas3dSection("):]
     assert "more.appendChild(_atlas3dDirector(ctx, el, settings, save, row));" in box[:box.index("\nfunction ")]
+
+
+def test_the_card_clears_the_bar_and_grows_on_a_wall() -> None:
+    """Up for 20 s, the card never covers Walls, the floor stepper or Views
+    (the toast's own clearance over the bar), and on a wall it is drawn at
+    the scale of the other Live Aboard cards."""
+    src = _js(_VIEWS / "live_aboard_director.js")
+    assert ".la3d-dircard{position:absolute;left:12px;bottom:64px;" in src
+    la = _js(_VIEWS / "live_aboard.js")
+    assert "bottom:64px;" in la[la.index(".la3d-toast{"):][:120]
+    rule = la[la.index(":host([data-wall]) .la3d-bar,"):]
+    rule = rule[:rule.index("}")]
+    assert ":host([data-wall]) .la3d-dircard," in rule and rule.endswith("{zoom:var(--wall-ctl,var(--wall-ui,1))")
