@@ -34,6 +34,19 @@ tablet's own kiosk browser.
 A screen opened with `?kiosk=1` reloads itself once after PadSpan updates, so it never runs old
 code. Any other browser shows a bar with a **Reload** button instead.
 
+## Wall mode: `/padspan-lights?kiosk=1`
+
+Open the Atlas page with `?kiosk=1` and it becomes a wall: the whole house fits on the screen
+(all its floors, top to bottom), the header goes, and the rail, the legends, the 3D view's bars and
+room names, and the rain grow with the screen. On a 1080p screen everything is its usual size; on
+a 4K screen it is twice the size, so it reads from across the room. The screen is also kept awake
+while the page is open, if Home Assistant is reached over HTTPS (or on the screen's own
+`localhost`); otherwise set the screen's own sleep setting. The first-time Live Aboard card isn't
+shown on a wall, since nobody is there to tap it.
+
+Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Mapping → Atlas →
+▦ New layout**). With the classic layout, `?kiosk=1` only drops the header.
+
 ## Making the map fill the screen
 
 - **⛶** (bottom right of the map) makes it full screen.

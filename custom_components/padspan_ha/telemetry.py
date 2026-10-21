@@ -470,6 +470,11 @@ SCREEN_EVENTS: frozenset[str] = frozenset(
     # Home Assistant's sidebar hidden or shown again from PadSpan's toolbar
     # (0.38.153): used at all, and whether people come back to it.
     | {"ha_sidebar:hidden", "ha_sidebar:shown"}
+    # 4K wall mode (0.38.159, ?kiosk=1 on the sidebar Atlas): the scale it
+    # runs at (the screen against 1080p, bucketed) and whether Wake Lock held
+    # the screen on. Never the screen's size itself.
+    | {f"wall_ui:{b}" for b in ("1", "1.5", "2", "3")}
+    | {"wall_awake:on", "wall_awake:off"}
 )
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name

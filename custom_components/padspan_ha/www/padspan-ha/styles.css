@@ -1574,3 +1574,23 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 /* Hide HA: under Home Assistant's 870 px its sidebar is always a drawer, so
    hiding it there would only be remembered for a wider screen later. */
 @media (max-width:870px){#haSide:not([aria-pressed="true"]){display:none}}
+
+/* Wall mode (?kiosk=1 on the sidebar Atlas, lights_panel.js _wallOn): the
+   card is the whole screen, the stage takes what the legend leaves and the
+   drawing fits it both ways (lights_map.js applyZoom). The rail, legend,
+   drawers and the corner buttons scale with --wall-ui (the screen against
+   1080p, never under 1), and the stage makes room for the scaled rail. */
+.lv-mapcard.lv-display.lv-wall{height:100vh;display:flex;flex-direction:column;border-radius:0;border:none;margin:0}
+.lv-mapcard.lv-display.lv-wall > .lv-stage{flex:1 1 auto;min-height:0;container-type:size;
+  width:calc(100% - 44px * var(--wall-ui,1));margin-left:calc(44px * var(--wall-ui,1))}
+.lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .lv-stage{width:100%;margin-left:0}
+.lv-mapcard.lv-display.lv-wall > .lv-rail,.lv-mapcard.lv-display.lv-wall > .lv-legend,
+.lv-mapcard.lv-display.lv-wall > .lv-drawer,.lv-mapcard.lv-display.lv-wall .lv-alone-anchor{zoom:var(--wall-ui,1)}
+.lv-mapcard.lv-display.lv-wall > .lv-legend{flex:none}
+.lv-mapcard.lv-display.lv-wall > .la3d{flex:1 1 auto;min-height:0;height:auto;
+  width:calc(100% - 44px * var(--wall-ui,1));margin-left:calc(44px * var(--wall-ui,1))}
+.lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .la3d{width:100%;margin-left:0}
+.lv-mapcard.lv-display.lv-wall .la3d-bar,.lv-mapcard.lv-display.lv-wall .la3d-compass,.lv-mapcard.lv-display.lv-wall .la3d-hud,
+.lv-mapcard.lv-display.lv-wall .la3d-north,.lv-mapcard.lv-display.lv-wall .la3d-menu,.lv-mapcard.lv-display.lv-wall .la3d-toast,
+.lv-mapcard.lv-display.lv-wall .la3d-solo,.lv-mapcard.lv-display.lv-wall .la3d-corner,.lv-mapcard.lv-display.lv-wall .la3d-sheet{zoom:var(--wall-ui,1)}
+.lv-mapcard.lv-display.lv-wall .la3d-tip{display:none}

@@ -649,8 +649,10 @@ function createSlot(slotKey){
     const layers = {};
     ALL_LAYERS.forEach((L, i) => {
       const layer = d("lv-wx-layer");
-      layer.style.setProperty("--tw", `${L.w}px`);
-      layer.style.setProperty("--th", `${L.h}px`);
+      // A wall (--wall-ui, the screen against 1080p; 1 anywhere else) draws
+      // the same rain bigger, so a streak reads as it does on a 1080p screen.
+      layer.style.setProperty("--tw", `calc(${L.w}px * var(--wall-ui, 1))`);
+      layer.style.setProperty("--th", `calc(${L.h}px * var(--wall-ui, 1))`);
       let host = layer;
       if (L.sway) { host = d("lv-wx-sway"); host.appendChild(layer); }
       host.style.display = "none";
@@ -760,10 +762,12 @@ function createSlot(slotKey){
    *  negative margin-top, all in % of the stage width, so the overlay sits
    *  over the SVG in flow, pans with it natively and adds nothing to the
    *  scroll area. */
-  function fit(zoom, centred){
+  // width: the drawing's own CSS width when it isn't a plain percentage (a
+  // wall fits the house both ways), so the rain covers exactly the drawing.
+  function fit(zoom, centred, width){
     if (!root || !aspect) return;
     const zp = Math.round((Number(zoom) || 1) * 100);
-    root.style.setProperty("--wxz", `${zp}%`);
+    root.style.setProperty("--wxz", width || `${zp}%`);
     root.style.setProperty("--wxa", aspect.toFixed(6));
     root.style.marginLeft = centred ? "auto" : "0";
     root.style.marginRight = centred ? "auto" : "0";

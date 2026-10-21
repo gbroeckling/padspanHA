@@ -4,9 +4,10 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.158 — A room can rise past its floor, and rain that falls beside a smaller upstairs (2026-10-21)
+## 0.38.158 — 4K wall mode, a room that rises past its floor, and rain beside a smaller upstairs (2026-10-21)
 
 ### New
+- **4K wall mode.** Open the sidebar Atlas as `/padspan-lights?kiosk=1` and it becomes a wall screen: the whole house fits on the screen, every floor top to bottom, instead of running off the bottom; the header goes; and the rail, the legends, Live Aboard's bars and room names, and the rain grow with the screen, so a 4K wall reads from across the room. On a 1080p screen everything stays its usual size, but the house now fits too. The screen is kept awake while the page is open (over HTTPS, or on the screen's own localhost), and the first-time Live Aboard card, which nobody at a wall would tap, isn't shown. It needs the Atlas's new layout (PadSpan Pro). See the [Wall Screen Guide](docs/WALL_SCREEN_GUIDE.md).
 - **A room can be taller than its floor.** A double-height living room, or a hall under a gallery, no longer needs the whole floor made tall. In Mapping → Atlas, choose Rooms, select the room, and set **Rises to (m)**: how high its space goes above its floor (1.5 to 30 m). Leave it blank and the room is as tall as its floor, exactly as before. In Live Aboard the room's walls rise to that height, it is roofed at its own height, a gallery or loft edge over it gets its glass railing, and its lights hang from its own ceiling. Positioning is unchanged: it still reads the floors' heights.
 
 ### Fixed
@@ -22,6 +23,7 @@ All notable changes to PadSpan HA are documented here.
 
 ### Opt-in report
 - Which theme the panel wears (Day, Light or a palette), and how many rooms have their own height.
+- On a wall: the scale it runs at, and whether the screen is being kept awake (`wall_ui:*`, `wall_awake:*`).
 - A mezzanine is now counted only where its rooms really stand over a taller room below; one set up with floor heights alone, with no rooms drawn upstairs, isn't (`house3d_mezzanine`).
 
 ---

@@ -159,6 +159,25 @@ const PREF_EXPLODE = "explode", EXPLODE_M = 4;
 // the wall tops show, and a fixture that is off darkens with the house.
 const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
 const NAME_PX = [12, 17];                  // a room's name on screen (px), never under / over
+// On a wall (?kiosk=1, lights_panel.js _wallOn) the names and the controls
+// grow with the screen: --wall-ui is the screen against 1080p, never under 1.
+// Read once per window size (it is asked every frame), and only once the
+// view is on the page: before that it can't see the wall it is in.
+const wallUiOf = (() => {
+  let key = "", val = 1;
+  return (el) => {
+    if (!el || !el.isConnected || !el.closest) return 1;
+    const k = `${innerWidth}x${innerHeight}`;
+    if (k === key) return val;
+    let v = 1;
+    if (el.closest(".lv-wall")) {
+      const n = parseFloat(getComputedStyle(el).getPropertyValue("--wall-ui"));
+      if (Number.isFinite(n) && n > 1) v = n;
+    }
+    key = k; val = v;
+    return v;
+  };
+})();
 
 // The view's own look: everything is scoped under .la3d, and the sheet travels
 // inside the long-lived element, so nothing is added to styles.css and the
@@ -1148,6 +1167,7 @@ function createSlot(slotKey){
     const seen = prefGet(PREF_HINT) === "1";
     hintShown = true;
     if (seen && !again) return;
+    if (!again && root.closest && root.closest(".lv-wall")) return;   // a wall: nobody there to tap Got it
     const d = (tag, text) => { const n = document.createElement(tag); if (text) n.textContent = text; return n; };
     const card = document.createElement("div");
     card.className = "la3d-card";
@@ -2863,6 +2883,7 @@ function createSlot(slotKey){
       _hit.near = 0; _hit.far = Math.max(0, d - 0.05);
       return _hit.intersectObjects(occ, false).length > 0;
     };
+    const wallK = wallUiOf(root);
     for (const F of floorsUi) {
       if (!F.group.visible) continue;
       const occ = above(F);
@@ -2871,7 +2892,7 @@ function createSlot(slotKey){
         if (!u.home) u.home = lbl.position.clone();
         lbl.position.copy(u.home);
         const mpp = mppAt(lbl.position), roomPx = u.ext / mpp;
-        const letters = Math.max(NAME_PX[0], Math.min(NAME_PX[1], roomPx / 9)), hPx = letters / u.letters, wPx = hPx * u.aspect;
+        const letters = Math.max(NAME_PX[0] * wallK, Math.min(NAME_PX[1] * wallK, roomPx / 9)), hPx = letters / u.letters, wPx = hPx * u.aspect;
         if (persp) u.behind = !u.covered && (underRoof(F, lbl.position) || behind(lbl.position, occ));
         // Exploded, a storey above can hang over a room's middle while the
         // rest of it shows: the name moves toward a corner that is in view.

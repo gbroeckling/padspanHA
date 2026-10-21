@@ -2870,6 +2870,10 @@ export function buildLightsMapCard(hostIn){
   const DISPLAY = V2 && !!host.displayMode;
   if (V2) mapCard.classList.add("lv-v2");
   if (DISPLAY) mapCard.classList.add("lv-display");
+  // Wall mode (the sidebar Atlas on ?kiosk=1): the card is the whole screen
+  // and the drawing fits it both ways, in CSS only (styles.css .lv-wall).
+  const WALL = DISPLAY && !!host.wall;
+  if (WALL) mapCard.classList.add("lv-wall");
 
   // Vacation Mode banner — pinned dead-center of the screen, on both Atlas
   // surfaces (this shared card) and nowhere else (Garry, 2026-09-21: "I
@@ -3272,7 +3276,13 @@ export function buildLightsMapCard(hostIn){
     // routinely a wall-kiosk tab that may not be the OS's focused window),
     // the map simply never getting fitted — reading as "not reaching side
     // to side."
-    svg.style.width = `${Math.round((view.zoom || 1) * 100)}%`;
+    // On a wall, as wide as the stage or as tall as it, whichever comes
+    // first (the stage is a size container: 100cqh is its height), so the
+    // whole house is on the screen at 100%; zoomed in, it grows from there.
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    const wallW = WALL && vb && vb.width && vb.height
+      ? `min(${Math.round((view.zoom || 1) * 100)}%, calc(${(view.zoom || 1)} * 100cqh * ${(vb.width / vb.height).toFixed(5)}))` : null;
+    svg.style.width = wallW || `${Math.round((view.zoom || 1) * 100)}%`;
     // 2026-09-22, after three straight rounds of this still being wrong
     // live (a visible flash, then not filling the width, then the whole
     // map shrinking further and "stupid short" — Garry: "you really need
@@ -3295,7 +3305,7 @@ export function buildLightsMapCard(hostIn){
       svg.style.margin = "0 auto";
     }
     // The weather overlay takes the same width and centring as the SVG.
-    if (wxSlot) wxSlot.fit(view.zoom, V2);
+    if (wxSlot) wxSlot.fit(view.zoom, V2, wallW);
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
   // Zoom about a point (pinch midpoint / wheel): keep what is under the

@@ -84,6 +84,15 @@ function staleBuildAction(pageBuild, backendBuild, kiosk, reloadedFor){
   const newer = backendBuild > pageBuild;
   return { newer, reload: newer && !!kiosk && reloadedFor !== backendBuild };
 }
+// Wall mode (?kiosk=1, 2026-10-21): the whole house on the screen, its
+// controls sized for the room. The scale is the screen against 1080p, never
+// under 1, so a 1080p wall is as it always was; a 4K wall is 2.
+const WALL_UI_MAX = 3;
+function wallScale(w, h){
+  const s = Math.min(Number(w) / 1920, Number(h) / 1080);
+  return Number.isFinite(s) ? Math.max(1, Math.min(WALL_UI_MAX, Math.round(s * 100) / 100)) : 1;
+}
+
 // A wall screen: ?kiosk=1, or a window that fills the screen (Chrome
 // --kiosk, a full-screen tablet), which nobody is there to press Reload on.
 // The same test trial_offer.js newTabOk makes, the other way round.
@@ -243,6 +252,13 @@ class PadSpanLightsApp extends HTMLElement {
     try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
     const send = (name)=>{ Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{}); };
     send("wall_screen:atlas:" + screenKind(kiosk));
+    // Wall mode (_wallOn): the scale it runs at, and whether the screen is
+    // kept awake (Wake Lock needs HTTPS or localhost).
+    if(this.hasAttribute("data-wall")){
+      const s = this._wallUi || 1;
+      send("wall_ui:" + (s < 1.25 ? "1" : s < 1.75 ? "1.5" : s < 2.5 ? "2" : "3"));
+      send("wall_awake:" + (this._wakeLock && !this._wakeLock.released ? "on" : "off"));
+    }
     if(_reloadNote) send("wall_reload:atlas:" + _reloadNote);
   }
 
@@ -896,6 +912,8 @@ class PadSpanLightsApp extends HTMLElement {
       // builder's own proTier, not the bright-or-pro `paid` above.
       layoutV2: String(this.state._tier||"").toLowerCase()==="pro" && !!this.state._atlasLayoutV2,
       displayMode: true,
+      // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
+      wall: this.hasAttribute("data-wall"),
       showcase: !!this.state._showcase,
       showcaseTheme: this.state._showcaseTheme || "classic",
       fitRooms: !!this.state._fitRooms,
@@ -1304,12 +1322,17 @@ class PadSpanLightsApp extends HTMLElement {
       }).catch(()=>{ this._clientPerfLoading = null; });
     }
     this.style.display="block";
+    this._wallOn();
     this.shadowRoot.innerHTML=`
       <link rel="stylesheet" href="/padspan_ha_static/padspan-ha/styles.css?v=${APP_VERSION}&b=${BUILD_ID}">
       <style>
         :host{display:block;min-height:100vh;background:#0a150e;color:#e2e8f0;accent-color:#52b788;
               font-family:Inter,system-ui,Arial,sans-serif;box-sizing:border-box}
         #content{padding:16px}
+        /* Wall mode (?kiosk=1): no header, the map card the whole screen,
+           its controls scaled by --wall-ui (lv- rules in styles.css). */
+        :host([data-wall]) #content{padding:0}
+        :host([data-wall]) .lv-hero, :host([data-wall]) .lv-coach{display:none}
       </style>
       <div id="content"></div>
     `;
@@ -1323,8 +1346,36 @@ class PadSpanLightsApp extends HTMLElement {
     }
   }
 
+  // Wall mode: ?kiosk=1 on the sidebar Atlas (not the Atlas shown as the
+  // panel's Overview, which lives inside the panel's own page).
+  _wallOn(){
+    let kiosk = false;
+    try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
+    if(!kiosk || this._embedded){ this.removeAttribute("data-wall"); return; }
+    this.setAttribute("data-wall", "");
+    const size = ()=>{
+      const s = wallScale(window.innerWidth, window.innerHeight);
+      this.style.setProperty("--wall-ui", String(s));
+      this._wallUi = s;
+    };
+    size();
+    if(!this._wallResize){ this._wallResize = size; window.addEventListener("resize", size); }
+    // Keep the screen on (Wake Lock): a wall nobody touches must not go to
+    // sleep. Only on HTTPS or localhost; elsewhere the browser's own setting
+    // decides, as before. Asked again when the page is shown again.
+    const ask = ()=>{
+      if(!navigator.wakeLock || document.visibilityState !== "visible" || (this._wakeLock && !this._wakeLock.released)) return;
+      navigator.wakeLock.request("screen").then(l=>{ this._wakeLock = l; }).catch(()=>{});
+    };
+    ask();
+    if(!this._wakeVis){ this._wakeVis = ask; document.addEventListener("visibilitychange", ask); }
+  }
+
   disconnectedCallback(){
     if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
+    if(this._wallResize){ window.removeEventListener("resize", this._wallResize); this._wallResize = null; }
+    if(this._wakeVis){ document.removeEventListener("visibilitychange", this._wakeVis); this._wakeVis = null; }
+    if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
     if(this._clientPerf){ this._clientPerf.stop(); this._clientPerf = null; }
     if(this._uiErrorHandler){
       window.removeEventListener("error", this._uiErrorHandler);
