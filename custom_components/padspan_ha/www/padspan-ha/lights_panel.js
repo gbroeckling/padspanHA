@@ -416,7 +416,8 @@ class PadSpanLightsApp extends HTMLElement {
       // onLayoutV2 handed to the host, so no toggle button shows here.
       this.state._atlasLayoutV2 = !!s.atlas_layout_v2;
       this.state._wall = { wall_screen_in: s.wall_screen_in, wall_distance_m: s.wall_distance_m, wall_text_arcmin: s.wall_text_arcmin,
-                           wall_night_dim: s.wall_night_dim, wall_pixel_shift: s.wall_pixel_shift };
+                           wall_night_dim: s.wall_night_dim, wall_pixel_shift: s.wall_pixel_shift,
+                           wall_floor_cycle_s: s.wall_floor_cycle_s, wall_fully: s.wall_fully };
       // Vacation Mode's own state — read here too now that the banner lives
       // in the shared Atlas card (both hosts), not panel.js's global chrome.
       this.state._vacationModeEnabled = !!s.vacation_mode_enabled;
@@ -1377,7 +1378,7 @@ class PadSpanLightsApp extends HTMLElement {
       // the tier changed elsewhere): nothing of the wall is left behind.
       this.removeAttribute("data-wall");
       this._wallOff();
-      this._wallNight(); this._wallShift();
+      this._wallNight(); this._wallShift(); this._wallCycle();
       return;
     }
     this.setAttribute("data-wall", "");
@@ -1396,6 +1397,7 @@ class PadSpanLightsApp extends HTMLElement {
     size();
     this._wallNight();
     this._wallShift();
+    this._wallCycle();
     // Someone at the wall: its floating controls show for 30 s after the
     // last touch, mouse move or key, then fade (the CSS above).
     if(!this._wallWake){
@@ -1441,9 +1443,27 @@ class PadSpanLightsApp extends HTMLElement {
   _wallNight(){
     const r = this.shadowRoot;
     if(!r) return;
-    const dim = this.hasAttribute("data-wall") ? WALLS.wallParams(location.search, this.state?._wall).dim : 0;
+    const p = this.hasAttribute("data-wall") ? WALLS.wallParams(location.search, this.state?._wall) : null;
+    const dim = p ? p.dim : 0;
     const night = this._hass?.states?.["sun.sun"]?.state === "below_horizon";
     let d = r.querySelector("#wallDim");
+    // Inside Fully Kiosk, with "Use Fully Kiosk" on: the screen itself is
+    // turned down (its backlight, darker than any overlay), and its motion
+    // detection turns a sleeping screen back on.
+    const fully = p && p.fully ? this._fully() : null;
+    this._wallFullyMotion(fully);
+    if(fully){
+      if(d) d.remove();
+      try {
+        if(dim > 0 && night){
+          if(this._fullyDay == null) this._fullyDay = Number(fully.getScreenBrightness());
+          const want = WALLS.fullyBrightness(this._fullyDay, dim);
+          if(want !== this._fullyAt){ fully.setScreenBrightness(want); this._fullyAt = want; }
+        } else this._fullyRestore();
+      } catch(_) {}
+      return;
+    }
+    this._fullyRestore();
     if(!(dim > 0 && night)){ if(d) d.remove(); return; }
     if(!d){
       d = document.createElement("div"); d.id = "wallDim";
@@ -1451,6 +1471,56 @@ class PadSpanLightsApp extends HTMLElement {
       r.appendChild(d);
     }
     d.style.opacity = String(dim);
+  }
+  // Fully Kiosk Browser's JavaScript interface, when this page runs in it
+  // (and its "Enable JavaScript Interface" is on); null anywhere else.
+  _fully(){
+    const f = typeof window !== "undefined" ? window.fully : null;
+    return f && typeof f.setScreenBrightness === "function" && typeof f.getScreenBrightness === "function" ? f : null;
+  }
+  // The day's brightness back, after a night turned Fully's screen down.
+  _fullyRestore(){
+    if(this._fullyDay == null) return;
+    const f = this._fully();
+    try { if(f) f.setScreenBrightness(this._fullyDay > 0 ? Math.round(this._fullyDay) : -1); } catch(_) {}
+    this._fullyDay = null; this._fullyAt = null;
+  }
+  // Fully's motion detection (its camera; on in Fully's own settings): motion
+  // in front of a wall whose screen is off turns it back on. Fully keeps a
+  // binding for the page's life, so it is made once and asks this hook.
+  _wallFullyMotion(fully){
+    if(!fully || typeof fully.bind !== "function"){
+      if(window.__padspanWallMotion === this._motionHook) window.__padspanWallMotion = null;
+      return;
+    }
+    if(!this._motionHook){
+      this._motionHook = ()=>{
+        const f = this._fully();
+        try { if(f && typeof f.getScreenOn === "function" && !f.getScreenOn()) f.turnScreenOn(); } catch(_) {}
+      };
+    }
+    window.__padspanWallMotion = this._motionHook;
+    if(!window.__padspanWallMotionBound){
+      try { fully.bind("onMotion", "window.__padspanWallMotion && window.__padspanWallMotion()"); window.__padspanWallMotionBound = true; } catch(_) {}
+    }
+  }
+  // A wall nobody is touching can show its floors in turn, every
+  // wall_floor_cycle_s seconds (off unless set): All, then each floor
+  // (lights_map.js view.wallStops). It waits while someone uses the wall
+  // (its controls are showing) and while the page is hidden.
+  _wallCycle(){
+    const s = this.hasAttribute("data-wall") ? WALLS.wallParams(location.search, this.state?._wall).cycle : 0;
+    if(s === this._cycleS) return;
+    if(this._cycleTimer){ clearInterval(this._cycleTimer); this._cycleTimer = null; }
+    this._cycleS = s;
+    if(!s) return;
+    this._cycleTimer = setInterval(()=>{
+      if(this.hasAttribute("data-wall-active") || document.visibilityState === "hidden") return;
+      const next = WALLS.nextFloorStop(this._view.wallStops, this._view.focusIdx);
+      if(next == null || next === this._view.focusIdx) return;
+      this._view.focusIdx = next;
+      this._render();
+    }, s * 1000);
   }
   // Against burn-in on an OLED wall: the picture moves a couple of pixels
   // round a small square, one step every three minutes, so no edge stays lit
@@ -1499,6 +1569,9 @@ class PadSpanLightsApp extends HTMLElement {
   disconnectedCallback(){
     if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
     if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; }
+    if(this._cycleTimer){ clearInterval(this._cycleTimer); this._cycleTimer = null; this._cycleS = 0; }
+    this._fullyRestore();
+    if(window.__padspanWallMotion === this._motionHook) window.__padspanWallMotion = null;
     this._wallOff();
     if(this._clientPerf){ this._clientPerf.stop(); this._clientPerf = null; }
     if(this._uiErrorHandler){

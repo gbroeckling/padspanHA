@@ -84,9 +84,9 @@ def test_a_screens_own_link_wins_over_the_house():
     got = _node("console.log(JSON.stringify([wallParams('?kiosk=1&wall_in=65&wall_m=3', {wall_screen_in: 55, wall_distance_m: 2, wall_text_arcmin: 22}),"
                 " wallParams('?kiosk=1', {wall_screen_in: 55, wall_distance_m: 2, wall_text_arcmin: 22, wall_night_dim: 0.9, wall_pixel_shift: true}),"
                 " wallParams('?kiosk=1', null)]))")
-    assert got[0] == {"inches": 65, "meters": 3, "arcmin": 22, "dim": 0, "shift": False}
-    assert got[1] == {"inches": 55, "meters": 2, "arcmin": 22, "dim": 0.7, "shift": True}, "night dim kept to 70%"
-    assert got[2] == {"inches": 0, "meters": 2.5, "arcmin": 20, "dim": 0, "shift": False}
+    assert got[0] == {"inches": 65, "meters": 3, "arcmin": 22, "dim": 0, "shift": False, "cycle": 0, "fully": False}
+    assert got[1] == {"inches": 55, "meters": 2, "arcmin": 22, "dim": 0.7, "shift": True, "cycle": 0, "fully": False}, "night dim kept to 70%"
+    assert got[2] == {"inches": 0, "meters": 2.5, "arcmin": 20, "dim": 0, "shift": False, "cycle": 0, "fully": False}
 
 
 def test_kiosk_turns_it_on_and_only_on_the_sidebar_atlas():
@@ -222,3 +222,58 @@ def test_a_full_link_says_everything():
     assert got[0] == "/padspan-lights?kiosk=1&wall_in=0&wall_text=20"
     assert got[1] == "/padspan-lights?kiosk=1&wall_in=11&wall_m=0.5&wall_text=20"
     assert got[2] == 0, "wall_in=0 sizes from the screen whatever the house says"
+
+
+def _node_mod(code: str):
+    """`code` with every export of views/wall_scale.js in scope as W."""
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    url = (_WWW / "views" / "wall_scale.js").resolve().as_uri()
+    res = subprocess.run([_NODE, "--input-type=module", "-e", f"import({json.dumps(url)}).then((W) => {{ {code} }});"],
+                         capture_output=True, text=True, timeout=30)
+    assert res.returncode == 0, res.stderr
+    return json.loads(res.stdout)
+
+
+def test_floors_in_turn_all_then_each_floor_off_by_default():
+    got = _node_mod("console.log(JSON.stringify([W.nextFloorStop([0,1,3,5],0), W.nextFloorStop([0,1,3,5],5),"
+                    " W.nextFloorStop([0,1,3,5],2), W.nextFloorStop([0],0), W.nextFloorStop(undefined,0),"
+                    " W.wallParams('', {}).cycle, W.wallParams('', {wall_floor_cycle_s: 5}).cycle,"
+                    " W.wallParams('', {wall_floor_cycle_s: 30}).cycle, W.wallParams('', {wall_floor_cycle_s: 9999}).cycle]))")
+    assert got == [1, 0, 0, None, None, 0, 0, 30, 600], got
+    lm = _src("views/lights_map.js")
+    assert "if (host.wall) view.wallStops = isoPos.map((p, i) => (Array.isArray(p) ? -1 : i))" in lm, "only on a wall, pairs left out"
+    lp = _src("lights_panel.js")
+    cyc = lp[lp.index("  _wallCycle(){"):]
+    cyc = cyc[:cyc.index("\n  }\n")]
+    assert 'this.hasAttribute("data-wall-active")' in cyc, "it waits while someone uses the wall"
+    assert 'this.hasAttribute("data-wall") ?' in cyc and "if(!s) return;" in cyc
+    assert "this._wallCycle();" in lp[lp.index("  _wallOn(){"):lp.index("  _wallNight(){")]
+    assert "clearInterval(this._cycleTimer)" in lp[lp.index("disconnectedCallback(){"):]
+
+
+def test_fully_kiosk_dims_its_own_screen_and_wakes_on_motion_only_when_asked():
+    got = _node_mod("console.log(JSON.stringify([W.fullyBrightness(200, 0.5), W.fullyBrightness(0, 0.3), W.fullyBrightness(10, 0.99),"
+                    " W.fullyBrightness(255, 0), W.wallParams('', {}).fully, W.wallParams('', {wall_fully: true}).fully]))")
+    assert got == [100, 179, 3, 255, False, True], got
+    lp = _src("lights_panel.js")
+    night = lp[lp.index("  _wallNight(){"):]
+    night = night[:night.index("\n  }\n")]
+    assert "const fully = p && p.fully ? this._fully() : null;" in night, "the overlay stays everywhere else"
+    assert "this._fullyRestore();" in night, "day brightness back in the morning or when the wall stops"
+    assert 'fully.bind("onMotion",' in lp and "f.turnScreenOn()" in lp
+    assert "this._fullyRestore();" in lp[lp.index("disconnectedCallback(){"):]
+
+
+def test_the_card_and_the_server_carry_the_new_wall_settings():
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    ws = (root / "ws_settings.py").read_text(encoding="utf-8")
+    assert 'vol.Optional("wall_floor_cycle_s"): vol.Coerce(float)' in ws and 'vol.Optional("wall_fully"): bool' in ws
+    assert '_clamped(msg["wall_floor_cycle_s"], 10, 600, 0, zero_ok=True)' in ws
+    assert '"wall_pixel_shift", "wall_fully",' in ws, "in the bool allowlist"
+    from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
+    assert DEFAULT_SETTINGS["wall_floor_cycle_s"] == 0 and DEFAULT_SETTINGS["wall_fully"] is False
+    card = _src("views/wall_card.js")
+    assert "save({ wall_floor_cycle_s: v.cycle }" in card and "save({ wall_fully: want }" in card
+    lp = _src("lights_panel.js")
+    assert "wall_floor_cycle_s: s.wall_floor_cycle_s, wall_fully: s.wall_fully" in lp

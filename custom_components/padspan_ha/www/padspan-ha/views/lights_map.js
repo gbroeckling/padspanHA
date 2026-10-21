@@ -2956,6 +2956,9 @@ export function buildLightsMapCard(hostIn){
     return zArr.map(z => floorNameAtLevel(_frame, host.model, floors, z) || `L${z}`).join(" + ");
   };
   view.focusIdx = Math.max(0, Math.min(view.focusIdx, isoPos.length - 1));
+  // A wall that cycles through its floors (lights_panel.js _wallCycle):
+  // All and each floor on its own, not the pairs between them.
+  if (host.wall) view.wallStops = isoPos.map((p, i) => (Array.isArray(p) ? -1 : i)).filter(i => i >= 0);
 
   // The container is always the full width of the panel. Zoom scales the
   // DRAWING inside it and scrolls — resizing this box instead just slid the

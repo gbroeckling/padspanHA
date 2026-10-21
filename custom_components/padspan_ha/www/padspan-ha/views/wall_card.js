@@ -58,6 +58,8 @@ export function wallCard(ctx, el, settings){
     arcmin: Number(s.wall_text_arcmin) > 0 ? Number(s.wall_text_arcmin) : 20,
     dim: Number(s.wall_night_dim) || 0,
     shift: !!s.wall_pixel_shift,
+    cycle: Number(s.wall_floor_cycle_s) >= 10 ? Number(s.wall_floor_cycle_s) : 0,
+    fully: !!s.wall_fully,
   };
   const note = el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px" }, "Saves as soon as you change it. Wall screens follow within half a minute.");
   // "Just make a link": the size, distance and text then build a link for
@@ -174,6 +176,30 @@ export function wallCard(ctx, el, settings){
   shiftRow.appendChild(shiftCb);
   shiftRow.appendChild(el("span", { style: "color:#e2e8f0;font-size:13px" }, "Protect against burn-in: move the picture a couple of pixels every few minutes (OLED screens)"));
   card.appendChild(shiftRow);
+
+  // ── floors in turn, and Fully Kiosk ──
+  const CYCLE = [[0, "Off"], [15, "Every 15 seconds"], [30, "Every 30 seconds"], [60, "Every minute"], [120, "Every 2 minutes"], [300, "Every 5 minutes"]];
+  const cycleSel = el("select", { style: "font-size:13px" });
+  for (const [sec, label] of CYCLE) cycleSel.appendChild(el("option", { value: String(sec) }, label));
+  if (!CYCLE.some(([sec]) => sec === v.cycle)) cycleSel.appendChild(el("option", { value: String(v.cycle) }, `Every ${v.cycle} seconds`));
+  cycleSel.value = String(v.cycle);
+  cycleSel.addEventListener("change", () => {
+    const was = v.cycle; v.cycle = Number(cycleSel.value);
+    save({ wall_floor_cycle_s: v.cycle }, () => { v.cycle = was; cycleSel.value = String(was); });
+  });
+  card.appendChild(el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:10px 0 0" }, [
+    el("span", { style: "color:#cbd5e1;font-size:13px;min-width:130px" }, "Show each floor"), cycleSel,
+    el("span", { style: "color:#94a3b8;font-size:12px" }, "All, then one floor at a time, while nobody is touching the wall"),
+  ]));
+  const fullyRow = el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;margin:8px 0 0" });
+  const fullyCb = el("input", { type: "checkbox" });
+  fullyCb.checked = v.fully;
+  fullyCb.addEventListener("change", () => { const want = fullyCb.checked; v.fully = want; save({ wall_fully: want }, () => { fullyCb.checked = !want; v.fully = !want; }); });
+  fullyRow.appendChild(fullyCb);
+  fullyRow.appendChild(el("span", { style: "color:#e2e8f0;font-size:13px" },
+    "On Fully Kiosk tablets: dim at night by turning the screen's own brightness down, and turn the screen on when its motion detection sees someone " +
+    "(needs Fully's JavaScript Interface, and Motion Detection for the second)"));
+  card.appendChild(fullyRow);
 
   // ── a link for one screen that differs from the others ──
   const linkBox = el("input", { type: "text", readonly: "", style: "flex:1 1 260px;min-width:200px;font-family:ui-monospace,Consolas,monospace;font-size:12px" });
