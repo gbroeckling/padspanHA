@@ -257,7 +257,9 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     # (P6: and Show people's read of Overview's live snapshot, only while it is on.)
     # (And the wall panel's: Show people / Show tags & scanners from inside the
     # view, the one key it is handed and nothing else.)
-    assert block.count("callWS(") == 5, "the report's, the Save's, the 3D file's read, Show people's and the switches', nothing else"
+    # (Trails: Traceback's own history, read by the view only while a screen has them on.)
+    assert block.count("callWS(") == 6, "the report's, the Save's, the 3D file's read, Show people's, the switches' and Trails', nothing else"
+    assert "trails: { read: (msg)=>this._hass.callWS(msg) }" in block
     assert 'await this._hass.callWS({ type:"padspan_ha/settings_set", [key]: v });' in block
     assert 'people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" })' in block
     assert 'load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),' in block
@@ -272,7 +274,8 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     # The sixth is the wall panel's switches (Show people, Show tags & scanners).
     # The editor's heights go on the placement records (2026-10-05: the Atlas's
     # own fabric_light_height_set, on the same gate as edit, _laHeightsPut).
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 6
+    # The seventh is Trails' read of Traceback's history, with live data only.
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 7
     assert 'ctx.actions.wsCall("padspan_ha/settings_set", { [key]: v })' in mblock
     assert "heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null," in mblock
     put = maps[maps.index("export function _laHeightsPut("):][:400]

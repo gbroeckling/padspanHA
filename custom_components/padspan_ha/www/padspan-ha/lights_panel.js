@@ -1085,6 +1085,9 @@ class PadSpanLightsApp extends HTMLElement {
         // is on and the view shows, never more often than Overview polls.
         people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" }).then(r=>(r && r.snapshot) || null),
           everyMs: 1000 * (Number(this.state._house3d.presence_poll_interval_s) || 5) },
+        // Trails: Traceback's own history (padspan_ha/traceback_get), read
+        // by the view only while a screen has them on.
+        trails: { read: (msg)=>this._hass.callWS(msg) },
         emergency: this.state._emerg && this.state._emerg.test && this.state._emerg.test.active
           ? (this.state._emerg.members || []).map(m => m && m.entity_id).filter(Boolean) : null,
         // The 3D file (doors and windows drawn in 3D, heights): read when
