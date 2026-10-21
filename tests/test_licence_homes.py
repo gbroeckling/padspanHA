@@ -32,7 +32,7 @@ class _St:
 
 def test_a_check_says_which_home_it_is():
     p = LH.home_params({"license_home_token": "a" * 32, "license_home_label": "Cabin"})
-    assert p == {"t": "1", "token": "a" * 32, "version": VERSION, "label": "Cabin"}
+    assert p == {"t": "1", "token": "a" * 32, "version": VERSION, "label": "Cabin", "report": "0"}
     assert LH.home_params(None)["token"] == "", "a home without a token yet asks for one"
     for k in ("license_home_token", "license_home_label", "license_home_status"):
         assert DEFAULT_SETTINGS[k] == ""
@@ -50,7 +50,7 @@ def test_only_a_real_new_token_is_kept():
 def test_both_server_calls_send_it_and_keep_the_answer():
     up = _src("update_check.py")
     assert "**home_params(st.data)}" in up and "await keep_token(st, data)" in up, "the daily check"
-    assert '_hs if _hs in ("activation_limit", "activation_rate", "homes_frozen")' in up, "a refused home is said in Settings"
+    assert '_hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report")' in up, "a refused home is said in Settings"
     fo = _src("ws_forensics.py")
     assert '"machine": machine, **_hp}' in fo, "activation"
     assert '_hp["token"] = ""' in fo, "a different key starts the home afresh"
@@ -71,3 +71,21 @@ def test_settings_lists_the_homes_on_request():
     assert "Show this key's homes" in js, "opening Settings never calls the licence server"
     for status in ("activation_limit", "activation_rate", "homes_frozen"):
         assert status + ":" in js
+
+
+def test_homes_after_the_first_two_need_the_usage_report_and_are_seen_together():
+    from custom_components.padspan_ha import telemetry as T
+    assert LH.home_params({"telemetry_enabled": True})["report"] == "1"
+    assert LH.home_params({})["report"] == "0", "off by default, and said so"
+    g = T.licence_group("pspan-abcd-efgh")
+    assert g == T.licence_group("PSPAN-ABCD-EFGH") and len(g) == 16 and "PSPAN" not in g, "the same in every home, never the key"
+    assert T.licence_group("") is None
+    T.assert_shareable({"schema": 1, "licence_group": g})
+    import pytest
+    with pytest.raises(ValueError):
+        T.assert_shareable({"schema": 1, "licence_group": "PSPAN-ABCD-EFGH"})
+    php = (_PKG.parents[1] / "server" / "telemetry.php").read_text(encoding="utf-8")
+    assert "'licence_group'" in php and "/^[0-9a-f]{16}\z/" in php, "the receiver takes it, and only that shape"
+    js = _src("www/padspan-ha/views/settings.js")
+    assert "needs_report:" in js and "with a licence, a short code made from the key (never the key)" in js
+    assert '"needs_report") else ""' in _src("update_check.py")

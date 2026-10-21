@@ -203,7 +203,7 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         # Over the key's homes (a copy of a home, or a sixth): said in Settings
         # (licence_homes.py), and then the same grace as any refusal.
         _hs = str(data.get("status") or "")
-        _hs = _hs if _hs in ("activation_limit", "activation_rate", "homes_frozen") else ""
+        _hs = _hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report") else ""
         if _hs != str(st.data.get("license_home_status") or ""):
             await st.async_set(license_home_status=_hs)
         # Explicitly revoked. Record it as expired-now rather than deleting

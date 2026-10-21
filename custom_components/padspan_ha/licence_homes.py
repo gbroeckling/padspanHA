@@ -4,6 +4,11 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """A licence key's homes (0.38.160): one key, up to five Home Assistants.
 
+The first two always count. The third to the fifth count while their own
+opt-in usage report is on: the report then carries the licence's group code
+(telemetry.licence_group, made from the key, never the key), which is how the
+developer sees one licence's homes together.
+
 The licence server counts homes; this side only says which home it is. Each
 check sends this Home Assistant's instance id and the home's current token,
 and keeps the next token the server answers with. A restored backup carries an
@@ -33,10 +38,12 @@ async def machine_id(hass: HomeAssistant) -> str:
 
 
 def home_params(settings: dict[str, Any] | None) -> dict[str, str]:
-    """What a validate call adds for the homes: the token, the version, the name."""
+    """What a validate call adds for the homes: the token, the version, the
+    name, and whether this home's usage report is on."""
     d = settings or {}
     return {"t": "1", "token": str(d.get("license_home_token") or ""), "version": VERSION,
-            "label": str(d.get("license_home_label") or "")[:60]}
+            "label": str(d.get("license_home_label") or "")[:60],
+            "report": "1" if d.get("telemetry_enabled") else "0"}
 
 
 async def keep_token(st: Any, data: dict[str, Any]) -> None:

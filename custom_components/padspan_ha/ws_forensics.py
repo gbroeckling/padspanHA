@@ -205,11 +205,15 @@ async def ws_licence_homes(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "refused", str((data or {}).get("message") or "The licence server refused it."))
         return
     homes = [h for h in (data.get("homes") or []) if isinstance(h, dict)]
+    lic = data.get("licence") if isinstance(data.get("licence"), dict) else {}
     connection.send_result(msg["id"], {
         "homes": [{"id": int(h.get("id") or 0), "label": h.get("label") or "", "version": h.get("version") or "",
-                   "first_seen": h.get("first_seen") or "", "last_seen": h.get("last_seen") or "", "this": bool(h.get("this"))}
+                   "first_seen": h.get("first_seen") or "", "last_seen": h.get("last_seen") or "", "this": bool(h.get("this")),
+                   "reporting": bool(h.get("reporting"))}
                   for h in homes],
         "homes_max": int(data.get("homes_max") or 5), "frozen": bool(data.get("frozen")),
+        # The licence they share: its owner's email masked by the server, its plan, the key's last four.
+        "licence": {k: lic.get(k) for k in ("owner", "plan", "expires_at", "key_end", "homes_free")},
     })
 
 

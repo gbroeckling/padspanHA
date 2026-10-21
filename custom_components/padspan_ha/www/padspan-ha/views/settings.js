@@ -1136,7 +1136,7 @@ function _settingsPresence(ctx, el){
     el("div", { class: "h2" }, "Help improve PadSpan"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
-      "Home Assistant; the country and language set in Home Assistant (never looked up from your address); how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
+      "Home Assistant; the country and language set in Home Assistant (never looked up from your address); with a licence, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
       "IRKs and objects you have and which related integrations are installed; which feature switches " +
       "are on; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine " +
       "works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the " +
@@ -2921,12 +2921,15 @@ const HOME_REFUSED = {
   activation_limit: "This home isn't counted: the key is already on all its homes. Remove one below (from any home) and this one joins at its next daily check.",
   activation_rate: "This home isn't counted: the key joined many new homes this month. It joins once the month is over.",
   homes_frozen: "This home isn't counted: the key is paused for new homes. Reply to your licence email to sort it out.",
+  needs_report: "This home isn't counted: a licence's first two homes always count, and the third to the fifth need their usage report on (Settings \u2192 Presence \u2192 Help improve PadSpan).",
 };
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
   box.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#cbd5e1;margin-bottom:4px" }, "Homes"));
   box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
-    "One licence covers up to five homes (five Home Assistants). A home that hasn't checked in for 45 days frees its place by itself."));
+    "One licence covers up to five homes (five Home Assistants). The first two always count; the third to the fifth need their usage report on " +
+    "(Settings \u2192 Presence \u2192 Help improve PadSpan), which is how one licence's homes are seen together. " +
+    "A home that hasn't checked in for 45 days frees its place by itself."));
   if (HOME_REFUSED[s.license_home_status]) {
     box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]));
   }
@@ -2937,14 +2940,19 @@ function _licenceHomes(ctx, el, s){
     try { r = await ctx.actions.wsCall("padspan_ha/licence_homes", { op, ...(extra || {}) }); }
     catch (e) { list.textContent = "Couldn't reach the licence server: " + String((e && e.message) || e); return; }
     list.textContent = "";
-    list.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;margin-bottom:6px" },
+    // The licence they share, said the same way in each of its homes.
+    const L = r.licence || {};
+    list.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;margin-bottom:6px;line-height:1.5" },
+      `One licence${L.key_end ? " (key ending " + L.key_end + ")" : ""}${L.owner ? " for " + L.owner : ""}: ` +
       `${r.homes.length} of ${r.homes_max} homes` + (r.frozen ? " \u00B7 paused for new homes" : "")));
+    r.homes.forEach((h, i) => { h._place = i + 1; });
     for (const h of r.homes) {
       const name = h.label || (h.this ? "This home" : "A home");
       const line = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:1px solid #16271d;font-size:12px" });
       line.appendChild(el("span", { style: "color:#e2e8f0;font-weight:600;min-width:120px" }, name + (h.this ? " (this one)" : "")));
       line.appendChild(el("span", { style: "color:#94a3b8" },
-        (h.last_seen ? "last check " + h.last_seen : "not checked in yet") + (h.version ? " \u00B7 " + h.version : "")));
+        `Home ${h._place} \u00B7 ` + (h.last_seen ? "last check " + h.last_seen : "not checked in yet") + (h.version ? " \u00B7 " + h.version : "") +
+        (h._place > (L.homes_free || 2) ? (h.reporting ? " \u00B7 usage report on" : " \u00B7 needs its usage report on") : "")));
       if (h.this) {
         line.appendChild(el("button", { class: "btn inline", type: "button", style: "font-size:11px", onclick: () => {
           const v = prompt("A name for this home (your other homes show it):", h.label || "");

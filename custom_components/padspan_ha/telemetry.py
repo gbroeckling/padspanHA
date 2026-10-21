@@ -12,6 +12,10 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     the country and language set in Home Assistant (Settings → System →
         General): a two-letter code and a language tag such as "en-GB",
         left out when blank — never looked up from the address
+    with a licence key, the licence's group code: 16 hex characters made
+        from the key (never the key), the same in every home of that
+        licence, so its homes are seen together (licence_homes.py: homes
+        after a key's first two count while their report is on)
     how many scanners / floors / rooms / placed lights / walls / maps / IRKs
     which feature switches are on, and which theme the panel wears
         (Day, Light, or a named palette; Night is the absence of all three)
@@ -673,8 +677,19 @@ RUNS_KEYS: tuple[str, ...] = ("starts", "unclean", "rss_mb", "mem_avail_pc", "sw
 _TOP_KEYS: frozenset[str] = frozenset({
     "schema", "install_id", "day", "version", "edition", "tier", "ha_version",
     "python", "env", "features", "usage", "health", "errors", "presets",
-    "country", "language",
+    "country", "language", "licence_group",
 })
+# One licence's homes, together: a code made from the key, never the key.
+_GROUP_RE = re.compile(r"[0-9a-f]{16}")
+
+
+def licence_group(key: str) -> str | None:
+    """The licence's group code for the report (None without a key)."""
+    k = str(key or "").strip().upper()
+    if not k:
+        return None
+    import hashlib  # noqa: PLC0415
+    return hashlib.sha256(("padspan-licence-group|" + k).encode()).hexdigest()[:16]
 # HA's configured country (ISO 3166 alpha-2) and language (a short BCP 47
 # tag: "en", "en-GB", "zh-Hant", "es-419"). Anything else is left out.
 _COUNTRY_RE = re.compile(r"[A-Z]{2}")
@@ -1538,6 +1553,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         payload["country"] = country.strip().upper()
     if isinstance(language, str) and _LANGUAGE_RE.fullmatch(language.strip()):
         payload["language"] = language.strip()
+    _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    _grp = licence_group(str((_st.data if _st else {}).get("forensics_license_key") or ""))
+    if _grp:
+        payload["licence_group"] = _grp
     # The cap refuses the WHOLE report, and a refused one keeps its counters,
     # so the next is no smaller: one busy day silenced an install until HA
     # restarted. The presets are a courtesy sample (popular_presets.py) — on
@@ -1589,6 +1608,10 @@ def assert_shareable(payload: dict[str, Any]) -> None:
                 raise ValueError("country is not a two-letter code")
             if path == ".language" and not _LANGUAGE_RE.fullmatch(node):
                 raise ValueError("language is not a language tag")
+            if path == ".licence_group":
+                if not _GROUP_RE.fullmatch(node):
+                    raise ValueError("licence_group is not a group code")
+                return
             # Most specific first, so the message names the real shape (a
             # UUID's tail is also twelve hex digits).
             for name, rx in (("UUID", _UUID_RE), ("32-hex", _HEX32_RE), ("licence key", _KEY_RE),
