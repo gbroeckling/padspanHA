@@ -161,3 +161,9 @@ def test_the_server_keeps_the_card_s_smallest_screen():
 
 def test_live_aboard_re_reads_the_scale_when_settings_change_it():
     assert 'host.style.getPropertyValue("--wall-ui")' in _src("views/live_aboard.js")
+
+
+def test_a_portrait_wall_opens_on_the_whole_house_not_room_scale():
+    la = _src("views/live_aboard.js")
+    assert "if (camera.aspect >= 0.8 || onWallPage(root)) return;" in la, "the first view"
+    assert "if (camera.aspect < 0.8 && !onWallPage(root)) g.radius" in la, "and the sidebar's home view"
