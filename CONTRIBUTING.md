@@ -38,7 +38,11 @@ template. Describe your use case so we understand *why* the feature matters.
 2. Keep commits focused -- one logical change per commit.
 3. Test your changes against a running Home Assistant instance.
 4. Open a PR to `main` with a short description of what changed and why.
-5. A maintainer will review and merge when ready.
+5. Agree to the [Contributor Licence Agreement](CLA.md) (a tick box in the PR
+   template, once). PadSpan HA is dual-licensed (GPL-3.0 and a commercial
+   licence, see [LICENSING.md](LICENSING.md)); the CLA lets your contribution
+   be offered under both. You keep your copyright.
+6. A maintainer will review and merge when ready.
 
 ## How This Project Is Built
 
