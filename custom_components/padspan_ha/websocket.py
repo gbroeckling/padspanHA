@@ -345,6 +345,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .emergency_test import WS_COMMANDS as _emergency_commands
     for _cmd in _emergency_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Sub-zones (ws_subzones.py) — normally off; list works, the rest refuse while off.
+    from .ws_subzones import WS_COMMANDS as _subzone_commands
+    for _cmd in _subzone_commands:
+        websocket_api.async_register_command(hass, _cmd)
     # Live Aboard, the 3D house (ws_house3d.py) — normally off; get works, the rest refuse while off.
     from .ws_house3d import WS_COMMANDS as _house3d_commands
     for _cmd in _house3d_commands:

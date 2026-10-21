@@ -44,6 +44,7 @@ from .const import (
 from .presence_coordinator import PresenceCoordinator
 from .presence_rules import away_timeout_s, calc_distance as _calc_distance
 from .entity_identity import alternates_of, pick_uid_key, registry_ready, uid_safe
+from .subzones import SubzoneEntityMixin, async_setup_entities as _subzone_entities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -181,6 +182,9 @@ async def async_setup_entry(
         occ_coord = PadSpanOccupancyCoordinator(hass, compute_occupancy_estimate)
         await occ_coord.async_config_entry_first_refresh()
         async_add_entities([PadSpanOccupancySensor(occ_coord)])
+
+    # ── Sub-zones: who is in each (subzones.py; none unless switched on and added) ──
+    await _subzone_entities(hass, entry, async_add_entities, PadSpanSubzoneWhoSensor)
 
 
 def _should_track(obj: dict[str, Any]) -> bool:
@@ -579,3 +583,22 @@ class PadSpanOccupancySensor(CoordinatorEntity["PadSpanOccupancyCoordinator"], S
                        for p in (d.get("people") or [])],
             "rooms": room_summary,
         }
+
+
+class PadSpanSubzoneWhoSensor(SubzoneEntityMixin, CoordinatorEntity, SensorEntity):
+    """Who is in a sub-zone: their labels, comma-separated, or "none"."""
+
+    _attr_icon = "mdi:account-box-outline"
+    _suffix = "who"
+
+    def __init__(self, coordinator, zid: str) -> None:
+        super().__init__(coordinator)
+        self._setup(zid)
+
+    @property
+    def name(self) -> str:
+        return "Who"
+
+    @property
+    def native_value(self) -> str:
+        return (", ".join(self._people) or "none")[:255]

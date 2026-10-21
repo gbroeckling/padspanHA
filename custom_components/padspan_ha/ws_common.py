@@ -44,6 +44,8 @@ from .const import (
     WLED_LOOKS_STORE_KEY,
     DATA_HOUSE3D,
     HOUSE3D_STORE_KEY,
+    DATA_SUBZONES,
+    SUBZONES_STORE_KEY,
     DATA_LOST_AND_FOUND,
     LOST_AND_FOUND_STORE_KEY,
     LIGHT_SHAPE_KINDS,
@@ -351,6 +353,7 @@ _ALL_STORE_KEYS = [
     WLED_LOOKS_STORE_KEY,
     HOUSE3D_STORE_KEY,
     LOST_AND_FOUND_STORE_KEY,
+    SUBZONES_STORE_KEY,
 ]
 
 
@@ -389,6 +392,8 @@ _DATA_KEY_MAP = {
     # reset all of it, because it was never in a backup. Its live data is
     # `records` (ws_backup handles the attribute).
     LOST_AND_FOUND_STORE_KEY: DATA_LOST_AND_FOUND,
+    # Sub-zones (subzones.py): no file until one is added, like Live Aboard's.
+    SUBZONES_STORE_KEY: DATA_SUBZONES,
 }
 
 
@@ -396,7 +401,7 @@ _DATA_KEY_MAP = {
 # off: an install that never used it has no file, and its backups must carry
 # no entry for it, or a later restore would create the file, or empty one that
 # has furniture in it by then (house3d_store.py).
-_BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY})
+_BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY, SUBZONES_STORE_KEY})
 
 # "There was no file": what a safety backup taken right before an operation
 # that may CREATE one of those stores records for it (the Bright import's;
