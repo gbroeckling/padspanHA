@@ -3061,6 +3061,8 @@ export function buildLightsMapCard(hostIn){
           // The sun (sun.sun, else hass.config) and true north (the GPS
           // Bridge's bearing), from what the host already holds.
           states: h3.states, config: h3.config, bearing: h3.settings.fabric_bearing_deg,
+          // The director reads the states as they are now, between draws.
+          liveStates: typeof h3.liveStates === "function" ? h3.liveStates : null,
           saveNorth: typeof h3.saveNorth === "function" ? h3.saveNorth : null,
           // Taps and holds act through the host's own use api (the flat
           // map's), and motion reads quiet after a restart as it does here.

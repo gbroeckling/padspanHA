@@ -406,7 +406,8 @@ class PadSpanLightsApp extends HTMLElement {
         this.state._house3d = { atlas_3d_enabled: s.atlas_3d_enabled, atlas_3d_quality: s.atlas_3d_quality,
           fabric_bearing_deg: s.fabric_bearing_deg, atlas_3d_weather: s.atlas_3d_weather, atlas_3d_showcase: s.atlas_3d_showcase, atlas_3d_look: s.atlas_3d_look,
           atlas_3d_people: s.atlas_3d_people, presence_poll_interval_s: s.presence_poll_interval_s, light_shapes: s.light_shapes,
-          atlas_3d_tags: s.atlas_3d_tags, atlas_3d_carries: s.atlas_3d_carries, atlas_3d_home_idle_s: s.atlas_3d_home_idle_s };
+          atlas_3d_tags: s.atlas_3d_tags, atlas_3d_carries: s.atlas_3d_carries, atlas_3d_home_idle_s: s.atlas_3d_home_idle_s,
+          atlas_3d_director: s.atlas_3d_director };
       }
       this.state._wholeHousePresets = Array.isArray(s.whole_house_presets) ? s.whole_house_presets : [];
       // Layout v2 (Garry, 2026-09-21) is a house-wide trial toggle, set
@@ -1053,6 +1054,8 @@ class PadSpanLightsApp extends HTMLElement {
         mapOnly: true,
         // The sun's position (sun.sun) and the place (hass.config): no new calls.
         states: this._hass?.states || {}, config: this._hass?.config || null,
+        // The director (live_aboard_director.js): the states as they are now.
+        liveStates: ()=>this._hass?.states || {},
         // The 3D compass's Save: the GPS Bridge's own bearing,
         // fabric_bearing_deg, written alone and kept here at once.
         saveNorth: async (b)=>{

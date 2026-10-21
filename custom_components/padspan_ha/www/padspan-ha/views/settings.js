@@ -3430,6 +3430,53 @@ const _ATLAS_3D_QUALITY = [["auto", "Auto — picked for this screen"], ["low", 
 const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard's own"]];
 // How long the sidebar's Live Aboard waits untouched before it goes back to its home view.
 const _ATLAS_3D_IDLE = [[0, "Off"], [30, "After 30 s"], [60, "After 1 min"], [300, "After 5 min"]];
+// What may fly the sidebar's Live Aboard (ws_settings.DIRECTOR_DOMAINS, DIRECTOR_MAX).
+const _DIRECTOR_DOMAINS = ["event", "binary_sensor", "alarm_control_panel"];
+const _DIRECTOR_MAX = 12;
+function _atlas3dDirector(ctx, el, settings, save, row){
+  const states = (ctx.hass && ctx.hass.states) || {};
+  const admin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
+  const nameOf = (eid) => { const a = states[eid] && states[eid].attributes; return a && a.friendly_name ? `${a.friendly_name} (${eid})` : eid; };
+  let list = (Array.isArray(settings.atlas_3d_director) ? settings.atlas_3d_director : [])
+    .filter(t => t && typeof t.entity === "string").map(t => ({ entity: t.entity, camera: typeof t.camera === "string" ? t.camera : "" }));
+  const wrap = el("div",{"data-la3d-director":""});
+  const rows = el("div",{});
+  const pickT = document.createElement("select");
+  const pickC = document.createElement("select");
+  for (const sel of [pickT, pickC]) { sel.className = "select"; sel.style.width = "auto"; sel.style.maxWidth = "100%"; sel.disabled = !admin; }
+  pickT.appendChild(el("option",{value:""}, "Pick a doorbell, door, sensor or alarm…"));
+  for (const eid of Object.keys(states).filter(e => _DIRECTOR_DOMAINS.includes(e.split(".")[0])).sort()) pickT.appendChild(el("option",{value:eid}, nameOf(eid)));
+  pickC.appendChild(el("option",{value:""}, "No camera"));
+  for (const eid of Object.keys(states).filter(e => e.startsWith("camera.")).sort()) pickC.appendChild(el("option",{value:eid}, nameOf(eid)));
+  const add = el("button",{class:"btn inline"}, "Add");
+  add.disabled = !admin;
+  if (!admin) add.title = "Only an administrator can change this";
+  const keep = (next) => { const was = list; list = next; paint(); save("atlas_3d_director", next, ()=>{ list = was; paint(); }); };
+  function paint(){
+    while (rows.firstChild) rows.removeChild(rows.firstChild);
+    if (!list.length) rows.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-top:6px"}, "Off: nothing picked."));
+    for (const t of list) {
+      const x = el("button",{class:"btn inline",title:"Remove"}, "✕");
+      x.disabled = !admin;
+      x.addEventListener("click", ()=> keep(list.filter(o => o.entity !== t.entity)));
+      rows.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:#e2e8f0"},
+        [el("span",{}, nameOf(t.entity) + (t.camera ? ` → 📷 ${nameOf(t.camera)}` : "")), x]));
+    }
+    add.disabled = !admin || list.length >= _DIRECTOR_MAX;
+  }
+  add.addEventListener("click", ()=>{
+    const e = pickT.value;
+    if (!e || list.some(o => o.entity === e)) return;
+    keep([...list, { entity: e, camera: pickC.value || "" }]);
+    pickT.value = ""; pickC.value = "";
+  });
+  paint();
+  wrap.appendChild(row("Fly to when it goes off", [pickT, pickC, add]));
+  wrap.appendChild(rows);
+  wrap.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
+    "On the sidebar, Live Aboard flies to a doorbell that rings, a door that opens, a sensor that goes off or an alarm that is triggered, shows a card (with the camera's snapshot if you picked one), then goes back to its home view after 20 s. If someone touched the screen in the last 20 s, or a card, Edit or Furnish is open, only the card shows."));
+  return wrap;
+}
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
@@ -3514,6 +3561,11 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(row("Back to home view", [idleSel]));
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "On the sidebar, Live Aboard flies back to its home view when nobody has touched it for this long. Set the home view in Views ▾ → Set as home. It waits while Edit or Furnish is open, a card is open, or you made it full screen."));
+
+  // The director (live_aboard_director.js): what the sidebar's Live Aboard
+  // flies to when it goes off, each with a camera's snapshot or none. An
+  // administrator's (ws_settings holds the same rule).
+  more.appendChild(_atlas3dDirector(ctx, el, settings, save, row));
 
   // The AI Task that reads photos in Furnish (ws_house3d_photo.py): an
   // administrator's choice, since a cloud one sends each photo out of the house.

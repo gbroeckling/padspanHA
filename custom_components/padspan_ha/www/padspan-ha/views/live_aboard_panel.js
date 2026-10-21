@@ -412,6 +412,12 @@ export function createPanel(v){
     follow: (key) => startFollow(key),
     stopFollow: () => stopFollow(),
     goHome: () => goHome(true),
+    /** Something else moved the camera (the director): no touch is counted,
+     *  it is not home, and the wait to go back runs as ever. */
+    moveQuietly(fn){ const r = own(fn); atHome = false; disarm(); arm(); return r; },
+    /** When the screen was last touched (performance.now ms). */
+    touchedAt: () => lastTouch,
+    following: () => !!follow,
     setHome,
     state(){
       return { home: readHome(), atHome, armed: timer !== null, idleMs: idleMs(), returns, follow: follow ? { ...follow } : null, gliding,
