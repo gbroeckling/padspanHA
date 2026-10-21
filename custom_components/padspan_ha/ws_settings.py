@@ -768,7 +768,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["atlas_weather_strength"] = _weather_strength(msg["atlas_weather_strength"])
         # Wall screens (settings_store: wall_*): kept to what a real wall can be.
         if "wall_screen_in" in msg:
-            payload["wall_screen_in"] = _clamped(msg["wall_screen_in"], 15, 120, 0.0, zero_ok=True)
+            payload["wall_screen_in"] = _clamped(msg["wall_screen_in"], 10, 120, 0.0, zero_ok=True)
         if "wall_distance_m" in msg:
             payload["wall_distance_m"] = _clamped(msg["wall_distance_m"], 0.3, 10, 2.5)
         if "wall_text_arcmin" in msg:

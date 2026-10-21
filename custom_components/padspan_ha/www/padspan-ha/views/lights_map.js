@@ -3342,6 +3342,7 @@ export function buildLightsMapCard(hostIn){
         classFilter: host.classFilter || null, hitHalo: !!host.hitHalo,
         collapseUnplaced: !!host.collapseUnplaced,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
+        labelScale: WALL && host.wallLabel ? host.wallLabel() : 1,
         // When HA came up (model_get's ha_started_at) — a motion sensor whose
         // last_changed is just the restart's restored timestamp draws quiet.
         haStartedMs: Date.parse(host.model && host.model.ha_started_at) || 0,

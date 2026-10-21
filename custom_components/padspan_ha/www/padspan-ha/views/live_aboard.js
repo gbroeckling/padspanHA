@@ -173,7 +173,8 @@ const wallUiOf = (() => {
   let key = "", val = 1;
   return (el) => {
     if (!el || !el.isConnected) return 1;
-    const k = `${innerWidth}x${innerHeight}`;
+    const host = el.getRootNode && el.getRootNode().host;
+    const k = `${innerWidth}x${innerHeight}:${host && host.style ? host.style.getPropertyValue("--wall-ui") : ""}`;
     if (k === key) return val;
     let v = 1;
     if (onWallPage(el)) {

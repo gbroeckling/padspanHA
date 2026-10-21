@@ -913,6 +913,9 @@ class PadSpanLightsApp extends HTMLElement {
       displayMode: true,
       // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
       wall: this.hasAttribute("data-wall"),
+      // The drawing already grows with the screen (a 4K wall draws it twice a
+      // 1080p one); room names take the rest of the wall's scale.
+      wallLabel: ()=>Math.max(1, (this._wallUi || 1) / Math.max(1, Math.min(window.innerWidth / 1920, window.innerHeight / 1080))),
       showcase: !!this.state._showcase,
       showcaseTheme: this.state._showcaseTheme || "classic",
       fitRooms: !!this.state._fitRooms,
@@ -1366,8 +1369,10 @@ class PadSpanLightsApp extends HTMLElement {
     try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
     const v2 = String(this.state?._tier || "").toLowerCase() === "pro" && !!this.state?._atlasLayoutV2;
     if(!kiosk || this._embedded || !v2){
+      // Also when a wall stops being one without a reload (the layout or
+      // the tier changed elsewhere): nothing of the wall is left behind.
       this.removeAttribute("data-wall");
-      if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
+      this._wallOff();
       this._wallNight(); this._wallShift();
       return;
     }
@@ -1444,9 +1449,8 @@ class PadSpanLightsApp extends HTMLElement {
     }, 180000);
   }
 
-  disconnectedCallback(){
-    if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
-    if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; }
+  // What a wall set up on the window and the host, undone.
+  _wallOff(){
     if(this._wallResize){ window.removeEventListener("resize", this._wallResize); this._wallResize = null; }
     if(this._wallWake){
       for(const ev of ["pointerdown", "pointermove", "keydown", "wheel"]) window.removeEventListener(ev, this._wallWake);
@@ -1454,6 +1458,15 @@ class PadSpanLightsApp extends HTMLElement {
     }
     if(this._wakeVis){ document.removeEventListener("visibilitychange", this._wakeVis); this._wakeVis = null; }
     if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
+    this.style.removeProperty("--wall-ui");
+    this.removeAttribute("data-wall-active");
+    this._wallUi = 1;
+  }
+
+  disconnectedCallback(){
+    if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
+    if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; }
+    this._wallOff();
     if(this._clientPerf){ this._clientPerf.stop(); this._clientPerf = null; }
     if(this._uiErrorHandler){
       window.removeEventListener("error", this._uiErrorHandler);

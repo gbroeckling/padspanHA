@@ -169,9 +169,12 @@ export function startClientPerf({ root, viewClass, enabled, send, states }){
         const lr = lastReportedWord(states ? states() : null);
         if (lr) send("client_dev:" + lr);
         for (const w of screenWords(window)) send("client_screen:" + w);
-        const sid = screenId(window.localStorage);
-        if (sid) send("client_screen_seen", { screen: sid });
       }
+      // Every tick: Home Assistant forgets the ids with each report, so a
+      // wall that runs for weeks is still counted in each one (it counts an
+      // id once per report, the repeats cost nothing).
+      const sid = screenId(window.localStorage);
+      if (sid) send("client_screen_seen", { screen: sid });
       const fps = await frameRate(MEASURE_MS);
       if (stopped || !enabled() || !visible()) return;
       let view = simOnScreen(root, window) ? "sim" : viewClass();

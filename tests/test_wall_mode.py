@@ -130,3 +130,34 @@ def test_its_use_is_counted():
     assert {"wall_ui:1", "wall_ui:1.5", "wall_ui:2", "wall_ui:3", "wall_awake:on", "wall_awake:off"} <= telemetry.SCREEN_EVENTS
     src = _src("lights_panel.js")
     assert 'send("wall_ui:" +' in src and 'send("wall_awake:" +' in src
+
+
+def test_flat_map_names_and_key_grow_on_a_sized_wall():
+    iso = _src("views/iso_lights.js")
+    assert "const LS = Number(opts.labelScale) > 1 ? Math.min(6, Number(opts.labelScale)) : 1;" in iso, "1 everywhere but a wall"
+    assert "const rfsBase=(SHOW?5.9:6.7)*LS;" in iso and "const LEGEND_H=32*LS;" in iso
+    assert "labelScale: WALL && host.wallLabel ? host.wallLabel() : 1," in _src("views/lights_map.js")
+    assert "(this._wallUi || 1) / Math.max(1, Math.min(window.innerWidth / 1920" in _src("lights_panel.js"), \
+        "the drawing already grows with the screen: names take only the rest"
+
+
+def test_a_wall_that_stops_being_one_leaves_nothing_behind():
+    src = _src("lights_panel.js")
+    off = src[src.index("  _wallOff(){"):]
+    off = off[:off.index("\n  }\n")]
+    for s in ('removeEventListener("resize"', '"visibilitychange"', "this._wakeLock.release()",
+              'removeProperty("--wall-ui")', 'removeAttribute("data-wall-active")'):
+        assert s in off, s
+    on = src[src.index("  _wallOn(){"):]
+    assert 'this.removeAttribute("data-wall");\n      this._wallOff();' in on[:on.index("\n  }\n")]
+    assert "disconnectedCallback(){" in src and "    this._wallOff();\n" in src
+
+
+def test_the_server_keeps_the_card_s_smallest_screen():
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "ws_settings.py").read_text(encoding="utf-8")
+    assert '_clamped(msg["wall_screen_in"], 10, 120,' in src, "the Kitchen tablet preset is 11 inches, the slider starts at 10"
+    assert 'slider("Screen size", 10, 110,' in _src("views/wall_card.js")
+
+
+def test_live_aboard_re_reads_the_scale_when_settings_change_it():
+    assert 'host.style.getPropertyValue("--wall-ui")' in _src("views/live_aboard.js")
