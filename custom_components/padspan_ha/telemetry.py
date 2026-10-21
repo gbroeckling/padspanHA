@@ -135,6 +135,10 @@ _MAX_BYTES = 8192
 # closed list, because the report's KEYS are also data that leaves the box,
 # and an open pattern would let any authenticated user put a word into it.
 EVENTS: frozenset[str] = frozenset({
+    # 0.38.160: a device's room held through a short gap (once per hold, so
+    # whether the setting ever does anything in a real house), and a robot
+    # vacuum's map imported / a walker point accepted into calibration.
+    "room_hold_used", "vacuum_imported", "vacuum_point_accepted",
     "light_placed", "light_removed", "wall_placed", "wall_removed",
     "room_committed", "irk_added", "irk_add_refused", "irk_validate",
     "calibration_point_added", "capture_started", "forensics_query",
@@ -527,6 +531,14 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     # Themes (0.38.157): Light for everyone, Day on Pro; the stored switch,
     # so a lapsed Pro still says day_theme. theme_palette is in the ENUMS.
     "day_theme", "light_theme",
+)
+# 0.38.160's switches, all off by default: whether anyone turns them on.
+# Sent ONLY when on (true), so a house that never touches them sends exactly
+# the report it always did. The last three are on when non-zero or non-empty,
+# reported as on only, never the number or what's in them.
+_FEATURE_ON_ONLY: tuple[str, ...] = (
+    "atlas_live_colours", "atlas_alert_pulse", "subzones_enabled", "room_reason_attribute",
+    "roomplan_import_enabled", "wall_fully", "hold_last_room_s", "wall_floor_cycle_s", "atlas_3d_director",
 )
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
@@ -1381,6 +1393,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         pass
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
+    for k in _FEATURE_ON_ONLY:
+        if settings.get(k):
+            features[k.removesuffix("_s")] = True
     for k in _FEATURE_ENUMS:
         v = settings.get(k)
         if isinstance(v, str) and 0 < len(v) <= 16:

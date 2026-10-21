@@ -39,6 +39,7 @@ Everything new in this version is off until you turn it on. With nothing turned 
 - The screen counts (`client_screen:*`) now count each screen once per report; they were counted once per page load. A screen is no longer counted twice after a report fails to send.
 - With a licence key on more than two homes, the licence's group code (`licence_group`): a short code made from the key, never the key, the same in each of that licence's homes so they can be seen together. The code is sent only from a key on more than two homes; a house with one or two sends what it always did.
 - Errors in the new heatmap, Trails, director and robot vacuum import code are counted by name like the rest of the panel's (`ui_error:*`).
+- Which of this version's new switches are on (Alert pulse, light colours, sub-zones, why-this-room, RoomPlan import, Fully Kiosk, room hold, floor cycle, director), sent only when one is on, so a house that never turns them on sends what it always did. And how often a room is held through a gap (`room_hold_used`), a robot vacuum's map is imported (`vacuum_imported`) and a walker point is accepted into calibration (`vacuum_point_accepted`).
 
 ---
 

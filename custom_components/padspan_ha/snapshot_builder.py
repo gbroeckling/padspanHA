@@ -3164,6 +3164,9 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
         _hold_s = float(((_hold_st.data if _hold_st else {}).get("hold_last_room_s") or 0.0))
         _hold_pc = hass.data.get(DOMAIN, {}).get("presence_coordinator")
         if _hold_s > 0 and _hold_pc is not None and hasattr(_hold_pc, "held_room"):
+            # Counted once per hold (opt-in report: room_hold_used), not per snapshot.
+            _was = hass.data.setdefault(DOMAIN, {}).setdefault("_room_held_keys", set())
+            _now: set = set()
             for _obj in (snap.get("objects") or {}).get("list") or []:
                 if _obj.get("room") or _obj.get("away"):
                     continue
@@ -3171,6 +3174,11 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
                 if _held:
                     _obj["room"] = _held
                     _obj["room_held"] = True
+                    _now.add(_obj.get("key") or "")
+            if _now - _was:
+                from .telemetry import bump as _bump  # noqa: PLC0415
+                _bump(hass, "room_hold_used", len(_now - _was))
+            hass.data[DOMAIN]["_room_held_keys"] = _now
     except Exception as _hold_err:
         _LOGGER.warning("Room hold failed: %s", _hold_err, exc_info=True)
 

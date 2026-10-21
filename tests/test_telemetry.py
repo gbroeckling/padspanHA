@@ -1626,3 +1626,11 @@ def test_the_move_out_of_www_is_reported_only_when_it_did_something():
 
 def test_a_stale_floor_plan_link_is_a_known_event():
     assert T.event_allowed("map_image_stale")
+
+
+def test_new_switches_are_reported_only_when_on():
+    """0.38.160: a house that never turns the new features on sends the report it always did."""
+    from pathlib import Path
+    src = Path(T.__file__).read_text(encoding="utf-8")
+    assert "for k in _FEATURE_ON_ONLY:\n        if settings.get(k):" in src.replace("\r\n", "\n")
+    assert "room_hold_used" in T.EVENTS and "vacuum_imported" in T.EVENTS and "vacuum_point_accepted" in T.EVENTS

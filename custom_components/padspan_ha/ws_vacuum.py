@@ -182,6 +182,8 @@ async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
     await vs.async_save()
     _LOGGER.info("Vacuum map imported as map %s on %s: %d rooms added, %d skipped (already there)",
                  map_id, floor_id, len(added), len(skipped))
+    from .telemetry import bump as _bump  # noqa: PLC0415
+    _bump(hass, "vacuum_imported")
     connection.send_result(msg["id"], {"ok": True, "map": info, "rooms_added": added,
                                        "rooms_skipped": skipped, "linkable": bool(read.get("read"))})
 
@@ -265,6 +267,8 @@ async def ws_vacuum_cal_pending_accept(hass: HomeAssistant, connection, msg) -> 
         return
     vs.take_pending(p["id"])
     await vs.async_save()
+    from .telemetry import bump as _bump  # noqa: PLC0415
+    _bump(hass, "vacuum_point_accepted")
     connection.send_result(msg["id"], {"ok": True, "point": saved, "pending": len(vs.pending_list())})
 
 
