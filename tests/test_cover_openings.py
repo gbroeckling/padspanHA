@@ -125,3 +125,13 @@ out.la = [H.openingState(bar, {{entity_id:'cover.b', state:'open', position:40}}
     assert 'stroke="#94a3b8" stroke-width="2.6"' not in out["part"]
     assert out["shutCover"] == out["shutSensor"]
     assert out["la"] == ["open", "closed", "none", "open"]
+
+
+def test_the_cover_percent_grows_on_a_wall_screen_like_the_room_names():
+    one = _draw('cover.hall_blind', 'open', 'blind', 40)
+    wall = one[:-2] + ",labelScale:2})"
+    out = _run(f"out.one = {one};\nout.wall = {wall};")
+    import re
+    pct = lambda s: re.search(r'<text class="lv-coverpct"[^>]*font-size="([\d.]+)"', s).group(1)  # noqa: E731
+    assert pct(out["one"]) == "8"
+    assert pct(out["wall"]) == "16"
