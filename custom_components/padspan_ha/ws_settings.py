@@ -529,6 +529,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("walk_to_identify_enabled"): bool,
         vol.Optional("radio_map_enabled"): bool,
         vol.Optional("distortion_map_enabled"): bool,
+        vol.Optional("roomplan_import_enabled"): bool,
         vol.Optional("phone_wizard_enabled"): bool,
         vol.Optional("mac_rotation_bridging"): bool,
         vol.Optional("apple_auto_classify"): bool,
@@ -981,6 +982,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "overview_2d_mode", "beacon_profiling_enabled",
                     "walk_to_identify_enabled",
                     "radio_map_enabled", "distortion_map_enabled",
+                    "roomplan_import_enabled",
                     "rssi_capture_enabled",
                     "phone_wizard_enabled", "mac_rotation_bridging",
                     "apple_auto_classify", "low_memory_mode"):

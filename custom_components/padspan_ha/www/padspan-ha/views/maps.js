@@ -10603,9 +10603,9 @@ function _roomsTab(ctx, maps) {
     card.appendChild(addRow);
   }
 
-  // ── Import a floorplan file (gap #7, best-in-class roadmap; tier 1 of 3:
-  // Sweet Home 3D today, RoomPlan JSON and image room-detection are future
-  // tiers) ─────────────────────────────────────────────────────────────
+  // ── Import a floorplan file (gap #7, best-in-class roadmap; tiers 1-2 of
+  // 3: Sweet Home 3D, and RoomPlan JSON behind its setting; image
+  // room-detection is the future tier) ───────────────────────────────
   // Parses to a CANDIDATE layout for THIS floor — nothing is written until
   // the user reviews and commits it via the same mechanism "Map
   // placements"/"Blended" already use below (the truth selector further
@@ -10614,10 +10614,14 @@ function _roomsTab(ctx, maps) {
   // average against the fabric.
   {
     const importRow = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px" });
+    // Apple RoomPlan JSON (roomplan_import.py) only while its setting is on;
+    // off, the picker and its button are exactly the .sh3d ones.
+    const roomplanOn = ctx.state.settings?.roomplan_import_enabled === true;
     const fileInput = document.createElement("input");
-    fileInput.type = "file"; fileInput.accept = ".sh3d"; fileInput.style.display = "none";
+    fileInput.type = "file"; fileInput.accept = roomplanOn ? ".sh3d,.json" : ".sh3d"; fileInput.style.display = "none";
     const importStatus = el("span", { class: "muted", style: "font-size:11px" }, "");
-    const importBtn = el("button", { class: "btn inline" }, "📐 Import floorplan (.sh3d)");
+    const importBtn = el("button", { class: "btn inline" },
+      roomplanOn ? "📐 Import floorplan (.sh3d, RoomPlan .json)" : "📐 Import floorplan (.sh3d)");
     importBtn.addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files && fileInput.files[0];
@@ -10631,7 +10635,9 @@ function _roomsTab(ctx, maps) {
           fr.onerror = rej; fr.readAsDataURL(file);
         });
         importStatus.textContent = "Parsing…";
-        const parsed = await ctx.actions.wsCall("padspan_ha/floorplan_import_sh3d", { sh3d_base64: b64 });
+        const parsed = roomplanOn && /\.json$/i.test(file.name || "")
+          ? await ctx.actions.wsCall("padspan_ha/floorplan_import_roomplan", { roomplan_base64: b64 })
+          : await ctx.actions.wsCall("padspan_ha/floorplan_import_sh3d", { sh3d_base64: b64 });
         if (!parsed.rooms.length) {
           ctx.toast("No usable rooms found in that file" + (parsed.warnings.length ? ": " + parsed.warnings[0] : ""), true);
           importStatus.textContent = "";
@@ -10854,7 +10860,7 @@ function _roomsTab(ctx, maps) {
           importedRooms[name] = { type: "poly", points_m: r.points_m };
         });
         candidates.imported = {
-          label: "Imported (SH3D)", rooms: importedRooms,
+          label: raw.source === "roomplan" ? "Imported (RoomPlan)" : "Imported (SH3D)", rooms: importedRooms,
           stats: { rooms: Object.keys(importedRooms).length, clusters: _roomClusterCount(Object.entries(importedRooms)) },
         };
       }
@@ -10938,7 +10944,7 @@ function _roomsTab(ctx, maps) {
     const options = [["fabric", "Fabric (saved)", fabricStats]];
     if (candidates.transforms) options.push(["transforms", "Map placements", candidates.transforms.stats]);
     if (candidates.blended) options.push(["blended", "Blended", candidates.blended.stats]);
-    if (candidates.imported) options.push(["imported", "Imported (SH3D)", candidates.imported.stats]);
+    if (candidates.imported) options.push(["imported", candidates.imported.label, candidates.imported.stats]);
     for (const [key, label, stats] of options) {
       selRow.appendChild(el("button", {
         class: "btn inline" + (truth === key ? " primary" : ""),

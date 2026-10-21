@@ -283,6 +283,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "walk_to_identify_enabled": False,      # spatial correlation device discovery ("who just walked in?")
     "radio_map_enabled": False,             # RSSI heatmap overlay on floor plan maps
     "distortion_map_enabled": False,        # calibration disagreement visualization
+    "roomplan_import_enabled": False,       # Rooms tab: also import Apple RoomPlan .json scans
     # ── RSSI vector capture (off by default) ─────────────────────────────────
     # Records the full per-scanner RSSI vector for tracked objects, plus the
     # room the pipeline chose, so a trace can be replayed offline against
