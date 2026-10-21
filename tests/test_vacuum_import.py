@@ -431,3 +431,37 @@ def test_calibration_is_only_ever_written_by_the_accept_handler():
             assert src.rfind("async def ", 0, calls[0]) == src.index("async def ws_vacuum_cal_pending_accept")
         for forbidden in ("async_delete_point", "async_clear", "async_remap_from_metres", "async_prune"):
             assert forbidden not in src
+
+
+# ── the panel ───────────────────────────────────────────────────────────────
+
+_WWW = CC / "www" / "padspan-ha"
+
+
+def test_marker_in_the_3d_house_only_with_a_linked_vacuum():
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    res = subprocess.run([node, str(Path(__file__).parent / "js" / "vacuum_marker.mjs"), str(_WWW)],
+                         capture_output=True, text=True, encoding="utf-8", timeout=120)
+    lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
+    assert lines, res.stderr[-2000:]
+    out = json.loads(lines[-1])
+    assert out["cases"] and all(out["cases"].values()), out["failures"]
+
+
+def test_import_block_sits_beside_the_sh3d_import_and_is_closed_by_default():
+    maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    sh3d = maps.index('"📐 Import floorplan (.sh3d)"')
+    hook = maps.index("VACUUM.vacuumImportBlock(ctx, floorId)")
+    assert 0 < hook - sh3d < 3000
+    assert ".catch(err => { console.warn(\"PadSpan: vacuum_import failed to load\"" in maps
+    js = (_WWW / "views" / "vacuum_import.js").read_text(encoding="utf-8")
+    assert "open: false" in js and "if (!st.open) return wrap;" in js
+    # Nothing is read from the backend until the block is opened.
+    head = js[js.index("export function vacuumImportBlock"):js.index("if (!st.open) return wrap;")]
+    assert "wsCall" not in head.replace("refresh(ctx)", "")
+    # The panel never writes calibration itself: only the accept command does.
+    assert "calibration_save_point" not in js and "padspan_ha/vacuum_cal_pending_accept" in js
