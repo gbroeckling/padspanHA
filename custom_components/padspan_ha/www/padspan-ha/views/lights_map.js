@@ -3330,6 +3330,7 @@ export function buildLightsMapCard(hostIn){
     const svgStr = buildIsoSVG(host.model, abDrawn ? abDrawn.byRoom : host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
       view.floorGap, view.horizGap, abDrawn ? abDrawn.lightsByEid : host.lightsByEid, host.lightsLoading, floors,
       { showcase: !!host.showcase, showcaseTheme: host.showcaseTheme || "classic",
+        liveColours: !!host.liveColours,
         fitRooms: !!host.showcase && !!host.fitRooms,
         ambient: host.ambient, isolux: !!host.showcase && !!host.isolux,
         sceneField: host.showcase ? sceneFieldFor(host.sceneName, host.sceneAngle) : null,

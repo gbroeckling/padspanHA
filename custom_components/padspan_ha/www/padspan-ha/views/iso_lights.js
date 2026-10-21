@@ -2985,10 +2985,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // The working map wears the live colour too, but only over the default
   // amber pin: a pin given its own colour keeps it, and a light reporting no
   // colour (onoff, white mode) is drawn exactly as it always was.
+  // Only when asked (Settings → UI Structure → Atlas, opts.liveColours):
+  // off, the working map is amber exactly as it always was.
+  const LIVECOL=!!opts.liveColours;
   const bodyCol=(l,entry)=>{
     if(SHOW) return glowCol(l,entry);
     const pin=(entry&&entry.color)||"#fbbf24";
-    return String(pin).toLowerCase()==="#fbbf24" ? (liveCol(l)||pin) : pin;
+    return LIVECOL && String(pin).toLowerCase()==="#fbbf24" ? (liveCol(l)||pin) : pin;
   };
   // Detail has to be legible on whatever colour the fixture is throwing, and a
   // WLED run can be anything from pale yellow to deep blue — so the ink is

@@ -6208,7 +6208,7 @@ def test_the_floor_legend_names_floors_whose_level_is_unset(tmp_path):
     assert out["legend"] == ["1", "Basement", "2", "Main", "3", "Upper"], out
 
 
-def _working_marker(tmp_path, light: dict, pin: str | None = None) -> dict:
+def _working_marker(tmp_path, light: dict, pin: str | None = None, live: bool = True) -> dict:
     """The working (non-Showcase) map's body fill and code ink for one light."""
     pos = {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"}
     if pin:
@@ -6221,7 +6221,7 @@ def _working_marker(tmp_path, light: dict, pin: str | None = None) -> dict:
     return _run_js(tmp_path, (
         "import * as M from './iso_lights.mjs';\n"
         f"const svg=M.buildIsoSVG({json.dumps(model)},{{}},new Set(),null,150,0,{json.dumps(lbe)},"
-        f"false,{json.dumps([{'id': 'main', 'name': 'Main', 'level': 0}])},{{}});\n"
+        f"false,{json.dumps([{'id': 'main', 'name': 'Main', 'level': 0}])},{json.dumps({'liveColours': live})});\n"
         "const g=svg.slice(svg.indexOf('data-eid=\"light.a\"'));\n"
         "const out={fill:/<circle cx=\"[^\"]+\" cy=\"[^\"]+\" r=\"[^\"]+\" fill=\"([^\"]+)\"/.exec(g)?.[1]||null,\n"
         "  ink:/<text[^>]*fill=\"([^\"]+)\"[^>]*>A01</.exec(g)?.[1]||null};\n"
@@ -6262,3 +6262,10 @@ def test_a_pin_given_its_own_colour_keeps_it_over_the_live_colour(tmp_path):
 def test_an_off_light_stays_the_working_maps_dark_slate(tmp_path):
     out = _working_marker(tmp_path, {"state": "off", "rgb": [255, 0, 0]})
     assert out["fill"] == "#374151", out
+
+
+def test_live_colours_are_off_unless_asked(tmp_path):
+    """Current users' maps don't change: without Settings -> UI Structure ->
+    Atlas -> "Draw lit lights in their own colour", a lit light stays amber."""
+    out = _working_marker(tmp_path, {"rgb": [16, 240, 128]}, live=False)
+    assert out["fill"] == "#fbbf24" and out["ink"] == "#111827", out

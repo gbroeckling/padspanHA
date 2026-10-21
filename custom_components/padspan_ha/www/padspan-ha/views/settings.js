@@ -3837,6 +3837,27 @@ function _settingsUI(ctx, el){
       ctx.toast("Could not save: " + String((e && e.message) || e), true);
     }
   });
+  // Lights in their own colours on the working Atlas (Showcase always does).
+  // Off by default: the map everyone knows stays amber until asked.
+  const colRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
+  const colCb = el("input",{type:"checkbox"});
+  colCb.checked = settings.atlas_live_colours === true;
+  colRow.appendChild(colCb);
+  colRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Draw lit lights in their own colour on the Atlas (a colour bulb's colour, a white bulb's warm or cool)"));
+  lightsCard.appendChild(colRow);
+  const colNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"}, "Off: lit lights are amber, as always. Showcase always uses their colours.");
+  lightsCard.appendChild(colNote);
+  colCb.addEventListener("change", async ()=>{
+    const want = colCb.checked;
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_live_colours: want });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      colNote.textContent = "Saved \u2014 the Atlas changes at its next refresh.";
+    } catch (e) {
+      colCb.checked = !want;
+      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+    }
+  });
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
   // all, and whatever is stored is kept for when a key comes back.

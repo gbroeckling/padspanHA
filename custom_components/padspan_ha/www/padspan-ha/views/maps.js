@@ -9657,6 +9657,7 @@ function _lightsTab(ctx, maps, active) {
     showcase: mapState._lightsShowcase === undefined
       ? !!ctx.state.settings?.lights_showcase
       : !!mapState._lightsShowcase,
+    liveColours: ctx.state.settings?.atlas_live_colours === true,
     fitRooms: mapState._lightsFitRooms === undefined
       ? !!ctx.state.settings?.lights_fit_rooms
       : !!mapState._lightsFitRooms,
