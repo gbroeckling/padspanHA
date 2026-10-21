@@ -434,21 +434,67 @@ export function hullOf(points){
   return h.length >= 3 ? h : [];
 }
 
+/** Where each drawn level's metre origin lands on screen (frame.iso at
+ *  0,0 per level), so a plate can be moved straight down to the one below:
+ *  the screen alone cannot tell up from back in an isometric drawing. */
+export function plateOffsets(frame){
+  const out = new Map();
+  if (!frame || typeof frame.iso !== "function") return out;
+  for (const z of frame.levels || []) {
+    const q = frame.iso(0, 0, z);
+    if (Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])) out.set(Number(z), q);
+  }
+  return out;
+}
+
+const isConvex = (P) => {
+  let sign = 0;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], b = P[(i + 1) % P.length], c = P[(i + 2) % P.length];
+    const x = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+    if (Math.abs(x) < 1e-9) continue;
+    if (sign && Math.sign(x) !== sign) return false;
+    sign = Math.sign(x);
+  }
+  return true;
+};
+
 /** The space between two stacked floors is inside the house (Garry,
- *  2026-10-14: rain fell between the floors): each indoor plate is joined
- *  to the next one up by the outline round both, so the stack is one shape
- *  and rain falls round the building, never between its storeys. Above the
- *  top floor nothing is drawn, so nothing is joined there, and nothing is
- *  joined across an outdoor plate (a garden drawn between two floors keeps
- *  its rain). plates: every plate drawn, {z, polys}; outdoorZ: theirs. */
-export function stackJoins(plates, outdoorZ){
+ *  2026-10-14: rain fell between the floors): each polygon of an indoor
+ *  plate is swept straight down to the next indoor plate below it, so the
+ *  column under every storey is masked and rain falls round the building,
+ *  never between its storeys. Never one outline across separate polygons:
+ *  a hull over both plates bridged the open air beside a smaller upper
+ *  floor (an L or a U, a one-storey wing, a detached garage), and no rain
+ *  fell there. A convex polygon swept is the hull of it and its moved copy;
+ *  anything else is the polygon plus a quad per edge. Above the top floor
+ *  nothing is drawn, so nothing is joined there, and nothing is joined
+ *  across an outdoor plate (a garden drawn between two floors keeps its
+ *  rain). plates: every plate drawn, {z, polys}; outdoorZ: theirs;
+ *  offsets: plateOffsets(frame) (a level with no offset joins nothing). */
+export function stackJoins(plates, outdoorZ, offsets){
   const outZ = outdoorZ instanceof Set ? outdoorZ : new Set();
+  const off = offsets instanceof Map ? offsets : new Map();
   const up = [...(plates || [])].filter(p => p && Array.isArray(p.polys) && p.polys.length).sort((a, b) => a.z - b.z);
   const out = [];
   for (let i = 0; i + 1 < up.length; i++) {
     if (outZ.has(up[i].z) || outZ.has(up[i + 1].z)) continue;
-    const h = hullOf([...up[i].polys.flat(), ...up[i + 1].polys.flat()]);
-    if (h.length) out.push(h);
+    const lo = off.get(up[i].z), hi = off.get(up[i + 1].z);
+    if (!lo || !hi) continue;
+    const dx = lo[0] - hi[0], dy = lo[1] - hi[1];
+    const mv = (q) => [q[0] + dx, q[1] + dy];
+    for (const P of up[i + 1].polys) {
+      if (isConvex(P)) {
+        const h = hullOf([...P, ...P.map(mv)]);
+        if (h.length) out.push(h);
+        continue;
+      }
+      out.push(P);
+      for (let k = 0; k < P.length; k++) {
+        const a = P[k], b = P[(k + 1) % P.length];
+        out.push([a, b, mv(b), mv(a)]);
+      }
+    }
   }
   return out;
 }
@@ -774,7 +820,7 @@ function createSlot(slotKey){
         if (!geo) { err("mask_build"); detach(); return false; }
         const outZ = p.outdoorZ instanceof Set ? p.outdoorZ : new Set();
         // The indoor plates and the space between each and the next one up.
-        const polys = [...geo.plates.filter(pl => !outZ.has(pl.z)).flatMap(pl => pl.polys), ...stackJoins(geo.plates, outZ)];
+        const polys = [...geo.plates.filter(pl => !outZ.has(pl.z)).flatMap(pl => pl.polys), ...stackJoins(geo.plates, outZ, p.plateOffsets)];
         // ~3 px of feathered gap at every wall, whatever the zoom: the
         // stage's width in screen px over the viewBox's width in units.
         const ppu = Math.max(0.2, ((Number(p.stageWidth) || globalThis.innerWidth || 1000) * (Number(p.zoom) || 1)) / geo.viewBox[2]);
