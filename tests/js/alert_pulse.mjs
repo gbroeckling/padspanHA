@@ -38,7 +38,9 @@ const STATES = {
 const AREAS = { "binary_sensor.hall_door": "Hall", "binary_sensor.kitchen_window": "Kitchen", "cover.hall_blind": "Hall",
                 "binary_sensor.laundry_leak": "Laundry", "binary_sensor.hall_smoke": "Hall" };
 const RAIN = { "weather.home": { state: "rainy", attributes: { temperature: 12, temperature_unit: "°C" } } };
-const gather = (states) => Object.fromEntries(LM.gatherLights(states, AREAS).map(l => [l.entity_id, l]));
+// The covers here are linked to walls (a cover is on the Atlas only once it is).
+const gather = (states) => Object.fromEntries(LM.gatherLights(states, AREAS, undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, null,
+  new Set(Object.keys(states).filter(e => e.startsWith("cover.")))).map(l => [l.entity_id, l]));
 const LIGHTS = gather(STATES);
 
 const MODEL = {
