@@ -50,6 +50,10 @@ export function barrierNoReading(st){
   return !st || st.state === "unknown" || st.state === "unavailable";
 }
 
+// The Alert pulse's ring (an opening left open, or open in the rain): amber,
+// below the leak ring's red.
+const ALERT_AMBER = "#f59e0b";
+
 export function floodLatchActive(triggeredAtS, nowMs){
   if(!Number.isFinite(triggeredAtS) || !Number.isFinite(nowMs)) return false;
   const age=(nowMs/1000)-triggeredAtS;
@@ -3089,6 +3093,37 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     if(!room) continue;
     floodFx.push({eid: pl.eid, room, x: pl.x, y: pl.y, z: pl.z, liveWet: li.state==="on"});
   }
+  // Alert pulse (Settings → UI Structure → Atlas, off by default): the host
+  // names the openings to flag, {entity_id: "rain_open" | "left_open"} (a
+  // window or cover open while it rains, a door left open for hours), and
+  // each rings its room the flood ring's way, in amber: three quick ripples
+  // in the rain, one slow one left open. Its room is the one beside the
+  // wall section it is linked to, the sensor's own area first (an inside
+  // door has a room on both sides). Not set, nothing here runs.
+  const ALERT_OPEN=opts.alertOpenings || null;
+  const alertFx=[];
+  if(ALERT_OPEN){
+    for(const bar of ((model && model.rf_barriers_m) || [])){
+      const kind=bar.linked_entity_id ? ALERT_OPEN[bar.linked_entity_id] : null;
+      if(kind!=="rain_open" && kind!=="left_open") continue;
+      const bpts=(bar.points_m||[]).map(p=>[Number(p[0]), Number(p[1])]);
+      if(bpts.length<2 || bpts.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1]))) continue;
+      const z=frame.levelOf(String(bar.floor_id || "main"));
+      const a=bpts[0], b=bpts[bpts.length-1], L=Math.hypot(b[0]-a[0], b[1]-a[1]) || 1;
+      const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2, nx=-(b[1]-a[1])/L*0.3, ny=(b[0]-a[0])/L*0.3;
+      const sides=[[mx+nx, my+ny], [mx-nx, my-ny]];
+      const area=String((lightsByEid[bar.linked_entity_id]||{}).area_name || "").toLowerCase();
+      let hit=null;
+      for(const r of rooms){
+        if(r.z!==z) continue;
+        const side=sides.find(q=>pointInPolygon(r.pts, q[0], q[1]));
+        if(!side) continue;
+        if(!hit || (area && String(r.room).toLowerCase()===area)) hit={room: r, side};
+        if(area && String(r.room).toLowerCase()===area) break;
+      }
+      if(hit) alertFx.push({eid: bar.linked_entity_id, room: hit.room, x: hit.side[0], y: hit.side[1], kind});
+    }
+  }
 
   // ── Fit to room ───────────────────────────────────────────────────────────
   // No fixture may be drawn larger than the room it is in. A measurement typed
@@ -3254,8 +3289,10 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // liveWet spins faster and staggers three ripples (something is actively
   // happening); latched-only spins slower with a single ripple (steady,
   // needs attention, nothing is moving right now).
-  const floodRingSvg=(room, eid, wx, wy, liveWet)=>{
-    if(CLASSF && CLASSF!=="flood") return "";
+  // alert: an Alert pulse opening ("rain_open" | "left_open", alertFx): the
+  // same ring in amber, in the Doors/Windows class. Absent, the leak ring.
+  const floodRingSvg=(room, eid, wx, wy, liveWet, alert)=>{
+    if(CLASSF && CLASSF!==(alert ? "door" : "flood")) return "";
     const cid=roomClip.get(room);
     if(!cid) return "";
     const [cx,cy]=iso(wx,wy,room.z);
@@ -3269,7 +3306,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     let ripples="";
     for(let k=0;k<N;k++){
       const begin=(k*DUR/N).toFixed(2);
-      ripples+=`<path d="${FLOOD_WAVE_PATH}" fill="none" stroke="${FLOOD_BORDER}" stroke-width="3" `+
+      ripples+=`<path d="${FLOOD_WAVE_PATH}" fill="none" stroke="${alert ? ALERT_AMBER : FLOOD_BORDER}" stroke-width="3" `+
         `vector-effect="non-scaling-stroke" opacity="0">`+
         `<animateTransform attributeName="transform" type="scale" values="${(rMax*0.03).toFixed(1)};${rMax.toFixed(1)}" `+
         `dur="${DUR}s" begin="${begin}s" repeatCount="indefinite"/>`+
@@ -3277,7 +3314,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         `</path>`;
     }
     const spin=(liveWet?9:18).toFixed(1);
-    return `<g class="lflood" data-eid="${escSVG(eid)}" data-class="flood" data-latched="${liveWet?0:1}" `+
+    return (alert ? `<g class="lalert" data-eid="${escSVG(eid)}" data-class="door" data-alert="${alert}" `
+      : `<g class="lflood" data-eid="${escSVG(eid)}" data-class="flood" data-latched="${liveWet?0:1}" `)+
       `clip-path="url(#${cid})" pointer-events="none" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})">`+
       `<g><animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="${spin}s" repeatCount="indefinite"/>${ripples}</g></g>`;
   };
@@ -3530,6 +3568,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   if(airFx.length) emitRoomClips();
   // Same reasoning as airFx just above, for the flood ring's clip.
   if(floodFx.length) emitRoomClips();
+  // And the Alert pulse's rings.
+  if(alertFx.length) emitRoomClips();
   s+=`</defs>`;
   if(SHOW) s+=`<rect x="${viewX0}" y="${viewY}" width="${WTOTAL}" height="${HTOTAL}" fill="url(#psvig)" pointer-events="none"/>`;
 
@@ -6173,6 +6213,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     for(const fx of floodFx){
       if(fx.room.z!==z) continue;
       s+=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.liveWet);
+    }
+    // Flagged openings on this floor (Alert pulse): the amber ring.
+    for(const fx of alertFx){
+      if(fx.room.z!==z) continue;
+      s+=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.kind==="rain_open", fx.kind);
     }
     for(const fn of labelJobs) fn();
 

@@ -3837,6 +3837,31 @@ function _settingsUI(ctx, el){
       ctx.toast("Could not save: " + String((e && e.message) || e), true);
     }
   });
+  // Alert pulse, normally off: a door left open, or a window or cover open in
+  // the rain, rings its room in amber (a leak, smoke, gas or CO alarm already
+  // rings red), and a wall screen names the worst one across its top.
+  const pulseRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  const pulseCb = el("input",{type:"checkbox"});
+  pulseCb.checked = settings.atlas_alert_pulse === true;
+  pulseRow.appendChild(pulseCb);
+  pulseRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Alert pulse"));
+  lightsCard.appendChild(pulseRow);
+  const pulseNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
+    "A door left open, or a window or cover open while it rains, rings its room in amber. On a wall screen (?kiosk=1) a banner across the top names the worst alert and where it is (“Leak · Laundry”) until it clears. Saves as soon as you tick or untick it.");
+  lightsCard.appendChild(pulseNote);
+  pulseCb.addEventListener("change", async ()=>{
+    const want = pulseCb.checked;
+    try {
+      // Straight to the wire, as the emergency button's box above.
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_alert_pulse: want });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      pulseNote.textContent = want ? "Saved — the Atlas shows alerts from its next refresh."
+        : "Saved — the Atlas stops showing alerts at its next refresh.";
+    } catch (e) {
+      pulseCb.checked = !want;
+      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+    }
+  });
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
   // all, and whatever is stored is kept for when a key comes back.

@@ -18,7 +18,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, floorNameAtLevel, sa
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         TEMP_BORDER, healthOf,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
-        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, openingOpen, coverPercent } =
+        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, emergencyKind, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -558,6 +558,48 @@ export function floodIsAlarming(l, floodLatches){
   if (l.state === "on") return true;
   const latch = (floodLatches || {})[l.entity_id];
   return floodLatchActive(latch && latch.triggered_at, Date.now());
+}
+
+// ── Alert pulse (Settings → UI Structure → Atlas, off by default) ───────────
+// What needs someone now, worst first: a smoke, gas or CO alarm, a leak (both
+// live or still latched, floodIsAlarming — the Atlas already rings their
+// rooms), a window or cover open while it rains or snows (the Atlas's own
+// weather decision, atlas_weather.js), then a door left open for hours (the
+// health check's "left open", healthOf). Each {eid, kind, what, where}: the
+// banner's words ("Leak · Laundry") and, for an opening, its amber ring.
+export const ALERT_KINDS = ["smoke", "gas", "co", "water", "rain_open", "left_open"];
+const ALERT_WHAT = { smoke: "Smoke", gas: "Gas", co: "CO", water: "Leak" };
+const OPENING_NOUN = { door: "Door", window: "Window", garage_door: "Garage door", garage: "Garage door", opening: "Opening",
+                       gate: "Gate", blind: "Blind", shade: "Shade", shutter: "Shutter", curtain: "Curtain", awning: "Awning" };
+export function safetyAlerts(lights, { wet = null, floodLatches = {}, doorInvert = {}, nowMs = Date.now() } = {}){
+  const out = [];
+  for (const l of lights || []) {
+    if (!l || !l.entity_id) continue;
+    const where = l.area_name || l.friendly_name || l.entity_id;
+    if (l.isFlood) {
+      if (!floodIsAlarming(l, floodLatches)) continue;
+      const k = emergencyKind(l);
+      out.push({ eid: l.entity_id, kind: k, what: ALERT_WHAT[k] + (l.state === "on" ? "" : " earlier"), where });
+    } else if (l.isDoor && !l.isLock) {
+      if (l.state === "unavailable" || l.state === "unknown") continue;
+      const inv = !!(doorInvert && doorInvert[l.entity_id]);
+      if (!openingOpen(l, inv)) continue;
+      const cover = String(l.entity_id).startsWith("cover.");
+      const noun = OPENING_NOUN[l.device_class] || (cover ? "Cover" : "Door");
+      if (wet && (cover || l.device_class === "window")) {
+        out.push({ eid: l.entity_id, kind: "rain_open", what: `${noun} open in the ${wet}`, where });
+      } else if (!healthOf(l, nowMs, inv).healthy) {
+        out.push({ eid: l.entity_id, kind: "left_open", what: `${noun} left open`, where });
+      }
+    }
+  }
+  return out.sort((a, b) => ALERT_KINDS.indexOf(a.kind) - ALERT_KINDS.indexOf(b.kind));
+}
+/** The banner's line: the worst alert, "and N more" after it. */
+export function alertBannerText(alerts){
+  if (!alerts || !alerts.length) return "";
+  const t = `${alerts[0].what} · ${alerts[0].where}`;
+  return alerts.length > 1 ? `${t} (and ${alerts.length - 1} more)` : t;
 }
 
 // One class-driven answer to "what does this entity's state read as, and is
@@ -2880,6 +2922,30 @@ export function buildLightsMapCard(hostIn){
   const WALL = DISPLAY && !!host.wall;
   if (WALL) mapCard.classList.add("lv-wall");
 
+  // Alert pulse (host.alertPulse: Settings → UI Structure → Atlas, off by
+  // default; safetyAlerts above). Off, nothing here is read or drawn. On, a
+  // flagged opening's room rings amber (rebuildISO's alertOpenings) and a
+  // wall screen names the worst alert across its top until it clears. Rain
+  // is the Atlas's own weather decision, as the rain over the map has it.
+  let alerts = null, alertOpenings = null;
+  if (host.alertPulse) {
+    let wet = null;
+    try {
+      const w = host.weather;
+      const d = WX && w && w.settings ? WX.decideAtlasWeather(WX.weatherSettingsFrom(w.settings), w.states, w.entities) : null;
+      wet = d && (d.kind === "rain" || d.kind === "snow") ? d.kind : null;
+    } catch (_) { wet = null; }
+    alerts = safetyAlerts(Object.values(host.lightsByEid || {}),
+      { wet, floodLatches: host.floodLatches || {}, doorInvert: doorInvertOf(host.model), nowMs: Date.now() });
+    alertOpenings = {};
+    for (const a of alerts) if (a.kind === "rain_open" || a.kind === "left_open") alertOpenings[a.eid] = a.kind;
+    if (WALL && alerts.length) {
+      const top = alerts[0].kind;
+      mapCard.appendChild(el("div", { class: "lv-alertbar" + (top === "rain_open" || top === "left_open" ? " lv-alertbar-open" : ""),
+        role: "alert", "data-alert": top }, alertBannerText(alerts)));
+    }
+  }
+
   // Vacation Mode banner — pinned dead-center of the screen, on both Atlas
   // surfaces (this shared card) and nowhere else (Garry, 2026-09-21: "I
   // wanted the banner to show in the two atlas screens, and pinned dead
@@ -3356,6 +3422,8 @@ export function buildLightsMapCard(hostIn){
         // live wall-gap preview so positioning it is visible feedback, not
         // a guess.
         barrierHit: !!host.barrierHit,
+        // Alert pulse's flagged openings, {entity_id: kind}; null while off.
+        alertOpenings,
         doorCircleArmedEid: host.doorCircleArmedEid || null,
         doorCircleM: host.doorCircleM || null,
         // Working, proven beacons (Garry, 2026-09-09) — read-only, host

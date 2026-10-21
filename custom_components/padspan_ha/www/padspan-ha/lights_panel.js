@@ -389,6 +389,8 @@ class PadSpanLightsApp extends HTMLElement {
       // Settings → UI Structure → "Show the Test emergency lighting button".
       // A failed settings fetch keeps the last answer.
       if (s.atlas_emergency_button !== undefined) this.state._emergButtonHidden = s.atlas_emergency_button === false;
+      // Settings → UI Structure → Atlas → Alert pulse, normally off.
+      this.state._alertPulse = s.atlas_alert_pulse === true;
       // Outdoor weather (Settings → UI Structure → Atlas), field by field. A
       // failed fetch keeps the last answer; before any answer, no weather.
       if (s.atlas_weather_enabled !== undefined) {
@@ -1024,6 +1026,8 @@ class PadSpanLightsApp extends HTMLElement {
       // Same read-only reflection as the modes above — no onHideDeviceCodes,
       // this panel never edits it, only displays what Mapping -> Lights set.
       hideDeviceCodes: !!this.state._hideDeviceCodes,
+      // Alert pulse (lights_map.js safetyAlerts): only when it is on.
+      ...(this.state._alertPulse ? { alertPulse: true } : {}),
       ambient: sunAmbient(this._hass),
       // Rain or snow outside the floor plates, from the states this panel
       // already holds — nothing extra is asked of Home Assistant.

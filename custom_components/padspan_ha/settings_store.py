@@ -142,6 +142,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "wled_teams": [],                     # backend-only (padspan_ha/wled_teams_set): WLED devices that act as one light — see ws_wled.py
     "overview_atlas": False,              # Pro: Overview shows the Atlas; Pure Live gets a switch to the classic Overview (Settings → UI Structure)
     "atlas_emergency_button": True,       # show the Atlas "Test emergency lighting" button (Settings → UI Structure → Atlas)
+    "atlas_alert_pulse": False,           # Atlas: ring a room's flagged opening (left open, open in the rain); a wall names the worst alert (Settings → UI Structure → Atlas)
     # Atlas outdoor weather (docs/IDEA_ATLAS_WEATHER.md, views/atlas_weather.js) — rain or snow outside the floor
     # plates while it is actually raining or snowing. On by default in both editions (Pro animates, free is still).
     "atlas_weather_enabled": True,        # master on/off; off = nothing drawn at all
