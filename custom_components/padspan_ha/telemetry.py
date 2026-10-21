@@ -13,7 +13,8 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         General): a two-letter code and a language tag such as "en-GB",
         left out when blank — never looked up from the address
     how many scanners / floors / rooms / placed lights / walls / maps / IRKs
-    which feature switches are on
+    which feature switches are on, and which theme the panel wears
+        (Day, Light, or a named palette; Night is the absence of all three)
     how many times each tab was opened and each feature used since the
         last report (an allow-listed vocabulary — see EVENTS)
     a few health flags: crypto present, BLE callback alive, coverage floor
@@ -494,10 +495,13 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "atlas_3d_enabled", "low_memory_mode",
     # Pro: the Atlas as Overview (0.38.137) — whether anyone wants it as the front door.
     "overview_atlas",
+    # Themes (0.38.157): Light for everyone, Day on Pro; the stored switch,
+    # so a lapsed Pro still says day_theme. theme_palette is in the ENUMS.
+    "day_theme", "light_theme",
 )
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
-_FEATURE_ENUMS: tuple[str, ...] = ("data_mode", "cpu_mode", "lights_automorph_style")
+_FEATURE_ENUMS: tuple[str, ...] = ("data_mode", "cpu_mode", "lights_automorph_style", "theme_palette")
 
 # Saved Showcase "look" presets (Mapping -> Lights) — Garry: "add presets and
 # their components into the opt-in records" so popular combinations across

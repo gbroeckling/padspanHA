@@ -798,6 +798,29 @@ async def test_extending_the_canvas_moves_the_placement_with_the_picture(tmp_pat
     assert (m["image"]["width"], m["image"]["height"]) == (160, 120)
     back = mdl.map_frac_to_metres(1.0, 1.0, mid)
     assert math.hypot(back[0] - corner_before[0], back[1] - corner_before[1]) < 1e-3
+
+
+@pytest.mark.asyncio
+async def test_the_pixel_work_runs_off_the_event_loop(tmp_path, monkeypatch) -> None:
+    """`_extend_png` and `_crop_png` decode and re-encode the whole picture
+    with per-byte Python loops: on the loop, a big floor plan froze HA."""
+    from custom_components.padspan_ha import maps_store as MS
+
+    ms, mdl, m = await _extend_scene(tmp_path)
+    real = MS.asyncio.to_thread
+    ran = []
+
+    async def _to_thread(fn, *a, **k):
+        ran.append(getattr(fn, "__name__", ""))
+        return await real(fn, *a, **k)
+
+    monkeypatch.setattr(MS.asyncio, "to_thread", _to_thread)
+    await ms.async_extend_canvas(m["id"], 0.2, 0.1, 0.25, 0.0, model_store=mdl)
+    assert "_extend_png" in ran
+    assert (ms.maps_dir / m["image"]["filename"]).read_bytes() != _real_png(160, 120)
+    await ms.async_revert_extend(m["id"], model_store=mdl)
+    assert "_crop_png" in ran
+    assert (m["image"]["width"], m["image"]["height"]) == (160, 120)
     assert m["receivers"][0]["x"] == pytest.approx(0.6, abs=1e-3)
 
 
