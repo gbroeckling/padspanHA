@@ -272,7 +272,18 @@ const CSS = `
 .la3d-card li{margin:3px 0}
 .la3d-card button{all:unset;box-sizing:border-box;cursor:pointer;padding:7px 16px;border-radius:9px;font-weight:700;
   background:#2d6a4f;border:1px solid #52b788;color:#e2e8f0;float:right}
-@media (prefers-reduced-motion:reduce){.la3d.la3d-cover,.la3d-bar,.la3d-compass,.la3d-tip{transition:none}}`;
+@media (prefers-reduced-motion:reduce){.la3d.la3d-cover,.la3d-bar,.la3d-compass,.la3d-tip{transition:none}}
+/* Wall mode (?kiosk=1 on the sidebar Atlas; styles.css .lv-wall): the view
+   takes what the legend leaves beside the scaled rail, its controls grow with
+   --wall-ui, and the touch hint goes. */
+.lv-mapcard.lv-display.lv-wall > .la3d{flex:1 1 auto;min-height:0;height:auto;
+  width:calc(100% - 44px * var(--wall-ui,1));margin-left:calc(44px * var(--wall-ui,1))}
+.lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .la3d{width:100%;margin-left:0}
+.lv-mapcard.lv-display.lv-wall .la3d-bar,.lv-mapcard.lv-display.lv-wall .la3d-compass,.lv-mapcard.lv-display.lv-wall .la3d-hud,
+.lv-mapcard.lv-display.lv-wall .la3d-north,.lv-mapcard.lv-display.lv-wall .la3d-menu,.lv-mapcard.lv-display.lv-wall .la3d-toast,
+.lv-mapcard.lv-display.lv-wall .la3d-solo,.lv-mapcard.lv-display.lv-wall .la3d-corner,.lv-mapcard.lv-display.lv-wall .la3d-sheet,
+.lv-mapcard.lv-display.lv-wall .la3d-card{zoom:var(--wall-ui,1)}
+.lv-mapcard.lv-display.lv-wall .la3d-tip{display:none}`;
 // While Live Aboard shows (its sheet travels with it): the flat Atlas's
 // symbol legend matches nothing in 3D; on the sidebar the header's flat hint
 // gives way to the view's own, and on a narrow screen the emergency pill

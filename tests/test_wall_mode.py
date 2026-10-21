@@ -56,7 +56,8 @@ def test_the_house_fits_the_screen_both_ways():
     css = _src("styles.css")
     assert ".lv-mapcard.lv-display.lv-wall > .lv-stage{flex:1 1 auto;min-height:0;container-type:size;" in css
     assert "zoom:var(--wall-ui,1)" in css
-    assert ".lv-mapcard.lv-display.lv-wall .la3d-tip{display:none}" in css
+    assert "la3d" not in css, "Live Aboard's wall rules live in its own CSS, never styles.css"
+    assert ".lv-mapcard.lv-display.lv-wall .la3d-tip{display:none}" in _src("views/live_aboard.js")
 
 
 def test_3d_names_grow_and_the_first_card_waits_for_someone_to_tap_it():
