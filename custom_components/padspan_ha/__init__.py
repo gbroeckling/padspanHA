@@ -161,6 +161,15 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         await lf_store.async_load()
         return (DATA_LOST_AND_FOUND, lf_store, f"LostAndFoundStore ready ({len(lf_store.records)} records)")
 
+    async def _init_vacuum():
+        # Robot-vacuum import (vacuum_import.py): reads a robot only while
+        # the user has turned its link on — start() is a no-op otherwise.
+        from .vacuum_import import DATA_VACUUM, VacuumStore
+        vs = VacuumStore(hass)
+        await vs.async_load()
+        vs.start()
+        return (DATA_VACUUM, vs, "VacuumStore ready")
+
     async def _init_forensics():
         from .forensics_store import ForensicsStore
         fs_store = ForensicsStore(hass)
@@ -272,6 +281,8 @@ async def _ensure_stores(hass: HomeAssistant, *, critical_only: bool = False) ->
         deferred.append(_init_tag())
     if DATA_WLED_LOOKS not in hass.data[DOMAIN]:
         deferred.append(_init_wled_looks())
+    if "vacuum_import" not in hass.data[DOMAIN]:   # vacuum_import.DATA_VACUUM
+        deferred.append(_init_vacuum())
 
     if deferred:
         for res in await asyncio.gather(*deferred, return_exceptions=True):
@@ -852,6 +863,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_stop_house3d_people(hass)
     except Exception as err:
         _LOGGER.debug("Live Aboard people listener teardown error: %s", err)
+
+    # Stop reading a linked robot vacuum
+    try:
+        from .vacuum_import import DATA_VACUUM
+        _vs = hass.data.get(DOMAIN, {}).pop(DATA_VACUUM, None)
+        if _vs:
+            _vs.stop()
+    except Exception as err:
+        _LOGGER.debug("Vacuum link teardown error: %s", err)
 
     # Stop Vacation Mode's check timer
     try:

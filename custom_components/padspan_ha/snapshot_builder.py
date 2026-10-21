@@ -3273,4 +3273,14 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
+    # A linked robot vacuum's spot (vacuum_import.py) — only while the user
+    # has its link on; otherwise the snapshot has no such key at all.
+    try:
+        from .vacuum_import import live_position
+        _vac = live_position(hass)
+        if _vac:
+            snap["vacuum"] = _vac
+    except Exception:
+        pass
+
     connection.send_result(msg["id"], {"snapshot": snap})
