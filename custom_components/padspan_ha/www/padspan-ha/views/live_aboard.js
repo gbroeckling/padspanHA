@@ -1150,8 +1150,11 @@ function createSlot(slotKey){
     }
     root.appendChild(m);
     const rr = root.getBoundingClientRect(), ar = anchor.getBoundingClientRect();
-    m.style.left = `${Math.max(8, Math.min(ar.left - rr.left, rr.width - 8 - (m.offsetWidth || 180)))}px`;
-    m.style.bottom = `${Math.max(8, rr.bottom - ar.top + 6)}px`;
+    // On a wall the menu is drawn k times larger (CSS zoom), and zoom scales
+    // its left/bottom too: place it in screen pixels, then divide by k.
+    const k = wallUiOf(root), mw = m.getBoundingClientRect().width || 180 * k;
+    m.style.left = `${Math.max(8, Math.min(ar.left - rr.left, rr.width - 8 - mw)) / k}px`;
+    m.style.bottom = `${Math.max(8, rr.bottom - ar.top + 6) / k}px`;
     menuEl = m;
     const away = guard((e) => { const path = e.composedPath ? e.composedPath() : []; if (!path.includes(m) && !path.includes(anchor)) closeMenu(); });
     const esc = guard((e) => { if (e.key === "Escape") closeMenu(); });

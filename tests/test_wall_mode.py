@@ -41,6 +41,8 @@ def test_kiosk_turns_it_on_and_only_on_the_sidebar_atlas():
     on = src[src.index("  _wallOn(){"):]
     on = on[:on.index("\n  }\n")]
     assert 'get("kiosk") === "1"' in on and "this._embedded" in on, "the Atlas as Overview never takes it"
+    assert "|| !v2)" in on and "_atlasLayoutV2" in on, "a classic layout on ?kiosk=1 stays as it was (review: it lost its header for nothing)"
+    assert "_buildUI(){\n    this._wallOn();" in src, "asked again at every build: tier and layout come with the settings"
     assert 'this.setAttribute("data-wall", "")' in on and 'setProperty("--wall-ui"' in on
     assert 'navigator.wakeLock.request("screen")' in on, "a wall nobody touches stays awake"
     assert "wall: this.hasAttribute(\"data-wall\")," in src

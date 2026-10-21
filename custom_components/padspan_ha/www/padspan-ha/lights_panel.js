@@ -824,6 +824,7 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   _buildUI(){
+    this._wallOn();
     const root=el("div",{});
 
     // ── Header ────────────────────────────────────────────────────────────────
@@ -1347,11 +1348,19 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   // Wall mode: ?kiosk=1 on the sidebar Atlas (not the Atlas shown as the
-  // panel's Overview, which lives inside the panel's own page).
+  // panel's Overview, which lives inside the panel's own page), with the new
+  // layout's rail (PadSpan Pro): the fitted map is that layout's. A classic
+  // layout on ?kiosk=1 stays exactly as it was. Asked again at every build,
+  // since the tier and layout arrive with the settings.
   _wallOn(){
     let kiosk = false;
     try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
-    if(!kiosk || this._embedded){ this.removeAttribute("data-wall"); return; }
+    const v2 = String(this.state?._tier || "").toLowerCase() === "pro" && !!this.state?._atlasLayoutV2;
+    if(!kiosk || this._embedded || !v2){
+      this.removeAttribute("data-wall");
+      if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
+      return;
+    }
     this.setAttribute("data-wall", "");
     const size = ()=>{
       const s = wallScale(window.innerWidth, window.innerHeight);

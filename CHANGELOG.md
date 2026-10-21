@@ -20,6 +20,7 @@ All notable changes to PadSpan HA are documented here.
 - **Maps for people who aren't admins:** no Upload tab, Trim or Rotate they can't use, and errors show their message instead of "[object Object]".
 - A gallery's walls no longer flicker where they meet the hall's in Live Aboard.
 - Cropping and extending a floor plan no longer pauses Home Assistant while the picture is processed.
+- **The Atlas's map no longer loses its right edge.** On the Atlas's new layout the map ran about 20 px past its card, so the right edge of a drawing as wide as the screen (on a phone, a tablet, a portrait screen) was cut off. It now ends with the same margin as on the left; the drawing is about 1% smaller for it.
 
 ### Opt-in report
 - Which theme the panel wears (Day, Light or a palette), and how many rooms have their own height.
