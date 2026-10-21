@@ -2978,10 +2978,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     const b=t>=66 ? 255 : (t<=19 ? 0 : Math.round(138.52*Math.log(t-10)-305.04));
     return [255, Math.max(0,Math.min(255,g)), Math.max(0,Math.min(255,b))];
   };
-  const glowCol=(l,entry)=>Array.isArray(l&&l.rgb)&&l.rgb.length>=3
+  const liveCol=(l)=>Array.isArray(l&&l.rgb)&&l.rgb.length>=3
     ? QCOL(l.rgb)
-    : (Number(l&&l.ct)>0 ? QCOL(kelvinRGB(l.ct)) : ((entry&&entry.color)||"#fbbf24"));
-  const bodyCol=(l,entry)=>SHOW ? glowCol(l,entry) : ((entry&&entry.color)||"#fbbf24");
+    : (Number(l&&l.ct)>0 ? QCOL(kelvinRGB(l.ct)) : null);
+  const glowCol=(l,entry)=>liveCol(l)||((entry&&entry.color)||"#fbbf24");
+  // The working map wears the live colour too, but only over the default
+  // amber pin: a pin given its own colour keeps it, and a light reporting no
+  // colour (onoff, white mode) is drawn exactly as it always was.
+  const bodyCol=(l,entry)=>{
+    if(SHOW) return glowCol(l,entry);
+    const pin=(entry&&entry.color)||"#fbbf24";
+    return String(pin).toLowerCase()==="#fbbf24" ? (liveCol(l)||pin) : pin;
+  };
   // Detail has to be legible on whatever colour the fixture is throwing, and a
   // WLED run can be anything from pale yellow to deep blue — so the ink is
   // picked from the body's luminance rather than assumed dark.
@@ -3798,7 +3806,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const dim=dimmed(l);
       const op=(SHOW?(on?1:0.62):(on?1:0.45))*(dim?0.22:1);
       const gAttrs=`data-class="${lightClassOf(l)}"${dim?' pointer-events="none"':""}`;
-      const tCol=SHOW?(on?lit:THEME.labelColorOff):(on?"#111827":"#e2e8f0");
+      // A working-map body in a live colour (deep blue as readily as pale
+      // white) picks its code's ink from that colour; the amber pin keeps its own.
+      const tCol=SHOW?(on?lit:THEME.labelColorOff):(on?(lit===((entry&&entry.color)||"#fbbf24")?"#111827":inkOn(lit)):"#e2e8f0");
       // Live temperature readout gate — placed (entry) AND fresh (last
       // hour). Computed once, up here, because BOTH the body wash below and
       // the digits further down key off it; two copies of the rule could

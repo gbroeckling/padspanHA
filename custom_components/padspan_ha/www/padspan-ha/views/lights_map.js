@@ -2618,7 +2618,7 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       brand:         (manufacturerMap && manufacturerMap[eid]) || null,
       // What the fixture is actually throwing right now. Showcase draws and
       // glows each light in its OWN colour at its OWN brightness; the working
-      // map ignores both.
+      // map paints a default-amber marker in the colour, never the brightness.
       rgb:           Array.isArray(states[eid].attributes?.rgb_color) ? states[eid].attributes.rgb_color : null,
       bri:           Number(states[eid].attributes?.brightness) || null,
       // Kelvin, ungated like rgb/bri: a white-only bulb's pool should read
