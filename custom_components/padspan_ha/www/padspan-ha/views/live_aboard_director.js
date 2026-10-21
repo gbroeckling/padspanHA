@@ -84,8 +84,10 @@ export function snapshotOf(st){
   return `${p}${p.includes("?") ? "&" : "?"}_=${Date.now()}`;
 }
 
+// Above the bar of controls (bottom:64px, the toast's own clearance), never over it;
+// on a wall it grows with the other cards (live_aboard.js :host([data-wall])).
 const CSS = `
-.la3d-dircard{position:absolute;left:12px;bottom:12px;z-index:3;width:min(340px,calc(100% - 24px));box-sizing:border-box;padding:10px 12px;
+.la3d-dircard{position:absolute;left:12px;bottom:64px;z-index:3;width:min(340px,calc(100% - 24px));box-sizing:border-box;padding:10px 12px;
   border-radius:12px;background:rgba(6,14,9,.92);border:1px solid rgba(251,191,36,.55);box-shadow:0 6px 22px rgba(0,0,0,.45);
   color:#e2e8f0;font:600 13px/1.35 system-ui,"Segoe UI",Roboto,sans-serif}
 .la3d-dircard[hidden]{display:none}
