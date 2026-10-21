@@ -137,6 +137,7 @@ const LS_HIDDEN = "padspan_ha_lights_hidden";
 // per browser, because that is where the hands are.
 const LS_COACH = "padspan_ha_lights_coach_seen";
 const LS_CLASS = "padspan_ha_lights_class";
+const LS_HEAT = "padspan_ha_lights_heatmap";
 // "Not now" on the trial card — per browser, like the coach mark: this panel
 // is often a wall screen, and an offer nobody there can act on stays hidden.
 const LS_TRIAL_HIDDEN = "padspan_ha_lights_trial_hidden";
@@ -155,6 +156,7 @@ class PadSpanLightsApp extends HTMLElement {
       _hidden:     this._loadHidden(),
       // Layer chips: which device class is in front. Remembered per browser.
       _classFilter: (()=>{ try{ return localStorage.getItem(LS_CLASS)||"all"; }catch(_){ return "all"; } })(),
+      _heatmap: (()=>{ try{ return localStorage.getItem(LS_HEAT)||null; }catch(_){ return null; } })(),
       _coachSeen:   (()=>{ try{ return localStorage.getItem(LS_COACH)==="1"; }catch(_){ return false; } })(),
       _trialHidden: (()=>{ try{ return localStorage.getItem(LS_TRIAL_HIDDEN)==="1"; }catch(_){ return false; } })(),
     };
@@ -1126,6 +1128,14 @@ class PadSpanLightsApp extends HTMLElement {
       onClassFilter: (cls)=>{
         this.state._classFilter=cls;
         try{ localStorage.setItem(LS_CLASS, cls); }catch(_){}
+        this._render();
+      },
+      // The heatmap layer chip (atlas_heatmap.js): off by default, this
+      // browser remembers the last kind like the class filter above.
+      heatmap: this.state._heatmap,
+      onHeatmap: (kind)=>{
+        this.state._heatmap=kind||null;
+        try{ if(kind) localStorage.setItem(LS_HEAT, kind); else localStorage.removeItem(LS_HEAT); }catch(_){}
         this._render();
       },
       onHexesBuilt: (isoDiv)=>{

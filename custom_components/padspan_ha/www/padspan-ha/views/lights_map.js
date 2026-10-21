@@ -3343,6 +3343,9 @@ export function buildLightsMapCard(hostIn){
         collapseUnplaced: !!host.collapseUnplaced,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
         labelScale: WALL && host.wallLabel ? host.wallLabel() : 1,
+        // Temperature / humidity / CO2 heatmap (atlas_heatmap.js): off unless
+        // the host's layer chip picked a kind.
+        heatmap: host.heatmap || null,
         // When HA came up (model_get's ha_started_at) — a motion sensor whose
         // last_changed is just the restart's restored timestamp draws quiet.
         haStartedMs: Date.parse(host.model && host.model.ha_started_at) || 0,
@@ -4076,8 +4079,26 @@ export function buildLightsMapCard(hostIn){
   // many devices are on / sensors tripped up there) — and each floor keeps
   // its own camera (zoom + scroll), restored when you come back to it.
   const allLights = Object.values(host.lightsByEid || {});
-  if (host.onClassFilter || sortedLevels.length > 1) {
+  // The heatmap chip: offered for the kinds this house has a sensor of,
+  // cycling Off → Temperature → Humidity → CO₂ → Off.
+  const heatKinds = host.onHeatmap ? [
+    allLights.some(l => l.isTemp) && "temp",
+    allLights.some(l => l.isHumidity) && "humidity",
+    allLights.some(l => l.isAir && l.device_class === "carbon_dioxide") && "co2",
+  ].filter(Boolean) : [];
+  if (host.onClassFilter || sortedLevels.length > 1 || heatKinds.length) {
     const bar = el("div", { class: "lv-layerbar" });
+    if (heatKinds.length) {
+      const cur = heatKinds.includes(host.heatmap) ? host.heatmap : null;
+      const LBL = { temp: "Temperature", humidity: "Humidity", co2: "CO₂" };
+      bar.appendChild(el("button", {
+        class: "lv-chipbtn" + (cur ? " on" : ""),
+        title: "Heatmap — temperature, humidity or CO₂ across each room, between the placed sensors "
+          + "(a room's own sensors at its centre where none is placed). Tap to cycle.",
+        onclick: () => host.onHeatmap(heatKinds[heatKinds.indexOf(cur) + 1] || null),
+      }, [cur ? `♨ ${LBL[cur]}` : "♨ Heatmap"]));
+      if (host.onClassFilter || sortedLevels.length > 1) bar.appendChild(SEP());
+    }
     if (host.onClassFilter) {
       const present = new Set(allLights.map(l => lightClassOf(l)));
       const cur = host.classFilter || "all";

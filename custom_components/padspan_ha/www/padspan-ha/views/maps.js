@@ -9430,6 +9430,9 @@ function _lightsTab(ctx, maps, active) {
     // Layer chips (which class is in front) — a view choice of this tab.
     classFilter: mapState._lightsClass || "all",
     onClassFilter: (cls) => { mapState._lightsClass = cls; ctx.actions.renderRooms(); },
+    // The heatmap layer chip (atlas_heatmap.js) — a view choice of this tab, off by default.
+    heatmap: mapState._lightsHeatmap || null,
+    onHeatmap: (kind) => { mapState._lightsHeatmap = kind || null; ctx.actions.renderRooms(); },
     // The multi-selection and the placement queue light up their index rows.
     selectedEids: paid ? new Set([...selSet, ...(mapState._selLight ? [mapState._selLight.eid] : [])]) : null,
     placeQueue: paid && !preview ? new Set(queue) : null,
