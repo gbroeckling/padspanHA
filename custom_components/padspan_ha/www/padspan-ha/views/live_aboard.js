@@ -91,6 +91,10 @@ const MOTION = await import(`./live_aboard_motion.js${new URL(import.meta.url).s
 // the People chip, the two switches in Views ▾ (optional: missing, as it was).
 const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_panel failed to load", err); return null; });
+// The director (live_aboard_director.js): on the sidebar, the camera flies to
+// a doorbell, door or alarm that went off (optional: missing, nothing does).
+const DIRECTOR = await import(`./live_aboard_director.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_director failed to load", err); return null; });
 // The house itself (live_aboard_storey.js): a solid floor under each storey,
 // the roof, the openings stairs cut, how a door with no sensor stands
 // (optional: missing, the house is drawn as it was).
@@ -530,6 +534,8 @@ function createSlot(slotKey){
   let wetEl = null, wetRows = [], wetKey = "";           // a window open while it rains: its glow and its chip
   // live_aboard_panel.js: the home view, going back to it, Follow, the People chip.
   let panel = null;
+  // live_aboard_director.js: the flight to what went off, its card, and back.
+  let director = null;
   // live_aboard_storey.js: each storey's floor and roof (storeyL); roofWant:
   // the roof is showing or on its way (the walls under it stand).
   let storeyL = null, roofWant = false;
@@ -597,6 +603,8 @@ function createSlot(slotKey){
     motionL = null; mchip = null;
     try { if (panel) panel.dispose(); } catch (_) { /* gone with the view */ }
     panel = null;
+    try { if (director) director.dispose(); } catch (_) { /* gone with the view */ }
+    director = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
     layer = null; furnishP = null; topCb = null;
@@ -1302,6 +1310,7 @@ function createSlot(slotKey){
     storeyL = STOREY ? STOREY.createStoreyLayer({ THREE, lit: (g, spec, c, r) => lit(g, spec, c, r), slabT: HOUSE.SLAB_T,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     panel = PANEL ? makePanel() : null;
+    director = DIRECTOR && panel ? makeDirector() : null;
     planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
     planCam.up.set(0, 0, -1);                                // the plan as drawn: its top up
     // The 3D editor: its page in this element, its marks in this scene, its
@@ -4293,7 +4302,8 @@ function createSlot(slotKey){
       root, guard, slotKey, prefGet, prefSet,
       host: () => lastP,
       sidebar: () => mapOnly && !!stage && !failed,
-      busy: () => (editor && editor.active ? "edit" : furnishOn ? "furnish" : fsOn ? "full" : PANEL.hostCardOpen(root) ? "card" : null),
+      busy: () => (editor && editor.active ? "edit" : furnishOn ? "furnish" : fsOn ? "full" : PANEL.hostCardOpen(root) ? "card"
+        : director && director.showing() ? "director" : null),
       cam: () => ({ theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() }),
       floorNow: () => (selIds && selIds.size ? [...selIds].sort()[0] : null),
       onFloor: (fid) => (fid === null ? !selIds : !!(selIds && selIds.has(fid))),
@@ -4311,6 +4321,21 @@ function createSlot(slotKey){
       setTarget: (a) => { cam.target.fromArray(a); applyCam(); },
       quality: () => (profileOf().pbr ? "high" : "low"),
       toast: (t) => toast(t), render: () => requestRender(),
+    });
+  }
+  /** The director: what it needs of the view and of the panel. */
+  function makeDirector(){
+    return DIRECTOR.createDirector({
+      root, guard,
+      settings: () => (lastP && lastP.settings3d && typeof lastP.settings3d === "object" ? lastP.settings3d : null),
+      // The host's states as they are now (the card's own are from its last draw).
+      states: () => (lastP && typeof lastP.liveStates === "function" ? lastP.liveStates() : lastP && lastP.states) || {},
+      sidebar: () => mapOnly && !!stage && !failed,
+      busy: () => (editor && editor.active ? "edit" : furnishOn ? "furnish" : fsOn ? "full" : PANEL.hostCardOpen(root) ? "card" : null),
+      following: () => panel.following(),
+      touchedAt: () => panel.touchedAt(),
+      fly: (eid) => panel.moveQuietly(() => findDevice(String(eid))),
+      goHome: () => panel.goHome(),
     });
   }
   /** That floor at the top (null: All), the camera left where it is. */
@@ -4557,6 +4582,7 @@ function createSlot(slotKey){
         place(s);
         paintFloors(); paintFull(); showHint(); peopleClock();
         if (panel) panel.attach();
+        if (director) director.attach();
         return !failed;
       } catch (_) {
         fail("error");
@@ -4568,7 +4594,7 @@ function createSlot(slotKey){
     /** The 3D file changed elsewhere (Settings → Remove all furniture): read
      *  again now while showing, else when the screen is next shown. */
     reload(){ try { fileLoad = null; if (stage && lastP && !failed) loadFile(lastP); } catch (_) { /* read when next shown */ } },
-    detach(){ try { fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (panel) panel.detach(); } catch (_) { /* nothing to undo */ } },
+    detach(){ try { fileLoad = null; dirty = true; cam.fly = null; dropPointers(); cancelNorth(); endScreen(); if (use) use.clear(); if (editor) editor.leave(); showFlat(); peopleClock(); if (panel) panel.detach(); if (director) director.detach(); } catch (_) { /* nothing to undo */ } },
     /** Something wants this screen to leave 3D (Map picked): with unsaved
      *  3D edits the editor asks first, in the view, and holds (true); `go`
      *  runs once they are saved or discarded. */
@@ -4667,6 +4693,7 @@ function createSlot(slotKey){
                outlined: emOutlines.length, lamps: lampPool.filter(l => l.intensity > 0).map(l => l.position.toArray().map(v => Math.round(v * 100) / 100)),
                // P6: scanners, beacons and people as drawn, and how often the snapshot was read.
                tracked: tracked ? tracked.state() : [], peopleReads, trails: tracked && tracked.trails ? tracked.trails() : [], trailReads, panel: panel ? panel.state() : null,
+               director: director ? director.state() : null,
                // The Atlas's drawers and its other devices (live_aboard_marks.js).
                marks: marks ? marks.state() : [], codes: codes ? codes.state() : null, classF, zoomPct: zoomPctNow(),
                chipsFaded: chips.filter(C => C.sprite.material.opacity < 1).map(C => (C.room ? C.room.name : null)),
@@ -4675,6 +4702,8 @@ function createSlot(slotKey){
     },
     /** The wall panel (live_aboard_panel.js: the harness drives it). */
     _panel(){ return panel; },
+    /** The director (live_aboard_director.js: the harness drives it). */
+    _director(){ return director; },
     /** The Furnish tool (the harness builds a piece of any kind through it). */
     _furnish(){ return editor ? editor.furnish : null; },
     /** The Strip tool (the harness lays out a light through it). */

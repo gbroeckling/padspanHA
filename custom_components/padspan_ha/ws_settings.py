@@ -200,6 +200,35 @@ def _atlas_3d_carries(raw: Any) -> dict[str, list[str]]:
     return out
 
 
+# The director (views/live_aboard_director.js): the doorbells, doors, alarms
+# and sensors the sidebar's Live Aboard flies to when they go off, each with
+# the camera whose snapshot its card shows ("" for none).
+DIRECTOR_MAX = 12
+DIRECTOR_DOMAINS = ("event", "binary_sensor", "alarm_control_panel")
+_DIRECTOR_EID = re.compile(r"^([a-z_]+)\.(?!_)[a-z0-9_]{1,250}(?<!_)$")
+
+
+def _atlas_3d_director(raw: Any) -> list[dict[str, str]]:
+    """[{entity, camera}]: each trigger once, of the three kinds, at most
+    DIRECTOR_MAX; a camera that is not camera.* is none. Anything else is
+    dropped."""
+    out: list[dict[str, str]] = []
+    if not isinstance(raw, list):
+        return out
+    for item in raw:
+        if len(out) >= DIRECTOR_MAX:
+            break
+        if not isinstance(item, dict):
+            continue
+        eid, cam = item.get("entity"), item.get("camera")
+        m = _DIRECTOR_EID.match(eid) if isinstance(eid, str) else None
+        if not m or m.group(1) not in DIRECTOR_DOMAINS or any(o["entity"] == eid for o in out):
+            continue
+        c = cam if isinstance(cam, str) and (cm := _DIRECTOR_EID.match(cam)) and cm.group(1) == "camera" else ""
+        out.append({"entity": eid, "camera": c})
+    return out
+
+
 def _clamped(value: Any, lo: float, hi: float, default: float, *, zero_ok: bool = False) -> float:
     """A number kept lo..hi (0 kept too when zero_ok); unreadable is the default."""
     try:
@@ -461,6 +490,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_3d_look"): vol.Any(str, None),
         vol.Optional("atlas_3d_home_idle_s"): vol.Any(int, float, str, None),
         vol.Optional("atlas_3d_carries"): vol.Any(dict, None),
+        vol.Optional("atlas_3d_director"): vol.Any(list, None),
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
@@ -616,13 +646,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "unauthorized",
                                       "Only an administrator can change Live Aboard's library or photo settings")
                 return
-        if "atlas_3d_people" in msg or "atlas_3d_tags" in msg or "atlas_3d_carries" in msg:
+        if "atlas_3d_people" in msg or "atlas_3d_tags" in msg or "atlas_3d_carries" in msg or "atlas_3d_director" in msg:
             # Who shows in the house, and what each person carries (personal):
             # an administrator's, as Live Aboard's Views menu and Settings say.
             _user = getattr(connection, "user", None)
             if _user is not None and getattr(_user, "is_admin", True) is False:
                 connection.send_error(msg["id"], "unauthorized",
-                                      "Only an administrator can change who shows in Live Aboard and what each person carries")
+                                      "Only an administrator can change who shows in Live Aboard, what each person carries and what it flies to")
                 return
         if "telemetry_asked" in msg:
             payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))
@@ -787,6 +817,9 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "atlas_3d_carries" in msg and isinstance(msg["atlas_3d_carries"], dict):
             # A non-dict is ignored, never stored as empty (light_shapes' rule).
             payload["atlas_3d_carries"] = _atlas_3d_carries(msg["atlas_3d_carries"])
+        if "atlas_3d_director" in msg and isinstance(msg["atlas_3d_director"], list):
+            # A non-list is ignored, never stored as empty (carries' rule).
+            payload["atlas_3d_director"] = _atlas_3d_director(msg["atlas_3d_director"])
         if "ble_max_age_s" in msg:
             payload["ble_max_age_s"] = max(30, min(14400, int(msg["ble_max_age_s"])))
         # ── Radio map / heatmap visualization controls (v0.15.x) ──────────
