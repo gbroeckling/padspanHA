@@ -230,7 +230,7 @@ class PadSpanLightsApp extends HTMLElement {
     // either assigns, and the first timer would be orphaned beyond reach.
     if(this._pollTimer) clearInterval(this._pollTimer);
     this._pollTimer = setInterval(()=>this._poll(), 5000);
-    if(!this._screenTimer) this._screenTimer = setTimeout(()=>this._screenReport(), Math.max(0, 150000 - (Date.now() - _PAGE_START)));
+    if(!this._screenTimer && !this._embedded) this._screenTimer = setTimeout(()=>this._screenReport(), Math.max(0, 150000 - (Date.now() - _PAGE_START)));
   }
 
   // What kind of screen this is and how a self-reload went (screenKind,
@@ -257,8 +257,9 @@ class PadSpanLightsApp extends HTMLElement {
     const active = this.shadowRoot && this.shadowRoot.activeElement;
     if(active && /^(INPUT|SELECT)$/.test(active.tagName)) return;
     if(this._pointerDown) return;
-    // The build check, every 10 minutes (staleBuildAction above).
-    if(Date.now() - (this._versionTs || 0) > 600000){
+    // The build check, every 10 minutes (staleBuildAction above). Not as the
+    // panel's Overview (_embedded): the panel runs its own.
+    if(!this._embedded && Date.now() - (this._versionTs || 0) > 600000){
       this._versionTs = Date.now();
       this._hass.callWS({ type:"padspan_ha/version" }).then(vi => {
         const be = (vi && typeof vi.build_id === "string") ? vi.build_id : "";
