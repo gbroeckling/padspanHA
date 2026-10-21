@@ -44,6 +44,7 @@ from .const import (
     DATA_FABRIC,
     DATA_OBJECTS,
     DATA_ALERTS,
+    DATA_SUBZONES,
     DATA_MOVEMENT,
     DATA_LOST_AND_FOUND,
     DATA_ADAPTIVE,
@@ -780,6 +781,10 @@ async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEnt
         # its leftover device is exactly what this exists to clear.
         _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
         return not bool(_st and (_st.data or {}).get("ha_entity_occupancy_enabled"))
+    # A sub-zone's device (subzones.py) is in use while its sub-zone exists.
+    _sz = hass.data.get(DOMAIN, {}).get(DATA_SUBZONES)
+    if any(i.startswith("subzone_") and _sz is not None and i[len("subzone_"):] in _sz.zones() for i in ids):
+        return False
     coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
     for key, obj in ((getattr(coord, "data", None) or {}) if coord else {}).items():
         if isinstance(obj, dict) and obj.get("user_label"):

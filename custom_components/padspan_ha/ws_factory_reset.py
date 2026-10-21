@@ -341,6 +341,20 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: house3d — %s", e)
         errors.append("padspan_ha.house3d")
 
+    # ── 9a'. Sub-zones (subzones.py) — only a file that exists, emptied ───
+    try:
+        from .const import DATA_SUBZONES, SUBZONES_STORE_KEY  # noqa: PLC0415
+        from .ws_common import _store_file_written  # noqa: PLC0415
+        if await _store_file_written(hass, SUBZONES_STORE_KEY):
+            await _St(hass, 1, SUBZONES_STORE_KEY).async_save({"zones": {}})
+            cleared += 1
+        sz_obj = domain.get(DATA_SUBZONES)
+        if sz_obj is not None:
+            sz_obj.data = {"zones": {}}
+    except Exception as e:
+        _LOGGER.warning("Factory reset: subzones — %s", e)
+        errors.append("padspan_ha.subzones")
+
     # ── 9b. CaptureStore — manifest AND session files ─────────────────────
     # The only store whose payload is not in the blob, so clearing the manifest
     # alone would leave the .jsonl files on disk.  async_clear unlinks them.

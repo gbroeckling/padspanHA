@@ -1762,6 +1762,34 @@ function _edit(ctx, map, allMaps){
     } catch (e) { ctx.toast("Could not remove wall: " + (e.message || e), true); }
   };
 
+  // ── Sub-zones (subzones.py): named areas inside a room, in metres ──────────
+  // Only with settings.subzones_enabled (off: no button, nothing drawn). Drawn
+  // here like a wall, through this map's metre transform, and kept in their
+  // own store, never in the rooms'. Its own draft (_szDrawing), so the Rooms
+  // and Walls tools never see a half-drawn sub-zone.
+  const _szOn = () => ctx.state.settings?.subzones_enabled === true;
+  const _szHere = () => (ctx.state.maps._subzones || []).filter(z => String(z.floor_id) === _wallFloor());
+  const _szSet = (r) => { ctx.state.maps._subzones = (r && r.zones) || []; renderAll(); renderTools(); };
+  const _szLoad = async () => {
+    try { _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzones_list" })); }
+    catch (e) { _szSet(null); }
+  };
+  const _szAdd = async (name, fracPts) => {
+    const tf = _wallTx();
+    if (!tf) { ctx.toast("Measure this map first (Measure tool) — sub-zones are stored in metres.", true); return; }
+    const points_m = fracPts.map(p => mapFracToMetres(tf, clamp01(p[0]), clamp01(p[1])))
+      .map(q => [Math.round(q[0] * 1000) / 1000, Math.round(q[1] * 1000) / 1000]);
+    try {
+      _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzone_add",
+        zone: { name, floor_id: _wallFloor(), type: "poly", points_m } }));
+      ctx.toast(`Sub-zone "${name}" added`);
+    } catch (e) { ctx.toast("Could not add sub-zone: " + (e.message || e), true); }
+  };
+  const _szRemove = async (id) => {
+    try { _szSet(await ctx.actions.callWS({ type: "padspan_ha/subzone_remove", zone_id: id })); }
+    catch (e) { ctx.toast("Could not remove sub-zone: " + (e.message || e), true); }
+  };
+
   // ── Door/window barrier project, step 3: mark a door/window on a wall ──────
   // Authoring a door means carving a short section out of an EXISTING wall's
   // own polyline (docs/IDEA_DOOR_WINDOW_BARRIERS.md) — the two clicks this
@@ -1831,12 +1859,13 @@ function _edit(ctx, map, allMaps){
 
   // --- Right panel (tools) ---
   const right = el("div",{class:"card", style:"margin-top:10px"},[]);
-  const _modeHelp = {"receivers":"Double-click map to place radio; drag to reposition","rooms":"Click map to add points; double-click to finish","barriers":"Click to draw wall segments; double-click to finish","measure":"Click two points you know the real distance between"};
+  const _modeHelp = {"receivers":"Double-click map to place radio; drag to reposition","rooms":"Click map to add points; double-click to finish","barriers":"Click to draw wall segments; double-click to finish","measure":"Click two points you know the real distance between","subzones":"Click points around the bed, couch or desk; double-click to finish"};
   const modeRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios"),
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms"),
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "RF Barriers"),
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure"),
+    ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
     helpBtn("maps_edit"),
   ]);
@@ -2046,6 +2075,49 @@ function _edit(ctx, map, allMaps){
       ln.setAttribute("stroke-width", _isBarrierDraw ? "0.008" : "0.006");
       if(_isBarrierDraw) ln.setAttribute("stroke-dasharray","0.006 0.018");
       svg.appendChild(ln);
+    }
+
+    // Sub-zones on this floor, and the one being drawn (only in their tool)
+    if(ctx.state.maps._mode==="subzones" && _szOn()){
+      const tf = _wallTx();
+      for(const z of (tf ? _szHere() : [])){
+        const ring = z.type === "circle"
+          ? Array.from({length: 32}, (_, i) => [Number(z.cx_m) + Number(z.r_m) * Math.cos(i * Math.PI / 16), Number(z.cy_m) + Number(z.r_m) * Math.sin(i * Math.PI / 16)])
+          : (z.points_m || []);
+        const pts = ring.map(p => metresToMapFrac(tf, Number(p[0]), Number(p[1]))).filter(Boolean);
+        if(pts.length < 3) continue;
+        const pg = document.createElementNS("http://www.w3.org/2000/svg","polygon");
+        pg.setAttribute("points", pts.map(p=>`${p[0]},${p[1]}`).join(" "));
+        pg.setAttribute("fill", (z.people || []).length ? "rgba(94,234,212,0.28)" : "rgba(94,234,212,0.10)");
+        pg.setAttribute("stroke","#5eead4");
+        pg.setAttribute("stroke-width","0.004");
+        pg.setAttribute("stroke-dasharray","0.010 0.006");
+        pg.style.pointerEvents = "none";
+        svg.appendChild(pg);
+        const lab = document.createElementNS("http://www.w3.org/2000/svg","text");
+        lab.setAttribute("x", pts.reduce((a,p)=>a+p[0],0)/pts.length);
+        lab.setAttribute("y", pts.reduce((a,p)=>a+p[1],0)/pts.length);
+        lab.setAttribute("font-size","0.025");
+        lab.setAttribute("text-anchor","middle");
+        lab.setAttribute("dominant-baseline","middle");
+        lab.setAttribute("fill","#5eead4");
+        lab.setAttribute("stroke","#0b1a12");
+        lab.setAttribute("stroke-width","0.006");
+        lab.setAttribute("paint-order","stroke fill");
+        lab.style.pointerEvents = "none";
+        lab.textContent = z.name;
+        svg.appendChild(lab);
+      }
+      const dpts = ctx.state.maps._szDrawing || [];
+      if(dpts.length){
+        const ln = document.createElementNS("http://www.w3.org/2000/svg","polyline");
+        ln.setAttribute("points", dpts.map(p=>`${clamp01(p[0])},${clamp01(p[1])}`).join(" "));
+        ln.setAttribute("fill","none");
+        ln.setAttribute("stroke","#5eead4");
+        ln.setAttribute("stroke-width","0.005");
+        ln.style.pointerEvents = "none";
+        svg.appendChild(ln);
+      }
     }
 
     // Markers
@@ -2290,6 +2362,23 @@ function _edit(ctx, map, allMaps){
       } else {
         right.appendChild(el("div",{class:"muted", style:"margin-top:4px;font-size:11px"},
           snap2 ? "No live BLE radios detected. Enable Bluetooth proxy in HA." : "Switch to Live mode to see your BLE scanners."));
+      }
+    } else if(ctx.state.maps._mode==="subzones" && _szOn()){
+      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"},
+        "Sub-zones: a named area inside a room. Each one gets binary_sensor.padspan_<name>_occupied and sensor.padspan_<name>_who."));
+      const szName = el("input",{type:"text", value: ctx.state.maps._szName || "", placeholder:"Name for the next one (e.g. Bed)"});
+      szName.addEventListener("input", ()=>{ ctx.state.maps._szName = szName.value; });
+      right.appendChild(el("div",{style:"margin-top:6px"}, [szName]));
+      if((ctx.state.maps._szDrawing || []).length){
+        right.appendChild(el("button",{class:"btn tiny", style:"margin-top:6px", onclick:()=>{ ctx.state.maps._szDrawing=null; renderAll(); renderTools(); }}, "Cancel drawing"));
+      }
+      const szList = _szHere();
+      if(!szList.length) right.appendChild(el("div",{class:"muted", style:"margin-top:6px;font-size:11px"}, "No sub-zones on this floor yet."));
+      for(const z of szList){
+        right.appendChild(el("div",{style:"display:flex;gap:8px;align-items:center;margin-top:6px;font-size:12px"},[
+          el("div",{style:"flex:1"}, `${z.name}${z.room ? " · " + z.room : ""} — ${(z.people || []).length ? z.people.join(", ") : "nobody"}`),
+          el("button",{class:"btn tiny", onclick:()=>{ if(confirm(`Delete sub-zone "${z.name}" and its two sensors?`)) _szRemove(z.id); }}, "Delete"),
+        ]));
       }
     } else if(ctx.state.maps._mode==="barriers"){
       right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "RF Barrier tools"));
@@ -2896,6 +2985,18 @@ function _edit(ctx, map, allMaps){
       ctx.state.maps._drawing = null;
       renderAll(); refreshList(); renderTools();
     }
+    // sub-zones mode: dblclick finishes the sub-zone — into its own store, in metres
+    if(ctx.state.maps._mode==="subzones" && (ctx.state.maps._szDrawing || []).length){
+      const pts = ctx.state.maps._szDrawing.slice();
+      ctx.state.maps._szDrawing = null;
+      if(pts.length >= 3){
+        const name = String(ctx.state.maps._szName || "").trim() || `Sub-zone ${_szHere().length + 1}`;
+        ctx.state.maps._szName = "";
+        _szAdd(name, pts);
+      }
+      renderAll(); renderTools();
+      return;
+    }
     // barriers mode: dblclick finishes the wall — into the fabric, in metres
     if(ctx.state.maps._mode==="barriers" && ctx.state.maps._drawing){
       const d = ctx.state.maps._drawing;
@@ -2955,6 +3056,13 @@ function _edit(ctx, map, allMaps){
           renderTools();
         }
       }
+      return;
+    }
+    if(ctx.state.maps._mode==="subzones"){
+      if(!_szOn()) return;
+      const rect = overlay.getBoundingClientRect();
+      (ctx.state.maps._szDrawing ||= []).push([clamp01((ev.clientX - rect.left) / rect.width), clamp01((ev.clientY - rect.top) / rect.height)]);
+      renderAll(); renderTools();
       return;
     }
     if(ctx.state.maps._mode!=="rooms" && ctx.state.maps._mode!=="barriers") return;

@@ -970,6 +970,7 @@ function _haEntityControls(ctx, el, settings){
     {key:"ha_entity_distance_enabled", label:"sensor.padspan_{label}_distance", desc:"Distance to nearest scanner (metres)"},
     {key:"ha_entity_scanner_distance_enabled", label:"sensor.padspan_{label}_distance_{scanner}", desc:"Per-scanner distance for hyper-local triggers"},
     {key:"ha_entity_occupancy_enabled", label:"sensor.padspan_occupancy", desc:"Building occupancy estimate (min/estimate/max) — requires integration reload"},
+    {key:"subzones_enabled", label:"binary_sensor.padspan_{sub-zone}_occupied", desc:"Sub-zones: a bed, couch or desk drawn with Mapping → Sub-zones; each gets an occupied and a who sensor (off: they go unavailable)"},
   ];
 
   for(const t of types){

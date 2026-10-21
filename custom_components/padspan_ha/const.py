@@ -71,6 +71,7 @@ DATA_FORENSICS = "forensics"                 # presence-session recorder (opt-in
 DATA_CAPTURE = "capture"                     # RSSI vector session recorder (opt-in)
 DATA_WLED_LOOKS = "wled_looks"               # wled_exact.WledLooksStore — each WLED device's remembered look
 DATA_HOUSE3D = "house3d"                     # house3d_store.House3dStore — Live Aboard (3D house); loaded on first use
+DATA_SUBZONES = "subzones"                   # subzones.SubzoneStore — named areas inside rooms; loaded on first use
 
 # ── HA Storage file keys (.storage/<key>) ─────────────────────────────────────
 SETTINGS_STORE_KEY = "padspan_ha.settings"
@@ -94,6 +95,7 @@ CAPTURE_STORE_KEY = "padspan_ha.capture"
 WLED_LOOKS_STORE_KEY = "padspan_ha.wled_looks"   # wled_exact.py — keyed by the MAC HA verified
 HOUSE3D_STORE_KEY = "padspan_ha.house3d"         # house3d_store.py — Live Aboard's own file; never written while atlas_3d_enabled is off
 EMERGENCY_TEST_STORE_KEY = "padspan_ha.emergency_test"   # emergency_test.py — a running test and its kept-on tags
+SUBZONES_STORE_KEY = "padspan_ha.subzones"       # subzones.py — sub-zones (bed, couch, desk); no file until one is added
 
 # ── Filesystem / map defaults ─────────────────────────────────────────────────
 DEFAULT_FLOOR_ID = "main"

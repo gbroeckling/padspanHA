@@ -249,6 +249,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # records that here, and never touches it again (off stays off after).
     "atlas_default_v1_applied": False,
     "ha_entity_occupancy_enabled": False,  # expose occupancy estimate sensors to HA
+    "subzones_enabled": False,             # sub-zones (subzones.py): bed/couch/desk areas with their own sensors
     "bermuda_ignore": False,  # experimental: ignore all Bermuda integration data
     # HA Tags integration
     "tags_room_events_enabled": False,     # emit tag_scanned on room changes
