@@ -382,6 +382,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # had before keeps its last real change (motion_reconnects.py).
     from .motion_reconnects import async_setup_motion_reconnects  # noqa: PLC0415
     async_setup_motion_reconnects(hass)
+    # Assist's "which room is Alice in" — answers only once the user adds the
+    # custom sentences (docs/GETTING_STARTED.md); nothing calls it otherwise.
+    try:
+        from .intents import async_setup_intents  # noqa: PLC0415
+        async_setup_intents(hass)
+    except Exception as err:  # defensive: do not break HA startup
+        _LOGGER.exception("Assist intent registration failed: %s", err)
 
     _LOGGER.info("PadSpan HA starting v%s (build %s)", BUILD_VERSION, BUILD_ID)
 

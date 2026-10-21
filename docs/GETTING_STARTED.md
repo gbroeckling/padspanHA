@@ -147,6 +147,34 @@ The **Occupancy** view counts people in the building — never devices:
 
 Record the real headcount in the view to keep it beside what the estimate said.
 
+## Ask Assist where someone is
+
+What Home Assistant's own Assist sentences already do (checked against the HA intents repo and core, 2026.10):
+
+- **"Where is Alice?"** works for `person` entities only (HassGetState, `name_where`). A person takes a PadSpan tracker's room as its state only when no other tracker on that person says more: a phone's GPS (the Companion app) or a router's "home" always wins over a room. So with the Companion app attached, Assist says "Alice is at home", not the room. With the PadSpan tracker as the person's only tracker it says "Alice is at Kitchen" (and "Alice is away" once away).
+- **"What is Alice Area?"** works for the Area sensor (HassGetState, `name_only`) and says "Alice Area is Kitchen". It does work, but it isn't something anyone would say.
+- "Where is ..." never matches a `sensor` or a `device_tracker` by itself.
+
+To use either one, expose the entity: **Settings → Voice assistants → Expose**, add `sensor.<device>_area` (or the `person` with the PadSpan tracker attached under **Settings → People**). Give it an alias such as "Alice" if you like.
+
+For an answer that always names the room, PadSpan adds a `PadSpanWhereIs` intent. It does nothing until you add these sentences yourself. Save this as `config/custom_sentences/en/padspan.yaml` and restart Home Assistant (or reload it from the Assist debug page):
+
+```yaml
+language: "en"
+intents:
+  PadSpanWhereIs:
+    data:
+      - sentences:
+          - "which room is {padspan_person} in"
+          - "what room is {padspan_person} in"
+          - "where in the house is {padspan_person}"
+lists:
+  padspan_person:
+    wildcard: true
+```
+
+The name is the device's PadSpan label ("Alice"). It also matches a label that starts with that name ("Alice's Phone", "Alice Watch"); if there are several, it picks the one heard most recently. Answers: "Alice is in the Kitchen", "Alice is probably in the Kitchen" when the room confidence is under 50%, "Alice is away", or "I don't know anyone called ...". You don't need to expose anything. The intent only reads PadSpan's current room and never changes anything. The answers are in English. "Where is Alice" is left to Home Assistant's own sentence above.
+
 ## What's Next?
 
 - **Atlas** — Place lights, fans, sensors, locks and doors on the same map (Pro feature) — see the [Atlas Guide](ATLAS_GUIDE.md)
