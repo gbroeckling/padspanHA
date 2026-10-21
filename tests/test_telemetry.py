@@ -250,7 +250,9 @@ def test_nothing_from_the_house_is_in_the_report():
     # (~36 bytes): which themes anyone wears, now that there are seven.
     # Raised 4270 -> 4295 for env.rooms_with_height (~24 bytes): whether
     # anyone gives a room its own height (Live Aboard's tall rooms).
-    assert len(text) < 4295
+    # Raised 4295 -> 4335 for licence_group (~35 bytes): Garry, 2026-10-21,
+    # a licence's homes seen together (homes 3-5 need their report on).
+    assert len(text) < 4335
 
 
 def test_presets_are_capped_at_ten_per_report():

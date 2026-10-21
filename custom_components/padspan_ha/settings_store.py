@@ -279,6 +279,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Bright Pro trial). Display-only — licence.py's tier ladder does not read
     # it, a trial key gates identically to a purchased one.
     "license_is_trial": False,
+    # This home among the key's homes (licence_homes.py): the token the
+    # licence server rotates at each check, and the name the owner gave it.
+    "license_home_token": "",
+    "license_home_label": "",
+    "license_home_status": "",   # the server's last word on this home, when it refused it
+    "license_homes_used": 0,     # how many homes the key is on, as the server last said
     # ── Enterprise preview features (off by default) ─────────────────────────
     "walk_to_identify_enabled": False,      # spatial correlation device discovery ("who just walked in?")
     "radio_map_enabled": False,             # RSSI heatmap overlay on floor plan maps

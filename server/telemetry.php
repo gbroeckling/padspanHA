@@ -33,7 +33,7 @@ if ($raw === false || strlen($raw) > $MAX) { http_response_code(413); echo '{"ok
 $r = json_decode($raw, true);
 if (!is_array($r)) { http_response_code(400); echo '{"ok":false}'; exit; }
 
-$allowed = array('schema','install_id','day','version','edition','tier','ha_version','python','env','features','usage','health','errors','presets','country','language');
+$allowed = array('schema','install_id','day','version','edition','tier','ha_version','python','env','features','usage','health','errors','presets','country','language','licence_group');
 foreach (array_keys($r) as $k) {
     if (!in_array($k, $allowed, true)) { http_response_code(400); echo '{"ok":false,"why":"key"}'; exit; }
 }
@@ -41,6 +41,10 @@ if (!isset($r['schema']) || (int)$r['schema'] !== 1) { http_response_code(400); 
 // Optional: the country (two letters) and language tag set in HA (0.38.148+).
 if (isset($r['country']) && !(is_string($r['country']) && preg_match('/^[A-Z]{2}\z/', $r['country']))) {
     http_response_code(400); echo '{"ok":false,"why":"country"}'; exit;
+}
+// Optional: a licence's group code, the same in each of its homes (0.38.160+).
+if (isset($r['licence_group']) && !(is_string($r['licence_group']) && preg_match('/^[0-9a-f]{16}\z/', $r['licence_group']))) {
+    http_response_code(400); echo '{"ok":false,"why":"licence_group"}'; exit;
 }
 if (isset($r['language']) && !(is_string($r['language']) && preg_match('/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,4})?\z/', $r['language']))) {
     http_response_code(400); echo '{"ok":false,"why":"language"}'; exit;
