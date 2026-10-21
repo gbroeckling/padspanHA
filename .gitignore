@@ -25,3 +25,7 @@ build/
 tools/test_runs/
 tools/live_out/
 tools/live_aboard_harness/out/
+
+# The public demo: built by tools/demo/build.py, checked by tools/demo/check_render.py
+tools/demo/dist/
+tools/demo/out/

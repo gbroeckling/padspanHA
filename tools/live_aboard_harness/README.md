@@ -54,7 +54,8 @@ the only 404s in a check's console are real.) Then open `http://127.0.0.1:8765/t
 | `draw=fid,x0,y0,x1,y1` | Drag a line along a wall (plan metres) after picking a tool |
 | `probe=<js>` / `pd=ms` | Run `js` (gets `slot`) and print its JSON into `<pre id="out">` |
 
-The house's fixture (rooms, lights, sensors, states) is at the top of `index.html`.
+The house's fixture (rooms, lights, sensors, states) is `tools/demo/fixture.js`, shared with the public demo
+(`tools/demo/`), so both show the same fictional house.
 
 `wizard.html?step=<id>` shows the Live Aboard setup wizard (views/aboard_wizard.js) on its own, with
 a small fixture house, opened on that step (on, floors, rooms, devices, heights, openings, strips,
