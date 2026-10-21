@@ -389,6 +389,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Settings → UI Structure → "Show the Test emergency lighting button".
       // A failed settings fetch keeps the last answer.
       if (s.atlas_emergency_button !== undefined) this.state._emergButtonHidden = s.atlas_emergency_button === false;
+      if (s.atlas_live_colours !== undefined) this.state._liveColours = s.atlas_live_colours === true;
       // Outdoor weather (Settings → UI Structure → Atlas), field by field. A
       // failed fetch keeps the last answer; before any answer, no weather.
       if (s.atlas_weather_enabled !== undefined) {
@@ -917,6 +918,7 @@ class PadSpanLightsApp extends HTMLElement {
       // 1080p one); room names take the rest of the wall's scale.
       wallLabel: ()=>Math.max(1, (this._wallUi || 1) / (this._wallPx || 1)),
       showcase: !!this.state._showcase,
+      liveColours: !!this.state._liveColours,
       showcaseTheme: this.state._showcaseTheme || "classic",
       fitRooms: !!this.state._fitRooms,
       isolux: !!this.state._isolux,

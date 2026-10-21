@@ -6206,3 +6206,66 @@ def test_the_floor_legend_names_floors_whose_level_is_unset(tmp_path):
         "console.log(JSON.stringify({legend: texts.slice(-6)}));\n"
     ))
     assert out["legend"] == ["1", "Basement", "2", "Main", "3", "Upper"], out
+
+
+def _working_marker(tmp_path, light: dict, pin: str | None = None, live: bool = True) -> dict:
+    """The working (non-Showcase) map's body fill and code ink for one light."""
+    pos = {"x_m": 3.0, "y_m": 2.0, "floor_id": "main"}
+    if pin:
+        pos["color"] = pin
+    model = {"room_geometry_m": {"Kitchen": {"type": "poly", "floor_id": "main",
+                                             "points_m": [[0, 0], [6, 0], [6, 4], [0, 4]]}},
+             "light_positions_m": {"light.a": pos}}
+    lbe = {"light.a": {"entity_id": "light.a", "state": "on", "code": "A01", "shape": "circle",
+                       "isWled": False, **light}}
+    return _run_js(tmp_path, (
+        "import * as M from './iso_lights.mjs';\n"
+        f"const svg=M.buildIsoSVG({json.dumps(model)},{{}},new Set(),null,150,0,{json.dumps(lbe)},"
+        f"false,{json.dumps([{'id': 'main', 'name': 'Main', 'level': 0}])},{json.dumps({'liveColours': live})});\n"
+        "const g=svg.slice(svg.indexOf('data-eid=\"light.a\"'));\n"
+        "const out={fill:/<circle cx=\"[^\"]+\" cy=\"[^\"]+\" r=\"[^\"]+\" fill=\"([^\"]+)\"/.exec(g)?.[1]||null,\n"
+        "  ink:/<text[^>]*fill=\"([^\"]+)\"[^>]*>A01</.exec(g)?.[1]||null};\n"
+        "console.log(JSON.stringify(out));\n"
+    ))
+
+
+def test_the_working_map_paints_a_lit_marker_in_the_lights_own_colour(tmp_path):
+    """NextFloor's "lamps light in their own colours": the working map drew every
+    lit light default amber; it now wears the colour the light reports."""
+    out = _working_marker(tmp_path, {"rgb": [16, 240, 128]})
+    assert out == {"fill": "#18f078", "ink": "#20160a"}, out
+
+
+def test_a_deep_colour_gets_a_light_code_ink(tmp_path):
+    out = _working_marker(tmp_path, {"rgb": [0, 0, 255]})
+    assert out == {"fill": "#1818ff", "ink": "#f1f5f9"}, out
+
+
+def test_a_white_bulb_reads_warm_or_cool_from_its_kelvin(tmp_path):
+    (tmp_path / "w").mkdir(); (tmp_path / "c").mkdir()
+    warm = _working_marker(tmp_path / "w", {"ct": 2700})
+    cool = _working_marker(tmp_path / "c", {"ct": 6500})
+    assert warm["fill"] == "#ffa860", warm
+    assert cool["fill"] == "#fffff0", cool
+
+
+def test_a_light_reporting_no_colour_keeps_the_amber_it_always_had(tmp_path):
+    out = _working_marker(tmp_path, {"bri": 90})
+    assert out == {"fill": "#fbbf24", "ink": "#111827"}, out
+
+
+def test_a_pin_given_its_own_colour_keeps_it_over_the_live_colour(tmp_path):
+    out = _working_marker(tmp_path, {"rgb": [255, 0, 0]}, pin="#22d3ee")
+    assert out == {"fill": "#22d3ee", "ink": "#111827"}, out
+
+
+def test_an_off_light_stays_the_working_maps_dark_slate(tmp_path):
+    out = _working_marker(tmp_path, {"state": "off", "rgb": [255, 0, 0]})
+    assert out["fill"] == "#374151", out
+
+
+def test_live_colours_are_off_unless_asked(tmp_path):
+    """Current users' maps don't change: without Settings -> UI Structure ->
+    Atlas -> "Draw lit lights in their own colour", a lit light stays amber."""
+    out = _working_marker(tmp_path, {"rgb": [16, 240, 128]}, live=False)
+    assert out["fill"] == "#fbbf24" and out["ink"] == "#111827", out
