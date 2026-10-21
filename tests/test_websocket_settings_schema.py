@@ -49,6 +49,9 @@ _BACKEND_ONLY = {
     "atlas_default_v1_applied",        # settings_store.py — the one-time Atlas-on switch, stamped on load
     "first_seen_ts",                   # settings_store.py — stamped once on load (trial milestone card)
     "wled_teams",                      # padspan_ha/wled_teams_set (ws_wled.py), validated there
+    "license_home_token",              # licence_homes.py — the licence server's rolling token, never set by hand
+    "license_home_label",              # padspan_ha/licence_homes op=label (ws_forensics.py)
+    "license_home_status",             # update_check.py — the licence server's last refusal of this home
 }
 
 
