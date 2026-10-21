@@ -3342,6 +3342,7 @@ export function buildLightsMapCard(hostIn){
         classFilter: host.classFilter || null, hitHalo: !!host.hitHalo,
         collapseUnplaced: !!host.collapseUnplaced,
         locateEid: host.locateEid || null, dropMarker: !!host.onDropPlace,
+        labelScale: WALL && host.wallLabel ? host.wallLabel() : 1,
         // When HA came up (model_get's ha_started_at) — a motion sensor whose
         // last_changed is just the restart's restored timestamp draws quiet.
         haStartedMs: Date.parse(host.model && host.model.ha_started_at) || 0,
@@ -4237,7 +4238,7 @@ export function buildLightsMapCard(hostIn){
   const legend = buildShapeLegend(el, Object.values(abLegend
     ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abLegend, host.lightsByEid, h3.settings.light_shapes)).lightsByEid
     : host.lightsByEid));
-  if (legend) mapCard.appendChild(legend);
+  if (legend) { legend.classList.add("lv-shapes"); mapCard.appendChild(legend); }   // a wall leaves it out (styles.css)
   rebuildISO();
   // Restore the pan position a previous rebuild of this same card saved
   // (see the scroll listener above) — skipped on the very first-ever

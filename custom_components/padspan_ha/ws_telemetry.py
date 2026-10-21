@@ -55,10 +55,18 @@ async def ws_telemetry_preview(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({
     "type": "padspan_ha/telemetry_event",
     vol.Required("event"): str,
+    # client_screen_seen only: this browser's random screen id, counted once
+    # per report window and never stored in the report (telemetry.note_screen).
+    vol.Optional("screen"): vol.All(str, vol.Length(max=32)),
 })
 @websocket_api.async_response
 async def ws_telemetry_event(hass: HomeAssistant, connection, msg) -> None:
     event = str(msg.get("event") or "")
+    if event == "client_screen_seen":
+        from .telemetry import enabled, note_screen  # noqa: PLC0415
+        counted = bool(enabled(hass) and note_screen(hass, str(msg.get("screen") or "")) and bump(hass, event))
+        connection.send_result(msg["id"], {"counted": counted})
+        return
     counted = bump(hass, event)
     # A panel's once-a-minute frame-rate event is also its heartbeat: which
     # kind of view is on a screen, for Home Assistant's load by view.

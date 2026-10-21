@@ -1590,3 +1590,6 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-mapcard.lv-display.lv-wall > .lv-rail,.lv-mapcard.lv-display.lv-wall > .lv-legend,
 .lv-mapcard.lv-display.lv-wall > .lv-drawer,.lv-mapcard.lv-display.lv-wall .lv-alone-anchor > button{zoom:var(--wall-ui,1)}
 .lv-mapcard.lv-display.lv-wall > .lv-legend{flex:none}
+/* A wall shows the overview only (control-room practice: the big screen is
+   the house at a glance; the fixture key is for whoever edits the map). */
+.lv-mapcard.lv-display.lv-wall > .lv-legend.lv-shapes{display:none}

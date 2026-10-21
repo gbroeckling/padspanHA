@@ -29,6 +29,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
+const WALLS = await import(`./views/wall_scale.js${new URL(import.meta.url).search}`);
 // Hide HA / Show HA beside Refresh, shared with the panel's toolbar. Optional:
 // without it the button is simply not there.
 const HA_SIDEBAR = await import(`./ha_sidebar.js${new URL(import.meta.url).search}`)
@@ -84,14 +85,8 @@ function staleBuildAction(pageBuild, backendBuild, kiosk, reloadedFor){
   const newer = backendBuild > pageBuild;
   return { newer, reload: newer && !!kiosk && reloadedFor !== backendBuild };
 }
-// Wall mode (?kiosk=1, 2026-10-21): the whole house on the screen, its
-// controls sized for the room. The scale is the screen against 1080p, never
-// under 1, so a 1080p wall is as it always was; a 4K wall is 2.
-const WALL_UI_MAX = 3;
-function wallScale(w, h){
-  const s = Math.min(Number(w) / 1920, Number(h) / 1080);
-  return Number.isFinite(s) ? Math.max(1, Math.min(WALL_UI_MAX, Math.round(s * 100) / 100)) : 1;
-}
+// Wall mode (?kiosk=1, 2026-10-21): how big to draw is views/wall_scale.js,
+// shared with Settings → UI Structure → Wall screens.
 
 // A wall screen: ?kiosk=1, or a window that fills the screen (Chrome
 // --kiosk, a full-screen tablet), which nobody is there to press Reload on.
@@ -256,7 +251,8 @@ class PadSpanLightsApp extends HTMLElement {
     // kept awake (Wake Lock needs HTTPS or localhost).
     if(this.hasAttribute("data-wall")){
       const s = this._wallUi || 1;
-      send("wall_ui:" + (s < 1.25 ? "1" : s < 1.75 ? "1.5" : s < 2.5 ? "2" : "3"));
+      send("wall_ui:" + (s < 1.25 ? "1" : s < 1.75 ? "1.5" : s < 2.5 ? "2" : s < 3.5 ? "3" : s < 5 ? "4" : "6"));
+      send("wall_fit:" + (this._wallFit === "room" ? "room" : "auto"));
       send("wall_awake:" + (this._wakeLock && !this._wakeLock.released ? "on" : "off"));
     }
     if(_reloadNote) send("wall_reload:atlas:" + _reloadNote);
@@ -419,6 +415,8 @@ class PadSpanLightsApp extends HTMLElement {
       // (host.displayMode below): edge-to-edge map, a slim rail, no
       // onLayoutV2 handed to the host, so no toggle button shows here.
       this.state._atlasLayoutV2 = !!s.atlas_layout_v2;
+      this.state._wall = { wall_screen_in: s.wall_screen_in, wall_distance_m: s.wall_distance_m, wall_text_arcmin: s.wall_text_arcmin,
+                           wall_night_dim: s.wall_night_dim, wall_pixel_shift: s.wall_pixel_shift };
       // Vacation Mode's own state — read here too now that the banner lives
       // in the shared Atlas card (both hosts), not panel.js's global chrome.
       this.state._vacationModeEnabled = !!s.vacation_mode_enabled;
@@ -915,6 +913,9 @@ class PadSpanLightsApp extends HTMLElement {
       displayMode: true,
       // Wall mode (?kiosk=1, _wallOn): the whole house fits the screen.
       wall: this.hasAttribute("data-wall"),
+      // The drawing already grows with the screen (a 4K wall draws it twice a
+      // 1080p one); room names take the rest of the wall's scale.
+      wallLabel: ()=>Math.max(1, (this._wallUi || 1) / Math.max(1, Math.min(window.innerWidth / 1920, window.innerHeight / 1080))),
       showcase: !!this.state._showcase,
       showcaseTheme: this.state._showcaseTheme || "classic",
       fitRooms: !!this.state._fitRooms,
@@ -1318,7 +1319,10 @@ class PadSpanLightsApp extends HTMLElement {
         this._clientPerf = m.startClientPerf({
           root: this.shadowRoot, viewClass: ()=>"atlas",
           enabled: ()=>!!this.state._telemetryOn && !!this._hass,
-          send: (name)=>{ Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{}); },
+          send: (name, extra)=>{
+            const screen = extra && typeof extra.screen === "string" ? { screen: extra.screen } : {};
+            Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name, ...screen })).catch(()=>{});
+          },
         });
       }).catch(()=>{ this._clientPerfLoading = null; });
     }
@@ -1334,6 +1338,14 @@ class PadSpanLightsApp extends HTMLElement {
            its controls scaled by --wall-ui (lv- rules in styles.css). */
         :host([data-wall]) #content{padding:0}
         :host([data-wall]) .lv-hero, :host([data-wall]) .lv-coach{display:none}
+        /* Nobody at the wall: the controls floating over the map and the 3D
+           house fade away (they come back with a touch, a mouse or a key),
+           so a big wall shows the house, not its buttons. */
+        :host([data-wall]) .la3d-bar, :host([data-wall]) .la3d-compass, :host([data-wall]) .la3d-hud,
+        :host([data-wall]) .lv-alone-anchor > button{transition:opacity .6s ease}
+        :host([data-wall]:not([data-wall-active])) .la3d-bar, :host([data-wall]:not([data-wall-active])) .la3d-compass,
+        :host([data-wall]:not([data-wall-active])) .la3d-hud,
+        :host([data-wall]:not([data-wall-active])) .lv-alone-anchor > button{opacity:0;pointer-events:none}
       </style>
       <div id="content"></div>
     `;
@@ -1357,17 +1369,36 @@ class PadSpanLightsApp extends HTMLElement {
     try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
     const v2 = String(this.state?._tier || "").toLowerCase() === "pro" && !!this.state?._atlasLayoutV2;
     if(!kiosk || this._embedded || !v2){
+      // Also when a wall stops being one without a reload (the layout or
+      // the tier changed elsewhere): nothing of the wall is left behind.
       this.removeAttribute("data-wall");
-      if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
+      this._wallOff();
+      this._wallNight(); this._wallShift();
       return;
     }
     this.setAttribute("data-wall", "");
     const size = ()=>{
-      const s = wallScale(window.innerWidth, window.innerHeight);
+      const p = WALLS.wallParams(location.search, this.state?._wall);
+      const s = WALLS.wallScale(window.innerWidth, window.innerHeight, { ...p, dpr: window.devicePixelRatio || 1 });
       this.style.setProperty("--wall-ui", String(s));
       this._wallUi = s;
+      this._wallFit = p.inches > 0 ? "room" : "auto";
     };
     size();
+    this._wallNight();
+    this._wallShift();
+    // Someone at the wall: its floating controls show for 30 s after the
+    // last touch, mouse move or key, then fade (the CSS above).
+    if(!this._wallWake){
+      const wake = ()=>{
+        this.setAttribute("data-wall-active", "");
+        clearTimeout(this._wallIdleTimer);
+        this._wallIdleTimer = setTimeout(()=>this.removeAttribute("data-wall-active"), 30000);
+      };
+      this._wallWake = wake;
+      for(const ev of ["pointerdown", "pointermove", "keydown", "wheel"]) window.addEventListener(ev, wake, { passive: true });
+      wake();
+    }
     if(!this._wallResize){ this._wallResize = size; window.addEventListener("resize", size); }
     // Keep the screen on (Wake Lock): a wall nobody touches must not go to
     // sleep. Only on HTTPS or localhost; elsewhere the browser's own setting
@@ -1380,11 +1411,62 @@ class PadSpanLightsApp extends HTMLElement {
     if(!this._wakeVis){ this._wakeVis = ask; document.addEventListener("visibilitychange", ask); }
   }
 
-  disconnectedCallback(){
-    if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
+  // Night dimming on a wall: after sunset the whole picture is that much
+  // darker (an overlay: cheaper than a filter over a 3D view). Asked at every
+  // build, so it follows the sun with the poll.
+  _wallNight(){
+    const r = this.shadowRoot;
+    if(!r) return;
+    const dim = this.hasAttribute("data-wall") ? WALLS.wallParams(location.search, this.state?._wall).dim : 0;
+    const night = this._hass?.states?.["sun.sun"]?.state === "below_horizon";
+    let d = r.querySelector("#wallDim");
+    if(!(dim > 0 && night)){ if(d) d.remove(); return; }
+    if(!d){
+      d = document.createElement("div"); d.id = "wallDim";
+      d.style.cssText = "position:fixed;left:0;top:0;right:0;bottom:0;background:#000;pointer-events:none;z-index:2147483000;transition:opacity 4s";
+      r.appendChild(d);
+    }
+    d.style.opacity = String(dim);
+  }
+  // Against burn-in on an OLED wall: the picture moves a couple of pixels
+  // round a small square, one step every three minutes, so no edge stays lit
+  // on the same pixels for hours. Off unless asked for.
+  _wallShift(){
+    const on = this.hasAttribute("data-wall") && WALLS.wallParams(location.search, this.state?._wall).shift;
+    const c = this.shadowRoot && this.shadowRoot.querySelector("#content");
+    if(!on){
+      if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; }
+      if(c) c.style.transform = "";
+      return;
+    }
+    if(this._shiftTimer) return;
+    const orbit = [[0,0],[2,0],[2,2],[0,2],[-2,2],[-2,0],[-2,-2],[0,-2],[2,-2]];
+    let i = 0;
+    this._shiftTimer = setInterval(()=>{
+      i = (i + 1) % orbit.length;
+      const el = this.shadowRoot && this.shadowRoot.querySelector("#content");
+      if(el) el.style.transform = `translate(${orbit[i][0]}px,${orbit[i][1]}px)`;
+    }, 180000);
+  }
+
+  // What a wall set up on the window and the host, undone.
+  _wallOff(){
     if(this._wallResize){ window.removeEventListener("resize", this._wallResize); this._wallResize = null; }
+    if(this._wallWake){
+      for(const ev of ["pointerdown", "pointermove", "keydown", "wheel"]) window.removeEventListener(ev, this._wallWake);
+      this._wallWake = null; clearTimeout(this._wallIdleTimer);
+    }
     if(this._wakeVis){ document.removeEventListener("visibilitychange", this._wakeVis); this._wakeVis = null; }
     if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
+    this.style.removeProperty("--wall-ui");
+    this.removeAttribute("data-wall-active");
+    this._wallUi = 1;
+  }
+
+  disconnectedCallback(){
+    if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
+    if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; }
+    this._wallOff();
     if(this._clientPerf){ this._clientPerf.stop(); this._clientPerf = null; }
     if(this._uiErrorHandler){
       window.removeEventListener("error", this._uiErrorHandler);

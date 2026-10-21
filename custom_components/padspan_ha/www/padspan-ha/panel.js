@@ -1660,7 +1660,7 @@ class PadSpanHaApp extends HTMLElement {
         root: this.shadowRoot || this,
         viewClass: () => (this.state.view === "maps" && this.state.mapsTab === "lights") ? "atlas" : "other",
         enabled: () => !!this.state.settings?.telemetry_enabled,
-        send: (name) => this._telemetryEvent(name),
+        send: (name, extra) => this._telemetryEvent(name, extra),
         states: () => this._hass && this._hass.states,
       });
     }).catch(() => { this._clientPerfLoading = null; });
@@ -1958,15 +1958,17 @@ class PadSpanHaApp extends HTMLElement {
     if (!HA_SIDEBAR) return;
     this._telemetryEvent(HA_SIDEBAR.toggleHaSidebar(this, this._hass));
   }
-  _telemetryEvent(name){
+  _telemetryEvent(name, extra){
     const s = this.state.settings;
     if (!s || !("telemetry_enabled" in s)) {
       const q = this._telemetryQueue || (this._telemetryQueue = []);
-      if (q.length < 50) q.push(String(name));
+      if (q.length < 50 && !extra) q.push(String(name));
       return;
     }
     if (!s.telemetry_enabled) { this._telemetryQueue = null; return; }
-    this._callWS({ type: "padspan_ha/telemetry_event", event: String(name) }).catch(() => {});
+    // `extra` only ever carries client_screen_seen's screen id (client_perf.js).
+    const screen = extra && typeof extra.screen === "string" ? { screen: extra.screen } : {};
+    this._callWS({ type: "padspan_ha/telemetry_event", event: String(name), ...screen }).catch(() => {});
   }
   // Called whenever settings land. Counts the view that was already open
   // once — it was set directly, never through setView — then releases

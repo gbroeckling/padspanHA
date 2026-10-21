@@ -149,6 +149,17 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_weather_condition_entity": "", # weather.* for the fallback trigger and rain vs snow; "" = the first weather.*
     "atlas_weather_warning_entity": "",   # a weather-warning sensor; "" = detect (env_canada, meteoalarm, dwd, nina, meteo_france, weatheralerts, nws_alerts)
     "atlas_weather_strength": 1.0,        # 0.5-1.5 x opacity
+    # Wall screens (the sidebar Atlas on ?kiosk=1, lights_panel.js _wallOn): how
+    # big to draw for the room. wall_screen_in 0 = size from the screen's
+    # resolution; otherwise its diagonal (inches) and how far people stand
+    # (m) set the size, text at wall_text_arcmin of visual angle (control-room
+    # practice: 16 minimum, 20-22 preferred). A screen's own link can override
+    # all three (?wall_in=&wall_m=&wall_text=).
+    "wall_screen_in": 0.0,                # 0 or 15-120
+    "wall_distance_m": 2.5,               # 0.3-10
+    "wall_text_arcmin": 20.0,             # 14-36
+    "wall_night_dim": 0.0,                # 0-0.7: how much darker after sunset
+    "wall_pixel_shift": False,            # move the picture a few px every few minutes (OLED burn-in)
     # Live Aboard, the 3D house (docs/IDEA_ATLAS_3D_HOUSE.md on the live-aboard branch). NORMALLY OFF:
     # off = no 3D switch, no Furnish tab, no store writes, no AI or library calls, no telemetry.
     "atlas_3d_enabled": False,            # the master switch

@@ -2642,6 +2642,9 @@ function beaconLookSVG(bx, by, look){
 export const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
+  // A wall screen sized for its room (lights_map, wall mode): room names grow
+  // past what the drawing's own width gives them. 1 everywhere else.
+  const LS = Number(opts.labelScale) > 1 ? Math.min(6, Number(opts.labelScale)) : 1;
   // Which palette Showcase paints with — see SHOWCASE_THEMES above. Falls
   // back to "classic" for an unknown/missing name exactly the way
   // AUTOMORPH_STYLE falls back to "glow", so a stale saved value from a
@@ -2906,7 +2909,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // taller than the map itself; then "put that on the same line as the
   // motion color index bar, be more efficient with the rapidly evaporating
   // space" — so the two rows became one).
-  const LEGEND_H=32;
+  const LEGEND_H=32*LS;   // a wall's key is drawn LS times bigger (below)
   // Top of the stack in DRAWN storeys, not level numbers — otherwise a gap in
   // the numbering reserved empty canvas above the building.
   const maxIsoZ = levels.length ? rankOf(levels[levels.length-1]) : 0;
@@ -5560,7 +5563,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // <text> itself) because the collision check below needs it.
       // Trimmed ~10% (Garry, 2026-09-07: room names were "too much space" —
       // shrink-to-fit below only ever shrinks further from here, never grows).
-      const rfsBase=SHOW?5.9:6.7;
+      const rfsBase=(SHOW?5.9:6.7)*LS;
       const rtxt=SHOW?String(r.room).toUpperCase():String(r.room);
       // Shrink to fit the room's own isometric width — a fixed size read
       // fine in an average room but visibly overflowed a small one, live on
@@ -6457,6 +6460,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   {
     const R=7, FS=10, ly=LEGEND_Y0+10+R;
     let lx=18+R;
+    const legendAt=s.length;
     levels.forEach((z,i)=>{
       const color=levelColor(z);
       // The floor the drawing put here (floorIdAtLevel): HA floors usually
@@ -6481,6 +6485,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     s+=`<text x="${lx}" y="${ly+3}" fill="#9fb0a8" font-size="${KFS}" font-weight="500">${key}</text>`;
     lx+=key.length*KFS*0.6+10;
     s+=`<rect x="${lx}" y="${ly-2}" width="120" height="1.5" rx="0.75" fill="url(#psmotionlegend)"/>`;
+    // On a wall the key grows with the room names, as far as the width allows.
+    const k=Math.min(LS, (W-20)/(lx+130));
+    if(k>1) s=s.slice(0, legendAt)+`<g transform="translate(10 ${LEGEND_Y0+4}) scale(${k.toFixed(3)}) translate(-10 ${-(LEGEND_Y0+4)})">`+s.slice(legendAt)+`</g>`;
   }
 
   s+=`</svg>`;

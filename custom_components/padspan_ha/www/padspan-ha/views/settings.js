@@ -19,6 +19,9 @@
 const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
+// 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
+// leaves the rest of Settings as it is.
+const WALLCARD = await import(`./wall_card.js${new URL(import.meta.url).search}`).catch(() => null);
 // Optional too: the tester sign-up must not take the Settings tab with it.
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: tester_signup failed to load", err); return { testerSection: () => null }; });
@@ -3839,6 +3842,11 @@ function _settingsUI(ctx, el){
   // all, and whatever is stored is kept for when a key comes back.
   if (tierAtLeast(currentTier(settings), "pro")) lightsCard.appendChild(_atlas3dSection(ctx, el, settings));
   wrap.appendChild(lightsCard);
+  // 📺 Wall screens: how big a ?kiosk=1 wall draws, for its room. Not on a
+  // Bright install that can't unlock it (wall mode is PadSpan Pro's).
+  if (WALLCARD && !(String(settings.edition || "").toLowerCase() === "bright" && !tierAtLeast(currentTier(settings), "pro"))) {
+    try { wrap.appendChild(WALLCARD.wallCard(ctx, el, settings)); } catch (e) { console.warn("PadSpan: wall screens card", e); }
+  }
 
   // ── The Atlas as Overview (Pro) ──
   // Overview (first in the menu) shows the Atlas instead of the classic map;

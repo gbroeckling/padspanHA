@@ -47,6 +47,29 @@ shown on a wall, since nobody is there to tap it.
 Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Mapping → Atlas →
 ▦ New layout**). With the classic layout, `?kiosk=1` only drops the header.
 
+### Sizing a wall for its room
+
+**Settings → UI Structure → Wall screens** sets how big a wall draws things.
+
+- **Size from the screen** (the default): a 4K screen is twice a 1080p one.
+- **Size for my room**: give the screen's size and how far away people usually are (or tap a
+  preset: desk monitor, kitchen tablet, hallway screen, living-room TV, big TV). PadSpan sizes the
+  text by how big it looks from there, the rule control rooms use, so a 55-inch TV across a room
+  gets much bigger text than a 27-inch monitor on a desk, even though both are 4K.
+- **Text size** (Small, Comfortable, Large) moves either one up or down.
+- **Dim at night** darkens the wall between sunset and sunrise (it needs Home Assistant's Sun).
+- **Burn-in protection** moves the picture a few pixels every few minutes, for OLED and plasma.
+
+The card's preview shows a 4K screen to scale, and the text's height in centimetres. Walls pick up
+a change within half a minute.
+
+Each screen can also have its own size. The card builds the link, for example
+`/padspan-lights?kiosk=1&wall_in=55&wall_m=2.5` (55 inches, people 2.5 m away); add `&wall_text=24`
+for larger text. A screen opened with its own link ignores the house setting.
+
+On a wall, the controls over the map fade out 30 seconds after the last touch, mouse move or key,
+and come back with the next one.
+
 ## Making the map fill the screen
 
 - **⛶** (bottom right of the map) makes it full screen.

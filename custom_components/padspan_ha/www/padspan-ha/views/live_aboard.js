@@ -161,17 +161,24 @@ const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
 const NAME_PX = [12, 17];                  // a room's name on screen (px), never under / over
 // On a wall (?kiosk=1, lights_panel.js _wallOn) the names and the controls
 // grow with the screen: --wall-ui is the screen against 1080p, never under 1.
-// Read once per window size (it is asked every frame), and only once the
-// view is on the page: before that it can't see the wall it is in.
+// The wall is the page (the Atlas element carries data-wall), not the card,
+// so it holds when the view leaves the card for the whole screen. Read once
+// per window size (it is asked every frame), and only once the view is on
+// the page: before that it can't see the wall it is in.
+const onWallPage = (el) => {
+  const rn = el && el.getRootNode ? el.getRootNode() : null;
+  return !!(rn && rn.host && rn.host.hasAttribute && rn.host.hasAttribute("data-wall"));
+};
 const wallUiOf = (() => {
   let key = "", val = 1;
   return (el) => {
-    if (!el || !el.isConnected || !el.closest) return 1;
-    const k = `${innerWidth}x${innerHeight}`;
+    if (!el || !el.isConnected) return 1;
+    const host = el.getRootNode && el.getRootNode().host;
+    const k = `${innerWidth}x${innerHeight}:${host && host.style ? host.style.getPropertyValue("--wall-ui") : ""}`;
     if (k === key) return val;
     let v = 1;
-    if (el.closest(".lv-wall")) {
-      const n = parseFloat(getComputedStyle(el).getPropertyValue("--wall-ui"));
+    if (onWallPage(el)) {
+      const n = parseFloat(getComputedStyle(el.getRootNode().host).getPropertyValue("--wall-ui"));
       if (Number.isFinite(n) && n > 1) v = n;
     }
     key = k; val = v;
@@ -279,11 +286,10 @@ const CSS = `
 .lv-mapcard.lv-display.lv-wall > .la3d{flex:1 1 auto;min-height:0;height:auto;
   width:calc(100% - 44px * var(--wall-ui,1));margin-left:calc(44px * var(--wall-ui,1))}
 .lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .la3d{width:100%;margin-left:0}
-.lv-mapcard.lv-display.lv-wall .la3d-bar,.lv-mapcard.lv-display.lv-wall .la3d-compass,.lv-mapcard.lv-display.lv-wall .la3d-hud,
-.lv-mapcard.lv-display.lv-wall .la3d-north,.lv-mapcard.lv-display.lv-wall .la3d-menu,.lv-mapcard.lv-display.lv-wall .la3d-toast,
-.lv-mapcard.lv-display.lv-wall .la3d-solo,.lv-mapcard.lv-display.lv-wall .la3d-corner,.lv-mapcard.lv-display.lv-wall .la3d-sheet,
-.lv-mapcard.lv-display.lv-wall .la3d-card{zoom:var(--wall-ui,1)}
-.lv-mapcard.lv-display.lv-wall .la3d-tip{display:none}`;
+:host([data-wall]) .la3d-bar,:host([data-wall]) .la3d-compass,:host([data-wall]) .la3d-hud,:host([data-wall]) .la3d-north,
+:host([data-wall]) .la3d-menu,:host([data-wall]) .la3d-toast,:host([data-wall]) .la3d-solo,:host([data-wall]) .la3d-corner,
+:host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ui,1)}
+:host([data-wall]) .la3d-tip{display:none}`;
 // While Live Aboard shows (its sheet travels with it): the flat Atlas's
 // symbol legend matches nothing in 3D; on the sidebar the header's flat hint
 // gives way to the view's own, and on a narrow screen the emergency pill
@@ -1181,7 +1187,7 @@ function createSlot(slotKey){
     const seen = prefGet(PREF_HINT) === "1";
     hintShown = true;
     if (seen && !again) return;
-    if (!again && root.closest && root.closest(".lv-wall")) return;   // a wall: nobody there to tap Got it
+    if (!again && onWallPage(root)) return;   // a wall: nobody there to tap Got it
     const d = (tag, text) => { const n = document.createElement(tag); if (text) n.textContent = text; return n; };
     const card = document.createElement("div");
     card.className = "la3d-card";
@@ -1267,7 +1273,7 @@ function createSlot(slotKey){
       recipeOf: (p) => stairRecipe(p) });
     devices = DEVICES ? DEVICES.createDeviceLayer({ THREE, layer, FURN: () => FURN, halo: shared.haloMats.m,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
-    tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi,
+    tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi, uiScale: () => wallUiOf(root),
       canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     marks = MARKS ? MARKS.createMarkLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     // Under the roof while it shows is hidden too (a marker, a code).
@@ -2925,7 +2931,7 @@ function createSlot(slotKey){
       if (!C.F.group.visible) continue;
       if (C.label) C.sprite.position.copy(C.label.position);   // under its name, wherever the name went
       const mpp = mppAt(C.sprite.position);
-      const hPx = Math.max(READ_PX[0], Math.min(READ_PX[1], READ_H / mpp)) * READ_C / (READ_C - 8);
+      const hPx = Math.max(READ_PX[0] * wallK, Math.min(READ_PX[1] * wallK, READ_H / mpp)) * READ_C / (READ_C - 8);
       C.sprite.scale.set(hPx * READ_W / READ_C * k, hPx * k, 1);
       C.px = hPx;
       // Under the room's name (or where the name would be), clear of it.
@@ -3005,10 +3011,21 @@ function createSlot(slotKey){
     paintWallButtons();
     requestRender();
   }
+  // A wall's pixel budget: a 4K wall drawn at every pixel is 8.3 million a
+  // frame, and the frame rate pays for it. On a wall the 3D view draws at most
+  // about 1440p's worth and the browser scales it up; from across the room it
+  // reads the same. Anywhere else, the quality profile's ratio as before.
+  const WALL_PX = 2560 * 1440;
+  let profileDpr = 1;
+  function ratioFor(w, h){
+    if (!onWallPage(root) || !w || !h) return profileDpr;
+    return Math.max(0.5, Math.min(profileDpr, Math.sqrt(WALL_PX / (w * h))));
+  }
   function applyProfile(name){
     const Q = HOUSE.QUALITY_PROFILES[name];
     if (!Q || !renderer) return;
-    renderer.setPixelRatio(Q.dpr === "device" ? Math.min(window.devicePixelRatio || 1, 3) : 1);
+    profileDpr = Q.dpr === "device" ? Math.min(window.devicePixelRatio || 1, 3) : 1;
+    renderer.setPixelRatio(ratioFor(root ? root.clientWidth : 0, root ? root.clientHeight : 0));
     renderer.shadowMap.enabled = !!Q.shadows;
     sun.castShadow = !!Q.shadows;
     lampPool.forEach((l, i) => { l.visible = i < Q.lamps; });
@@ -3769,6 +3786,8 @@ function createSlot(slotKey){
     drawnW = w; drawnH = h;
     narrow = w < NARROW_W;
     root.classList.toggle("la3d-narrow", narrow);
+    const pr = ratioFor(w, h);
+    if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr);
     renderer.setSize(w, h, false);
     const d3 = viewports().d3;                               // Furnish's plan may take part of it
     camera.aspect = (d3 ? d3[2] : w) / h;

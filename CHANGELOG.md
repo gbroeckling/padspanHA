@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.159 — Wall screens sized for the room, and a card to tune them (2026-10-21)
+
+### New
+- **Settings → UI Structure → Wall screens.** One card to set up a wall screen (`?kiosk=1` on the sidebar Atlas). Leave it on **Size from the screen** and a 4K wall draws everything twice its 1080p size, as in 0.38.158. Or choose **Size for my room**, pick a preset (desk monitor, kitchen tablet, hallway screen, living-room TV, big TV) or set the screen's size and how far away people stand, and PadSpan works out the text size the way control rooms do: by how big it looks from where you are, not by pixels. A **Text size** slider (Small to Very large) goes on top. A to-scale preview of a 4K screen and a side view of the room show the result, with the text's height in centimetres. Wall screens pick up a change within half a minute.
+- **A link for one screen.** The card builds a link like `/padspan-lights?kiosk=1&wall_in=55&wall_m=2.5` with a Copy button; a screen opened with its own link keeps its own size whatever the house setting is, so the hallway and the living room can differ.
+- **Dim at night.** Up to 70% darker between sunset and sunrise (needs Home Assistant's Sun).
+- **Burn-in protection.** For OLED and plasma walls: the picture moves a few pixels every few minutes.
+- **A wall shows the house, not its buttons.** The controls floating over the map and the 3D house fade out 30 seconds after the last touch, mouse move or key, and come back with the next one. The fixture shapes key is left off a wall.
+- On a wall sized for its room, the flat Atlas's room names and its floor key grow with it (a small room's name still shrinks to fit inside it), and in Live Aboard the readout chips and the names of tags and people grow too. Full-screen 3D keeps the wall's size, and a big wall's 3D house is drawn at a resolution the graphics card can keep up with.
+
+### Opt-in report
+- The screens PadSpan is shown on, in broad buckets: resolution (`res_*`), portrait or landscape, pixel density, the kind of screen, how many monitors, and how many different screens (`client_screen:*`, `client_screen_seen`). Each screen is counted once by a random id that stays on your Home Assistant; only the count is sent.
+- On a wall: whether it is sized from the screen or for the room (`wall_fit:*`), and the scale (`wall_ui:*`, now up to 6).
+
+---
+
 ## 0.38.158 — 4K wall mode, a room that rises past its floor, and rain beside a smaller upstairs (2026-10-21)
 
 ### New
