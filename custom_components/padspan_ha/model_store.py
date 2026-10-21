@@ -152,12 +152,37 @@ def _norm_floor(f: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# A room's own height (room_meta[room]["height_m"]): metres from the room's
+# floor to the top of its space, the same measure as its floor's
+# floor_to_floor_m (Floor Heights), for a room that rises past its floor (a
+# double-height living room, a hall under a mezzanine). None, or no key, is
+# the floor's height. Only Live Aboard draws it; positioning never reads it
+# (floor_base_elevations_m stacks the floors' own heights).
+ROOM_HEIGHT_MIN_M = 1.5
+
+
+def room_height(v: Any) -> float | None:
+    """A room's height as stored: a finite number kept ROOM_HEIGHT_MIN_M to
+    MAX_HEIGHT_M, to the millimetre; anything else is none (the floor's)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return round(max(ROOM_HEIGHT_MIN_M, min(MAX_HEIGHT_M, float(v))), 3)
+
+
+def _room_meta_entry(floor_id: str, color: str, height: float | None) -> dict[str, Any]:
+    out: dict[str, Any] = {"floor_id": floor_id, "color": color}
+    if height is not None:
+        out["height_m"] = height
+    return out
+
+
 DEFAULT_DATA: dict[str, Any] = {
     "floors": [
         {"id": DEFAULT_FLOOR_ID, "name": "Main Floor"},
     ],
     "room_meta": {
-        # roomName: { floor_id, color }
+        # roomName: { floor_id, color, height_m (optional: the room's own
+        #             height, metres; absent = its floor's) }
     },
     # ── Positioning fabric (Phase 1 decoupling) ──────────────────────────────
     "scanners": {
@@ -382,7 +407,7 @@ class ModelStore:
             room = k[:120]
             floor_id = str(v.get("floor_id") or DEFAULT_FLOOR_ID)[:40]
             color = str(v.get("color") or _hash_color_hex(room))[:20]
-            rm[room] = {"floor_id": floor_id, "color": color}
+            rm[room] = _room_meta_entry(floor_id, color, room_height(v.get("height_m")))
         self.data["room_meta"] = rm
 
         # Only re-save on load if normalization actually changed something
@@ -411,8 +436,32 @@ class ModelStore:
         return list(self.data.get("floors", []))
 
     def room_meta(self) -> dict[str, dict[str, Any]]:
-        """Return {room_name: {floor_id, color}} for every known room."""
+        """Return {room_name: {floor_id, color, height_m?}} for every known room."""
         return dict(self.data.get("room_meta", {}))
+
+    async def async_set_room_height(self, room: str, height: Any) -> tuple[bool, float | None]:
+        """Set a room's own height (room_height), or clear it with None (back
+        to its floor's). (False, None) when the room is neither in room_meta
+        nor drawn in the fabric. A drawn room with no room_meta entry gets
+        one: the fabric's floor and the name's colour, as async_ensure_rooms
+        would give it."""
+        rm: dict[str, Any] = self.data.setdefault("room_meta", {})
+        h = room_height(height)
+        entry = rm.get(room)
+        if not isinstance(entry, dict):
+            geo = (self.room_geometry_m() or {}).get(room)
+            if not isinstance(geo, dict):
+                return False, None
+            if h is None:
+                return True, None
+            entry = rm[room] = {"floor_id": str(geo.get("floor_id") or DEFAULT_FLOOR_ID)[:40],
+                                "color": _hash_color_hex(room)}
+        if h is None:
+            entry.pop("height_m", None)
+        else:
+            entry["height_m"] = h
+        await self.store.async_save(self.data)
+        return True, h
 
     async def async_remove_room_meta(self, room: str) -> bool:
         """Forget a room's colour and floor (its HA area was deleted).
@@ -2037,7 +2086,12 @@ class ModelStore:
                 if not self.has_floor(floor_id):
                     floor_id = DEFAULT_FLOOR_ID
                 color = str(meta.get("color") or _hash_color_hex(r))[:20]
-                rm[r] = {"floor_id": floor_id, "color": color}
+                # A save that leaves the height out keeps the stored one (an
+                # older panel, or the colour editor, never sends it); only
+                # an explicit null clears it.
+                prior = rm.get(r) if isinstance(rm.get(r), dict) else {}
+                height = room_height(meta["height_m"]) if "height_m" in meta else room_height(prior.get("height_m"))
+                rm[r] = _room_meta_entry(floor_id, color, height)
             self.data["room_meta"] = rm
 
         await self.store.async_save(self.data)

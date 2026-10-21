@@ -137,8 +137,8 @@ export function weatherArea(h){
     if (!shown(r.floor)) continue;
     const elev = Number(r.floor.elev) || 0;
     if (r.outdoor) decks.push({ pts: r.pts, bb, y: elev });
-    else tops.push({ pts: r.pts, y: elev, h: Number(r.floor.h) || 2.8 });
-    top = Math.max(top, elev + (r.outdoor ? 1 : (Number(r.floor.h) || 2.8)));
+    else tops.push({ pts: r.pts, y: elev, h: Number(r.h ?? r.floor.h) || 2.8 });     // a room's own height, else its floor's
+    top = Math.max(top, elev + (r.outdoor ? 1 : (Number(r.h ?? r.floor.h) || 2.8)));
   }
   if (!box) for (const d of decks) box = grow(box, d.bb);       // a garden alone still gets its weather
   if (!box) return null;

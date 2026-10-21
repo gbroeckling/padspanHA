@@ -467,53 +467,131 @@ tryCase("mask: an ALPHA mask, transparent over every indoor plate", () => {
     && JSON.stringify([...outZ]) === "[2]";
   check("mask: an ALPHA mask, transparent over every indoor plate", ok, { outZ: [...outZ], black: black.length, head: m.slice(0, 200) });
 });
-tryCase("mask: stacked floors are one shape, so no rain falls between them", () => {
+const inPoly = (P, x, y) => {
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const a = P[i], b = P[j];
+    if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+  }
+  return c;
+};
+const centre = (P) => [P.reduce((s, q) => s + q[0], 0) / P.length, P.reduce((s, q) => s + q[1], 0) / P.length];
+tryCase("mask: stacked floors are joined, so no rain falls between them", () => {
   // Spread far apart, so the two floors leave a gap between them.
   const svg300 = ISO.buildIsoSVG(MODEL, {}, new Set(), null, 300, 0, {}, false, FLOORS, {});
   const geo = WX.atlasPlatesFromSvg(svg300);
-  const outZ = WX.outdoorPlateLevels(ISO.fabricFrame(MODEL, FLOORS, 300, 0), ISO.isOutdoorFloorId);
+  const frame = ISO.fabricFrame(MODEL, FLOORS, 300, 0);
+  const outZ = WX.outdoorPlateLevels(frame, ISO.isOutdoorFloorId);
+  const off = WX.plateOffsets(frame);
   const indoor = geo.plates.filter(p => !outZ.has(p.z)).sort((a, b) => a.z - b.z);
-  const joins = WX.stackJoins(indoor);
-  const inPoly = (P, x, y) => {
-    let c = false;
-    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-      const a = P[i], b = P[j];
-      if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
-    }
-    return c;
-  };
-  const inConvex = (H, x, y) => H.every((p, i) => { const q = H[(i + 1) % H.length]; return (q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0]) >= -1e-6; });
-  const centre = (P) => [P.reduce((s, q) => s + q[0], 0) / P.length, P.reduce((s, q) => s + q[1], 0) / P.length];
-  // Halfway up from the main floor's top to the one above: off both plates.
-  const [a, b] = [centre(indoor[0].polys[2]), centre(indoor[1].polys[2])];
+  const joins = WX.stackJoins(indoor, new Set(), off);
+  // Straight down from the upper floor's top to the main floor's level: off both plates, inside a join.
+  const [lo, hi] = [off.get(indoor[0].z), off.get(indoor[1].z)];
+  const c = centre(indoor[1].polys[2]);
   const gap = [];
   for (let i = 1; i < 60; i++) {
-    const t = i / 60, x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+    const t = i / 60, x = c[0] + (lo[0] - hi[0]) * t, y = c[1] + (lo[1] - hi[1]) * t;
     if (!indoor.some(pl => pl.polys.some(P => inPoly(P, x, y)))) gap.push([x, y]);
   }
-  const corners = [...indoor[0].polys.flat(), ...indoor[1].polys.flat()];
-  // Through the overlay: the mask and the snow rim carry the join.
+  // Through the overlay: the mask and the snow rim carry the joins.
   WX._resetWeatherSlotsForTests();
   const slot = WX.atlasWeatherSlot("stack");
   slot.attach(document.createElement("div"), { settings: cfg({}), states: { ...wx("snowy"), ...ecSnow }, entities: EC_ENT, svg: svg300,
-    outdoorZ: outZ, animate: true, colour: "#fff", zoom: 1, telemetry: () => {} });
+    outdoorZ: outZ, plateOffsets: off, animate: true, colour: "#fff", zoom: 1, telemetry: () => {} });
   const mask = decodeURIComponent(String(slot.element.style["mask-image"]));
   const black = /<g fill="#000" filter="url\(#f\)">([\s\S]*?)<\/g>/.exec(mask);
   const nBlack = black ? (black[1].match(/<polygon /g) || []).length : 0;
   const rim = slot.element._all().find(n => n.className === "lv-wx-rim").innerHTML;
-  const one = WX.stackJoins(indoor.slice(0, 1));
+  const one = WX.stackJoins(indoor.slice(0, 1), new Set(), off);
   const square = WX.hullOf([[0, 0], [4, 0], [4, 4], [0, 4], [2, 2], [1, 3]]);
   // A garden drawn between two floors keeps its rain: nothing joins across it.
   const tri = (y) => ({ polys: [[[0, y], [10, y], [10, y + 5]]] });
   const three = [{ z: 0, ...tri(0) }, { z: 1, ...tri(-20) }, { z: 2, ...tri(-40) }];
-  const across = WX.stackJoins(three, new Set([1])), allIn = WX.stackJoins(three, new Set());
-  const allPlates = WX.stackJoins(geo.plates, outZ);                       // the drawing's own: the garden is on top
-  check("mask: stacked floors are one shape, so no rain falls between them",
-    indoor.length === 2 && joins.length === 1 && gap.length > 5 && gap.every(([x, y]) => inConvex(joins[0], x, y))
-    && corners.every(([x, y]) => inConvex(joins[0], x, y)) && nBlack === 7 && (rim.match(/<polygon /g) || []).length === 7
+  const step = new Map([[0, [0, 0]], [1, [0, -20]], [2, [0, -40]]]);
+  const across = WX.stackJoins(three, new Set([1]), step), allIn = WX.stackJoins(three, new Set(), step);
+  // A polygon that is not convex is never wrapped in a hull: itself and a quad per edge.
+  const ell = [[0, 0], [10, 0], [10, 4], [4, 4], [4, 10], [0, 10]];
+  const bent = WX.stackJoins([{ z: 0, polys: [[[0, 30], [1, 30], [1, 31]]] }, { z: 1, polys: [ell] }], new Set(), new Map([[0, [0, 30]], [1, [0, 0]]]));
+  const allPlates = WX.stackJoins(geo.plates, outZ, off);                    // the drawing's own: the garden is on top
+  check("mask: stacked floors are joined, so no rain falls between them",
+    indoor.length === 2 && joins.length === indoor[1].polys.length && gap.length > 5 && gap.every(([x, y]) => joins.some(P => inPoly(P, x, y)))
+    && nBlack === 6 + joins.length && (rim.match(/<polygon /g) || []).length === 6 + joins.length
     && one.length === 0 && square.length === 4 && WX.hullOf([[0, 0], [1, 1]]).length === 0 && WX.stackJoins(null).length === 0
-    && across.length === 0 && allIn.length === 2 && allPlates.length === 1 && JSON.stringify(allPlates[0]) === JSON.stringify(joins[0]),
-    { joins, gap: gap.length, nBlack, square, across: across.length, allIn: allIn.length, allPlates: allPlates.length });
+    && WX.stackJoins(indoor, new Set()).length === 0
+    && across.length === 0 && allIn.length === 2 && bent.length === 1 + ell.length && JSON.stringify(bent[0]) === JSON.stringify(ell)
+    && JSON.stringify(allPlates) === JSON.stringify(joins),
+    { joins: joins.length, gap: gap.length, nBlack, square, across: across.length, allIn: allIn.length, bent: bent.length });
+});
+
+// Stacks where the upper floor is smaller than the one below. The Atlas
+// plate is the floor's rectangle, so what a hull over both plates wrongly
+// kept dry is the open air beside the smaller upper floor: the inside
+// corner of the stacked outline, over the one-storey part.
+const STACK_FLOORS = [{ id: "g", name: "Ground", level: 0 }, { id: "u", name: "Up", level: 1 }];
+const sqm = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+const stackModel = (rooms) => ({ floors: STACK_FLOORS, light_positions_m: {},
+  room_geometry_m: Object.fromEntries(rooms.map(([n, f, pts]) => [n, { type: "poly", floor_id: f, points_m: pts }])) });
+const stackOf = (M) => {
+  const svg = ISO.buildIsoSVG(M, {}, new Set(), null, 300, 0, {}, false, STACK_FLOORS, {});
+  const geo = WX.atlasPlatesFromSvg(svg);
+  const frame = ISO.fabricFrame(M, STACK_FLOORS, 300, 0);
+  const off = WX.plateOffsets(frame);
+  const plates = geo.plates.sort((a, b) => a.z - b.z);
+  const joins = WX.stackJoins(plates, new Set(), off);
+  const oldHull = WX.hullOf(plates.flatMap(p => p.polys.flat()));         // what the mask used to join
+  const onPlate = (x, y) => plates.some(p => p.polys.some(P => inPoly(P, x, y)));
+  const dry = (x, y) => onPlate(x, y) || joins.some(P => inPoly(P, x, y));
+  // Brute force, independent of the sweep: the upper storey slid down toward the lower one.
+  const [lo, hi] = [off.get(plates[0].z), off.get(plates[1].z)];
+  const inColumn = (x, y) => { for (let s = 0; s <= 1.0001; s += 0.01) if (plates[1].polys.some(P => inPoly(P, x - (lo[0] - hi[0]) * s, y - (lo[1] - hi[1]) * s))) return true; return false; };
+  return { frame, plates, joins, oldHull, onPlate, dry, inColumn };
+};
+// Every sampled point in the air over the one-storey parts that is off the
+// plates: wet unless the upper storey's own column is drawn there.
+const airCheck = (st, parts) => {
+  let wetNow = 0, bad = [];
+  for (const [x0, y0, x1, y1] of parts) for (let x = x0 + 0.25; x < x1; x += 0.5) for (let y = y0 + 0.25; y < y1; y += 0.5) for (const k of [0.25, 0.5, 0.75]) {
+    const [sx, sy] = st.frame.iso(x, y, k);
+    if (st.onPlate(sx, sy)) continue;
+    const want = st.inColumn(sx, sy);
+    if (st.dry(sx, sy) !== want) bad.push([x, y, k]);
+    if (!want && inPoly(st.oldHull, sx, sy)) wetNow++;
+  }
+  return { wetNow, bad: bad.slice(0, 5), nBad: bad.length };
+};
+tryCase("mask: an L keeps its rain in the inside corner beside the upper floor", () => {
+  // Ground: an L (A along the back, B down the side); upstairs over A only.
+  const st = stackOf(stackModel([["A", "g", sqm(0, 0, 10, 4)], ["B", "g", sqm(0, 4, 4, 10)], ["Up", "u", sqm(0, 0, 10, 4)]]));
+  const r = airCheck(st, [[0, 4, 4, 10], [4, 4, 10, 10]]);
+  const [cx, cy] = st.frame.iso(2, 8, 0.5);                                  // over the one-storey arm
+  const [dx, dy] = st.frame.iso(5, 2, 0.5);                                  // between the storeys, under Up
+  check("mask: an L keeps its rain in the inside corner beside the upper floor",
+    st.plates.length === 2 && r.nBad === 0 && r.wetNow >= 3 && !st.onPlate(cx, cy) && inPoly(st.oldHull, cx, cy) && !st.dry(cx, cy) && st.dry(dx, dy),
+    r);
+});
+tryCase("mask: a detached garage leaves the driveway wet", () => {
+  const st = stackOf(stackModel([["House", "g", sqm(0, 0, 8, 6)], ["Garage", "g", sqm(14, 0, 18, 5)], ["Up", "u", sqm(0, 0, 8, 6)]]));
+  const r = airCheck(st, [[8, 0, 14, 6], [14, 0, 18, 5]]);
+  const [gx, gy] = st.frame.iso(11, 1, 0.5);                                 // the driveway, half a storey up
+  const [hx, hy] = st.frame.iso(16, 2.5, 0.5);                               // over the garage roof
+  check("mask: a detached garage leaves the driveway wet",
+    st.plates.length === 2 && r.nBad === 0 && r.wetNow >= 3 && !st.onPlate(gx, gy) && inPoly(st.oldHull, gx, gy) && !st.dry(gx, gy)
+    && !st.onPlate(hx, hy) && !st.dry(hx, hy), r);
+});
+tryCase("mask: a plain box house is masked exactly as before", () => {
+  // Same footprint both floors: the old hull and the new sweep are one region.
+  const st = stackOf(stackModel([["Down", "g", sqm(0, 0, 10, 6)], ["Up", "u", sqm(0, 0, 10, 6)]]));
+  const xs = st.oldHull.map(q => q[0]), ys = st.oldHull.map(q => q[1]);
+  const [x0, x1, y0, y1] = [Math.min(...xs) - 20, Math.max(...xs) + 20, Math.min(...ys) - 20, Math.max(...ys) + 20];
+  let n = 0, inside = 0; const bad = [];
+  for (let x = x0 + 0.37; x < x1; x += 3.1) for (let y = y0 + 0.53; y < y1; y += 3.1) {
+    n++;
+    const was = inPoly(st.oldHull, x, y);
+    if (was) inside++;
+    if (was !== st.dry(x, y)) bad.push([x, y, was]);
+  }
+  check("mask: a plain box house is masked exactly as before", st.plates.length === 2 && inside > 100 && bad.length === 0,
+    { n, inside, bad: bad.slice(0, 5), nBad: bad.length });
 });
 tryCase("mask: nothing to read, nothing built", () => {
   check("mask: nothing to read, nothing built", WX.atlasPlatesFromSvg("") === null && WX.atlasPlatesFromSvg("<svg viewBox=\"0 0 0 10\"></svg>") === null

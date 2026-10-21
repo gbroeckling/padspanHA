@@ -1440,7 +1440,7 @@ function createSlot(slotKey){
     for (const r of h.rooms) {
       if (r.floor.outdoor) continue;
       for (const p of r.pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
-      z0 = Math.min(z0, r.floor.elev - HOUSE.SLAB_T); z1 = Math.max(z1, r.floor.elev + r.floor.h - HOUSE.SLAB_T);
+      z0 = Math.min(z0, r.floor.elev - HOUSE.SLAB_T); z1 = Math.max(z1, r.floor.elev + (r.h ?? r.floor.h) - HOUSE.SLAB_T);
     }
     houseBox = Number.isFinite(x0) ? { x0, y0, x1, y1, z0, z1 } : { x0: -5, y0: -5, x1: 5, y1: 5, z0: 0, z1: 3 };
     // Stairs cut their opening in the floor they reach: its tiles and its storey's floor.
@@ -3230,7 +3230,7 @@ function createSlot(slotKey){
     for (const r of (house && house.rooms) || []) {
       if (r.floor.outdoor || !HOUSE.floorShown(r.floor, topElev)) continue;
       for (const p of r.pts) pts.push(new THREE.Vector3(p[0], r.floor.elev - HOUSE.SLAB_T, p[1]),
-                                      new THREE.Vector3(p[0], r.floor.elev + r.floor.h - HOUSE.SLAB_T, p[1]));
+                                      new THREE.Vector3(p[0], r.floor.elev + (r.h ?? r.floor.h) - HOUSE.SLAB_T, p[1]));
     }
     if (!pts.length) {
       const b = houseBox;

@@ -2983,9 +2983,10 @@ export function buildLightsMapCard(hostIn){
   // paid tier animates it, the free map shows it still — the same licence
   // line as placement.
   const wxSlot = WX && host.weather && host.weather.settings ? WX.atlasWeatherSlot(host.weather.slot) : null;
-  let wxOutdoorZ = null;
+  let wxOutdoorZ = null, wxOffsets = null;
   if (wxSlot) {
     try { wxOutdoorZ = WX.outdoorPlateLevels(_frame, isOutdoorFloorId); } catch (_) { wxOutdoorZ = null; }
+    try { wxOffsets = WX.plateOffsets(_frame); } catch (_) { wxOffsets = null; }
   }
   const mountWeather = (svgStr) => {
     if (!wxSlot) return;
@@ -2993,7 +2994,7 @@ export function buildLightsMapCard(hostIn){
       const w = host.weather;
       const theme = host.showcase ? (SHOWCASE_THEMES[host.showcaseTheme] || SHOWCASE_THEMES.classic) : SHOWCASE_THEMES.classic;
       wxSlot.attach(isoDiv, { settings: WX.weatherSettingsFrom(w.settings), states: w.states, entities: w.entities, svg: svgStr,
-        animate: lightingUnlocked(host.tier), colour: WX.weatherColourOf(theme), outdoorZ: wxOutdoorZ,
+        animate: lightingUnlocked(host.tier), colour: WX.weatherColourOf(theme), outdoorZ: wxOutdoorZ, plateOffsets: wxOffsets,
         zoom: view.zoom || 1, centred: V2, telemetry: w.telemetry });
     } catch (_) { /* attach counts its own failures; the map never sees one */ }
   };
