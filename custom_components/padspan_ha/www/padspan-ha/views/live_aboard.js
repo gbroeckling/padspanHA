@@ -72,6 +72,10 @@ const DEVICES = await import(`./live_aboard_devices.js${new URL(import.meta.url)
 // P6: beacons, scanners and people where PadSpan tracks them (optional too).
 const TRACKED = await import(`./live_aboard_tracked.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_tracked failed to load", err); return null; });
+// Trails: where each person and tag went in the last half hour, from
+// Traceback's own history (optional too: missing, no Trails in the menu).
+const TRAILS = await import(`./people_trails.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: people_trails failed to load", err); return null; });
 // The screen's rules, shared with the flat Atlas (the map alone, full screen).
 const SCREEN = await import(`./atlas_screen.js${new URL(import.meta.url).search}`);
 // The Atlas's other devices (leak sensors, locks), its codes and its class
@@ -155,6 +159,7 @@ const WET_CSS = `.la3d-wet{position:absolute;left:50%;top:82px;z-index:2;transfo
 // Explode: with All floors showing, each storey lifted this much more (m)
 // than the one under it, so the floors under the top one show too.
 const PREF_EXPLODE = "explode", EXPLODE_M = 4;
+const PREF_TRAILS = "trails";              // Trails on this screen ("1"), off by default
 // Readable night: a floor keeps this much of its day colour, its outline and
 // the wall tops show, and a fixture that is off darkens with the house.
 const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
@@ -514,6 +519,9 @@ function createSlot(slotKey){
   // live snapshot as the host last handed it
   // (read through it, never more often than it says); off, none of it.
   let tracked = null, peopleSnap = null, peopleAt = 0, peopleLoad = null, peopleReads = 0;
+  // Trails (people_trails.js): the last read (trailsOf's), when, the read in
+  // flight, and how many reads; only while this screen has them on.
+  let trailData = null, trailAt = 0, trailLoad = null, trailReads = 0;
   // live_aboard_marks.js: leak sensors and locks (marks), the code chips
   // (codes), the class chips' pick (classF), and the zoom label's callback.
   let marks = null, codes = null, classF = null, zoomCb = null, zoomShown = null;
@@ -579,6 +587,7 @@ function createSlot(slotKey){
     devices = null; emOutlines = []; emKey = "";
     try { if (tracked) tracked.dispose(); } catch (_) { /* gone with the view */ }
     tracked = null; peopleSnap = null; peopleAt = 0; peopleLoad = null;
+    trailData = null; trailAt = 0; trailLoad = null;
     try { if (marks) marks.dispose(); if (codes) codes.dispose(); } catch (_) { /* gone with the view */ }
     marks = null; codes = null; zoomCb = null;
     try { if (motionL) motionL.dispose(); if (mchip) mchip.dispose(); } catch (_) { /* gone with the view */ }
@@ -1098,7 +1107,10 @@ function createSlot(slotKey){
     const saved = readViews();
     return [{ text: "Whole house", act: () => wholeHouse() }, { text: "How it works", act: () => showHint(true) },
             ...saved.map((v, i) => ({ text: v.name, act: () => goView(v), del: () => { saved.splice(i, 1); writeViews(saved); } })),
-            { text: "Save this view", act: () => saveView() }, ...(panel ? panel.menuItems() : [])];
+            { text: "Save this view", act: () => saveView() },
+            ...(trailsOffered() ? [{ text: `Trails, last 30 min: ${prefGet(PREF_TRAILS) === "1" ? "On" : "Off"}`, on: prefGet(PREF_TRAILS) === "1",
+                                     title: "Where each person and tag went in the last half hour (this screen only)", act: () => toggleTrails() }] : []),
+            ...(panel ? panel.menuItems() : [])];
   }
   /** The room the camera looks at, on the top floor showing it. */
   function roomNear(x, y){
@@ -1278,7 +1290,8 @@ function createSlot(slotKey){
     devices = DEVICES ? DEVICES.createDeviceLayer({ THREE, layer, FURN: () => FURN, halo: shared.haloMats.m,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi, uiScale: () => wallUiOf(root),
-      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low") }) : null;
+      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low"),
+      fadeOf: TRAILS ? TRAILS.fadeOf : null, colourOf: TRAILS ? TRAILS.trailColour : null }) : null;
     marks = MARKS ? MARKS.createMarkLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     // Under the roof while it shows is hidden too (a marker, a code).
     const hidden = (v) => blocked(v) || !!(storeyL && storeyL.hides(v.x, v.z, v.y));
@@ -2479,9 +2492,12 @@ function createSlot(slotKey){
     if (!pp) { peopleSnap = null; peopleAt = 0; peopleLoad = null; }
     else if (typeof pp.snapshot === "function") { peopleSnap = pp.snapshot() || null; peopleReads++; }
     else if (typeof pp.read === "function") readPeople(pp);
+    const tr = trailReader(p);
+    if (!tr) { trailData = null; trailAt = 0; trailLoad = null; }
+    else readTrails(tr);
     if (tracked.sync({ model: p.model, looks: vd.devices, figures: vd.figures, snapshot: pp ? peopleSnap : null,
                        states: p.states || {}, people: on(p.people), tags: on(p.tags),
-                       carries: p.settings3d ? p.settings3d.atlas_3d_carries : null }, rebuilt)) requestRender();
+                       carries: p.settings3d ? p.settings3d.atlas_3d_carries : null, trails: tr ? trailData : null }, rebuilt)) requestRender();
     if (panel) panel.peopleChanged();
     peopleClock();
   }
@@ -2496,6 +2512,36 @@ function createSlot(slotKey){
       peopleLoad = null; peopleSnap = snap && typeof snap === "object" ? snap : null;
       if (lastP && renderer && !failed) syncTracked(lastP, viewData(), false);
     }, () => { if (peopleLoad === mine) peopleLoad = null; });
+  }
+  /** The host's Traceback reader (p.trails: {read(msg) → Promise}) while
+   *  people or tags are drawn and this screen has Trails on, else null. */
+  function trailReader(p){
+    const on = (x) => !!(x && typeof x === "object");
+    if (!TRAILS || !p || !(on(p.people) || on(p.tags)) || prefGet(PREF_TRAILS) !== "1") return null;
+    return on(p.trails) && typeof p.trails.read === "function" ? p.trails : null;
+  }
+  /** Can this screen have Trails (a reader, and people or tags drawn)? */
+  function trailsOffered(){
+    const p = lastP, on = (x) => !!(x && typeof x === "object");
+    return !!(TRAILS && p && (on(p.people) || on(p.tags)) && on(p.trails) && typeof p.trails.read === "function");
+  }
+  /** The last half hour from Traceback, never sooner than TRAIL_MS after the
+   *  last read (it rides the people read's own clock); drawn once it is in. */
+  function readTrails(tr){
+    if (trailLoad || (trailAt && Date.now() - trailAt < TRAILS.TRAIL_MS)) return;
+    trailAt = Date.now();
+    trailReads++;
+    const mine = trailLoad = Promise.resolve().then(() => tr.read(TRAILS.trailRequest(Date.now() / 1000))).then((r) => {
+      if (trailLoad !== mine) return;
+      trailLoad = null;
+      trailData = TRAILS.trailsOf(r && Array.isArray(r.frames) ? r.frames : [], Date.now() / 1000);
+      if (lastP && renderer && !failed) syncTracked(lastP, viewData(), false);
+    }, () => { if (trailLoad === mine) trailLoad = null; });
+  }
+  function toggleTrails(){
+    prefSet(PREF_TRAILS, prefGet(PREF_TRAILS) === "1" ? "0" : "1");
+    trailAt = 0; trailLoad = null;
+    if (lastP && renderer && !failed) syncTracked(lastP, viewData(), false);
   }
   /** The host's reader ({read(), everyMs}) while Show people or Show tags &
    *  scanners is on, else null (a {snapshot()} host has its own data). */
@@ -4620,7 +4666,7 @@ function createSlot(slotKey){
                devices: devices ? devices.state() : [], swapped: lights.filter(L => L.swap).map(L => L.eid),
                outlined: emOutlines.length, lamps: lampPool.filter(l => l.intensity > 0).map(l => l.position.toArray().map(v => Math.round(v * 100) / 100)),
                // P6: scanners, beacons and people as drawn, and how often the snapshot was read.
-               tracked: tracked ? tracked.state() : [], peopleReads, panel: panel ? panel.state() : null,
+               tracked: tracked ? tracked.state() : [], peopleReads, trails: tracked && tracked.trails ? tracked.trails() : [], trailReads, panel: panel ? panel.state() : null,
                // The Atlas's drawers and its other devices (live_aboard_marks.js).
                marks: marks ? marks.state() : [], codes: codes ? codes.state() : null, classF, zoomPct: zoomPctNow(),
                chipsFaded: chips.filter(C => C.sprite.material.opacity < 1).map(C => (C.room ? C.room.name : null)),

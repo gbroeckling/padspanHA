@@ -9714,6 +9714,9 @@ function _lightsTab(ctx, maps, active) {
         ? { read: () => ctx.actions.wsCall("padspan_ha/live_snapshot").then((r) => (r && r.snapshot) || null),
             everyMs: 1000 * (Number(ctx.state.settings.presence_poll_interval_s) || 5) }
         : { snapshot: () => ctx.state.live?.snapshot || null },
+      // Trails: Traceback's own history, with live data only (sample data has none).
+      trails: ctx.state.dataMode !== "live" ? null
+        : { read: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } },
       callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); },
       // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
       // like the Settings box (settingsSet would re-render everything).

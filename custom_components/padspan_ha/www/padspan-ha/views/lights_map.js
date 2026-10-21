@@ -3122,6 +3122,9 @@ export function buildLightsMapCard(hostIn){
           people: h3.settings.atlas_3d_people === true && h3.people ? abReader(h3.people) : null,
           // Show tags & scanners: the same snapshot, the same reader (read once for both).
           tags: h3.settings.atlas_3d_tags === true && h3.people ? abReader(h3.people) : null,
+          // Trails (people_trails.js): Traceback's last half hour, read only
+          // while people or tags show and that screen turned Trails on.
+          trails: (h3.settings.atlas_3d_people === true || h3.settings.atlas_3d_tags === true) && h3.trails ? h3.trails : null,
           // ☰'s class chips, the leak sensors' 2-day latch, the codes (none
           // while "Hide device codes" is on), and ⚙'s zoom label to keep up.
           classFilter: host.classFilter || null, floodLatches: host.floodLatches || {},

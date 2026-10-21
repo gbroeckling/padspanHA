@@ -316,6 +316,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_import",
     "live_aboard_devices",                          # Live Aboard P5: furniture that is a device
     "live_aboard_tracked",                          # Live Aboard P6: beacons, scanners and people, live
+    "people_trails",                                # Trails: where each person and tag went in the last half hour
     "live_aboard_people", "live_aboard_photo",
     "live_aboard_runs", "live_aboard_strip",        # Live Aboard's Strip tool: strips and string lights
     "atlas_screen", "atlas_aboard",                 # the flat Atlas: the map alone, full screen; Live Aboard's on the map

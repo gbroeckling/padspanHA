@@ -35,6 +35,11 @@
 // what it is (pickable: its name, room, when last seen, which scanners hear
 // it), all from the snapshot and the map already here. Imports no three.js:
 // the view hands it in, with the builders.
+//
+// Trails (people_trails.js, off unless that screen turned them on): where each
+// person and tag drawn went in the last half hour, a ribbon on its floor in
+// its own colour, fading with age. Each lies on the floor it was walked on,
+// so only the floors showing show theirs.
 
 /** How often someone walking is drawn (ms), by profile. */
 export const WALK_MS = { high: 40, low: 100 };
@@ -53,6 +58,7 @@ const SHOWN_M = { beacon: 0.22, scanner: 0.16 };
 export const HALO_M = [0.3, 1.5];
 const LABEL_PX = 22;                       // a tag's name: this tall on screen, any distance, either camera
 const HEARD_MAX = 4;                       // scanners named in a tag's card
+const RIBBON_M = 0.08, TRAIL_LIFT = 0.025;   // a trail: this wide, this far over its floor (m)
 // Someone known only by their room: a step out from its middle for each one
 // there before them (m, up to the second), and drawn this opaque.
 const ROOM_FAN_M = [0.3, 1.2], APART_M = 0.5;
@@ -371,15 +377,30 @@ export function wantedOf(d){
   return out;
 }
 
+/** Whose trail each drawn person or tag shows (want: wantedOf's), in a
+ *  steady order for their colours: [{key (drawn), thing (Traceback's key)}].
+ *  Not scanners, not a pinned tag, not someone known only by their room. */
+export function trailOwners(want){
+  const out = [];
+  for (const w of want || []) {
+    if (w.kind === "person" && !w.dim && w.person && w.person.at && !w.person.at.roomOnly) out.push({ key: w.key, thing: w.person.at.key });
+    else if (w.kind === "beacon" && !w.pinned) out.push({ key: w.key, thing: w.key.slice("beacon:".length) });
+  }
+  return out.sort((a, b) => a.key.localeCompare(b.key));
+}
+
 /**
  * ctx = {THREE, FURN() (the builders, or null), floors() (the view's floors:
- *        {fl, group}), canon(fid), quality() ("low" | "high")}
+ *        {fl, group}), canon(fid), quality() ("low" | "high"), and for
+ *        trails fadeOf(ageS) and colourOf(i) (people_trails.js's)}
  */
 export function createTrackedLayer(ctx){
   const { THREE } = ctx;
   const items = new Map();                  // key -> what is drawn for it
   const since = new Map();                  // person -> {room, t (null: the room they were in when first seen)}
   let quality = "low", last = null, markerRes = null, tagRes = null;
+  // Trails: the ribbons drawn, their one material, and what they were drawn from.
+  let trailMeshes = [], trailMat = null, trailSig = null, trailSrc = null;
   const _vp = new THREE.Vector4(), _wp = new THREE.Vector3();
 
   const floorOf = (fid) => {
@@ -559,6 +580,58 @@ export function createTrackedLayer(ctx){
       I.root.add(I.name.sp);
     }
   }
+  function dropTrails(){
+    for (const m of trailMeshes) { if (m.parent) m.parent.remove(m); m.geometry.dispose(); }
+    trailMeshes = [];
+  }
+  /** One run ({floor_id, pts}) as a flat ribbon on floor F, its colour fading by age. */
+  function ribbon(run, F, colour, nowS){
+    const c = new THREE.Color(colour), y = F.fl.elev + TRAIL_LIFT, pos = [], col = [];
+    const P = run.pts;
+    for (let i = 1; i < P.length; i++) {
+      const a = P[i - 1], b = P[i], len = Math.hypot(b.x - a.x, b.y - a.y);
+      if (len < 1e-3) continue;
+      const nx = -(b.y - a.y) / len * RIBBON_M / 2, ny = (b.x - a.x) / len * RIBBON_M / 2;
+      const fa = ctx.fadeOf(nowS - a.ts), fb = ctx.fadeOf(nowS - b.ts);
+      for (const [x, z, f] of [[a.x + nx, a.y + ny, fa], [a.x - nx, a.y - ny, fa], [b.x + nx, b.y + ny, fb],
+                               [b.x + nx, b.y + ny, fb], [a.x - nx, a.y - ny, fa], [b.x - nx, b.y - ny, fb]]) {
+        pos.push(x, y, z); col.push(c.r, c.g, c.b, f);
+      }
+    }
+    if (!pos.length) return null;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 4));
+    if (!trailMat) trailMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    const m = new THREE.Mesh(geo, trailMat);
+    m.renderOrder = 1; m.name = "trail"; m.userData.trail = true;
+    return m;
+  }
+  /** The trails of what is drawn (trails: people_trails.js trailsOf, or null:
+   *  off). Drawn again only when they, who has one, or the floors changed. */
+  function syncTrails(want, trails, rebuilt){
+    if (!trails || !ctx.fadeOf || !ctx.colourOf) {
+      const had = trailMeshes.length > 0;
+      dropTrails(); trailSig = null; trailSrc = null;
+      return had;
+    }
+    const owners = trailOwners(want).filter(o => trails.has(o.thing));
+    const sig = owners.map(o => o.key + "=" + o.thing).join("|");
+    if (!rebuilt && trails === trailSrc && sig === trailSig) return false;
+    dropTrails(); trailSig = sig; trailSrc = trails;
+    const nowS = Date.now() / 1000;
+    owners.forEach((o, i) => {
+      const colour = ctx.colourOf(i);
+      for (const run of trails.get(o.thing)) {
+        const F = floorOf(run.floor_id);
+        const m = F ? ribbon(run, F, colour, nowS) : null;
+        if (!m) continue;
+        m.userData.owner = o.key; m.userData.floor = F.fl.id;
+        F.group.add(m); trailMeshes.push(m);
+      }
+    });
+    return true;
+  }
   const drawnKey = (I) => I.to.toArray().join() + (I.F && I.F.fl.id) + (I.name ? I.name.text : "") + (I.halo ? I.halo.scale.x : "");
 
   return {
@@ -607,6 +680,7 @@ export function createTrackedLayer(ctx){
         place(I, w, F);
         if (before !== drawnKey(I)) changed = true;
       }
+      if (syncTrails(want, (d && d.trails) || null, rebuilt)) changed = true;
       return changed;
     },
     /** The live clock (t: performance.now()): whoever walks, a step on. */
@@ -674,7 +748,18 @@ export function createTrackedLayer(ctx){
         dim: !!I.dim, opacity: I.body ? Math.max(...(I.body.dimMats && I.body.dimMats.length ? I.body.dimMats.map(m => m.opacity) : [1])) : null,
         pinned: !!I.pinned, card: I.card ? { title: I.card.title, lines: I.card.lines.slice() } : null }));
     },
+    /** The trails drawn: [{owner, floor, shown, segments, alpha: [newest, oldest]}]. */
+    trails(){
+      return trailMeshes.map(m => {
+        const a = m.geometry.attributes.color, al = [];
+        for (let i = 0; i < a.count; i++) al.push(a.getW(i));
+        return { owner: m.userData.owner, floor: m.userData.floor, shown: !!(m.parent && m.parent.visible), segments: a.count / 6,
+                 colour: [a.getX(0), a.getY(0), a.getZ(0)].map(v => Math.round(v * 1000) / 1000),
+                 alpha: [Math.max(...al), Math.min(...al)].map(v => Math.round(v * 1000) / 1000) };
+      });
+    },
     dispose(){
+      dropTrails(); if (trailMat) trailMat.dispose(); trailMat = null;
       for (const k of [...items.keys()]) drop(k);
       for (const R of [markerRes, tagRes]) if (R) for (const v of Object.values(R)) v.dispose();
       markerRes = null; tagRes = null; since.clear();
