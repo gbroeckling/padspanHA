@@ -47,10 +47,17 @@ def home_params(settings: dict[str, Any] | None) -> dict[str, str]:
 
 
 async def keep_token(st: Any, data: dict[str, Any]) -> None:
-    """Store the token a validate answered with (only a real, new one)."""
-    tok = data.get("token") if isinstance(data, dict) else None
+    """Store the token a validate answered with (only a real, new one), and
+    how many homes the key is on (the report says which licence it is only
+    once that is more than two: telemetry.build_payload)."""
+    if not isinstance(data, dict):
+        return
+    tok = data.get("token")
     if isinstance(tok, str) and len(tok) == 32 and tok != str(st.data.get("license_home_token") or ""):
         await st.async_set(license_home_token=tok)
+    used = data.get("homes_used")
+    if isinstance(used, int) and not isinstance(used, bool) and 0 <= used <= 99 and used != st.data.get("license_homes_used"):
+        await st.async_set(license_homes_used=used)
 
 
 async def call(hass: HomeAssistant, action: str, key: str, extra: dict[str, str] | None = None,

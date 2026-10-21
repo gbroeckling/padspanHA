@@ -271,6 +271,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             license_is_trial=str(data.get("plan") or "") == "trial",
             forensics_enabled=True,
             license_home_token=str(data.get("token") or "") if len(str(data.get("token") or "")) == 32 else "",
+            license_homes_used=int(data.get("homes_used") or 0) if str(data.get("homes_used") or "0").isdigit() else 0,
             license_home_status="",
         )
         _invalidate_snapshot_cache(hass)

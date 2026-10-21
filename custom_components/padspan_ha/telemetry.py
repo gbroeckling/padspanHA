@@ -12,10 +12,11 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     the country and language set in Home Assistant (Settings → System →
         General): a two-letter code and a language tag such as "en-GB",
         left out when blank — never looked up from the address
-    with a licence key, the licence's group code: 16 hex characters made
-        from the key (never the key), the same in every home of that
-        licence, so its homes are seen together (licence_homes.py: homes
-        after a key's first two count while their report is on)
+    with a licence key on more than two homes, the licence's group code:
+        16 hex characters made from the key (never the key), the same in
+        every home of that licence, so its homes are seen together
+        (licence_homes.py: homes after a key's first two count while their
+        report is on)
     how many scanners / floors / rooms / placed lights / walls / maps / IRKs
     which feature switches are on, and which theme the panel wears
         (Day, Light, or a named palette; Night is the absence of all three)
@@ -1553,9 +1554,11 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         payload["country"] = country.strip().upper()
     if isinstance(language, str) and _LANGUAGE_RE.fullmatch(language.strip()):
         payload["language"] = language.strip()
-    _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    _grp = licence_group(str((_st.data if _st else {}).get("forensics_license_key") or ""))
-    if _grp:
+    # Only from a key on more than two homes (the ones that need the report):
+    # a house with one or two sends exactly what it always did.
+    _sd = (lambda s: s.data if s else {})(hass.data.get(DOMAIN, {}).get(DATA_SETTINGS))
+    _grp = licence_group(str(_sd.get("forensics_license_key") or ""))
+    if _grp and int(_sd.get("license_homes_used") or 0) > 2:
         payload["licence_group"] = _grp
     # The cap refuses the WHOLE report, and a refused one keeps its counters,
     # so the next is no smaller: one busy day silenced an install until HA

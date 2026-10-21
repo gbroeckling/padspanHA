@@ -52,6 +52,7 @@ _BACKEND_ONLY = {
     "license_home_token",              # licence_homes.py — the licence server's rolling token, never set by hand
     "license_home_label",              # padspan_ha/licence_homes op=label (ws_forensics.py)
     "license_home_status",             # update_check.py — the licence server's last refusal of this home
+    "license_homes_used",              # licence_homes.keep_token — how many homes the key is on
 }
 
 

@@ -87,5 +87,16 @@ def test_homes_after_the_first_two_need_the_usage_report_and_are_seen_together()
     php = (_PKG.parents[1] / "server" / "telemetry.php").read_text(encoding="utf-8")
     assert "'licence_group'" in php and "/^[0-9a-f]{16}\z/" in php, "the receiver takes it, and only that shape"
     js = _src("www/padspan-ha/views/settings.js")
-    assert "needs_report:" in js and "with a licence, a short code made from the key (never the key)" in js
+    assert "needs_report:" in js and "with a licence used on more than two homes, a short code made from the key (never the key)" in js
     assert '"needs_report") else ""' in _src("update_check.py")
+
+
+def test_a_house_with_one_or_two_homes_sends_the_same_report_as_before():
+    src = _src("telemetry.py")
+    assert 'if _grp and int(_sd.get("license_homes_used") or 0) > 2:' in src, "the group code only past two homes"
+    st = _St({"license_homes_used": 0})
+    asyncio.run(LH.keep_token(st, {"homes_used": 3}))
+    assert st.data["license_homes_used"] == 3
+    for bad in ({"homes_used": True}, {"homes_used": "3"}, {"homes_used": -1}):
+        asyncio.run(LH.keep_token(st, bad))
+        assert st.data["license_homes_used"] == 3, bad
