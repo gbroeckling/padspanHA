@@ -50,11 +50,11 @@ def test_sample_macs_are_obviously_made_up():
     fake_run = re.compile(r"^(00:11:22|AA:|BB:|CC:|DD:|EE:|FF:)", re.I)
     rotating = set(re.findall(r'all_addresses: \[([^\]]*)\]', t))
     listed = {m for group in rotating for m in _MAC.findall(group)}
-    # main's 58ab5a99: the demo house's unnamed BLE device has a random static
-    # address on purpose, so it reads as a real one.
-    listed.add("D2:5A:7F:0B:93:4E")
+    # A random static address (top two bits of the first byte set) is one a
+    # device makes up for itself: never a real device's hardware address.
+    random_static = lambda mac: int(mac[:2], 16) >> 6 == 0b11
     for mac in set(_MAC.findall(t)):
-        assert fake_run.match(mac) or mac in listed, mac
+        assert fake_run.match(mac) or mac in listed or random_static(mac), mac
 
 
 def test_the_fixture_is_the_harness_house():

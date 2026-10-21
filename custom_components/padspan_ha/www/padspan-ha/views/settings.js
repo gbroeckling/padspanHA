@@ -2986,7 +2986,7 @@ function _licenceHomes(ctx, el, s){
   box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
     "One licence covers up to five homes (five Home Assistants). The first two always count; the third to the fifth need their usage report on " +
     "(Settings \u2192 Presence \u2192 Help improve PadSpan), which is how one licence's homes are seen together. " +
-    "A home that hasn't checked in for 45 days frees its place by itself."));
+    "A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself."));
   if (HOME_REFUSED[s.license_home_status]) {
     box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]));
   }
