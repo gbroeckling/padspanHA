@@ -42,6 +42,10 @@ const { hasScale: _wizHasScale, hasRooms: _wizHasRooms, hasReceivers: _wizHasRec
 // see its own header for why this isn't a duplicate of anything else here.
 const { whatIfDelta } =
   await import(`./whatif_placement.js${new URL(import.meta.url).search}`);
+// "Import from a robot vacuum" beside the .sh3d import (vacuum_import.js).
+// Optional: a block that fails to load must not blank the Mapping tab.
+const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: vacuum_import failed to load", err); return null; });
 // The 90-day trial card, shared by every paid wall (trial_offer.js).
 // Optional: a card that fails to load must not blank the Mapping tab.
 const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.meta.url).search}`)
@@ -10777,6 +10781,7 @@ function _roomsTab(ctx, maps) {
     importRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
       "Rooms come in as a candidate for this floor — review and edit below before committing."));
     card.appendChild(importRow);
+    if (VACUUM) card.appendChild(VACUUM.vacuumImportBlock(ctx, floorId));
 
     const importedRaw = mapState._roomsImportedRaw;
     if (importedRaw && importedRaw.levels.length > 1) {

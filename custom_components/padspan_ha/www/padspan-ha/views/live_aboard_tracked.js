@@ -96,6 +96,18 @@ export function trackedOf(snapshot){
   return out.concat(byRoom);
 }
 
+/** A linked robot vacuum (snapshot.vacuum, only there while its link is on,
+ *  vacuum_import.py): drawn with the tags, on the floor, where its own map
+ *  says it is. Null when there is none. */
+export function vacuumOf(snapshot){
+  const v = snapshot && snapshot.vacuum;
+  const x = fin(v && v.x_m), y = fin(v && v.y_m);
+  if (x === null || y === null) return null;
+  return { key: "vacuum", kind: "beacon", recipe: null, floor_id: v.floor_id || null, x, y, z: 0.05, centre: true,
+           name: "Robot vacuum", halo: haloOf(1),
+           card: { title: "Robot vacuum", lines: ["Where its own map says it is", seenText(fin(v.ts) !== null ? Date.now() / 1000 - v.ts : null) || "Seen just now"] } };
+}
+
 /** What each person carries (settings.atlas_3d_carries, picked in People &
  *  devices): {"person.x": [tracked keys]}, read tolerantly. */
 export function carriesOf(raw){
@@ -351,6 +363,8 @@ export function wantedOf(d){
                  x: pin ? pin.x : o.x, y: pin ? pin.y : o.y, z: pin && pin.z !== null ? pin.z : CARRY_H, centre: true, pinned: !!pin,
                  name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin, radios) });
     }
+    const v = vacuumOf(d.snapshot);
+    if (v) out.push(v);
   }
   const figs = d.figures && typeof d.figures === "object" ? d.figures : {};
   // Where people already stand: those PadSpan places first, then each one

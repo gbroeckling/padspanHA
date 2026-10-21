@@ -331,6 +331,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_panel",                            # Live Aboard on the wall panel: its home view, Follow, the People chip
     "live_aboard_director",                         # Live Aboard on the wall panel: flies to a doorbell, door or alarm that went off
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
+    "vacuum_import",                                # the Mapping tab's "Import from a robot vacuum"
     "door_types",                                   # doors: which way one swings, its type, its panels (the flat Atlas and Live Aboard)
     "atlas_heights",                                # Mapping's Height row and Heights list (Live Aboard's heights)
     "wall_scale", "wall_card",                      # wall screens: the scale, and Settings' Wall screens card

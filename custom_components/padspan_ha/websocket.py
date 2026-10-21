@@ -155,6 +155,7 @@ from .ws_floorplan_import import (  # noqa: F401  (re-exported: registration, te
     ws_floorplan_import_roomplan,
     ws_floorplan_import_sh3d,
 )
+from .ws_vacuum import HANDLERS as _VACUUM_HANDLERS
 from .ws_objects import (  # noqa: F401  (re-exported: registration, tests, callers)
     ws_findmy_unlink,
     ws_object_label_delete,
@@ -305,6 +306,8 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_maps_revert_extend)
     websocket_api.async_register_command(hass, ws_floorplan_import_sh3d)
     websocket_api.async_register_command(hass, ws_floorplan_import_roomplan)
+    for _h in _VACUUM_HANDLERS:   # robot-vacuum import (ws_vacuum.py)
+        websocket_api.async_register_command(hass, _h)
     websocket_api.async_register_command(hass, ws_model_get)
     websocket_api.async_register_command(hass, ws_model_update)
     websocket_api.async_register_command(hass, ws_room_height_set)
