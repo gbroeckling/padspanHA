@@ -1338,6 +1338,9 @@ class PadSpanLightsApp extends HTMLElement {
            its controls scaled by --wall-ui (lv- rules in styles.css). */
         :host([data-wall]) #content{padding:0}
         :host([data-wall]) .lv-hero, :host([data-wall]) .lv-coach{display:none}
+        /* The wall is the map: the lights' table under it stays on the desk's
+           Atlas (a wall could scroll down to it, with a scrollbar on show). */
+        :host([data-wall]) .lv-tablecard.lv-index{display:none}
         /* Nobody at the wall: the controls floating over the map and the 3D
            house fade away (they come back with a touch, a mouse or a key),
            so a big wall shows the house, not its buttons. */

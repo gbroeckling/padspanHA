@@ -3018,7 +3018,10 @@ function createSlot(slotKey){
   const WALL_PX = 2560 * 1440;
   let profileDpr = 1;
   function ratioFor(w, h){
-    if (!onWallPage(root) || !w || !h) return profileDpr;
+    // High picked by hand: the screen's every pixel (a 4K wall on a strong
+    // PC holds 60 fps at full 4K); Auto keeps to WALL_PX, for the TV sticks
+    // and mini PCs most walls run on.
+    if (!onWallPage(root) || !w || !h || quality.setting === "high") return profileDpr;
     return Math.max(0.5, Math.min(profileDpr, Math.sqrt(WALL_PX / (w * h))));
   }
   function applyProfile(name){

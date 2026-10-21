@@ -167,3 +167,13 @@ def test_a_portrait_wall_opens_on_the_whole_house_not_room_scale():
     la = _src("views/live_aboard.js")
     assert "if (camera.aspect >= 0.8 || onWallPage(root)) return;" in la, "the first view"
     assert "if (camera.aspect < 0.8 && !onWallPage(root)) g.radius" in la, "and the sidebar's home view"
+
+
+def test_a_wall_is_the_map_alone_no_table_under_it():
+    # Found on a real 4K monitor at 200%: the lights' table under the map gave a wall a scrollbar.
+    assert ":host([data-wall]) .lv-tablecard.lv-index{display:none}" in _src("lights_panel.js")
+
+
+def test_high_quality_draws_a_wall_at_every_pixel():
+    la = _src("views/live_aboard.js")
+    assert '|| quality.setting === "high") return profileDpr;' in la, "Auto keeps the 1440p budget, High picked by hand does not"
