@@ -222,3 +222,12 @@ def test_a_full_link_says_everything():
     assert got[0] == "/padspan-lights?kiosk=1&wall_in=0&wall_text=20"
     assert got[1] == "/padspan-lights?kiosk=1&wall_in=11&wall_m=0.5&wall_text=20"
     assert got[2] == 0, "wall_in=0 sizes from the screen whatever the house says"
+
+
+def test_the_wake_tap_only_eats_a_tap_on_a_hidden_control():
+    # Review, 2026-10-21: the rail, drawers and lights stay showing on a faded
+    # wall, so a first tap on them must work; only one where a faded control was is eaten.
+    lp = _src("lights_panel.js")
+    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-hud, .lv-alone-anchor > button";' in lp
+    assert "if(!onFaded(e.clientX, e.clientY)) return;" in lp
+    assert '"translate"];' in _src("views/live_aboard.js"), "leaving full screen clears the wall's shift on the 3D view"

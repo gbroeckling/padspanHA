@@ -1406,15 +1406,23 @@ class PadSpanLightsApp extends HTMLElement {
       };
       this._wallWake = wake;
       for(const ev of ["pointerdown", "pointermove", "keydown", "wheel"]) window.addEventListener(ev, wake, { passive: true });
-      // The first touch on a faded wall only brings the controls back: it
-      // would otherwise land on whatever is under a hidden button (a light,
-      // the 3D house). A mouse has already woken it by moving.
+      // The first touch on a faded wall brings the controls back, and where
+      // it lands on one of them (hidden, so it would reach whatever is under
+      // it: a light, the 3D house) it does nothing else. Anywhere else (the
+      // rail, a light, the map, all still showing) it works as a tap. A mouse
+      // has already woken it by moving.
+      const FADED = ".la3d-bar, .la3d-compass, .la3d-hud, .lv-alone-anchor > button";
+      const onFaded = (x, y)=>[...(this.shadowRoot ? this.shadowRoot.querySelectorAll(FADED) : [])].some(el=>{
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8;
+      });
       this._wallTap = (e)=>{
         if(e.type === "pointerdown"){
           if(this.hasAttribute("data-wall-active")) return;
+          wake();
+          if(!onFaded(e.clientX, e.clientY)) return;
           e.stopPropagation(); e.preventDefault();
           this._wallTapAt = Date.now();
-          wake();
         } else if(Date.now() - (this._wallTapAt || 0) < 800){
           e.stopPropagation(); e.preventDefault();
         }

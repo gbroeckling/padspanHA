@@ -804,7 +804,8 @@ function createSlot(slotKey){
     const rn = root.getRootNode ? root.getRootNode() : null, scope = rn && rn.querySelector ? rn : document;
     if (coverStyle) coverStyle.textContent = coverCss(c, !!scope.querySelector(".lv-emerg"));
   }
-  const COVER_KEYS = ["position", "margin", "borderRadius", "border", "zIndex", "maxWidth", "left", "top", "width", "height"];
+  const COVER_KEYS = ["position", "margin", "borderRadius", "border", "zIndex", "maxWidth", "left", "top", "width", "height",
+                      "translate"];   // a wall's burn-in shift moves the full screen; back in the card, the card's own does
   function paintCover(){
     const want = !!(root && mapOnly && (bare || fsOn));
     if (want === cover) { layCover(); return; }
