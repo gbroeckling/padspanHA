@@ -31,7 +31,7 @@ def _node(code: str):
     if _NODE is None:
         pytest.skip("node is not installed")
     url = (_WWW / "views" / "wall_scale.js").resolve().as_uri()
-    js = (f"import({json.dumps(url)}).then(({{wallScale, wallParams, wallLink, textMm, textWord, WALL_UI_MAX}}) => {{ "
+    js = (f"import({json.dumps(url)}).then(({{wallScale, wallParams, wallLink, textMm, textWord, controlScale, WALL_UI_MAX}}) => {{ "
           + code + " });")
     res = subprocess.run([_NODE, "--input-type=module", "-e", js], capture_output=True, text=True, timeout=30)
     assert res.returncode == 0, res.stderr
@@ -160,7 +160,7 @@ def test_the_server_keeps_the_card_s_smallest_screen():
 
 
 def test_live_aboard_re_reads_the_scale_when_settings_change_it():
-    assert 'host.style.getPropertyValue("--wall-ui")' in _src("views/live_aboard.js")
+    assert "host.style.getPropertyValue(prop)" in _src("views/live_aboard.js")
 
 
 def test_a_portrait_wall_opens_on_the_whole_house_not_room_scale():
@@ -177,3 +177,24 @@ def test_a_wall_is_the_map_alone_no_table_under_it():
 def test_high_quality_draws_a_wall_at_every_pixel():
     la = _src("views/live_aboard.js")
     assert '|| quality.setting === "high") return profileDpr;' in la, "Auto keeps the 1440p budget, High picked by hand does not"
+
+
+def test_buttons_stop_at_finger_size_while_the_text_grows():
+    # Found on a real 4K monitor run as a 55-inch touch wall at 3 m: scale 6
+    # made the rail's buttons 61 mm across. Text is read from the room, a
+    # button is touched at arm's length.
+    got = _node("console.log(JSON.stringify([controlScale(6, 55, 3840, 2160), controlScale(6, 55, 1920, 1080, 2),"
+                " controlScale(2, 0, 3840, 2160), controlScale(1.2, 55, 3840, 2160), controlScale(6, 110, 3840, 2160)]))")
+    assert got[0] == 2.17, "about 22 mm on a 55-inch 4K"
+    assert got[1] == 1.08, "the same 22 mm at Windows 200%: its pixels are already twice the size"
+    assert got[2] == 2, "no screen size: as the text"
+    assert got[3] == 1.2, "never bigger than the text"
+    assert got[4] == 1.08
+    lp = _src("lights_panel.js")
+    assert 'setProperty("--wall-ctl", String(WALLS.controlScale(' in lp and 'removeProperty("--wall-ctl")' in lp
+    css = _src("styles.css")
+    assert ".lv-mapcard.lv-display.lv-wall .lv-alone-anchor > button{zoom:var(--wall-ctl,var(--wall-ui,1))}" in css
+    assert ".lv-mapcard.lv-display.lv-wall > .lv-legend{zoom:var(--wall-ui,1)}" in css, "the floor key is read, not touched"
+    la = _src("views/live_aboard.js")
+    assert ':host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ctl,var(--wall-ui,1))}' in la
+    assert 'wallUiOf(root, "--wall-ctl")' in la, "the menu is placed by the scale it is drawn at"

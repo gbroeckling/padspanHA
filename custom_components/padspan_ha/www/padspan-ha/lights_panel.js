@@ -1384,6 +1384,8 @@ class PadSpanLightsApp extends HTMLElement {
       const p = WALLS.wallParams(location.search, this.state?._wall);
       const s = WALLS.wallScale(window.innerWidth, window.innerHeight, { ...p, dpr: window.devicePixelRatio || 1 });
       this.style.setProperty("--wall-ui", String(s));
+      // The buttons stop at finger size (wall_scale.js controlScale).
+      this.style.setProperty("--wall-ctl", String(WALLS.controlScale(s, p.inches, window.innerWidth, window.innerHeight, window.devicePixelRatio || 1)));
       this._wallUi = s;
       this._wallFit = p.inches > 0 ? "room" : "auto";
     };
@@ -1462,6 +1464,7 @@ class PadSpanLightsApp extends HTMLElement {
     if(this._wakeVis){ document.removeEventListener("visibilitychange", this._wakeVis); this._wakeVis = null; }
     if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
     this.style.removeProperty("--wall-ui");
+    this.style.removeProperty("--wall-ctl");
     this.removeAttribute("data-wall-active");
     this._wallUi = 1;
   }
