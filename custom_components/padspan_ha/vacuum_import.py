@@ -25,9 +25,10 @@ Three things, every one of them off until the user asks for it:
      refuses any room that already exists. Nothing existing is overwritten.
 
   2. LIVE POSITION. With the link turned on, the robot's spot (Valetudo
-     robot_position / attribute vacuum_position) goes through the same
-     vacuum→picture affine and then the map's OWN placement, so a map the
-     user re-aligns carries the robot with it. It rides the live snapshot as
+     robot_position / attribute vacuum_position) goes through the vacuum→
+     metres affine the import was committed with — the vacuum's own
+     coordinates, the frame its rooms were written in; no photo coordinate is
+     converted (the metres-are-truth rule). It rides the live snapshot as
      `vacuum`, and only while a link is on.
 
   3. CALIBRATION WALKER → REVIEW PILE. With the walker on and a tag named
@@ -48,7 +49,7 @@ import zlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from .const import DATA_MODEL, DOMAIN
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -399,7 +400,9 @@ def _candidate(source: str, png: bytes, w: int, h: int, m_per_px: float, to_frac
     return {
         "source": source, "png": png, "width": w, "height": h,
         "m_per_px": m_per_px, "scale_x_m": round(sx, 4), "scale_y_m": round(sy, 4),
-        "to_frac": to_frac, "levels": [], "rooms": rooms,
+        "to_frac": to_frac, "to_m": [to_frac[0] * sx, to_frac[1] * sx, to_frac[2] * sx,
+                                     to_frac[3] * sy, to_frac[4] * sy, to_frac[5] * sy],
+        "levels": [], "rooms": rooms,
         "dock": spot(dock), "robot": spot(robot), "warnings": warnings,
     }
 
@@ -505,13 +508,12 @@ class VacuumStore:
         spot = robot_spot(lk.get("format") or "", payload)
         if not spot:
             return
-        model = self.hass.data.get(DOMAIN, {}).get(DATA_MODEL)
-        fx, fy = _apply(lk["to_frac"], spot["x"], spot["y"])
-        m = model.map_frac_to_metres(fx, fy, lk["map_id"]) if model else None
-        if not m:
+        to_m = lk.get("to_m")
+        if not isinstance(to_m, list) or len(to_m) != 6:
             return
+        m = _apply(to_m, spot["x"], spot["y"])
         self.live = {"x_m": round(m[0], 3), "y_m": round(m[1], 3), "floor_id": lk.get("floor_id"),
-                     "map_id": lk["map_id"], "x_frac": round(fx, 5), "y_frac": round(fy, 5),
+                     "map_id": lk["map_id"],
                      "angle": spot.get("a"), "entity_id": lk.get("vacuum_entity") or "", "ts": time.time()}
         await self.async_walk(m[0], m[1], lk)
 

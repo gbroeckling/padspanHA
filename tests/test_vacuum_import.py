@@ -24,7 +24,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.padspan_ha import fabric_truth
 from custom_components.padspan_ha import vacuum_import as vi
 from custom_components.padspan_ha import ws_vacuum as wsv
 from custom_components.padspan_ha.const import (
@@ -158,9 +157,6 @@ class _Model:
     def map_transform(self, map_id):
         return self.data["map_transforms"].get(map_id)
 
-    def map_frac_to_metres(self, fx, fy, map_id):
-        t = self.data["map_transforms"].get(map_id)
-        return fabric_truth.placement_metres(t, fx, fy) if t else None
 
 
 class _Maps:
@@ -292,7 +288,7 @@ def _linked(h, *, walker=True):
     h.data[DOMAIN][DATA_MODEL] = mdl
     vs = _vstore(h)
     vs.data["link"] = {"enabled": True, "map_id": "m1", "floor_id": "main", "read": "camera_attrs",
-                       "ref": "camera.robot", "format": "attrs", "to_frac": [0.0001, 0, 0, 0, 0.0001, 0]}
+                       "ref": "camera.robot", "format": "attrs", "to_m": [0.001, 0, 1.0, 0, 0.001, 2.0]}
     vs.data["walker"] = {"enabled": walker, "tag": "AA:BB:CC:DD:EE:FF"}
     return vs
 
@@ -307,13 +303,13 @@ def _ble(h, now):
     h.data[DOMAIN][DATA_KEY] = SimpleNamespace(_rssi_samples=samples)
 
 
-def test_live_position_goes_through_the_maps_own_placement():
+def test_live_position_is_the_vacuums_own_coordinates_in_metres():
     h = _hass()
     vs = _linked(h, walker=False)
     vs.async_read_payload = AsyncMock(return_value={"vacuum_position": {"x": 5000, "y": 2500, "a": 0}})
     _run(vs.async_tick())
     live = vi.live_position(h)
-    assert (live["x_m"], live["y_m"]) == (6.0, 4.5)          # frac (0.5, 0.25) on a 10 m map at (1, 2)
+    assert (live["x_m"], live["y_m"]) == (6.0, 4.5)          # 5 m, 2.5 m from the frame at (1, 2)
     assert live["floor_id"] == "main" and vs.pending_list() == []
 
 

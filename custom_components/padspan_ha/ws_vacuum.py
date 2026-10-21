@@ -162,8 +162,9 @@ async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
     added, skipped = [], []
     if msg.get("include_rooms", True) and fab:
         for r in cand["rooms"]:
-            pts = [mdl.map_frac_to_metres(fx, fy, map_id) for fx, fy in r["points_frac"]]
-            pts = [[round(p[0], 3), round(p[1], 3)] for p in pts if p]
+            # The vacuum's own metres, on the frame the map was just placed
+            # at (origin 0, square) — not a photo coordinate converted.
+            pts = [[round(float(x), 3), round(float(y), 3)] for x, y in r["points_m"]]
             if len(pts) < 3:
                 skipped.append(r["name"])
                 continue
@@ -172,7 +173,7 @@ async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
             (added if res.get("ok") else skipped).append(r["name"])
     read = cand.get("read") or {}
     vs.data["link"] = {
-        "enabled": False, "map_id": map_id, "floor_id": floor_id, "to_frac": cand["to_frac"],
+        "enabled": False, "map_id": map_id, "floor_id": floor_id, "to_m": cand["to_m"],
         "read": read.get("read"), "ref": read.get("ref"), "format": read.get("format"),
         "vacuum_entity": (msg.get("vacuum_entity") or "").strip(),
         "dock": cand.get("dock"),
