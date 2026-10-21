@@ -413,6 +413,21 @@ await tryCase("floors: each floor keeps its own camera, through the 5 s rebuild;
     S(again.slot).screen.floorCams.length === 0, S(again.slot).screen.floorCams);
   LA.releaseLiveAboardSlot("scr-cams");
 });
+await tryCase("floors: opened on a floor, All keeps the house framed (no camera is kept from before the view was framed)", async () => {
+  calls.length = 0;
+  const slot = LA.liveAboardSlot("scr-camsopen");
+  card(slot, { floorSteps: hostSteps(slot, 1, true) });   // the host's first card: All
+  rooted(slot);
+  card(slot, { floorSteps: hostSteps(slot, 1, false) });  // then the floor it keeps (Main), all before a frame
+  await settle(30);
+  const framed = camOf(slot), fitR = S(slot).screen.fitR;
+  keyOn(slot, "Home");                                    // All
+  const st = S(slot);
+  check("floors: opened on a floor, All keeps the house framed (no camera is kept from before the view was framed)",
+    st.screen.floors.all && camOf(slot) === framed && st.cam.radius >= fitR * 0.97 && !st.screen.floorCams.includes("all"),
+    { framed, now: camOf(slot), fitR, cams: st.screen.floorCams });
+  LA.releaseLiveAboardSlot("scr-camsopen");
+});
 await tryCase("floors: back on a floor kept zoomed out, with the map alone, the bars come back", async () => {
   calls.length = 0;
   const { slot } = await newSlot("scr-camsbare", { floorSteps: hostSteps(null, 1, true) });

@@ -1006,7 +1006,9 @@ function createSlot(slotKey){
     floorKey = key;
     if (was === null || key === null) return;
     if (panel) panel.floorChanged();
-    floorCams.set(was, { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() });
+    // Not yet framed (the floor the host picked as the view opened): there
+    // is no view of that floor to keep, only the camera's starting values.
+    if (!cam.needsFit) floorCams.set(was, { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray() });
     const c = keepCam ? null : floorCams.get(key);
     if (c) {
       cam.fly = null; cam.moved = true; cam.needsFit = false;
