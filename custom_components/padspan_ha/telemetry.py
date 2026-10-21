@@ -720,18 +720,21 @@ def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
 
 
 _DATA_SCREENS = "telemetry_screens"
+_DATA_SCREENS_TAKEN = "telemetry_screens_taken"   # the last window's, until its report is sent
 
 
-def note_screen(hass: HomeAssistant, screen: str) -> bool:
-    """Whether this screen (a browser's random id) is new in this report's
-    window. Only the count leaves the box, as client_screen_seen; the ids are
-    forgotten with the window."""
+def note_screen(hass: HomeAssistant, screen: str, event: str = "client_screen_seen") -> bool:
+    """Whether this screen (a browser's random id) is new for `event` in
+    this report's window: client_screen_seen and each client_screen:* word
+    count a screen once per report. Only the counts leave the box; the ids
+    are forgotten with the window."""
     if not isinstance(screen, str) or not re.fullmatch(r"[0-9a-f]{16}", screen):
         return False
     seen: set[str] = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_SCREENS, set())
-    if screen in seen or len(seen) >= 200:
+    key = f"{event}|{screen}"
+    if key in seen or len(seen) >= 2000:
         return False
-    seen.add(screen)
+    seen.add(key)
     return True
 
 
@@ -740,6 +743,7 @@ def _take_counters(hass: HomeAssistant) -> dict[str, int]:
     dom = hass.data.setdefault(DOMAIN, {})
     out = dict(dom.get(_DATA_COUNTERS) or {})
     dom[_DATA_COUNTERS] = {}
+    dom[_DATA_SCREENS_TAKEN] = dom.get(_DATA_SCREENS) or set()
     dom[_DATA_SCREENS] = set()
     return out
 
@@ -784,6 +788,9 @@ def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[st
     counters = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_COUNTERS, {})
     for k, v in usage.items():
         counters[k] = int(counters.get(k, 0)) + int(v)
+    # The screens it counted go back with their counts, so they aren't counted again.
+    dom = hass.data[DOMAIN]
+    dom.setdefault(_DATA_SCREENS, set()).update(dom.pop(_DATA_SCREENS_TAKEN, None) or set())
     try:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:
@@ -1793,6 +1800,7 @@ def reset_windows(hass: HomeAssistant) -> None:
     """Start the usage and error windows now — called at opt-in, so the first
     report carries nothing from before the person said yes."""
     hass.data.setdefault(DOMAIN, {})[_DATA_COUNTERS] = {}
+    hass.data[DOMAIN][_DATA_SCREENS] = set()
     try:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:

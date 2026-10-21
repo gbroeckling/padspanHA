@@ -75,11 +75,14 @@ export function wallParams(search, house){
   };
 }
 
-/** A screen's own link for these values (the card's "link for one screen"). */
-export function wallLink(o){
+/** A screen's own link for these values (the card's "link for one screen").
+ *  `full`: it says everything, so nothing of the house's setting gets in
+ *  (wall_in=0 is "size from the screen", wall_text even at 20). */
+export function wallLink(o, full = false){
   const p = ["kiosk=1"];
   if (o.inches > 0) p.push(`wall_in=${Math.round(o.inches)}`, `wall_m=${(Math.round(o.meters * 10) / 10)}`);
-  if (o.arcmin && Math.round(o.arcmin) !== 20) p.push(`wall_text=${Math.round(o.arcmin)}`);
+  else if (full) p.push("wall_in=0");
+  if (o.arcmin && (full || Math.round(o.arcmin) !== 20)) p.push(`wall_text=${Math.round(o.arcmin)}`);
   return `/padspan-lights?${p.join("&")}`;
 }
 

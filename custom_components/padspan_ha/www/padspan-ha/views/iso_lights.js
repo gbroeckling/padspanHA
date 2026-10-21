@@ -6488,6 +6488,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // On a wall the key grows with the room names, as far as the width allows.
     const k=Math.min(LS, (W-20)/(lx+130));
     if(k>1) s=s.slice(0, legendAt)+`<g transform="translate(10 ${LEGEND_Y0+4}) scale(${k.toFixed(3)}) translate(-10 ${-(LEGEND_Y0+4)})">`+s.slice(legendAt)+`</g>`;
+    // The width held it under LS: give back the height kept for it, or the
+    // wall would fit a smaller house above an empty band.
+    if(LS>1 && k<LS){
+      const H2=HTOTAL-32*(LS-Math.max(1,k));
+      s=s.replace(`viewBox="${viewX0} ${viewY} ${WTOTAL} ${HTOTAL}"`, `viewBox="${viewX0} ${viewY} ${WTOTAL} ${H2}"`)
+         .replace(`data-natural-h="${HTOTAL}"`, `data-natural-h="${H2}"`);
+    }
   }
 
   s+=`</svg>`;

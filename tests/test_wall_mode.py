@@ -56,7 +56,7 @@ def test_the_card_is_in_settings_and_saves_the_wall_settings():
     for k in ("wall_screen_in", "wall_distance_m", "wall_text_arcmin", "wall_night_dim", "wall_pixel_shift"):
         assert k in card, k
     assert 'ctx.actions.wsCall("padspan_ha/settings_set", patch)' in card, "straight to the wire, Settings not rebuilt under the slider"
-    assert '["Living-room TV", 55, 3]' in card and "WALLS.wallLink(o)" in card
+    assert '["Living-room TV", 55, 3]' in card and "WALLS.wallLink(o, linkOnly)" in card
     lp = _src("lights_panel.js")
     assert "const WALLS = await import(`./views/wall_scale.js" in lp and "WALLS.wallScale(" in lp, "the wall and the card share the numbers"
 
@@ -108,7 +108,7 @@ def test_the_house_fits_the_screen_both_ways():
     assert "100cqh *" in lm and "wxSlot.fit(view.zoom, V2, wallW)" in lm, "the drawing and the rain take the same width"
     css = _src("styles.css")
     assert ".lv-mapcard.lv-display.lv-wall > .lv-stage{flex:1 1 auto;min-height:0;container-type:size;" in css
-    assert "zoom:var(--wall-ui,1)" in css
+    assert "zoom:var(--wall-ctl,var(--wall-ui,1))" in css
     assert "la3d" not in css, "Live Aboard's wall rules live in its own CSS, never styles.css"
     assert ":host([data-wall]) .la3d-tip{display:none}" in _src("views/live_aboard.js"), "keyed on the page: it holds full screen too"
 
@@ -123,7 +123,7 @@ def test_3d_names_grow_and_the_first_card_waits_for_someone_to_tap_it():
 
 def test_rain_is_drawn_bigger_on_a_wall():
     wx = _src("views/atlas_weather.js")
-    assert 'setProperty("--tw", `calc(${L.w}px * var(--wall-ui, 1))`)' in wx
+    assert 'setProperty("--tw", `calc(${L.w}px * var(--wall-px, 1))`)' in wx
 
 
 def test_its_use_is_counted():
@@ -137,7 +137,7 @@ def test_flat_map_names_and_key_grow_on_a_sized_wall():
     assert "const LS = Number(opts.labelScale) > 1 ? Math.min(6, Number(opts.labelScale)) : 1;" in iso, "1 everywhere but a wall"
     assert "const rfsBase=(SHOW?5.9:6.7)*LS;" in iso and "const LEGEND_H=32*LS;" in iso
     assert "labelScale: WALL && host.wallLabel ? host.wallLabel() : 1," in _src("views/lights_map.js")
-    assert "(this._wallUi || 1) / Math.max(1, Math.min(window.innerWidth / 1920" in _src("lights_panel.js"), \
+    assert "(this._wallUi || 1) / (this._wallPx || 1)" in _src("lights_panel.js"), \
         "the drawing already grows with the screen: names take only the rest"
 
 
@@ -194,7 +194,31 @@ def test_buttons_stop_at_finger_size_while_the_text_grows():
     assert 'setProperty("--wall-ctl", String(WALLS.controlScale(' in lp and 'removeProperty("--wall-ctl")' in lp
     css = _src("styles.css")
     assert ".lv-mapcard.lv-display.lv-wall .lv-alone-anchor > button{zoom:var(--wall-ctl,var(--wall-ui,1))}" in css
-    assert ".lv-mapcard.lv-display.lv-wall > .lv-legend{zoom:var(--wall-ui,1)}" in css, "the floor key is read, not touched"
+    assert ".lv-wall > .lv-legend{" not in css.replace(".lv-mapcard.lv-display", ""), "the only legend there is stays off a wall"
     la = _src("views/live_aboard.js")
     assert ':host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ctl,var(--wall-ui,1))}' in la
     assert 'wallUiOf(root, "--wall-ctl")' in la, "the menu is placed by the scale it is drawn at"
+
+
+def test_the_review_s_wall_fixes():
+    lp = _src("lights_panel.js")
+    shift = lp[lp.index("  _wallShift(){"):]
+    shift = shift[:shift.index(chr(10) + "  }" + chr(10))]
+    assert "this.shadowRoot.children" in shift and "el.style.translate" in shift, "the 3D full screen moves too"
+    assert ":host([data-wall]){overflow:clip}" in lp, "a moved page never scrolls"
+    assert 'window.addEventListener("pointerdown", this._wallTap, true);' in lp and 'removeEventListener("click", this._wallTap, true)' in lp,         "a touch on a faded wall only wakes it"
+    assert 'setProperty("--wall-px"' in lp and "(this._wallUi || 1) / (this._wallPx || 1)" in lp
+    assert "calc(${L.w}px * var(--wall-px, 1))" in _src("views/atlas_weather.js"), "rain goes with the drawing, not the text"
+    assert "height:100vh;height:100dvh;" in _src("styles.css"), "a tablet's browser bars"
+    card = _src("views/wall_card.js")
+    assert "WALLS.wallLink(o, linkOnly)" in card and "Just make a link" in card and "showSaved()" in card
+    assert "if (was === null) was = get();" in card, "a failed save puts back what it was before the drag"
+    assert "const H2=HTOTAL-32*(LS-Math.max(1,k));" in _src("views/iso_lights.js")
+
+
+def test_a_full_link_says_everything():
+    got = _node("console.log(JSON.stringify([wallLink({inches:0, meters:2.5, arcmin:20}, true), wallLink({inches:11, meters:0.5, arcmin:20}, true),"
+                " wallParams('?kiosk=1&wall_in=0&wall_text=20', {wall_screen_in: 55, wall_distance_m: 3, wall_text_arcmin: 24}).inches]))")
+    assert got[0] == "/padspan-lights?kiosk=1&wall_in=0&wall_text=20"
+    assert got[1] == "/padspan-lights?kiosk=1&wall_in=11&wall_m=0.5&wall_text=20"
+    assert got[2] == 0, "wall_in=0 sizes from the screen whatever the house says"

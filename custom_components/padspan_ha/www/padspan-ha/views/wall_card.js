@@ -60,9 +60,19 @@ export function wallCard(ctx, el, settings){
     shift: !!s.wall_pixel_shift,
   };
   const note = el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px" }, "Saves as soon as you change it. Wall screens follow within half a minute.");
+  // "Just make a link": the size, distance and text then build a link for
+  // one screen and change nothing else (night and burn-in stay house-wide).
+  let linkOnly = false;
+  const saved = { wall_screen_in: Number(s.wall_screen_in) || 0, wall_distance_m: v.meters, wall_text_arcmin: v.arcmin };
+  const SIZE_KEYS = ["wall_screen_in", "wall_distance_m", "wall_text_arcmin"];
   const save = async (patch, undo) => {
+    if (linkOnly && Object.keys(patch).every((k) => SIZE_KEYS.includes(k))) {
+      note.textContent = "Not saved: only the link below changes. Untick \u201cJust make a link\u201d to change every wall.";
+      return;
+    }
     try {
       const r = await ctx.actions.wsCall("padspan_ha/settings_set", patch);
+      Object.assign(saved, patch);
       if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
       note.textContent = "Saved. Wall screens follow within half a minute.";
     } catch (e) {
@@ -77,11 +87,15 @@ export function wallCard(ctx, el, settings){
     const b = el("button", { class: "btn inline" + (v.mode === val ? " on" : ""), type: "button" }, label);
     b.addEventListener("click", () => {
       if (v.mode === val) return;
-      v.mode = val;
-      for (const x of seg.children) x.classList.toggle("on", x === b);
-      room.style.display = val === "room" ? "" : "none";
-      paint();
-      save({ wall_screen_in: val === "room" ? v.inches : 0 });
+      const was = v.mode;
+      const show = (m) => {
+        v.mode = m;
+        for (const x of seg.children) x.classList.toggle("on", x === seg.children[m === "room" ? 1 : 0]);
+        room.style.display = m === "room" ? "" : "none";
+        paint();
+      };
+      show(val);
+      save({ wall_screen_in: val === "room" ? v.inches : 0 }, () => show(was));
     });
     return b;
   };
@@ -94,8 +108,14 @@ export function wallCard(ctx, el, settings){
     const range = el("input", { type: "range", min: String(min), max: String(max), step: String(step), style: "flex:1 1 180px;min-width:160px" });
     range.value = String(get());
     const val = el("span", { style: "color:#e2e8f0;font-size:13px;font-variant-numeric:tabular-nums;min-width:150px" }, fmt(get()));
-    range.addEventListener("input", () => { set(Number(range.value)); val.textContent = fmt(get()); paint(); });
-    range.addEventListener("change", () => { const was = get(); save({ [key]: toStored ? toStored(get()) : get() }, () => { set(was); }); });
+    // What it was before this drag: a save that fails puts that back.
+    let was = null;
+    range.addEventListener("input", () => { if (was === null) was = get(); set(Number(range.value)); val.textContent = fmt(get()); paint(); });
+    range.addEventListener("change", () => {
+      const before = was === null ? get() : was;
+      was = null;
+      save({ [key]: toStored ? toStored(get()) : get() }, () => { set(before); range.value = String(before); val.textContent = fmt(before); paint(); });
+    });
     return el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:6px 0" }, [
       el("span", { style: "color:#cbd5e1;font-size:13px;min-width:130px" }, label), range, val,
     ]);
@@ -112,12 +132,16 @@ export function wallCard(ctx, el, settings){
   const presets = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px" });
   for (const [name, inches, meters] of PRESETS) {
     const b = el("button", { class: "btn inline", type: "button", style: "font-size:12px", title: `${inches}" at ${meters} m` }, name);
-    b.addEventListener("click", () => {
-      v.inches = inches; v.meters = meters;
-      sizeRow.querySelector("input").value = String(inches); sizeRow.lastChild.textContent = `${inches}" (${cm(inches)})`;
-      distRow.querySelector("input").value = String(meters); distRow.lastChild.textContent = `${meters.toFixed(1)} m (${ft(meters)})`;
+    const put = (i, m) => {
+      v.inches = i; v.meters = m;
+      sizeRow.querySelector("input").value = String(i); sizeRow.lastChild.textContent = `${Math.round(i)}" (${cm(i)})`;
+      distRow.querySelector("input").value = String(m); distRow.lastChild.textContent = `${m.toFixed(1)} m (${ft(m)})`;
       paint();
-      save({ wall_screen_in: inches, wall_distance_m: meters });
+    };
+    b.addEventListener("click", () => {
+      const was = [v.inches, v.meters];
+      put(inches, meters);
+      save({ wall_screen_in: inches, wall_distance_m: meters }, () => put(was[0], was[1]));
     });
     presets.appendChild(b);
   }
@@ -125,8 +149,9 @@ export function wallCard(ctx, el, settings){
   room.appendChild(sizeRow);
   room.appendChild(distRow);
   card.appendChild(room);
-  card.appendChild(slider("Text size", 16, 28, 1, () => v.arcmin, (x) => { v.arcmin = x; },
-    (x) => `${WALLS.textWord(x)} (${Math.round(x)}′)`, "wall_text_arcmin"));
+  const textRow = slider("Text size", 16, 28, 1, () => v.arcmin, (x) => { v.arcmin = x; },
+    (x) => `${WALLS.textWord(x)} (${Math.round(x)}′)`, "wall_text_arcmin");
+  card.appendChild(textRow);
 
   // ── the preview: a 4K screen drawn to scale, and what it comes to ──
   const preview = el("div", { style: "display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;margin:10px 0 4px" });
@@ -159,21 +184,51 @@ export function wallCard(ctx, el, settings){
   });
   card.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin:14px 0 4px" },
     "A screen that's different from the others (a smaller tablet, a far TV) can carry its own size in its link, which wins over the settings above:"));
+  const onlyRow = el("label", { style: "display:flex;align-items:center;gap:8px;cursor:pointer;margin:0 0 6px" });
+  const onlyCb = el("input", { type: "checkbox" });
+  onlyCb.addEventListener("change", () => {
+    linkOnly = onlyCb.checked;
+    note.textContent = linkOnly
+      ? "Just making a link: the size, distance and text above build the link and change no wall."
+      : "Saves as soon as you change it. Wall screens follow within half a minute.";
+    if (!linkOnly) showSaved();   // back to what the walls really have
+    else paint();
+  });
+  onlyRow.appendChild(onlyCb);
+  onlyRow.appendChild(el("span", { style: "color:#e2e8f0;font-size:13px" }, "Just make a link (the house's walls stay as they are)"));
+  card.appendChild(onlyRow);
   card.appendChild(el("div", { style: "display:flex;flex-wrap:wrap;gap:8px;align-items:center" }, [linkBox, copy]));
   card.appendChild(note);
+
+  /** The card back on the house's saved size, distance and text (after a link). */
+  function showSaved(){
+    const i = Number(saved.wall_screen_in) || 0;
+    v.mode = i > 0 ? "room" : "auto";
+    if (i > 0) v.inches = i;
+    v.meters = Number(saved.wall_distance_m) || 2.5;
+    v.arcmin = Number(saved.wall_text_arcmin) || 20;
+    for (const [row, x, label] of [[sizeRow, v.inches, `${Math.round(v.inches)}" (${cm(v.inches)})`],
+                                   [distRow, v.meters, `${v.meters.toFixed(1)} m (${ft(v.meters)})`],
+                                   [textRow, v.arcmin, `${WALLS.textWord(v.arcmin)} (${Math.round(v.arcmin)}′)`]]) {
+      row.querySelector("input").value = String(x); row.lastChild.textContent = label;
+    }
+    for (const x of seg.children) x.classList.toggle("on", x === seg.children[v.mode === "room" ? 1 : 0]);
+    room.style.display = v.mode === "room" ? "" : "none";
+    paint();
+  }
 
   function paint(){
     const o = { inches: v.mode === "room" ? v.inches : 0, meters: v.meters, arcmin: v.arcmin };
     const k4 = WALLS.wallScale(3840, 2160, o), k1 = WALLS.wallScale(1920, 1080, o);
-    linkBox.value = WALLS.wallLink(o);
-    // A 4K screen 320 px wide: the rail, the legend and a room's name at their
-    // share of it, so you see how much of the screen the controls take.
-    const W = 320, H = 180, f = W / 3840;
-    const rail = Math.max(2, 44 * k4 * f), leg = Math.max(2, 34 * k4 * f), txt = Math.max(3, 13 * k4 * f);
+    linkBox.value = WALLS.wallLink(o, linkOnly);
+    // A 4K screen 320 px wide: the rail and a room's name at their share of
+    // it, so you see how much of the screen the controls take (the rail stops
+    // at finger size, the text keeps growing).
+    const W = 320, H = 180, f = W / 3840, c4 = WALLS.controlScale(k4, o.inches, 3840, 2160);
+    const rail = Math.max(2, 44 * c4 * f), leg = 0, txt = Math.max(3, 13 * k4 * f);
     pic.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="A 4K wall screen at this size">
       <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="6" fill="#040a05" stroke="#2d4a38"/>
       <rect x="1" y="1" width="${rail.toFixed(1)}" height="${H - 2}" fill="#0f1a12"/>
-      <rect x="${rail.toFixed(1)}" y="${(H - 1 - leg).toFixed(1)}" width="${(W - 1 - rail).toFixed(1)}" height="${leg.toFixed(1)}" fill="#0f1a12"/>
       <g transform="translate(${((W + rail) / 2).toFixed(1)},${((H - leg) / 2).toFixed(1)})">
         <polygon points="-70,-6 0,-40 70,-6 0,28" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
         <polygon points="-70,22 0,-12 70,22 0,56" fill="#152a1a" stroke="#2d6a4f" stroke-width="1" opacity="0.7"/>
@@ -190,6 +245,7 @@ export function wallCard(ctx, el, settings){
         ? `<span style="color:#94a3b8">${Math.round(v.inches)}" seen from ${v.meters.toFixed(1)} m. At about ${(v.inches * 0.0254 * 1.5 * 0.49).toFixed(1)} m or nearer, 4K's extra pixels show; further away the screen only needs bigger, not sharper.</span>`
         : `<span style="color:#94a3b8">Sized from the screen's pixels alone. Choose <b>Size for my room</b> to size it for how far away people are.</span>`,
     ];
+    if (o.inches > 0) lines.push(`<span style="color:#94a3b8">Buttons about ${Math.round(WALLS.BASE_CTL_PX * c4 * WALLS.pitchMm(o.inches, 3840, 2160))} mm across on a 4K screen: sized for a finger, since whoever touches it is close.</span>`);
     if (k4 >= WALLS.WALL_UI_MAX) lines.push(`<span style="color:#fbbf24">That's as big as a wall draws (${WALLS.WALL_UI_MAX}×).</span>`);
     facts.innerHTML = lines.map(l => `<div>${l}</div>`).join("") + (v.mode === "room" ? sideView(v.inches, v.meters) : "");
   }
