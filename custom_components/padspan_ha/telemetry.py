@@ -444,10 +444,21 @@ CLIENT_DEV: tuple[str, ...] = ("mem_lt1g", "mem_1g", "mem_2g", "mem_4g", "mem_8g
                                # Do sensor states reach the panel with last_reported? (a steady
                                # room's temperature stays fresh by it, 0.38.126)
                                "lastrep_yes", "lastrep_no")
+# The screen a panel runs on (client_perf.js CLIENT_SCREEN, held equal by
+# tests/test_perf_memory.py): resolution by its long side in device pixels,
+# orientation, pixel density, kind of screen, one monitor or more. Buckets
+# only, never a size. client_screen_seen: one per screen per report window
+# (note_screen), so the report says how many screens a house runs.
+CLIENT_SCREEN: tuple[str, ...] = ("res_lt720", "res_720", "res_1080", "res_1440", "res_4k", "res_5k_up",
+                                  "orient_land", "orient_port", "dpr_1", "dpr_1_5", "dpr_2", "dpr_3_up",
+                                  "kind_phone", "kind_tablet", "kind_desktop", "kind_large",
+                                  "screens_1", "screens_2up", "screens_unknown")
 CLIENT_EVENTS: frozenset[str] = frozenset(
     {f"client_fps:{v}:{b}" for v in CLIENT_VIEWS for b in CLIENT_FPS}
     | {f"client_heap:{v}:{b}" for v in CLIENT_VIEWS for b in CLIENT_HEAP}
     | {f"client_dev:{d}" for d in CLIENT_DEV}
+    | {f"client_screen:{w}" for w in CLIENT_SCREEN}
+    | {"client_screen_seen"}
 )
 
 # Wall screens (panel.js, and lights_panel.js: the sidebar Atlas), once per
@@ -704,11 +715,28 @@ def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
     return True
 
 
+_DATA_SCREENS = "telemetry_screens"
+
+
+def note_screen(hass: HomeAssistant, screen: str) -> bool:
+    """Whether this screen (a browser's random id) is new in this report's
+    window. Only the count leaves the box, as client_screen_seen; the ids are
+    forgotten with the window."""
+    if not isinstance(screen, str) or not re.fullmatch(r"[0-9a-f]{16}", screen):
+        return False
+    seen: set[str] = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_SCREENS, set())
+    if screen in seen or len(seen) >= 200:
+        return False
+    seen.add(screen)
+    return True
+
+
 def _take_counters(hass: HomeAssistant) -> dict[str, int]:
     """The counters since the last report — and reset them."""
     dom = hass.data.setdefault(DOMAIN, {})
     out = dict(dom.get(_DATA_COUNTERS) or {})
     dom[_DATA_COUNTERS] = {}
+    dom[_DATA_SCREENS] = set()
     return out
 
 

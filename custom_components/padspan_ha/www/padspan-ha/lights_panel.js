@@ -1318,7 +1318,10 @@ class PadSpanLightsApp extends HTMLElement {
         this._clientPerf = m.startClientPerf({
           root: this.shadowRoot, viewClass: ()=>"atlas",
           enabled: ()=>!!this.state._telemetryOn && !!this._hass,
-          send: (name)=>{ Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{}); },
+          send: (name, extra)=>{
+            const screen = extra && typeof extra.screen === "string" ? { screen: extra.screen } : {};
+            Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name, ...screen })).catch(()=>{});
+          },
         });
       }).catch(()=>{ this._clientPerfLoading = null; });
     }

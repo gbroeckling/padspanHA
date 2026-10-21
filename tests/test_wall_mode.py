@@ -57,13 +57,15 @@ def test_the_house_fits_the_screen_both_ways():
     assert ".lv-mapcard.lv-display.lv-wall > .lv-stage{flex:1 1 auto;min-height:0;container-type:size;" in css
     assert "zoom:var(--wall-ui,1)" in css
     assert "la3d" not in css, "Live Aboard's wall rules live in its own CSS, never styles.css"
-    assert ".lv-mapcard.lv-display.lv-wall .la3d-tip{display:none}" in _src("views/live_aboard.js")
+    assert ":host([data-wall]) .la3d-tip{display:none}" in _src("views/live_aboard.js"), "keyed on the page: it holds full screen too"
 
 
 def test_3d_names_grow_and_the_first_card_waits_for_someone_to_tap_it():
     la = _src("views/live_aboard.js")
     assert "NAME_PX[0] * wallK" in la and "NAME_PX[1] * wallK" in la
-    assert 'if (!again && root.closest && root.closest(".lv-wall")) return;' in la
+    assert "if (!again && onWallPage(root)) return;" in la
+    assert "READ_PX[0] * wallK" in la, "readout chips grow too"
+    assert "LABEL_PX * (ctx.uiScale ? ctx.uiScale() : 1)" in _src("views/live_aboard_tracked.js"), "and tags' names"
 
 
 def test_rain_is_drawn_bigger_on_a_wall():

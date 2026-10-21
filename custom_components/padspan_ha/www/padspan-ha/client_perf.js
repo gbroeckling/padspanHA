@@ -31,6 +31,16 @@ export const CLIENT_HEAP = ["lt128m", "128_256m", "256_512m", "512m_1g", "1g_up"
 export const CLIENT_DEV = ["mem_lt1g", "mem_1g", "mem_2g", "mem_4g", "mem_8g_up", "mem_unknown",
                            "cores_1_2", "cores_3_4", "cores_5_8", "cores_9_up", "cores_unknown",
                            "webgl2_yes", "webgl2_no", "touch_yes", "touch_no", "lastrep_yes", "lastrep_no"];
+// The screen it runs on, in buckets (2026-10-21, for 4K walls): its resolution
+// in device pixels by the long side, orientation, pixel density, what kind of
+// screen (by its pointer and size) and whether the computer has more than one
+// monitor. Never the screen's exact size. client_screen_seen is counted once
+// per screen per report window by Home Assistant (a random id kept in this
+// browser, ws_telemetry.py), so the report can say how many screens a house runs.
+export const CLIENT_SCREEN = ["res_lt720", "res_720", "res_1080", "res_1440", "res_4k", "res_5k_up",
+                              "orient_land", "orient_port", "dpr_1", "dpr_1_5", "dpr_2", "dpr_3_up",
+                              "kind_phone", "kind_tablet", "kind_desktop", "kind_large",
+                              "screens_1", "screens_2up", "screens_unknown"];
 
 const PERIOD_MS = 60000;
 const MEASURE_MS = 3000;
@@ -57,6 +67,37 @@ export function deviceWords(nav, hasWebGL2){
   out.push(hasWebGL2 ? "webgl2_yes" : "webgl2_no");
   out.push(Number(nav && nav.maxTouchPoints) > 0 ? "touch_yes" : "touch_no");
   return out;
+}
+
+/** The screen's words (CLIENT_SCREEN) for one window. */
+export function screenWords(win){
+  const out = [];
+  const sc = (win && win.screen) || {}, dpr = Number(win && win.devicePixelRatio) || 1;
+  const sw = Number(sc.width) || Number(win && win.innerWidth) || 0, sh = Number(sc.height) || Number(win && win.innerHeight) || 0;
+  const L = Math.max(sw, sh) * dpr;
+  out.push(L < 1280 ? "res_lt720" : L < 1920 ? "res_720" : L < 2560 ? "res_1080" : L < 3840 ? "res_1440" : L < 5120 ? "res_4k" : "res_5k_up");
+  out.push(sw >= sh ? "orient_land" : "orient_port");
+  out.push(dpr < 1.25 ? "dpr_1" : dpr < 1.75 ? "dpr_1_5" : dpr < 2.5 ? "dpr_2" : "dpr_3_up");
+  const mq = (q) => { try { return !!(win.matchMedia && win.matchMedia(q).matches); } catch (_) { return false; } };
+  const fine = mq("(pointer: fine)"), coarse = mq("(pointer: coarse)");
+  const short = Math.min(sw, sh), long = Math.max(sw, sh);
+  out.push(fine ? "kind_desktop" : coarse ? (short < 600 ? "kind_phone" : long >= 1600 && !(Number(win.navigator && win.navigator.maxTouchPoints) > 0) ? "kind_large" : "kind_tablet")
+    : "kind_large");                                    // no pointer at all: a TV or a wall
+  out.push(sc.isExtended === true ? "screens_2up" : sc.isExtended === false ? "screens_1" : "screens_unknown");
+  return out;
+}
+
+/** A random id for this browser's screen, kept in localStorage; it goes only
+ *  to Home Assistant, which counts it and never stores or reports it. */
+export function screenId(store){
+  try {
+    let id = store.getItem("padspan_screen_id");
+    if (!/^[0-9a-f]{16}$/.test(id || "")) {
+      id = Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+      store.setItem("padspan_screen_id", id);
+    }
+    return id;
+  } catch (_) { return null; }
 }
 
 // Whether this panel's sensor states carry last_reported (a steady room's
@@ -127,6 +168,9 @@ export function startClientPerf({ root, viewClass, enabled, send, states }){
         for (const w of deviceWords(navigator, typeof WebGL2RenderingContext !== "undefined")) send("client_dev:" + w);
         const lr = lastReportedWord(states ? states() : null);
         if (lr) send("client_dev:" + lr);
+        for (const w of screenWords(window)) send("client_screen:" + w);
+        const sid = screenId(window.localStorage);
+        if (sid) send("client_screen_seen", { screen: sid });
       }
       const fps = await frameRate(MEASURE_MS);
       if (stopped || !enabled() || !visible()) return;

@@ -305,6 +305,9 @@ def test_the_vocabularies_agree():
     assert js_list("CLIENT_FPS") == T.CLIENT_FPS
     assert js_list("CLIENT_HEAP") == T.CLIENT_HEAP
     assert js_list("CLIENT_DEV") == T.CLIENT_DEV
+    assert js_list("CLIENT_SCREEN") == T.CLIENT_SCREEN
+    assert T.event_allowed("client_screen:res_4k") and T.event_allowed("client_screen_seen")
+    assert not T.event_allowed("client_screen:3840x2160")
     assert all(T.event_allowed(e) for e in ("client_fps:sim:lt10", "client_heap:atlas:1g_up", "client_dev:mem_2g"))
     assert not T.event_allowed("client_fps:sim:59.3") and not T.event_allowed("client_dev:Pixel 7")
 
