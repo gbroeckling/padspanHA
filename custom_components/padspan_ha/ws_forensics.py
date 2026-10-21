@@ -204,14 +204,19 @@ async def ws_licence_homes(hass: HomeAssistant, connection, msg) -> None:
     if not isinstance(data, dict) or not data.get("ok"):
         connection.send_error(msg["id"], "refused", str((data or {}).get("message") or "The licence server refused it."))
         return
+    def _n(v, d=0):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return d
     homes = [h for h in (data.get("homes") or []) if isinstance(h, dict)]
     lic = data.get("licence") if isinstance(data.get("licence"), dict) else {}
     connection.send_result(msg["id"], {
-        "homes": [{"id": int(h.get("id") or 0), "label": h.get("label") or "", "version": h.get("version") or "",
+        "homes": [{"id": _n(h.get("id")), "label": str(h.get("label") or ""), "version": h.get("version") or "",
                    "first_seen": h.get("first_seen") or "", "last_seen": h.get("last_seen") or "", "this": bool(h.get("this")),
                    "reporting": bool(h.get("reporting"))}
                   for h in homes],
-        "homes_max": int(data.get("homes_max") or 5), "frozen": bool(data.get("frozen")),
+        "homes_max": _n(data.get("homes_max"), 5), "frozen": bool(data.get("frozen")),
         # The licence they share: its owner's email masked by the server, its plan, the key's last four.
         "licence": {k: lic.get(k) for k in ("owner", "plan", "expires_at", "key_end", "homes_free")},
     })
@@ -346,6 +351,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
             license_tier=normalize_tier(data.get("tier"), default="bright"),
             license_is_trial=True,
             forensics_enabled=True,
+            license_home_token="", license_homes_used=0, license_home_status="",
         )
         _invalidate_snapshot_cache(hass)
         connection.send_result(msg["id"], {

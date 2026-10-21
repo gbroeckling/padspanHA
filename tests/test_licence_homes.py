@@ -60,7 +60,7 @@ def test_both_server_calls_send_it_and_keep_the_answer():
 
 def test_the_token_never_leaves_the_backend_and_survives_a_reset():
     assert 'out["license_home_token"] = ""' in _src("ws_common.py")
-    assert '"license_home_token", "license_home_label")' in _src("ws_factory_reset.py"), \
+    assert '"license_home_token", "license_home_label", "license_homes_used")' in _src("ws_factory_reset.py"), \
         "a reset home is still the same home, not a copy"
 
 
@@ -100,3 +100,14 @@ def test_a_house_with_one_or_two_homes_sends_the_same_report_as_before():
     for bad in ({"homes_used": True}, {"homes_used": "3"}, {"homes_used": -1}):
         asyncio.run(LH.keep_token(st, bad))
         assert st.data["license_homes_used"] == 3, bad
+
+
+def test_a_restore_a_new_key_or_a_bad_answer_never_costs_the_home_its_place():
+    bk = _src("ws_backup.py")
+    assert '"license_home_token", "license_home_label",' in bk, "a restore keeping the live key keeps this home's token"
+    assert '_LICENCE_KEYS + ("license_home_token", "license_home_label", "license_homes_used")' in _src("bright_import.py")
+    assert 'license_home_token="", license_homes_used=0, license_home_status="",' in _src("ws_forensics.py"), "a trial key: a fresh home"
+    assert '"license_home_token": "", "license_homes_used": 0,' in _src("pro_invite.py"), "an invite key: a fresh home"
+    assert '"license_home_token", "license_home_label", "license_homes_used")' in _src("ws_factory_reset.py")
+    assert "if resp.status >= 400:" in _src("licence_homes.py")
+    assert '"homes_max": _n(data.get("homes_max"), 5)' in _src("ws_forensics.py"), "a malformed answer can't raise"
