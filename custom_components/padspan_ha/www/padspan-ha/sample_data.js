@@ -52,7 +52,7 @@ export const SAMPLE_SNAPSHOT = {
       { address: "DD:EE:FF:44:55:66", name: "AirTag",         source: "living_room_hub", rssi: -71, age_s: 12, connectable: false, manufacturer_data: { "76": "0x12 0x19" }, company_name: "Apple", device_type: "Find My", service_names: [], service_uuid_map: {}, _xref: { key: "ble:DD:EE:FF:44:55:66", kind: "ble", label: "Wallet (AirTag)", identified: true, room: null } },
       { address: "EE:FF:00:55:66:77", name: "Tile",           source: "kitchen_hub",     rssi: -68, age_s: 8,  connectable: true, service_uuids: ["FEED"], company_name: null, device_type: null, service_names: ["Tile"], service_uuid_map: {"FEED":"Tile"}, _xref: { key: "ble:EE:FF:00:55:66:77", kind: "ble", label: "Backpack (Tile)", identified: true, room: null } },
       { address: "FF:00:11:66:77:88", name: "",               source: "bedroom_hub",     rssi: -76, age_s: 22, connectable: false, service_uuids: ["181A"], manufacturer_data: {"310":"0x01 0x02"}, company_name: "Xiaomi", device_type: null, service_names: ["Environmental Sensing"], service_uuid_map: {"181A":"Environmental Sensing"}, _xref: null },
-      { address: "00:11:22:77:88:99", name: "",               source: "living_room_hub", rssi: -82, age_s: 45, connectable: false, company_name: null, device_type: null, service_names: [], service_uuid_map: {}, _xref: null },
+      { address: "D2:5A:7F:0B:93:4E", name: "",               source: "living_room_hub", rssi: -82, age_s: 45, connectable: false, manufacturer_data: {"2306":"0x50 0x53 0x48 0x41"}, company_name: null, device_type: null, service_names: [], service_uuid_map: {}, _xref: null },
     ],
     diag: { ok: true, errors: [] },
   },
@@ -97,7 +97,7 @@ export const SAMPLE_SNAPSHOT = {
       { key: "ble:AA:11:22:33:BB:CC", kind: "ble", address: "AA:11:22:33:BB:CC", name: "AA:11:22:33:BB:CC", user_label: "Dog Tracker", identified: true, rssi: -88, age_s: 483, room: "Hallway", sources: ["living_room_hub"], connectable: true, company_name: "Nordic Semiconductor", device_type: null, service_names: [], service_uuid_map: {}, prefix: "AA:11:22", prefix_count: 1 },
       // --- Unidentified BLE ---
       { key: "ble:FF:00:11:66:77:88", kind: "ble", address: "FF:00:11:66:77:88", name: "", identified: false, rssi: -76, age_s: 22, sources: ["bedroom_hub"],     connectable: false, company_name: "Xiaomi", device_type: null, service_names: ["Environmental Sensing"], service_uuid_map: {"181A":"Environmental Sensing"}, service_uuids: ["181A"], prefix: "FF:00:11", prefix_count: 1 },
-      { key: "ble:00:11:22:77:88:99", kind: "ble", address: "00:11:22:77:88:99", name: "", identified: false, rssi: -82, age_s: 45, sources: ["living_room_hub"], connectable: false, company_name: null, device_type: null, service_names: [], service_uuid_map: {}, prefix: "00:11:22", prefix_count: 1 },
+      { key: "ble:D2:5A:7F:0B:93:4E", kind: "ble", address: "D2:5A:7F:0B:93:4E", name: "", identified: false, rssi: -82, age_s: 45, sources: ["living_room_hub"], connectable: false, company_name: null, device_type: null, service_names: [], service_uuid_map: {}, prefix: "D2:5A:7F", prefix_count: 1 },
     ],
     summary: { total: 11, identified: 9, unidentified: 2, entities: 2, ble: 8, private_ble: 2, ibeacon: 1, common_prefixes: {} },
   },
