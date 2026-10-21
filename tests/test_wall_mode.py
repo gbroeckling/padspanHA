@@ -277,3 +277,12 @@ def test_the_card_and_the_server_carry_the_new_wall_settings():
     assert "save({ wall_floor_cycle_s: v.cycle }" in card and "save({ wall_fully: want }" in card
     lp = _src("lights_panel.js")
     assert "wall_floor_cycle_s: s.wall_floor_cycle_s, wall_fully: s.wall_fully" in lp
+
+
+def test_the_wake_tap_only_eats_a_tap_on_a_hidden_control():
+    # Review, 2026-10-21: the rail, drawers and lights stay showing on a faded
+    # wall, so a first tap on them must work; only one where a faded control was is eaten.
+    lp = _src("lights_panel.js")
+    assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-hud, .lv-alone-anchor > button";' in lp
+    assert "if(!onFaded(e.clientX, e.clientY)) return;" in lp
+    assert '"translate"];' in _src("views/live_aboard.js"), "leaving full screen clears the wall's shift on the 3D view"
