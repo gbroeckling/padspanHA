@@ -39,6 +39,21 @@ export function wallScale(w, h, o = {}){
   return Number.isFinite(s) ? clamp(Math.round(s * 100) / 100, 1, WALL_UI_MAX) : 1;
 }
 
+/** The controls' scale: the text's, but no bigger than a finger needs. Text
+ *  is sized for whoever reads it from across the room; whoever touches a
+ *  wall stands at arm's length, so its buttons stop at about CTL_MM on the
+ *  glass (kiosk practice, ISO 9241-411: 19 mm for public touch screens).
+ *  BASE_CTL_PX is the rail's button at scale 1. Without the screen's size
+ *  there is nothing to measure against: the text's scale, as before. */
+export const CTL_MM = 22, BASE_CTL_PX = 32;
+export function controlScale(scale, inches, w, h, dpr = 1){
+  const s = Number(scale) > 1 ? Number(scale) : 1;
+  if (!(inches > 0) || !(w > 0) || !(h > 0)) return s;
+  const cssMm = pitchMm(inches, w, h, dpr) * (dpr > 0 ? dpr : 1);   // mm per CSS pixel
+  const cap = CTL_MM / (BASE_CTL_PX * cssMm);
+  return clamp(Math.round(Math.min(s, Math.max(1, cap)) * 100) / 100, 1, WALL_UI_MAX);
+}
+
 /** The capital height of PadSpan's text on that screen, in mm (or null without a size). */
 export function textMm(scale, inches, w, h, dpr = 1){
   if (!(inches > 0)) return null;
@@ -60,11 +75,14 @@ export function wallParams(search, house){
   };
 }
 
-/** A screen's own link for these values (the card's "link for one screen"). */
-export function wallLink(o){
+/** A screen's own link for these values (the card's "link for one screen").
+ *  `full`: it says everything, so nothing of the house's setting gets in
+ *  (wall_in=0 is "size from the screen", wall_text even at 20). */
+export function wallLink(o, full = false){
   const p = ["kiosk=1"];
   if (o.inches > 0) p.push(`wall_in=${Math.round(o.inches)}`, `wall_m=${(Math.round(o.meters * 10) / 10)}`);
-  if (o.arcmin && Math.round(o.arcmin) !== 20) p.push(`wall_text=${Math.round(o.arcmin)}`);
+  else if (full) p.push("wall_in=0");
+  if (o.arcmin && (full || Math.round(o.arcmin) !== 20)) p.push(`wall_text=${Math.round(o.arcmin)}`);
   return `/padspan-lights?${p.join("&")}`;
 }
 

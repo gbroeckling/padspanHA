@@ -649,10 +649,10 @@ function createSlot(slotKey){
     const layers = {};
     ALL_LAYERS.forEach((L, i) => {
       const layer = d("lv-wx-layer");
-      // A wall (--wall-ui, the screen against 1080p; 1 anywhere else) draws
+      // A wall (--wall-px, its drawing against 1080p's; 1 anywhere else) draws
       // the same rain bigger, so a streak reads as it does on a 1080p screen.
-      layer.style.setProperty("--tw", `calc(${L.w}px * var(--wall-ui, 1))`);
-      layer.style.setProperty("--th", `calc(${L.h}px * var(--wall-ui, 1))`);
+      layer.style.setProperty("--tw", `calc(${L.w}px * var(--wall-px, 1))`);
+      layer.style.setProperty("--th", `calc(${L.h}px * var(--wall-px, 1))`);
       let host = layer;
       if (L.sway) { host = d("lv-wx-sway"); host.appendChild(layer); }
       host.style.display = "none";

@@ -170,18 +170,20 @@ const onWallPage = (el) => {
   return !!(rn && rn.host && rn.host.hasAttribute && rn.host.hasAttribute("data-wall"));
 };
 const wallUiOf = (() => {
-  let key = "", val = 1;
-  return (el) => {
+  const seen = new Map();   // property -> [key, value]
+  return (el, prop = "--wall-ui") => {
     if (!el || !el.isConnected) return 1;
     const host = el.getRootNode && el.getRootNode().host;
-    const k = `${innerWidth}x${innerHeight}:${host && host.style ? host.style.getPropertyValue("--wall-ui") : ""}`;
-    if (k === key) return val;
+    const k = `${innerWidth}x${innerHeight}:${host && host.style ? host.style.getPropertyValue(prop) : ""}`;
+    const had = seen.get(prop);
+    if (had && had[0] === k) return had[1];
     let v = 1;
     if (onWallPage(el)) {
-      const n = parseFloat(getComputedStyle(el.getRootNode().host).getPropertyValue("--wall-ui"));
-      if (Number.isFinite(n) && n > 1) v = n;
+      const n = parseFloat(getComputedStyle(el.getRootNode().host).getPropertyValue(prop));
+      if (Number.isFinite(n) && n >= 1) v = n;
+      else if (prop !== "--wall-ui") v = wallUiOf(el);   // a wall without --wall-ctl: the controls go with the text
     }
-    key = k; val = v;
+    seen.set(prop, [k, v]);
     return v;
   };
 })();
@@ -282,13 +284,15 @@ const CSS = `
 @media (prefers-reduced-motion:reduce){.la3d.la3d-cover,.la3d-bar,.la3d-compass,.la3d-tip{transition:none}}
 /* Wall mode (?kiosk=1 on the sidebar Atlas; styles.css .lv-wall): the view
    takes what the legend leaves beside the scaled rail, its controls grow with
+   the wall up to finger size (--wall-ctl), what is read (the HUD) with
    --wall-ui, and the touch hint goes. */
 .lv-mapcard.lv-display.lv-wall > .la3d{flex:1 1 auto;min-height:0;height:auto;
-  width:calc(100% - 44px * var(--wall-ui,1));margin-left:calc(44px * var(--wall-ui,1))}
+  width:calc(100% - 44px * var(--wall-ctl,var(--wall-ui,1)));margin-left:calc(44px * var(--wall-ctl,var(--wall-ui,1)))}
 .lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .la3d{width:100%;margin-left:0}
-:host([data-wall]) .la3d-bar,:host([data-wall]) .la3d-compass,:host([data-wall]) .la3d-hud,:host([data-wall]) .la3d-north,
+:host([data-wall]) .la3d-hud{zoom:var(--wall-ui,1)}
+:host([data-wall]) .la3d-bar,:host([data-wall]) .la3d-compass,:host([data-wall]) .la3d-north,
 :host([data-wall]) .la3d-menu,:host([data-wall]) .la3d-toast,:host([data-wall]) .la3d-solo,:host([data-wall]) .la3d-corner,
-:host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ui,1)}
+:host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ctl,var(--wall-ui,1))}
 :host([data-wall]) .la3d-tip{display:none}`;
 // While Live Aboard shows (its sheet travels with it): the flat Atlas's
 // symbol legend matches nothing in 3D; on the sidebar the header's flat hint
@@ -1169,7 +1173,7 @@ function createSlot(slotKey){
     const rr = root.getBoundingClientRect(), ar = anchor.getBoundingClientRect();
     // On a wall the menu is drawn k times larger (CSS zoom), and zoom scales
     // its left/bottom too: place it in screen pixels, then divide by k.
-    const k = wallUiOf(root), mw = m.getBoundingClientRect().width || 180 * k;
+    const k = wallUiOf(root, "--wall-ctl"), mw = m.getBoundingClientRect().width || 180 * k;
     m.style.left = `${Math.max(8, Math.min(ar.left - rr.left, rr.width - 8 - mw)) / k}px`;
     m.style.bottom = `${Math.max(8, rr.bottom - ar.top + 6) / k}px`;
     menuEl = m;
@@ -3018,7 +3022,10 @@ function createSlot(slotKey){
   const WALL_PX = 2560 * 1440;
   let profileDpr = 1;
   function ratioFor(w, h){
-    if (!onWallPage(root) || !w || !h) return profileDpr;
+    // High picked by hand: the screen's every pixel (a 4K wall on a strong
+    // PC holds 60 fps at full 4K); Auto keeps to WALL_PX, for the TV sticks
+    // and mini PCs most walls run on.
+    if (!onWallPage(root) || !w || !h || quality.setting === "high") return profileDpr;
     return Math.max(0.5, Math.min(profileDpr, Math.sqrt(WALL_PX / (w * h))));
   }
   function applyProfile(name){
@@ -3380,12 +3387,13 @@ function createSlot(slotKey){
     if (byHand && bare) setBare(false, false);
   }
   /** The first view: the Atlas's angle, the whole house; on a phone held
-   *  upright, room scale (about ROOM_SPAN across) at the middle of the house. */
+   *  upright (not a portrait wall), room scale (about ROOM_SPAN across) at
+   *  the middle of the house. */
   const ROOM_SPAN = 9;
   function openView(){
     if (panel && panel.open()) return;                      // the sidebar opens on its home view
     preset("iso");
-    if (camera.aspect >= 0.8) return;
+    if (camera.aspect >= 0.8 || onWallPage(root)) return;   // a portrait wall is not a phone: the whole house
     const r = ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect);
     if (r < cam.radius) { cam.radius = Math.max(MIN_R, r); applyCam(); }
   }
@@ -4274,7 +4282,7 @@ function createSlot(slotKey){
   function homeGoal(){
     const a = isoAngle(), g = frameFor(a.theta, a.phi, visiblePoints());
     fitR = g.radius;
-    if (camera.aspect < 0.8) g.radius = Math.max(MIN_R, Math.min(g.radius, ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect)));
+    if (camera.aspect < 0.8 && !onWallPage(root)) g.radius = Math.max(MIN_R, Math.min(g.radius, ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect)));
     return { theta: g.theta, phi: g.phi, radius: g.radius, target: g.target.toArray() };
   }
   /** The camera to g ({theta, phi, radius, target: [x, y, z]}): flown, or at once. */

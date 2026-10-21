@@ -55,16 +55,17 @@ async def ws_telemetry_preview(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.websocket_command({
     "type": "padspan_ha/telemetry_event",
     vol.Required("event"): str,
-    # client_screen_seen only: this browser's random screen id, counted once
-    # per report window and never stored in the report (telemetry.note_screen).
+    # client_screen_seen and client_screen:*: this browser's random screen id,
+    # so each screen counts once per report window; never stored in the
+    # report (telemetry.note_screen).
     vol.Optional("screen"): vol.All(str, vol.Length(max=32)),
 })
 @websocket_api.async_response
 async def ws_telemetry_event(hass: HomeAssistant, connection, msg) -> None:
     event = str(msg.get("event") or "")
-    if event == "client_screen_seen":
+    if event == "client_screen_seen" or (event.startswith("client_screen:") and msg.get("screen")):
         from .telemetry import enabled, note_screen  # noqa: PLC0415
-        counted = bool(enabled(hass) and note_screen(hass, str(msg.get("screen") or "")) and bump(hass, event))
+        counted = bool(enabled(hass) and note_screen(hass, str(msg.get("screen") or ""), event) and bump(hass, event))
         connection.send_result(msg["id"], {"counted": counted})
         return
     counted = bump(hass, event)

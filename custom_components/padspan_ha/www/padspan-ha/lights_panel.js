@@ -915,7 +915,7 @@ class PadSpanLightsApp extends HTMLElement {
       wall: this.hasAttribute("data-wall"),
       // The drawing already grows with the screen (a 4K wall draws it twice a
       // 1080p one); room names take the rest of the wall's scale.
-      wallLabel: ()=>Math.max(1, (this._wallUi || 1) / Math.max(1, Math.min(window.innerWidth / 1920, window.innerHeight / 1080))),
+      wallLabel: ()=>Math.max(1, (this._wallUi || 1) / (this._wallPx || 1)),
       showcase: !!this.state._showcase,
       showcaseTheme: this.state._showcaseTheme || "classic",
       fitRooms: !!this.state._fitRooms,
@@ -1336,8 +1336,12 @@ class PadSpanLightsApp extends HTMLElement {
         #content{padding:16px}
         /* Wall mode (?kiosk=1): no header, the map card the whole screen,
            its controls scaled by --wall-ui (lv- rules in styles.css). */
+        :host([data-wall]){overflow:clip}
         :host([data-wall]) #content{padding:0}
         :host([data-wall]) .lv-hero, :host([data-wall]) .lv-coach{display:none}
+        /* The wall is the map: the lights' table under it stays on the desk's
+           Atlas (a wall could scroll down to it, with a scrollbar on show). */
+        :host([data-wall]) .lv-tablecard.lv-index{display:none}
         /* Nobody at the wall: the controls floating over the map and the 3D
            house fade away (they come back with a touch, a mouse or a key),
            so a big wall shows the house, not its buttons. */
@@ -1381,6 +1385,11 @@ class PadSpanLightsApp extends HTMLElement {
       const p = WALLS.wallParams(location.search, this.state?._wall);
       const s = WALLS.wallScale(window.innerWidth, window.innerHeight, { ...p, dpr: window.devicePixelRatio || 1 });
       this.style.setProperty("--wall-ui", String(s));
+      // How much bigger the drawing itself is than on 1080p: the rain goes with it.
+      this._wallPx = Math.max(1, Math.min(window.innerWidth / 1920, window.innerHeight / 1080));
+      this.style.setProperty("--wall-px", String(Math.round(this._wallPx * 100) / 100));
+      // The buttons stop at finger size (wall_scale.js controlScale).
+      this.style.setProperty("--wall-ctl", String(WALLS.controlScale(s, p.inches, window.innerWidth, window.innerHeight, window.devicePixelRatio || 1)));
       this._wallUi = s;
       this._wallFit = p.inches > 0 ? "room" : "auto";
     };
@@ -1397,6 +1406,21 @@ class PadSpanLightsApp extends HTMLElement {
       };
       this._wallWake = wake;
       for(const ev of ["pointerdown", "pointermove", "keydown", "wheel"]) window.addEventListener(ev, wake, { passive: true });
+      // The first touch on a faded wall only brings the controls back: it
+      // would otherwise land on whatever is under a hidden button (a light,
+      // the 3D house). A mouse has already woken it by moving.
+      this._wallTap = (e)=>{
+        if(e.type === "pointerdown"){
+          if(this.hasAttribute("data-wall-active")) return;
+          e.stopPropagation(); e.preventDefault();
+          this._wallTapAt = Date.now();
+          wake();
+        } else if(Date.now() - (this._wallTapAt || 0) < 800){
+          e.stopPropagation(); e.preventDefault();
+        }
+      };
+      window.addEventListener("pointerdown", this._wallTap, true);
+      window.addEventListener("click", this._wallTap, true);
       wake();
     }
     if(!this._wallResize){ this._wallResize = size; window.addEventListener("resize", size); }
@@ -1433,10 +1457,16 @@ class PadSpanLightsApp extends HTMLElement {
   // on the same pixels for hours. Off unless asked for.
   _wallShift(){
     const on = this.hasAttribute("data-wall") && WALLS.wallParams(location.search, this.state?._wall).shift;
-    const c = this.shadowRoot && this.shadowRoot.querySelector("#content");
+    // Everything the page draws: #content, and Live Aboard's full screen,
+    // which moves its view out to the top of the page (paintCover). The
+    // `translate` property, not transform: it adds to theirs.
+    const moveAll = (x, y)=>{
+      for(const el of (this.shadowRoot ? this.shadowRoot.children : [])){
+        if(el.tagName !== "STYLE" && el.id !== "wallDim") el.style.translate = x || y ? `${x}px ${y}px` : "";
+      }
+    };
     if(!on){
-      if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; }
-      if(c) c.style.transform = "";
+      if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; moveAll(0, 0); }
       return;
     }
     if(this._shiftTimer) return;
@@ -1444,8 +1474,7 @@ class PadSpanLightsApp extends HTMLElement {
     let i = 0;
     this._shiftTimer = setInterval(()=>{
       i = (i + 1) % orbit.length;
-      const el = this.shadowRoot && this.shadowRoot.querySelector("#content");
-      if(el) el.style.transform = `translate(${orbit[i][0]}px,${orbit[i][1]}px)`;
+      moveAll(orbit[i][0], orbit[i][1]);
     }, 180000);
   }
 
@@ -1454,11 +1483,15 @@ class PadSpanLightsApp extends HTMLElement {
     if(this._wallResize){ window.removeEventListener("resize", this._wallResize); this._wallResize = null; }
     if(this._wallWake){
       for(const ev of ["pointerdown", "pointermove", "keydown", "wheel"]) window.removeEventListener(ev, this._wallWake);
-      this._wallWake = null; clearTimeout(this._wallIdleTimer);
+      window.removeEventListener("pointerdown", this._wallTap, true);
+      window.removeEventListener("click", this._wallTap, true);
+      this._wallWake = null; this._wallTap = null; clearTimeout(this._wallIdleTimer);
     }
     if(this._wakeVis){ document.removeEventListener("visibilitychange", this._wakeVis); this._wakeVis = null; }
     if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
     this.style.removeProperty("--wall-ui");
+    this.style.removeProperty("--wall-ctl");
+    this.style.removeProperty("--wall-px");
     this.removeAttribute("data-wall-active");
     this._wallUi = 1;
   }

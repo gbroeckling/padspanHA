@@ -74,7 +74,21 @@ def test_each_screen_counts_once_per_window_and_its_id_never_leaves():
     assert T.note_screen(hass, a), "a new window counts it again"
 
 
+def test_a_screen_s_words_count_once_and_a_failed_send_does_not_count_it_twice():
+    from custom_components.padspan_ha.const import DATA_SETTINGS
+    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={"telemetry_enabled": True})}})
+    a = "0123456789abcdef"
+    assert T.note_screen(hass, a, "client_screen:res_4k") and not T.note_screen(hass, a, "client_screen:res_4k")
+    assert T.note_screen(hass, a), "client_screen_seen is its own count"
+    T.bump(hass, "client_screen_seen")
+    taken = T._take_windows(hass)
+    T._give_back_windows(hass, taken)          # the send failed
+    assert not T.note_screen(hass, a), "given back with its count: not counted again"
+    T.reset_windows(hass)
+    assert T.note_screen(hass, a), "opting in starts the screens afresh"
+
+
 def test_the_websocket_counts_a_screen_only_when_it_is_new():
     src = (Path(T.__file__).parent / "ws_telemetry.py").read_text(encoding="utf-8")
     assert 'vol.Optional("screen"): vol.All(str, vol.Length(max=32))' in src
-    assert 'note_screen(hass, str(msg.get("screen") or "")) and bump(hass, event)' in src
+    assert 'note_screen(hass, str(msg.get("screen") or ""), event) and bump(hass, event)' in src

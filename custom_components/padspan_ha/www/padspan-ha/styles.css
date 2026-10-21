@@ -1578,18 +1578,17 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 @media (max-width:870px){#haSide:not([aria-pressed="true"]){display:none}}
 
 /* Wall mode (?kiosk=1 on the sidebar Atlas, lights_panel.js _wallOn): the
-   card is the whole screen, the stage takes what the legend leaves and the
-   drawing fits it both ways (lights_map.js applyZoom). The rail, legend,
-   drawers and the corner buttons scale with --wall-ui (the screen against
-   1080p, never under 1), and the stage makes room for the scaled rail.
+   card is the whole screen and the drawing fits it both ways (lights_map.js
+   applyZoom). The rail, drawers and the corner buttons scale with the wall
+   up to finger size (--wall-ctl; the text's own scale is --wall-ui), and the
+   stage makes room for the scaled rail. The shapes legend stays off.
    The 3D view's side travels in its own stylesheet. */
-.lv-mapcard.lv-display.lv-wall{height:100vh;display:flex;flex-direction:column;border-radius:0;border:none;margin:0}
+.lv-mapcard.lv-display.lv-wall{height:100vh;height:100dvh;display:flex;flex-direction:column;border-radius:0;border:none;margin:0}
 .lv-mapcard.lv-display.lv-wall > .lv-stage{flex:1 1 auto;min-height:0;container-type:size;
-  width:calc(100% - 44px * var(--wall-ui,1));margin-left:calc(44px * var(--wall-ui,1))}
+  width:calc(100% - 44px * var(--wall-ctl,var(--wall-ui,1)));margin-left:calc(44px * var(--wall-ctl,var(--wall-ui,1)))}
 .lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .lv-stage{width:100%;margin-left:0}
-.lv-mapcard.lv-display.lv-wall > .lv-rail,.lv-mapcard.lv-display.lv-wall > .lv-legend,
-.lv-mapcard.lv-display.lv-wall > .lv-drawer,.lv-mapcard.lv-display.lv-wall .lv-alone-anchor > button{zoom:var(--wall-ui,1)}
-.lv-mapcard.lv-display.lv-wall > .lv-legend{flex:none}
+.lv-mapcard.lv-display.lv-wall > .lv-rail,
+.lv-mapcard.lv-display.lv-wall > .lv-drawer,.lv-mapcard.lv-display.lv-wall .lv-alone-anchor > button{zoom:var(--wall-ctl,var(--wall-ui,1))}
 /* A wall shows the overview only (control-room practice: the big screen is
    the house at a glance; the fixture key is for whoever edits the map). */
 .lv-mapcard.lv-display.lv-wall > .lv-legend.lv-shapes{display:none}

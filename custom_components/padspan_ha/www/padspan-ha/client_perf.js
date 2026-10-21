@@ -155,7 +155,7 @@ function frameRate(ms){
 export function startClientPerf({ root, viewClass, enabled, send, states }){
   let stopped = false;
   let busy = false;
-  let devSent = false;
+  let devSent = false, screensSent = false;
   let timer = null;
   const visible = () => document.visibilityState === "visible" && (!root.host || root.host.isConnected);
 
@@ -168,13 +168,17 @@ export function startClientPerf({ root, viewClass, enabled, send, states }){
         for (const w of deviceWords(navigator, typeof WebGL2RenderingContext !== "undefined")) send("client_dev:" + w);
         const lr = lastReportedWord(states ? states() : null);
         if (lr) send("client_dev:" + lr);
-        for (const w of screenWords(window)) send("client_screen:" + w);
       }
-      // Every tick: Home Assistant forgets the ids with each report, so a
-      // wall that runs for weeks is still counted in each one (it counts an
-      // id once per report, the repeats cost nothing).
+      // Every tick, with the screen's id: Home Assistant counts a screen
+      // once per report and forgets the ids with it, so a wall that runs for
+      // weeks is in every report, and a reload isn't another screen.
+      // Without an id (no storage), once per page as before.
       const sid = screenId(window.localStorage);
-      if (sid) send("client_screen_seen", { screen: sid });
+      if (sid || !screensSent){
+        screensSent = true;
+        for (const w of screenWords(window)) send("client_screen:" + w, sid ? { screen: sid } : undefined);
+        if (sid) send("client_screen_seen", { screen: sid });
+      }
       const fps = await frameRate(MEASURE_MS);
       if (stopped || !enabled() || !visible()) return;
       let view = simOnScreen(root, window) ? "sim" : viewClass();
