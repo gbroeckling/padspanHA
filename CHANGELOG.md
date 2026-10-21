@@ -4,6 +4,28 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.158 — A room can rise past its floor, and rain that falls beside a smaller upstairs (2026-10-21)
+
+### New
+- **A room can be taller than its floor.** A double-height living room, or a hall under a gallery, no longer needs the whole floor made tall. In Mapping → Atlas, choose Rooms, select the room, and set **Rises to (m)**: how high its space goes above its floor (1.5 to 30 m). Leave it blank and the room is as tall as its floor, exactly as before. In Live Aboard the room's walls rise to that height, it is roofed at its own height, a gallery or loft edge over it gets its glass railing, and its lights hang from its own ceiling. Positioning is unchanged: it still reads the floors' heights.
+
+### Fixed
+- **Rain beside a smaller upper floor.** The Atlas joined two stacked floors into one outline for its rain mask, so with an L-shaped upstairs, a one-storey wing or a detached garage, no rain fell in the open air beside it. Each part of the upper floor is now joined to the floor below on its own, and a plain box house is masked exactly as before. Rain also stays lined up when floors are spread apart with Spacing.
+- **Floor plans load even if one couldn't be moved.** If moving the floor plans out of Home Assistant's public folder failed (0.38.143), PadSpan stopped loading maps at all. It now logs the problem, leaves that picture where it was, and loads everything else.
+- **A backup restore keeps a map whose picture is missing.** A map whose picture couldn't be saved into the backup used to be lost on restore, with its rooms, calibration and pins. It now comes back without a picture, and Replace Image puts one back. A backup that can't fetch a picture asks for fresh links once and tries again, and says which maps still have none.
+- **An update no longer reloads a wall screen over your work.** The panel waits while a dialog is open, a calibration pin or map is being dragged, or Maps is on Upload, Edit or 3D Stack, and tries again later. The Atlas shown as Overview leaves the update check to the panel.
+- **Coming back to PadSpan keeps your theme and panel style.** Leaving the panel and coming back could leave Day or a palette half applied, or the 2025 style missing.
+- **Show HA reads right from the start** when Home Assistant's sidebar was already hidden.
+- **Maps for people who aren't admins:** no Upload tab, Trim or Rotate they can't use, and errors show their message instead of "[object Object]".
+- A gallery's walls no longer flicker where they meet the hall's in Live Aboard.
+- Cropping and extending a floor plan no longer pauses Home Assistant while the picture is processed.
+
+### Opt-in report
+- Which theme the panel wears (Day, Light or a palette), how many rooms have their own height, and whether a map failed to move out of the public folder.
+- A mezzanine is now counted only where its rooms really stand over a taller room below; one set up with floor heights alone, with no rooms drawn upstairs, isn't (`house3d_mezzanine`).
+
+---
+
 ## 0.38.157 — Stable: mezzanines in 3D, one look for the Atlas and Live Aboard, and more themes (2026-10-20)
 
 - **Coming from 0.38.144?** This stable brings in everything from the 0.38.145–0.38.156 betas below:
