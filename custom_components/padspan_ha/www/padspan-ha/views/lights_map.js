@@ -4237,7 +4237,7 @@ export function buildLightsMapCard(hostIn){
   const legend = buildShapeLegend(el, Object.values(abLegend
     ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abLegend, host.lightsByEid, h3.settings.light_shapes)).lightsByEid
     : host.lightsByEid));
-  if (legend) mapCard.appendChild(legend);
+  if (legend) { legend.classList.add("lv-shapes"); mapCard.appendChild(legend); }   // a wall leaves it out (styles.css)
   rebuildISO();
   // Restore the pan position a previous rebuild of this same card saved
   // (see the scroll listener above) — skipped on the very first-ever

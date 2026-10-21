@@ -475,7 +475,7 @@ export function createTrackedLayer(ctx){
       let mpp;
       if (camera.isOrthographicCamera) mpp = (camera.top - camera.bottom) / (camera.zoom || 1) / H;
       else { sp.getWorldPosition(_wp); mpp = 2 * Math.tan((camera.fov || 40) * Math.PI / 360) * _wp.distanceTo(camera.position) / H; }
-      const h = LABEL_PX * (ctx.uiScale ? ctx.uiScale() : 1) * mpp;   // a wall's scale (live_aboard.js wallUiOf), 1 elsewhere
+      const h = LABEL_PX * (ctx.uiScale ? ctx.uiScale() : 1) * mpp;   // a wall's scale from the 3D view (ctx.uiScale), 1 elsewhere
       sp.scale.set(h * sp.userData.aspect, h, 1);
       sp.updateMatrixWorld();
     };

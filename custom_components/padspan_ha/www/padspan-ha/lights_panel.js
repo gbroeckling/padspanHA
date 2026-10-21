@@ -29,6 +29,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
+const WALLS = await import(`./views/wall_scale.js${new URL(import.meta.url).search}`);
 // Hide HA / Show HA beside Refresh, shared with the panel's toolbar. Optional:
 // without it the button is simply not there.
 const HA_SIDEBAR = await import(`./ha_sidebar.js${new URL(import.meta.url).search}`)
@@ -84,43 +85,8 @@ function staleBuildAction(pageBuild, backendBuild, kiosk, reloadedFor){
   const newer = backendBuild > pageBuild;
   return { newer, reload: newer && !!kiosk && reloadedFor !== backendBuild };
 }
-// Wall mode (?kiosk=1, 2026-10-21): the whole house on the screen, its
-// controls sized for the room. Never under 1, so nothing gets smaller.
-//
-// Without a size for the screen, the scale is the screen against 1080p (a
-// 4K wall is 2) times the chosen text size against 20 arcmin. With one
-// (Settings → UI Structure → Wall screens, or the screen's own link), it is
-// worked from what the eye sees, as control rooms size their text (ISO
-// 9241-303, MIL-PRF-87268D): the panel's 13 px text on a 24" 1080p monitor
-// at 0.6 m has a 14.4 arcmin capital height; a wall's pixels are bigger and
-// further away, and text should be `arcmin` (16 minimum, 20-22 preferred).
-const WALL_UI_MAX = 6;
-const REF_PITCH_MM = 0.2767, REF_DIST_M = 0.6, REF_ARCMIN = 14.4;
-function wallScale(w, h, o = {}){
-  const arcmin = Number(o.arcmin) > 0 ? Math.max(14, Math.min(36, Number(o.arcmin))) : 20;
-  const inches = Number(o.inches), meters = Number(o.meters), dpr = Number(o.dpr) > 0 ? Number(o.dpr) : 1;
-  let s;
-  if (inches > 0 && meters > 0 && w > 0 && h > 0) {
-    const pitch = 25.4 * inches / Math.hypot(w * dpr, h * dpr);          // mm per device pixel
-    s = (meters / REF_DIST_M) * (REF_PITCH_MM / pitch) * (arcmin / REF_ARCMIN) / dpr;
-  } else {
-    s = Math.min(Number(w) / 1920, Number(h) / 1080) * (arcmin / 20);
-  }
-  return Number.isFinite(s) ? Math.max(1, Math.min(WALL_UI_MAX, Math.round(s * 100) / 100)) : 1;
-}
-// A screen's own link wins over the house's settings: ?wall_in=55&wall_m=2.5&wall_text=20.
-function wallParams(search, house){
-  let q; try { q = new URLSearchParams(search); } catch(_) { q = new URLSearchParams(""); }
-  const num = (k) => { const v = parseFloat(q.get(k)); return Number.isFinite(v) ? v : null; };
-  const h = house || {};
-  return {
-    inches: num("wall_in") ?? (Number(h.wall_screen_in) || 0),
-    meters: num("wall_m") ?? (Number(h.wall_distance_m) || 2.5),
-    arcmin: num("wall_text") ?? (Number(h.wall_text_arcmin) || 20),
-    dim: Math.max(0, Math.min(0.7, Number(h.wall_night_dim) || 0)),
-    shift: !!h.wall_pixel_shift,
-  };
-}
+// Wall mode (?kiosk=1, 2026-10-21): how big to draw is views/wall_scale.js,
+// shared with Settings → UI Structure → Wall screens.
 
 // A wall screen: ?kiosk=1, or a window that fills the screen (Chrome
 // --kiosk, a full-screen tablet), which nobody is there to press Reload on.
@@ -1369,6 +1335,14 @@ class PadSpanLightsApp extends HTMLElement {
            its controls scaled by --wall-ui (lv- rules in styles.css). */
         :host([data-wall]) #content{padding:0}
         :host([data-wall]) .lv-hero, :host([data-wall]) .lv-coach{display:none}
+        /* Nobody at the wall: the controls floating over the map and the 3D
+           house fade away (they come back with a touch, a mouse or a key),
+           so a big wall shows the house, not its buttons. */
+        :host([data-wall]) .la3d-bar, :host([data-wall]) .la3d-compass, :host([data-wall]) .la3d-hud,
+        :host([data-wall]) .lv-alone-anchor > button{transition:opacity .6s ease}
+        :host([data-wall]:not([data-wall-active])) .la3d-bar, :host([data-wall]:not([data-wall-active])) .la3d-compass,
+        :host([data-wall]:not([data-wall-active])) .la3d-hud,
+        :host([data-wall]:not([data-wall-active])) .lv-alone-anchor > button{opacity:0;pointer-events:none}
       </style>
       <div id="content"></div>
     `;
@@ -1399,8 +1373,8 @@ class PadSpanLightsApp extends HTMLElement {
     }
     this.setAttribute("data-wall", "");
     const size = ()=>{
-      const p = wallParams(location.search, this.state?._wall);
-      const s = wallScale(window.innerWidth, window.innerHeight, { ...p, dpr: window.devicePixelRatio || 1 });
+      const p = WALLS.wallParams(location.search, this.state?._wall);
+      const s = WALLS.wallScale(window.innerWidth, window.innerHeight, { ...p, dpr: window.devicePixelRatio || 1 });
       this.style.setProperty("--wall-ui", String(s));
       this._wallUi = s;
       this._wallFit = p.inches > 0 ? "room" : "auto";
@@ -1408,6 +1382,18 @@ class PadSpanLightsApp extends HTMLElement {
     size();
     this._wallNight();
     this._wallShift();
+    // Someone at the wall: its floating controls show for 30 s after the
+    // last touch, mouse move or key, then fade (the CSS above).
+    if(!this._wallWake){
+      const wake = ()=>{
+        this.setAttribute("data-wall-active", "");
+        clearTimeout(this._wallIdleTimer);
+        this._wallIdleTimer = setTimeout(()=>this.removeAttribute("data-wall-active"), 30000);
+      };
+      this._wallWake = wake;
+      for(const ev of ["pointerdown", "pointermove", "keydown", "wheel"]) window.addEventListener(ev, wake, { passive: true });
+      wake();
+    }
     if(!this._wallResize){ this._wallResize = size; window.addEventListener("resize", size); }
     // Keep the screen on (Wake Lock): a wall nobody touches must not go to
     // sleep. Only on HTTPS or localhost; elsewhere the browser's own setting
@@ -1426,7 +1412,7 @@ class PadSpanLightsApp extends HTMLElement {
   _wallNight(){
     const r = this.shadowRoot;
     if(!r) return;
-    const dim = this.hasAttribute("data-wall") ? wallParams(location.search, this.state?._wall).dim : 0;
+    const dim = this.hasAttribute("data-wall") ? WALLS.wallParams(location.search, this.state?._wall).dim : 0;
     const night = this._hass?.states?.["sun.sun"]?.state === "below_horizon";
     let d = r.querySelector("#wallDim");
     if(!(dim > 0 && night)){ if(d) d.remove(); return; }
@@ -1441,7 +1427,7 @@ class PadSpanLightsApp extends HTMLElement {
   // round a small square, one step every three minutes, so no edge stays lit
   // on the same pixels for hours. Off unless asked for.
   _wallShift(){
-    const on = this.hasAttribute("data-wall") && wallParams(location.search, this.state?._wall).shift;
+    const on = this.hasAttribute("data-wall") && WALLS.wallParams(location.search, this.state?._wall).shift;
     const c = this.shadowRoot && this.shadowRoot.querySelector("#content");
     if(!on){
       if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; }
@@ -1462,6 +1448,10 @@ class PadSpanLightsApp extends HTMLElement {
     if(this._pollTimer){ clearInterval(this._pollTimer); this._pollTimer=null; }
     if(this._shiftTimer){ clearInterval(this._shiftTimer); this._shiftTimer = null; }
     if(this._wallResize){ window.removeEventListener("resize", this._wallResize); this._wallResize = null; }
+    if(this._wallWake){
+      for(const ev of ["pointerdown", "pointermove", "keydown", "wheel"]) window.removeEventListener(ev, this._wallWake);
+      this._wallWake = null; clearTimeout(this._wallIdleTimer);
+    }
     if(this._wakeVis){ document.removeEventListener("visibilitychange", this._wakeVis); this._wakeVis = null; }
     if(this._wakeLock){ try { this._wakeLock.release(); } catch(_) {} this._wakeLock = null; }
     if(this._clientPerf){ this._clientPerf.stop(); this._clientPerf = null; }

@@ -26,17 +26,39 @@ def _src(name: str) -> str:
     return (_WWW / name).read_text(encoding="utf-8").replace("\r\n", "\n")
 
 
-def _wall_fns() -> str:
-    src = _src("lights_panel.js")
-    return re.search(r"const WALL_UI_MAX = 6;.*?\n// A screen's own link.*?\n\}", src, re.S).group(0)
-
-
 def _node(code: str):
+    """Run `code` with views/wall_scale.js's exports in scope (the wall and the card share it)."""
     if _NODE is None:
         pytest.skip("node is not installed")
-    res = subprocess.run([_NODE, "-e", _wall_fns() + "\n" + code], capture_output=True, text=True, timeout=30)
+    url = (_WWW / "views" / "wall_scale.js").resolve().as_uri()
+    js = (f"import({json.dumps(url)}).then(({{wallScale, wallParams, wallLink, textMm, textWord, WALL_UI_MAX}}) => {{ "
+          + code + " });")
+    res = subprocess.run([_NODE, "--input-type=module", "-e", js], capture_output=True, text=True, timeout=30)
     assert res.returncode == 0, res.stderr
     return json.loads(res.stdout)
+
+
+def test_the_card_s_numbers():
+    got = _node("console.log(JSON.stringify([wallLink({inches:55, meters:2.5, arcmin:20}), wallLink({inches:0, meters:2.5, arcmin:24}),"
+                " Math.round(textMm(wallScale(3840,2160,{inches:55,meters:2.5}), 55, 3840, 2160)), textMm(2, 0, 3840, 2160),"
+                " textWord(16), textWord(21), textWord(25), textWord(30), WALL_UI_MAX]))")
+    assert got[0] == "/padspan-lights?kiosk=1&wall_in=55&wall_m=2.5"
+    assert got[1] == "/padspan-lights?kiosk=1&wall_text=24"
+    assert got[2] == 15, "text about 1.5 cm tall on a 55-inch 4K at 2.5 m"
+    assert got[3] is None, "no physical size without the screen's size"
+    assert got[4:8] == ["Small", "Comfortable", "Large", "Very large"] and got[8] == 6
+
+
+def test_the_card_is_in_settings_and_saves_the_wall_settings():
+    st = _src("views/settings.js")
+    assert "const WALLCARD = await import(`./wall_card.js" in st and "WALLCARD.wallCard(ctx, el, settings)" in st
+    card = _src("views/wall_card.js")
+    for k in ("wall_screen_in", "wall_distance_m", "wall_text_arcmin", "wall_night_dim", "wall_pixel_shift"):
+        assert k in card, k
+    assert 'ctx.actions.wsCall("padspan_ha/settings_set", patch)' in card, "straight to the wire, Settings not rebuilt under the slider"
+    assert '["Living-room TV", 55, 3]' in card and "WALLS.wallLink(o)" in card
+    lp = _src("lights_panel.js")
+    assert "const WALLS = await import(`./views/wall_scale.js" in lp and "WALLS.wallScale(" in lp, "the wall and the card share the numbers"
 
 
 def test_auto_is_the_screen_against_1080p_never_under_one():
