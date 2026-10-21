@@ -4,6 +4,44 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.160 — One licence for five homes, and new things to turn on for the Atlas, Live Aboard and wall screens (2026-10-21)
+
+Everything new in this version is off until you turn it on. With nothing turned on, PadSpan looks and works as in 0.38.159.
+
+### New
+- **One licence, up to five homes.** A PadSpan Pro key now covers up to five Home Assistants. The first two homes always count; homes three to five count while their opt-in usage report is on (Settings → Presence → Help improve PadSpan). **Settings → Licence → Homes** lists the key's homes with each one's place and whether its report is on, lets you rename this home and remove any of them, and says why a home isn't counted when the licence server refused it. A new install takes the place of a home that has been silent for 14 days or more, and a restored backup stays the same home.
+- **Lights in their own colours on the Atlas.** A lit light that reports a colour (a colour bulb's colour, or a white bulb's warm or cool) is drawn in it instead of amber. Off by default: Settings → UI Structure → Atlas → "Draw lit lights in their own colour on the Atlas". Lights with no colour, custom pin colours and off lights look as before.
+- **Blinds, shades, garage doors and gates on the Atlas.** A cover can be linked to a wall section like a door or window sensor. It reads open while any of it is open or it is moving; part-way open, its row says how far ("OPEN 40%") and the wall shows a small "40%" (which grows on wall screens). A garage cover swings as a garage door; blinds and shades draw no door leaf. Left open for hours, it is flagged like a door. Nothing changes until you link a cover; door and window sensors are unchanged.
+- **Heatmap on the Atlas.** A new "Heatmap" chip beside the class chips cycles Off, Temperature, Humidity and CO₂, for the kinds your house has sensors of. Each room is coloured inside its own walls from the sensors placed in it (or, with none placed, its own area's sensors), with a small key: a green comfort band for temperature and humidity, green at 400 ppm to red at 1500 ppm for CO₂. Only readings from the last hour count. Off by default; each browser remembers its choice.
+- **Alert pulse on the Atlas.** A door left open for hours, or a window or cover open while it rains or snows, rings its room in amber, the way a leak already does (leak, smoke, gas and CO keep their red rings). On a wall screen a banner across the top names the worst alert and where it is ("Leak · Laundry") until it clears. Off by default: Settings → UI Structure → Atlas → Alert pulse.
+- **Trails in Live Aboard.** Where each person and tag went in the last half hour, as a fading ribbon in its own colour on the floor it was walked on. Off by default and kept per screen: Views menu → "Trails, last 30 min" (offered while Show people or Show tags & scanners is on). Nothing new is recorded; the trails come from Traceback's own history.
+- **Live Aboard flies to what goes off.** On the sidebar and wall screens, the camera flies to a doorbell that rings, a door that opens, a sensor that goes off or an alarm that is triggered, shows a card (with a camera's snapshot if you picked one), then goes back to its home view after 20 s. If someone touched the screen in the last 20 s, or a card, Edit, Furnish or full screen is open, only the card shows. Off until an administrator picks what to fly to: Settings → Live Aboard → "Fly to when it goes off".
+- **Wall screens: each floor in turn, and Fully Kiosk.** Two new options in Settings → UI Structure → Wall screens, both off by default. **Show each floor** shows All, then one floor at a time, every 15 seconds to 5 minutes, waiting while someone is using the wall. **On Fully Kiosk tablets**, night dimming turns the screen's own brightness down instead of the dark overlay, and Fully's motion detection turns a sleeping screen back on (needs Fully's JavaScript Interface, and Motion Detection for the second).
+- **Sub-zones.** Named areas inside a room (the bed, the couch, the desk), each with its own `binary_sensor.padspan_<name>_occupied` and `sensor.padspan_<name>_who`, worked out from each labelled tag's position, with margins and a short wait so they don't flicker at the edge. Off by default: Manage → HA Entities → Sub-zones, then draw them in Mapping → Sub-zones. Rooms, positioning and calibration are unchanged.
+- **Hold the room through short gaps.** When a device comes back after a short gap in its signal, the panel keeps showing the room it had before, marked `room_held`, until the room vote confirms one again. Display only: how rooms are decided is unchanged. Off by default: Settings → Hold Room Through Short Gaps (up to 600 s).
+- **Why this room.** Each area sensor can carry a `room_reason` attribute: the votes won and needed, whether the anti-teleport gate is holding a move back, whether the current-room bias kept the room, and the top room scores. Off by default: Settings → Why This Room.
+- **Apple RoomPlan import.** The Rooms tab's floor plan import also takes a RoomPlan scan exported as JSON, beside Sweet Home 3D: floors (or walls) become room outlines and labels become room names, as a candidate to review and commit, like an .sh3d import. Off by default: Settings → Features → RoomPlan Import.
+- **Ask Assist which room someone is in.** "Which room is Alice in" answers "Alice is in the Kitchen" straight from PadSpan, where Home Assistant's own answer often says "at home". It does nothing until you add the custom sentences shown in [Getting Started](docs/GETTING_STARTED.md); it only reads.
+- **Import from a robot vacuum.** In Mapping, the Rooms card's **Import from a robot vacuum** reads a Valetudo map (a file, the robot's address or its map camera), previews it and adds it as a new map with its rooms and dock; it never overwrites a map, and rooms that already exist are skipped. The live robot on the map and a calibration walker are off until you turn them on, and the walker's points wait in a review pile until you accept each one by hand.
+
+### Fixed
+- **Wall screens, since 0.38.159:**
+  - A portrait wall opens on the whole house, not a phone's room-sized view, and pressing All after Live Aboard opens on a floor shows the whole house again instead of jumping to an old close-up.
+  - Buttons stop growing at finger size (about 22 mm on the glass) while the text keeps growing for the room; on a big touch wall they had grown to about 6 cm.
+  - No lights table under the map on a wall (it gave the page a scrollbar), and the full-height layout now allows for tablets' browser bars.
+  - High quality, picked by hand, draws the 3D house at full resolution on a wall (Auto keeps its lighter budget).
+  - Burn-in protection moves Live Aboard's full screen too and never makes the page scroll; leaving full screen clears it.
+  - The first touch on a faded wall only wakes it, and only where a hidden control was: the rail, drawers and lights work on the first tap.
+  - A link for one screen no longer changes every wall; the rain grows with the drawing, not the text; the floor key gives back height it didn't use; a slider whose save fails goes back to its old value.
+- **Licence homes:** a backup restore or a Bright import keeps this home's place on the licence, a trial or invite key starts afresh, a factory reset keeps the home count, and a broken answer from the licence server shows a plain error.
+
+### Opt-in report
+- The screen counts (`client_screen:*`) now count each screen once per report; they were counted once per page load. A screen is no longer counted twice after a report fails to send.
+- With a licence key on more than two homes, the licence's group code (`licence_group`): a short code made from the key, never the key, the same in each of that licence's homes so they can be seen together. The code is sent only from a key on more than two homes; a house with one or two sends what it always did.
+- Errors in the new heatmap, Trails, director and robot vacuum import code are counted by name like the rest of the panel's (`ui_error:*`).
+
+---
+
 ## 0.38.159 — Wall screens sized for the room, and a card to tune them (2026-10-21)
 
 ### New
