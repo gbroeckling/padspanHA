@@ -240,7 +240,7 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
         if suffix == "settings" and isinstance(data, dict):
             data = dict(data)
             if not str(data.get("forensics_license_key") or "").strip():
-                for k in _LICENCE_KEYS:
+                for k in _LICENCE_KEYS + ("license_home_token", "license_home_label", "license_homes_used"):
                     if live_settings.get(k):
                         data[k] = live_settings[k]
             # Not house configuration: a live tester sign-up (it is the only

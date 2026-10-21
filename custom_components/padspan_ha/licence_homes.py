@@ -73,5 +73,7 @@ async def call(hass: HomeAssistant, action: str, key: str, extra: dict[str, str]
     else:
         req = session.get(LICENCE_URL, params={**params, **body}, timeout=15)
     async with req as resp:
+        if resp.status >= 400:
+            raise RuntimeError(f"the licence server answered {resp.status}")
         text = await resp.text()
     return _json.loads(text.lstrip("﻿"))
