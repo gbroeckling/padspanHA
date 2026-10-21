@@ -84,8 +84,10 @@ def test_homes_after_the_first_two_need_the_usage_report_and_are_seen_together()
     import pytest
     with pytest.raises(ValueError):
         T.assert_shareable({"schema": 1, "licence_group": "PSPAN-ABCD-EFGH"})
-    php = (_PKG.parents[1] / "server" / "telemetry.php").read_text(encoding="utf-8")
-    assert "'licence_group'" in php and "/^[0-9a-f]{16}\z/" in php, "the receiver takes it, and only that shape"
+    php_path = _PKG.parents[1] / "server" / "telemetry.php"
+    if php_path.exists():  # the Bright derivation carries no server/
+        php = php_path.read_text(encoding="utf-8")
+        assert "'licence_group'" in php and "/^[0-9a-f]{16}\z/" in php, "the receiver takes it, and only that shape"
     js = _src("www/padspan-ha/views/settings.js")
     assert "needs_report:" in js and "with a licence used on more than two homes, a short code made from the key (never the key)" in js
     assert '"needs_report") else ""' in _src("update_check.py")

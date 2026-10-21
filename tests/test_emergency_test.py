@@ -623,7 +623,7 @@ def test_the_button_can_be_hidden_in_settings():
     assert DEFAULT_SETTINGS["atlas_emergency_button"] is True
     root = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
     ws = (root / "ws_settings.py").read_text(encoding="utf-8")
-    assert 'vol.Optional("atlas_emergency_button"): bool' in ws and '"atlas_emergency_button", "bermuda_ignore"' in ws
+    assert 'vol.Optional("atlas_emergency_button"): bool' in ws and '"atlas_emergency_button", "atlas_live_colours", "bermuda_ignore"' in ws
     lp = (root / "www" / "padspan-ha" / "lights_panel.js").read_text(encoding="utf-8")
     assert ("if (s.atlas_emergency_button !== undefined) this.state._emergButtonHidden = "
             "s.atlas_emergency_button === false;") in lp
