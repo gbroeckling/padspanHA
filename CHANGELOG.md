@@ -21,7 +21,7 @@ All notable changes to PadSpan HA are documented here.
 - Cropping and extending a floor plan no longer pauses Home Assistant while the picture is processed.
 
 ### Opt-in report
-- Which theme the panel wears (Day, Light or a palette), how many rooms have their own height, and whether a map failed to move out of the public folder.
+- Which theme the panel wears (Day, Light or a palette), and how many rooms have their own height.
 - A mezzanine is now counted only where its rooms really stand over a taller room below; one set up with floor heights alone, with no rooms drawn upstairs, isn't (`house3d_mezzanine`).
 
 ---
