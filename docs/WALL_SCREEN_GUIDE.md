@@ -70,6 +70,16 @@ for larger text. A screen opened with its own link ignores the house setting.
 On a wall, the controls over the map fade out 30 seconds after the last touch, mouse move or key,
 and come back with the next one.
 
+Two more options in **Settings → UI Structure → 📺 Wall screens**, both off until you set them:
+
+- **Show each floor**: every 15 s to 5 min the wall shows the next floor (All, then each floor on
+  its own), flat map and Live Aboard alike. It waits while someone is using the wall.
+- **On Fully Kiosk tablets**: inside [Fully Kiosk Browser](https://www.fully-kiosk.com/), night
+  dimming turns the screen's own brightness down instead of laying a dark film over the picture,
+  and its brightness comes back at sunrise. With Fully's **Motion Detection** on, someone walking
+  up turns a sleeping screen back on. Needs **Enable JavaScript Interface** in Fully's Advanced
+  Web Settings.
+
 ## Making the map fill the screen
 
 - **⛶** (bottom right of the map) makes it full screen.

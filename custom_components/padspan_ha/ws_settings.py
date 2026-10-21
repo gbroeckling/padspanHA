@@ -479,6 +479,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("wall_text_arcmin"): vol.Coerce(float),
         vol.Optional("wall_night_dim"): vol.Coerce(float),
         vol.Optional("wall_pixel_shift"): bool,
+        vol.Optional("wall_floor_cycle_s"): vol.Coerce(float),
+        vol.Optional("wall_fully"): bool,
         vol.Optional("atlas_3d_enabled"): bool,
         vol.Optional("atlas_3d_quality"): vol.Any(str, None),
         vol.Optional("atlas_3d_people"): bool,
@@ -806,6 +808,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["wall_text_arcmin"] = _clamped(msg["wall_text_arcmin"], 14, 36, 20.0)
         if "wall_night_dim" in msg:
             payload["wall_night_dim"] = _clamped(msg["wall_night_dim"], 0, 0.7, 0.0)
+        if "wall_floor_cycle_s" in msg:
+            payload["wall_floor_cycle_s"] = int(_clamped(msg["wall_floor_cycle_s"], 10, 600, 0, zero_ok=True))
         if "atlas_3d_quality" in msg:
             payload["atlas_3d_quality"] = _atlas_3d_quality(msg["atlas_3d_quality"])
         if "atlas_3d_look" in msg:
@@ -1009,7 +1013,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
                     "atlas_3d_weather", "atlas_3d_showcase",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
-                    "tags_phone_autolink_enabled", "quiet_mode", "light_theme", "day_theme", "wall_pixel_shift",
+                    "tags_phone_autolink_enabled", "quiet_mode", "light_theme", "day_theme", "wall_pixel_shift", "wall_fully",
                     "beacon_auto_calibrate", "overview_persistent_pins", "overview_show_walls",
                     "overview_show_outdoor", "overview_show_trails",
                     "overview_2d_mode", "beacon_profiling_enabled",

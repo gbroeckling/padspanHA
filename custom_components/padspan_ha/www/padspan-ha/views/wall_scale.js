@@ -72,6 +72,9 @@ export function wallParams(search, house){
     arcmin: num("wall_text") ?? (Number(h.wall_text_arcmin) || 20),
     dim: clamp(Number(h.wall_night_dim) || 0, 0, 0.7),
     shift: !!h.wall_pixel_shift,
+    // Seconds between floors while nobody touches the wall (0: it stays put).
+    cycle: Number(h.wall_floor_cycle_s) >= 10 ? Math.min(600, Math.round(Number(h.wall_floor_cycle_s))) : 0,
+    fully: !!h.wall_fully,
   };
 }
 
@@ -91,4 +94,20 @@ export function textWord(arcmin){
   let best = TEXT_STEPS[0];
   for (const t of TEXT_STEPS) if (Math.abs(t[0] - arcmin) < Math.abs(best[0] - arcmin)) best = t;
   return best[1];
+}
+
+/** The floor a wall shows next when it cycles: `stops` the focus positions
+ *  that are one floor or All (lights_map.js view.wallStops), `now` the one
+ *  showing. A position that isn't a stop (a pair of floors) starts from All. */
+export function nextFloorStop(stops, now){
+  if (!Array.isArray(stops) || stops.length < 2) return null;
+  const i = stops.indexOf(now);
+  return stops[(i + 1) % stops.length];
+}
+
+/** Fully Kiosk's screen brightness (0-255) for a night dim of `dim` (0-0.7)
+ *  from the day's `day` level; never fully black. */
+export function fullyBrightness(day, dim){
+  const d = Number(day) > 0 ? Math.min(255, Number(day)) : 255;
+  return Math.max(1, Math.round(d * (1 - clamp(Number(dim) || 0, 0, 0.7))));
 }

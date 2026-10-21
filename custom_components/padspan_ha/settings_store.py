@@ -161,6 +161,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "wall_text_arcmin": 20.0,             # 14-36
     "wall_night_dim": 0.0,                # 0-0.7: how much darker after sunset
     "wall_pixel_shift": False,            # move the picture a few px every few minutes (OLED burn-in)
+    "wall_floor_cycle_s": 0,              # 0 or 10-600: show the next floor every N s while nobody touches the wall
+    "wall_fully": False,                  # inside Fully Kiosk: night dim by its screen brightness, motion turns the screen on
     # Live Aboard, the 3D house (docs/IDEA_ATLAS_3D_HOUSE.md on the live-aboard branch). NORMALLY OFF:
     # off = no 3D switch, no Furnish tab, no store writes, no AI or library calls, no telemetry.
     "atlas_3d_enabled": False,            # the master switch
