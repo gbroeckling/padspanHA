@@ -26,14 +26,45 @@ def _src(name: str) -> str:
     return (_WWW / name).read_text(encoding="utf-8").replace("\r\n", "\n")
 
 
-def test_the_scale_is_the_screen_against_1080p_never_under_one():
+def _wall_fns() -> str:
+    src = _src("lights_panel.js")
+    return re.search(r"const WALL_UI_MAX = 6;.*?\n// A screen's own link.*?\n\}", src, re.S).group(0)
+
+
+def _node(code: str):
     if _NODE is None:
         pytest.skip("node is not installed")
-    src = _src("lights_panel.js")
-    fn = re.search(r"const WALL_UI_MAX = 3;\nfunction wallScale\(w, h\)\{.*?\n\}", src, re.S).group(0)
-    code = fn + "\nconsole.log(JSON.stringify([[1920,1080],[3840,2160],[1280,720],[2560,1440],[7680,4320],[3840,1600],[1080,1920],[0,0]].map(([w,h]) => wallScale(w,h))));"
-    got = json.loads(subprocess.run([_NODE, "-e", code], capture_output=True, text=True, timeout=30).stdout)
-    assert got == [1, 2, 1, 1.33, 3, 1.48, 1, 1], got
+    res = subprocess.run([_NODE, "-e", _wall_fns() + "\n" + code], capture_output=True, text=True, timeout=30)
+    assert res.returncode == 0, res.stderr
+    return json.loads(res.stdout)
+
+
+def test_auto_is_the_screen_against_1080p_never_under_one():
+    got = _node("console.log(JSON.stringify([[1920,1080],[3840,2160],[1280,720],[2560,1440],[7680,4320],[3840,1600],[1080,1920],[0,0]]"
+                ".map(([w,h]) => wallScale(w,h))))")
+    assert got == [1, 2, 1, 1.33, 4, 1.48, 1, 1], got
+    # the text size slider moves auto too: 24 arcmin is 1.2x of 20
+    assert _node("console.log(JSON.stringify(wallScale(3840, 2160, {arcmin: 24})))") == 2.4
+
+
+def test_room_mode_sizes_text_by_what_the_eye_sees():
+    # The research brief's worked examples (control-room practice, 20 arcmin):
+    # 27" 4K at 0.7 m, 55" 4K at 2.5 m, 65" 4K at 3.5 m, 32" 1080p at 1.5 m.
+    got = _node("console.log(JSON.stringify(["
+                "wallScale(3840,2160,{inches:27,meters:0.7}), wallScale(3840,2160,{inches:55,meters:2.5}),"
+                "wallScale(3840,2160,{inches:65,meters:3.5}), wallScale(1920,1080,{inches:32,meters:1.5}),"
+                "wallScale(1920,1080,{inches:24,meters:0.6,arcmin:14.4}),"
+                "wallScale(1920,1080,{inches:55,meters:2.5,dpr:2})]))")
+    assert got == [2.88, 5.05, 5.98, 2.6, 1, 2.53], got   # the last: Windows at 200% already doubled it, so half of 5.05
+
+
+def test_a_screens_own_link_wins_over_the_house():
+    got = _node("console.log(JSON.stringify([wallParams('?kiosk=1&wall_in=65&wall_m=3', {wall_screen_in: 55, wall_distance_m: 2, wall_text_arcmin: 22}),"
+                " wallParams('?kiosk=1', {wall_screen_in: 55, wall_distance_m: 2, wall_text_arcmin: 22, wall_night_dim: 0.9, wall_pixel_shift: true}),"
+                " wallParams('?kiosk=1', null)]))")
+    assert got[0] == {"inches": 65, "meters": 3, "arcmin": 22, "dim": 0, "shift": False}
+    assert got[1] == {"inches": 55, "meters": 2, "arcmin": 22, "dim": 0.7, "shift": True}, "night dim kept to 70%"
+    assert got[2] == {"inches": 0, "meters": 2.5, "arcmin": 20, "dim": 0, "shift": False}
 
 
 def test_kiosk_turns_it_on_and_only_on_the_sidebar_atlas():

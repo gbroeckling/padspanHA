@@ -484,8 +484,11 @@ SCREEN_EVENTS: frozenset[str] = frozenset(
     # 4K wall mode (0.38.159, ?kiosk=1 on the sidebar Atlas): the scale it
     # runs at (the screen against 1080p, bucketed) and whether Wake Lock held
     # the screen on. Never the screen's size itself.
-    | {f"wall_ui:{b}" for b in ("1", "1.5", "2", "3")}
+    | {f"wall_ui:{b}" for b in ("1", "1.5", "2", "3", "4", "6")}
     | {"wall_awake:on", "wall_awake:off"}
+    # Sized from the screen's resolution (auto) or from its size and the
+    # viewing distance (room: Settings → Wall screens, or the screen's link).
+    | {"wall_fit:auto", "wall_fit:room"}
 )
 
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
