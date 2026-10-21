@@ -165,6 +165,7 @@ from .ws_forensics import (  # noqa: F401  (re-exported: registration, tests, ca
     ws_forensics_clear,
     ws_forensics_license_activate,
     ws_forensics_license_reveal,
+    ws_licence_homes,
     ws_forensics_query,
     ws_forensics_stats,
     ws_trial_start,
@@ -449,6 +450,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_forensics_clear)
     websocket_api.async_register_command(hass, ws_forensics_license_activate)
     websocket_api.async_register_command(hass, ws_forensics_license_reveal)
+    websocket_api.async_register_command(hass, ws_licence_homes)
     websocket_api.async_register_command(hass, ws_trial_start)
     websocket_api.async_register_command(hass, ws_pro_invite_claim)
     websocket_api.async_register_command(hass, ws_pro_invite_decline)

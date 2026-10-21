@@ -161,24 +161,26 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
     try:
         import json as _json  # noqa: PLC0415
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
-        try:
-            from homeassistant.helpers.instance_id import async_get as _instance_id  # noqa: PLC0415
-            machine = await _instance_id(hass)
-        except Exception:
-            machine = "padspan-ha"
+        from .licence_homes import home_params, machine_id  # noqa: PLC0415
+        machine = await machine_id(hass)
         session = async_get_clientsession(hass)
         async with session.get(
             "https://traks.ca/license/",
-            params={"action": "validate", "product": "padspan", "key": key, "machine": machine},
+            params={"action": "validate", "product": "padspan", "key": key, "machine": machine,
+                    **home_params(st.data)},
             timeout=15,
         ) as resp:
-            data = _json.loads((await resp.text()).lstrip("﻿"))
+            data = _json.loads((await resp.text()).lstrip("\ufeff"))
     except Exception as err:
         _LOGGER.debug("PadSpan Pro revalidation skipped (%s)", err)
         return
     expires = str(data.get("expires_at") or "").strip()
     if data.get("valid"):
         from .licence import normalize_tier  # noqa: PLC0415
+        from .licence_homes import keep_token  # noqa: PLC0415
+        await keep_token(st, data)
+        if st.data.get("license_home_status"):
+            await st.async_set(license_home_status="")
         updates: dict = {}
         if expires and expires != str(st.data.get("forensics_license_expires") or ""):
             updates["forensics_license_expires"] = expires
@@ -198,6 +200,12 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
             await st.async_set(**updates)
             _LOGGER.info("PadSpan licence revalidated — %s", ", ".join(f"{k}={v}" for k, v in updates.items()))
     elif data.get("valid") is False:
+        # Over the key's homes (a copy of a home, or a sixth): said in Settings
+        # (licence_homes.py), and then the same grace as any refusal.
+        _hs = str(data.get("status") or "")
+        _hs = _hs if _hs in ("activation_limit", "activation_rate", "homes_frozen") else ""
+        if _hs != str(st.data.get("license_home_status") or ""):
+            await st.async_set(license_home_status=_hs)
         # Explicitly revoked. Record it as expired-now rather than deleting
         # the key: the grace window still applies, the user keeps their data,
         # and re-activating a reinstated licence restores everything.

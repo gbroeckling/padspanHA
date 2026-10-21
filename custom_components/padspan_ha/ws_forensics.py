@@ -171,6 +171,50 @@ async def ws_forensics_license_reveal(hass: HomeAssistant, connection, msg) -> N
 
 @websocket_api.websocket_command(
     {
+        "type": "padspan_ha/licence_homes",
+        vol.Optional("op", default="list"): vol.In(["list", "remove", "label"]),
+        vol.Optional("home_id"): vol.Coerce(int),
+        vol.Optional("label"): vol.All(str, vol.Length(max=60)),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_licence_homes(hass: HomeAssistant, connection, msg) -> None:
+    """The licence key's homes, from the licence server: list them, remove
+    one (it frees its place), or name this one. licence_homes.py."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    key = str((st.data if st else {}).get("forensics_license_key") or "").strip()
+    if not key:
+        connection.send_error(msg["id"], "no_key", "No licence key on this install")
+        return
+    from . import licence_homes  # noqa: PLC0415
+    op = msg.get("op") or "list"
+    try:
+        if op == "remove":
+            data = await licence_homes.call(hass, "home_remove", key, {"home_id": str(int(msg.get("home_id") or 0))}, post=True)
+        elif op == "label":
+            label = str(msg.get("label") or "").strip()[:60]
+            await st.async_set(license_home_label=label)
+            data = await licence_homes.call(hass, "home_label", key, {"label": label}, post=True)
+        else:
+            data = await licence_homes.call(hass, "homes", key)
+    except Exception as err:
+        connection.send_error(msg["id"], "network", f"Could not reach the licence server ({err}).")
+        return
+    if not isinstance(data, dict) or not data.get("ok"):
+        connection.send_error(msg["id"], "refused", str((data or {}).get("message") or "The licence server refused it."))
+        return
+    homes = [h for h in (data.get("homes") or []) if isinstance(h, dict)]
+    connection.send_result(msg["id"], {
+        "homes": [{"id": int(h.get("id") or 0), "label": h.get("label") or "", "version": h.get("version") or "",
+                   "first_seen": h.get("first_seen") or "", "last_seen": h.get("last_seen") or "", "this": bool(h.get("this"))}
+                  for h in homes],
+        "homes_max": int(data.get("homes_max") or 5), "frozen": bool(data.get("frozen")),
+    })
+
+
+@websocket_api.websocket_command(
+    {
         "type": "padspan_ha/forensics_license_activate",
         vol.Required("key"): str,
     }
@@ -192,15 +236,16 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
     try:
         import json as _json  # noqa: PLC0415
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
-        try:
-            from homeassistant.helpers.instance_id import async_get as _instance_id  # noqa: PLC0415
-            machine = await _instance_id(hass)
-        except Exception:
-            machine = "padspan-ha"
+        from .licence_homes import home_params, machine_id  # noqa: PLC0415
+        machine = await machine_id(hass)
+        # A different key starts this home afresh among that key's homes.
+        _hp = home_params(st.data)
+        if key != str(st.data.get("forensics_license_key") or "").strip().upper():
+            _hp["token"] = ""
         session = async_get_clientsession(hass)
         async with session.get(
             "https://traks.ca/license/",
-            params={"action": "validate", "product": "padspan", "key": key, "machine": machine},
+            params={"action": "validate", "product": "padspan", "key": key, "machine": machine, **_hp},
             timeout=15,
         ) as resp:
             text = await resp.text()
@@ -221,6 +266,8 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             # buys (or goes lifetime on the same key) is no longer on a trial.
             license_is_trial=str(data.get("plan") or "") == "trial",
             forensics_enabled=True,
+            license_home_token=str(data.get("token") or "") if len(str(data.get("token") or "")) == 32 else "",
+            license_home_status="",
         )
         _invalidate_snapshot_cache(hass)
         connection.send_result(msg["id"], {
