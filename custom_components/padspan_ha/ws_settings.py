@@ -419,6 +419,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("path_loss_exp"): vol.Coerce(float),
         vol.Optional("kalman_q"): vol.Coerce(float),
         vol.Optional("kalman_r"): vol.Coerce(float),
+        vol.Optional("hold_last_room_s"): vol.Coerce(float),   # display-only room hold through a short gap; 0 = off
+        vol.Optional("room_reason_attribute"): bool,          # "why this room" attribute on area sensors
         vol.Optional("assumed_device_height_m"): vol.Coerce(float),
         vol.Optional("fabric_origin_lat"): vol.Any(vol.Coerce(float), None),
         vol.Optional("fabric_origin_lon"): vol.Any(vol.Coerce(float), None),
@@ -649,6 +651,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["kalman_q"] = max(0.01, min(1.0, float(msg["kalman_q"])))
         if "kalman_r" in msg:
             payload["kalman_r"] = max(0.5, min(50.0, float(msg["kalman_r"])))
+        if "hold_last_room_s" in msg:
+            payload["hold_last_room_s"] = _clamped(msg["hold_last_room_s"], 1, 600, 0.0, zero_ok=True)
+        if "room_reason_attribute" in msg:
+            payload["room_reason_attribute"] = bool(msg.get("room_reason_attribute"))
         if "assumed_device_height_m" in msg:
             payload["assumed_device_height_m"] = max(0.0, min(3.0, float(msg["assumed_device_height_m"])))
         if "fabric_origin_lat" in msg:

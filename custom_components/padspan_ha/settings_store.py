@@ -92,6 +92,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "positioning_algorithm": "knn",    # "knn" | "rf" (Random Forest)
     "kalman_q": 0.125,             # Kalman process noise (RSSI responsiveness)
     "kalman_r": 8.0,               # Kalman measurement noise (smoothing strength)
+    # Both OFF by default. hold_last_room_s: the snapshot keeps showing the
+    # room a device had through a signal gap this short (display only; the
+    # room vote is unchanged). room_reason_attribute: a "why this room"
+    # attribute on each area sensor.
+    "hold_last_room_s": 0.0,       # 0 = off, else 1-600
+    "room_reason_attribute": False,
     "assumed_device_height_m": 1.0,  # carry height above the floor for 3D distance (pocketed phone)
     # GPS bridge (gap #5, best-in-class roadmap): the fabric's own metre
     # plane has no inherent relationship to true north or a real-world

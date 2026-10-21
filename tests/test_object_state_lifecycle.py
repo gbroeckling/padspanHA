@@ -60,6 +60,7 @@ OBJECT_STATE: frozenset[str] = frozenset({
     # 2026-10-12: a short gap's "from" room, and Follow room alerts held by
     # their cooldown with the last room each reported.
     "_room_before_gap", "_room_alert_held", "_room_alert_reported",
+    "_room_gap_mono",                   # when _room_before_gap was set (display-only hold_last_room_s)
     # Keyed by device group (a label, or the key itself) -> present keys;
     # rebuilt every poll, and _evict_object takes an evicted key out of it.
     "_prev_groups",

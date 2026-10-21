@@ -322,7 +322,37 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
             # Cap the list persisted to the recorder — high-rotation devices (iPhone IRK)
             # can accumulate hundreds of MACs and exceed the 16384-byte attribute limit.
             attrs["all_addresses"] = all_addrs[:5]
+        # "Why this room" (room_reason_attribute, OFF by default): what the
+        # last poll already decided, in one attribute. Absent when off, so
+        # the entity is unchanged for anyone who does not turn it on.
+        st = self.coordinator.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        st_data = (st.data if st else {}) or {}
+        if st_data.get("room_reason_attribute"):
+            attrs["room_reason"] = self._room_reason(obj, st_data)
         return attrs
+
+    def _room_reason(self, obj: dict[str, Any], st_data: dict[str, Any]) -> dict[str, Any]:
+        coord = self.coordinator
+        reason: dict[str, Any] = {}
+        try:
+            if hasattr(coord, "room_reason"):
+                reason.update(coord.room_reason(self._key))
+        except Exception:
+            _LOGGER.debug("room_reason failed for %s", self._key, exc_info=True)
+        scores = obj.get("room_scores")
+        if isinstance(scores, dict) and scores:
+            reason["top_room_scores"] = {
+                r: v for r, v in sorted(scores.items(), key=lambda kv: -float(kv[1] or 0))[:3]
+            }
+        held = False
+        try:
+            hold_s = float(st_data.get("hold_last_room_s") or 0.0)
+            if hold_s > 0 and not obj.get("room") and hasattr(coord, "held_room"):
+                held = bool(coord.held_room(self._key, hold_s))
+        except Exception:
+            held = False
+        reason["room_held"] = held
+        return reason
 
 
 class PadSpanDistanceSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):

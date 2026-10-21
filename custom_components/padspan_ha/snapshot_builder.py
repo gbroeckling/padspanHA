@@ -3154,6 +3154,26 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     except Exception as _away_err:
         _LOGGER.warning("Away marking failed: %s", _away_err, exc_info=True)
 
+    # ── Hold the room through a short signal gap (hold_last_room_s) ─────────
+    # Display only, OFF by default (0). A device back from a short gap has
+    # its room cleared until the vote confirms one again; with the setting on,
+    # the room it had before the gap is shown meanwhile, marked room_held.
+    # The vote, smoothing, gate and re-entry reset are untouched.
+    try:
+        _hold_st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        _hold_s = float(((_hold_st.data if _hold_st else {}).get("hold_last_room_s") or 0.0))
+        _hold_pc = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+        if _hold_s > 0 and _hold_pc is not None and hasattr(_hold_pc, "held_room"):
+            for _obj in (snap.get("objects") or {}).get("list") or []:
+                if _obj.get("room") or _obj.get("away"):
+                    continue
+                _held = _hold_pc.held_room(_obj.get("key") or "", _hold_s)
+                if _held:
+                    _obj["room"] = _held
+                    _obj["room_held"] = True
+    except Exception as _hold_err:
+        _LOGGER.warning("Room hold failed: %s", _hold_err, exc_info=True)
+
     # Rebuild room_tag_map from overlaid objects so the map matches the
     # presence coordinator's smoothed room assignments (spatial centroid).
     # Without this, the map uses pre-overlay raw RSSI rooms while the

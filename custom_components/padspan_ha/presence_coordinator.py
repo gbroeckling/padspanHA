@@ -884,6 +884,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # A confirmed room cleared by a short gap (quiet 60 s, never away):
         # the "from" room of the next confirmation, or that move was lost.
         self._room_before_gap: dict[str, str] = {}
+        # When each of those rooms was cleared (monotonic s). Read only by
+        # held_room() for the display-only hold_last_room_s setting.
+        self._room_gap_mono: dict[str, float] = {}
         # Follow room alerts held by the 60 s cooldown, and the last room
         # each one reported (sent when the cooldown ends, as tag events are).
         self._room_alert_held: dict[str, str] = {}
@@ -1521,6 +1524,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         _was_room = self._confirmed_room.pop(key, None)
                         if _back and _was_room and key in self._prev_present:
                             self._room_before_gap[key] = _was_room
+                            self._room_gap_mono[key] = time.monotonic()
                         self._adaptive_last_vec.pop(key, None)
                         self._knn_position.pop(key, None)
                         self._smooth_xy.pop(key, None)
@@ -3485,6 +3489,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._known_objs.pop(key, None)
         self._quiet_keys.discard(key)
         self._room_before_gap.pop(key, None)
+        self._room_gap_mono.pop(key, None)
         self._room_alert_held.pop(key, None)
         self._room_alert_reported.pop(key, None)
         # Out of its device group (rebuilt every poll, but not before the
@@ -3592,6 +3597,56 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 n_s = _n_exp
             out[src] = round(max(0.0, 10 ** ((ref_s - rssi) / (10.0 * n_s))), 1)
         return out
+
+    def held_room(self, key: str, hold_s: float) -> str:
+        """The room a device had before a short signal gap cleared it, while
+        that gap is under hold_s seconds old; "" otherwise.
+
+        Display only (hold_last_room_s): it reads the state the re-entry
+        reset already keeps and changes none of it.
+        """
+        if not hold_s or hold_s <= 0:
+            return ""
+        room = self._confirmed_room.get(key) or self._room_before_gap.get(key)
+        since = self._room_gap_mono.get(key)
+        if not room or since is None or key not in self._room_before_gap:
+            return ""
+        return room if time.monotonic() - since < hold_s else ""
+
+    def room_reason(self, key: str) -> dict[str, Any]:
+        """Why a device is in its room, from what the last poll already
+        recorded (the room_reason_attribute setting). Reads, never writes."""
+        reason: dict[str, Any] = {}
+        confirmed = self._confirmed_room.get(key)
+        votes = self._room_votes.get(key)
+        if votes is not None:
+            window = votes.maxlen or len(votes) or 1
+            needed = window // 2 + 1
+            counts: dict[str, int] = {}
+            for v in votes:
+                if v:
+                    counts[v] = counts.get(v, 0) + 1
+            reason["votes_won"] = counts.get(confirmed, 0) if confirmed else 0
+            reason["votes_needed"] = needed
+            reason["vote_window"] = window
+            # A room with enough votes that is still not the confirmed one:
+            # the anti-teleport gate wants more evidence first.
+            top = max(counts, key=lambda r: counts[r]) if counts else None
+            reason["gate_active"] = bool(confirmed and top and top != confirmed
+                                         and counts[top] >= needed)
+        cand = self._last_candidate.get(key) or {}
+        # The RSSI path kept the current room although another room read
+        # stronger: the current-room bias held it.
+        reason["current_room_bias"] = bool(
+            cand.get("source") == "rssi" and confirmed
+            and cand.get("candidate") == confirmed
+            and cand.get("rssi_best") and cand.get("rssi_best") != confirmed)
+        if cand.get("source"):
+            reason["source"] = cand["source"]
+        dbg = self._spatial_debug.get(key)
+        if dbg:
+            reason["positioning"] = dbg
+        return reason
 
     def is_identified_object(self, key: str) -> bool:
         """Whether the engine treats this object as someone's — a labelled
