@@ -18,7 +18,7 @@ const { buildIsoSVG, shapeSvg, fabricFrame, floorIdAtLevel, floorNameAtLevel, sa
 const { assignLightCodes, resolveLightShape, LIGHT_SHAPES, LIGHT_TYPE_OVERRIDES,
         TEMP_BORDER, healthOf,
         AIR_QUALITY_CLASSES, AIR_BORDER, airQualityBadness, airQualityWord, isAirQualityEntity,
-        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord } =
+        classBorder, isControllable, hasFixedGlyph, isAtlasEntity, inWholeHousePresets, castsLight, deviceClassOf, emergencyWord, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 const { tierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -610,8 +610,10 @@ export function stateWordOf(l, floodLatches, doorInvert){
     return { text: airQualityLabel(l), lit: false, sortValue: Number.isFinite(b) ? b : -Infinity };
   }
   if (l.isDoor) {
-    const on = (l.state === "on") !== !!(doorInvert && doorInvert[l.entity_id]);
-    return { text: on ? "OPEN" : "CLOSED", lit: on, sortValue: on ? 1 : 0 };
+    const on = openingOpen(l, doorInvert && doorInvert[l.entity_id]);
+    // A cover part-way open says how far ("OPEN 40%").
+    const pct = coverPercent(l);
+    return { text: on ? (pct !== null && pct > 0 && pct < 100 ? `OPEN ${pct}%` : "OPEN") : "CLOSED", lit: on, sortValue: on ? 1 : 0 };
   }
   if (l.isFlood) {
     // Latched (flood_latch.py) beats live state — a sensor that's dried
@@ -2560,13 +2562,16 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // The user's word beats detection, at pro: forced class from
       // settings.light_type_overrides. Never applies to a fan or a lock
       // (the domain is the class) and never below pro.
-      type_override: pro && !eid.startsWith("fan.") && !eid.startsWith("lock.") && typeOverrides ? (typeOverrides[eid] || null) : null,
+      type_override: pro && !eid.startsWith("fan.") && !eid.startsWith("lock.") && !eid.startsWith("cover.") && typeOverrides ? (typeOverrides[eid] || null) : null,
       // The fan card's inputs, present only on fan.* entities.
       pct:           eid.startsWith("fan.") ? (Number.isFinite(Number(states[eid].attributes?.percentage)) ? Number(states[eid].attributes.percentage) : null) : null,
       preset_modes:  eid.startsWith("fan.") && Array.isArray(states[eid].attributes?.preset_modes) ? states[eid].attributes.preset_modes : null,
       preset_mode:   eid.startsWith("fan.") ? (states[eid].attributes?.preset_mode || null) : null,
       oscillating:   eid.startsWith("fan.") ? (typeof states[eid].attributes?.oscillating === "boolean" ? states[eid].attributes.oscillating : null) : null,
       direction:     eid.startsWith("fan.") ? (states[eid].attributes?.direction || null) : null,
+      // How far open a cover is (blinds, a garage door), 0-100, when it says.
+      position:      eid.startsWith("cover.") && Number.isFinite(Number(states[eid].attributes?.current_position))
+                       ? Number(states[eid].attributes.current_position) : null,
       // When a motion/occupancy sensor last flipped state — while it is OFF
       // that IS when it last stopped tripping. The renderer fades a purple
       // "recently active" pulse over the 6h after this, past which it draws
@@ -2583,7 +2588,7 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
       // reading with the same attributes moves only that one, so a room
       // holding 21.5° for an hour went to "–°" on last_updated alone.
       last_changed:  eid.startsWith("sensor.") ? (states[eid].last_reported || states[eid].last_updated || null)
-                     : eid.startsWith("binary_sensor.") ? _realLastChanged(states[eid].last_changed, reconnects && reconnects[eid])
+                     : eid.startsWith("binary_sensor.") || eid.startsWith("cover.") ? _realLastChanged(states[eid].last_changed, reconnects && reconnects[eid])
                      : null,
       // The reading itself, rounded — "inside is simply the temperature, 3
       // digit, and larger". Only sensor.* entities carry one; everything

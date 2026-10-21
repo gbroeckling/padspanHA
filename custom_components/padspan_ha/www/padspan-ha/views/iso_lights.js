@@ -19,7 +19,7 @@
 // metres, and now that is the only thing it reads.
 
 const { WLED_BORDER, PARTITION_BORDER, MOTION_PULSE, DOOR_BORDER,
-        HUMIDITY_BORDER, FLOOD_BORDER, airQualityBadness, castsLight, classBorder, deviceClassOf } =
+        HUMIDITY_BORDER, FLOOD_BORDER, airQualityBadness, castsLight, classBorder, deviceClassOf, openingOpen, coverPercent } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 
 // Doors, shared with Live Aboard (door_types.js): which way an open door
@@ -5820,9 +5820,11 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       // Under the hit-line (pointer-events none): the line stays the target.
       function doorLeafSvg(bar, bpts, z, shown, dl, dim){
         if(!DOORS) return "";
-        const dc = dl && dl.device_class;
+        // A garage cover is drawn as a garage door; blinds, shades and the
+        // like hang in a window, which has no leaf.
+        const dc = dl && dl.device_class==="garage" ? "garage_door" : dl && dl.device_class;
         const nm = String(bar.name||""), mat = String(bar.material||"").toLowerCase();
-        if(dc==="window" || (!["door","garage_door","opening"].includes(dc) && (/window/i.test(nm) || mat==="glass" && !/door|slid|patio/i.test(nm)))) return "";
+        if(dc==="window" || ["blind","shade","shutter","curtain","awning"].includes(dc) || (!["door","garage_door","opening"].includes(dc) && (/window/i.test(nm) || mat==="glass" && !/door|slid|patio/i.test(nm)))) return "";
         const a=bpts[0], b=bpts[bpts.length-1], L=Math.hypot(b[0]-a[0], b[1]-a[1]);
         if(!(L > 0.2)) return "";
         const ux=(b[0]-a[0])/L, uy=(b[1]-a[1])/L;
@@ -5911,8 +5913,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
           // semantics (state=="on" == open) — wrong for at least one real
           // sensor (Upper Garage Car Door Contact) that reports backwards.
           // bar.invert_state flips the reading for just that one barrier.
-          const rawOn=!!(dl && dl.state==="on");
-          const isOpen=bar.invert_state ? !rawOn : rawOn;
+          // A cover (blinds, a garage door) is open while any of it is.
+          const isOpen=openingOpen(dl, bar.invert_state);
           // Garry, 2026-09-10 (repeated, emphatically): "the doors when
           // open show a grey line where the door is, I want nothing
           // there." A prior pass drew a dashed DOOR_BORDER line for the
@@ -5927,6 +5929,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             // like it's open, fix in sim style". The gap stays clear (no
             // line where the door is); its leaf stands swung open beside it.
             s+=doorLeafSvg(bar, bpts, z, "open", dl, barDim);
+            // A cover part-way open says how far, small, at the opening's middle.
+            const pct=coverPercent(dl);
+            if(pct!==null && pct>0 && pct<100){
+              const a=bpts[0], b=bpts[bpts.length-1];
+              const [mx,my]=iso((a[0]+b[0])/2,(a[1]+b[1])/2,z);
+              s+=`<text class="lv-coverpct" x="${mx.toFixed(1)}" y="${(my-4).toFixed(1)}" text-anchor="middle" font-size="8" `+
+                `fill="#cbd5e1" opacity="${barDim.toFixed(2)}" pointer-events="none">${pct}%</text>`;
+            }
           }
         }
         // The two points where this opening meets the rest of the wall it
