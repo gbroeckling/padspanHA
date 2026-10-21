@@ -27,6 +27,9 @@ const { WLED_BORDER, PARTITION_BORDER, MOTION_PULSE, DOOR_BORDER,
 // door's leaf swung open the way Live Aboard shows it. Optional: missing, an
 // open door is the clear gap it always was.
 const DOORS = await import(`./door_types.js${new URL(import.meta.url).search}`).catch(() => null);
+// The temperature / humidity / CO2 heatmap (atlas_heatmap.js). Optional the
+// same way: missing, the Atlas simply has no heatmap.
+const HEATMAP = await import(`./atlas_heatmap.js${new URL(import.meta.url).search}`).catch(() => null);
 
 function escSVG(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
 
@@ -3101,6 +3104,21 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     floodFx.push({eid: pl.eid, room, x: pl.x, y: pl.y, z: pl.z, liveWet: li.state==="on"});
   }
 
+  // ── Temperature / humidity / CO2 heatmap (views/atlas_heatmap.js) ────────
+  // Off unless opts.heatmap names a kind. Its sources are found here, before
+  // the defs, for the same reason as airFx: it clips to the room polygons.
+  const HEAT=HEATMAP && HEATMAP.HEATMAP_KINDS.includes(opts.heatmap) ? opts.heatmap : null;
+  const heatByZ=new Map();
+  if(HEAT){
+    const placedSet={};
+    for(const l of lights) placedSet[l.eid]=true;
+    for(const z of levels){
+      const srcs=HEATMAP.heatSources(HEAT, lights.filter(l=>l.z===z), rooms.filter(r=>r.z===z), byRoom||{}, lightsByEid,
+        hiddenEids, placedSet, (n)=>roomCentre.get(n), NOW_MS, pointInPolygon);
+      if(srcs.length) heatByZ.set(z, srcs);
+    }
+  }
+
   // ── Fit to room ───────────────────────────────────────────────────────────
   // No fixture may be drawn larger than the room it is in. A measurement typed
   // in centimetres is easy to get wrong by a factor of ten, and the result is a
@@ -3541,6 +3559,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   if(airFx.length) emitRoomClips();
   // Same reasoning as airFx just above, for the flood ring's clip.
   if(floodFx.length) emitRoomClips();
+  if(heatByZ.size) emitRoomClips();
   s+=`</defs>`;
   if(SHOW) s+=`<rect x="${viewX0}" y="${viewY}" width="${WTOTAL}" height="${HTOTAL}" fill="url(#psvig)" pointer-events="none"/>`;
 
@@ -6175,6 +6194,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       }
       s+=auraGlow+auraEdge;
     }
+    // The heatmap, under the air bars, the labels and the markers.
+    if(heatByZ.has(z)) s+=HEATMAP.heatFloorSvg(HEAT, heatByZ.get(z), hereRooms, floorBox.get(z), iso, z, (r)=>roomClip.get(r), (0.45*go).toFixed(2));
     // Poor-air rooms on this floor: the rising bars, under the labels and
     // the markers (see airFx, computed before the defs).
     for(const fx of airFx){
@@ -6508,8 +6529,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     s+=`<text x="${lx}" y="${ly+3}" fill="#9fb0a8" font-size="${KFS}" font-weight="500">${key}</text>`;
     lx+=key.length*KFS*0.6+10;
     s+=`<rect x="${lx}" y="${ly-2}" width="120" height="1.5" rx="0.75" fill="url(#psmotionlegend)"/>`;
+    let keyEnd=lx+130;
+    if(HEAT){
+      const hk=HEATMAP.heatLegendSvg(HEAT, lx+136, ly, KFS);
+      s+=hk.svg; keyEnd=hk.end+10;
+    }
     // On a wall the key grows with the room names, as far as the width allows.
-    const k=Math.min(LS, (W-20)/(lx+130));
+    const k=Math.min(LS, (W-20)/keyEnd);
     if(k>1) s=s.slice(0, legendAt)+`<g transform="translate(10 ${LEGEND_Y0+4}) scale(${k.toFixed(3)}) translate(-10 ${-(LEGEND_Y0+4)})">`+s.slice(legendAt)+`</g>`;
     // The width held it under LS: give back the height kept for it, or the
     // wall would fit a smaller house above an empty band.
