@@ -6006,7 +6006,8 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             if(pct!==null && pct>0 && pct<100){
               const a=bpts[0], b=bpts[bpts.length-1];
               const [mx,my]=iso((a[0]+b[0])/2,(a[1]+b[1])/2,z);
-              s+=`<text class="lv-coverpct" x="${mx.toFixed(1)}" y="${(my-4).toFixed(1)}" text-anchor="middle" font-size="8" `+
+              // On a wall screen it grows with the room names (LS).
+              s+=`<text class="lv-coverpct" x="${mx.toFixed(1)}" y="${(my-4*LS).toFixed(1)}" text-anchor="middle" font-size="${+(8*LS).toFixed(1)}" `+
                 `fill="#cbd5e1" opacity="${barDim.toFixed(2)}" pointer-events="none">${pct}%</text>`;
             }
           }
