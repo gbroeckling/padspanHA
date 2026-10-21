@@ -227,7 +227,7 @@ class _FakeSensorEntity:
 
 
 _sensor.SensorEntity = _FakeSensorEntity   # type: ignore[attr-defined]
-_sensor.SensorStateClass = MagicMock       # type: ignore[attr-defined]
+_sensor.SensorStateClass = MagicMock()     # type: ignore[attr-defined]  # an instance: sensor.py reads .MEASUREMENT at import
 
 # homeassistant.components.websocket_api
 _ws = _ha_mods["homeassistant.components.websocket_api"]

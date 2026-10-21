@@ -922,6 +922,63 @@ function _settingsPresence(ctx, el){
     ),
   ]));
 
+  // ── Hold room through a short gap (hold_last_room_s, display only) ──────────
+  const currentHold = (settings.hold_last_room_s != null ? Number(settings.hold_last_room_s) : 0);
+  const holdInp = el("input", {
+    type: "number", min: "0", max: "600", step: "10", value: String(currentHold), style: inpStyle,
+  });
+  const holdSaveBtn = el("button", { class: "btn" }, "Save");
+  holdSaveBtn.addEventListener("click", async () => {
+    const v = Math.max(0, Math.min(600, parseFloat(holdInp.value) || 0));
+    try {
+      await ctx.actions.settingsSet({ hold_last_room_s: v });
+      ctx.toast(v > 0 ? `Room held through gaps up to ${v}s` : "Room hold off");
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Hold Room Through Short Gaps"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
+      "When a device goes quiet for a minute and comes back, PadSpan forgets its room until the room vote agrees again, " +
+      "so it can show no room for a few polls. With this on, the panel keeps showing the room it was in before the gap, " +
+      "for up to this many seconds. Display only: how rooms are decided does not change."
+    ),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Hold last room"),
+      holdInp,
+      el("div", { class: "muted", style: "font-size:12px" }, "seconds"),
+      holdSaveBtn,
+    ]),
+    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
+      `Current: ${currentHold > 0 ? currentHold + "s" : "off"}. 0 = off (default). Range: 0–600s.`
+    ),
+  ]));
+
+  // ── "Why this room" sensor attribute (room_reason_attribute) ────────────────
+  {
+    const reasonOn = settings.room_reason_attribute === true;
+    const reasonToggle = el("input",{type:"checkbox",id:"roomReasonToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
+    reasonToggle.checked = reasonOn;
+    reasonToggle.addEventListener("change", async()=>{
+      try {
+        await ctx.actions.settingsSet({ room_reason_attribute: reasonToggle.checked });
+        ctx.toast(reasonToggle.checked ? "Room reason attribute on" : "Room reason attribute off");
+      } catch(e){ ctx.toast("Failed to save", true); }
+    });
+    wrap.appendChild(el("div",{class:"card"},[
+      el("div",{class:"h2"}, "Why This Room (Sensor Attribute)"),
+      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
+        reasonToggle,
+        el("label",{for:"roomReasonToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
+          "Add a room_reason attribute to each area sensor"),
+      ]),
+      el("div",{class:"muted",style:"font-size:12px"},
+        "Shows in Home Assistant why a device is in its room: how many recent polls voted for it and how many it needs, " +
+        "whether a jump to a far room is being held back, whether the current room was kept although another read slightly stronger, " +
+        "the positioning step's note, the top room scores, and whether the room is being held through a gap. " +
+        "Useful for fixing flapping rooms. Off by default; it adds to what the recorder stores."),
+    ]));
+  }
+
   // ── Presence Poll Interval ──────────────────────────────────────────────────
   const currentPoll = (settings.presence_poll_interval_s != null ? Number(settings.presence_poll_interval_s) : 10);
   const pollInp = el("input", {
