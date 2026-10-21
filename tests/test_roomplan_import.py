@@ -306,4 +306,6 @@ def test_the_rooms_tab_is_the_sh3d_one_while_off():
 def test_nothing_new_in_the_usage_report():
     from custom_components.padspan_ha import telemetry as T
     assert "roomplan_import_enabled" not in T._FEATURE_FLAGS
-    assert "roomplan" not in (_CC / "telemetry.py").read_text(encoding="utf-8")
+    # 0.38.160: only whether it is turned on, sent only when it is (never a scan or its rooms).
+    src = (_CC / "telemetry.py").read_text(encoding="utf-8")
+    assert src.count("roomplan") == 1 and '"roomplan_import_enabled": "plan_scan_import"' in src

@@ -67,4 +67,6 @@ def test_off_by_default_in_both_hosts() -> None:
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
     assert "localStorage.getItem(LS_HEAT)||null" in panel
-    assert "heatmap: mapState._lightsHeatmap || null," in maps
+    assert "heatmap: ctx.state.settings?.atlas_heatmap_enabled === true ? (mapState._lightsHeatmap || null) : null," in maps
+    lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert "onHeatmap: !this.state._heatmapOn ? null :" in lp, "no chip until it is turned on in Settings"

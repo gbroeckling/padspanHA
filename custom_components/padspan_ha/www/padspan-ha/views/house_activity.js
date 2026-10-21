@@ -39,6 +39,9 @@ function _row(r) {
   return { t: lu, state: r.state, attributes: r.attributes, lc: Date.parse(r.last_changed || r.last_updated) };
 }
 
+// Covers linked to a wall: the only ones on the Atlas (gatherLights).
+const _linkedCovers = (ctx) => new Set((ctx.state?.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean));
+
 /**
  * {entity_id: rows[]} → {entity_id: [{t, state, attributes, lc}]} sorted by t.
  * A row without attributes inherits the previous row's (HA omits unchanged ones).
@@ -51,6 +54,7 @@ function _row(r) {
  * live last_changed is it. Otherwise an "on" row is dated to the window start
  * (it was on then) and anything else to 0 — unknown, drawn as long ago.
  */
+
 export function buildStateTimeline(history, { startMs = null, live = {} } = {}) {
   const out = {};
   for (const [eid, rows] of Object.entries(history || {})) {
@@ -362,7 +366,7 @@ export function refreshHouseDevices(ctx, hs, onRegistry) {
   // The Atlas entity set comes from the live house; history fills its states.
   // Side-effect free: this is a replay, not the house now.
   const liveLights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap,
-    typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, true);
+    typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, true, null, _linkedCovers(ctx));
   hs.eids = liveLights.map(l => l.entity_id);
   hs.regLoading = !!reg.loading;
   // null while unknown: an EMPTY set once known is a set like any other — it
@@ -591,7 +595,7 @@ export function renderHouseFrame(ctx, hs, frames, frameIdx, beaconOpts, onRegist
   // Until history is in (or when it failed), no device states at all —
   // never today's states under a past timestamp.
   const states = devices && hs.timeline ? statesAt(hs.timeline, live, hs.eids, tMs) : {};
-  const lights = gatherLights(states, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, tMs, true);
+  const lights = gatherLights(states, reg.areaMap, shapeOverrides, settings.tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap, tMs, true, null, _linkedCovers(ctx));
   const lightsByEid = {};
   for (const l of lights) lightsByEid[l.entity_id] = l;
   const hidden = new Set(Array.isArray(settings.lights_hidden) ? settings.lights_hidden : []);

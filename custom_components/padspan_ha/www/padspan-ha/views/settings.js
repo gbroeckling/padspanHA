@@ -4059,6 +4059,28 @@ function _settingsUI(ctx, el){
       ctx.toast("Could not save: " + String((e && e.message) || e), true);
     }
   });
+  // The ♨ Heatmap chip, normally off: with it on, the Atlas's layer bar offers
+  // temperature, humidity and CO2 drawn across each room from its own sensors.
+  const heatRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
+  const heatCb = el("input",{type:"checkbox"});
+  heatCb.checked = settings.atlas_heatmap_enabled === true;
+  heatRow.appendChild(heatCb);
+  heatRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Heatmap chip on the Atlas (temperature, humidity, CO\u2082)"));
+  lightsCard.appendChild(heatRow);
+  const heatNote = el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 24px"},
+    "Adds a \u2668 chip to the Atlas's layer bar; each room takes its colour from its own sensors only. Off: no chip.");
+  lightsCard.appendChild(heatNote);
+  heatCb.addEventListener("change", async ()=>{
+    const want = heatCb.checked;
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { atlas_heatmap_enabled: want });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      heatNote.textContent = "Saved \u2014 the Atlas changes at its next refresh.";
+    } catch (e) {
+      heatCb.checked = !want;
+      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+    }
+  });
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
   // all, and whatever is stored is kept for when a key comes back.

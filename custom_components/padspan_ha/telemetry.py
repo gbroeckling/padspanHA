@@ -536,10 +536,15 @@ _FEATURE_FLAGS: tuple[str, ...] = (
 # Sent ONLY when on (true), so a house that never touches them sends exactly
 # the report it always did. The last three are on when non-zero or non-empty,
 # reported as on only, never the number or what's in them.
-_FEATURE_ON_ONLY: tuple[str, ...] = (
-    "atlas_live_colours", "atlas_alert_pulse", "subzones_enabled", "room_reason_attribute",
-    "roomplan_import_enabled", "wall_fully", "hold_last_room_s", "wall_floor_cycle_s", "atlas_3d_director",
-)
+# Setting -> its word in the report (a word of its own: what a setting holds,
+# such as the director's entities, never goes, only that it is on).
+_FEATURE_ON_ONLY: dict[str, str] = {
+    "atlas_live_colours": "live_colours", "atlas_alert_pulse": "alert_pulse",
+    "atlas_heatmap_enabled": "heatmap", "subzones_enabled": "subzones",
+    "room_reason_attribute": "room_reason", "roomplan_import_enabled": "plan_scan_import",
+    "wall_fully": "wall_fully", "hold_last_room_s": "room_hold",
+    "wall_floor_cycle_s": "wall_floor_cycle", "atlas_3d_director": "director",
+}
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
 _FEATURE_ENUMS: tuple[str, ...] = ("data_mode", "cpu_mode", "lights_automorph_style", "theme_palette")
@@ -1393,9 +1398,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         pass
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
-    for k in _FEATURE_ON_ONLY:
+    for k, word in _FEATURE_ON_ONLY.items():
         if settings.get(k):
-            features[k.removesuffix("_s")] = True
+            features[word] = True
     for k in _FEATURE_ENUMS:
         v = settings.get(k)
         if isinstance(v, str) and 0 < len(v) <= 16:

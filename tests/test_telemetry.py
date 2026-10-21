@@ -1632,5 +1632,5 @@ def test_new_switches_are_reported_only_when_on():
     """0.38.160: a house that never turns the new features on sends the report it always did."""
     from pathlib import Path
     src = Path(T.__file__).read_text(encoding="utf-8")
-    assert "for k in _FEATURE_ON_ONLY:\n        if settings.get(k):" in src.replace("\r\n", "\n")
+    assert "for k, word in _FEATURE_ON_ONLY.items():\n        if settings.get(k):" in src.replace("\r\n", "\n")
     assert "room_hold_used" in T.EVENTS and "vacuum_imported" in T.EVENTS and "vacuum_point_accepted" in T.EVENTS

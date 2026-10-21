@@ -392,6 +392,7 @@ class PadSpanLightsApp extends HTMLElement {
       // A failed settings fetch keeps the last answer.
       if (s.atlas_emergency_button !== undefined) this.state._emergButtonHidden = s.atlas_emergency_button === false;
       if (s.atlas_live_colours !== undefined) this.state._liveColours = s.atlas_live_colours === true;
+      if (s.atlas_heatmap_enabled !== undefined) this.state._heatmapOn = s.atlas_heatmap_enabled === true;
       // Settings → UI Structure → Atlas → Alert pulse, normally off.
       this.state._alertPulse = s.atlas_alert_pulse === true;
       // Outdoor weather (Settings → UI Structure → Atlas), field by field. A
@@ -878,7 +879,8 @@ class PadSpanLightsApp extends HTMLElement {
     // Which WLED lights PadSpan runs (exact look): taps, the room sheet and
     // Whole House Presets route them through padspan_ha/wled_power.
     ensureExactDevices(this._hass, ()=>this._render());
-    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects);
+    const lights = gatherLights(this._hass?.states||{}, reg.areaMap, this.state._shapeOverrides, this.state._tier, reg.platformMap, this.state._typeOverrides, reg.pairMap, reg.manufacturerMap, undefined, false, this.state._motionReconnects,
+      new Set((this.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean)));
 
     if(!lights.length){
       root.appendChild(el("div",{class:"muted",style:"padding:8px"},"No light entities found."));
@@ -1145,8 +1147,9 @@ class PadSpanLightsApp extends HTMLElement {
       },
       // The heatmap layer chip (atlas_heatmap.js): off by default, this
       // browser remembers the last kind like the class filter above.
-      heatmap: this.state._heatmap,
-      onHeatmap: (kind)=>{
+      // Only once it's turned on in Settings: until then no chip at all.
+      heatmap: this.state._heatmapOn ? this.state._heatmap : null,
+      onHeatmap: !this.state._heatmapOn ? null : (kind)=>{
         this.state._heatmap=kind||null;
         try{ if(kind) localStorage.setItem(LS_HEAT, kind); else localStorage.removeItem(LS_HEAT); }catch(_){}
         this._render();

@@ -204,4 +204,4 @@ def test_both_hosts_subscribe_and_hand_it_to_the_pipeline():
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     assert 'type: "padspan_ha/motion_reconnects"' in panel and "this.state._motionReconnects = m" in panel
-    assert "undefined, false, ctx.state._motionReconnects)" in maps
+    assert "undefined, false, ctx.state._motionReconnects," in maps

@@ -174,9 +174,12 @@ def test_a_wall_is_the_map_alone_no_table_under_it():
     assert ":host([data-wall]) .lv-tablecard.lv-index{display:none}" in _src("lights_panel.js")
 
 
-def test_high_quality_draws_a_wall_at_every_pixel():
+def test_every_wall_keeps_the_1440p_budget():
+    # Release review, 2026-10-21: High at full 4K would have changed TV sticks
+    # already set to High; every wall keeps 0.38.159's budget.
     la = _src("views/live_aboard.js")
-    assert '|| quality.setting === "high") return profileDpr;' in la, "Auto keeps the 1440p budget, High picked by hand does not"
+    assert "if (!onWallPage(root) || !w || !h) return profileDpr;" in la
+    assert 'quality.setting === "high") return profileDpr' not in la
 
 
 def test_buttons_stop_at_finger_size_while_the_text_grows():

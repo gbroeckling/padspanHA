@@ -355,6 +355,22 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: subzones — %s", e)
         errors.append("padspan_ha.subzones")
 
+    # ── 9a''. Robot vacuum (vacuum_import.py) — the link, the walker and its
+    # review pile; only a file that exists, emptied, and its polling stopped.
+    try:
+        from .vacuum_import import DATA_VACUUM, VACUUM_STORE_KEY, _default_data  # noqa: PLC0415
+        from .ws_common import _store_file_written  # noqa: PLC0415
+        if await _store_file_written(hass, VACUUM_STORE_KEY):
+            await _St(hass, 1, VACUUM_STORE_KEY).async_save(_default_data())
+            cleared += 1
+        vs_obj = domain.get(DATA_VACUUM)
+        if vs_obj is not None:
+            vs_obj.stop()
+            vs_obj.data = _default_data()
+    except Exception as e:
+        _LOGGER.warning("Factory reset: vacuum — %s", e)
+        errors.append("padspan_ha.vacuum")
+
     # ── 9b. CaptureStore — manifest AND session files ─────────────────────
     # The only store whose payload is not in the blob, so clearing the manifest
     # alone would leave the .jsonl files on disk.  async_clear unlinks them.

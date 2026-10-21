@@ -8953,7 +8953,8 @@ function _lightsTab(ctx, maps, active) {
   const typeOverrides = (ctx.state.settings?.light_type_overrides && typeof ctx.state.settings.light_type_overrides === "object")
     ? ctx.state.settings.light_type_overrides : {};
   const lights = gatherLights(ctx.hass?.states || {}, reg.areaMap, shapeOverrides, tier, reg.platformMap, typeOverrides, reg.pairMap, reg.manufacturerMap,
-    undefined, false, ctx.state._motionReconnects);
+    undefined, false, ctx.state._motionReconnects,
+    new Set((ctx.state.model?.rf_barriers_m || []).map(b => b.linked_entity_id).filter(Boolean)));
 
   // Preview-as-panel: the exact sidebar interaction model, in place, on the
   // same camera — so "what will the household see" is one toggle away
@@ -9543,8 +9544,9 @@ function _lightsTab(ctx, maps, active) {
     classFilter: mapState._lightsClass || "all",
     onClassFilter: (cls) => { mapState._lightsClass = cls; ctx.actions.renderRooms(); },
     // The heatmap layer chip (atlas_heatmap.js) — a view choice of this tab, off by default.
-    heatmap: mapState._lightsHeatmap || null,
-    onHeatmap: (kind) => { mapState._lightsHeatmap = kind || null; ctx.actions.renderRooms(); },
+    heatmap: ctx.state.settings?.atlas_heatmap_enabled === true ? (mapState._lightsHeatmap || null) : null,
+    onHeatmap: ctx.state.settings?.atlas_heatmap_enabled !== true ? null
+      : (kind) => { mapState._lightsHeatmap = kind || null; ctx.actions.renderRooms(); },
     // The multi-selection and the placement queue light up their index rows.
     selectedEids: paid ? new Set([...selSet, ...(mapState._selLight ? [mapState._selLight.eid] : [])]) : null,
     placeQueue: paid && !preview ? new Set(queue) : null,

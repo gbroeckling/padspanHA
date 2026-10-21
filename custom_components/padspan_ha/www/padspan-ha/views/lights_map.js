@@ -2561,7 +2561,7 @@ function _realLastChanged(lc, r){
 // reconnects = the host's motion_reconnects subscription (motion_reconnects.py):
 // {entity_id: {at, last_changed}} for each motion sensor back from an offline
 // blip in the state it had before — see _realLastChanged.
-export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs, historical = false, reconnects = null){
+export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap, typeOverrides, pairMap, manufacturerMap, nowMs, historical = false, reconnects = null, linkedCovers = null){
   const paid = lightingUnlocked(tier);
   const pro = tierAtLeast(tier, "pro");
   // A verified motion+occupancy pair (see computeMotionOccupancyPairs) rides
@@ -2589,7 +2589,11 @@ export function gatherLights(states, areaMap, shapeOverrides, tier, platformMap,
   // drifted once (lock admitted here since gap #8, never added to the
   // other copy — found in the Phase 2a registry audit, 2026-09-19).
   const lights = Object.keys(states || {})
-    .filter(eid => isAtlasEntity(eid, states[eid].attributes) && !primaryFor[eid])
+    .filter(eid => isAtlasEntity(eid, states[eid].attributes) && !primaryFor[eid]
+      // A cover (blind, garage door, gate) is on the Atlas only once it is
+      // linked to a wall (Mapping → the door's wall section): until then a
+      // house's blinds are not new rows, codes or "left open" warnings.
+      && (!eid.startsWith("cover.") || !!(linkedCovers && linkedCovers.has(eid))))
     .map(eid => ({
       entity_id:     eid,
       friendly_name: states[eid].attributes?.friendly_name || eid,

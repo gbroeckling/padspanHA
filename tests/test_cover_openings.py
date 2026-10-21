@@ -52,11 +52,15 @@ const C = [['cover.garage', {device_class:'garage'}], ['cover.den_blind', {devic
            ['cover.gate', {device_class:'gate'}], ['cover.plain', {}], ['cover.duct', {device_class:'damper'}],
            ['binary_sensor.front_door', {device_class:'door'}], ['binary_sensor.batt', {device_class:'battery'}]];
 out.admitted = C.map(([e,a]) => LC.isAtlasEntity(e, a));
-const recs = LM.gatherLights({'cover.den_blind': {state:'open', attributes:{device_class:'blind', current_position:40, friendly_name:'Den blind'}}}, {});
+const ST = {'cover.den_blind': {state:'open', attributes:{device_class:'blind', current_position:40, friendly_name:'Den blind'}}};
+// Release review: a cover is on the Atlas only once it is linked to a wall.
+out.unlinked = LM.gatherLights(ST, {}).length;
+const recs = LM.gatherLights(ST, {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, null, new Set(['cover.den_blind']));
 out.isDoor = !!recs[0].isDoor; out.position = recs[0].position;
 """)
     assert out["admitted"] == [True, True, True, True, False, True, False]
     assert out["isDoor"] is True and out["position"] == 40
+    assert out["unlinked"] == 0, "a house's blinds aren't new Atlas rows until one is linked to a wall"
 
 
 def test_a_cover_is_open_while_any_of_it_is_and_never_inverted():
