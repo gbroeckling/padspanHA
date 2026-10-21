@@ -121,10 +121,12 @@ import(`./views/pro_invite.js?b=${BUILD_ID}`)
   .catch(err => console.warn("PadSpan: pro_invite module failed to load", err));
 
 // Hide HA / Show HA (ha_sidebar.js), shared with the sidebar Atlas. Until it
-// lands the button keeps its first word and a press does nothing.
+// lands the button keeps its first word and a press does nothing; panels that
+// tried to paint it before then are repainted when it does.
 let HA_SIDEBAR = null;
+const _haSideWaiting = new Set();
 import(`./ha_sidebar.js?b=${BUILD_ID}`)
-  .then(m => { HA_SIDEBAR = m; })
+  .then(m => { HA_SIDEBAR = m; _haSideWaiting.forEach(p => p._paintHaSide()); _haSideWaiting.clear(); })
   .catch(err => console.warn("PadSpan: ha_sidebar module failed to load", err));
 
 // Which PadSpan module an uncaught error came from (views/ui_error.js). Until
@@ -669,6 +671,10 @@ class PadSpanHaApp extends HTMLElement {
   // recovery" path by the watchdog when the DOM is irrecoverably corrupted.
   connectedCallback(){
     if(!this.shadowRoot) this.attachShadow({mode:"open"});
+    // The rebuild below drops the theme's stylesheets and the skin link:
+    // forget them, so _applyTheme and _applySkin put them back on the new page.
+    if (this._dayOff) { this._dayOff(); this._dayOff = null; }
+    this._dayKey = ""; this._skin = null;
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="/padspan_ha_static/padspan-ha/styles.css?v=${APP_VERSION}&b=${BUILD_ID}">
       <!-- 2025 skin overlay. Deliberately href-less until _applySkin() decides:
@@ -1890,11 +1896,10 @@ class PadSpanHaApp extends HTMLElement {
       const urls = Array.from(this.shadowRoot.querySelectorAll('link[rel="stylesheet"][href]')).map(l => l.href);
       const css = await Promise.all(urls.map(u => fetch(u).then(r => r.ok ? r.text() : "").catch(() => "")));
       if (this._dayKey !== want) return;   // switched again while loading
-      const content = this.shadowRoot.querySelector("#content");
       this._dayOff = DAY_THEME.attachDayTheme(this.shadowRoot, {
         extraCss: css.filter(Boolean),
         color: day ? DAY_THEME.dayColor : DAY_THEME.paletteColor(pal),
-        frozen: (n) => this.state.view === "purelive" && !!content && content.contains(n),
+        frozen: (n) => { const content = this.shadowRoot.querySelector("#content"); return this.state.view === "purelive" && !!content && content.contains(n); },
       });
       this.setAttribute("data-theme", day ? "day" : pal);
     } catch (e) {
@@ -1941,7 +1946,8 @@ class PadSpanHaApp extends HTMLElement {
   // sidebar gone it is the way back.
   _paintHaSide(){
     const b = this.shadowRoot && this.shadowRoot.querySelector("#haSide");
-    if (!b || !HA_SIDEBAR) return;
+    if (!HA_SIDEBAR) { _haSideWaiting.add(this); return; }
+    if (!b) return;
     b.textContent = HA_SIDEBAR.haLabel(this._hass);
     b.setAttribute("aria-pressed", String(HA_SIDEBAR.haHidden(this._hass)));
   }
@@ -2161,7 +2167,15 @@ class PadSpanHaApp extends HTMLElement {
     try { reloadedFor = sessionStorage.getItem("padspan_reloaded_for") || ""; } catch(e) {}
     const wall = this.state.kioskMode || (wallScreen(false) && untouchedFor(120000));
     const act = staleBuildAction(RELEASE_BUILD_ID, be, wall, reloadedFor);
-    if(act && act.reload){
+    // Not under someone's hands (the guards _renderCurrentView keeps): an
+    // open dialog, a pin being placed, a map being dragged, uploaded or
+    // edited. The periodic check tries again.
+    const s = this.state;
+    const busy = (this.$modal && !this.$modal.classList.contains("hidden"))
+      || s._calibTune?._dragging || s._calibBeacon?._dragging || s._calibTune?._confirming || s._calibBeacon?._confirming
+      || s.maps?._stackDragging || s.maps?._editDragging
+      || (s.view === "maps" && (s.mapsTab === "upload" || s.mapsTab === "stack" || s.mapsTab === "edit"));
+    if(act && act.reload && !busy){
       let remembered = false;
       try {
         sessionStorage.setItem("padspan_reloaded_for", be); remembered = true;

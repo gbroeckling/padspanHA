@@ -121,6 +121,12 @@ export function render(ctx){
   if(isBasic && tab !== "library" && tab !== "upload"){
     ctx.state.mapsTab = "library";
   }
+  // Only an administrator can upload (the backend refuses anyone else).
+  const isAdmin = ctx.hass?.user?.is_admin !== false;
+  if(!isAdmin){
+    tabDefs.splice(tabDefs.findIndex(([id]) => id === "upload"), 1);
+    if(ctx.state.mapsTab === "upload") ctx.state.mapsTab = "library";
+  }
   const activeTab = ctx.state.mapsTab || "library";
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
@@ -144,6 +150,7 @@ export function render(ctx){
     ]),
     tabs,
   ]);
+  if(!isAdmin) header.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"Only an administrator can add or change floor plans."));
 
   const body = el("div",{},[
     activeTab==="library" ? _library(ctx, maps, activeId, helpBtn, isBasic) :
@@ -1120,7 +1127,7 @@ function _upload(ctx, helpBtn, isBasic){
       ctx.state.mapsTab = "edit";
       ctx.actions.renderRooms();
     }catch(e){
-      status.textContent = "Upload failed: " + String(e);
+      status.textContent = "Upload failed: " + (e?.message || e?.code || String(e));
     }
   }}, "Upload & Convert");
 
@@ -3045,7 +3052,7 @@ function _edit(ctx, map, allMaps){
       trimPanel.style.display="none";
       ctx.actions.renderRooms();
     }catch(e){
-      trimStatus.textContent="Failed: "+String(e);
+      trimStatus.textContent="Failed: "+(e?.message || e?.code || String(e));
     }
   }}, "Apply Trim");
 
@@ -3065,7 +3072,7 @@ function _edit(ctx, map, allMaps){
   }}, "Trim Image");
 
   // Insert Trim button into the existing title row buttons (direct reference — no fragile querySelector)
-  titleBtns.insertBefore(trimToggleBtn, titleBtns.firstChild);
+  if (ctx.hass?.user?.is_admin !== false) titleBtns.insertBefore(trimToggleBtn, titleBtns.firstChild);
 
   // ── Rotate Image Panel ─────────────────────────────────────────────────
   // Bakes rotation directly into the image file (not a CSS transform) so all
@@ -3079,7 +3086,7 @@ function _edit(ctx, map, allMaps){
   const _canRotate = !_hasStackTieIns;
 
   const rotatePanel = el("div",{style:"display:none;margin-top:10px"});
-  if(_canRotate && url){
+  if(_canRotate && url && ctx.hass?.user?.is_admin !== false){
     let _rotAngle = 0;
     const rotStatus = el("div",{class:"mono",style:"font-size:12px;margin-top:6px"}, "0°");
 
@@ -3817,6 +3824,15 @@ function _export(ctx, active, maps_list){
     try{
       const allMaps = ctx.state.maps.list || [];
       const backupMaps = [];
+      // A signed link can be stale (a restart, 24 h): on a failed fetch the
+      // links are asked for afresh once, and the map tried again with its new
+      // one. Maps that still come without a picture are named at the end.
+      let freshUrls = null;
+      const noImage = [];
+      const fetchImage = async (url)=>{
+        if(!url) return null;
+        try{ const r = await fetch(url); return r.ok ? await r.blob() : null; }catch(e2){ return null; }
+      };
       for(let i=0;i<allMaps.length;i++){
         const m = allMaps[i];
         backupStatus.textContent = `Fetching ${i+1}/${allMaps.length}: ${m.name||m.id}…`;
@@ -3835,17 +3851,24 @@ function _export(ctx, active, maps_list){
         const _tx = (ctx.state.model?.map_transforms || {})[m.id];
         if (_tx) entry.map_transform = JSON.parse(JSON.stringify(_tx));
         if(m.image?.filename){
-          try{
-            const resp = await fetch(ctx.helpers.mapImageUrl(m));
-            if(resp.ok){
-              const blob = await resp.blob();
+          let blob = await fetchImage(ctx.helpers.mapImageUrl(m));
+          if(!blob){
+            if(!freshUrls){
+              try{ freshUrls = (await ctx.actions.callWS({ type: "padspan_ha/maps_image_urls" }))?.image_urls || {}; }
+              catch(e2){ freshUrls = {}; }
+            }
+            blob = await fetchImage(freshUrls[m.id]);
+          }
+          if(blob){
+            try{
               entry.png_base64 = await new Promise((res,rej)=>{
                 const fr = new FileReader();
                 fr.onload = ()=>res(fr.result.split(",")[1]);
                 fr.onerror = rej; fr.readAsDataURL(blob);
               });
-            }
-          }catch(e2){ /* skip image if unavailable */ }
+            }catch(e2){ blob = null; }
+          }
+          if(!blob) noImage.push(m.name || m.id);
         }
         backupMaps.push(entry);
       }
@@ -3853,6 +3876,11 @@ function _export(ctx, active, maps_list){
       const backup = { padspan_backup:"v1", exported_at:new Date().toISOString(), count:backupMaps.length, maps:backupMaps };
       _downloadBlob(new Blob([JSON.stringify(backup,null,2)],{type:"application/json"}), `maps_backup_${dateStr}.json`);
       backupStatus.textContent = `Backup downloaded (${backupMaps.length} map${backupMaps.length!==1?"s":""}) ✓`;
+      if(noImage.length){
+        const msg = `Exported without a picture (it could not be fetched): ${noImage.join(", ")}`;
+        backupStatus.textContent += ". " + msg;
+        ctx.toast(msg, true);
+      }
     }catch(e){ backupStatus.textContent = "Backup failed: "+String(e); }
     backupBtn.disabled = false;
   }}, "Backup All Maps (JSON)");
@@ -5542,6 +5570,11 @@ function _stack(ctx, maps, helpBtn){
       bakeCb.checked = bake;
       bakeCb.style.cssText = "width:14px;height:14px;accent-color:#52b788;cursor:pointer";
       bakeCb.onchange = () => { bake = bakeCb.checked; };
+      // Baking writes a new picture: an administrator's to do.
+      if (ctx.hass?.user?.is_admin === false) {
+        bake = false; bakeCb.checked = false; bakeCb.disabled = true;
+        bakeLabel.title = "Only an administrator can add or change floor plans.";
+      }
       bakeLabel.appendChild(bakeCb);
       bakeLabel.appendChild(document.createTextNode("Bake"));
       toolbar.appendChild(bakeLabel);
@@ -5900,7 +5933,7 @@ function _stack(ctx, maps, helpBtn){
                     ctx.toast("Baked (" + pairs + " pairs, residual " + resPct + "%)");
                   }
                 })
-                .catch(e => ctx.toast("Bake upload failed: " + e, true));
+                .catch(e => ctx.toast("Bake upload failed: " + (e?.message || e?.code || String(e)), true));
             } catch (de) { ctx.toast("Bake draw failed: " + de, true); }
           };
           bakeImg.onerror = () => ctx.toast("Bake failed — image load error", true);

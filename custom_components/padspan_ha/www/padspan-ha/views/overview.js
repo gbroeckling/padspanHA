@@ -36,6 +36,9 @@ function _renderAtlasHome(ctx){
   let app = ctx.state._overviewAtlas;
   if (!app) {
     app = ctx.state._overviewAtlas = document.createElement("padspan-lights-app");
+    // Inside the panel: the panel owns the wall-screen count and the build
+    // check, so the Atlas skips its own (set before hass, which boots it).
+    app._embedded = true;
     import(`../lights_panel.js${new URL(import.meta.url).search}`)
       .catch(() => { if (ctx.toast) ctx.toast("The Atlas could not load. Turn \"Overview shows the Atlas\" off in Settings → UI Structure.", true); });
   }
