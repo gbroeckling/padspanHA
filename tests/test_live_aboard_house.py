@@ -54,7 +54,7 @@ def _case(h: dict, prefix: str) -> None:
 
 @pytest.mark.parametrize("prefix,least", [
     ("floors:", 3), ("floorsTop:", 1), ("walls:", 6), ("cutaway:", 1), ("quality:", 3), ("lights:", 5),
-    ("sun:", 5), ("compass:", 1), ("north:", 1), ("spin:", 4), ("telemetry:", 1),
+    ("sun:", 5), ("compass:", 1), ("north:", 1), ("spin:", 4), ("room height:", 5), ("telemetry:", 1),
 ])
 def test_the_house_harness_covers_each_part(house, prefix, least) -> None:
     got = [k for k in house["cases"] if k.startswith(prefix)]

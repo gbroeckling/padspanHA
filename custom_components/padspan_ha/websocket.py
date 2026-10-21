@@ -39,6 +39,7 @@ still works for tests and callers.
 
 
 import logging
+import math
 
 import voluptuous as vol
 from typing import Any
@@ -303,6 +304,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_floorplan_import_sh3d)
     websocket_api.async_register_command(hass, ws_model_get)
     websocket_api.async_register_command(hass, ws_model_update)
+    websocket_api.async_register_command(hass, ws_room_height_set)
     websocket_api.async_register_command(hass, ws_object_label_set)
     websocket_api.async_register_command(hass, ws_object_label_delete)
     websocket_api.async_register_command(hass, ws_object_label_list)
@@ -586,6 +588,35 @@ async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
         return
     updated = await mdl.async_update(room_meta=msg.get("room_meta"))
     connection.send_result(msg["id"], updated)
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/room_height_set",
+        vol.Required("room"): vol.All(str, vol.Length(min=1, max=120)),
+        # Metres from the room's floor to the top of its space; null = its floor's.
+        vol.Required("height_m"): vol.Any(None, vol.Coerce(float)),
+    }
+)
+@websocket_api.async_response
+async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
+    """Set one room's own height (room_meta[room].height_m) for Live Aboard:
+    a double-height living room, a hall under a mezzanine, on a floor that
+    keeps its normal height. Kept 1.5 m to MAX_HEIGHT_M; null clears it.
+    Drawing only: positioning reads the floors' heights, never this."""
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if not mdl:
+        connection.send_error(msg["id"], "no_model_store", "Model store not initialized")
+        return
+    h = msg["height_m"]
+    if h is not None and not math.isfinite(h):
+        connection.send_error(msg["id"], "invalid", "height_m must be a height in metres, or null for the floor's")
+        return
+    ok, stored = await mdl.async_set_room_height(msg["room"], h)
+    if not ok:
+        connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+        return
+    connection.send_result(msg["id"], {"ok": True, "room": msg["room"], "height_m": stored})
 
 
 # ── Settings Helpers ───────────────────────────────────────────────────────────

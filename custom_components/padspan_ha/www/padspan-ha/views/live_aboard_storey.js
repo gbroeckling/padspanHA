@@ -297,7 +297,8 @@ export function shapesOf(loops){
 // ── storeys, their floors and their roofs ────────────────────────────────────
 /** The storeys of a house as the view reads it (h: floors, rooms): the
  *  indoor floors at one height, lowest first: {elev, h (the tallest of
- *  them), floors, rooms (indoor rooms only)}. */
+ *  them), floors, rooms (indoor rooms only; a room's h is its own height
+ *  where one is set, else its floor's)}. */
 export function storeysOf(h){
   const out = [];
   for (const fl of (h && h.floors) || []) {
@@ -326,6 +327,19 @@ export function houseModel(h, cuts = null){
   const rHall = Math.round(HALL_M / 2 / CELL_M), rRoof = Math.round(ROOF_MIN_M / 2 / CELL_M);
   const g = gridFor(frame, rooms, rHall + rRoof);
   const filled = st.map(s => close(raster(g, s.rooms, null), g, rHall));
+  // Each cell's top: the storey's, or under a room with its own height
+  // (a double-height living room on a floor of normal height) that room's.
+  const tops = st.map((s, k) => {
+    const T = new Float64Array(g.nx * g.ny), A = filled[k];
+    for (let i = 0; i < A.length; i++) if (A[i]) T[i] = s.elev + s.h;
+    const own = s.rooms.filter(r => num(r.h) !== null && r.floor && r.h !== r.floor.h);
+    if (own.length) {
+      const T2 = new Float64Array(T.length).fill(-Infinity);
+      for (const r of own) { const R = raster(g, [r], null); for (let i = 0; i < R.length; i++) if (R[i] && A[i]) T2[i] = Math.max(T2[i], s.elev + r.h); }
+      for (let i = 0; i < T.length; i++) if (T2[i] > -Infinity) T[i] = T2[i];
+    }
+    return T;
+  });
   // Top down: what the roofs higher up already cover, with their eaves.
   const roofed = new Uint8Array(g.nx * g.ny), out = new Array(st.length);
   for (let k = st.length - 1; k >= 0; k--) {
@@ -339,19 +353,35 @@ export function houseModel(h, cuts = null){
     // top; one that stays inside this storey's height (a mezzanine at 3.2 m
     // in a hall 7.5 m high) is under this roof and has none of its own there
     // (2026-10-20). Floors stacked one on another never meet either case.
-    const roofCells = filled[k].slice();
-    for (let m = 0; m < st.length; m++) {
-      if (m === k) continue;
-      const M = st[m];
-      const over = M.elev > s.elev + 1e-3 && M.elev + M.h > s.elev + s.h + 0.05;      // above, and rising above our top
-      const within = M.elev < s.elev - 1e-3 && M.elev + M.h >= s.elev + s.h - 0.05;   // we are inside M's height
-      if (!over && !within) continue;
-      for (let i = 0; i < roofCells.length; i++) if (filled[m][i]) roofCells[i] = 0;
+    // Cell by cell, at each top this storey has (tiers: a room with its own
+    // height is roofed at it), highest first; a storey with no such room has
+    // the one tier, its own top, exactly as before. A tall room below rises
+    // past a floor above where they overlap (within); a tall room here is
+    // roofed over at its height unless a storey above rises higher (over).
+    const T = tops[k], tiers = [];
+    const levels = [...new Set(Array.from(T).filter((v, i) => filled[k][i]))].sort((a, b) => b - a);
+    for (const top of levels) {
+      const roofCells = filled[k].map((v, i) => (v && T[i] === top ? 1 : 0));
+      for (let m = 0; m < st.length; m++) {
+        if (m === k) continue;
+        const M = st[m], Tm = tops[m];
+        if (Math.abs(M.elev - s.elev) <= 1e-3) continue;
+        for (let i = 0; i < roofCells.length; i++) {
+          if (!roofCells[i] || !filled[m][i]) continue;
+          const over = M.elev > s.elev + 1e-3 && Tm[i] > top + 0.05;      // above, and rising above our top
+          const within = M.elev < s.elev - 1e-3 && Tm[i] >= top - 0.05;   // we are inside M's height
+          if (over || within) roofCells[i] = 0;
+        }
+      }
+      const parts = rectsOf(close(roofCells, g, 2), g, roofed);
+      const bare = roofCells.map((v, i) => (v && !roofed[i] ? 1 : 0));
+      tiers.push({ top, roof: parts, lids: shapesOf(loopsOf(bare, g, 0)), roofCells });
     }
-    const parts = rectsOf(close(roofCells, g, 2), g, roofed);
-    const bare = roofCells.map((v, i) => (v && !roofed[i] ? 1 : 0));
-    out[k] = { elev: s.elev, h: s.h, top: s.elev + s.h, floors: s.floors.map(f => f.id), shapes: shapesOf(loopsOf(floorCells, g)), roof: parts,
-               lids: shapesOf(loopsOf(bare, g, 0)), cells: filled[k], roofCells };
+    const roofCells = new Uint8Array(g.nx * g.ny);
+    for (const t of tiers) for (let i = 0; i < roofCells.length; i++) if (t.roofCells[i]) roofCells[i] = 1;
+    out[k] = { elev: s.elev, h: s.h, top: s.elev + s.h, floors: s.floors.map(f => f.id), shapes: shapesOf(loopsOf(floorCells, g)),
+               roof: tiers.flatMap(t => t.roof), lids: tiers.flatMap(t => t.lids), cells: filled[k], roofCells, tiers,
+               reach: levels.length ? levels[0] : s.elev + s.h };
   }
   return { axis, grid: { u0: g.u0, v0: g.v0, nx: g.nx, ny: g.ny, cell: g.cell }, frame, storeys: out };
 }
@@ -362,7 +392,7 @@ export function underRoof(model, x, y, elev){
   if (!g) return false;
   const [u, v] = model.frame.toLocal([x, y]), i = Math.floor((u - g.u0) / g.cell), j = Math.floor((v - g.v0) / g.cell);
   if (i < 0 || j < 0 || i >= g.nx || j >= g.ny) return false;
-  return model.storeys.some(s => (s.elev >= elev - 1e-3 || s.top > elev + 0.5) && s.roofCells[j * g.nx + i]);
+  return model.storeys.some(s => s.tiers.some(t => (s.elev >= elev - 1e-3 || t.top > elev + 0.5) && t.roofCells[j * g.nx + i]));
 }
 /** Is the point at plan (x, y), `h` metres up, under a roof: in a roofed
  *  part of a storey whose roof is no lower than it? */
@@ -371,7 +401,7 @@ export function underRoofAt(model, x, y, h){
   if (!g) return false;
   const [u, v] = model.frame.toLocal([x, y]), i = Math.floor((u - g.u0) / g.cell), j = Math.floor((v - g.v0) / g.cell);
   if (i < 0 || j < 0 || i >= g.nx || j >= g.ny) return false;
-  return model.storeys.some(s => s.top >= h - 0.05 && s.roofCells[j * g.nx + i]);
+  return model.storeys.some(s => s.tiers.some(t => t.top >= h - 0.05 && t.roofCells[j * g.nx + i]));
 }
 // Rectangles that cover the cells that are in, each as big as it can be
 // (overlapping one another where the shape turns), biggest first: each one
@@ -633,18 +663,21 @@ export function createStoreyLayer(ctx){
           F.group.add(mesh);
           slabs.push({ mesh, elev: s.elev, shapes: s.shapes.length, holes: s.shapes.reduce((a, q) => a + q.holes.length, 0) });
         }
-        // Its roof, where no storey is above it: one mesh.
+        // Its roof, where no storey is above it: one mesh. Each tier at its
+        // own top (a room with its own height is roofed at it).
         const pos = [], col = [];
-        const base = s.top - slabT;
         let tris = 0;
-        for (const part of s.roof) {
-          const r = hipRoof(part, model.frame);
-          for (const [list, c] of [[r.roof, cRoof], [r.fascia, cFascia]]) {
-            for (const t of list) for (const p of t) { pos.push(p[0], base + p[2], p[1]); col.push(c.r, c.g, c.b); }
-            tris += list.length;
+        for (const tier of s.tiers) {
+          const base = tier.top - slabT;
+          for (const part of tier.roof) {
+            const r = hipRoof(part, model.frame);
+            for (const [list, c] of [[r.roof, cRoof], [r.fascia, cFascia]]) {
+              for (const t of list) for (const p of t) { pos.push(p[0], base + p[2], p[1]); col.push(c.r, c.g, c.b); }
+              tris += list.length;
+            }
           }
+          for (const t of lidTris(tier.lids, THREE)) { for (const p of t) { pos.push(p[0], base + LID_UP, p[1]); col.push(cRoof.r, cRoof.g, cRoof.b); } tris++; }
         }
-        for (const t of lidTris(s.lids, THREE)) { for (const p of t) { pos.push(p[0], base + LID_UP, p[1]); col.push(cRoof.r, cRoof.g, cRoof.b); } tris++; }
         if (pos.length) {
           const g = new THREE.BufferGeometry();
           g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));

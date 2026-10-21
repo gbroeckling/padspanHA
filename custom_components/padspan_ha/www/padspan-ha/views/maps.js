@@ -4586,7 +4586,8 @@ function _floorHeights(ctx){
     el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},
       "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
       "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine. "+
-      "For a mezzanine, give the hall under it its full height (floor to roof) and the mezzanine its real base elevation: Live Aboard draws it inside the hall, under the hall's roof."),
+      "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) in Rooms: select it, then Rises to. "+
+      "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing on its open edge, and a mezzanine gets its real base elevation here and sits under the room's roof."),
   ]);
   if(!floors.length){
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"No floors defined in Home Assistant yet."));
@@ -11487,6 +11488,27 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
       tools.appendChild(el("button", { class: "btn inline", onclick: () => { mapState._roomsSel = []; ctx.actions.renderRooms(); } }, "Deselect"));
       if (sel.size === 1 && !previewing) {
         const only = [...sel][0];
+        // The room's own height (Live Aboard): from its floor to the top of
+        // its space, for a room taller than its floor (a double-height living
+        // room, a hall under a mezzanine). Blank: the floor's (Floor Heights).
+        // Saved on its own, at once, like Delete: drawing only, never positioning.
+        const flRec = (ctx.state.model?.floors || []).find(f => String(f.id) === String(floorId));
+        const flH = Number(flRec?.floor_to_floor_m) || 2.8;
+        const curH = ctx.state.model?.room_meta?.[only]?.height_m;
+        const hIn = el("input", { type: "number", min: "1.5", max: "100", step: "0.1", value: curH != null ? String(curH) : "",
+          placeholder: `floor's, ${flH}`, title: "Floor to roof for this room only. Blank = the floor's height (Floor Heights).",
+          style: "width:84px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
+        tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, ["Rises to (m)", hIn]));
+        tools.appendChild(el("button", { class: "btn inline", onclick: async () => {
+          const raw = String(hIn.value || "").trim(), v = raw === "" ? null : parseFloat(raw);
+          if (v !== null && !(isFinite(v) && v >= 1.5 && v <= 100)) { ctx.toast("Enter a height in metres (1.5 to 100), or leave it blank for the floor's", true); return; }
+          try {
+            await ctx.actions.wsCall("padspan_ha/room_height_set", { room: only, height_m: v });
+            ctx.toast(v === null ? `"${only}" is as high as its floor` : `"${only}" rises to ${v} m`);
+            await ctx.actions.modelRefresh();
+            ctx.actions.renderRooms();
+          } catch (err) { ctx.toast("Height not saved: " + (err.message || err), true); }
+        } }, "Set height"));
         tools.appendChild(el("button", {
           class: "btn inline", style: "color:#f87171;border-color:#f8717140",
           onclick: async () => {
