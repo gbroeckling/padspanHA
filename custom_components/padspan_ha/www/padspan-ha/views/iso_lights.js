@@ -3150,7 +3150,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     for(const z of levels){
       const srcs=HEATMAP.heatSources(HEAT, lights.filter(l=>l.z===z), rooms.filter(r=>r.z===z), byRoom||{}, lightsByEid,
         hiddenEids, placedSet, (n)=>roomCentre.get(n), NOW_MS, pointInPolygon);
-      if(srcs.length) heatByZ.set(z, srcs);
+      if(srcs.size) heatByZ.set(z, srcs);
     }
   }
 

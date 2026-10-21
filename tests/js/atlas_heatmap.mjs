@@ -9,7 +9,8 @@
 //             handler equals the one with the chip off
 //   readings  the class each kind reads, the one-hour freshness rule, °F
 //   colours   the comfort bands and the CO2 scale's ends
-//   sources   placed sensors where placed, a room's own at its centre where not
+//   sources   placed sensors where placed, a room's own at its centre where not;
+//             each room only its own: no deck, outdoor or next-room sensor tints it
 //   drawing   clipped per room, a handful of paths, the legend, cheap
 //   chip      offered for the kinds present, cycles, absent without a handler
 //
@@ -102,9 +103,63 @@ tryCase("sources: placed where placed, a room's own at its centre where not", ()
   const byRoom = { ...BY_ROOM, Kitchen: [temp("sensor.kitchen_extra", 30)], Hall: [...BY_ROOM.Hall, temp("sensor.hall_temp2", 23)] };
   const s = HM.heatSources("temp", placedHere, rooms, byRoom, BY_EID, new Set(), placed, centre, NOW, ISO.pointInPolygon);
   const hid = HM.heatSources("temp", placedHere, rooms, BY_ROOM, BY_EID, new Set(["sensor.kitchen_temp", "sensor.kitchen_temp2"]), placed, centre, NOW, ISO.pointInPolygon);
+  const k = s.get(rooms[0]) || [], h = s.get(rooms[1]) || [];
   check("sources: placed where placed, a room's own at its centre where not",
-    s.length === 3 && s[2].x === 8 && s[2].y === 2 && s[2].v === 22 && !s.some(p => p.v === 30)
-    && hid.length === 1 && hid[0].v === 21, { s, hid });
+    s.size === 2 && k.length === 2 && !k.some(p => p.v === 30) && h.length === 1 && h[0].x === 8 && h[0].y === 2 && h[0].v === 22
+    && hid.size === 1 && !hid.has(rooms[0]) && hid.get(rooms[1])[0].v === 21, { s: [...s.values()], hid: [...hid.values()] });
+});
+tryCase("sources: a sensor belongs to the smallest room around it, outdoors and no room to none", () => {
+  const big = { room: "bedroom", pts: [[0, 0], [8, 0], [8, 6], [0, 6]] }, closet = { room: "bedroom_closet", pts: [[6, 4], [8, 4], [8, 6], [6, 6]] };
+  const deck = { room: "upper_deck", pts: [[0, 6], [8, 6], [8, 9], [0, 9]] };
+  const byEid = { "sensor.c": temp("sensor.c", 24), "sensor.d": temp("sensor.d", 39), "sensor.o": temp("sensor.o", 10) };
+  const s = HM.heatSources("temp", [{ eid: "sensor.c", x: 7, y: 5 }, { eid: "sensor.d", x: 4, y: 7.5 }, { eid: "sensor.o", x: 20, y: 2 }],
+    [big, closet, deck], {}, byEid, new Set(), { "sensor.c": true, "sensor.d": true, "sensor.o": true }, () => [1, 1], NOW, ISO.pointInPolygon);
+  check("sources: a sensor belongs to the smallest room around it, outdoors and no room to none",
+    s.size === 1 && s.get(closet).length === 1 && s.get(closet)[0].v === 24 && HM.isOutdoorRoom(deck) && !HM.isOutdoorRoom(big)
+    && HM.isOutdoorRoom({ room: "Lower Patio" }) && !HM.isOutdoorRoom({ room: "Garage" }), { s: [...s.entries()].map(([r, v]) => [r.room, v]) });
+});
+
+// No blending across walls (owner's house, 2026-10-21: a sun-baked deck sensor
+// painted the bedroom next to it red, outdoor ones tinted the entry blue).
+const WALLS = {
+  floors: [{ id: "main", name: "Main", level: 0 }],
+  room_geometry_m: {
+    bedroom:    { type: "poly", floor_id: "main", points_m: [[0, 0], [5, 0], [5, 4], [0, 4]] },
+    upper_deck: { type: "poly", floor_id: "main", points_m: [[0, 4], [5, 4], [5, 8], [0, 8]] },
+    entry:      { type: "poly", floor_id: "main", points_m: [[5, 0], [9, 0], [9, 4], [5, 4]] },
+    hall:       { type: "poly", floor_id: "main", points_m: [[9, 0], [13, 0], [13, 4], [9, 4]] },
+  },
+  light_positions_m: {
+    "sensor.deck_temp":   { x_m: 2.5, y_m: 6, floor_id: "main" },
+    "sensor.out_temp":    { x_m: 7, y_m: 6, floor_id: "main" },
+    "sensor.out_temp2":   { x_m: 4.8, y_m: -1, floor_id: "main" },
+    "sensor.entry_temp":  { x_m: 7, y_m: 2, floor_id: "main" },
+    "sensor.hall_temp":   { x_m: 11, y_m: 2, floor_id: "main" },
+  },
+};
+const WALL_EID = {
+  "sensor.deck_temp": temp("sensor.deck_temp", 39), "sensor.out_temp": temp("sensor.out_temp", 10),
+  "sensor.out_temp2": temp("sensor.out_temp2", 12), "sensor.entry_temp": temp("sensor.entry_temp", 19),
+  "sensor.hall_temp": temp("sensor.hall_temp", 26),
+};
+const wallLayer = () => {
+  const svg = ISO.buildIsoSVG(WALLS, {}, new Set(), null, 150, 0, WALL_EID, false, WALLS.floors, { nowMs: NOW, heatmap: "temp" });
+  const layer = (svg.match(/<g class="lheat"[\s\S]*?<\/g><\/g>/) || [""])[0];
+  const groups = [...layer.matchAll(/<g clip-path="url\(#(psclip_\d+)\)">([\s\S]*?)<\/g>/g)].map(m => ({ clip: m[1], fills: [...new Set([...m[2].matchAll(/fill="(#[0-9a-f]{6})"/g)].map(f => f[1]))] }));
+  return { svg, layer, groups };
+};
+tryCase("sources: a deck's sensor never heats the bedroom beside it", () => {
+  const { layer, groups } = wallLayer();
+  const hot = HM.heatColourOf("temp", 39);
+  check("sources: a deck's sensor never heats the bedroom beside it",
+    layer && !layer.includes(`fill="${hot}"`) && groups.length === 2, { groups });
+});
+tryCase("sources: outdoor sensors never tint the entry, and rooms never blend", () => {
+  const { groups } = wallLayer();
+  const want = [[HM.heatColourOf("temp", 19)], [HM.heatColourOf("temp", 26)]].map(a => JSON.stringify(a)).sort();
+  const got = groups.map(g => JSON.stringify(g.fills)).sort();
+  check("sources: outdoor sensors never tint the entry, and rooms never blend",
+    JSON.stringify(got) === JSON.stringify(want) && HM.heatColourOf("temp", 10) !== HM.heatColourOf("temp", 19), { got, want });
 });
 
 // ── drawing ─────────────────────────────────────────────────────────────────

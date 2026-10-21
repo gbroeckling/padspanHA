@@ -6,14 +6,17 @@
 // opts.heatmap). Off by default; with it off buildIsoSVG never calls in here
 // and its drawing is byte-identical to before.
 //
-// Where the numbers come from: every PLACED sensor of the chosen kind with a
-// fresh reading (the same "reported in the last hour" rule the temperature
-// digits use), plus, for a room with no placed one, the average of the
-// room's own unplaced sensors (HA area) at the room's centre. Between them
-// the value is inverse-distance weighted on a metre grid per floor, coloured
-// in a fixed number of steps so each room is a handful of paths, and each
-// room's cells are clipped to its own walls. Cheap: a few thousand cells and
-// a few sources, rebuilt with the rest of the drawing every 5 s.
+// Where the numbers come from: each room reads only its own sensors — the
+// PLACED ones inside its walls with a fresh reading (the same "reported in
+// the last hour" rule the temperature digits use), or, with none placed
+// there, the average of the room's own unplaced sensors (HA area) at its
+// centre. Nothing crosses a wall: a sensor in the next room, out on a deck
+// or patio, or placed outside every room tints nothing, and a room with no
+// sensor of its own stays uncoloured. Within a room the value is
+// inverse-distance weighted between its sources on a metre grid per floor,
+// coloured in a fixed number of steps so each room is a handful of paths,
+// and clipped to its walls. Cheap: a few thousand cells and a few sources,
+// rebuilt with the rest of the drawing every 5 s.
 
 export const HEATMAP_KINDS = ["temp", "humidity", "co2"];
 export const HEATMAP_LABELS = { temp: "Temperature", humidity: "Humidity", co2: "CO₂" };
@@ -63,19 +66,42 @@ export function heatColourOf(kind, v) {
   return st[st.length - 1][1];
 }
 
-// The sources for one floor: [{x, y, v}] in metres.
+// A deck, a patio, a garden...: outdoors, so never on the indoor heatmap
+// (its sensor reads the weather, or the sun on it). By the room's name.
+const OUTDOOR_ROOM = /\b(deck|patio|porch|balcony|terrace|veranda|yard|garden|lawn|driveway|outside|outdoors?)\b/i;
+export const isOutdoorRoom = (r) => OUTDOOR_ROOM.test(String((r && r.room) || "").replace(/[_-]+/g, " "));
+const areaOf = (pts) => {
+  let a = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]);
+  return Math.abs(a / 2);
+};
+
+// The sources for one floor, room by room: Map(room record -> [{x, y, v}])
+// in metres, only for the indoor rooms that have a sensor of their own.
 //   placedHere  [{eid, x, y}] this floor's placed devices
 //   rooms       this floor's room records ({room, pts})
 //   centreOf    room name -> [x, y] (its centroid)
+// A placed sensor belongs to the smallest room around it (a closet drawn
+// inside a bedroom is the closet's), and to nothing if that is outdoors or
+// it is in no room at all.
 export function heatSources(kind, placedHere, rooms, byRoom, lightsByEid, hiddenEids, placed, centreOf, nowMs, inRoom) {
-  const out = [];
+  const out = new Map();
   for (const pl of placedHere) {
     if (hiddenEids.has(pl.eid)) continue;
     const v = heatReadingOf(lightsByEid[pl.eid], kind, nowMs);
-    if (Number.isFinite(v)) out.push({ x: pl.x, y: pl.y, v });
+    if (!Number.isFinite(v)) continue;
+    let home = null, best = Infinity;
+    for (const r of rooms) {
+      if (!r.pts || r.pts.length < 3 || !inRoom(r.pts, pl.x, pl.y)) continue;
+      const a = areaOf(r.pts);
+      if (a < best) { best = a; home = r; }
+    }
+    if (!home || isOutdoorRoom(home)) continue;
+    if (!out.has(home)) out.set(home, []);
+    out.get(home).push({ x: pl.x, y: pl.y, v });
   }
   for (const r of rooms) {
-    if (out.some(p => inRoom(r.pts, p.x, p.y))) continue;
+    if (out.has(r) || isOutdoorRoom(r)) continue;
     let sum = 0, n = 0;
     for (const li of (byRoom[r.room] || [])) {
       if (hiddenEids.has(li.entity_id) || placed[li.entity_id]) continue;
@@ -83,17 +109,19 @@ export function heatSources(kind, placedHere, rooms, byRoom, lightsByEid, hidden
       if (Number.isFinite(v)) { sum += v; n++; }
     }
     const c = n && centreOf(r.room);
-    if (c) out.push({ x: c[0], y: c[1], v: sum / n });
+    if (c) out.set(r, [{ x: c[0], y: c[1], v: sum / n }]);
   }
   return out;
 }
 
-// One floor's heatmap: per room, a grid of cells in metres (shared across
+// One floor's heatmap: per room with sources, a grid of cells in metres (shared across
 // the floor so neighbouring rooms line up), each row's runs of equal colour
 // merged into one quad, one path per colour, the whole room under its clip.
-export function heatFloorSvg(kind, srcs, rooms, box, iso, z, clipOf, opacity) {
-  if (!srcs.length || !box) return "";
+export function heatFloorSvg(kind, srcsByRoom, rooms, box, iso, z, clipOf, opacity) {
+  if (!srcsByRoom.size || !box) return "";
   const step = Math.max(0.25, Math.max(box.x1 - box.x0, box.y1 - box.y0) / 48);
+  // Between this room's own sources only.
+  let srcs = [];
   const valAt = (x, y) => {
     let ws = 0, vs = 0;
     for (const p of srcs) {
@@ -106,7 +134,8 @@ export function heatFloorSvg(kind, srcs, rooms, box, iso, z, clipOf, opacity) {
   let s = "";
   for (const r of rooms) {
     const clip = clipOf(r);
-    if (!clip || !r.pts.length) continue;
+    srcs = srcsByRoom.get(r) || [];
+    if (!clip || !r.pts.length || !srcs.length) continue;
     let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
     for (const p of r.pts) { if (p[0] < a) a = p[0]; if (p[0] > c) c = p[0]; if (p[1] < b) b = p[1]; if (p[1] > d) d = p[1]; }
     const i0 = Math.floor((a - box.x0) / step), i1 = Math.ceil((c - box.x0) / step);
