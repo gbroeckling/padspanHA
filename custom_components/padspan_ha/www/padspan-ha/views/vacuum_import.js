@@ -32,7 +32,7 @@ async function refresh(ctx){
 }
 
 function cameras(ctx){
-  const ids = Object.keys((ctx.hass && ctx.hass.states) || {}).filter(e => e.startsWith("camera.") || e.startsWith("image."));
+  const ids = Object.keys((ctx.hass && ctx.hass.states) || {}).filter(e => e.startsWith("camera."));
   return ids.sort((a, b) => (b.includes("map") - a.includes("map")) || a.localeCompare(b));
 }
 

@@ -88,7 +88,7 @@ async def ws_vacuum_import_preview(hass: HomeAssistant, connection, msg) -> None
             read = {"read": "url", "ref": url, "format": "valetudo"}
         elif msg.get("entity_id"):
             eid = msg["entity_id"].strip()
-            if not eid.startswith(("camera.", "image.")):
+            if not eid.startswith("camera."):
                 connection.send_error(msg["id"], "invalid", "Pick the vacuum's map camera")
                 return
             png = await vi.camera_image(hass, eid)
