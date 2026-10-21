@@ -24,7 +24,7 @@
 
 const { isOutdoorFloorId, offsetPolygonInward, barrierNoReading, fabricFrame, floorIdAtLevel, floorNameAtLevel } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
-const { deviceClassOf, airQualityBadness, HUMIDITY_BORDER, AIR_BORDER, MOTION_PULSE: MOTION_BLUE, isWledLight, isPartitionLight } =
+const { deviceClassOf, airQualityBadness, HUMIDITY_BORDER, AIR_BORDER, MOTION_PULSE: MOTION_BLUE, isWledLight, isPartitionLight, openingOpen } =
   await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // The shared Atlas card's readings: the state words, which floors share a
 // plate, and which sensors read backwards.
@@ -1438,7 +1438,8 @@ export function openingKind(b, dl){
 // (barrierNoReading — offline, unknown, or no device record) is neither open
 // nor closed; a lock is locked, or anything else (unlocked, jammed) — the
 // one that flashes; a door or window sensor is open when "on", flipped for
-// this one barrier by its invert_state. The 3D house and the flat Atlas
+// this one barrier by its invert_state; a cover (blinds) while any of it is
+// open (light_codes.js openingOpen). The 3D house and the flat Atlas
 // can never disagree: it is the same reading of the same record. One of
 // "none", "open", "closed", "locked", "unlocked".
 /** The Atlas's one "no reading" rule (offline, unknown, or no record). */
@@ -1446,8 +1447,7 @@ export const noReading = (dl) => barrierNoReading(dl);
 export function openingState(bar, dl){
   if (barrierNoReading(dl)) return "none";
   if (dl.isLock) return dl.state === "locked" ? "locked" : "unlocked";
-  const rawOn = dl.state === "on";
-  return (bar && bar.invert_state ? !rawOn : rawOn) ? "open" : "closed";
+  return openingOpen(dl, bar && bar.invert_state) ? "open" : "closed";
 }
 /** Does this sensor read backwards? As the map has it: the invert_state of
  *  the map barrier linked to it (lights_map.js doorInvertOf, the Atlas's own

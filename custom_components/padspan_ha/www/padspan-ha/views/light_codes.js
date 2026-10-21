@@ -73,9 +73,38 @@ export function isMotionSensor(l) {
 // opening are the same open/closed contact under HA's other names (a door
 // sensor's "Show as" can switch to either): left out, a linked barrier had
 // no state on the Atlas and drew "no reading" forever (round 6).
+// A cover (blinds, shades, a garage door, a gate) is the same opening seen
+// from the motor's side: it reports where it is rather than on/off, and it
+// links to its wall section the same way a contact sensor does. A cover
+// with no device_class is admitted too (many blinds and garage openers say
+// none); a damper is not an opening in a wall.
+export const OPENING_COVER_CLASSES = ["door", "window", "garage", "gate", "blind", "shade", "shutter", "curtain", "awning"];
 export function isDoorSensor(l) {
-  return String(l.entity_id || "").startsWith("binary_sensor.")
+  const eid = String(l.entity_id || "");
+  if (eid.startsWith("cover.")) return !l.device_class || OPENING_COVER_CLASSES.includes(l.device_class);
+  return eid.startsWith("binary_sensor.")
     && ["door", "window", "garage_door", "opening"].includes(l.device_class);
+}
+/** How far open a cover is, 0 to 100 (its current_position, else 100 or 0
+ *  from open/closed), or null for anything else or no reading. */
+export function coverPercent(l) {
+  if (!l || !String(l.entity_id || "").startsWith("cover.")) return null;
+  const p = Number(l.position);
+  if (l.position !== null && l.position !== undefined && Number.isFinite(p)) return Math.max(0, Math.min(100, Math.round(p)));
+  return l.state === "open" ? 100 : l.state === "closed" ? 0 : null;
+}
+/** Is this opening open? A contact sensor when "on"; a cover when any part
+ *  of it is open or it is moving. `inverted` flips a sensor that reads
+ *  backwards (a barrier's invert_state); a cover reports its own position,
+ *  so it is never flipped. */
+export function openingOpen(l, inverted = false) {
+  if (!l) return false;
+  if (String(l.entity_id || "").startsWith("cover.")) {
+    if (l.state === "opening" || l.state === "closing") return true;
+    const p = coverPercent(l);
+    return p !== null ? p > 0 : false;
+  }
+  return (l.state === "on") !== !!inverted;
 }
 
 // A water-leak/flood sensor (Garry, 2026-09-18: "add flood sensors to the
@@ -284,7 +313,7 @@ export function healthOf(l, nowMs, inverted = false) {
   // and "stuck on" are the same real-world event, only the wording differs.
   if (kind === "stuck_on" || kind === "left_open") {
     const changed = l.last_changed ? Date.parse(l.last_changed) : NaN;
-    const held = kind === "left_open" ? (l.state === "on") !== !!inverted : l.state === "on";
+    const held = kind === "left_open" ? openingOpen(l, inverted) : l.state === "on";
     if (held && Number.isFinite(changed) && (now - changed) > MOTION_STUCK_MS) {
       const hrs = Math.round((now - changed) / 3600000);
       return { healthy: false, reason: kind === "left_open"
