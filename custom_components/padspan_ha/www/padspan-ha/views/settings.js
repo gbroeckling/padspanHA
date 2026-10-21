@@ -3216,6 +3216,12 @@ function _settingsFeatures(ctx, el){
             "areas where walls, furniture, or interference cause positioning errors.",
     },
     {
+      key: "roomplan_import_enabled",
+      label: "RoomPlan Import",
+      desc: "Lets Maps → Rooms import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), " +
+            "beside Sweet Home 3D files. Rooms come in as a candidate to review before anything is saved.",
+    },
+    {
       key: "phone_wizard_enabled",
       label: "Phone Setup Wizard",
       desc: "Shows a guided setup flow in the IRK Manager for adding phones and watches. Detects IRK Capture devices and walks through the pairing process.",
