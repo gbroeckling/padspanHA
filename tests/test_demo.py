@@ -50,6 +50,9 @@ def test_sample_macs_are_obviously_made_up():
     fake_run = re.compile(r"^(00:11:22|AA:|BB:|CC:|DD:|EE:|FF:)", re.I)
     rotating = set(re.findall(r'all_addresses: \[([^\]]*)\]', t))
     listed = {m for group in rotating for m in _MAC.findall(group)}
+    # main's 58ab5a99: the demo house's unnamed BLE device has a random static
+    # address on purpose, so it reads as a real one.
+    listed.add("D2:5A:7F:0B:93:4E")
     for mac in set(_MAC.findall(t)):
         assert fake_run.match(mac) or mac in listed, mac
 
