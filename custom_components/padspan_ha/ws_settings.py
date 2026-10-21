@@ -469,6 +469,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_live_colours"): bool,
         vol.Optional("overview_atlas"): bool,
         vol.Optional("emergency_entities"): list,             # emergency_test.py — [] = find them
+        vol.Optional("atlas_alert_pulse"): bool,
         vol.Optional("atlas_weather_enabled"): bool,
         vol.Optional("atlas_weather_rain_entity"): vol.Any(str, None),
         vol.Optional("atlas_weather_condition_entity"): vol.Any(str, None),
@@ -1009,7 +1010,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "mqtt_publish_enabled", "espresense_mqtt_enabled", "tasmota_ble_enabled", "aggressive_ble_reseed",
                     "ha_entity_occupancy_enabled",
                     "overview_atlas", "lights_panel_enabled", "atlas_emergency_button", "atlas_live_colours", "bermuda_ignore", "bright_reveal_presence",
-                    "atlas_weather_enabled",
+                    "atlas_weather_enabled", "atlas_alert_pulse",
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
                     "atlas_3d_weather", "atlas_3d_showcase",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",

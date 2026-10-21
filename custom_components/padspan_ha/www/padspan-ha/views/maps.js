@@ -9690,6 +9690,8 @@ function _lightsTab(ctx, maps, active) {
     },
     // Day lifts the ground and mutes the pools; from the sun HA tracks.
     ambient: sunAmbient(ctx.hass),
+    // Alert pulse (lights_map.js safetyAlerts), as on the sidebar: only when it is on.
+    ...(ctx.state.settings && ctx.state.settings.atlas_alert_pulse === true ? { alertPulse: true } : {}),
     // Outdoor weather, the same overlay the Atlas sidebar draws (its own
     // slot, so the two surfaces never share an element). Like the sidebar,
     // nothing until the settings have answered.
