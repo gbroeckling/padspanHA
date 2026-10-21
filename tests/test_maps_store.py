@@ -141,6 +141,35 @@ async def test_replace_image_rejects_path_traversal(tmp_path: Path) -> None:
         )
 
 
+def test_a_sibling_folder_sharing_the_prefix_is_outside(tmp_path: Path) -> None:
+    """`maps_x` starts with the same characters as `maps` but is not in it."""
+    store = _make_store(tmp_path)
+    (store.maps_dir.parent / "maps_x").mkdir()
+    (store.maps_dir.parent / "maps_x" / "f.png").write_bytes(b"x")
+    assert store.image_file("../maps_x/f.png", must_exist=False) is None
+    assert store.image_file("../maps_x/f.png", must_exist=True) is None
+    assert store.image_file("a.png", must_exist=False) == (store.maps_dir / "a.png").resolve()
+
+
+# ---------------------------------------------------------------------------
+# Tests: empty / undecodable uploads
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("payload, why", [
+    ("", "empty"),                                         # a backup whose image export failed
+    ("A", "base64"),                                       # not base64 at all
+    (base64.b64encode(b"<html>nope</html>").decode(), "not a PNG"),
+])
+async def test_add_map_refuses_a_picture_that_is_not_one(tmp_path: Path, payload: str, why: str) -> None:
+    store = _make_store(tmp_path)
+    with pytest.raises(ValueError, match=why):
+        await store.async_add_map("Ground", "g.png", "image/png", 800, 600, payload)
+    assert list(store.maps_dir.iterdir()) == [], "a file was written for a picture that isn't one"
+    assert store.list_maps() == []
+
+
 # ---------------------------------------------------------------------------
 # Tests: add / get / delete lifecycle
 # ---------------------------------------------------------------------------

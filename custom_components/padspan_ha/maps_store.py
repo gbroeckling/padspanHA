@@ -186,8 +186,15 @@ class MapsStore:
         downstream code never needs defensive .get() chains.
         """
         await asyncio.to_thread(self.maps_dir.mkdir, parents=True, exist_ok=True)
-        moved, left = await asyncio.to_thread(
-            _move_legacy_images, legacy_maps_dir_for(self.hass), self.maps_dir)
+        # A folder that can't be listed (permissions) must not cost every map:
+        # an error here used to abort setup before the store was loaded.
+        try:
+            moved, left = await asyncio.to_thread(
+                _move_legacy_images, legacy_maps_dir_for(self.hass), self.maps_dir)
+        except OSError as exc:
+            _LOGGER.warning("Could not move map images out of %s: %s",
+                            legacy_maps_dir_for(self.hass), exc)
+            moved, left = 0, 1
         self.legacy_moved, self.legacy_left = moved, left
         if moved:
             _LOGGER.info("Moved %d map image(s) out of www/ to %s", moved, self.maps_dir)
@@ -254,7 +261,7 @@ class MapsStore:
         must_exist, isn't there). Touches the disk: call it in a thread.
         """
         fp = (self.maps_dir / str(filename)).resolve()
-        if not str(fp).startswith(str(self.maps_dir.resolve())):
+        if not fp.is_relative_to(self.maps_dir.resolve()):
             return None
         if must_exist and not fp.exists():
             return None
@@ -270,9 +277,18 @@ class MapsStore:
         max_b64_len = (MAX_MAP_BYTES * 4) // 3 + 4
         if len(png_base64) > max_b64_len:
             raise ValueError(f"Map image exceeds {MAX_MAP_BYTES // (1024*1024)} MB limit")
-        raw = base64.b64decode(png_base64)
+        try:
+            raw = base64.b64decode(png_base64)
+        except ValueError:
+            raise ValueError("Map image is not valid base64") from None
         if len(raw) > MAX_MAP_BYTES:
             raise ValueError(f"Map image exceeds {MAX_MAP_BYTES // (1024*1024)} MB limit")
+        # An empty payload (a backup whose image export failed) would be
+        # written as a 0-byte picture the map can never show.
+        if not raw:
+            raise ValueError("Map image is empty")
+        if raw[:8] != b'\x89PNG\r\n\x1a\n':
+            raise ValueError("Map image is not a PNG")
         map_id = os.urandom(8).hex()
         file_name = f"{map_id}.png"
         file_path = self.maps_dir / file_name
@@ -753,7 +769,8 @@ class MapsStore:
         old_png = await asyncio.to_thread(fp.read_bytes)
 
         # Extend the PNG using Canvas-style compositing
-        new_png = _extend_png(old_png, old_w, old_h, new_w, new_h, add_l, add_t)
+        new_png = await asyncio.to_thread(
+            _extend_png, old_png, old_w, old_h, new_w, new_h, add_l, add_t)
         await asyncio.to_thread(fp.write_bytes, new_png)
 
         # Save pre-extend snapshot for undo
@@ -842,7 +859,8 @@ class MapsStore:
             fp = await asyncio.to_thread(self.image_file, fn, must_exist=True)
             if fp is not None:
                 cur_png = await asyncio.to_thread(fp.read_bytes)
-                orig_png = _crop_png(cur_png, new_w, new_h, add_l, add_t, old_w, old_h)
+                orig_png = await asyncio.to_thread(
+                    _crop_png, cur_png, new_w, new_h, add_l, add_t, old_w, old_h)
                 if orig_png:
                     await asyncio.to_thread(fp.write_bytes, orig_png)
                     m["image"]["size_bytes"] = len(orig_png)

@@ -246,7 +246,9 @@ def test_nothing_from_the_house_is_in_the_report():
     # (0.38.132's one-name fix needed its field signal).
     # Raised 4200 -> 4230 for features.overview_atlas (~25 bytes): Garry,
     # 2026-10-17, a Pro option to show the Atlas as Overview.
-    assert len(text) < 4230
+    # Raised 4230 -> 4270 for features.day_theme and features.light_theme
+    # (~36 bytes): which themes anyone wears, now that there are seven.
+    assert len(text) < 4270
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1083,7 +1085,10 @@ def test_a_full_day_fits_by_sending_fewer_presets_not_by_refusing(monkeypatch):
     assert 0 < len(p["presets"]) < 10, "the fixture no longer overflows the cap with ten presets"
     one_more = {**p, "presets": p["presets"] + p["presets"][:1]}
     assert len(json.dumps(p)) <= T._MAX_BYTES < len(json.dumps(one_more)), "only as many dropped as needed"
-    # A day with room for them all sends all ten.
+    # A day with room for them all sends all ten. (Without the log counts:
+    # with them, this day sat 12 bytes under the cap, and the theme flags
+    # took those.)
+    monkeypatch.setattr(ws_common, "_log_handler", SimpleNamespace(counts={}))
     h2 = _findmy_house()
     h2.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"] = h.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"]
     for n in _FM_EVENTS:

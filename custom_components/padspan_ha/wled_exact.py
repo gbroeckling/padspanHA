@@ -58,6 +58,7 @@ from homeassistant.core import HomeAssistant, callback
 from . import wled_look as L
 from . import ws_wled as W
 from .const import DATA_SETTINGS, DATA_WLED_LOOKS, DOMAIN, WLED_LOOKS_STORE_KEY
+from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
 
 _LOGGER = logging.getLogger(__name__)
@@ -189,7 +190,7 @@ def _identify(hass: HomeAssistant, entity_id: str | None = None, device_id: str 
     if dev is None:
         return None
     entries = W._wled_entries(hass)
-    for entry_id in getattr(dev, "config_entries", ()) or ():
+    for entry_id in ha_device_config_entries(dev):
         entry = entries.get(entry_id)
         if entry is None or getattr(entry, "disabled_by", None):
             continue

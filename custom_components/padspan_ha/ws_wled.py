@@ -58,6 +58,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
+from .util import ha_device_config_entries
 from .ws_common import _tier_at_least
 
 _LOGGER = logging.getLogger(__name__)
@@ -295,7 +296,7 @@ def resolve_device(hass: HomeAssistant, entity_id: str | None = None,
     if dev is None:
         return None
     entries = _wled_entries(hass)
-    for entry_id in getattr(dev, "config_entries", ()) or ():
+    for entry_id in ha_device_config_entries(dev):
         entry = entries.get(entry_id)
         if entry is None or getattr(entry, "disabled_by", None):
             continue
@@ -326,7 +327,7 @@ def unreachable_host(hass: HomeAssistant, entity_id: str | None = None, device_i
     if dev is None:
         return None
     entries = _wled_entries(hass)
-    for entry_id in getattr(dev, "config_entries", ()) or ():
+    for entry_id in ha_device_config_entries(dev):
         entry = entries.get(entry_id)
         if entry is not None and not getattr(entry, "disabled_by", None):
             return str((entry.data or {}).get("host") or "its address")

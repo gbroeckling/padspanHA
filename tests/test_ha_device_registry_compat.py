@@ -185,6 +185,38 @@ def test_a_device_s_config_entries_without_the_shim():
     assert ha_device_config_entries(SimpleNamespace(config_entries=None)) == set()
 
 
+_BANNED_DEVICE_ATTRS = ("config_entries", "primary_config_entry", "config_entries_subentries")
+
+
+def _is_hass(node: ast.AST) -> bool:
+    """`hass.config_entries` is the config entry manager, not the device's set."""
+    return ((isinstance(node, ast.Attribute) and node.attr in ("hass", "_hass"))
+            or (isinstance(node, ast.Name) and node.id in ("hass", "homeassistant")))
+
+
+def _direct_config_entries_reads(tree: ast.AST) -> list[int]:
+    lines = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Attribute) and node.attr in _BANNED_DEVICE_ATTRS
+                and not _is_hass(node.value)):
+            lines.append(node.lineno)
+        # The same read spelt as a string: getattr(dev, "config_entries", ()),
+        # hasattr(...), operator.attrgetter("config_entries").
+        elif isinstance(node, ast.Call):
+            fn = node.func
+            name = fn.id if isinstance(fn, ast.Name) else fn.attr if isinstance(fn, ast.Attribute) else ""
+            if name in ("getattr", "hasattr"):
+                if (len(node.args) >= 2 and not _is_hass(node.args[0])
+                        and isinstance(node.args[1], ast.Constant)
+                        and node.args[1].value in _BANNED_DEVICE_ATTRS):
+                    lines.append(node.lineno)
+            elif name == "attrgetter":
+                if any(isinstance(a, ast.Constant) and isinstance(a.value, str)
+                       and set(a.value.split(".")) & set(_BANNED_DEVICE_ATTRS) for a in node.args):
+                    lines.append(node.lineno)
+    return lines
+
+
 def test_nothing_reads_a_device_s_config_entries_directly():
     """Only util.py may touch DeviceEntry.config_entries."""
     offenders = []
@@ -192,10 +224,19 @@ def test_nothing_reads_a_device_s_config_entries_directly():
         if p.name == "util.py":
             continue
         tree = ast.parse(p.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if (isinstance(node, ast.Attribute) and node.attr in ("config_entries", "primary_config_entry",
-                                                                  "config_entries_subentries")
-                    and not (isinstance(node.value, ast.Attribute) and node.value.attr in ("hass", "_hass"))
-                    and not (isinstance(node.value, ast.Name) and node.value.id in ("hass", "homeassistant"))):
-                offenders.append(f"{p.name}:{node.lineno}")
+        offenders += [f"{p.name}:{n}" for n in _direct_config_entries_reads(tree)]
     assert not offenders, "read through util.ha_device_config_entries: " + ", ".join(offenders)
+
+
+def test_the_guard_sees_a_read_spelt_as_a_string():
+    """The three reads the guard used to miss (wled_exact, ws_wled x2) were all
+    getattr(dev, "config_entries", ()) or ()."""
+    src = (
+        'for e in getattr(dev, "config_entries", ()) or (): pass\n'
+        'hasattr(dev, "primary_config_entry")\n'
+        'operator.attrgetter("config_entries")(dev)\n'
+        'attrgetter("x.config_entries_subentries")(dev)\n'
+        'getattr(hass, "config_entries")\n'
+        'getattr(dev, "name", None)\n'
+    )
+    assert sorted(_direct_config_entries_reads(ast.parse(src))) == [1, 2, 3, 4]

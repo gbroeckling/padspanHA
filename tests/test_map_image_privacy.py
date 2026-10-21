@@ -206,6 +206,31 @@ async def test_startup_runs_the_move(tmp_path):
     assert not old.exists()
 
 
+async def test_a_move_that_fails_outright_still_loads_the_maps(tmp_path, monkeypatch):
+    """A www/ folder that can't be listed (PermissionError from iterdir) used
+    to abort setup, and with it every map."""
+    from unittest.mock import AsyncMock
+
+    old, new = _legacy(tmp_path)
+    (old / "a1b2.png").write_bytes(b"A")
+
+    def _denied(*a, **k):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(MS, "_move_legacy_images", _denied)
+    st = MS.MapsStore.__new__(MS.MapsStore)
+    st.hass = _hass(tmp_path)
+    st.maps_dir = MS.maps_dir_for(st.hass)
+    st.store = AsyncMock()
+    st.store.async_load = AsyncMock(return_value={"maps": [_map()]})
+    st.data = {"maps": []}
+
+    await st.async_setup()
+    assert [m["id"] for m in st.list_maps()] == ["a1b2"]
+    assert (st.legacy_moved, st.legacy_left) == (0, 1)
+    assert (old / "a1b2.png").exists()
+
+
 # ── the versioned path ────────────────────────────────────────────────────────
 
 def test_the_path_is_versioned_on_the_picture():
