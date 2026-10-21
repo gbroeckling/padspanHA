@@ -602,7 +602,7 @@ async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
 async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
     """Set one room's own height (room_meta[room].height_m) for Live Aboard:
     a double-height living room, a hall under a mezzanine, on a floor that
-    keeps its normal height. Kept 1.5 m to MAX_HEIGHT_M; null clears it.
+    keeps its normal height. Kept 1.5 m to 30 m (ROOM_HEIGHT_MAX_M); null clears it.
     Drawing only: positioning reads the floors' heights, never this."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     if not mdl:

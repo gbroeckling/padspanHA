@@ -8,7 +8,7 @@ on its floor rise through the floor above. A room may now carry its own
 height: metres from its floor to the top of its space (the measure of a
 floor's floor_to_floor_m); none means its floor's, exactly as before. Held
 here:
-- the value: a finite number, kept 1.5 m to MAX_HEIGHT_M; anything else none;
+- the value: a finite number, kept 1.5 m to ROOM_HEIGHT_MAX_M (30 m); anything else none;
 - padspan_ha/room_height_set: its schema (an undeclared key refused, null
   clears), a room not on the map refused, a drawn room with no room_meta
   entry given one (the fabric's floor), set and cleared;
@@ -30,9 +30,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import voluptuous as vol
 
-from custom_components.padspan_ha.const import DATA_FABRIC, DATA_MODEL, DATA_SETTINGS, DOMAIN, MAPS_STORE_KEY, MAX_HEIGHT_M, MODEL_STORE_KEY
+from custom_components.padspan_ha.const import DATA_FABRIC, DATA_MODEL, DATA_SETTINGS, DOMAIN, MAPS_STORE_KEY, MODEL_STORE_KEY
 from custom_components.padspan_ha.fabric_store import FabricStore
-from custom_components.padspan_ha.model_store import ModelStore, room_height
+from custom_components.padspan_ha.model_store import ROOM_HEIGHT_MAX_M, ModelStore, room_height
 from custom_components.padspan_ha.websocket import ws_room_height_set
 
 
@@ -91,7 +91,8 @@ def _call(h, msg):
 
 def test_a_height_is_a_finite_number_kept_in_range() -> None:
     assert room_height(5.6) == 5.6 and room_height(5) == 5.0 and room_height(5.60049) == 5.6
-    assert room_height(0.4) == 1.5 and room_height(1e6) == MAX_HEIGHT_M
+    assert room_height(0.4) == 1.5 and room_height(1e6) == ROOM_HEIGHT_MAX_M == 30.0 and room_height(30) == 30.0
+    assert room_height(29.9) == 29.9 and room_height(100) == 30.0
     for bad in (None, True, False, "5.6", math.nan, math.inf, -math.inf, [5.6], {}):
         assert room_height(bad) is None, bad
 
@@ -122,9 +123,9 @@ def test_a_drawn_room_with_no_meta_gets_one_on_its_fabric_floor() -> None:
     h = _hass(mdl)
     assert _call(h, {"room": "Gallery", "height_m": None}) == {"ok": True, "room": "Gallery", "height_m": None}
     assert "Gallery" not in mdl.room_meta() and not mdl.store.async_save.await_count, "clearing nothing writes nothing"
-    assert _call(h, {"room": "Gallery", "height_m": 99999})["height_m"] == MAX_HEIGHT_M
+    assert _call(h, {"room": "Gallery", "height_m": 99999})["height_m"] == ROOM_HEIGHT_MAX_M
     meta = mdl.room_meta()["Gallery"]
-    assert meta["floor_id"] == "u" and meta["height_m"] == MAX_HEIGHT_M and meta["color"].startswith("#")
+    assert meta["floor_id"] == "u" and meta["height_m"] == ROOM_HEIGHT_MAX_M and meta["color"].startswith("#")
 
 
 def test_a_room_not_on_the_map_and_a_nan_are_refused() -> None:

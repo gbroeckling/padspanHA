@@ -2983,13 +2983,20 @@ export function buildLightsMapCard(hostIn){
   // paid tier animates it, the free map shows it still — the same licence
   // line as placement.
   const wxSlot = WX && host.weather && host.weather.settings ? WX.atlasWeatherSlot(host.weather.slot) : null;
-  let wxOutdoorZ = null, wxOffsets = null;
+  let wxOutdoorZ = null, wxOffsets = null, wxOffsetsKey = null;
   if (wxSlot) {
     try { wxOutdoorZ = WX.outdoorPlateLevels(_frame, isOutdoorFloorId); } catch (_) { wxOutdoorZ = null; }
-    try { wxOffsets = WX.plateOffsets(_frame); } catch (_) { wxOffsets = null; }
   }
   const mountWeather = (svgStr) => {
     if (!wxSlot) return;
+    // The plates move with the Spacing and L/R sliders (and Reset view),
+    // which rebuild the drawing without rebuilding this card, so the offsets
+    // are taken from the gaps the drawing was just made with.
+    const gapKey = `${view.floorGap}|${view.horizGap}`;
+    if (gapKey !== wxOffsetsKey) {
+      wxOffsetsKey = gapKey;
+      try { wxOffsets = WX.plateOffsets(fabricFrame(host.model, floors, view.floorGap, view.horizGap)); } catch (_) { wxOffsets = null; }
+    }
     try {
       const w = host.weather;
       const theme = host.showcase ? (SHOWCASE_THEMES[host.showcaseTheme] || SHOWCASE_THEMES.classic) : SHOWCASE_THEMES.classic;

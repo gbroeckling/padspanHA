@@ -675,6 +675,95 @@ tryCase("room height: a double-height living room: its walls rise, no other room
     { outside: outside.map(pc => top(pc, g)), toHall: toHall.map(pc => top(pc, g)), toKitchen: toKitchen.map(pc => top(pc, g)),
       others: others.map(pc => [pc.x0, pc.y0, pc.x1, pc.y1, top(pc, g)]) });
 });
+// A gallery upstairs along the back and side of the double-height living
+// room: both rooms have an outside wall on those lines.
+const GALLERY = { floors: [{ id: "g", name: "Ground" }, { id: "u", name: "Upstairs" }], floor_elevations: { g: 0, u: 2.8 },
+  room_geometry_m: { Living: rect("g", 0, 0, 6, 8), Kitchen: rect("g", 6.1, 0, 12, 8),
+    Gallery: rect("u", 0, 0, 6, 3), Bed: rect("u", 6.1, 0, 12, 8) },
+  rf_barriers_m: [{ id: "gal", material: "open", floor_id: "u", points_m: [[0, 3], [6, 3]] }] };
+const wallBands = (h) => {
+  const out = [];
+  for (const [fl, per] of h.perFloor) for (const pc of per.pieces) {
+    if (pc.kind === "rail" || pc.kind === "open" || pc.loftRail) continue;
+    const E = H.wallElements(pc, fl.h), L = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0);
+    if (!E.length || L < 0.03) continue;
+    const ux = (pc.x1 - pc.x0) / L, uy = (pc.y1 - pc.y0) / L;
+    out.push({ pc, fl: fl.id, ux, uy, z0: fl.elev0 + Math.min(...E.map(e => e.z0)), z1: fl.elev0 + Math.max(...E.map(e => e.z1)) });
+  }
+  return out;
+};
+// Two pieces in one plane (parallel, on one line) over one stretch and one height band.
+const overlaps = (B) => {
+  const bad = [];
+  for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+    const a = B[i], b = B[j];
+    if (Math.abs(a.ux * b.ux + a.uy * b.uy) < Math.cos(2 * Math.PI / 180)) continue;
+    const off = (p) => (p[0] - a.pc.x0) * -a.uy + (p[1] - a.pc.y0) * a.ux, at = (p) => (p[0] - a.pc.x0) * a.ux + (p[1] - a.pc.y0) * a.uy;
+    const p0 = [b.pc.x0, b.pc.y0], p1 = [b.pc.x1, b.pc.y1];
+    if (Math.abs(off(p0)) > 0.03 || Math.abs(off(p1)) > 0.03) continue;
+    const La = Math.hypot(a.pc.x1 - a.pc.x0, a.pc.y1 - a.pc.y0);
+    const along = Math.min(La, Math.max(at(p0), at(p1))) - Math.max(0, Math.min(at(p0), at(p1)));
+    const up = Math.min(a.z1, b.z1) - Math.max(a.z0, b.z0);
+    if (along > 0.05 && up > 0.01) bad.push([a.fl, [a.pc.x0, a.pc.y0, a.pc.x1, a.pc.y1, a.z0, a.z1], b.fl, [b.pc.x0, b.pc.y0, b.pc.x1, b.pc.y1, b.z0, b.z1]]);
+  }
+  return bad;
+};
+// What covers the facade at (x, y) on the line with direction (ux, uy): the merged height bands.
+const coverAt = (B, x, y, ux, uy) => {
+  const bands = B.filter(b => Math.abs(b.ux * ux + b.uy * uy) > 0.999 && segDistTo(b.pc, x, y) < 0.1).map(b => [b.z0, b.z1]).sort((p, q) => p[0] - q[0]);
+  const m = [];
+  for (const [z0, z1] of bands) { const l = m[m.length - 1]; if (l && z0 <= l[1] + 0.01) l[1] = Math.max(l[1], z1); else m.push([z0, z1]); }
+  return m;
+};
+const segDistTo = (pc, x, y) => H.segDist(x, y, pc.x0, pc.y0, pc.x1, pc.y1)[0];
+const EXT = H.EXT_T / 2;
+tryCase("room height: a gallery along the tall room's facade: one wall per plane and height, no gap", () => {
+  const res = {};
+  for (const [name, hm] of [["reaches", 5.6], ["below", 7]]) {
+    const h = H.readHouse(JSON.parse(JSON.stringify({ ...GALLERY, room_meta: { Living: { height_m: hm } } })), GALLERY.floors, {}, null);
+    const B = wallBands(h);
+    // The back (y = 0) and the side (x = 0) of the living room, under the gallery and past it.
+    const spots = [[1.5, -EXT, 1, 0], [4.5, -EXT, 1, 0], [-EXT, 1.5, 0, 1], [-EXT, 5, 0, 1]];
+    const cover = spots.map(([x, y, ux, uy]) => coverAt(B, x, y, ux, uy));
+    res[name] = { bad: overlaps(B), cover };
+  }
+  const whole = (c, top) => c.length === 1 && near(c[0][0], -H.SLAB_T) && c[0][1] >= top - 1e-6;
+  check("room height: a gallery along the tall room's facade: one wall per plane and height, no gap",
+    res.reaches.bad.length === 0 && res.below.bad.length === 0
+    // under the gallery, up to the gallery's own top; past it, the living room's
+    && res.reaches.cover.every(c => whole(c, 5.6 - H.SLAB_T))
+    && whole(res.below.cover[0], 7 - H.SLAB_T) && whole(res.below.cover[2], 7 - H.SLAB_T) && whole(res.below.cover[3], 7 - H.SLAB_T),
+    res);
+});
+tryCase("room height: a room lower than its floor is drawn as its floor", () => {
+  const low = drawnOf(tallWith({ Living: { height_m: 2.0 } })), none = drawnOf(tallWith({}));
+  const h = H.readHouse(tallWith({ Living: { height_m: 2.0 } }), TALL.floors, {}, null);
+  check("room height: a room lower than its floor is drawn as its floor",
+    low === none && h.rooms.every(r => r.h === r.floor.h), null);
+});
+tryCase("room height: a light in the tall room hangs from its own ceiling; none set, nothing moves", () => {
+  const partsOf = (meta) => {
+    const h = H.readHouse({ ...JSON.parse(JSON.stringify(LIGHTS_MODEL)), room_meta: meta }, LIGHTS_MODEL.floors, LBE, null, SHAPES);
+    const fl = h.byId.get("main"), ctx = { ...h.perFloor.get(fl), ground: h.ground };
+    return { h, fl, parts: Object.fromEntries(h.lights.map(L => [L.eid, H.fixtureParts(L, ctx)])) };
+  };
+  const a = partsOf(undefined), low = partsOf({ Kitchen: { height_m: 2.0 } }), tall = partsOf({ Kitchen: { height_m: 5 } });
+  const pot = tall.parts["light.kitchen_pots"], sc = tall.parts["light.wall_sconce"];
+  check("room height: a light in the tall room hangs from its own ceiling; none set, nothing moves",
+    JSON.stringify(a.parts) === JSON.stringify(low.parts)
+    && near(H.ceilAt(a.h.rooms, a.fl, 3, 2), 2.8) && near(H.ceilAt(tall.h.rooms, tall.fl, 3, 2), 5)
+    && near(H.ceilAt(tall.h.rooms, tall.fl, 30, 2), 2.8) && near(H.ceilAt(tall.h.rooms, tall.fl, null, null), 2.8)
+    && near(pot.bulbs[0].h, 5 - H.SLAB_T - 0.012) && sc.bulbs[0].h === 1.7,
+    { pot: pot.bulbs[0].h });
+});
+tryCase("room height: a mezzanine is counted only where the upper floor stands over the tall room", () => {
+  const nested = (m) => H.hasNestedFloor(H.readHouse(m, m.floors, {}, null));
+  const galleryOver = JSON.parse(JSON.stringify({ ...GALLERY, room_meta: { Living: { height_m: 5.6 } } }));
+  check("room height: a mezzanine is counted only where the upper floor stands over the tall room",
+    // two storeys, a double-height living room, nothing upstairs over it: no mezzanine
+    !nested(tallWith({ Living: { height_m: 5.6 } })) && nested(galleryOver) && !nested(tallWith({}))
+    && !nested(JSON.parse(JSON.stringify({ ...GALLERY, room_meta: {} }))), null);
+});
 tryCase("room height: the gallery gets its railing only where it overlooks the tall room", () => {
   const rails = (meta) => { const h = H.readHouse(tallWith(meta), TALL.floors, {}, null);
     return ["gal", "st"].map(id => railOf(h, "u", id).map(p => !!p.loftRail).join(",")).join("|"); };

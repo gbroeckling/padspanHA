@@ -330,7 +330,7 @@ export function createMarkLayer(ctx){
         sig = s;
         const want = h.F ? readMarks(h.model, h.F, h.lbe, h.hidden).map(R => {
           const F = h.floors.find(q => q.fl.id === R.floor.id);
-          const ceil = F ? F.fl.h - HOUSE.SLAB_T : 2.65;
+          const ceil = F ? HOUSE.ceilAt(F.rooms, F.fl, R.x, R.y) - HOUSE.SLAB_T : 2.65;
           return { ...R, z: markZ(R.kind, ceil, zs[R.eid] || null, R.l), zDefault: markZ(R.kind, ceil, null, R.l) };
         }) : [];
         build(want, h.floors || []);
@@ -370,7 +370,7 @@ export function createMarkLayer(ctx){
     move(eid, stored){
       const M = marks.find(x => x.eid === eid);
       if (!M) return false;
-      const z = markZ(M.kind, M.F.fl.h - HOUSE.SLAB_T, stored || null, M.l || null), d = z - M.z;
+      const z = markZ(M.kind, HOUSE.ceilAt(M.F.rooms, M.F.fl, M.x, M.y) - HOUSE.SLAB_T, stored || null, M.l || null), d = z - M.z;
       M.z = z;
       // The sensor itself goes up or down; its ripple stays on the floor.
       for (const o of M.lock ? [M.lock.g] : [M.puck, M.rim, M.badge.sprite]) o.position.y += d;

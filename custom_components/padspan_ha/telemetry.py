@@ -1078,6 +1078,11 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         return False
 
     floors_with_height = sum(1 for f in mdl_floors if _explicit(f))
+    # Rooms given their own height (room_meta height_m, Live Aboard's tall
+    # rooms): whether anyone uses it. A count, never which rooms.
+    _rm = mdl.get("room_meta") if isinstance(mdl.get("room_meta"), dict) else {}
+    rooms_with_height = sum(1 for v in _rm.values() if isinstance(v, dict) and isinstance(v.get("height_m"), (int, float))
+                            and not isinstance(v.get("height_m"), bool))
     _z_vals = [float(v["z_m"]) for v in (fab.get("scanner_positions_m") or {}).values()
                if isinstance(v, dict) and isinstance(v.get("z_m"), (int, float))
                and not isinstance(v.get("z_m"), bool)]
@@ -1290,6 +1295,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "calibration_auto_points": cal_auto,
         "calibration_no_floor": cal_no_floor,
         "floors_with_height": floors_with_height,
+        "rooms_with_height": rooms_with_height,
         "scanners_with_z": len(_z_vals),
         "irks": _len(settings.get("irk_devices") or []),
         "followed": _len(settings.get("followed_addrs") or []),

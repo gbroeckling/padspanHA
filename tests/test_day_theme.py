@@ -225,3 +225,15 @@ def test_every_settings_read_applies_skin_and_theme():
     body = panel[panel.index("  async _fetchSettings(){"):]
     body = body[:body.index("\n  }\n")]
     assert "this._applySkin();" in body and "this._applyTheme();" in body
+
+
+def test_a_re_entry_puts_the_skin_back_straight_after_the_rebuild():
+    # connectedCallback forgets the skin (_skin = null) and rebuilds the page;
+    # with the settings already read it puts the skin back at once, not at the
+    # next settings read (a flash of the classic skin).
+    panel = (_WWW / "panel.js").read_text(encoding="utf-8")
+    body = panel[panel.index("  connectedCallback(){"):]
+    body = body[:body.index("\n  }\n")]
+    rebuilt = body.index("this.shadowRoot.innerHTML = `")
+    assert body.index("this._skin = null;") < rebuilt
+    assert "if (this.state?.settings) this._applySkin();" in body[rebuilt:]

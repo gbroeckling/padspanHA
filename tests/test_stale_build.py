@@ -173,3 +173,16 @@ def test_the_reports_are_wired_and_in_the_vocabulary():
     assert "this._countViewLink();" in panel
     assert all(T.event_allowed(f"view_link:{k}") for k in T.VIEW_LINK_OUTCOMES)
     assert not T.event_allowed("wall_screen:panel:huge") and not T.event_allowed("view_link:https")
+
+
+def test_an_open_dialog_holds_a_reload_only_while_somebody_is_there():
+    # A room or scanner dialog opened by one tap never closes by itself; if it
+    # held the reload for good, a touch wall screen stayed on the old build.
+    src = _PANEL.read_text(encoding="utf-8")
+    body = re.search(r"^  _checkBuild\(\)\{.*?^  \}", src, re.S | re.M).group(0)
+    assert "const idle = untouchedFor(120000);" in body
+    assert re.search(r"const busy = \(!idle && this\.\$modal", body), "the dialog guard must give way after two idle minutes"
+    # ...but unsaved work under someone's hands never does (review: a trace in
+    # Maps → Edit left for two minutes was lost to the reload).
+    assert re.search(r"\)\s*\|\| s\._calibTune\?\._dragging", body), "a drag or Maps edit holds the reload even when idle"
+    assert "this._closeModal(); location.reload();" in body

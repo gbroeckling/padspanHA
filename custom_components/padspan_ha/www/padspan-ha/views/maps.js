@@ -1237,6 +1237,23 @@ function _loadImage(url){
   });
 }
 
+// A backup's picture that is not a PNG (JPEG, WebP...), redrawn as one at
+// the map's stored size so the store accepts it and every fraction still fits.
+async function _backupImageToPng(b64, mime, width, height){
+  const bin = atob(b64), bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], {type: mime || "image/jpeg"}));
+  try{
+    const img = await _loadImage(url);
+    const canvas = document.createElement("canvas");
+    canvas.width = width || img.naturalWidth; canvas.height = height || img.naturalHeight;
+    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(r=>canvas.toBlob(r,"image/png"));
+    if(!blob) throw new Error("PNG encode failed");
+    return _arrayBufferToBase64(await blob.arrayBuffer());
+  }finally{ URL.revokeObjectURL(url); }
+}
+
 // Like _preparePng but loads from a URL (for trim/bake operations on
 // already-uploaded map images, through their signed links).
 async function _preparePngFromUrl(imgUrl, maxDim, crop=null){
@@ -1676,7 +1693,10 @@ function _edit(ctx, map, allMaps){
 
   const img = new Image();
   img.className = "mapimg";
-  if(url) img.src = url;
+  if(url && !map.image?.missing) img.src = url;
+  // No picture (restored without one): the stage keeps the map's own shape,
+  // so its rooms and pins are drawn where they belong.
+  else if(map.image?.missing && map.image.width > 0 && map.image.height > 0) stage.style.aspectRatio = `${map.image.width} / ${map.image.height}`;
 
   const overlay = document.createElement("div");
   overlay.className = "mapoverlay";
@@ -3215,6 +3235,38 @@ function _edit(ctx, map, allMaps){
   }
 
   card.appendChild(title);
+  // A map restored from a backup that had no picture (maps_store
+  // allow_no_image): its rooms, pins and calibration are all here, only the
+  // picture is not. The new one is drawn at the stored size, so every
+  // fraction on the map keeps pointing at the same spot.
+  if(map.image?.missing){
+    const picStatus = el("div",{class:"muted",style:"font-size:12px"});
+    const picInput = document.createElement("input");
+    picInput.type = "file"; picInput.accept = "image/*"; picInput.style.display = "none";
+    picInput.addEventListener("change", async ()=>{
+      const f = picInput.files?.[0]; if(!f) return;
+      const W = map.image.width || 800, H = map.image.height || 600;
+      const objUrl = URL.createObjectURL(f);
+      try{
+        const im = await _loadImage(objUrl);
+        const nw = im.naturalWidth || im.width, nh = im.naturalHeight || im.height;
+        if(Math.abs((nw/nh) - (W/H)) > 0.02*(W/H)
+           && !confirm(`This picture's shape (${nw}×${nh}) is not the map's (${W}×${H}). Rooms and pins are placed on the map's shape, so it will be stretched to fit. Use it anyway?`)) return;
+        const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+        cv.getContext("2d").drawImage(im, 0, 0, W, H);
+        const blob = await new Promise(r=>cv.toBlob(r,"image/png"));
+        picStatus.textContent = "Uploading picture…";
+        await ctx.actions.mapsReplaceImage({ map_id: map.id, png_base64: _arrayBufferToBase64(await blob.arrayBuffer()), width: W, height: H });
+        ctx.toast("Picture uploaded");
+      }catch(e){ picStatus.textContent = "Upload failed: " + (e.message || e); }
+      finally{ URL.revokeObjectURL(objUrl); }
+    });
+    card.appendChild(el("div",{style:"display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0;padding:8px 10px;border:1px solid #d97706;border-radius:8px"},[
+      el("div",{style:"font-size:13px"},"No picture: this map was restored from a backup that did not have one. Its rooms, pins and calibration are kept. Re-upload the same floor plan picture to see it again."),
+      el("button",{class:"btn inline", onclick:()=>picInput.click()},"Re-upload picture…"),
+      picStatus, picInput,
+    ]));
+  }
   card.appendChild(rotatePanel);
   card.appendChild(trimPanel);
   card.appendChild(stage);
@@ -3917,20 +3969,31 @@ function _export(ctx, active, maps_list){
   restoreBtn.addEventListener("click", async()=>{
     if(!_restoreData?.length) return;
     if(!confirm(`Restore ${_restoreData.length} map(s) into your system?`)) return;
-    restoreBtn.disabled = true; let ok=0, fail=0;
+    restoreBtn.disabled = true; let ok=0, fail=0; const noPic = [];
     for(let i=0;i<_restoreData.length;i++){
       const bm = _restoreData[i];
       restoreStatus.textContent = `Restoring ${i+1}/${_restoreData.length}: ${bm.name}…`;
       try{
+        // The store takes PNG only. A JPEG or WebP picture is redrawn as a
+        // PNG here; a picture that is missing or will not decode is left out
+        // and the map comes back without one (allow_no_image), with all its
+        // data, rather than not at all.
+        let b64 = bm.png_base64 || "", why = b64 ? "" : "the backup has no picture for it";
+        if(b64 && !b64.startsWith("iVBORw0KGgo")){
+          try{ b64 = await _backupImageToPng(b64, bm.image?.mime, bm.image?.width, bm.image?.height); }
+          catch(e2){ b64 = ""; why = "its picture in the backup could not be read"; }
+        }
         const up = await ctx.actions.mapsUpload({
           name: bm.name||"Restored Map",
           filename: bm.image?.filename||"map.png",
           mime: bm.image?.mime||"image/png",
           width: bm.image?.width||800,
           height: bm.image?.height||600,
-          png_base64: bm.png_base64||"",
+          png_base64: b64,
           floor_id: bm.floor_id||"",
+          allow_no_image: !b64,
         });
+        if(!b64) noPic.push(`${bm.name||"Restored Map"} (${why})`);
         // The upload says which map it created. This used to find it by name
         // — first match wins — so a backup holding two maps of the same name,
         // or two unnamed ones (both of which become "Restored Map"), wrote the
@@ -3967,6 +4030,9 @@ function _export(ctx, active, maps_list){
       }catch(e){ fail++; console.error("Restore failed for",bm.name,e); }
     }
     restoreStatus.textContent = `Restored ${ok} map${ok!==1?"s":""}${fail?` (${fail} failed)`:""} ✓`;
+    if(noPic.length){
+      restoreStatus.textContent += `. Restored without a picture: ${noPic.join(", ")}. Open each in Edit to re-upload its picture.`;
+    }
     restoreBtn.disabled = false; _restoreData = null; restoreBtn.style.display = "none";
     await ctx.actions.mapsRefresh();
   });
@@ -11528,16 +11594,18 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         const flRec = (ctx.state.model?.floors || []).find(f => String(f.id) === String(floorId));
         const flH = Number(flRec?.floor_to_floor_m) || 2.8;
         const curH = ctx.state.model?.room_meta?.[only]?.height_m;
-        const hIn = el("input", { type: "number", min: "1.5", max: "100", step: "0.1", value: curH != null ? String(curH) : "",
-          placeholder: `floor's, ${flH}`, title: "Floor to roof for this room only. Blank = the floor's height (Floor Heights).",
+        const hIn = el("input", { type: "number", min: "1.5", max: "30", step: "0.1", value: curH != null ? String(curH) : "",
+          placeholder: `floor's, ${flH}`, title: "For a room taller than its floor (a double-height living room, a hall under a mezzanine): floor to roof for this room only. A height at or below the floor's is drawn as the floor's. Blank = the floor's height (Floor Heights).",
           style: "width:84px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
         tools.appendChild(el("label", { style: "display:flex;gap:6px;align-items:center;color:#94a3b8" }, ["Rises to (m)", hIn]));
         tools.appendChild(el("button", { class: "btn inline", onclick: async () => {
           const raw = String(hIn.value || "").trim(), v = raw === "" ? null : parseFloat(raw);
-          if (v !== null && !(isFinite(v) && v >= 1.5 && v <= 100)) { ctx.toast("Enter a height in metres (1.5 to 100), or leave it blank for the floor's", true); return; }
+          if (v !== null && !(isFinite(v) && v >= 1.5 && v <= 30)) { ctx.toast("Enter a height in metres (1.5 to 30), or leave it blank for the floor's", true); return; }
           try {
             await ctx.actions.wsCall("padspan_ha/room_height_set", { room: only, height_m: v });
-            ctx.toast(v === null ? `"${only}" is as high as its floor` : `"${only}" rises to ${v} m`);
+            ctx.toast(v === null ? `"${only}" is as high as its floor`
+              : v <= flH ? `"${only}" is set to ${v} m, no taller than its floor (${flH} m), so it is drawn at the floor's height. Rises to is for a room taller than its floor.`
+              : `"${only}" rises to ${v} m`);
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
           } catch (err) { ctx.toast("Height not saved: " + (err.message || err), true); }

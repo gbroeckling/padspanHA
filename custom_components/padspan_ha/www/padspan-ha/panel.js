@@ -756,6 +756,9 @@ class PadSpanHaApp extends HTMLElement {
     this.$nav = this.$("#nav");
     this.$content = this.$("#content");
     this.$modal = this.$("#modal");
+    // A re-entry with the settings already read: the 2025 skin goes back on
+    // the new page at once, not at the next settings read (a flash of classic).
+    if (this.state?.settings) this._applySkin();
 
     // Kiosk chrome hiding runs after state init (URL parsed later in this
     // method) — schedule for after the constructor body completes.
@@ -2169,9 +2172,14 @@ class PadSpanHaApp extends HTMLElement {
     const act = staleBuildAction(RELEASE_BUILD_ID, be, wall, reloadedFor);
     // Not under someone's hands (the guards _renderCurrentView keeps): an
     // open dialog, a pin being placed, a map being dragged, uploaded or
-    // edited. The periodic check tries again.
+    // edited. The periodic check tries again. An open dialog counts only
+    // while somebody is there, though: a room or scanner dialog opened by one
+    // tap never closes by itself, and counting it after two untouched minutes
+    // kept a wall screen on the old build for good. Idle that long, the dialog
+    // is closed and the page reloads; unsaved work in Maps or a drag still waits.
     const s = this.state;
-    const busy = (this.$modal && !this.$modal.classList.contains("hidden"))
+    const idle = untouchedFor(120000);
+    const busy = (!idle && this.$modal && !this.$modal.classList.contains("hidden"))
       || s._calibTune?._dragging || s._calibBeacon?._dragging || s._calibTune?._confirming || s._calibBeacon?._confirming
       || s.maps?._stackDragging || s.maps?._editDragging
       || (s.view === "maps" && (s.mapsTab === "upload" || s.mapsTab === "stack" || s.mapsTab === "edit"));
@@ -2181,7 +2189,7 @@ class PadSpanHaApp extends HTMLElement {
         sessionStorage.setItem("padspan_reloaded_for", be); remembered = true;
         sessionStorage.setItem("padspan_reload_how", "panel:" + (this.state.kioskMode ? "kiosk" : "fullscreen"));
       } catch(e) {}
-      if(remembered){ location.reload(); return; }   // can't remember it: show the bar, don't risk a loop
+      if(remembered){ this._closeModal(); location.reload(); return; }   // can't remember it: show the bar, don't risk a loop
     }
     const bar = this.$("#staleBuild");
     if(!bar) return;

@@ -148,7 +148,7 @@ export function rowsOf(d){
     const lp = pos[eid], l = d.lightsByEid && d.lightsByEid[eid];
     if (!l || !lp || typeof lp !== "object") continue;
     const fl = F.byId.get(F.canon(lp.floor_id));
-    const ceil = (fl ? fl.h : HOUSE.FLOOR_TO_FLOOR_M) - HOUSE.SLAB_T;
+    const ceil = (fl ? HOUSE.ceilAt(rooms, fl, lp.x_m, lp.y_m) : HOUSE.FLOOR_TO_FLOOR_M) - HOUSE.SLAB_T;
     const file = live || {};
     const at = fl ? { floor: fl, rooms: rooms.filter((r) => r.floor === fl), ground: F.ground } : null;
     const info = infoOf(l, lp, ceil, (file.lights || {})[eid], (d.shapes || {})[eid], at);

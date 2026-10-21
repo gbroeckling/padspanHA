@@ -159,14 +159,17 @@ def _norm_floor(f: dict[str, Any]) -> dict[str, Any]:
 # the floor's height. Only Live Aboard draws it; positioning never reads it
 # (floor_base_elevations_m stacks the floors' own heights).
 ROOM_HEIGHT_MIN_M = 1.5
+# The tallest room a house has (a hall, an atrium); a typo of 100 m would
+# draw a tower. Not the floors' MAX_HEIGHT_M.
+ROOM_HEIGHT_MAX_M = 30.0
 
 
 def room_height(v: Any) -> float | None:
     """A room's height as stored: a finite number kept ROOM_HEIGHT_MIN_M to
-    MAX_HEIGHT_M, to the millimetre; anything else is none (the floor's)."""
+    ROOM_HEIGHT_MAX_M, to the millimetre; anything else is none (the floor's)."""
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
         return None
-    return round(max(ROOM_HEIGHT_MIN_M, min(MAX_HEIGHT_M, float(v))), 3)
+    return round(max(ROOM_HEIGHT_MIN_M, min(ROOM_HEIGHT_MAX_M, float(v))), 3)
 
 
 def _room_meta_entry(floor_id: str, color: str, height: float | None) -> dict[str, Any]:

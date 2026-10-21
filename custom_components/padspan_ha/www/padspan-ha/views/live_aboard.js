@@ -2182,8 +2182,10 @@ function createSlot(slotKey){
         // Moved whole to its height in the 3D file, if it has one (part C).
         // Laid out with the Strip tool: drawn along its run (on a piece: where the piece stands now).
         const own = RUNS.readRun(zs[L0.eid]), run = RUNS.placed(own, vdP), on = run && own.piece ? vdP[own.piece] : null;
-        const lift = run ? DRAFT.liftParts(HOUSE.fixtureParts({ ...L0, kind: set || L0.kind, run, pieceAt: on ? [on.x_m, on.y_m] : null }, ctx), null, F.fl.h - HOUSE.SLAB_T)
-          : DRAFT.liftParts(HOUSE.fixtureParts(set ? { ...L0, kind: set } : L0, ctx), zs[L0.eid], F.fl.h - HOUSE.SLAB_T), parts = lift.parts;
+        // Under the ceiling of the room it is in (a tall room's own), else the floor's.
+        const ceil0 = HOUSE.ceilAt(F.rooms, F.fl, L0.x, L0.y) - HOUSE.SLAB_T;
+        const lift = run ? DRAFT.liftParts(HOUSE.fixtureParts({ ...L0, kind: set || L0.kind, run, pieceAt: on ? [on.x_m, on.y_m] : null }, ctx), null, ceil0)
+          : DRAFT.liftParts(HOUSE.fixtureParts(set ? { ...L0, kind: set } : L0, ctx), zs[L0.eid], ceil0), parts = lift.parts;
         const L = { ...L0, F, kf: parts.kf, drawn: parts.kind, guess, wall: null, refs: { bulbs: [], houses: [], halos: [], washes: [], pools: [] },
                     key: null, look: null, z: lift.z, zDefault: lift.zDefault, spin: null };
         // A wall it hangs on (or a part of it does: a cove's sides) repaints it as it is cut.
@@ -2501,8 +2503,9 @@ function createSlot(slotKey){
       const g = new THREE.Group();
       F.sensorGroup = g;
       F.group.add(g);
-      const ceil = F.fl.h - HOUSE.SLAB_T, motion = [], here = [], zs = viewData().devices;
+      const motion = [], here = [], zs = viewData().devices;
       for (const S0 of mine) {
+        const ceil = HOUSE.ceilAt(F.rooms, F.fl, S0.x, S0.y) - HOUSE.SLAB_T;
         const z = HOUSE.deviceZ(S0.kind, ceil, zs[S0.eid] || null);
         const S = { ...S0, F, z, zDefault: HOUSE.deviceZ(S0.kind, ceil, null), pos: new THREE.Vector3(S0.x, F.fl.elev + z, S0.y),
                     room: HOUSE.roomAt(F.rooms, S0.x, S0.y), shown: null,
@@ -3924,7 +3927,7 @@ function createSlot(slotKey){
     const L = lights.find(x => x.eid === eid), S = L ? null : sensorsUi.find(x => x.eid === eid), X = L || S;
     if (!X || typeof X.z !== "number") return markInfo(eid);
     const l = lbe[eid];
-    return { section: L ? "lights" : "devices", eid, F: X.F, z: X.z, zDefault: X.zDefault, l: l || X.l || null,
+    return { section: L ? "lights" : "devices", eid, F: X.F, z: X.z, zDefault: X.zDefault, l: l || X.l || null, x: X.x, y: X.y,
              kind: L ? L.drawn : null, guess: L ? L.guess : null,
              label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid,
              at: new THREE.Vector3(X.x, X.F.fl.elev + X.z, X.y) };
@@ -3978,7 +3981,7 @@ function createSlot(slotKey){
       // press finds it and where its lamp hangs.
       if (typeof L.z !== "number" || !L.look) return false;
       const F = L.F, st = vd.lights[eid], want = st && typeof st.z_m === "number" && Number.isFinite(st.z_m) ? st.z_m : null;
-      const z = want === null ? L.zDefault : DRAFT.clampHeight(want, F.fl.h - HOUSE.SLAB_T), d = z - L.z;
+      const z = want === null ? L.zDefault : DRAFT.clampHeight(want, HOUSE.ceilAt(F.rooms, F.fl, L.x, L.y) - HOUSE.SLAB_T), d = z - L.z;
       for (const r of L.refs.bulbs) r.m.elements[13] += d;
       for (const r of L.refs.houses) {
         r.hh.h += d;
@@ -4003,7 +4006,7 @@ function createSlot(slotKey){
     }
     const S = sensorsUi.find(x => x.eid === eid);
     if (!S) return marks ? marks.move(eid, vd.devices[eid] || null) : false;
-    S.z = HOUSE.deviceZ(S.kind, S.F.fl.h - HOUSE.SLAB_T, vd.devices[eid] || null);
+    S.z = HOUSE.deviceZ(S.kind, HOUSE.ceilAt(S.F.rooms, S.F.fl, S.x, S.y) - HOUSE.SLAB_T, vd.devices[eid] || null);
     S.pos.y = S.F.fl.elev + S.z;
     if (S.mesh) { S.mesh.setMatrixAt(S.i, compose(S.x, S.pos.y, S.y, 0, 0.055, 0.04, 0.055)); S.mesh.instanceMatrix.needsUpdate = true; }
     if (motionL && S.kind === "motion") motionL.move(eid, S.z);
@@ -4118,7 +4121,7 @@ function createSlot(slotKey){
     const M = marks ? marks.info(eid) : null;
     if (!M) return null;
     const l = lbe[eid];
-    return { section: "devices", eid, F: M.F, z: M.z, zDefault: M.zDefault, l: l || null, kind: null, guess: null,
+    return { section: "devices", eid, F: M.F, x: M.x, y: M.y, z: M.z, zDefault: M.zDefault, l: l || null, kind: null, guess: null,
              label: l ? `${l.code ? l.code + " · " : ""}${l.friendly_name || eid}` : eid, at: new THREE.Vector3(M.x, M.F.fl.elev + M.z, M.y) };
   }
   // ⚙'s Zoom: − and + step out and in about the view's middle, 100% is the

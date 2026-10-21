@@ -350,7 +350,8 @@ export function createEditor(ctx){
     const t = L2 ? Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / L2)) : 0;
     return Math.hypot(px - a[0] - dx * t, py - a[1] - dy * t);
   }
-  const ceilOf = (F) => F.fl.h - HOUSE.SLAB_T;
+  // (x, y): under the ceiling of the room there (a tall room's own height).
+  const ceilOf = (F, x, y) => (x === undefined ? F.fl.h : HOUSE.ceilAt(F.rooms, F.fl, x, y)) - HOUSE.SLAB_T;
   const kindOfPtr = (e) => (e.pointerType === "touch" || e.pointerType === "pen" ? "touch" : "mouse");
   // The runs of a floor's walls (and where a line on each must stop), as
   // drawn now: worked out again whenever the walls are rebuilt, a run's
@@ -913,7 +914,7 @@ export function createEditor(ctx){
   function sheetDevice(eid){
     const info = ctx.device(eid);
     if (!info || info.z === null) { sel = null; return; }
-    const ceil = ceilOf(info.F), cur = draft.cur[info.section][eid], top = DRAFT.heightRange(ceil, info.section).max;
+    const ceil = ceilOf(info.F, info.x, info.y), cur = draft.cur[info.section][eid], top = DRAFT.heightRange(ceil, info.section).max;
     const light = info.section === "lights", setZ = (e) => !!e && typeof e.z_m === "number";
     if (light && strip && cur && cur.run) {                // laid out with Strip: its heights are there
       head(info.label, "Laid out with Strip: its run sets where it is and how high.");

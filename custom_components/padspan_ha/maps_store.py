@@ -267,11 +267,17 @@ class MapsStore:
             return None
         return fp
 
-    async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None) -> dict[str, Any]:
+    async def async_add_map(self, name: str, filename: str, mime: str, width: int, height: int, png_base64: str, floor_id: str | None = None, *, allow_no_image: bool = False) -> dict[str, Any]:
         """Create a new map from an uploaded PNG image.
 
         Writes the image file to disk, creates the metadata dict with default
         stack/calibration/bounds, and persists to storage.
+
+        `allow_no_image` is for a backup restore only: a backup may hold a map
+        whose picture could not be exported, and refusing it would lose its
+        stack, calibration, rooms and pins with it. With the flag and an empty
+        payload the map is created with no picture file (`image.missing`), at
+        the backup's own dimensions; Replace Image puts the picture back.
         """
         # Reject oversized uploads before decoding (avoid OOM)
         max_b64_len = (MAX_MAP_BYTES * 4) // 3 + 4
@@ -285,14 +291,16 @@ class MapsStore:
             raise ValueError(f"Map image exceeds {MAX_MAP_BYTES // (1024*1024)} MB limit")
         # An empty payload (a backup whose image export failed) would be
         # written as a 0-byte picture the map can never show.
-        if not raw:
+        no_image = allow_no_image and not raw
+        if not raw and not no_image:
             raise ValueError("Map image is empty")
-        if raw[:8] != b'\x89PNG\r\n\x1a\n':
+        if raw and raw[:8] != b'\x89PNG\r\n\x1a\n':
             raise ValueError("Map image is not a PNG")
         map_id = os.urandom(8).hex()
         file_name = f"{map_id}.png"
-        file_path = self.maps_dir / file_name
-        await asyncio.to_thread(file_path.write_bytes, raw)
+        if not no_image:
+            file_path = self.maps_dir / file_name
+            await asyncio.to_thread(file_path.write_bytes, raw)
 
         info = {
             "id": map_id,
@@ -307,7 +315,7 @@ class MapsStore:
                 "width": int(width or 0),
                 "height": int(height or 0),
                 "size_bytes": len(raw),
-                "sha256": _sha256(raw),
+                "sha256": _sha256(raw) if raw else "",
             },
             "calibration": {"mode": "none", "px_per_meter": None, "reference_points": []},
             "receivers": [],
@@ -321,6 +329,8 @@ class MapsStore:
             # it at a fabricated size in the corner of the house.
             "stack": {"z_level": 0, "ceiling_height_m": 2.4},
         }
+        if no_image:
+            info["image"]["missing"] = True
 
         self.data.setdefault("maps", [])
         self.data["maps"].append(info)
@@ -537,6 +547,7 @@ class MapsStore:
         m["image"]["height"]     = int(height)
         m["image"]["size_bytes"] = len(raw)
         m["image"]["sha256"]     = _sha256(raw)
+        m["image"].pop("missing", None)
 
         # An extend snapshot describes the picture it was taken from. This
         # is a different picture now, so a later revert reading it would

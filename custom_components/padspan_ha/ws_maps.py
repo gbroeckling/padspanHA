@@ -87,6 +87,9 @@ async def ws_maps_image_urls(hass: HomeAssistant, connection, msg) -> None:
         "height": int,
         "png_base64": str,
         vol.Optional("floor_id"): str,
+        # Backup restore only: a map whose backup has no picture is created
+        # without one rather than lost with its data (async_add_map).
+        vol.Optional("allow_no_image", default=False): bool,
     }
 )
 @websocket_api.require_admin
@@ -118,9 +121,13 @@ async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
             msg.get("height") or 0,
             msg.get("png_base64") or "",
             floor_id,
+            allow_no_image=bool(msg.get("allow_no_image")),
         )
     except ValueError as exc:
-        connection.send_error(msg["id"], "upload_too_large", str(exc))
+        # Only the size limit is "too large"; an empty, non-PNG or garbled
+        # payload is a bad image, and the panel should be able to say so.
+        code = "upload_too_large" if "limit" in str(exc) else "invalid_image"
+        connection.send_error(msg["id"], code, str(exc))
         return
     connection.send_result(msg["id"], {"map": info})
 

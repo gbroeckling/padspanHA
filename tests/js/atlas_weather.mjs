@@ -749,6 +749,26 @@ tryCase("overlay: snow has its rim only on a snowfall warning", () => {
     && /<polygon points=/.test(rimSvg) && /lv-wx-rimin|lv-wx-in 8s/.test(rim().style.animation) && ripples === "none",
     { light, heavy, sway, sway2, anim: rim().style.animation, ripples });
 });
+tryCase("overlay: the mask follows the Spacing and L/R sliders", () => {
+  // The sliders rebuild the drawing without rebuilding the card; the plate
+  // offsets the mask is cut with must be the drawing's, not the card's first.
+  WX._resetWeatherSlotsForTests();
+  const slot = WX.atlasWeatherSlot("gaps");
+  const real = slot.attach.bind(slot), seen = [];
+  slot.attach = (stage, o) => { seen.push(o.plateOffsets); return real(stage, o); };
+  view.floorGap = 150; view.horizGap = 0;
+  const { c } = card({ weather: W({}, RAINING, "gaps") });
+  const ranges = c._all().filter(n => n.tagName && String(n.tagName).toLowerCase() === "input" && n.type === "range");
+  const gap = ranges.find(n => n.min === "60"), horiz = ranges.find(n => n.min === "-120");
+  gap.value = "300"; gap.dispatchEvent({ type: "input" });
+  horiz.value = "60"; horiz.dispatchEvent({ type: "input" });
+  const want = (g, h) => JSON.stringify([...WX.plateOffsets(ISO.fabricFrame(MODEL, FLOORS, g, h))]);
+  const got = seen.map(m => JSON.stringify([...(m || [])]));
+  view.floorGap = 150; view.horizGap = 0;
+  check("overlay: the mask follows the Spacing and L/R sliders", seen.length >= 3
+    && got[0] === want(150, 0) && got[got.length - 2] === want(300, 0) && got[got.length - 1] === want(300, 60)
+    && want(150, 0) !== want(300, 0), { n: seen.length, got });
+});
 tryCase("overlay: free is still, paid animates", () => {
   WX._resetWeatherSlotsForTests();
   const free = overlayIn(card({ tier: "free", weather: W({}) }).stage);

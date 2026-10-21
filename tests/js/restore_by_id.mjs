@@ -31,7 +31,8 @@ function check(name, ok, detail) {
   if (!ok) failures.push({ name, detail: detail === undefined ? "" : String(detail) });
 }
 
-const START = "const up = await ctx.actions.mapsUpload({";
+// From the picture check (a backup with no or a non-PNG picture) to the end of one map.
+const START = "let b64 = bm.png_base64";
 const END = "        ok++;";
 const a = SRC.indexOf(START), b = SRC.indexOf(END, a);
 if (a < 0 || b < 0) throw new Error("the restore body is not where this harness looks");
@@ -40,8 +41,9 @@ const BODY = SRC.slice(a, b);
 check("the restore does not locate the new map by name",
       !/find\(m=>m\.name===\(bm\.name/.test(SRC));
 check("it reads the id the upload returned", /up\?\.map\?\.id/.test(BODY));
+check("a map without a picture is still uploaded, as one without a picture", /allow_no_image: !b64/.test(BODY));
 
-const run = new Function("ctx", "bm", `return (async () => {${BODY}})();`);
+const run = new Function("ctx", "bm", "noPic", "_backupImageToPng", `return (async () => {${BODY}})();`);
 
 const created = [], updates = [];
 let n = 0;
@@ -59,6 +61,7 @@ const ctx = {
   },
 };
 
-for (const bm of BACKUP) await run(ctx, bm);
+const noPic = [];
+for (const bm of BACKUP) await run(ctx, bm, noPic, async () => { throw new Error("not a PNG in this fixture"); });
 
 console.log(JSON.stringify({ updates, created, checks, failures }));

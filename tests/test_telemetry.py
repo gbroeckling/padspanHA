@@ -248,7 +248,9 @@ def test_nothing_from_the_house_is_in_the_report():
     # 2026-10-17, a Pro option to show the Atlas as Overview.
     # Raised 4230 -> 4270 for features.day_theme and features.light_theme
     # (~36 bytes): which themes anyone wears, now that there are seven.
-    assert len(text) < 4270
+    # Raised 4270 -> 4295 for env.rooms_with_height (~24 bytes): whether
+    # anyone gives a room its own height (Live Aboard's tall rooms).
+    assert len(text) < 4295
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -731,6 +733,7 @@ def test_an_unconfigured_house_says_so():
     T.assert_shareable(p)
     assert p["env"]["calibration_no_floor"] == 2, "neither fixture point has a floor"
     assert p["env"]["floors_with_height"] == 0
+    assert p["env"]["rooms_with_height"] == 0
     assert p["env"]["scanners_with_z"] == 0
     assert p["health"]["has_metre_anchor"] is False, "no map carries a measurement"
     assert p["health"]["floors_all_default"] is True
@@ -744,6 +747,10 @@ def test_a_configured_house_says_that_instead():
         {"id": "main", "floor_to_floor_m": 2.8},
         {"id": "up", "base_elevation_m": 2.8},
     ]
+    dom[DATA_MODEL].data["room_meta"] = {
+        "Living": {"floor_id": "main", "color": "#112233", "height_m": 5.6},
+        "Kitchen": {"floor_id": "main", "color": "#445566"},
+    }
     dom[DATA_FABRIC].data["scanner_positions_m"] = {
         "a": {"x_m": 1.0, "y_m": 1.0, "z_m": 0.9},
         "b": {"x_m": 2.0, "y_m": 2.0, "z_m": 3.6},
@@ -756,6 +763,8 @@ def test_a_configured_house_says_that_instead():
     T.assert_shareable(p)
     assert p["env"]["calibration_no_floor"] == 0
     assert p["env"]["floors_with_height"] == 2
+    assert p["env"]["rooms_with_height"] == 1
+    assert "Living" not in json.dumps(p), "a count, never the room"
     assert p["env"]["scanners_with_z"] == 2
     assert p["health"]["floors_all_default"] is False
     assert p["health"]["scanner_z_uniform"] is False, "two distinct mounting heights"
