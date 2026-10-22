@@ -20,7 +20,7 @@ Everything new in this version is off until you turn it on. With nothing turned 
 - **README: "What PadSpan never touches".** What PadSpan reads, what it creates, the buttons that are the only exceptions, and what uninstalling removes. A repo test now fails if code tries to change another integration's devices, entities or config entries.
 
 ### Fixed
-- **On Home Assistant before 2026.8, PadSpan's devices no longer merge into Bermuda's** (or another Bluetooth integration's) device for the same Bluetooth address, so a labelled device no longer overwrites that device's name and model. From 2026.8, where Home Assistant keeps them apart itself, nothing changes.
+- **On Home Assistant before 2026.8, PadSpan's devices no longer merge into Bermuda's** (or another Bluetooth integration's) device for the same Bluetooth address, so a newly labelled device no longer overwrites that device's name and model. Devices already merged stay merged (Home Assistant doesn't split them on those versions). From 2026.8, where Home Assistant keeps them apart itself, nothing changes.
 
 ---
 

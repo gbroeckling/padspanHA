@@ -21,8 +21,11 @@ const { tierAtLeast: _ovTierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The iPhone setup path (#69): with iphone_irk_guide on, an iPhone is told
 // about its IRK, never the Android-only BLE Transmitter.
+// If it can't load, the Overview goes on as it always was (the guide reads as off).
 const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, IPHONE_META, NO_PHONES_TEXT, HELP_NOTE_TEXT } =
-  await import(`./iphone_irk.js${new URL(import.meta.url).search}`);
+  await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
+    .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, iphoneSetupAlert: () => "",
+                    IPHONE_META: "", NO_PHONES_TEXT: "", HELP_NOTE_TEXT: "" }));
 
 /** Pro, with Settings → UI Structure → "Overview shows the Atlas" on. */
 export function atlasHomeOn(ctx){

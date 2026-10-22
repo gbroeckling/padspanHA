@@ -15,8 +15,10 @@
 
 // The iPhone setup path (#69), behind iphone_irk_guide; query inherited from
 // our own module URL so the ?b= cache-buster propagates.
+// If it can't load, the page goes on as it always was (the guide reads as off).
 const { iphoneGuideOn, isApplePhone, renderIphonePath } =
-  await import(`./iphone_irk.js${new URL(import.meta.url).search}`);
+  await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
+    .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {} }));
 
 // ── The shared display vocabulary ───────────────────────────────────────────
 // Four things this view says over and over — a chip, a signal reading, an age,
