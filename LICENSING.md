@@ -26,9 +26,9 @@ change the software's licence.
 
 ## The name
 
-"PadSpan" is a trademark of Garry Broeckling. The GPL covers the code, not the
-name: a modified or forked version must not be called PadSpan, or presented
-as PadSpan or as coming from its author.
+"PadSpan" is a trademark of Devcon Computer Services Limited. The GPL covers
+the code, not the name: a modified or forked version must not be called
+PadSpan, or presented as PadSpan or as coming from its author.
 
 ## Contributions
 

@@ -22,8 +22,9 @@ Bought a key, or got one by email? Press **Enter licence key** and paste it
 **Show licence key** shows it (administrators only). A PadSpan Pro key also unlocks
 [PadSpan Bright](https://github.com/gbroeckling/padspanBright)'s tools.
 
-Keys and pricing: [padspan.traks.ca](https://padspan.traks.ca). **PadSpan Pro for life** is on
-offer until December 31, 2026.
+Keys and pricing: [padspan.traks.ca](https://padspan.traks.ca). PadSpan Pro is $45 CAD a year.
+**PadSpan Pro for life** is $89 CAD, once, at the launch price until November 30, 2026, and
+$168 CAD from December 1, 2026.
 
 ## Get Pro free by testing it
 

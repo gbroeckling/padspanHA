@@ -124,21 +124,24 @@ _SKUS = {
     "padspan-bright-annual":        (35.00, ("bright",),               ("upgrade",)),
     "padspan-pro-annual":           (45.00, ("padspan",),              ("upgrade", "bright")),
     "padspan-bright-to-pro-upgrade": (12.00, ("upgrade", "padspan"),   ()),
-    # The launch offer (until Dec 31, 2026). The server decides a SKU with
-    # BOTH 'padspan' and 'lifetime' before every other tier.
+    # Pro for life: the form's own amount is the launch price ($89, until
+    # Nov 30, 2026; the page's script makes it $168 from Dec 1). The server
+    # decides a SKU with BOTH 'padspan' and 'lifetime' before every other tier.
     "padspan-pro-lifetime":         (89.00, ("padspan", "lifetime"),   ("upgrade", "bright")),
 }
 
 
-def test_the_lifetime_offer_matches_the_panel_and_ends_on_the_same_date(html: str) -> None:
+def test_the_lifetime_price_matches_the_panel_and_switches_on_the_same_date(html: str) -> None:
     import re
     from pathlib import Path
     ed = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
           / "padspan-ha" / "views" / "editions.js").read_text(encoding="utf-8")
-    until = re.search(r'PRO_LIFETIME_UNTIL = "([^"]+)"', ed).group(1)
-    price = re.search(r'PRO_LIFETIME_PRICE = "\$(\d+) CAD"', ed).group(1)
-    assert f'data-offer-until="{until}"' in html, "the site hides the offer at a different moment than the panel"
-    assert float(price) == _SKUS["padspan-pro-lifetime"][0]
+    until = re.search(r'PRO_LIFETIME_LAUNCH_UNTIL = "([^"]+)"', ed).group(1)
+    launch = re.search(r'PRO_LIFETIME_LAUNCH_PRICE = "\$(\d+) CAD"', ed).group(1)
+    full = re.search(r'PRO_LIFETIME_FULL_PRICE = "\$(\d+) CAD"', ed).group(1)
+    assert f'data-launch-until="{until}"' in html, "the site switches the price at a different moment than the panel"
+    assert float(launch) == _SKUS["padspan-pro-lifetime"][0] == 89.0
+    assert full == "168" and 'value="168.00"' in html and "$168" in html, "the page's switch to $168"
 
 
 def test_every_sku_routes_to_the_tier_it_claims(html: str) -> None:

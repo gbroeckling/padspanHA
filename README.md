@@ -333,4 +333,4 @@ If this project saved you time (or you just like knowing which room your cat is 
 
 Copyright (C) 2026 Garry Broeckling. Dual-licensed: the [GNU General Public License v3.0](LICENSE) for everyone, and a commercial licence for businesses that need other terms. See [LICENSING.md](LICENSING.md).
 
-PadSpan is a trademark of Garry Broeckling. Forks are welcome under the GPL, but not under the PadSpan name.
+PadSpan is a trademark of Devcon Computer Services Limited. Forks are welcome under the GPL, but not under the PadSpan name.

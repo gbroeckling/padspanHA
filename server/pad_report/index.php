@@ -129,7 +129,7 @@ $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 0;
       <li><b>Claims.</b> A one-year Pro key emailed to them; garry@bcmail.net gets their address. New keys are tagged <code>invite-&hellip;</code> in the licence table. The list never holds an email.</li>
       <li><b>Add a wave.</b> On bcmail: <code>sudo -u www-data python3 /var/www/clients/client1/web10/private/pro_invites.py add &lt;8-char ids&gt; --until 2026-12-31 --wave N</code> (ids from the Pro Candidates tab, marketing-engagement.xlsx on 5810).</li>
       <li><b>Testers.</b> Two years of Pro free while the usage report stays on; keys issued by hand (licence API, plan <code>tester</code>). Overview offers it once per install.</li>
-      <li><b>Also running.</b> GitHub discussion #92: first 20 who email hello@traks.ca get a year (by hand, plan pro, 365 days), until December 31. Pro for life $89 CAD until December 31.</li>
+      <li><b>Also running.</b> GitHub discussion #92: first 20 who email hello@traks.ca get a year (by hand, plan pro, 365 days), until December 31. Pro for life $89 CAD until November 30, then $168 CAD from December 1 (no end date).</li>
     </ul>
   </details>
 </section>

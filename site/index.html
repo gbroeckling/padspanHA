@@ -128,6 +128,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
   <div class="inner">
     <span class="brand">PadSpan™ HA</span>
     <a href="#whatsnew">What's new</a>
+    <a href="demo/">Try the demo</a>
     <a href="#screenshots">Screenshots</a>
     <a href="#features">Features</a>
     <a href="#lights">Lights</a>
@@ -152,7 +153,8 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <span class="badge">11 Languages</span>
   </div>
   <div class="cta">
-    <a class="btn primary" href="https://github.com/gbroeckling/padspanHA">View on GitHub</a>
+    <a class="btn primary" href="demo/">Try the live demo</a>
+    <a class="btn ghost" href="https://github.com/gbroeckling/padspanHA">View on GitHub</a>
     <a class="btn ghost" href="https://github.com/gbroeckling/padspanHA/releases/latest">Download Latest Release</a>
     <a class="btn ghost" href="#install">Install via HACS</a>
   </div>
@@ -2608,6 +2610,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
     <source src="images/demo-walkthrough.mp4" type="video/mp4">
     Your browser doesn't support embedded video. <a href="images/demo-walkthrough.mp4">Download the demo</a>.
   </video>
+  <p style="margin-top:14px">Or try it yourself, in your browser, on a made-up house: <a class="btn primary" href="demo/">Open the live demo</a></p>
 </section>
 
 <div class="divider"></div>
@@ -2987,16 +2990,16 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
         <input type="hidden" name="return" value="https://padspan.traks.ca/?bought=1">
         <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro with PayPal</button>
       </form>
-      <div id="pro-lifetime" data-offer-until="2027-01-01T08:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
-        <div style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">Launch offer · until December 31, 2026</div>
-        <div style="font-size:30px;font-weight:900;margin:4px 0">$89 <small style="font-size:14px;font-weight:600">CAD, once</small></div>
-        <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">PadSpan Pro for life. No renewals, ever. Already have a PadSpan key? Pay with the same email and that key becomes lifetime.</p>
+      <div id="pro-lifetime" data-launch-until="2026-12-01T08:00:00Z" style="margin-top:16px;padding:14px;border:1px solid var(--acc2);border-radius:12px">
+        <div id="pl-kick" style="font-size:13px;color:var(--acc2);font-weight:800;letter-spacing:.04em;text-transform:uppercase">Launch price · until November 30, 2026</div>
+        <div style="font-size:30px;font-weight:900;margin:4px 0"><span id="pl-price">$89</span> <small style="font-size:14px;font-weight:600">CAD, once</small></div>
+        <p style="font-size:13px;color:var(--mut,#94a3b8);margin:0 0 12px">PadSpan Pro for life. No renewals, ever. <span id="pl-later">$89 until November 30, 2026; from December 1 it's $168.</span> Already have a PadSpan key? Pay with the same email and that key becomes lifetime.</p>
         <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
           <input type="hidden" name="cmd" value="_xclick">
           <input type="hidden" name="business" value="garry@bcmail.net">
-          <input type="hidden" name="item_name" value="PadSpan Pro — lifetime (launch offer)">
+          <input type="hidden" name="item_name" value="PadSpan Pro — lifetime">
           <input type="hidden" name="item_number" value="padspan-pro-lifetime">
-          <input type="hidden" name="amount" value="89.00">
+          <input type="hidden" name="amount" value="89.00" id="pl-amount">
           <input type="hidden" name="currency_code" value="CAD">
           <input type="hidden" name="no_shipping" value="1">
           <input type="hidden" name="notify_url" value="https://traks.ca/license/?action=ipn">
@@ -3004,7 +3007,9 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
           <button class="btn primary" type="submit" style="cursor:pointer;border:0">Buy PadSpan Pro for life with PayPal</button>
         </form>
       </div>
-      <script>(function(){var e=document.getElementById("pro-lifetime");if(e&&Date.now()>=Date.parse(e.getAttribute("data-offer-until")))e.remove();})();</script>
+      <script>(function(){var e=document.getElementById("pro-lifetime");if(!e||Date.now()<Date.parse(e.getAttribute("data-launch-until")))return;
+        document.getElementById("pl-kick").textContent="PadSpan Pro for life";document.getElementById("pl-price").textContent="$168";
+        document.getElementById("pl-later").textContent="";document.getElementById("pl-amount").value="168.00";})();</script>
       <p style="font-size:12px;color:var(--mut,#94a3b8);margin-top:12px">Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version>v0.37.0</span>. Enter your key under Settings → Features → PadSpan licence.</p>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
         <div style="font-size:13px;color:var(--acc2);font-weight:700;margin-bottom:2px">Already have PadSpan Bright Pro?</div>
@@ -3073,7 +3078,7 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
       <a href="https://github.com/gbroeckling/padspanHA/blob/main/LICENSE">License</a>
       <a href="https://traks.ca/projects/">More projects</a>
     </div>
-    <div>Copyright © 2026 Garry Broeckling · Licensed under the GNU General Public License v3.0 · PadSpan is a trademark of Garry Broeckling</div>
+    <div>Copyright © 2026 Garry Broeckling · Licensed under the GNU General Public License v3.0 · PadSpan is a trademark of Devcon Computer Services Limited</div>
   </div>
 </footer>
 

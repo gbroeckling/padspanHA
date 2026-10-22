@@ -16,7 +16,7 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
-const { BUY_URL, PRO_PRICE, PRO_LIFETIME_PRICE, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
+const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
@@ -3128,13 +3128,12 @@ function _settingsLicence(ctx, el){
   row.appendChild(tourBtn);
   card.appendChild(row);
   if (hasKey) card.appendChild(_licenceHomes(ctx, el, s));
-  // The launch offer, under the buy button while it lasts (editions.js; the
-  // site takes its form away at the same moment). A lifetime key never has
-  // the buy button, so never this either.
+  // Pro for life, under the buy button (editions.js: $89 until November 30,
+  // then $168). A lifetime key never has the buy button, so never this either.
   if (canBuy && proLifetimeOpen()) {
     card.appendChild(el("div", { style: "font-size:12px;margin-top:8px" },
       el("a", { href: BUY_URL, target: "_blank", rel: "noopener", style: "color:#a7f3d0;text-decoration:underline" },
-        "Or PadSpan Pro for life — " + PRO_LIFETIME_PRICE + ", once, until December 31.")));
+        "Or PadSpan Pro for life — " + proLifetimeWords() + ".")));
   }
   // The 90-day trial (views/trial_offer.js): the same card every paid wall
   // offers, shown here while there is no key at all. Its own Buy link is off —

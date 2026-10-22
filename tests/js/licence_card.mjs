@@ -49,7 +49,7 @@ const KINDS = {
   lifetime: { tier: "pro", pro_has_key: true, pro_active: true, license_tier: "pro", pro_days_left: 26000,
               forensics_license_expires: "2099-12-31" },
 };
-const DAYS = { during: Date.parse("2026-10-15T12:00:00Z"), after: Date.parse("2027-01-01T09:00:00Z") };
+const DAYS = { during: Date.parse("2026-10-15T12:00:00Z"), after: Date.parse("2026-12-01T09:00:00Z") };   // launch price, then $168
 
 function licenceCard(settings) {
   const ctx = {
