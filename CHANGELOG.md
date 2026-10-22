@@ -4,6 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.162 — An iPhone setup path, Live Aboard flies to people arriving, and Follow the sun (2026-10-22)
+
+Everything new in this version is off until you turn it on. With nothing turned on, PadSpan looks and works as in 0.38.161, apart from the safer delete buttons and the Bluetooth device fix below.
+
+### New
+- **iPhone setup path.** iPhones have no BLE Transmitter (that sensor is only in the Android Companion App), so with this on an iPhone in Overview's phone list and in the IRK Manager's phone wizard walks through getting its IRK (an IRK Capture ESP32 or a Mac), adding it with Private BLE Device and checking that it resolves. Android phones see the same steps as before. Off by default: Settings → Features → iPhone Setup Path.
+- **Live Aboard flies to people who arrive.** Besides what goes off, Live Aboard can fly to a person or tag you pick when they go into a room you pick, or, with no room picked, any room or a person arriving home. Same card and same rules as "Fly to when it goes off", at most once every 2 minutes for each one, and it never replaces a card that is already up. Only people and tags Live Aboard shows are flown to. Off until someone is picked: Settings → Live Aboard → "Fly to when they arrive".
+- **Follow the sun.** The panel is Day from sunrise to sunset (Light (inverted) without PadSpan Pro), then the theme you picked (Night if that is Day or Light). It goes by Home Assistant's Sun integration (`sun.sun`); without it the theme stays as picked. Off by default: Settings → Appearance → Follow the sun.
+- **Frame-rate readout in Live Aboard.** A small readout in the corner says how many times a second the 3D house is drawn, and "0 fps at rest" when nothing is moving. This browser only, off by default: Settings → Live Aboard → "Show the frame rate".
+
+### Changed
+- **Deleting another integration's entity, or an area, asks twice.** Manage → Delete on an entity that isn't PadSpan's names the integration it belongs to and asks you to confirm two times; deleting an HA area says it is deleted from Home Assistant itself (its devices and entities become unassigned) and asks two times. PadSpan's own entities keep the in-row Yes, delete / Cancel.
+- **Enable & Track only ever turns on a phone's BLE Transmitter.** The phone action re-enables that one Companion App sensor and nothing else; any other entity is refused before anything changes.
+- **README: "What PadSpan never touches".** What PadSpan reads, what it creates, the buttons that are the only exceptions, and what uninstalling removes. A repo test now fails if code tries to change another integration's devices, entities or config entries.
+
+### Fixed
+- **On Home Assistant before 2026.8, PadSpan's devices no longer merge into Bermuda's** (or another Bluetooth integration's) device for the same Bluetooth address, so a labelled device no longer overwrites that device's name and model. From 2026.8, where Home Assistant keeps them apart itself, nothing changes.
+
+---
+
 ## 0.38.161 — The heatmap is PadSpan Pro's, and Pro for life's new price (2026-10-22)
 
 ### Changed
