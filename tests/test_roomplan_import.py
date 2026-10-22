@@ -309,3 +309,12 @@ def test_nothing_new_in_the_usage_report():
     # 0.38.160: only whether it is turned on, sent only when it is (never a scan or its rooms).
     src = (_CC / "telemetry.py").read_text(encoding="utf-8")
     assert src.count("roomplan") == 1 and '"roomplan_import_enabled": "plan_scan_import"' in src
+
+
+def test_the_nesting_limit_is_the_same_everywhere_and_ignores_text():
+    # GitHub's Linux Python read 100,000 levels where Windows gave up, so the
+    # refusal came out differently; the parser now refuses past _MAX_DEPTH itself.
+    with pytest.raises(RoomPlanParseError, match="could not read it as JSON"):
+        parse_roomplan(b"[" * 300 + b"]" * 300)
+    with pytest.raises(RoomPlanParseError, match="no rooms, walls or floors"):
+        parse_roomplan(json.dumps({"note": "[[[[[" * 100}).encode())

@@ -262,6 +262,9 @@ def _extras(captures: list[dict]) -> dict[str, list]:
     return {"walls": walls, "openings": openings, "objects": objects}
 
 
+_MAX_DEPTH = 200   # a RoomPlan export is a few levels deep
+
+
 def parse_roomplan(data: bytes) -> dict[str, Any]:
     """Parse a RoomPlan JSON export's raw bytes into parse_sh3d's contract.
 
@@ -279,7 +282,18 @@ def parse_roomplan(data: bytes) -> dict[str, Any]:
             "This looks like a USDZ (3D model) export. Export the scan as JSON "
             "(CapturedRoom or CapturedStructure) and import that instead.")
     try:
-        doc = json.loads(data.decode("utf-8-sig"))
+        text = data.decode("utf-8-sig")
+        # Refuse absurd nesting before parsing: whether json.loads gives up on
+        # it (RecursionError) depends on the Python build, so the answer
+        # wouldn't be the same on every machine. A real export is a few
+        # levels deep. Strings are blanked first so brackets in text don't count.
+        depth = deepest = 0
+        for m in re.finditer(r"[\[\]{}]", re.sub(r'"(?:\\.|[^"\\])*"', '""', text)):
+            depth += 1 if m.group() in "[{" else -1
+            deepest = max(deepest, depth)
+            if deepest > _MAX_DEPTH:
+                raise ValueError("nested too deeply")
+        doc = json.loads(text)
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise RoomPlanParseError("Not a valid RoomPlan JSON file (could not read it as JSON)") from exc
     if not isinstance(doc, dict):

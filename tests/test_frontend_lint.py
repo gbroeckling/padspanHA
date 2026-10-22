@@ -35,8 +35,14 @@ pytestmark = pytest.mark.skipif(_NPX is None, reason="node/npx is not installed"
 
 
 def _eslint(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(_ESLINT + list(args), cwd=_ROOT, input=stdin,
-                          capture_output=True, text=True, encoding="utf-8", timeout=300)
+    # npx fetches eslint on first use; where that fetch stalls (it has on
+    # GitHub's runners, timing out at 300 s), the lint skips like a missing npx.
+    # The CI workflow lints in a step of its own first, which fails instead.
+    try:
+        return subprocess.run(_ESLINT + list(args), cwd=_ROOT, input=stdin,
+                              capture_output=True, text=True, encoding="utf-8", timeout=300)
+    except subprocess.TimeoutExpired:
+        pytest.skip("eslint did not answer within 300 s (npx fetch stalled)")
 
 
 @pytest.fixture(scope="module", autouse=True)
