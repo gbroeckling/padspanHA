@@ -5,14 +5,24 @@
 <link rel="icon" href="padspan_ha_static/padspan-ha/assets/logo-icon.png">
 <style>
   html, body { margin: 0; height: 100%; background: #0a150e; color: #e8f0ea; font-family: system-ui, sans-serif; }
-  #demo-bar { position: fixed; top: 0; left: 0; right: 0; height: 36px; z-index: 1000; display: flex; align-items: center; gap: 14px;
-              padding: 0 12px; background: #1b4332; border-bottom: 1px solid #2d6a4f; font-size: 14px; box-sizing: border-box; }
-  #demo-bar b { color: #ffd166; }
+  /* The bar takes the height it needs and the demo the rest, so a phone's
+     bar can wrap to two lines without hiding anything under it. */
+  body { display: flex; flex-direction: column; }
+  #demo-bar { flex: none; z-index: 1000; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+              padding: 6px 12px; background: #1b4332; border-bottom: 1px solid #2d6a4f; font-size: 14px; box-sizing: border-box; }
+  #demo-bar b { color: #ffd166; white-space: nowrap; }
+  #demo-bar span { white-space: nowrap; }
   #demo-bar nav { margin-left: auto; display: flex; gap: 6px; }
-  #demo-bar a { color: #e8f0ea; text-decoration: none; padding: 4px 10px; border-radius: 6px; border: 1px solid #2d6a4f; }
+  #demo-bar a { color: #e8f0ea; text-decoration: none; padding: 4px 10px; border-radius: 6px; border: 1px solid #2d6a4f; white-space: nowrap; }
   #demo-bar a[aria-current="page"] { background: #2d6a4f; }
-  #app { position: absolute; top: 36px; left: 0; right: 0; bottom: 0; overflow: auto; }
+  #app { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; }
   #app > * { display: block; min-height: 100%; }
+  /* A phone: the notice on one line (small), the three pages as one row of equal buttons. */
+  @media (max-width: 640px) {
+    #demo-bar { font-size: 12px; gap: 6px 8px; padding: 6px 8px; }
+    #demo-bar nav { margin-left: 0; width: 100%; }
+    #demo-bar nav a { flex: 1 1 0; text-align: center; padding: 6px 4px; }
+  }
 </style>
 </head><body>
 <div id="demo-bar" role="banner">
