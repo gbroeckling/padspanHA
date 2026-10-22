@@ -252,7 +252,12 @@ def test_nothing_from_the_house_is_in_the_report():
     # anyone gives a room its own height (Live Aboard's tall rooms).
     # Raised 4295 -> 4335 for licence_group (~35 bytes): Garry, 2026-10-21,
     # a licence's homes seen together (homes 3-5 need their report on).
-    assert len(text) < 4335
+    # Raised 4335 -> 4540 (2026-10-22) for how the Overview is set up (~205
+    # bytes in features, every report: overview_kind, atlas_layout,
+    # overview_show_trails and the isometric stack's floor gap, offset, focus
+    # and zoom as bucket words) — Garry asked for it — and env.quiet_hidden
+    # (~26 bytes, only from a house with quiet mode on, as this fixture is).
+    assert len(text) < 4540
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1098,12 +1103,11 @@ def test_a_full_day_fits_by_sending_fewer_presets_not_by_refusing(monkeypatch):
     assert len(json.dumps(p)) <= T._MAX_BYTES < len(json.dumps(one_more)), "only as many dropped as needed"
     # A day with room for them all sends all ten. (Without the log counts:
     # with them, this day sat 12 bytes under the cap, and the theme flags
-    # took those.)
+    # took those. 2026-10-22: nor the Find My counts — the Overview's set-up
+    # words, in every report, took the rest; such a full day sends nine.)
     monkeypatch.setattr(ws_common, "_log_handler", SimpleNamespace(counts={}))
     h2 = _findmy_house()
     h2.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"] = h.data[DOMAIN][DATA_SETTINGS].data["lights_showcase_presets"]
-    for n in _FM_EVENTS:
-        T.bump(h2, n, 250)
     assert len(T.build_payload(h2)["presets"]) == 10
 
 
@@ -1634,3 +1638,91 @@ def test_new_switches_are_reported_only_when_on():
     src = Path(T.__file__).read_text(encoding="utf-8")
     assert "for k, word in _FEATURE_ON_ONLY.items():\n        if settings.get(k):" in src.replace("\r\n", "\n")
     assert "room_hold_used" in T.EVENTS and "vacuum_imported" in T.EVENTS and "vacuum_point_accepted" in T.EVENTS
+
+
+# ── Quiet mode's field signal and the Overview's set-up (2026-10-22) ─────────
+
+def _quiet_house(quiet: bool, objects: list[dict]):
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data["quiet_mode"] = quiet
+    h.data[DOMAIN]["snapshot_cache"][1]["objects"]["list"] = objects
+    return h
+
+
+def test_quiet_hidden_buckets_the_share_quiet_mode_hides():
+    """Unlabelled, unidentified and unfollowed, of all objects in the snapshot."""
+    def bucket(n_hidden, n_shown):
+        objs = ([{"kind": "ble", "address": f"hidden-{i}"} for i in range(n_hidden)]
+                + [{"kind": "ble", "address": f"shown-{i}", "identified": True} for i in range(n_shown)])
+        p = T.build_payload(_quiet_house(True, objs))
+        T.assert_shareable(p)
+        return p["env"].get("quiet_hidden")
+    assert bucket(0, 4) == "lt25" and bucket(1, 3) == "25_50" and bucket(2, 2) == "50_75"
+    assert bucket(3, 1) == "gt75" and bucket(4, 0) == "gt75"
+    # Labelled or followed (by address, or an iBeacon's key) counts as shown.
+    objs = [{"kind": "ble", "address": "x1", "user_label": "Keys"},
+            {"kind": "ble", "address": _MAC1.lower()},
+            {"kind": "ibeacon", "key": "beacon-1"}, {"kind": "ble", "address": "x4"}]
+    h = _quiet_house(True, objs)
+    h.data[DOMAIN][DATA_SETTINGS].data["followed_addrs"] = [_MAC1, "BEACON-1"]
+    assert T.build_payload(h)["env"]["quiet_hidden"] == "25_50"
+    # No objects: nothing to say.
+    assert "quiet_hidden" not in T.build_payload(_quiet_house(True, []))["env"]
+    # Only words from the list leave.
+    p = T.build_payload(_quiet_house(True, objs))
+    p["env"]["quiet_hidden"] = "37%"
+    with pytest.raises(ValueError, match="quiet_hidden"):
+        T.assert_shareable(p)
+
+
+def test_a_quiet_off_report_is_unchanged_by_the_quiet_signal():
+    """43 of 57 houses run quiet mode off: their report carries no quiet_hidden,
+    and is byte for byte the quiet-on report less that key and the switch."""
+    objs = [{"kind": "ble", "address": "a"}, {"kind": "ble", "address": "b", "identified": True}]
+    on = T.build_payload(_quiet_house(True, objs))
+    off = T.build_payload(_quiet_house(False, objs))
+    assert "quiet_hidden" not in off["env"] and on["env"]["quiet_hidden"] == "50_75"
+    del on["env"]["quiet_hidden"]
+    on["features"]["quiet_mode"] = False
+    assert json.dumps(off) == json.dumps(on)
+    # Missing or any non-True value reads as off too.
+    for v in (None, 0, "yes"):
+        h = _quiet_house(False, objs)
+        h.data[DOMAIN][DATA_SETTINGS].data["quiet_mode"] = v
+        assert "quiet_hidden" not in T.build_payload(h)["env"]
+
+
+def test_the_overview_set_up_goes_as_words(monkeypatch):
+    from custom_components.padspan_ha import licence
+    tier = {"t": "free"}
+    monkeypatch.setattr(licence, "hass_tier", lambda hass: tier["t"])
+
+    def ov(**settings):
+        h = _hass()
+        h.data[DOMAIN][DATA_SETTINGS].data.update(settings)
+        p = T.build_payload(h)
+        T.assert_shareable(p)
+        return {k: v for k, v in p["features"].items()
+                if k in ("overview_kind", "atlas_layout", "overview_show_trails") or k.startswith("overview_iso_")}
+    # Unset: settings_store's defaults.
+    assert ov() == {"overview_kind": "iso", "atlas_layout": "new", "overview_show_trails": False,
+                    "overview_iso_floor_gap": "default", "overview_iso_horiz_gap": "none",
+                    "overview_iso_focus": "all", "overview_iso_zoom": "1"}
+    # The Atlas is the Overview only on Pro (overview.js atlasHomeOn); the flat map otherwise.
+    assert ov(overview_atlas=True)["overview_kind"] == "iso"
+    assert ov(overview_atlas=True, overview_2d_mode=True)["overview_kind"] == "flat"
+    tier["t"] = "pro"
+    assert ov(overview_atlas=True, overview_2d_mode=True)["overview_kind"] == "atlas"
+    assert ov(atlas_layout_v2=False)["atlas_layout"] == "classic"
+    assert ov(overview_show_trails=True)["overview_show_trails"] is True
+    gaps = {150: "default", 60: "tight", 119: "tight", 120: "custom", 170: "custom", 180: "custom", 181: "wide", 340: "wide"}
+    assert {g: ov(overview_iso_floor_gap=g)["overview_iso_floor_gap"] for g in gaps} == gaps
+    assert ov(overview_iso_horiz_gap=-40)["overview_iso_horiz_gap"] == "offset"
+    assert ov(overview_iso_focus=0)["overview_iso_focus"] == "one_floor"
+    zooms = {1.0: "1", 0.4: "lt1", 1.5: "1_2", 2.0: "1_2", 2.5: "gt2"}
+    assert {z: ov(overview_iso_zoom=z)["overview_iso_zoom"] for z in zooms} == zooms
+    # Never the numbers themselves.
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data.update(overview_iso_floor_gap=217, overview_iso_zoom=1.37, overview_iso_horiz_gap=-63)
+    text = json.dumps(T.build_payload(h)["features"])
+    assert "217" not in text and "1.37" not in text and "63" not in text

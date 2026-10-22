@@ -1215,7 +1215,8 @@ function _settingsPresence(ctx, el){
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
       "Home Assistant; the country and language set in Home Assistant (never looked up from your address); with a licence used on more than two homes, a short code made from the key (never the key) that is the same in each of that licence's homes, so they're seen together; how many scanners, floors, rooms, placed lights, walls, maps, calibration points, " +
       "IRKs and objects you have and which related integrations are installed; which feature switches " +
-      "are on; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine " +
+      "are on; how the Overview is set up (its kind, layout and display switches, as words, never numbers or names); " +
+      "with quiet mode on, roughly what share of objects it hides; which tabs and tools got used (and whether IRKs are resolving anything); a few health flags; how hard the machine " +
       "works (load, Home Assistant's CPU and memory, sampled once a minute) and what class of machine it is (CPU count, RAM size, board); and how many warnings each part of the " +
       "code logged. Counts, versions and flags only \u2014 never addresses, keys, device or room names, " +
       "coordinates or timestamps. Preview is the complete list. PadSpan is developed against one house; " +

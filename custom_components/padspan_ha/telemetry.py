@@ -19,7 +19,9 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
         report is on)
     how many scanners / floors / rooms / placed lights / walls / maps / IRKs
     which feature switches are on, and which theme the panel wears
-        (Day, Light, or a named palette; Night is the absence of all three)
+        (Day, Light, or a named palette; Night is the absence of all three),
+        and how the Overview is set up (its kind, layout and display
+        switches, as words); with quiet mode on, the share it hides, bucketed
     how many times each tab was opened and each feature used since the
         last report (an allow-listed vocabulary — see EVENTS)
     a few health flags: crypto present, BLE callback alive, coverage floor
@@ -549,6 +551,45 @@ _FEATURE_ON_ONLY: dict[str, str] = {
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
 _FEATURE_ENUMS: tuple[str, ...] = ("data_mode", "cpu_mode", "lights_automorph_style", "theme_palette")
+# Quiet mode's share of objects hidden (env.quiet_hidden, only when it is on).
+QUIET_HIDDEN_BUCKETS: tuple[str, ...] = ("lt25", "25_50", "50_75", "gt75")
+
+
+def _num_or(v: Any, default: float) -> float:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else default
+
+
+# How the Overview is set up (Garry, 2026-10-22), as words from closed
+# lists, never the numbers behind them: which screen it is (overview.js: the
+# Atlas when on and Pro, else the flat 2D map, else the isometric stack), the
+# Atlas layout, and the isometric stack's spacing, focus and zoom by bucket.
+def _overview_features(settings: dict[str, Any], pro: bool) -> dict[str, Any]:
+    """features' Overview words (settings_store's defaults where unset)."""
+    gap = _num_or(settings.get("overview_iso_floor_gap"), 150)
+    zoom = _num_or(settings.get("overview_iso_zoom"), 1.0)
+    return {
+        "overview_kind": "atlas" if (settings.get("overview_atlas") is True and pro)
+                         else "flat" if settings.get("overview_2d_mode") else "iso",
+        "atlas_layout": "classic" if settings.get("atlas_layout_v2") is False else "new",
+        "overview_show_trails": bool(settings.get("overview_show_trails")),
+        "overview_iso_floor_gap": "default" if gap == 150 else "tight" if gap < 120 else "wide" if gap > 180 else "custom",
+        "overview_iso_horiz_gap": "none" if _num_or(settings.get("overview_iso_horiz_gap"), 0) == 0 else "offset",
+        "overview_iso_focus": "all" if settings.get("overview_iso_focus") is None else "one_floor",
+        "overview_iso_zoom": "1" if zoom == 1.0 else "lt1" if zoom < 1.0 else "1_2" if zoom <= 2.0 else "gt2",
+    }
+
+
+def _quiet_hidden(obj_list: list[Any], followed: Any) -> str | None:
+    """Share of the snapshot's objects quiet mode hides (not labelled,
+    identified or followed), bucketed; None with no objects."""
+    objs = [o for o in obj_list if isinstance(o, dict)]
+    if not objs:
+        return None
+    fol = {str(a).upper() for a in (followed or []) if a}
+    hidden = sum(1 for o in objs if not o.get("user_label") and not o.get("identified")
+                 and str(o.get("address") or o.get("key") or "").upper() not in fol)
+    share = hidden / len(objs)
+    return "lt25" if share < 0.25 else "25_50" if share < 0.5 else "50_75" if share < 0.75 else "gt75"
 
 # Saved Showcase "look" presets (Mapping -> Lights) — Garry: "add presets and
 # their components into the opt-in records" so popular combinations across
@@ -1035,7 +1076,7 @@ def _positioning_now(coord) -> dict[str, int]:
 def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, Any]:
     """The report. `consume` resets the usage counters (a real send does;
     the Preview does not, so previewing never loses a day's counts)."""
-    from .licence import edition as _edition, hass_tier as _tier  # noqa: PLC0415
+    from .licence import edition as _edition, hass_tier as _tier, tier_at_least as _tier_at_least  # noqa: PLC0415
     dom = hass.data.get(DOMAIN, {})
     st = dom.get(DATA_SETTINGS)
     settings: dict[str, Any] = (st.data if st else {}) or {}
@@ -1398,7 +1439,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         env["hw"] = _hw_payload(hass)
     except Exception:
         pass
+    # Quiet mode on only (a panel filter the backend never applies): how much
+    # of the house it hides. A quiet-off report is exactly what it was.
+    if settings.get("quiet_mode") is True:
+        _qh = _quiet_hidden(obj_list, settings.get("followed_addrs"))
+        if _qh:
+            env["quiet_hidden"] = _qh
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
+    features.update(_overview_features(settings, _tier_at_least(_tier(hass), "pro")))
     for k, word in _FEATURE_ON_ONLY.items():
         if settings.get(k):
             features[word] = True
@@ -1681,6 +1729,8 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
             raise ValueError(f"not a count in {path}")
 
     env = payload.get("env")
+    if isinstance(env, dict) and "quiet_hidden" in env and env["quiet_hidden"] not in QUIET_HIDDEN_BUCKETS:
+        raise ValueError("env.quiet_hidden not in the vocabulary")
     hw = env.get("hw") if isinstance(env, dict) else None
     if hw is not None:
         if not isinstance(hw, dict):
