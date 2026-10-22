@@ -46,6 +46,27 @@ from .presence_rules import away_timeout_s, calc_distance as _calc_distance
 from .entity_identity import alternates_of, pick_uid_key, registry_ready, uid_safe
 from .subzones import SubzoneEntityMixin, async_setup_entities as _subzone_entities
 
+# A PadSpan device names its Bluetooth address as a device connection. Before
+# Home Assistant 2026.8 the device registry matched connections across ALL
+# integrations, so a labelled device and, say, Bermuda's device for the same
+# address became ONE device, and PadSpan's name, manufacturer and model
+# overwrote the other integration's. From 2026.8 the registry keeps each
+# integration's devices apart, and the connection stays as it always was.
+# Before it, PadSpan leaves the connection out. If the version can't be read,
+# nothing changes.
+try:
+    from homeassistant.const import MAJOR_VERSION as _HA_MAJOR, MINOR_VERSION as _HA_MINOR
+    _HA_KEEPS_BT_APART = (int(_HA_MAJOR), int(_HA_MINOR)) >= (2026, 8)
+except Exception:  # noqa: BLE001
+    _HA_KEEPS_BT_APART = True
+
+
+def _bt_connections(address: Any) -> set:
+    """This device's Bluetooth connection, unless HA would merge it into another integration's."""
+    if not address or not _HA_KEEPS_BT_APART:
+        return set()
+    return {(dr.CONNECTION_BLUETOOTH, address)}
+
 _LOGGER = logging.getLogger(__name__)
 
 # The away rule lives in presence_rules; this alias keeps existing call sites
@@ -280,7 +301,7 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
             "model": "BLE Presence Tracker",
             "model_id": model_id,
             "serial_number": serial_number,
-            "connections": {(dr.CONNECTION_BLUETOOTH, address)}
+            "connections": _bt_connections(address),
         }
 
     # ── state ─────────────────────────────────────────────────────────────────
@@ -407,7 +428,7 @@ class PadSpanDistanceSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity
             "model": "BLE Presence Tracker",
             "model_id": model_id,
             "serial_number": serial_number,
-            "connections": {(dr.CONNECTION_BLUETOOTH, address)}
+            "connections": _bt_connections(address),
         }
 
     @property
@@ -495,7 +516,7 @@ class PadSpanScannerDistanceSensor(CoordinatorEntity[PresenceCoordinator], Senso
             "model": "BLE Presence Tracker",
             "model_id": model_id,
             "serial_number": serial_number,
-            "connections": {(dr.CONNECTION_BLUETOOTH, address)}
+            "connections": _bt_connections(address),
         }
 
     @property
