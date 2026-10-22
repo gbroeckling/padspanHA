@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.160 — One licence for five homes, and new things to turn on for the Atlas, Live Aboard and wall screens (2026-10-21)
+## 0.38.160 — One licence for five homes, and new things to turn on for the Atlas, Live Aboard and wall screens (2026-10-22)
 
 Everything new in this version is off until you turn it on. With nothing turned on, PadSpan looks and works as in 0.38.159.
 
