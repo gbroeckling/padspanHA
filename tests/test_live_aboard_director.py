@@ -60,7 +60,7 @@ def harness() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix", ["rules:", "fly:", "touch:", "off:"])
+@pytest.mark.parametrize("prefix", ["rules:", "fly:", "touch:", "off:", "people:"])
 def test_the_director_harness_covers_each_part(harness, prefix) -> None:
     got = {k: v for k, v in harness["cases"].items() if k.startswith(prefix)}
     assert got, f"no {prefix} case ran: {sorted(harness['cases'])}"
@@ -181,3 +181,91 @@ def test_the_card_clears_the_bar_and_grows_on_a_wall() -> None:
     rule = la[la.index(":host([data-wall]) .la3d-bar,"):]
     rule = rule[:rule.index("}")]
     assert ":host([data-wall]) .la3d-dircard," in rule and rule.endswith("{zoom:var(--wall-ctl,var(--wall-ui,1))")
+
+
+# ═══ people and tags (atlas_3d_director_people) ═══════════════════════════════
+
+_PEOPLE = [{"key": "person.ann_smith", "rooms": ["Kitchen", "Hall"]}, {"key": "beacon:aa11bb22", "rooms": []}]
+
+
+def test_people_are_off_by_default_and_in_the_schema() -> None:
+    assert DEFAULT_SETTINGS["atlas_3d_director_people"] == []
+    keys = {str(getattr(k, "schema", k)) for k in WS.ws_settings_set.ws_schema}
+    assert "atlas_3d_director_people" in keys
+
+
+def test_people_are_cleaned_once_each_and_capped() -> None:
+    raw = [{"key": "person.ann_smith", "rooms": ["Kitchen", "Kitchen", "", "  ", 7, "Hall"]},
+           {"key": "person.ann_smith", "rooms": []},                      # twice: the first
+           {"key": "beacon:aa11bb22"},                                      # no rooms: any
+           {"key": "beacon:has space"}, {"key": "beacon:"}, {"key": "light.x"}, {"key": "person.Bad"},
+           {"key": 7}, "person.x", None]
+    assert WS._atlas_3d_director_people(raw) == [{"key": "person.ann_smith", "rooms": ["Kitchen", "Hall"]},
+                                                 {"key": "beacon:aa11bb22", "rooms": []}]
+    assert WS._atlas_3d_director_people({"key": "person.x"}) == []
+    many = [{"key": f"person.p{i}", "rooms": [f"Room {j}" for j in range(30)]} for i in range(30)]
+    got = WS._atlas_3d_director_people(many)
+    assert len(got) == WS.DIRECTOR_PEOPLE_MAX == 12 and all(len(w["rooms"]) == WS.DIRECTOR_ROOMS_MAX == 12 for w in got)
+    assert WS._atlas_3d_director_people([{"key": "person.a", "rooms": ["x" * 121, "bad\nroom"]}]) == [{"key": "person.a", "rooms": []}]
+
+
+def test_people_save_through_settings_set_and_a_bad_payload_wipes_nothing() -> None:
+    h, conn = _hass(), MagicMock()
+    conn.user = MagicMock(is_admin=True)
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "atlas_3d_director_people": _PEOPLE}))
+    assert not conn.send_error.called
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    assert data["atlas_3d_director_people"] == _PEOPLE
+    for bad in ("person.x", {"key": "person.x"}, None):
+        _run(WS.ws_settings_set(h, conn, {"id": 2, "atlas_3d_director_people": bad}))
+        assert data["atlas_3d_director_people"] == _PEOPLE, f"{bad!r} wiped what was saved"
+    _run(WS.ws_settings_set(h, conn, {"id": 3, "atlas_3d_director_people": []}))
+    assert data["atlas_3d_director_people"] == [], "an empty list is off"
+
+
+def test_only_an_administrator_picks_the_people() -> None:
+    h, conn = _hass(), MagicMock()
+    conn.user = MagicMock(is_admin=False)
+    data = h.data[DOMAIN][DATA_SETTINGS].data
+    before = dict(data)
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "atlas_3d_director_people": _PEOPLE}))
+    assert conn.send_error.called and conn.send_error.call_args[0][1] == "unauthorized"
+    assert data == before
+
+
+def test_the_people_never_go_in_the_usage_report_and_the_report_is_unchanged() -> None:
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data.update({"atlas_3d_enabled": True})
+    plain = T.build_payload(h)
+    h.data[DOMAIN][DATA_SETTINGS].data.update({"atlas_3d_director_people": list(_PEOPLE)})
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    flat = json.dumps(p)
+    for word in ("atlas_3d_director_people", "director_people", "ann_smith", "aa11bb22", "Kitchen"):
+        assert word not in flat, word
+    assert p.get("features") == plain.get("features"), "picking people adds nothing to the report"
+
+
+def test_the_view_hands_over_the_tracked_rooms_and_follows_own_flight() -> None:
+    lp = _js(_WWW / "lights_panel.js")
+    assert "atlas_3d_director_people: s.atlas_3d_director_people," in lp
+    la = _js(_VIEWS / "live_aboard.js")
+    fn = la[la.index("function makeDirector(){"):]
+    fn = fn[:fn.index("\n  }\n")]
+    assert "rooms: () => (tracked ? tracked.rooms() : [])," in fn
+    assert "flyTo: (key) => panel.moveQuietly(() => flyToPerson(String(key)))," in fn
+    assert "toPerson: (key) => flyToPerson(key)," in la, "Follow and the director fly to someone the same way"
+    tr = _code(_VIEWS / "live_aboard_tracked.js")
+    assert "rooms(){" in tr and "live_aboard" not in _js(_VIEWS / "live_aboard_tracked.js")
+    src = _code(_VIEWS / "live_aboard_director.js")
+    assert "export const COOLDOWN_MS = 120000;" in src and "settings.atlas_3d_director_people" in _js(_VIEWS / "live_aboard_director.js")
+
+
+def test_the_settings_row_picks_people_and_rooms() -> None:
+    sec = _js(_VIEWS / "settings.js")
+    fn = sec[sec.index("function _atlas3dDirector("):]
+    fn = fn[:fn.index("\nfunction ")]
+    assert 'save("atlas_3d_director_people", next,' in fn
+    for words in ("Fly to when they arrive", "Pick a person or tag", "Any room, or arriving home", "once every 2 minutes",
+                  "Nobody picked: off.", "Off: nobody picked."):
+        assert words in fn, words

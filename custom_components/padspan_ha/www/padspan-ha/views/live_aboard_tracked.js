@@ -361,7 +361,7 @@ export function wantedOf(d){
       if (!o.beacon || !(o.shown || r) || theirs.has(o.key) || (o.roomOnly && !pin)) continue;
       out.push({ key: "beacon:" + o.key, kind: "beacon", recipe: r, floor_id: pin ? pin.floor_id || o.floor_id : o.floor_id,
                  x: pin ? pin.x : o.x, y: pin ? pin.y : o.y, z: pin && pin.z !== null ? pin.z : CARRY_H, centre: true, pinned: !!pin,
-                 name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin, radios) });
+                 name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin, radios), room: o.room });
     }
     const v = vacuumOf(d.snapshot);
     if (v) out.push(v);
@@ -683,6 +683,7 @@ export function createTrackedLayer(ctx){
         const before = drawnKey(I);
         if (w.kind === "beacon") dressTag(I, w);
         I.pinned = !!w.pinned;
+        I.room = w.kind === "person" ? (w.person && w.person.at ? w.person.at.room || "" : "") : w.room || "";
         if (w.kind === "person" && w.person) {
           // Who, where and since when: the room they are in, as first seen or as it changed.
           const room = w.person.at ? w.person.at.room || "" : "", was = since.get(w.key);
@@ -747,6 +748,12 @@ export function createTrackedLayer(ctx){
     whereOf(key){
       const I = items.get(key);
       return I && I.F ? { x: I.at.x, y: I.at.y, z: I.at.z, floor: I.F.fl.id, elev: I.F.fl.elev, shown: shown(I), walking: I.walking } : null;
+    },
+    /** The people and tags drawn and the room each is in now (the room
+     *  their card says, "" for none): [{key, name, room}]. */
+    rooms(){
+      return [...items.values()].filter(I => I.F && (I.kind === "person" || I.kind === "beacon"))
+        .map(I => ({ key: I.key, name: I.card ? I.card.title : I.key, room: I.room || "" }));
     },
     /** The people drawn, by name: [{key, name, floor, dim}]. */
     people(){

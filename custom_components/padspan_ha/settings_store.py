@@ -184,6 +184,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_3d_look": "atlas",             # Live Aboard's look: "atlas" = the same as the Atlas (its Showcase theme, or the plain Atlas) | "own"
     "atlas_3d_home_idle_s": 60,           # the sidebar's Live Aboard goes back to its home view after this long untouched: 0 (never) | 30 | 60 | 300
     "atlas_3d_director": [],              # the sidebar's Live Aboard flies to these when they go off: [{"entity": event.*|binary_sensor.*|alarm_control_panel.*, "camera": camera.* or ""}]; [] = off
+    "atlas_3d_director_people": [],       # ...and to these people and tags when they go into a room: [{"key": person.x | "beacon:<tracked key>", "rooms": [room names; [] = any room, or a person arriving home]}]; [] = off; personal, kept here only, never sent
     "atlas_3d_carries": {},               # who carries what: {"person.x": [tracked keys]}; personal, kept here only, never sent
     "emergency_entities": [],             # the Atlas emergency lighting test's lights, when set; [] = HA's "emergency" groups, else the default rule — see emergency_test.py
     "vacation_mode_tracked_since": 0,     # backend-only: epoch-s from which every vacation span is in vacation_mode_periods (stamped once on upgrade if Vacation Mode ran before spans were recorded; 0 = always) — vacation_mode.py learned_pattern
