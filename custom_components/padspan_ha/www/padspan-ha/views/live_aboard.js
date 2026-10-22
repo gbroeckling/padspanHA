@@ -4335,6 +4335,9 @@ function createSlot(slotKey){
       following: () => panel.following(),
       touchedAt: () => panel.touchedAt(),
       fly: (eid) => panel.moveQuietly(() => findDevice(String(eid))),
+      // People and tags (settings.atlas_3d_director_people): the rooms the tracked layer already has, and Follow's own flight.
+      rooms: () => (tracked ? tracked.rooms() : []),
+      flyTo: (key) => panel.moveQuietly(() => flyToPerson(String(key))),
       goHome: () => panel.goHome(),
     });
   }

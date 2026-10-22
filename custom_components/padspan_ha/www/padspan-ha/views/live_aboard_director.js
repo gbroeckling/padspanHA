@@ -19,6 +19,15 @@
 //                (Home Assistant's camera proxy, the picture it already
 //                hands out: one image, no stream). After HOLD_MS it flies
 //                back to the home view.
+//   people       settings.atlas_3d_director_people: [{key, rooms}], picked in
+//                the same row; [] (the default) is off. A person or tag drawn
+//                (the tracked layer's own room for each: nothing new
+//                tracked or kept) going into one of its rooms, or with none
+//                picked any room, or a person arriving home (their Home
+//                Assistant person going to home). The same card and flight
+//                (the view's own fly to someone, as Follow does), at most once
+//                each COOLDOWN_MS, so pacing between two rooms is not news; it
+//                never takes the place of another card that is up.
 //   someone here a touch in the last TOUCH_GRACE_MS, someone followed, or
 //                Edit, Furnish, full screen or a card open: the card shows,
 //                the camera stays where they put it. Touched while the card
@@ -30,6 +39,7 @@
 
 export const HOLD_MS = 20000;              // the card up, then home
 export const TOUCH_GRACE_MS = 20000;       // touched this recently: the camera is theirs
+export const COOLDOWN_MS = 120000;         // a person or tag flown to at most this often
 const LOOK_MS = 1000;                      // the states looked at this often
 const DOMAINS = ["event", "binary_sensor", "alarm_control_panel"];
 const BAD = new Set(["", "unknown", "unavailable"]);
@@ -57,6 +67,28 @@ export function wentOff(eid, was, st){
     case "alarm_control_panel": return a === "triggered" && b !== "triggered";
     default: return false;
   }
+}
+
+/** settings.atlas_3d_director_people as [{key, rooms}] (rooms [] for any). */
+export function watchedOf(raw){
+  const out = [];
+  for (const w of Array.isArray(raw) ? raw : []) {
+    const k = w && typeof w.key === "string" ? w.key : "";
+    if (!(k.startsWith("person.") || k.startsWith("beacon:")) || out.some(o => o.key === k)) continue;
+    out.push({ key: k, rooms: (Array.isArray(w.rooms) ? w.rooms : []).filter(r => typeof r === "string" && r) });
+  }
+  return out;
+}
+
+/** Did `w` ({key, rooms}) just arrive? Into `room` from `was` (the room it
+ *  was last seen in; undefined: never seen, never news), one of its rooms or
+ *  with none picked any; or, with none picked, home (a person's state from
+ *  `stWas` to `st`; stWas undefined: the first look). The card's words, or null. */
+export function arrivedOf(w, was, room, stWas, st){
+  const sw = stWas ? String(stWas.state) : "";
+  if (!w.rooms.length && stWas !== undefined && sw && !BAD.has(sw) && sw !== "home" && st && String(st.state) === "home") return "Arrived home";
+  if (was !== undefined && room && room !== was && (!w.rooms.length || w.rooms.includes(room))) return `Went into ${room}`;
+  return null;
 }
 
 /** What the card says happened. */
@@ -110,6 +142,8 @@ const CSS = `
  *   touchedAt()       when the screen was last touched (performance.now ms)
  *   fly(eid)          the camera to the device or its room, untouched by the
  *                     panel's count of touches; false: nowhere to go
+ *   rooms()           the people and tags drawn: [{key, name, room}]
+ *   flyTo(key)        the camera to someone drawn, as fly; false: not drawn
  *   goHome()          back to the home view
  * }
  */
@@ -129,8 +163,13 @@ export function createDirector(v){
   for (const ev of ["pointerup", "wheel", "dblclick"]) card.addEventListener(ev, stop);
 
   let seen = new Map(), look = null, hold = null, shown = null, fired = 0, flights = 0, returns = 0;
+  // People: the room each was last seen in, each person's state, when each last flew.
+  let roomOf = new Map(), stOf = new Map();
+  const lastAt = new Map();
 
   const triggers = () => { const s = v.settings(); return s ? triggersOf(s.atlas_3d_director) : []; };
+  const watched = () => { const s = v.settings(); return s ? watchedOf(s.atlas_3d_director_people) : []; };
+  const armed = () => (triggers().length > 0 || watched().length > 0) && v.sidebar();
 
   function hide(){
     if (hold !== null) { clearTimeout(hold); hold = null; }
@@ -138,24 +177,23 @@ export function createDirector(v){
     while (card.firstChild) card.removeChild(card.firstChild);
     shown = null;
   }
-  function paint(t, st, cam){
+  function paint(who, words, cam, camId){
     while (card.firstChild) card.removeChild(card.firstChild);
-    const at = (st && st.attributes) || {};
     const top = doc.createElement("div"); top.className = "la3d-dtop";
     const name = doc.createElement("div"); name.className = "la3d-dname";
-    name.textContent = String(at.friendly_name || t.entity);
+    name.textContent = who;
     const x = doc.createElement("button");
     x.type = "button"; x.textContent = "×"; x.title = "Close"; x.setAttribute("aria-label", "Close");
     x.addEventListener("click", v.guard((e) => { stop(e); hide(); }));
     top.append(name, x);
-    const what = doc.createElement("div"); what.className = "la3d-dwhat"; what.textContent = wordsOf(t.entity, st);
+    const what = doc.createElement("div"); what.className = "la3d-dwhat"; what.textContent = words;
     const when = doc.createElement("div"); when.className = "la3d-dwhen";
     when.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     card.append(top, what, when);
     const src = cam ? snapshotOf(cam) : null;
     if (src) {
       const img = doc.createElement("img");
-      img.alt = String((cam.attributes && cam.attributes.friendly_name) || t.camera);
+      img.alt = String((cam.attributes && cam.attributes.friendly_name) || camId);
       img.src = src;
       img.addEventListener("error", () => { try { img.remove(); } catch (_) { /* gone */ } });
       card.appendChild(img);
@@ -164,14 +202,42 @@ export function createDirector(v){
   }
   /** `t` went off: the card, and the camera there unless someone is using the screen. */
   function direct(t, st, states){
+    const at = (st && st.attributes) || {};
+    present(t.entity, String(at.friendly_name || t.entity), wordsOf(t.entity, st), t.camera ? states[t.camera] : null, t.camera,
+      () => v.fly(t.entity));
+  }
+  function present(id, who, words, cam, camId, fly){
     fired++;
     hide();
-    paint(t, st, t.camera ? states[t.camera] : null);
+    paint(who, words, cam, camId);
     const free = !v.busy() && !v.following() && now() - v.touchedAt() > TOUCH_GRACE_MS;
-    const flew = free && v.fly(t.entity) === true;
+    const flew = free && fly() === true;
     if (flew) flights++;
-    shown = { entity: t.entity, flew, touch: v.touchedAt() };
+    shown = { entity: id, flew, touch: v.touchedAt() };
     hold = setTimeout(v.guard(done), HOLD_MS);
+  }
+  /** The people and tags picked: who just arrived, first in the list, not
+   *  flown to in the last COOLDOWN_MS: {key, name, words}, or null. Each
+   *  one's room and state kept for the next look either way. */
+  function arrivals(states){
+    const watch = watched();
+    if (!watch.length) { roomOf = new Map(); stOf = new Map(); return null; }
+    const drawn = new Map();
+    for (const r of (typeof v.rooms === "function" ? v.rooms() : null) || []) if (r && typeof r.key === "string") drawn.set(r.key, r);
+    let hit = null;
+    for (const w of watch) {
+      const d = drawn.get(w.key), room = d && typeof d.room === "string" ? d.room : "";
+      const st = w.key.startsWith("person.") ? states[w.key] || null : null;
+      const words = arrivedOf(w, roomOf.get(w.key), room, stOf.get(w.key), st);
+      // Out of sight a while, or its room not known: still where it was last seen.
+      if (room) roomOf.set(w.key, room);
+      else if (!roomOf.has(w.key)) roomOf.set(w.key, "");
+      stOf.set(w.key, st);
+      const last = lastAt.get(w.key);
+      if (words && !hit && (last === undefined || now() - last >= COOLDOWN_MS))
+        hit = { key: w.key, name: String((d && d.name) || (st && st.attributes && st.attributes.friendly_name) || w.key), words };
+    }
+    return hit;
   }
   function done(){
     hold = null;
@@ -182,7 +248,7 @@ export function createDirector(v){
   }
   function check(){
     const list = triggers();
-    if (!list.length || !v.sidebar()) { seen = new Map(); return; }
+    if (!armed()) { seen = new Map(); roomOf = new Map(); stOf = new Map(); return; }
     const states = v.states() || {};
     const next = new Map();
     let hit = null;
@@ -194,28 +260,34 @@ export function createDirector(v){
           && (!hit || (t.entity.startsWith("alarm_control_panel.") && !hit.t.entity.startsWith("alarm_control_panel.")))) hit = { t, st };
     }
     seen = next;
+    const who = arrivals(states);
     if (hit) direct(hit.t, hit.st, states);
+    // Someone arriving never takes the place of a card that is up.
+    else if (who && shown === null) {
+      lastAt.set(who.key, now());
+      present(who.key, who.name, who.words, null, "", () => typeof v.flyTo === "function" && v.flyTo(who.key));
+    }
   }
   function loop(){
     look = null;
     check();
-    if (triggers().length && v.sidebar()) look = setTimeout(v.guard(loop), LOOK_MS);
+    if (armed()) look = setTimeout(v.guard(loop), LOOK_MS);
   }
 
   return {
     /** The newest card is in: look while there are triggers on the sidebar. */
     attach(){
-      if (!triggers().length || !v.sidebar()) { this.detach(); return; }
+      if (!armed()) { this.detach(); return; }
       check();
       if (look === null) look = setTimeout(v.guard(loop), LOOK_MS);
     },
     /** The view left: nothing looks, nothing waits. */
-    detach(){ if (look !== null) { clearTimeout(look); look = null; } hide(); seen = new Map(); },
+    detach(){ if (look !== null) { clearTimeout(look); look = null; } hide(); seen = new Map(); roomOf = new Map(); stOf = new Map(); },
     /** Is its card up (the panel's idle return waits for it)? */
     showing: () => shown !== null,
     check,
     state(){
-      return { triggers: triggers().map(t => t.entity), looking: look !== null, holding: hold !== null, fired, flights, returns,
+      return { triggers: triggers().map(t => t.entity), watched: watched().map(w => w.key), looking: look !== null, holding: hold !== null, fired, flights, returns,
                card: shown ? { ...shown, text: card.textContent, img: (card.querySelector && card.querySelector("img") || {}).src || null } : null };
     },
     dispose(){

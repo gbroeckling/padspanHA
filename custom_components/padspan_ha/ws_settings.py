@@ -229,6 +229,42 @@ def _atlas_3d_director(raw: Any) -> list[dict[str, str]]:
     return out
 
 
+# The director's people (the same Settings row): the people and tags it flies
+# to when they go into a room, by the key Live Aboard draws them with (a
+# person's entity id, or "beacon:" and the tag's tracked key), each with the
+# rooms that count ([] = any room, or a person arriving home). Personal, like
+# carries: kept in this install's settings and its backups only.
+DIRECTOR_PEOPLE_MAX, DIRECTOR_ROOMS_MAX = 12, 12
+_DIRECTOR_ROOM = re.compile(r"^[^\x00-\x1f\x7f]{1,120}$")
+
+
+def _atlas_3d_director_people(raw: Any) -> list[dict[str, Any]]:
+    """[{key, rooms}]: each person or tag once, at most DIRECTOR_PEOPLE_MAX,
+    each with at most DIRECTOR_ROOMS_MAX room names, once each. Anything else
+    is dropped."""
+    out: list[dict[str, Any]] = []
+    if not isinstance(raw, list):
+        return out
+    for item in raw:
+        if len(out) >= DIRECTOR_PEOPLE_MAX:
+            break
+        if not isinstance(item, dict):
+            continue
+        key, rooms = item.get("key"), item.get("rooms")
+        ok = isinstance(key, str) and (bool(_CARRIES_PERSON.match(key)) or (
+            key.startswith("beacon:") and bool(_CARRIES_KEY.match(key[len("beacon:"):]))))
+        if not ok or any(o["key"] == key for o in out):
+            continue
+        clean: list[str] = []
+        for r in rooms if isinstance(rooms, list) else []:
+            if isinstance(r, str) and _DIRECTOR_ROOM.match(r) and r.strip() and r not in clean:
+                clean.append(r)
+            if len(clean) >= DIRECTOR_ROOMS_MAX:
+                break
+        out.append({"key": key, "rooms": clean})
+    return out
+
+
 def _clamped(value: Any, lo: float, hi: float, default: float, *, zero_ok: bool = False) -> float:
     """A number kept lo..hi (0 kept too when zero_ok); unreadable is the default."""
     try:
@@ -497,6 +533,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_3d_home_idle_s"): vol.Any(int, float, str, None),
         vol.Optional("atlas_3d_carries"): vol.Any(dict, None),
         vol.Optional("atlas_3d_director"): vol.Any(list, None),
+        vol.Optional("atlas_3d_director_people"): vol.Any(list, None),
         vol.Optional("lights_showcase"): bool,
         vol.Optional("lights_hide_untouched"): bool,
         vol.Optional("lights_hide_device_codes"): bool,
@@ -654,7 +691,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "unauthorized",
                                       "Only an administrator can change Live Aboard's library or photo settings")
                 return
-        if "atlas_3d_people" in msg or "atlas_3d_tags" in msg or "atlas_3d_carries" in msg or "atlas_3d_director" in msg:
+        if "atlas_3d_people" in msg or "atlas_3d_tags" in msg or "atlas_3d_carries" in msg or "atlas_3d_director" in msg or "atlas_3d_director_people" in msg:
             # Who shows in the house, and what each person carries (personal):
             # an administrator's, as Live Aboard's Views menu and Settings say.
             _user = getattr(connection, "user", None)
@@ -834,6 +871,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "atlas_3d_director" in msg and isinstance(msg["atlas_3d_director"], list):
             # A non-list is ignored, never stored as empty (carries' rule).
             payload["atlas_3d_director"] = _atlas_3d_director(msg["atlas_3d_director"])
+        if "atlas_3d_director_people" in msg and isinstance(msg["atlas_3d_director_people"], list):
+            payload["atlas_3d_director_people"] = _atlas_3d_director_people(msg["atlas_3d_director_people"])
         if "ble_max_age_s" in msg:
             payload["ble_max_age_s"] = max(30, min(14400, int(msg["ble_max_age_s"])))
         # ── Radio map / heatmap visualization controls (v0.15.x) ──────────

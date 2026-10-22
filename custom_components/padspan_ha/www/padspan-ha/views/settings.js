@@ -3598,6 +3598,57 @@ function _atlas3dDirector(ctx, el, settings, save, row){
   wrap.appendChild(rows);
   wrap.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "On the sidebar, Live Aboard flies to a doorbell that rings, a door that opens, a sensor that goes off or an alarm that is triggered, shows a card (with the camera's snapshot if you picked one), then goes back to its home view after 20 s. If someone touched the screen in the last 20 s, or a card, Edit or Furnish is open, only the card shows."));
+  // People and tags (settings.atlas_3d_director_people): who, and the rooms
+  // that count ([] = any room, or a person arriving home).
+  const snapObjs = (((ctx.state && ctx.state.live && ctx.state.live.snapshot) || {}).objects || {}).list;
+  const tagName = new Map();
+  for (const o of Array.isArray(snapObjs) ? snapObjs : []) {
+    const k = o && String(o.key || o.address || "");
+    if (k && ["ble", "private_ble", "ibeacon"].includes(o.kind) && (o.user_label || o.identified)) tagName.set("beacon:" + k, String(o.user_label || o.private_ble_name || o.name || k));
+  }
+  const whoOf = (k) => (k.startsWith("person.") ? nameOf(k) : `${tagName.get(k) || k.slice("beacon:".length)} (tag)`);
+  let people = (Array.isArray(settings.atlas_3d_director_people) ? settings.atlas_3d_director_people : [])
+    .filter(w => w && typeof w.key === "string").map(w => ({ key: w.key, rooms: Array.isArray(w.rooms) ? w.rooms.filter(r => typeof r === "string") : [] }));
+  const prows = el("div",{"data-la3d-director-people":""});
+  const pickP = document.createElement("select");
+  const pickR = document.createElement("select");
+  for (const sel of [pickP, pickR]) { sel.className = "select"; sel.style.width = "auto"; sel.style.maxWidth = "100%"; sel.disabled = !admin; }
+  pickP.appendChild(el("option",{value:""}, "Pick a person or tag…"));
+  for (const eid of Object.keys(states).filter(e => e.startsWith("person.")).sort()) pickP.appendChild(el("option",{value:eid}, nameOf(eid)));
+  for (const [k, n] of [...tagName].sort((a, b) => a[1].localeCompare(b[1]))) pickP.appendChild(el("option",{value:k}, `${n} (tag)`));
+  pickR.appendChild(el("option",{value:""}, "Any room, or arriving home"));
+  for (const r of Object.keys((ctx.state && ctx.state.model && ctx.state.model.room_geometry_m) || {}).sort()) pickR.appendChild(el("option",{value:r}, r));
+  const addP = el("button",{class:"btn inline"}, "Add");
+  addP.disabled = !admin;
+  if (!admin) addP.title = "Only an administrator can change this";
+  const keepP = (next) => { const was = people; people = next; paintP(); save("atlas_3d_director_people", next, ()=>{ people = was; paintP(); }); };
+  function paintP(){
+    while (prows.firstChild) prows.removeChild(prows.firstChild);
+    if (!people.length) prows.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-top:6px"}, "Off: nobody picked."));
+    for (const w of people) {
+      const x = el("button",{class:"btn inline",title:"Remove"}, "✕");
+      x.disabled = !admin;
+      x.addEventListener("click", ()=> keepP(people.filter(o => o.key !== w.key)));
+      prows.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:#e2e8f0"},
+        [el("span",{}, `${whoOf(w.key)} → ${w.rooms.length ? w.rooms.join(", ") : "any room, or arriving home"}`), x]));
+    }
+    addP.disabled = !admin || (people.length >= _DIRECTOR_MAX && !people.some(o => o.key === pickP.value));
+  }
+  pickP.addEventListener("change", paintP);
+  addP.addEventListener("click", ()=>{
+    const k = pickP.value, r = pickR.value;
+    if (!k) return;
+    const had = people.find(o => o.key === k);
+    // A room joins the rooms already picked; "any" stands for every room.
+    const rooms = !r ? [] : had && had.rooms.length ? (had.rooms.includes(r) ? had.rooms : [...had.rooms, r].slice(0, _DIRECTOR_MAX)) : [r];
+    keepP(had ? people.map(o => (o.key === k ? { key: k, rooms } : o)) : [...people, { key: k, rooms }]);
+    pickP.value = ""; pickR.value = "";
+  });
+  paintP();
+  wrap.appendChild(row("Fly to when they arrive", [pickP, pickR, addP]));
+  wrap.appendChild(prows);
+  wrap.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
+    "It can also fly to a person or tag you pick when they go into a room you pick (or, with no room picked, any room, or a person arriving home), with the same card and the same rules, at most once every 2 minutes each. Only people and tags Live Aboard shows (Views → Show people, Show tags & scanners) are flown to. Nobody picked: off."));
   return wrap;
 }
 function _atlas3dSection(ctx, el, settings){
