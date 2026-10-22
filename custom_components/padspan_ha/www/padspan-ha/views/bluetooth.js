@@ -13,6 +13,11 @@
 // Each advertisement carries _xref (cross-reference to tracked objects) from the backend.
 // The view also pulls snapshot.objects for richer display names and identification status.
 
+// The iPhone setup path (#69), behind iphone_irk_guide; query inherited from
+// our own module URL so the ?b= cache-buster propagates.
+const { iphoneGuideOn, isApplePhone, renderIphonePath } =
+  await import(`./iphone_irk.js${new URL(import.meta.url).search}`);
+
 // ── The shared display vocabulary ───────────────────────────────────────────
 // Four things this view says over and over — a chip, a signal reading, an age,
 // an empty state. They used to be written out inline at each call site with
@@ -2558,7 +2563,8 @@ function renderIrkPanel(ctx, snap) {
   // ── Phone Setup Wizard ──
   // Guided setup flow for adding phones. Only shows when phone_wizard_enabled setting is on.
   const _wizSettings = ctx.state.settings || {};
-  if (_wizSettings.phone_wizard_enabled) {
+  const _iphoneOn = iphoneGuideOn(_wizSettings);
+  if (_wizSettings.phone_wizard_enabled || _iphoneOn) {
     const wizCard = el("div", { class: "bt-panel", style: "margin-bottom:12px" });
     wizCard.appendChild(el("div", { class: "bt-panel-head" }, [
       el("div", { class: "bt-panel-title" }, "Track your phone"),
@@ -2626,19 +2632,24 @@ function renderIrkPanel(ctx, snap) {
       "Your phone will broadcast an iBeacon signal that PadSpan tracks automatically. No IRK needed."));
     wizCard.appendChild(pathB);
 
-    // Path C — iPhone
+    // Path C — iPhone. With the iPhone setup path on: the IRK steps and a
+    // check, and never the Android-only BLE Transmitter.
     const pathC = _path("I have an iPhone", "ok");
-    pathC.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55;margin-bottom:6px" },
-      "For iPhone tracking you need the IRK (Identity Resolving Key). The easiest method is the IRK Capture ESP32 tool. " +
-      "Alternative: if you have a Mac, extract the IRK from Keychain Access."));
-    const irkLink = el("a", {
-      href: "https://github.com/DerekSeaman/irk-capture",
-      target: "_blank",
-      rel: "noopener noreferrer",
-      class: "bt-link",
-      style: "font-size:12px",
-    }, "github.com/DerekSeaman/irk-capture");
-    pathC.appendChild(irkLink);
+    if (_iphoneOn) {
+      renderIphonePath(ctx, pathC, mobileApps.filter(n => isApplePhone({ name: n })));
+    } else {
+      pathC.appendChild(el("div", { class: "muted", style: "font-size:12px;line-height:1.55;margin-bottom:6px" },
+        "For iPhone tracking you need the IRK (Identity Resolving Key). The easiest method is the IRK Capture ESP32 tool. " +
+        "Alternative: if you have a Mac, extract the IRK from Keychain Access."));
+      const irkLink = el("a", {
+        href: "https://github.com/DerekSeaman/irk-capture",
+        target: "_blank",
+        rel: "noopener noreferrer",
+        class: "bt-link",
+        style: "font-size:12px",
+      }, "github.com/DerekSeaman/irk-capture");
+      pathC.appendChild(irkLink);
+    }
     wizCard.appendChild(pathC);
 
     wrap.appendChild(wizCard);

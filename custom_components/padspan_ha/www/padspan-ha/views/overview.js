@@ -19,6 +19,10 @@ const { mergeObjectLayer, trailPush, trailSvg } =
   await import(`./iso_motion.js${new URL(import.meta.url).search}`);
 const { tierAtLeast: _ovTierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
+// The iPhone setup path (#69): with iphone_irk_guide on, an iPhone is told
+// about its IRK, never the Android-only BLE Transmitter.
+const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, IPHONE_META, NO_PHONES_TEXT, HELP_NOTE_TEXT } =
+  await import(`./iphone_irk.js${new URL(import.meta.url).search}`);
 
 /** Pro, with Settings → UI Structure → "Overview shows the Atlas" on. */
 export function atlasHomeOn(ctx){
@@ -3084,7 +3088,8 @@ export function renderClassic(ctx){
           const res = await ctx.actions.wsCall("padspan_ha/companion_discover", {});
           const phones = res.phones || [];
           if (!phones.length) {
-            _bLoadMsg.textContent = "No phones detected. Enable the HA Companion App with BLE Transmitter.";
+            _bLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? NO_PHONES_TEXT
+              : "No phones detected. Enable the HA Companion App with BLE Transmitter.";
             _bLoadMsg.style.color = "#64748b";
             return;
           }
@@ -3265,7 +3270,14 @@ export function renderClassic(ctx){
               };
             };
 
-            if (phone.state === "sensor_not_registered") {
+            if (phone.state === "sensor_not_registered" && iphoneGuideOn(ctx.state.settings) && isApplePhone(phone)) {
+              // An iPhone: no BLE Transmitter exists for it, so the IRK steps.
+              meta.textContent = (phone.model ? phone.model + " · " : "") + IPHONE_META;
+              btn.textContent = "Setup";
+              btn.style.color = "#f59e0b";
+              btn.style.borderColor = "#92400e";
+              btn.addEventListener("click", () => alert(iphoneSetupAlert()));
+            } else if (phone.state === "sensor_not_registered") {
               // Phone is registered with HA but BLE Transmitter sensor isn't enabled
               meta.textContent = (phone.model ? phone.model + " · " : "") + "BLE Transmitter sensor not enabled";
               btn.textContent = "Setup";
@@ -3501,12 +3513,14 @@ export function renderClassic(ctx){
         const res = await ctx.actions.wsCall("padspan_ha/companion_discover", {});
         const phones = res.phones || [];
         if (!phones.length) {
-          _aLoadMsg.textContent = "No phones detected. Enable the HA Companion App with BLE Transmitter.";
+          _aLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? NO_PHONES_TEXT
+            : "No phones detected. Enable the HA Companion App with BLE Transmitter.";
           _aLoadMsg.style.color = "#64748b";
           return;
         }
 
-        _aLoadMsg.textContent = "Phones running the HA Companion App with BLE Transmitter. Click to track.";
+        _aLoadMsg.textContent = iphoneGuideOn(ctx.state.settings) ? "Phones running the HA Companion App. Click to track; an iPhone shows Setup."
+          : "Phones running the HA Companion App with BLE Transmitter. Click to track.";
 
         for (const phone of phones) {
           const row = document.createElement("div");
@@ -3608,12 +3622,15 @@ export function renderClassic(ctx){
 
           // Phone registered but BLE sensor not enabled (common on Android)
           if (phone.state === "sensor_not_registered") {
-            meta.textContent = (phone.model ? phone.model + " · " : "") + "BLE Transmitter sensor not enabled in Companion App";
+            // An iPhone (with the iPhone setup path on) gets the IRK steps instead.
+            const _iphone = iphoneGuideOn(ctx.state.settings) && isApplePhone(phone);
+            meta.textContent = (phone.model ? phone.model + " · " : "") + (_iphone ? IPHONE_META : "BLE Transmitter sensor not enabled in Companion App");
             const setupBtn = document.createElement("button");
             setupBtn.className = "btn inline";
             setupBtn.style.cssText = "font-size:12px;padding:4px 14px;color:#f59e0b;border-color:#92400e;font-weight:600;white-space:nowrap";
             setupBtn.textContent = "Setup";
             setupBtn.addEventListener("click", () => {
+              if (_iphone) { alert(iphoneSetupAlert()); return; }
               alert(
                 "To enable phone tracking:\n\n" +
                 "1. Open the HA Companion App on your phone\n" +
@@ -3768,6 +3785,7 @@ export function renderClassic(ctx){
 
         // Help note
         const helpNote = el("div",{style:"font-size:11px;color:#64748b;margin-top:8px"},
+          iphoneGuideOn(ctx.state.settings) ? HELP_NOTE_TEXT :
           "Not seeing your phone? Open Companion App \u2192 Settings \u2192 Companion App \u2192 Manage Sensors \u2192 BLE Transmitter \u2192 Enable. The phone will appear here once the transmitter is active.");
         _aPhoneBody.appendChild(helpNote);
       } catch (e) {

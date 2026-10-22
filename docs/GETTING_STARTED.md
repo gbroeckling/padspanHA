@@ -136,6 +136,14 @@ Apple devices use rotating MAC addresses for privacy. To track them:
 
 The Training Hub has a dedicated walkthrough: **Private BLE (Apple Devices)**.
 
+**There is no "BLE Transmitter" on an iPhone.** That sensor is in the Android Companion App only, so an iPhone is followed by its IRK instead:
+
+1. **Get the IRK.** Pair the iPhone with an ESP32 running [irk-capture](https://github.com/DerekSeaman/irk-capture), then press **Auto-detect IRKs** in Bluetooth → IRK Manager. Or, on a Mac signed into the same iCloud account, run `sudo defaults read /private/var/root/Library/Preferences/com.apple.bluetoothd.plist` and copy the IRK under the iPhone's name. Settings → Phone Tracking → **Detailed Setup Guide** has these and the Keychain way, step by step.
+2. **Add it** in HA: Settings → Devices & services → Add integration → **Private BLE Device**, and paste the IRK. PadSpan picks it up within a minute.
+3. **Check it resolves.** With the iPhone awake near a scanner it appears under **Registered IRK devices** in the IRK Manager, and the Resolved count goes up. **Test only** there checks a key without saving it.
+
+Turn on **iPhone Setup Path** in Settings → Features and PadSpan walks you through these steps itself: an iPhone in Overview's phone list gets them behind its Setup button, and the IRK Manager's phone wizard gets an "I have an iPhone" path with a Check button. It is off by default; Android phones see the same BLE Transmitter steps either way.
+
 ## Step 10: Occupancy Estimation
 
 The **Occupancy** view counts people in the building — never devices:
