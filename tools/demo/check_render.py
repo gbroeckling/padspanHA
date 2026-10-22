@@ -4,8 +4,9 @@
 
 Builds into a temporary folder, serves it on the first free port of
 127.0.0.1:8790-8799 (stopped at the end), and opens each page (the panel,
-the flat Atlas, Live Aboard 3D) with Playwright's Chrome. Prints one line per
-check and a screenshot per page into out_dir (default tools/demo/out). Exit 0
+the flat Atlas, Live Aboard 3D) with Playwright's Chrome, at a desktop size
+(1600x900) and a phone's (390x844). Prints one line per check and a
+screenshot per page and size into out_dir (default tools/demo/out). Exit 0
 only when every check passes.
 """
 
@@ -24,6 +25,12 @@ sys.path.insert(0, str(HERE))
 from build import build  # noqa: E402
 
 BANNER = "Demo — nothing here is a real house"
+SIZES = {"": (1600, 900), "_phone": (390, 844)}
+SHAPE = "(() => { const walk = (n) => { let t = ''; for (const c of n.childNodes) t += c.nodeType === 3 ? c.textContent : walk(c); if (n.shadowRoot) t += walk(n.shadowRoot); return t; }; return walk(document.getElementById('app')); })()"
+# Live Aboard's own window on what it draws (live_aboard.js _state), through
+# the module the page loaded (its ?b= build id), never a second copy.
+SLOT = ("async () => { const u = performance.getEntriesByType('resource').map(e => e.name).find(n => n.includes('/views/live_aboard.js?'));"
+        " const s = u && (await import(u)).liveAboardSlot('atlas'); return s ? s._state().tracked : null; }")
 
 
 def free_port() -> int:
@@ -55,29 +62,50 @@ def main(out: Path) -> int:
         base = f"http://127.0.0.1:{port}/index.html"
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(channel="chrome", headless=True, args=["--enable-unsafe-swiftshader"])
-                for page_name in ("panel", "atlas", "atlas3d"):
-                    page = browser.new_page(viewport={"width": 1400, "height": 900})
+                browser = p.chromium.launch(channel="chrome", headless=True, args=["--enable-gpu", "--enable-unsafe-swiftshader"])
+                for page_name, size in [(n, s) for s in SIZES for n in ("panel", "atlas", "atlas3d")]:
+                    w, h = SIZES[size]
+                    page = browser.new_page(viewport={"width": w, "height": h})
+                    tag = page_name + size
                     errors: list[str] = []
                     page.on("pageerror", lambda e, errors=errors: errors.append(str(e)))
                     page.on("console", lambda m, errors=errors: errors.append(m.text) if m.type == "error" else None)
-                    page.goto(f"{base}?page={page_name}")
+                    page.goto(f"{base}?page={page_name}" + ("&narrow=1" if size else ""))
                     try:
                         page.wait_for_selector(f"html[data-demo-ready='{page_name}']", timeout=20000)
                         ready = True
                     except Exception:  # noqa: BLE001
                         ready = False
                     page.wait_for_timeout(7000)
-                    results.append((f"{page_name}: ready", ready, ""))
-                    results.append((f"{page_name}: banner", page.locator("#demo-bar").inner_text().find(BANNER) >= 0, ""))
+                    results.append((f"{tag}: ready", ready, ""))
+                    results.append((f"{tag}: banner", page.locator("#demo-bar").inner_text().find(BANNER) >= 0, ""))
                     # Shadow-piercing text of the mounted app: something real drew.
-                    text = page.evaluate("""() => { const walk = (n) => { let t = ''; for (const c of n.childNodes) t += c.nodeType === 3 ? c.textContent : walk(c); if (n.shadowRoot) t += walk(n.shadowRoot); return t; }; return walk(document.getElementById('app')); }""")
+                    text = page.evaluate("() => " + SHAPE)
                     want = {"panel": "PadSpan", "atlas": "Kitchen", "atlas3d": "Kitchen"}[page_name]
-                    results.append((f"{page_name}: drew ({want})", want in text, f"{len(text)} chars"))
+                    results.append((f"{tag}: drew ({want})", want in text, f"{len(text)} chars"))
+                    if page_name == "panel":
+                        # Overview's People in building: the two people, home, and where.
+                        who = page.evaluate("() => { const t = " + SHAPE + "; const i = t.indexOf('People in building'); return i < 0 ? '' : t.slice(i, i + 200); }")
+                        home = "Nobody home" not in who and "Alex ·" in who and "Sam ·" in who
+                        results.append((f"{tag}: Overview has people home", home, who[:120]))
                     if page_name == "atlas3d":
+                        # Both people drawn as their figures (not markers), on a floor that shows.
+                        drawn = page.evaluate(SLOT) or []
+                        people = {d["key"]: d for d in drawn if d.get("kind") == "person"}
+                        ok = set(people) == {"person.alex", "person.sam"} and all(not d["marker"] and d["shown"] for d in people.values())
+                        results.append((f"{tag}: people drawn as figures", ok, "; ".join(f"{k} marker={d['marker']} shown={d['shown']}" for k, d in people.items()) or "none"))
+                        # The first-time card covers the house: Got it, for the picture.
+                        for _ in range(3):
+                            got = [b for b in page.get_by_role("button", name="Got it").all() if b.is_visible()]
+                            if not got:
+                                break
+                            got[0].click()
+                            page.wait_for_timeout(300)
+                        page.wait_for_timeout(1500)
+                    if page_name == "atlas3d" and not size:
                         canvas = page.evaluate("""() => { const find = (n) => { if (n.tagName === 'CANVAS' && n.width > 100) return true; for (const c of n.children || []) if (find(c)) return true; return n.shadowRoot ? find(n.shadowRoot) : false; }; return find(document.getElementById('app')); }""")
                         results.append(("atlas3d: 3D canvas", bool(canvas), ""))
-                    if page_name == "atlas":
+                    if page_name == "atlas" and not size:
                         # A write: a light toggled lives in memory, and a reload puts it back.
                         before = page.evaluate("() => window.__demo.hass.states['light.living_lamp'].state")
                         page.evaluate("() => window.__demo.hass.callService('light', 'toggle', { entity_id: 'light.living_lamp' })")
@@ -89,9 +117,9 @@ def main(out: Path) -> int:
                         results.append(("atlas: reload resets", again == before, again))
                         moved = page.evaluate("async () => { const a = (await window.__demo.route({type:'padspan_ha/live_snapshot'})).snapshot.objects.list[0]; await new Promise(r => setTimeout(r, 2500)); const b = (await window.__demo.route({type:'padspan_ha/live_snapshot'})).snapshot.objects.list[0]; return [a.x_m, a.y_m, b.x_m, b.y_m]; }")
                         results.append(("atlas: people move", moved[:2] != moved[2:], str(moved)))
-                    page.screenshot(path=str(out / f"demo_{page_name}.png"))
+                    page.screenshot(path=str(out / f"demo_{tag}.png"))
                     real = [e for e in errors if "favicon" not in e]
-                    results.append((f"{page_name}: no page errors", not real, "; ".join(real)[:400]))
+                    results.append((f"{tag}: no page errors", not real, "; ".join(real)[:400]))
                     page.close()
                 browser.close()
         finally:

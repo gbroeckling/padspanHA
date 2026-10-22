@@ -18,9 +18,13 @@ const now = () => new Date().toISOString();
 // Two people and a tag that walk the house: waypoints in plan metres.
 const WALKERS = [
   { key: "demo:alex_phone", eid: "device_tracker.alex_phone", person: "person.alex", name: "Alex's phone", kind: "entity",
+    figure: { height_m: 1.82, build: "medium", hair: "short", glasses: true, hat: false,
+              colors: { hair: "#3a2a1a", skin: "#c8956d", top: "#2d6a4f", bottom: "#333344" } },
     loop: [["main", 2.5, 2], ["main", 8, 3], ["main", 8, 8], ["main", 2.5, 8], ["main", 2.5, 5]] },
   { key: "demo:sam_phone", eid: "device_tracker.sam_phone", person: "person.sam", name: "Sam's phone", kind: "entity",
-    loop: [["upper", 2.5, 2.5], ["upper", 8, 3], ["upper", 2.5, 7.5], ["main", 2.5, 5], ["main", 8, 2]] },
+    figure: { height_m: 1.66, build: "slim", hair: "long", glasses: false, hat: false,
+              colors: { hair: "#7a4a22", skin: "#e0b48c", top: "#b5476a", bottom: "#2a3a5a" } },
+    loop: [["main", 8, 3], ["main", 9.5, 4.5], ["main", 8, 8], ["main", 2.5, 5], ["upper", 2.5, 2.5], ["upper", 3.5, 3]] },
   { key: "demo:keys", name: "Keys", kind: "ble", loop: [["main", 1, 5], ["main", 1.2, 5.2]] },
 ];
 const MOTION = { Kitchen: "binary_sensor.kitchen_motion", "Living Room": "binary_sensor.living_motion", Hall: "binary_sensor.hall_motion",
@@ -79,7 +83,9 @@ export async function startDemo(page){
   // The flat Atlas or Live Aboard: the Atlas card's own choice, kept per browser.
   if (page === "atlas") localStorage.setItem("padspan_lv_3d_atlas", "0");
   if (page === "atlas3d") localStorage.setItem("padspan_lv_3d_atlas", "1");
-  let house3d = { schema: 1, pieces: {}, lights: {}, openings: {}, devices: {}, figures: {}, library: {} };
+  // Each person's figure, as People & devices would save it: drawn as them, not a marker.
+  const figures = Object.fromEntries(WALKERS.filter(w => w.figure).map(w => [w.person, { params: clone(w.figure), origin: "build" }]));
+  let house3d = { schema: 1, pieces: {}, lights: {}, openings: {}, devices: {}, figures, library: {} };
 
   const t0 = Date.now();
   const snapshot = () => {
@@ -93,6 +99,28 @@ export async function startDemo(page){
     return { source: "demo", generated_at: now(), objects: { list } };
   };
 
+  // Overview's "People in building" (ws_occupancy.py's answer): the people
+  // the snapshot places, the tag seen and not counted, motion where they are.
+  const occupancy = () => {
+    const list = snapshot().objects.list, mine = list.filter(o => o.entity_id);
+    const people = WALKERS.filter(w => w.person).map(w => {
+      const o = list.find(x => x.key === w.key);
+      return { name: states[w.person].attributes.friendly_name, kind: "known", room: (o && o.room) || null, via: "person entity", aliases: [], assumed: false };
+    });
+    const motion = Object.entries(MOTION).filter(([, eid]) => states[eid] && states[eid].state === "on").map(([r]) => r);
+    const rooms = {};
+    for (const p of people) if (p.room) (rooms[p.room] = rooms[p.room] || { room: p.room, people: [], phones: 0, occupancy: false, motion: false }).people.push(p.name);
+    for (const r of motion) (rooms[r] = rooms[r] || { room: r, people: [], phones: 0, occupancy: false, motion: false }).motion = true;
+    for (const r of Object.values(rooms)) r.agreement = r.people.length && r.motion ? "agree" : r.people.length ? "ble_only" : "sensor_only";
+    const n = people.length;
+    return { total_estimate: n, total_low: n, total_high: n, confidence: "high", known: n, unknown: 0, people,
+             rooms: Object.values(rooms).sort((a, b) => a.room.localeCompare(b.room)),
+             evidence: { persons_home: people.map(p => p.name), persons_unlocated: [], phone_clusters: mine.length, phone_addresses: mine.length,
+                         occupancy_rooms: [], motion_rooms: motion, unaccounted_rooms: [], stuck_sensors: [],
+                         things_seen: list.filter(o => !o.entity_id).map(o => ({ label: o.name, kind: o.kind, room: o.room || null })) },
+             hybrid_enabled: true, cluster_threshold: 0, training_count: 0, accuracy: null };
+  };
+
   const route = async (m) => {
     switch (m.type) {
       case "padspan_ha/settings_get": return { settings: clone(settings), cpu_pinning_supported: false };
@@ -101,6 +129,7 @@ export async function startDemo(page){
       case "padspan_ha/model_get": return clone(model);
       case "padspan_ha/maps_list": return { maps: [] };
       case "padspan_ha/live_snapshot": return { snapshot: snapshot() };
+      case "padspan_ha/occupancy_estimate": return occupancy();
       case "padspan_ha/house3d_get": return { enabled: true, data: clone(house3d), writable: true, counts: {} };
       case "padspan_ha/house3d_edit": {
         // Each part is {key: entry to set | null to remove}, as ws_house3d.py takes it.
