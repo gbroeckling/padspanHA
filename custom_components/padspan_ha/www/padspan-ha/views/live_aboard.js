@@ -95,6 +95,10 @@ const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).sea
 // a doorbell, door or alarm that went off (optional: missing, nothing does).
 const DIRECTOR = await import(`./live_aboard_director.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_director failed to load", err); return null; });
+// The frame-rate readout (live_aboard_fps.js), Views ▾ → Frame rate on this
+// screen only (optional: missing, there is no readout).
+const FPS = await import(`./live_aboard_fps.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_fps failed to load", err); return null; });
 // The house itself (live_aboard_storey.js): a solid floor under each storey,
 // the roof, the openings stairs cut, how a door with no sensor stands
 // (optional: missing, the house is drawn as it was).
@@ -164,6 +168,7 @@ const WET_CSS = `.la3d-wet{position:absolute;left:50%;top:82px;z-index:2;transfo
 // than the one under it, so the floors under the top one show too.
 const PREF_EXPLODE = "explode", EXPLODE_M = 4;
 const PREF_TRAILS = "trails";              // Trails on this screen ("1"), off by default
+const PREF_FPS = "fps";                    // the frame-rate readout on this screen ("1"), off by default
 // Readable night: a floor keeps this much of its day colour, its outline and
 // the wall tops show, and a fixture that is off darkens with the house.
 const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
@@ -440,6 +445,7 @@ function createSlot(slotKey){
   let touchCb = null;                      // the card's "the map was touched" (closes an open drawer)
   let observers = [];
   let frames = 0, pending = false, dirty = true, visible = true, drawnW = 0, drawnH = 0;
+  let fpsUi = null;                        // the frame-rate readout, while this screen has it on
   // The house, as drawn: shell (floors, rooms, walls) and fixtures.
   let shellSig = null, lightsSig = null, house = null, floorsUi = [], lights = [];
   // The map's house as last read (readHouse) and what it was read from: a
@@ -605,6 +611,8 @@ function createSlot(slotKey){
     panel = null;
     try { if (director) director.dispose(); } catch (_) { /* gone with the view */ }
     director = null;
+    try { if (fpsUi) fpsUi.dispose(); } catch (_) { /* gone with the view */ }
+    fpsUi = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
     layer = null; furnishP = null; topCb = null;
@@ -647,7 +655,7 @@ function createSlot(slotKey){
     root = d("div", "la3d");
     root.setAttribute("data-la3d", slotKey);
     const style = d("style");
-    style.textContent = CSS;
+    style.textContent = CSS + (FPS ? FPS.FPS_CSS : "");
     root.appendChild(style);
     bar = d("div", "la3d-bar");
     const seg = (label, items) => {
@@ -1121,7 +1129,20 @@ function createSlot(slotKey){
             { text: "Save this view", act: () => saveView() },
             ...(trailsOffered() ? [{ text: `Trails, last 30 min: ${prefGet(PREF_TRAILS) === "1" ? "On" : "Off"}`, on: prefGet(PREF_TRAILS) === "1",
                                      title: "Where each person and tag went in the last half hour (this screen only)", act: () => toggleTrails() }] : []),
+            ...(FPS ? [{ text: `Frame rate: ${fpsOn() ? "On" : "Off"}`, on: fpsOn(),
+                         title: "How many times a second the house is drawn; 0 at rest (this screen only)", act: () => toggleFps() }] : []),
             ...(panel ? panel.menuItems() : [])];
+  }
+  // The frame-rate readout: off unless this screen turned it on.
+  function fpsOn(){ return prefGet(PREF_FPS) === "1"; }
+  function syncFps(){
+    if (!FPS || !root) return;
+    if (!fpsUi && fpsOn()) fpsUi = FPS.createFpsReadout({ root, frames: () => frames, now: () => performance.now() });
+    if (fpsUi) fpsUi.sync(fpsOn() && !failed);
+  }
+  function toggleFps(){
+    prefSet(PREF_FPS, fpsOn() ? "0" : "1");
+    syncFps();
   }
   /** The room the camera looks at, on the top floor showing it. */
   function roomNear(x, y){
@@ -4580,7 +4601,7 @@ function createSlot(slotKey){
         if (editor && want && want.tool) Promise.resolve(editor.startTool(want.tool, want.eid || null)).catch(() => {});
         if (failed) return false;
         place(s);
-        paintFloors(); paintFull(); showHint(); peopleClock();
+        paintFloors(); paintFull(); showHint(); peopleClock(); syncFps();
         if (panel) panel.attach();
         if (director) director.attach();
         return !failed;
@@ -4658,7 +4679,7 @@ function createSlot(slotKey){
                          flying: !!cam.fly, menu: !!menuEl, hint: !!hintCard,
                          // The floors: a camera kept for each one left, the corner's name.
                          floorKey, floorCams: [...floorCams.keys()], corner: { on: cornerOn && bare, text: cornerEl ? cornerEl.textContent : "" } },
-               peopleClock: peopleTimer !== null,
+               peopleClock: peopleTimer !== null, fps: fpsUi ? fpsUi.state() : null,
                night: { k: nightK, top: topGlow.value, floor: floorsUi.map(F => (F.lift ? F.lift.material.opacity : 0)),
                         edges: floorsUi.map(F => (F.edges ? F.edges.material.opacity : 0)), grid: gridLines ? gridLines.material.opacity : null,
                         ...offBulb() },

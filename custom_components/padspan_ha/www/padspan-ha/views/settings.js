@@ -277,6 +277,17 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       });
       return b;
     };
+    // Follow the sun (panel.js _sunLook): Day while the sun is up (Light
+    // without Pro), the Theme picked here once it sets. Off by default.
+    const sunToggle = el("input",{type:"checkbox",id:"themeFollowSunToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
+    sunToggle.checked = settings.theme_follow_sun === true;
+    sunToggle.addEventListener("change", async()=>{
+      try {
+        await ctx.actions.settingsSet({ theme_follow_sun: sunToggle.checked });
+        ctx.toast(sunToggle.checked ? "Theme follows the sun" : "Theme stays as picked");
+      } catch(e){ ctx.toast("Failed to save", true); }
+    });
+    const hasSun = !!(ctx.hass && ctx.hass.states && ctx.hass.states["sun.sun"]);
     wrap.appendChild(el("div",{class:"card",style:"margin-top:12px;border-color:" + (now !== "night" ? "#52b788" : "#2d4a38")},[
       el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Theme"),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
@@ -291,6 +302,14 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
         "Graphite, Ocean, Dusk, High contrast and Day come with PadSpan Pro (" + LICENCE_PATH + "). Night and Light are in every edition.")]),
+      el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:12px"},[
+        sunToggle,
+        el("label",{for:"themeFollowSunToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, "Follow the sun"),
+      ]),
+      el("div",{class:"muted",style:"font-size:12px;margin-top:4px"},
+        (proOk ? "Day from sunrise to sunset" : "Light (inverted) from sunrise to sunset") +
+        ", then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun)." +
+        (hasSun ? "" : " This Home Assistant doesn't have it (Settings → Devices & services → Sun), so the theme stays as picked.")),
     ]));
   }
 

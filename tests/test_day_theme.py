@@ -192,9 +192,11 @@ def test_seven_theme_choices_and_light_is_still_the_inversion():
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     body = panel[panel.index("  async _applyTheme(){"):]
     body = body[:body.index("\n  }\n")]
-    assert 'const invert = !on && !!this.state.settings?.light_theme;' in body
+    # look: the settings themselves unless Follow the sun is on (test_auto_look.py).
+    assert "const look = this._sunLook(pro);" in body
+    assert 'const invert = !on && !!look.light_theme;' in body
     assert 'this.style.filter = invert ? "invert(1) hue-rotate(180deg)" : "";' in body
-    assert "settings?.day_theme" in body and "attachDayTheme" in body
+    assert "look.day_theme" in body and "attachDayTheme" in body
     assert 'this.state.view === "purelive"' in body, "Pure Live must never be repainted"
     css = (_WWW / "styles.css").read_text(encoding="utf-8")
     assert ":host([data-invert]) img," in css, "the inversion's photo counter-invert must stay"
@@ -210,9 +212,9 @@ def test_day_and_the_palettes_are_pro_light_is_everyones():
     body = panel[panel.index("  async _applyTheme(){"):]
     body = body[:body.index("\n  }\n")]
     assert 'const pro = String(this.state.settings?.tier || "").toLowerCase() === "pro";' in body
-    assert "const day = pro && !!this.state.settings?.day_theme;" in body
+    assert "const day = pro && !!look.day_theme;" in body
     assert '&& pro && ["graphite", "ocean", "dusk", "contrast"].includes(named)' in body
-    assert "const invert = !on && !!this.state.settings?.light_theme;" in body, "Light never needs Pro"
+    assert "const invert = !on && !!look.light_theme;" in body, "Light never needs Pro"
     settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
     assert 'const PRO_LOOKS = PAL.concat(["day"]);' in settings
     assert "const locked = PRO_LOOKS.includes(val) && !proOk;" in settings
