@@ -3226,6 +3226,13 @@ function _settingsFeatures(ctx, el){
       desc: "Shows a guided setup flow in the IRK Manager for adding phones and watches. Detects IRK Capture devices and walks through the pairing process.",
     },
     {
+      key: "iphone_irk_guide",
+      label: "iPhone Setup Path",
+      desc: "iPhones have no BLE Transmitter (that sensor is in the Android Companion App only). With this on, an iPhone in " +
+            "Overview's phone list and the IRK Manager's phone wizard (shown while this is on) walk through getting its IRK, adding it with " +
+            "Private BLE Device and checking it resolves. Android phones see the same steps as before.",
+    },
+    {
       key: "mac_rotation_bridging",
       label: "MAC Rotation Bridging",
       desc: "When a device's Bluetooth address rotates, links the old and new addresses. Apple Find My tags (AirTags and \"works with Find My\" tags) you've named or followed are linked only when it's clear: the same kind of tag, the old address has stopped, and the scanners hear the new one in the same place. Other rotating devices are matched by what they advertise (company, services, Apple message type) — probabilistic, and may occasionally link the wrong device.",

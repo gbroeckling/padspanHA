@@ -569,6 +569,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("distortion_map_enabled"): bool,
         vol.Optional("roomplan_import_enabled"): bool,
         vol.Optional("phone_wizard_enabled"): bool,
+        vol.Optional("iphone_irk_guide"): bool,
         vol.Optional("mac_rotation_bridging"): bool,
         vol.Optional("apple_auto_classify"): bool,
         vol.Optional("low_memory_mode"): bool,
@@ -1031,7 +1032,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "radio_map_enabled", "distortion_map_enabled",
                     "roomplan_import_enabled",
                     "rssi_capture_enabled",
-                    "phone_wizard_enabled", "mac_rotation_bridging",
+                    "phone_wizard_enabled", "iphone_irk_guide", "mac_rotation_bridging",
                     "apple_auto_classify", "low_memory_mode"):
             if key in msg:
                 payload[key] = bool(msg[key])
