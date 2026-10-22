@@ -9544,8 +9544,9 @@ function _lightsTab(ctx, maps, active) {
     classFilter: mapState._lightsClass || "all",
     onClassFilter: (cls) => { mapState._lightsClass = cls; ctx.actions.renderRooms(); },
     // The heatmap layer chip (atlas_heatmap.js) — a view choice of this tab, off by default.
-    heatmap: ctx.state.settings?.atlas_heatmap_enabled === true ? (mapState._lightsHeatmap || null) : null,
-    onHeatmap: ctx.state.settings?.atlas_heatmap_enabled !== true ? null
+    // PadSpan Pro's, and only once it's turned on in Settings.
+    heatmap: _heatPro(ctx) ? (mapState._lightsHeatmap || null) : null,
+    onHeatmap: !_heatPro(ctx) ? null
       : (kind) => { mapState._lightsHeatmap = kind || null; ctx.actions.renderRooms(); },
     // The multi-selection and the placement queue light up their index rows.
     selectedEids: paid ? new Set([...selSet, ...(mapState._selLight ? [mapState._selLight.eid] : [])]) : null,
@@ -12013,4 +12014,10 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
   }
 
   return card;
+}
+
+// The Atlas heatmap chip: PadSpan Pro, and turned on in Settings → UI Structure → Atlas.
+function _heatPro(ctx){
+  const s = (ctx && ctx.state && ctx.state.settings) || {};
+  return String(s.tier || "").toLowerCase() === "pro" && s.atlas_heatmap_enabled === true;
 }

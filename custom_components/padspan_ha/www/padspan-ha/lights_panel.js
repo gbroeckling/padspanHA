@@ -1148,8 +1148,10 @@ class PadSpanLightsApp extends HTMLElement {
       // The heatmap layer chip (atlas_heatmap.js): off by default, this
       // browser remembers the last kind like the class filter above.
       // Only once it's turned on in Settings: until then no chip at all.
-      heatmap: this.state._heatmapOn ? this.state._heatmap : null,
-      onHeatmap: !this.state._heatmapOn ? null : (kind)=>{
+      // PadSpan Pro's (Garry, 2026-10-22), and only once it's turned on in
+      // Settings: below Pro, or off, no chip at all.
+      heatmap: this._heatmapPro() ? this.state._heatmap : null,
+      onHeatmap: !this._heatmapPro() ? null : (kind)=>{
         this.state._heatmap=kind||null;
         try{ if(kind) localStorage.setItem(LS_HEAT, kind); else localStorage.removeItem(LS_HEAT); }catch(_){}
         this._render();
@@ -1582,6 +1584,11 @@ class PadSpanLightsApp extends HTMLElement {
   }
 
   // What a wall set up on the window and the host, undone.
+  // The heatmap chip: PadSpan Pro, and turned on in Settings → UI Structure → Atlas.
+  _heatmapPro(){
+    return String(this.state._tier || "").toLowerCase() === "pro" && !!this.state._heatmapOn;
+  }
+
   _wallOff(){
     if(this._wallResize){ window.removeEventListener("resize", this._wallResize); this._wallResize = null; }
     if(this._wallWake){

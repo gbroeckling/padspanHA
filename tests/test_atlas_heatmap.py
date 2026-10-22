@@ -67,6 +67,10 @@ def test_off_by_default_in_both_hosts() -> None:
     panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     maps = (_VIEWS / "maps.js").read_text(encoding="utf-8")
     assert "localStorage.getItem(LS_HEAT)||null" in panel
-    assert "heatmap: ctx.state.settings?.atlas_heatmap_enabled === true ? (mapState._lightsHeatmap || null) : null," in maps
+    assert "heatmap: _heatPro(ctx) ? (mapState._lightsHeatmap || null) : null," in maps
     lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
-    assert "onHeatmap: !this.state._heatmapOn ? null :" in lp, "no chip until it is turned on in Settings"
+    assert "onHeatmap: !this._heatmapPro() ? null :" in lp, "no chip until it is turned on in Settings"
+    assert 'return String(this.state._tier || "").toLowerCase() === "pro" && !!this.state._heatmapOn;' in lp, "PadSpan Pro's"
+    assert 'return String(s.tier || "").toLowerCase() === "pro" && s.atlas_heatmap_enabled === true;' in maps
+    st = (_WWW / "views" / "settings.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert 'if (tierAtLeast(currentTier(settings), "pro")) {\n  const heatRow' in st, "no Settings row below Pro"

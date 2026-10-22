@@ -4061,6 +4061,9 @@ function _settingsUI(ctx, el){
   });
   // The ♨ Heatmap chip, normally off: with it on, the Atlas's layer bar offers
   // temperature, humidity and CO2 drawn across each room from its own sensors.
+  // PadSpan Pro's (Garry, 2026-10-22): below Pro, no row at all, and whatever
+  // is stored is kept for when a key comes back (as the 3D house's below).
+  if (tierAtLeast(currentTier(settings), "pro")) {
   const heatRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
   const heatCb = el("input",{type:"checkbox"});
   heatCb.checked = settings.atlas_heatmap_enabled === true;
@@ -4081,6 +4084,7 @@ function _settingsUI(ctx, el){
       ctx.toast("Could not save: " + String((e && e.message) || e), true);
     }
   });
+  }
   lightsCard.appendChild(_atlasWeatherSection(ctx, el, settings));
   // The 3D house is Pro's (PadSpan Pro and Bright Pro): below Pro, no box at
   // all, and whatever is stored is kept for when a key comes back.
