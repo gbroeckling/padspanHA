@@ -3,8 +3,8 @@
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 //
-// The frame-rate readout over the 3D house (Views ▾ → Frame rate, this
-// screen only, off by default): the frames drawn over each second, read off
+// The frame-rate readout over the 3D house (Settings → Live Aboard → Frame
+// rate, this browser only, off by default): the frames drawn over each second, read off
 // the view's own frame counter, and "0 fps at rest" while nothing is
 // redrawing. Asks for no frame itself: once a second it reads the count and
 // writes one line of text. Off, there is no element and no timer, so the

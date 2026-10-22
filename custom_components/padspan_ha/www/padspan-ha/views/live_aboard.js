@@ -95,8 +95,8 @@ const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).sea
 // a doorbell, door or alarm that went off (optional: missing, nothing does).
 const DIRECTOR = await import(`./live_aboard_director.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_director failed to load", err); return null; });
-// The frame-rate readout (live_aboard_fps.js), Views ▾ → Frame rate on this
-// screen only (optional: missing, there is no readout).
+// The frame-rate readout (live_aboard_fps.js), Settings → Live Aboard →
+// Frame rate, this browser only (optional: missing, there is no readout).
 const FPS = await import(`./live_aboard_fps.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_fps failed to load", err); return null; });
 // The house itself (live_aboard_storey.js): a solid floor under each storey,
@@ -1129,20 +1129,15 @@ function createSlot(slotKey){
             { text: "Save this view", act: () => saveView() },
             ...(trailsOffered() ? [{ text: `Trails, last 30 min: ${prefGet(PREF_TRAILS) === "1" ? "On" : "Off"}`, on: prefGet(PREF_TRAILS) === "1",
                                      title: "Where each person and tag went in the last half hour (this screen only)", act: () => toggleTrails() }] : []),
-            ...(FPS ? [{ text: `Frame rate: ${fpsOn() ? "On" : "Off"}`, on: fpsOn(),
-                         title: "How many times a second the house is drawn; 0 at rest (this screen only)", act: () => toggleFps() }] : []),
             ...(panel ? panel.menuItems() : [])];
   }
-  // The frame-rate readout: off unless this screen turned it on.
+  // The frame-rate readout: off unless this browser turned it on (Settings
+  // → Live Aboard → Frame rate); each card the host builds asks again.
   function fpsOn(){ return prefGet(PREF_FPS) === "1"; }
   function syncFps(){
     if (!FPS || !root) return;
     if (!fpsUi && fpsOn()) fpsUi = FPS.createFpsReadout({ root, frames: () => frames, now: () => performance.now() });
     if (fpsUi) fpsUi.sync(fpsOn() && !failed);
-  }
-  function toggleFps(){
-    prefSet(PREF_FPS, fpsOn() ? "0" : "1");
-    syncFps();
   }
   /** The room the camera looks at, on the top floor showing it. */
   function roomNear(x, y){

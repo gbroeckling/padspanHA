@@ -3704,6 +3704,22 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "On the sidebar, Live Aboard flies back to its home view when nobody has touched it for this long. Set the home view in Views ▾ → Set as home. It waits while Edit or Furnish is open, a card is open, or you made it full screen."));
 
+  // The frame-rate readout (live_aboard_fps.js): this browser only, kept
+  // where Live Aboard keeps its own per-screen choices (lights_map.js
+  // _laPrefs, localStorage padspan_la3d_*). Off by default.
+  const fpsRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px"});
+  const fpsCb = el("input",{type:"checkbox","data-la3d-fps-pref":""});
+  try { fpsCb.checked = localStorage.getItem("padspan_la3d_fps") === "1"; } catch (_) { fpsCb.checked = false; }
+  fpsCb.addEventListener("change", ()=>{
+    try { localStorage.setItem("padspan_la3d_fps", fpsCb.checked ? "1" : "0"); } catch (_) {}
+    note.textContent = "Saved for this browser — Live Aboard shows it at its next refresh.";
+  });
+  fpsRow.appendChild(fpsCb);
+  fpsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Show the frame rate (this browser only)"));
+  more.appendChild(fpsRow);
+  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 26px;line-height:1.5"},
+    "A small readout in the corner of Live Aboard: how many times a second the house is drawn, and \"0 fps at rest\" when nothing is moving. A wall screen shows it only if it is turned on there."));
+
   // The director (live_aboard_director.js): what the sidebar's Live Aboard
   // flies to when it goes off, each with a camera's snapshot or none. An
   // administrator's (ws_settings holds the same rule).

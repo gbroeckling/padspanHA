@@ -8,8 +8,8 @@ Day while sun.sun is up (Light, inverted, without PadSpan Pro), the Theme
 picked once it sets (Night if that is Day or Light). Off, or with no sun.sun,
 the panel's look is exactly as before.
 
-The frame-rate readout in Live Aboard (Views ▾ → Frame rate, this screen
-only, views/live_aboard_fps.js): the frames drawn each second, "0 fps at rest"
+The frame-rate readout in Live Aboard (Settings → Live Aboard → Frame rate,
+this browser only, views/live_aboard_fps.js): the frames drawn each second, "0 fps at rest"
 when nothing redraws. Off, no element and no timer; the view harness
 (tests/js/live_aboard_view.mjs, fps:) runs it for real.
 """
@@ -120,7 +120,12 @@ def test_the_readout_is_off_unless_this_screen_turned_it_on() -> None:
     assert 'function fpsOn(){ return prefGet(PREF_FPS) === "1"; }' in la
     assert "if (!fpsUi && fpsOn()) fpsUi = FPS.createFpsReadout(" in la
     assert "try { if (fpsUi) fpsUi.dispose(); }" in la
-    assert "...(FPS ? [{ text: `Frame rate: ${fpsOn() ? \"On\" : \"Off\"}`" in la
+    # Views ▾ is as it was: the switch is in Settings, kept in this browser.
+    assert "text: `Frame rate" not in la and "toggleFps" not in la
+    st = _src(_VIEWS / "settings.js")
+    assert 'fpsCb.checked = localStorage.getItem("padspan_la3d_fps") === "1";' in st
+    assert 'localStorage.setItem("padspan_la3d_fps", fpsCb.checked ? "1" : "0");' in st
+    assert 'get: (k) => { try { return localStorage.getItem("padspan_la3d_" + k); }' in _src(_VIEWS / "lights_map.js")
     want = "import(`./live_aboard_fps.js${new URL(import.meta.url).search}`)"
     importers = sorted(p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and want in p.read_text(encoding="utf-8"))
     assert importers == ["live_aboard.js"], importers
