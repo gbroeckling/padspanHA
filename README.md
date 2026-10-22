@@ -285,6 +285,19 @@ The result: a solo project that ships features at a pace that would normally req
 
 ---
 
+## What PadSpan never touches
+
+PadSpan reads your other integrations and leaves them as they are. Installing, disabling, reloading or removing it never changes another integration's devices, entities or config entries (Private BLE Device, Bermuda, ESPresense, the Companion App or any other). A repo test fails if new code tries to.
+
+- **Reads:** HA areas and floors, the device and entity registries, Bluetooth advertisements, entity states, and Private BLE Device / Companion App entries (only to name a phone's rotating address).
+- **Creates:** its own config entry, its own `padspan_ha` entities and devices, and its own `.storage/padspan_ha.*` files.
+- **Never changes on its own:** anything belonging to another integration. The only exceptions are buttons you press, one at a time: Add IRK / Delete from HA (Private BLE), Manage → Delete an entity or area, assigning a radio or light to a room, and Enable & Track for a phone's BLE Transmitter.
+- **Uninstalling removes:** PadSpan's own entities and devices, and gives WLED lights their sync back. Its `.storage` files stay (Manage → Factory Reset clears your setup from them first). An IRK you added stays in Private BLE Device.
+
+Details: [What PadSpan never touches](docs/GETTING_STARTED.md#what-padspan-never-touches).
+
+---
+
 ## Updates & Privacy
 
 Once a day, PadSpan asks `padspan.traks.ca` whether a newer version is available and shows a Home Assistant notification when one is. The request contains **only your installed version number** (e.g. `?v=0.21.10`). Like any web request, the server sees your IP address; nothing else is sent, no identifiers are stored on your system, and no usage data is collected. The aggregate ping count is the only signal the project gets about how many installs exist.
