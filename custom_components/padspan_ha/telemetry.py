@@ -320,7 +320,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
-    "live_aboard_weather", "live_aboard_showcase",
+    "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
     "live_aboard_import",
     "live_aboard_devices",                          # Live Aboard P5: furniture that is a device

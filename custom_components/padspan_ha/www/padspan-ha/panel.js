@@ -605,6 +605,8 @@ class PadSpanHaApp extends HTMLElement {
     // The Atlas as Overview (views/overview.js) is the sidebar Atlas page,
     // which reads states off its own hass: hand it each new one.
     if(this.state && this.state._overviewAtlas) this.state._overviewAtlas.hass = hass;
+    // Follow the sun (_sunLook): the look changes at sunrise and sunset.
+    if(this.state?.settings?.theme_follow_sun === true && (hass?.states?.["sun.sun"]?.state || null) !== (this._sunSeen ?? null)) this._applyTheme();
     // Motion sensors back from an offline blip (motion_reconnects.py), pushed
     // on every change — one subscription per connection (a new connection,
     // or a re-entry after disconnectedCallback, subscribes afresh), kept
@@ -1881,11 +1883,12 @@ class PadSpanHaApp extends HTMLElement {
     // Day and the four palettes are PadSpan Pro's: without Pro (a lapsed key
     // too) it is Night. Light, the accessibility inversion, is everyone's.
     const pro = String(this.state.settings?.tier || "").toLowerCase() === "pro";
-    const day = pro && !!this.state.settings?.day_theme;
-    const named = String(this.state.settings?.theme_palette || "");
-    const pal = !day && !this.state.settings?.light_theme && pro && ["graphite", "ocean", "dusk", "contrast"].includes(named) ? named : "";
+    const look = this._sunLook(pro);
+    const day = pro && !!look.day_theme;
+    const named = String(look.theme_palette || "");
+    const pal = !day && !look.light_theme && pro && ["graphite", "ocean", "dusk", "contrast"].includes(named) ? named : "";
     const on = day || !!pal;
-    const invert = !on && !!this.state.settings?.light_theme;
+    const invert = !on && !!look.light_theme;
     this.style.filter = invert ? "invert(1) hue-rotate(180deg)" : "";
     if (invert) this.setAttribute("data-invert", ""); else this.removeAttribute("data-invert");
     const want = on ? (day ? "day" : pal) + ":" + (this._skin || "classic") : "";
@@ -1909,6 +1912,21 @@ class PadSpanHaApp extends HTMLElement {
       this._dayKey = "";
       console.warn("PadSpan: day theme failed to load", e);
     }
+  }
+
+  // Follow the sun (settings.theme_follow_sun, off by default): while the sun
+  // is up (sun.sun above_horizon) the panel is Day, or Light (inverted)
+  // without PadSpan Pro; once it sets, the Theme picked, unless that is Day
+  // or Light itself, which give Night. Off, or with no sun.sun, the Theme
+  // picked as it always was. set hass() asks again only when the sun's state
+  // changes.
+  _sunLook(pro){
+    const s = this.state.settings || {};
+    const sun = s.theme_follow_sun === true ? this._hass?.states?.["sun.sun"]?.state : null;
+    this._sunSeen = sun || null;
+    if (sun === "above_horizon") return pro ? { day_theme: true } : { light_theme: true };
+    if (sun === "below_horizon") return { theme_palette: s.theme_palette };
+    return s;
   }
 
   // Chrome skin. "classic" is v0.35.0 untouched; "2025" links styles-2025.css

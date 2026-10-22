@@ -16,6 +16,8 @@
 //             started plays at full rate, then shows still; a door swings at
 //             full rate and stops; a lock just unlocked flashes, then glows
 //             still while it stays unlocked
+//   fps       the frame-rate readout: off, no element and no timer; on,
+//             "0 fps at rest" and the frames drawn while a door swings
 //   gap       a gap (material "open") with a sensor keeps its reading and
 //             its tap target, as the Atlas keeps its line and hit-line
 //
@@ -239,6 +241,60 @@ await tryCase("frames: a poll draws nothing; back from Map, the view draws once"
   check("frames: a poll draws nothing; back from Map, the view draws once",
     poll === 0 && map === 0 && back === 1 && again.ok, { poll, map, back });
   LA.releaseLiveAboardSlot("view-return");
+  await settle();
+});
+// ── fps ─────────────────────────────────────────────────────────────────────
+// The frame-rate readout (live_aboard_fps.js): Settings → Live Aboard → Frame
+// rate, kept in this browser's prefs (lights_map.js _laPrefs, key "fps").
+const fpsEl = (slot) => slot.element.querySelectorAll("div").find(d => d.className === "la3d-fps") || null;
+const viewsMenu = (slot) => {
+  const b = slot.element.querySelectorAll("button").find(x => x.textContent === "Views ▾");
+  b.dispatchEvent({ type: "click", detail: 1, stopPropagation() {}, preventDefault() {} });
+  const m = slot.element.querySelectorAll("div").find(d => d.className === "la3d-menu");
+  return m ? m.querySelectorAll("button").map(x => x.textContent) : [];
+};
+await tryCase("fps: off by default there is no readout, no timer and nothing in Views", async () => {
+  const slot = LA.liveAboardSlot("view-fps-off");
+  card(slot, liveP(LIVE()));
+  await later(10000, 60);
+  const s = slot._state(), f0 = s.frames, items = viewsMenu(slot);
+  await later(60000);
+  check("fps: off by default there is no readout, no timer and nothing in Views",
+    s.fps === null && !fpsEl(slot) && items.length > 0 && !items.some(t => /frame rate/i.test(t))
+    && pendingTimers().length === 0 && slot._state().frames === f0 && slot._state().fps === null,
+    { fps: s.fps, items, timers: pendingTimers(), rest: slot._state().frames - f0 });
+  LA.releaseLiveAboardSlot("view-fps-off");
+  await settle();
+});
+await tryCase("fps: turned on it says 0 fps at rest, counts a door's swing, and goes when turned off", async () => {
+  const kept = new Map(), prefs = { get: (k) => kept.get(k) ?? null, set: (k, v) => { kept.set(k, v); } };
+  const slot = LA.liveAboardSlot("view-fps-on");
+  const { stage } = card(slot, { ...liveP(LIVE()), prefs });
+  await later(10000, 60);
+  const before = !!fpsEl(slot);
+  kept.set("fps", "1");                                    // Settings, then the Atlas's next card
+  slot.attach(stage, P({ ...liveP(LIVE()), prefs }));
+  await later(1000, 3);
+  const f0 = slot._state().frames;
+  await later(1000, 3);
+  const rest = { text: (fpsEl(slot) || {}).textContent, drawn: slot._state().frames - f0 };
+  slot.attach(stage, P({ ...liveP(withLive("binary_sensor.back_door", { state: "on" })), prefs }));
+  const seen = [];
+  // One round at a time: the shim runs a queued timer every round, not once a second.
+  for (let i = 0; i < 30; i++) { await later(34, 1); seen.push((fpsEl(slot) || {}).textContent); }
+  slot.attach(stage, P({ ...liveP(LIVE()), prefs }));
+  await later(30000, 6);
+  const still = { el: !!fpsEl(slot), text: (fpsEl(slot) || {}).textContent };
+  kept.set("fps", "0");
+  slot.attach(stage, P({ ...liveP(LIVE()), prefs }));
+  await later(5000);
+  const off = { el: !!fpsEl(slot), state: slot._state().fps, timers: pendingTimers() };
+  check("fps: turned on it says 0 fps at rest, counts a door's swing, and goes when turned off",
+    !before && rest.text === "0 fps at rest" && rest.drawn === 0
+    && seen.some(t => /^[1-9][0-9]* fps$/.test(t || "")) && still.el && still.text === "0 fps at rest"
+    && !off.el && off.state && off.state.on === false && !off.state.timer && off.timers.length === 0,
+    { before, rest, seen, still, off });
+  LA.releaseLiveAboardSlot("view-fps-on");
   await settle();
 });
 // ── gap ─────────────────────────────────────────────────────────────────────

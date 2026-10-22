@@ -277,6 +277,17 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
       });
       return b;
     };
+    // Follow the sun (panel.js _sunLook): Day while the sun is up (Light
+    // without Pro), the Theme picked here once it sets. Off by default.
+    const sunToggle = el("input",{type:"checkbox",id:"themeFollowSunToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
+    sunToggle.checked = settings.theme_follow_sun === true;
+    sunToggle.addEventListener("change", async()=>{
+      try {
+        await ctx.actions.settingsSet({ theme_follow_sun: sunToggle.checked });
+        ctx.toast(sunToggle.checked ? "Theme follows the sun" : "Theme stays as picked");
+      } catch(e){ ctx.toast("Failed to save", true); }
+    });
+    const hasSun = !!(ctx.hass && ctx.hass.states && ctx.hass.states["sun.sun"]);
     wrap.appendChild(el("div",{class:"card",style:"margin-top:12px;border-color:" + (now !== "night" ? "#52b788" : "#2d4a38")},[
       el("div",{class:"h2",style:"margin:0 0 4px;color:#52b788"}, "Theme"),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
@@ -291,6 +302,14 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
         "Graphite, Ocean, Dusk, High contrast and Day come with PadSpan Pro (" + LICENCE_PATH + "). Night and Light are in every edition.")]),
+      el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:12px"},[
+        sunToggle,
+        el("label",{for:"themeFollowSunToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"}, "Follow the sun"),
+      ]),
+      el("div",{class:"muted",style:"font-size:12px;margin-top:4px"},
+        (proOk ? "Day from sunrise to sunset" : "Light (inverted) from sunrise to sunset") +
+        ", then the theme picked above (Night if that is Day or Light). Goes by Home Assistant's Sun (sun.sun)." +
+        (hasSun ? "" : " This Home Assistant doesn't have it (Settings → Devices & services → Sun), so the theme stays as picked.")),
     ]));
   }
 
@@ -3742,6 +3761,22 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(row("Back to home view", [idleSel]));
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "On the sidebar, Live Aboard flies back to its home view when nobody has touched it for this long. Set the home view in Views ▾ → Set as home. It waits while Edit or Furnish is open, a card is open, or you made it full screen."));
+
+  // The frame-rate readout (live_aboard_fps.js): this browser only, kept
+  // where Live Aboard keeps its own per-screen choices (lights_map.js
+  // _laPrefs, localStorage padspan_la3d_*). Off by default.
+  const fpsRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px"});
+  const fpsCb = el("input",{type:"checkbox","data-la3d-fps-pref":""});
+  try { fpsCb.checked = localStorage.getItem("padspan_la3d_fps") === "1"; } catch (_) { fpsCb.checked = false; }
+  fpsCb.addEventListener("change", ()=>{
+    try { localStorage.setItem("padspan_la3d_fps", fpsCb.checked ? "1" : "0"); } catch (_) {}
+    note.textContent = "Saved for this browser — Live Aboard shows it at its next refresh.";
+  });
+  fpsRow.appendChild(fpsCb);
+  fpsRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Show the frame rate (this browser only)"));
+  more.appendChild(fpsRow);
+  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 26px;line-height:1.5"},
+    "A small readout in the corner of Live Aboard: how many times a second the house is drawn, and \"0 fps at rest\" when nothing is moving. A wall screen shows it only if it is turned on there."));
 
   // The director (live_aboard_director.js): what the sidebar's Live Aboard
   // flies to when it goes off, each with a camera's snapshot or none. An
