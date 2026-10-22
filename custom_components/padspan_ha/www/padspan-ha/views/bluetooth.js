@@ -111,6 +111,13 @@ function chip(el, text, tone, title) {
 
 // An empty state that says WHY it is empty and what to do about it — the old
 // ones were a bold line and a grey line in a card.
+// Quiet mode on: a small muted "N hidden (quiet mode)" beside a tracked count,
+// so a device missing from the list is explained. null when off or none hidden.
+export function quietHiddenNote(el, quietOn, hidden) {
+  if (!quietOn || !(hidden > 0)) return null;
+  return el("span", { class: "muted", style: "font-size:11px;color:#64748b;white-space:nowrap" }, `${hidden} hidden (quiet mode)`);
+}
+
 function emptyState(el, mark, title, hint) {
   return el("div", { class: "bt-empty" }, [
     el("div", { class: "bt-empty-mark" }, mark),
@@ -1042,6 +1049,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
     el("div", { class: "bt-panel-title", style: "font-size:14px" }, selName),
     el("div", { class: "bt-panel-sub" }, "Everything this scanner can hear, strongest first."),
     chip(el, `${_filteredAds.length} ${_quietMode ? "tracked" : "devices"}`, "quiet"),
+    quietHiddenNote(el, _quietMode, uniqueAds.length - _filteredAds.length),
   ].filter(Boolean)));
 
   const holdBox = el("div", { class: "bt-hold", style: "margin:6px 0 10px;padding:8px 10px;border-radius:8px;background:rgba(82,183,136,.08);font-size:12px;line-height:1.45" });
@@ -1412,6 +1420,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
           ? "Tracked devices only — quiet mode is on. Click a row to inspect it."
           : "Click a row to inspect it: decoded manufacturer, services and any tracked object it belongs to."),
         el("span", { class: "bt-chip quiet" }, `${_monitorAds.length} shown`),
+        quietHiddenNote(el, _qm, ads.length - _monitorAds.length),
       ]),
       _monitorAds.length
         ? el("div", { class: "bt-list bt-adv-list list-scroll" }, _monitorAds.map(row))
@@ -1473,9 +1482,17 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     return !_isScanner({address: addr, name: a.name || ""});
   });
 
-  // Group devices by source
+  // Group devices by source. Quiet mode drops untracked devices here, before
+  // each scanner's list is cut to its 24 strongest, so a tracked device ranked
+  // past 24 in a busy house still shows and the block has no gaps.
+  const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
   const bySrc = {};
   for (const a of filteredAds) {
+    if (_quietMode) {
+      const addr = String(a.address || a.name || "");
+      const obj = objIndex.get(addr.toUpperCase());
+      if ((!obj || (!obj.user_label && !obj.identified)) && !(ctx.actions.followedHas && ctx.actions.followedHas(addr))) continue;
+    }
     const src = String(a.source || "");
     if (!bySrc[src]) bySrc[src] = [];
     bySrc[src].push(a);
@@ -1515,13 +1532,10 @@ function renderVisualization(ctx, radios, ads, objIndex) {
     const list = bySrc[src].slice(0, 24);
     const blockH = list.length * DEV_ROW_H;
     const startY = base.y - blockH / 2;
-    const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
     for (let i = 0; i < list.length; i++) {
       const a = list[i];
       const addr = String(a.address || a.name || `${src}-${i}`);
       const obj = objIndex.get(addr.toUpperCase());
-      // Quiet mode: only show identified/labeled/followed devices
-      if (_quietMode && (!obj || (!obj.user_label && !obj.identified)) && !(ctx.actions.followedHas && ctx.actions.followedHas(addr))) continue;
       // Build a rich label: prefer user_label > object name > ad name > address
       let devLabel = "";
       if (obj) {

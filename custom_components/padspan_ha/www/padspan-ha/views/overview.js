@@ -160,7 +160,11 @@ export function renderClassic(ctx){
 
   const objSummary = (liveSnap && liveSnap.objects && liveSnap.objects.summary) ? liveSnap.objects.summary : null;
   const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
-  const objectsTotal = objSummary ? (_quietMode ? objSummary.identified : objSummary.total) : tagsCount;
+  // Quiet mode counts what every other view shows: labelled, identified or followed.
+  const objectsTotal = objSummary ? (_quietMode
+    ? ((liveSnap.objects.list || []).filter(o => o.user_label || o.identified
+        || (ctx.actions.followedHas && ctx.actions.followedHas(o.address || o.key || ""))).length)
+    : objSummary.total) : tagsCount;
   const unidentifiedCount = objSummary ? objSummary.unidentified : 0;
 
   const radios = (liveSnap && liveSnap.ble && Array.isArray(liveSnap.ble.radios)) ? liveSnap.ble.radios : [];

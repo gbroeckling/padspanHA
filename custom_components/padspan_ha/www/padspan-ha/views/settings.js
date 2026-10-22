@@ -837,6 +837,7 @@ function _settingsPresence(ctx, el){
       el("div",{class:"muted",style:"font-size:12px"},
         "Hides all unidentified BLE devices from the Objects list, overview counts, and dropdowns. " +
         "Scanning continues in the background so tracked objects still work. " +
+        "It only changes what this panel shows, not how much work Home Assistant or PadSpan does. " +
         "Ideal for busy environments (condos, offices) where you only care about your own devices. " +
         "Turn off when you need to discover and tag new objects."),
     ]));

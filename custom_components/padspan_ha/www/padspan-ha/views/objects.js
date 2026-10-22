@@ -207,6 +207,10 @@ export function render(ctx){
         return false;
       })
     : _rawObjects;
+  // Quiet mode on: a muted "N hidden (quiet mode)" beside the heading, so a missing device is explained.
+  const _quietHiddenNote = _quietMode && _rawObjects.length > allObjects.length
+    ? el("span",{class:"muted",style:"font-size:11px;color:#64748b;white-space:nowrap"}, `${_rawObjects.length - allObjects.length} hidden (quiet mode)`)
+    : null;
   const summary = objModel && objModel.summary ? objModel.summary : null;
 
   // Dedup: suppress entity rows whose physical device already has a BLE/iBeacon/private_ble row.
@@ -539,6 +543,7 @@ export function render(ctx){
     });
     const headerRow = el("div",{class:"card-head",style:"flex-wrap:wrap;gap:8px"},[
       el("div",{class:"h2",style:"flex:1"}, "Tracked Objects"),
+      _quietHiddenNote,
       el("div",{style:"display:flex;align-items:center;gap:6px"},
         [el("span",{class:"muted",style:"font-size:12px"}, "History:"), basicAgeSlider, basicAgeLabel]),
       helpBtn("objects"),
@@ -805,6 +810,7 @@ export function render(ctx){
       _quietMode
         ? el("span",{class:"badge",style:"background:#0a2a1a;color:#52b788;border-color:#166534;font-weight:700"}, "Quiet Mode")
         : null,
+      _quietHiddenNote,
       _quietMode ? null : (summary ? _mkFilterBadge(`${summary.ble||0} BLE`, "", "ble", "all") : null),
       _quietMode ? null : (summary && summary.ibeacon ? _mkFilterBadge(`${summary.ibeacon} iBeacon`, "background:#2a1a00;color:#fbbf24;border-color:#92400e", "ibeacon", "all") : null),
       _quietMode ? null : (summary && summary.private_ble ? _mkFilterBadge(`${summary.private_ble} Private BLE`, "background:#0a1a3a;color:#93c5fd;border-color:#1e4976", "private_ble", "all") : null),
