@@ -4,6 +4,17 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.161 — The heatmap is PadSpan Pro's, and Pro for life's new price (2026-10-22)
+
+### Changed
+- **The Atlas heatmap is part of PadSpan Pro.** Below Pro there is no Heatmap chip and no Settings row for it; a choice made while on Pro is kept for when a key comes back.
+- **PadSpan Pro for life** is $89 CAD, once, at the launch price until November 30, 2026, and $168 CAD from December 1 (no longer an offer that ends). The licence card and the trial offer say so, and switch on the day.
+
+### Fixed
+- A RoomPlan file nested absurdly deep is refused with the same plain message on every system.
+
+---
+
 ## 0.38.160 — One licence for five homes, and new things to turn on for the Atlas, Live Aboard and wall screens (2026-10-22)
 
 Everything new in this version is off until you turn it on. With nothing turned on, PadSpan looks and works as in 0.38.159.
