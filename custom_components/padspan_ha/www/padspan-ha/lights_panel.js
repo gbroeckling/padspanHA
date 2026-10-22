@@ -29,7 +29,10 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
-const WALLS = await import(`./views/wall_scale.js${new URL(import.meta.url).search}`);
+// Wall mode's numbers. Optional: if the file can't load, the Atlas page runs
+// as an ordinary page (no wall mode) rather than not at all.
+const WALLS = await import(`./views/wall_scale.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: wall_scale failed to load", err); return null; });
 // Hide HA / Show HA beside Refresh, shared with the panel's toolbar. Optional:
 // without it the button is simply not there.
 const HA_SIDEBAR = await import(`./ha_sidebar.js${new URL(import.meta.url).search}`)
@@ -1401,7 +1404,7 @@ class PadSpanLightsApp extends HTMLElement {
     let kiosk = false;
     try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
     const v2 = String(this.state?._tier || "").toLowerCase() === "pro" && !!this.state?._atlasLayoutV2;
-    if(!kiosk || this._embedded || !v2){
+    if(!kiosk || this._embedded || !v2 || !WALLS){
       // Also when a wall stops being one without a reload (the layout or
       // the tier changed elsewhere): nothing of the wall is left behind.
       this.removeAttribute("data-wall");

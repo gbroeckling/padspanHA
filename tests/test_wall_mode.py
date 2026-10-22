@@ -94,7 +94,7 @@ def test_kiosk_turns_it_on_and_only_on_the_sidebar_atlas():
     on = src[src.index("  _wallOn(){"):]
     on = on[:on.index("\n  }\n")]
     assert 'get("kiosk") === "1"' in on and "this._embedded" in on, "the Atlas as Overview never takes it"
-    assert "|| !v2)" in on and "_atlasLayoutV2" in on, "a classic layout on ?kiosk=1 stays as it was (review: it lost its header for nothing)"
+    assert "|| !v2 || !WALLS)" in on and "_atlasLayoutV2" in on, "a classic layout on ?kiosk=1 stays as it was (review: it lost its header for nothing)"
     assert "_buildUI(){\n    this._wallOn();" in src, "asked again at every build: tier and layout come with the settings"
     assert 'this.setAttribute("data-wall", "")' in on and 'setProperty("--wall-ui"' in on
     assert 'navigator.wakeLock.request("screen")' in on, "a wall nobody touches stays awake"
@@ -289,3 +289,10 @@ def test_the_wake_tap_only_eats_a_tap_on_a_hidden_control():
     assert 'const FADED = ".la3d-bar, .la3d-compass, .la3d-hud, .lv-alone-anchor > button";' in lp
     assert "if(!onFaded(e.clientX, e.clientY)) return;" in lp
     assert '"translate"];' in _src("views/live_aboard.js"), "leaving full screen clears the wall's shift on the 3D view"
+
+
+def test_the_atlas_page_runs_without_the_wall_module():
+    # The 15-hour review's load-risk check: an optional module must not take the page with it.
+    lp = _src("lights_panel.js")
+    assert '.catch(err => { console.warn("PadSpan: wall_scale failed to load", err); return null; });' in lp
+    assert "if(!kiosk || this._embedded || !v2 || !WALLS){" in lp, "no module: no wall mode, and every other use of it sits behind data-wall"
