@@ -14,8 +14,10 @@ that must still be in the function — delete the check and the test fails.
 
 Entries marked OTHER are the audited places that do act on another
 integration's objects. Every one is a button the user presses, for that one
-object, in an admin-only screen; none runs on its own, on unload or on
-removal. Adding to that list needs the owner's sign-off.
+object; none runs on its own, on unload or on removal. The deletes are
+admin-only and confirmed twice by name; the two any user can press (assign a
+radio's area, turn on a phone's BLE Transmitter) say so below. Adding to that
+list needs the owner's sign-off.
 
 The frontend gets the same treatment for HA's own config/* calls.
 """
@@ -80,14 +82,19 @@ ALLOWED: dict[tuple[str, str, str], tuple[str, str | None, str]] = {
         (OWN, '"ai_task", "generate_data"', "Live Aboard photo: asks the user's AI Task entity to read a photo"),
     # ── OTHER: acts on another integration's object, only on a button press ──
     ("ws_companion.py", "ws_companion_follow", "registry.async_update_entity"):
-        (OTHER, "disabled_by=None",
-         "Track a phone: re-enables that phone's disabled mobile_app BLE Transmitter entity. Never disables."),
+        (OTHER, "_is_ble_transmitter(ent_entry) and ent_entry.disabled_by is not None",
+         "Track a phone (any user): re-enables a disabled mobile_app BLE Transmitter sensor, "
+         "nothing else (_is_ble_transmitter refuses other entities). Never disables."),
     ("ws_follow.py", "ws_entity_delete", "registry.async_remove"):
-        (OTHER, None, "Manage > HA Entities 'Delete' button: removes the one entity the user picked, any integration"),
+        (OTHER, None,
+         "Manage > HA Entities 'Delete' (admin; another integration's entity is confirmed twice, "
+         "naming it and its integration): removes the one entity the user picked"),
     ("ws_follow.py", "ws_area_delete", "registry.async_delete"):
-        (OTHER, None, "Manage > Areas 'Delete' + 'Yes, delete': deletes the one HA area the user picked"),
+        (OTHER, None,
+         "Manage > Areas 'Delete' (admin, confirmed twice by name): deletes the one HA area the user picked"),
     ("ws_radios.py", "ws_radio_area_set", "registry.async_update_device"):
-        (OTHER, None, "Overview: user assigns a radio (ESPHome/Shelly/... device) to a room = its HA area"),
+        (OTHER, None, "Overview radios list (any user, no admin check: non-admins use it today): "
+                      "assigns a radio (ESPHome/Shelly/... device) to a room = its HA area"),
     ("ws_irk.py", "ws_private_ble_add_irk._try_create_entry", "config_entries.flow.async_init"):
         (OTHER, '"private_ble_device"', "Add IRK: starts HA's own Private BLE Device add flow for the IRK the user typed"),
     ("ws_irk.py", "ws_private_ble_add_irk._try_create_entry", "config_entries.flow.async_configure"):
