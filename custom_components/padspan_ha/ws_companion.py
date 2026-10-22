@@ -22,6 +22,15 @@ from .const import (
 from .bluetooth_live import get_bluetooth_live
 
 
+def _is_ble_transmitter(entry: Any) -> bool:
+    """A Companion App phone's BLE Transmitter sensor: platform mobile_app,
+    a sensor, named *ble_transmitter* — the same rule companion_discover
+    uses to find it. The only entity companion_follow may enable."""
+    eid = str(getattr(entry, "entity_id", "") or "")
+    return (getattr(entry, "platform", None) == "mobile_app"
+            and eid.startswith("sensor.") and "ble_transmitter" in eid)
+
+
 def _alnum(s: Any) -> str:
     return "".join(ch for ch in str(s or "").lower() if ch.isalnum())
 
@@ -710,6 +719,20 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
         if not device_name:
             device_name = "Phone"
 
+        # Any household member may set up their phone here, so the one
+        # entity this may re-enable is a phone's BLE Transmitter sensor.
+        # Anything else is refused before anything is changed.
+        if transmitter_eid:
+            from homeassistant.helpers import entity_registry as er
+
+            _tx_entry = er.async_get(hass).async_get(transmitter_eid)
+            if _tx_entry is not None and not _is_ble_transmitter(_tx_entry):
+                connection.send_error(
+                    msg["id"], "not_ble_transmitter",
+                    f"{transmitter_eid} is not a Companion App BLE Transmitter sensor; "
+                    "PadSpan only turns on a phone's BLE Transmitter here.")
+                return
+
         results: list[str] = []
         labelled = False
         followed = False
@@ -774,7 +797,7 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
 
                 ent_reg = er.async_get(hass)
                 ent_entry = ent_reg.async_get(transmitter_eid)
-                if ent_entry and ent_entry.disabled_by is not None:
+                if ent_entry and _is_ble_transmitter(ent_entry) and ent_entry.disabled_by is not None:
                     ent_reg.async_update_entity(
                         transmitter_eid, disabled_by=None
                     )
@@ -791,7 +814,7 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
 
                 ent_reg = er.async_get(hass)
                 ent_entry = ent_reg.async_get(transmitter_eid)
-                if ent_entry and ent_entry.device_id:
+                if ent_entry and _is_ble_transmitter(ent_entry) and ent_entry.device_id:
                     dev_reg = dr.async_get(hass)
                     device = dev_reg.async_get(ent_entry.device_id)
                     if device:

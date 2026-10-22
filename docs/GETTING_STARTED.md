@@ -175,6 +175,25 @@ lists:
 
 The name is the device's PadSpan label ("Alice"). It also matches a label that starts with that name ("Alice's Phone", "Alice Watch"); if there are several, it picks the one heard most recently. Answers: "Alice is in the Kitchen", "Alice is probably in the Kitchen" when the room confidence is under 50%, "Alice is away", or "I don't know anyone called ...". You don't need to expose anything. The intent only reads PadSpan's current room and never changes anything. The answers are in English. "Where is Alice" is left to Home Assistant's own sentence above.
 
+## What PadSpan never touches
+
+PadSpan sits next to your other integrations. It doesn't manage them. Enabling, disabling, reloading or removing PadSpan never changes another integration's devices, entities or config entries. That covers Private BLE Device, Bermuda, ESPresense, the Companion App and everything else. A test in the repo (`tests/test_never_touches_others.py`) fails the build if new code tries to.
+
+**What it reads.** Your HA areas and floors (HA is where rooms live), the device and entity registries, the Bluetooth advertisements HA already receives, entity states, and the Private BLE Device and Companion App entries, read only to put a name to a phone's rotating address. Vacation Mode also reads your lights' recorder history, but only once you turn it on.
+
+**What it creates.** Its own config entry and its own `padspan_ha` entities and devices: trackers, area and distance sensors, sub-zones, occupancy. It also creates its own files under `.storage/padspan_ha.*`. When you use the door relay builder, it makes `padspanha_*` helpers, scripts, automations and one template entity, keeps a list of them, and its Remove button deletes exactly what's on that list.
+
+**What it never changes on its own.** Other integrations' devices, entities, config entries, or the areas and floors themselves. Setup, the background loop, timers, unload and removal make no registry or config-entry changes outside PadSpan's own. The only places PadSpan acts on someone else's object are buttons you press, one object at a time, in admin screens:
+
+- **Settings → Presence → Phone Tracking (Private BLE): Add / Delete from HA** adds or removes a Private BLE Device entry. That entry belongs to Private BLE Device, so deleting it there deletes it from HA (two-step confirm).
+- **Manage → HA Entities → Delete** and **Manage → Areas → Delete** remove the entity or area you picked from Home Assistant.
+- **Assigning a radio or a light to a room** sets that device's or entity's HA area.
+- **Enable & Track** on a phone re-enables the Companion App's BLE Transmitter sensor if it was disabled. It never disables anything.
+
+One shared-device note: PadSpan's sensors give HA the tag's Bluetooth address. If another integration already registered a device with that exact address, Home Assistant files PadSpan's sensors under that same device. Removing PadSpan only takes its own entities off it.
+
+**What uninstalling removes.** Deleting PadSpan from Devices & Services makes Home Assistant remove PadSpan's own entities, and any device that only PadSpan was using. It also gives every WLED light PadSpan was running its WLED sync back. Some things stay behind, by design: the `.storage/padspan_ha.*` files (Manage → Factory Reset clears your setup from them first; the licence is kept), anything you added to other integrations through the buttons above (an IRK stays in Private BLE Device), and door-builder automations unless you remove the door in PadSpan first.
+
 ## What's Next?
 
 - **Atlas** — Place lights, fans, sensors, locks and doors on the same map (Pro feature) — see the [Atlas Guide](ATLAS_GUIDE.md)

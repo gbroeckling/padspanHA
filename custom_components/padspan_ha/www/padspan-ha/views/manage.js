@@ -446,6 +446,19 @@ export function render(ctx){
           const btn = el("button",{class:"btn tiny"+(disabled?" disabled":"")},"Delete");
           if(disabled) btn.disabled = true;
           btn.addEventListener("click", ()=>{
+            // Another integration's entity: the two-step confirm of the
+            // Private BLE delete (issue #57), naming the entity and its owner.
+            const reg = ctx.hass && ctx.hass.entities && ctx.hass.entities[o.entity_id];
+            const platform = reg && reg.platform;
+            if(platform !== "padspan_ha"){
+              const owner = platform
+                ? `It belongs to ${String(platform).split("_").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ")}, not PadSpan`
+                : "PadSpan can't tell which integration it belongs to";
+              if(!confirm(`Delete ${o.entity_id}? ${owner}; deleting it removes it from Home Assistant.`)) return;
+              if(!confirm(`Are you sure? ${o.entity_id} will be deleted from Home Assistant. Automations that use it will break.`)) return;
+              doDelete();
+              return;
+            }
             btnWrap.innerHTML = "";
             const yesBtn = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},"Yes, delete");
             const noBtn  = el("button",{class:"btn tiny"},"Cancel");
@@ -502,22 +515,18 @@ export function render(ctx){
       const makeAreaDelBtn = ()=>{
         const b = el("button",{class:"btn tiny"+(disabled?" disabled":"")},"Delete");
         if(disabled) b.disabled = true;
-        b.addEventListener("click", ()=>{
+        b.addEventListener("click", async()=>{
+          // The two-step confirm of the Private BLE delete (issue #57).
+          if(!confirm(`Delete the area "${area.name}"? This deletes it from Home Assistant itself, not just PadSpan: every device and entity in it becomes unassigned.`)) return;
+          if(!confirm(`Are you sure? "${area.name}" will be deleted from Home Assistant.`)) return;
           areaBtnWrap.innerHTML = "";
-          const yes = el("button",{class:"btn tiny",style:"background:#7f1d1d;border-color:#dc2626;white-space:nowrap"},"Yes, delete");
-          const no  = el("button",{class:"btn tiny"},"No");
-          yes.addEventListener("click", async()=>{
-            areaBtnWrap.innerHTML = "";
-            areaBtnWrap.appendChild(el("span",{class:"muted",style:"font-size:11px"},"Deleting…"));
-            try {
-              await ctx.actions.areaDelete(area.id);
-              await ctx.actions.modelRefresh();
-              ctx.toast(`Area "${area.name}" deleted.`);
-              ctx.actions.renderRooms();
-            } catch(e){ areaBtnWrap.innerHTML = ""; areaBtnWrap.appendChild(makeAreaDelBtn()); ctx.toast("Failed: "+String(e), true); }
-          });
-          no.addEventListener("click", ()=>{ areaBtnWrap.innerHTML = ""; areaBtnWrap.appendChild(makeAreaDelBtn()); });
-          areaBtnWrap.appendChild(yes); areaBtnWrap.appendChild(no);
+          areaBtnWrap.appendChild(el("span",{class:"muted",style:"font-size:11px"},"Deleting…"));
+          try {
+            await ctx.actions.areaDelete(area.id);
+            await ctx.actions.modelRefresh();
+            ctx.toast(`Area "${area.name}" deleted.`);
+            ctx.actions.renderRooms();
+          } catch(e){ areaBtnWrap.innerHTML = ""; areaBtnWrap.appendChild(makeAreaDelBtn()); ctx.toast("Failed: "+String(e), true); }
         });
         return b;
       };
