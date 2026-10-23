@@ -249,7 +249,8 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         machine = await machine_id(hass)
         # A different key starts this home afresh among that key's homes.
         _hp = home_params(st.data)
-        if key != str(st.data.get("forensics_license_key") or "").strip().upper():
+        new_key = key != str(st.data.get("forensics_license_key") or "").strip().upper()
+        if new_key:
             _hp["token"] = ""
         session = async_get_clientsession(hass)
         async with session.get(
@@ -275,10 +276,16 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             # buys (or goes lifetime on the same key) is no longer on a trial.
             license_is_trial=str(data.get("plan") or "") == "trial",
             forensics_enabled=True,
-            license_home_token=str(data.get("token") or "") if len(str(data.get("token") or "")) == 32 else "",
-            license_homes_used=int(data.get("homes_used") or 0) if str(data.get("homes_used") or "0").isdigit() else 0,
             license_home_status="",
+            # A different key: a fresh home on it.
+            **({"license_home_token": str(data.get("token") or "") if len(str(data.get("token") or "")) == 32 else "",
+                "license_homes_used": int(data.get("homes_used") or 0) if str(data.get("homes_used") or "0").isdigit() else 0}
+               if new_key else {}),
         )
+        if not new_key:
+            # The same key again: this home keeps its token unless a new one came.
+            from .licence_homes import keep_token  # noqa: PLC0415
+            await keep_token(st, data)
         _invalidate_snapshot_cache(hass)
         connection.send_result(msg["id"], {
             "ok": True,

@@ -206,6 +206,11 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         _hs = _hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report") else ""
         if _hs != str(st.data.get("license_home_status") or ""):
             await st.async_set(license_home_status=_hs)
+        # Not a refusal of the licence: a pause on new homes this month, or a
+        # third-to-fifth home whose report is off. Settings says which; the
+        # licence stays as it is.
+        if _hs in ("activation_rate", "needs_report"):
+            return
         # Explicitly revoked. Record it as expired-now rather than deleting
         # the key: the grace window still applies, the user keeps their data,
         # and re-activating a reinstated licence restores everything.

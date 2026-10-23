@@ -122,3 +122,30 @@ async def test_repeated_invalid_answers_never_stretch_the_grace(monkeypatch):
     _server_says(monkeypatch, {"valid": False})
     await _revalidate_license(hass)
     assert not st.async_set.called
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["activation_rate", "needs_report"])
+async def test_a_paused_or_unreported_home_keeps_its_licence(monkeypatch, status):
+    """A month's pause on new homes, or a third-to-fifth home with its report
+    off, is said in Settings; the licence itself is not taken away."""
+    hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2027-10-01T00:00:00+00:00",
+                       "license_home_status": ""})
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    st.async_set = AsyncMock()
+    _server_says(monkeypatch, {"valid": False, "status": status, "expires_at": "2027-10-01 00:00:00"})
+    await _revalidate_license(hass)
+    st.async_set.assert_called_once_with(license_home_status=status)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["activation_limit", "homes_frozen", "revoked", "expired", ""])
+async def test_other_refusals_still_expire_now(monkeypatch, status):
+    from datetime import datetime, timezone
+    hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2027-10-01T00:00:00+00:00"})
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    st.async_set = AsyncMock()
+    _server_says(monkeypatch, {"valid": False, "status": status})
+    await _revalidate_license(hass)
+    written = datetime.fromisoformat(st.async_set.call_args.kwargs["forensics_license_expires"])
+    assert abs((datetime.now(timezone.utc) - written).total_seconds()) < 60

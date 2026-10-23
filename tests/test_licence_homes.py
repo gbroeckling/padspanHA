@@ -113,3 +113,56 @@ def test_a_restore_a_new_key_or_a_bad_answer_never_costs_the_home_its_place():
     assert '"license_home_token", "license_home_label", "license_homes_used")' in _src("ws_factory_reset.py")
     assert "if resp.status >= 400:" in _src("licence_homes.py")
     assert '"homes_max": _n(data.get("homes_max"), 5)' in _src("ws_forensics.py"), "a malformed answer can't raise"
+
+
+def _activate(monkeypatch, stored, answer, key):
+    import json
+    import sys
+    import types
+    from unittest.mock import MagicMock
+    from custom_components.padspan_ha import ws_forensics as F
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+
+    class _Resp:
+        async def text(self):
+            return json.dumps(answer)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+    session = MagicMock()
+    session.get = MagicMock(return_value=_Resp())
+    mod = types.ModuleType("homeassistant.helpers.aiohttp_client")
+    mod.async_get_clientsession = lambda hass: session
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.aiohttp_client", mod)
+    monkeypatch.setattr(F, "_invalidate_snapshot_cache", lambda hass: None)
+    monkeypatch.setattr(F, "_get_settings", lambda hass: {})
+
+    async def _mid(hass):
+        return "m1"
+    monkeypatch.setattr(LH, "machine_id", _mid)
+    st = _St(stored)
+    hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st}})
+    asyncio.run(F.ws_forensics_license_activate(hass, MagicMock(), {"id": 1, "key": key}))
+    return st.data, session.get.call_args.kwargs["params"]
+
+
+def test_the_same_key_again_keeps_the_home_when_the_answer_has_no_token(monkeypatch):
+    stored = {"forensics_license_key": "PSPAN-AAAA", "license_home_token": "a" * 32, "license_homes_used": 3}
+    data, sent = _activate(monkeypatch, stored, {"valid": True, "expires_at": "2027-01-01"}, "pspan-aaaa")
+    assert sent["token"] == "a" * 32
+    assert data["license_home_token"] == "a" * 32 and data["license_homes_used"] == 3
+    data, _ = _activate(monkeypatch, stored, {"valid": True, "token": "b" * 32, "homes_used": 4}, "PSPAN-AAAA")
+    assert data["license_home_token"] == "b" * 32 and data["license_homes_used"] == 4
+
+
+def test_a_different_key_starts_the_home_afresh(monkeypatch):
+    stored = {"forensics_license_key": "PSPAN-AAAA", "license_home_token": "a" * 32, "license_homes_used": 3}
+    data, sent = _activate(monkeypatch, stored, {"valid": True}, "PSPAN-BBBB")
+    assert sent["token"] == ""
+    assert data["license_home_token"] == "" and data["license_homes_used"] == 0
+    data, _ = _activate(monkeypatch, stored, {"valid": True, "token": "c" * 32, "homes_used": "2"}, "PSPAN-BBBB")
+    assert data["license_home_token"] == "c" * 32 and data["license_homes_used"] == 2
