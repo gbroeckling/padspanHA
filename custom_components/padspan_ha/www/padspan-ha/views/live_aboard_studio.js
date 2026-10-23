@@ -11,7 +11,8 @@
 //            night with a few stars), the sun's own glow on it
 //   stage    a soft pad under the house that fades into the sky's horizon,
 //            a faint metre grid on it, a contact shadow under the house
-//   light    a cool fill that keeps shadows coloured, a rim light from
+//   light    a cool fill that keeps shadows coloured, a soft front light
+//            from the camera's side (no face is ever flat grey), a rim light from
 //            behind, softer and lighter sun shadows (High), highlights that
 //            roll off instead of clipping (Neutral tone mapping, lit
 //            surfaces only: names, chips and glows are never touched)
@@ -27,8 +28,8 @@
 // sun's glow. Day, golden hour (the sun low), night; twilight is between.
 export const STUDIO_SKY = Object.freeze({
   day:    Object.freeze({ zenith: "#355a70", horizon: "#a9bbba", pad: "#d3cfc4", glow: "#fff4dc" }),
-  golden: Object.freeze({ zenith: "#36466a", horizon: "#d9a982", pad: "#cdbca8", glow: "#ffc98a" }),
-  night:  Object.freeze({ zenith: "#03060d", horizon: "#1a2636", pad: "#46536a", glow: "#6d7fa8" }),
+  golden: Object.freeze({ zenith: "#3f4f7c", horizon: "#e9b48f", pad: "#e6d3c0", glow: "#ffc98a" }),
+  night:  Object.freeze({ zenith: "#03060d", horizon: "#111a27", pad: "#46536a", glow: "#6d7fa8" }),
 });
 // The light: how much the fill, the sun and the rim give, by day and by night.
 export const STUDIO_LIGHT = Object.freeze({
@@ -36,9 +37,10 @@ export const STUDIO_LIGHT = Object.freeze({
   fillSky: "#dfe9f2", fillGround: "#6b5f50", // the fill's sky and bounce, by day
   sunK: 1.15,                              // x the view's own sun
   rimDay: 0.55, rimNight: 0.45, rimDayCol: "#cfe0ff", rimNightCol: "#7f9cd6",
+  frontDay: 0.45, frontNight: 0.18, frontCol: "#fff6ea",   // the front light, from over the camera's shoulder
   exposure: 1.08,                          // Neutral tone mapping's exposure
   shadow: 0.8, shadowRadius: 2,
-  padNight: 0.22,                          // the stage's own light at night (its colour x this)         // High: the sun shadow's strength (1: black) and softness
+  padNight: 0.22, padLow: 0.16,            // the stage's own light at night, and with the sun low (its colour x this)         // High: the sun shadow's strength (1: black) and softness
 });
 export const STUDIO_WALL_FOOT = 0.78;
 // What falls on a light day sky: the rain a slate blue (white would not show), white at night.
@@ -99,12 +101,13 @@ void main(){
 export function createStudio(o){
   const { THREE, renderer, scene, root, canvas, hemi, sun, wallBox } = o;
   const profile = () => (o.profile && o.profile() === "high" ? "high" : "low");
+  const _dir = new THREE.Vector3(), _side = new THREE.Vector3(), _up = new THREE.Vector3(0, 10, 0);
   const before = { toneMapping: renderer.toneMapping, exposure: renderer.toneMappingExposure, shadowType: renderer.shadowMap.type,
                    shadowIntensity: sun.shadow.intensity, shadowRadius: sun.shadow.radius,
                    clear: renderer.getClearColor(new THREE.Color()).getHex(), bg: scene.background.getHex(), fog: scene.fog.color.getHex() };
   const res = [];                                            // what it made, let go of on dispose
   const touched = new Set();                                 // materials it kept out of tone mapping
-  let sky = null, pad = null, contact = null, vig = null, rim = null, hidden = [], skyNow = skyAt({ night: 0, warm: 0 });
+  let sky = null, pad = null, contact = null, vig = null, rim = null, front = null, hidden = [], skyNow = skyAt({ night: 0, warm: 0 });
   let parts = studioParts(profile()), lookNow = { night: 0, warm: 0 }, arrived = false;
 
   // The sky: a dome round the camera, drawn first, behind everything.
@@ -122,6 +125,11 @@ export function createStudio(o){
   rim = new THREE.DirectionalLight(0xffffff, 0);
   rim.userData.studio = true;
   scene.add(rim, rim.target);
+  // The front light: from up and to the left of the camera, no shadow; it
+  // follows the camera (prepare), so the faces you see always have form.
+  front = new THREE.DirectionalLight(0xffffff, 0);
+  front.userData.studio = true;
+  scene.add(front, front.target);
 
   // The vignette: one CSS gradient over the canvas, under the bars.
   if (root && canvas) {
@@ -186,9 +194,12 @@ export function createStudio(o){
   diffuseColor.rgb = mix(uPad, uFar, smoothstep(uR * 0.55, uR * 2.6, sd));
   vec2 gq = abs(fract(vStage + 0.5) - 0.5) / fwidth(vStage);
   float gl = 1.0 - min(min(gq.x, gq.y), 1.0);
-  diffuseColor.rgb *= 1.0 - uGrid * gl * (1.0 - smoothstep(uR * 0.4, uR * 1.6, sd));`)
+  diffuseColor.rgb *= 1.0 - uGrid * gl * (1.0 - smoothstep(uR * 0.4, uR * 1.6, sd));
+  diffuseColor.rgb *= 1.0 - smoothstep(uR * 1.4, uR * 4.5, sd);`)
           .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
-  totalEmissiveRadiance += uPad * uLift * (1.0 - smoothstep(uR * 0.3, uR * 2.2, length(vStage - uCentre)));`);
+  float sf = length(vStage - uCentre);
+  totalEmissiveRadiance += uPad * uLift * (1.0 - smoothstep(uR * 0.3, uR * 2.2, sf));
+  totalEmissiveRadiance += uFar * smoothstep(uR * 1.4, uR * 4.5, sf);`);
     };
     m.customProgramCacheKey = () => "la3d-studio-pad";
     res.push(m);
@@ -221,7 +232,8 @@ export function createStudio(o){
     padU.uPad.value.set(s.pad);
     padU.uFar.value.set(s.horizon);
     padU.uGrid.value = 0.06 + lookNow.night * 0.05;
-    padU.uLift.value = STUDIO_LIGHT.padNight * lookNow.night;   // at night the stage keeps a soft light of its own
+    // At night, and as the sun gets low, the stage keeps a soft light of its own.
+    padU.uLift.value = STUDIO_LIGHT.padNight * lookNow.night + STUDIO_LIGHT.padLow * lookNow.warm * (1 - lookNow.night);
   }
   function applyProfileParts(){
     parts = studioParts(profile());
@@ -285,6 +297,8 @@ export function createStudio(o){
       rim.target.position.copy(sun.target.position);
       rim.position.set(sun.target.position.x - dir.x * 50, sun.target.position.y + 45, sun.target.position.z - dir.z * 50);
       rim.target.updateMatrixWorld();
+      front.intensity = L.frontDay + (L.frontNight - L.frontDay) * n;
+      front.color.set(L.frontCol);
       paintSky();
     },
     /** True the first time only: the view's arrival is due. */
@@ -296,11 +310,18 @@ export function createStudio(o){
     /** Just before a draw: the sky round the camera, new materials kept out of tone mapping. */
     prepare(camera){
       sky.position.copy(camera.position);
+      // Over the camera's left shoulder, toward what it looks at.
+      const t = front.target.position;
+      camera.getWorldDirection(_dir);
+      t.copy(camera.position).addScaledVector(_dir, 20);
+      _side.set(-_dir.z, 0, _dir.x).normalize();
+      front.position.copy(camera.position).addScaledVector(_side, -8).add(_up);
+      front.target.updateMatrixWorld();
       keepColours();
     },
     state(){
       return { on: true, parts: { ...parts }, sky: { ...skyNow }, tone: renderer.toneMapping === THREE.NeutralToneMapping,
-               shadowType: renderer.shadowMap.type, rim: rim.visible ? rim.intensity : 0, pad: !!pad, contact: !!contact,
+               shadowType: renderer.shadowMap.type, rim: rim.visible ? rim.intensity : 0, front: front.intensity, pad: !!pad, contact: !!contact,
                vignette: !!(vig && vig.parentNode && vig.style.display !== "none"), hidden: hidden.length,
                wallFoot: wallCol ? wallCol.array.some(v => Math.abs(v - STUDIO_WALL_FOOT) < 1e-6) : false };
     },
@@ -308,7 +329,7 @@ export function createStudio(o){
     dispose(){
       for (const ob of hidden) ob.visible = true;
       hidden = [];
-      for (const ob of [sky, pad, contact, rim, rim && rim.target]) if (ob && ob.parent) ob.parent.remove(ob);
+      for (const ob of [sky, pad, contact, rim, rim && rim.target, front, front && front.target]) if (ob && ob.parent) ob.parent.remove(ob);
       if (vig && vig.parentNode) vig.parentNode.removeChild(vig);
       scene.traverse((ob) => {
         const ms = ob.material ? (Array.isArray(ob.material) ? ob.material : [ob.material]) : [];
@@ -326,6 +347,7 @@ export function createStudio(o){
       for (const r of res) { try { r.dispose(); } catch (_) { /* already gone */ } }
       res.length = 0;
       rim.dispose && rim.dispose();
+      front.dispose && front.dispose();
       sky = pad = contact = vig = null;
     },
   };

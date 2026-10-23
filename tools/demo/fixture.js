@@ -4,7 +4,7 @@
 //
 // harnessFixture(q) takes the page's query (URLSearchParams) and answers
 // {MODEL, STATES}: the model_get payload and the Home Assistant states.
-// The harness's options (one=1, gym=1, loft=1, sky=, night=, smoke=0,
+// The harness's options (one=1, gym=1, loft=1, sky=, night=, sunel=, smoke=0,
 // wopen=0) are read here, so both pages build the same house.
 export function harnessFixture(q){
   const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
@@ -85,7 +85,8 @@ export function harnessFixture(q){
     "lock.front": S("locked", "Front lock"),
     "binary_sensor.living_window": S(q.get("wopen") === "0" ? "off" : "on", "Living room window", { device_class: "window" }),
     "binary_sensor.kitchen_window": S("off", "Kitchen window", { device_class: "window" }),
-    "sun.sun": { state: q.get("night") ? "below_horizon" : "above_horizon", attributes: { elevation: q.get("night") ? -20 : 35, azimuth: 200 }, last_changed: ago(30) },
+    "sun.sun": q.get("sunel") ? { state: Number(q.get("sunel")) > 0 ? "above_horizon" : "below_horizon", attributes: { elevation: Number(q.get("sunel")), azimuth: 200 }, last_changed: ago(30) }
+      : { state: q.get("night") ? "below_horizon" : "above_horizon", attributes: { elevation: q.get("night") ? -20 : 35, azimuth: 200 }, last_changed: ago(30) },
     "weather.home": S(q.get("sky") || "rainy", "Home", { temperature: 12 }),
     "binary_sensor.laundry_leak": S("off", "Laundry leak", { device_class: "moisture" }),
     "binary_sensor.hall_smoke": S(q.get("smoke") === "0" ? "off" : "on", "Hall smoke alarm", { device_class: "smoke" }, 1),
