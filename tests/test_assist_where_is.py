@@ -136,3 +136,26 @@ def test_docs_give_the_sentences_and_the_built_in_finding() -> None:
     assert "## Ask Assist where someone is" in doc
     assert "PadSpanWhereIs:" in doc and "wildcard: true" in doc
     assert "name_where" in doc and "Expose" in doc
+
+
+def test_llm_agents_are_not_given_it_and_its_slot_is_described(monkeypatch) -> None:
+    """Home Assistant before 2026.8 offered LLM agents every registered intent
+    whose platforms were None or matched an exposed entity's domain
+    (helpers/llm.py AssistAPI). The integration's own domain is never an
+    entity's domain, so it stays off; the default agent's sentences call
+    intent.async_handle, which does not look at platforms."""
+    mod = _fake_intent_module()
+    helpers = sys.modules["homeassistant.helpers"]
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.intent", mod)
+    monkeypatch.setattr(helpers, "intent", mod, raising=False)
+    async_setup_intents(MagicMock())
+    handler = mod.registered[INTENT_WHERE_IS]
+    assert handler.platforms == {DOMAIN}
+    exposed_domains = {"sensor", "device_tracker", "person", "light"}
+    assert not (handler.platforms & exposed_domains)
+    import voluptuous as vol
+    schema = vol.Schema(handler.slot_schema)
+    assert schema({"padspan_person": "Alice"}) == {"padspan_person": "Alice"}
+    assert schema({}) == {}
+    with pytest.raises(vol.Invalid):
+        schema({"padspan_person": 3})

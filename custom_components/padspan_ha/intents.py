@@ -17,8 +17,11 @@ coordinator.
 
 Registered once, but nothing reaches it until the user adds the sentences in
 docs/GETTING_STARTED.md to config/custom_sentences/: no built-in sentence
-names PadSpanWhereIs, and without an llm.py platform no LLM agent is given it
-as a tool. Read-only: it looks at the coordinator's data and writes nothing.
+names PadSpanWhereIs, and no LLM agent is given it as a tool: there is no
+llm.py platform (Home Assistant 2026.8 and later), and on earlier versions,
+which offered every registered intent, its platforms are this integration's
+domain, which no exposed entity has. Read-only: it looks at the coordinator's
+data and writes nothing.
 """
 
 from typing import Any
@@ -91,11 +94,16 @@ def where_is_answer(data: dict[str, Any] | None, name: str, timeout_s: float) ->
 @callback
 def async_setup_intents(hass: HomeAssistant) -> None:
     """Register PadSpanWhereIs. Inert until custom sentences name it."""
+    import voluptuous as vol  # noqa: PLC0415
     from homeassistant.helpers import intent  # noqa: PLC0415
 
     class WhereIsHandler(intent.IntentHandler):
         intent_type = INTENT_WHERE_IS
         description = "Says which room a PadSpan-tracked person or device is in"
+        # Kept off LLM agents' tools (see above); sentences still reach it.
+        platforms = {DOMAIN}
+        # The sentences in docs/GETTING_STARTED.md fill padspan_person.
+        slot_schema = {vol.Optional("padspan_person"): str, vol.Optional("name"): str}
 
         async def async_handle(self, intent_obj: intent.Intent) -> intent.IntentResponse:
             slots = intent_obj.slots or {}
