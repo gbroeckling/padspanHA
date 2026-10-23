@@ -1718,13 +1718,12 @@ def test_each_overview_screen_sends_only_what_it_changed():
     assert ov(atlas_weather_enabled=False, atlas_weather_strength=1.4)["ov_atlas"] == ["no_weather"]
     assert ov(atlas_weather_strength=0.5)["ov_atlas"] == ["weather_lt1"]
     # The 3D house's list only while it is on.
-    three = dict(atlas_3d_quality="low", atlas_3d_people=True, atlas_3d_look="own", atlas_3d_home_idle_s=0)
+    three = dict(atlas_3d_quality="low", atlas_3d_people=True, atlas_3d_look="own")
     assert ov(**three) == {}
-    assert ov(atlas_3d_enabled=True, **three)["ov_3d"] == ["q_low", "people", "look_own", "idle_0"]
-    assert ov(atlas_3d_enabled=True, atlas_3d_home_idle_s=60, atlas_3d_quality="auto") == {}
-    # A stray stored value makes no word, never a refused report.
-    for odd in (False, True, 30.0, "30"):
-        assert ov(atlas_3d_enabled=True, atlas_3d_home_idle_s=odd) == {}
+    assert ov(atlas_3d_enabled=True, **three)["ov_3d"] == ["q_low", "people", "look_own"]
+    assert ov(atlas_3d_enabled=True, atlas_3d_quality="auto") == {}
+    # The home-view timeout is never reported (test_live_aboard_panel.py).
+    assert ov(atlas_3d_enabled=True, atlas_3d_home_idle_s=0) == {}
     # Never the numbers themselves.
     h = _hass()
     h.data[DOMAIN][DATA_SETTINGS].data.update(overview_iso_floor_gap=217, overview_iso_zoom=1.37, overview_iso_horiz_gap=-63)

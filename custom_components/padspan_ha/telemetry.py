@@ -593,8 +593,7 @@ OVERVIEW_SET: dict[str, tuple[str, ...]] = {
     "ov_house": ("gap_tight", "gap_wide", "gap_custom", "offset", "one_floor", "trails"),
     "ov_atlas": ("zoom_lt1", "zoom_1_2", "zoom_gt2", "classic", "no_emergency", "no_weather",
                  "weather_lt1", "weather_gt1"),
-    "ov_3d": ("q_low", "q_high", "people", "tags", "library", "no_weather", "look_own",
-              "idle_0", "idle_30", "idle_300"),
+    "ov_3d": ("q_low", "q_high", "people", "tags", "library", "no_weather", "look_own"),
 }
 
 
@@ -636,9 +635,6 @@ def _overview_features(settings: dict[str, Any]) -> dict[str, Any]:
             d3.append("no_weather")
         if g("atlas_3d_look") == "own":
             d3.append("look_own")
-        idle = g("atlas_3d_home_idle_s")
-        if type(idle) is int and idle in (0, 30, 300):
-            d3.append(f"idle_{idle}")
     return {k: v for k, v in (("ov_house", house), ("ov_atlas", atlas), ("ov_3d", d3)) if v}
 
 
