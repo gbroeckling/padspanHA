@@ -297,6 +297,20 @@ await tryCase("fps: turned on it says 0 fps at rest, counts a door's swing, and 
   LA.releaseLiveAboardSlot("view-fps-on");
   await settle();
 });
+await tryCase("fps: back to the flat Atlas the readout and its timer go", async () => {
+  const kept = new Map([["fps", "1"]]), prefs = { get: (k) => kept.get(k) ?? null, set: (k, v) => { kept.set(k, v); } };
+  const slot = LA.liveAboardSlot("view-fps-detach");
+  card(slot, { ...liveP(LIVE()), prefs });
+  await later(3000, 6);
+  const on = slot._state().fps;
+  slot.detach();
+  await later(3000, 3);
+  const off = slot._state().fps;
+  check("fps: back to the flat Atlas the readout and its timer go",
+    on && on.on && on.timer && off && !off.on && !off.timer, { on, off });
+  LA.releaseLiveAboardSlot("view-fps-detach");
+  await settle();
+});
 // ── gap ─────────────────────────────────────────────────────────────────────
 await tryCase("gap: a gap with a sensor keeps its reading and its tap target, as the Atlas does", async () => {
   // A barrier of material "open" linked to a sensor: a doorway with no leaf.
