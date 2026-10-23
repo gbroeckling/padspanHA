@@ -43,13 +43,13 @@ const KEY = { tier: "pro", pro_has_key: true, pro_active: true, license_tier: "p
               forensics_license_expires: "2027-07-20", telemetry_enabled: true };
 const WARN = { warning: "reports_off", grace_until: "2026-11-06T19:05:43Z", off_labels: ["Cabin", "<b>Shop</b>"] };
 
-function makeCtx(settings, tab, sets) {
+function makeCtx(settings, tab, sets, wsCall = async () => ({})) {
   return {
     hass: { user: { is_admin: true }, states: {} },
     state: { view: "settings", complexity: "advanced", _settingsTab: tab, model: { floors: [], areas: [] }, settings },
     helpers: new Proxy({ el, esc: (s) => String(s), roomColor: () => "#52b788", helpBtn: noop },
       { get: (t, k) => (k in t ? t[k] : noop) }),
-    actions: new Proxy({ wsCall: async () => ({}), renderRooms() {}, renderNav() {},
+    actions: new Proxy({ wsCall, renderRooms() {}, renderNav() {},
                          settingsSet: async (p) => { sets.push(p); } },
       { get: (t, k) => (k in t ? t[k] : () => {}) }),
     toast() {},
@@ -73,6 +73,17 @@ async function toggle(settings, answer) {
   return { asked, sets };
 }
 
+// Open the homes list with the server answering `homes`; is the warning still there after?
+async function listed(settings, homes) {
+  const ans = { homes: homes.map((label, i) => ({ id: i + 1, label, this: i === 0, reporting: true })), homes_max: 5, licence: { homes_free: 2 } };
+  const root = S.render(makeCtx(settings, "features", [], async () => ans));
+  const find = () => root._all().find(n => (n.className || "") === "homes-reports-warning");
+  const before = !!find();
+  root._all().find(n => n.localName === "button" && /Show this key's homes/.test(n.textContent || "")).click();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  return { before, after: !!find() };
+}
+
 const cases = {};
 const run = async (name, f) => { try { cases[name] = await f(); } catch (e) { failures.push(`${name}: ${e && e.message ? e.message : e}`); } };
 await run("card_two_homes", () => card({ ...KEY, license_homes_used: 2 }));
@@ -84,6 +95,10 @@ await run("off_three_cancel", () => toggle({ ...KEY, license_homes_used: 3 }, fa
 await run("off_three_ok", () => toggle({ ...KEY, license_homes_used: 3 }, true));
 await run("off_two", () => toggle({ ...KEY, license_homes_used: 2 }, true));
 await run("off_no_key", () => toggle({ telemetry_enabled: true, pro_has_key: false, license_homes_used: 3 }, true));
-await run("on_three", () => toggle({ ...KEY, telemetry_enabled: false, license_homes_used: 3 }, true));
+await run("card_update", () => card({ ...KEY, license_homes_used: 3, license_homes_warning: { ...WARN, off_labels: ["Cabin", "Home 3 (update PadSpan)"] } }));
+await run("off_three_running", () => toggle({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }, false));
+await run("list_down_to_two", () => listed({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }, ["A", "B"]));
+await run("list_still_three", () => listed({ ...KEY, license_homes_used: 3, license_homes_warning: WARN }, ["A", "B", "C"]));
+await run("on_three",() => toggle({ ...KEY, telemetry_enabled: false, license_homes_used: 3 }, true));
 console.log(JSON.stringify({ cases, failures }));
 process.exit(failures.length ? 1 : 0);

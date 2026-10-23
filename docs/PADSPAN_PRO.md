@@ -36,8 +36,11 @@ One key covers up to five Home Assistants (a cabin, a parent's house, a test ins
   only when every home, the new one too, has the report on.
 - If one of them turns the report off, the key drops back to its first two homes after 14 days:
   the first two keep Pro, and the others pick up again at their next check once the report is back
-  on. The licence card says which home has it off and by when, and turning the report off on such
-  a key asks first.
+  on. The 14 days add up: turning the report back on briefly doesn't start them again, and they
+  start again only after every home has had the report on for 30 days. The licence card says which
+  home has it off and by when, and turning the report off on such a key asks first.
+- A home on PadSpan before 0.38.160 can't send the report, so it counts as off until it's updated;
+  the licence card names it as needing an update.
 - A home that hasn't checked in for 45 days frees its place.
 - A new or reinstalled Home Assistant can take the place of a home not seen for 14 days.
 

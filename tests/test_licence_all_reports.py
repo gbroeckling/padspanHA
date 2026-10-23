@@ -48,7 +48,7 @@ def test_the_warning_is_read_only_as_the_server_says_it():
     for none in (None, {}, {"valid": True}, {"homes_warning": "other"}, "x"):
         assert LH.homes_warning(none) == {}, none
     w = LH.homes_warning({"homes_warning": "reports_off", "homes_off_labels": ["x" * 90, 3, None] + ["h"] * 9})
-    assert w["off_labels"][0] == "x" * 40 and len(w["off_labels"]) == 5 and all(isinstance(x, str) for x in w["off_labels"])
+    assert w["off_labels"][0] == "x" * 60 and len(w["off_labels"]) == 5 and all(isinstance(x, str) for x in w["off_labels"])
     assert LH.homes_warning({"homes_warning": "reports_off", "homes_off_labels": "Cabin"})["off_labels"] == []
     assert DEFAULT_SETTINGS["license_homes_warning"] == {}, "off by default: nothing to say"
 
@@ -174,3 +174,12 @@ def test_settings_says_it_and_asks_first():
     for k in ("off_two", "off_no_key"):
         assert c[k] == {"asked": [], "sets": [{"telemetry_enabled": False}]}, (k, "unchanged: no question")
     assert c["on_three"] == {"asked": [], "sets": [{"telemetry_enabled": True}]}, "turning it on asks nothing"
+    assert "The report is off on: Cabin, <b>Shop</b>." in c["card_warned"]["warning"]
+    assert "The report is off on, or PadSpan needs updating on: Cabin, Home 3 (update PadSpan)." in c["card_update"]["warning"], \
+        "a home too old to say its report is on is named as needing an update"
+    run = c["off_three_running"]["asked"][0]
+    assert run.startswith("This key is used on 3 homes. With more than 2, every home must keep the report on. "
+                          "If you turn it off here, the homes beyond your first two stop using Pro on ") and "2026" in run \
+        and run.endswith(" unless it's back on.") and "in 14 days" not in run, "a grace already running: its own date"
+    assert c["list_down_to_two"] == {"before": True, "after": False}, "removed down to two homes: the warning goes at once"
+    assert c["list_still_three"] == {"before": True, "after": True}

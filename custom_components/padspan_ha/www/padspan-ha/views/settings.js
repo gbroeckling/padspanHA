@@ -3026,14 +3026,19 @@ export function homesWarningText(s){
   if (w.warning !== "reports_off") return "";
   const n = Number(s.license_homes_used) || 0;
   return `This key is on ${n > 2 ? n : "more than 2"} homes. Every home on a key with more than 2 must keep the usage report on. ` +
-    `The report is off on: ${labels || "one of them"}. Unless it's turned back on by ${_homesDate(w.grace_until)}, the homes beyond your first two stop using Pro.`;
+    // A home on PadSpan before 0.38.160 can't say its report is on: the server names it "(update PadSpan)".
+    (/\(update PadSpan\)/.test(labels) ? "The report is off on, or PadSpan needs updating on: " : "The report is off on: ") +
+    `${labels || "one of them"}. Unless it's turned back on by ${_homesDate(w.grace_until)}, the homes beyond your first two stop using Pro.`;
 }
 // Asked before the usage report goes off on a home whose key is on more than two homes; "" = no question.
 export function reportOffConfirmText(s){
   const n = Number((s && s.license_homes_used) || 0);
   if (!s || !s.pro_has_key || !(n > 2)) return "";
+  // A grace already running (a report off on another home) has its own date.
+  const w = s.license_homes_warning || {};
+  const when = w.warning === "reports_off" && w.grace_until ? "on " + _homesDate(w.grace_until) : "in 14 days";
   return `This key is used on ${n} homes. With more than 2, every home must keep the report on. ` +
-    "If you turn it off here, the homes beyond your first two stop using Pro in 14 days unless it's back on.";
+    `If you turn it off here, the homes beyond your first two stop using Pro ${when} unless it's back on.`;
 }
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
@@ -3046,9 +3051,9 @@ function _licenceHomes(ctx, el, s){
     box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]));
   }
   const homesWarn = homesWarningText(s);
-  if (homesWarn) {
-    box.appendChild(el("div", { class: "homes-reports-warning", style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + homesWarn));
-  }
+  const warnBox = homesWarn
+    ? box.appendChild(el("div", { class: "homes-reports-warning", style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + homesWarn))
+    : null;
   const list = el("div", {});
   const load = async (op, extra) => {
     list.textContent = "Asking the licence server\u2026";
@@ -3058,6 +3063,8 @@ function _licenceHomes(ctx, el, s){
     list.textContent = "";
     // The licence they share, said the same way in each of its homes.
     const L = r.licence || {};
+    // Down to the first two homes (one just removed): the reports warning no longer applies.
+    if (warnBox && r.homes.length <= (L.homes_free || 2)) warnBox.remove();
     list.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;margin-bottom:6px;line-height:1.5" },
       `One licence${L.key_end ? " (key ending " + L.key_end + ")" : ""}${L.owner ? " for " + L.owner : ""}: ` +
       `${r.homes.length} of ${r.homes_max} homes` + (r.frozen ? " \u00B7 paused for new homes" : "")));

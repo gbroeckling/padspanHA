@@ -192,6 +192,10 @@ async def ws_licence_homes(hass: HomeAssistant, connection, msg) -> None:
     try:
         if op == "remove":
             data = await licence_homes.call(hass, "home_remove", key, {"home_id": str(int(msg.get("home_id") or 0))}, post=True)
+            # One fewer home: the licence server's answer on this home (its
+            # reports warning, how many homes) follows now, not tomorrow.
+            from .update_check import _revalidate_license  # noqa: PLC0415
+            hass.async_create_task(_revalidate_license(hass))
         elif op == "label":
             label = str(msg.get("label") or "").strip()[:60]
             await st.async_set(license_home_label=label)

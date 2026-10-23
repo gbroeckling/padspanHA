@@ -69,7 +69,8 @@ def homes_warning(data: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(data, dict) or data.get("homes_warning") != "reports_off":
         return {}
     labels = data.get("homes_off_labels")
-    labels = [str(x)[:40] for x in labels if isinstance(x, str)][:5] if isinstance(labels, list) else []
+    # 40 characters of name, plus " (update PadSpan)" for a home on PadSpan before 0.38.160.
+    labels = [str(x)[:60] for x in labels if isinstance(x, str)][:5] if isinstance(labels, list) else []
     return {"warning": "reports_off", "grace_until": str(data.get("homes_grace_until") or "")[:25], "off_labels": labels}
 
 
