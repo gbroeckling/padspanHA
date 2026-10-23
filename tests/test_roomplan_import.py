@@ -318,3 +318,26 @@ def test_the_nesting_limit_is_the_same_everywhere_and_ignores_text():
         parse_roomplan(b"[" * 300 + b"]" * 300)
     with pytest.raises(RoomPlanParseError, match="no rooms, walls or floors"):
         parse_roomplan(json.dumps({"note": "[[[[[" * 100}).encode())
+
+
+@pytest.mark.parametrize("data", [
+    b'"a' * 500_000,                                    # quotes that never close: quadratic before
+    b'{"a":"' + b'x\\"' * 330_000 + b'"}',              # escaped quotes inside one string
+    b'["' * 500_000,
+    b'"\\\n' * 330_000,                                # a backslash before a newline
+], ids=["unclosed-quotes", "escaped-quotes", "bracket-quote", "backslash-newline"])
+def test_a_megabyte_of_hostile_text_is_read_in_linear_time(data):
+    import time
+    assert len(data) >= 990_000
+    t0 = time.perf_counter()
+    with pytest.raises(RoomPlanParseError):
+        parse_roomplan(data)
+    assert time.perf_counter() - t0 < 1.0
+
+
+def test_brackets_in_strings_still_do_not_count_toward_the_nesting_limit():
+    doc = _room()
+    doc["note"] = "[{" * 1000 + 'a \\" quote'
+    assert parse_roomplan(_bytes(doc))["rooms"][0]["name"] == "Kitchen"
+    with pytest.raises(RoomPlanParseError, match="could not read it as JSON"):
+        parse_roomplan(b'{"a": "[[[", "b": ' + b"[" * 201 + b"]" * 201 + b"}")

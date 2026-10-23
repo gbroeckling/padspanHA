@@ -3243,6 +3243,12 @@ function _settingsFeatures(ctx, el){
             "beside Sweet Home 3D files. Rooms come in as a candidate to review before anything is saved.",
     },
     {
+      key: "vacuum_import_enabled",
+      label: "Robot Vacuum Import",
+      desc: "Lets Maps → Rooms import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms " +
+            "on a floor that has no plans yet. Admins only. A robot already linked keeps working while this is off.",
+    },
+    {
       key: "phone_wizard_enabled",
       label: "Phone Setup Wizard",
       desc: "Shows a guided setup flow in the IRK Manager for adding phones and watches. Detects IRK Capture devices and walks through the pairing process.",

@@ -305,6 +305,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "radio_map_enabled": False,             # RSSI heatmap overlay on floor plan maps
     "distortion_map_enabled": False,        # calibration disagreement visualization
     "roomplan_import_enabled": False,       # Rooms tab: also import Apple RoomPlan .json scans
+    "vacuum_import_enabled": False,         # Rooms tab: "Import from a robot vacuum" (vacuum_import.py)
     "iphone_irk_guide": False,              # phone setup: iPhones get the IRK steps, not BLE Transmitter (#69)
     # ── RSSI vector capture (off by default) ─────────────────────────────────
     # Records the full per-scanner RSSI vector for tracked objects, plus the

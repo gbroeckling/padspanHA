@@ -554,6 +554,11 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             await st.async_save(data)
                         if hasattr(store_obj, "data") and isinstance(data, dict):
                             store_obj.data = data
+                            if store_key == "padspan_ha.vacuum" and hasattr(store_obj, "start"):
+                                # The robot link as restored: reading again if it
+                                # came back on, stopped if it came back off
+                                # (it was until a restart).
+                                store_obj.start()
                         elif hasattr(store_obj, "_data") and isinstance(data, dict):
                             store_obj._data = data
                         elif hasattr(store_obj, "entries") and isinstance(data, list):

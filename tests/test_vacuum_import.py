@@ -231,7 +231,7 @@ def _call(handler, h, **msg):
 
 def test_commit_adds_a_new_map_and_new_rooms_and_never_overwrites_a_room():
     existing_room = {"type": "poly", "points_m": [[0, 0], [1, 0], [1, 1]]}
-    old_map = {"id": "old", "floor_id": "main"}
+    old_map = {"id": "old", "floor_id": "upstairs"}          # another floor: "main" is empty
     old_t = {"origin_x_m": 3.0, "origin_y_m": 4.0, "scale_x_m": 10.0, "scale_y_m": 8.0}
     ms, mdl, fab = _Maps([old_map]), _Model({"old": old_t}), _Fabric({"Kitchen": existing_room})
     cal = SimpleNamespace(async_add_point=AsyncMock())
@@ -461,3 +461,96 @@ def test_import_block_sits_beside_the_sh3d_import_and_is_closed_by_default():
     assert "wsCall" not in head.replace("refresh(ctx)", "")
     # The panel never writes calibration itself: only the accept command does.
     assert "calibration_save_point" not in js and "padspan_ha/vacuum_cal_pending_accept" in js
+
+
+# ── review fixes: bounded runs, off the event loop, an empty floor, the gate ──
+
+def test_runs_that_expand_past_the_cap_are_refused_before_allocating():
+    with pytest.raises(vi.VacuumImportError, match="too large"):
+        vi._decompress([0, 0, 10 ** 12])                       # one absurd run
+    runs = []
+    for y in range(60):
+        runs += [0, y, 100_000]                                 # each run fine, 6 M together
+    with pytest.raises(vi.VacuumImportError, match="too large"):
+        vi._decompress(runs)
+    vmap = {"__class": "ValetudoMap", "pixelSize": 5, "layers": [
+        {"type": "floor", "compressedPixels": [0, y, 100_000]} for y in range(60)]}
+    with pytest.raises(vi.VacuumImportError, match="too large"):
+        vi.parse_valetudo(vmap)                                 # the cap is for all layers together
+    assert vi._decompress([2, 3, 2]) == [(2, 3), (3, 3)]       # a real run is unchanged
+
+
+def test_map_parsing_runs_off_the_event_loop():
+    src = (CC / "vacuum_import.py").read_text(encoding="utf-8")
+    read = src[src.index("async def async_read_payload"):src.index("async def async_tick")]
+    assert "await self.hass.async_add_executor_job(extract_valetudo_json, png)" in read
+    fetch = src[src.index("async def fetch_url_json"):src.index("def valetudo_map_url")]
+    assert "await hass.async_add_executor_job(_json_answer, raw)" in fetch
+    assert "json.loads" not in fetch[:fetch.index("def _json_answer")]
+    ws = (CC / "ws_vacuum.py").read_text(encoding="utf-8")
+    assert "json.loads(" not in ws.replace("async_add_executor_job(json.loads, text)", "")
+    for fn in ("parse_valetudo", "extract_valetudo_json", "parse_calibrated_camera"):
+        assert f"{fn}(" not in ws.replace(f"async_add_executor_job(vi.{fn},", "")
+
+
+def _preview(h):
+    conn = _call(wsv.ws_vacuum_import_preview, h, json_text=FIXTURE.read_text(encoding="utf-8"))
+    assert conn.error is None
+
+
+class _FabricData(_Fabric):
+    def __init__(self, floors):
+        super().__init__()
+        self.data = {"floors": floors}
+
+
+@pytest.mark.parametrize("ms,fab", [
+    (_Maps([{"id": "old", "floor_id": "main"}]), _Fabric()),
+    (_Maps([{"id": "old"}]), _Fabric()),                                    # no floor_id: the default floor
+    (_Maps(), _FabricData({"main": {"rooms": {"Hall": {"type": "poly"}}}})),
+], ids=["a-map-there", "a-legacy-map", "a-room-there"])
+def test_rooms_and_the_link_only_on_an_empty_floor(ms, fab):
+    h = _hass(**{DATA_MAPS: ms, DATA_MODEL: _Model(), DATA_FABRIC: fab})
+    vs = _vstore(h)
+    _preview(h)
+    vs.preview["read"] = {"read": "url", "ref": "http://robot", "format": "valetudo"}
+    conn = _call(wsv.ws_vacuum_import_commit, h, floor_id="main")
+    assert conn.error[0] == "floor_not_empty" and "picture only" in conn.error[1]
+    assert ms.added == [] and fab.calls == [] and vs.data["link"] is None   # nothing written
+    # The picture alone still comes in, to line up by hand — with no rooms and no link.
+    conn = _call(wsv.ws_vacuum_import_commit, h, floor_id="main", include_rooms=False)
+    assert conn.error is None and [m["id"] for m in ms.added] == ["new0"]
+    assert fab.calls == [] and conn.result["linkable"] is False and vs.data["link"] is None
+
+
+def test_an_empty_floor_gets_its_rooms_and_link():
+    ms, fab = _Maps([{"id": "old", "floor_id": "upstairs"}]), _FabricData({"upstairs": {"rooms": {"Bed": {}}}})
+    h = _hass(**{DATA_MAPS: ms, DATA_MODEL: _Model(), DATA_FABRIC: fab})
+    vs = _vstore(h)
+    _preview(h)
+    vs.preview["read"] = {"read": "url", "ref": "http://robot", "format": "valetudo"}
+    conn = _call(wsv.ws_vacuum_import_commit, h, floor_id="main")
+    assert conn.error is None and conn.result["rooms_added"] and conn.result["linkable"] is True
+    assert vs.data["link"]["floor_id"] == "main" and vs.data["link"]["enabled"] is False
+
+
+def test_the_import_row_is_off_by_default_and_admin_only():
+    from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
+    assert DEFAULT_SETTINGS["vacuum_import_enabled"] is False
+    maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    assert ("const vacuumOn = ctx.state.settings?.vacuum_import_enabled === true"
+            " || !!ctx.state.live?.snapshot?.vacuum;\n"
+            "    if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true)"
+            " card.appendChild(VACUUM.vacuumImportBlock(ctx, floorId));") in maps
+    assert maps.count("VACUUM.vacuumImportBlock(") == 1
+    settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    assert 'key: "vacuum_import_enabled"' in settings
+    # Nothing new in the usage report.
+    assert "vacuum_import_enabled" not in (CC / "telemetry.py").read_text(encoding="utf-8")
+
+
+def test_a_link_already_on_keeps_reading_whatever_the_setting():
+    # The setting only hides the import row: the store, its timer and the
+    # live snapshot never look at it.
+    for name in ("vacuum_import.py", "ws_vacuum.py", "snapshot_builder.py", "__init__.py"):
+        assert "vacuum_import_enabled" not in (CC / name).read_text(encoding="utf-8")

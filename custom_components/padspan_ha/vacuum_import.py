@@ -58,6 +58,7 @@ DATA_VACUUM = "vacuum_import"
 
 MAX_JSON_BYTES = 30 * 1024 * 1024       # a huge Dreame map is a few MB of JSON
 MAX_IMAGE_PX = 2400                     # the rendered picture's longest side
+MAX_MASK_PX = 5_000_000                 # grid pixels a map's runs may expand to, all layers together
 PAD_GRID = 3                            # grid pixels of margin around the house
 TICK_S = 10                             # how often a linked robot is read
 LIVE_STALE_S = 120                      # a spot older than this is not shown
@@ -110,24 +111,38 @@ def extract_valetudo_json(png: bytes) -> dict | None:
     return None
 
 
-def _decompress(cp: Any) -> list[tuple[int, int]]:
-    """Valetudo compressedPixels: flat [xStart, y, count, ...] runs (grid px)."""
+def _decompress(cp: Any, budget: int = MAX_MASK_PX) -> list[tuple[int, int]]:
+    """Valetudo compressedPixels: flat [xStart, y, count, ...] runs (grid px).
+
+    The runs are counted before anything is expanded: a map whose runs add up
+    to more than `budget` pixels (a real house is well under a million) is
+    refused, not allocated."""
     out: list[tuple[int, int]] = []
     if not isinstance(cp, list):
         return out
+    runs: list[tuple[int, int, int]] = []
+    total = 0
     for i in range(0, len(cp) - 2, 3):
         try:
             x0, y, n = int(cp[i]), int(cp[i + 1]), int(cp[i + 2])
         except (TypeError, ValueError):
             continue
-        out.extend((x0 + j, y) for j in range(max(0, n)))
+        n = max(0, n)
+        total += n
+        if n > MAX_IMAGE_PX * 50 or total > budget:
+            raise VacuumImportError("The map is too large to read")
+        runs.append((x0, y, n))
+    for x0, y, n in runs:
+        out.extend((x0 + j, y) for j in range(n))
     return out
 
 
-def _layer_pixels(layer: dict) -> list[tuple[int, int]]:
-    px = _decompress(layer.get("compressedPixels"))
+def _layer_pixels(layer: dict, budget: int = MAX_MASK_PX) -> list[tuple[int, int]]:
+    px = _decompress(layer.get("compressedPixels"), budget)
     if not px and isinstance(layer.get("pixels"), list):   # an old uncompressed map: [x, y, x, y, ...]
         p = layer["pixels"]
+        if len(p) // 2 > budget:
+            raise VacuumImportError("The map is too large to read")
         px = [(int(p[i]), int(p[i + 1])) for i in range(0, len(p) - 1, 2)]
     return px
 
@@ -269,13 +284,15 @@ def parse_valetudo(vmap: Any) -> dict[str, Any]:
     warnings: list[str] = []
     layers: list[tuple[str, int, list[tuple[int, int]]]] = []
     segs: list[tuple[str, set[tuple[int, int]]]] = []
+    budget = MAX_MASK_PX
     for i, lay in enumerate(vmap["layers"]):
         if not isinstance(lay, dict):
             continue
         kind = str(lay.get("type") or "")
         if kind not in ("floor", "wall", "segment"):
             continue
-        px = _layer_pixels(lay)
+        px = _layer_pixels(lay, budget)
+        budget -= len(px)
         if not px:
             continue
         layers.append((kind, len(segs), px))
@@ -493,7 +510,8 @@ class VacuumStore:
             return await fetch_url_json(self.hass, ref)
         if kind == "camera_png":
             png = await camera_image(self.hass, ref)
-            return extract_valetudo_json(png)
+            # Unpacking a few MB of map JSON every tick: off the event loop.
+            return await self.hass.async_add_executor_job(extract_valetudo_json, png)
         if kind == "camera_attrs":
             st = self.hass.states.get(ref)
             return dict(st.attributes) if st else None
@@ -590,6 +608,11 @@ async def fetch_url_json(hass, url: str) -> Any:
         raw = await resp.content.read(MAX_JSON_BYTES + 1)
     if len(raw) > MAX_JSON_BYTES:
         raise VacuumImportError("The map is too large")
+    # A few MB of JSON every tick with the link on: parsed off the event loop.
+    return await hass.async_add_executor_job(_json_answer, raw)
+
+
+def _json_answer(raw: bytes) -> Any:
     try:
         return json.loads(raw.decode("utf-8"))
     except Exception as exc:

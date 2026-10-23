@@ -44,6 +44,18 @@ async def _store(hass: HomeAssistant) -> vi.VacuumStore:
     return vs
 
 
+def _floor_is_empty(ms, fab, floor_id: str) -> bool:
+    """No map and no room on this floor yet. The import places the robot's
+    map at the world origin, unrotated, in the robot's own frame: on an empty
+    floor that frame IS the floor's, on one that already has plans the rooms
+    and the robot's spots would land metres from where they are."""
+    for m in (ms.data.get("maps") or []):
+        if isinstance(m, dict) and (m.get("floor_id") or DEFAULT_FLOOR_ID) == floor_id:
+            return False
+    floor = ((getattr(fab, "data", None) or {}).get("floors") or {}).get(floor_id) or {}
+    return not (floor.get("rooms") or {})
+
+
 def _status(vs: vi.VacuumStore) -> dict:
     return {
         "link": vs.data.get("link"),
@@ -76,7 +88,7 @@ async def ws_vacuum_import_preview(hass: HomeAssistant, connection, msg) -> None
                 connection.send_error(msg["id"], "upload_too_large", "The map file is too large")
                 return
             try:
-                vmap = json.loads(text)
+                vmap = await hass.async_add_executor_job(json.loads, text)
             except ValueError:
                 connection.send_error(msg["id"], "parse_failed", "That is not JSON")
                 return
@@ -138,6 +150,15 @@ async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], "not_ready", "Maps not loaded yet")
         return
     floor_id = (msg.get("floor_id") or DEFAULT_FLOOR_ID).strip() or DEFAULT_FLOOR_ID
+    # Rooms and the robot link (its live spot, the walker's points) only on
+    # a floor with nothing on it yet; elsewhere the picture alone, to line up.
+    empty = _floor_is_empty(ms, fab, floor_id)
+    if not empty and msg.get("include_rooms", True):
+        connection.send_error(
+            msg["id"], "floor_not_empty",
+            "This floor already has maps or rooms, and the robot's rooms would not line up with them. "
+            "Untick \"Add its rooms\" to import the map picture only, then line it up in 3D Stack.")
+        return
     try:
         info = await ms.async_add_map(
             (msg.get("name") or "Robot vacuum map").strip()[:120] or "Robot vacuum map",
@@ -177,7 +198,7 @@ async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
         "read": read.get("read"), "ref": read.get("ref"), "format": read.get("format"),
         "vacuum_entity": (msg.get("vacuum_entity") or "").strip(),
         "dock": cand.get("dock"),
-    } if read.get("read") else vs.data.get("link")
+    } if read.get("read") and empty else vs.data.get("link")
     vs.preview = None
     await vs.async_save()
     _LOGGER.info("Vacuum map imported as map %s on %s: %d rooms added, %d skipped (already there)",
@@ -185,7 +206,7 @@ async def ws_vacuum_import_commit(hass: HomeAssistant, connection, msg) -> None:
     from .telemetry import bump as _bump  # noqa: PLC0415
     _bump(hass, "vacuum_imported")
     connection.send_result(msg["id"], {"ok": True, "map": info, "rooms_added": added,
-                                       "rooms_skipped": skipped, "linkable": bool(read.get("read"))})
+                                       "rooms_skipped": skipped, "linkable": bool(read.get("read")) and empty})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/vacuum_status"})

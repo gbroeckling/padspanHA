@@ -141,3 +141,18 @@ def test_a_factory_reset_also_empties_the_registry_lost_and_found_and_forensics(
     assert fs.addrs == {} and lf.records == {}
     assert store.saved[DEVICE_REGISTRY_STORE_KEY] == {"version": 1, "devices": {}}
     assert store.saved[LOST_AND_FOUND_STORE_KEY] == {} and store.saved[FORENSICS_STORE_KEY] == {"addrs": {}}
+
+
+def test_a_restored_robot_link_reads_again_without_a_restart(store, monkeypatch, tmp_path):
+    from custom_components.padspan_ha import vacuum_import as vi
+    h = _house(tmp_path)
+    vs = vi.VacuumStore.__new__(vi.VacuumStore)
+    vs.hass, vs.data, vs.live, vs.preview, vs._last_spot, vs._unsub = h, vi._default_data(), None, None, None, None
+    vs.start = MagicMock()
+    h.data[DOMAIN][vi.DATA_VACUUM] = vs
+    link = {"enabled": True, "map_id": "m1", "floor_id": "main", "read": "url", "ref": "http://robot",
+            "format": "valetudo", "to_m": [1, 0, 0, 0, 1, 0]}
+    _run(ws_backup.ws_store_backup_restore(h, MagicMock(), _restore_msg(monkeypatch, {
+        vi.VACUUM_STORE_KEY: {**vi._default_data(), "link": link}})))
+    assert vs.data["link"] == link and vs.link_on()
+    vs.start.assert_called_once_with()

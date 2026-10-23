@@ -10784,7 +10784,11 @@ function _roomsTab(ctx, maps) {
     importRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
       "Rooms come in as a candidate for this floor — review and edit below before committing."));
     card.appendChild(importRow);
-    if (VACUUM) card.appendChild(VACUUM.vacuumImportBlock(ctx, floorId));
+    // The robot-vacuum import only while its setting is on, and only for an
+    // admin (every vacuum_* command is admin-only). A robot already linked
+    // and showing live keeps its controls, so it can still be turned off.
+    const vacuumOn = ctx.state.settings?.vacuum_import_enabled === true || !!ctx.state.live?.snapshot?.vacuum;
+    if (VACUUM && vacuumOn && ctx.hass?.user?.is_admin === true) card.appendChild(VACUUM.vacuumImportBlock(ctx, floorId));
 
     const importedRaw = mapState._roomsImportedRaw;
     if (importedRaw && importedRaw.levels.length > 1) {

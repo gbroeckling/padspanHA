@@ -263,6 +263,10 @@ def _extras(captures: list[dict]) -> dict[str, list]:
 
 
 _MAX_DEPTH = 200   # a RoomPlan export is a few levels deep
+# A string (to its closing quote, or to the end if it has none) or one
+# bracket, in one left-to-right pass: an unclosed quote is read to the end
+# once, not again from every quote after it (that was quadratic).
+_TOKENS = re.compile(r'"(?:[^"\\]|\\.)*(?:"|\\?\Z)|[\[\]{}]', re.DOTALL)
 
 
 def parse_roomplan(data: bytes) -> dict[str, Any]:
@@ -288,8 +292,11 @@ def parse_roomplan(data: bytes) -> dict[str, Any]:
         # wouldn't be the same on every machine. A real export is a few
         # levels deep. Strings are blanked first so brackets in text don't count.
         depth = deepest = 0
-        for m in re.finditer(r"[\[\]{}]", re.sub(r'"(?:\\.|[^"\\])*"', '""', text)):
-            depth += 1 if m.group() in "[{" else -1
+        for m in _TOKENS.finditer(text):
+            tok = m.group()
+            if tok[0] == '"':
+                continue
+            depth += 1 if tok in "[{" else -1
             deepest = max(deepest, depth)
             if deepest > _MAX_DEPTH:
                 raise ValueError("nested too deeply")
