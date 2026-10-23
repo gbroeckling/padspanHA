@@ -84,18 +84,42 @@ async def test_a_two_home_check_writes_nothing_new(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_needs_all_reports_ends_pro_as_activation_limit_does_and_names_the_homes(monkeypatch):
-    from datetime import datetime, timezone
-    hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2027-10-01T00:00:00+00:00",
-                       "license_home_status": "", "license_homes_warning": {}})
+async def test_needs_all_reports_ends_pro_now_and_names_the_homes(monkeypatch):
+    """The server already gave the 14 days: no second grace on this side."""
+    from datetime import datetime, timedelta, timezone
+    from custom_components.padspan_ha.ws_common import PRO_GRACE_DAYS, _pro_expiry_state
+    data = {"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2027-10-01T00:00:00+00:00",
+            "license_home_status": "", "license_homes_warning": {}}
+    hass = _hass_with(data)
     st = hass.data[DOMAIN][DATA_SETTINGS]
-    st.async_set = AsyncMock()
+    st.async_set = AsyncMock(side_effect=lambda **kw: data.update(kw))
     _server_says(monkeypatch, {"valid": False, "status": "needs_all_reports", **WARN})
     await _revalidate_license(hass)
     calls = [c.kwargs for c in st.async_set.call_args_list]
     assert calls[0] == {"license_home_status": "needs_all_reports"}
     assert calls[1] == {"license_homes_warning": LH.homes_warning(WARN)}
     written = datetime.fromisoformat(calls[-1]["forensics_license_expires"])
+    assert written < datetime.now(timezone.utc) - timedelta(days=PRO_GRACE_DAYS)
+    assert _pro_expiry_state(hass)["active"] is False, "Pro off at once"
+    st.async_set.reset_mock()
+    await _revalidate_license(hass)
+    assert not any("forensics_license_expires" in c.kwargs for c in st.async_set.call_args_list), "repeats change nothing"
+    # Every home's report back on: the next valid answer brings the real date back.
+    _server_says(monkeypatch, {"valid": True, "expires_at": "2027-10-01 00:00:00"})
+    await _revalidate_license(hass)
+    assert data["forensics_license_expires"] == "2027-10-01 00:00:00" and data["license_home_status"] == ""
+    assert _pro_expiry_state(hass)["active"] is True and data["license_homes_warning"] == {}
+
+
+@pytest.mark.asyncio
+async def test_activation_limit_still_keeps_the_local_grace(monkeypatch):
+    from datetime import datetime, timezone
+    hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2027-10-01T00:00:00+00:00"})
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    st.async_set = AsyncMock()
+    _server_says(monkeypatch, {"valid": False, "status": "activation_limit"})
+    await _revalidate_license(hass)
+    written = datetime.fromisoformat(st.async_set.call_args.kwargs["forensics_license_expires"])
     assert abs((datetime.now(timezone.utc) - written).total_seconds()) < 60
 
 

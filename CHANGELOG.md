@@ -11,7 +11,7 @@ With a licence key on one or two homes, nothing changes.
 ### Changed
 - **A key on more than two homes needs every home's usage report on.** A licence's first two homes always count. With more than two, every home on the key must keep its opt-in usage report on (Settings → Presence → Help improve PadSpan). If one turns it off, the key drops back to its first two homes after 14 days: the first two keep Pro, and the others stop using Pro until the report is back on, then pick up again at their next check. A new home joins as a third only when every home, the new one too, has the report on.
 - **The licence card says so.** When the report is off on a key with more than two homes, Settings → Features → PadSpan licence names the homes it's off on and the date the homes beyond your first two stop using Pro. Turning the report off on such a key asks first, and Cancel keeps it on. Turning the report on or off with a key in tells the licence server straight away instead of at the next daily check.
-- Homes on PadSpan 0.38.160 to 0.38.162 follow the same rule, without the warning on the licence card.
+- On 0.38.163 a home beyond the first two stops using Pro when its 14 days are up, with no second grace on top. Homes still on PadSpan 0.38.160 to 0.38.162 don't show the warning, and keep their usual 14-day grace after that.
 - **README and the PadSpan Pro guide** say how a key's homes count now.
 
 ## 0.38.162 — An iPhone setup path, Live Aboard flies to people arriving, and Follow the sun (2026-10-23)

@@ -208,8 +208,8 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         if _hs != str(st.data.get("license_home_status") or ""):
             await st.async_set(license_home_status=_hs)
         # A home past the first two, after the 14 days the server gave once a
-        # report on the key went off: it ends as activation_limit does, and
-        # Settings names the homes whose report is off.
+        # report on the key went off: Pro ends now (below), and Settings names
+        # the homes whose report is off.
         if _hs == "needs_all_reports":
             from .licence_homes import keep_warning  # noqa: PLC0415
             await keep_warning(st, data)
@@ -235,6 +235,14 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
                 exp = exp.replace(tzinfo=_tz.utc)
         except ValueError:
             exp = None
+        # A home past the first two refused for a report off elsewhere already
+        # had its 14 days from the server: it ends now, not after a second
+        # grace (dated just past PRO_GRACE_DAYS ago; the next valid answer
+        # writes the real date back).
+        if _hs == "needs_all_reports":
+            from datetime import timedelta as _td  # noqa: PLC0415
+            from .ws_common import PRO_GRACE_DAYS  # noqa: PLC0415
+            now = now - _td(days=PRO_GRACE_DAYS, minutes=1)
         if exp is None or exp > now:
             await st.async_set(forensics_license_expires=now.isoformat())
 
