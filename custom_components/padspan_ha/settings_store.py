@@ -185,7 +185,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # (m) set the size, text at wall_text_arcmin of visual angle (control-room
     # practice: 16 minimum, 20-22 preferred). A screen's own link can override
     # all three (?wall_in=&wall_m=&wall_text=).
-    "wall_screen_in": 0.0,                # 0 or 15-120
+    "wall_screen_in": 0.0,                # 0 or 10-120
     "wall_distance_m": 2.5,               # 0.3-10
     "wall_text_arcmin": 20.0,             # 14-36
     "wall_night_dim": 0.0,                # 0-0.7: how much darker after sunset

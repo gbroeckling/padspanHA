@@ -251,10 +251,11 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
         from .licence_homes import home_params, homes_warning, machine_id  # noqa: PLC0415
         machine = await machine_id(hass)
-        # A different key starts this home afresh among that key's homes.
+        # A different key starts this home afresh among that key's homes, and
+        # so does a home removed from its key: it asks for a free place again.
         _hp = home_params(st.data)
         new_key = key != str(st.data.get("forensics_license_key") or "").strip().upper()
-        if new_key:
+        if new_key or st.data.get("license_home_status") == "removed":
             _hp["token"] = ""
         session = async_get_clientsession(hass)
         async with session.get(

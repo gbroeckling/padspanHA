@@ -633,9 +633,6 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "atlas_3d_enabled", "low_memory_mode",
     # Pro: the Atlas as Overview (0.38.137) — whether anyone wants it as the front door.
     "overview_atlas",
-    # Themes (0.38.157): Light for everyone, Day on Pro; the stored switch,
-    # so a lapsed Pro still says day_theme. theme_palette is in the ENUMS.
-    "day_theme", "light_theme",
 )
 # 0.38.160's switches, all off by default: whether anyone turns them on.
 # Sent ONLY when on (true), so a house that never touches them sends exactly
@@ -655,6 +652,9 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "positioning_sensor_fusion": "fusion",
     # 0.38.167: Calibration's Walk a room tab, off by default.
     "calibration_room_walk": "room_walk",
+    # Themes (0.38.157): Light for everyone, Day on Pro; the stored switch,
+    # so a lapsed Pro still says day_theme. theme_palette is in the ENUMS.
+    "day_theme": "day_theme", "light_theme": "light_theme",
 }
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).

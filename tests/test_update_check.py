@@ -164,3 +164,19 @@ async def test_a_removed_home_is_said_in_settings_and_expires_as_before(monkeypa
     assert calls[0] == {"license_home_status": "removed"}
     written = datetime.fromisoformat(calls[-1]["forensics_license_expires"])
     assert abs((datetime.now(timezone.utc) - written).total_seconds()) < 60
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["activation_rate", "needs_report"])
+async def test_a_paused_home_still_takes_a_renewed_date_but_never_an_earlier_one(monkeypatch, status):
+    hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2027-10-01T00:00:00+00:00",
+                       "license_home_status": status})
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    st.async_set = AsyncMock()
+    _server_says(monkeypatch, {"valid": False, "status": status, "expires_at": "2028-10-01 00:00:00"})
+    await _revalidate_license(hass)
+    st.async_set.assert_called_once_with(forensics_license_expires="2028-10-01 00:00:00")
+    st.async_set.reset_mock()
+    _server_says(monkeypatch, {"valid": False, "status": status, "expires_at": "2026-01-01 00:00:00"})
+    await _revalidate_license(hass)
+    assert not st.async_set.called

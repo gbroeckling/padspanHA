@@ -217,6 +217,11 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         # third-to-fifth home whose report is off. Settings says which; the
         # licence stays as it is.
         if _hs in ("activation_rate", "needs_report"):
+            # A renewal still moves the date on (never back).
+            new_exp = _parse_utc(expires)
+            old_exp = _parse_utc(str(st.data.get("forensics_license_expires") or ""))
+            if new_exp is not None and (old_exp is None or new_exp > old_exp):
+                await st.async_set(forensics_license_expires=expires)
             return
         # Explicitly revoked. Record it as expired-now rather than deleting
         # the key: the grace window still applies, the user keeps their data,
@@ -245,6 +250,19 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
             now = now - _td(days=PRO_GRACE_DAYS, minutes=1)
         if exp is None or exp > now:
             await st.async_set(forensics_license_expires=now.isoformat())
+
+
+def _parse_utc(value: str):
+    """A stored or server expiry as an aware UTC datetime, or None."""
+    from datetime import datetime as _dt, timezone as _tz  # noqa: PLC0415
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        dt = _dt.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=_tz.utc)
 
 
 def async_setup_update_check(hass: HomeAssistant) -> None:

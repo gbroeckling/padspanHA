@@ -166,3 +166,14 @@ def test_a_different_key_starts_the_home_afresh(monkeypatch):
     assert data["license_home_token"] == "" and data["license_homes_used"] == 0
     data, _ = _activate(monkeypatch, stored, {"valid": True, "token": "c" * 32, "homes_used": "2"}, "PSPAN-BBBB")
     assert data["license_home_token"] == "c" * 32 and data["license_homes_used"] == 2
+
+
+def test_a_removed_home_asks_for_a_free_place_again_with_the_same_key(monkeypatch):
+    stored = {"forensics_license_key": "PSPAN-AAAA", "license_home_token": "a" * 32, "license_homes_used": 2,
+              "license_home_status": "removed"}
+    data, sent = _activate(monkeypatch, stored, {"valid": True, "token": "d" * 32, "homes_used": 2}, "PSPAN-AAAA")
+    assert sent["token"] == "", "the removed token would only be refused again"
+    assert data["license_home_token"] == "d" * 32 and data["license_home_status"] == ""
+    # Refused (no free place): the stored token is left as it was.
+    data, _ = _activate(monkeypatch, dict(stored), {"valid": False, "status": "activation_limit"}, "PSPAN-AAAA")
+    assert data["license_home_token"] == "a" * 32
