@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.164 — Live Aboard's Studio look (2026-10-24)
+
+Nothing changes until you pick it. With the look on Same as the Atlas or Live Aboard's own, Live Aboard draws exactly as in 0.38.163.
+
+### New
+- **Studio, a third look for Live Aboard.** Your house as a lit model on a stage: Live Aboard's own colours (every room, light and name stays as it is), under a sky that follows the real sun (`sun.sun`): a soft day, a warm golden hour, a deep blue dusk and a moonlit night with a few stars. The house stands on a soft pad that fades into the sky's horizon, with a faint metre grid and a soft shadow under it. A gentle fill keeps shadows coloured instead of black, a front light gives every wall form, the walls darken a little at their foot, and lit fixtures and lamp pools roll off softly instead of clipping to white. Rain falls slate blue on the light day sky. The camera glides in once when the view opens (not with reduced motion). Pick it in Settings → Live Aboard → Look → Studio, or in the Live Aboard setup wizard's extras.
+- **Light enough for wall tablets.** On Low, Studio keeps the sky, the stage, the shadow under the house and the soft light; the softer sun shadows and the rim light are High's. Auto, Low and High and the slow-screen fallback work as before.
+
+### Opt-in report
+- `look_studio` in `features.ov_3d`, only while Live Aboard is on and Studio is picked (as `look_own` is for Live Aboard's own).
+
+---
+
 ## 0.38.163 — Every home on a key with more than two keeps its usage report on (2026-10-23)
 
 With a licence key on one or two homes, nothing changes.
