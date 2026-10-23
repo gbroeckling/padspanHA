@@ -73,3 +73,10 @@ def test_quiet_on_counts_and_hidden_notes(drawn):
 
 def test_settings_says_quiet_mode_is_display_only(drawn):
     assert "It only changes what this panel shows, not how much work Home Assistant or PadSpan does." in drawn["off"]["settings"]
+
+
+def test_monitor_tracked_and_hidden_add_up_to_the_list(drawn):
+    # 8 objects: labelled, identified and followed are tracked; the other 5 hidden.
+    assert re.search(r"3 tracked", drawn["on"]["monitor"])
+    assert NOTE.search(drawn["on"]["monitor"]).group(1) == "5"
+    assert re.search(r"8 total", drawn["off"]["monitor"]) and "tracked" not in drawn["off"]["monitor"]
