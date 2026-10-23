@@ -323,7 +323,7 @@ export async function openLiveAboardWizard(ctx, step) {
     extras(s) {
       const set = ctx.state.settings || {};
       const out = [p("The cool stuff, all optional. Turn on what you like; everything here can be changed later in Settings → UI Structure.")];
-      out.push(select("Look", set.atlas_3d_look || "atlas", [["atlas", "Same as the Atlas"], ["own", "Live Aboard's own colours"]],
+      out.push(select("Look", set.atlas_3d_look || "atlas", [["atlas", "Same as the Atlas"], ["own", "Live Aboard's own colours"], ["studio", "Studio: soft light and sky"]],
         (v, n) => save({ atlas_3d_look: v }, n), "Same as the Atlas uses its Showcase theme, if you have one."));
       out.push(select("Quality", set.atlas_3d_quality || "auto",
         [["auto", "Auto: picked for this screen"], ["low", "Low: wall tablets and phones"], ["high", "High: sun shadows and more lamps"]],

@@ -182,7 +182,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_3d_library": False,            # the shared furniture library
     "atlas_3d_weather": True,             # rain and snow in Live Aboard: follows Outdoor weather (atlas_weather_*), which must be on too
     "atlas_3d_showcase": False,           # older switch (old backups, Bright): kept valid, decides nothing once atlas_3d_look is there
-    "atlas_3d_look": "atlas",             # Live Aboard's look: "atlas" = the same as the Atlas (its Showcase theme, or the plain Atlas) | "own"
+    "atlas_3d_look": "atlas",             # Live Aboard's look: "atlas" = the same as the Atlas (its Showcase theme, or the plain Atlas) | "own" | "studio" (its own colours, soft light and sky)
     "atlas_3d_home_idle_s": 60,           # the sidebar's Live Aboard goes back to its home view after this long untouched: 0 (never) | 30 | 60 | 300
     "atlas_3d_director": [],              # the sidebar's Live Aboard flies to these when they go off: [{"entity": event.*|binary_sensor.*|alarm_control_panel.*, "camera": camera.* or ""}]; [] = off
     "atlas_3d_director_people": [],       # ...and to these people and tags when they go into a room: [{"key": person.x | "beacon:<tracked key>", "rooms": [room names; [] = any room, or a person arriving home]}]; [] = off; personal, kept here only, never sent

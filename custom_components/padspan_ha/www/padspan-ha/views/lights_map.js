@@ -3164,9 +3164,9 @@ export function buildLightsMapCard(hostIn){
           showcase: { key: host.showcase ? (host.showcaseTheme || "classic") : "classic",
                       theme: (host.showcase && SHOWCASE_THEMES[host.showcaseTheme]) || SHOWCASE_THEMES.classic },
           // Live Aboard's look (atlas_3d_look): the same as this map unless
-          // "own" is chosen, and what this map wears: Showcase on or off, and
-          // the theme it reads its colours from (buildIsoSVG's own THEME).
-          look3d: h3.settings.atlas_3d_look === "own" ? "own" : "atlas",
+          // "own" or "studio" is chosen, and what this map wears: Showcase on
+          // or off, and the theme it reads its colours from (buildIsoSVG's own THEME).
+          look3d: h3.settings.atlas_3d_look === "own" || h3.settings.atlas_3d_look === "studio" ? h3.settings.atlas_3d_look : "atlas",
           atlasLook: { on: !!host.showcase, key: host.showcaseTheme || "classic",
                        theme: SHOWCASE_THEMES[host.showcaseTheme] || SHOWCASE_THEMES.classic },
           // Mapping → Furnish (P2): the Furnish tool open, what its flows and

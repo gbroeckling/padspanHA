@@ -3628,8 +3628,9 @@ function _atlasWeatherSection(ctx, el, settings){
 const _ATLAS_3D_QUALITY = [["auto", "Auto — picked for this screen"], ["low", "Low — for wall tablets and phones"],
                            ["high", "High — sun shadows and more lamps"]];
 // Live Aboard's look (atlas_3d_look): the Atlas's colours, rooms and floor
-// numbers (its Showcase theme, or the plain Atlas), or its own dark look.
-const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard's own"]];
+// numbers (its Showcase theme, or the plain Atlas), its own dark look, or
+// Studio: its own colours under soft light, a sky from the sun and a stage.
+const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard's own"], ["studio", "Studio — soft light and sky"]];
 // How long the sidebar's Live Aboard waits untouched before it goes back to its home view.
 const _ATLAS_3D_IDLE = [[0, "Off"], [30, "After 30 s"], [60, "After 1 min"], [300, "After 5 min"]];
 // What may fly the sidebar's Live Aboard (ws_settings.DIRECTOR_DOMAINS, DIRECTOR_MAX).
@@ -3786,8 +3787,8 @@ function _atlas3dSection(ctx, el, settings){
   sel.addEventListener("change", ()=>{ const want = sel.value; save("atlas_3d_quality", want, ()=>{ sel.value = last; }).then(ok=>{ if (ok) last = want; }); });
   more.appendChild(row("Quality", [sel]));
 
-  // Look: the same as the Atlas unless Live Aboard's own is chosen.
-  const lookCur = settings.atlas_3d_look === "own" ? "own" : "atlas";
+  // Look: the same as the Atlas unless Live Aboard's own or Studio is chosen.
+  const lookCur = settings.atlas_3d_look === "own" || settings.atlas_3d_look === "studio" ? settings.atlas_3d_look : "atlas";
   const lookSel = document.createElement("select");
   lookSel.className = "select";
   lookSel.style.width = "auto";

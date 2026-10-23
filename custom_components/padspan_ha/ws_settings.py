@@ -135,8 +135,9 @@ def _atlas_3d_quality(value: Any) -> str:
     return v if v in _ATLAS_3D_QUALITY else "auto"
 
 
-# Live Aboard's look: the same as the Atlas (the default), or its own.
-_ATLAS_3D_LOOK = ("atlas", "own")
+# Live Aboard's look: the same as the Atlas (the default), its own, or Studio
+# (its own colours under soft light, a sky and a stage).
+_ATLAS_3D_LOOK = ("atlas", "own", "studio")
 
 
 def _atlas_3d_look(value: Any) -> str:
