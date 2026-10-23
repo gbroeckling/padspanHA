@@ -1145,6 +1145,9 @@ function _settingsPresence(ctx, el){
     ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
     : "color:#94a3b8" }, telOn ? "Opted in" : "Not sharing");
   telBtn.addEventListener("click", async () => {
+    // Off, on a key used on more than two homes: what that means, first.
+    const offWarn = telOn ? reportOffConfirmText(settings) : "";
+    if (offWarn && !confirm(offWarn)) return;
     try {
       await ctx.actions.settingsSet({ telemetry_enabled: !telOn });
       ctx.toast(!telOn ? "Thank you — usage report on. Preview shows exactly what goes." : "Usage report off");
@@ -3001,17 +3004,50 @@ const HOME_REFUSED = {
   activation_rate: "This home isn't counted: the key joined many new homes this month. It joins once the month is over.",
   homes_frozen: "This home isn't counted: the key is paused for new homes. Reply to your licence email to sort it out.",
   removed: "This home isn't counted: it was removed from the key. Remove another home below (from any home) or reply to your licence email to use it here.",
-  needs_report: "This home isn't counted: a licence's first two homes always count, and the third to the fifth need their usage report on (Settings \u2192 Presence \u2192 Help improve PadSpan).",
+  needs_report: "This home isn't counted: a licence's first two homes always count, and to use it on more than two, every home needs its usage report on (Settings \u2192 Presence \u2192 Help improve PadSpan).",
 };
+// A key on more than two homes needs every home's usage report on (0.38.163).
+// The licence server decides and names the homes; these only say it.
+function _homesDate(iso){
+  const t = Date.parse(String(iso || ""));
+  return isNaN(t) ? String(iso || "").slice(0, 10) : new Date(t).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+}
+export function homesWarningText(s){
+  const w = (s && s.license_homes_warning) || {};
+  const labels = Array.isArray(w.off_labels) ? w.off_labels.filter(x => typeof x === "string" && x).join(", ") : "";
+  if (s.license_home_status === "needs_all_reports") {
+    if (s.telemetry_enabled === false) {
+      return "This home stopped using Pro because its own usage report is off, and every home on a key with more than 2 must keep it on. " +
+        "Turn it back on here (Settings \u2192 Presence \u2192 Help improve PadSpan) and this home picks up again at its next check.";
+    }
+    return "This home stopped using Pro because the usage report is off on another home on this key" + (labels ? " (" + labels + ")" : "") +
+      ". Turn it back on there and this home picks up again at its next check.";
+  }
+  if (w.warning !== "reports_off") return "";
+  const n = Number(s.license_homes_used) || 0;
+  return `This key is on ${n > 2 ? n : "more than 2"} homes. Every home on a key with more than 2 must keep the usage report on. ` +
+    `The report is off on: ${labels || "one of them"}. Unless it's turned back on by ${_homesDate(w.grace_until)}, the homes beyond your first two stop using Pro.`;
+}
+// Asked before the usage report goes off on a home whose key is on more than two homes; "" = no question.
+export function reportOffConfirmText(s){
+  const n = Number((s && s.license_homes_used) || 0);
+  if (!s || !s.pro_has_key || !(n > 2)) return "";
+  return `This key is used on ${n} homes. With more than 2, every home must keep the report on. ` +
+    "If you turn it off here, the homes beyond your first two stop using Pro in 14 days unless it's back on.";
+}
 function _licenceHomes(ctx, el, s){
   const box = el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid #1f3a2a" });
   box.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#cbd5e1;margin-bottom:4px" }, "Homes"));
   box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
-    "One licence covers up to five homes (five Home Assistants). The first two always count; the third to the fifth need their usage report on " +
-    "(Settings \u2192 Presence \u2192 Help improve PadSpan), which is how one licence's homes are seen together. " +
+    "One licence covers up to five homes (five Home Assistants). The first two always count. With more than two, every home must keep its usage report on " +
+    "(Settings \u2192 Presence \u2192 Help improve PadSpan), which is how one licence's homes are seen together; if one turns it off, the key drops back to its first two homes after 14 days. " +
     "A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself."));
   if (HOME_REFUSED[s.license_home_status]) {
     box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]));
+  }
+  const homesWarn = homesWarningText(s);
+  if (homesWarn) {
+    box.appendChild(el("div", { class: "homes-reports-warning", style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + homesWarn));
   }
   const list = el("div", {});
   const load = async (op, extra) => {
@@ -3032,7 +3068,7 @@ function _licenceHomes(ctx, el, s){
       line.appendChild(el("span", { style: "color:#e2e8f0;font-weight:600;min-width:120px" }, name + (h.this ? " (this one)" : "")));
       line.appendChild(el("span", { style: "color:#94a3b8" },
         `Home ${h._place} \u00B7 ` + (h.last_seen ? "last check " + h.last_seen : "not checked in yet") + (h.version ? " \u00B7 " + h.version : "") +
-        (h._place > (L.homes_free || 2) ? (h.reporting ? " \u00B7 usage report on" : " \u00B7 needs its usage report on") : "")));
+        (r.homes.length > (L.homes_free || 2) ? (h.reporting ? " \u00B7 usage report on" : " \u00B7 usage report off") : "")));
       if (h.this) {
         line.appendChild(el("button", { class: "btn inline", type: "button", style: "font-size:11px", onclick: () => {
           const v = prompt("A name for this home (your other homes show it):", h.label || "");

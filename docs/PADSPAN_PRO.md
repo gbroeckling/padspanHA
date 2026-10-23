@@ -31,8 +31,13 @@ $168 CAD from December 1, 2026.
 One key covers up to five Home Assistants (a cabin, a parent's house, a test install):
 
 - **Homes 1 and 2** always count.
-- **Homes 3 to 5** count while that home's own opt-in usage report is on (**Settings → Presence →
-  Help improve PadSpan**).
+- **With more than two homes**, every home on the key must keep its opt-in usage report on
+  (**Settings → Presence → Help improve PadSpan**), the first two included. A third home can join
+  only when every home, the new one too, has the report on.
+- If one of them turns the report off, the key drops back to its first two homes after 14 days:
+  the first two keep Pro, and the others pick up again at their next check once the report is back
+  on. The licence card says which home has it off and by when, and turning the report off on such
+  a key asks first.
 - A home that hasn't checked in for 45 days frees its place.
 - A new or reinstalled Home Assistant can take the place of a home not seen for 14 days.
 

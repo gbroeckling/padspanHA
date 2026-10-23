@@ -245,7 +245,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
     try:
         import json as _json  # noqa: PLC0415
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
-        from .licence_homes import home_params, machine_id  # noqa: PLC0415
+        from .licence_homes import home_params, homes_warning, machine_id  # noqa: PLC0415
         machine = await machine_id(hass)
         # A different key starts this home afresh among that key's homes.
         _hp = home_params(st.data)
@@ -277,6 +277,8 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             license_is_trial=str(data.get("plan") or "") == "trial",
             forensics_enabled=True,
             license_home_status="",
+            # Past two homes with a report off somewhere: the server's warning (or none).
+            license_homes_warning=homes_warning(data),
             # A different key: a fresh home on it.
             **({"license_home_token": str(data.get("token") or "") if len(str(data.get("token") or "")) == 32 else "",
                 "license_homes_used": int(data.get("homes_used") or 0) if str(data.get("homes_used") or "0").isdigit() else 0}
@@ -297,8 +299,15 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         connection.send_result(msg["id"], {
             "ok": False,
             "status": data.get("status") or "invalid",
-            "message": data.get("message") or "Key not valid for PadSpan Pro.",
+            "message": (NEEDS_ALL_REPORTS_JOIN if data.get("status") == "needs_all_reports" else None)
+                       or data.get("message") or "Key not valid for PadSpan Pro.",
         })
+
+
+# A key on more than two homes takes a new one only while every home on it,
+# the new one too, has its usage report on (0.38.163).
+NEEDS_ALL_REPORTS_JOIN = ("To use this key on more than 2 homes, turn on the usage report on all of them, "
+                          "including this one.")
 
 
 @websocket_api.websocket_command(
@@ -359,6 +368,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
             license_is_trial=True,
             forensics_enabled=True,
             license_home_token="", license_homes_used=0, license_home_status="",
+            license_homes_warning={},
         )
         _invalidate_snapshot_cache(hass)
         connection.send_result(msg["id"], {

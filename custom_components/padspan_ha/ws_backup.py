@@ -540,7 +540,8 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                                            # this home among the key's homes (licence_homes.py):
                                            # a restored token would look like a copy of it
                                            "license_home_token", "license_home_label",
-                                           "license_home_status", "license_homes_used"):
+                                           "license_home_status", "license_homes_used",
+                                           "license_homes_warning"):
                                     if _k in _live:
                                         data[_k] = _live[_k]
                                     else:

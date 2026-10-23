@@ -177,8 +177,9 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
     expires = str(data.get("expires_at") or "").strip()
     if data.get("valid"):
         from .licence import normalize_tier  # noqa: PLC0415
-        from .licence_homes import keep_token  # noqa: PLC0415
+        from .licence_homes import keep_token, keep_warning  # noqa: PLC0415
         await keep_token(st, data)
+        await keep_warning(st, data)
         if st.data.get("license_home_status"):
             await st.async_set(license_home_status="")
         updates: dict = {}
@@ -203,9 +204,15 @@ async def _revalidate_license(hass: HomeAssistant) -> None:
         # Over the key's homes (a copy of a home, or a sixth): said in Settings
         # (licence_homes.py), and then the same grace as any refusal.
         _hs = str(data.get("status") or "")
-        _hs = _hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report", "removed") else ""
+        _hs = _hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report", "removed", "needs_all_reports") else ""
         if _hs != str(st.data.get("license_home_status") or ""):
             await st.async_set(license_home_status=_hs)
+        # A home past the first two, after the 14 days the server gave once a
+        # report on the key went off: it ends as activation_limit does, and
+        # Settings names the homes whose report is off.
+        if _hs == "needs_all_reports":
+            from .licence_homes import keep_warning  # noqa: PLC0415
+            await keep_warning(st, data)
         # Not a refusal of the licence: a pause on new homes this month, or a
         # third-to-fifth home whose report is off. Settings says which; the
         # licence stays as it is.

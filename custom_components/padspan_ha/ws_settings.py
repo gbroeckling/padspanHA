@@ -1196,6 +1196,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "enabled": bool(r.get("enabled", True)),
                 })
             payload["padspan_automations"] = _clean_rules
+        _tel_before = bool(st.data.get("telemetry_enabled"))
         await st.async_set(**payload)
 
         # ── Live Aboard turned on → its heights join the placement records
@@ -1209,6 +1210,15 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             from . import PLATFORMS, presence_keepalive  # noqa: PLC0415
             if not PLATFORMS:
                 presence_keepalive(hass, payload["bright_reveal_presence"])
+
+        # ── Usage report turned on or off with a licence key → the licence
+        # server hears now, not at tomorrow's check: a key on more than two
+        # homes needs every home's report on (update_check._revalidate_license,
+        # the daily check itself; it never clears the key).
+        if ("telemetry_enabled" in payload and payload["telemetry_enabled"] != _tel_before
+                and str(st.data.get("forensics_license_key") or "").strip()):
+            from .update_check import _revalidate_license  # noqa: PLC0415
+            hass.async_create_task(_revalidate_license(hass))
 
         # ── Excluded scanners changed → retrain the forest (issue #59) ───────
         # k-NN masks per query, but the Random Forest bakes its feature columns

@@ -15,8 +15,8 @@ that will go. What goes out is COUNTS and VERSIONS, never things:
     with a licence key on more than two homes, the licence's group code:
         16 hex characters made from the key (never the key), the same in
         every home of that licence, so its homes are seen together
-        (licence_homes.py: homes after a key's first two count while their
-        report is on)
+        (licence_homes.py: a key on more than two homes needs every home's
+        report on)
     how many scanners / floors / rooms / placed lights / walls / maps / IRKs
     which feature switches are on, and which theme the panel wears
         (Day, Light, or a named palette; Night is the absence of all three),

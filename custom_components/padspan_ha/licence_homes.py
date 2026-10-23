@@ -4,8 +4,10 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """A licence key's homes (0.38.160): one key, up to five Home Assistants.
 
-The first two always count. The third to the fifth count while their own
-opt-in usage report is on: the report then carries the licence's group code
+The first two always count. A key on more than two needs every home's
+opt-in usage report on (0.38.163): if one turns it off, the homes past the
+first two stop using Pro 14 days later unless it's back on. The report then
+carries the licence's group code
 (telemetry.licence_group, made from the key, never the key), which is how the
 developer sees one licence's homes together.
 
@@ -58,6 +60,24 @@ async def keep_token(st: Any, data: dict[str, Any]) -> None:
     used = data.get("homes_used")
     if isinstance(used, int) and not isinstance(used, bool) and 0 <= used <= 99 and used != st.data.get("license_homes_used"):
         await st.async_set(license_homes_used=used)
+
+
+def homes_warning(data: dict[str, Any] | None) -> dict[str, Any]:
+    """The server's warning for a key on more than two homes with a usage
+    report off somewhere (0.38.163): {"warning", "grace_until", "off_labels"},
+    or {} when it gave none. The labels are the owner's own home names."""
+    if not isinstance(data, dict) or data.get("homes_warning") != "reports_off":
+        return {}
+    labels = data.get("homes_off_labels")
+    labels = [str(x)[:40] for x in labels if isinstance(x, str)][:5] if isinstance(labels, list) else []
+    return {"warning": "reports_off", "grace_until": str(data.get("homes_grace_until") or "")[:25], "off_labels": labels}
+
+
+async def keep_warning(st: Any, data: dict[str, Any] | None) -> None:
+    """Store homes_warning(data) when it differs (an answer without one clears it)."""
+    w = homes_warning(data)
+    if w != (st.data.get("license_homes_warning") or {}):
+        await st.async_set(license_homes_warning=w)
 
 
 async def call(hass: HomeAssistant, action: str, key: str, extra: dict[str, str] | None = None,

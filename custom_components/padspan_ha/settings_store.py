@@ -300,6 +300,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "license_home_label": "",
     "license_home_status": "",   # the server's last word on this home, when it refused it
     "license_homes_used": 0,     # how many homes the key is on, as the server last said
+    "license_homes_warning": {},  # past two homes with a report off somewhere: licence_homes.homes_warning
     # ── Enterprise preview features (off by default) ─────────────────────────
     "walk_to_identify_enabled": False,      # spatial correlation device discovery ("who just walked in?")
     "radio_map_enabled": False,             # RSSI heatmap overlay on floor plan maps
