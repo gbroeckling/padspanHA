@@ -56,7 +56,7 @@ export function mixHex(a, b, t){
   const ch = (s) => Math.round(((pb >> s) & 255) + (((pa >> s) & 255) - ((pb >> s) & 255)) * t);
   return "#" + [ch(16), ch(8), ch(0)].map(v => v.toString(16).padStart(2, "0")).join("");
 }
-/** The sky for the view's sun look ({night 0..1, warm 0..1}, live_aboard_house.js
+/** The sky for the view's sun look ({night 0..1, warm 0..1}, the house module's
  *  sunLight): day leaning golden as the sun gets low, then toward night. Pure. */
 export function skyAt(look){
   const night = clamp(Number(look && look.night) || 0, 0, 1), warm = clamp(Number(look && look.warm) || 0, 0, 1);
@@ -268,7 +268,7 @@ export function createStudio(o){
       contact.scale.set(sx + 2.4, 1, sz + 2.4);
       touched.clear();
     },
-    /** The sun was drawn again (live_aboard.js drawSun): the sky follows it,
+    /** The sun was drawn again (the view's drawSun): the sky follows it,
      *  and the light is the view's own, eased into Studio's. */
     sun(look, dir){
       lookNow = { night: clamp(look.night, 0, 1), warm: clamp(look.warm, 0, 1) };
@@ -289,7 +289,7 @@ export function createStudio(o){
     },
     /** True the first time only: the view's arrival is due. */
     takeArrival(){ if (arrived) return false; arrived = true; return true; },
-    /** What falls, for the sky as it is (live_aboard_weather.js colour). */
+    /** What falls, for the sky as it is (the weather's colour). */
     rain(){ return rainOf(lookNow); },
     /** The quality profile changed. */
     profile(){ applyProfileParts(); touched.clear(); },
@@ -301,7 +301,7 @@ export function createStudio(o){
     state(){
       return { on: true, parts: { ...parts }, sky: { ...skyNow }, tone: renderer.toneMapping === THREE.NeutralToneMapping,
                shadowType: renderer.shadowMap.type, rim: rim.visible ? rim.intensity : 0, pad: !!pad, contact: !!contact,
-               vignette: !!(vig && vig.isConnected && vig.style.display !== "none"), hidden: hidden.length,
+               vignette: !!(vig && vig.parentNode && vig.style.display !== "none"), hidden: hidden.length,
                wallFoot: wallCol ? wallCol.array.some(v => Math.abs(v - STUDIO_WALL_FOOT) < 1e-6) : false };
     },
     /** Studio off: everything it changed put back, everything it made let go of. */
