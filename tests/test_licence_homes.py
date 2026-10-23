@@ -50,7 +50,7 @@ def test_only_a_real_new_token_is_kept():
 def test_both_server_calls_send_it_and_keep_the_answer():
     up = _src("update_check.py")
     assert "**home_params(st.data)}" in up and "await keep_token(st, data)" in up, "the daily check"
-    assert '_hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report")' in up, "a refused home is said in Settings"
+    assert '_hs if _hs in ("activation_limit", "activation_rate", "homes_frozen", "needs_report", "removed")' in up, "a refused home is said in Settings"
     fo = _src("ws_forensics.py")
     assert '"machine": machine, **_hp}' in fo, "activation"
     assert '_hp["token"] = ""' in fo, "a different key starts the home afresh"
@@ -69,7 +69,7 @@ def test_settings_lists_the_homes_on_request():
     assert "if (hasKey) card.appendChild(_licenceHomes(ctx, el, s));" in js
     assert 'wsCall("padspan_ha/licence_homes", { op, ...(extra || {}) })' in js
     assert "Show this key's homes" in js, "opening Settings never calls the licence server"
-    for status in ("activation_limit", "activation_rate", "homes_frozen"):
+    for status in ("activation_limit", "activation_rate", "homes_frozen", "removed"):
         assert status + ":" in js
 
 
@@ -90,7 +90,7 @@ def test_homes_after_the_first_two_need_the_usage_report_and_are_seen_together()
         assert "'licence_group'" in php and "/^[0-9a-f]{16}\z/" in php, "the receiver takes it, and only that shape"
     js = _src("www/padspan-ha/views/settings.js")
     assert "needs_report:" in js and "with a licence used on more than two homes, a short code made from the key (never the key)" in js
-    assert '"needs_report") else ""' in _src("update_check.py")
+    assert '"needs_report", "removed") else ""' in _src("update_check.py")
 
 
 def test_a_house_with_one_or_two_homes_sends_the_same_report_as_before():

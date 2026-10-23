@@ -139,7 +139,7 @@ async def test_a_paused_or_unreported_home_keeps_its_licence(monkeypatch, status
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", ["activation_limit", "homes_frozen", "revoked", "expired", ""])
+@pytest.mark.parametrize("status", ["activation_limit", "homes_frozen", "removed", "revoked", "expired", ""])
 async def test_other_refusals_still_expire_now(monkeypatch, status):
     from datetime import datetime, timezone
     hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2027-10-01T00:00:00+00:00"})
@@ -148,4 +148,19 @@ async def test_other_refusals_still_expire_now(monkeypatch, status):
     _server_says(monkeypatch, {"valid": False, "status": status})
     await _revalidate_license(hass)
     written = datetime.fromisoformat(st.async_set.call_args.kwargs["forensics_license_expires"])
+    assert abs((datetime.now(timezone.utc) - written).total_seconds()) < 60
+
+
+@pytest.mark.asyncio
+async def test_a_removed_home_is_said_in_settings_and_expires_as_before(monkeypatch):
+    from datetime import datetime, timezone
+    hass = _hass_with({"forensics_license_key": "PSPAN-AAAA", "forensics_license_expires": "2027-10-01T00:00:00+00:00",
+                       "license_home_status": ""})
+    st = hass.data[DOMAIN][DATA_SETTINGS]
+    st.async_set = AsyncMock()
+    _server_says(monkeypatch, {"valid": False, "status": "removed"})
+    await _revalidate_license(hass)
+    calls = [c.kwargs for c in st.async_set.call_args_list]
+    assert calls[0] == {"license_home_status": "removed"}
+    written = datetime.fromisoformat(calls[-1]["forensics_license_expires"])
     assert abs((datetime.now(timezone.utc) - written).total_seconds()) < 60

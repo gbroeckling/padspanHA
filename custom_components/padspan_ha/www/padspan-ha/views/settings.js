@@ -3000,6 +3000,7 @@ const HOME_REFUSED = {
   activation_limit: "This home isn't counted: the key is already on all its homes. Remove one below (from any home) and this one joins at its next daily check.",
   activation_rate: "This home isn't counted: the key joined many new homes this month. It joins once the month is over.",
   homes_frozen: "This home isn't counted: the key is paused for new homes. Reply to your licence email to sort it out.",
+  removed: "This home isn't counted: it was removed from the key. Remove another home below (from any home) or reply to your licence email to use it here.",
   needs_report: "This home isn't counted: a licence's first two homes always count, and the third to the fifth need their usage report on (Settings \u2192 Presence \u2192 Help improve PadSpan).",
 };
 function _licenceHomes(ctx, el, s){

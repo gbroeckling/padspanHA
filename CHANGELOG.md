@@ -21,7 +21,7 @@ Everything new in this version is off until you turn it on. With nothing turned 
 
 ### Fixed
 - **On Home Assistant before 2026.8, PadSpan's devices no longer merge into Bermuda's** (or another Bluetooth integration's) device for the same Bluetooth address, so a newly labelled device no longer overwrites that device's name and model. Devices already merged stay merged (Home Assistant doesn't split them on those versions). From 2026.8, where Home Assistant keeps them apart itself, nothing changes.
-- **Licence homes:** activating the same key again keeps this home's place on the licence. A temporary refusal from the licence server (a key that joined many new homes this month) no longer ends Pro, and neither does a third to fifth home with its usage report off: the licence card says why the home isn't counted. A revoked, expired or removed key works as before.
+- **Licence homes:** activating the same key again keeps this home's place on the licence. A temporary refusal from the licence server (a key that joined many new homes this month) no longer ends Pro, and neither does a third to fifth home with its usage report off: the licence card says why the home isn't counted. A home removed from its key says so on the licence card. A revoked, expired or removed key works as before.
 - **Assist's "which room is" intent** is not offered to LLM conversation agents as a tool on Home Assistant before 2026.8 (from 2026.8 it never was); the custom sentences reach it as before.
 - **Live Aboard's frame-rate readout** stops, timer and all, when the screen goes back to the flat Atlas.
 - **Monitor with quiet mode on:** the tracked count and the hidden count add up to the devices listed.
