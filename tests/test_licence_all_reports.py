@@ -168,7 +168,7 @@ def test_settings_says_it_and_asks_first():
         "Turn it back on there and this home picks up again at its next check."), "labels are text, never markup"
     assert "its own usage report is off" in c["card_stopped_own"]["warning"]
     ask = ("This key is used on 3 homes. With more than 2, every home must keep the report on. If you turn it off here, "
-           "the homes beyond your first two stop using Pro in 14 days unless it's back on.")
+           "the homes beyond your first two stop using Pro within 14 days unless it's back on.")
     assert c["off_three_cancel"] == {"asked": [ask], "sets": []}, "Cancel keeps it on"
     assert c["off_three_ok"] == {"asked": [ask], "sets": [{"telemetry_enabled": False}]}
     for k in ("off_two", "off_no_key"):
@@ -180,6 +180,6 @@ def test_settings_says_it_and_asks_first():
     run = c["off_three_running"]["asked"][0]
     assert run.startswith("This key is used on 3 homes. With more than 2, every home must keep the report on. "
                           "If you turn it off here, the homes beyond your first two stop using Pro on ") and "2026" in run \
-        and run.endswith(" unless it's back on.") and "in 14 days" not in run, "a grace already running: its own date"
+        and run.endswith(" unless it's back on.") and "within 14 days" not in run, "a grace already running: its own date"
     assert c["list_down_to_two"] == {"before": True, "after": False}, "removed down to two homes: the warning goes at once"
     assert c["list_still_three"] == {"before": True, "after": True}

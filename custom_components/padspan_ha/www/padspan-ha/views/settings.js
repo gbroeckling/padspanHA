@@ -3036,7 +3036,7 @@ export function reportOffConfirmText(s){
   if (!s || !s.pro_has_key || !(n > 2)) return "";
   // A grace already running (a report off on another home) has its own date.
   const w = s.license_homes_warning || {};
-  const when = w.warning === "reports_off" && w.grace_until ? "on " + _homesDate(w.grace_until) : "in 14 days";
+  const when = w.warning === "reports_off" && w.grace_until ? "on " + _homesDate(w.grace_until) : "within 14 days";
   return `This key is used on ${n} homes. With more than 2, every home must keep the report on. ` +
     `If you turn it off here, the homes beyond your first two stop using Pro ${when} unless it's back on.`;
 }
