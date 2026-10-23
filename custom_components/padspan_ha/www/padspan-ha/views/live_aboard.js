@@ -3479,6 +3479,18 @@ function createSlot(slotKey){
     const r = ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect);
     if (r < cam.radius) { cam.radius = Math.max(MIN_R, r); applyCam(); }
   }
+  /** Studio's arrival, once a view: the camera glides in to the view it just
+   *  opened on, from a little farther out and round. Not with reduced motion,
+   *  and the camera still counts as untouched (the house is fitted again as before). */
+  function arrive(){
+    if (!studio || !studio.takeArrival()) return;
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const to = { target: cam.target.clone(), radius: cam.radius, theta: cam.theta, phi: cam.phi };
+    const A = STUDIO.STUDIO_ARRIVAL;
+    const from = { target: cam.target.clone(), radius: cam.radius * A.radius, theta: cam.theta - A.turn, phi: Math.max(MIN_PHI, cam.phi - A.rise) };
+    cam.fly = { t0: performance.now(), from, to, dTh: A.turn, inward: false, ms: A.ms };
+    requestRender();
+  }
   // ── flying the camera (a double-tap on a room, a saved view) ──────────────
   function flyTo(goal, inward){
     const from = { target: cam.target.clone(), radius: cam.radius, theta: cam.theta, phi: cam.phi };
@@ -3490,7 +3502,7 @@ function createSlot(slotKey){
   function stepFly(now){
     const f = cam.fly;
     if (!f) return;
-    const u = Math.min(1, Math.max(0, (now - f.t0) / FLY_MS)), k = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    const u = Math.min(1, Math.max(0, (now - f.t0) / (f.ms || FLY_MS))), k = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
     cam.target.lerpVectors(f.from.target, f.to.target, k);
     cam.radius = f.from.radius + (f.to.radius - f.from.radius) * k;
     cam.theta = f.from.theta + f.dTh * k;
@@ -3742,7 +3754,7 @@ function createSlot(slotKey){
     // Something moving by itself draws on its own clock (liveRate).
     const due = dirty || !!quality.measuring || (liveMs > 0 && t - lastAmbient >= liveMs - 4);
     if (due) {
-      if (cam.needsFit && (canvas.clientWidth || 0) > 0) openView();
+      if (cam.needsFit && (canvas.clientWidth || 0) > 0) { openView(); if (studio) arrive(); }
       updateCutaway();
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
@@ -4478,7 +4490,7 @@ function createSlot(slotKey){
         // What falls: the flat Atlas's colour for the Showcase theme this view
         // wears (Classic: white), or the look's own where that would not show
         // on its ground (a light theme); what settles: the flat Atlas's.
-        colour: plainSky() ? "#ffffff" : (theme3d && theme3d.weather) || WEATHER.colourOf(p.showcase && p.showcase.theme),
+        colour: studio ? studio.rain() : plainSky() ? "#ffffff" : (theme3d && theme3d.weather) || WEATHER.colourOf(p.showcase && p.showcase.theme),
         snowColour: plainSky() ? "#ffffff" : WEATHER.colourOf(p.showcase && p.showcase.theme),
         profile: quality.profile || quality.measuring || "low", nowMs: Date.now(),
         house: { key: `${shellGen}|${topElev}`, rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02,

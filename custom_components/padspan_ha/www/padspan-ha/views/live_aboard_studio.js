@@ -26,22 +26,29 @@
 // The sky by the sun's phase: zenith, horizon, the pad under the house, the
 // sun's glow. Day, golden hour (the sun low), night; twilight is between.
 export const STUDIO_SKY = Object.freeze({
-  day:    Object.freeze({ zenith: "#3c6177", horizon: "#b9c8c6", pad: "#d9d5cb", glow: "#fff4dc" }),
-  golden: Object.freeze({ zenith: "#3a4a6b", horizon: "#e2b48c", pad: "#d2c3b0", glow: "#ffc98a" }),
-  night:  Object.freeze({ zenith: "#03060d", horizon: "#172231", pad: "#2a3340", glow: "#6d7fa8" }),
+  day:    Object.freeze({ zenith: "#355a70", horizon: "#a9bbba", pad: "#d3cfc4", glow: "#fff4dc" }),
+  golden: Object.freeze({ zenith: "#36466a", horizon: "#d9a982", pad: "#cdbca8", glow: "#ffc98a" }),
+  night:  Object.freeze({ zenith: "#03060d", horizon: "#1a2636", pad: "#46536a", glow: "#6d7fa8" }),
 });
 // The light: how much the fill, the sun and the rim give, by day and by night.
 export const STUDIO_LIGHT = Object.freeze({
-  fillDay: 1.05, fillNight: 1.0,           // x the view's own sky light (it keeps shadows coloured, not black)
+  fillDay: 1.05, fillNight: 1.5,           // x the view's own sky light (it keeps shadows coloured, not black)
   fillSky: "#dfe9f2", fillGround: "#6b5f50", // the fill's sky and bounce, by day
   sunK: 1.15,                              // x the view's own sun
   rimDay: 0.55, rimNight: 0.45, rimDayCol: "#cfe0ff", rimNightCol: "#7f9cd6",
   exposure: 1.08,                          // Neutral tone mapping's exposure
-  shadow: 0.72, shadowRadius: 3.5,         // High: the sun shadow's strength (1: black) and softness
+  shadow: 0.8, shadowRadius: 2,
+  padNight: 0.22,                          // the stage's own light at night (its colour x this)         // High: the sun shadow's strength (1: black) and softness
 });
-export const STUDIO_WALL_FOOT = 0.78;      // a wall's colour at its foot (1: as at its top)
+export const STUDIO_WALL_FOOT = 0.78;
+// What falls on a light day sky: the rain a slate blue (white would not show), white at night.
+export const STUDIO_RAIN_DAY = "#56687a";
+export function rainOf(look){ return Number(look && look.night) >= 0.5 ? "#ffffff" : STUDIO_RAIN_DAY; }      // a wall's colour at its foot (1: as at its top)
 export const STUDIO_VIGNETTE = "radial-gradient(ellipse 75% 70% at 50% 46%, rgba(0,0,0,0) 58%, rgba(2,6,4,.34) 100%)";
 
+// The arrival: once a view, the camera glides in to the view it opened on,
+// from this much farther out (x radius), turned (rad) and higher (rad), over ms.
+export const STUDIO_ARRIVAL = Object.freeze({ radius: 1.45, turn: 0.55, rise: 0.12, ms: 1700 });
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 /** a over b by t (0: b, 1: a), "#rrggbb". */
 export function mixHex(a, b, t){
@@ -98,7 +105,7 @@ export function createStudio(o){
   const res = [];                                            // what it made, let go of on dispose
   const touched = new Set();                                 // materials it kept out of tone mapping
   let sky = null, pad = null, contact = null, vig = null, rim = null, hidden = [], skyNow = skyAt({ night: 0, warm: 0 });
-  let parts = studioParts(profile()), lookNow = { night: 0, warm: 0 };
+  let parts = studioParts(profile()), lookNow = { night: 0, warm: 0 }, arrived = false;
 
   // The sky: a dome round the camera, drawn first, behind everything.
   const skyMat = new THREE.ShaderMaterial({
@@ -162,7 +169,7 @@ export function createStudio(o){
   // colour from the pad in the middle to the horizon far out, a faint metre
   // grid near the house. One material per profile, as the view's own.
   const padU = { uCentre: { value: new THREE.Vector2() }, uR: { value: 12 }, uPad: { value: new THREE.Color() },
-                 uFar: { value: new THREE.Color() }, uGrid: { value: 0.07 } };
+                 uFar: { value: new THREE.Color() }, uGrid: { value: 0.07 }, uLift: { value: 0 } };
   const padMats = {};
   function padMat(){
     const p = profile();
@@ -173,13 +180,15 @@ export function createStudio(o){
       Object.assign(sh.uniforms, padU);
       sh.vertexShader = "varying vec2 vStage;\n" + sh.vertexShader.replace("#include <begin_vertex>",
         "#include <begin_vertex>\n  vStage = (modelMatrix * vec4(position, 1.0)).xz;");
-      sh.fragmentShader = "uniform vec2 uCentre; uniform float uR; uniform vec3 uPad; uniform vec3 uFar; uniform float uGrid;\nvarying vec2 vStage;\n"
+      sh.fragmentShader = "uniform vec2 uCentre; uniform float uR; uniform vec3 uPad; uniform vec3 uFar; uniform float uGrid; uniform float uLift;\nvarying vec2 vStage;\n"
         + sh.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>
   float sd = length(vStage - uCentre);
   diffuseColor.rgb = mix(uPad, uFar, smoothstep(uR * 0.55, uR * 2.6, sd));
   vec2 gq = abs(fract(vStage + 0.5) - 0.5) / fwidth(vStage);
   float gl = 1.0 - min(min(gq.x, gq.y), 1.0);
-  diffuseColor.rgb *= 1.0 - uGrid * gl * (1.0 - smoothstep(uR * 0.4, uR * 1.6, sd));`);
+  diffuseColor.rgb *= 1.0 - uGrid * gl * (1.0 - smoothstep(uR * 0.4, uR * 1.6, sd));`)
+          .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+  totalEmissiveRadiance += uPad * uLift * (1.0 - smoothstep(uR * 0.3, uR * 2.2, length(vStage - uCentre)));`);
     };
     m.customProgramCacheKey = () => "la3d-studio-pad";
     res.push(m);
@@ -212,6 +221,7 @@ export function createStudio(o){
     padU.uPad.value.set(s.pad);
     padU.uFar.value.set(s.horizon);
     padU.uGrid.value = 0.06 + lookNow.night * 0.05;
+    padU.uLift.value = STUDIO_LIGHT.padNight * lookNow.night;   // at night the stage keeps a soft light of its own
   }
   function applyProfileParts(){
     parts = studioParts(profile());
@@ -277,6 +287,10 @@ export function createStudio(o){
       rim.target.updateMatrixWorld();
       paintSky();
     },
+    /** True the first time only: the view's arrival is due. */
+    takeArrival(){ if (arrived) return false; arrived = true; return true; },
+    /** What falls, for the sky as it is (live_aboard_weather.js colour). */
+    rain(){ return rainOf(lookNow); },
     /** The quality profile changed. */
     profile(){ applyProfileParts(); touched.clear(); },
     /** Just before a draw: the sky round the camera, new materials kept out of tone mapping. */
