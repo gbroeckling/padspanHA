@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.163",
+  "title": "Every home on a key with more than two keeps its usage report on",
+  "date": "2026-10-23",
+  "body_markdown": "With a licence key on one or two homes, nothing changes.\n\n### Changed\n- **A key on more than two homes needs every home's usage report on.** A licence's first two homes always count. With more than two, every home on the key must keep its opt-in usage report on (Settings → Presence → Help improve PadSpan). If one turns it off, the key drops back to its first two homes after 14 days: the first two keep Pro, and the others stop using Pro until the report is back on, then pick up again at their next check. A new home joins as a third only when every home, the new one too, has the report on. The 14 days add up: turning the report back on briefly doesn't start them again, and they start again after every home has had it on for 30 days. A home on PadSpan before 0.38.160 can't send the report, so it counts as off until it's updated, and the licence card says it needs updating.\n- **The licence card says so.** When the report is off on a key with more than two homes, Settings → Features → PadSpan licence names the homes it's off on and the date the homes beyond your first two stop using Pro. Turning the report off on such a key asks first (with the date, if the 14 days are already running), and Cancel keeps it on. Removing a home from the list so the key is back to two clears the warning at once. Turning the report on or off with a key in tells the licence server straight away instead of at the next daily check.\n- On 0.38.163 a home beyond the first two stops using Pro when its 14 days are up, with no second grace on top. Homes still on PadSpan 0.38.160 to 0.38.162 don't show the warning, and keep their usual 14-day grace after that.\n- **README and the PadSpan Pro guide** say how a key's homes count now."
+ },
+ {
   "version": "0.38.162",
   "title": "An iPhone setup path, Live Aboard flies to people arriving, and Follow the sun",
   "date": "2026-10-23",
@@ -76,11 +82,5 @@
   "title": "One look across the panel",
   "date": "2026-10-20",
   "body_markdown": "### Changed\n- **The panel's colours match from tab to tab.** Settings, Overview, Manage, QA, Calibration, Follow, Traceback and the other tabs had picked up cold blue-grey boxes, borders and dropdowns over the years; they now use the same dark forest greens as the rest of the panel. Checkboxes, radio buttons and sliders are green instead of the browser's blue, in the panel and on the Atlas. Greens that were nearly the same colour are now one accent, one \"good\" green and one light green, and grey hint text is the same grey everywhere.\n- **Text sizes snap to one scale.** Half-pixel sizes are rounded to whole pixels, and the smallest 9 px labels are now 10 px so they can be read.\n- Blue still marks phone tracking and the calibration target (the blue spiral), and maps, charts, the 3D house and Pure Live are unchanged."
- },
- {
-  "version": "0.38.149",
-  "title": "Wall screens in the opt-in report",
-  "date": "2026-10-20",
-  "body_markdown": "### Opt-in report\n- **Wall screens.** Once per page load, the main panel and the sidebar Atlas say what kind of screen they are on: opened with `?kiosk=1`, filling the screen and untouched for two minutes, filling the screen and in use, or an ordinary window. A wall screen that reloaded itself after an update (0.38.145) says whether it came back on the new version or the old one. This shows whether those wall-screen fixes work in real houses and whether the full-screen rule mistakes desktops for walls.\n- **`?view=` links.** Whether a link that opens a view stayed on it, or went back to the menu because Forensics is off or the edition has no such view. Never the link itself."
  }
 ]

@@ -181,6 +181,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.163</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">23 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>A key on more than two homes needs every home's usage report on.</b> A licence's first two homes always count. With more than two, every home on the key must keep its opt-in usage report on (Settings → Presence → Help improve PadSpan). If one turns it off, the key drops back to its first two homes after 14 days: the first two keep Pro, and the others stop using Pro until the report is back on, then pick up again at their next check. A new home joins as a third only when every home, the new one too, has the report on. The 14 days add up: turning the report back on briefly doesn't start them again, and they start again after every home has had it on for 30 days. A home on PadSpan before 0.38.160 can't send the report, so it counts as off until it's updated, and the licence card says it needs updating.</li>
+          <li><b>The licence card says so.</b> When the report is off on a key with more than two homes, Settings → Features → PadSpan licence names the homes it's off on and the date the homes beyond your first two stop using Pro. Turning the report off on such a key asks first (with the date, if the 14 days are already running), and Cancel keeps it on. Removing a home from the list so the key is back to two clears the warning at once. Turning the report on or off with a key in tells the licence server straight away instead of at the next daily check.</li>
+          <li>On 0.38.163 a home beyond the first two stops using Pro when its 14 days are up, with no second grace on top. Homes still on PadSpan 0.38.160 to 0.38.162 don't show the warning, and keep their usual 14-day grace after that.</li>
+          <li><b>README and the PadSpan Pro guide</b> say how a key's homes count now.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.162</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">23 October 2026</span>
