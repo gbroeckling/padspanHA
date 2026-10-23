@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import secrets
 import subprocess
 import sys
 import urllib.error
@@ -46,6 +47,9 @@ MANIFEST = ROOT / "custom_components" / "padspan_ha" / "manifest.json"
 HOST = "administrator@75.157.233.12"
 REMOTE_DIR = "/var/www/clients/client1/web10/web/padspan"
 REMOTE = REMOTE_DIR + "/index.html"
+# The German page. It is built from SRC on every deploy (scripts/build_site_de.py),
+# never kept by hand, so it can't fall behind the English one.
+REMOTE_DE = REMOTE_DIR + "/de/index.html"
 # Small files that live beside the page. robots.txt/sitemap.xml/.htaccess
 # exist because the access log showed 404s for them: robots.txt was asked
 # for 62 times in 15 days, and .htaccess redirects the URLs people GUESS —
@@ -105,9 +109,89 @@ def stamp(html: str, version: str) -> tuple[str, int]:
     return out, n
 
 
+def _build_site_de():
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import build_site_de  # noqa: E402
+
+    return build_site_de
+
+
+def build_german(html: str, version: str) -> tuple[str, dict]:
+    """The German page for this English one, stamped like it. See build_site_de.py."""
+    de, report = _build_site_de().build(html)
+    de, _ = stamp(de, version)
+    return de, report
+
+
+def origin(path: str, country: str, cookie: str = "", accept_language: str = "") -> str:
+    """What the origin answers a visitor from `country`, as "<code> <redirect URL>",
+    plus " cookie=<value>" when it sets padspan_lang.
+
+    Cloudflare sets CF-IPCountry from the visitor's real address, so from here
+    the language rules can only be seen by asking the origin directly."""
+    extra = (f" -H 'Cookie: {cookie}'" if cookie else "") + \
+            (f" -H 'Accept-Language: {accept_language}'" if accept_language else "")
+    r = subprocess.run(
+        f"{SSH} {HOST} \"curl -s -o /dev/null -D - --max-time 10 -w 'RESULT %{{http_code}} %{{redirect_url}}' "
+        f"--resolve padspan.traks.ca:80:127.0.0.1 -H 'CF-IPCountry: {country}'{extra} "
+        f"'http://padspan.traks.ca{path}'\"",
+        shell=True, capture_output=True, text=True)
+    out = r.stdout or ""
+    if "RESULT " not in out:
+        return r.stderr.strip()[:80] or "no answer"
+    answer = out.rsplit("RESULT ", 1)[1].strip()
+    set_cookie = re.search(r"(?im)^set-cookie:\s*padspan_lang=(\w+)", out)
+    return answer + (f" cookie={set_cookie.group(1)}" if set_cookie else "")
+
+
+# (path, country, cookie, Accept-Language, the answer it must be)
+LANGUAGE_CASES = (
+    ("/", "CA", "", "", "200"),
+    ("/", "DE", "", "", f"302 {URL}de/"),
+    ("/", "CH", "", "fr-CH,fr;q=0.9", "200"),
+    ("/", "DE", "padspan_lang=en", "", "200"),
+    ("/", "US", "padspan_lang=de", "", f"302 {URL}de/"),
+    ("/?hl=en", "AT", "", "", "200"),
+    # The language links: each one is remembered, and Deutsch goes straight to German.
+    ("/?lang=en", "DE", "", "", "200 cookie=en"),
+    ("/?lang=de", "US", "", "", f"302 {URL}de/?lang=de cookie=de"),
+    ("/de", "US", "", "", f"301 {URL}de/"),
+)
+
+
+def preflight_htaccess() -> list[str]:
+    """Try site/.htaccess in a scratch folder on the server before it replaces the
+    live one. A broken .htaccess answers every request on the site with a 500,
+    and wrong language rules would send everyone to /de/ or no one."""
+    ht = (SRC.parent / ".htaccess").read_bytes()
+    scratch = f"{REMOTE_DIR}/_deploy_check_{secrets.token_hex(4)}"
+    base = "/" + scratch.rsplit("/", 1)[1]
+
+    def put(path: str, data: bytes) -> bool:
+        return subprocess.run(f'{SSH} {HOST} "sudo -n tee {path} > /dev/null"', shell=True,
+                              input=data, capture_output=True).returncode == 0
+
+    problems = []
+    try:
+        made = subprocess.run(f'{SSH} {HOST} "sudo -n mkdir -p {scratch}"', shell=True, capture_output=True)
+        if made.returncode != 0 or not (put(scratch + "/.htaccess", ht) and put(scratch + "/index.html", b"<p>check</p>\n")):
+            return ["could not set up the scratch folder on the server"]
+        for path, country, cookie, lang, want in LANGUAGE_CASES + (("/missing.html", "CA", "", "", "404"),):
+            got = origin(base + path, country, cookie, lang)
+            if got != want:
+                problems.append(f"{country} {cookie or 'no cookie'} {lang} {path}: got {got!r}, wanted {want!r}")
+    finally:
+        gone = subprocess.run(f'{SSH} {HOST} "sudo -n rm -rf {scratch}"', shell=True, capture_output=True)
+        if gone.returncode != 0:
+            print(f"  WARN the scratch folder {scratch} could not be removed: delete it by hand")
+    return problems
+
+
 def verify_live(version: str) -> bool:
     """Fetch the deployed page and check the things that must not be wrong."""
-    req = urllib.request.Request(URL, headers={"User-Agent": "padspan-deploy"})
+    # ?lang=en: from Germany, Austria or Switzerland the bare URL would send this
+    # check to /de/ (site/.htaccess), and it would fail on the wrong page.
+    req = urllib.request.Request(URL + "?lang=en", headers={"User-Agent": "padspan-deploy"})
     with urllib.request.urlopen(req, timeout=20) as resp:
         live = resp.read().decode("utf-8", "replace")
 
@@ -127,12 +211,37 @@ def verify_live(version: str) -> bool:
         "editions section present": 'id="editions"' in live,
         "whats-new section present": 'id="whatsnew"' in live,
         "runtime version fetch present": "/api/version.php" in live,
+        "links to the German page": 'href="/de/?lang=de"' in live,
     }
     ok = True
     for name, passed in checks.items():
         print(f"    {'OK  ' if passed else 'FAIL'} {name}")
         ok = ok and passed
 
+    # The German page: there, German, stamped, and selling the same things.
+    try:
+        rq = urllib.request.Request(URL + "de/", headers={"User-Agent": "padspan-deploy"})
+        with urllib.request.urlopen(rq, timeout=20) as resp:
+            de = resp.read().decode("utf-8", "replace")
+        de_checks = {
+            "de: German page served": '<html lang="de"' in de,
+            f"de: stamped v{version}": f">v{version}<" in de,
+            "de: paypal button intact": 'name="item_number" value="padspan-pro-annual"' in de,
+            "de: paypal amount intact": 'name="amount" value="45.00"' in de,
+            "de: links back to English": 'href="/?lang=en"' in de,
+        }
+    except Exception as e:  # noqa: BLE001
+        de_checks = {f"de: page fetched ({e})": False}
+    for name, passed in de_checks.items():
+        print(f"    {'OK  ' if passed else 'FAIL'} {name}")
+        ok = ok and passed
+    # Who lands where, asked of the origin (see origin()).
+    for path, country, cookie, lang, want in LANGUAGE_CASES:
+        got = origin(path, country, cookie, lang)
+        good = got == want
+        print(f"    {'OK  ' if good else 'FAIL'} {country}{' ' + cookie if cookie else ''}"
+              f"{' ' + lang if lang else ''} {path} -> {got}")
+        ok = ok and good
     # The manifest the page reads at runtime should agree with what we stamped.
     try:
         mreq = urllib.request.Request(MANIFEST_URL, headers={"User-Agent": "padspan-deploy"})
@@ -179,10 +288,44 @@ def main() -> None:
         raise SystemExit("no data-latest-version elements found — refusing to deploy a page "
                          "whose version cannot be kept current")
 
+    de_html, de_rep = build_german(html, version)
+    print(f"  German page: {de_rep['translated']} of {de_rep['units']} text blocks in German "
+          f"({100 * de_rep['coverage']:.0f}%)")
+    if de_rep["missing"]:
+        print("    still English on /de/ (add them to site/i18n/de.json; "
+              "python scripts/build_site_de.py lists them all):")
+        for key in de_rep["missing"][:8]:
+            print("     ", re.sub(r"<[^>]+>", "", key)[:90])
+    # Everything is checked before anything is uploaded: once the new .htaccess
+    # is live, Germany, Austria and Switzerland are sent to whatever /de/ holds.
+    # Gaps (English showing through on /de/) are reported but never hold a deploy.
+    for gap in _build_site_de().gaps(de_rep):
+        print(f"  WARN German page: {gap}")
+    problems = _build_site_de().check(stamped, de_html, de_rep)
+    if problems:
+        raise SystemExit("the German page isn't ready, so nothing was uploaded:\n  - " + "\n  - ".join(problems))
     if dry:
         print("dry run: nothing uploaded.")
-        print(f"  local bytes: {len(stamped)}")
+        print(f"  local bytes: {len(stamped.encode('utf-8'))} English, {len(de_html.encode('utf-8'))} German")
         return
+    problems = preflight_htaccess()
+    if problems:
+        raise SystemExit("site/.htaccess failed its check in a scratch folder, so nothing was uploaded:\n  - "
+                         + "\n  - ".join(problems))
+    print("  site/.htaccess checked in a scratch folder on the server")
+
+    # German first: once the new .htaccess is up, visitors from Germany, Austria
+    # and Switzerland are sent to /de/, so it has to be there already.
+    subprocess.run(
+        f'{SSH} {HOST} "sudo -n mkdir -p {REMOTE_DIR}/de && '
+        f'(sudo -n test ! -f {REMOTE_DE} || sudo -n test -f {REMOTE_DE}.bak-$(date +%Y%m%d) || '
+        f'sudo -n cp -p {REMOTE_DE} {REMOTE_DE}.bak-$(date +%Y%m%d))"',
+        shell=True, check=False)
+    r = subprocess.run(f'{SSH} {HOST} "sudo -n tee {REMOTE_DE} > /dev/null"',
+                       shell=True, input=de_html.encode("utf-8"), capture_output=True)
+    if r.returncode != 0:
+        raise SystemExit(f"German page upload failed: {r.stderr.decode('utf-8', 'replace').strip()}")
+    print(f"  uploaded {len(de_html.encode('utf-8'))} bytes to {REMOTE_DE}")
 
     # Keep one backup per day, then truncate in place so ownership survives.
     subprocess.run(
@@ -198,7 +341,7 @@ def main() -> None:
                          shell=True, input=stamped.encode("utf-8"), capture_output=True)
     if res.returncode != 0:
         raise SystemExit(f"upload failed: {res.stderr.decode('utf-8', 'replace').strip()}")
-    print(f"  uploaded {len(stamped)} bytes to {REMOTE}")
+    print(f"  uploaded {len(stamped.encode('utf-8'))} bytes to {REMOTE}")
 
     for name in SIDECARS:
         side = SRC.parent / name

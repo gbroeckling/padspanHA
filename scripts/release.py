@@ -161,6 +161,8 @@ STATIC_FILES = [
     # or the deploy would ship something the repo never recorded.
     "site",
     "scripts/deploy_site.py",
+    # deploy_site.py builds padspan.traks.ca/de/ with it on every deploy.
+    "scripts/build_site_de.py",
     # README assets: the montage the README leads with, the og:image every
     # shared link uses, and the screenshots both are built from.
     "images",
