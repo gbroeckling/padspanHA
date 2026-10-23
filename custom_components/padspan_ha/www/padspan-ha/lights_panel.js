@@ -250,8 +250,11 @@ class PadSpanLightsApp extends HTMLElement {
     _screenReported = true;
     let kiosk = false;
     try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
-    const send = (name)=>{ Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{}); };
-    send("wall_screen:atlas:" + screenKind(kiosk));
+    const send = (name, screen)=>{ Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name, ...(screen || {}) })).catch(()=>{}); };
+    // With the screen id (read, never made): its word in the report's list of screens.
+    let sid = null;
+    try { sid = localStorage.getItem("padspan_screen_id"); } catch(_) {}
+    send("wall_screen:atlas:" + screenKind(kiosk), /^[0-9a-f]{16}$/.test(sid || "") ? { screen: sid } : null);
     // Wall mode (_wallOn): the scale it runs at, and whether the screen is
     // kept awake (Wake Lock needs HTTPS or localhost).
     if(this.hasAttribute("data-wall")){

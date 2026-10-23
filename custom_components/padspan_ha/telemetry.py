@@ -508,6 +508,23 @@ SCREEN_EVENTS: frozenset[str] = frozenset(
     | {"wall_fit:auto", "wall_fit:room"}
 )
 
+# What the Overview tab actually drew (views/overview.js OVERVIEW_SHOWN, held
+# equal by tests/test_telemetry.py), once per page load per word, live data
+# only (Garry, 2026-10-22: the classic screen changes with how far a house
+# got through setup, which settings alone cannot tell):
+#   house        the isometric house with its beacons (rooms drawn)
+#   house_empty  the house frame, but no floor holds a room yet
+#   floor_plan   no rooms drawn: the uploaded floor-plan picture instead
+#   room_grid    no rooms drawn and no picture: the plain room grid
+#   flat         the flat 2D map (overview_2d_mode)
+#   atlas        "Overview shows the Atlas" (Pro), on its Map side
+#   atlas_3d     the same, with this browser's Map / 3D switch on 3D
+#   basic        the screen was in Basic mode (sent with one of the above)
+# Words only. The Map / 3D choice is read, never written.
+OVERVIEW_SHOWN: tuple[str, ...] = ("house", "house_empty", "floor_plan", "room_grid",
+                                   "flat", "atlas", "atlas_3d", "basic")
+OVERVIEW_EVENTS: frozenset[str] = frozenset(f"overview_shown:{k}" for k in OVERVIEW_SHOWN)
+
 # The switches whose ON/OFF is reported (booleans only, by name). Every name
 # here must be READ by something outside the settings plumbing — a switch
 # that drives nothing is not a feature, and reporting it would put a fiction
@@ -559,24 +576,66 @@ def _num_or(v: Any, default: float) -> float:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else default
 
 
-# How the Overview is set up (Garry, 2026-10-22), as words from closed
-# lists, never the numbers behind them: which screen it is (overview.js: the
-# Atlas when on and Pro, else the flat 2D map, else the isometric stack), the
-# Atlas layout, and the isometric stack's spacing, focus and zoom by bucket.
-def _overview_features(settings: dict[str, Any], pro: bool) -> dict[str, Any]:
-    """features' Overview words (settings_store's defaults where unset)."""
-    gap = _num_or(settings.get("overview_iso_floor_gap"), 150)
-    zoom = _num_or(settings.get("overview_iso_zoom"), 1.0)
-    return {
-        "overview_kind": "atlas" if (settings.get("overview_atlas") is True and pro)
-                         else "flat" if settings.get("overview_2d_mode") else "iso",
-        "atlas_layout": "classic" if settings.get("atlas_layout_v2") is False else "new",
-        "overview_show_trails": bool(settings.get("overview_show_trails")),
-        "overview_iso_floor_gap": "default" if gap == 150 else "tight" if gap < 120 else "wide" if gap > 180 else "custom",
-        "overview_iso_horiz_gap": "none" if _num_or(settings.get("overview_iso_horiz_gap"), 0) == 0 else "offset",
-        "overview_iso_focus": "all" if settings.get("overview_iso_focus") is None else "one_floor",
-        "overview_iso_zoom": "1" if zoom == 1.0 else "lt1" if zoom < 1.0 else "1_2" if zoom <= 2.0 else "gt2",
-    }
+# What each Overview screen is set to (Garry, 2026-10-22: "show what each
+# screen uses if they vary, ... doesn't eat up too much room"): per screen, a
+# list of words from OVERVIEW_SET, ONLY for settings changed from
+# settings_store's default, and no key at all for a screen on its defaults,
+# so most houses send nothing. Never the numbers behind a word. The 3D list
+# only while the 3D house is on. Switches the report already sends on their
+# own (walls, outdoor, pins, Showcase, live colours, the director...) are not
+# repeated. Which screen the Overview actually shows is counted from the
+# screen itself (OVERVIEW_EVENTS).
+OVERVIEW_SET: dict[str, tuple[str, ...]] = {
+    "ov_house": ("gap_tight", "gap_wide", "gap_custom", "offset", "one_floor",
+                 "zoom_lt1", "zoom_1_2", "zoom_gt2", "trails"),
+    "ov_atlas": ("classic", "no_emergency", "no_weather", "weather_lt1", "weather_gt1"),
+    "ov_3d": ("q_low", "q_high", "people", "tags", "library", "no_weather", "look_own",
+              "idle_0", "idle_30", "idle_300"),
+}
+
+
+def _overview_features(settings: dict[str, Any]) -> dict[str, Any]:
+    """features' per-screen lists (see OVERVIEW_SET); {} on defaults."""
+    g = settings.get
+    gap = _num_or(g("overview_iso_floor_gap"), 150)
+    zoom = _num_or(g("overview_iso_zoom"), 1.0)
+    house = []
+    if gap != 150:
+        house.append("gap_tight" if gap < 120 else "gap_wide" if gap > 180 else "gap_custom")
+    if _num_or(g("overview_iso_horiz_gap"), 0) != 0:
+        house.append("offset")
+    if g("overview_iso_focus") is not None:
+        house.append("one_floor")
+    if zoom != 1.0:
+        house.append("zoom_lt1" if zoom < 1.0 else "zoom_1_2" if zoom <= 2.0 else "zoom_gt2")
+    if g("overview_show_trails") is True:
+        house.append("trails")
+    atlas = []
+    if g("atlas_layout_v2") is False:
+        atlas.append("classic")
+    if g("atlas_emergency_button") is False:
+        atlas.append("no_emergency")
+    if g("atlas_weather_enabled") is False:
+        atlas.append("no_weather")
+    else:
+        ws = _num_or(g("atlas_weather_strength"), 1.0)
+        if ws != 1.0:
+            atlas.append("weather_lt1" if ws < 1.0 else "weather_gt1")
+    d3 = []
+    if g("atlas_3d_enabled") is True:
+        q = g("atlas_3d_quality")
+        if q in ("low", "high"):
+            d3.append("q_" + q)
+        d3 += [w for w, k in (("people", "atlas_3d_people"), ("tags", "atlas_3d_tags"),
+                              ("library", "atlas_3d_library")) if g(k) is True]
+        if g("atlas_3d_weather") is False:
+            d3.append("no_weather")
+        if g("atlas_3d_look") == "own":
+            d3.append("look_own")
+        idle = g("atlas_3d_home_idle_s")
+        if idle in (0, 30, 300):
+            d3.append(f"idle_{idle}")
+    return {k: v for k, v in (("ov_house", house), ("ov_atlas", atlas), ("ov_3d", d3)) if v}
 
 
 def _quiet_hidden(obj_list: list[Any], followed: Any) -> str | None:
@@ -781,7 +840,7 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS
-            or name in CLIENT_EVENTS or name in SCREEN_EVENTS)
+            or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -800,6 +859,51 @@ def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
 
 _DATA_SCREENS = "telemetry_screens"
 _DATA_SCREENS_TAKEN = "telemetry_screens_taken"   # the last window's, until its report is sent
+# Each screen's own words (Garry, 2026-10-22: "first 5 screens in a house"):
+# what its Overview drew, its kind of panel window, its resolution and kind
+# of device. Kept per screen id for the window; the report gets the lists
+# only (env.screens), never an id, and only from a house with two or more.
+_DATA_SCREEN_WORDS = "telemetry_screen_words"
+_DATA_SCREEN_WORDS_TAKEN = "telemetry_screen_words_taken"
+SCREENS_LISTED = 5
+_SCREEN_WORDS_MAX = 12
+
+
+def screen_word(event: str) -> str | None:
+    """The word an event gives its screen's list, or None."""
+    if event in OVERVIEW_EVENTS:
+        return event.split(":", 1)[1]
+    if event in CLIENT_EVENTS and event.startswith(("client_screen:res_", "client_screen:kind_")):
+        return event.split(":", 1)[1]
+    if event in SCREEN_EVENTS and event.startswith("wall_screen:"):
+        _, panel, kind = event.split(":")
+        return f"{panel}_{kind}"
+    return None
+
+
+SCREEN_WORDS: frozenset[str] = frozenset(
+    w for w in (screen_word(e) for e in OVERVIEW_EVENTS | CLIENT_EVENTS | SCREEN_EVENTS) if w)
+
+
+def note_screen_word(hass: HomeAssistant, screen: str, event: str) -> None:
+    """Add `event`'s word to this screen's list (the first five screens)."""
+    w = screen_word(event)
+    if not w or not isinstance(screen, str) or not re.fullmatch(r"[0-9a-f]{16}", screen):
+        return
+    lists: dict[str, list[str]] = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_SCREEN_WORDS, {})
+    if screen not in lists:
+        if len(lists) >= SCREENS_LISTED:
+            return
+        lists[screen] = []
+    if w not in lists[screen] and len(lists[screen]) < _SCREEN_WORDS_MAX:
+        lists[screen].append(w)
+
+
+def _screens_listed(lists: Any) -> list[list[str]] | None:
+    """env.screens: each screen's words, sorted; None under two screens."""
+    if not isinstance(lists, dict) or len(lists) < 2:
+        return None
+    return sorted(sorted(v) for v in lists.values())
 
 
 def note_screen(hass: HomeAssistant, screen: str, event: str = "client_screen_seen") -> bool:
@@ -824,6 +928,8 @@ def _take_counters(hass: HomeAssistant) -> dict[str, int]:
     dom[_DATA_COUNTERS] = {}
     dom[_DATA_SCREENS_TAKEN] = dom.get(_DATA_SCREENS) or set()
     dom[_DATA_SCREENS] = set()
+    dom[_DATA_SCREEN_WORDS_TAKEN] = dom.get(_DATA_SCREEN_WORDS) or {}
+    dom[_DATA_SCREEN_WORDS] = {}
     return out
 
 
@@ -870,6 +976,14 @@ def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[st
     # The screens it counted go back with their counts, so they aren't counted again.
     dom = hass.data[DOMAIN]
     dom.setdefault(_DATA_SCREENS, set()).update(dom.pop(_DATA_SCREENS_TAKEN, None) or set())
+    # The screens' lists too: the taken ones first, then any new, five at most.
+    merged = dict(dom.pop(_DATA_SCREEN_WORDS_TAKEN, None) or {})
+    for sid, words in (dom.get(_DATA_SCREEN_WORDS) or {}).items():
+        if sid in merged:
+            merged[sid] = (merged[sid] + [w for w in words if w not in merged[sid]])[:_SCREEN_WORDS_MAX]
+        elif len(merged) < SCREENS_LISTED:
+            merged[sid] = words
+    dom[_DATA_SCREEN_WORDS] = merged
     try:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:
@@ -1076,7 +1190,7 @@ def _positioning_now(coord) -> dict[str, int]:
 def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, Any]:
     """The report. `consume` resets the usage counters (a real send does;
     the Preview does not, so previewing never loses a day's counts)."""
-    from .licence import edition as _edition, hass_tier as _tier, tier_at_least as _tier_at_least  # noqa: PLC0415
+    from .licence import edition as _edition, hass_tier as _tier  # noqa: PLC0415
     dom = hass.data.get(DOMAIN, {})
     st = dom.get(DATA_SETTINGS)
     settings: dict[str, Any] = (st.data if st else {}) or {}
@@ -1446,7 +1560,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         if _qh:
             env["quiet_hidden"] = _qh
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
-    features.update(_overview_features(settings, _tier_at_least(_tier(hass), "pro")))
+    features.update(_overview_features(settings))
     for k, word in _FEATURE_ON_ONLY.items():
         if settings.get(k):
             features[word] = True
@@ -1599,6 +1713,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         pass
     usage = _take_counters(hass) if consume else dict(dom.get(_DATA_COUNTERS) or {})
+    _screens = _screens_listed(dom.get(_DATA_SCREEN_WORDS_TAKEN if consume else _DATA_SCREEN_WORDS))
+    if _screens:
+        env["screens"] = _screens
     # WARNING+ log lines by module since the last report — the "what broke"
     # signal for the parts of the code the developer cannot exercise.
     errors: dict[str, int] = {}
@@ -1731,6 +1848,17 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
     env = payload.get("env")
     if isinstance(env, dict) and "quiet_hidden" in env and env["quiet_hidden"] not in QUIET_HIDDEN_BUCKETS:
         raise ValueError("env.quiet_hidden not in the vocabulary")
+    if isinstance(env, dict) and "screens" in env:
+        scr = env["screens"]
+        if (not isinstance(scr, list) or len(scr) > SCREENS_LISTED
+                or not all(isinstance(s, list) and len(s) <= _SCREEN_WORDS_MAX
+                           and all(w in SCREEN_WORDS for w in s) for s in scr)):
+            raise ValueError("env.screens not lists of screen words")
+    feats = payload.get("features")
+    if isinstance(feats, dict):
+        for k, words in OVERVIEW_SET.items():
+            if k in feats and not (isinstance(feats[k], list) and all(w in words for w in feats[k])):
+                raise ValueError(f"features.{k} not in the vocabulary")
     hw = env.get("hw") if isinstance(env, dict) else None
     if hw is not None:
         if not isinstance(hw, dict):

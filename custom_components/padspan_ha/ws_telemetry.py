@@ -63,7 +63,12 @@ async def ws_telemetry_preview(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_telemetry_event(hass: HomeAssistant, connection, msg) -> None:
     event = str(msg.get("event") or "")
-    if event == "client_screen_seen" or (event.startswith("client_screen:") and msg.get("screen")):
+    if msg.get("screen"):
+        # Its word in the report's list of the first five screens (env.screens).
+        from .telemetry import enabled, note_screen_word  # noqa: PLC0415
+        if enabled(hass):
+            note_screen_word(hass, str(msg["screen"]), event)
+    if event == "client_screen_seen" or (event.startswith(("client_screen:", "overview_shown:")) and msg.get("screen")):
         from .telemetry import enabled, note_screen  # noqa: PLC0415
         counted = bool(enabled(hass) and note_screen(hass, str(msg.get("screen") or ""), event) and bump(hass, event))
         connection.send_result(msg["id"], {"counted": counted})

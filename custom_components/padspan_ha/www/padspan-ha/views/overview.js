@@ -27,6 +27,44 @@ const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, IPHONE_META, NO_PHONES_TE
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, iphoneSetupAlert: () => "",
                     IPHONE_META: "", NO_PHONES_TEXT: "", HELP_NOTE_TEXT: "" }));
 
+// What the Overview tab actually drew, for the opt-in report (telemetry.py
+// OVERVIEW_SHOWN, held equal by tests/test_telemetry.py): the classic screen
+// changes with how far a house got through setup, which settings can't tell.
+// Live data only, never Pure Live's classic side. With this browser's screen
+// id (client_perf.js keeps it; read here, never made or changed), Home
+// Assistant counts each screen once per report and lists the first five, so
+// a word is sent again at most once an hour; without one, once per page.
+export const OVERVIEW_SHOWN = ["house", "house_empty", "floor_plan", "room_grid",
+                               "flat", "atlas", "atlas_3d", "basic"];
+const _ovShownAt = new Map();      // word -> when it was last sent (0: for good)
+function _ovScreenId(){
+  try {
+    const id = localStorage.getItem("padspan_screen_id");
+    return /^[0-9a-f]{16}$/.test(id || "") ? id : "";   // "" = not made yet
+  } catch (_) { return null; }                          // no storage at all
+}
+function _ovShown(ctx, words){
+  const s = ctx.state.settings;
+  if (ctx.state.view !== "overview" || ctx.state.dataMode !== "live" || !ctx.state.live?.snapshot
+      || !s || !s.telemetry_enabled || !ctx.actions.telemetryEvent) return;
+  const sid = _ovScreenId();
+  if (sid === "") return;          // client_perf makes it on its first tick: the next draw sends
+  const now = Date.now();
+  for (const w of words) {
+    if (!OVERVIEW_SHOWN.includes(w)) continue;
+    const at = _ovShownAt.get(w);
+    if (at !== undefined && (at === 0 || now - at < 3600000)) continue;
+    _ovShownAt.set(w, sid ? now : 0);
+    ctx.actions.telemetryEvent("overview_shown:" + w, sid ? { screen: sid } : undefined);
+  }
+}
+// The Atlas as Overview on 3D: this browser's own Map / 3D choice
+// (lights_map.js _la3dPicked, the "atlas" screen), read only.
+function _ovAtlas3d(ctx){
+  if (!(ctx.state.settings && ctx.state.settings.atlas_3d_enabled === true)) return false;
+  try { return localStorage.getItem("padspan_lv_3d_atlas") === "1"; } catch (_) { return false; }
+}
+
 /** Pro, with Settings → UI Structure → "Overview shows the Atlas" on. */
 export function atlasHomeOn(ctx){
   const s = (ctx && ctx.state && ctx.state.settings) || {};
@@ -112,7 +150,11 @@ function _presentInRoom(ctx, o, room){
 }
 
 export function render(ctx){
-  if (atlasHomeOn(ctx)) return _renderAtlasHome(ctx);
+  if (atlasHomeOn(ctx)) {
+    const atlas = _renderAtlasHome(ctx);
+    _ovShown(ctx, [_ovAtlas3d(ctx) ? "atlas_3d" : "atlas"]);
+    return atlas;
+  }
   return renderClassic(ctx);
 }
 
@@ -749,9 +791,12 @@ export function renderClassic(ctx){
   // impossible to certify photo-free. Called through _render2DMap below.
 
   // ---------- 3D Iso Floor Stack (uses uploaded maps data + live presence) ----------
+  // Which form the map below took (_ovShown's word).
+  let _ovForm = "house";
   function renderIsoFloorStack(){
     // ── Experimental 2D mode gate ──
     if(ctx.state.settings && ctx.state.settings.overview_2d_mode){
+      _ovForm = "flat";
       return render2DMap(ctx, {
         esc: s2 => String(s2||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"),
         renderRoomGrid,
@@ -764,6 +809,7 @@ export function renderClassic(ctx){
     // here when no image had been uploaded, however complete the fabric was.
     const _fabRooms0 = (ctx.state.model || {}).room_geometry_m || {};
     if(!Object.keys(_fabRooms0).length){
+      _ovForm = (liveSnap && liveSnap.floor_plan) ? "floor_plan" : "room_grid";
       if(liveSnap && liveSnap.floor_plan) return renderFloorPlan(liveSnap.floor_plan);
       return renderRoomGrid();
     }
@@ -1193,6 +1239,7 @@ export function renderClassic(ctx){
 
       if(!sortedIsoLevels.length){
         s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">No rooms yet — draw them in Mapping → Rooms to build the map</text>`;
+        _ovForm = "house_empty";
         return _finishIso(s);
       }
 
@@ -2873,6 +2920,7 @@ export function renderClassic(ctx){
   // Always try iso floor stack first; falls back to sample floor plan or room grid if no maps
   const mapEl = renderIsoFloorStack();
   if (mapEl) mapEl.setAttribute("data-padspan-map", "true");
+  if (mapEl && !liveLoading) _ovShown(ctx, isBasic ? [_ovForm, "basic"] : [_ovForm]);
 
   // ── SUSPENDED banner builder (used by both basic + advanced sections) ──
   const _buildSuspendBanner = () => {

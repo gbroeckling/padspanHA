@@ -19,6 +19,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
 
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha.const import (
@@ -252,12 +255,12 @@ def test_nothing_from_the_house_is_in_the_report():
     # anyone gives a room its own height (Live Aboard's tall rooms).
     # Raised 4295 -> 4335 for licence_group (~35 bytes): Garry, 2026-10-21,
     # a licence's homes seen together (homes 3-5 need their report on).
-    # Raised 4335 -> 4540 (2026-10-22) for how the Overview is set up (~205
-    # bytes in features, every report: overview_kind, atlas_layout,
-    # overview_show_trails and the isometric stack's floor gap, offset, focus
-    # and zoom as bucket words) — Garry asked for it — and env.quiet_hidden
-    # (~26 bytes, only from a house with quiet mode on, as this fixture is).
-    assert len(text) < 4540
+    # Raised 4335 -> 4365 (2026-10-22) for env.quiet_hidden (~26 bytes, only
+    # from a house with quiet mode on, as this fixture is). How each Overview
+    # screen is set up adds nothing here: only settings changed from their
+    # defaults are sent (features.ov_*), and the per-screen lists
+    # (env.screens) only from a house with two screens or more.
+    assert len(text) < 4365
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1692,37 +1695,76 @@ def test_a_quiet_off_report_is_unchanged_by_the_quiet_signal():
         assert "quiet_hidden" not in T.build_payload(h)["env"]
 
 
-def test_the_overview_set_up_goes_as_words(monkeypatch):
-    from custom_components.padspan_ha import licence
-    tier = {"t": "free"}
-    monkeypatch.setattr(licence, "hass_tier", lambda hass: tier["t"])
-
+def test_each_overview_screen_sends_only_what_it_changed():
     def ov(**settings):
         h = _hass()
         h.data[DOMAIN][DATA_SETTINGS].data.update(settings)
         p = T.build_payload(h)
         T.assert_shareable(p)
-        return {k: v for k, v in p["features"].items()
-                if k in ("overview_kind", "atlas_layout", "overview_show_trails") or k.startswith("overview_iso_")}
-    # Unset: settings_store's defaults.
-    assert ov() == {"overview_kind": "iso", "atlas_layout": "new", "overview_show_trails": False,
-                    "overview_iso_floor_gap": "default", "overview_iso_horiz_gap": "none",
-                    "overview_iso_focus": "all", "overview_iso_zoom": "1"}
-    # The Atlas is the Overview only on Pro (overview.js atlasHomeOn); the flat map otherwise.
-    assert ov(overview_atlas=True)["overview_kind"] == "iso"
-    assert ov(overview_atlas=True, overview_2d_mode=True)["overview_kind"] == "flat"
-    tier["t"] = "pro"
-    assert ov(overview_atlas=True, overview_2d_mode=True)["overview_kind"] == "atlas"
-    assert ov(atlas_layout_v2=False)["atlas_layout"] == "classic"
-    assert ov(overview_show_trails=True)["overview_show_trails"] is True
-    gaps = {150: "default", 60: "tight", 119: "tight", 120: "custom", 170: "custom", 180: "custom", 181: "wide", 340: "wide"}
-    assert {g: ov(overview_iso_floor_gap=g)["overview_iso_floor_gap"] for g in gaps} == gaps
-    assert ov(overview_iso_horiz_gap=-40)["overview_iso_horiz_gap"] == "offset"
-    assert ov(overview_iso_focus=0)["overview_iso_focus"] == "one_floor"
-    zooms = {1.0: "1", 0.4: "lt1", 1.5: "1_2", 2.0: "1_2", 2.5: "gt2"}
-    assert {z: ov(overview_iso_zoom=z)["overview_iso_zoom"] for z in zooms} == zooms
+        return {k: v for k, v in p["features"].items() if k in T.OVERVIEW_SET}
+    # Every screen on its defaults: nothing at all.
+    assert ov() == {}
+    assert "overview_kind" not in T.build_payload(_hass())["features"]
+    gaps = {60: "gap_tight", 119: "gap_tight", 120: "gap_custom", 180: "gap_custom", 181: "gap_wide"}
+    assert {g: ov(overview_iso_floor_gap=g)["ov_house"] for g in gaps} == {g: [w] for g, w in gaps.items()}
+    assert ov(overview_iso_floor_gap=150) == {}
+    assert ov(overview_iso_horiz_gap=-40, overview_iso_focus=0, overview_show_trails=True)["ov_house"] == \
+        ["offset", "one_floor", "trails"]
+    zooms = {0.4: "zoom_lt1", 1.5: "zoom_1_2", 2.0: "zoom_1_2", 2.5: "zoom_gt2"}
+    assert {z: ov(overview_iso_zoom=z)["ov_house"] for z in zooms} == {z: [w] for z, w in zooms.items()}
+    assert ov(atlas_layout_v2=False, atlas_emergency_button=False)["ov_atlas"] == ["classic", "no_emergency"]
+    assert ov(atlas_weather_enabled=False, atlas_weather_strength=1.4)["ov_atlas"] == ["no_weather"]
+    assert ov(atlas_weather_strength=0.5)["ov_atlas"] == ["weather_lt1"]
+    # The 3D house's list only while it is on.
+    three = dict(atlas_3d_quality="low", atlas_3d_people=True, atlas_3d_look="own", atlas_3d_home_idle_s=0)
+    assert ov(**three) == {}
+    assert ov(atlas_3d_enabled=True, **three)["ov_3d"] == ["q_low", "people", "look_own", "idle_0"]
+    assert ov(atlas_3d_enabled=True, atlas_3d_home_idle_s=60, atlas_3d_quality="auto") == {}
     # Never the numbers themselves.
     h = _hass()
     h.data[DOMAIN][DATA_SETTINGS].data.update(overview_iso_floor_gap=217, overview_iso_zoom=1.37, overview_iso_horiz_gap=-63)
     text = json.dumps(T.build_payload(h)["features"])
     assert "217" not in text and "1.37" not in text and "63" not in text
+    # A word outside the list is refused.
+    p = T.build_payload(_hass())
+    p["features"]["ov_house"] = ["gap_217"]
+    with pytest.raises(ValueError):
+        T.assert_shareable(p)
+
+
+def test_overview_shown_words_match_the_panel():
+    js = (ROOT / "custom_components/padspan_ha/www/padspan-ha/views/overview.js").read_text(encoding="utf-8")
+    m = re.search(r"export const OVERVIEW_SHOWN = \[([^\]]*)\]", js)
+    assert m and tuple(re.findall(r'"([a-z_0-9]+)"', m.group(1))) == T.OVERVIEW_SHOWN
+    assert all(T.event_allowed(f"overview_shown:{w}") for w in T.OVERVIEW_SHOWN)
+
+
+def test_screens_are_listed_only_from_two_up_and_never_by_id():
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data["telemetry_enabled"] = True
+    a, b = "0123456789abcdef", "fedcba9876543210"
+    T.note_screen_word(h, a, "overview_shown:atlas_3d")
+    T.note_screen_word(h, a, "client_screen:res_4k")
+    T.note_screen_word(h, a, "wall_screen:atlas:kiosk")
+    T.note_screen_word(h, a, "client_screen:dpr_2")          # not a listed word
+    T.note_screen_word(h, a, "overview_shown:atlas_3d")      # once
+    assert "screens" not in T.build_payload(h)["env"]        # one screen: the counts say it all
+    T.note_screen_word(h, b, "overview_shown:room_grid")
+    T.note_screen_word(h, b, "client_screen:kind_phone")
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["env"]["screens"] == [["atlas_3d", "atlas_kiosk", "res_4k"], ["kind_phone", "room_grid"]]
+    assert a not in json.dumps(p) and b not in json.dumps(p)
+    # Five screens at most; a bad id or an unknown event adds nothing.
+    for i in range(10):
+        T.note_screen_word(h, f"{i:016x}", "overview_shown:house")
+    T.note_screen_word(h, "not-an-id", "overview_shown:house")
+    T.note_screen_word(h, "1111111111111111", "tab:overview")
+    assert len(T.build_payload(h)["env"]["screens"]) == 5
+    # A failed send gives the lists back; a sent one starts the window afresh.
+    taken = T._take_windows(h)
+    assert "screens" not in T.build_payload(h)["env"]
+    T._give_back_windows(h, taken)
+    assert len(T.build_payload(h)["env"]["screens"]) == 5
+    T._take_windows(h)
+    assert "screens" not in T.build_payload(h)["env"]

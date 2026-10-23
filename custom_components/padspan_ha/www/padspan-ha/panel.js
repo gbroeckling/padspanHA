@@ -1984,7 +1984,7 @@ class PadSpanHaApp extends HTMLElement {
       return;
     }
     if (!s.telemetry_enabled) { this._telemetryQueue = null; return; }
-    // `extra` only ever carries client_screen_seen's screen id (client_perf.js).
+    // `extra` only ever carries this browser's screen id (client_perf.js).
     const screen = extra && typeof extra.screen === "string" ? { screen: extra.screen } : {};
     this._callWS({ type: "padspan_ha/telemetry_event", event: String(name), ...screen }).catch(() => {});
   }
@@ -1996,7 +1996,11 @@ class PadSpanHaApp extends HTMLElement {
   _screenReport(){
     if (_screenReported) return;
     _screenReported = true;
-    this._telemetryEvent("wall_screen:panel:" + screenKind(this.state.kioskMode));
+    // With the screen id (read, never made): its word in the report's list of screens.
+    let sid = null;
+    try { sid = localStorage.getItem("padspan_screen_id"); } catch (_) {}
+    this._telemetryEvent("wall_screen:panel:" + screenKind(this.state.kioskMode),
+      /^[0-9a-f]{16}$/.test(sid || "") ? { screen: sid } : undefined);
     if (_reloadNote) this._telemetryEvent("wall_reload:panel:" + _reloadNote);
   }
   // A ?view= link (#93), once settings say whether it stays open.
@@ -3055,7 +3059,7 @@ class PadSpanHaApp extends HTMLElement {
         applyDataMode: (mode) => this._applyDataMode(mode),
         // Opt-in usage report: count one allow-listed event. A no-op unless the
         // person turned the report on — no traffic leaves the browser otherwise.
-        telemetryEvent: (name) => this._telemetryEvent(name),
+        telemetryEvent: (name, extra) => this._telemetryEvent(name, extra),
         // ── Followed Beacons ──────────────────────────────────────────────
         // Multi-device follow set — persisted both to server (via settings_set)
         // and to localStorage as a fallback. Addresses are stored uppercase.
