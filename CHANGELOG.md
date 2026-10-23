@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.162 — An iPhone setup path, Live Aboard flies to people arriving, and Follow the sun (2026-10-22)
+## 0.38.162 — An iPhone setup path, Live Aboard flies to people arriving, and Follow the sun (2026-10-23)
 
 Everything new in this version is off until you turn it on. With nothing turned on, PadSpan looks and works as in 0.38.161, apart from the safer delete buttons, Enable & Track turning on only a phone's BLE Transmitter, and the fixes below.
 
