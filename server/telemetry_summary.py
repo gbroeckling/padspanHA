@@ -488,6 +488,12 @@ def main() -> int:
                 feat[k] += 1
             elif isinstance(v, str):
                 enums[k][v] += 1
+            elif isinstance(v, list) and k.startswith("ov_"):   # 0.38.162: changed settings only
+                for w in v:
+                    enums[k][str(w)] += 1
+        for one in ((r.get("env") or {}).get("screens") or []):   # houses with 2+ screens
+            for w in (one if isinstance(one, list) else []):
+                enums["screen"][str(w)] += 1
     print("Feature switches ON (installs)")
     for k, v in feat.most_common():
         print(f"  {k:<36} {v:>4}  ({100 * v // n}%)")

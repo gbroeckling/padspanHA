@@ -208,6 +208,11 @@ $edges = array(
     'objects_total' => array(200, 1000, 3000, 10000),
 );
 $integrations = array(); $features = array(); $flags = array(); $scanner_kinds = array();
+// How the Overview and the screens are set up (0.38.162): installs with each
+// changed setting (features.ov_*: "ov_house:gap_tight"), each listed screen's
+// words (env.screens: "screen:atlas_3d", screens counted, not installs), how
+// many screens a house lists, and Pro screen switches on below Pro.
+$overview = array();
 // BLE scan mode. HA 2026.6 flipped the default for every ESPHome proxy from
 // active to auto, so most installs are now scanning passively without having
 // chosen to. Radio-level counts say how much of the fleet is in each mode;
@@ -266,7 +271,20 @@ foreach ($latest as $id => $r) {
         if ($pas > 0) { $scan_mode_installs['any_passive_pinned']++; }
         if ($act === 0 && $pas === 0) { $scan_mode_installs['all_auto']++; }
     }
-    foreach (as_map(isset($r['features']) ? $r['features'] : null) as $k => $v) { if ($v === true) { incr($features, $k); } }
+    foreach (as_map(isset($r['features']) ? $r['features'] : null) as $k => $v) {
+        if ($v === true) { incr($features, $k); }
+        elseif (is_array($v) && strpos($k, 'ov_') === 0) { foreach ($v as $w) { if (is_string($w)) { incr($overview, "$k:$w"); } } }
+    }
+    $scr = isset($e['screens']) && is_array($e['screens']) ? $e['screens'] : array();
+    if (count($scr)) {
+        incr($overview, 'screens_listed:' . count($scr));
+        foreach ($scr as $one) { if (is_array($one)) { foreach ($one as $w) { if (is_string($w)) { incr($overview, "screen:$w"); } } } }
+    }
+    $ft = as_map(isset($r['features']) ? $r['features'] : null);
+    $tier = isset($r['tier']) ? $r['tier'] : '';
+    if ($tier !== 'pro') {
+        foreach (array('overview_atlas', 'atlas_3d_enabled') as $k) { if (isset($ft[$k]) && $ft[$k] === true) { incr($overview, "below_pro:$k"); } }
+    }
 
     // Health flags — installs where the flag is BAD. Each is only counted
     // when the report carries the field (older versions don't), so a zero
@@ -377,6 +395,7 @@ $out = array(
     'scan_modes_requested' => $scan_modes_requested,
     'scan_mode_installs' => $scan_mode_installs,
     'features' => $features,
+    'overview' => $overview,
     'flags' => $flags,
     'identity' => $identity,
     'geometry' => $geometry,

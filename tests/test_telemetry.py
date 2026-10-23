@@ -1708,10 +1708,12 @@ def test_each_overview_screen_sends_only_what_it_changed():
     gaps = {60: "gap_tight", 119: "gap_tight", 120: "gap_custom", 180: "gap_custom", 181: "gap_wide"}
     assert {g: ov(overview_iso_floor_gap=g)["ov_house"] for g in gaps} == {g: [w] for g, w in gaps.items()}
     assert ov(overview_iso_floor_gap=150) == {}
-    assert ov(overview_iso_horiz_gap=-40, overview_iso_focus=0, overview_show_trails=True)["ov_house"] == \
+    assert ov(overview_iso_horiz_gap=-40, overview_iso_focus=2, overview_show_trails=True)["ov_house"] == \
         ["offset", "one_floor", "trails"]
+    # Focus 0 is All floors: what a saved view writes by default.
+    assert ov(overview_iso_focus=0) == {} and ov(overview_iso_focus=None) == {}
     zooms = {0.4: "zoom_lt1", 1.5: "zoom_1_2", 2.0: "zoom_1_2", 2.5: "zoom_gt2"}
-    assert {z: ov(overview_iso_zoom=z)["ov_house"] for z in zooms} == {z: [w] for z, w in zooms.items()}
+    assert {z: ov(overview_iso_zoom=z)["ov_atlas"] for z in zooms} == {z: [w] for z, w in zooms.items()}
     assert ov(atlas_layout_v2=False, atlas_emergency_button=False)["ov_atlas"] == ["classic", "no_emergency"]
     assert ov(atlas_weather_enabled=False, atlas_weather_strength=1.4)["ov_atlas"] == ["no_weather"]
     assert ov(atlas_weather_strength=0.5)["ov_atlas"] == ["weather_lt1"]
@@ -1720,6 +1722,9 @@ def test_each_overview_screen_sends_only_what_it_changed():
     assert ov(**three) == {}
     assert ov(atlas_3d_enabled=True, **three)["ov_3d"] == ["q_low", "people", "look_own", "idle_0"]
     assert ov(atlas_3d_enabled=True, atlas_3d_home_idle_s=60, atlas_3d_quality="auto") == {}
+    # A stray stored value makes no word, never a refused report.
+    for odd in (False, True, 30.0, "30"):
+        assert ov(atlas_3d_enabled=True, atlas_3d_home_idle_s=odd) == {}
     # Never the numbers themselves.
     h = _hass()
     h.data[DOMAIN][DATA_SETTINGS].data.update(overview_iso_floor_gap=217, overview_iso_zoom=1.37, overview_iso_horiz_gap=-63)
@@ -1753,7 +1758,7 @@ def test_screens_are_listed_only_from_two_up_and_never_by_id():
     T.note_screen_word(h, b, "client_screen:kind_phone")
     p = T.build_payload(h)
     T.assert_shareable(p)
-    assert p["env"]["screens"] == [["atlas_3d", "atlas_kiosk", "res_4k"], ["kind_phone", "room_grid"]]
+    assert p["env"]["screens"] == [["atlas_3d", "atlaspage_kiosk", "res_4k"], ["kind_phone", "room_grid"]]
     assert a not in json.dumps(p) and b not in json.dumps(p)
     # Five screens at most; a bad id or an unknown event adds nothing.
     for i in range(10):
@@ -1767,4 +1772,9 @@ def test_screens_are_listed_only_from_two_up_and_never_by_id():
     T._give_back_windows(h, taken)
     assert len(T.build_payload(h)["env"]["screens"]) == 5
     T._take_windows(h)
+    assert "screens" not in T.build_payload(h)["env"]
+    # Opting in again forgets the lists from before.
+    T.note_screen_word(h, a, "overview_shown:house")
+    T.note_screen_word(h, b, "overview_shown:house")
+    T.reset_windows(h)
     assert "screens" not in T.build_payload(h)["env"]

@@ -518,7 +518,9 @@ SCREEN_EVENTS: frozenset[str] = frozenset(
 #   room_grid    no rooms drawn and no picture: the plain room grid
 #   flat         the flat 2D map (overview_2d_mode)
 #   atlas        "Overview shows the Atlas" (Pro), on its Map side
-#   atlas_3d     the same, with this browser's Map / 3D switch on 3D
+#   atlas_3d     the same, with this browser's Map / 3D switch on 3D (picked:
+#                a screen that can't draw it shows the flat map, counted
+#                by house3d_fallback:*)
 #   basic        the screen was in Basic mode (sent with one of the above)
 # Words only. The Map / 3D choice is read, never written.
 OVERVIEW_SHOWN: tuple[str, ...] = ("house", "house_empty", "floor_plan", "room_grid",
@@ -586,9 +588,11 @@ def _num_or(v: Any, default: float) -> float:
 # repeated. Which screen the Overview actually shows is counted from the
 # screen itself (OVERVIEW_EVENTS).
 OVERVIEW_SET: dict[str, tuple[str, ...]] = {
-    "ov_house": ("gap_tight", "gap_wide", "gap_custom", "offset", "one_floor",
-                 "zoom_lt1", "zoom_1_2", "zoom_gt2", "trails"),
-    "ov_atlas": ("classic", "no_emergency", "no_weather", "weather_lt1", "weather_gt1"),
+    # The floor gap, offset and focus are shared with the Atlas's floor
+    # stack; listed once, here.
+    "ov_house": ("gap_tight", "gap_wide", "gap_custom", "offset", "one_floor", "trails"),
+    "ov_atlas": ("zoom_lt1", "zoom_1_2", "zoom_gt2", "classic", "no_emergency", "no_weather",
+                 "weather_lt1", "weather_gt1"),
     "ov_3d": ("q_low", "q_high", "people", "tags", "library", "no_weather", "look_own",
               "idle_0", "idle_30", "idle_300"),
 }
@@ -604,13 +608,13 @@ def _overview_features(settings: dict[str, Any]) -> dict[str, Any]:
         house.append("gap_tight" if gap < 120 else "gap_wide" if gap > 180 else "gap_custom")
     if _num_or(g("overview_iso_horiz_gap"), 0) != 0:
         house.append("offset")
-    if g("overview_iso_focus") is not None:
+    if _num_or(g("overview_iso_focus"), 0) != 0:   # 0 = All floors
         house.append("one_floor")
-    if zoom != 1.0:
-        house.append("zoom_lt1" if zoom < 1.0 else "zoom_1_2" if zoom <= 2.0 else "zoom_gt2")
     if g("overview_show_trails") is True:
         house.append("trails")
     atlas = []
+    if zoom != 1.0:
+        atlas.append("zoom_lt1" if zoom < 1.0 else "zoom_1_2" if zoom <= 2.0 else "zoom_gt2")
     if g("atlas_layout_v2") is False:
         atlas.append("classic")
     if g("atlas_emergency_button") is False:
@@ -633,7 +637,7 @@ def _overview_features(settings: dict[str, Any]) -> dict[str, Any]:
         if g("atlas_3d_look") == "own":
             d3.append("look_own")
         idle = g("atlas_3d_home_idle_s")
-        if idle in (0, 30, 300):
+        if type(idle) is int and idle in (0, 30, 300):
             d3.append(f"idle_{idle}")
     return {k: v for k, v in (("ov_house", house), ("ov_atlas", atlas), ("ov_3d", d3)) if v}
 
@@ -877,7 +881,7 @@ def screen_word(event: str) -> str | None:
         return event.split(":", 1)[1]
     if event in SCREEN_EVENTS and event.startswith("wall_screen:"):
         _, panel, kind = event.split(":")
-        return f"{panel}_{kind}"
+        return f"{'atlaspage' if panel == 'atlas' else panel}_{kind}"
     return None
 
 
@@ -2030,6 +2034,7 @@ def reset_windows(hass: HomeAssistant) -> None:
     report carries nothing from before the person said yes."""
     hass.data.setdefault(DOMAIN, {})[_DATA_COUNTERS] = {}
     hass.data[DOMAIN][_DATA_SCREENS] = set()
+    hass.data[DOMAIN][_DATA_SCREEN_WORDS] = {}
     try:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:

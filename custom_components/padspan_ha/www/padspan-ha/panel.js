@@ -1980,7 +1980,9 @@ class PadSpanHaApp extends HTMLElement {
     const s = this.state.settings;
     if (!s || !("telemetry_enabled" in s)) {
       const q = this._telemetryQueue || (this._telemetryQueue = []);
-      if (q.length < 50 && !extra) q.push(String(name));
+      // Screen-counted events need their id, so they wait for the next tick;
+      // anything else is kept by name (a wall_screen word just loses its id).
+      if (q.length < 50 && !(extra && /^(client_screen|overview_shown)/.test(String(name)))) q.push(String(name));
       return;
     }
     if (!s.telemetry_enabled) { this._telemetryQueue = null; return; }

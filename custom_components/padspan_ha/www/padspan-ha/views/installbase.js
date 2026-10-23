@@ -269,6 +269,9 @@ function renderUnlocked(ctx, root) {
         pairCard(el, `Tabs opened (${W}d)`, "Tab opens", s.tabs, "count"),
         pairCard(el, `Tools used (${W}d)`, "Tool and action events", s.usage, "count"),
         barCard(el, { title: "Features on (installs)", ask: "Installs with each feature switched on", map: s.features, total: n, limit: 40 }),
+        // 0.38.162: Overview settings changed from default (ov_*), each listed
+        // screen's words (screen:*, only houses with 2+ screens), Pro switches below Pro.
+        ...(s.overview && Object.keys(s.overview).length ? [barCard(el, { title: "Overview and screens", ask: "ov_*: installs with a setting changed; screen:*: screens (houses with 2+); below_pro:*: installs", map: s.overview, total: n, limit: 40 })] : []),
         kvCard(el, "Advanced feature adoption (installs)", "Installs that placed or used at least one", [
           ["Placed a motion sensor", ad.motion_sensors, n],
           ["Placed a temperature sensor", ad.temp_sensors, n],

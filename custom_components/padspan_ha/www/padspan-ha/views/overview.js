@@ -1008,6 +1008,7 @@ export function renderClassic(ctx){
     // so a floor that had rooms but no picture was not a floor at all — it
     // drew nothing, and neither did anything on it.
     const sortedIsoLevels = _fabOK ? [..._fabF.levels] : [];
+    if(!sortedIsoLevels.length) _ovForm = "house_empty";
     const levelColor = (z) => LAYER_PAL[sortedIsoLevels.indexOf(z) % LAYER_PAL.length];
     // The floor ids the fabric places at a storey.
     const _floorIdsAt = (z) => {
@@ -1239,7 +1240,6 @@ export function renderClassic(ctx){
 
       if(!sortedIsoLevels.length){
         s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">No rooms yet — draw them in Mapping → Rooms to build the map</text>`;
-        _ovForm = "house_empty";
         return _finishIso(s);
       }
 
