@@ -181,6 +181,35 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.162</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">23 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>iPhone setup path.</b> iPhones have no BLE Transmitter (that sensor is only in the Android Companion App), so with this on an iPhone in Overview's phone list and in the IRK Manager's phone wizard walks through getting its IRK (an IRK Capture ESP32 or a Mac), adding it with Private BLE Device and checking that it resolves. Android phones see the same steps as before. Off by default: Settings → Features → iPhone Setup Path.</li>
+          <li><b>Live Aboard flies to people who arrive.</b> Besides what goes off, Live Aboard can fly to a person or tag you pick when they go into a room you pick, or, with no room picked, any room or a person arriving home. Same card and same rules as "Fly to when it goes off", at most once every 2 minutes for each one, and it never replaces a card that is already up. Only people and tags Live Aboard shows are flown to. Off until someone is picked: Settings → Live Aboard → "Fly to when they arrive".</li>
+          <li><b>Follow the sun.</b> The panel is Day from sunrise to sunset (Light (inverted) without PadSpan Pro), then the theme you picked (Night if that is Day or Light). It goes by Home Assistant's Sun integration (<code>sun.sun</code>); without it the theme stays as picked. Off by default: Settings → Appearance → Follow the sun.</li>
+          <li><b>Frame-rate readout in Live Aboard.</b> A small readout in the corner says how many times a second the 3D house is drawn, and "0 fps at rest" when nothing is moving. This browser only, off by default: Settings → Live Aboard → "Show the frame rate".</li>
+          <li><b>Deleting another integration's entity, or an area, asks twice.</b> Manage → Delete on an entity that isn't PadSpan's names the integration it belongs to and asks you to confirm two times; deleting an HA area says it is deleted from Home Assistant itself (its devices and entities become unassigned) and asks two times. PadSpan's own entities keep the in-row Yes, delete / Cancel.</li>
+          <li><b>Enable &amp; Track only ever turns on a phone's BLE Transmitter.</b> The phone action re-enables that one Companion App sensor and nothing else; any other entity is refused before anything changes.</li>
+          <li><b>README: "What PadSpan never touches".</b> What PadSpan reads, what it creates, the buttons that are the only exceptions, and what uninstalling removes. A repo test now fails if code tries to change another integration's devices, entities or config entries.</li>
+          <li><b>On Home Assistant before 2026.8, PadSpan's devices no longer merge into Bermuda's</b> (or another Bluetooth integration's) device for the same Bluetooth address, so a newly labelled device no longer overwrites that device's name and model. Devices already merged stay merged (Home Assistant doesn't split them on those versions). From 2026.8, where Home Assistant keeps them apart itself, nothing changes.</li>
+          <li><b>Licence homes:</b> activating the same key again keeps this home's place on the licence. A temporary refusal from the licence server (a key that joined many new homes this month) no longer ends Pro, and neither does a third to fifth home with its usage report off: the licence card says why the home isn't counted. A home removed from its key says so on the licence card. A revoked, expired or removed key works as before.</li>
+          <li><b>Assist's "which room is" intent</b> is not offered to LLM conversation agents as a tool on Home Assistant before 2026.8 (from 2026.8 it never was); the custom sentences reach it as before.</li>
+          <li><b>Live Aboard's frame-rate readout</b> stops, timer and all, when the screen goes back to the flat Atlas.</li>
+          <li><b>Monitor with quiet mode on:</b> the tracked count and the hidden count add up to the devices listed.</li>
+          <li><b>README and guides:</b> what the daily licence check sends since 0.38.160, how a key's five homes count (PadSpan Pro guide), and that devices Home Assistant merged before 2026.8 stay merged.</li>
+          <li>What the Overview drew, as words (<code>overview_shown:*</code>: house, empty house, floor plan, room grid, flat map, Atlas, Atlas 3D, and Basic mode), from live data only, each screen once per report.</li>
+          <li>How the Overview's house, Atlas and 3D house are set up (<code>features.ov_house</code>, <code>ov_atlas</code>, <code>ov_3d</code>), only for settings changed from their defaults, as words, never the numbers. A screen on its defaults sends nothing.</li>
+          <li>From a house with two screens or more, each of its first five screens' words (<code>env.screens</code>): what its Overview drew, its kind of window, resolution and kind of device. Never a screen's id.</li>
+          <li>With quiet mode on, roughly what share of the objects it hides (<code>env.quiet_hidden</code>: under 25%, 25-50%, 50-75%, over 75%). A house with quiet mode off sends nothing new.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.161</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">22 October 2026</span>
