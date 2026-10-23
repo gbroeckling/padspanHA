@@ -287,7 +287,7 @@ The result: a solo project that ships features at a pace that would normally req
 
 ## What PadSpan never touches
 
-PadSpan reads your other integrations and leaves them as they are. Installing, disabling, reloading or removing it never changes another integration's devices, entities or config entries (Private BLE Device, Bermuda, ESPresense, the Companion App or any other). A repo test fails if new code tries to.
+PadSpan reads your other integrations and leaves them as they are. Installing, disabling, reloading or removing it doesn't change another integration's devices, entities or config entries (Private BLE Device, Bermuda, ESPresense, the Companion App or any other). A repo test fails if new code tries to. One thing is Home Assistant's own doing: before Home Assistant 2026.8, it filed PadSpan's sensors under another integration's device with the same Bluetooth address. PadSpan 0.38.162 no longer lets that happen, but a device merged that way before stays merged.
 
 - **Reads:** HA areas and floors, the device and entity registries, Bluetooth advertisements, entity states, and Private BLE Device / Companion App entries (only to name a phone's rotating address).
 - **Creates:** its own config entry, its own `padspan_ha` entities and devices, and its own `.storage/padspan_ha.*` files.
@@ -306,7 +306,7 @@ The answer can also switch PadSpan's free-Pro offers (becoming a tester, and inv
 
 To turn it off: **Settings → Presence → Update Check → Disabled**. That stops the version check.
 
-If a licence key is entered (a trial or a purchase), PadSpan also checks it once a day with `traks.ca`, whether or not Update Check is on. That request sends the key and Home Assistant's instance ID, so a refunded or revoked key stops working. With no key entered, there is no licence check. The usage report below is sent only if you opt in.
+If a licence key is entered (a trial or a purchase), PadSpan also checks it once a day with `traks.ca`, whether or not Update Check is on. That request sends the key and Home Assistant's instance ID, so a refunded or revoked key stops working. Since 0.38.160 it also sends what tells one licence's homes apart: this home's current token (a random code the licence server gave it), the PadSpan version, the name you gave this home (if any), and whether this home's usage report is on. With no key entered, there is no licence check. The usage report below is sent only if you opt in.
 
 ### Help improve PadSpan (opt-in usage report)
 

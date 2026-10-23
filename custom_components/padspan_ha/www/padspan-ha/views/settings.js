@@ -3041,7 +3041,7 @@ function _licenceHomes(ctx, el, s){
       line.appendChild(el("button", { class: "btn inline", type: "button", style: "font-size:11px;margin-left:auto", onclick: () => {
         const what = h.this
           ? "this home? It stops being counted, and comes back at its next daily check if a place is free."
-          : `"${name}"? It stops using Pro at its next check unless a place is free.`;
+          : `"${name}"? It stops being counted at its next check unless a place is free.`;
         if (confirm("Remove " + what)) load("remove", { home_id: h.id });
       } }, "Remove"));
       list.appendChild(line);

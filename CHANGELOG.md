@@ -6,7 +6,7 @@ All notable changes to PadSpan HA are documented here.
 
 ## 0.38.162 — An iPhone setup path, Live Aboard flies to people arriving, and Follow the sun (2026-10-22)
 
-Everything new in this version is off until you turn it on. With nothing turned on, PadSpan looks and works as in 0.38.161, apart from the safer delete buttons and the Bluetooth device fix below.
+Everything new in this version is off until you turn it on. With nothing turned on, PadSpan looks and works as in 0.38.161, apart from the safer delete buttons, Enable & Track turning on only a phone's BLE Transmitter, and the fixes below.
 
 ### New
 - **iPhone setup path.** iPhones have no BLE Transmitter (that sensor is only in the Android Companion App), so with this on an iPhone in Overview's phone list and in the IRK Manager's phone wizard walks through getting its IRK (an IRK Capture ESP32 or a Mac), adding it with Private BLE Device and checking that it resolves. Android phones see the same steps as before. Off by default: Settings → Features → iPhone Setup Path.
@@ -21,6 +21,17 @@ Everything new in this version is off until you turn it on. With nothing turned 
 
 ### Fixed
 - **On Home Assistant before 2026.8, PadSpan's devices no longer merge into Bermuda's** (or another Bluetooth integration's) device for the same Bluetooth address, so a newly labelled device no longer overwrites that device's name and model. Devices already merged stay merged (Home Assistant doesn't split them on those versions). From 2026.8, where Home Assistant keeps them apart itself, nothing changes.
+- **Licence homes:** activating the same key again keeps this home's place on the licence. A temporary refusal from the licence server (a key that joined many new homes this month) no longer ends Pro, and neither does a third to fifth home with its usage report off: the licence card says why the home isn't counted. A revoked, expired or removed key works as before.
+- **Assist's "which room is" intent** is not offered to LLM conversation agents as a tool on Home Assistant before 2026.8 (from 2026.8 it never was); the custom sentences reach it as before.
+- **Live Aboard's frame-rate readout** stops, timer and all, when the screen goes back to the flat Atlas.
+- **Monitor with quiet mode on:** the tracked count and the hidden count add up to the devices listed.
+- **README and guides:** what the daily licence check sends since 0.38.160, how a key's five homes count (PadSpan Pro guide), and that devices Home Assistant merged before 2026.8 stay merged.
+
+### Opt-in report
+- What the Overview drew, as words (`overview_shown:*`: house, empty house, floor plan, room grid, flat map, Atlas, Atlas 3D, and Basic mode), from live data only, each screen once per report.
+- How the Overview's house, Atlas and 3D house are set up (`features.ov_house`, `ov_atlas`, `ov_3d`), only for settings changed from their defaults, as words, never the numbers. A screen on its defaults sends nothing.
+- From a house with two screens or more, each of its first five screens' words (`env.screens`): what its Overview drew, its kind of window, resolution and kind of device. Never a screen's id.
+- With quiet mode on, roughly what share of the objects it hides (`env.quiet_hidden`: under 25%, 25-50%, 50-75%, over 75%). A house with quiet mode off sends nothing new.
 
 ---
 

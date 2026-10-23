@@ -185,7 +185,7 @@ The name is the device's PadSpan label ("Alice"). It also matches a label that s
 
 ## What PadSpan never touches
 
-PadSpan sits next to your other integrations. It doesn't manage them. Enabling, disabling, reloading or removing PadSpan never changes another integration's devices, entities or config entries. That covers Private BLE Device, Bermuda, ESPresense, the Companion App and everything else. A test in the repo (`tests/test_never_touches_others.py`) fails the build if new code tries to.
+PadSpan sits next to your other integrations. It doesn't manage them. Enabling, disabling, reloading or removing PadSpan doesn't change another integration's devices, entities or config entries (see the shared-device note below for one thing Home Assistant itself did before 2026.8). That covers Private BLE Device, Bermuda, ESPresense, the Companion App and everything else. A test in the repo (`tests/test_never_touches_others.py`) fails the build if new code tries to.
 
 **What it reads.** Your HA areas and floors (HA is where rooms live), the device and entity registries, the Bluetooth advertisements HA already receives, entity states, and the Private BLE Device and Companion App entries, read only to put a name to a phone's rotating address. Vacation Mode also reads your lights' recorder history, but only once you turn it on.
 
@@ -198,7 +198,7 @@ PadSpan sits next to your other integrations. It doesn't manage them. Enabling, 
 - **Assigning a radio or a light to a room** sets that device's or entity's HA area.
 - **Enable & Track** on a phone re-enables the Companion App's BLE Transmitter sensor if it was disabled. It never disables anything.
 
-One shared-device note: PadSpan's sensors give HA the tag's Bluetooth address. If another integration already registered a device with that exact address, Home Assistant files PadSpan's sensors under that same device. Removing PadSpan only takes its own entities off it.
+One shared-device note: before Home Assistant 2026.8, a PadSpan sensor that gave HA a tag's Bluetooth address was filed under any other integration's device with that exact address (Bermuda's, say). From PadSpan 0.38.162 it gives that address only on Home Assistant 2026.8 or later, which keeps the devices apart itself. A device merged that way before stays merged; removing PadSpan only takes its own entities off it.
 
 **What uninstalling removes.** Deleting PadSpan from Devices & Services makes Home Assistant remove PadSpan's own entities, and any device that only PadSpan was using. It also gives every WLED light PadSpan was running its WLED sync back. Some things stay behind, by design: the `.storage/padspan_ha.*` files (Manage → Factory Reset clears your setup from them first; the licence is kept), anything you added to other integrations through the buttons above (an IRK stays in Private BLE Device), and door-builder automations unless you remove the door in PadSpan first.
 

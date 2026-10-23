@@ -26,6 +26,19 @@ Keys and pricing: [padspan.traks.ca](https://padspan.traks.ca). PadSpan Pro is $
 **PadSpan Pro for life** is $89 CAD, once, at the launch price until November 30, 2026, and
 $168 CAD from December 1, 2026.
 
+## One key, five homes
+
+One key covers up to five Home Assistants (a cabin, a parent's house, a test install):
+
+- **Homes 1 and 2** always count.
+- **Homes 3 to 5** count while that home's own opt-in usage report is on (**Settings → Presence →
+  Help improve PadSpan**).
+- A home that hasn't checked in for 45 days frees its place.
+- A new or reinstalled Home Assistant can take the place of a home not seen for 14 days.
+
+**Show this key's homes** on the licence card lists them, lets you name this one and remove one you
+no longer use. If a home isn't counted, the licence card says why.
+
 ## Get Pro free by testing it
 
 **Become a tester** (on the licence card, or under **Settings → Presence → Help improve PadSpan**)
