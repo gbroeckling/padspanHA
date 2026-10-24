@@ -1632,7 +1632,8 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   _scheduleRender(fromPoll = false) {
-    this._updateMapText();
+    // The screen-reader text must never stop the Overview from drawing.
+    try { this._updateMapText(); } catch (e) { console.debug("PadSpan: map text skipped", e); }
     if (!fromPoll) {
       // User action — render immediately, no delay
       this._renderCurrentView(false);

@@ -63,7 +63,10 @@ def test_the_box_is_never_seen() -> None:
 def test_the_panel_keeps_one_box_and_fills_it_only_on_the_overview() -> None:
     panel = _src(_WWW / "panel.js")
     assert 'import(`./views/map_text.js?b=${BUILD_ID}`)' in panel
-    assert "  _scheduleRender(fromPoll = false) {\n    this._updateMapText();\n" in panel
+    assert ("  _scheduleRender(fromPoll = false) {\n"
+            "    // The screen-reader text must never stop the Overview from drawing.\n"
+            '    try { this._updateMapText(); } catch (e) { console.debug("PadSpan: map text skipped", e); }\n'
+            ) in panel
     body = panel[panel.index("  _updateMapText(){"):panel.index("  _scheduleRender(fromPoll = false) {")]
     assert 'MAP_TEXT.createMapText("psMapText", "Who is in which room")' in body
     assert 'this.state.view !== "overview" || atlasHome' in body and "mt.clear(); return;" in body
