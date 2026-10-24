@@ -615,15 +615,31 @@ def _within_floor_bounds(
 class FollowNotifyNotSent(Exception):
     """A Follow alert (or Follow's Test) was not sent. `code` is why:
     not_found (the chosen target is not in HA), send_failed (its call
-    failed), no_notify (nothing chosen and nothing to pick)."""
+    failed), no_notify (nothing chosen and nothing to pick), not_allowed
+    (not a kind of target the picker offers)."""
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
 
 
+def follow_target_allowed(target: str) -> bool:
+    """Whether a Follow target is one of the kinds the picker
+    (padspan_ha/notify_services_list) offers: a notify service or entity
+    ("notify.<name>", or the bare legacy name), or another integration's
+    "<domain>.send_message" (telegram_bot). Nothing else is called: a target
+    is a free string anyone can save, and a script takes whatever it is sent.
+    Empty means auto-pick, which only ever uses notify."""
+    t = (target or "").strip()
+    if "." not in t:
+        return True
+    dom, svc = t.split(".", 1)
+    return dom == "notify" or (svc == "send_message" and dom != "script")
+
+
 async def async_send_follow_notify(
     hass: HomeAssistant, preferred: str, email: str, title: str, message: str,
+    context: Any = None,
 ) -> str:
     """Send one Follow alert: the one dispatch the alerts
     (PresenceCoordinator._send_follow_notify) and Follow's Test button
@@ -631,11 +647,15 @@ async def async_send_follow_notify(
     A chosen target is tried as a notify entity (send_message), a legacy
     notify service, then another integration's send service — and only it.
     With none chosen, the notify targets are auto-picked, mail/smtp first.
+    `context` is the person's who asked (the Test button), so Home Assistant
+    checks the call against them; alerts have none, as automations do.
     Returns what it was sent through; raises FollowNotifyNotSent."""
     services = hass.services.async_services().get("notify", {})
     has_send_message = "send_message" in services
     entity_ids = [s.entity_id for s in hass.states.async_all("notify")]
     alert_data: dict[str, Any] = {"title": title, "message": message}
+    if preferred and not follow_target_allowed(preferred):
+        raise FollowNotifyNotSent("not_allowed", f"{preferred} is not a notification target")
     if preferred:
         # The picker saves "notify.<name>" for both kinds of target. Only one
         # that exists as a notify ENTITY goes through send_message: a phone
@@ -651,7 +671,7 @@ async def async_send_follow_notify(
                 # other key ("extra keys not allowed @ data['target']"), so an
                 # email filled in as well failed every alert to the entity.
                 payload = {**alert_data, "entity_id": preferred}
-                await hass.services.async_call("notify", "send_message", payload)
+                await hass.services.async_call("notify", "send_message", payload, context=context)
                 return preferred
             except Exception as err:  # noqa: BLE001 — reported below
                 last_err = err
@@ -659,11 +679,12 @@ async def async_send_follow_notify(
             try:
                 await hass.services.async_call(
                     "notify", slug, {**alert_data, "target": email} if email else alert_data,
+                    context=context,
                 )
                 return slug
             except Exception:  # noqa: BLE001
                 try:
-                    await hass.services.async_call("notify", slug, alert_data)
+                    await hass.services.async_call("notify", slug, alert_data, context=context)
                     return slug
                 except Exception as err:  # noqa: BLE001 — reported below
                     last_err = err
@@ -673,7 +694,7 @@ async def async_send_follow_notify(
             _dom, _svc = preferred.split(".", 1)
             if hass.services.has_service(_dom, _svc):
                 try:
-                    await hass.services.async_call(_dom, _svc, alert_data)
+                    await hass.services.async_call(_dom, _svc, alert_data, context=context)
                     return preferred
                 except Exception as err:  # noqa: BLE001 — reported below
                     last_err = err
@@ -696,7 +717,7 @@ async def async_send_follow_notify(
     last_auto_err: Exception | None = None
     for svc_name, label, payload in auto_targets:
         try:
-            await hass.services.async_call("notify", svc_name, payload)
+            await hass.services.async_call("notify", svc_name, payload, context=context)
             return label
         except Exception as err:  # noqa: BLE001 — the next one is tried
             last_auto_err = err

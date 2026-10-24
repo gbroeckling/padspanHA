@@ -69,7 +69,8 @@ ALLOWED: dict[tuple[str, str, str], tuple[str, str | None, str]] = {
         (OWN, '("light", "switch", "scene", "script")',
          "PadSpan arrive/depart rules: turn_on/off of the entity the user set in the rule"),
     ("presence_coordinator.py", "async_send_follow_notify", "services.async_call"):
-        (OWN, None, "follow alerts: sends a notification through the notify service the user chose"),
+        (OWN, "follow_target_allowed(preferred)",
+         "follow alerts: sends a notification through the notify service the user chose"),
     ("vacation_mode.py", "_async_tick", "services.async_call"):
         (OWN, 'service = "turn_on" if want_on else "turn_off"',
          "Vacation Mode (off by default): turn_on/off of the user's lights"),
