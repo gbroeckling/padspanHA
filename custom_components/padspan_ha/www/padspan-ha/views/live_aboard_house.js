@@ -276,6 +276,15 @@ export function readRooms(model, F){
     rooms.push({ name, floor: fl, pts, idx: i++, color: roomColor(name, model),
                  outdoor: fl.outdoor || OUTDOOR_ROOM.test(name), spot: labelSpot(pts), h: Math.max(roomHeight(model, name) ?? fl.h, fl.h) });
   }
+  // A name alone (a mezzanine called "Deck A") does not take a room outdoors
+  // where it stands inside a lower floor's room that rises past it (a
+  // gallery in a hall, under the hall's roof). A deck on a plain storey
+  // (the floor under it no taller than its own) is outdoors as before.
+  for (const r of rooms) {
+    if (!r.outdoor || r.floor.outdoor) continue;
+    if (rooms.some(R => !R.outdoor && !R.floor.outdoor && R.floor.elev0 < r.floor.elev0 - 1e-3
+                        && R.floor.elev0 + R.h >= r.floor.elev0 + RAIL_H && overlapOnPlan(R, r))) r.outdoor = false;
+  }
   return rooms;
 }
 export function roomAt(rooms, x, y){

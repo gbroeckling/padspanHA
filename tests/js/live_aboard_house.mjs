@@ -862,6 +862,18 @@ tryCase("walls: a tall stretch shorter than 0.3 m joined to no other keeps its f
     s.length === 3 && s[0].capped && !("wallH" in s[0]) && !s[1].capped && s[1].wallH === 6 && !s[2].capped && s[2].wallH === 6, { s });
 });
 
+tryCase("walls: a mezzanine named Deck in a hall is indoors; a deck on a plain storey is not", () => {
+  const hall = { floors: [{ id: "hall", floor_to_floor_m: 7.5 }, { id: "m", floor_to_floor_m: 4.3 }], floor_elevations: { hall: 0, m: 3.2 },
+    room_geometry_m: { Hall: rect("hall", 0, 0, 20, 12), "Deck A": rect("m", 0, 0, 6, 12) } };
+  const two = { floors: [{ id: "g", floor_to_floor_m: 2.8 }, { id: "u", floor_to_floor_m: 2.8 }], floor_elevations: { g: 0, u: 2.8 },
+    room_geometry_m: { Garage: rect("g", 0, 0, 6, 6), "Roof Deck": rect("u", 0, 0, 6, 6), Patio: rect("g", 6.1, 0, 10, 6) } };
+  const a = H.readHouse(hall, hall.floors, {}, null).rooms, b = H.readHouse(two, two.floors, {}, null).rooms;
+  const of = (R, n) => R.find(r => r.name === n);
+  check("walls: a mezzanine named Deck in a hall is indoors; a deck on a plain storey is not",
+    !of(a, "Deck A").outdoor && !of(a, "Hall").outdoor && of(b, "Roof Deck").outdoor && of(b, "Patio").outdoor && !of(b, "Garage").outdoor,
+    { a: a.map(r => [r.name, r.outdoor]), b: b.map(r => [r.name, r.outdoor]) });
+});
+
 // ── telemetry ───────────────────────────────────────────────────────────────
 tryCase("telemetry: closed words, once per page load", () => {
   H._resetHouse3dCountsForTests();
