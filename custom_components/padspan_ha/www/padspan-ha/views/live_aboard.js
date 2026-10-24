@@ -2010,7 +2010,9 @@ function createSlot(slotKey){
   // leaf as open as its sensor has it.
   function placePiece(F, P, cut){
     for (const e of P.els) {
-      const z1 = cut && e.cuttable ? Math.min(e.z1, HOUSE.CUT_H) : e.z1, hgt = z1 - e.z0;
+      let z1 = cut && e.cuttable ? Math.min(e.z1, HOUSE.CUT_H) : e.z1;
+      if (F.clip !== undefined && F.clip !== null && z1 > F.clip + 0.3) z1 = Math.max(e.z0, F.clip);   // applyTop: under the hidden floors
+      const hgt = z1 - e.z0;
       e.mesh.setMatrixAt(e.i, hgt < 0.005 ? ZERO : P.open && e === P.open.leaf ? (P.open.slots ? ZERO : leafMatrix(F, P, e.z0, hgt, e.thick))
         : compose(P.mx, F.fl.elev + e.z0, P.my, P.yaw, P.len, hgt, e.thick));
       e.mesh.instanceMatrix.needsUpdate = true;
@@ -3038,6 +3040,15 @@ function createSlot(slotKey){
   // ── floors, walls, quality ────────────────────────────────────────────────
   function applyTop(){
     for (const F of floorsUi) F.group.visible = HOUSE.floorShown(F.fl, topElev);
+    // With the floors above hidden, a tall room's walls stop where they
+    // start (under that floor's slab), as the rest of the house does.
+    const hid = floorsUi.filter(F => !F.fl.outdoor && !F.group.visible).map(F => F.fl.elev);
+    for (const F of floorsUi) {
+      const over = hid.filter(e => e > F.fl.elev + 1e-3), clip = over.length ? Math.min(...over) - F.fl.elev - HOUSE.SLAB_T : null;
+      if (clip === (F.clip === undefined ? null : F.clip)) continue;
+      F.clip = clip;
+      for (const P of F.pieces) placePiece(F, P, P.cut);
+    }
     coverNames();
     lampsDirty = true;
     liveMs = liveRate(performance.now());                    // a floor shown again may be swinging or flashing

@@ -175,3 +175,17 @@ def test_the_open_edge_help_gives_the_rises_to_setup() -> None:
         src = path.read_text(encoding="utf-8")
         assert "given its full height in Floor Heights" not in src, path.name
         assert "with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to in Rooms" in src, path.name
+
+
+def test_hidden_floors_cut_a_tall_rooms_walls() -> None:
+    """0.38.164: with the floor stepper hiding the floors above, a tall room's
+    walls stop under the lowest hidden floor (applyTop sets F.clip); a wall no
+    more than a slab's worth past it, and every wall with all floors showing,
+    is placed as before."""
+    la = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")
+    top = la[la.index("  function applyTop(){"):la.index("  /** Walls or floors changed:")]
+    assert "const hid = floorsUi.filter(F => !F.fl.outdoor && !F.group.visible).map(F => F.fl.elev);" in top
+    assert "clip = over.length ? Math.min(...over) - F.fl.elev - HOUSE.SLAB_T : null;" in top
+    assert "for (const P of F.pieces) placePiece(F, P, P.cut);" in top
+    place = la[la.index("  function placePiece(F, P, cut){"):la.index("    if (P.open && P.open.wet) placeWet(F, P, cut);")]
+    assert "if (F.clip !== undefined && F.clip !== null && z1 > F.clip + 0.3) z1 = Math.max(e.z0, F.clip);" in place
