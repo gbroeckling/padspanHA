@@ -14,3 +14,5 @@ cryptography==50.0.0
 # URL building in ws_wled.py (_url — IPv6 hosts, safe paths). Home Assistant
 # always ships it (aiohttp depends on it); the stubbed suite needs it pinned.
 yarl==1.23.0
+# The config-flow translation test reads services.yaml (Home Assistant ships PyYAML).
+pyyaml==6.0.3
