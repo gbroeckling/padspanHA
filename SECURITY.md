@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| Latest 0.38.x (stable and beta) | Yes |
+| Latest stable release (marked Latest on GitHub) | Yes |
+| Latest beta (the newest pre-release) | Yes |
 | Older releases | No — please update to the latest release first |
 
 Fixes go into the next release. HACS shows it as an update.
@@ -18,6 +19,8 @@ Instead, report it privately:
 1. Go to the [Security Advisories](https://github.com/gbroeckling/padspanHA/security/advisories) page
 2. Click **"Report a vulnerability"**
 3. Describe the issue, the PadSpan and Home Assistant versions, and how to reproduce it
+
+If you'd rather use email, write to hello@traks.ca with the same details.
 
 You should receive a response within 7 days. If the issue is confirmed, a fix will be released as soon as practical and you will be credited in the changelog (unless you prefer to remain anonymous).
 

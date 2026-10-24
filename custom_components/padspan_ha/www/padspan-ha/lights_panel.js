@@ -764,7 +764,7 @@ class PadSpanLightsApp extends HTMLElement {
   // The revert shake: a short wobble on the marker whose tap failed.
   _shake(eid){
     requestAnimationFrame(()=>{
-      const g=this.shadowRoot && this.shadowRoot.querySelector(`.lhex[data-eid="${String(eid).replace(/"/g,'\\"')}"]`);
+      const g=this.shadowRoot && this.shadowRoot.querySelector(`.lhex[data-eid="${CSS.escape(String(eid))}"]`);
       if(!g) return;
       g.classList.add("lv-shake");
       setTimeout(()=>g.classList.remove("lv-shake"), 500);
