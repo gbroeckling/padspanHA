@@ -1575,6 +1575,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self._room_votes.pop(key, None)
                         self._room_confidence.pop(key, None)
                         self._room_unsure.pop(key, None)
+                        self._unsure_run.pop(key, None)
                         # A device that was away and is back must not be judged on
                         # readings from before it left. That applies to every kind
                         # of location evidence, not just the coverage window —

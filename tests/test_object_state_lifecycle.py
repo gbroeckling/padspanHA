@@ -67,6 +67,7 @@ OBJECT_STATE: frozenset[str] = frozenset({
     # rebuilt every poll, and _evict_object takes an evicted key out of it.
     "_prev_groups",
     "_room_unsure",                     # positioning_unsure's reason while a room is held
+    "_unsure_run",                      # ...and how many unsure polls in a row named one room
 })
 
 # The subset of OBJECT_STATE that says WHERE the object was. An absence breaks
@@ -77,7 +78,7 @@ LOCATION_STATE: frozenset[str] = frozenset({
     "_room_votes", "_confirmed_room", "_room_confidence", "_knn_position",
     "_smooth_xy", "_spatial_position", "_spatial_smooth_xy",
     "_coverage_hist", "_outside_by_cov", "_floor_evidence", "_device_floor",
-    "_adaptive_last_vec", "_room_unsure",
+    "_adaptive_last_vec", "_room_unsure", "_unsure_run",
 })
 
 
