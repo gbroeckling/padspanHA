@@ -1170,7 +1170,9 @@ function _settingsPresence(ctx, el){
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "When this is on, only a Home Assistant administrator can change how PadSpan is set up for this home. " +
       "Everyone else in the household can still view and use PadSpan: the maps, Follow, lights, the emergency " +
-      "lighting test, their own view and theme choices, and assigning a Bluetooth radio to a room. " +
+      "lighting test, the theme, the choices kept in their own browser (Map or 3D, what the Atlas shows, how much " +
+      "of the menu they see), and assigning a Bluetooth radio to a room. Display settings that change every screen " +
+      "in the home (Quiet mode, the Atlas as Overview, the Atlas layout and its showcase theme) need an admin while it is on. " +
       "If they try to change something else, PadSpan tells them it needs an admin. " +
       "More protections will be added here over time."
     ),

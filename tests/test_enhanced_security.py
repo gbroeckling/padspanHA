@@ -344,3 +344,14 @@ def test_the_atlas_page_says_a_change_needs_an_admin_and_nothing_else_changes():
     assert r["other"]["rethrown"] is True
     assert r["other"]["shown"] == [["Could not disable Vacation Mode: x", True]]
     assert r["ok"]["out"] == {"ok": True} and r["ok"]["shown"] == [["Could not disable Vacation Mode: x", True]]
+
+
+def test_the_card_does_not_promise_whole_home_display_settings():
+    # Quiet mode and the Atlas's home-wide display settings change every
+    # screen, so they stay an admin's while the switch is on; the card says so.
+    for k in ("quiet_mode", "overview_atlas", "atlas_layout_v2", "lights_showcase_theme"):
+        assert k not in WS._EVERYONE_KEYS, k
+    src = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    card = src[src.index("// ── Enhanced security"):src.index("// ── Help improve PadSpan")]
+    assert "their own view and theme choices" not in card
+    assert "the choices kept in their own browser" in card and "Display settings that change every screen" in card
