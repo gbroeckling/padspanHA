@@ -303,6 +303,96 @@ def test_the_refresh_runs_only_while_something_uses_it():
         c.hass.async_create_task.call_args.args[0].close()
 
 
+def test_the_tabs_never_wait_for_a_held_out_run():
+    c = make_coord()
+    c.hass.async_create_task = MagicMock()
+    clock = [5000.0]
+    with patch.object(pc_mod.time, "monotonic", lambda: clock[0]):
+        assert c.heldout_cached() is None                    # none yet: start one
+        assert c.hass.async_create_task.call_count == 1
+        c.hass.async_create_task.call_args.args[0].close()
+        c._heldout_running = True
+        assert c.heldout_cached() is None                    # one at a time
+        assert c.hass.async_create_task.call_count == 1
+        c._heldout_running = False
+        c._heldout, c._heldout_mono = {"knn": {"spots": 13}}, clock[0]
+        clock[0] += 30.0
+        assert c.heldout_cached() == {"knn": {"spots": 13}, "age_s": 30}
+        assert c.hass.async_create_task.call_count == 1      # fresh: nothing to do
+        clock[0] += 600.0
+        assert c.heldout_cached()["age_s"] == 630            # stale: the old one now,
+        assert c.hass.async_create_task.call_count == 2      # a new one behind it
+        c.hass.async_create_task.call_args.args[0].close()
+    pkg = Path(H.__file__).parent
+    for name in ("ws_calibration.py", "ws_diagnostics.py"):
+        src = (pkg / name).read_text(encoding="utf-8")
+        assert "heldout_cached()" in src and "await coord.async_heldout" not in src \
+            and "await _pc.async_heldout" not in src
+
+
+def _big_house(n: int, seed: int = 5) -> list[dict]:
+    """n points over two floors of the small house, two thirds of them in
+    beacon piles of fifty."""
+    rng = random.Random(seed)
+    pts: list[dict] = []
+    for i in range(n // 3):
+        x, y = rng.uniform(0.0, 13.0), rng.uniform(0.0, 4.0)
+        fl = "main" if i % 2 else "up"
+        pts.append(cal_point(i, x, y, rssi_at(x, y, rng), floor_id=fl))
+    b = 0
+    while len(pts) < n:
+        x, y = rng.uniform(0.0, 13.0), rng.uniform(0.0, 4.0)
+        for _ in range(min(50, n - len(pts))):
+            pts.append(cal_point(len(pts), x, y, rssi_at(x, y, rng, sd=0.5),
+                                 label="[auto] B", device_id=f"b{b}"))
+        b += 1
+    return pts
+
+
+def test_a_big_calibration_is_sampled_across_rooms_the_same_way_every_run():
+    import time as _t
+    pts = _big_house(5000)
+    t0 = _t.perf_counter()
+    ho = H.evaluate(pts, room_at=room_at, site=_site(), source_area=S2A)
+    took = _t.perf_counter() - t0
+    assert ho["knn"]["spots"] == H.MAX_TEST_SPOTS == 60
+    assert took < 5.0          # was ~20 s for 5000 points before the sample + sums
+    assert H.evaluate(pts, room_at=room_at, site=_site(), source_area=S2A) == ho
+    spots = list(range(len(pts)))
+    picked = H.sample_spots(pts, spots)
+    assert picked == H.sample_spots(pts, spots)
+    groups = {(p["floor_id"], p["room"]) for p in pts}
+    assert {(pts[i]["floor_id"], pts[i]["room"]) for i in picked} == groups
+    assert H.sample_spots(pts, spots[:40]) == spots[:40]          # under the cap: all
+
+
+def test_the_quick_k_nn_pass_finds_what_knn_locate_over_every_held_in_point_finds():
+    for pts in (calibration_points(), _big_house(900, seed=8)):
+        fps = [CalibrationStore._readings_to_map(p, frozenset()) for p in pts]
+        prints = H._Fingerprints(fps)
+        for i in H.sample_spots(pts, list(range(len(pts))), 40):
+            train = H.held_in(pts, i)
+            kept = {id(p) for p in train}
+            out = {j for j, p in enumerate(pts) if id(p) not in kept}
+            cand = prints.nearest(fps[i], out, 3 + H._KNN_SPARE)
+            full = CalibrationStore.knn_locate(H._HeldIn(train, frozenset()), fps[i])
+            quick = CalibrationStore.knn_locate(
+                H._HeldIn([pts[j] for j in cand], frozenset()), fps[i])
+            assert quick == full
+
+
+def test_spatial_fits_off_the_sums_match_fits_rebuilt_from_the_held_in_points():
+    pts = _big_house(600, seed=9)
+    site = _site()
+    terms = site.fit_terms(pts, frozenset())
+    for i in (0, 150, 420):
+        train = H.held_in(pts, i)
+        kept = {id(p) for p in train}
+        out = {j for j, p in enumerate(pts) if id(p) not in kept}
+        rebuilt = site.fits_without(site.fit_terms(train, frozenset()), set())
+        assert site.fits_without(terms, out) == rebuilt
+
+
 # ── unsure ───────────────────────────────────────────────────────────────────
 
 def test_unsure_keeps_the_room_and_says_why():

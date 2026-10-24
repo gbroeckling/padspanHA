@@ -27,13 +27,21 @@ anything: calibration points and models are read, never changed.
 
 from __future__ import annotations
 
+import heapq
 import math
+import operator
+import random
 from typing import Any, Callable
 
 HELDOUT_RADIUS_M = 1.5
 # Spots tested per run, at most. Each spot is a k-NN pass over every point,
-# so the cost is spots x points; past this the spots are thinned evenly.
-MAX_TEST_SPOTS = 300
+# so the cost is spots x points; past this a fixed sample is drawn, spread
+# over every floor and room (the same sample each run for the same points).
+MAX_TEST_SPOTS = 60
+_SAMPLE_SEED = 165
+# k-NN candidates kept per spot before knn_locate itself picks the k: a few
+# spare so a rounding difference in the quick distance cannot drop one.
+_KNN_SPARE = 4
 # A method must beat the other by this much to be called better; inside the
 # band the answer is "tie" and whoever is in use stays in use (hysteresis).
 BETTER_ROOM_PP = 5
@@ -116,43 +124,62 @@ class SpatialSite:
 
     def fit_terms(self, points: list[dict[str, Any]], excluded: frozenset[str]):
         """Per receiver, each point's (log10 slant distance, rssi) — the terms
-        CalibrationStore.fit_path_loss regresses — keyed by point index."""
-        terms: dict[str, dict[int, tuple[float, float]]] = {}
-        for src in self.fit_sources:
-            pos = self.positions.get(src)
-            if not pos or src in excluded:
-                continue
-            sz = self.abs_z.get(src)
-            per: dict[int, tuple[float, float]] = {}
-            for j, p in enumerate(points):
-                for r in p.get("scanner_readings", []):
-                    if r.get("source") != src:
-                        continue
-                    d_sq = (float(p["x_m"]) - pos[0]) ** 2 + (float(p["y_m"]) - pos[1]) ** 2
-                    base = self.floor_bases.get(str(p.get("floor_id") or ""))
-                    if sz is not None and base is not None:
-                        d_sq += (sz - (base + self.dev_h)) ** 2
-                    d = math.sqrt(d_sq)
-                    if d < 0.3:
-                        continue
-                    per[j] = (math.log10(d), float(r["mean_rssi"]))
-            terms[src] = per
-        return terms
+        CalibrationStore.fit_path_loss regresses — keyed by point index, with
+        their sums over every point (n, sx, sy, sxx, sxy)."""
+        use = {src for src in self.fit_sources
+               if self.positions.get(src) and src not in excluded}
+        terms: dict[str, dict[int, tuple[float, float]]] = {src: {} for src in use}
+        dz_sq: dict[tuple[str, str], float] = {}   # (receiver, floor) height term
+        log10 = math.log10
+        for j, p in enumerate(points):
+            fl = str(p.get("floor_id") or "")
+            px, py = float(p["x_m"]), float(p["y_m"])
+            for r in p.get("scanner_readings", []):
+                src = r.get("source")
+                if src not in use:
+                    continue
+                pos = self.positions[src]
+                dz = dz_sq.get((src, fl))
+                if dz is None:
+                    sz = self.abs_z.get(src)
+                    base = self.floor_bases.get(fl)
+                    dz = (sz - (base + self.dev_h)) ** 2                         if sz is not None and base is not None else 0.0
+                    dz_sq[(src, fl)] = dz
+                d_sq = (px - pos[0]) ** 2 + (py - pos[1]) ** 2 + dz
+                if d_sq < 0.09:     # under 0.3 m
+                    continue
+                terms[src][j] = (0.5 * log10(d_sq), float(r["mean_rssi"]))
+        out = {}
+        for src, per in terms.items():
+            sums = [0, 0.0, 0.0, 0.0, 0.0]
+            for lx, ry in per.values():
+                sums[0] += 1
+                sums[1] += lx
+                sums[2] += ry
+                sums[3] += lx * lx
+                sums[4] += lx * ry
+            out[src] = (per, sums)
+        return out
 
     @staticmethod
     def fits_without(terms, out_idx: set[int]) -> dict[str, tuple[float, float]]:
         """Path-loss fits from the held-in points, with the same sanity gate
-        CalibrationStore.path_loss_by_source applies before the solve uses one."""
+        CalibrationStore.path_loss_by_source applies before the solve uses one.
+        The held-out points' terms come off the precomputed sums, so a spot
+        costs its held-out points, not every point."""
         fits: dict[str, tuple[float, float]] = {}
-        for src, per in terms.items():
-            data = [v for j, v in per.items() if j not in out_idx]
-            n = len(data)
+        for src, (per, sums) in terms.items():
+            n, sx, sy, sxx, sxy = sums
+            for j in out_idx:
+                v = per.get(j)
+                if v is not None:
+                    n -= 1
+                    sx -= v[0]
+                    sy -= v[1]
+                    sxx -= v[0] * v[0]
+                    sxy -= v[0] * v[1]
             if n < 5:
                 continue
-            sx = sum(d[0] for d in data)
-            sy = sum(d[1] for d in data)
-            sxx = sum(d[0] ** 2 for d in data)
-            sxy = sum(d[0] * d[1] for d in data)
             den = n * sxx - sx ** 2
             if abs(den) < 1e-10:
                 continue
@@ -233,6 +260,123 @@ def _strongest_area(readings: dict[str, float], source_area: dict[str, str]) -> 
     return best[1] if best else ""
 
 
+def sample_spots(pts: list[dict[str, Any]], spots: list[int],
+                 limit: int | None = None) -> list[int]:
+    """At most limit test spots, spread over every floor and room: each
+    (floor, room) group is shuffled with a fixed seed and the groups take
+    turns, so a small room still gets tested and the same points give the
+    same sample every run. Under the limit every spot is tested."""
+    limit = MAX_TEST_SPOTS if limit is None else limit
+    if len(spots) <= limit:
+        return list(spots)
+    groups: dict[tuple[str, str], list[int]] = {}
+    for i in spots:
+        p = pts[i]
+        groups.setdefault((str(p.get("floor_id") or ""), str(p.get("room") or "")), []).append(i)
+    rng = random.Random(_SAMPLE_SEED)
+    queues = []
+    for key in sorted(groups):
+        g = groups[key]
+        rng.shuffle(g)
+        queues.append(g)
+    picked: list[int] = []
+    depth = 0
+    while len(picked) < limit:
+        for g in queues:
+            if depth < len(g) and len(picked) < limit:
+                picked.append(g[depth])
+        depth += 1
+    return sorted(picked)
+
+
+class _Fingerprints:
+    """Every point's fingerprint, read once per run: a dense row per point
+    (0.0 where a scanner is missing), a bitmask of the scanners it has, and
+    its sums, so a spot's pass over the points is mostly arithmetic."""
+
+    def __init__(self, fps: list[dict[str, float]]) -> None:
+        self.fps = fps
+        cols = sorted({src for fp in fps for src in fp})
+        self.col = {src: c for c, src in enumerate(cols)}
+        self.width = len(cols)
+        self.rows: list[list[float]] = []
+        self.masks: list[int] = []
+        self.sums: list[tuple[float, float]] = []
+        for fp in fps:
+            row = [0.0] * self.width
+            m = 0
+            for src, v in fp.items():
+                c = self.col[src]
+                row[c] = v
+                m |= 1 << c
+            self.rows.append(row)
+            self.masks.append(m)
+            self.sums.append((sum(fp.values()), sum(v * v for v in fp.values())))
+
+    def nearest(self, query: dict[str, float], out_idx: set[int], m: int) -> list[int]:
+        """The m held-in points nearest the query by knn_locate's distance
+        (the centred per-scanner MSE plus the missing-scanner penalty), by
+        index and in stored order, so knn_locate over them breaks ties as it
+        would over every point."""
+        from .calibration_store import MISSING_SCANNER_PENALTY_DB  # noqa: PLC0415
+        pen = MISSING_SCANNER_PENALTY_DB ** 2
+        q_row = [0.0] * self.width
+        q_mask = 0
+        for src, v in query.items():
+            c = self.col.get(src)
+            if c is not None:
+                q_row[c] = v
+                q_mask |= 1 << c
+        q_items = list(query.items())
+        nq = len(q_items)
+        q_sum = sum(query.values())
+        q_sq = sum(v * v for v in query.values())
+        # Every query scanner has a column (true for a stored point's own).
+        q_mask_full = q_mask if q_mask.bit_count() == nq else -1
+        fps, rows, masks, sums = self.fps, self.rows, self.masks, self.sums
+        mul = operator.mul
+        worst = math.inf      # the m-th best so far
+        best: list[tuple[float, int]] = []   # max-heap of (-dist, -index)
+        for j in range(len(rows)):
+            pm = masks[j]
+            if pm == q_mask_full:
+                if j in out_idx:
+                    continue
+                # Same scanners on both sides: no missing term, and the sums
+                # over the shared set are the precomputed ones.
+                qp = sum(map(mul, q_row, rows[j]))
+                ps, pss = sums[j]
+                sd = q_sum - ps
+                dist = (q_sq - 2.0 * qp + pss - sd * sd / nq) / nq
+            else:
+                shared = q_mask & pm
+                if not shared:
+                    continue
+                n = shared.bit_count()
+                missing = (nq - n) + (pm.bit_count() - n)
+                # The missing term alone already loses: skip the rest.
+                if missing * pen / (n + missing) >= worst or j in out_idx:
+                    continue
+                fp = fps[j]
+                sd = sdd = 0.0
+                for src, qv in q_items:
+                    pv = fp.get(src)
+                    if pv is not None:
+                        d = qv - pv
+                        sd += d
+                        sdd += d * d
+                dist = (sdd - sd * sd / n + missing * pen) / (n + missing)
+            if dist >= worst:
+                continue
+            if len(best) < m:
+                heapq.heappush(best, (-dist, -j))
+            else:
+                heapq.heapreplace(best, (-dist, -j))
+            if len(best) == m:
+                worst = -best[0][0]
+        return sorted(-nj for _d, nj in best)
+
+
 def evaluate(points: list[dict[str, Any]], *,
              excluded: frozenset[str] = frozenset(),
              room_at: Callable[[float, float, str], str] | None = None,
@@ -255,10 +399,22 @@ def evaluate(points: list[dict[str, Any]], *,
                 continue
             seen_dev.add(dev)
         spots.append(i)
-    step = max(1, math.ceil(len(spots) / MAX_TEST_SPOTS))
-    tests = spots[::step]
+    tests = sample_spots(pts, spots)
     source_area = source_area or {}
     terms = site.fit_terms(pts, excluded) if site else None
+
+    # Every point read once per run: its fingerprint, and where it sits.
+    fps = [CalibrationStore._readings_to_map(p, excluded) for p in pts]
+    prints = _Fingerprints(fps)
+    xy = [(float(p["x_m"]), float(p["y_m"])) for p in pts]
+    by_floor: dict[str, list[int]] = {}
+    by_dev: dict[str, list[int]] = {}
+    for j, p in enumerate(pts):
+        by_floor.setdefault(str(p.get("floor_id") or ""), []).append(j)
+        if _is_auto(p):
+            by_dev.setdefault(str(p.get("device_id") or ""), []).append(j)
+
+    r_sq = radius_m * radius_m
 
     def room_of(x: float, y: float, fl: str) -> str:
         try:
@@ -271,18 +427,27 @@ def evaluate(points: list[dict[str, Any]], *,
     k_right = s_right = labelled = tested = 0
     for i in tests:
         t = pts[i]
-        query = CalibrationStore._readings_to_map(t, excluded)
+        query = fps[i]
         if not query:
             continue
         tested += 1
-        train = held_in(pts, i, radius_m)
         true_room = str(t.get("room") or "")
         fl = str(t.get("floor_id") or "")
-        tx, ty = float(t["x_m"]), float(t["y_m"])
+        tx, ty = xy[i]
         if true_room:
             labelled += 1
+        # The points held_in() leaves out, by index.
+        out_idx = {i}
+        if _is_auto(t):
+            out_idx.update(by_dev.get(str(t.get("device_id") or ""), ()))
+        for j in by_floor.get(fl, ()):
+            dx, dy = xy[j][0] - tx, xy[j][1] - ty
+            if dx * dx + dy * dy <= r_sq:
+                out_idx.add(j)
 
-        k = CalibrationStore.knn_locate(_HeldIn(train, excluded), query) if train else None
+        cand = prints.nearest(query, out_idx, KNN_K + _KNN_SPARE)
+        k = CalibrationStore.knn_locate(_HeldIn([pts[j] for j in cand], excluded), query) \
+            if cand else None
         if k and k.get("x_m") is not None:
             k_err.append(math.hypot(float(k["x_m"]) - tx, float(k["y_m"]) - ty))
             k_room = room_of(float(k["x_m"]), float(k["y_m"]), str(k.get("floor_id") or "")) \
@@ -291,13 +456,11 @@ def evaluate(points: list[dict[str, Any]], *,
                 k_right += 1
 
         if site is not None:
-            train_ids = {id(p) for p in train}
-            out_idx = {j for j, p in enumerate(pts) if id(p) not in train_ids}
             fits = site.fits_without(terms, out_idx)
-            xy = site.locate(query, fl, fits)
-            if xy:
-                s_err.append(math.hypot(xy[0] - tx, xy[1] - ty))
-                s_room = room_of(xy[0], xy[1], fl) or _strongest_area(query, source_area)
+            fix = site.locate(query, fl, fits)
+            if fix:
+                s_err.append(math.hypot(fix[0] - tx, fix[1] - ty))
+                s_room = room_of(fix[0], fix[1], fl) or _strongest_area(query, source_area)
             else:
                 s_room = ""
             if true_room and s_room == true_room:

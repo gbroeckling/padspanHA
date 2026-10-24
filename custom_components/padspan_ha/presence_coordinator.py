@@ -3682,6 +3682,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._heldout_running = False
         return self._heldout
 
+    def heldout_cached(self, max_age_s: float = 600.0) -> dict[str, Any] | None:
+        """The last held-out result straight away, with its age in seconds.
+        Older than max_age_s (or none yet) starts a recompute in the
+        background for the next ask; the caller never waits for one."""
+        now = time.monotonic()
+        if not self._heldout_running and (
+                self._heldout is None or now - self._heldout_mono >= max_age_s):
+            self.hass.async_create_task(self.async_heldout(max_age_s))
+        if self._heldout is None:
+            return None
+        return {**self._heldout, "age_s": int(now - self._heldout_mono)}
+
     def _maybe_refresh_heldout(self) -> None:
         """Hourly, and only while something uses the result: Pick the better
         method (positioning_pick_better) or the opt-in report. Neither on,

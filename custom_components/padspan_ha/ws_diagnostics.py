@@ -357,12 +357,13 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
             grade = "D"
 
     # Held-out accuracy (heldout.py), shown beside the score; the grade
-    # above is unchanged by it.
+    # above is unchanged by it. The cached result: a stale one is redone in
+    # the background, never while this waits.
     heldout = None
     _pc = domain.get("presence_coordinator")
-    if calib and _pc is not None and hasattr(_pc, "async_heldout"):
+    if calib and _pc is not None and hasattr(_pc, "heldout_cached"):
         try:
-            heldout = await _pc.async_heldout()
+            heldout = _pc.heldout_cached()
         except Exception:
             heldout = None
 

@@ -210,16 +210,18 @@ async def ws_calibration_get(hass: HomeAssistant, connection, msg) -> None:
         "model": cal.data.get("model") or {},
         # Beside the score above, never instead of it: the same estimators
         # tested on spots they have not seen (heldout.py). Read-only.
-        "heldout": await _heldout(hass),
+        "heldout": _heldout(hass),
     })
 
 
-async def _heldout(hass: HomeAssistant) -> dict[str, Any] | None:
+def _heldout(hass: HomeAssistant) -> dict[str, Any] | None:
+    """The cached result; a stale one is recomputed in the background, so
+    opening the tab never waits on the held-out run."""
     coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
-    if coord is None or not hasattr(coord, "async_heldout"):
+    if coord is None or not hasattr(coord, "heldout_cached"):
         return None
     try:
-        return await coord.async_heldout()
+        return coord.heldout_cached()
     except Exception:
         return None
 
