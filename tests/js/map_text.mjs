@@ -79,7 +79,7 @@ const run = () => { for (const t of timers) if (t.f && t.at <= now) { const f = 
 
 const box = MT.createMapText("psMapText", "Who is in which room");
 const el = box.el;
-check("attrs", el.id === "psMapText" && el.getAttribute("aria-live") === "polite" && el.getAttribute("aria-atomic") === "false"
+check("attrs", el.id === "psMapText" && el.getAttribute("aria-live") === "off" && el.getAttribute("aria-atomic") === "false"
   && el.getAttribute("role") === "region" && el.getAttribute("aria-label") === "Who is in which room");
 check("sr_only_style", el.style.cssText === MT.SR_ONLY, el.style.cssText);
 for (const bit of ["position:fixed", "width:1px", "height:1px", "overflow:hidden", "clip-path:inset(50%)", "white-space:nowrap", "pointer-events:none"])
@@ -87,6 +87,9 @@ for (const bit of ["position:fixed", "width:1px", "height:1px", "overflow:hidden
 box.update(lines);
 check("first_at_once", box.text() === "Den: Followed thing. Hall: <img src=x onerror=alert(1)>. Kitchen: Garry's phone, Nicole's watch. Office: empty.", box.text());
 check("names_are_text", el.children.every(p => p.children.length === 0), el.children.map(p => p.children.length));
+check("first_fill_is_quiet", el.getAttribute("aria-live") === "off");
+run();
+check("live_after_first_fill", el.getAttribute("aria-live") === "polite");
 const kitchen = el.children[2];
 now += 3000;
 box.update([["Kitchen", "Kitchen: empty."], ["Office", "Office: Garry's phone."]]);
@@ -98,6 +101,11 @@ check("after_10s", box.text() === "Kitchen: empty. Office: Garry's phone.", box.
 check("same_room_node_kept", el.children[0] === kitchen);
 box.clear();
 check("clear_empties", el.children.length === 0);
+check("clear_is_quiet_again", el.getAttribute("aria-live") === "off");
+box.update(lines);
+check("refill_is_quiet", el.getAttribute("aria-live") === "off" && el.children.length === 4);
+now += 1; run();
+check("refill_then_live", el.getAttribute("aria-live") === "polite");
 
 Date.now = realNow; globalThis.setTimeout = realSet; globalThis.clearTimeout = realClear;
 console.log(JSON.stringify({ cases, failures }));

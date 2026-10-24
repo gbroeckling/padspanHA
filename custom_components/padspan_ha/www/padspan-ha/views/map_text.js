@@ -84,17 +84,20 @@ export function mapRooms(model){
 }
 
 /** The hidden live box. update(lines) shows the newest lines, at most every
- *  EVERY_MS; a room's own line is only touched when its text changed. */
+ *  EVERY_MS; a room's own line is only touched when its text changed. The
+ *  first fill (and the first after clear) goes in quietly — aria-live is
+ *  turned on only after it, so opening the map does not read out the whole
+ *  house, only the rooms that change after. */
 export function createMapText(id, label){
   const box = document.createElement("div");
   if (id) box.id = id;
   box.setAttribute("role", "region");
   box.setAttribute("aria-label", label || "Who is in which room");
-  box.setAttribute("aria-live", "polite");
+  box.setAttribute("aria-live", "off");
   box.setAttribute("aria-atomic", "false");
   box.setAttribute("data-map-text", "");
   box.style.cssText = SR_ONLY;
-  let at = 0, timer = null, wanted = null;
+  let at = 0, timer = null, wanted = null, liveTimer = null;
   const apply = () => {
     timer = null;
     if (!wanted) return;
@@ -111,6 +114,8 @@ export function createMapText(id, label){
       prev = n;
     }
     for (const n of have.values()) n.remove();
+    if (box.getAttribute("aria-live") === "off" && !liveTimer)
+      liveTimer = setTimeout(() => { liveTimer = null; box.setAttribute("aria-live", "polite"); }, 0);
   };
   return {
     el: box,
@@ -120,7 +125,13 @@ export function createMapText(id, label){
       const wait = at ? Math.max(0, at + EVERY_MS - Date.now()) : 0;
       if (wait === 0) apply(); else timer = setTimeout(apply, wait);
     },
-    clear(){ if (timer) clearTimeout(timer); timer = null; wanted = null; at = 0; box.replaceChildren(); },
+    clear(){
+      if (timer) clearTimeout(timer);
+      if (liveTimer) clearTimeout(liveTimer);
+      timer = null; liveTimer = null; wanted = null; at = 0;
+      box.setAttribute("aria-live", "off");
+      box.replaceChildren();
+    },
     text: () => [...box.children].map(n => n.textContent).join(" "),
   };
 }
