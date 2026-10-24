@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.164 — Live Aboard walls stop under the floor above, and mezzanine fixes (2026-10-23)
+
+Houses whose floors stack normally look the same as in 0.38.163.
+
+### Fixed
+- **Walls no longer rise through an upper floor.** Where a room upstairs stands over a wall that would reach past its floor, the wall stops under that floor. This covers walls between two rooms of the same height (a hall floor given its full height under a walkway, a split level), a tall room's walls under a room that overhangs them, and a wall under a walkway's Open (Loft) edge.
+- **No thin posts on tall rooms.** A tall stretch of wall shorter than 30 cm that meets no other tall wall (a tiny jog in a room's outline) keeps its floor's height.
+- **The floor stepper cuts tall rooms too.** With the floors above hidden, a tall room's walls stop where those floors start, like the rest of the house.
+- **A mezzanine named "Deck" stays indoors.** A room named like a deck or patio that stands inside a taller room of the floor below keeps its walls and roof. Decks and patios on a normal storey are outdoors as before.
+- **Strip lengths count only what lights.** A run with gaps (along a rail, or round a room past its doors) shows its lit length, with the whole length including the wire in the panel.
+- **Moving a room in Mapping → Rooms takes its walls with it.** An Open (Loft) edge, a door or any barrier drawn on the moved room's outline moves too and is saved with it. A wall it shares with a room that stays put doesn't move.
+- **The RF Barriers help gives the right mezzanine setup.** Keep the floor at its normal height in Floor Heights and give the hall its full height with Rises to in Rooms, as the Floor Heights help says.
+
+### Added
+- Counts a house where a wall was stopped under a floor above (`house3d_wall_capped`), once per page load, only with the usage report on.
+
 ## 0.38.163 — Every home on a key with more than two keeps its usage report on (2026-10-23)
 
 With a licence key on one or two homes, nothing changes.
