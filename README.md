@@ -226,6 +226,8 @@ No key yet? **Settings → Features → PadSpan licence** has a one-time 90-day 
 3. **Restart Home Assistant completely** (Settings → System → Restart)
 4. Add the integration: Settings → Devices & Services → Add Integration → PadSpan HA
 
+Setting up HACS for the first time? A GitHub change can make HACS's sign-in step fail for now, see [the note in Getting Started](docs/GETTING_STARTED.md#via-hacs-recommended).
+
 ### Manual
 
 1. Download the [latest release](https://github.com/gbroeckling/padspanHA/releases/latest)
