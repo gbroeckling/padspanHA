@@ -281,6 +281,8 @@ PadSpan HA is built by [Garry Broeckling](https://github.com/gbroeckling) — a 
 
 The result: a solo project that ships features at a pace that would normally require a team — without compromising on quality, security, or code review.
 
+How changes are tested and released: [How PadSpan is built and checked](docs/HOW_PADSPAN_IS_BUILT.md).
+
 ---
 
 ## What PadSpan never touches
