@@ -3,7 +3,7 @@ name: CodeQL
 # main and a weekly run only, so beta branch pushes don't each start a scan.
 on:
   push:
-    branches: [main, chore/repo-hygiene]
+    branches: [main]
   schedule:
     - cron: "17 6 * * 1"
   workflow_dispatch:
