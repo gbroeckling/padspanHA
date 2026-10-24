@@ -354,7 +354,7 @@ export function createStrip(ctx){
     const r = runFrom(anchors, faceFor());
     if (r.error) { ctx.hint(r.error, true); paint(); return; }
     setRun(withString(r.run));
-    ctx.hint(`Laid out${r.run.loop ? " all the way round" : ""}: ${RUNS.metres(RUNS.lengthOf(r.run.pts, r.run.loop))}. Drag a point or a handle to change it.`);
+    ctx.hint(`Laid out${r.run.loop ? " all the way round" : ""}: ${RUNS.lengthWords(r.run.pts, r.run.loop, r.run.gaps)}. Drag a point or a handle to change it.`);
     sheet(); paint();
   }
 
@@ -416,7 +416,7 @@ export function createStrip(ctx){
     if (r.error) { lastRound = null; ctx.hint(r.error, true); return; }
     setRun(withString(r.run));
     const gaps = (r.run.gaps || []).length;
-    ctx.hint(`Round the ${room.name}: ${RUNS.metres(RUNS.lengthOf(r.run.pts, true))}${gaps ? `, ${gaps} gap${gaps === 1 ? "" : "s"} at the doors${opts.windows ? " and windows" : ""}` : ""}.`);
+    ctx.hint(`Round the ${room.name}: ${RUNS.lengthWords(r.run.pts, true, r.run.gaps)}${gaps ? `, ${gaps} gap${gaps === 1 ? "" : "s"} at the doors${opts.windows ? " and windows" : ""}` : ""}.`);
   }
   function roundPiece(id, mode){
     const p = pieceOf(id);
@@ -497,7 +497,7 @@ export function createStrip(ctx){
     if (!sel || !info()) { listOf(S); S.classList.add("on"); return true; }
     const run = runOf(sel), pl = placedOf(sel), F = info().F, ceil = ceilOf(F);
     S.appendChild(d("p", "la3d-sub", run && !pl ? "Its piece is gone: lay it out again."
-      : run ? `Laid out: ${RUNS.metres(RUNS.lengthOf(pl.pts, pl.loop))}, ${pl.pts.length} points${pl.loop ? ", round" : ""}${run.piece ? ", on a piece" : ""}.`
+      : run ? `Laid out: ${RUNS.lengthWords(pl.pts, pl.loop, pl.gaps)}, ${pl.pts.length} points${pl.loop ? ", round" : ""}${run.piece ? ", on a piece" : ""}.`
       : "Not laid out yet: drawn where PadSpan guesses."));
     // What it is (the strip kinds; Heights has every kind).
     const krow = d("label", "la3d-row la3d-kind"), pick = d("select");
@@ -720,9 +720,9 @@ export function createStrip(ctx){
     hEnds.forEach((e, k) => put(e, hs && hs.ends[k] ? hs.ends[k].p : null));
     const I = on && sel ? info() : null;
     put(ring, I && !s && I.at ? screenAt(I.F, I.at.x, I.at.z, I.at.y - I.F.fl.elev) : null);
-    // The length, beside the run's middle (while drawing: by its moving end).
+    // The length that lights (no gaps' wire), beside the run's middle (while drawing: by its moving end).
     if (s && s.pts.length >= 2) {
-      const len = RUNS.lengthOf(s.pts, s.loop), q = s.drawing ? s.pts[s.pts.length - 1] : s.pts[Math.floor((s.pts.length - 1) / 2)];
+      const len = RUNS.litLengthOf(s.pts, s.loop, s.gaps), q = s.drawing ? s.pts[s.pts.length - 1] : s.pts[Math.floor((s.pts.length - 1) / 2)];
       lenPill.textContent = RUNS.metres(len);
       const p = screenAt(s.F, q[0], q[1], q[2]);
       put(lenPill, p ? [p[0], p[1] - 30] : null);

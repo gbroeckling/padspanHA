@@ -65,6 +65,11 @@ export function stretches(pts, loop){
 }
 /** How long it is, every stretch (the wire's too), in metres. */
 export const lengthOf = (pts, loop) => stretches(pts || [], !!loop).reduce((s, q) => s + d3(q.a, q.b), 0);
+/** How much of it lights: every stretch but its gaps (the wire), in metres. */
+export const litLengthOf = (pts, loop, gaps) => { const g = new Set(gaps || []); return stretches(pts || [], !!loop).reduce((s, q) => s + (g.has(q.i) ? 0 : d3(q.a, q.b)), 0); };
+/** A run's length as the Strip tool says it: with gaps, what lights and the whole with its wire. */
+export const lengthWords = (pts, loop, gaps) => ((gaps || []).length
+  ? `${metres(litLengthOf(pts, loop, gaps))} lit (${metres(lengthOf(pts, loop))} with the wire)` : metres(lengthOf(pts, loop)));
 /** Why the server would refuse this run (house3d_store.py _run), or null. */
 export function problem(run){
   if (!obj(run) || !Array.isArray(run.pts)) return "A run needs its points.";

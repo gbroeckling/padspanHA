@@ -146,6 +146,16 @@ tryCase("room: along a deck's rail, wire where there is none", () => {
     && (r.run.gaps || []).length === 4 - rails.length && noRail.run.pts.every(p => p[2] === 0.03) && !noRail.run.gaps, { r, rails: rails.length });
 });
 
+tryCase("room: a run's length lights only past its gaps; with none, as before", () => {
+  // Synthetic: a 10 x 2 m loop, the rail only along one long side (10 m lit, 24 m with the wire).
+  const loop = [[0, 0, 1], [10, 0, 1], [10, 2, 1], [0, 2, 1]];
+  const lit = R.litLengthOf(loop, true, [1, 2, 3]), all = R.lengthOf(loop, true);
+  check("room: a run's length lights only past its gaps; with none, as before", near(lit, 10) && near(all, 24)
+    && R.lengthWords(loop, true, [1, 2, 3]) === "10.00 m lit (24.00 m with the wire)"
+    && R.lengthWords(loop, true, null) === R.metres(all) && R.lengthWords(loop, true, []) === "24.00 m" && near(R.litLengthOf(loop, true), all),
+    { lit, all });
+});
+
 // ── piece ───────────────────────────────────────────────────────────────────
 const TV = { id: "fur_000000aa", floor_id: "main", x_m: 0.71, y_m: -5.5, z_m: 0.95, rotation: 270, recipe: { kind: "tv", width_m: 1.3, depth_m: 0.08, height_m: 0.8 } };
 tryCase("piece: its own frame, both ways, as the server has it", () => {
