@@ -6,7 +6,7 @@ All notable changes to PadSpan HA are documented here.
 
 ## 0.38.165 — New-install setup help, proxy health, an honest accuracy score, and High contrast for everyone (2026-10-24)
 
-Everything new here is off until you turn it on, except High contrast, which every edition now gets, and the new accuracy line, which sits beside the old one. With nothing turned on, rooms and positions are the same as in 0.38.164.
+Everything new here is off until you turn it on, except High contrast, which every edition now gets, the new accuracy line, which sits beside the old one, and the iPhone setup guide, which is on for brand-new installs only. With nothing turned on, rooms and positions are the same as in 0.38.164.
 
 ### New
 - **New installs start with the iPhone setup steps on.** An install set up for the first time on this version has Settings → Features → iPhone Setup Path turned on, so an iPhone is given the IRK steps. Installs from before keep what they had (off unless someone turned it on). It can be turned off like any other setting.
