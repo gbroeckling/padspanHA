@@ -571,6 +571,9 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "wall_fully": "wall_fully", "hold_last_room_s": "room_hold",
     "wall_floor_cycle_s": "wall_floor_cycle", "atlas_3d_director": "director",
     "enhanced_security": "enhanced_security",
+    # 0.38.165's positioning settings, all off by default.
+    "positioning_pick_better": "pick_better", "positioning_unsure": "unsure",
+    "positioning_sensor_fusion": "fusion",
 }
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
@@ -749,6 +752,11 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "pos_unknown_pc": ("pos_unk", ("p50", "p95")),
     "pos_heard_n": ("pos_heard", ("p50",)),
     "pos_room_changes": ("pos_chg", ("per_h",)),
+    # 0.38.165, each only while its setting is on: the share of the house's
+    # objects marked unsure per poll (positioning_unsure), and polls where
+    # motion sensors / usual moves changed a room (positioning_sensor_fusion).
+    "pos_unsure_pc": ("pos_unsure", ("p50", "p95")),
+    "fusion_changes": ("fusion_chg", ("per_h",)),
     # Occupancy estimates: Unknown phones counted, and confidence (0 low,
     # 1 medium, 2 high) and estimates per hour — phones through a wall.
     "occ_unknown_n": ("occ_unk", ("p50", "max")),
@@ -1566,6 +1574,16 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         _qh = _quiet_hidden(obj_list, settings.get("followed_addrs"))
         if _qh:
             env["quiet_hidden"] = _qh
+    # Held-out accuracy (heldout.py), only where calibration gave one: each
+    # method's rooms-right and median error as bucket words, and which did
+    # better. The last result the coordinator has; never computed here.
+    try:
+        from .heldout import report_buckets  # noqa: PLC0415
+        _ho = report_buckets(getattr(dom.get("presence_coordinator"), "_heldout", None))
+        if _ho:
+            env["heldout"] = _ho
+    except Exception:
+        pass
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
     features.update(_overview_features(settings))
     for k, word in _FEATURE_ON_ONLY.items():
@@ -1855,6 +1873,13 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
     env = payload.get("env")
     if isinstance(env, dict) and "quiet_hidden" in env and env["quiet_hidden"] not in QUIET_HIDDEN_BUCKETS:
         raise ValueError("env.quiet_hidden not in the vocabulary")
+    if isinstance(env, dict) and "heldout" in env:
+        from .heldout import BETTER_WORDS, MEDIAN_BUCKETS, ROOM_BUCKETS  # noqa: PLC0415
+        ho = env["heldout"]
+        words = {"knn_room": ROOM_BUCKETS, "sp_room": ROOM_BUCKETS, "knn_med": MEDIAN_BUCKETS,
+                 "sp_med": MEDIAN_BUCKETS, "better": BETTER_WORDS}
+        if not isinstance(ho, dict) or not all(k in words and v in words[k] for k, v in ho.items()):
+            raise ValueError("env.heldout not in the vocabulary")
     if isinstance(env, dict) and "screens" in env:
         scr = env["screens"]
         if (not isinstance(scr, list) or len(scr) > SCREENS_LISTED
