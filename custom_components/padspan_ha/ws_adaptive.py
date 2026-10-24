@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from .ws_common import admin_if_enhanced_security
 from .const import DOMAIN, DATA_ADAPTIVE
 
 
@@ -67,6 +68,7 @@ async def ws_adaptive_fingerprints_get(hass: HomeAssistant, connection, msg) -> 
 
 @websocket_api.websocket_command({"type": "padspan_ha/adaptive_reset"})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_adaptive_reset(hass: HomeAssistant, connection, msg) -> None:
     """Clear all adaptive learning data."""
     ad = hass.data.get(DOMAIN, {}).get(DATA_ADAPTIVE)

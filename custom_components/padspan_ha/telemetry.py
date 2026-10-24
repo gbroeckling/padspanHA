@@ -566,6 +566,7 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "room_reason_attribute": "room_reason", "roomplan_import_enabled": "plan_scan_import",
     "wall_fully": "wall_fully", "hold_last_room_s": "room_hold",
     "wall_floor_cycle_s": "wall_floor_cycle", "atlas_3d_director": "director",
+    "enhanced_security": "enhanced_security",
 }
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).

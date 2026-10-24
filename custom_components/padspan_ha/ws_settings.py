@@ -27,7 +27,7 @@ from .const import (
     LIGHT_TYPE_OVERRIDE_KINDS,
 )
 from .bluetooth_live import get_bluetooth_live
-from .ws_common import _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT_HISTORY_DAY_CHOICES, _get_settings, _invalidate_snapshot_cache, _padspan_pro_active
+from .ws_common import require_admin_if_enhanced, _LIGHT_SHAPE_KINDS, _OBJECT_HISTORY_DAYS_DEFAULT, _OBJECT_HISTORY_DAY_CHOICES, _get_settings, _invalidate_snapshot_cache, _padspan_pro_active
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -455,6 +455,21 @@ def _sanitize_whole_house_presets(presets_in: Any) -> list[dict[str, Any]]:
 
 
 
+# How each person's own screen looks and what it has already been shown:
+# open to everyone even with Enhanced security on (ws_common), because the
+# panel writes these as anyone uses it. Every other key changes what PadSpan
+# does for the whole home.
+_EVERYONE_KEYS = frozenset({
+    "whatsnew_seen_version", "telemetry_asked", "trial_nudge_done", "tester_nudge_done",
+    "onboarding_completed", "health_reminder_last_ts", "locate_self_key", "followed_addrs",
+    "hidden_map_ids", "lights_hidden", "maps_iso_floor_gap", "maps_iso_horiz_gap", "maps_iso_focus",
+    "overview_iso_floor_gap", "overview_iso_horiz_gap", "overview_iso_focus", "overview_iso_zoom",
+    "traceback_house_focus", "overview_show_walls", "overview_show_outdoor", "overview_show_trails",
+    "overview_persistent_pins", "overview_2d_mode", "advanced_extra_tabs",
+    "light_theme", "day_theme", "theme_palette", "theme_follow_sun", "ui_skin",
+})
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/settings_get"})
 
 @websocket_api.async_response
@@ -612,6 +627,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("mac_rotation_bridging"): bool,
         vol.Optional("apple_auto_classify"): bool,
         vol.Optional("low_memory_mode"): bool,
+        vol.Optional("enhanced_security"): bool,              # admin only; ws_common.require_admin_if_enhanced
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
         vol.Optional("bright_reveal_presence"): bool,
@@ -642,6 +658,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     if st:
+        if "enhanced_security" in msg:
+            # The switch itself is always an administrator's, on or off.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change Enhanced security")
+                return
+        if (set(msg) - {"id", "type"} - _EVERYONE_KEYS) and not require_admin_if_enhanced(hass, connection, msg):
+            return
         # North: the 3D compass writes it, the GPS Bridge and the 3D sun read
         # it, and % 360 keeps NaN as NaN (an infinity becomes NaN). Refused
         # before anything else in the message is acted on.
@@ -702,6 +726,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "unauthorized",
                                       "Only an administrator can change who shows in Live Aboard, what each person carries and what it flies to")
                 return
+        if "enhanced_security" in msg:
+            payload["enhanced_security"] = bool(msg.get("enhanced_security"))
         if "telemetry_asked" in msg:
             payload["telemetry_asked"] = bool(msg.get("telemetry_asked"))
         if "trial_nudge_done" in msg:

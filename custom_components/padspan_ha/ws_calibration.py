@@ -14,6 +14,7 @@ import voluptuous as vol
 from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from .ws_common import admin_if_enhanced_security
 from .telemetry import bump as _bump
 from .const import (
     DOMAIN,
@@ -217,6 +218,7 @@ async def ws_calibration_get(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_calibration_save_point(hass: HomeAssistant, connection, msg) -> None:
     """Save one calibration point (position + per-scanner RSSI readings)."""
     cal = await _get_cal_store(hass)
@@ -249,6 +251,7 @@ async def ws_calibration_save_point(hass: HomeAssistant, connection, msg) -> Non
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_calibration_delete_point(hass: HomeAssistant, connection, msg) -> None:
     """Delete a single calibration point by ID."""
     cal = await _get_cal_store(hass)
@@ -316,6 +319,7 @@ async def ws_object_evict(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({"type": "padspan_ha/calibration_compute_model"})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_calibration_compute_model(hass: HomeAssistant, connection, msg) -> None:
     """Trigger full calibration model recomputation.
 
@@ -337,6 +341,7 @@ async def ws_calibration_compute_model(hass: HomeAssistant, connection, msg) -> 
 
 @websocket_api.websocket_command({"type": "padspan_ha/calibration_retrain_rf"})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_calibration_retrain_rf(hass: HomeAssistant, connection, msg) -> None:
     """Force retrain the Random Forest model (picks up metre-space data)."""
     cal = await _get_cal_store(hass)
@@ -362,6 +367,7 @@ async def ws_calibration_retrain_rf(hass: HomeAssistant, connection, msg) -> Non
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_calibration_swap_radio(hass: HomeAssistant, connection, msg) -> None:
     """Replace every occurrence of old_source with new_source in calibration data.
 
@@ -424,6 +430,7 @@ async def ws_calibration_swap_radio(hass: HomeAssistant, connection, msg) -> Non
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_calibration_relearn_radio(hass: HomeAssistant, connection, msg) -> None:
     """Shift stored RSSI readings for a scanner after an antenna upgrade/downgrade.
 

@@ -21,7 +21,7 @@ from .const import (
     DEFAULT_FLOOR_ID,
     DATA_DEVICE_REGISTRY,
 )
-from .ws_common import _point_in_polygon
+from .ws_common import admin_if_enhanced_security, _point_in_polygon
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +45,7 @@ async def ws_device_registry_list(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({"type": "padspan_ha/device_registry_migrate"})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_device_registry_migrate(hass: HomeAssistant, connection, msg) -> None:
     """Trigger migration from ObjectStore to DeviceRegistry."""
     from .const import DATA_DEVICE_REGISTRY
@@ -72,6 +73,7 @@ async def ws_device_registry_migrate(hass: HomeAssistant, connection, msg) -> No
     "absorb_id": str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_device_registry_merge(hass: HomeAssistant, connection, msg) -> None:
     """Merge two devices in the Device Registry. absorb_id is removed."""
     from .const import DATA_DEVICE_REGISTRY
@@ -102,6 +104,7 @@ async def ws_device_registry_merge(hass: HomeAssistant, connection, msg) -> None
     "label": str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_device_registry_label_set(hass: HomeAssistant, connection, msg) -> None:
     """Set label on a device by padspan_id."""
     from .const import DATA_DEVICE_REGISTRY
@@ -136,6 +139,7 @@ async def ws_device_registry_label_set(hass: HomeAssistant, connection, msg) -> 
     "value": str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_device_registry_add_identity(hass: HomeAssistant, connection, msg) -> None:
     """Link an additional volatile key to an existing device."""
     from .const import DATA_DEVICE_REGISTRY
@@ -159,6 +163,7 @@ async def ws_device_registry_add_identity(hass: HomeAssistant, connection, msg) 
     "padspan_id": str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_device_registry_delete(hass: HomeAssistant, connection, msg) -> None:
     """Delete a device from the Device Registry."""
     from .const import DATA_DEVICE_REGISTRY

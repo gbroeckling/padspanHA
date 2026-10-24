@@ -61,7 +61,7 @@ from homeassistant.core import HomeAssistant
 from . import house3d_builders as B
 from .const import DATA_SETTINGS, DOMAIN
 from .house3d_store import enabled
-from .ws_common import _tier_at_least
+from .ws_common import admin_if_enhanced_security, _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 
 _LOGGER = logging.getLogger(__name__)
@@ -657,6 +657,7 @@ def _bump(hass: HomeAssistant, event: str) -> None:
     vol.Optional("kind"): vol.Any(str, None),
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
     """Read one photo with the chosen AI Task (or, with no photo, say which
     AI Task would). Stores nothing."""

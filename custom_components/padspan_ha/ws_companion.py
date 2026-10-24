@@ -89,7 +89,7 @@ def mobile_app_notify_service(hass: HomeAssistant, device: Any) -> str | None:
     return None
 from .private_ble_resolver import PrivateBLEResolver, get_resolver as _get_ble_resolver
 from .util import ha_device_config_entries, ha_devices
-from .ws_common import _get_settings, _is_rpa_addr
+from .ws_common import admin_if_enhanced_security, _get_settings, _is_rpa_addr
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -699,6 +699,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("entity_id"): str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
     """One-click "Follow This Phone" action for Companion App phones.
 
@@ -886,6 +887,7 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("device_name"): str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_companion_unfollow(hass: HomeAssistant, connection, msg) -> None:
     """Remove a Companion App phone from followed list and delete its label."""
     try:
