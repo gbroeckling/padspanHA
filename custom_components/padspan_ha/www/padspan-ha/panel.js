@@ -138,6 +138,13 @@ import(`./views/ui_error.js?b=${BUILD_ID}`)
   .then(m => { UI_ERROR = m; })
   .catch(err => console.warn("PadSpan: ui_error module failed to load", err));
 
+// The map as text for screen readers (views/map_text.js). Until it lands, or
+// if it never does, the Overview simply has no hidden text.
+let MAP_TEXT = null;
+import(`./views/map_text.js?b=${BUILD_ID}`)
+  .then(m => { MAP_TEXT = m; })
+  .catch(err => console.warn("PadSpan: map_text module failed to load", err));
+
 // ── Dynamic view imports ─────────────────────────────────────────────────────
 // Two-phase loading for fast first paint:
 //   Phase 1 (critical): sample_data, help_content, overview, follow — enough to
@@ -1605,7 +1612,27 @@ class PadSpanHaApp extends HTMLElement {
   // User-triggered renders (tab clicks, actions): execute IMMEDIATELY.
   // Background renders (poll, wakeUp, refreshAll): batch via rAF to prevent
   // multiple DOM rebuilds within the same frame.
+  // Who is in which room on the Overview's map, as text in a box no one sees
+  // (views/map_text.js: a screen reader hears a room's line when it changes,
+  // at most every 10 s). Elsewhere, or with the Atlas as Overview (it has its
+  // own), the box is empty.
+  _updateMapText(){
+    const main = MAP_TEXT && this.shadowRoot ? this.shadowRoot.querySelector("main.main") : null;
+    if (!main) return;
+    if (!this._mapTextBox) this._mapTextBox = MAP_TEXT.createMapText("psMapText", "Who is in which room");
+    const mt = this._mapTextBox;
+    if (mt.el.parentNode !== main) main.appendChild(mt.el);
+    const list = this.state.live?.snapshot?.objects?.list;
+    const atlasHome = !!(VIEWS.overview && VIEWS.overview.atlasHomeOn && VIEWS.overview.atlasHomeOn({ state: this.state }));
+    if (this.state.view !== "overview" || atlasHome || !Array.isArray(list)) { mt.clear(); return; }
+    const t = awayTimeoutS(this.state.settings), fa = this.state.followedAddrs, isScanner = this._ctx().helpers.isScanner;
+    const followed = (o) => !!fa && [o.address, o.entity_id, o.key].some(a => !!a && fa.has(String(a).toUpperCase()));
+    mt.update(MAP_TEXT.roomLines(MAP_TEXT.overviewEntries(list, { followed, away: (o) => isAway(o, t), isScanner }),
+      MAP_TEXT.mapRooms(this.state.model)));
+  }
+
   _scheduleRender(fromPoll = false) {
+    this._updateMapText();
     if (!fromPoll) {
       // User action — render immediately, no delay
       this._renderCurrentView(false);
@@ -1891,13 +1918,14 @@ class PadSpanHaApp extends HTMLElement {
   async _applyTheme(){
     // Day wins, then Light (the inversion), then a palette (day_theme.js
     // PALETTES); none of them is Night.
-    // Day and the four palettes are PadSpan Pro's: without Pro (a lapsed key
-    // too) it is Night. Light, the accessibility inversion, is everyone's.
+    // Day and three palettes are PadSpan Pro's: without Pro (a lapsed key
+    // too) they are Night. Light, the accessibility inversion, and High
+    // contrast are everyone's.
     const pro = String(this.state.settings?.tier || "").toLowerCase() === "pro";
     const look = this._sunLook(pro);
     const day = pro && !!look.day_theme;
     const named = String(look.theme_palette || "");
-    const pal = !day && !look.light_theme && pro && ["graphite", "ocean", "dusk", "contrast"].includes(named) ? named : "";
+    const pal = !day && !look.light_theme && (pro ? ["graphite", "ocean", "dusk", "contrast"] : ["contrast"]).includes(named) ? named : "";
     const on = day || !!pal;
     const invert = !on && !!look.light_theme;
     this.style.filter = invert ? "invert(1) hue-rotate(180deg)" : "";

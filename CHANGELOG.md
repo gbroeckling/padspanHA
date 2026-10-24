@@ -6,7 +6,7 @@ All notable changes to PadSpan HA are documented here.
 
 ## 0.38.165 — New-install setup help, proxy health, an honest accuracy score, and High contrast for everyone (2026-10-24)
 
-Existing installs keep their settings as they are; Health and Bluetooth look the same in a house whose proxies are hearing normally. The three new choices are off until you turn them on. With them off, rooms and positions are worked out exactly as in 0.38.164; the only thing you see is one new line beside the accuracy you already had.
+Everything new here is off until you turn it on, except High contrast, which every edition now gets, and the new accuracy line, which sits beside the old one. With nothing turned on, rooms and positions are the same as in 0.38.164.
 
 ### New
 - **New installs start with the iPhone setup steps on.** An install set up for the first time on this version has Settings → Features → iPhone Setup Path turned on, so an iPhone is given the IRK steps. Installs from before keep what they had (off unless someone turned it on). It can be turned off like any other setting.
@@ -15,6 +15,7 @@ Existing installs keep their settings as they are; Health and Bluetooth look the
 - **Pick the better method for this house.** PadSpan places devices from the radios' positions (spatial) and from your calibration points (fingerprints), and has always preferred spatial. With this on, it prefers whichever did better on unseen spots, and switches only on a clear win (5 points of rooms right, or half a metre), so it does not flip back and forth. Settings → Presence → Positioning Choices.
 - **Mark a room as unsure when the signal is thin.** When fewer than 3 scanners hear a device, or no calibration point matches it well, it keeps the room it had and is marked unsure: a `room_unsure` attribute on its entity and a quiet line in its details. Same place.
 - **Use motion sensors and usual moves to break ties.** When two rooms read within a few dB of each other, a motion, occupancy or presence sensor in one of them, and the room-to-room moves PadSpan has learned, decide between them. It never picks a room no scanner hears. Same place.
+- **The map as text for screen readers.** On the Overview, and on the Atlas while it shows people or tags, a screen reader can read who is in which room ("Kitchen: Alice's iPhone. Office: empty."). It lists only what the map shows, and reads a room's line when it changes, at most every 10 seconds. The text is not shown on screen, so the panel looks the same as before. The maps are now labelled "House map" for screen readers.
 
 ### Added
 - The opt-in usage report counts how many times a proxy started hearing much less (as 1, 2–5 or more) and, once, for an install set up on this version or later, how long it took from setup to its first device in a room and to its first calibration point, in buckets. Counts only, and only with the report on.
@@ -22,6 +23,8 @@ Existing installs keep their settings as they are; Health and Bluetooth look the
 
 ### Changed
 - **The Getting Started guide** has a short "what you need" box: how many scanners, roughly what they cost, and how long setup and calibration take.
+- **High contrast is in every edition.** Settings → Appearance → Theme offers Night, Light (inverted) and High contrast without PadSpan Pro; Graphite, Ocean, Dusk and Day still come with Pro. A High contrast picked earlier now shows without Pro too.
+- **Less motion when the browser asks for it.** With "reduce motion" set in the operating system or browser, the Overview's dots (and Traceback's) go straight to their new spot instead of gliding and fading, and the Overview map changes without its fade. Without that setting nothing changes.
 
 ---
 

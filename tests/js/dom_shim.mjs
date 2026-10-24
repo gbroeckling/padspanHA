@@ -98,6 +98,8 @@ class Node {
   append(...cs) { cs.forEach(c => this.appendChild(typeof c === "string" ? new Text(c) : c)); }
   prepend(...cs) { cs.reverse().forEach(c => { c.parentNode = this; this.children.unshift(c); }); }
   insertBefore(c, ref) {
+    // A node already in a tree moves, as in a browser (map_text.js reorders its lines).
+    if (c && c.parentNode) c.parentNode.removeChild(c);
     const i = this.children.indexOf(ref);
     c.parentNode = this;
     i < 0 ? this.children.push(c) : this.children.splice(i, 0, c);
