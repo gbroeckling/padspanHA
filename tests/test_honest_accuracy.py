@@ -448,6 +448,24 @@ def test_unsure_keeps_the_room_and_says_why():
     assert c._confirmed_room["d"] == "Kitchen"
 
 
+def test_unsure_lets_go_when_the_same_new_room_keeps_coming():
+    # A device in a corner only two scanners hear must still change rooms.
+    c = make_coord({"positioning_unsure": True})
+    addr = "AA:00:00:00:00:09"
+    office = dict(sorted(rssi_at(11.5, 2.0, random.Random(2), 0.5).items(),
+                         key=lambda kv: -kv[1])[:2])
+    with patch.object(pc_mod.time, "monotonic", lambda: 5000.0):
+        for _ in range(4):
+            c._smooth_room("d", addr, {addr: rssi_at(1.5, 2.0, random.Random(1), 0.5)},
+                           S2A, 3, 2, S2F, ROOMS)
+        held = []
+        for _ in range(12):
+            c._smooth_room("d", addr, {addr: office}, S2A, 3, 2, S2F, ROOMS)
+            held.append(c._confirmed_room["d"])
+    assert held[:pc_mod._UNSURE_HOLD_POLLS - 1] == ["Kitchen"] * (pc_mod._UNSURE_HOLD_POLLS - 1)
+    assert held[-1] == "Office" and c._room_unsure["d"] == "few_scanners"
+
+
 def test_unsure_reaches_the_entity_and_the_snapshot_only_when_set():
     pkg = Path(H.__file__).parent
     sensor = (pkg / "sensor.py").read_text(encoding="utf-8")

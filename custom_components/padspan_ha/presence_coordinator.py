@@ -290,6 +290,9 @@ _KNN_LIVE_THRESHOLD: float = 0.15
 # which it is a poor match — 1/(1+mean_sq/25) at 8 dB RMS per scanner, the
 # per-scanner spread calibration_store flags as high (HIGH_STD_DBM).
 _UNSURE_FP_CONF: float = 1.0 / (1.0 + 8.0 ** 2 / 25.0)
+# positioning_unsure: polls in a row of thin evidence for the same new room
+# after which it counts anyway (a 2-scanner corner must still change rooms).
+_UNSURE_HOLD_POLLS: int = 5
 # positioning_sensor_fusion: rooms within this many dB of the candidate's
 # strongest scanner are close enough for sensors to break the tie.
 _FUSION_MARGIN_DB: float = 3.0
@@ -798,6 +801,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Honest accuracy (0.38.165), all off by default. {key: reason} while
         # positioning_unsure holds a device's room on thin evidence.
         self._room_unsure: dict[str, str] = {}
+        self._unsure_run: dict[str, tuple[str | None, int]] = {}
         # {room: (monotonic, corroborated)} — motion/occupancy/presence per
         # area for positioning_sensor_fusion, looked up at most every 5 s.
         self._corr_cache: dict[str, tuple[float, bool | None]] = {}
@@ -1015,6 +1019,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._confirmed_room.clear()
         self._room_confidence.clear()
         self._room_unsure.clear()
+        self._unsure_run.clear()
         self._rssi_margin_confidence.clear()
         self._knn_position.clear()
         self._smooth_xy.clear()
@@ -3199,8 +3204,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Skip None candidates (total signal dropout) — preserves the last
         # known room instead of diluting the window with empty votes. An
-        # unsure poll is skipped the same way once there is a room to keep.
-        if candidate is not None and not (_unsure and self._confirmed_room.get(key)):
+        # unsure poll is skipped the same way once there is a room to keep,
+        # for its first _UNSURE_HOLD_POLLS polls: the same room that many
+        # times in a row is consistent evidence, thin or not, and is voted.
+        _hold = False
+        if _unsure and self._confirmed_room.get(key):
+            _prev_run = self._unsure_run.get(key)
+            _run = _prev_run[1] + 1 if _prev_run and _prev_run[0] == candidate else 1
+            self._unsure_run[key] = (candidate, _run)
+            _hold = _run < _UNSURE_HOLD_POLLS
+        elif self._unsure_run:
+            self._unsure_run.pop(key, None)
+        if candidate is not None and not _hold:
             votes.append(candidate)
 
         # Count votes per room and check if any room meets the threshold
@@ -3788,6 +3803,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._room_confidence.pop(key, None)
         self._rssi_margin_confidence.pop(key, None)
         self._room_unsure.pop(key, None)
+        self._unsure_run.pop(key, None)
         self._knn_position.pop(key, None)
         self._smooth_xy.pop(key, None)
         self._spatial_position.pop(key, None)
