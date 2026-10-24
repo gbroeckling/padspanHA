@@ -999,6 +999,43 @@ function _settingsPresence(ctx, el){
     ]));
   }
 
+  // ── Honest accuracy: three positioning choices, all off by default ─────────
+  {
+    const rows = [
+      ["positioning_pick_better", "Pick the better method for this house",
+       "PadSpan places devices two ways: from the radios' positions (spatial) and from your calibration points (fingerprints). " +
+       "With this on, it uses whichever one did better on calibration spots it had not seen (Calibration → Model shows both). " +
+       "It only switches on a clear win, so it does not flip back and forth. Needs calibration points."],
+      ["positioning_unsure", "Mark a room as unsure when the signal is thin",
+       "When fewer than 3 scanners hear a device, or no calibration point matches it well, the device keeps the room it had " +
+       "and is marked unsure (a room_unsure attribute) instead of being moved on weak evidence."],
+      ["positioning_sensor_fusion", "Use motion sensors and usual moves to break ties",
+       "When two rooms read almost the same, a motion, occupancy or presence sensor in one of them, and the room-to-room moves " +
+       "PadSpan has learned, decide between them. It never picks a room no scanner hears. In a busy house a motion sensor may " +
+       "be someone else, so this is off by default."],
+    ];
+    const card = el("div", { class: "card" }, [el("div", { class: "h2" }, "Positioning Choices")]);
+    for (const [key, label, help] of rows) {
+      const id = "hacc_" + key;
+      const tg = el("input", { type: "checkbox", id, style: "width:16px;height:16px;accent-color:#52b788;cursor:pointer" });
+      tg.checked = settings[key] === true;
+      tg.addEventListener("change", async () => {
+        try {
+          await ctx.actions.settingsSet({ [key]: tg.checked });
+          ctx.toast(`${label}: ${tg.checked ? "on" : "off"}`);
+        } catch (e) { ctx.toast("Failed to save", true); }
+      });
+      card.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin:10px 0 4px" }, [
+        tg,
+        el("label", { for: id, style: "font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600" }, label),
+      ]));
+      card.appendChild(el("div", { class: "muted", style: "font-size:12px" }, help));
+    }
+    card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:10px" },
+      "All off by default. Off, rooms and positions are worked out exactly as before."));
+    wrap.appendChild(card);
+  }
+
   // ── Presence Poll Interval ──────────────────────────────────────────────────
   const currentPoll = (settings.presence_poll_interval_s != null ? Number(settings.presence_poll_interval_s) : 10);
   const pollInp = el("input", {

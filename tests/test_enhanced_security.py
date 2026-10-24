@@ -355,3 +355,19 @@ def test_the_card_does_not_promise_whole_home_display_settings():
     card = src[src.index("// ── Enhanced security"):src.index("// ── Help improve PadSpan")]
     assert "their own view and theme choices" not in card
     assert "the choices kept in their own browser" in card and "Display settings that change every screen" in card
+
+
+# 0.38.165's positioning choices change how every device is placed, so they
+# are the home's setup: an admin's while the switch is on.
+_POSITIONING_CHOICES = ("positioning_pick_better", "positioning_unsure", "positioning_sensor_fusion")
+
+
+@pytest.mark.parametrize("key", _POSITIONING_CHOICES)
+def test_positioning_choices_are_the_homes_setup(key):
+    assert key not in WS._EVERYONE_KEYS
+    data, conn = _set(True, False, **{key: True})
+    assert conn.send_error.call_args.args[1] == "admin_only"
+    assert data.get(key) is not True
+    data, conn = _set(False, False, **{key: True})
+    conn.send_error.assert_not_called()
+    assert data[key] is True

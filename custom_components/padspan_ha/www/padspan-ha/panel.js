@@ -3347,6 +3347,11 @@ class PadSpanHaApp extends HTMLElement {
         if (Array.isArray(obj.all_addresses) && obj.all_addresses.length > 1)
           statusItems.push(el("div", {class:"muted", style:"font-size:11px"}, `Active rotating MACs: ${obj.all_addresses.length}`));
       }
+      // Unsure (positioning_unsure, off by default): the room is kept on thin evidence
+      if (obj.room_unsure) {
+        statusItems.push(el("div", {class:"muted", style:"font-size:11px"},
+          obj.room_unsure === "few_scanners" ? "Room unsure: fewer than 3 scanners hear it" : "Room unsure: no calibration point matches it well"));
+      }
       // KNN calibration confidence
       if (obj.knn_confidence > 0) {
         statusItems.push(el("div", {style:"display:flex;align-items:center;gap:8px;margin-top:2px"}, [

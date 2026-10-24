@@ -356,10 +356,21 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
         else:
             grade = "D"
 
+    # Held-out accuracy (heldout.py), shown beside the score; the grade
+    # above is unchanged by it.
+    heldout = None
+    _pc = domain.get("presence_coordinator")
+    if calib and _pc is not None and hasattr(_pc, "async_heldout"):
+        try:
+            heldout = await _pc.async_heldout()
+        except Exception:
+            heldout = None
+
     connection.send_result(msg["id"], {
         "grade": grade,
         "coverage_pct": coverage_pct,
         "accuracy": accuracy,
+        "heldout": heldout,
         "fingerprint_stability": {
             "avg_variance": avg_variance,
             "rooms_stable": rooms_stable,

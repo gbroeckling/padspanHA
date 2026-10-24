@@ -116,6 +116,8 @@ METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", 
                             # how steady identified objects sit (presence_coordinator
                             # _note_steadiness), and the occupancy estimate (ws_occupancy)
                             "pos_n", "pos_unk", "pos_heard", "pos_chg", "occ_unk", "occ_conf",
+                            # positioning_unsure's share and fusion's room changes (0.38.165)
+                            "pos_unsure", "fusion_chg",
                             # HA's device and entity registries, the most same-named devices
                             "ha_devices", "ha_entities", "dev_dup",
                             # readings the receivers' minimum signal kept out of positioning, per poll

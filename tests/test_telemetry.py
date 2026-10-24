@@ -1255,6 +1255,8 @@ def _busy_day(h, hours: float = 24.0):
         w.add("pos_unk", rnd.uniform(0, 100))
         w.add("pos_heard", rnd.uniform(0, 12))
         w.add("pos_chg", 1.0)
+        w.add("pos_unsure", rnd.uniform(0, 100))
+        w.add("fusion_chg", 1.0)
         w.add("occ_unk", rnd.uniform(0, 9))
         w.add("occ_conf", rnd.choice((0.0, 1.0, 2.0)))
     # PadSpan's own size on a busy street, and Home Assistant by view
@@ -1327,7 +1329,9 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     # 2500 -> 2600 (0.38.136): HA's device and entity registry sizes and the
     # most same-named devices, beside the "ha" phase they may explain.
     # 2600 -> 2650 (0.38.139): readings the per-receiver minimum signal kept out.
-    assert section < 2650, section
+    # 2650 -> 2700 (0.38.165): the unsure share and fusion's room changes,
+    # each sent only while its (off by default) setting is on.
+    assert section < 2700, section
     assert len(json.dumps(p)) <= T._MAX_BYTES
 
 

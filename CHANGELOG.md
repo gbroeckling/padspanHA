@@ -4,19 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.165 — iPhone steps for new installs, and a note when a Bluetooth proxy goes quiet (2026-10-24)
+## 0.38.165 — New-install setup help, proxy health, an honest accuracy score, and High contrast for everyone (2026-10-24)
 
-Existing installs keep their settings as they are; Health and Bluetooth look the same in a house whose proxies are hearing normally.
+Existing installs keep their settings as they are; Health and Bluetooth look the same in a house whose proxies are hearing normally. The three new choices are off until you turn them on. With them off, rooms and positions are worked out exactly as in 0.38.164; the only thing you see is one new line beside the accuracy you already had.
 
 ### New
 - **New installs start with the iPhone setup steps on.** An install set up for the first time on this version has Settings → Features → iPhone Setup Path turned on, so an iPhone is given the IRK steps. Installs from before keep what they had (off unless someone turned it on). It can be turned off like any other setting.
 - **A note when a Bluetooth proxy suddenly hears much less.** PadSpan compares each scanner's advertisement rate with its own usual. If one hears under 30% of its usual for more than 10 minutes while the others are normal (as with the ESPHome Wi-Fi and Bluetooth coexistence problem in 2026.7, when proxies heard about a tenth of what was around them), Health shows a short note naming it, until it is back over 60% of its usual for three minutes. Nothing is shown otherwise. Each scanner's usual is learned over its first half hour after Home Assistant starts.
+- **Accuracy on spots it hasn't seen.** Calibration → Model and QA now show, beside the existing estimate, how each method does on calibration spots it was not given: every point within 1.5 m of the spot (and the rest of a beacon's own points) is set aside before it is tested. It reads "Tested on spots it hasn't seen: fingerprints X% rooms right, median N m; spatial …". It is usually worse than the old estimate, which is tested with near-copies of each spot still in, and closer to what you see as you walk around. The old estimate is unchanged. Calibration points are only read, never changed.
+- **Pick the better method for this house.** PadSpan places devices from the radios' positions (spatial) and from your calibration points (fingerprints), and has always preferred spatial. With this on, it prefers whichever did better on unseen spots, and switches only on a clear win (5 points of rooms right, or half a metre), so it does not flip back and forth. Settings → Presence → Positioning Choices.
+- **Mark a room as unsure when the signal is thin.** When fewer than 3 scanners hear a device, or no calibration point matches it well, it keeps the room it had and is marked unsure: a `room_unsure` attribute on its entity and a quiet line in its details. Same place.
+- **Use motion sensors and usual moves to break ties.** When two rooms read within a few dB of each other, a motion, occupancy or presence sensor in one of them, and the room-to-room moves PadSpan has learned, decide between them. It never picks a room no scanner hears. Same place.
 
 ### Added
 - The opt-in usage report counts how many times a proxy started hearing much less (as 1, 2–5 or more) and, once, for an install set up on this version or later, how long it took from setup to its first device in a room and to its first calibration point, in buckets. Counts only, and only with the report on.
+- The opt-in usage report carries the unseen-spots score as ranges only (rooms right, median error, which method did better), where calibration gives one; whether each new choice is on; and, only while on, the share of devices marked unsure and how often motion sensors changed a room.
 
 ### Changed
 - **The Getting Started guide** has a short "what you need" box: how many scanners, roughly what they cost, and how long setup and calibration take.
+
+---
 
 ## 0.38.164 — Enhanced security, the Studio look, and Live Aboard walls stop under the floor above (2026-10-24)
 

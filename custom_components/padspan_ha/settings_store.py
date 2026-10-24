@@ -103,6 +103,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # attribute on each area sensor.
     "hold_last_room_s": 0.0,       # 0 = off, else 1-600
     "room_reason_attribute": False,
+    # Honest accuracy (0.38.165), all OFF by default; off, rooms and positions
+    # are exactly what they were. pick_better: prefer whichever of k-NN and
+    # the spatial solve wins the held-out test (heldout.py). unsure: hold and
+    # flag a room heard by under 3 scanners or matching no fingerprint well.
+    # sensor_fusion: motion/occupancy sensors and usual room-to-room moves
+    # break near-ties between rooms the radios already hear.
+    "positioning_pick_better": False,
+    "positioning_unsure": False,
+    "positioning_sensor_fusion": False,
     "assumed_device_height_m": 1.0,  # carry height above the floor for 3D distance (pocketed phone)
     # GPS bridge (gap #5, best-in-class roadmap): the fabric's own metre
     # plane has no inherent relationship to true north or a real-world
