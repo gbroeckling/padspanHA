@@ -337,6 +337,10 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
             "room_confidence": obj.get("room_confidence"),
             "rssi_margin_confidence": obj.get("rssi_margin_confidence"),
         }
+        # Unsure (positioning_unsure, OFF by default): the room is the one it
+        # had, kept on thin evidence. Absent when off or sure.
+        if obj.get("room_unsure"):
+            attrs["room_unsure"] = obj["room_unsure"]
         if obj.get("ibeacon_uuid"):
             attrs["ibeacon_uuid"] = obj["ibeacon_uuid"]
             attrs["ibeacon_major"] = obj.get("ibeacon_major")

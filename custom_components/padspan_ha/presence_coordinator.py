@@ -286,6 +286,13 @@ _KNN_MIN_LIVE_SCANNERS: int = 2
 # With the normalized confidence formula (mean-sq-error / REF_VARIANCE), a
 # per-scanner RMS error of ~8 dBm gives ~28% confidence, ~5 dBm gives ~50%.
 _KNN_LIVE_THRESHOLD: float = 0.15
+# positioning_unsure: the nearest fingerprint's RSSI-shape confidence below
+# which it is a poor match — 1/(1+mean_sq/25) at 8 dB RMS per scanner, the
+# per-scanner spread calibration_store flags as high (HIGH_STD_DBM).
+_UNSURE_FP_CONF: float = 1.0 / (1.0 + 8.0 ** 2 / 25.0)
+# positioning_sensor_fusion: rooms within this many dB of the candidate's
+# strongest scanner are close enough for sensors to break the tie.
+_FUSION_MARGIN_DB: float = 3.0
 
 
 # _room_centroids_from_maps and _room_from_bounds removed.
@@ -788,6 +795,22 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._knn_position: dict[str, dict] = {}
         # {key: (x, y)}  — EMA-smoothed position for k-NN (stable map display)
         self._smooth_xy: dict[str, tuple[float, float]] = {}
+        # Honest accuracy (0.38.165), all off by default. {key: reason} while
+        # positioning_unsure holds a device's room on thin evidence.
+        self._room_unsure: dict[str, str] = {}
+        # {room: (monotonic, corroborated)} — motion/occupancy/presence per
+        # area for positioning_sensor_fusion, looked up at most every 5 s.
+        self._corr_cache: dict[str, tuple[float, bool | None]] = {}
+        # Polls this cycle where fusion changed the candidate room (report only).
+        self._fusion_nudges = 0
+        # Held-out accuracy (heldout.py), recomputed at most hourly and only
+        # while something uses it; the method positioning_pick_better prefers.
+        self._heldout: dict[str, Any] | None = None
+        self._heldout_mono = 0.0
+        self._heldout_running = False
+        self._preferred_method = "spatial"
+        # {scanner: area} from the last poll, for the held-out test.
+        self._last_source_to_area: dict[str, str] = {}
         # {addr: {source: metres}} — ESPresense node-calibrated distances from
         # this poll's ads (rebuilt each poll; consumed by the spatial path)
         self._espresense_dist: dict[str, dict[str, float]] = {}
@@ -991,6 +1014,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._room_votes.clear()
         self._confirmed_room.clear()
         self._room_confidence.clear()
+        self._room_unsure.clear()
         self._rssi_margin_confidence.clear()
         self._knn_position.clear()
         self._smooth_xy.clear()
@@ -1088,6 +1112,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             result = await self._async_poll()
             self._note_steadiness(result)
+            self._fusion_nudges = 0
+            self._maybe_refresh_heldout()
             return result
         finally:
             record_duration(self.hass, "cycle", (time.perf_counter() - _t0) * 1000.0)
@@ -1124,6 +1150,18 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 record_duration(self.hass, "pos_n", float(n))
                 record_duration(self.hass, "pos_unk", 100.0 * unknown / n)
                 record_duration(self.hass, "pos_heard", heard / n)
+            # Field signals for the honest-accuracy settings, each only while
+            # its setting is on: the share of the house's objects marked
+            # unsure, and one "fusion_chg" per poll fusion changed a room.
+            _d = (getattr(self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS), "data", None) or {})
+            if n and _d.get("positioning_unsure") is True:
+                unsure = sum(1 for key, obj in result.items()
+                             if isinstance(obj, dict) and obj.get("room_unsure")
+                             and self.is_identified_object(key))
+                record_duration(self.hass, "pos_unsure", 100.0 * unsure / n)
+            if _d.get("positioning_sensor_fusion") is True:
+                for _ in range(min(self._fusion_nudges, 1000)):
+                    record_duration(self.hass, "fusion_chg", 1.0)
         except Exception:
             pass
 
@@ -1484,6 +1522,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _followed_bg = {str(f).upper() for f in ((_st_bg.data if _st_bg else {}).get("followed_addrs") or [])}
         _counts = {"smoothed": 0, "background": 0}
 
+        # The poll's scanner -> area map, kept for the held-out test (heldout.py).
+        self._last_source_to_area = dict(source_to_area)
+
         def _object_loop() -> None:
             """CPU-heavy per-object smoothing pipeline (Kalman + k-NN + votes).
 
@@ -1528,6 +1569,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if self._known_objs.get(key, {}).get("_stale") or _back:
                         self._room_votes.pop(key, None)
                         self._room_confidence.pop(key, None)
+                        self._room_unsure.pop(key, None)
                         # A device that was away and is back must not be judged on
                         # readings from before it left. That applies to every kind
                         # of location evidence, not just the coverage window —
@@ -1597,8 +1639,14 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         obj["room_confidence"] = self._room_confidence.get(key, 0.0)
                         obj["rssi_margin_confidence"] = self._rssi_margin_confidence.get(key, 0.0)
                         # Propagate sub-room position — prefer spatial (real-time geometry)
-                        # over k-NN (historical calibration that may be stale).
-                        _pos = self._spatial_position.get(key) or self._knn_position.get(key)
+                        # over k-NN (historical calibration that may be stale), unless
+                        # Pick the better method found k-NN better in this house.
+                        if self._prefer_knn_now():
+                            _pos = self._knn_position.get(key) or self._spatial_position.get(key)
+                        else:
+                            _pos = self._spatial_position.get(key) or self._knn_position.get(key)
+                        if key in self._room_unsure:
+                            obj["room_unsure"] = self._room_unsure[key]
                         if _pos:
                             # Metres only: where the thing is, not where it lands
                             # on some photo. Drawing that is the panel's job.
@@ -1645,7 +1693,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         obj["room_confidence"] = self._room_confidence.get(key, 0.0)
                         obj["rssi_margin_confidence"] = self._rssi_margin_confidence.get(key, 0.0)
                         # Propagate sub-room position — prefer spatial over k-NN
-                        _pos_ib = self._spatial_position.get(key) or self._knn_position.get(key)
+                        # (or k-NN, when Pick the better method chose it)
+                        if self._prefer_knn_now():
+                            _pos_ib = self._knn_position.get(key) or self._spatial_position.get(key)
+                        else:
+                            _pos_ib = self._spatial_position.get(key) or self._knn_position.get(key)
+                        if key in self._room_unsure:
+                            obj["room_unsure"] = self._room_unsure[key]
                         if _pos_ib:
                             obj["knn_confidence"] = _pos_ib.get("confidence")
                             if _pos_ib.get("x_m") is not None:
@@ -2911,6 +2965,22 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except Exception as _ad_err:
                 _LOGGER.warning("Adaptive tie-break error for %s: %s", key[:30], _ad_err, exc_info=True)
 
+        # ── Honest accuracy (0.38.165): three settings, all off by default ──
+        # Off, none of the lines they guard runs and the room, the position
+        # and every vote are what they were (tests/test_honest_accuracy.py).
+        try:
+            _st_ha = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+            _d_ha = (_st_ha.data if _st_ha else {}) or {}
+            _pick_on = _d_ha.get("positioning_pick_better") is True
+            _unsure_on = _d_ha.get("positioning_unsure") is True
+            _fusion_on = _d_ha.get("positioning_sensor_fusion") is True
+        except Exception:
+            _pick_on = _unsure_on = _fusion_on = False
+        # The held-out test found fingerprints better in this house: k-NN's
+        # room may override a spatial one (heldout.next_preferred, hysteresis).
+        _prefer_knn = _pick_on and self._preferred_method == "knn"
+        _unsure_knn: dict[str, Any] | None = None
+
         # ── Fingerprint positioning (k-NN or Random Forest) ─────────────────
         # When the user has collected calibration data (>= _KNN_MIN_POINTS),
         # the system can use fingerprint matching instead of (or on top of)
@@ -2959,6 +3029,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         len(self._knn_position),
                     )
                 _knn_conf = _knn.get("confidence", 0.0) if _knn else 0.0
+                if _unsure_on and not (_algo == "rf" and _calib.rf_trained):
+                    _unsure_knn = _knn
                 if _knn and _knn_conf >= _KNN_LIVE_THRESHOLD:
                     _knn_room = _knn.get("nearest_room") or ""
                     # Room boundary check using fabric geometry (metres)
@@ -3000,7 +3072,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # room — device-anchored auto-calibration samples carry
                     # the anchor device's LABEL as their room, and confirming
                     # one teleports the beacon into a phantom room.
-                    if _knn_room and _knn_conf >= 0.30 and not _spatial_candidate:
+                    if _knn_room and _knn_conf >= 0.30 and (not _spatial_candidate or _prefer_knn):
                         _known_rooms = set(self._room_centroids) | set(source_to_area.values())
                         if _knn_room in _known_rooms:
                             candidate = _knn_room
@@ -3014,6 +3086,33 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.warning("k-NN error for %s: %s", key[:30], _knn_err, exc_info=True)
             self._knn_position.pop(key, None)
             self._smooth_xy.pop(key, None)
+
+        # ── Motion sensors + usual moves (positioning_sensor_fusion) ─────
+        # A tie-breaker among rooms the radios already put within a few dB of
+        # the candidate; never a room no scanner hears.
+        if _fusion_on and candidate and room_scores and not _outside_area and not self.suspended:
+            _nudged = self._fusion_nudge(candidate, _cur_confirmed, room_scores)
+            if _nudged != candidate:
+                candidate = _nudged
+                if self.is_identified_object(key):
+                    self._fusion_nudges += 1
+
+        # ── Unsure (positioning_unsure) ─────────────────────────────────
+        # Fewer than three scanners heard it, or its nearest fingerprint is a
+        # poor match: the room it had is kept, and flagged, rather than moved
+        # on that evidence.
+        _unsure: str | None = None
+        if _unsure_on and not _outside_area:
+            if len(_live_fresh) < 3:
+                _unsure = "few_scanners"
+            elif _unsure_knn and _unsure_knn.get("confidence") is not None:
+                _cov = min(max(int(_unsure_knn.get("shared_scanners") or 1), 1), 4) / 4.0
+                if float(_unsure_knn["confidence"]) / _cov < _UNSURE_FP_CONF:
+                    _unsure = "far_fingerprint"
+        if _unsure:
+            self._room_unsure[key] = _unsure
+        else:
+            self._room_unsure.pop(key, None)
 
         # ── Spatial position: independent from k-NN ─────────────────────
         # Spatial uses real-time RSSI + known scanner geometry.  It writes
@@ -3099,8 +3198,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         votes = self._room_votes[key]
 
         # Skip None candidates (total signal dropout) — preserves the last
-        # known room instead of diluting the window with empty votes.
-        if candidate is not None:
+        # known room instead of diluting the window with empty votes. An
+        # unsure poll is skipped the same way once there is a room to keep.
+        if candidate is not None and not (_unsure and self._confirmed_room.get(key)):
             votes.append(candidate)
 
         # Count votes per room and check if any room meets the threshold
@@ -3461,6 +3561,142 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Corroboration check for %s failed: %s", room, _corr_err)
             return None
 
+    def _prefer_knn_now(self) -> bool:
+        """positioning_pick_better is on and the held-out test chose k-NN."""
+        if self._preferred_method != "knn":
+            return False
+        try:
+            _d = (getattr(self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS), "data", None) or {})
+            return _d.get("positioning_pick_better") is True
+        except Exception:
+            return False
+
+    def _corroborated_cached(self, room: str) -> bool | None:
+        """_room_corroborated, looked up at most every 5 s per room — fusion
+        asks for several rooms per device per poll."""
+        now = time.monotonic()
+        hit = self._corr_cache.get(room)
+        if hit is not None and now - hit[0] < 5.0:
+            return hit[1]
+        val = self._room_corroborated(room)
+        self._corr_cache[room] = (now, val)
+        return val
+
+    def _fusion_nudge(self, candidate: str, confirmed: str | None,
+                      room_scores: dict[str, float]) -> str:
+        """positioning_sensor_fusion: break a near-tie between rooms the radios
+        already hear, HMM-style — a motion/occupancy/presence sensor on in a
+        room counts for it, sensors there that all say empty count against,
+        and a move this device has never made from its room (the learned
+        transition prior, adaptive_store.transition_prior) counts against.
+
+        Only rooms whose strongest scanner is within _FUSION_MARGIN_DB of the
+        candidate's can win, and only by a strictly better score, so a room
+        with no BLE evidence is never chosen and an even score keeps the
+        candidate."""
+        ref = room_scores.get(candidate)
+        if ref is None:
+            ref = max(room_scores.values())
+        close = [r for r, v in room_scores.items() if v >= ref - _FUSION_MARGIN_DB]
+        if candidate not in close:
+            close.append(candidate)
+        if len(close) < 2:
+            return candidate
+        prior: dict[str, float] = {}
+        if confirmed:
+            try:
+                _ad = self.hass.data.get(DOMAIN, {}).get(DATA_ADAPTIVE)
+                if _ad is not None and hasattr(_ad, "transition_prior"):
+                    prior = _ad.transition_prior(confirmed, close) or {}
+            except Exception:
+                prior = {}
+
+        def _score(r: str) -> float:
+            sc = 0.0
+            corr = self._corroborated_cached(r)
+            if corr is True:
+                sc += 1.0
+            elif corr is False:
+                sc -= 1.0
+            if prior and r != confirmed:
+                p = float(prior.get(r, 0.0))
+                sc += 0.5 * p if p > 0 else -0.5
+            return sc
+
+        scores = {r: _score(r) for r in close}
+        best = max(close, key=lambda r: (scores[r], r == candidate))
+        return best if scores[best] > scores[candidate] else candidate
+
+    # ── Held-out accuracy (heldout.py) ───────────────────────────────────
+
+    def heldout_compute(self) -> dict[str, Any] | None:
+        """Score k-NN and the spatial solve on calibration spots they have
+        not seen. Read-only on calibration data; safe on an executor thread."""
+        from . import heldout as _ho  # noqa: PLC0415
+        dom = self.hass.data.get(DOMAIN, {})
+        cal = dom.get(DATA_CALIBRATION)
+        if cal is None:
+            return None
+        pts = list((getattr(cal, "data", None) or {}).get("points") or [])
+        if not pts:
+            return None
+        model = dom.get(DATA_MODEL)
+        room_at = getattr(model, "beacon_room_from_geometry", None) if model else None
+        site = None
+        if self._scanner_positions:
+            try:
+                _d = (getattr(dom.get(DATA_SETTINGS), "data", None) or {})
+                ref = float(_d.get("ref_power", DEFAULT_REF_POWER))
+                n_exp = float(_d.get("path_loss_exp", DEFAULT_PATH_LOSS_EXP))
+                dev_h = max(0.0, min(3.0, float(_d.get("assumed_device_height_m", 1.0))))
+            except Exception:
+                ref, n_exp, dev_h = DEFAULT_REF_POWER, DEFAULT_PATH_LOSS_EXP, 1.0
+            site = _ho.SpatialSite(
+                positions=dict(self._scanner_positions), fit_sources=set(self._pl_fits),
+                ref=ref, n_exp=n_exp, stack_idx=dict(self._floor_stack_idx),
+                abs_z=dict(self._scanner_abs_z), floor_bases=dict(self._floor_bases),
+                dev_h=dev_h, barriers=list(self._rf_barriers), max_range_m=self._max_range_m,
+            )
+        try:
+            excluded = cal.excluded_sources()
+        except Exception:
+            excluded = frozenset()
+        return _ho.evaluate(pts, excluded=excluded, room_at=room_at, site=site,
+                            source_area=dict(self._last_source_to_area))
+
+    async def async_heldout(self, max_age_s: float = 600.0) -> dict[str, Any] | None:
+        """The held-out result, recomputed in the executor when older than
+        max_age_s. One run at a time; a caller during a run gets the last."""
+        if (self._heldout is not None and time.monotonic() - self._heldout_mono < max_age_s)                 or self._heldout_running:
+            return self._heldout
+        self._heldout_running = True
+        try:
+            res = await self.hass.async_add_executor_job(self.heldout_compute)
+            from . import heldout as _ho  # noqa: PLC0415
+            self._heldout = res
+            self._heldout_mono = time.monotonic()
+            self._preferred_method = _ho.next_preferred(self._preferred_method, res)
+        except Exception as _ho_err:
+            _LOGGER.debug("Held-out accuracy failed: %s", _ho_err)
+        finally:
+            self._heldout_running = False
+        return self._heldout
+
+    def _maybe_refresh_heldout(self) -> None:
+        """Hourly, and only while something uses the result: Pick the better
+        method (positioning_pick_better) or the opt-in report. Neither on,
+        nothing runs."""
+        try:
+            _d = (getattr(self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS), "data", None) or {})
+            if not (_d.get("positioning_pick_better") is True or _d.get("telemetry_enabled") is True):
+                return
+            if self._heldout_running or (self._heldout_mono
+                                         and time.monotonic() - self._heldout_mono < 3600.0):
+                return
+            self.hass.async_create_task(self.async_heldout(3600.0))
+        except Exception:
+            pass
+
     # ── Door/window barrier attenuation (IDEA_DOOR_WINDOW_BARRIERS.md step 4) ──
 
     def _resolve_door_attenuation(self) -> None:
@@ -3527,6 +3763,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._confirmed_room.pop(key, None)
         self._room_confidence.pop(key, None)
         self._rssi_margin_confidence.pop(key, None)
+        self._room_unsure.pop(key, None)
         self._knn_position.pop(key, None)
         self._smooth_xy.pop(key, None)
         self._spatial_position.pop(key, None)

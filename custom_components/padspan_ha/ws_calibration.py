@@ -208,7 +208,20 @@ async def ws_calibration_get(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {
         "points": cal.list_points(),
         "model": cal.data.get("model") or {},
+        # Beside the score above, never instead of it: the same estimators
+        # tested on spots they have not seen (heldout.py). Read-only.
+        "heldout": await _heldout(hass),
     })
+
+
+async def _heldout(hass: HomeAssistant) -> dict[str, Any] | None:
+    coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+    if coord is None or not hasattr(coord, "async_heldout"):
+        return None
+    try:
+        return await coord.async_heldout()
+    except Exception:
+        return None
 
 
 @websocket_api.websocket_command(

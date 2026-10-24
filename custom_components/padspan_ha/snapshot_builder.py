@@ -3085,7 +3085,7 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
             # its anchor rows.
             _MERGE_KEYS = ("x_m", "y_m", "floor_id", "knn_confidence",
                            "room", "room_confidence", "rssi_margin_confidence",
-                           "outside", "_smoothed", "_stale",
+                           "outside", "_smoothed", "_stale", "room_unsure",
                            "_pinned", "anchor_true_x_m", "anchor_true_y_m",
                            "anchor_true_floor_id", "anchor_drift_m", "anchor_drift_severity")
             obj_list = (snap.get("objects") or {}).get("list") or []
