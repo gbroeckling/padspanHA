@@ -10,6 +10,11 @@ This guide walks you through your first 30 minutes with PadSpan — from install
 - At least **one BLE scanner** (ESP32 Bluetooth Proxy, ESPresense, or built-in HA Bluetooth)
 - HACS installed (recommended)
 
+> **What you need for room-level tracking**
+> - **Scanners:** one in each room you want told apart. One scanner alone gives home/away, not rooms. A room with no scanner of its own (a closet, a hall) can only be picked out with calibration, and less reliably. An open-plan kitchen and living room count as one room unless each end has its own.
+> - **Cost:** an ESP32-S3 or ESP32-C3 board with an external antenna is roughly US$10–25; Ethernet boards cost more. A five-room house is about US$50–125 in boards, plus USB power supplies.
+> - **Time:** install and the first room take about 30 minutes. Calibration (optional, for better accuracy) is 2–3 points per room at 15 seconds each, about 1–2 minutes per room with walking: 15–30 minutes for a ten-room house.
+
 ## Choosing Scanner Hardware
 
 PadSpan's goal is placing devices in the correct room on your floor plan — not just home/away. That's a harder problem, and hardware matters more than you'd think.

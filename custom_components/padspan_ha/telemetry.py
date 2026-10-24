@@ -106,6 +106,7 @@ from .const import (
     DATA_SETTINGS,
     DOMAIN,
 )
+from .onboarding import BUCKET_WORDS as _ONB_BUCKETS, STEPS as _ONB_STEPS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -281,7 +282,24 @@ EVENTS: frozenset[str] = frozenset({
     "wizard_la_opened", "wizard_la_finished",
     # Settings → Suggest an idea: which way people take (0.38.140).
     "suggest_idea_posted", "suggest_idea_browsed", "suggest_idea_mail",
+    # A Bluetooth proxy that suddenly hears far fewer advertisements than it
+    # usually does while the others are normal (proxy_health.py; the 2026.7
+    # ESPHome coexistence bug left proxies hearing ~9%). Counted per drop and
+    # reported only as a bucket (PROXY_DROP_EVENTS), never the number.
+    "proxy_rate_drop",
 })
+# A new install's first steps (onboarding.py): how long from setup to the
+# first room and to the first calibration point, as buckets, once per
+# install. Never bumped: build_payload adds them (count 1) until a report
+# carrying them is accepted.
+ONBOARDING_EVENTS: frozenset[str] = frozenset(f"{s}:{b}" for s in _ONB_STEPS for b in _ONB_BUCKETS)
+# The day's proxy_rate_drop count, as one of these instead of the number.
+PROXY_DROP_BUCKETS: tuple[str, ...] = ("1", "2_5", "gt5")
+PROXY_DROP_EVENTS: frozenset[str] = frozenset(f"proxy_rate_drops:{b}" for b in PROXY_DROP_BUCKETS)
+
+
+def _proxy_drop_bucket(n: int) -> str:
+    return "1" if n <= 1 else "2_5" if n <= 5 else "gt5"
 # The panel's views (panel.js _VIEW_PATHS — tests/test_telemetry.py asserts
 # equality) and the sub-tabs of the two views that have them.
 VIEWS: frozenset[str] = frozenset({
@@ -1720,6 +1738,15 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     except Exception:
         pass
     usage = _take_counters(hass) if consume else dict(dom.get(_DATA_COUNTERS) or {})
+    _drops = usage.pop("proxy_rate_drop", 0)
+    if isinstance(_drops, int) and _drops > 0:
+        usage[f"proxy_rate_drops:{_proxy_drop_bucket(_drops)}"] = 1
+    try:
+        from .onboarding import report_events as _onb_events  # noqa: PLC0415
+        for _ev in _onb_events(settings):
+            usage[_ev] = 1
+    except Exception as err:
+        _LOGGER.debug("Telemetry: onboarding left out: %s", err)
     _screens = _screens_listed(dom.get(_DATA_SCREEN_WORDS_TAKEN if consume else _DATA_SCREEN_WORDS))
     if _screens:
         env["screens"] = _screens
@@ -2023,6 +2050,12 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
             await st.async_set(telemetry_last_day=_today())
         except Exception:
             pass
+    # A new install's first steps went: never again (onboarding.py).
+    try:
+        from .onboarding import async_mark_reported  # noqa: PLC0415
+        await async_mark_reported(hass, [k for k in payload.get("usage") or {} if k in ONBOARDING_EVENTS])
+    except Exception as err:
+        _LOGGER.debug("Telemetry: onboarding not marked sent: %s", err)
     # The reply may carry a free-year Pro invite (pro_invite.py). Never fatal.
     try:
         from .pro_invite import store_from_reply  # noqa: PLC0415

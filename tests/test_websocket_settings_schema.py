@@ -48,6 +48,7 @@ _BACKEND_ONLY = {
     "vacation_mode_tracked_since",     # settings_store.py — stamped once on upgrade
     "atlas_default_v1_applied",        # settings_store.py — the one-time Atlas-on switch, stamped on load
     "first_seen_ts",                   # settings_store.py — stamped once on load (trial milestone card)
+    "onboarding",                      # settings_store.py + onboarding.py — a new install's first steps, stamped by the backend
     "wled_teams",                      # padspan_ha/wled_teams_set (ws_wled.py), validated there
     "license_home_token",              # licence_homes.py — the licence server's rolling token, never set by hand
     "license_home_label",              # padspan_ha/licence_homes op=label (ws_forensics.py)

@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.165 — iPhone steps for new installs, and a note when a Bluetooth proxy goes quiet (2026-10-24)
+
+Existing installs keep their settings as they are; Health and Bluetooth look the same in a house whose proxies are hearing normally.
+
+### New
+- **New installs start with the iPhone setup steps on.** An install set up for the first time on this version has Settings → Features → iPhone Setup Path turned on, so an iPhone is given the IRK steps. Installs from before keep what they had (off unless someone turned it on). It can be turned off like any other setting.
+- **A note when a Bluetooth proxy suddenly hears much less.** PadSpan compares each scanner's advertisement rate with its own usual. If one hears under 30% of its usual for more than 10 minutes while the others are normal (as with the ESPHome Wi-Fi and Bluetooth coexistence problem in 2026.7, when proxies heard about a tenth of what was around them), Health shows a short note naming it, until it is back over 60% of its usual for three minutes. Nothing is shown otherwise. Each scanner's usual is learned over its first half hour after Home Assistant starts.
+
+### Added
+- The opt-in usage report counts how many times a proxy started hearing much less (as 1, 2–5 or more) and, once, for an install set up on this version or later, how long it took from setup to its first device in a room and to its first calibration point, in buckets. Counts only, and only with the report on.
+
+### Changed
+- **The Getting Started guide** has a short "what you need" box: how many scanners, roughly what they cost, and how long setup and calibration take.
+
 ## 0.38.164 — Enhanced security, the Studio look, and Live Aboard walls stop under the floor above (2026-10-24)
 
 Everything new here is off until you turn it on. With Enhanced security off and the Live Aboard look unchanged, PadSpan works as in 0.38.163, and houses whose floors stack normally look the same; names are now always drawn as plain text.

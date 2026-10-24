@@ -23,6 +23,8 @@ from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant, callback
 
+from .proxy_health import AdvertRateHealth
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -253,6 +255,9 @@ class BluetoothLive:
         # crowded the radio environment is, which sets how big the cache and
         # the object history grow.
         self.new_addresses: int = 0
+        # Each scanner's advertisement rate against its own usual
+        # (proxy_health.py): memory only, shown only while a drop is on.
+        self.rate_health = AdvertRateHealth()
 
     def _note_scan_mode_flips(self, radios: List[Dict[str, Any]]) -> None:
         """Count radios whose live scan mode CHANGED since the last snapshot.
@@ -291,6 +296,20 @@ class BluetoothLive:
                 bump(self.hass, "scan_mode_flip_auto")
             else:
                 bump(self.hass, "scan_mode_flip_pinned")
+
+    def _rate_health_tick(self) -> set:
+        """Close the advertisement-rate minute if one has passed; the
+        scanners whose drop is on. Counts each drop that starts (opt-in
+        report only)."""
+        try:
+            started = self.rate_health.tick(time.monotonic())
+            if started:
+                from .telemetry import bump  # noqa: PLC0415 - avoids an import cycle
+                bump(self.hass, "proxy_rate_drop", len(started))
+            return self.rate_health.low_sources()
+        except Exception as e:  # noqa: BLE001 - never costs the snapshot
+            _LOGGER.debug("Advert rate health skipped: %s", e)
+            return set()
 
     def unload(self) -> None:
         for u in self._unsubs:
@@ -343,6 +362,8 @@ class BluetoothLive:
             if _age > 2.0 and _prev_adv is not None and _prev_adv.seen > seen:
                 return
             self._seen_by_source[addr][src] = _Adv(record=rec, seen=seen)
+            if _age <= 2.0 and src != "_unknown":
+                self.rate_health.note(src, addr)
             # Sample history for median-of-N (real callbacks only — the
             # reseed path replays cached readings and must not multiply them)
             _rs = rec.get("rssi")
@@ -542,6 +563,7 @@ class BluetoothLive:
 
             now = _now()
             radios: List[Dict[str, Any]] = []
+            _rate_low = self._rate_health_tick()
             try:
                 scanners_fn = getattr(bluetooth, "async_current_scanners", None)
                 if scanners_fn is not None:
@@ -586,6 +608,10 @@ class BluetoothLive:
                             "adapter": str(adapter or "") if adapter is not None else "",
                             "last_heard_s": _lh_s,
                         })
+                        # Only while this scanner's drop is on: a healthy
+                        # house's radios are exactly as before.
+                        if _radio_src in _rate_low:
+                            radios[-1]["adv_rate_low"] = True
                 else:
                     # Older HA: we may not be able to list scanners individually.
                     count = None
