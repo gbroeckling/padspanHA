@@ -3772,6 +3772,7 @@ function createSlot(slotKey){
           renderer.setViewport(r[0], drawnH - r[1] - r[3], r[2], r[3]);
           renderer.setScissor(r[0], drawnH - r[1] - r[3], r[2], r[3]);
           if (c === planCam) sizeNames(planCam, r[3]);         // the names, upright and sized for the plan
+          if (studio) studio.prepare(c);                     // the plan keeps the view's own ground
           renderer.render(scene, c);
         }
         renderer.setScissorTest(false);

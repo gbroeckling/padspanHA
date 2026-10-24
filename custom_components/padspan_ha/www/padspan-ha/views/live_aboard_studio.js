@@ -18,9 +18,10 @@
 //            surfaces only: names, chips and glows are never touched)
 //   walls    a little darker at their foot, as if the floor shaded them
 //   frame    a vignette over the view (CSS: costs the GPU nothing)
-// Low keeps the sky, the stage, the contact shadow, the fill and the
-// vignette (one dome, one pad, one quad); the rim light and the shadow
-// softening are High's. Nothing here runs unless the view picked Studio, so
+// Low keeps the sky's colours (the clear colour and the far stage are its
+// horizon), the stage, the contact shadow, the fill and the vignette (one
+// pad, one quad); the sky dome and its stars, the front and rim lights and
+// the shadow softening are High's (measured: the dome was Low's one real cost). Nothing here runs unless the view picked Studio, so
 // the other looks draw exactly as before. Off (dispose), everything it
 // changed is put back.
 
@@ -71,8 +72,8 @@ export function skyAt(look){
 /** What Studio turns on for a quality profile ("high" | "low"). Pure. */
 export function studioParts(profile){
   const high = profile === "high";
-  return { sky: true, stage: true, contact: true, fill: true, vignette: true, tone: true, wallFoot: true,
-           rim: high, softShadow: high, stars: true };
+  return { sky: high, stage: true, contact: true, fill: true, vignette: true, tone: true, wallFoot: true,
+           rim: high, softShadow: high, stars: high, front: high };
 }
 
 const SKY_VS = `varying vec3 vDir;
@@ -108,16 +109,17 @@ export function createStudio(o){
   const res = [];                                            // what it made, let go of on dispose
   const touched = new Set();                                 // materials it kept out of tone mapping
   let sky = null, pad = null, contact = null, vig = null, rim = null, front = null, hidden = [], skyNow = skyAt({ night: 0, warm: 0 });
-  let parts = studioParts(profile()), lookNow = { night: 0, warm: 0 }, arrived = false;
+  let parts = studioParts(profile()), lookNow = { night: 0, warm: 0 }, arrived = false, planNow = false;
 
-  // The sky: a dome round the camera, drawn first, behind everything.
+  // The sky: a dome round the camera at the far plane, drawn after the
+  // house and the stage (opaque, last), so it is shaded only where nothing else is.
   const skyMat = new THREE.ShaderMaterial({
     uniforms: { uZenith: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() },
                 uSun: { value: new THREE.Vector3(0, 1, 0) }, uSunK: { value: 1 }, uStars: { value: 0 } },
-    vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false, toneMapped: false });
+    vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, depthTest: true, fog: false, toneMapped: false });
   const skyGeo = new THREE.SphereGeometry(600, 40, 20);
   sky = new THREE.Mesh(skyGeo, skyMat);
-  sky.renderOrder = -100; sky.frustumCulled = false; sky.userData.studio = true;
+  sky.renderOrder = 1e6; sky.frustumCulled = false; sky.userData.studio = true;
   res.push(skyGeo, skyMat);
   scene.add(sky);
 
@@ -161,7 +163,8 @@ export function createStudio(o){
       const du = Math.max(0, (u - 0.62) / 0.38), dv = Math.max(0, (v - 0.62) / 0.38), d = Math.min(1, Math.hypot(du, dv));
       const a = Math.pow(1 - d, 2.2);
       const k = (y * 128 + x) * 4;
-      img.data[k] = img.data[k + 1] = img.data[k + 2] = 255; img.data[k + 3] = Math.round(a * 255);
+      // An alphaMap is read from its green channel.
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = Math.round(a * 255); img.data[k + 3] = 255;
     }
     g.putImageData(img, 0, 0);
     const t = new THREE.CanvasTexture(c);
@@ -184,6 +187,8 @@ export function createStudio(o){
     if (padMats[p]) return padMats[p];
     const m = p === "high" ? new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0 })
       : new THREE.MeshLambertMaterial({ color: 0xffffff });
+    // The faint metre grid is High's (Low skips its derivatives).
+    if (p === "high") m.defines = { STAGE_GRID: 1 };
     m.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, padU);
       sh.vertexShader = "varying vec2 vStage;\n" + sh.vertexShader.replace("#include <begin_vertex>",
@@ -192,16 +197,18 @@ export function createStudio(o){
         + sh.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>
   float sd = length(vStage - uCentre);
   diffuseColor.rgb = mix(uPad, uFar, smoothstep(uR * 0.55, uR * 2.6, sd));
+  #ifdef STAGE_GRID
   vec2 gq = abs(fract(vStage + 0.5) - 0.5) / fwidth(vStage);
   float gl = 1.0 - min(min(gq.x, gq.y), 1.0);
   diffuseColor.rgb *= 1.0 - uGrid * gl * (1.0 - smoothstep(uR * 0.4, uR * 1.6, sd));
+  #endif
   diffuseColor.rgb *= 1.0 - smoothstep(uR * 1.4, uR * 4.5, sd);`)
           .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
   float sf = length(vStage - uCentre);
   totalEmissiveRadiance += uPad * uLift * (1.0 - smoothstep(uR * 0.3, uR * 2.2, sf));
   totalEmissiveRadiance += uFar * smoothstep(uR * 1.4, uR * 4.5, sf);`);
     };
-    m.customProgramCacheKey = () => "la3d-studio-pad";
+    m.customProgramCacheKey = () => "la3d-studio-pad-" + p;
     res.push(m);
     return (padMats[p] = m);
   }
@@ -226,8 +233,7 @@ export function createStudio(o){
     u.uZenith.value.set(s.zenith); u.uHorizon.value.set(s.horizon); u.uGlow.value.set(s.glow);
     u.uSunK.value = 1 - lookNow.night * 0.6;
     u.uStars.value = parts.stars ? clamp((lookNow.night - 0.5) * 2, 0, 1) * 0.85 : 0;
-    scene.background.set(s.horizon);
-    scene.fog.color.set(s.horizon);
+    if (!planNow) { scene.background.set(s.horizon); scene.fog.color.set(s.horizon); }
     renderer.setClearColor(s.horizon, 1);
     padU.uPad.value.set(s.pad);
     padU.uFar.value.set(s.horizon);
@@ -244,6 +250,8 @@ export function createStudio(o){
     sun.shadow.intensity = parts.softShadow ? STUDIO_LIGHT.shadow : before.shadowIntensity;
     sun.shadow.radius = parts.softShadow ? STUDIO_LIGHT.shadowRadius : before.shadowRadius;
     rim.visible = parts.rim;
+    sky.visible = parts.sky && !planNow;
+    front.visible = parts.front;
     if (pad) pad.material = padMat();
     if (vig) vig.style.display = parts.vignette ? "" : "none";
   }
@@ -256,7 +264,7 @@ export function createStudio(o){
     house(h){
       for (const ob of hidden) ob.visible = true;
       hidden = [];
-      for (const ob of [h.ground, h.grid]) if (ob) { ob.visible = false; hidden.push(ob); }
+      for (const ob of [h.ground, h.grid]) if (ob) { ob.visible = planNow; hidden.push(ob); }
       const b = h.box, cx = (b.x0 + b.x1) / 2, cz = (b.y0 + b.y1) / 2, sx = b.x1 - b.x0, sz = b.y1 - b.y0;
       const R = Math.max(sx, sz) / 2 + 3;
       padU.uCentre.value.set(cx, cz);
@@ -309,6 +317,19 @@ export function createStudio(o){
     profile(){ applyProfileParts(); touched.clear(); },
     /** Just before a draw: the sky round the camera, new materials kept out of tone mapping. */
     prepare(camera){
+      // Furnish's plan (its own flat camera) keeps the view's own ground,
+      // grid and background: the sky and the stage are the 3D view's.
+      const plan = !!camera.isOrthographicCamera;
+      if (plan !== planNow) {
+        planNow = plan;
+        sky.visible = parts.sky && !plan;
+        if (pad) pad.visible = !plan;
+        if (contact) contact.visible = !plan;
+        for (const ob of hidden) ob.visible = plan;
+        if (plan) { scene.background.setHex(before.bg); scene.fog.color.setHex(before.fog); }
+        else { scene.background.set(skyNow.horizon); scene.fog.color.set(skyNow.horizon); }
+      }
+      if (plan) return;
       sky.position.copy(camera.position);
       // Over the camera's left shoulder, toward what it looks at.
       const t = front.target.position;
@@ -321,7 +342,7 @@ export function createStudio(o){
     },
     state(){
       return { on: true, parts: { ...parts }, sky: { ...skyNow }, tone: renderer.toneMapping === THREE.NeutralToneMapping,
-               shadowType: renderer.shadowMap.type, rim: rim.visible ? rim.intensity : 0, front: front.intensity, pad: !!pad, contact: !!contact,
+               shadowType: renderer.shadowMap.type, rim: rim.visible ? rim.intensity : 0, front: front.visible ? front.intensity : 0, skyShown: !!sky && sky.visible, pad: !!pad, contact: !!contact,
                vignette: !!(vig && vig.parentNode && vig.style.display !== "none"), hidden: hidden.length,
                wallFoot: wallCol ? wallCol.array.some(v => Math.abs(v - STUDIO_WALL_FOOT) < 1e-6) : false };
     },

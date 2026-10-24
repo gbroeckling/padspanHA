@@ -7,8 +7,8 @@
 //
 //   colours   Studio draws every room, name and glow in Live Aboard's own
 //             colours (the same tiles, halos and names as "own")
-//   parts     Low keeps the cheap parts only (no rim light, no shadow
-//             softening); High has them all
+//   parts     Low keeps the cheap parts only (no sky dome, no front or rim
+//             light, no shadow softening); High has them all
 //   sky       the sky follows the sun: day, night; the rain a slate blue by
 //             day, white at night
 //   off       back to "own" on the same view: today's look exactly (page,
@@ -121,10 +121,12 @@ await tryCase("parts: Low keeps the cheap parts; High has them all", async () =>
   const low = await view("st-low", { look3d: "studio", quality: "low" });
   const high = await view("st-high", { look3d: "studio", quality: "high" });
   const l = S(low), h = S(high);
-  const cheap = (p) => p.sky && p.stage && p.contact && p.fill && p.vignette && p.wallFoot;
+  const cheap = (p) => p.stage && p.contact && p.fill && p.vignette && p.wallFoot && p.tone;
   check("parts: Low keeps the cheap parts; High has them all",
     l.profile === "low" && cheap(l.studio.parts) && !l.studio.parts.rim && !l.studio.parts.softShadow && l.studio.rim === 0
+    && !l.studio.parts.sky && !l.studio.parts.front && !l.studio.parts.stars && !l.studio.skyShown
     && h.profile === "high" && cheap(h.studio.parts) && h.studio.parts.rim && h.studio.parts.softShadow && h.studio.rim > 0
+    && h.studio.parts.sky && h.studio.parts.front && h.studio.skyShown
     && l.studio.pad && l.studio.contact && l.studio.vignette && l.studio.hidden === 2 && l.studio.wallFoot,
     { low: [l.profile, l.studio], high: [h.profile, h.studio] });
   for (const k of ["st-low", "st-high"]) LA.releaseLiveAboardSlot(k);
@@ -193,7 +195,7 @@ await tryCase("pure: the module's own numbers", async () => {
     JSON.stringify(day) === JSON.stringify({ zenith: ST.STUDIO_SKY.day.zenith, horizon: ST.STUDIO_SKY.day.horizon, pad: ST.STUDIO_SKY.day.pad, glow: ST.STUDIO_SKY.day.glow })
     && gold.horizon === ST.STUDIO_SKY.golden.horizon && dark.zenith === ST.STUDIO_SKY.night.zenith
     && ST.skyAt(null).zenith === ST.STUDIO_SKY.day.zenith && ST.mixHex("#000000", "#ffffff", 0.5) === "#808080"
-    && !lo.rim && !lo.softShadow && hi.rim && hi.softShadow && JSON.stringify(odd) === JSON.stringify(lo),
+    && !lo.rim && !lo.softShadow && !lo.sky && !lo.front && hi.rim && hi.softShadow && hi.sky && hi.front && JSON.stringify(odd) === JSON.stringify(lo),
     { day, gold, dark, lo, hi });
 });
 

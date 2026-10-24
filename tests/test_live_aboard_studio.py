@@ -116,8 +116,13 @@ def test_studio_is_offered_where_the_look_is_chosen() -> None:
     lm = _js(_VIEWS / "lights_map.js")
     assert ('look3d: h3.settings.atlas_3d_look === "own" || h3.settings.atlas_3d_look === "studio" '
             '? h3.settings.atlas_3d_look : "atlas",') in lm
-    guide = (_ROOT / "docs" / "LIVE_ABOARD_GUIDE.md").read_text(encoding="utf-8")
-    assert "**Studio**" in guide
+
+
+def test_the_guide_names_studio() -> None:
+    path = _ROOT / "docs" / "LIVE_ABOARD_GUIDE.md"
+    if not path.exists():
+        pytest.skip("the Bright derivation carries no docs/")
+    assert "**Studio**" in path.read_text(encoding="utf-8")
 
 
 # ── the other looks are untouched ────────────────────────────────────────────
@@ -168,7 +173,7 @@ def test_studio_never_recolours_a_room() -> None:
 @pytest.mark.parametrize("prefix", ["colours:", "parts:", "sky:", "off:", "arrival:", "pure:"])
 def test_each_part_of_studio(studio, prefix) -> None:
     """colours: the same tiles, glows and names as Live Aboard's own; parts:
-    Low has no rim light or shadow softening, High has both; sky: day and
+    Low has no sky dome, front or rim light or shadow softening, High has them; sky: day and
     night from the sun, rain slate by day; off: back to own is today's look
     exactly; arrival: once, the house still untouched; pure: its numbers."""
     got = {k: v for k, v in studio["cases"].items() if k.startswith(prefix)}
