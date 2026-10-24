@@ -3,32 +3,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required).",
+        "title": "Configura PadSpan HA",
+        "description": "Configurazione locale (nessuna API richiesta). Tutto il resto, compresa la frequenza di aggiornamento di PadSpan, si imposta nel pannello PadSpan nella barra laterale.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Intervallo di aggiornamento (secondi)"
         }
       },
       "reconfigure": {
-        "title": "Reconfigure PadSpan HA",
-        "description": "Update scan interval.",
+        "title": "Riconfigura PadSpan HA",
+        "description": "Modifica l'intervallo di aggiornamento.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Intervallo di aggiornamento (secondi)"
         }
       }
     },
     "abort": {
-      "already_configured": "PadSpan HA is already configured.",
-      "reconfigure_successful": "Saved.",
-      "unknown": "An unexpected error occurred. Check Home Assistant logs."
+      "already_configured": "PadSpan HA è già configurato.",
+      "reconfigure_successful": "Salvato.",
+      "unknown": "Si è verificato un errore imprevisto. Controlla i log di Home Assistant."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "PadSpan HA options",
+        "title": "Opzioni di PadSpan HA",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Intervallo di aggiornamento (secondi)"
+        }
+      }
+    }
+  },
+  "services": {
+    "wled_on": {
+      "name": "Accendi WLED con il suo aspetto",
+      "description": "Accende le luci WLED esattamente con l'aspetto che PadSpan ha memorizzato per loro, senza lampeggi. Una luce che PadSpan non gestisce viene accesa da Home Assistant come di consueto.",
+      "fields": {
+        "brightness_pct": {
+          "name": "Luminosità",
+          "description": "Luminosità in percentuale. Lascia vuoto per la luminosità memorizzata."
+        },
+        "transition": {
+          "name": "Dissolvenza",
+          "description": "Durata della dissolvenza in secondi. Lascia vuoto per la dissolvenza memorizzata."
+        }
+      }
+    },
+    "wled_off": {
+      "name": "Spegni WLED",
+      "description": "Spegne le luci WLED come fa PadSpan, conservando il loro aspetto memorizzato per la prossima accensione.",
+      "fields": {
+        "transition": {
+          "name": "Dissolvenza",
+          "description": "Durata della dissolvenza in secondi. Lascia vuoto per la dissolvenza memorizzata."
         }
       }
     }

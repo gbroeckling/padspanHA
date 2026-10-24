@@ -3,32 +3,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required).",
+        "title": "PadSpan HA instellen",
+        "description": "Lokale installatie (geen API nodig). Al het andere, ook hoe vaak PadSpan bijwerkt, stel je in via het PadSpan-paneel in de zijbalk.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Update-interval (seconden)"
         }
       },
       "reconfigure": {
-        "title": "Reconfigure PadSpan HA",
-        "description": "Update scan interval.",
+        "title": "PadSpan HA opnieuw configureren",
+        "description": "Update-interval wijzigen.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Update-interval (seconden)"
         }
       }
     },
     "abort": {
-      "already_configured": "PadSpan HA is already configured.",
-      "reconfigure_successful": "Saved.",
-      "unknown": "An unexpected error occurred. Check Home Assistant logs."
+      "already_configured": "PadSpan HA is al geconfigureerd.",
+      "reconfigure_successful": "Opgeslagen.",
+      "unknown": "Er is een onverwachte fout opgetreden. Bekijk de logboeken van Home Assistant."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "PadSpan HA options",
+        "title": "PadSpan HA-opties",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Update-interval (seconden)"
+        }
+      }
+    }
+  },
+  "services": {
+    "wled_on": {
+      "name": "WLED aan met zijn look",
+      "description": "Zet WLED-lampen aan met precies de look die PadSpan voor ze heeft onthouden, zonder flits. Een lamp die PadSpan niet aanstuurt, wordt zoals altijd door Home Assistant aangezet.",
+      "fields": {
+        "brightness_pct": {
+          "name": "Helderheid",
+          "description": "Helderheid in procenten. Laat leeg voor de onthouden helderheid."
+        },
+        "transition": {
+          "name": "Overgang",
+          "description": "Overgangstijd in seconden. Laat leeg voor de onthouden overgang."
+        }
+      }
+    },
+    "wled_off": {
+      "name": "WLED uit",
+      "description": "Zet WLED-lampen uit zoals PadSpan dat doet, waarbij hun onthouden look bewaard blijft voor de volgende keer dat ze aangaan.",
+      "fields": {
+        "transition": {
+          "name": "Overgang",
+          "description": "Overgangstijd in seconden. Laat leeg voor de onthouden overgang."
         }
       }
     }

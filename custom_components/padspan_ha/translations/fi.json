@@ -3,32 +3,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required).",
+        "title": "Määritä PadSpan HA",
+        "description": "Paikallinen määritys (API:a ei tarvita). Kaikki muu, myös se, kuinka usein PadSpan päivittyy, asetetaan sivupalkin PadSpan-paneelissa.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Päivitysväli (sekuntia)"
         }
       },
       "reconfigure": {
-        "title": "Reconfigure PadSpan HA",
-        "description": "Update scan interval.",
+        "title": "Määritä PadSpan HA uudelleen",
+        "description": "Muuta päivitysväliä.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Päivitysväli (sekuntia)"
         }
       }
     },
     "abort": {
-      "already_configured": "PadSpan HA is already configured.",
-      "reconfigure_successful": "Saved.",
-      "unknown": "An unexpected error occurred. Check Home Assistant logs."
+      "already_configured": "PadSpan HA on jo määritetty.",
+      "reconfigure_successful": "Tallennettu.",
+      "unknown": "Tapahtui odottamaton virhe. Tarkista Home Assistantin lokit."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "PadSpan HA options",
+        "title": "PadSpan HA -asetukset",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Päivitysväli (sekuntia)"
+        }
+      }
+    }
+  },
+  "services": {
+    "wled_on": {
+      "name": "WLED päälle tallennetulla ulkoasulla",
+      "description": "Sytyttää WLED-valot täsmälleen siihen ulkoasuun, jonka PadSpan on niille tallentanut, ilman välähdystä. Valon, jota PadSpan ei ohjaa, Home Assistant sytyttää tavalliseen tapaan.",
+      "fields": {
+        "brightness_pct": {
+          "name": "Kirkkaus",
+          "description": "Kirkkaus prosentteina. Jätä tyhjäksi, niin käytetään tallennettua kirkkautta."
+        },
+        "transition": {
+          "name": "Häivytys",
+          "description": "Häivytyksen kesto sekunteina. Jätä tyhjäksi, niin käytetään tallennettua häivytystä."
+        }
+      }
+    },
+    "wled_off": {
+      "name": "WLED pois",
+      "description": "Sammuttaa WLED-valot samalla tavalla kuin PadSpan ja säilyttää niiden tallennetun ulkoasun seuraavaa sytytyskertaa varten.",
+      "fields": {
+        "transition": {
+          "name": "Häivytys",
+          "description": "Häivytyksen kesto sekunteina. Jätä tyhjäksi, niin käytetään tallennettua häivytystä."
         }
       }
     }

@@ -3,32 +3,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required).",
+        "title": "Configurar PadSpan HA",
+        "description": "Configuración local (no requiere API). Todo lo demás, incluida la frecuencia con la que PadSpan se actualiza, se ajusta en el panel de PadSpan de la barra lateral.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Intervalo de actualización (segundos)"
         }
       },
       "reconfigure": {
-        "title": "Reconfigure PadSpan HA",
-        "description": "Update scan interval.",
+        "title": "Reconfigurar PadSpan HA",
+        "description": "Cambiar el intervalo de actualización.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Intervalo de actualización (segundos)"
         }
       }
     },
     "abort": {
-      "already_configured": "PadSpan HA is already configured.",
-      "reconfigure_successful": "Saved.",
-      "unknown": "An unexpected error occurred. Check Home Assistant logs."
+      "already_configured": "PadSpan HA ya está configurado.",
+      "reconfigure_successful": "Guardado.",
+      "unknown": "Se ha producido un error inesperado. Revisa los registros de Home Assistant."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "PadSpan HA options",
+        "title": "Opciones de PadSpan HA",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Intervalo de actualización (segundos)"
+        }
+      }
+    }
+  },
+  "services": {
+    "wled_on": {
+      "name": "Encender WLED con su aspecto",
+      "description": "Enciende las luces WLED exactamente con el aspecto que PadSpan recordó para ellas, sin destellos. Una luz que PadSpan no gestiona la enciende Home Assistant como de costumbre.",
+      "fields": {
+        "brightness_pct": {
+          "name": "Brillo",
+          "description": "Brillo en porcentaje. Déjalo vacío para usar el brillo recordado."
+        },
+        "transition": {
+          "name": "Transición",
+          "description": "Duración de la transición en segundos. Déjalo vacío para usar la transición recordada."
+        }
+      }
+    },
+    "wled_off": {
+      "name": "Apagar WLED",
+      "description": "Apaga las luces WLED como lo hace PadSpan, conservando su aspecto recordado para la próxima vez que se enciendan.",
+      "fields": {
+        "transition": {
+          "name": "Transición",
+          "description": "Duración de la transición en segundos. Déjalo vacío para usar la transición recordada."
         }
       }
     }

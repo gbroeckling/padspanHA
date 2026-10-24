@@ -4,6 +4,11 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.165 — Setup and WLED actions translated, a HACS sign-in note, and groundwork for a translated panel (2026-10-24)
+
+### Changed
+- **Setup screens and the WLED actions in ten languages.** Danish, Dutch, Finnish, French, German, Italian, Norwegian, Portuguese, Spanish and Swedish now have real translations of the setup and options screens and of the "WLED on with its look" and "WLED off" actions and their fields. Before, these languages showed English. English is unchanged.
+
 ## 0.38.164 — Enhanced security, the Studio look, and Live Aboard walls stop under the floor above (2026-10-24)
 
 Everything new here is off until you turn it on. With Enhanced security off and the Live Aboard look unchanged, PadSpan works as in 0.38.163, and houses whose floors stack normally look the same; names are now always drawn as plain text.
