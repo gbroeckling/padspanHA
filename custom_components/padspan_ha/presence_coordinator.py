@@ -3631,7 +3631,15 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def heldout_compute(self) -> dict[str, Any] | None:
         """Score k-NN and the spatial solve on calibration spots they have
-        not seen. Read-only on calibration data; safe on an executor thread."""
+        not seen. Read-only on calibration data."""
+        job = self._heldout_job()
+        return job() if job else None
+
+    def _heldout_job(self):
+        """Everything the held-out run reads, copied here on the event loop;
+        the returned call only touches those copies, so it is safe on an
+        executor thread. None when there is nothing to score."""
+        from functools import partial  # noqa: PLC0415
         from . import heldout as _ho  # noqa: PLC0415
         dom = self.hass.data.get(DOMAIN, {})
         cal = dom.get(DATA_CALIBRATION)
@@ -3661,24 +3669,28 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             excluded = cal.excluded_sources()
         except Exception:
             excluded = frozenset()
-        return _ho.evaluate(pts, excluded=excluded, room_at=room_at, site=site,
-                            source_area=dict(self._last_source_to_area))
+        return partial(_ho.evaluate, pts, excluded=excluded, room_at=room_at, site=site,
+                       source_area=dict(self._last_source_to_area))
 
     async def async_heldout(self, max_age_s: float = 600.0) -> dict[str, Any] | None:
         """The held-out result, recomputed in the executor when older than
-        max_age_s. One run at a time; a caller during a run gets the last."""
-        if (self._heldout is not None and time.monotonic() - self._heldout_mono < max_age_s)                 or self._heldout_running:
+        max_age_s. One run at a time; a caller during a run gets the last.
+        A run that fails or finds nothing waits out max_age_s too, so it is
+        not retried every poll."""
+        if (self._heldout_mono and time.monotonic() - self._heldout_mono < max_age_s) \
+                or self._heldout_running:
             return self._heldout
         self._heldout_running = True
         try:
-            res = await self.hass.async_add_executor_job(self.heldout_compute)
+            job = self._heldout_job()
+            res = await self.hass.async_add_executor_job(job) if job else None
             from . import heldout as _ho  # noqa: PLC0415
             self._heldout = res
-            self._heldout_mono = time.monotonic()
             self._preferred_method = _ho.next_preferred(self._preferred_method, res)
         except Exception as _ho_err:
             _LOGGER.debug("Held-out accuracy failed: %s", _ho_err)
         finally:
+            self._heldout_mono = time.monotonic()
             self._heldout_running = False
         return self._heldout
 
@@ -3688,7 +3700,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         background for the next ask; the caller never waits for one."""
         now = time.monotonic()
         if not self._heldout_running and (
-                self._heldout is None or now - self._heldout_mono >= max_age_s):
+                not self._heldout_mono or now - self._heldout_mono >= max_age_s):
             self.hass.async_create_task(self.async_heldout(max_age_s))
         if self._heldout is None:
             return None

@@ -330,6 +330,43 @@ def test_the_tabs_never_wait_for_a_held_out_run():
             and "await _pc.async_heldout" not in src
 
 
+def test_a_failing_run_waits_like_a_good_one_instead_of_every_poll():
+    import asyncio
+    c = make_coord({"positioning_pick_better": True})
+    calls = []
+
+    async def boom(fn, *a):
+        calls.append(fn)
+        raise RuntimeError("no")
+    c.hass.async_add_executor_job = boom
+    asyncio.run(c.async_heldout(3600.0))
+    assert len(calls) == 1 and c._heldout is None and c._heldout_mono > 0
+    asyncio.run(c.async_heldout(3600.0))
+    assert len(calls) == 1 and not c._heldout_running
+    c.hass.async_create_task = MagicMock()
+    c._maybe_refresh_heldout()
+    c.hass.async_create_task.assert_not_called()
+
+
+def test_the_executor_gets_copies_taken_on_the_event_loop():
+    import asyncio
+    c = make_coord()
+    c._last_source_to_area = dict(S2A)
+    seen = []
+
+    async def run(fn, *a):
+        # The loop goes on changing the coordinator while the job runs.
+        c._scanner_positions.clear()
+        c._last_source_to_area.clear()
+        c.hass.data[DOMAIN][DATA_CALIBRATION].data["points"] = []
+        seen.append(fn)
+        return fn(*a)
+    c.hass.async_add_executor_job = run
+    res = asyncio.run(c.async_heldout())
+    assert getattr(seen[0], "func", None) is H.evaluate     # not a bound method reading self
+    assert res and res["knn"]["spots"] == 13 and res["spatial"]
+
+
 def _big_house(n: int, seed: int = 5) -> list[dict]:
     """n points over two floors of the small house, two thirds of them in
     beacon piles of fifty."""
