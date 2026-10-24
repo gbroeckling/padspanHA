@@ -1,0 +1,1224 @@
+{
+ "_about": "German for padspan.traks.ca/de/, built by scripts/build_site_de.py at deploy time. 'units' maps each English text block (inner HTML, whitespace collapsed, version text left out) to its German. A block missing here stays English: run python scripts/build_site_de.py to list them. 'drop' is English that is removed from the German page because it is not true for German readers; 'raw' is exact text replaced everywhere (buttons outside a text block, script strings); 'whatsnew' replaces the release history, which stays in English. Informal 'du'. Prices are CAD; the euros are the ECB rate of 2026-10-23 (1 EUR = 1.5665 CAD) plus about 4% for PayPal's own conversion, rounded and marked 'ca.'.",
+ "drop": [],
+ "units": [
+  {
+   "en": "PadSpan™ HA — BLE room-presence tracking for Home Assistant",
+   "de": "PadSpan™ HA – raumgenaue Bluetooth-Anwesenheit für Home Assistant"
+  },
+  {
+   "en": "<span class=\"brand\">PadSpan™ HA</span> <a href=\"#whatsnew\">What's new</a> <a href=\"demo/\">Try the demo</a> <a href=\"#screenshots\">Screenshots</a> <a href=\"#features\">Features</a> <a href=\"#lights\">Lights</a> <a href=\"#bright\">Bright</a> <a href=\"#editions\">Editions</a> <a href=\"#compare\">Compare</a> <a href=\"#install\">Install</a> <a href=\"#pro\">Pro</a> <a href=\"/de/?lang=de\" hreflang=\"de\" lang=\"de\">Deutsch</a>",
+   "de": "<span class=\"brand\">PadSpan™ HA</span> <a href=\"#whatsnew\">Neuigkeiten</a> <a href=\"demo/\">Demo</a> <a href=\"#screenshots\">Screenshots</a> <a href=\"#features\">Funktionen</a> <a href=\"#lights\">Licht</a> <a href=\"#bright\">Bright</a> <a href=\"#editions\">Editionen</a> <a href=\"#compare\">Vergleich</a> <a href=\"#install\">Installation</a> <a href=\"#pro\">Pro</a> <a href=\"/?lang=en\" hreflang=\"en\" lang=\"en\">English</a>"
+  },
+  {
+   "en": "PadSpan™ HA",
+   "de": "PadSpan™ HA"
+  },
+  {
+   "en": "The most comprehensive BLE room-presence system for Home Assistant. It doesn't just know you're home — it knows <b>which room</b> every Bluetooth device is in, updated every 5 seconds.",
+   "de": "Das umfassendste BLE-System für Anwesenheit pro Raum in Home Assistant. Es weiß nicht nur, dass du zu Hause bist, sondern <b>in welchem Raum</b> jedes Bluetooth-Gerät gerade ist, alle 5 Sekunden aktualisiert. Die Oberfläche von PadSpan ist derzeit auf Englisch."
+  },
+  {
+   "en": "<span class=\"badge\" data-latest-version></span> <span class=\"badge\">HA 2024.1+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Local tracking</span>",
+   "de": "<span class=\"badge\" data-latest-version>v0.37.0</span> <span class=\"badge\">HA 2024.1+</span> <span class=\"badge\">HACS</span> <span class=\"badge\">GPL-3.0</span> <span class=\"badge\">Lokales Tracking</span>"
+  },
+  {
+   "en": "<a class=\"btn primary\" href=\"demo/\">Try the live demo</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA\">View on GitHub</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA/releases/latest\">Download Latest Release</a> <a class=\"btn ghost\" href=\"#install\">Install via HACS</a>",
+   "de": "<a class=\"btn primary\" href=\"demo/\">Live-Demo ausprobieren</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA\">Auf GitHub ansehen</a> <a class=\"btn ghost\" href=\"https://github.com/gbroeckling/padspanHA/releases/latest\">Neueste Version herunterladen</a> <a class=\"btn ghost\" href=\"#install\">Über HACS installieren</a>"
+  },
+  {
+   "en": "Why PadSpan",
+   "de": "Warum PadSpan"
+  },
+  {
+   "en": "A complete tracking workstation, not just a sensor",
+   "de": "Eine komplette Tracking-Werkstatt, nicht nur ein Sensor"
+  },
+  {
+   "en": "Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode — so you can explore every feature before plugging in hardware.",
+   "de": "Die meisten BLE-Integrationen für Anwesenheit geben dir einen Einrichtungsdialog und einen Sensor. PadSpan gibt dir einen Grundriss-Editor, Raumgrenzen als Polygone, isometrische 3D-Karten, Kalibrierung per Rundgang, einen Folgemodus mit E-Mail-Benachrichtigungen, einen Training Hub und einen vollständigen Beispiel- und Demo-Modus. So kannst du jede Funktion ausprobieren, bevor du Hardware anschließt."
+  },
+  {
+   "en": "It works with the BLE scanners you already have. Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly. ESPresense nodes arrive over MQTT, which you switch on in <b>Manage → ESPresense MQTT</b> and which needs Home Assistant's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.",
+   "de": "Es funktioniert mit den BLE-Scannern, die du schon hast. Bluetooth-Proxys von Home Assistant und Bermuda-Proxys werden direkt erkannt. ESPresense-Knoten kommen über MQTT, das du unter <b>Manage → ESPresense MQTT</b> einschaltest; dafür muss die MQTT-Integration von Home Assistant eingerichtet sein. Keine eigene Firmware. Keine Abhängigkeit von einer Cloud. Das Tracking läuft lokal."
+  },
+  {
+   "en": "What leaves your house: the daily <b>update check</b> (your version number, and your IP address as with any web request; Settings → Presence → Update Check turns it off), a daily licence check if you have a key, and the maker lookup: opening the Objects list can send the Bluetooth addresses of up to 40 listed devices to macvendors.com and maclookup.app. Only if you say so: the <b>opt-in usage report</b> is counts, versions and flags, plus a random install ID and the country and language set in Home Assistant — never names, addresses or contact details — and a Preview shows the exact data first. Starting the free 90-day Bright Pro trial or claiming a Pro invite sends the email address the key is issued to. <b>Become a tester</b> is separate from the usage report: you choose what to send and see it before it goes, it goes to the developer only, it is kept until you withdraw (<b>Stop being a tester</b> deletes it), and it is never shared or sold.",
+   "de": "Was dein Haus verlässt: die tägliche <b>Update-Prüfung</b> (deine Versionsnummer und, wie bei jeder Webanfrage, deine IP-Adresse; Settings → Presence → Update Check schaltet sie aus), mit Lizenzschlüssel eine tägliche Lizenzprüfung und die Herstellersuche: Wenn du die Objects-Liste öffnest, können die Bluetooth-Adressen von bis zu 40 aufgelisteten Geräten an macvendors.com und maclookup.app gehen. Nur wenn du zustimmst: Der <b>freiwillige Nutzungsbericht</b> (opt-in) enthält Zählwerte, Versionen und Schalter, dazu eine zufällige Installations-ID sowie das in Home Assistant eingestellte Land und die Sprache, nie Namen, Adressen oder Kontaktdaten, und eine Vorschau zeigt dir vorher genau, was gesendet wird. Wer die kostenlose 90-Tage-Testphase von Bright Pro startet oder eine Pro-Einladung annimmt, schickt die E-Mail-Adresse, für die der Schlüssel ausgestellt wird. <b>Become a tester</b> ist vom Nutzungsbericht getrennt: Du entscheidest, was du schickst, und siehst es, bevor es rausgeht. Es geht nur an den Entwickler, bleibt gespeichert, bis du es zurückziehst (<b>Stop being a tester</b> löscht es), und wird nie weitergegeben oder verkauft."
+  },
+  {
+   "en": "In use",
+   "de": "Im Einsatz"
+  },
+  {
+   "en": "Not a mockup",
+   "de": "Kein Mock-up"
+  },
+  {
+   "en": "PadSpan on a wall-mounted panel in daily use, next to the thermostat and the light switches.",
+   "de": "PadSpan auf einem Wanddisplay im Alltag, neben dem Thermostat und den Lichtschaltern."
+  },
+  {
+   "en": "Screenshots",
+   "de": "Screenshots"
+  },
+  {
+   "en": "See it in action",
+   "de": "So sieht es aus"
+  },
+  {
+   "en": "Click any screenshot to view it full size.",
+   "de": "Klick auf einen Screenshot, um ihn in voller Größe zu sehen."
+  },
+  {
+   "en": "<b>The Atlas</b>Every light, sensor and door on your real floor plan, its own page in the Home Assistant sidebar. Tap a light to switch it",
+   "de": "<b>Der Atlas</b>Jedes Licht, jeder Sensor und jede Tür auf deinem echten Grundriss, als eigene Seite in der Seitenleiste von Home Assistant. Tipp auf ein Licht, um es zu schalten"
+  },
+  {
+   "en": "<b>Live Aboard</b>The whole house in 3D, lit the way it really is right now. PadSpan Pro, experimental",
+   "de": "<b>Live Aboard</b>Das ganze Haus in 3D, so beleuchtet, wie es gerade wirklich ist. PadSpan Pro, experimentell"
+  },
+  {
+   "en": "<b>3D Multi-Floor Tracking</b>Live isometric view with tracked devices across 3 floors",
+   "de": "<b>3D-Tracking über mehrere Etagen</b>Isometrische Live-Ansicht mit erfassten Geräten auf 3 Etagen"
+  },
+  {
+   "en": "<b>3D Heatmap + Signal Overlay</b>RSSI heatmap crosshatch with live device positions",
+   "de": "<b>3D-Heatmap + Signal-Overlay</b>RSSI-Heatmap als Schraffur mit Live-Positionen der Geräte"
+  },
+  {
+   "en": "<b>Maps Library</b>Uploaded floor plans organized by floor",
+   "de": "<b>Kartenbibliothek</b>Hochgeladene Grundrisse, nach Etage sortiert"
+  },
+  {
+   "en": "<b>Scanner-to-Device Graph</b>Bipartite BLE connection graph with live RSSI",
+   "de": "<b>Scanner-Geräte-Graph</b>Bipartiter BLE-Verbindungsgraph mit Live-RSSI"
+  },
+  {
+   "en": "<b>Traceback + Distance Traveled</b>NVR-style playback timeline with per-device reliability",
+   "de": "<b>Traceback + zurückgelegte Strecke</b>Wiedergabe-Zeitleiste im NVR-Stil, mit Zuverlässigkeit pro Gerät"
+  },
+  {
+   "en": "<b>Beacon Tune Calibration</b>3D floor stack with auto-cal and live positions",
+   "de": "<b>Beacon-Tune-Kalibrierung</b>3D-Etagenstapel mit Autokalibrierung und Live-Positionen"
+  },
+  {
+   "en": "<b>Pure Live — Immersive Dashboard</b>Full-screen 3D map with pan/zoom, sonar, and floating stats",
+   "de": "<b>Pure Live – immersives Dashboard</b>3D-Karte im Vollbild mit Verschieben und Zoomen, Sonar und schwebenden Werten"
+  },
+  {
+   "en": "<b>Traceback — Movement Playback</b>Replay with 3D map, timeline scrubber, and distance per device",
+   "de": "<b>Traceback – Bewegungswiedergabe</b>Wiedergabe mit 3D-Karte, Zeitleisten-Regler und Strecke pro Gerät"
+  },
+  {
+   "en": "<b>Sandbox Developer Tools</b>State inspector, floor towers, live signal bars",
+   "de": "<b>Sandbox-Entwicklerwerkzeuge</b>Zustandsinspektor, Etagentürme, Live-Signalbalken"
+  },
+  {
+   "en": "<b>Floor Plan Editor</b>Room boundaries drawn on architectural blueprints",
+   "de": "<b>Grundriss-Editor</b>Raumgrenzen, auf Bauplänen eingezeichnet"
+  },
+  {
+   "en": "<b>3D Calibration Tune</b>Isometric tune view with draggable receiver markers",
+   "de": "<b>3D-Kalibrierung</b>Isometrische Feinabstimmung mit verschiebbaren Empfänger-Markern"
+  },
+  {
+   "en": "<b>Training Hub</b>16 animated walkthroughs + full manual, built in",
+   "de": "<b>Training Hub</b>16 animierte Anleitungen + vollständiges Handbuch, eingebaut"
+  },
+  {
+   "en": "<b>3D Floor Stack</b>Multi-floor stack with live tracking",
+   "de": "<b>3D-Etagenstapel</b>Mehrere Etagen übereinander, mit Live-Tracking"
+  },
+  {
+   "en": "<b>Bluetooth Visualization</b>Live scanner and device signal landscape",
+   "de": "<b>Bluetooth-Visualisierung</b>Live-Signallandschaft von Scannern und Geräten"
+  },
+  {
+   "en": "<b>Maps Library View</b>Floor plan management",
+   "de": "<b>Kartenbibliothek-Ansicht</b>Grundrisse verwalten"
+  },
+  {
+   "en": "<b>Sandbox Dashboard</b>Experimental playground",
+   "de": "<b>Sandbox-Dashboard</b>Experimentierfeld"
+  },
+  {
+   "en": "<b>Lighting Map</b>Every light on the same floor plan as the rooms",
+   "de": "<b>Lichtkarte</b>Jedes Licht auf demselben Grundriss wie die Räume"
+  },
+  {
+   "en": "<b>Real Size &amp; Angle</b>Width, length and rotation in centimetres, not a dot",
+   "de": "<b>Echte Größe &amp; Winkel</b>Breite, Länge und Drehung in Zentimetern, nicht nur ein Punkt"
+  },
+  {
+   "en": "<b>WLED Control Card</b>Brightness, colour and effect, live against the real strip",
+   "de": "<b>WLED-Steuerkarte</b>Helligkeit, Farbe und Effekt, live am echten Streifen"
+  },
+  {
+   "en": "Demo",
+   "de": "Demo"
+  },
+  {
+   "en": "Watch the walkthrough",
+   "de": "Sieh dir den Rundgang an"
+  },
+  {
+   "en": "Or try it yourself, in your browser, on a made-up house: <a class=\"btn primary\" href=\"demo/\">Open the live demo</a>",
+   "de": "Oder probier es selbst aus, im Browser, an einem erfundenen Haus (die Demo ist auf Englisch): <a class=\"btn primary\" href=\"demo/\">Live-Demo öffnen</a>"
+  },
+  {
+   "en": "Feature Highlights",
+   "de": "Die wichtigsten Funktionen"
+  },
+  {
+   "en": "Everything you need for room-level presence",
+   "de": "Alles, was du für Anwesenheit pro Raum brauchst"
+  },
+  {
+   "en": "Presence Tracking",
+   "de": "Anwesenheitserkennung"
+  },
+  {
+   "en": "Room-level BLE tracking, 5-second refresh",
+   "de": "BLE-Tracking pro Raum, Aktualisierung alle 5 Sekunden"
+  },
+  {
+   "en": "Follow mode — animated map + movement timeline",
+   "de": "Folgemodus: animierte Karte + Bewegungszeitleiste"
+  },
+  {
+   "en": "Multi-device tracking with per-device email alerts",
+   "de": "Mehrere Geräte gleichzeitig, mit E-Mail-Benachrichtigungen pro Gerät"
+  },
+  {
+   "en": "Kalman-filtered RSSI smoothing",
+   "de": "RSSI-Glättung mit Kalman-Filter"
+  },
+  {
+   "en": "Home/away binary sensors",
+   "de": "Binärsensoren für zu Hause/abwesend"
+  },
+  {
+   "en": "Private BLE address resolution (iBeacon + IRK)",
+   "de": "Auflösung privater BLE-Adressen (iBeacon + IRK)"
+  },
+  {
+   "en": "Hybrid occupancy estimation (BLE + sensors + WiFi)",
+   "de": "Hybride Belegungsschätzung (BLE + Sensoren + WLAN)"
+  },
+  {
+   "en": "Device Identity",
+   "de": "Geräteidentität"
+  },
+  {
+   "en": "Stable padspan_id survives MAC rotation and firmware updates",
+   "de": "Eine feste padspan_id übersteht MAC-Wechsel und Firmware-Updates"
+  },
+  {
+   "en": "O(1) identity resolution from any volatile key",
+   "de": "Identitätsauflösung in O(1) aus jedem wechselnden Schlüssel"
+  },
+  {
+   "en": "Automatic migration from older tag systems",
+   "de": "Automatische Übernahme aus älteren Tag-Systemen"
+  },
+  {
+   "en": "Interactive registry: merge, relabel, delete",
+   "de": "Interaktives Register: zusammenführen, umbenennen, löschen"
+  },
+  {
+   "en": "Floor Plans &amp; Maps",
+   "de": "Grundrisse &amp; Karten"
+  },
+  {
+   "en": "Upload architectural plans (PNG/JPG) with auto-scaling",
+   "de": "Baupläne hochladen (PNG/JPG), mit automatischer Skalierung"
+  },
+  {
+   "en": "Two-point measure tool for real-world scale",
+   "de": "Zwei-Punkt-Messwerkzeug für den echten Maßstab"
+  },
+  {
+   "en": "Draw room boundary polygons over blueprints",
+   "de": "Raumgrenzen als Polygone über Baupläne zeichnen"
+  },
+  {
+   "en": "3D isometric multi-floor visualization",
+   "de": "Isometrische 3D-Ansicht über mehrere Etagen"
+  },
+  {
+   "en": "2D flat map with zoom/pan and filters",
+   "de": "Flache 2D-Karte mit Zoom, Verschieben und Filtern"
+  },
+  {
+   "en": "Drag-and-place scanner markers",
+   "de": "Scanner-Marker per Drag-and-drop platzieren"
+  },
+  {
+   "en": "Geometry stored in metres, not pixels — re-crop a plan and nothing moves",
+   "de": "Geometrie in Metern gespeichert, nicht in Pixeln: Schneidest du einen Plan neu zu, verrutscht nichts"
+  },
+  {
+   "en": "Stale/missing radio auto-detection",
+   "de": "Erkennt veraltete oder fehlende Funkempfänger automatisch"
+  },
+  {
+   "en": "Calibration",
+   "de": "Kalibrierung"
+  },
+  {
+   "en": "Walk-around fingerprint collection, phone-friendly panel",
+   "de": "Fingerprints per Rundgang sammeln, mit handytauglicher Oberfläche"
+  },
+  {
+   "en": "k-NN matching + OLS path-loss model per scanner",
+   "de": "k-NN-Abgleich + OLS-Pfadverlustmodell pro Scanner"
+  },
+  {
+   "en": "Auto-calibration from stationary beacons",
+   "de": "Autokalibrierung mit fest montierten Beacons"
+  },
+  {
+   "en": "Coverage heatmap with \"walk here next\" guidance",
+   "de": "Abdeckungs-Heatmap mit Hinweisen, wo du als Nächstes entlanggehen solltest"
+  },
+  {
+   "en": "Leave-one-out cross-validation quality scoring",
+   "de": "Qualitätsbewertung per Leave-one-out-Kreuzvalidierung"
+  },
+  {
+   "en": "RSSI Vector Capture — record a walk, replay it against new settings",
+   "de": "RSSI Vector Capture: einen Rundgang aufzeichnen und mit neuen Einstellungen erneut abspielen"
+  },
+  {
+   "en": "3D tune view with draggable receivers",
+   "de": "3D-Feinabstimmung mit verschiebbaren Empfängern"
+  },
+  {
+   "en": "Multi-Floor Intelligence",
+   "de": "Intelligenz über mehrere Etagen"
+  },
+  {
+   "en": "Real scanner mounting heights and floor elevations",
+   "de": "Echte Montagehöhen der Scanner und Höhen der Etagen"
+  },
+  {
+   "en": "Walls as RF barriers with per-material attenuation",
+   "de": "Wände als Funkbarrieren, mit Dämpfung je nach Material"
+  },
+  {
+   "en": "Floor-transition learning with adaptive velocity gate",
+   "de": "Lernt Etagenwechsel, mit adaptiver Geschwindigkeitsschranke"
+  },
+  {
+   "en": "Learned cross-floor RSSI attenuation",
+   "de": "Gelernte RSSI-Dämpfung zwischen Etagen"
+  },
+  {
+   "en": "Outdoor penalties for exterior boundary rooms",
+   "de": "Abzug für draußen bei Räumen an der Außenwand"
+  },
+  {
+   "en": "Scanner Hardware",
+   "de": "Scanner-Hardware"
+  },
+  {
+   "en": "Tested with 20+ ESP32 boards",
+   "de": "Mit über 20 ESP32-Boards getestet"
+  },
+  {
+   "en": "Antenna matters more than the chip — external wins",
+   "de": "Die Antenne zählt mehr als der Chip: extern gewinnt"
+  },
+  {
+   "en": "Auto-discover scanners from HA integrations",
+   "de": "Findet Scanner aus HA-Integrationen automatisch"
+  },
+  {
+   "en": "Per-scanner signal quality and coverage metrics",
+   "de": "Signalqualität und Abdeckung pro Scanner"
+  },
+  {
+   "en": "Assign scanners to floors and rooms on the map",
+   "de": "Scanner auf der Karte Etagen und Räumen zuordnen"
+  },
+  {
+   "en": "Alerts &amp; Automation",
+   "de": "Benachrichtigungen &amp; Automationen"
+  },
+  {
+   "en": "Email alerts on room change (60 s rate limit)",
+   "de": "E-Mail-Benachrichtigung bei Raumwechsel (höchstens alle 60 s)"
+  },
+  {
+   "en": "Area sensors, distance sensors, device trackers, binary sensors",
+   "de": "Bereichssensoren, Distanzsensoren, Device Tracker, Binärsensoren"
+  },
+  {
+   "en": "Full WebSocket API for custom dashboards",
+   "de": "Vollständige WebSocket-API für eigene Dashboards"
+  },
+  {
+   "en": "UI &amp; Experience",
+   "de": "Oberfläche &amp; Bedienung"
+  },
+  {
+   "en": "Pure Live immersive full-screen 3D dashboard",
+   "de": "Pure Live: immersives 3D-Dashboard im Vollbild"
+  },
+  {
+   "en": "19 dedicated views, Basic and Advanced modes",
+   "de": "19 eigene Ansichten, Basic- und Advanced-Modus"
+  },
+  {
+   "en": "5-step onboarding wizard with auto-detection",
+   "de": "Einrichtungsassistent in 5 Schritten, mit automatischer Erkennung"
+  },
+  {
+   "en": "Training Hub: 16 animated walkthroughs + manual",
+   "de": "Training Hub: 16 animierte Anleitungen + Handbuch"
+  },
+  {
+   "en": "Sample mode — full demo, no hardware needed",
+   "de": "Sample mode: komplette Demo, ohne Hardware"
+  },
+  {
+   "en": "NVR-style movement playback",
+   "de": "Bewegungswiedergabe im NVR-Stil"
+  },
+  {
+   "en": "Seven themes: Night and Light (inverted) for everyone; Day, Graphite, Ocean, Dusk and High contrast with Pro <span class=\"pill soon\">Beta</span>",
+   "de": "Sieben Designs: Night und Light (invertiert) für alle; Day, Graphite, Ocean, Dusk und High contrast mit Pro <span class=\"pill soon\">Beta</span>"
+  },
+  {
+   "en": "Hide Home Assistant's sidebar from PadSpan or the Atlas, for a wall screen <span class=\"pill soon\">Beta</span>",
+   "de": "Die Seitenleiste von Home Assistant in PadSpan oder im Atlas ausblenden, für ein Wanddisplay <span class=\"pill soon\">Beta</span>"
+  },
+  {
+   "en": "Experimental Features",
+   "de": "Experimentelle Funktionen"
+  },
+  {
+   "en": "Phone Setup Wizard with irk-capture auto-detection",
+   "de": "Assistent zur Handy-Einrichtung, erkennt irk-capture automatisch"
+  },
+  {
+   "en": "MAC Rotation Bridging",
+   "de": "MAC Rotation Bridging: Geräte über Adresswechsel hinweg verfolgen"
+  },
+  {
+   "en": "Apple device auto-classification",
+   "de": "Automatische Erkennung von Apple-Geräten"
+  },
+  {
+   "en": "Radio Map + Distortion Map overlays",
+   "de": "Overlays für Funkkarte + Verzerrungskarte"
+  },
+  {
+   "en": "Walk-to-Identify",
+   "de": "Walk-to-Identify: Geräte durch Hingehen erkennen"
+  },
+  {
+   "en": "Lighting",
+   "de": "Licht"
+  },
+  {
+   "en": "Your lights on the same floor plan",
+   "de": "Deine Lichter auf demselben Grundriss"
+  },
+  {
+   "en": "PadSpan already knows the shape of your house in metres — the rooms, the floors, the walls. <b>Mapping → Atlas</b> puts your Home Assistant lights, fans, motion and temperature sensors, locks, and doors and windows on that same plan, so you can see and switch them where they actually are instead of hunting through a list of entity names. The finished map is <b>the Atlas</b>, its own page in the Home Assistant sidebar and a good wall screen.",
+   "de": "PadSpan kennt die Form deines Hauses schon in Metern: die Räume, die Etagen, die Wände. <b>Mapping → Atlas</b> setzt deine Lichter, Ventilatoren, Bewegungs- und Temperatursensoren, Schlösser sowie Türen und Fenster aus Home Assistant auf genau diesen Plan. So siehst und schaltest du sie dort, wo sie wirklich sind, statt eine Liste von Entitätsnamen zu durchsuchen. Die fertige Karte ist <b>der Atlas</b>: eine eigene Seite in der Seitenleiste von Home Assistant und ein gutes Wanddisplay."
+  },
+  {
+   "en": "Free, in every install <span class=\"pill free\">No key</span>",
+   "de": "Kostenlos, in jeder Installation <span class=\"pill free\">Ohne Schlüssel</span>"
+  },
+  {
+   "en": "The lighting map — rooms and floors drawn from your real geometry",
+   "de": "Die Lichtkarte: Räume und Etagen aus deiner echten Geometrie gezeichnet"
+  },
+  {
+   "en": "One marker per light, in the room it belongs to",
+   "de": "Ein Marker pro Licht, in dem Raum, zu dem es gehört"
+  },
+  {
+   "en": "Click a light to switch it",
+   "de": "Klick auf ein Licht, um es zu schalten"
+  },
+  {
+   "en": "Never hidden: the Atlas is there whether or not you hold a key",
+   "de": "Nie versteckt: Der Atlas ist da, ob du einen Schlüssel hast oder nicht"
+  },
+  {
+   "en": "With a key",
+   "de": "Mit Schlüssel"
+  },
+  {
+   "en": "<b>Place each light exactly</b> where it hangs, in metres",
+   "de": "<b>Jedes Licht genau dort platzieren</b>, wo es hängt, in Metern"
+  },
+  {
+   "en": "Fixture shapes and sizes — a strip is not a spot",
+   "de": "Leuchtenformen und -größen: Ein Streifen ist kein Spot"
+  },
+  {
+   "en": "WLED strips, with brightness, colour and effect control, live",
+   "de": "WLED-Streifen mit Helligkeit, Farbe und Effekten, live gesteuert"
+  },
+  {
+   "en": "Fans, motion &amp; temperature sensors and locks placed the same way",
+   "de": "Ventilatoren, Bewegungs- &amp; Temperatursensoren und Schlösser, genauso platziert"
+  },
+  {
+   "en": "Doors &amp; windows on a wall — live open/closed state, modelled as real RF barriers",
+   "de": "Türen &amp; Fenster an einer Wand: live offen oder geschlossen, als echte Funkbarrieren berechnet"
+  },
+  {
+   "en": "Motion flash and fade normalized across every sensor's hardware hold time",
+   "de": "Aufblinken und Ausblenden bei Bewegung, angeglichen an die Haltezeit jedes Sensors"
+  },
+  {
+   "en": "<b>Automorph</b> — a soft aura from each fixture into its room",
+   "de": "<b>Automorph</b>: ein weicher Lichtschein von jeder Leuchte in ihren Raum"
+  },
+  {
+   "en": "<b>Showcase</b> presentation mode, now with 20 selectable themes <a href=\"/showcase-themes.html\" style=\"color:var(--acc)\">— sneak peek <span class=\"pill soon\">New</span></a>",
+   "de": "<b>Showcase</b>-Präsentationsmodus, jetzt mit 20 wählbaren Designs <a href=\"/showcase-themes.html\" style=\"color:var(--acc)\">– kleine Vorschau <span class=\"pill soon\">Neu</span></a>"
+  },
+  {
+   "en": "Unlocked by either key: <a href=\"#editions\">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href=\"#pro\">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.",
+   "de": "Freigeschaltet mit einem der beiden Schlüssel: <a href=\"#editions\">PadSpan Bright Pro</a> für 35 CAD im Jahr (ca. 23 €) für die Licht-Hälfte, oder <a href=\"#pro\">PadSpan Pro</a> für 45 CAD (ca. 30 €) für alles. Was du gezeichnet hast, rührt die Sperre nie an: Gib einen Schlüssel ein, und jede Platzierung ist genau so wieder da, wie sie war. Auch mit abgelaufener Lizenz kannst du alles, was du gebaut hast, weiter ansehen und exportieren."
+  },
+  {
+   "en": "With PadSpan Pro",
+   "de": "Mit PadSpan Pro"
+  },
+  {
+   "en": "<b>Live Aboard</b> — the whole house in 3D: walls cut away to see in, doors and windows, lights and LED strips, furniture, people and the weather outside (experimental, off until you turn it on)",
+   "de": "<b>Live Aboard</b>: das ganze Haus in 3D, mit aufgeschnittenen Wänden zum Hineinsehen, Türen und Fenstern, Lichtern und LED-Streifen, Möbeln, Menschen und dem Wetter draußen (experimentell, aus, bis du es einschaltest)"
+  },
+  {
+   "en": "A step-by-step guide builds the 3D house from the map you already have",
+   "de": "Eine Schritt-für-Schritt-Anleitung baut das 3D-Haus aus der Karte, die du schon hast"
+  },
+  {
+   "en": "Mezzanines and galleries drawn inside a tall room, with glass railings on the open edges <span class=\"pill soon\">Beta</span>",
+   "de": "Zwischengeschosse und Galerien in hohen Räumen, mit Glasgeländern an den offenen Kanten <span class=\"pill soon\">Beta</span>"
+  },
+  {
+   "en": "The Atlas as your Overview, the first thing PadSpan opens",
+   "de": "Der Atlas als deine Übersicht, das Erste, was PadSpan öffnet"
+  },
+  {
+   "en": "Editions",
+   "de": "Editionen"
+  },
+  {
+   "en": "Four programs, two dials",
+   "de": "Vier Programme, zwei Regler"
+  },
+  {
+   "en": "There is one codebase. Which <b>edition</b> you download decides what you can see; what your <b>key</b> says decides what you can edit. A Pro key typed into any edition unlocks everything that edition can show, so you never have to work out which key goes with which download.",
+   "de": "Es gibt eine einzige Codebasis. Welche <b>Edition</b> du herunterlädst, entscheidet, was du sehen kannst; was dein <b>Schlüssel</b> erlaubt, entscheidet, was du bearbeiten kannst. Ein Pro-Schlüssel schaltet in jeder Edition alles frei, was diese Edition zeigen kann. Du musst also nie herausfinden, welcher Schlüssel zu welchem Download gehört."
+  },
+  {
+   "en": "PadSpan HA",
+   "de": "PadSpan HA"
+  },
+  {
+   "en": "Full edition · no key",
+   "de": "Volle Edition · ohne Schlüssel"
+  },
+  {
+   "en": "Free",
+   "de": "Kostenlos"
+  },
+  {
+   "en": "Room-level presence, everywhere in the house",
+   "de": "Anwesenheit pro Raum, überall im Haus"
+  },
+  {
+   "en": "Floor plans, 3D maps, calibration",
+   "de": "Grundrisse, 3D-Karten, Kalibrierung"
+  },
+  {
+   "en": "Follow mode, playback, occupancy",
+   "de": "Folgemodus, Wiedergabe, Belegung"
+  },
+  {
+   "en": "The lighting map, view and switch",
+   "de": "Die Lichtkarte: ansehen und schalten"
+  },
+  {
+   "en": "Light placement",
+   "de": "Lichter platzieren"
+  },
+  {
+   "en": "Forensics",
+   "de": "Forensics"
+  },
+  {
+   "en": "PadSpan Pro",
+   "de": "PadSpan Pro"
+  },
+  {
+   "en": "Full edition · Pro key",
+   "de": "Volle Edition · Pro-Schlüssel"
+  },
+  {
+   "en": "$45 <small style=\"font-size:13px;font-weight:600\">CAD / yr</small>",
+   "de": "45 <small style=\"font-size:13px;font-weight:600\">CAD / Jahr · ca. 30 €</small>"
+  },
+  {
+   "en": "Everything in PadSpan HA",
+   "de": "Alles aus PadSpan HA"
+  },
+  {
+   "en": "<b>Forensics</b> — who was near which scanner, when",
+   "de": "<b>Forensics</b>: wer wann in der Nähe welches Scanners war"
+  },
+  {
+   "en": "<b>Light placement</b>, shapes, WLED, Showcase",
+   "de": "<b>Lichter platzieren</b>, Formen, WLED, Showcase"
+  },
+  {
+   "en": "<b>Live Aboard</b>, the house in 3D",
+   "de": "<b>Live Aboard</b>, das Haus in 3D"
+  },
+  {
+   "en": "Day and four more themes",
+   "de": "Day und vier weitere Designs"
+  },
+  {
+   "en": "One key, no separate install",
+   "de": "Ein Schlüssel, keine zusätzliche Installation"
+  },
+  {
+   "en": "PadSpan Bright",
+   "de": "PadSpan Bright"
+  },
+  {
+   "en": "Lighting edition · no key",
+   "de": "Licht-Edition · ohne Schlüssel"
+  },
+  {
+   "en": "A lighting-only download for people who want the map without the presence tracking",
+   "de": "Ein Download nur für Licht, für alle, die die Karte ohne Anwesenheitserkennung wollen"
+  },
+  {
+   "en": "Draws the house and the lights, switching only",
+   "de": "Zeichnet das Haus und die Lichter, nur zum Schalten"
+  },
+  {
+   "en": "Light placement — that is Bright Pro",
+   "de": "Lichter platzieren: Das ist Bright Pro"
+  },
+  {
+   "en": "PadSpan Bright Pro",
+   "de": "PadSpan Bright Pro"
+  },
+  {
+   "en": "Lighting licence",
+   "de": "Licht-Lizenz"
+  },
+  {
+   "en": "$35 <small style=\"font-size:13px;font-weight:600\">CAD / yr</small>",
+   "de": "35 <small style=\"font-size:13px;font-weight:600\">CAD / Jahr · ca. 23 €</small>"
+  },
+  {
+   "en": "<b>Light placement</b>, fixture shapes and sizes",
+   "de": "<b>Lichter platzieren</b>, Leuchtenformen und -größen"
+  },
+  {
+   "en": "WLED, Showcase, Fit room",
+   "de": "WLED, Showcase, Fit room"
+  },
+  {
+   "en": "Works in PadSpan HA today",
+   "de": "Funktioniert schon heute in PadSpan HA"
+  },
+  {
+   "en": "Forensics — that is PadSpan Pro",
+   "de": "Forensics: Das ist PadSpan Pro"
+  },
+  {
+   "en": "Buy PadSpan Bright Pro",
+   "de": "PadSpan Bright Pro kaufen"
+  },
+  {
+   "en": "<b>PadSpan Pro includes everything PadSpan Bright Pro does.</b> The two are not alternatives — Pro is the whole product, Bright Pro is the lighting half of it at a lower price. There is never a reason to buy both, and if you start with Bright Pro and want the rest later, the upgrade is <a href=\"#pro\">$12</a> rather than a second full licence. <br><br> <b>A note on the download:</b> the standalone <i>PadSpan Bright</i> edition — a lighting-only install for people who do not want presence tracking at all — is live: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. A Bright Pro licence works on either download — it unlocks light placement inside PadSpan HA if that's the free download you already use, or inside the standalone Bright edition if you install that instead.",
+   "de": "<b>PadSpan Pro enthält alles, was PadSpan Bright Pro kann.</b> Die beiden sind keine Alternativen: Pro ist das ganze Produkt, Bright Pro dessen Licht-Hälfte zu einem niedrigeren Preis. Es gibt nie einen Grund, beide zu kaufen. Fängst du mit Bright Pro an und willst später den Rest, kostet das Upgrade <a href=\"#pro\">12 CAD</a> (ca. 8 €) statt einer zweiten vollen Lizenz. <br><br> <b>Zum Download:</b> Die eigenständige Edition <i>PadSpan Bright</i>, eine reine Licht-Installation für alle, die gar keine Anwesenheitserkennung wollen, ist verfügbar: <a href=\"https://github.com/gbroeckling/padspanBright\" target=\"_blank\" rel=\"noopener\">gbroeckling/padspanBright</a>. Eine Bright-Pro-Lizenz funktioniert mit beiden Downloads: Sie schaltet das Platzieren von Lichtern in PadSpan HA frei, wenn du diesen kostenlosen Download schon nutzt, oder in der eigenständigen Bright-Edition, wenn du stattdessen die installierst."
+  },
+  {
+   "en": "Phone &amp; Watch Tracking",
+   "de": "Handys &amp; Uhren erkennen"
+  },
+  {
+   "en": "The hardest problem in BLE presence — solved several ways",
+   "de": "Das schwierigste Problem bei BLE-Anwesenheit, auf mehreren Wegen gelöst"
+  },
+  {
+   "en": "Phones rotate their Bluetooth address every ~15 minutes specifically to prevent tracking. PadSpan offers multiple paths depending on your device:",
+   "de": "Handys wechseln ihre Bluetooth-Adresse etwa alle 15 Minuten, genau um Tracking zu verhindern. PadSpan bietet je nach Gerät mehrere Wege:"
+  },
+  {
+   "en": "Device",
+   "de": "Gerät"
+  },
+  {
+   "en": "Easiest Method",
+   "de": "Einfachster Weg"
+  },
+  {
+   "en": "What You Need",
+   "de": "Was du brauchst"
+  },
+  {
+   "en": "<b>Android phone</b>",
+   "de": "<b>Android-Handy</b>"
+  },
+  {
+   "en": "HA Companion App iBeacon",
+   "de": "iBeacon der HA Companion App"
+  },
+  {
+   "en": "Install app, enable BLE Transmitter. Done.",
+   "de": "App installieren, BLE Transmitter einschalten. Fertig."
+  },
+  {
+   "en": "<b>iPhone / iPad</b>",
+   "de": "<b>iPhone / iPad</b>"
+  },
+  {
+   "en": "IRK via irk-capture",
+   "de": "IRK über irk-capture"
+  },
+  {
+   "en": "Spare ESP32, flash irk-capture, pair once, paste IRK",
+   "de": "Ein freier ESP32: irk-capture flashen, einmal koppeln, IRK einfügen"
+  },
+  {
+   "en": "<b>Apple Watch</b>",
+   "de": "<b>Apple Watch</b>"
+  },
+  {
+   "en": "Same as iPhone — pair watch to irk-capture ESP32",
+   "de": "Wie beim iPhone: die Uhr mit dem irk-capture-ESP32 koppeln"
+  },
+  {
+   "en": "<b>Tile / Chipolo</b>",
+   "de": "<b>Tile / Chipolo</b>"
+  },
+  {
+   "en": "Automatic (iBeacon)",
+   "de": "Automatisch (iBeacon)"
+  },
+  {
+   "en": "Stable UUID — just works, tag once",
+   "de": "Feste UUID: funktioniert einfach, einmal zuordnen"
+  },
+  {
+   "en": "<b>AirTag</b>",
+   "de": "<b>AirTag</b>"
+  },
+  {
+   "en": "Probabilistic (experimental)",
+   "de": "Wahrscheinlichkeitsbasiert (experimentell)"
+  },
+  {
+   "en": "Apple Classification + MAC Rotation Bridging",
+   "de": "Apple-Erkennung + MAC Rotation Bridging"
+  },
+  {
+   "en": "<b>SmartTag</b>",
+   "de": "<b>SmartTag</b>"
+  },
+  {
+   "en": "Probabilistic",
+   "de": "Wahrscheinlichkeitsbasiert"
+  },
+  {
+   "en": "Same as AirTag — MAC Rotation Bridging",
+   "de": "Wie beim AirTag: MAC Rotation Bridging"
+  },
+  {
+   "en": "<b>AirPods</b>",
+   "de": "<b>AirPods</b>"
+  },
+  {
+   "en": "Apple auto-classification",
+   "de": "Automatische Apple-Erkennung"
+  },
+  {
+   "en": "Detected and labeled automatically",
+   "de": "Automatisch erkannt und benannt"
+  },
+  {
+   "en": "The IRK extraction workflow is built on <a href=\"https://github.com/DerekSeaman/irk-capture\">Derek Seaman's irk-capture</a> — an ingenious ESP32 tool that makes practical phone tracking in Home Assistant possible without rooting devices or owning a Mac.",
+   "de": "Das Auslesen des IRK baut auf <a href=\"https://github.com/DerekSeaman/irk-capture\">irk-capture von Derek Seaman</a> auf: ein geniales ESP32-Werkzeug, das Handy-Tracking in Home Assistant praktisch möglich macht, ohne Root und ohne Mac."
+  },
+  {
+   "en": "How It Compares",
+   "de": "Im Vergleich"
+  },
+  {
+   "en": "No other HA BLE integration comes close",
+   "de": "Keine andere BLE-Integration für HA bietet so viel"
+  },
+  {
+   "en": "Feature",
+   "de": "Funktion"
+  },
+  {
+   "en": "Bermuda",
+   "de": "Bermuda"
+  },
+  {
+   "en": "Room Assistant",
+   "de": "Room Assistant"
+  },
+  {
+   "en": "ESPresense",
+   "de": "ESPresense"
+  },
+  {
+   "en": "Room-level tracking",
+   "de": "Tracking pro Raum"
+  },
+  {
+   "en": "Phone tracking wizard",
+   "de": "Assistent für Handy-Tracking"
+  },
+  {
+   "en": "IRK capture integration",
+   "de": "IRK-Erfassung eingebaut"
+  },
+  {
+   "en": "MAC rotation bridging",
+   "de": "Verfolgung über MAC-Wechsel hinweg"
+  },
+  {
+   "en": "Apple device auto-classify",
+   "de": "Automatische Apple-Erkennung"
+  },
+  {
+   "en": "Visual floor plans",
+   "de": "Grundrisse"
+  },
+  {
+   "en": "3D multi-floor maps",
+   "de": "3D-Karten über mehrere Etagen"
+  },
+  {
+   "en": "2D flat map + zoom/pan",
+   "de": "Flache 2D-Karte + Zoom und Verschieben"
+  },
+  {
+   "en": "Room boundary editor",
+   "de": "Editor für Raumgrenzen"
+  },
+  {
+   "en": "Walls as RF barriers",
+   "de": "Wände als Funkbarrieren"
+  },
+  {
+   "en": "Fingerprint calibration",
+   "de": "Fingerprint-Kalibrierung"
+  },
+  {
+   "en": "Lighting map on the floor plan (lights, fans, sensors, locks)",
+   "de": "Lichtkarte auf dem Grundriss (Lichter, Ventilatoren, Sensoren, Schlösser)"
+  },
+  {
+   "en": "Door/window RF barriers (live open/closed, material-aware)",
+   "de": "Türen und Fenster als Funkbarrieren (live offen/geschlossen, je nach Material)"
+  },
+  {
+   "en": "Motion hold-time normalized across sensor hardware",
+   "de": "Haltezeit bei Bewegung über alle Sensoren angeglichen"
+  },
+  {
+   "en": "Hybrid occupancy counting",
+   "de": "Hybride Belegungszählung"
+  },
+  {
+   "en": "Stable device identity",
+   "de": "Stabile Geräteidentität"
+  },
+  {
+   "en": "Training hub (16 walkthroughs)",
+   "de": "Training Hub (16 Anleitungen)"
+  },
+  {
+   "en": "Follow mode + email alerts",
+   "de": "Folgemodus + E-Mail-Benachrichtigungen"
+  },
+  {
+   "en": "Onboarding wizard",
+   "de": "Einrichtungsassistent"
+  },
+  {
+   "en": "Movement history playback",
+   "de": "Wiedergabe des Bewegungsverlaufs"
+  },
+  {
+   "en": "Sample/demo mode",
+   "de": "Beispiel- und Demo-Modus"
+  },
+  {
+   "en": "Dedicated UI views",
+   "de": "Eigene Ansichten"
+  },
+  {
+   "en": "Config flow",
+   "de": "Einrichtungsdialog"
+  },
+  {
+   "en": "MQTT config",
+   "de": "MQTT-Konfiguration"
+  },
+  {
+   "en": "Web UI",
+   "de": "Weboberfläche"
+  },
+  {
+   "en": "HA sensor entities",
+   "de": "HA-Sensor-Entitäten"
+  },
+  {
+   "en": "Distance estimation",
+   "de": "Entfernungsschätzung"
+  },
+  {
+   "en": "Kalman RSSI filtering",
+   "de": "Kalman-Filter für RSSI"
+  },
+  {
+   "en": "Works with ESPHome proxies",
+   "de": "Funktioniert mit ESPHome-Proxys"
+  },
+  {
+   "en": "PadSpan reads from these rather than replacing them: Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly, and ESPresense nodes come in over MQTT.",
+   "de": "PadSpan liest von diesen Systemen, statt sie zu ersetzen: Bluetooth-Proxys von Home Assistant und Bermuda-Proxys werden direkt erkannt, und ESPresense-Knoten kommen über MQTT."
+  },
+  {
+   "en": "Installation",
+   "de": "Installation"
+  },
+  {
+   "en": "Up and running in minutes",
+   "de": "In wenigen Minuten startklar"
+  },
+  {
+   "en": "<b style=\"color:var(--acc2)\">Requirements:</b> Home Assistant 2024.1+, at least one BLE scanner (ESPresense, Bermuda proxy, or HA Bluetooth proxy), and HACS (recommended).",
+   "de": "<b style=\"color:var(--acc2)\">Voraussetzungen:</b> Home Assistant 2024.1+, mindestens ein BLE-Scanner (ESPresense, Bermuda-Proxy oder Bluetooth-Proxy von HA) und HACS (empfohlen)."
+  },
+  {
+   "en": "Via HACS (recommended)",
+   "de": "Über HACS (empfohlen)"
+  },
+  {
+   "en": "Open HACS in your Home Assistant instance",
+   "de": "Öffne HACS in deinem Home Assistant"
+  },
+  {
+   "en": "Search for and install <b>PadSpan HA</b> (it's in the HACS default list)",
+   "de": "Suche nach <b>PadSpan HA</b> und installiere es (es steht in der Standardliste von HACS)"
+  },
+  {
+   "en": "Restart Home Assistant completely",
+   "de": "Starte Home Assistant komplett neu"
+  },
+  {
+   "en": "Add the integration: Settings → Devices &amp; Services → Add Integration → PadSpan HA",
+   "de": "Füge die Integration hinzu: Einstellungen → Geräte &amp; Dienste → Integration hinzufügen → PadSpan HA"
+  },
+  {
+   "en": "Quick Start",
+   "de": "Schnellstart"
+  },
+  {
+   "en": "Open the <b>PadSpan HA</b> panel in the sidebar",
+   "de": "Öffne das Panel <b>PadSpan HA</b> in der Seitenleiste"
+  },
+  {
+   "en": "The onboarding wizard guides you: upload a map, set scale, draw rooms, place scanners, calibrate",
+   "de": "Der Einrichtungsassistent führt dich durch: Karte hochladen, Maßstab setzen, Räume zeichnen, Scanner platzieren, kalibrieren"
+  },
+  {
+   "en": "Try <b>Sample mode</b> to explore every feature with demo data",
+   "de": "Probier den <b>Sample mode</b> aus, um jede Funktion mit Demodaten kennenzulernen"
+  },
+  {
+   "en": "Switch to <b>Live mode</b> — your BLE scanners are auto-discovered",
+   "de": "Wechsle in den <b>Live mode</b>: Deine BLE-Scanner werden automatisch gefunden"
+  },
+  {
+   "en": "Tag your devices and start tracking",
+   "de": "Ordne deine Geräte zu und leg los"
+  },
+  {
+   "en": "Documentation",
+   "de": "Dokumentation"
+  },
+  {
+   "en": "Guides for every step",
+   "de": "Anleitungen für jeden Schritt"
+  },
+  {
+   "en": "The built-in Training Hub has 16 animated walkthroughs covering every feature — from BLE basics to Private BLE/IRK setup.",
+   "de": "Der eingebaute Training Hub hat 16 animierte Anleitungen zu jeder Funktion, von den BLE-Grundlagen bis zur Einrichtung von Private BLE/IRK. Die Anleitungen und Dokumente unten sind auf Englisch."
+  },
+  {
+   "en": "<a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md\"><b>Getting Started</b><span>First 30 minutes: install, explore, track</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md\"><b>Floor Plan Setup</b><span>Upload, draw rooms, place scanners, set scale</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/90_TROUBLESHOOTING.md\"><b>Troubleshooting</b><span>Common issues and fixes</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md\"><b>Architecture</b><span>High-level codebase architecture</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md\"><b>WebSocket API</b><span>API reference for custom integrations</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\"><b>Changelog</b><span>Full version history</span></a>",
+   "de": "<a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/GETTING_STARTED.md\"><b>Erste Schritte</b><span>Die ersten 30 Minuten: installieren, ausprobieren, tracken</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/FLOOR_PLAN_SETUP.md\"><b>Grundriss einrichten</b><span>Hochladen, Räume zeichnen, Scanner platzieren, Maßstab setzen</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/90_TROUBLESHOOTING.md\"><b>Fehlersuche</b><span>Häufige Probleme und Lösungen</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/00_REPO_LOGIC_OVERVIEW.md\"><b>Architektur</b><span>Überblick über den Code</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/docs/02_WEBSOCKET_API.md\"><b>WebSocket-API</b><span>API-Referenz für eigene Integrationen</span></a> <a class=\"doc\" href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\"><b>Changelog</b><span>Alle Versionen</span></a>"
+  },
+  {
+   "en": "Development",
+   "de": "Entwicklung"
+  },
+  {
+   "en": "One developer, strong opinions",
+   "de": "Ein Entwickler, klare Meinung"
+  },
+  {
+   "en": "PadSpan HA is built by <a href=\"https://github.com/gbroeckling\">Garry Broeckling</a> — a 30+ year veteran of coding and scripting who has never claimed to be a fast typist. All architecture, product decisions, testing, and releases are human-directed. Implementation is AI-assisted using <a href=\"https://claude.ai\">Claude</a> by Anthropic, which accelerates the write–test–ship cycle considerably. Think of it as one developer with strong opinions and a very patient pair-programming partner.",
+   "de": "PadSpan HA wird von <a href=\"https://github.com/gbroeckling\">Garry Broeckling</a> entwickelt, der seit über 30 Jahren programmiert und skriptet und nie behauptet hat, schnell zu tippen. Architektur, Produktentscheidungen, Tests und Releases liegen in menschlicher Hand. Die Umsetzung ist KI-gestützt, mit <a href=\"https://claude.ai\">Claude</a> von Anthropic, was den Zyklus aus Schreiben, Testen und Ausliefern deutlich beschleunigt. Stell es dir als einen Entwickler mit klarer Meinung und einem sehr geduldigen Pair-Programming-Partner vor."
+  },
+  {
+   "en": "The result: a solo project that ships features at a pace that would normally require a team — without compromising on quality, security, or code review.",
+   "de": "Das Ergebnis: ein Ein-Personen-Projekt, das Funktionen in einem Tempo liefert, für das man normalerweise ein Team bräuchte, ohne Abstriche bei Qualität, Sicherheit oder Code-Review."
+  },
+  {
+   "en": "Pro features, one key — the core stays free",
+   "de": "Pro-Funktionen mit einem Schlüssel, der Kern bleibt kostenlos"
+  },
+  {
+   "en": "PadSpan HA is and remains free, open-source (GPL) software. Pro is an optional license that unlocks advanced features inside the same integration — no separate install, no cloud dependency, all data stays on your Home Assistant instance.",
+   "de": "PadSpan HA ist und bleibt kostenlose Open-Source-Software (GPL). Pro ist eine optionale Lizenz, die erweiterte Funktionen in derselben Integration freischaltet: keine zusätzliche Installation, keine Abhängigkeit von einer Cloud, alle Daten bleiben auf deinem Home Assistant."
+  },
+  {
+   "en": "What Pro unlocks today",
+   "de": "Was Pro heute freischaltet"
+  },
+  {
+   "en": "<b>Forensics</b> — search which BLE devices were near your scanners in any time window. Recorded presence sessions (dwell time, peak signal, per-scanner detail) plus lower-confidence \"possible\" matches, with CSV export.",
+   "de": "<b>Forensics</b>: Such heraus, welche BLE-Geräte in einem beliebigen Zeitraum in der Nähe deiner Scanner waren. Aufgezeichnete Anwesenheiten (Verweildauer, stärkstes Signal, Details pro Scanner) plus weniger sichere „mögliche“ Treffer, mit CSV-Export."
+  },
+  {
+   "en": "Opt-in and privacy-guarded: off by default, explicit enable confirmation, configurable retention (7–90 days), recordings never leave your instance.",
+   "de": "Freiwillig und datenschutzfreundlich: standardmäßig aus, Einschalten nur mit Bestätigung, einstellbare Aufbewahrung (7–90 Tage), Aufzeichnungen verlassen nie dein System."
+  },
+  {
+   "en": "<b>Light placement</b> — place each light exactly where it hangs, with fixture shapes and sizes, WLED support, Showcase and Fit room. See <a href=\"#lights\">Lighting</a>.",
+   "de": "<b>Lichter platzieren</b>: jedes Licht genau dort, wo es hängt, mit Leuchtenformen und -größen, WLED, Showcase und Fit room. Siehe <a href=\"#lights\">Licht</a>."
+  },
+  {
+   "en": "<b>Everything in PadSpan Bright Pro is included.</b> Pro is the whole product; Bright Pro is its lighting half sold separately. Never buy both.",
+   "de": "<b>Alles aus PadSpan Bright Pro ist enthalten.</b> Pro ist das ganze Produkt; Bright Pro ist dessen Licht-Hälfte, einzeln verkauft. Kauf nie beides."
+  },
+  {
+   "en": "More Pro features will join under the same key.",
+   "de": "Weitere Pro-Funktionen kommen unter demselben Schlüssel dazu."
+  },
+  {
+   "en": "Or get Pro free",
+   "de": "Oder Pro kostenlos bekommen"
+  },
+  {
+   "en": "<b>Test it.</b> Testers get two years of PadSpan Pro free, for as long as the anonymous usage report stays on. Sign up in Settings → Presence → Help improve PadSpan. You see exactly what's sent before anything goes.",
+   "de": "<b>Teste es.</b> Tester bekommen zwei Jahre PadSpan Pro kostenlos, solange der anonyme Nutzungsbericht eingeschaltet bleibt. Anmelden unter Settings → Presence → Help improve PadSpan. Du siehst genau, was gesendet wird, bevor irgendetwas rausgeht."
+  },
+  {
+   "en": "<b>Ask for a year.</b> Until December 31, the first 20 people running PadSpan who email <a href=\"mailto:hello@traks.ca\">hello@traks.ca</a> get a year of Pro free. No card, nothing renews.",
+   "de": "<b>Frag nach einem Jahr.</b> Bis zum 31. Dezember bekommen die ersten 20 PadSpan-Nutzer, die an <a href=\"mailto:hello@traks.ca\">hello@traks.ca</a> schreiben, ein Jahr Pro kostenlos. Keine Karte, nichts verlängert sich."
+  },
+  {
+   "en": "<b>Show your setup.</b> Post your house anywhere (the HA forum, Reddit, a blog, a video) with a few screenshots, send the link to hello@traks.ca, and get a year too.",
+   "de": "<b>Zeig dein Setup.</b> Poste dein Haus irgendwo (im HA-Forum, auf Reddit, in einem Blog, in einem Video) mit ein paar Screenshots, schick den Link an hello@traks.ca und bekomm ebenfalls ein Jahr."
+  },
+  {
+   "en": "<b>Invites.</b> Now and then an install that sends the usage report gets an invite for a free year, right in the panel.",
+   "de": "<b>Einladungen.</b> Ab und zu bekommt eine Installation, die den Nutzungsbericht sendet, direkt im Panel eine Einladung für ein kostenloses Jahr."
+  },
+  {
+   "en": "When a free year ends you go back to free. Anything you made stays.",
+   "de": "Wenn ein kostenloses Jahr endet, bist du wieder in der kostenlosen Version. Alles, was du gemacht hast, bleibt."
+  },
+  {
+   "en": "Pro",
+   "de": "Pro"
+  },
+  {
+   "en": "$45 <small style=\"font-size:14px;font-weight:600\">CAD / year</small>",
+   "de": "45 <small style=\"font-size:14px;font-weight:600\">CAD pro Jahr · ca. 30 €</small>"
+  },
+  {
+   "en": "One-time PayPal payment · key valid 1 year · emailed automatically on payment",
+   "de": "Einmalige Zahlung per PayPal in CAD (PayPal rechnet zu seinem Kurs in deine Währung um) · Schlüssel 1 Jahr gültig · kommt nach der Zahlung automatisch per E-Mail"
+  },
+  {
+   "en": "Buy PadSpan Pro with PayPal",
+   "de": "PadSpan Pro mit PayPal kaufen"
+  },
+  {
+   "en": "Launch price · until November 30, 2026",
+   "de": "Einführungspreis · bis 30. November 2026"
+  },
+  {
+   "en": "<span id=\"pl-price\">$89</span> <small style=\"font-size:14px;font-weight:600\">CAD, once</small>",
+   "de": "<span id=\"pl-price\">89</span> <small style=\"font-size:14px;font-weight:600\">CAD, einmalig</small>"
+  },
+  {
+   "en": "PadSpan Pro for life. No renewals, ever. <span id=\"pl-later\">$89 until November 30, 2026; from December 1 it's $168.</span> Already have a PadSpan key? Pay with the same email and that key becomes lifetime.",
+   "de": "PadSpan Pro auf Lebenszeit. Nie wieder verlängern. <span id=\"pl-later\">89 CAD (ca. 59 €) bis zum 30. November 2026, ab dem 1. Dezember 168 CAD (ca. 112 €).</span> Du hast schon einen PadSpan-Schlüssel? Bezahl mit derselben E-Mail-Adresse, dann gilt dieser Schlüssel lebenslang."
+  },
+  {
+   "en": "Buy PadSpan Pro for life with PayPal",
+   "de": "PadSpan Pro auf Lebenszeit mit PayPal kaufen"
+  },
+  {
+   "en": "Requires PadSpan HA v0.22.0 or newer. The current stable release is <span data-latest-version></span>. Enter your key under Settings → Features → PadSpan licence.",
+   "de": "Benötigt PadSpan HA v0.22.0 oder neuer. Die aktuelle stabile Version ist <span data-latest-version>v0.37.0</span>. Gib deinen Schlüssel unter Settings → Features → PadSpan licence ein."
+  },
+  {
+   "en": "Already have PadSpan Bright Pro?",
+   "de": "Du hast schon PadSpan Bright Pro?"
+  },
+  {
+   "en": "Change your existing key over to full PadSpan Pro for the rest of its term — you keep the same key and the same expiry date, and Forensics unlocks.",
+   "de": "Stell deinen Schlüssel für den Rest seiner Laufzeit auf das volle PadSpan Pro um: Du behältst denselben Schlüssel und dasselbe Ablaufdatum, und Forensics wird freigeschaltet."
+  },
+  {
+   "en": "Upgrade to PadSpan Pro — $12",
+   "de": "Upgrade auf PadSpan Pro – 12 CAD"
+  },
+  {
+   "en": "The lighting half, on its own",
+   "de": "Die Licht-Hälfte, für sich allein"
+  },
+  {
+   "en": "Every light, fan, sensor, lock, door and window on the same floor plan as the rooms — free to run, with real placement, WLED control and RF-aware doors behind a key. <a href=\"https://github.com/gbroeckling/padspanBright\">PadSpan Bright on GitHub</a>.",
+   "de": "Jedes Licht, jeder Ventilator und Sensor, jedes Schloss, jede Tür und jedes Fenster auf demselben Grundriss wie die Räume: kostenlos nutzbar, mit echter Platzierung, WLED-Steuerung und Türen als Funkbarrieren mit Lizenzschlüssel. <a href=\"https://github.com/gbroeckling/padspanBright\">PadSpan Bright auf GitHub</a>."
+  },
+  {
+   "en": "Bright (free)",
+   "de": "Bright (kostenlos)"
+  },
+  {
+   "en": "Bright Pro",
+   "de": "Bright Pro"
+  },
+  {
+   "en": "Floors &amp; rooms drawn as an isometric plan",
+   "de": "Etagen &amp; Räume als isometrischer Plan gezeichnet"
+  },
+  {
+   "en": "One marker per light, tap (or its row) to toggle",
+   "de": "Ein Marker pro Licht: Licht oder seine Zeile antippen, um es umzuschalten"
+  },
+  {
+   "en": "Hide lights you don't want cluttering the map",
+   "de": "Lichter ausblenden, die die Karte nicht überladen sollen"
+  },
+  {
+   "en": "Place each light at its real position on the floor plan",
+   "de": "Jedes Licht an seiner echten Position auf dem Grundriss platzieren"
+  },
+  {
+   "en": "Real shape, size (width × length) and rotation",
+   "de": "Echte Form, Größe (Breite × Länge) und Drehung"
+  },
+  {
+   "en": "WLED strip/series placement, sized and angled to the strip",
+   "de": "WLED-Streifen und -Reihen platzieren, in Größe und Winkel passend zum Streifen"
+  },
+  {
+   "en": "Brightness, colour and effect control per light, live",
+   "de": "Helligkeit, Farbe und Effekte pro Licht, live"
+  },
+  {
+   "en": "Fans, motion sensors, temperature sensors and locks placed on the map",
+   "de": "Ventilatoren, Bewegungssensoren, Temperatursensoren und Schlösser auf der Karte platziert"
+  },
+  {
+   "en": "Doors &amp; windows linked to a wall, live open/closed state on the map",
+   "de": "Türen &amp; Fenster einer Wand zugeordnet, live offen oder geschlossen auf der Karte"
+  },
+  {
+   "en": "Closed doors modelled as real RF barriers (material-aware attenuation)",
+   "de": "Geschlossene Türen als echte Funkbarrieren berechnet (Dämpfung je nach Material)"
+  },
+  {
+   "en": "Motion flash/fade normalized across every sensor's hardware hold time",
+   "de": "Aufblinken und Ausblenden bei Bewegung, angeglichen an die Haltezeit jedes Sensors"
+  },
+  {
+   "en": "Automorph room-aura rendering (Glow / Blueprint / Nebula)",
+   "de": "Automorph-Raumschein (Glow / Blueprint / Nebula)"
+  },
+  {
+   "en": "Import an existing house from PadSpan Bright into PadSpan HA",
+   "de": "Ein bestehendes Haus aus PadSpan Bright in PadSpan HA übernehmen"
+  },
+  {
+   "en": "Buy me a coffee ☕",
+   "de": "Spendier mir einen Kaffee ☕"
+  },
+  {
+   "en": "If this project saved you time (or you just like knowing which room your cat is in), you can support development:",
+   "de": "Wenn dir das Projekt Zeit gespart hat (oder du einfach gern weißt, in welchem Raum deine Katze ist), kannst du die Entwicklung unterstützen:"
+  },
+  {
+   "en": "<a href=\"https://github.com/gbroeckling/padspanHA\">GitHub</a> <a href=\"https://github.com/gbroeckling/padspanHA/releases/latest\">Releases</a> <a href=\"https://github.com/gbroeckling/padspanHA/discussions\">Discussions</a> <a href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\">Changelog</a> <a href=\"https://github.com/gbroeckling/padspanHA/blob/main/LICENSE\">License</a> <a href=\"https://traks.ca/projects/\">More projects</a>",
+   "de": "<a href=\"https://github.com/gbroeckling/padspanHA\">GitHub</a> <a href=\"https://github.com/gbroeckling/padspanHA/releases/latest\">Releases</a> <a href=\"https://github.com/gbroeckling/padspanHA/discussions\">Diskussionen</a> <a href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\">Changelog</a> <a href=\"https://github.com/gbroeckling/padspanHA/blob/main/LICENSE\">Lizenz</a> <a href=\"https://traks.ca/projects/\">Weitere Projekte</a>"
+  },
+  {
+   "en": "Copyright © 2026 Garry Broeckling · Licensed under the GNU General Public License v3.0 · PadSpan is a trademark of Devcon Computer Services Limited",
+   "de": "Copyright © 2026 Garry Broeckling · Lizenziert unter der GNU General Public License v3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited"
+  },
+  {
+   "en": "✓ Thanks for your purchase! Your PadSpan Pro license key is on its way to your PayPal email — check your inbox (and spam) in the next few minutes.",
+   "de": "✓ Danke für deinen Kauf! Dein PadSpan-Pro-Lizenzschlüssel ist unterwegs an deine PayPal-E-Mail-Adresse. Schau in den nächsten Minuten in deinen Posteingang (und in den Spam-Ordner)."
+  }
+ ],
+ "attrs": {
+  "3D calibration tune": "3D-Kalibrierung",
+  "3D heatmap overlay": "3D-Heatmap-Overlay",
+  "3D multi-floor tracking": "3D-Tracking über mehrere Etagen",
+  "3D multi-floor tracking with live RSSI heatmap overlay": "3D-Tracking über mehrere Etagen mit Live-RSSI-Heatmap",
+  "3D stack tracking": "Tracking im 3D-Etagenstapel",
+  "Beacon tune calibration": "Beacon-Tune-Kalibrierung",
+  "Bluetooth visualization": "Bluetooth-Visualisierung",
+  "Fixture editor with real width, length and rotation": "Leuchten-Editor mit echter Breite, Länge und Drehung",
+  "Floor plan editor": "Grundriss-Editor",
+  "Lighting map with floors and rooms": "Lichtkarte mit Etagen und Räumen",
+  "Live Aboard: the house in 3D at night with its lights on": "Live Aboard: das Haus nachts in 3D, mit eingeschalteten Lichtern",
+  "Maps library": "Kartenbibliothek",
+  "Maps library view": "Ansicht der Kartenbibliothek",
+  "PadSpan logo": "PadSpan-Logo",
+  "PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices": "PadSpan auf einem Wanddisplay im Wohnzimmer, mit der Karte aller Etagen und den erfassten Geräten",
+  "Pure Live immersive dashboard": "Pure Live, immersives Dashboard",
+  "Sandbox dashboard": "Sandbox-Dashboard",
+  "Sandbox developer tools": "Sandbox-Entwicklerwerkzeuge",
+  "Scanner-device graph": "Scanner-Geräte-Graph",
+  "The Atlas: every light on a two-floor house, lit": "Der Atlas: jedes Licht in einem Haus mit zwei Etagen, eingeschaltet",
+  "Traceback movement playback": "Traceback-Bewegungswiedergabe",
+  "Traceback playback": "Traceback-Wiedergabe",
+  "Training hub": "Training Hub",
+  "WLED light control card": "WLED-Steuerkarte",
+  "PadSpan HA tells you which room every Bluetooth device is in — interactive floor plans, 3D multi-floor maps, walk-around calibration, phone tracking, lighting maps, and 19 dedicated views for Home Assistant.": "PadSpan HA zeigt dir, in welchem Raum jedes Bluetooth-Gerät ist: interaktive Grundrisse, 3D-Karten über mehrere Etagen, Kalibrierung per Rundgang, Handy-Tracking, Lichtkarten und 19 eigene Ansichten für Home Assistant.",
+  "PadSpan™ HA — BLE room-presence tracking for Home Assistant": "PadSpan™ HA – raumgenaue Bluetooth-Anwesenheit für Home Assistant",
+  "Room-level BLE tracking with 3D floor plans, calibration, follow mode, and 19 views. The most comprehensive BLE presence system for Home Assistant.": "BLE-Tracking pro Raum mit 3D-Grundrissen, Kalibrierung, Folgemodus und 19 Ansichten. Das umfassendste BLE-Anwesenheitssystem für Home Assistant."
+ },
+ "raw": {
+  "Your browser doesn't support embedded video. <a href=\"images/demo-walkthrough.mp4\">Download the demo</a>.": "Dein Browser kann dieses Video nicht abspielen. <a href=\"images/demo-walkthrough.mp4\">Video herunterladen</a>.",
+  "style=\"margin-top:auto\">Install free</a>": "style=\"margin-top:auto\">Kostenlos installieren</a>",
+  "style=\"margin-top:auto\">Get Pro</a>": "style=\"margin-top:auto\">Pro kaufen</a>",
+  ">Donate with PayPal</a>": ">Mit PayPal spenden</a>",
+  "textContent=\"PadSpan Pro for life\"": "textContent=\"PadSpan Pro auf Lebenszeit\"",
+  "textContent=\"$168\"": "textContent=\"168\""
+ },
+ "whatsnew": "  <div class=\"kick\">Neuigkeiten</div>\n  <h2>Was sich geändert hat</h2>\n  <p class=\"lede\">Die Versionshinweise gibt es nur auf Englisch: <a href=\"/?hl=en#whatsnew\">in einfachen Worten auf der englischen Seite</a>, mit allen Versionen seit v0.21, und jede einzelne Änderung im <a href=\"https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md\">Changelog</a>.</p>"
+}

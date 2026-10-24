@@ -1077,7 +1077,7 @@ class PadSpanHaApp extends HTMLElement {
   _openReleaseNotes(){
     // Read at call time, not import time: editions.js is allowed to fail.
     // The literal is the same URL release.py writes into the update manifest.
-    const historyUrl = (EDITIONS && EDITIONS.WHATSNEW_URL) || "https://padspan.traks.ca/#whatsnew";
+    const historyUrl = (EDITIONS && EDITIONS.WHATSNEW_URL) || "https://padspan.traks.ca/?hl=en#whatsnew";
     import(`./views/release_notes.js?b=${BUILD_ID}`)
       .then(m => m.openReleaseNotes(this.$modal, {
         url: `/padspan_ha_static/padspan-ha/assets/whatsnew.json?v=${APP_VERSION}&b=${BUILD_ID}`,

@@ -10,6 +10,41 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Language. padspan.traks.ca/de/ is the German page, built from this one by
+  # scripts/build_site_de.py. Visitors in Germany, Austria, Switzerland or
+  # Liechtenstein get it at the front page unless they have picked a language,
+  # or their browser asks for French or Italian first (Romandy, Ticino).
+  # ?lang=en or ?lang=de on any URL picks one for a year (cookie padspan_lang),
+  # which is what the language links on both pages do; ?hl=en shows English once
+  # without remembering it (the German page's link to the English release notes).
+  # The country is the one Cloudflare puts in CF-IPCountry. Cloudflare does not
+  # cache these pages (cf-cache-status DYNAMIC) and the 302 carries no freshness
+  # headers, so no cache hands one visitor's redirect to the next.
+  RewriteCond %{QUERY_STRING} (^|&)lang=en(&|$)
+  RewriteRule ^ - [CO=padspan_lang:en:padspan.traks.ca:525600:/:1:1]
+  RewriteCond %{QUERY_STRING} (^|&)lang=de(&|$)
+  RewriteRule ^ - [CO=padspan_lang:de:padspan.traks.ca:525600:/:1:1]
+
+  # Picked German, now or before: the front page goes to /de/ (keeping any ?query,
+  # so a PayPal return to /?bought=1 lands on /de/?bought=1).
+  RewriteCond %{QUERY_STRING} (^|&)lang=de(&|$)
+  RewriteRule ^(index\.html)?$ https://padspan.traks.ca/de/ [R=302,L]
+  RewriteCond %{QUERY_STRING} !(^|&)lang=
+  RewriteCond %{QUERY_STRING} !(^|&)hl=en(&|$)
+  RewriteCond %{HTTP_COOKIE} (^|;\s*)padspan_lang=de(;|$)
+  RewriteRule ^(index\.html)?$ https://padspan.traks.ca/de/ [R=302,L]
+
+  # Picked nothing yet, in a German-speaking country: the same.
+  RewriteCond %{QUERY_STRING} !(^|&)lang=
+  RewriteCond %{QUERY_STRING} !(^|&)hl=en(&|$)
+  RewriteCond %{HTTP_COOKIE} !(^|;\s*)padspan_lang=
+  RewriteCond %{HTTP:Accept-Language} !^(fr|it)\b [NC]
+  RewriteCond %{HTTP:CF-IPCountry} ^(DE|AT|CH|LI)$
+  RewriteRule ^(index\.html)?$ https://padspan.traks.ca/de/ [R=302,L]
+
+  # /de without its slash, straight to https (mod_dir would answer with http://).
+  RewriteRule ^de$ https://padspan.traks.ca/de/ [R=301,L]
+
   # Absolute https targets on purpose: behind Cloudflare the origin sees plain
   # http, so a relative target makes Apache emit http:// and costs the visitor a
   # second redirect hop back up to https.

@@ -88,5 +88,5 @@ def test_the_notes_load_from_the_shipped_file_with_the_cache_buster() -> None:
     # The website's full history: never where its new tab can't be closed.
     assert "m.notesHistoryLink(historyUrl, this.state.kioskMode)" in body
     # editions.js may fail to load; the history link still has somewhere to go.
-    assert '|| "https://padspan.traks.ca/#whatsnew"' in body
+    assert '|| "https://padspan.traks.ca/?hl=en#whatsnew"' in body
     assert ".catch(" in body and "this._toast(" in body, "a failed module load must say so, not do nothing"

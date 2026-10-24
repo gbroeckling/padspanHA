@@ -123,7 +123,7 @@ function run(label, settings, EDITIONS, check, TRIAL = null, opts = {}) {
 }
 
 const EDITIONS_REAL = {
-  WHATSNEW_URL: "https://padspan.traks.ca/#whatsnew",
+  WHATSNEW_URL: "https://padspan.traks.ca/?hl=en#whatsnew",
   proPitch: () => ({ kind: "free", text: "t ", cta: "c", url: "https://padspan.traks.ca/#pro" }),
 };
 
@@ -186,7 +186,7 @@ run("See what changed opens the notes in the panel, not a new tab", { whatsnew_s
 
 // 6. A pitch that throws must not take the card — and so the tab — down.
 run("a throwing proPitch does not kill the card", { whatsnew_seen_version: "0.0.1" },
-  { WHATSNEW_URL: "https://padspan.traks.ca/#whatsnew", proPitch: () => { throw new Error("boom"); } },
+  { WHATSNEW_URL: "https://padspan.traks.ca/?hl=en#whatsnew", proPitch: () => { throw new Error("boom"); } },
   (out) => { if (!out) throw new Error("expected a card node"); });
 
 // ── The trial placements (views/trial_offer.js) ─────────────────────────────

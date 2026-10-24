@@ -161,6 +161,8 @@ STATIC_FILES = [
     # or the deploy would ship something the repo never recorded.
     "site",
     "scripts/deploy_site.py",
+    # deploy_site.py builds padspan.traks.ca/de/ with it on every deploy.
+    "scripts/build_site_de.py",
     # README assets: the montage the README leads with, the og:image every
     # shared link uses, and the screenshots both are built from.
     "images",
@@ -749,7 +751,9 @@ def publish_update_manifest(version, channel):
         # git tags is a poor landing place for someone who just learned an
         # update exists: the site says what changed in plain terms, links the
         # full changelog, and is where a licence is bought.
-        manifest["notes_url"] = "https://padspan.traks.ca/#whatsnew"
+        # ?hl=en: the notes are English only, so skip the German page site/.htaccess
+        # would otherwise send visitors from Germany, Austria and Switzerland to.
+        manifest["notes_url"] = "https://padspan.traks.ca/?hl=en#whatsnew"
         manifest["latest_beta"] = version
         if channel == "stable":
             manifest["latest_stable"] = version

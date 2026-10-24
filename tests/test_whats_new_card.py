@@ -67,7 +67,7 @@ def test_the_card_seeds_before_it_shows() -> None:
 def test_the_notes_url_has_one_owner() -> None:
     ed = _EDITIONS.read_text(encoding="utf-8")
     assert re.search(r"export const WHATSNEW_URL\s*=", ed), "editions.js no longer owns the notes URL"
-    assert "padspan.traks.ca/#whatsnew" in ed
+    assert "padspan.traks.ca/?hl=en#whatsnew" in ed
 
 
 def test_panel_never_blocks_on_the_editions_import() -> None:

@@ -18,7 +18,7 @@ PadSpan™ HA goes far beyond "home or away." It tells you **which room** every 
 
 Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
 
-It works with your existing BLE scanners. HA Bluetooth proxies and Bermuda proxies are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. Everything runs locally.
+It works with your existing BLE scanners. HA Bluetooth proxies and Bermuda proxies are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.
 
 ---
 
@@ -153,7 +153,6 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live
 - Dark forest-green theme designed for always-on displays
 - Built-in **Training Hub** with 16 animated walkthroughs + full manual
 - **Sample mode** — fully functional demo with synthetic data, no hardware needed
-- **11 languages**: English, Spanish, French, German, Italian, Portuguese, Dutch, Chinese, Japanese, Korean, Russian
 - Standalone calibration panel optimized for phone use during walk-around collection
 - **NVR-style movement playback** — replay tracked device movement on the 3D map
 
@@ -191,7 +190,6 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live
 | Onboarding wizard | ✅ | — | — | — |
 | Movement history playback | ✅ | — | — | — |
 | Sample/demo mode | ✅ | — | — | — |
-| Multi-language (11) | ✅ | — | — | — |
 | Dedicated UI views | 19 | Config flow | MQTT config | Web UI |
 | HA sensor entities | ✅ | ✅ | ✅ | ✅ |
 | Distance estimation | ✅ | ✅ | — | ✅ |
