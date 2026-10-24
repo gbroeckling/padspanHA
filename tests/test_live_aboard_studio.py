@@ -142,7 +142,7 @@ def test_every_studio_call_waits_on_studio() -> None:
     for ln in uses:
         assert ("if (studio)" in ln or "studio ?" in ln or "studio: studio ? studio.state()" in ln
                 or "if (wantStudio !== !!studio) syncStudio(wantStudio);" in ln), ln
-    assert "const wantStudio = !!STUDIO && p.look3d === \"studio\";" in la
+    assert "let wantStudio = !!STUDIO && p.look3d === \"studio\" && !studioFailed;" in la
     assert la.count("STUDIO.createStudio(") == 1 and la.count("let studio = null;") == 1
     assert ".catch(err => { console.warn(\"PadSpan: live_aboard_studio failed to load\", err); return null; });" in la
     # The existing paths, as they were.
@@ -182,3 +182,15 @@ def test_each_part_of_studio(studio, prefix) -> None:
     assert got, f"no {prefix} case ran: {sorted(studio['cases'])}"
     bad = [f for f in studio["failures"] if f["name"].startswith(prefix)]
     assert all(got.values()) and not bad, json.dumps(bad[:4], indent=2, ensure_ascii=False)
+
+
+def test_a_studio_that_cannot_be_made_is_not_tried_on_every_sync() -> None:
+    """createStudio throwing once leaves that slot on the normal look, warned
+    once: not a retry and a warning on every sync with the look still "studio"."""
+    src = _code(_VIEWS / "live_aboard.js")
+    look = src[src.index("  function applyLook(p){"):src.index("  function syncStudio(on){")]
+    assert 'let wantStudio = !!STUDIO && p.look3d === "studio" && !studioFailed;' in look
+    assert look.index("syncStudio(wantStudio);") < look.index("if (studioFailed) wantStudio = false;") < look.index("const key = wantStudio")
+    sync = src[src.index("  function syncStudio(on){"):src.index("  const plainSky = ")]
+    assert "if (on) studioFailed = true;" in sync
+    assert src.count("studioFailed = true") == 1 and "let studioFailed = false;" in src

@@ -521,6 +521,9 @@ function createSlot(slotKey){
   let atlas = null;
   // The Studio look (live_aboard_studio.js), made only while it is picked.
   let studio = null;
+  // Studio could not be made on this slot (createStudio threw): the normal
+  // look from then on, warned once, not tried again on every sync.
+  let studioFailed = false;
   // Furniture (P2 Furnish, live_aboard_furnish.js): every piece drawn on its
   // floor (layer). furnishP: what the Furnish tool needs of the host (its
   // connection, toast, settings, states), from the newest card; topCb: the
@@ -4446,9 +4449,10 @@ function createSlot(slotKey){
     let A = null;
     try { A = LOOKS && p.look3d === "atlas" ? LOOKS.atlasLook(p.atlasLook) : null; } catch (_) { A = null; }
     // Studio (p.look3d "studio"): Live Aboard's own colours, its sky, stage and light round them.
-    const wantStudio = !!STUDIO && p.look3d === "studio";
-    const key = wantStudio ? "studio" : A ? A.key : LOOKS && p.showcase3d === true && p.showcase && p.showcase.key ? String(p.showcase.key) : "classic";
+    let wantStudio = !!STUDIO && p.look3d === "studio" && !studioFailed;
     if (wantStudio !== !!studio) syncStudio(wantStudio);
+    if (studioFailed) wantStudio = false;
+    const key = wantStudio ? "studio" : A ? A.key : LOOKS && p.showcase3d === true && p.showcase && p.showcase.key ? String(p.showcase.key) : "classic";
     if (key === lookKey) return;
     lookKey = key;
     atlas = A;
@@ -4474,6 +4478,7 @@ function createSlot(slotKey){
       }
     } catch (err) {
       console.warn("PadSpan: Studio look failed", err);
+      if (on) studioFailed = true;
       try { if (studio) studio.dispose(); } catch (_) { /* best effort */ }
       studio = null;
     }
