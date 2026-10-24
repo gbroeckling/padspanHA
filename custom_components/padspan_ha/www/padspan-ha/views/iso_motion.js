@@ -113,11 +113,20 @@ function _flush(node) {
  * opts.fadeMs     — fade in/out duration                     (default 300)
  * opts.maxGlidePx — snap instead of glide beyond this        (default 400)
  */
+/** True when the browser asks for reduced motion (prefers-reduced-motion). */
+export function prefersStill() {
+  try { return !!(globalThis.matchMedia && globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  catch (_) { return false; }
+}
+
 export function mergeObjectLayer(group, freshHTML, opts = {}) {
   const keyAttr = opts.keyAttr || "data-obj-key";
   const anchorAttr = opts.anchorAttr || "data-ann";
-  const moveMs = opts.moveMs != null ? opts.moveMs : 900;
-  const fadeMs = opts.fadeMs != null ? opts.fadeMs : 300;
+  // prefers-reduced-motion: no glide and no fade, each object is simply
+  // where it is now. Without the preference, as it always was.
+  const still = opts.still != null ? !!opts.still : prefersStill();
+  const moveMs = still ? 0 : opts.moveMs != null ? opts.moveMs : 900;
+  const fadeMs = still ? 0 : opts.fadeMs != null ? opts.fadeMs : 300;
   const out = { moved: 0, added: 0, removed: 0, swapped: 0 };
   if (!group) return out;
 

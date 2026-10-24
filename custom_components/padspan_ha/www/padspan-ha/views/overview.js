@@ -15,7 +15,7 @@ const { render2DMap } =
   await import(`./plan_viewer.js${new URL(import.meta.url).search}`);
 // Keyed morph + breadcrumb trails for the object layer — see its own header
 // for why this exists: without it, every tracked dot teleports each poll.
-const { mergeObjectLayer, trailPush, trailSvg } =
+const { mergeObjectLayer, trailPush, trailSvg, prefersStill } =
   await import(`./iso_motion.js${new URL(import.meta.url).search}`);
 const { tierAtLeast: _ovTierAtLeast } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -2077,7 +2077,8 @@ export function renderClassic(ctx){
         });
       };
 
-      if (!_isoRebuiltOnce) {
+      // prefers-reduced-motion: the new map in place, without the crossfade.
+      if (!_isoRebuiltOnce || prefersStill()) {
         _isoRebuiltOnce = true;
         doBuild();
         return;

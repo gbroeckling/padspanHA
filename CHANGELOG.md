@@ -13,6 +13,7 @@ Nothing looks different unless you pick it. Themes already chosen stay as they a
 
 ### Changed
 - **High contrast is in every edition.** Settings → Appearance → Theme offers Night, Light (inverted) and High contrast without PadSpan Pro; Graphite, Ocean, Dusk and Day still come with Pro. A High contrast picked earlier now shows without Pro too.
+- **Less motion when the browser asks for it.** With "reduce motion" set in the operating system or browser, the Overview's dots (and Traceback's) go straight to their new spot instead of gliding and fading, and the Overview map changes without its fade. Without that setting nothing changes.
 
 ## 0.38.164 — Enhanced security, the Studio look, and Live Aboard walls stop under the floor above (2026-10-24)
 
