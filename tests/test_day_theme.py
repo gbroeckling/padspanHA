@@ -213,10 +213,10 @@ def test_day_and_the_palettes_are_pro_light_is_everyones():
     body = body[:body.index("\n  }\n")]
     assert 'const pro = String(this.state.settings?.tier || "").toLowerCase() === "pro";' in body
     assert "const day = pro && !!look.day_theme;" in body
-    assert '&& pro && ["graphite", "ocean", "dusk", "contrast"].includes(named)' in body
+    assert '(pro ? ["graphite", "ocean", "dusk", "contrast"] : ["contrast"]).includes(named)' in body, "High contrast is everyone's"
     assert "const invert = !on && !!look.light_theme;" in body, "Light never needs Pro"
     settings = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
-    assert 'const PRO_LOOKS = PAL.concat(["day"]);' in settings
+    assert 'const PRO_LOOKS = ["graphite", "ocean", "dusk", "day"];' in settings
     assert "const locked = PRO_LOOKS.includes(val) && !proOk;" in settings
 
 
