@@ -96,6 +96,9 @@ def test_the_card_text_says_high_contrast_is_everyones():
     st = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
     assert "Graphite, Ocean, Dusk and Day come with PadSpan Pro (" in st
     assert "Night, Light and High contrast are in every edition." in st
-    site = (Path(__file__).resolve().parents[1] / "site" / "index.html").read_text(encoding="utf-8")
+    site_file = Path(__file__).resolve().parents[1] / "site" / "index.html"
+    if not site_file.exists():
+        return                          # not in this tree (PadSpan Bright's)
+    site = site_file.read_text(encoding="utf-8")
     assert "Night, Light (inverted) and High contrast for everyone; Day, Graphite, Ocean and Dusk with Pro" in site
     assert "<li>Day and three more themes</li>" in site

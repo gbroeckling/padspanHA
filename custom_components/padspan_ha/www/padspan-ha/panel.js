@@ -1632,6 +1632,7 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   _scheduleRender(fromPoll = false) {
+    this._updateMapText();
     if (!fromPoll) {
       // User action — render immediately, no delay
       this._renderCurrentView(false);
@@ -3922,7 +3923,6 @@ class PadSpanHaApp extends HTMLElement {
   // but user interactions are sacred (never destroy mid-action).
   _renderCurrentView(fromPoll){
     if(this.state._factoryResetInProgress) return;
-    this._updateMapText();
     if(this.state.view === "calibration" && (this.state._calibTune?._dragging || this.state._calibBeacon?._dragging || this.state._calibTune?._confirming || this.state._calibBeacon?._confirming)) return;
     if(this.state.maps?._stackDragging || this.state.maps?._editDragging) return;
     if(this.state._traceback?.active && this.state.view === "traceback") return;
