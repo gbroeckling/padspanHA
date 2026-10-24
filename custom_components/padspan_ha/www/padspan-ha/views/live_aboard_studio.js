@@ -108,6 +108,14 @@ export function createStudio(o){
                    clear: renderer.getClearColor(new THREE.Color()).getHex(), bg: scene.background.getHex(), fog: scene.fog.color.getHex() };
   const res = [];                                            // what it made, let go of on dispose
   const touched = new Set();                                 // materials it kept out of tone mapping
+  // Whether something may have come into the scene since keepColours last
+  // looked: set by house(), profile() and anything added anywhere in the
+  // scene (three's childadded, watched on every object), so a frame with
+  // nothing new walks nothing.
+  let coloursDue = true;
+  const onAdded = (e) => { coloursDue = true; if (e.child) e.child.traverse(watch); };
+  function watch(ob){ if (!ob.hasEventListener("childadded", onAdded)) ob.addEventListener("childadded", onAdded); }
+  scene.traverse(watch);
   let sky = null, pad = null, contact = null, vig = null, rim = null, front = null, hidden = [], skyNow = skyAt({ night: 0, warm: 0 });
   let parts = studioParts(profile()), lookNow = { night: 0, warm: 0 }, arrived = false, planNow = false;
 
@@ -217,6 +225,8 @@ export function createStudio(o){
    *  rings, the weather) is kept out of it, so its colours are exactly the
    *  view's own. Seen once per material. */
   function keepColours(){
+    if (!coloursDue) return;
+    coloursDue = false;
     scene.traverse((ob) => {
       const ms = ob.material ? (Array.isArray(ob.material) ? ob.material : [ob.material]) : [];
       for (const m of ms) {
@@ -286,7 +296,7 @@ export function createStudio(o){
       }
       contact.position.set(cx, h.groundY + 0.012, cz);
       contact.scale.set(sx + 2.4, 1, sz + 2.4);
-      touched.clear();
+      touched.clear(); coloursDue = true;
     },
     /** The sun was drawn again (the view's drawSun): the sky follows it,
      *  and the light is the view's own, eased into Studio's. */
@@ -314,7 +324,7 @@ export function createStudio(o){
     /** What falls, for the sky as it is (the weather's colour). */
     rain(){ return rainOf(lookNow); },
     /** The quality profile changed. */
-    profile(){ applyProfileParts(); touched.clear(); },
+    profile(){ applyProfileParts(); touched.clear(); coloursDue = true; },
     /** Just before a draw: the sky round the camera, new materials kept out of tone mapping. */
     prepare(camera){
       // Furnish's plan (its own flat camera) keeps the view's own ground,
@@ -353,6 +363,7 @@ export function createStudio(o){
       for (const ob of [sky, pad, contact, rim, rim && rim.target, front, front && front.target]) if (ob && ob.parent) ob.parent.remove(ob);
       if (vig && vig.parentNode) vig.parentNode.removeChild(vig);
       scene.traverse((ob) => {
+        ob.removeEventListener("childadded", onAdded);
         const ms = ob.material ? (Array.isArray(ob.material) ? ob.material : [ob.material]) : [];
         for (const m of ms) if (m && m.userData && m.userData.studioTone) { m.toneMapped = true; m.needsUpdate = true; delete m.userData.studioTone; }
       });

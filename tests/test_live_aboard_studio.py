@@ -170,12 +170,14 @@ def test_studio_never_recolours_a_room() -> None:
 
 # ── the drawing (tests/js/live_aboard_studio.mjs) ────────────────────────────
 
-@pytest.mark.parametrize("prefix", ["colours:", "parts:", "sky:", "off:", "arrival:", "pure:"])
+@pytest.mark.parametrize("prefix", ["colours:", "parts:", "sky:", "off:", "arrival:", "tone:", "pure:"])
 def test_each_part_of_studio(studio, prefix) -> None:
     """colours: the same tiles, glows and names as Live Aboard's own; parts:
     Low has no sky dome, front or rim light or shadow softening, High has them; sky: day and
     night from the sun, rain slate by day; off: back to own is today's look
-    exactly; arrival: once, the house still untouched; pure: its numbers."""
+    exactly; arrival: once, the house still untouched; tone: names and glows
+    out of tone mapping, the scene walked only when something changed; pure:
+    its numbers."""
     got = {k: v for k, v in studio["cases"].items() if k.startswith(prefix)}
     assert got, f"no {prefix} case ran: {sorted(studio['cases'])}"
     bad = [f for f in studio["failures"] if f["name"].startswith(prefix)]

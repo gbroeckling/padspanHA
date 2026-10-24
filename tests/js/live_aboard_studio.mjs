@@ -15,6 +15,8 @@
 //             fog, sky light, tiles, halos), nothing of Studio left
 //   arrival   the camera glides in once on open, and the house still counts
 //             as untouched (it is fitted again as before)
+//   tone      names and glows kept out of tone mapping, lit surfaces not;
+//             the scene walked only when something came into it
 //   pure      skyAt / studioParts / rainOf, the module's own numbers
 //
 // usage: live_aboard_studio.mjs <www/padspan-ha dir>
@@ -185,6 +187,35 @@ await tryCase("arrival: once on open, and the house still counts as untouched", 
     { early: early.cam, st: st.cam, flying: early.screen.flying });
   for (const k of ["st-arrive", "st-arrive-own"]) LA.releaseLiveAboardSlot(k);
   await settle();
+});
+
+// ── tone ────────────────────────────────────────────────────────────────────
+await tryCase("tone: names and glows kept out of tone mapping, walked only when something changed", async () => {
+  const THREE = await import(url("vendor", "three", "three.module.min.js"));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color("#102018"); scene.fog = new THREE.Fog("#102018", 10, 100);
+  const renderer = { toneMapping: THREE.NoToneMapping, toneMappingExposure: 1, shadowMap: { type: THREE.PCFSoftShadowMap },
+    getClearColor: (c) => c.set("#000000"), setClearColor(){} };
+  const hemi = new THREE.HemisphereLight(), sun = new THREE.DirectionalLight();
+  const group = new THREE.Group(); scene.add(group);
+  const name = new THREE.Sprite(new THREE.SpriteMaterial()), wall = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  group.add(name, wall);
+  const st = ST.createStudio({ THREE, renderer, scene, root: null, canvas: null, hemi, sun, wallBox: null, profile: () => "low" });
+  const cam = new THREE.PerspectiveCamera();
+  let walks = 0; const tr = scene.traverse; scene.traverse = function(f){ walks++; return tr.call(this, f); };
+  st.prepare(cam); const first = walks;
+  st.prepare(cam); st.prepare(cam); const idle = walks - first;
+  const late = new THREE.Mesh(new THREE.RingGeometry(), new THREE.MeshBasicMaterial());
+  const inner = new THREE.Group(); group.add(inner); inner.add(late);   // added deep, after the first frame
+  st.prepare(cam); const lateWalks = walks - first - idle;
+  st.profile(); st.prepare(cam); const profWalks = walks - first - idle - lateWalks;
+  const ok1 = name.material.toneMapped === false && wall.material.toneMapped === true && late.material.toneMapped === false;
+  scene.traverse = tr;
+  st.dispose();
+  check("tone: names and glows kept out of tone mapping, walked only when something changed",
+    ok1 && first === 1 && idle === 0 && lateWalks === 1 && profWalks === 1
+    && name.material.toneMapped === true && late.material.toneMapped === true && !((group._listeners && group._listeners.childadded) || []).length,
+    { first, idle, lateWalks, profWalks, name: name.material.toneMapped, late: late.material.toneMapped });
 });
 
 // ── pure ────────────────────────────────────────────────────────────────────
