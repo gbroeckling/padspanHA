@@ -306,7 +306,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
             const rxShort = _esc((_sid(src) || rxFull.substring(0,3)).toUpperCase());
             const rxSrc2d = _esc(src);
             // Compact: small radio glyph + 2-3 char id; full name on hover (title).
-            s += `<g data-scanner-src="${rxSrc2d}" style="cursor:pointer"><title>${_esc(rxFull)} ${isOnline?"● online":"○ offline"}${rxMode}</title>`;
+            s += `<g data-scanner-src="${rxSrc2d}" style="cursor:pointer"><title>${_esc(rxFull)} ${isOnline?"● online":"○ offline"}${_esc(rxMode)}</title>`;
             s += `<circle cx="${_f(px)}" cy="${_f(py)}" r="${_mkR*1.8}" fill="none" stroke="${rxColor}" stroke-width="${_sw*0.5}" opacity="0.3"/>`;
             s += rxActive
               ? `<circle cx="${_f(px)}" cy="${_f(py)}" r="${_mkR}" fill="none" stroke="${rxInner}" stroke-width="${_sw*0.9}">`

@@ -90,7 +90,7 @@ export function render(ctx){
     if(bad.length){
       const warn = el("div",{style:"margin-top:8px;padding:8px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:6px;font-size:11px;color:#fca5a5"});
       warn.innerHTML = `<b>\u26a0 ${bad.length} scanner(s) below 70% reliability</b><br>` +
-        bad.map(([src,d]) => `${nameMap[src]||src} (${d.agree_pct}% agreement)`).join(", ") +
+        bad.map(([src,d]) => `${_escHtml(nameMap[src]||src)} (${_escHtml(d.agree_pct)}% agreement)`).join(", ") +
         `<br><span style="color:#94a3b8;font-size:10px">These scanners frequently disagree with consensus room assignments. Check placement, antenna orientation, or RSSI offset.</span>`;
       shCard.appendChild(warn);
     }
