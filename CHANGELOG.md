@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.165 — An honest accuracy score, and three positioning choices (2026-10-24)
+
+The three new choices are off until you turn them on. With them off, rooms and positions are worked out exactly as in 0.38.164; the only thing you see is one new line beside the accuracy you already had.
+
+### New
+- **Accuracy on spots it hasn't seen.** Calibration → Model and QA now show, beside the existing estimate, how each method does on calibration spots it was not given: every point within 1.5 m of the spot (and the rest of a beacon's own points) is set aside before it is tested. It reads "Tested on spots it hasn't seen: fingerprints X% rooms right, median N m; spatial …". It is usually worse than the old estimate, which is tested with near-copies of each spot still in, and closer to what you see as you walk around. The old estimate is unchanged. Calibration points are only read, never changed.
+- **Pick the better method for this house.** PadSpan places devices from the radios' positions (spatial) and from your calibration points (fingerprints), and has always preferred spatial. With this on, it prefers whichever did better on unseen spots, and switches only on a clear win (5 points of rooms right, or half a metre), so it does not flip back and forth. Settings → Presence → Positioning Choices.
+- **Mark a room as unsure when the signal is thin.** When fewer than 3 scanners hear a device, or no calibration point matches it well, it keeps the room it had and is marked unsure: a `room_unsure` attribute on its entity and a quiet line in its details. Same place.
+- **Use motion sensors and usual moves to break ties.** When two rooms read within a few dB of each other, a motion, occupancy or presence sensor in one of them, and the room-to-room moves PadSpan has learned, decide between them. It never picks a room no scanner hears. Same place.
+
+### Added
+- The opt-in usage report carries the unseen-spots score as ranges only (rooms right, median error, which method did better), where calibration gives one; whether each new choice is on; and, only while on, the share of devices marked unsure and how often motion sensors changed a room.
+
+---
+
 ## 0.38.164 — Enhanced security, the Studio look, and Live Aboard walls stop under the floor above (2026-10-24)
 
 Everything new here is off until you turn it on. With Enhanced security off and the Live Aboard look unchanged, PadSpan works as in 0.38.163, and houses whose floors stack normally look the same; names are now always drawn as plain text.
