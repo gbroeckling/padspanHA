@@ -15,7 +15,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import random
+import shutil
+import subprocess
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -278,3 +281,16 @@ def test_the_health_view_note_is_drawn_only_for_a_drop():
     assert "r.adv_rate_low === true" in src
     note = src[src.index("// ── A proxy that suddenly hears much less"):src.index("// ── PadSpan Bright → PadSpan HA import")]
     assert "if (deaf.length)" in note
+
+
+def test_the_health_note_rendered():
+    node = shutil.which("node")
+    if not node:
+        import pytest
+        pytest.skip("node not installed")
+    root = Path(__file__).resolve().parents[1]
+    r = subprocess.run([node, str(root / "tests" / "js" / "proxy_health_note.mjs"), str(root).replace("\\", "/")],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    assert out == {"healthy_same": True, "healthy_no_note": True, "deaf_note": True}, out
