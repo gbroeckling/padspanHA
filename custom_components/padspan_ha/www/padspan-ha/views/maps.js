@@ -10522,6 +10522,29 @@ function _geomCentroid(g) {
   }
   return [g.cx_m || 0, g.cy_m || 0];
 }
+// How far (x, y) is from a room_geometry_m entry's outline, in metres.
+function _geomOutlineDist(g, x, y) {
+  if (g && g.type === "circle") return Math.abs(Math.hypot(x - (g.cx_m || 0), y - (g.cy_m || 0)) - (g.r_m || 0));
+  const P = (g && g.points_m) || [];
+  let best = Infinity;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], b = P[(i + 1) % P.length], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+    const t = L2 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / L2)) : 0;
+    best = Math.min(best, Math.hypot(x - a[0] - dx * t, y - a[1] - dy * t));
+  }
+  return best;
+}
+/** The walls a rigid room move carries (2026-10-23): every barrier of the
+ *  floor drawn on a moved room's outline (an Open (Loft) edge, a door), all
+ *  its corners within 0.15 m of it, but not one that also runs along a room
+ *  left in place (a wall the two share stays). [{ i, pts }]: its index in
+ *  the draft and its corners before the move. */
+function _barriersOnRooms(barDraft, moved, others) {
+  const on = (G, p, tol) => G.some(g => _geomOutlineDist(g, p[0], p[1]) <= tol);
+  return barDraft.map((b, i) => ({ b, i })).filter(({ b }) => (b.points_m || []).length >= 2
+      && b.points_m.every(p => on(moved, p, 0.15)) && !b.points_m.every(p => on(others, p, 0.4)))
+    .map(({ b, i }) => ({ i, pts: b.points_m.map(p => [p[0], p[1]]) }));
+}
 
 // BLE-vs-motion/occupancy fusion badge for one occupancy_estimate room entry
 // (gap #14, best-in-class roadmap). `r.agreement` is computed server-side
@@ -11275,6 +11298,7 @@ function _roomsTab(ctx, maps) {
     const strokeW = Math.max(bbox.width, bbox.height) * 0.004;
     const shapeEls = {};   // room -> svg element (for imperative updates mid-drag)
     const handleEls = [];  // [{room, idx|"c"|"r", elDiv}]
+    const barSetters = []; // barrier index -> redraw its line (a room move carries its walls)
 
     // Pointer px → metre delta, valid under any pan-zoom scale because the
     // layer rect already includes the CSS transform.
@@ -11376,12 +11400,19 @@ function _roomsTab(ctx, maps) {
         // selection as-is when grouped or deselects when solo.
         const snap = {};
         for (const rn of sel) snap[rn] = JSON.parse(JSON.stringify(draft[rn]));
+        // The walls drawn on its outline go with it (saved with the rest).
+        const carried = _barriersOnRooms(barDraft, Object.values(snap),
+          Object.keys(draft).filter(rn => !sel.has(rn)).map(rn => draft[rn]));
         runDrag(ev, (dxm, dym) => {
           for (const rn of sel) {
             const s = snap[rn], d = draft[rn];
             if (s.type === "poly") d.points_m = s.points_m.map(p => [Math.round((p[0]+dxm)*1000)/1000, Math.round((p[1]+dym)*1000)/1000]);
             else { d.cx_m = Math.round((s.cx_m+dxm)*1000)/1000; d.cy_m = Math.round((s.cy_m+dym)*1000)/1000; }
             applyShape(rn);
+          }
+          for (const c of carried) {
+            barDraft[c.i].points_m = c.pts.map(p => [Math.round((p[0]+dxm)*1000)/1000, Math.round((p[1]+dym)*1000)/1000]);
+            if (barSetters[c.i]) barSetters[c.i]();
           }
         }, (e) => {
           if (e.shiftKey) mapState._roomsSel = [...sel].filter(rn => rn !== room);
@@ -11565,6 +11596,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to place`,
       const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
       const setPts = () => line.setAttribute("points", bar.points_m.map(q => `${q[0]},${q[1]}`).join(" "));
       setPts();
+      barSetters[bi] = setPts;
       line.setAttribute("fill", "none");
       line.setAttribute("stroke", _barMoved(bi) ? "#fbbf24" : "#94a3b8");
       line.setAttribute("stroke-width", String(strokeW * 2.2));
