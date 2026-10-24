@@ -37,7 +37,7 @@ const render = () => { const m = document.getElementById("mount"); m.innerHTML =
 host = { el, view, floors: MODEL.floors, model: MODEL, byRoom: {}, hiddenEids: new Set(), lightsByEid: LBE, lightsLoading: false, tier,
   layoutV2: true, displayMode: q.get("display") !== "0", codeChip: true, hitHalo: true, collapseUnplaced: true,
   screen: { slot: "atlas", shownAt: 1 },
-  house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto" },
+  house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto", ...(q.get("look") ? { atlas_3d_look: q.get("look") } : {}) },
     telemetry: () => {}, useApi: () => ({ lbe: LBE, states: STATES, hass: { states: STATES, callService: () => Promise.resolve() } }),
     edit: q.get("edit") ? (ch) => Promise.resolve({ data: {} }) : undefined,
     // tool=heights|door|window|doorway|strip[&teid=light.x]: the setup wizard's way in (taken once).

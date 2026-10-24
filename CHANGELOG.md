@@ -4,12 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.164 — Enhanced security, and Live Aboard walls stop under the floor above (2026-10-24)
+## 0.38.164 — Enhanced security, the Studio look, and Live Aboard walls stop under the floor above (2026-10-24)
 
-Houses whose floors stack normally look the same as in 0.38.163; With Enhanced security left off (the default), PadSpan works as in 0.38.163.
+Everything new here is off until you turn it on. With Enhanced security off and the Live Aboard look unchanged, PadSpan works as in 0.38.163, and houses whose floors stack normally look the same; names are now always drawn as plain text.
 
 ### New
 - **Enhanced security.** For homes where other people have Home Assistant accounts. While it is on, only an administrator can change PadSpan's shared setup: devices, calibration, the house layout, scanner offsets, Follow alerts, clearing history, suspending learning, Live Aboard edits and its library and photo reader, the log, and the settings that apply to the whole home. Household members can still view and use PadSpan, change their own view and theme choices, and assign a Bluetooth radio to a room. Anyone else who tries a change is told "Only an admin can change this while Enhanced security is on". More protections will be added to the same switch. Off by default, and only an administrator can turn it on or off: Settings → Presence → Enhanced security. The opt-in usage report says only whether it is on.
+- **Studio, a third look for Live Aboard.** Your house as a lit model on a stage: Live Aboard's own colours (every room, light and name stays as it is), under a sky that follows the real sun (`sun.sun`): a soft day, a warm golden hour, a deep blue dusk and a moonlit night with a few stars. The house stands on a soft pad that fades into the sky's horizon, with a faint metre grid and a soft shadow under it. A gentle fill keeps shadows coloured instead of black, a front light gives every wall form, the walls darken a little at their foot, and brightly lit walls and floors roll off softly instead of clipping to white (names, chips and glows keep their exact colours). Rain falls slate blue on the light day sky. The camera glides in once when the view opens (not with reduced motion). Pick it in Settings → Live Aboard → Look → Studio, or in the Live Aboard setup wizard's extras.
+- **Light enough for wall tablets.** On Low, Studio keeps the sky's colours, the stage, the shadow under the house and the soft fill; the sky dome with its stars, the front and rim lights and the softer sun shadows are High's. Auto, Low and High and the slow-screen fallback work as before.
 
 ### Added
 - Counts a house where a wall was stopped under a floor above (`house3d_wall_capped`), once per page load, only with the usage report on.
@@ -27,6 +29,11 @@ Houses whose floors stack normally look the same as in 0.38.163; With Enhanced s
 - **Strip lengths count only what lights.** A run with gaps (along a rail, or round a room past its doors) shows its lit length, with the whole length including the wire in the panel.
 - **Moving a room in Mapping → Rooms takes its walls with it.** An Open (Loft) edge, a door or any barrier drawn on the moved room's outline moves too and is saved with it. A wall it shares with a room that stays put doesn't move.
 - **The RF Barriers help gives the right mezzanine setup.** Keep the floor at its normal height in Floor Heights and give the hall its full height with Rises to in Rooms, as the Floor Heights help says.
+
+### Opt-in report
+- `look_studio` in `features.ov_3d`, only while Live Aboard is on and Studio is picked (as `look_own` is for Live Aboard's own).
+
+---
 
 ---
 

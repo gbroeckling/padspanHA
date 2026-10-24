@@ -64,8 +64,8 @@ def test_the_look_is_the_atlas_s_by_default() -> None:
 
 
 @pytest.mark.parametrize("raw,want", [("atlas", "atlas"), ("own", "own"), ("OWN ", "own"), ("", "atlas"), (None, "atlas"),
-                                      ("dark", "atlas"), (1, "atlas")])
-def test_anything_but_own_is_the_atlas_s_look(raw, want) -> None:
+                                      ("dark", "atlas"), (1, "atlas"), ("studio", "studio"), (" Studio", "studio")])
+def test_anything_but_own_or_studio_is_the_atlas_s_look(raw, want) -> None:
     assert WS._atlas_3d_look(raw) == want
 
 
@@ -115,7 +115,8 @@ def test_a_backup_brings_the_look_back(store, monkeypatch) -> None:
 
 def test_the_hosts_hand_over_the_look_and_nothing_reads_the_old_switch() -> None:
     lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert 'look3d: h3.settings.atlas_3d_look === "own" ? "own" : "atlas",' in lm
+    assert ('look3d: h3.settings.atlas_3d_look === "own" || h3.settings.atlas_3d_look === "studio" '
+            '? h3.settings.atlas_3d_look : "atlas",') in lm
     assert ('atlasLook: { on: !!host.showcase, key: host.showcaseTheme || "classic",\n'
             '                       theme: SHOWCASE_THEMES[host.showcaseTheme] || SHOWCASE_THEMES.classic },') in lm
     assert "atlas_3d_showcase" not in lm, "the flat Atlas's card never reads the older switch"
@@ -130,7 +131,8 @@ def test_the_hosts_hand_over_the_look_and_nothing_reads_the_old_switch() -> None
 
 def test_the_settings_row_reads_plainly() -> None:
     src = (_VIEWS / "settings.js").read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert 'const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard\'s own"]];' in src
+    assert ('const _ATLAS_3D_LOOK = [["atlas", "Same as the Atlas"], ["own", "Live Aboard\'s own"], '
+            '["studio", "Studio — soft light and sky"]];') in src
     sec = src[src.index("function _atlas3dSection("):src.index("// ── UI Structure tab")]
     assert 'more.appendChild(row("Look", [lookSel]));' in sec and 'save("atlas_3d_look", want,' in sec
 

@@ -43,6 +43,8 @@ the only 404s in a check's console are real.) Then open `http://127.0.0.1:8765/t
 | `tool=heights\|door\|window\|doorway\|strip`, `teid=` | With `edit=1`: open Edit at that tool (and pick that light in Strip), as the setup wizard does |
 | `sky=rainy` / `sunny` | The weather entity's condition (rain alert, rain) |
 | `night=1` | `sun.sun` below the horizon |
+| `sunel=N` | `sun.sun` at N degrees (golden hour about 4, dusk about -3) |
+| `look=studio\|own\|atlas` | Live Aboard's look (`atlas_3d_look`) |
 | `cls=temp` | Pick a device-type chip (heat map with `temp`) |
 | `smoke=0`, `wopen=0` | The smoke alarm quiet; the living-room window shut |
 | `gym=1` | A hall 7.5 m to the roof with a mezzanine at 3.2 m (gallery, walkway, toilets); its open edges over the hall get railings |

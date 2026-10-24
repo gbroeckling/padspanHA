@@ -271,7 +271,8 @@ def test_the_look_is_read_only_and_switches_off_on_its_own() -> None:
     no longer handed over: atlas_3d_look decides). The table module is pure
     data and only the 3D view imports it."""
     lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
-    assert "showcase3d:" not in lm and 'look3d: h3.settings.atlas_3d_look === "own" ? "own" : "atlas",' in lm
+    assert "showcase3d:" not in lm and ('look3d: h3.settings.atlas_3d_look === "own" || h3.settings.atlas_3d_look === "studio" '
+                                        '? h3.settings.atlas_3d_look : "atlas",') in lm
     assert ('showcase: { key: host.showcase ? (host.showcaseTheme || "classic") : "classic",\n'
             '                      theme: (host.showcase && SHOWCASE_THEMES[host.showcaseTheme]) || SHOWCASE_THEMES.classic },') in lm.replace("\r\n", "\n")
     la = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8")

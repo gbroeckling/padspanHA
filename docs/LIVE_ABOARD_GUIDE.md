@@ -30,7 +30,8 @@ The same card has a few more choices:
 
 - **Rain and snow:** falls outside the house when your weather says so (the same weather the
   Atlas uses).
-- **Look:** the same colours as the Atlas, or Live Aboard's own.
+- **Look:** the same colours as the Atlas, Live Aboard's own, or **Studio**: Live Aboard's own colours
+  on a stage under a sky that follows the sun, with soft light and shadows (a lighter version on Low).
 - **Back to home view:** on the sidebar, how long it waits untouched before it flies back to its
   home view (Off, 30 s, 1 min, 5 min).
 - **Show people** and **Show tags & scanners:** on the map and in Live Aboard.

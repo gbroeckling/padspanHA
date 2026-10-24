@@ -61,6 +61,10 @@ const WEATHER = await import(`./live_aboard_weather.js${new URL(import.meta.url)
 // And the Atlas's Showcase look as this view's lighting (optional too).
 const LOOKS = await import(`./live_aboard_showcase.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_showcase failed to load", err); return null; });
+// The Studio look (atlas_3d_look "studio"): a sky, a stage and soft light
+// round Live Aboard's own colours (optional too: missing, Studio is its own look).
+const STUDIO = await import(`./live_aboard_studio.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_studio failed to load", err); return null; });
 // The Atlas's own word for the air (its room sheet's "Air Good").
 const { airQualityWord, airQualityBadness } = await import(`./light_codes.js${new URL(import.meta.url).search}`);
 // The heights in Live Aboard's file no view reads (out of date: the map's).
@@ -515,6 +519,8 @@ function createSlot(slotKey){
   // The same look as the Atlas (atlas_3d_look "atlas"; LOOKS.atlasLook):
   // its page, rooms, floor numbers and readouts. null: Live Aboard's own.
   let atlas = null;
+  // The Studio look (live_aboard_studio.js), made only while it is picked.
+  let studio = null;
   // Furniture (P2 Furnish, live_aboard_furnish.js): every piece drawn on its
   // floor (layer). furnishP: what the Furnish tool needs of the host (its
   // connection, toast, settings, states), from the newest card; topCb: the
@@ -629,6 +635,8 @@ function createSlot(slotKey){
     try { if (scene) scene.traverse((o) => { if (o.isSprite && o.geometry) o.geometry.dispose(); }); } catch (_) { /* best effort */ }
     try { if (wx) wx.dispose(); } catch (_) { /* gone with the scene */ }
     wx = null;
+    try { if (studio) studio.dispose(); } catch (_) { /* gone with the scene */ }
+    studio = null;
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
@@ -1670,6 +1678,7 @@ function createSlot(slotKey){
     gridLines.material.transparent = true;                   // it fades at night (paintNight)
     shellRes.push(gGeo, gridLines.geometry, gridLines.material);
     scene.add(ground, gridLines);
+    if (studio) studio.house({ box: houseBox, groundY, ground, grid: gridLines });
     placeSun();
     applyTop();
     paintNight();
@@ -1819,6 +1828,7 @@ function createSlot(slotKey){
     // The Showcase look's sky (Classic: none, and today's brightness).
     if (theme3d) { if (theme3d.skyMix) hemi.color.lerp(_c.set(theme3d.sky), theme3d.skyMix); hemi.intensity *= theme3d.ambient; }
     placeSun();
+    if (studio) studio.sun(look, sunDir);                    // Studio: its sky and light follow the sun
     roseDeg = null;
     requestRender();
     return true;
@@ -3126,6 +3136,7 @@ function createSlot(slotKey){
     if (layer) layer.sync(viewData().pieces);              // furniture's finishes and shadows go with the profile
     if (lastP) { syncDevices(lastP, viewData()); syncTracked(lastP, viewData(), false); }
     for (const L of lights) if (L.spin) L.spin.rps = (L.spin.base || 0) * fanK(name);   // a running fan's speed goes with the profile
+    if (studio) studio.profile();
     lampsDirty = true;
     resize();
   }
@@ -3480,6 +3491,18 @@ function createSlot(slotKey){
     const r = ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect);
     if (r < cam.radius) { cam.radius = Math.max(MIN_R, r); applyCam(); }
   }
+  /** Studio's arrival, once a view: the camera glides in to the view it just
+   *  opened on, from a little farther out and round. Not with reduced motion,
+   *  and the camera still counts as untouched (the house is fitted again as before). */
+  function arrive(){
+    if (!studio || !studio.takeArrival()) return;
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const to = { target: cam.target.clone(), radius: cam.radius, theta: cam.theta, phi: cam.phi };
+    const A = STUDIO.STUDIO_ARRIVAL;
+    const from = { target: cam.target.clone(), radius: cam.radius * A.radius, theta: cam.theta - A.turn, phi: Math.max(MIN_PHI, cam.phi - A.rise) };
+    cam.fly = { t0: performance.now(), from, to, dTh: A.turn, inward: false, ms: A.ms };
+    requestRender();
+  }
   // ── flying the camera (a double-tap on a room, a saved view) ──────────────
   function flyTo(goal, inward){
     const from = { target: cam.target.clone(), radius: cam.radius, theta: cam.theta, phi: cam.phi };
@@ -3491,7 +3514,7 @@ function createSlot(slotKey){
   function stepFly(now){
     const f = cam.fly;
     if (!f) return;
-    const u = Math.min(1, Math.max(0, (now - f.t0) / FLY_MS)), k = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    const u = Math.min(1, Math.max(0, (now - f.t0) / (f.ms || FLY_MS))), k = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
     cam.target.lerpVectors(f.from.target, f.to.target, k);
     cam.radius = f.from.radius + (f.to.radius - f.from.radius) * k;
     cam.theta = f.from.theta + f.dTh * k;
@@ -3743,13 +3766,14 @@ function createSlot(slotKey){
     // Something moving by itself draws on its own clock (liveRate).
     const due = dirty || !!quality.measuring || (liveMs > 0 && t - lastAmbient >= liveMs - 4);
     if (due) {
-      if (cam.needsFit && (canvas.clientWidth || 0) > 0) openView();
+      if (cam.needsFit && (canvas.clientWidth || 0) > 0) { openView(); if (studio) arrive(); }
       updateCutaway();
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
       sizeSprites();
       if (lampsDirty || lampTarget.distanceToSquared(cam.target) > 1) assignLamps();
       const vp = viewports();
+      if (studio) studio.prepare(camera);
       if (!vp.plan) renderer.render(scene, camera);
       else {
         // Furnish: the 3D view and the plan, each in its own part of the one canvas.
@@ -3760,6 +3784,7 @@ function createSlot(slotKey){
           renderer.setViewport(r[0], drawnH - r[1] - r[3], r[2], r[3]);
           renderer.setScissor(r[0], drawnH - r[1] - r[3], r[2], r[3]);
           if (c === planCam) sizeNames(planCam, r[3]);         // the names, upright and sized for the plan
+          if (studio) studio.prepare(c);                     // the plan keeps the view's own ground
           renderer.render(scene, c);
         }
         renderer.setScissorTest(false);
@@ -4420,7 +4445,10 @@ function createSlot(slotKey){
     // off), its rooms, floor numbers and readouts. Otherwise Live Aboard's own.
     let A = null;
     try { A = LOOKS && p.look3d === "atlas" ? LOOKS.atlasLook(p.atlasLook) : null; } catch (_) { A = null; }
-    const key = A ? A.key : LOOKS && p.showcase3d === true && p.showcase && p.showcase.key ? String(p.showcase.key) : "classic";
+    // Studio (p.look3d "studio"): Live Aboard's own colours, its sky, stage and light round them.
+    const wantStudio = !!STUDIO && p.look3d === "studio";
+    const key = wantStudio ? "studio" : A ? A.key : LOOKS && p.showcase3d === true && p.showcase && p.showcase.key ? String(p.showcase.key) : "classic";
+    if (wantStudio !== !!studio) syncStudio(wantStudio);
     if (key === lookKey) return;
     lookKey = key;
     atlas = A;
@@ -4430,7 +4458,25 @@ function createSlot(slotKey){
     scene.background.set(bg);
     scene.fog.color.set(bg);
     shellSig = null;                                         // the tiles and the lights, built again with it
+    if (studio) studio.profile();                            // Studio paints its own sky over the page's
     if (sunNow) drawSun(bearingNow(), true);
+    requestRender();
+  }
+  /** Studio made or let go of (it puts back all it changed). */
+  function syncStudio(on){
+    try {
+      if (!on) { if (studio) studio.dispose(); studio = null; }
+      else if (!studio && renderer) {
+        studio = STUDIO.createStudio({ THREE, renderer, scene, root, canvas, hemi, sun, wallBox: shared.wallBox,
+                                       profile: () => (profileOf().pbr ? "high" : "low") });
+        shellSig = null;                                     // its stage goes under the house as it is drawn again
+        if (sunNow) drawSun(bearingNow(), true);             // and its light over the sun's
+      }
+    } catch (err) {
+      console.warn("PadSpan: Studio look failed", err);
+      try { if (studio) studio.dispose(); } catch (_) { /* best effort */ }
+      studio = null;
+    }
     requestRender();
   }
   /** Rain and snow (live_aboard_weather.js): the flat Atlas's own decision,
@@ -4438,7 +4484,7 @@ function createSlot(slotKey){
    *  (settings.atlas_3d_weather: on unless false). Off, none of it is made,
    *  and what was showing is let go of. Never the view's failure: weather
    *  that cannot be drawn is simply not drawn. */
-  const plainSky = () => lookKey === "classic" || (!!atlas && !atlas.on);
+  const plainSky = () => lookKey === "classic" || lookKey === "studio" || (!!atlas && !atlas.on);
   /** How the house is drawn this frame, for what the rain keeps off: the
    *  roof closing the house (wanted and at least half in, as it covers and
    *  hides: coming, from halfway; going, at once, as the walls are cut the
@@ -4457,7 +4503,7 @@ function createSlot(slotKey){
         // What falls: the flat Atlas's colour for the Showcase theme this view
         // wears (Classic: white), or the look's own where that would not show
         // on its ground (a light theme); what settles: the flat Atlas's.
-        colour: plainSky() ? "#ffffff" : (theme3d && theme3d.weather) || WEATHER.colourOf(p.showcase && p.showcase.theme),
+        colour: studio ? studio.rain() : plainSky() ? "#ffffff" : (theme3d && theme3d.weather) || WEATHER.colourOf(p.showcase && p.showcase.theme),
         snowColour: plainSky() ? "#ffffff" : WEATHER.colourOf(p.showcase && p.showcase.theme),
         profile: quality.profile || quality.measuring || "low", nowMs: Date.now(),
         house: { key: `${shellGen}|${topElev}`, rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02,
@@ -4715,7 +4761,7 @@ function createSlot(slotKey){
                                tiles: floorsUi.reduce((a, F) => a + (F.tiles ? F.tiles.geometry.attributes.color.array.reduce((s, v) => s + v, 0) : 0), 0),
                                halos: floorsUi.reduce((a, F) => a + Object.values(F.halos || {})
                                  .reduce((s, h) => s + h.geometry.attributes.color.array.reduce((u, v) => u + v, 0), 0), 0) } : null,
-               weather: wx ? wx._state() : null,
+               weather: wx ? wx._state() : null, studio: studio ? studio.state() : null,
                // P2 Furnish: the furniture as drawn, and the views.
                pieces: layer ? layer.state() : [], furnish: furnishOn,
                // P5: what each linked piece shows, the fixtures that stepped

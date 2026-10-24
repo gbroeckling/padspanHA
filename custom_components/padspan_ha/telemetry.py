@@ -323,6 +323,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
+    "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
     "live_aboard_import",
     "live_aboard_devices",                          # Live Aboard P5: furniture that is a device
@@ -597,7 +598,7 @@ OVERVIEW_SET: dict[str, tuple[str, ...]] = {
     "ov_house": ("gap_tight", "gap_wide", "gap_custom", "offset", "one_floor", "trails"),
     "ov_atlas": ("zoom_lt1", "zoom_1_2", "zoom_gt2", "classic", "no_emergency", "no_weather",
                  "weather_lt1", "weather_gt1"),
-    "ov_3d": ("q_low", "q_high", "people", "tags", "library", "no_weather", "look_own"),
+    "ov_3d": ("q_low", "q_high", "people", "tags", "library", "no_weather", "look_own", "look_studio"),
 }
 
 
@@ -639,6 +640,8 @@ def _overview_features(settings: dict[str, Any]) -> dict[str, Any]:
             d3.append("no_weather")
         if g("atlas_3d_look") == "own":
             d3.append("look_own")
+        elif g("atlas_3d_look") == "studio":
+            d3.append("look_studio")
     return {k: v for k, v in (("ov_house", house), ("ov_atlas", atlas), ("ov_3d", d3)) if v}
 
 
