@@ -64,7 +64,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # The free-Pro offers' on/off switches from the update check's answer
     # (update_check._keep_offers): {"tester": bool, "invite": bool}; {} = all on.
     "server_offers": {},
-    "vendor_lookup_enabled": True,  # Sends MAC prefixes to vendor lookup APIs when requested from UI
+    "vendor_lookup_enabled": True,  # Opening the Objects list sends full MACs (up to 40) to two vendor lookup APIs (vendor_lookup.py)
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)
     "hidden_map_ids":  [],     # map IDs hidden from 3D stack view

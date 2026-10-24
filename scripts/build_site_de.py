@@ -317,8 +317,9 @@ def build(src: str, catalog: dict | None = None) -> tuple[str, dict]:
     """German page from the English one. Returns (html, report)."""
     cat = catalog if catalog is not None else load_catalog()
     table = cat["_units"]
-    # Things the English page says that are not true for a German reader (the
-    # panel is in English only, so "11 languages" is the wrong promise here).
+    # Things the English page says that would be untrue for a German reader. (It
+    # was "11 languages", the panel being English only; the English page no
+    # longer says it, so the list is empty for now.)
     not_found = [piece for piece in cat.get("drop", []) if piece not in src]
     for piece in cat.get("drop", []):
         src = src.replace(piece, "")

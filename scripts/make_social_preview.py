@@ -94,7 +94,7 @@ def build(version: str) -> Image.Image:
     d.text((x, H - 116), "Room-level Bluetooth presence for Home Assistant",
            font=f_sub, fill=(200, 220, 205))
 
-    meta = f"v{version}   ·   3D FLOOR PLANS   ·   CALIBRATION   ·   100% LOCAL"
+    meta = f"v{version}   ·   3D FLOOR PLANS   ·   CALIBRATION   ·   LOCAL TRACKING"
     d.text((x, H - 62), meta, font=f_meta, fill=ACC)
 
     # A thin accent rule anchors the block to the site's visual language.

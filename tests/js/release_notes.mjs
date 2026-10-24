@@ -135,7 +135,7 @@ await t("source: the module never parses markup", () => {
 // ── The overlay ─────────────────────────────────────────────────────────────
 await t("open: shown at once over the panel, with ✕ and Close, then the notes", async () => {
   fetched = [];
-  const { h, r, overlay } = await open({ history: "https://padspan.traks.ca/#whatsnew" });
+  const { h, r, overlay } = await open({ history: "https://padspan.traks.ca/?hl=en#whatsnew" });
   assert(!h.classList.contains("hidden"), "host still hidden");
   assert(h.children.length === 1 && overlay.classList.contains("overlay"), "no overlay");
   assert(q(h, ".notes-title").textContent === N.NOTES_TITLE, "title");
@@ -156,10 +156,10 @@ await t("open: shown at once over the panel, with ✕ and Close, then the notes"
 });
 
 await t("history link: shown when given, opens the website; left out when not", async () => {
-  const a = await open({ history: "https://padspan.traks.ca/#whatsnew" });
+  const a = await open({ history: "https://padspan.traks.ca/?hl=en#whatsnew" });
   const link = q(a.h, "a");
   assert(link && link.textContent === N.NOTES_HISTORY, "no history link");
-  assert(link.getAttribute("href") === "https://padspan.traks.ca/#whatsnew" && link.getAttribute("target") === "_blank", "link target");
+  assert(link.getAttribute("href") === "https://padspan.traks.ca/?hl=en#whatsnew" && link.getAttribute("target") === "_blank", "link target");
   a.r.close();
   const b = await open({ history: null });
   await b.r.loaded;
@@ -224,7 +224,7 @@ for (const [label, res] of [
 
 // ── Where the website link may go ───────────────────────────────────────────
 await t("history link: none on ?kiosk=1 or a page filling the screen (Chrome --kiosk)", () => {
-  const U = "https://padspan.traks.ca/#whatsnew";
+  const U = "https://padspan.traks.ca/?hl=en#whatsnew";
   const win = (iw, ih, sw, sh) => ({ innerWidth: iw, innerHeight: ih, screen: { width: sw, height: sh } });
   assert(N.notesHistoryLink(U, true, win(1280, 800, 1920, 1080)) === null, "kiosk");
   assert(N.notesHistoryLink(U, false, win(1080, 1920, 1080, 1920)) === null, "wall screen, portrait");

@@ -328,3 +328,24 @@ def test_changed_or_new_attribute_text_is_reported(b, pages) -> None:
     _, rep = b.build(changed)
     assert any("search/share" in g for g in b.gaps(rep))
     assert b.untranslated_attrs(en, b.load_catalog()) == []
+
+
+def test_the_panels_release_notes_link_skips_the_german_page() -> None:
+    """The notes are English only. The panel's link and the update notification's
+    (release.py's notes_url) carry ?hl=en so a visitor from Germany, Austria or
+    Switzerland reaches them instead of the German page's short note about them."""
+    url = "https://padspan.traks.ca/?hl=en#whatsnew"
+    www = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
+    assert f'export const WHATSNEW_URL = "{url}";' in (www / "views" / "editions.js").read_text(encoding="utf-8")
+    assert f'|| "{url}";' in (www / "panel.js").read_text(encoding="utf-8")
+    assert f'manifest["notes_url"] = "{url}"' in (_ROOT / "scripts" / "release.py").read_text(encoding="utf-8")
+    assert "RewriteCond %{QUERY_STRING} !(^|&)hl=en(&|$)" in _HTACCESS.read_text(encoding="utf-8")
+
+
+def test_the_english_page_makes_no_language_claim_either() -> None:
+    """The panel and its setup screens are English only (the translation files are
+    English copies), so neither the site nor the README may claim other languages."""
+    for path in (_SITE, _ROOT / "README.md"):
+        text = path.read_text(encoding="utf-8")
+        for claim in ("11 Languages", "11 languages", "Multi-language", "100% Local"):
+            assert claim not in text, f"{path.name} says {claim!r}"

@@ -60,8 +60,10 @@ export function proLifetimeOpen() { return true; }
 export const EDITIONS_URL = "https://padspan.traks.ca/#editions";
 // Where "what changed" lives. The same page the update-check manifest
 // points at (release.py sets notes_url to it), so the notification and the
-// in-panel card cannot disagree about where the release notes are.
-export const WHATSNEW_URL = "https://padspan.traks.ca/#whatsnew";
+// in-panel card cannot disagree about where the release notes are. ?hl=en
+// because the notes are English only: without it, a visitor from Germany,
+// Austria or Switzerland lands on the German page (site/.htaccess) instead.
+export const WHATSNEW_URL = "https://padspan.traks.ca/?hl=en#whatsnew";
 
 // ── What to say about the paid half, to whom ────────────────────────────────
 // There are exactly two paid features, and most free installs have never seen

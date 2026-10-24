@@ -152,6 +152,7 @@ LANGUAGE_CASES = (
     ("/", "DE", "padspan_lang=en", "", "200"),
     ("/", "US", "padspan_lang=de", "", f"302 {URL}de/"),
     ("/?hl=en", "AT", "", "", "200"),
+    ("/?hl=en", "DE", "padspan_lang=de", "", "200"),   # the release notes, after choosing German
     # The language links: each one is remembered, and Deutsch goes straight to German.
     ("/?lang=en", "DE", "", "", "200 cookie=en"),
     ("/?lang=de", "US", "", "", f"302 {URL}de/?lang=de cookie=de"),
