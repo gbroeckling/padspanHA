@@ -50,9 +50,11 @@ export const { normBearing, fabricCompass, bearingOfNorth, compassDir, northArro
 // otherwise). Words only: never an entity id, a room or a floor.
 export const HOUSE3D_FALLBACK_KINDS = ["no_webgl", "slow_gpu", "context_lost", "error"];
 // house3d_wet_window: a window showed open while it rains or snows (the alert
-// below the Motion chip), once per page load.
+// below the Motion chip), once per page load. house3d_wall_capped: a wall
+// stopped under a floor above it, or a needle-thin stretch kept low
+// (settleWalls), once per page load.
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window",
-  "house3d_loft_rail", "house3d_mezzanine"];
+  "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();
 /** Count `name` once per page load, and only a name from the closed list. */
@@ -421,6 +423,93 @@ export function deriveWalls(floor, rooms, ground, above = null, facade = null){
         if (rooms.some(r => !r.outdoor && inPoly(x, y, r.pts)) || inWall(x, y, pc)) { pc.cls = "int"; break probe; }
       }
     }
+  }
+  return out;
+}
+
+// ── Walls under a floor above ────────────────────────────────────────────────
+// A wall rises to its room's height, else its floor's. Where a room of a
+// higher floor starts below that top and stands over the wall — its floor on
+// both sides of it, or the wall under the seam between two of its rooms —
+// the wall stops under that floor, stretch by stretch (a hall floor given a
+// tall height under a walkway, a tall room an upper room overhangs, a split
+// level). A wall between two rooms of this floor with an upper room over one
+// side only stops there too where that room reaches the wall's top or its
+// edge along the wall is Open (Loft) (`openAt`: a walkway along a hall);
+// a tall room's outside wall is left to deriveWalls' facade rule. Then a
+// tall stretch joined to no other tall wall and shorter than STUB_M (an
+// outline's tiny jog, a cut-off end) keeps its floor's height, so it is
+// never a needle. pc.capped marks both (the usage report's house3d_wall_capped).
+// A house whose upper floors start at the top of the ones below meets none
+// of this: its walls are the pieces deriveWalls made, untouched.
+const STUB_M = 0.3;                       // a tall stretch shorter than this, joined to no other, is a needle
+export function settleWalls(floor, pieces, rooms, openAt = null){
+  if (floor.outdoor) return pieces;
+  const ups = (rooms || []).filter(r => r.floor !== floor && !r.floor.outdoor && !r.outdoor && r.floor.elev0 > floor.elev0 + 0.5);
+  // [distance, dx, dy]: from (x, y) to the nearest point of r's outline.
+  const near = (x, y, r) => {
+    let best = [Infinity, 0, 0]; const P = r.pts;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i], b = P[(i + 1) % P.length], [dd, t] = segDist(x, y, a[0], a[1], b[0], b[1]);
+      if (dd < best[0]) best = [dd, a[0] + (b[0] - a[0]) * t - x, a[1] + (b[1] - a[1]) * t - y];
+    }
+    return best;
+  };
+  const GAP = SHARE_TOL / 2 + 0.05;
+  // Over (x, y), one of these floors' rooms, or the wall between two of them
+  // (the two on opposite sides of it: not a spot outside, beside both).
+  const over = (U, x, y) => U.some(r => inPoly(x, y, r.pts)) || U.some(r => {
+    const a = near(x, y, r);
+    return a[0] < GAP && U.some(q => { if (q === r) return false; const b = near(x, y, q); return b[0] < GAP && a[1] * b[1] + a[2] * b[2] < 0; });
+  });
+  const out = [];
+  for (const pc of pieces) {
+    const H = num(pc.wallH) ?? floor.h, top = floor.elev0 + H;
+    // More than a slab's worth into the wall (floors stacked 0.1 m into each other are not).
+    const U = pc.kind === "wall" ? ups.filter(r => r.floor.elev0 < top - 0.3) : [];
+    if (!U.length) { out.push(pc); continue; }
+    const byFloor = [...new Set(U.map(r => r.floor))].map(f => U.filter(r => r.floor === f));
+    const L = Math.hypot(pc.x1 - pc.x0, pc.y1 - pc.y0), d = pc.thick / 2 + 0.05;
+    const heightAt = (t) => {
+      const x = pc.x0 + (pc.x1 - pc.x0) * t, y = pc.y0 + (pc.y1 - pc.y0) * t;
+      let h = H;
+      for (const G of byFloor) {
+        const xa = x + pc.nx * d, ya = y + pc.ny * d, xb = x - pc.nx * d, yb = y - pc.ny * d, A = over(G, xa, ya), B = over(G, xb, yb);
+        const one = !(A && B) && (A || B) && pc.shared && pc.cls === "int" && (G.some(r => G[0].floor.elev0 + r.h >= top - 0.05
+          && (A ? inPoly(xa, ya, r.pts) : inPoly(xb, yb, r.pts))) || !!(openAt && openAt(G[0].floor, x, y, d)));
+        if ((A && B) || one) h = Math.min(h, G[0].floor.elev0 - floor.elev0);
+      }
+      return h;
+    };
+    const n = Math.max(1, Math.ceil(L / 0.25)), runs = [];
+    for (let k = 0; k < n; k++) {
+      const t0 = k / n, t1 = (k + 1) / n, hh = heightAt((t0 + t1) / 2), last = runs[runs.length - 1];
+      if (last && last.h === hh) last.q = t1; else runs.push({ p: t0, q: t1, h: hh });
+    }
+    if (runs.length === 1 && runs[0].h === H) { out.push(pc); continue; }
+    runs.forEach((r, k) => {
+      const q = { ...pc, x0: pc.x0 + (pc.x1 - pc.x0) * r.p, y0: pc.y0 + (pc.y1 - pc.y0) * r.p,
+                  x1: pc.x0 + (pc.x1 - pc.x0) * r.q, y1: pc.y0 + (pc.y1 - pc.y0) * r.q };
+      delete q.wallH;
+      if (Math.abs(r.h - floor.h) > 1e-6) q.wallH = r.h;
+      if (r.h < H) q.capped = true;
+      if (k > 0) q.corner0 = false;
+      if (k < runs.length - 1) q.corner1 = false;
+      out.push(q);
+    });
+  }
+  // The tall stretches, joined where one's end meets another: a group shorter
+  // than STUB_M in all stands alone above the walls round it.
+  const tall = out.filter(q => q.kind === "wall" && (num(q.wallH) ?? floor.h) > floor.h + 1e-6);
+  const lenOf = (q) => Math.hypot(q.x1 - q.x0, q.y1 - q.y0);
+  const meets = (a, b) => [[a.x0, a.y0], [a.x1, a.y1]].some(([x, y]) => segDist(x, y, b.x0, b.y0, b.x1, b.y1)[0] < (a.thick + b.thick) / 2 + 0.05);
+  const seen = new Set();
+  for (const pc of tall) {
+    if (seen.has(pc) || lenOf(pc) >= STUB_M) continue;
+    const group = [pc]; seen.add(pc);
+    for (let i = 0; i < group.length; i++) for (const q of tall) if (!seen.has(q) && (meets(group[i], q) || meets(q, group[i]))) { seen.add(q); group.push(q); }
+    if (group.reduce((s, q) => s + lenOf(q), 0) >= STUB_M) continue;
+    for (const q of group) { delete q.wallH; q.capped = true; }
   }
   return out;
 }
@@ -1712,7 +1801,11 @@ export function readHouse(model, floorList, lightsByEid, hidden, overrides, gap 
         .sort((a, b) => a.floor.elev0 - b.floor.elev0)[0] || null,
       lower: (xi, yi, xo, yo) => rooms.find(r => r.floor.elev0 < fl.elev0 - 0.5 && r.h > r.floor.h + 1e-6 && onLine(r, xi, yi, xo, yo)) || null,
     } : null;
-    const pieces = applyBarriers(fl, deriveWalls(fl, mine, F.ground, above, facade), barriers, F.canon, kindOf, looksDown);
+    // An Open (Loft) edge of floor `of` running along (x, y) (settleWalls).
+    const openAt = (of, x, y, d) => barriers.some(b => b && b.material === "open" && F.canon(b.floor_id) === of.id && Array.isArray(b.points_m)
+      && b.points_m.some((p, i) => { const q = b.points_m[i + 1]; return Array.isArray(p) && Array.isArray(q) && num(p[0]) !== null && num(q[0]) !== null
+        && segDist(x, y, Number(p[0]), Number(p[1]), Number(q[0]), Number(q[1]))[0] < BAR_TOL + d; }));
+    const pieces = applyBarriers(fl, settleWalls(fl, deriveWalls(fl, mine, F.ground, above, facade), rooms, openAt), barriers, F.canon, kindOf, looksDown);
     perFloor.set(fl, { rooms: mine, pieces });
   }
   return { floors: F.floors, byId: F.byId, canon: F.canon, ground: F.ground, rooms, perFloor,

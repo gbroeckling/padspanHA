@@ -433,8 +433,11 @@ HOUSE3D_FALLBACK_KINDS: tuple[str, ...] = ("no_webgl", "slow_gpu", "context_lost
 # house3d_loft_rail: an open (Loft) edge over a drop was drawn as a railing;
 # house3d_mezzanine: a floor sits inside a taller one (a mezzanine in a hall,
 # roofed by the hall). Both once per page load (0.38.147).
+# house3d_wall_capped: a wall was stopped under a floor above it, or a
+# needle-thin stretch of a tall room kept to its floor's height, once per
+# page load (0.38.164).
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
-    {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine"}
+    {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"}
     | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo

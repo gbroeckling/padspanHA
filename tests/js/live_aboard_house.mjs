@@ -797,8 +797,69 @@ tryCase("room height: a mezzanine in a hall room of its own height, on floors of
     ["edge", "between", "pastit"].map(id => railOf(h, "mezz", id).map(p => !!p.loftRail).join(",")).join("|") === "true|false|false"
     && cells(hall) === hall.cells.reduce((a, v) => a + v, 0) && hall.tiers.length === 1 && near(hall.tiers[0].top, 7.5)
     && cells(mezz) > 0 && mezz.roofCells.every((v, i) => !v || !hall.cells[i]) && H.hasNestedFloor(h)
-    && hallWalls.length && hallWalls.every(pc => near(Math.max(...H.wallElements(pc, 3).map(e => e.z1)), 7.5 - H.SLAB_T)),
+    // all the hall's walls at its height, but where the walkway runs out over its east wall (settleWalls, 0.38.164)
+    && hallWalls.length && hallWalls.every(pc => near(Math.max(...H.wallElements(pc, 3).map(e => e.z1)),
+      (pc.x0 > 19.9 && Math.max(pc.y0, pc.y1) <= 4.01 ? 3 : 7.5) - H.SLAB_T))
+    && hallWalls.some(pc => pc.x0 > 19.9 && pc.capped && !("wallH" in pc)),
     { hall: cells(hall), mezz: cells(mezz), tiers: hall.tiers.map(t => t.top) });
+});
+
+// ── walls under a floor above (settleWalls, 0.38.164) ───────────────────────
+// Synthetic: a 12 x 8 m ground floor of two rooms (A, B), its floor 6 m tall,
+// and at 3 m an upper floor whose room U stands over the wall between them.
+const topOf = (pc, h) => Math.max(...H.wallElements(pc, h).map(e => e.z1));
+const wallsOf = (h, fl) => h.perFloor.get(h.byId.get(fl)).pieces.filter(pc => pc.kind === "wall");
+const SPLIT = (extra = {}) => ({ floors: [{ id: "g", floor_to_floor_m: 6 }, { id: "u", floor_to_floor_m: 3 }], floor_elevations: { g: 0, u: 3 },
+  room_geometry_m: { A: rect("g", 0, 0, 6, 8), B: rect("g", 6.1, 0, 12, 8), U: rect("u", 3, 0, 9, 4), ...(extra.rooms || {}) },
+  room_meta: extra.meta || {}, rf_barriers_m: extra.barriers || [] });
+tryCase("walls: a shared wall of two rooms the same height stops under the room above it", () => {
+  const h = H.readHouse(SPLIT(), SPLIT().floors, {}, null);
+  const mid = wallsOf(h, "g").filter(pc => pc.shared && Math.abs(pc.x0 - 6.05) < 0.05);
+  const under = mid.filter(pc => Math.max(pc.y0, pc.y1) <= 4.01), past = mid.filter(pc => Math.min(pc.y0, pc.y1) >= 3.99);
+  check("walls: a shared wall of two rooms the same height stops under the room above it",
+    under.length && under.every(pc => pc.capped && near(topOf(pc, 6), 3 - H.SLAB_T))
+    && past.length && past.every(pc => !pc.capped && near(topOf(pc, 6), 6 - H.SLAB_T)), { mid });
+});
+tryCase("walls: a tall room's wall stops under an upper room that stands over it", () => {
+  // Floors of normal height (3 m), room A rises to 6 m; U overhangs A's east wall by 1 m.
+  const m = SPLIT({ meta: { A: { height_m: 6 } } }); m.floors[0].floor_to_floor_m = 3;
+  m.room_geometry_m.U = rect("u", 5, 0, 7, 4);
+  const h = H.readHouse(m, m.floors, {}, null);
+  const east = wallsOf(h, "g").filter(pc => Math.abs(pc.x0 - 6.05) < 0.05);
+  check("walls: a tall room's wall stops under an upper room that stands over it",
+    east.length && east.every(pc => topOf(pc, 3) <= (Math.max(pc.y0, pc.y1) <= 4.01 ? 3 : 6) - H.SLAB_T + 1e-9)
+    && east.some(pc => pc.capped) && east.some(pc => near(topOf(pc, 3), 6 - H.SLAB_T)), { east });
+});
+tryCase("walls: under a walkway's Open (Loft) edge the wall stops at the walkway", () => {
+  // U along B's west wall, its west edge open over the tall A: the wall between A and B stops at 3 m there.
+  const m = SPLIT({ barriers: [{ id: "o", material: "open", floor_id: "u", points_m: [[6.05, 0], [6.05, 4]] }] });
+  m.room_geometry_m.U = rect("u", 6.05, 0, 9, 4);
+  const h = H.readHouse(m, m.floors, {}, null);
+  const mid = wallsOf(h, "g").filter(pc => pc.shared && Math.abs(pc.x0 - 6.05) < 0.05);
+  const m2 = SPLIT(); m2.room_geometry_m.U = rect("u", 6.05, 0, 9, 4); m2.floors[1].floor_to_floor_m = 2;   // a solid edge, the room not up to the top: left alone
+  const h2 = H.readHouse(m2, m2.floors, {}, null), mid2 = wallsOf(h2, "g").filter(pc => pc.shared && Math.abs(pc.x0 - 6.05) < 0.05);
+  check("walls: under a walkway's Open (Loft) edge the wall stops at the walkway",
+    mid.some(pc => pc.capped && near(topOf(pc, 6), 3 - H.SLAB_T) && Math.max(pc.y0, pc.y1) <= 4.01)
+    && mid2.length && mid2.every(pc => !pc.capped && near(topOf(pc, 6), 6 - H.SLAB_T)), { mid, mid2 });
+});
+tryCase("walls: a hall's outside wall under a gallery keeps its height; stacked floors are untouched", () => {
+  const hall = { floors: [{ id: "hall", floor_to_floor_m: 7.5 }, { id: "m", floor_to_floor_m: 4.3 }], floor_elevations: { hall: 0, m: 3.2 },
+    room_geometry_m: { Hall: rect("hall", 0, 0, 20, 12), G1: rect("m", 0, 0, 6, 6), G2: rect("m", 0, 6.12, 6, 12) } };
+  const a = wallsOf(H.readHouse(hall, hall.floors, {}, null), "hall");
+  // A plain two-storey house, the lower floor stacked 0.1 m into the upper (a slab's worth): nothing changes.
+  const two = { floors: [{ id: "g", floor_to_floor_m: 2.9 }, { id: "u", floor_to_floor_m: 2.8 }], floor_elevations: { g: 0, u: 2.8 },
+    room_geometry_m: { K: rect("g", 0, 0, 5, 5), L: rect("g", 5.1, 0, 10, 5), Bed: rect("u", 0, 0, 10, 5) } };
+  const b = H.readHouse(two, two.floors, {}, null).perFloor;
+  check("walls: a hall's outside wall under a gallery keeps its height; stacked floors are untouched",
+    a.length === 4 && a.every(pc => !pc.capped && !("wallH" in pc))
+    && [...b.values()].every(per => per.pieces.every(pc => !pc.capped && !("wallH" in pc))), { a });
+});
+tryCase("walls: a tall stretch shorter than 0.3 m joined to no other keeps its floor's height", () => {
+  // A 6 m room's walls on a 3 m floor: a 0.1 m stub on its own, and a 0.1 m end joined to a 1 m stretch.
+  const pc = (x0, x1) => ({ x0, y0: 0, x1, y1: 0, nx: 0, ny: -1, thick: 0.14, kind: "wall", cls: "int", wallH: 6 });
+  const s = H.settleWalls({ id: "g", h: 3, elev0: 0, outdoor: false }, [pc(0, 0.1), pc(3, 4), pc(4, 4.1)], []);
+  check("walls: a tall stretch shorter than 0.3 m joined to no other keeps its floor's height",
+    s.length === 3 && s[0].capped && !("wallH" in s[0]) && !s[1].capped && s[1].wallH === 6 && !s[2].capped && s[2].wallH === 6, { s });
 });
 
 // ── telemetry ───────────────────────────────────────────────────────────────

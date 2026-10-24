@@ -1651,6 +1651,7 @@ function createSlot(slotKey){
     // as a railing, and a floor inside a taller one (a mezzanine in a hall).
     if ([...h.perFloor.values()].some(per => per.pieces.some(pc => pc.loftRail))) HOUSE.countHouse3dOnce("house3d_loft_rail", send);
     if (HOUSE.hasNestedFloor(h)) HOUSE.countHouse3dOnce("house3d_mezzanine", send);
+    if ([...h.perFloor.values()].some(per => per.pieces.some(pc => pc.capped))) HOUSE.countHouse3dOnce("house3d_wall_capped", send);
     if (atlas) platesOf(h);
     // The ground and the sun, sized to the house.
     const cx = (houseBox.x0 + houseBox.x1) / 2, cy = (houseBox.y0 + houseBox.y1) / 2;
