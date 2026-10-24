@@ -35,8 +35,6 @@ Everything new here is off until you turn it on. With Enhanced security off and 
 
 ---
 
----
-
 ## 0.38.163 — Every home on a key with more than two keeps its usage report on (2026-10-23)
 
 With a licence key on one or two homes, nothing changes.
