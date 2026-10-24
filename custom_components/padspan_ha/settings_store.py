@@ -20,6 +20,7 @@ preserved on load (merged onto DEFAULT_SETTINGS).
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -312,6 +313,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "roomplan_import_enabled": False,       # Rooms tab: also import Apple RoomPlan .json scans
     "vacuum_import_enabled": False,         # Rooms tab: "Import from a robot vacuum" (vacuum_import.py)
     "iphone_irk_guide": False,              # phone setup: iPhones get the IRK steps, not BLE Transmitter (#69)
+    # A NEW install's first steps (onboarding.py): when its settings were
+    # first made, then how long it took to the first room and the first
+    # calibration point, as buckets. {} on every install from before 0.38.165,
+    # which is never measured. A brand-new install also starts with
+    # iphone_irk_guide on (SettingsStore.async_load).
+    "onboarding": {},
     # ── RSSI vector capture (off by default) ─────────────────────────────────
     # Records the full per-scanner RSSI vector for tracked objects, plus the
     # room the pipeline chose, so a trace can be replayed offline against
@@ -379,11 +386,23 @@ class SettingsStore:
         Merging ensures new keys added in future versions get their defaults
         while preserving the user's existing overrides.
         """
+        # Looked at BEFORE the load: the other stores load beside this one
+        # and a brand-new install's would be written by the time it returned.
+        first_run = await self._first_run()
         loaded = await self.store.async_load()
         if isinstance(loaded, dict):
             self.data = {**DEFAULT_SETTINGS, **loaded}
         else:
             self.data = dict(DEFAULT_SETTINGS)
+        # A brand-new install — no settings file and no other PadSpan file in
+        # .storage — starts with the iPhone setup steps on and its first steps
+        # measured. Every install from before keeps what it has (the guide
+        # off unless someone turned it on). Decided once: the file saved
+        # below makes every later load an existing install, and a factory
+        # reset or a restore writes one too.
+        if loaded is None and first_run:
+            self.data["iphone_irk_guide"] = True
+            self.data["onboarding"] = {"setup_ts": time.time()}
         # Normalize followed_addrs: uppercase + dedup (order preserved).
         # Every comparison in the system (frontend followedHas, backend
         # settings_set, tag_integration) is uppercase; historic entries were
@@ -431,6 +450,24 @@ class SettingsStore:
         if _normalized or not isinstance(loaded, dict) or set(self.data.keys()) != set(loaded.keys()):
             await self.store.async_save(self.data)
         return self.data
+
+    async def _first_run(self) -> bool:
+        """No PadSpan file at all in .storage (not even a corrupt settings
+        file Home Assistant moved aside). Anything unsure is not a first run."""
+        hass = getattr(self, "hass", None)
+        if hass is None:
+            return False
+        prefix = SETTINGS_STORE_KEY.split(".")[0] + "."
+
+        def _scan() -> bool:
+            d = Path(hass.config.path(".storage"))
+            if not d.exists():
+                return True
+            return not any(p.name.startswith(prefix) for p in d.iterdir())
+        try:
+            return (await hass.async_add_executor_job(_scan)) is True
+        except Exception:  # noqa: BLE001 - unsure: an existing install
+            return False
 
     async def async_set(self, **kwargs: Any) -> dict[str, Any]:
         self.data = {**self.data, **kwargs}

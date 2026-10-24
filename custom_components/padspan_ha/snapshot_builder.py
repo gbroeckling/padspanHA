@@ -224,6 +224,10 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
         # (perf_sampler.py; a no-op while the report is off, never raises).
         record_duration(hass, "snap", (time.perf_counter() - _t0) * 1000.0)
         dom[_DATA_SNAPSHOT_CACHE] = (time.monotonic(), snap)
+        # A new install's first room and first calibration point
+        # (onboarding.py): one lookup anywhere else, never raises.
+        from .onboarding import note_snapshot  # noqa: PLC0415
+        note_snapshot(hass, snap)
         return snap
 
 
