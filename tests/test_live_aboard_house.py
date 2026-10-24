@@ -165,3 +165,13 @@ def test_the_view_draws_each_wall_by_the_one_corner_rule() -> None:
     draft = (_VIEWS / "live_aboard_draft.js").read_text(encoding="utf-8")
     assert "splitPiece(W, WL, wx, wy, t0, t1, mine)" in draft
     assert "DRAFT.splitPiece(W, WL, wx, wy, t0, t1, { kind, mat, barrier: b })" in (_VIEWS / "live_aboard_house.js").read_text(encoding="utf-8")
+
+
+def test_the_open_edge_help_gives_the_rises_to_setup() -> None:
+    """0.38.164: the Open (Loft) help says what Floor Heights says: keep the
+    floor's normal height and give the tall room Rises to in Rooms (a hall
+    floor made tall makes every room on it tall)."""
+    for path in (_VIEWS / "maps.js", _WWW / "help_content.js"):
+        src = path.read_text(encoding="utf-8")
+        assert "given its full height in Floor Heights" not in src, path.name
+        assert "with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to in Rooms" in src, path.name

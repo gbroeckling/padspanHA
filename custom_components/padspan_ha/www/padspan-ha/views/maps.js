@@ -4313,7 +4313,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
         "steps": [
           "In the Edit tab, click RF Barriers.",
-          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the hall given its full height in Floor Heights) gets a railing; anywhere else it stays an open gap.",
+          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to in Rooms) gets a railing; anywhere else it stays an open gap.",
           "Click along the wall on the photo, one point per corner or bend.",
           "Click Undo point to remove the last point.",
           "Double-click, or click Finish, once you have at least two points."
