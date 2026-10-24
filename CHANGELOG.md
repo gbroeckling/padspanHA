@@ -10,6 +10,9 @@ All notable changes to PadSpan HA are documented here.
 - **Setup screens and the WLED actions in ten languages.** Danish, Dutch, Finnish, French, German, Italian, Norwegian, Portuguese, Spanish and Swedish now have real translations of the setup and options screens and of the "WLED on with its look" and "WLED off" actions and their fields. Before, these languages showed English. English is unchanged.
 - **A note on first-time HACS setup** in the Getting Started guide (and a pointer in the README): since 2026-10-23 a GitHub change can make a first-time HACS setup fail at the GitHub sign-in step (`could_not_register`) until HACS releases its fix. Existing HACS installs keep installing and updating PadSpan normally. The note will be removed once HACS ships the fix.
 
+### Added
+- **Groundwork for translating the panel.** A small built-in helper that will let the panel show a reviewed translation when your Home Assistant profile uses that language, with English as the fallback for anything not yet translated. No language is shipped yet and no text has been converted, so the panel looks exactly as before in every language, and English never loads anything extra.
+
 ## 0.38.164 — Enhanced security, the Studio look, and Live Aboard walls stop under the floor above (2026-10-24)
 
 Everything new here is off until you turn it on. With Enhanced security off and the Live Aboard look unchanged, PadSpan works as in 0.38.163, and houses whose floors stack normally look the same; names are now always drawn as plain text.
