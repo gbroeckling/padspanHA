@@ -43,6 +43,18 @@ export function render(ctx){
     ]),
   ]));
 
+  // ── A proxy that suddenly hears much less than it usually does ──────────
+  // (proxy_health.py). Drawn only while a drop is on; nothing otherwise.
+  const deaf = ((snap?.ble?.radios) || []).filter(r => r && r.adv_rate_low === true);
+  if (deaf.length) {
+    root.appendChild(el("div",{class:"card",style:"margin-top:12px;font-size:11px"},[
+      el("div",{style:"font-weight:700;margin-bottom:4px"},"Hearing less than usual"),
+      el("div",{}, deaf.map(r => r.name || r.source).join(", ")),
+      el("div",{class:"muted",style:"margin-top:4px"},
+        "For over 10 minutes this scanner has heard far fewer Bluetooth advertisements than it usually does, while the others are normal. Rooms near it can be wrong. Restarting it often helps; on ESPHome, check its version and Wi-Fi."),
+    ]));
+  }
+
   // ── PadSpan Bright → PadSpan HA import ──────────────────────────────────
   // Offered only while a Bright house exists on this HA and has not been
   // imported; a receipt afterwards; nothing at all otherwise.
