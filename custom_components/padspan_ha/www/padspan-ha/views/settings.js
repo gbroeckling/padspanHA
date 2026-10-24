@@ -1136,6 +1136,56 @@ function _settingsPresence(ctx, el){
     ]),
   ]));
 
+  // ── Enhanced security ──────────────────────────────────────────────────────
+  // OFF by default; only an administrator turns it on or off (ws_settings).
+  // While it is on, the backend's require_admin_if_enhanced (ws_common)
+  // refuses changes to the home's shared setup from anyone else. New
+  // protections go behind the same switch: add them to the list below too.
+  const secOn = settings.enhanced_security === true;
+  const secAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
+  const secBtn = el("button", { class: "btn inline", style: secOn
+    ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
+    : "color:#94a3b8" }, secOn ? "On" : "Off");
+  if (!secAdmin) { secBtn.disabled = true; secBtn.title = "Only an administrator can change this"; }
+  secBtn.addEventListener("click", async () => {
+    try {
+      await ctx.actions.settingsSet({ enhanced_security: !secOn });
+      ctx.toast(`Enhanced security ${!secOn ? "on" : "off"}`);
+      ctx.actions.renderRooms();
+    } catch(e) { ctx.toast("Failed to save setting: " + String((e && e.message) || e), true); }
+  });
+  const secCovers = [
+    "Devices: merging, deleting, renaming and labelling them",
+    "Calibration points and the calibration model",
+    "The house layout: rooms, scanners, lights, beacons, walls, floor heights and map details",
+    "Scanner offsets and turning radios off or marking them lost",
+    "Follow alerts, phones added for tracking, and Find My links",
+    "Clearing history, forgetting lost items and suspending learning",
+    "Live Aboard edits, sharing to its library and its photo reader",
+    "PadSpan's log",
+    "Settings that apply to the whole home (the update check, device maker lookup, positioning and the rest)",
+  ];
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Enhanced security"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
+      "When this is on, only a Home Assistant administrator can change how PadSpan is set up for this home. " +
+      "Everyone else in the household can still view and use PadSpan: the maps, Follow, lights, the emergency " +
+      "lighting test, their own view and theme choices, and assigning a Bluetooth radio to a room. " +
+      "If they try to change something else, PadSpan tells them it needs an admin. " +
+      "More protections will be added here over time."
+    ),
+    el("div", { style: "font-size:12px;color:#cbd5e1;margin-bottom:4px" }, "What it covers now:"),
+    el("ul", { style: "font-size:12px;color:#94a3b8;margin:0 0 12px 18px;padding:0;line-height:1.55" },
+      secCovers.map(t => el("li", {}, t))),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Enhanced security"),
+      secBtn,
+    ]),
+    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
+      secAdmin ? "Off by default. Takes effect at once, no restart needed." : "Only an administrator can change this."
+    ),
+  ]));
+
   // ── Help improve PadSpan (opt-in usage report) ─────────────────────────────
   // OFF by default. The Preview shows the exact JSON that would go, before or
   // after opting in; the backend refuses to send anything identifier-shaped

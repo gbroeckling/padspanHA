@@ -260,3 +260,26 @@ def test_only_an_admin_turns_the_switch_on_or_off(on):
 def test_the_switch_is_reported_only_when_on():
     from custom_components.padspan_ha import telemetry as T
     assert T._FEATURE_ON_ONLY["enhanced_security"] == "enhanced_security"
+
+
+# ── the panel ────────────────────────────────────────────────────────────────
+
+_WWW = _CC / "www" / "padspan-ha"
+
+
+def test_the_panel_shows_the_refusal_politely_and_keeps_it_up():
+    src = (_WWW / "panel.js").read_text(encoding="utf-8")
+    body = src[src.index("  async _callWS(payload){"):src.index("  // Fetch settings and store quietly")]
+    assert 'err.code === "admin_only"' in body and "throw err;" in body, "the error must still reach the view"
+    assert "this._adminOnlyToastUntil" in src[src.index("  _toast(msg, isErr=false){"):]
+
+
+def test_the_settings_card_is_there_and_only_an_admin_can_press_it():
+    src = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    card = src[src.index("// ── Enhanced security"):src.index("// ── Help improve PadSpan")]
+    assert 'el("div", { class: "h2" }, "Enhanced security")' in card
+    assert "settings.enhanced_security === true" in card, "off unless it is really on"
+    assert "if (!secAdmin) { secBtn.disabled = true;" in card
+    assert "settingsSet({ enhanced_security: !secOn })" in card
+    assert "More protections will be added here over time." in card
+    assert "can still view and use PadSpan" in card
