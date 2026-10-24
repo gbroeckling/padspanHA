@@ -35,6 +35,9 @@
 
 const TRACKED = await import(`./live_aboard_tracked.js${new URL(import.meta.url).search}`);
 const PIECES = await import(`./live_aboard_pieces.js${new URL(import.meta.url).search}`);
+// Who is in which room, as text for screen readers (map_text.js). If it can't
+// load, the map is as it was, with no hidden text.
+const MAP_TEXT = await import(`./map_text.js${new URL(import.meta.url).search}`).catch(() => null);
 
 const NS = "http://www.w3.org/2000/svg";
 const TAG = "#5eead4";                      // the flat Atlas's beacon teal (Live Aboard's tag)
@@ -201,12 +204,12 @@ const _layers = new Map();                  // slot -> the long-lived layer, mov
 /** The flat map's people and tags layer for a screen (one per slot). */
 export function liveLayer(slot){
   const k = String(slot || "atlas");
-  if (!_layers.has(k)) _layers.set(k, createLiveLayer());
+  if (!_layers.has(k)) _layers.set(k, createLiveLayer(k));
   return _layers.get(k);
 }
 export function dropLayers(){ for (const L of _layers.values()) L.clear(); _layers.clear(); closeCard(); }
 
-function createLiveLayer(){
+function createLiveLayer(slot){
   // One group per floor, each laid in the drawing just under the next
   // floor up (its plate covers what is under it, as the map's own markers
   // are covered), the top floor's last.
@@ -228,6 +231,19 @@ function createLiveLayer(){
   const items = new Map();                  // key -> {g, kind, m: [x, y, z], at, ...}
   const since = new Map();                  // person -> {room, t (null: the room they were in when first seen)}
   let d = null, snap = null, frameKey = null;
+  // The people and tags drawn, as text in a box no one sees, in the card's
+  // own root; the drawing names it as its description.
+  let text = null;
+  const textId = `psAtlasText-${String(slot || "atlas").replace(/[^\w-]/g, "_")}`;
+  function tell(wants){
+    if (!MAP_TEXT || !d || typeof d.home !== "function" || !snap) return;
+    const home = d.home();
+    if (!home) return;
+    if (!text) text = MAP_TEXT.createMapText(textId, "Who is in which room");
+    if (text.el.parentNode !== home) home.appendChild(text.el);
+    if (d.stage && d.stage.setAttribute) d.stage.setAttribute("aria-describedby", textId);
+    text.update(MAP_TEXT.roomLines(MAP_TEXT.wantedEntries(wants, !!d.hideNames), MAP_TEXT.mapRooms(d.model)));
+  }
 
   function make(w){
     const n = svgEl("g", { class: "lv-live-item lv-live-jump", "data-live": w.kind, "data-live-key": w.key });
@@ -312,6 +328,8 @@ function createLiveLayer(){
       }
     }
     for (const [k, it] of items) if (!keep.has(k)) { try { it.g.remove(); } catch (_) { /* gone */ } items.delete(k); }
+    // As drawn: on a floor on the map and in sight (the floor focus).
+    tell(wants.filter(w => keep.has(w.key) && items.has(w.key) && items.get(w.key).g.style.display !== "none"));
   }
   return {
     /**
@@ -341,6 +359,7 @@ function createLiveLayer(){
     clear(){
       for (const fg of floorsG.values()) { try { fg.remove(); } catch (_) { /* gone */ } }
       floorsG.clear(); items.clear(); since.clear(); d = null; snap = null; svg = null;
+      if (text) { text.clear(); try { text.el.remove(); } catch (_) { /* gone */ } text = null; }
     },
     /** The floor groups (the tests). */
     groups: () => [...floorsG.entries()].map(([z, fg]) => ({ z, n: fg.children.length, parent: fg.parentNode })),

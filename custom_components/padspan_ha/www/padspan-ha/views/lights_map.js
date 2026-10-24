@@ -3040,6 +3040,10 @@ export function buildLightsMapCard(hostIn){
   // map from side to side, because the SVG was pinned to its natural size.
   const isoDiv = document.createElement("div");
   isoDiv.className = "lv-stage";
+  // For screen readers: the map is a figure (with people or tags shown,
+  // atlas_aboard.js names who is in which room as its description).
+  isoDiv.setAttribute("role", "figure");
+  isoDiv.setAttribute("aria-label", "House map");
   // Pan position, mirrored into view (the same persistent object zoom
   // already lives on) so it survives a full rebuild of this card, not just
   // an in-place rebuildISO() — the whole card (this isoDiv included) is

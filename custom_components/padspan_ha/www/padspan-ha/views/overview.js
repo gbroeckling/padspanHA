@@ -2015,6 +2015,11 @@ export function renderClassic(ctx){
     // the map feels cramped against the edges.
     const MAP_SIDE_PAD_PCT = 2;
     isoDiv.style.cssText = "overflow:auto;border-radius:8px;background:#071008;padding:8px " + MAP_SIDE_PAD_PCT + "%";
+    // For screen readers: the map is a figure, described by who is in which
+    // room (panel.js _updateMapText, a box no one sees). Nothing drawn changes.
+    isoDiv.setAttribute("role", "figure");
+    isoDiv.setAttribute("aria-label", "House map");
+    isoDiv.setAttribute("aria-describedby", "psMapText");
 
     // ── 3D map loading indicator ────────────────────────────────────────
     const _isoProgressFill = { style: {} }; // stub — no visual progress bar

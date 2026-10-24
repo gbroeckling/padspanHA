@@ -8,6 +8,9 @@ All notable changes to PadSpan HA are documented here.
 
 Nothing looks different unless you pick it. Themes already chosen stay as they are.
 
+### New
+- **The map as text for screen readers.** On the Overview, and on the Atlas while it shows people or tags, a screen reader can read who is in which room ("Kitchen: Alice's iPhone. Office: empty."). It lists only what the map shows, and reads a room's line when it changes, at most every 10 seconds. The text is not shown on screen, so the panel looks the same as before. The maps are now labelled "House map" for screen readers.
+
 ### Changed
 - **High contrast is in every edition.** Settings → Appearance → Theme offers Night, Light (inverted) and High contrast without PadSpan Pro; Graphite, Ocean, Dusk and Day still come with Pro. A High contrast picked earlier now shows without Pro too.
 
