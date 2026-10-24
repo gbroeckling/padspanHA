@@ -655,7 +655,8 @@ export function render(ctx) {
         // One <g> per object, keyed + anchored, so mergeObjectLayer can
         // glide it to its next-frame position instead of the whole overlay
         // teleporting on every frame swap.
-        s += `<g data-obj-key="${_esc(o.k || "")}" data-ann="${px} ${py}">`;
+        // _esc leaves quotes alone; a key is an attribute value here.
+        s += `<g data-obj-key="${_esc(o.k || "").replaceAll('"', "&quot;")}" data-ann="${px} ${py}">`;
         // Outer glow ring (pulsing)
         s += `<circle cx="${px}" cy="${py}" r="26" fill="none" stroke="${col}" stroke-width="2" opacity="0.35">`;
         s += `<animate attributeName="r" values="22;28;22" dur="1.8s" repeatCount="indefinite"/>`;
