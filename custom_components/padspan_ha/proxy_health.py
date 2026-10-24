@@ -23,7 +23,9 @@ deaf radio; a deaf radio hears every address it still hears less often.
   recovery   CLEAR_MINUTES minutes in a row back over CLEAR_RATIO.
 
 A minute where a scanner heard fewer than MIN_ADDRS addresses says nothing
-and is skipped. Memory only: a restart learns again. Nothing is shown unless
+and is skipped. The minute closes on the first advertisement after it ends
+(or a snapshot, whichever comes first), so with no panel open the counts
+still cover one minute, not days of rotating addresses. Memory only: a restart learns again. Nothing is shown unless
 a drop is on (the snapshot's radio gets adv_rate_low), and the opt-in report
 gets a bucket of how many drops started (telemetry.PROXY_DROP_EVENTS).
 """
@@ -40,6 +42,11 @@ DROP_RATIO = 0.30
 LOW_MINUTES = 10
 CLEAR_RATIO = 0.60
 CLEAR_MINUTES = 3
+# Addresses kept per scanner per minute, at most; past it only the addresses
+# already kept are counted, so the per-address rate stays honest.
+MAX_ADDRS = 1024
+# Drops started between snapshots, kept for the next tick (count only).
+MAX_PENDING = 64
 
 
 @dataclass
@@ -57,21 +64,34 @@ class AdvertRateHealth:
     _addrs: dict[str, set[str]] = field(default_factory=dict)
     _start: float | None = None
     _sc: dict[str, _Scanner] = field(default_factory=dict)
+    _pending: list[str] = field(default_factory=list)
 
-    def note(self, source: str, address: str) -> None:
-        """One live advertisement. A dict increment and a set add."""
-        self._count[source] = self._count.get(source, 0) + 1
+    def note(self, source: str, address: str, now: float | None = None) -> None:
+        """One live advertisement. A dict increment and a set add; given the
+        time, the minute is closed here once it has passed."""
+        if now is not None and self._start is not None and now - self._start >= WINDOW_S:
+            started = self._roll(now)
+            if started and len(self._pending) < MAX_PENDING:
+                self._pending.extend(started[:MAX_PENDING - len(self._pending)])
         s = self._addrs.get(source)
         if s is None:
             s = self._addrs[source] = set()
-        s.add(address)
+        if address not in s:
+            if len(s) >= MAX_ADDRS:
+                return
+            s.add(address)
+        self._count[source] = self._count.get(source, 0) + 1
 
     def low_sources(self) -> set[str]:
         return {src for src, sc in self._sc.items() if sc.dropped}
 
     def tick(self, now: float) -> list[str]:
         """Close the window once a minute has passed; the scanners whose drop
-        STARTED with it."""
+        STARTED with it, or since the last tick."""
+        pending, self._pending = self._pending, []
+        return pending + self._roll(now)
+
+    def _roll(self, now: float) -> list[str]:
         if self._start is None:
             self._start = now
             return []

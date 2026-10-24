@@ -363,7 +363,7 @@ class BluetoothLive:
                 return
             self._seen_by_source[addr][src] = _Adv(record=rec, seen=seen)
             if _age <= 2.0 and src != "_unknown":
-                self.rate_health.note(src, addr)
+                self.rate_health.note(src, addr, time.monotonic())
             # Sample history for median-of-N (real callbacks only — the
             # reseed path replays cached readings and must not multiply them)
             _rs = rec.get("rssi")

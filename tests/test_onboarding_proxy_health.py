@@ -258,10 +258,42 @@ def test_a_gap_between_snapshots_is_not_judged():
     assert h.tick(1000.0) == [] and not h._sc
 
 
+def test_a_week_with_no_snapshot_keeps_memory_bounded_and_still_judges():
+    # No panel open for a week: tick() is never called, phones rotate their
+    # addresses every minute. The minute must close inside note().
+    rnd = random.Random(4)
+    h = ph.AdvertRateHealth()
+    h.tick(0.0)
+    biggest = 0
+    week = 7 * 24 * 60
+    for m in range(week):
+        t0 = m * 60.0
+        deaf = m >= week - 60
+        for src, rate in (("a", 4), ("b", 3), ("c", 3)):
+            for k in range(15):
+                addr = f"{src}-{m}-{k}"            # a fresh address every minute
+                for r in range(1 if (deaf and src == "a") else rate):
+                    h.note(src, addr, t0 + 1.0 + k + r * 0.1)
+        biggest = max(biggest, max(len(v) for v in h._addrs.values()))
+    assert biggest <= 15 + 1, biggest              # one minute's addresses, never a week's
+    assert set(h._addrs) <= {"a", "b", "c"} and len(h._pending) <= ph.MAX_PENDING
+    assert h.low_sources() == {"a"}                  # the drop was seen without a snapshot
+    assert h.tick(week * 60.0) == ["a"] and h.tick(week * 60.0 + 1) == []
+
+
+def test_a_busy_minute_keeps_at_most_max_addrs_per_scanner():
+    h = ph.AdvertRateHealth()
+    h.tick(0.0)
+    for i in range(ph.MAX_ADDRS + 500):
+        h.note("a", f"x{i}", 1.0)
+    h.note("a", "x0", 2.0)                            # a kept address still counts
+    assert len(h._addrs["a"]) == ph.MAX_ADDRS and h._count["a"] == ph.MAX_ADDRS + 1
+
+
 def test_a_healthy_house_snapshot_is_unchanged():
     src = (_CC / "bluetooth_live.py").read_text(encoding="utf-8")
     assert 'if _radio_src in _rate_low:\n                            radios[-1]["adv_rate_low"] = True' in src
-    assert "self.rate_health.note(src, addr)" in src and "if _age <= 2.0" in src
+    assert "self.rate_health.note(src, addr, time.monotonic())" in src and "if _age <= 2.0" in src
     assert 'bump(self.hass, "proxy_rate_drop", len(started))' in src
 
 
