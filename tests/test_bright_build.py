@@ -79,6 +79,14 @@ def test_the_shape_of_the_generated_tree(tree):
     assert integ.is_dir()
     assert (integ / "www" / "padspan-bright" / "panel.js").is_file()
     assert (integ / "www" / "padspan-bright" / "lights_panel.js").is_file()
+    # The panel's translations: {product} is Bright's name, the files load
+    # relative to the module, so the renamed asset folder needs nothing else.
+    i18n = (integ / "www" / "padspan-bright" / "views" / "i18n.js").read_text(encoding="utf-8")
+    assert 'export const PRODUCT = "PadSpan Bright";' in i18n
+    assert "new URL(`../i18n/${lang}/${g}.json${q}`, import.meta.url)" in i18n
+    src_lang = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "i18n"
+    for p in (src_lang.rglob("*.json") if src_lang.is_dir() else ()):
+        assert (integ / "www" / "padspan-bright" / "i18n" / p.relative_to(src_lang)).is_file()
     m = json.loads((integ / "manifest.json").read_text(encoding="utf-8"))
     assert m["domain"] == "padspan_bright" and m["name"] == "PadSpan Bright"
     assert m["documentation"] == "https://github.com/gbroeckling/padspanBright"

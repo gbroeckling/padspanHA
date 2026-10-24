@@ -3,32 +3,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required).",
+        "title": "Konfigurera PadSpan HA",
+        "description": "Lokal installation (inget API krävs). Allt annat, även hur ofta PadSpan uppdaterar, ställs in i PadSpan-panelen i sidofältet.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Uppdateringsintervall (sekunder)"
         }
       },
       "reconfigure": {
-        "title": "Reconfigure PadSpan HA",
-        "description": "Update scan interval.",
+        "title": "Konfigurera om PadSpan HA",
+        "description": "Ändra uppdateringsintervall.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Uppdateringsintervall (sekunder)"
         }
       }
     },
     "abort": {
-      "already_configured": "PadSpan HA is already configured.",
-      "reconfigure_successful": "Saved.",
-      "unknown": "An unexpected error occurred. Check Home Assistant logs."
+      "already_configured": "PadSpan HA är redan konfigurerat.",
+      "reconfigure_successful": "Sparat.",
+      "unknown": "Ett oväntat fel uppstod. Kontrollera loggarna i Home Assistant."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "PadSpan HA options",
+        "title": "Alternativ för PadSpan HA",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Uppdateringsintervall (sekunder)"
+        }
+      }
+    }
+  },
+  "services": {
+    "wled_on": {
+      "name": "Tänd WLED med sitt utseende",
+      "description": "Tänder WLED-lampor med exakt det utseende som PadSpan har sparat för dem, utan blinkning. En lampa som PadSpan inte styr tänds av Home Assistant som vanligt.",
+      "fields": {
+        "brightness_pct": {
+          "name": "Ljusstyrka",
+          "description": "Ljusstyrka i procent. Lämna tomt för den sparade ljusstyrkan."
+        },
+        "transition": {
+          "name": "Övertoning",
+          "description": "Övertoningstid i sekunder. Lämna tomt för den sparade övertoningen."
+        }
+      }
+    },
+    "wled_off": {
+      "name": "Släck WLED",
+      "description": "Släcker WLED-lampor på samma sätt som PadSpan och behåller deras sparade utseende till nästa gång de tänds.",
+      "fields": {
+        "transition": {
+          "name": "Övertoning",
+          "description": "Övertoningstid i sekunder. Lämna tomt för den sparade övertoningen."
         }
       }
     }

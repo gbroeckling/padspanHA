@@ -63,6 +63,8 @@ Home/away just needs to see *any* signal from *any* scanner — easy. Room-level
 3. Search for **PadSpan HA** and install it
 4. **Restart Home Assistant completely** (Settings → System → Restart)
 
+> **Setting up HACS for the first time? (temporary note)** Since 2026-10-23 GitHub sends a very large header that Home Assistant's web library rejects. Until HACS releases its fix, a first-time HACS setup can fail at the GitHub sign-in step with `could_not_register` (HACS issues [#5643](https://github.com/hacs/integration/issues/5643) and [#5646](https://github.com/hacs/integration/issues/5646), fix in progress in [PR #5644](https://github.com/hacs/integration/pull/5644)). If HACS is already set up, nothing changes: it keeps installing and updating PadSpan normally. HACS may log a "Failed to download zipball" error and then fetch the files one by one, which is fine. In the meantime you can use the manual install below. This note will be removed once HACS ships the fix.
+
 ### Manual
 1. Download the [latest release ZIP](https://github.com/gbroeckling/padspanHA/releases/latest)
 2. Extract `custom_components/padspan_ha/` into your HA `config/custom_components/` directory

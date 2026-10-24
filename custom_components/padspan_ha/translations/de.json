@@ -3,32 +3,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required).",
+        "title": "PadSpan HA einrichten",
+        "description": "Lokale Einrichtung (keine API erforderlich). Alles Weitere, auch wie oft PadSpan aktualisiert, wird im PadSpan-Panel in der Seitenleiste eingestellt.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Aktualisierungsintervall (Sekunden)"
         }
       },
       "reconfigure": {
-        "title": "Reconfigure PadSpan HA",
-        "description": "Update scan interval.",
+        "title": "PadSpan HA neu konfigurieren",
+        "description": "Aktualisierungsintervall ändern.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Aktualisierungsintervall (Sekunden)"
         }
       }
     },
     "abort": {
-      "already_configured": "PadSpan HA is already configured.",
-      "reconfigure_successful": "Saved.",
-      "unknown": "An unexpected error occurred. Check Home Assistant logs."
+      "already_configured": "PadSpan HA ist bereits eingerichtet.",
+      "reconfigure_successful": "Gespeichert.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten. Bitte die Home Assistant-Protokolle prüfen."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "PadSpan HA options",
+        "title": "PadSpan HA-Optionen",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Aktualisierungsintervall (Sekunden)"
+        }
+      }
+    }
+  },
+  "services": {
+    "wled_on": {
+      "name": "WLED mit gespeichertem Look einschalten",
+      "description": "Schaltet WLED-Lichter mit genau dem Look ein, den PadSpan sich für sie gemerkt hat, ohne Aufblitzen. Ein Licht, das PadSpan nicht steuert, schaltet Home Assistant wie gewohnt ein.",
+      "fields": {
+        "brightness_pct": {
+          "name": "Helligkeit",
+          "description": "Helligkeit in Prozent. Leer lassen für die gespeicherte Helligkeit."
+        },
+        "transition": {
+          "name": "Überblenden",
+          "description": "Überblendzeit in Sekunden. Leer lassen für die gespeicherte Überblendzeit."
+        }
+      }
+    },
+    "wled_off": {
+      "name": "WLED ausschalten",
+      "description": "Schaltet WLED-Lichter so aus, wie PadSpan es tut, und behält ihren gespeicherten Look für das nächste Einschalten.",
+      "fields": {
+        "transition": {
+          "name": "Überblenden",
+          "description": "Überblendzeit in Sekunden. Leer lassen für die gespeicherte Überblendzeit."
         }
       }
     }

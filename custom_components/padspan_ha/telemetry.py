@@ -370,6 +370,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "wled_tab_leds", "wled_tab_look", "wled_tab_presets", "wled_tab_settings",
     "wled_tab_sync", "wled_ui", "trial_offer", "release_notes", "pro_invite",
     "aboard_wizard",                                # the Live Aboard setup wizard (Settings, Mapping → Atlas)
+    "i18n",                                         # the panel's translations helper (t / tn)
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
 UI_ERRORS: frozenset[str] = frozenset(

@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.165 — New-install setup help, proxy health, an honest accuracy score, and High contrast for everyone (2026-10-24)
+## 0.38.165 — New-install setup help, proxy health, an honest accuracy score, High contrast for everyone, and setup screens in ten languages (2026-10-24)
 
 Everything new here is off until you turn it on, except High contrast, which every edition now gets, the new accuracy line, which sits beside the old one, and the iPhone setup guide, which is on for brand-new installs only. With nothing turned on, rooms and positions are the same as in 0.38.164.
 
@@ -20,11 +20,14 @@ Everything new here is off until you turn it on, except High contrast, which eve
 ### Added
 - The opt-in usage report counts how many times a proxy started hearing much less (as 1, 2–5 or more) and, once, for an install set up on this version or later, how long it took from setup to its first device in a room and to its first calibration point, in buckets. Counts only, and only with the report on.
 - The opt-in usage report carries the unseen-spots score as ranges only (rooms right, median error, which method did better), where calibration gives one; whether each new choice is on; and, only while on, the share of devices marked unsure and how often motion sensors changed a room.
+- **Groundwork for translating the panel.** A small built-in helper that will let the panel show a reviewed translation when your Home Assistant profile uses that language, with English as the fallback for anything not yet translated. No language is shipped yet and no text has been converted, so the panel looks exactly as before in every language, and English never loads anything extra.
 
 ### Changed
 - **The Getting Started guide** has a short "what you need" box: how many scanners, roughly what they cost, and how long setup and calibration take.
 - **High contrast is in every edition.** Settings → Appearance → Theme offers Night, Light (inverted) and High contrast without PadSpan Pro; Graphite, Ocean, Dusk and Day still come with Pro. A High contrast picked earlier now shows without Pro too.
 - **Less motion when the browser asks for it.** With "reduce motion" set in the operating system or browser, the Overview's dots (and Traceback's) go straight to their new spot instead of gliding and fading, and the Overview map changes without its fade. Without that setting nothing changes.
+- **Setup screens and the WLED actions in ten languages.** Danish, Dutch, Finnish, French, German, Italian, Norwegian, Portuguese, Spanish and Swedish now have real translations of the setup and options screens and of the "WLED on with its look" and "WLED off" actions and their fields. Before, these languages showed English. English is unchanged.
+- **A note on first-time HACS setup** in the Getting Started guide (and a pointer in the README): since 2026-10-23 a GitHub change can make a first-time HACS setup fail at the GitHub sign-in step (`could_not_register`) until HACS releases its fix. Existing HACS installs keep installing and updating PadSpan normally. The note will be removed once HACS ships the fix.
 
 ---
 

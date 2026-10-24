@@ -3,32 +3,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up PadSpan HA",
-        "description": "Local-first setup (no API required).",
+        "title": "Konfigurer PadSpan HA",
+        "description": "Lokal opsætning (ingen API nødvendig). Alt andet, også hvor ofte PadSpan opdaterer, indstilles i PadSpan-panelet i sidebjælken.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Opdateringsinterval (sekunder)"
         }
       },
       "reconfigure": {
-        "title": "Reconfigure PadSpan HA",
-        "description": "Update scan interval.",
+        "title": "Omkonfigurer PadSpan HA",
+        "description": "Skift opdateringsinterval.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Opdateringsinterval (sekunder)"
         }
       }
     },
     "abort": {
-      "already_configured": "PadSpan HA is already configured.",
-      "reconfigure_successful": "Saved.",
-      "unknown": "An unexpected error occurred. Check Home Assistant logs."
+      "already_configured": "PadSpan HA er allerede konfigureret.",
+      "reconfigure_successful": "Gemt.",
+      "unknown": "Der opstod en uventet fejl. Tjek Home Assistants logfiler."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "PadSpan HA options",
+        "title": "Indstillinger for PadSpan HA",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Opdateringsinterval (sekunder)"
+        }
+      }
+    }
+  },
+  "services": {
+    "wled_on": {
+      "name": "Tænd WLED med dets udseende",
+      "description": "Tænder WLED-lys med præcis det udseende, PadSpan har husket for dem, uden blink. Et lys, som PadSpan ikke styrer, tændes af Home Assistant som normalt.",
+      "fields": {
+        "brightness_pct": {
+          "name": "Lysstyrke",
+          "description": "Lysstyrke i procent. Lad feltet være tomt for den huskede lysstyrke."
+        },
+        "transition": {
+          "name": "Overgang",
+          "description": "Overgangstid i sekunder. Lad feltet være tomt for den huskede overgang."
+        }
+      }
+    },
+    "wled_off": {
+      "name": "Sluk WLED",
+      "description": "Slukker WLED-lys på samme måde som PadSpan og beholder deres huskede udseende til næste gang, de tændes.",
+      "fields": {
+        "transition": {
+          "name": "Overgang",
+          "description": "Overgangstid i sekunder. Lad feltet være tomt for den huskede overgang."
         }
       }
     }
