@@ -189,7 +189,7 @@ class PadSpanLightsApp extends HTMLElement {
     try{ localStorage.setItem(LS_HIDDEN, JSON.stringify(arr)); }catch(_){}
     // Also persist to HA backend so it survives across devices/reboots
     if(this._hass){
-      try{ this._hass.callWS({ type:"padspan_ha/settings_set", lights_hidden: arr }); }catch(_){}
+      try{ this._ws({ type:"padspan_ha/settings_set", lights_hidden: arr }); }catch(_){}
     }
   }
 
@@ -250,7 +250,7 @@ class PadSpanLightsApp extends HTMLElement {
     _screenReported = true;
     let kiosk = false;
     try { kiosk = new URLSearchParams(location.search).get("kiosk") === "1"; } catch(_) {}
-    const send = (name, screen)=>{ Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name, ...(screen || {}) })).catch(()=>{}); };
+    const send = (name, screen)=>{ Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:name, ...(screen || {}) })).catch(()=>{}); };
     // With the screen id (read, never made): its word in the report's list of screens.
     let sid = null;
     try { sid = localStorage.getItem("padspan_screen_id"); } catch(_) {}
@@ -281,7 +281,7 @@ class PadSpanLightsApp extends HTMLElement {
     // panel's Overview (_embedded): the panel runs its own.
     if(!this._embedded && Date.now() - (this._versionTs || 0) > 600000){
       this._versionTs = Date.now();
-      this._hass.callWS({ type:"padspan_ha/version" }).then(vi => {
+      this._ws({ type:"padspan_ha/version" }).then(vi => {
         const be = (vi && typeof vi.build_id === "string") ? vi.build_id : "";
         let reloadedFor = "";
         try { reloadedFor = sessionStorage.getItem("padspan_reloaded_for") || ""; } catch(_) {}
@@ -321,7 +321,7 @@ class PadSpanLightsApp extends HTMLElement {
 
   async _loadModel(){
     try{
-      const res = await this._hass.callWS({ type:"padspan_ha/model_get" });
+      const res = await this._ws({ type:"padspan_ha/model_get" });
       // Keep the WHOLE model payload. This panel used to copy four fields by
       // name, so when placed light positions moved into the model the sidebar
       // silently kept showing every light auto-clustered at its room centre
@@ -352,7 +352,7 @@ class PadSpanLightsApp extends HTMLElement {
     // reachable — otherwise a transient websocket error makes this panel
     // render maps the Mapping tab hides, for the whole session.
     try{
-      const res = await this._hass.callWS({ type:"padspan_ha/settings_get" });
+      const res = await this._ws({ type:"padspan_ha/settings_get" });
       s = res?.settings || {};
     }catch(e){}
     try{
@@ -485,7 +485,7 @@ class PadSpanLightsApp extends HTMLElement {
     // pre-tap state over what the action returned.
     const seq = this._emergSeq = (this._emergSeq || 0) + 1;
     let r = null;
-    try{ r = await this._hass.callWS({ type:"padspan_ha/emergency_status" }); }
+    try{ r = await this._ws({ type:"padspan_ha/emergency_status" }); }
     catch(_){ r = null; }
     if(seq !== this._emergSeq || this._emergBusy) return;
     this.state._emerg = r;
@@ -511,7 +511,7 @@ class PadSpanLightsApp extends HTMLElement {
     this._emergSeq = (this._emergSeq || 0) + 1;
     this._render();                                  // the busy state on the button
     try{
-      const r = await this._hass.callWS(msg);
+      const r = await this._ws(msg);
       this._emergApply(r);
       const name = {};
       for(const m of (r && r.members) || []) name[m.entity_id] = m.name || m.entity_id;
@@ -719,7 +719,7 @@ class PadSpanLightsApp extends HTMLElement {
           ...(m.entity_id.startsWith("light.") && !dead ? [el("button",{style: act + ";padding:6px 0;width:38px", title:"Brightness, colour and effects",
             onclick:()=>{
               // Adjusting a light during a test counts as setting it by hand.
-              if(active) this._hass.callWS({ type:"padspan_ha/emergency_member", entity_id:m.entity_id })
+              if(active) this._ws({ type:"padspan_ha/emergency_member", entity_id:m.entity_id })
                 .then(r=>{ this._emergApply(r); }).catch(()=>{});
               close();
               this._openWledDetail(m.entity_id);
@@ -743,7 +743,7 @@ class PadSpanLightsApp extends HTMLElement {
       // message omits it, and echoing "live" here would make Save view flip
       // a sample-mode install to live as a hidden side effect (same reason
       // panel.js's settingsSet omits it).
-      await this._hass.callWS({
+      await this._ws({
         type:                    "padspan_ha/settings_set",
         overview_iso_floor_gap:  this._view.floorGap,
         overview_iso_horiz_gap:  this._view.horizGap,
@@ -817,7 +817,7 @@ class PadSpanLightsApp extends HTMLElement {
       doorInvertByEid: doorInvertOf(this.state.model),
       floodLatches: this.state._floodLatches || {},
       onFloodReset: (eid)=>{
-        this._hass.callWS({ type: "padspan_ha/flood_reset", entity_id: eid })
+        this._ws({ type: "padspan_ha/flood_reset", entity_id: eid })
           .then(()=>this._render())
           .catch((e)=>this._toast("Could not reset: " + String(e), true));
       },
@@ -857,7 +857,7 @@ class PadSpanLightsApp extends HTMLElement {
       ...(HA_SIDEBAR ? [this._haBtn = el("button",{class:"lv-act",id:"haSide","aria-pressed":String(HA_SIDEBAR.haHidden(this._hass)),
         title:"Hide or show Home Assistant's sidebar, on this browser only",onclick:()=>{
           const word = HA_SIDEBAR.toggleHaSidebar(this, this._hass);
-          if(this.state._telemetryOn && this._hass) Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:word })).catch(()=>{});
+          if(this.state._telemetryOn && this._hass) Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:word })).catch(()=>{});
         }}, HA_SIDEBAR.haLabel(this._hass))] : []),
       el("button",{class:"lv-act",onclick:()=>{
         this._regStore.reg=null; this._boot().then(()=>this._render());
@@ -964,7 +964,7 @@ class PadSpanLightsApp extends HTMLElement {
         const cap = captureWholeHouse(lights, this._hass?.states || {});
         const rest = (this.state._wholeHousePresets || []).filter((p) => p.name !== name);
         const preset = { name, created_at: Date.now() / 1000, entities: cap.entities };
-        try { await this._hass.callWS({ type: "padspan_ha/settings_set", whole_house_presets: [...rest, preset] }); }
+        try { await this._ws({ type: "padspan_ha/settings_set", whole_house_presets: [...rest, preset] }); }
         catch (e) { return null; }
         this.state._wholeHousePresets = [...rest, preset];
         this._render();
@@ -977,7 +977,7 @@ class PadSpanLightsApp extends HTMLElement {
       },
       onWholeHouseDelete: async (name) => {
         const rest = (this.state._wholeHousePresets || []).filter((p) => p.name !== name);
-        try { await this._hass.callWS({ type: "padspan_ha/settings_set", whole_house_presets: rest }); }
+        try { await this._ws({ type: "padspan_ha/settings_set", whole_house_presets: rest }); }
         catch (e) { return; }
         this.state._wholeHousePresets = rest;
         this._render();
@@ -991,7 +991,7 @@ class PadSpanLightsApp extends HTMLElement {
       // renderer rather than panel.js's global chrome).
       onVacationModeEnable: async () => {
         if (!this._hass) return false;
-        try { await this._hass.callWS({ type: "padspan_ha/settings_set", vacation_mode_enabled: true }); }
+        try { await this._ws({ type: "padspan_ha/settings_set", vacation_mode_enabled: true }); }
         catch (e) { return false; }
         this.state._vacationModeEnabled = true;
         this._render();
@@ -1001,7 +1001,7 @@ class PadSpanLightsApp extends HTMLElement {
       vacationModeIntensity: this.state._vacationModeIntensity || 100,
       onVacationModeDisable: async () => {
         if (!this._hass) return false;
-        try { await this._hass.callWS({ type: "padspan_ha/settings_set", vacation_mode_enabled: false }); }
+        try { await this._ws({ type: "padspan_ha/settings_set", vacation_mode_enabled: false }); }
         catch (e) { this._toast("Could not disable Vacation Mode: " + String(e), true); return false; }
         this.state._vacationModeEnabled = false;
         this._render();
@@ -1009,7 +1009,7 @@ class PadSpanLightsApp extends HTMLElement {
       },
       onVacationModeIntensity: async (pct) => {
         this.state._vacationModeIntensity = pct;
-        try { await this._hass.callWS({ type: "padspan_ha/settings_set", vacation_mode_intensity: pct }); }
+        try { await this._ws({ type: "padspan_ha/settings_set", vacation_mode_intensity: pct }); }
         catch (e) { this._toast("Could not change the intensity: " + String(e), true); }
       },
       onApplyPreset: async (values) => {
@@ -1034,7 +1034,7 @@ class PadSpanLightsApp extends HTMLElement {
         if (values.overview_iso_horiz_gap !== undefined) this._view.horizGap = values.overview_iso_horiz_gap;
         if (values.overview_iso_focus !== undefined) this._view.focusIdx = values.overview_iso_focus ?? 0;
         if (values.overview_iso_zoom !== undefined) this._view.zoom = values.overview_iso_zoom;
-        try { await this._hass.callWS({ type: "padspan_ha/settings_set", ...values }); }
+        try { await this._ws({ type: "padspan_ha/settings_set", ...values }); }
         catch (e) { this._toast("Could not apply the preset: " + String(e), true); }
         this._render();
       },
@@ -1053,7 +1053,7 @@ class PadSpanLightsApp extends HTMLElement {
         // while the report is on (the trial card's rule).
         telemetry: (name)=>{
           if(!this.state._telemetryOn || !this._hass) return;
-          Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
+          Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
         },
       } : null,
       // This screen is the house map (views/atlas_screen.js): zoomed in, the
@@ -1077,7 +1077,7 @@ class PadSpanLightsApp extends HTMLElement {
         // The 3D compass's Save: the GPS Bridge's own bearing,
         // fabric_bearing_deg, written alone and kept here at once.
         saveNorth: async (b)=>{
-          const r = await this._hass.callWS({ type:"padspan_ha/settings_set", fabric_bearing_deg: b });
+          const r = await this._ws({ type:"padspan_ha/settings_set", fabric_bearing_deg: b });
           const v = Number(r && r.settings && r.settings.fabric_bearing_deg);
           this.state._house3d = { ...(this.state._house3d || {}), fabric_bearing_deg: Number.isFinite(v) ? v : b };
           return true;
@@ -1088,7 +1088,7 @@ class PadSpanLightsApp extends HTMLElement {
         // administrator's, as in Settings, saved alone and drawn at once.
         admin: !!this._hass?.user?.is_admin,
         saveSetting: async (key, v)=>{
-          await this._hass.callWS({ type:"padspan_ha/settings_set", [key]: v });
+          await this._ws({ type:"padspan_ha/settings_set", [key]: v });
           this.state._house3d = { ...(this.state._house3d || {}), [key]: v };
           this._render();
           return true;
@@ -1112,7 +1112,7 @@ class PadSpanLightsApp extends HTMLElement {
         load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),
         telemetry: (name)=>{
           if(!this.state._telemetryOn || !this._hass) return;
-          Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
+          Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:String(name) })).catch(()=>{});
         },
       } : null,
       // Same filter as the builder, from the same rule, over the same
@@ -1135,7 +1135,7 @@ class PadSpanLightsApp extends HTMLElement {
       doorInvertByEid: doorInvertOf(this.state.model),
       view: this._view,
       saveView: ()=>this._saveSettings(),
-      callWS: (msg)=>this._hass.callWS(msg),
+      callWS: (msg)=>this._ws(msg),
       toast: (m,isErr)=>this._toast(m,isErr),
       // The use surface — wireUseSurface (shared). The renderer is asked for the
       // use-mode ergonomics: the code as its own tap target (codeChip), a
@@ -1226,7 +1226,7 @@ class PadSpanLightsApp extends HTMLElement {
         const next = { ...this.state._typeOverrides };
         if (!kind || kind === "auto") delete next[eid]; else next[eid] = kind;
         this.state._typeOverrides = next;
-        try { await this._hass.callWS({ type: "padspan_ha/settings_set", light_type_overrides: next }); }
+        try { await this._ws({ type: "padspan_ha/settings_set", light_type_overrides: next }); }
         catch (e) { this._toast("Could not save the type override: " + String(e), true); }
         this._render();
       } : null,
@@ -1242,7 +1242,7 @@ class PadSpanLightsApp extends HTMLElement {
       onTableHealthFilter: (on)=>{ this.state._tableHealthFilter=on; this._render(); },
       floodLatches: this.state._floodLatches || {},
       onFloodReset: (eid)=>{
-        this._hass.callWS({ type: "padspan_ha/flood_reset", entity_id: eid })
+        this._ws({ type: "padspan_ha/flood_reset", entity_id: eid })
           .then(()=>this._render())
           .catch((e)=>this._toast("Could not reset: " + String(e), true));
       },
@@ -1277,10 +1277,10 @@ class PadSpanLightsApp extends HTMLElement {
       el,
       settings: this.state._trialSettings,
       isAdmin: this._isAdmin(),
-      callWS: (type, data)=>this._hass.callWS({ type, ...(data||{}) }),
+      callWS: (type, data)=>this._ws({ type, ...(data||{}) }),
       telemetry: (name)=>{
         if(!this.state._telemetryOn) return;
-        this._hass.callWS({ type:"padspan_ha/telemetry_event", event:String(name) }).catch(()=>{});
+        this._ws({ type:"padspan_ha/telemetry_event", event:String(name) }).catch(()=>{});
       },
       toast: (m,e)=>this._toast(m,e),
       rerender: ()=>this._render(),
@@ -1296,7 +1296,23 @@ class PadSpanLightsApp extends HTMLElement {
     });
   }
 
+  // Every PadSpan command this page sends goes through here. Enhanced
+  // security is on and this person is not an admin
+  // (ws_common.require_admin_if_enhanced): say so plainly, the way panel.js
+  // does, and keep that message up over the caller's own "could not" toast.
+  // Anything else is passed on untouched.
+  _ws(msg){
+    return Promise.resolve(this._hass.callWS(msg)).catch(err => {
+      if(err && err.code === "admin_only"){
+        this._toast(err.message || "Only an admin can change this while Enhanced security is on");
+        this._adminOnlyToastUntil = Date.now() + 4500;
+      }
+      throw err;
+    });
+  }
+
   _toast(msg, isError=false, durationMs=null){
+    if(isError && this._adminOnlyToastUntil && Date.now() < this._adminOnlyToastUntil) return;
     const t=document.createElement("div");
     t.textContent=msg;
     t.style.cssText=`position:fixed;bottom:24px;left:50%;transform:translateX(-50%);`+
@@ -1337,7 +1353,7 @@ class PadSpanLightsApp extends HTMLElement {
         try{
           if(!UI_ERROR || !this._hass) return;
           UI_ERROR.reportUiError(ev, "atlas", (name)=>{
-            Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{});
+            Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:name })).catch(()=>{});
           });
         }catch(_e){ /* the error reporter must never be the error */ }
       };
@@ -1356,7 +1372,7 @@ class PadSpanLightsApp extends HTMLElement {
           enabled: ()=>!!this.state._telemetryOn && !!this._hass,
           send: (name, extra)=>{
             const screen = extra && typeof extra.screen === "string" ? { screen: extra.screen } : {};
-            Promise.resolve(this._hass.callWS({ type:"padspan_ha/telemetry_event", event:name, ...screen })).catch(()=>{});
+            Promise.resolve(this._ws({ type:"padspan_ha/telemetry_event", event:name, ...screen })).catch(()=>{});
           },
         });
       }).catch(()=>{ this._clientPerfLoading = null; });

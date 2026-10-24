@@ -283,3 +283,64 @@ def test_the_settings_card_is_there_and_only_an_admin_can_press_it():
     assert "settingsSet({ enhanced_security: !secOn })" in card
     assert "More protections will be added here over time." in card
     assert "can still view and use PadSpan" in card
+
+
+# ── the sidebar Atlas page (lights_panel.js) ─────────────────────────────────
+
+def _atlas_methods() -> str:
+    src = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    start = src.index("  _ws(msg){")
+    end = src.index("\n  }\n", src.index("  _toast(msg, isError=false, durationMs=null){")) + 4
+    return src[start:end]
+
+
+def test_every_atlas_command_goes_through_the_one_wrapper():
+    src = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    # Only _ws itself and three reads (never refused) call hass.callWS directly.
+    assert src.count("this._hass.callWS(") == 4
+    for read in ('this._hass.callWS({ type:"padspan_ha/live_snapshot" })', "(msg)=>this._hass.callWS(msg) }",
+                 'this._hass.callWS({ type:"padspan_ha/house3d_get" })'):
+        assert read in src
+    assert "return Promise.resolve(this._hass.callWS(msg)).catch(" in _atlas_methods()
+
+
+_ATLAS_JS = r"""
+const shown = [];
+globalThis.document = { body: { appendChild(t){ shown.push([t.textContent, t.style.cssText.includes("127,29,29")]); } },
+  createElement(){ return { style: {}, remove(){} }; } };
+globalThis.setTimeout = () => 0;
+class P { %s }
+const run = async (reply) => {
+  shown.length = 0;
+  const p = new P();
+  p._hass = { callWS: async () => { if (reply instanceof Error) throw reply; return reply; } };
+  let out, err = null;
+  try { out = await p._ws({ type: "padspan_ha/settings_set", vacation_mode_enabled: true }); } catch (e) { err = e; }
+  p._toast("Could not disable Vacation Mode: x", true);
+  return { out: out ?? null, rethrown: err === reply, shown: shown.slice() };
+};
+const e = (code, message) => Object.assign(new Error(message), { code });
+console.log(JSON.stringify({
+  refused: await run(e("admin_only", "Only an admin can change this while Enhanced security is on")),
+  other:   await run(e("unknown_error", "boom")),
+  ok:      await run({ ok: true }),
+}));
+"""
+
+
+@pytest.mark.skipif(__import__("shutil").which("node") is None, reason="node is not installed")
+def test_the_atlas_page_says_a_change_needs_an_admin_and_nothing_else_changes():
+    import json, shutil, subprocess
+    res = subprocess.run([shutil.which("node"), "--input-type=module", "-e", _ATLAS_JS % _atlas_methods()],
+                         capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert res.returncode == 0, res.stderr
+    r = json.loads(res.stdout.strip().splitlines()[-1])
+    # Refused while Enhanced security is on: the polite message, not red, and
+    # the caller's own error toast right after it does not cover it.
+    assert r["refused"]["rethrown"] is True
+    assert r["refused"]["shown"] == [["Only an admin can change this while Enhanced security is on", False]]
+    # Setting off (the server never answers admin_only): exactly as before,
+    # the error reaches the caller and its own toast shows.
+    assert r["other"]["rethrown"] is True
+    assert r["other"]["shown"] == [["Could not disable Vacation Mode: x", True]]
+    assert r["ok"]["out"] == {"ok": True} and r["ok"]["shown"] == [["Could not disable Vacation Mode: x", True]]
