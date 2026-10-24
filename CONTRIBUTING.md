@@ -31,6 +31,15 @@ template. Describe your use case so we understand *why* the feature matters.
   type hints where practical).
 - **JavaScript** -- Vanilla JS, no frameworks. The frontend lives in
   `custom_components/padspan_ha/www/padspan-ha/` (panel.js + views/).
+- **Names in markup** -- anything from a device, scanner, room, user or the
+  backend goes through `ctx.helpers.esc` (or the file's own escaper) before it
+  is put into an HTML or SVG string. `el()` text children are already safe.
+- **New WebSocket commands** -- a command that changes the home's shared setup
+  or state gets `@admin_if_enhanced_security` (from `ws_common.py`) directly
+  above its `async def`, so the Enhanced security switch covers it; anything
+  destructive or data-leaving gets `@websocket_api.require_admin`. Every
+  command is classified in `tests/test_enhanced_security.py`, and the Settings
+  card's list (views/settings.js) says what the switch covers.
 
 ## Pull Request Process
 

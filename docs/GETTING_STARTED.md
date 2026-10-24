@@ -202,6 +202,24 @@ One shared-device note: before Home Assistant 2026.8, a PadSpan sensor that gave
 
 **What uninstalling removes.** Deleting PadSpan from Devices & Services makes Home Assistant remove PadSpan's own entities, and any device that only PadSpan was using. It also gives every WLED light PadSpan was running its WLED sync back. Some things stay behind, by design: the `.storage/padspan_ha.*` files (Manage → Factory Reset clears your setup from them first; the licence is kept), anything you added to other integrations through the buttons above (an IRK stays in Private BLE Device), and door-builder automations unless you remove the door in PadSpan first.
 
+## Who can change what
+
+Every Home Assistant user can open PadSpan. Some things always need a Home Assistant administrator: backups and restores, factory reset, adding or removing IRKs, uploading or deleting floor plans, the usage report, and the Live Aboard switches that let data leave the house.
+
+Everything else is open to every user unless you turn on **Settings → Presence → Enhanced security**. It is off by default, and only an administrator can turn it on or off. While it is on, only an administrator can change PadSpan's shared setup for the home:
+
+- devices: merging, deleting, renaming and labelling them
+- calibration points and the calibration model
+- the house layout: rooms, scanners, lights, beacons, walls, floor heights and map details
+- scanner offsets, and turning radios off or marking them lost
+- Follow alerts, phones added for tracking, and Find My links
+- clearing history, forgetting lost items and suspending learning
+- Live Aboard edits, sharing to its library and its photo reader
+- PadSpan's log
+- settings that apply to the whole home, such as the update check and device maker lookup
+
+Household members can still view everything, use the lights and the emergency lighting test, send Follow's test notification, change their own view and theme choices, and assign a Bluetooth radio to a room (Overview → Bluetooth radios → Assign). When they try anything on the list, PadSpan says "Only an admin can change this while Enhanced security is on". More protections will be added to the same switch over time.
+
 ## What's Next?
 
 - **Atlas** — Place lights, fans, sensors, locks and doors on the same map (Pro feature) — see the [Atlas Guide](ATLAS_GUIDE.md)

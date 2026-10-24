@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.164 — Enhanced security setting, and names always shown as text (2026-10-24)
+
+With Enhanced security left off (the default), PadSpan works as in 0.38.163.
+
+### New
+- **Enhanced security.** For homes where other people have Home Assistant accounts. While it is on, only an administrator can change PadSpan's shared setup: devices, calibration, the house layout, scanner offsets, Follow alerts, clearing history, suspending learning, Live Aboard edits and its library and photo reader, the log, and the settings that apply to the whole home. Household members can still view and use PadSpan, change their own view and theme choices, and assign a Bluetooth radio to a room. Anyone else who tries a change is told "Only an admin can change this while Enhanced security is on". More protections will be added to the same switch. Off by default, and only an administrator can turn it on or off: Settings → Presence → Enhanced security. The opt-in usage report says only whether it is on.
+
+### Changed
+- **Names always show as plain text.** Scanner names on Health, calibration point names on the Calibration map, and a few other values in Traceback, QA and the map's scanner hover are drawn as text whatever characters they contain. Ordinary names look exactly the same.
+- **Follow's Test button and alerts send only to notification targets**: a notify service or entity, or another integration's `send_message`, as the picker offers. The Test button sends as the person who pressed it.
+- **README, SECURITY.md and the Getting Started guide** say who can change what, and how to report a security issue.
+
+---
+
 ## 0.38.163 — Every home on a key with more than two keeps its usage report on (2026-10-23)
 
 With a licence key on one or two homes, nothing changes.
