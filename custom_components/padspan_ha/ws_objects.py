@@ -23,7 +23,7 @@ from .const import (
     DATA_DEVICE_REGISTRY,
 )
 from .telemetry import bump as _bump
-from .ws_common import _DEFAULT_IBEACON_UUIDS, _invalidate_snapshot_cache
+from .ws_common import admin_if_enhanced_security, _DEFAULT_IBEACON_UUIDS, _invalidate_snapshot_cache
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +36,7 @@ _LOGGER = logging.getLogger(__name__)
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_object_label_set(hass: HomeAssistant, connection, msg) -> None:
     """Assign a user label to a BLE object (MAC, ibeacon key, or canonical_id).
 
@@ -237,6 +238,7 @@ async def ws_object_label_set(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_object_label_delete(hass: HomeAssistant, connection, msg) -> None:
     """Remove the user label for a BLE MAC address."""
     obj_store = hass.data.get(DOMAIN, {}).get(DATA_OBJECTS)
@@ -367,6 +369,7 @@ async def ws_object_label_list(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({"type": "padspan_ha/findmy_unlink", "key": str, vol.Optional("address"): str})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_findmy_unlink(hass: HomeAssistant, connection, msg) -> None:
     """"Not this tag": undo a Find My tag's last address link (findmy.py
     FindMyBridge.unlink). `key` is the object's key (ble:<first address>) or
@@ -400,6 +403,7 @@ async def ws_findmy_unlink(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({"type": "padspan_ha/objects_clear_history"})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_objects_clear_history(hass: HomeAssistant, connection, msg) -> None:
     """Purge untagged/unfollowed objects from the 7-day history cache.
 

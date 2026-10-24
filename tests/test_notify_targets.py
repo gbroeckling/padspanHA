@@ -379,3 +379,49 @@ async def test_an_irk_phone_keeps_its_alerts_after_its_address_rotates():
     coord._pending_room_changes = [("irk:abc", "Hall", "Kitchen")]
     await coord._process_room_alerts(1000.0, result)
     assert [c.args[:2] for c in coord.hass.services.async_call.call_args_list] == [("notify", "mobile_app_phone")]
+
+
+# ── Only notification targets, sent as the person who pressed Test ───────────
+# The target is a free string any user can send: it only ever reaches the
+# kinds of target the picker offers, and the Test button's call carries the
+# caller's context so Home Assistant checks it against them.
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", ["script.open_garage", "lock.unlock", "homeassistant.restart",
+                                    "script.send_message", "light.turn_on"])
+async def test_the_test_button_refuses_anything_but_a_notification_target(target):
+    hass = _ws_hass()
+    hass.services.has_service = lambda d, s: True
+    conn = MagicMock()
+    await ws_notify.ws_notify_test(hass, conn, {"id": 1, "service": target})
+    hass.services.async_call.assert_not_called()
+    conn.send_result.assert_not_called()
+    assert conn.send_error.call_args.args[1] == "not_allowed"
+
+
+@pytest.mark.asyncio
+async def test_an_alert_to_anything_but_a_notification_target_is_not_sent():
+    coord = _make_coordinator({ADDR: {"on_arrive": True, "notify_service": "script.open_garage"}})
+    coord.hass.services.has_service = lambda d, s: True
+    await coord._run_automations({f"ble:{ADDR}"}, set(), RESULT, now=1000.0)
+    coord.hass.services.async_call.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target,entities", [("notify.mobile_app_phone", ()), ("mobile_app_phone", ()),
+                                             ("notify.smtp_home", ["notify.smtp_home"]),
+                                             ("telegram_bot.send_message", ()), ("", ())])
+async def test_the_test_button_sends_with_the_callers_context(target, entities):
+    hass = _telegram(_ws_hass(entities))
+    conn = MagicMock()
+    conn.context.return_value = ctx = object()
+    await ws_notify.ws_notify_test(hass, conn, {"id": 1, "service": target})
+    assert conn.send_result.call_args.args[1]["ok"] is True
+    assert [c.kwargs.get("context") for c in hass.services.async_call.call_args_list] == [ctx]
+
+
+def test_the_picker_targets_are_all_allowed():
+    from custom_components.padspan_ha.presence_coordinator import follow_target_allowed
+    for t in ("", "notify.mobile_app_phone", "mobile_app_phone", "notify.smtp_home",
+              "telegram_bot.send_message", "signal_messenger.send_message"):
+        assert follow_target_allowed(t), t

@@ -1811,7 +1811,18 @@ class PadSpanHaApp extends HTMLElement {
     if(!this._hass) throw new Error("hass not ready");
     this._wsCount(payload.type);
     this._logEvent("ws_call", payload.type);
-    return await this._hass.callWS(payload);
+    try {
+      return await this._hass.callWS(payload);
+    } catch (err) {
+      // Enhanced security is on and this person is not an admin
+      // (ws_common.require_admin_if_enhanced): say so plainly, and keep that
+      // message up over the view's own "failed" toast that follows it.
+      if (err && err.code === "admin_only") {
+        this._toast(err.message || "Only an admin can change this while Enhanced security is on");
+        this._adminOnlyToastUntil = Date.now() + 4500;
+      }
+      throw err;
+    }
   }
 
   // Fetch settings and store quietly (no re-render, no toast) — called from _refreshAll
@@ -4338,6 +4349,7 @@ class PadSpanHaApp extends HTMLElement {
   _toast(msg, isErr=false){
     const t = this.$("#toast");
     if(!t) return;
+    if(isErr && this._adminOnlyToastUntil && Date.now() < this._adminOnlyToastUntil) return;
     t.textContent = msg;
     t.classList.toggle("error", !!isErr);
     t.classList.remove("hidden");

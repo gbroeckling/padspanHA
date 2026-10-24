@@ -49,7 +49,7 @@ from .const import DATA_FABRIC, DATA_MODEL, DOMAIN, HOUSE3D_STORE_KEY
 from .house3d_library import carried_over, without_tokens
 from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStore, NewerFile, ReadFailed,
                             apply_edit, async_get_store, empty, enabled, without_pieces, writable)
-from .ws_common import _tier_at_least
+from .ws_common import admin_if_enhanced_security, _tier_at_least
 
 OFF_CODE = "house3d_off"
 OFF_MESSAGE = "Live Aboard is off. Turn it on in Settings → UI Structure → Atlas → Live Aboard."
@@ -136,6 +136,7 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("heights_set"): [str],
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
     """Save the 3D editor's draft: {openings, lights, devices, pieces, figures}, each
     {key: entry to set | None to remove}, and heights_set (see above). Returns

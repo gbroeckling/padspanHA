@@ -1034,7 +1034,7 @@ function _pinAndListen(ctx, el, cs, calData) {
     const py = p.y_frac * vbH;
     const sc = (p.scanner_readings || []).length;
     return `<circle cx="${px}" cy="${py}" r="3.5" fill="#52b788" stroke="white" stroke-width="1" opacity="0.85"/>
-            <title>${p.room || p.label || ""} (${sc} scanners)</title>`;
+            <title>${ctx.helpers.esc(p.room || p.label || "")} (${sc} scanners)</title>`;
   }).join("");
 
   // Current pin
@@ -5455,7 +5455,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       `Floor: ${_esc(_bkFloor)}`,
       `Room: ${_esc(_bkRoom || "\u2014")}`,
       `Position: ${_bkPos}`,
-      `RSSI: ${lastRssi}`,
+      `RSSI: ${_esc(lastRssi)}`,
       `Kind: ${_esc(bk.kind || "ble")}`,
     ];
     infoLine.innerHTML = `<span>${lines.join(" &nbsp;\u00b7&nbsp; ")}</span>`;
@@ -6048,7 +6048,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const rssiColor = (info.rssi || -200) > -70 ? "#52b788" : (info.rssi || -200) > -85 ? "#f59e0b" : "#f87171";
           const shortName = (info.name || src || "?").substring(0, 10);
           chip.style.cssText = `padding:1px 6px;border-radius:3px;background:#0a1a12;border:1px solid #1b3526;color:#d1d5db;white-space:nowrap`;
-          chip.innerHTML = `${_esc(shortName)} <span style="color:${rssiColor};font-weight:600">${info.rssi ?? "?"}</span>`;
+          chip.innerHTML = `${_esc(shortName)} <span style="color:${rssiColor};font-weight:600">${_esc(String(info.rssi ?? "?"))}</span>`;
           if (info.age_s != null) chip.innerHTML += ` <span style="color:#64748b">${Math.round(info.age_s)}s</span>`;
           radioRow.appendChild(chip);
         }

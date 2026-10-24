@@ -25,7 +25,7 @@ from .const import (
 )
 from .bluetooth_live import get_bluetooth_live
 from .ws_calibration import _get_cal_store
-from .ws_common import _invalidate_snapshot_cache, RadioDeviceIndex
+from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, RadioDeviceIndex
 from .util import ha_device_config_entries
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ _LOGGER = logging.getLogger(__name__)
     vol.Optional("offset_db", default=0.0): vol.Coerce(float),
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_scanner_offset_set(hass: HomeAssistant, connection, msg) -> None:
     """Set (or clear) the RSSI calibration offset for a single Bluetooth scanner."""
     source = str(msg.get("source", "")).strip()
@@ -132,6 +133,7 @@ async def ws_radio_area_set(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_radio_lost_set(hass: HomeAssistant, connection, msg) -> None:
     """Mark or unmark a BLE radio as 'lost' (excluded from location math)."""
     source = str(msg.get("source") or "").strip()
@@ -160,6 +162,7 @@ async def ws_radio_lost_set(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_radio_disabled_set(hass: HomeAssistant, connection, msg) -> None:
     """Mark or unmark a BLE radio as 'disabled' (intentionally excluded from location math)."""
     source = str(msg.get("source") or "").strip()

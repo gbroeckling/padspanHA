@@ -33,6 +33,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "data_mode": "sample",  # "sample" | "live"
     "cpu_mode": "shared",  # "shared" | "single" | "dedicated" — see PresenceCoordinator
     "low_memory_mode": False,  # caps for a 2 GB machine — see low_memory.py
+    # Enhanced security (ws_common.require_admin_if_enhanced): off = every
+    # command as before; on = only an admin changes the home's shared setup.
+    # Only an admin turns it on or off.
+    "enhanced_security": False,
     "update_check_enabled": True,  # daily version ping to padspan.traks.ca (see README)
     # Opt-in usage report (telemetry.py). OFF until a person turns it on;
     # the id is minted on first enable and can be replaced from Settings.

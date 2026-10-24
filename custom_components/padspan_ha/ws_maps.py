@@ -13,6 +13,7 @@ import logging
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from .ws_common import admin_if_enhanced_security
 from .const import (
     DOMAIN,
     DATA_SETTINGS,
@@ -147,6 +148,7 @@ async def ws_maps_upload(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_maps_update(hass: HomeAssistant, connection, msg) -> None:
     """Update map metadata: receivers, beacons, room_bounds, calibration, stack, notes.
 

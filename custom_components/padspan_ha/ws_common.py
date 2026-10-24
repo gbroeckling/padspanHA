@@ -9,6 +9,7 @@ Split out of websocket.py; registration stays there.
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
 from typing import Any, NamedTuple
@@ -223,6 +224,51 @@ def _get_settings(hass: HomeAssistant) -> dict:
     out["tier_floor"] = _floor
     out["edition"] = _edition()
     return out
+
+
+# ── Enhanced security (Settings → Users & access) ──────────────────────────
+# One switch, `enhanced_security`, off by default. While it is on, a command
+# that changes this home's shared setup or state answers a non-admin with
+# ENHANCED_SECURITY_MESSAGE instead of doing it; household members can still
+# view and use PadSpan. Every protection that belongs to the switch goes
+# through require_admin_if_enhanced() (or @admin_if_enhanced_security, its
+# decorator form), so later ones layer on the same setting and the Settings
+# card's list stays true. With the switch off nothing here does anything:
+# each command behaves exactly as it did before the switch existed.
+ENHANCED_SECURITY_CODE = "admin_only"
+ENHANCED_SECURITY_MESSAGE = "Only an admin can change this while Enhanced security is on"
+
+
+def enhanced_security_on(hass: HomeAssistant) -> bool:
+    """Whether the Enhanced security switch is on (True only, never a guess)."""
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    data = getattr(st, "data", None)
+    return isinstance(data, dict) and data.get("enhanced_security") is True
+
+
+def require_admin_if_enhanced(hass: HomeAssistant, connection, msg) -> bool:
+    """True when the command may go on. With Enhanced security on and a
+    caller who is not a Home Assistant admin, answers the command with the
+    polite refusal the panel shows, and returns False."""
+    if not enhanced_security_on(hass):
+        return True
+    user = getattr(connection, "user", None)
+    if user is not None and getattr(user, "is_admin", False) is True:
+        return True
+    connection.send_error(msg["id"], ENHANCED_SECURITY_CODE, ENHANCED_SECURITY_MESSAGE)
+    return False
+
+
+def admin_if_enhanced_security(func):
+    """require_admin_if_enhanced() for a whole command. Goes directly above
+    the handler's `async def`, under @websocket_api.async_response."""
+    @functools.wraps(func)
+    async def _gated(hass: HomeAssistant, connection, msg) -> None:
+        if not require_admin_if_enhanced(hass, connection, msg):
+            return
+        await func(hass, connection, msg)
+    _gated.enhanced_security_gated = True
+    return _gated
 
 
 # Days a lapsed or unverifiable licence keeps working. Covers a house that is

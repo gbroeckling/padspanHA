@@ -34,7 +34,7 @@ from .const import (
 from .fabric_truth import cluster_count as _cluster_count, geom_bbox_m as _geom_bbox_m
 from .model_store import KEEP_HEIGHT
 from .snapshot_builder import _live_snapshot
-from .ws_common import _invalidate_snapshot_cache, _tier_at_least
+from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least
 from .ws_backup import _auto_backup
 from .telemetry import bump as _bump
 
@@ -90,6 +90,7 @@ def _heights_of(msg: dict, id_key: str) -> dict[str, Any] | str:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None:
     """Remove a scanner from the positioning fabric."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -124,6 +125,7 @@ async def ws_fabric_scanner_remove(hass: HomeAssistant, connection, msg) -> None
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> None:
     """Place a light in real-world metres. No photo involved.
 
@@ -179,6 +181,7 @@ async def ws_fabric_light_position_set(hass: HomeAssistant, connection, msg) -> 
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_light_height_set(hass: HomeAssistant, connection, msg) -> None:
     """Set only the height of a placed device (any placement record: a
     light, a fan, a sensor, a lock), x/y untouched: {entity_id, z_m} or
@@ -216,6 +219,7 @@ async def ws_fabric_light_height_set(hass: HomeAssistant, connection, msg) -> No
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
     """Un-place a light (it returns to automatic room clustering). Bright-tier editing."""
     if not _tier_at_least(hass, "bright"):
@@ -249,6 +253,7 @@ async def ws_fabric_light_remove(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_beacon_position_set(hass: HomeAssistant, connection, msg) -> None:
     """Pin a beacon in real-world metres. No photo involved."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -283,6 +288,7 @@ async def ws_fabric_beacon_position_set(hass: HomeAssistant, connection, msg) ->
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_beacon_height_set(hass: HomeAssistant, connection, msg) -> None:
     """fabric_light_height_set for a fixed beacon (by its key), on the same
     gate as pinning one: only its height; x, y and room stay."""
@@ -311,6 +317,7 @@ async def ws_fabric_beacon_height_set(hass: HomeAssistant, connection, msg) -> N
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_beacon_remove(hass: HomeAssistant, connection, msg) -> None:
     """Un-pin a beacon from the positioning fabric.
 
@@ -339,6 +346,7 @@ async def ws_fabric_beacon_remove(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_room_add(hass: HomeAssistant, connection, msg) -> None:
     """Add a PadSpan-native room (no HA area needed)."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -381,6 +389,7 @@ async def ws_fabric_room_add(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_room_remove(hass: HomeAssistant, connection, msg) -> None:
     """Remove a room from the fabric: geometry, metadata, adjacency, scanners.
 
@@ -416,6 +425,7 @@ async def ws_fabric_room_remove(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_sync_mode_set(hass: HomeAssistant, connection, msg) -> None:
     """Switch fabric sync mode: 'auto' (sync from HA) or 'manual' (standalone)."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -456,6 +466,7 @@ async def ws_fabric_sync_mode_set(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_scanner_position_set(hass: HomeAssistant, connection, msg) -> None:
     """Set a scanner's real-world position in metres."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -482,6 +493,7 @@ async def ws_fabric_scanner_position_set(hass: HomeAssistant, connection, msg) -
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_scanner_z_set(hass: HomeAssistant, connection, msg) -> None:
     """Set only a scanner's mounting height (z stays through map syncs)."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -502,6 +514,7 @@ async def ws_fabric_scanner_z_set(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_floor_elevations_set(hass: HomeAssistant, connection, msg) -> None:
     """Upsert per-floor elevation data (floor-to-floor height / base elevation).
 
@@ -530,6 +543,7 @@ async def ws_fabric_floor_elevations_set(hass: HomeAssistant, connection, msg) -
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_correct_room(hass: HomeAssistant, connection, msg) -> None:
     """Directly correct one room's real-world shape in the FabricStore.
 
@@ -672,6 +686,7 @@ async def ws_fabric_truth_candidates(hass: HomeAssistant, connection, msg) -> No
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_rooms_reconcile(hass: HomeAssistant, connection, msg) -> None:
     """Re-derive this floor's provenance-clean rooms from their maps' current
     placements. The ONE sanctioned map→fabric write, and only as this
@@ -752,6 +767,7 @@ async def ws_fabric_floor_finalize(hass: HomeAssistant, connection, msg) -> None
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_rf_barrier_set(hass: HomeAssistant, connection, msg) -> None:
     """Add or update an RF barrier in real-world metres, by id.
 
@@ -782,6 +798,7 @@ async def ws_fabric_rf_barrier_set(hass: HomeAssistant, connection, msg) -> None
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_rf_barrier_remove(hass: HomeAssistant, connection, msg) -> None:
     """Remove an RF barrier by id."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -1453,6 +1470,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({"type": "padspan_ha/fabric_resync"})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_fabric_resync(hass: HomeAssistant, connection, msg) -> None:
     """Wipe all ha_sync scanner entries and rebuild clean from HA + snapshot.
 

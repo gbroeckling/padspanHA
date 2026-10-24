@@ -298,6 +298,12 @@ Details: [What PadSpan never touches](docs/GETTING_STARTED.md#what-padspan-never
 
 ---
 
+## Security
+
+Names from devices, scanners and rooms are always shown as plain text in the panel. Backups, restores, factory reset, IRKs, map uploads and anything that sends data out of the house need a Home Assistant administrator. For homes where other people have accounts, **Settings → Presence → Enhanced security** (off by default, admin-only) makes every change to PadSpan's shared setup need an administrator as well, while the household can still view and use PadSpan. See [Who can change what](docs/GETTING_STARTED.md#who-can-change-what) and [SECURITY.md](SECURITY.md) to report an issue.
+
+---
+
 ## Updates & Privacy
 
 Once a day, PadSpan asks `padspan.traks.ca` whether a newer version is available and shows a Home Assistant notification when one is. The request contains **only your installed version number** (e.g. `?v=0.21.10`). Like any web request, the server sees your IP address; nothing else is sent, no identifiers are stored on your system, and no usage data is collected. The aggregate ping count is the only signal the project gets about how many installs exist.

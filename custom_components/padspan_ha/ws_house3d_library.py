@@ -29,7 +29,7 @@ from homeassistant.core import HomeAssistant
 from . import house3d_library as L
 from .const import DATA_SETTINGS, DOMAIN
 from .house3d_store import ReadFailed, async_get_store, enabled
-from .ws_common import _tier_at_least
+from .ws_common import admin_if_enhanced_security, _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE, READ_CODE, READ_MESSAGE
 
 LIBRARY_OFF_CODE = "library_off"
@@ -120,6 +120,7 @@ async def ws_house3d_library_get(hass: HomeAssistant, connection, msg) -> None:
     vol.Required("reason"): str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_house3d_library_report(hass: HomeAssistant, connection, msg) -> None:
     if not _open(hass, connection, msg, network=True):
         return
@@ -140,6 +141,7 @@ async def ws_house3d_library_report(hass: HomeAssistant, connection, msg) -> Non
     vol.Optional("submission_id"): vol.Any(str, None),
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_house3d_library_share(hass: HomeAssistant, connection, msg) -> None:
     """Share a piece's recipe and details sheet (nothing else of the piece),
     or send new details for one this house shared. It goes now, or waits for
@@ -182,6 +184,7 @@ async def ws_house3d_library_withdraw(hass: HomeAssistant, connection, msg) -> N
     vol.Required("version"): int,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_house3d_terms_accept(hass: HomeAssistant, connection, msg) -> None:
     """Accept the library's terms (the version the screen showed). Stored in
     the 3D file with the date; a later terms version asks again."""

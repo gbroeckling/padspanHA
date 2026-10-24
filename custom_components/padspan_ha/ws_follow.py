@@ -22,7 +22,7 @@ from .const import (
     DATA_DEVICE_REGISTRY,
 )
 from .snapshot_builder import _live_snapshot
-from .ws_common import _get_settings, _invalidate_snapshot_cache
+from .ws_common import admin_if_enhanced_security, _get_settings, _invalidate_snapshot_cache
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,6 +82,7 @@ async def ws_follow_alert_get(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_follow_alert_save(hass: HomeAssistant, connection, msg) -> None:
     """Save follow/alert configuration for a tracked object.
 
@@ -121,6 +122,7 @@ async def ws_follow_alert_save(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_follow_alert_delete(hass: HomeAssistant, connection, msg) -> None:
     """Delete a follow-alert configuration for a tracked object."""
     addr = str(msg.get("addr") or "").strip()
@@ -202,6 +204,7 @@ async def ws_entity_delete(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({"type": "padspan_ha/room_tag_purge_missing"})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_room_tag_purge_missing(hass: HomeAssistant, connection, msg) -> None:
     """Remove entity_ids from room_tag_map that have no current HA state (phantom/sample entities)."""
     coord = hass.data.get(DOMAIN, {}).get("coordinator")

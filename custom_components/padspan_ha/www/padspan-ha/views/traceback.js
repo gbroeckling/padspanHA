@@ -2301,7 +2301,7 @@ export function render(ctx) {
       }
     }).catch(err => {
       console.error("Traceback load failed:", err);
-      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#f87171;font-size:14px">Failed to load traceback data: ${String(err).substring(0, 100)}</div>`;
+      mapDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#f87171;font-size:14px">Failed to load traceback data: ${_esc(String(err).substring(0, 100))}</div>`;
     });
   } else if (tb.mode === "discovery") {
     _runDiscoverySearch();

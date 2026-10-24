@@ -141,6 +141,7 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
         used = await async_send_follow_notify(
             hass, chosen, email, "PadSpan HA — Test Notification",
             "This is a test from PadSpan HA. If you see this, your notification pipeline is working correctly.",
+            context=connection.context(msg),
         )
     except FollowNotifyNotSent as err:
         # The opt-in report (#151): a Test that failed, as alerts to it would.
@@ -151,6 +152,11 @@ async def ws_notify_test(hass: HomeAssistant, connection, msg) -> None:
                 "No notify services found in HA. You need to set up a notification "
                 "integration first (e.g. SMTP email, Mobile App, Pushover). "
                 "Go to HA Settings → Devices & Services → Add Integration → search for your notification provider."
+            )
+        elif err.code == "not_allowed":
+            connection.send_error(
+                msg["id"], "not_allowed",
+                f"{chosen} is not a notification target: pick where to send from the list."
             )
         elif err.code == "not_found":
             connection.send_error(

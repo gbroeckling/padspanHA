@@ -45,7 +45,7 @@ from .bluetooth_live import get_bluetooth_live
 from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .presence_rules import away_timeout_s, below_floor, is_away, is_outdoor_floor
 from .perf_sampler import record_duration
-from .ws_common import _is_rpa_addr
+from .ws_common import admin_if_enhanced_security, _is_rpa_addr
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -592,6 +592,7 @@ async def ws_occupancy_estimate(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("room"): str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_occupancy_train(hass: HomeAssistant, connection, msg) -> None:
     """Record an actual headcount beside what the estimator said at the time."""
     _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)

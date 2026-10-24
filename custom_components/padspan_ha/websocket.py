@@ -47,6 +47,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry
 
+from .ws_common import admin_if_enhanced_security
 from .const import (
     DOMAIN,
     VERSION,
@@ -591,6 +592,7 @@ async def ws_model_get(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
     """Update room_meta (color, floor assignment). Floors are read-only from HA floor registry."""
     mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
@@ -610,6 +612,7 @@ async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
     }
 )
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
     """Set one room's own height (room_meta[room].height_m) for Live Aboard:
     a double-height living room, a hall under a mezzanine, on a floor that
@@ -762,6 +765,7 @@ async def ws_lost_and_found_get(hass: HomeAssistant, connection, msg) -> None:
     "key": str,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_lost_and_found_forget(hass: HomeAssistant, connection, msg) -> None:
     """Explicitly clear one object's lost-and-found record."""
     from .const import DATA_LOST_AND_FOUND
@@ -907,6 +911,7 @@ async def ws_flood_reset(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("minutes", default=60): vol.All(int, vol.Range(min=1, max=480)),
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_suspend_databases(hass: HomeAssistant, connection, msg) -> None:
     """Suspend all learned databases — raw radio + spatial centroid only."""
     coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
@@ -920,6 +925,7 @@ async def ws_suspend_databases(hass: HomeAssistant, connection, msg) -> None:
 
 @websocket_api.websocket_command({"type": "padspan_ha/unsuspend_databases"})
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_unsuspend_databases(hass: HomeAssistant, connection, msg) -> None:
     """End database suspension early — resume full pipeline."""
     coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
@@ -976,6 +982,7 @@ async def ws_unsuspend_databases(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("limit", default=200): int,
 })
 @websocket_api.async_response
+@admin_if_enhanced_security
 async def ws_logs_get(hass: HomeAssistant, connection, msg) -> None:
     """Return recent PadSpan log entries from the in-memory ring buffer."""
     handler = _ensure_log_handler()
