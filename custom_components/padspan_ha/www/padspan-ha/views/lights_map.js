@@ -4243,7 +4243,7 @@ export function buildLightsMapCard(hostIn){
           const pick = allLights.find(l => l.isMotion && l.state === "on") || allLights.find(l => l.state === "on");
           if (!pick) { if (host.toast) host.toast("Nothing is on"); return; }
           if (la3dDo(s => s.findDevice(pick.entity_id))) return;
-          const g = isoDiv.querySelector(`.lhex[data-eid="${String(pick.entity_id).replace(/"/g, '\\"')}"]`);
+          const g = isoDiv.querySelector(`.lhex[data-eid="${CSS.escape(String(pick.entity_id))}"]`);
           const svg = isoDiv.querySelector("svg");
           if (!g || !svg || !g.getBoundingClientRect) return;
           const gr = g.getBoundingClientRect(), sr = isoDiv.getBoundingClientRect();

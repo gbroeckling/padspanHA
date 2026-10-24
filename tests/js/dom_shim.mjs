@@ -258,6 +258,8 @@ class Text extends Node {
 }
 
 export function install(globalObj = globalThis) {
+  // Every browser the panel runs in has CSS.escape (selectors built from entity ids use it).
+  if (!globalObj.CSS) globalObj.CSS = { escape: (s) => String(s).replace(/[^a-zA-Z0-9_ -￿-]/g, (c) => "\\" + c) };
   const document = new Node("#document");
   document.body = new Node("body");
   document.documentElement = new Node("html");
