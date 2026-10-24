@@ -181,6 +181,33 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.164</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">24 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Enhanced security.</b> For homes where other people have Home Assistant accounts. While it is on, only an administrator can change PadSpan's shared setup: devices, calibration, the house layout, scanner offsets, Follow alerts, clearing history, suspending learning, Live Aboard edits and its library and photo reader, the log, and the settings that apply to the whole home. Household members can still view and use PadSpan, change the theme and the choices kept in their own browser (Map or 3D, what the Atlas shows), and assign a Bluetooth radio to a room; display settings that change every screen in the home (Quiet mode, the Atlas as Overview, the Atlas layout and its showcase theme) need an admin while it is on. Anyone else who tries a change is told "Only an admin can change this while Enhanced security is on". More protections will be added to the same switch. Off by default, and only an administrator can turn it on or off: Settings → Presence → Enhanced security. The opt-in usage report says only whether it is on.</li>
+          <li><b>Studio, a third look for Live Aboard.</b> Your house as a lit model on a stage: Live Aboard's own colours (every room, light and name stays as it is), under a sky that follows the real sun (<code>sun.sun</code>): a soft day, a warm golden hour, a deep blue dusk and a moonlit night with a few stars. The house stands on a soft pad that fades into the sky's horizon, with a faint metre grid and a soft shadow under it. A gentle fill keeps shadows coloured instead of black, a front light gives every wall form, the walls darken a little at their foot, and brightly lit walls and floors roll off softly instead of clipping to white (names, chips and glows keep their exact colours). Rain falls slate blue on the light day sky. The camera glides in once when the view opens (not with reduced motion). Pick it in Settings → Live Aboard → Look → Studio, or in the Live Aboard setup wizard's extras.</li>
+          <li><b>Light enough for wall tablets.</b> On Low, Studio keeps the sky's colours, the stage, the shadow under the house and the soft fill; the sky dome with its stars, the front and rim lights and the softer sun shadows are High's. Auto, Low and High and the slow-screen fallback work as before.</li>
+          <li>Counts a house where a wall was stopped under a floor above (<code>house3d_wall_capped</code>), once per page load, only with the usage report on.</li>
+          <li><b>Names always show as plain text.</b> Scanner names on Health, calibration point names on the Calibration map, and a few other values in Traceback, QA and the map's scanner hover are drawn as text whatever characters they contain. Ordinary names look exactly the same.</li>
+          <li><b>Follow's Test button and alerts send only to notification targets</b>: a notify service or entity, or another integration's <code>send_message</code>, as the picker offers. The Test button sends as the person who pressed it.</li>
+          <li><b>README, SECURITY.md and the Getting Started guide</b> say who can change what, and how to report a security issue.</li>
+          <li><b>Walls no longer rise through an upper floor.</b> Where a room upstairs stands over a wall that would reach past its floor, the wall stops under that floor. This covers walls between two rooms of the same height (a hall floor given its full height under a walkway, a split level), a tall room's walls under a room that overhangs them, and a wall under a walkway's Open (Loft) edge.</li>
+          <li><b>No thin posts on tall rooms.</b> A tall stretch of wall shorter than 30 cm that meets no other tall wall (a tiny jog in a room's outline) keeps its floor's height.</li>
+          <li><b>The floor stepper cuts tall rooms too.</b> With the floors above hidden, a tall room's walls stop where those floors start, like the rest of the house.</li>
+          <li><b>A mezzanine named "Deck" stays indoors.</b> A room named like a deck or patio that stands inside a taller room of the floor below keeps its walls and roof. Decks and patios on a normal storey are outdoors as before.</li>
+          <li><b>Strip lengths count only what lights.</b> A run with gaps (along a rail, or round a room past its doors) shows its lit length, with the whole length including the wire in the panel.</li>
+          <li><b>Moving a room in Mapping → Rooms takes its walls with it.</b> An Open (Loft) edge, a door or any barrier drawn on the moved room's outline moves too and is saved with it. A wall it shares with a room that stays put doesn't move.</li>
+          <li><b>The RF Barriers help gives the right mezzanine setup.</b> Keep the floor at its normal height in Floor Heights and give the hall its full height with Rises to in Rooms, as the Floor Heights help says.</li>
+          <li><code>look_studio</code> in <code>features.ov_3d</code>, only while Live Aboard is on and Studio is picked (as <code>look_own</code> is for Live Aboard's own).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.163</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">23 October 2026</span>
