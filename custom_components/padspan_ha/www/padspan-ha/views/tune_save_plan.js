@@ -349,6 +349,64 @@ export function tuneBeaconBaseline(draftRows) {
   return out;
 }
 
+// Beacon Tune's pins from the fabric (#89). Saves go to the fabric
+// (model.beacon_positions_m) and the maps' own beacons lists are only
+// re-derived when a map is saved, so a reload showed "Not placed", or the
+// spot from before the last save while Overview drew the saved one. The
+// fabric wins; a map's own row is the fallback for a key the fabric has no
+// pin for (or a placement that will not convert). Only rows still at their
+// baseline are moved, so a drag or placement in progress is never touched,
+// and nothing is written: the baseline follows, as the receivers' reconcile
+// does. A fabric pin with no row anywhere is added to the first map of its
+// floor it lands inside (its own map_id first); an untouched row whose pin is
+// on another floor leaves this map. Mutates drafts/baselines in place.
+export function tuneBeaconFromFabric(mapsList, drafts, baselines, fabric, transforms) {
+  const fab = fabric || {};
+  const tfs = transforms || {};
+  const maps = mapsList || [];
+  const toFrac = (m, p) => {
+    const xm = _finiteNum(p && p.x_m), ym = _finiteNum(p && p.y_m);
+    if (xm === null || ym === null || !tunePlacementReadable(tfs[m.id])) return null;
+    const f = metresToMapFrac(tfs[m.id], xm, ym);
+    return (f && Number.isFinite(f[0]) && Number.isFinite(f[1])) ? f : null;
+  };
+  const r4 = (v) => Math.round(Math.max(0, Math.min(1, v)) * 10000) / 10000;
+  const present = new Set();
+  for (const m of maps) {
+    const rows = drafts[m.id] || [];
+    const base = baselines[m.id] = baselines[m.id] || {};
+    const floor = String(m.floor_id || "main");
+    drafts[m.id] = rows.filter(b => {
+      const p = b && b.key ? fab[b.key] : null;
+      const was = p ? base[b.key] : null;
+      if (!p || (was && (was.x !== b.x || was.y !== b.y))) return true;
+      if (String(p.floor_id || "main") !== floor) { delete base[b.key]; return false; }
+      const f = toFrac(m, p);
+      if (!f) return true;
+      b.x = r4(f[0]); b.y = r4(f[1]);
+      delete b._tracked;
+      base[b.key] = { x: b.x, y: b.y };
+      return true;
+    });
+    for (const b of drafts[m.id]) if (b && b.key) present.add(b.key);
+  }
+  for (const [key, p] of Object.entries(fab)) {
+    if (present.has(key) || !p) continue;
+    const floor = String(p.floor_id || "main");
+    const order = [...maps.filter(m => m.id === p.map_id), ...maps.filter(m => m.id !== p.map_id)];
+    for (const m of order) {
+      if (String(m.floor_id || "main") !== floor) continue;
+      const f = toFrac(m, p);
+      if (!f || f[0] < 0 || f[0] > 1 || f[1] < 0 || f[1] > 1) continue;
+      const row = { id: "bk_" + key, label: p.label || "", key, kind: p.kind || "", x: r4(f[0]), y: r4(f[1]) };
+      (drafts[m.id] = drafts[m.id] || []).push(row);
+      (baselines[m.id] = baselines[m.id] || {})[key] = { x: row.x, y: row.y };
+      present.add(key);
+      break;
+    }
+  }
+}
+
 // Why a beacon with no fabric pin yet must not get one, or "" (#81): a pin
 // locks the device's room to the spot and adds auto-calibration points there
 // while it is elsewhere, so nothing known to move is pinned, whichever way

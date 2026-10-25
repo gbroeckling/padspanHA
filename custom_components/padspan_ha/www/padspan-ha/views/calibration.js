@@ -53,7 +53,7 @@ const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
 const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
         tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
         tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock, tuneRadioSig,
-        tuneBeaconBaseline, tuneBeaconWrites, tuneBeaconHeldText } =
+        tuneBeaconBaseline, tuneBeaconWrites, tuneBeaconHeldText, tuneBeaconFromFabric } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 
@@ -3985,6 +3985,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     bs.editBaseline = {};
     for (const m of maps_list) bs.editBaseline[m.id] = tuneBeaconBaseline(bs.draftBeacons[m.id]);
     bs._mapsStamp = mapsStamp;
+    bs._fabStamp = null;
     _autoPinTracked();
     // Dedup: ensure each beacon key, label, AND address appears at most once.
     // Cross-protocol dedup: use snapshot all_addresses to detect same device.
@@ -4035,6 +4036,16 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       })();
     }
   }
+  // The fabric's pins over the maps' own rows (#89), whenever either changes.
+  function _syncFabricPins() {
+    const fabStamp = JSON.stringify(ctx.state.model?.beacon_positions_m || {}) + "|" +
+      JSON.stringify(ctx.state.model?.map_transforms || {});
+    if (fabStamp === bs._fabStamp) return;
+    tuneBeaconFromFabric(maps_list, bs.draftBeacons, bs.editBaseline,
+      ctx.state.model?.beacon_positions_m, ctx.state.model?.map_transforms);
+    bs._fabStamp = fabStamp;
+  }
+  _syncFabricPins();
 
   // Auto-enable live tracking for beacons that have snapshot position data
   // (metres from k-NN, or room from the presence coordinator). This makes
@@ -4702,6 +4713,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     bs.editBaseline = {};
     for (const m of maps_list) bs.editBaseline[m.id] = tuneBeaconBaseline(bs.draftBeacons[m.id]);
     bs.dirtyMaps = {};
+    bs._fabStamp = null;
     _autoPinTracked();
     // Dedup: ensure each beacon key, label, AND address appears at most once
     const _seenKeysR = new Set();
@@ -4729,6 +4741,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         return true;
       });
     }
+    _syncFabricPins();
     bs.selectedBk = null;
     bs.fg = ctx.state.settings?.overview_iso_floor_gap ?? 150;
     bs.hg = ctx.state.settings?.overview_iso_horiz_gap ?? 0;

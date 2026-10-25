@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.168 — Beacon Tune fixes (2026-10-25)
+
+### Fixed
+- **Beacon Tune shows saved beacons after a reload (#89).** It read each map's own beacon list, which saves stopped writing in 0.38.107, so a saved beacon came back as "Not placed", or at its old spot while Overview showed the new one. It now reads the saved position, the same one Overview uses, and falls back to the map's list only for a beacon with no saved position. Nothing is rewritten or removed.
+
+---
+
 ## 0.38.167 — Walk a room (2026-10-25)
 
 Off until it is turned on. With it off, Calibration and positioning are the same as before.
