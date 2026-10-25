@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.167 — Walk a room (2026-10-25)
+
+Off until it is turned on. With it off, Calibration and positioning are the same as before.
+
+### New
+- **Walk a room.** Settings → Presence → Walk a Room adds a "Walk a room" tab to Calibration. Pick the room, press Start and walk slowly around it for 90 seconds with the phone or tag chosen in Setup; a ring counts down while PadSpan samples that device's signal from every scanner. Afterwards it shows how many samples and scanners it heard and how far the room's signal sits from the closest other room, then asks whether to save. Nothing is stored until Save is pressed; Discard throws the walk away.
+- **A saved walk is ordinary calibration, kept apart.** It is added as six calibration points at the room's centre, one per stretch of the walk, marked as a room walk. Walking the same room again replaces only that room's earlier walk, after a confirm, and a walk can be removed room by room. No other calibration point is changed.
+- **Before and after.** After a save the tab shows the held-out score from before the walk and after it, so it is clear whether the walk helped.
+- With Enhanced security on, saving or removing a walk is for admins only.
+- The opt-in usage report says whether the setting is on, and, only while it is on and a room has been walked, how many rooms have a walk (in ranges) and whether the last walk moved the held-out score up, down or not at all.
+
+---
+
 ## 0.38.165 — New-install setup help, proxy health, an honest accuracy score, High contrast for everyone, and setup screens in ten languages (2026-10-24)
 
 Everything new here is off until you turn it on, except High contrast, which every edition now gets, the new accuracy line, which sits beside the old one, and the iPhone setup guide, which is on for brand-new installs only. With nothing turned on, rooms and positions are the same as in 0.38.164.
