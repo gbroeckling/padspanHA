@@ -259,6 +259,108 @@ async def ws_calibration_save_point(hass: HomeAssistant, connection, msg) -> Non
         connection.send_error(msg["id"], "save_failed", str(e))
 
 
+def _room_walk_on(hass: HomeAssistant) -> bool:
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    return (getattr(st, "data", None) or {}).get("calibration_room_walk") is True
+
+
+async def _heldout_now(hass: HomeAssistant, max_age_s: float) -> dict[str, Any] | None:
+    coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+    if coord is None or not hasattr(coord, "async_heldout"):
+        return None
+    try:
+        return await coord.async_heldout(max_age_s)
+    except Exception:
+        return None
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/calibration_room_walk_preview",
+        vol.Required("room"): str,
+        vol.Required("polls"): list,
+    }
+)
+@websocket_api.async_response
+async def ws_calibration_room_walk_preview(hass: HomeAssistant, connection, msg) -> None:
+    """Walk a room: the summary shown before Save (room_walk.py). Read-only."""
+    from . import room_walk as _rw  # noqa: PLC0415
+    if not _room_walk_on(hass):
+        connection.send_error(msg["id"], "off", "Walk a room is off in Settings")
+        return
+    cal = await _get_cal_store(hass)
+    excluded = cal.excluded_sources()
+    polls = _rw.clean_polls(msg["polls"], excluded)
+    connection.send_result(msg["id"], _rw.summarize(polls, str(msg["room"])[:120], cal.list_points(), excluded))
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/calibration_room_walk_save",
+        vol.Required("room"): str,
+        vol.Required("map_id"): str,
+        vol.Required("x_frac"): vol.Coerce(float),
+        vol.Required("y_frac"): vol.Coerce(float),
+        vol.Optional("floor_id", default=""): str,
+        vol.Optional("device_id", default=""): str,
+        vol.Optional("duration_s", default=90): vol.Coerce(int),
+        vol.Required("polls"): list,
+        vol.Optional("replace", default=False): bool,
+    }
+)
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_calibration_room_walk_save(hass: HomeAssistant, connection, msg) -> None:
+    """Save a walk the user confirmed, as room_walk points at the room's
+    centre. replace=True swaps out only this room's earlier walk."""
+    from . import room_walk as _rw  # noqa: PLC0415
+    if not _room_walk_on(hass):
+        connection.send_error(msg["id"], "off", "Walk a room is off in Settings")
+        return
+    cal = await _get_cal_store(hass)
+    polls = _rw.clean_polls(msg["polls"], cal.excluded_sources())
+    if len(polls) < _rw.MIN_POLLS:
+        connection.send_error(msg["id"], "too_short", "The walk is too short to save; walk the room again.")
+        return
+    slices = _rw.slice_readings(polls)
+    per_s = max(5, int(msg["duration_s"]) // max(1, len(slices)))
+    pts = [{
+        "map_id": msg["map_id"], "x_frac": msg["x_frac"], "y_frac": msg["y_frac"],
+        "floor_id": msg["floor_id"], "device_id": msg["device_id"],
+        "duration_s": per_s, "scanner_readings": readings,
+    } for readings in slices]
+    before = await _heldout_now(hass, 600.0)
+    try:
+        res = await cal.async_add_room_walk(msg["room"], pts, replace=msg["replace"])
+    except ValueError as e:
+        code = "exists" if "already has a walk" in str(e) else "save_failed"
+        connection.send_error(msg["id"], code, str(e))
+        return
+    after = await _heldout_now(hass, 0.0)
+    word = _rw.change_word(before, after)
+    cal.data["room_walk"] = {"last_change": word}
+    await cal.store.async_save(cal.data)
+    _LOGGER.info("Room walk saved: room=%s points=%d replaced=%d",
+                 msg["room"] or "(none)", res["added"], res["replaced"])
+    connection.send_result(msg["id"], {"ok": True, **res, "heldout_before": before, "heldout_after": after,
+                                       "change": word})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/calibration_room_walk_remove",
+        vol.Required("room"): str,
+    }
+)
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_calibration_room_walk_remove(hass: HomeAssistant, connection, msg) -> None:
+    """Remove one room's walk (its room_walk points only)."""
+    cal = await _get_cal_store(hass)
+    removed = await cal.async_remove_room_walk(msg["room"])
+    connection.send_result(msg["id"], {"ok": True, "removed": removed})
+
+
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/calibration_delete_point",

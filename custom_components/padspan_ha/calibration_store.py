@@ -232,6 +232,15 @@ class CalibrationStore:
 
     async def async_add_point(self, point: dict[str, Any]) -> dict[str, Any]:
         """Validate, clean, and persist a calibration point."""
+        clean = self._clean_point(point)
+        self.data.setdefault("points", []).append(clean)
+        await self.store.async_save(self.data)
+        await self._async_train_rf()
+        return clean
+
+    def _clean_point(self, point: dict[str, Any]) -> dict[str, Any]:
+        """A calibration point as it is stored; raises ValueError when it
+        has no position. Writes nothing."""
         point_id = f"cp_{os.urandom(6).hex()}"
 
         raw_readings = point.get("scanner_readings") or []
@@ -333,11 +342,47 @@ class CalibrationStore:
                 "Set a reference measurement on the map (Mapping → Measure) "
                 "before placing calibration points on it."
             )
+        return clean
 
-        self.data.setdefault("points", []).append(clean)
+    async def async_add_room_walk(
+        self, room: str, points: list[dict[str, Any]], replace: bool = False,
+    ) -> dict[str, Any]:
+        """Add one confirmed room walk (room_walk.py) as calibration points
+        marked source="room_walk". With replace, that room's earlier
+        room_walk points go first; no other point is touched. Without it,
+        a room that already has a walk is refused (the panel asks first)."""
+        from .room_walk import LABEL_PREFIX, SOURCE, is_walk_point  # noqa: PLC0415
+        room = str(room or "")[:120]
+        existing = self.data.get("points", [])
+        old = [p for p in existing if is_walk_point(p, room)]
+        if old and not replace:
+            raise ValueError("This room already has a walk; confirm to replace it.")
+        walk_id = f"rw_{os.urandom(4).hex()}"
+        clean_pts = []
+        for pt in points:
+            c = self._clean_point({**pt, "room": room, "label": f"{LABEL_PREFIX} {room}"})
+            c["source"] = SOURCE
+            c["walk_id"] = walk_id
+            clean_pts.append(c)
+        if not clean_pts:
+            raise ValueError("The walk caught no readings to save.")
+        old_ids = {p.get("id") for p in old}
+        self.data["points"] = [p for p in existing if p.get("id") not in old_ids] + clean_pts
         await self.store.async_save(self.data)
         await self._async_train_rf()
-        return clean
+        return {"walk_id": walk_id, "added": len(clean_pts), "replaced": len(old_ids)}
+
+    async def async_remove_room_walk(self, room: str) -> int:
+        """Remove one room's room_walk points, and only those."""
+        from .room_walk import is_walk_point  # noqa: PLC0415
+        pts = self.data.get("points", [])
+        keep = [p for p in pts if not is_walk_point(p, str(room or ""))]
+        removed = len(pts) - len(keep)
+        if removed:
+            self.data["points"] = keep
+            await self.store.async_save(self.data)
+            await self._async_train_rf()
+        return removed
 
     async def async_delete_point(self, point_id: str) -> bool:
         before = len(self.data.get("points", []))
