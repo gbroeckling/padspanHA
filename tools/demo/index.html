@@ -6,33 +6,40 @@
 <style>
   html, body { margin: 0; height: 100%; background: #0a150e; color: #e8f0ea; font-family: system-ui, sans-serif; }
   /* The bar takes the height it needs and the demo the rest, so a phone's
-     bar can wrap to two lines without hiding anything under it. */
+     bar can wrap to more lines without hiding anything under it. */
   body { display: flex; flex-direction: column; }
   #demo-bar { flex: none; z-index: 1000; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
               padding: 6px 12px; background: #1b4332; border-bottom: 1px solid #2d6a4f; font-size: 14px; box-sizing: border-box; }
   #demo-bar b { color: #ffd166; white-space: nowrap; }
-  #demo-bar span { white-space: nowrap; }
-  #demo-bar nav { margin-left: auto; display: flex; gap: 6px; }
+  /* Who is where right now, read from the demo house every second and a half. */
+  /* A fixed basis: the line's length changes as people walk, the bar's height must not. */
+  #demo-now { flex: 1 1 18em; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #cfe3d6; }
+  #demo-bar nav { display: flex; gap: 6px; }
   #demo-bar a { color: #e8f0ea; text-decoration: none; padding: 4px 10px; border-radius: 6px; border: 1px solid #2d6a4f; white-space: nowrap; }
   #demo-bar a[aria-current="page"] { background: #2d6a4f; }
+  #demo-bar a#demo-get { background: #ffd166; border-color: #ffd166; color: #10261a; font-weight: 600; }
   #app { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; }
   #app > * { display: block; min-height: 100%; }
-  /* A phone: the notice on one line (small), the three pages as one row of equal buttons. */
+  /* A phone: the notice and Install free on the first line, who is where on
+     the second, the three pages as one row of equal buttons on the third. */
   @media (max-width: 640px) {
     #demo-bar { font-size: 12px; gap: 6px 8px; padding: 6px 8px; }
-    #demo-bar nav { margin-left: 0; width: 100%; }
+    #demo-bar a#demo-get { order: 1; margin-left: auto; padding: 4px 8px; }
+    #demo-now { order: 2; flex-basis: 100%; }
+    #demo-bar nav { order: 3; width: 100%; }
     #demo-bar nav a { flex: 1 1 0; text-align: center; padding: 6px 4px; }
   }
 </style>
 </head><body>
 <div id="demo-bar" role="banner">
-  <b>Demo — nothing here is a real house</b>
-  <span>Changes last until you reload.</span>
+  <b title="Changes last until you reload.">Demo — nothing here is a real house</b>
+  <span id="demo-now">Which room everyone is in, live</span>
   <nav>
     <a href="?page=panel">Panel</a>
     <a href="?page=atlas">Atlas</a>
     <a href="?page=atlas3d">Live Aboard 3D</a>
   </nav>
+  <a id="demo-get" href="https://padspan.traks.ca/#install" target="_blank" rel="noopener">Install free</a>
 </div>
 <div id="app"></div>
 <script type="module">
@@ -40,8 +47,20 @@
 // (fake_hass.js): a fictional house, writes kept in memory only.
 const page = ["panel", "atlas", "atlas3d"].includes(new URLSearchParams(location.search).get("page"))
   ? new URLSearchParams(location.search).get("page") : "atlas3d";
-for (const a of document.querySelectorAll("#demo-bar a")) if (a.getAttribute("href") === "?page=" + page) a.setAttribute("aria-current", "page");
+for (const a of document.querySelectorAll("#demo-bar nav a")) if (a.getAttribute("href") === "?page=" + page) a.setAttribute("aria-current", "page");
 const { startDemo } = await import("./fake_hass.js");
 await startDemo(page);
 document.documentElement.dataset.demoReady = page;
+// The bar says what PadSpan is for: each phone and tag, and the room it is in
+// now. Not on the Panel page: its devices are the panel's own Sample mode house
+// (sample_data.js), not these walkers, so it keeps the tagline.
+const now = document.getElementById("demo-now");
+const who = (o) => { const n = String(o.name || ""); return n.endsWith("'s phone") ? n.split("'")[0] : n; };
+const tick = () => {
+  try {
+    const list = (window.__demo && window.__demo.snapshot().objects.list) || [];
+    if (list.length) now.textContent = "Now: " + list.map(o => o.room ? `${who(o)} in the ${o.room}` : `${who(o)} between rooms`).join(" · ");
+  } catch (_) { /* keep the last line */ }
+};
+if (page !== "panel") { tick(); setInterval(tick, 1500); }
 </script></body></html>

@@ -5,10 +5,12 @@
 // harnessFixture(q) takes the page's query (URLSearchParams) and answers
 // {MODEL, STATES}: the model_get payload and the Home Assistant states.
 // The harness's options (one=1, gym=1, loft=1, sky=, night=, sunel=, smoke=0,
-// wopen=0) are read here, so both pages build the same house.
+// wopen=0) are read here, so both pages build the same house. calm=1 is the
+// public demo's quiet house: no smoke alarm, windows shut, every temperature
+// in °C, no unavailable sensor and a fair sky. The harness keeps its edge cases.
 export function harnessFixture(q){
   const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
-  const one = q.get("one") === "1";
+  const one = q.get("one") === "1", calm = q.get("calm") === "1";
   const MODEL = {
     floors: one ? [{ id: "main", name: "Main", level: 0 }]
       : [{ id: "base", name: "Basement", level: -1 }, { id: "main", name: "Main", level: 0 }, { id: "upper", name: "Upper", level: 1 }],
@@ -79,22 +81,23 @@ export function harnessFixture(q){
     "fan.den_fan": S("on", "Den fan"),
     "sensor.den_temperature": S("21.5", "Den temperature", { device_class: "temperature", unit_of_measurement: "°C" }),
     "sensor.kitchen_temperature": S("19", "Kitchen temperature", { device_class: "temperature", unit_of_measurement: "°C" }),
-    "sensor.living_temperature": S("72", "Living temperature", { device_class: "temperature", unit_of_measurement: "°F" }),
+    "sensor.living_temperature": calm ? S("22.5", "Living temperature", { device_class: "temperature", unit_of_measurement: "°C" })
+      : S("72", "Living temperature", { device_class: "temperature", unit_of_measurement: "°F" }),
     "sensor.laundry_temperature": S("26.5", "Laundry temperature", { device_class: "temperature", unit_of_measurement: "°C" }),
     "sensor.office_temperature": S("24.5", "Office temperature", { device_class: "temperature", unit_of_measurement: "°C" }),
     "lock.front": S("locked", "Front lock"),
-    "binary_sensor.living_window": S(q.get("wopen") === "0" ? "off" : "on", "Living room window", { device_class: "window" }),
+    "binary_sensor.living_window": S(q.get("wopen") === "0" || calm ? "off" : "on", "Living room window", { device_class: "window" }),
     "binary_sensor.kitchen_window": S("off", "Kitchen window", { device_class: "window" }),
     "sun.sun": q.get("sunel") ? { state: Number(q.get("sunel")) > 0 ? "above_horizon" : "below_horizon", attributes: { elevation: Number(q.get("sunel")), azimuth: 200 }, last_changed: ago(30) }
       : { state: q.get("night") ? "below_horizon" : "above_horizon", attributes: { elevation: q.get("night") ? -20 : 35, azimuth: 200 }, last_changed: ago(30) },
-    "weather.home": S(q.get("sky") || "rainy", "Home", { temperature: 12 }),
+    "weather.home": S(q.get("sky") || (calm ? "partlycloudy" : "rainy"), "Home", { temperature: 12 }),
     "binary_sensor.laundry_leak": S("off", "Laundry leak", { device_class: "moisture" }),
-    "binary_sensor.hall_smoke": S(q.get("smoke") === "0" ? "off" : "on", "Hall smoke alarm", { device_class: "smoke" }, 1),
+    "binary_sensor.hall_smoke": S(q.get("smoke") === "0" || calm ? "off" : "on", "Hall smoke alarm", { device_class: "smoke" }, 1),
     "binary_sensor.kitchen_motion": S("on", "Kitchen motion", M, 0.2),
     "binary_sensor.living_motion": S("off", "Living motion", M, 12),
     "binary_sensor.hall_motion": S("off", "Hall motion", M, 70),
     "binary_sensor.den_motion": S("off", "Den motion", M, 600),
-    "binary_sensor.laundry_motion": S("unavailable", "Laundry motion", M, 30),
+    "binary_sensor.laundry_motion": S(calm ? "off" : "unavailable", "Laundry motion", M, 30),
     "binary_sensor.office_motion": S("off", "Office motion", M, 3),
   };
   return { MODEL, STATES };

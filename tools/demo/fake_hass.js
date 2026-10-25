@@ -28,7 +28,7 @@ const WALKERS = [
   { key: "demo:keys", name: "Keys", kind: "ble", loop: [["main", 1, 5], ["main", 1.2, 5.2]] },
 ];
 const MOTION = { Kitchen: "binary_sensor.kitchen_motion", "Living Room": "binary_sensor.living_motion", Hall: "binary_sensor.hall_motion",
-                 Den: "binary_sensor.den_motion", Office: "binary_sensor.office_motion" };
+                 Den: "binary_sensor.den_motion", Laundry: "binary_sensor.laundry_motion", Office: "binary_sensor.office_motion" };
 
 /** Which room (plan metres) holds (x, y) on floor fid. */
 function roomAt(model, fid, x, y){
@@ -62,7 +62,8 @@ function walkAt(w, t){
 export async function startDemo(page){
   const q = new URLSearchParams(location.search);
   const built = await (await fetch("demo_settings.json")).json();
-  const { MODEL, STATES } = harnessFixture(new URLSearchParams(""));
+  // The quiet house (fixture.js calm=1): no alarm, windows shut, °C throughout.
+  const { MODEL, STATES } = harnessFixture(new URLSearchParams("calm=1"));
   const model = clone(MODEL);
   model.areas = Object.keys(model.room_geometry_m).map(name => ({ id: slug(name), name, floor_id: model.room_geometry_m[name].floor_id }));
   model.room_meta = {};
@@ -80,6 +81,9 @@ export async function startDemo(page){
     atlas_3d_carries: Object.fromEntries(WALKERS.filter(w => w.person).map(w => [w.person, [w.key]])),
     tier: "pro", edition: "full", pro_active: true, pro_has_key: false, offer_tester: false, offer_invite: false,
   });
+  // The demo opens straight onto the house: the first-time tips (the Atlas
+  // coach mark, Live Aboard's card) count as seen. The bar says what it is.
+  try { localStorage.setItem("padspan_ha_lights_coach_seen", "1"); localStorage.setItem("padspan_la3d_hint_seen", "1"); } catch (_) { /* no storage */ }
   // The flat Atlas or Live Aboard: the Atlas card's own choice, kept per browser.
   if (page === "atlas") localStorage.setItem("padspan_lv_3d_atlas", "0");
   if (page === "atlas3d") localStorage.setItem("padspan_lv_3d_atlas", "1");
