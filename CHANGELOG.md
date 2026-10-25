@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.169 — Help in Dutch, German and French (2026-10-25)
+
+Used only when the Home Assistant profile language is Dutch, German or French. Everyone else, English included, sees the help exactly as before.
+
+### New
+- **Help in Dutch, German and French.** The ? help pages, and the manual sections built from them, follow the Home Assistant profile language when it is nl, de or fr. Each translated page starts with a short note: the rest of the panel is still in English, so the names of its tabs, buttons and settings are given in English, in quotes. Home Assistant's own screens are named with Home Assistant's own words in that language (for example Instellingen → Apparaten en diensten, Einstellungen → Geräte & Dienste, Paramètres → Appareils et services).
+- The Training tab's Quick Start and Full Manual keep their English section names around the translated help, and open with the same note. If a translation can't be loaded, the help is simply in English, with no note.
+- The "Free, Bright, Bright Pro, Pro" page stays in English in every language for now.
+- The translations are a first draft and have not yet been checked by native speakers. Corrections are welcome as GitHub pull requests.
+
+---
+
 ## 0.38.168 — Beacon Tune fixes (2026-10-25)
 
 ### Fixed
