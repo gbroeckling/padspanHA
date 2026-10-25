@@ -1580,9 +1580,9 @@ function _mkEl(tag, attrs = {}, children = []){
 }
 // Vacation Mode's banner. Disable asks first (2026-10-25: one tap on this
 // banner, dead center on a wall screen, turned it off mid-trip and the house
-// sat dark for 11 days). "Keep it on" takes Disable's place at the end of
-// the row and "Turn off" sits at the far start, so a second stray tap keeps
-// it on. The question outlasts the card's re-renders for 10 s.
+// sat dark for 11 days). "Keep it on" takes Disable's place at the right
+// end and "Turn off" sits at the far left, so a second stray tap keeps it
+// on. The question outlasts the card's re-renders for 10 s.
 let _vacAskUntil = 0, _vacAskTimer = null;
 function _vacBanner(host) {
   const el = _mkEl;
@@ -1599,15 +1599,15 @@ function _vacBanner(host) {
       },
     }, "Turn off");
     node = el("div", { class: "lv-vacation", role: "alertdialog" }, [
+      el("span", { class: "lv-vacation-label", style: "flex-basis:100%" }, "Turn off Vacation Mode? The lights stop acting like someone is home."),
       turnOff,
-      el("span", { class: "lv-vacation-label" }, "Turn off Vacation Mode? The lights stop acting like someone is home."),
-      el("button", { class: "btn inline", onclick: () => { _vacAskUntil = 0; swap(); } }, "Keep it on"),
+      el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => { _vacAskUntil = 0; swap(); } }, "Keep it on"),
     ]);
     clearTimeout(_vacAskTimer);
     _vacAskTimer = setTimeout(() => { if (Date.now() >= _vacAskUntil) swap(); }, _vacAskUntil - Date.now() + 50);
     return node;
   }
-  const pctLbl = el("span", { style: "font-variant-numeric:tabular-nums" }, `${host.vacationModeIntensity || 100}%`);
+  const pctLbl = el("span", { style: "font-variant-numeric:tabular-nums;white-space:nowrap" }, `${host.vacationModeIntensity || 100}%`);
   const slider = document.createElement("input");
   slider.type = "range"; slider.min = "5"; slider.max = "100"; slider.step = "5";
   slider.className = "lv-vacation-slider";
@@ -1625,7 +1625,8 @@ function _vacBanner(host) {
       slider,
       pctLbl,
     ]),
-    el("button", { class: "btn inline", onclick: () => { _vacAskUntil = Date.now() + 10000; swap(); } }, "Disable"),
+    // Pinned right, where "Keep it on" comes up, even when the row wraps.
+    el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => { _vacAskUntil = Date.now() + 10000; swap(); } }, "Disable"),
   ]);
   return node;
 }
