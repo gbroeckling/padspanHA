@@ -3,6 +3,7 @@
 
     python scripts/deploy_site.py            # stamp version, upload, verify
     python scripts/deploy_site.py --dry-run  # stamp and verify locally, upload nothing
+    python scripts/deploy_site.py --guides-only  # site/guides/ and sitemap.xml only
 
 WHY THIS EXISTS
 The landing page used to be a hand-edited file living only on the colo. Nothing
@@ -284,7 +285,13 @@ def verify_live(version: str) -> bool:
         except Exception as e:  # noqa: BLE001
             print(f"    WARN /{path} check failed: {e}")
 
-    # Each guide is there, and says it is the page at its own address.
+    ok = verify_guides() and ok
+    return ok
+
+
+def verify_guides() -> bool:
+    """Each guide is there, and says it is the page at its own address."""
+    ok = True
     for name in GUIDES:
         url = URL + name.rsplit("/", 1)[0] + "/"
         try:
@@ -296,11 +303,52 @@ def verify_live(version: str) -> bool:
             good = False
         print(f"    {'OK  ' if good else 'FAIL'} guide {url}")
         ok = ok and good
-
     return ok
 
 
+def upload_guides() -> bool:
+    """Each guide into its own folder. mkdir and tee run as root, so new folders
+    and files would be root's; chown gives them the page's own owner
+    (www-data:client1), like the rest of the site."""
+    ok = True
+    for name in GUIDES:
+        folder = f"{REMOTE_DIR}/{name.rsplit('/', 1)[0]}"
+        r = subprocess.run(f'{SSH} {HOST} "sudo -n mkdir -p {folder} && sudo -n tee {REMOTE_DIR}/{name} > /dev/null'
+                           f' && sudo -n chown -R --reference={REMOTE} {REMOTE_DIR}/guides"',
+                           shell=True, input=(SRC.parent / name).read_bytes(), capture_output=True)
+        if r.returncode != 0:
+            print(f"  WARN {name} not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
+            ok = False
+        else:
+            print(f"  uploaded {name}")
+    return ok
+
+
+def guides_only() -> None:
+    """Put the guides, and the sitemap that lists them, live, and nothing else.
+
+    The home page goes live only with a stable release (release.py), because
+    from the moment a beta is made it carries that beta's release notes. A new
+    guide shouldn't have to wait for one, or bring the notes out early."""
+    print(f"\n=== deploy_site --guides-only: {len(GUIDES)} guide(s) and sitemap.xml ===\n")
+    ok = upload_guides()
+    r = subprocess.run(f'{SSH} {HOST} "sudo -n tee {REMOTE_DIR}/sitemap.xml > /dev/null"',
+                       shell=True, input=(SRC.parent / "sitemap.xml").read_bytes(), capture_output=True)
+    if r.returncode != 0:
+        print(f"  WARN sitemap.xml not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
+        ok = False
+    else:
+        print("  uploaded sitemap.xml")
+    print("\nVerifying the guides...")
+    if not (verify_guides() and ok):
+        raise SystemExit("a guide did not go up or failed verification — look at it before leaving it")
+    print("\n=== guides live; the home page was not touched ===\n")
+
+
 def main() -> None:
+    if "--guides-only" in sys.argv:
+        guides_only()
+        return
     dry = "--dry-run" in sys.argv
     version = read_version()
     html = SRC.read_text(encoding="utf-8")
@@ -376,17 +424,7 @@ def main() -> None:
         else:
             print(f"  uploaded {name}")
 
-    # mkdir and tee run as root, so new folders and files would be root's; chown
-    # gives them the page's own owner (www-data:client1), like the rest of the site.
-    for name in GUIDES:
-        folder = f"{REMOTE_DIR}/{name.rsplit('/', 1)[0]}"
-        r = subprocess.run(f'{SSH} {HOST} "sudo -n mkdir -p {folder} && sudo -n tee {REMOTE_DIR}/{name} > /dev/null'
-                           f' && sudo -n chown -R --reference={REMOTE} {REMOTE_DIR}/guides"',
-                           shell=True, input=(SRC.parent / name).read_bytes(), capture_output=True)
-        if r.returncode != 0:
-            print(f"  WARN {name} not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
-        else:
-            print(f"  uploaded {name}")
+    upload_guides()
 
     print("\nVerifying the live page...")
     if not verify_live(version):

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import pathlib
 import re
+import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -63,3 +65,24 @@ def test_links_into_the_site_are_absolute() -> None:
     for page in _GUIDES:
         for url in re.findall(r'(?:href|src)="([^"]*)"', page.read_text(encoding="utf-8")):
             assert re.match(r"(/|#|https?:|mailto:)", url), (page, url)
+
+
+def test_guides_only_leaves_the_home_page_alone(monkeypatch) -> None:
+    """The home page carries the betas' release notes and goes live only with a
+    stable release; --guides-only must not bring it, the German page or the
+    redirects along."""
+    mod = _deploy_site()
+    calls: list[str] = []
+
+    def fake_run(cmd, shell=True, input=None, capture_output=False, check=False, text=False):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="" if text else b"", stderr="" if text else b"")
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(mod, "verify_guides", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["deploy_site.py", "--guides-only"])
+    mod.main()
+    targets = [re.search(r"tee (\S+)", c).group(1) for c in calls if "tee " in c]
+    assert f"{mod.REMOTE_DIR}/sitemap.xml" in targets
+    assert {f"{mod.REMOTE_DIR}/{g}" for g in mod.GUIDES} <= set(targets)
+    assert all(t.startswith(f"{mod.REMOTE_DIR}/guides/") or t == f"{mod.REMOTE_DIR}/sitemap.xml" for t in targets), targets
