@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How many Bluetooth proxies do I need for room presence? | PadSpan HA</title>
+<meta name="description" content="One Bluetooth proxy tells you home or away. For rooms, put one in each room you want told apart. What three or more on a floor add, which ESP32 boards work, where to put them, and how to find the rooms that need another.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/bluetooth-proxies/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="How many Bluetooth proxies do I need?">
+<meta property="og:description" content="One gives you home or away. One in each room gives you rooms. What more buys you, which boards work, and where to put them.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/bluetooth-proxies/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1>How many Bluetooth proxies do I need?</h1>
+<p class="lead">One in each room you want told apart. That's the short answer for room presence in Home Assistant. The rest of this page is about when fewer will do, which boards work, where to put them, and how to see which rooms need another one.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">See it on a demo house</a>
+  <a class="btn ghost" href="/#install">Install PadSpan from HACS</a>
+</div>
+
+<h2>What each number gets you</h2>
+<table>
+  <tr><th>Proxies</th><th>What you get</th></tr>
+  <tr><td>One in the house</td><td>Home or away, not rooms. Everything it hears counts as being in its room.</td></tr>
+  <tr><td>One in each room you want told apart</td><td>Rooms. Each device goes to the room whose proxy hears it best, the way Bermuda works too. An open-plan kitchen and living room count as one room unless each end has its own proxy.</td></tr>
+  <tr><td>Three or more on a floor, placed on a measured floor plan</td><td>PadSpan can also work out where a device is between the proxies, so it can put it in a room with no proxy of its own, like a closet or a hall.</td></tr>
+</table>
+<p><b>Each floor counts on its own.</b> PadSpan places a device using the proxies on that device's floor when there are at least three, and borrows proxies from other floors only when there aren't, treating each floor in between as a big drop in signal.</p>
+<p><b>Calibration is optional and makes rooms more accurate.</b> You stand at 2 or 3 spots in each room for 15 seconds, about 15 to 30 minutes for a ten-room house. Where PadSpan is choosing rooms by nearest proxy, it compares the live readings with what each calibrated spot sounded like, once it has five or more spots and at least two proxies hear the device, and corrects the room when they match closely.</p>
+
+<h2>What to buy</h2>
+<ul>
+  <li><b>An ESP32-S3 board with an external antenna:</b> a small IPEX (u.FL) connector and a 2.4 GHz antenna, running ESPHome's Bluetooth proxy. Home Assistant picks these up by itself, and PadSpan and Bermuda can share them.</li>
+  <li><b>The antenna matters more than the chip.</b> PadSpan's developer tested more than 20 ESP32 boards. Ones with only the tiny antenna printed on the board gave readings too noisy to tell rooms apart. Two rooms can be just 7 dB apart, and a noisy antenna flips that call at random.</li>
+  <li><b>Wi-Fi is fine.</b> In that testing, boards on Ethernet didn't place devices noticeably better than Wi-Fi ones, though Ethernet makes sense for a proxy that never moves.</li>
+  <li><b>Older ESP32 boards without an external antenna</b> are fine for home or away, but too inconsistent for rooms.</li>
+  <li><b>Already have ESPresense or Tasmota?</b> ESPresense nodes work over MQTT, and Tasmota devices with Bluetooth can be proxies too (experimental).</li>
+</ul>
+
+<h2>Where to put them</h2>
+<ul>
+  <li>Inside the rooms you want told apart, not in hallways.</li>
+  <li>Nearer the middle of a room than a corner, and not behind large metal objects, inside cabinets or right against an outside wall.</li>
+  <li>Close enough that neighbouring proxies' coverage overlaps a little.</li>
+  <li>In a large room one proxy is the minimum; two do noticeably better.</li>
+  <li>Tell PadSpan where each one really is: place it on your floor plan, and set its height above the floor under <b>Calibration → Tune</b> (the field starts at 2.4 m).</li>
+</ul>
+
+<h2>Phones need one more step</h2>
+<p>Proxies hear tags and beacons straight away. Phones change their Bluetooth address regularly so they can't be followed, so PadSpan needs a little help to know which phone is which. iPhones and Apple Watches need their key (the IRK); new installs start with PadSpan's iPhone setup steps switched on. Android phones only need the Home Assistant Companion app's BLE Transmitter.</p>
+
+<h2>Find the rooms that need another proxy</h2>
+<p>All of these are free:</p>
+<ul>
+  <li><b>Calibration → Model</b> shows how often PadSpan picks the right room on spots it wasn't calibrated on (from version 0.38.166). If one room keeps scoring badly, that's the first place to add or move a proxy.</li>
+  <li><b>Calibration → Roam</b> shows where you have calibrated so far and points you to the next spot to stand.</li>
+  <li><b>Health</b> warns when a proxy's reliability drops below 70%, and, from 0.38.166, when a proxy has heard far fewer Bluetooth advertisements than usual for over 10 minutes while the others are normal. Restarting it often helps.</li>
+  <li><b>Walk a room</b>, in the 0.38.167 beta (Settings → Presence, off by default), records a 90-second walk around one room and shows the score before and after.</li>
+</ul>
+
+<h2>Start with what you have</h2>
+<p>You don't need to buy everything first. PadSpan uses whatever proxies Home Assistant already sees, and it starts on sample data, so you can look around before you place anything. Add proxies where the scores tell you to.</p>
+<p>Already running Bermuda? <a href="/guides/bermuda/">Bermuda and PadSpan together</a> explains how the two share the same proxies.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo in your browser</a>
+  <a class="btn ghost" href="/">About PadSpan</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited.</p>
+</div></footer>
+</body>
+</html>

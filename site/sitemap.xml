@@ -5,4 +5,5 @@
   <url><loc>https://padspan.traks.ca/demo/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://padspan.traks.ca/guides/bermuda/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://padspan.traks.ca/guides/bermuda/de/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://padspan.traks.ca/guides/bluetooth-proxies/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
 </urlset>
