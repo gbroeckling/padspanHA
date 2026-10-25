@@ -59,6 +59,14 @@ REMOTE_DE = REMOTE_DIR + "/de/index.html"
 # #lights section as a sneak peek — it rides along unmodified, same as the
 # others.
 SIDECARS = ("robots.txt", "sitemap.xml", ".htaccess", "showcase-themes.html")
+# Guides: one standalone English page each, site/guides/<name>/index.html,
+# served at /guides/<name>/. Like showcase-themes.html they state no version,
+# so they ride along unmodified; unlike it, each needs its folder made first.
+# They are written for search: someone asking "Bermuda or PadSpan?" lands on
+# one, not on the release notes. tests/test_site_guides.py keeps each one in
+# the sitemap and pointing at its own address.
+GUIDES = tuple(sorted(p.relative_to(SRC.parent).as_posix()
+                      for p in (SRC.parent / "guides").glob("*/index.html")))
 URL = "https://padspan.traks.ca/"
 MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
 SSH = "ssh -o BatchMode=yes -o ConnectTimeout=20"
@@ -276,6 +284,19 @@ def verify_live(version: str) -> bool:
         except Exception as e:  # noqa: BLE001
             print(f"    WARN /{path} check failed: {e}")
 
+    # Each guide is there, and says it is the page at its own address.
+    for name in GUIDES:
+        url = URL + name.rsplit("/", 1)[0] + "/"
+        try:
+            rq = urllib.request.Request(url, headers={"User-Agent": "padspan-deploy"})
+            with urllib.request.urlopen(rq, timeout=20) as resp:
+                good = f'<link rel="canonical" href="{url}">' in resp.read().decode("utf-8", "replace")
+        except Exception as e:  # noqa: BLE001
+            print(f"      ({url}: {e})")
+            good = False
+        print(f"    {'OK  ' if good else 'FAIL'} guide {url}")
+        ok = ok and good
+
     return ok
 
 
@@ -350,6 +371,18 @@ def main() -> None:
             continue
         r = subprocess.run(f'{SSH} {HOST} "sudo -n tee {REMOTE_DIR}/{name} > /dev/null"',
                            shell=True, input=side.read_bytes(), capture_output=True)
+        if r.returncode != 0:
+            print(f"  WARN {name} not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
+        else:
+            print(f"  uploaded {name}")
+
+    # mkdir and tee run as root, so new folders and files would be root's; chown
+    # gives them the page's own owner (www-data:client1), like the rest of the site.
+    for name in GUIDES:
+        folder = f"{REMOTE_DIR}/{name.rsplit('/', 1)[0]}"
+        r = subprocess.run(f'{SSH} {HOST} "sudo -n mkdir -p {folder} && sudo -n tee {REMOTE_DIR}/{name} > /dev/null'
+                           f' && sudo -n chown -R --reference={REMOTE} {REMOTE_DIR}/guides"',
+                           shell=True, input=(SRC.parent / name).read_bytes(), capture_output=True)
         if r.returncode != 0:
             print(f"  WARN {name} not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
         else:

@@ -198,6 +198,8 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live
 | Kalman RSSI filtering | ✅ | — | — | — |
 | Works with ESPHome proxies | ✅ | ✅ | — | ✗ (own firmware) |
 
+Already running Bermuda? Keep it: PadSpan runs next to it on the same proxies and leaves it as it is. [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) explains how.
+
 ---
 
 ## Editions
