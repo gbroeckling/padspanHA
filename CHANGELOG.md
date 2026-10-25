@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.171 — Vacation Mode can't be switched off by accident (2026-10-25)
+
+One tap on the Vacation Mode banner turned it off mid-trip at a real house, and the lights stayed off for 11 days with nobody told.
+
+### Fixed
+- **Disable asks first.** Tapping Disable on the banner (Overview's Atlas and the sidebar Atlas) asks "Turn off Vacation Mode? The lights stop acting like someone is home." "Turn off" is at the far left; "Keep it on" is at the right, where Disable was, so a second stray tap keeps it on. The question goes away by itself after 10 seconds.
+- **When it goes off, the house is told.** Home Assistant shows a notification saying when, by which user and from which app or browser (or that a PadSpan factory reset did it). The same message goes to the phones or email your Follow alerts use, if any are set.
+- **Turned back on within 3 weeks of a trip, it carries on with that trip's routine.** Before, switching it back on learned the routine from the last 30 days of light history, which after an accidental Disable is mostly the empty house, so most lights stayed off. The banner says "same routine as the last trip" when it does this. After 3 weeks, or for a new trip, it learns afresh as before.
+- **Restoring a PadSpan backup leaves Vacation Mode as it is.** Before, restoring a backup taken while you were home turned it off. A factory reset still turns it off (and now says so), but keeps the learned routine so it can carry on.
+
+### Opt-in report
+- Only for installs that have used Vacation Mode: whether it is on, the intensity, how many lights it learned and which routine it runs (its own, the last trip's, the stand-in, or none yet), switches a day, trips in the last 60 days and the last trip's length, all as ranges, and whether it was last turned off from the panel or by a reset. Also counted: switched on, resumed, turned off, and whether the turned-off message reached a phone or email. Never who turned it off or from what.
+
+---
+
 ## 0.38.170 — Honest stale-receiver button (2026-10-25)
 
 ### Fixed
