@@ -357,6 +357,8 @@ const geo = { Den: { floor_id: 'f1', points_m: [[0,0],[1,0],[1,1]] }, Hall: { fl
 ok(JSON.stringify(W.walkRooms(geo, 'f1')) === '["Den"]' && W.walkRooms(geo, '').length === 2, 'rooms');
 ok(W.coversSave({seq: 3}, 3) && W.coversSave({seq: 4}, 3) && !W.coversSave({seq: 2}, 3)
    && !W.coversSave({age_s: 0}, 3) && !W.coversSave(null, 3) && !W.coversSave({seq: 3}, null), 'covers');
+ok(!W.walkLeft({state: {view: 'calibration'}}, {tab: 'walk'}) && W.walkLeft({state: {view: 'live'}}, {tab: 'walk'})
+   && W.walkLeft({state: {view: 'calibration'}}, {tab: 'model'}), 'left');
 ok(W.changeWord({knn: {rooms_right_pc: 70}}, {knn: {rooms_right_pc: 80}}) === 'up' && W.changeWord(null, {}) === null, 'change');
 const ctx = { state: { maps: { list: [{ id: 'm', floor_id: 'f1' }] }, model: { room_geometry_m: geo } }, actions: {} };
 const h = { heldoutLine: () => null };
@@ -433,3 +435,18 @@ def test_the_card_and_changelog_say_off_keeps_saved_walks():
     log = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8")
     sec = log[log.index("## 0.38.167"):log.index("## 0.38.166")]
     assert "keeps saved walks in positioning" in sec and "Remove on that room's walk" in sec
+
+
+def test_remove_finds_a_long_room_name_the_way_save_stored_it():
+    long = "R" * 150
+    s = _store(EXISTING)
+    _run(s.async_add_room_walk(long, _walk_pts()))
+    assert s.data["points"][-1]["room"] == long[:120]
+    assert _run(s.async_remove_room_walk(long)) == RW.WALK_SLICES
+    assert s.data["points"] == EXISTING
+
+
+def test_leaving_calibration_stops_the_walk_loop():
+    src = (_WWW / "views" / "calibration_walk.js").read_text(encoding="utf-8")
+    loop = src[src.index("const loop = async"):]
+    assert loop.index("walkLeft(ctx, cs)") < loop.index("refreshSnapshot")

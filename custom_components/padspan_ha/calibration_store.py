@@ -376,7 +376,8 @@ class CalibrationStore:
         """Remove one room's room_walk points, and only those."""
         from .room_walk import is_walk_point  # noqa: PLC0415
         pts = self.data.get("points", [])
-        keep = [p for p in pts if not is_walk_point(p, str(room or ""))]
+        room = str(room or "")[:120]     # as async_add_room_walk stores it
+        keep = [p for p in pts if not is_walk_point(p, room)]
         removed = len(pts) - len(keep)
         if removed:
             self.data["points"] = keep

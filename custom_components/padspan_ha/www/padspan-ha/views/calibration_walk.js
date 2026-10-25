@@ -57,6 +57,11 @@ export function changeWord(before, after) {
   return a - b >= 2 ? "up" : b - a >= 2 ? "down" : "same";
 }
 
+// The person left Calibration (or its Walk tab) mid-walk: the walk stops.
+export function walkLeft(ctx, cs) {
+  return ctx.state.view !== "calibration" || cs.tab !== "walk";
+}
+
 export function summaryText(s) {
   return `${s.samples} samples from ${s.scanners} scanner${s.scanners !== 1 ? "s" : ""} over ${s.polls} polls. ` +
     (LOOKS[s.looks] || LOOKS.unknown)(s);
@@ -248,6 +253,7 @@ function _start(ctx, cs, h) {
   ctx.actions.renderRooms();
   const loop = async () => {
     if (w.stop || cs._walk !== w) return;
+    if (walkLeft(ctx, cs)) { w.stop = true; cs._walk = { phase: "idle", room: w.room, polls: [] }; return; }
     try { await ctx.actions.refreshSnapshot(); } catch (_) { /**/ }
     if (w.stop || cs._walk !== w) return;
     w.ticks++;
