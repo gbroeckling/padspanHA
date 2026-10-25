@@ -4841,6 +4841,34 @@ function _floorHeights(ctx){
   return wrap;
 }
 
+// Receivers on the maps that no live BLE scanner matches. Pure: reads only.
+export function _staleReceivers(maps, isLive){
+  const out = [];
+  for(const m of (maps||[])){
+    for(const r of (m.receivers||[])){
+      if(!isLive(r)) out.push({ name: r.label || r.source || r.id || "?", source: r.source || "", map: m.name || m.id || "" });
+    }
+  }
+  return out;
+}
+
+// The list behind the 3D Stack "N stale" button. Says what it is and how to
+// take one off a floor plan today; it has no button of its own and writes
+// nothing.
+export function _staleReceiversBox(el, list){
+  return el("div",{class:"stale-rx-box",style:"margin-top:8px;padding:8px 10px;border:1px solid #92400e;border-radius:6px;font-size:12px"},[
+    el("div",{style:"color:#ffd54f;margin-bottom:4px"},
+      `${list.length} receiver${list.length !== 1 ? "s" : ""} on your maps that no live scanner matches right now`),
+    el("div",{class:"muted",style:"margin-bottom:6px"},
+      "A scanner that is offline, unplugged or renamed in Home Assistant shows here too. Nothing has been removed."),
+    el("ul",{style:"margin:0 0 6px 18px;padding:0"},
+      list.map(s => el("li",{}, `${s.name}${s.source && s.source !== s.name ? ` (${s.source})` : ""} — ${s.map}`))),
+    el("div",{class:"muted"},
+      "To take one off a floor plan: open that map in Library, go to Edit, click the receiver, press Delete receiver, then Save Layout. " +
+      "That removes it from that floor plan only. Its saved position in the house model stays, so it can show up again if that map is re-measured or its image is replaced."),
+  ]);
+}
+
 // ── 3D Stack Tab (large — this single function renders the whole tab) ──────
 // Aligns every uploaded map into one shared metre-space building: floor
 // assignment/heights, a drag/scale/rotate overlay editor (reference map
@@ -6765,10 +6793,11 @@ function _stack(ctx, maps, helpBtn){
       isoResetBtn.disabled = false;
     }
   }, "Reset");
-  // ── Stale Receiver Cleanup ──
+  // ── Stale Receivers (read-only) ──
   // A receiver is "stale" if its source MAC / label doesn't match any currently
-  // active BLE scanner in HA. This can happen when scanners are removed or
-  // renamed. The cleanup button removes stale receivers from all maps.
+  // active BLE scanner in HA. This can happen when scanners are removed,
+  // renamed, or simply offline. The button only lists them: nothing here
+  // removes or writes anything.
   const snap_rx = (ctx.state.live?.snapshot?.ble?.radios) || [];
   const liveSourceSet = new Set(snap_rx.map(r => r.source).filter(Boolean));
   // name→source and source→name lookups for backfill matching
@@ -6781,26 +6810,16 @@ function _stack(ctx, maps, helpBtn){
     if(radio.source) liveNameLower.set(radio.source.toLowerCase(), radio.source);
   }
 
-  // Backfill: if a receiver has no source but its label matches a live radio name,
-  // populate source so future stale checks work reliably
-  const backfillMaps = [];
+  // Backfill, in memory only: if a receiver has no source but its label
+  // matches a live radio name, fill in source for the rest of this session.
+  // Nothing is saved.
   for(const m of maps){
-    let changed = false;
     for(const r of (m.receivers||[])){
       if(r.source) continue; // already has source
       // Try exact name match first, then case-insensitive
       const matched = nameToSource.get(r.label) || liveNameLower.get((r.label||"").toLowerCase());
-      if(matched){ r.source = matched; changed = true; }
+      if(matched) r.source = matched;
     }
-    if(changed) backfillMaps.push(m);
-  }
-  // Persist backfill silently (fire-and-forget)
-  if(backfillMaps.length){
-    (async ()=>{
-      for(const m of backfillMaps){
-        try{  }catch(e){}
-      }
-    })();
   }
 
   // Now count stale — a receiver matches if source is in live set OR label matches a live radio
@@ -6810,32 +6829,19 @@ function _stack(ctx, maps, helpBtn){
     if(r.label && liveNameLower.has((r.label||"").toLowerCase())) return true;
     return false;
   };
-  let staleCount = 0;
-  for(const m of maps){
-    for(const r of (m.receivers||[])){
-      if(!_rxIsLive(r)) staleCount++;
-    }
-  }
+  const staleList = _staleReceivers(maps, _rxIsLive);
+  const staleCount = staleList.length;
   const cleanLbl = el("span",{class:"muted",style:"font-size:11px;min-width:50px"}, "");
+  const staleBox = staleCount > 0 ? _staleReceiversBox(el, staleList) : null;
+  if(staleBox && !ctx.state.maps._staleListOpen) staleBox.style.display = "none";
   const cleanBtn = el("button",{class:"btn inline",style:"padding:2px 10px;font-size:12px" + (staleCount > 0 ? ";color:#ffd54f;border-color:#92400e" : ";opacity:0.5"),
-    title: staleCount > 0 ? `Remove ${staleCount} receiver(s) not matching any live BLE scanner` : "All receivers match live scanners",
-    onclick: async ()=>{
+    title: staleCount > 0 ? `${staleCount} receiver(s) not matching any live BLE scanner — click to see which` : "All receivers match live scanners",
+    onclick: ()=>{
       if(!staleCount){ cleanLbl.textContent = "All clean"; setTimeout(()=>{ cleanLbl.textContent = ""; }, 2000); return; }
-      if(!confirm(`Remove ${staleCount} stale receiver(s) from your maps?\n\nThese receivers don't match any active BLE scanner.`)) return;
-      cleanBtn.disabled = true; cleanLbl.textContent = "Cleaning…";
-      try{
-        for(const m of maps){
-          const orig = m.receivers || [];
-          const kept = orig.filter(r => _rxIsLive(r));
-          if(kept.length < orig.length){
-          }
-        }
-        cleanLbl.textContent = `Removed ${staleCount} ✓`;
-        setTimeout(()=>{ cleanLbl.textContent = ""; ctx.actions.renderRooms(); }, 1500);
-      }catch(e){ cleanLbl.textContent = "Error"; }
-      cleanBtn.disabled = false;
+      ctx.state.maps._staleListOpen = !ctx.state.maps._staleListOpen;
+      staleBox.style.display = ctx.state.maps._staleListOpen ? "" : "none";
     }
-  }, staleCount > 0 ? `Clean ${staleCount} stale` : "No stale");
+  }, staleCount > 0 ? `${staleCount} stale` : "No stale");
 
   card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap"},[
     el("span",{class:"muted",style:"font-size:12px"},"Floor:"),
@@ -6855,6 +6861,7 @@ function _stack(ctx, maps, helpBtn){
     cleanLbl,
     roomListToggle,
   ]));
+  if(staleBox) card.appendChild(staleBox);
 
   rebuildIso();
   card.appendChild(isoWrap);

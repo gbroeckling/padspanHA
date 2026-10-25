@@ -3668,11 +3668,8 @@ function _tuneTab(ctx, el, cs, calData) {
                   removedMaps.push(mapId);
                 }
               }
-              // 2. Save cleaned maps immediately so removal persists
-              for (const mapId of removedMaps) {
-                const origMap = maps_list.find(m => m.id === mapId);
-                if (!origMap) continue;
-              }
+              // 2. Nothing to save here: radio_reset (step 4) removes this
+              //    receiver's pins from every map on the server.
               // 3. Update state BEFORE any re-render so rebuilt UI is correct
               ts.dirtyMaps = {};
               ts._mapsStamp = null;
@@ -4023,18 +4020,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         _dedupRemoved = true;
       }
     }
-    // Auto-save deduped beacons to backend so duplicates are permanently cleaned
+    // Duplicates are dropped from this tab's draft only: nothing is saved, so
+    // the maps keep them. The dirty flags are cleared as they always were here.
     if (_dedupRemoved) {
-      (async () => {
-        for (const mid of Object.keys(bs.dirtyMaps)) {
-          if (!bs.dirtyMaps[mid]) continue;
-          const origMap = maps_list.find(m => m.id === mid);
-          if (!origMap) continue;
-          try {
-            bs.dirtyMaps[mid] = false;
-          } catch(_) {}
-        }
-      })();
+      for (const mid of Object.keys(bs.dirtyMaps)) {
+        if (bs.dirtyMaps[mid] && maps_list.find(m => m.id === mid)) bs.dirtyMaps[mid] = false;
+      }
     }
   }
   // The fabric's pins over the maps' own rows (#89), whenever either changes.
@@ -4492,14 +4483,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           // No longer an existing pin: placed again, it is judged as new (a phone is held back).
           if (t.bk.key && ctx.state.model && ctx.state.model.beacon_positions_m) delete ctx.state.model.beacon_positions_m[t.bk.key];
         } catch(_) {}
-        // Auto-save the deletion
+        // The fabric_beacon_remove above is the only write; the dirty flags
+        // are cleared as they always were here.
         for (const mid of Object.keys(bs.dirtyMaps)) {
-          if (!bs.dirtyMaps[mid]) continue;
-          const origMap = maps_list.find(m => m.id === mid);
-          if (!origMap) continue;
-          try {
-            bs.dirtyMaps[mid] = false;
-          } catch(_) {}
+          if (bs.dirtyMaps[mid] && maps_list.find(m => m.id === mid)) bs.dirtyMaps[mid] = false;
         }
         _refreshTimerRow();
         _refreshSVG();

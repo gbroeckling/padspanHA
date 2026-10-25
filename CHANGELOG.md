@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.170 — Honest stale-receiver button (2026-10-25)
+
+### Fixed
+- **Mapping → 3D Stack: the stale-receiver button no longer claims a removal.** It said "Clean N stale" and then "Removed N ✓", but nothing was ever removed or saved. It is now a read-only "N stale" button: it lists which receivers on which maps no live Bluetooth scanner matches right now (a scanner that is offline or renamed shows here too), says that nothing has been removed, and explains how to take one off a floor plan today (Edit → click the receiver → Delete receiver → Save Layout). A house with no stale receivers looks exactly as before.
+
+---
+
 ## 0.38.169 — Help in Dutch, German and French (2026-10-25)
 
 Used only when the Home Assistant profile language is Dutch, German or French. Everyone else, English included, sees the help exactly as before.
