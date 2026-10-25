@@ -25,6 +25,8 @@
 // parses innerHTML or lays out real boxes) — verified live, not unit
 // tested, the same convention this codebase already applies to
 // iso_motion.js's mergeObjectLayer and traceback.js's frame renderer.
+// The event paths (touch, pinch, mouse, wheel, keys) are driven through a
+// small event-path DOM in tests/js/pan_zoom_touch.mjs (#90).
 
 const MIN_SCALE = 0.3, MAX_SCALE = 5;
 const KEY_PAN_PX = 48;
@@ -77,18 +79,14 @@ export function attachPanZoom(viewport, inner, opts = {}) {
   });
   window.addEventListener("mouseup", () => { s.dragging = false; viewport.style.cursor = "grab"; });
 
-  viewport.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 1) {
-      if (isExcluded(e.target)) return;
-      s.dragging = true; s.startX = e.touches[0].clientX; s.startY = e.touches[0].clientY; s.startTx = s.tx; s.startTy = s.ty;
-    } else if (e.touches.length === 2) {
-      s.dragging = false;
-      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
-      s.pinchDist = Math.sqrt(dx * dx + dy * dy); s.pinchScale = s.scale;
-    }
-  }, { passive: false });
-  viewport.addEventListener("touchmove", (e) => {
-    e.preventDefault();
+  // A touch's move and end go to the element it started on, even after a
+  // redraw has taken that element out of the page (Beacon Tune redraws its
+  // map every second while Auto-Cal runs), and from there they no longer
+  // reach the viewport: the pan never ended, and the next beacon drag panned
+  // the map under the finger (#90). So the gesture listens on each touch's
+  // own element, and every touchstart sets the gesture up afresh.
+  const touchEls = new Set();
+  const onTouchMove = (e) => {
     if (e.touches.length === 1 && s.dragging) {
       s.tx = s.startTx + (e.touches[0].clientX - s.startX);
       s.ty = s.startTy + (e.touches[0].clientY - s.startY);
@@ -100,12 +98,40 @@ export function attachPanZoom(viewport, inner, opts = {}) {
       const r = viewport.getBoundingClientRect();
       const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
       const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
-      const ratio = newScale / s.scale;
-      s.tx = cx - ratio * (cx - s.tx); s.ty = cy - ratio * (cy - s.ty); s.scale = newScale;
-      apply();
+      // zoomAt, so the pinch's centre stays under the fingers: it takes
+      // off inner's layout offset, which this skipped (drift of (scale-1)
+      // times the viewport's padding).
+      zoomAt(cx, cy, newScale / s.scale);
+    }
+  };
+  const onTouchEnd = (e) => {
+    s.dragging = false; s.pinchDist = 0;
+    if (e.touches && e.touches.length) return;
+    for (const t of touchEls) {
+      t.removeEventListener("touchmove", onTouchMove);
+      t.removeEventListener("touchend", onTouchEnd);
+      t.removeEventListener("touchcancel", onTouchEnd);
+    }
+    touchEls.clear();
+  };
+  viewport.addEventListener("touchstart", (e) => {
+    s.dragging = false; s.pinchDist = 0;
+    if (e.touches.length === 1) {
+      if (isExcluded(e.target)) return;
+      s.dragging = true; s.startX = e.touches[0].clientX; s.startY = e.touches[0].clientY; s.startTx = s.tx; s.startTy = s.ty;
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
+      s.pinchDist = Math.sqrt(dx * dx + dy * dy); s.pinchScale = s.scale;
+    } else return;
+    const t = e.target;
+    if (t && !touchEls.has(t)) {
+      touchEls.add(t);
+      t.addEventListener("touchmove", onTouchMove, { passive: false });
+      t.addEventListener("touchend", onTouchEnd);
+      t.addEventListener("touchcancel", onTouchEnd);
     }
   }, { passive: false });
-  viewport.addEventListener("touchend", () => { s.dragging = false; s.pinchDist = 0; });
+  viewport.addEventListener("touchmove", (e) => { e.preventDefault(); }, { passive: false });
 
   // `opts.dblclickReset === false`: the caller uses double-click itself
   // (Beacon Tune places a beacon with it); 0 and the returned reset() still work.
