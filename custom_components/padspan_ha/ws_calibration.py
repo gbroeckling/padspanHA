@@ -264,16 +264,6 @@ def _room_walk_on(hass: HomeAssistant) -> bool:
     return (getattr(st, "data", None) or {}).get("calibration_room_walk") is True
 
 
-async def _heldout_now(hass: HomeAssistant, max_age_s: float) -> dict[str, Any] | None:
-    coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
-    if coord is None or not hasattr(coord, "async_heldout"):
-        return None
-    try:
-        return await coord.async_heldout(max_age_s)
-    except Exception:
-        return None
-
-
 @websocket_api.websocket_command(
     {
         "type": "padspan_ha/calibration_room_walk_preview",
@@ -298,10 +288,7 @@ async def ws_calibration_room_walk_preview(hass: HomeAssistant, connection, msg)
     {
         "type": "padspan_ha/calibration_room_walk_save",
         vol.Required("room"): str,
-        vol.Required("map_id"): str,
-        vol.Required("x_frac"): vol.Coerce(float),
-        vol.Required("y_frac"): vol.Coerce(float),
-        vol.Optional("floor_id", default=""): str,
+        vol.Optional("map_id", default=""): str,
         vol.Optional("device_id", default=""): str,
         vol.Optional("duration_s", default=90): vol.Coerce(int),
         vol.Required("polls"): list,
@@ -322,28 +309,43 @@ async def ws_calibration_room_walk_save(hass: HomeAssistant, connection, msg) ->
     if len(polls) < _rw.MIN_POLLS:
         connection.send_error(msg["id"], "too_short", "The walk is too short to save; walk the room again.")
         return
+    # The room's middle from the fabric, in metres (never the photo).
+    mdl = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    geo = ((mdl.room_geometry_m() if mdl else {}) or {}).get(msg["room"])
+    centre = _rw.room_centre_m(geo)
+    if centre is None:
+        connection.send_error(msg["id"], "no_room", "This room has no shape in the floor plan yet.")
+        return
+    frac = None
+    if mdl and msg["map_id"] and hasattr(mdl, "metres_to_map_frac"):
+        frac = mdl.metres_to_map_frac(centre[0], centre[1], msg["map_id"])
     slices = _rw.slice_readings(polls)
     per_s = max(5, int(msg["duration_s"]) // max(1, len(slices)))
     pts = [{
-        "map_id": msg["map_id"], "x_frac": msg["x_frac"], "y_frac": msg["y_frac"],
-        "floor_id": msg["floor_id"], "device_id": msg["device_id"],
+        "map_id": msg["map_id"] if frac else "", "x_frac": frac[0] if frac else 0.5,
+        "y_frac": frac[1] if frac else 0.5, "x_m": centre[0], "y_m": centre[1],
+        "floor_id": str(geo.get("floor_id") or ""), "device_id": msg["device_id"],
         "duration_s": per_s, "scanner_readings": readings,
     } for readings in slices]
-    before = await _heldout_now(hass, 600.0)
+    # The last score from before the walk, as it stands (never waited for);
+    # the one after it is worked out in the background and read on the next look.
+    coord = hass.data.get(DOMAIN, {}).get("presence_coordinator")
+    before = getattr(coord, "_heldout", None)
     try:
         res = await cal.async_add_room_walk(msg["room"], pts, replace=msg["replace"])
     except ValueError as e:
         code = "exists" if "already has a walk" in str(e) else "save_failed"
         connection.send_error(msg["id"], code, str(e))
         return
-    after = await _heldout_now(hass, 0.0)
-    word = _rw.change_word(before, after)
-    cal.data["room_walk"] = {"last_change": word}
+    # Kept for the report's up/same/down against the next held-out result.
+    _knn_pc = ((before or {}).get("knn") or {}).get("rooms_right_pc")
+    cal.data["room_walk"] = {"before": {"knn": {"rooms_right_pc": _knn_pc}}}
     await cal.store.async_save(cal.data)
+    if coord is not None and hasattr(coord, "heldout_cached"):
+        coord.heldout_cached(0.0)   # starts the re-test with the walk in; never waited for
     _LOGGER.info("Room walk saved: room=%s points=%d replaced=%d",
                  msg["room"] or "(none)", res["added"], res["replaced"])
-    connection.send_result(msg["id"], {"ok": True, **res, "heldout_before": before, "heldout_after": after,
-                                       "change": word})
+    connection.send_result(msg["id"], {"ok": True, **res, "heldout_before": before})
 
 
 @websocket_api.websocket_command(

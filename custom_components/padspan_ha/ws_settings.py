@@ -763,10 +763,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["hold_last_room_s"] = _clamped(msg["hold_last_room_s"], 1, 600, 0.0, zero_ok=True)
         if "room_reason_attribute" in msg:
             payload["room_reason_attribute"] = bool(msg.get("room_reason_attribute"))
-        for _hk in ("positioning_pick_better", "positioning_unsure", "positioning_sensor_fusion",
-                    "calibration_room_walk"):
+        for _hk in ("positioning_pick_better", "positioning_unsure", "positioning_sensor_fusion"):
             if _hk in msg:
                 payload[_hk] = bool(msg.get(_hk))
+        if "calibration_room_walk" in msg:
+            payload["calibration_room_walk"] = bool(msg.get("calibration_room_walk"))
         if "assumed_device_height_m" in msg:
             payload["assumed_device_height_m"] = max(0.0, min(3.0, float(msg["assumed_device_height_m"])))
         if "fabric_origin_lat" in msg:

@@ -7,7 +7,8 @@
 // calibration.js only loads this file while it is on). Carry the device
 // picked in Setup slowly around one room for WALK_S seconds; each poll keeps
 // the device's fresh RSSI from every scanner (the same capture helpers Pin &
-// Listen uses). The summary and the save are room_walk.py's. Nothing is
+// Listen uses). The summary and the save are room_walk.py's; rooms come
+// from the fabric (model room_geometry_m), never the photo. Nothing is
 // stored until the person presses Save; Discard throws the walk away.
 
 export const WALK_S = 90;
@@ -41,6 +42,21 @@ const LOOKS = {
   unknown: () => "No other room has calibration yet to compare with.",
 };
 
+// Rooms of the fabric on this floor (any floor when the plan has none set).
+export function walkRooms(geometry, floorId) {
+  return Object.entries(geometry || {})
+    .filter(([, g]) => g && (Array.isArray(g.points_m) ? g.points_m.length >= 3 : g.cx_m != null)
+      && (!floorId || !g.floor_id || g.floor_id === floorId))
+    .map(([r]) => r).sort();
+}
+
+// k-NN's held-out rooms-right, before vs after: as room_walk.change_word.
+export function changeWord(before, after) {
+  const b = before?.knn?.rooms_right_pc, a = after?.knn?.rooms_right_pc;
+  if (typeof a !== "number" || typeof b !== "number") return null;
+  return a - b >= 2 ? "up" : b - a >= 2 ? "down" : "same";
+}
+
 export function summaryText(s) {
   return `${s.samples} samples from ${s.scanners} scanner${s.scanners !== 1 ? "s" : ""} over ${s.polls} polls. ` +
     (LOOKS[s.looks] || LOOKS.unknown)(s);
@@ -61,7 +77,7 @@ export function renderWalk(ctx, el, cs, calData, h) {
     return wrap;
   }
   const mapData = (ctx.state.maps?.list || []).find(m => m.id === cs.mapId) || {};
-  const rooms = Object.keys(mapData.room_bounds || {}).filter(r => h.roomCentroid(r, mapData)).sort();
+  const rooms = walkRooms(ctx.state.model?.room_geometry_m, mapData.floor_id);
   const pts = calData.points || [];
   const walked = (room) => pts.filter(p => p.source === "room_walk" && p.room === room).length;
   const card = el("div", { class: "card" });
@@ -108,17 +124,17 @@ export function renderWalk(ctx, el, cs, calData, h) {
       save.addEventListener("click", async () => {
         const replace = !!s.previous_walk_points;
         if (replace && !confirm(`Replace the earlier walk of ${w.room}?`)) return;
-        const c = h.roomCentroid(w.room, mapData);
         save.disabled = true;
         save.textContent = "Saving and re-testing…";
         try {
           const r = await ctx.actions.wsCall("padspan_ha/calibration_room_walk_save", {
-            room: w.room, map_id: cs.mapId, x_frac: c[0], y_frac: c[1], floor_id: mapData.floor_id || "",
-            device_id: cs.deviceId || "", duration_s: WALK_S, polls: w.polls, replace,
+            room: w.room, map_id: cs.mapId, device_id: cs.deviceId || "", duration_s: WALK_S,
+            polls: w.polls, replace,
           });
           ctx.state.calibration = await ctx.actions.calibrationGet();
           cs._walk = { phase: "saved", room: w.room, polls: [], result: r };
           ctx.toast(`Walk saved: ${r.added} points for ${w.room}.`);
+          _awaitAfter(ctx, cs._walk);
         } catch (e) {
           ctx.toast("Save failed: " + (e && (e.message || e.code) || String(e)), true);
           save.disabled = false;
@@ -140,13 +156,17 @@ export function renderWalk(ctx, el, cs, calData, h) {
     const r = w.result;
     card.appendChild(el("div", { style: "font-size:13px;color:#52b788;font-weight:700" },
       `✓ ${w.room}: ${r.added} points saved` + (r.replaced ? ` (replaced ${r.replaced} from the earlier walk)` : "")));
-    const b = h.heldoutLine(el, r.heldout_before), a = h.heldoutLine(el, r.heldout_after);
+    const b = h.heldoutLine(el, r.heldout_before), a = h.heldoutLine(el, w.after);
     if (b) { b.textContent = "Before: " + b.textContent; card.appendChild(b); }
     if (a) { a.textContent = "After: " + a.textContent; card.appendChild(a); }
-    if (r.change) {
+    else card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:10px" },
+      w.afterGaveUp ? "The new score isn't ready yet; Calibration → Model shows it once it is."
+        : "Re-testing with the walk in…"));
+    const chg = changeWord(r.heldout_before, w.after);
+    if (chg) {
       card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:6px" },
-        r.change === "up" ? "Fingerprints got more rooms right." : r.change === "down"
-          ? "Fingerprints got fewer rooms right. Walk the room again, or remove this walk below." : "About the same as before."));
+        chg === "up" ? "Fingerprints got more rooms right." : chg === "down"
+          ? "Fingerprints got fewer rooms right. Walk the room again, or remove the walk." : "About the same as before."));
     }
     card.appendChild(el("button", { class: "btn", style: "margin-top:12px",
       onclick: () => { cs._walk = { phase: "idle", room: "", polls: [] }; ctx.actions.renderRooms(); } }, "Walk another room"));
@@ -188,6 +208,27 @@ export function renderWalk(ctx, el, cs, calData, h) {
     card.appendChild(rm);
   }
   return wrap;
+}
+
+// The re-test runs in the background (heldout_cached); look again a few
+// times for a result newer than the save, never holding anything up.
+function _awaitAfter(ctx, w) {
+  const savedAt = Date.now();
+  let tries = 0;
+  const look = async () => {
+    if (ctx.state._calib?._walk !== w) return;
+    tries++;
+    try {
+      const d = await ctx.actions.calibrationGet();
+      ctx.state.calibration = d;
+      const ho = d && d.heldout;
+      if (ho && typeof ho.age_s === "number" && ho.age_s * 1000 < Date.now() - savedAt) w.after = ho;
+    } catch (_) { /**/ }
+    if (!w.after && tries >= 12) w.afterGaveUp = true;
+    if (!w.after && !w.afterGaveUp) setTimeout(look, 5000);
+    ctx.actions.renderRooms();
+  };
+  setTimeout(look, 3000);
 }
 
 function _start(ctx, cs, h) {

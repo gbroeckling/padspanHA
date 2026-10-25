@@ -1615,7 +1615,10 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         from .room_walk import report_buckets as _rw_buckets  # noqa: PLC0415
         _cal = dom.get(DATA_CALIBRATION)
         _cd = getattr(_cal, "data", None) or {}
-        _rw = _rw_buckets(settings, list(_cd.get("points") or []), (_cd.get("room_walk") or {}).get("last_change"))
+        from .room_walk import change_word as _rw_change  # noqa: PLC0415
+        _chg = _rw_change((_cd.get("room_walk") or {}).get("before"),
+                          getattr(dom.get("presence_coordinator"), "_heldout", None))
+        _rw = _rw_buckets(settings, list(_cd.get("points") or []), _chg)
         if _rw:
             env["room_walk"] = _rw
     except Exception:

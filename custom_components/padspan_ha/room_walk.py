@@ -8,7 +8,7 @@ The person carries one phone or tag slowly around one room for about 90 s
 while the panel samples that device's RSSI from every scanner each poll.
 This module turns those polls into a short summary and, only once the
 person presses Save, into ordinary calibration points (source="room_walk")
-at the room's centre, one per slice of the walk, so k-NN learns the room
+at the room's centre in the fabric, one per slice of the walk, so k-NN learns the room
 the same way it learns any other point. Nothing here writes anything.
 """
 
@@ -122,6 +122,20 @@ def summarize(polls: list[dict[str, float]], room: str, points: list[dict[str, A
         "enough": len(polls) >= MIN_POLLS and bool(sig),
         "previous_walk_points": sum(1 for p in points if is_walk_point(p, room)),
     }
+
+
+def room_centre_m(geo: Any) -> tuple[float, float] | None:
+    """The middle of a fabric room (room_geometry_m entry), in metres."""
+    if not isinstance(geo, dict):
+        return None
+    pts = [p for p in (geo.get("points_m") or []) if isinstance(p, (list, tuple)) and len(p) >= 2]
+    if len(pts) >= 3:
+        if pts[0] == pts[-1]:
+            pts = pts[:-1]
+        return (sum(float(p[0]) for p in pts) / len(pts), sum(float(p[1]) for p in pts) / len(pts))
+    if isinstance(geo.get("cx_m"), (int, float)) and isinstance(geo.get("cy_m"), (int, float)):
+        return (float(geo["cx_m"]), float(geo["cy_m"]))
+    return None
 
 
 def slice_readings(polls: list[dict[str, float]], slices: int = WALK_SLICES) -> list[list[dict[str, Any]]]:

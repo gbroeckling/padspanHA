@@ -22,7 +22,7 @@ from custom_components.padspan_ha import room_walk as RW
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_calibration as WC
 from custom_components.padspan_ha.calibration_store import CalibrationStore
-from custom_components.padspan_ha.const import DATA_CALIBRATION, DATA_SETTINGS, DOMAIN
+from custom_components.padspan_ha.const import DATA_CALIBRATION, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
 
 _WWW = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
@@ -32,8 +32,13 @@ class _Model:
     def map_frac_to_metres(self, x, y, map_id):
         return (x * 10.0, y * 10.0)
 
+    def metres_to_map_frac(self, x, y, map_id):
+        return (x / 10.0, y / 10.0)
+
     def room_geometry_m(self):
-        return {}
+        return {"Lounge": {"type": "poly", "floor_id": "ground",
+                           "points_m": [[0, 0], [4, 0], [4, 2], [0, 2], [0, 0]]},
+                "Office": {"type": "circle", "floor_id": "ground", "cx_m": 7.0, "cy_m": 1.0, "r_m": 1.0}}
 
     def room_meta(self):
         return {}
@@ -162,10 +167,10 @@ def test_an_ordinary_point_save_is_unchanged():
 def _house(on, points=EXISTING):
     st = SimpleNamespace(data={**DEFAULT_SETTINGS, "calibration_room_walk": on})
     cal = _store(points)
-    coord = SimpleNamespace(async_heldout=AsyncMock(side_effect=[
-        {"knn": {"rooms_right_pc": 70}}, {"knn": {"rooms_right_pc": 80}}]))
+    coord = SimpleNamespace(_heldout={"knn": {"rooms_right_pc": 70, "spots": 30}}, heldout_cached=MagicMock(),
+                            async_heldout=AsyncMock())
     cal.hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st}})
-    return SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st, DATA_CALIBRATION: cal,
+    return SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st, DATA_CALIBRATION: cal, DATA_MODEL: _Model(),
                                           "presence_coordinator": coord}}), cal
 
 
@@ -174,8 +179,8 @@ def _conn():
 
 
 def _save_msg(**kw):
-    return {"id": 1, "room": "Lounge", "map_id": "m", "x_frac": 0.5, "y_frac": 0.5, "floor_id": "ground",
-            "device_id": "phone", "duration_s": 90, "polls": _polls({"a": -60.0}), "replace": False, **kw}
+    return {"id": 1, "room": "Lounge", "map_id": "m", "device_id": "phone", "duration_s": 90,
+            "polls": _polls({"a": -60.0}), "replace": False, **kw}
 
 
 def test_off_the_commands_do_nothing():
@@ -189,14 +194,33 @@ def test_off_the_commands_do_nothing():
         cal.store.async_save.assert_not_called()
 
 
-def test_save_reports_heldout_before_and_after():
+def test_save_puts_the_walk_at_the_fabric_rooms_middle_and_never_waits_on_a_retest():
     hass, cal = _house(True)
     conn = _conn()
     _run(WC.ws_calibration_room_walk_save(hass, conn, _save_msg()))
     r = conn.send_result.call_args.args[1]
-    assert r["ok"] and r["added"] == RW.WALK_SLICES and r["change"] == "up"
-    assert r["heldout_before"]["knn"]["rooms_right_pc"] == 70 and r["heldout_after"]["knn"]["rooms_right_pc"] == 80
-    assert cal.data["points"][:3] == EXISTING and cal.data["room_walk"] == {"last_change": "up"}
+    assert r["ok"] and r["added"] == RW.WALK_SLICES and r["heldout_before"]["knn"]["rooms_right_pc"] == 70
+    assert cal.data["points"][:3] == EXISTING
+    assert cal.data["room_walk"] == {"before": {"knn": {"rooms_right_pc": 70}}}
+    new = cal.data["points"][3:]
+    assert all((p["x_m"], p["y_m"], p["floor_id"], p["map_id"]) == (2.0, 1.0, "ground", "m") for p in new)
+    assert new[0]["x_frac"] == 0.2 and new[0]["y_frac"] == 0.1
+    coord = hass.data[DOMAIN]["presence_coordinator"]
+    coord.heldout_cached.assert_called_once_with(0.0)    # the re-test starts in the background
+    coord.async_heldout.assert_not_called()             # and is never waited for
+
+
+def test_a_room_with_no_fabric_shape_is_refused():
+    hass, cal = _house(True)
+    conn = _conn()
+    _run(WC.ws_calibration_room_walk_save(hass, conn, _save_msg(room="Attic")))
+    assert conn.send_error.call_args.args[1] == "no_room" and cal.data["points"] == EXISTING
+
+
+def test_room_centre():
+    assert RW.room_centre_m({"points_m": [[0, 0], [4, 0], [4, 2], [0, 2], [0, 0]]}) == (2.0, 1.0)
+    assert RW.room_centre_m({"cx_m": 1, "cy_m": 2}) == (1.0, 2.0)
+    assert RW.room_centre_m({"points_m": [[0, 0]]}) is None and RW.room_centre_m(None) is None
 
 
 def test_save_without_confirm_on_a_walked_room_asks_first():
@@ -273,8 +297,12 @@ ok(W.summaryText({samples: 9, scanners: 1, polls: 9, looks: 'similar', nearest_r
 const el = (tag, attrs, kids) => ({ tag, attrs: attrs || {}, kids: [].concat(kids ?? []), appendChild(k) { this.kids.push(k); },
   addEventListener() {}, set innerHTML(v) { this.kids.push(v); } });
 const text = (n) => typeof n === 'string' ? n : (n && n.kids ? n.kids.map(text).join(' ') : '');
-const ctx = { state: { maps: { list: [{ id: 'm', room_bounds: { Den: {}, Hall: {} } }] } }, actions: {} };
-const h = { roomCentroid: (r) => r === 'Den' ? [0.5, 0.5] : null, heldoutLine: () => null };
+const geo = { Den: { floor_id: 'f1', points_m: [[0,0],[1,0],[1,1]] }, Hall: { floor_id: 'f2', points_m: [[0,0],[1,0],[1,1]] },
+              Shed: { floor_id: 'f1', points_m: [] } };
+ok(JSON.stringify(W.walkRooms(geo, 'f1')) === '["Den"]' && W.walkRooms(geo, '').length === 2, 'rooms');
+ok(W.changeWord({knn: {rooms_right_pc: 70}}, {knn: {rooms_right_pc: 80}}) === 'up' && W.changeWord(null, {}) === null, 'change');
+const ctx = { state: { maps: { list: [{ id: 'm', floor_id: 'f1' }] }, model: { room_geometry_m: geo } }, actions: {} };
+const h = { heldoutLine: () => null };
 ok(text(W.renderWalk(ctx, el, {}, {points: []}, h)).includes('Setup required'), 'needs setup');
 const idle = text(W.renderWalk(ctx, el, {deviceId: 'p', mapId: 'm'}, {points: [{source: 'room_walk', room: 'Den'}]}, h));
 ok(idle.includes('Den (walked)') && !idle.includes('Hall') && idle.includes('Start walking'), 'idle ' + idle);

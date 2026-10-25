@@ -176,8 +176,7 @@ function _walkTab(ctx, el, cs, calData) {
     return el("div", { class: "muted" }, "Loading…");
   }
   return _WALK.renderWalk(ctx, el, cs, calData, {
-    findAds: _findBeaconAds, accept: _acceptCalSample, roomCentroid: _roomCentroid,
-    snap: _recordableSnap, phase: tuneLivePhase, heldoutLine: _heldoutLine,
+    findAds: _findBeaconAds, accept: _acceptCalSample, snap: _recordableSnap, phase: tuneLivePhase, heldoutLine: _heldoutLine,
   });
 }
 
