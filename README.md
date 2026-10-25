@@ -4,6 +4,8 @@
 
 ▶️ **Try it in your browser: [padspan.traks.ca/demo](https://padspan.traks.ca/demo/)**, the real panel on a made-up house. Nothing to install.
 
+[![Open PadSpan in HACS in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) Have Home Assistant? One click opens PadSpan in your HACS. It's in the default list.
+
 PadSpan™ HA goes far beyond "home or away." It tells you **which room** every Bluetooth device is in — updated every 5 seconds — with interactive floor plans, 3D multi-floor visualizations, a full calibration system, and 19 dedicated views. No other Home Assistant BLE integration comes close.
 
 🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
@@ -222,6 +224,10 @@ No key yet? **Settings → Features → PadSpan licence** has a one-time 90-day 
 ## Installation
 
 ### Via HACS (recommended)
+
+[![Open PadSpan in HACS in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration)
+
+Or by hand:
 
 1. Open HACS in your Home Assistant instance
 2. Search for and install **PadSpan HA** (it's in the HACS default list, no custom repository needed)
