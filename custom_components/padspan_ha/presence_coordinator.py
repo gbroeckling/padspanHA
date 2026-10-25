@@ -812,6 +812,12 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._heldout: dict[str, Any] | None = None
         self._heldout_mono = 0.0
         self._heldout_running = False
+        # Re-tests asked for by a calibration change (a saved walk), and the
+        # last one a finished run covers: a run reads the points it started
+        # with, so one asked for mid-run waits for the next.
+        self._heldout_want = 0
+        self._heldout_seq = 0
+        self._heldout_again = False
         self._preferred_method = "spatial"
         # {scanner: area} from the last poll, for the held-out test.
         self._last_source_to_area: dict[str, str] = {}
@@ -3697,18 +3703,34 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 or self._heldout_running:
             return self._heldout
         self._heldout_running = True
+        seq = self._heldout_want
         try:
             job = self._heldout_job()
             res = await self.hass.async_add_executor_job(job) if job else None
             from . import heldout as _ho  # noqa: PLC0415
             self._heldout = res
+            self._heldout_seq = seq
             self._preferred_method = _ho.next_preferred(self._preferred_method, res)
         except Exception as _ho_err:
             _LOGGER.debug("Held-out accuracy failed: %s", _ho_err)
         finally:
             self._heldout_mono = time.monotonic()
             self._heldout_running = False
+            if self._heldout_again:
+                self._heldout_again = False
+                self.hass.async_create_task(self.async_heldout(0.0))
         return self._heldout
+
+    def heldout_rerun(self) -> int:
+        """A re-test for a calibration change: now, or straight after the
+        run in progress (which read the points from before). Returns the
+        stamp ("seq") the result covering the change will carry."""
+        self._heldout_want += 1
+        if self._heldout_running:
+            self._heldout_again = True
+        else:
+            self.hass.async_create_task(self.async_heldout(0.0))
+        return self._heldout_want
 
     def heldout_cached(self, max_age_s: float = 600.0) -> dict[str, Any] | None:
         """The last held-out result straight away, with its age in seconds.
@@ -3720,7 +3742,10 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass.async_create_task(self.async_heldout(max_age_s))
         if self._heldout is None:
             return None
-        return {**self._heldout, "age_s": int(now - self._heldout_mono)}
+        out = {**self._heldout, "age_s": int(now - self._heldout_mono)}
+        if self._heldout_want:      # only once a re-test was asked for
+            out["seq"] = self._heldout_seq
+        return out
 
     def _maybe_refresh_heldout(self) -> None:
         """Hourly, and only while something uses the result: Pick the better

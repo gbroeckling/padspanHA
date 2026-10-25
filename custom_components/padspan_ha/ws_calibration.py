@@ -341,11 +341,15 @@ async def ws_calibration_room_walk_save(hass: HomeAssistant, connection, msg) ->
     _knn_pc = ((before or {}).get("knn") or {}).get("rooms_right_pc")
     cal.data["room_walk"] = {"before": {"knn": {"rooms_right_pc": _knn_pc}}}
     await cal.store.async_save(cal.data)
-    if coord is not None and hasattr(coord, "heldout_cached"):
-        coord.heldout_cached(0.0)   # starts the re-test with the walk in; never waited for
+    # The re-test with the walk in: now, or after a run already going (that
+    # one read the points from before). Never waited for; the panel looks
+    # for a result stamped with this seq or later.
+    seq = None
+    if coord is not None and hasattr(coord, "heldout_rerun"):
+        seq = coord.heldout_rerun()
     _LOGGER.info("Room walk saved: room=%s points=%d replaced=%d",
                  msg["room"] or "(none)", res["added"], res["replaced"])
-    connection.send_result(msg["id"], {"ok": True, **res, "heldout_before": before})
+    connection.send_result(msg["id"], {"ok": True, **res, "heldout_before": before, "heldout_seq": seq})
 
 
 @websocket_api.websocket_command(

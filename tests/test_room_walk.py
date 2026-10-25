@@ -222,7 +222,7 @@ def _house(on, points=EXISTING):
     st = SimpleNamespace(data={**DEFAULT_SETTINGS, "calibration_room_walk": on})
     cal = _store(points)
     coord = SimpleNamespace(_heldout={"knn": {"rooms_right_pc": 70, "spots": 30}}, heldout_cached=MagicMock(),
-                            async_heldout=AsyncMock())
+                            heldout_rerun=MagicMock(return_value=3), async_heldout=AsyncMock())
     cal.hass = SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st}})
     return SimpleNamespace(data={DOMAIN: {DATA_SETTINGS: st, DATA_CALIBRATION: cal, DATA_MODEL: _Model(),
                                           "presence_coordinator": coord}}), cal
@@ -254,13 +254,14 @@ def test_save_puts_the_walk_at_the_fabric_rooms_middle_and_never_waits_on_a_rete
     _run(WC.ws_calibration_room_walk_save(hass, conn, _save_msg()))
     r = conn.send_result.call_args.args[1]
     assert r["ok"] and r["added"] == RW.WALK_SLICES and r["heldout_before"]["knn"]["rooms_right_pc"] == 70
+    assert r["heldout_seq"] == 3
     assert cal.data["points"][:3] == EXISTING
     assert cal.data["room_walk"] == {"before": {"knn": {"rooms_right_pc": 70}}}
     new = cal.data["points"][3:]
     assert all((p["x_m"], p["y_m"], p["floor_id"], p["map_id"]) == (2.0, 1.0, "ground", "m") for p in new)
     assert new[0]["x_frac"] == 0.2 and new[0]["y_frac"] == 0.1
     coord = hass.data[DOMAIN]["presence_coordinator"]
-    coord.heldout_cached.assert_called_once_with(0.0)    # the re-test starts in the background
+    coord.heldout_rerun.assert_called_once_with()         # the re-test starts in the background
     coord.async_heldout.assert_not_called()             # and is never waited for
 
 
@@ -354,6 +355,8 @@ const text = (n) => typeof n === 'string' ? n : (n && n.kids ? n.kids.map(text).
 const geo = { Den: { floor_id: 'f1', points_m: [[0,0],[1,0],[1,1]] }, Hall: { floor_id: 'f2', points_m: [[0,0],[1,0],[1,1]] },
               Shed: { floor_id: 'f1', points_m: [] } };
 ok(JSON.stringify(W.walkRooms(geo, 'f1')) === '["Den"]' && W.walkRooms(geo, '').length === 2, 'rooms');
+ok(W.coversSave({seq: 3}, 3) && W.coversSave({seq: 4}, 3) && !W.coversSave({seq: 2}, 3)
+   && !W.coversSave({age_s: 0}, 3) && !W.coversSave(null, 3) && !W.coversSave({seq: 3}, null), 'covers');
 ok(W.changeWord({knn: {rooms_right_pc: 70}}, {knn: {rooms_right_pc: 80}}) === 'up' && W.changeWord(null, {}) === null, 'change');
 const ctx = { state: { maps: { list: [{ id: 'm', floor_id: 'f1' }] }, model: { room_geometry_m: geo } }, actions: {} };
 const h = { heldoutLine: () => null };
@@ -364,3 +367,34 @@ console.log('ok');
 """, encoding="utf-8")
     r = subprocess.run([_NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, timeout=60)
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr + r.stdout
+
+
+def test_a_walk_saved_mid_run_gets_a_rerun_and_the_stale_run_does_not_count():
+    from tests.test_honest_accuracy import make_coord
+    c = make_coord()
+    tasks = []
+    c.hass.async_create_task = lambda coro: tasks.append(coro)
+    started = []
+
+    async def run(fn, *a):
+        started.append(fn)
+        if len(started) == 1:
+            assert c.heldout_rerun() == 1        # the walk is saved while this run goes
+            assert not tasks                     # queued behind it, not started beside it
+        return fn(*a)
+    c.hass.async_add_executor_job = run
+    _run(c.async_heldout(0.0))
+    assert c.heldout_cached(1e9)["seq"] == 0     # the run that read the old points
+    assert len(tasks) == 1
+    _run(tasks.pop())
+    assert len(started) == 2 and c.heldout_cached(1e9)["seq"] == 1 and not tasks
+    assert c.heldout_rerun() == 2 and len(tasks) == 1   # idle: starts straight away
+    tasks.pop().close()
+
+
+def test_no_seq_until_a_rerun_is_asked_for():
+    from tests.test_honest_accuracy import make_coord
+    c = make_coord()
+    c._heldout, c._heldout_mono = {"knn": {"spots": 1}}, 1.0
+    c.hass.async_create_task = MagicMock()
+    assert "seq" not in c.heldout_cached(1e12)

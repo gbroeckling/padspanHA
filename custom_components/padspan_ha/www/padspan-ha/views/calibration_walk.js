@@ -160,7 +160,7 @@ export function renderWalk(ctx, el, cs, calData, h) {
     if (b) { b.textContent = "Before: " + b.textContent; card.appendChild(b); }
     if (a) { a.textContent = "After: " + a.textContent; card.appendChild(a); }
     else card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:10px" },
-      w.afterGaveUp ? "The new score isn't ready yet; Calibration → Model shows it once it is."
+      w.afterGaveUp ? "Still working on the new score. Calibration → Model shows it once it is ready."
         : "Re-testing with the walk in…"));
     const chg = changeWord(r.heldout_before, w.after);
     if (chg) {
@@ -210,10 +210,16 @@ export function renderWalk(ctx, el, cs, calData, h) {
   return wrap;
 }
 
-// The re-test runs in the background (heldout_cached); look again a few
-// times for a result newer than the save, never holding anything up.
+// A held-out result that covers the save: stamped with the save's seq or
+// later (a run already going when the walk was saved does not count).
+export function coversSave(ho, seq) {
+  return !!ho && typeof ho.seq === "number" && typeof seq === "number" && ho.seq >= seq;
+}
+
+// The re-test runs in the background (heldout_rerun); look again a few
+// times for a result that covers the save, never holding anything up.
 function _awaitAfter(ctx, w) {
-  const savedAt = Date.now();
+  const seq = w.result && w.result.heldout_seq;
   let tries = 0;
   const look = async () => {
     if (ctx.state._calib?._walk !== w) return;
@@ -222,7 +228,7 @@ function _awaitAfter(ctx, w) {
       const d = await ctx.actions.calibrationGet();
       ctx.state.calibration = d;
       const ho = d && d.heldout;
-      if (ho && typeof ho.age_s === "number" && ho.age_s * 1000 < Date.now() - savedAt) w.after = ho;
+      if (coversSave(ho, seq)) w.after = ho;
     } catch (_) { /**/ }
     if (!w.after && tries >= 12) w.afterGaveUp = true;
     if (!w.after && !w.afterGaveUp) setTimeout(look, 5000);
