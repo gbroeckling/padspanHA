@@ -4824,7 +4824,7 @@ export function _staleReceiversBox(el, list){
     el("div",{class:"muted",style:"margin-bottom:6px"},
       "A scanner that is offline, unplugged or renamed in Home Assistant shows here too. Nothing has been removed."),
     el("ul",{style:"margin:0 0 6px 18px;padding:0"},
-      list.map(s => el("li",{}, `${s.name}${s.source && s.source !== s.name ? ` (${s.source})` : ""} — ${s.map}`))),
+      list.map(s => el("li",{}, `${s.name}${s.source && !s.name.includes(s.source) ? ` (${s.source})` : ""} — ${s.map}`))),
     el("div",{class:"muted"},
       "To take one off a floor plan: open that map in Library, go to Edit, click the receiver, press Delete receiver, then Save Layout. " +
       "That removes it from that floor plan only. Its saved position in the house model stays, so it can show up again if that map is re-measured or its image is replaced."),
