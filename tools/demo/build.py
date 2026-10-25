@@ -8,6 +8,9 @@ this checkout, and adds the demo page (index.html), the fake Home Assistant
 (fake_hass.js) and the fictional house (fixture.js). The one change to the
 copied files: the panel's absolute "/padspan_ha_static/" URLs become relative,
 so the folder works from any path (padspan.traks.ca/demo/, a file server).
+The demo's own modules are loaded with a stamp of their contents (?v=...):
+Cloudflare and browsers keep .js for 4 hours, and a new page must never run
+an old fake_hass.js or fixture.js.
 
 demo_settings.json is the integration's own DEFAULT_SETTINGS
 (settings_store.py) and its version, read from the source without importing
@@ -18,6 +21,7 @@ python -m http.server 8790 -d tools/demo/dist --bind 127.0.0.1
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 import shutil
@@ -62,6 +66,13 @@ def build(out: Path) -> Path:
                 f.write_bytes(raw.replace(b"/padspan_ha_static/", b"./padspan_ha_static/"))
     for name in DEMO_FILES:
         shutil.copy2(HERE / name, out / name)
+    stamp = hashlib.sha1(b"".join((HERE / n).read_bytes() for n in ("fake_hass.js", "fixture.js"))).hexdigest()[:10]
+    for name, old in (("index.html", 'import("./fake_hass.js")'), ("fake_hass.js", 'from "./fixture.js"')):
+        f = out / name
+        text = f.read_text(encoding="utf-8")
+        if text.count(old) != 1:
+            raise SystemExit(f"{name}: expected one {old}")
+        f.write_text(text.replace(old, old.replace('.js"', f'.js?v={stamp}"')), encoding="utf-8")
     payload = {"settings": default_settings(), "version": version_info()}
     (out / "demo_settings.json").write_text(json.dumps(payload, indent=1, sort_keys=True), encoding="utf-8")
     return out
