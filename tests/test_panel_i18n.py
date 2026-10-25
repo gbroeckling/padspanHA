@@ -127,7 +127,10 @@ def test_every_case_in_the_harness_passes(harness) -> None:
 
 
 def test_the_helper_stays_small() -> None:
-    assert _HELPER.stat().st_size <= _HELPER_BUDGET, f"views/i18n.js is {_HELPER.stat().st_size} bytes"
+    # Measured with LF line endings: a Windows checkout stores CRLF, which would
+    # make the same file look bigger than it is in git and in the release zip.
+    size = len(_HELPER.read_bytes().replace(b"\r\n", b"\n"))
+    assert size <= _HELPER_BUDGET, f"views/i18n.js is {size} bytes"
 
 
 def test_language_files_fit_the_budget_and_the_code() -> None:
