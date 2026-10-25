@@ -32,7 +32,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 INTEGRATION = ROOT / "custom_components" / "padspan_ha"
 WWW = INTEGRATION / "www" / "padspan-ha"
-DEMO_FILES = ("index.html", "fake_hass.js", "fixture.js")
+DEMO_FILES = ("index.html", "fake_hass.js", "fixture.js", "preview.jpg")  # preview.jpg: the link-preview picture
 REWRITE = (".js", ".mjs", ".css", ".html")
 
 

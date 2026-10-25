@@ -2,13 +2,15 @@
 
 ### The most comprehensive BLE room-presence system for Home Assistant
 
+▶️ **Try it in your browser: [padspan.traks.ca/demo](https://padspan.traks.ca/demo/)**, the real panel on a made-up house. Nothing to install.
+
 PadSpan™ HA goes far beyond "home or away." It tells you **which room** every Bluetooth device is in — updated every 5 seconds — with interactive floor plans, 3D multi-floor visualizations, a full calibration system, and 19 dedicated views. No other Home Assistant BLE integration comes close.
 
 🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
 
 🎁 **PadSpan Pro free:** testers get two years of Pro while the anonymous usage report stays on ([how](#become-a-tester-separate-from-the-usage-report)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
 
-![PadSpan HA — room-level Bluetooth presence on a 3D multi-floor plan](images/demo-montage.gif)
+[![PadSpan HA — room-level Bluetooth presence on a 3D multi-floor plan](images/demo-montage.gif)](https://padspan.traks.ca/demo/)
 
 <sub>20-second tour. The same shots at full size are in the table below, and the full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
 
