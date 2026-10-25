@@ -337,9 +337,10 @@ async def ws_calibration_room_walk_save(hass: HomeAssistant, connection, msg) ->
         code = "exists" if "already has a walk" in str(e) else "save_failed"
         connection.send_error(msg["id"], code, str(e))
         return
-    # Kept for the report's up/same/down against the next held-out result.
+    # Kept for the report's up/same/down: the score from before, and (filled
+    # in by the first held-out run with this walk in) the one after.
     _knn_pc = ((before or {}).get("knn") or {}).get("rooms_right_pc")
-    cal.data["room_walk"] = {"before": {"knn": {"rooms_right_pc": _knn_pc}}}
+    cal.data["room_walk"] = {"before": {"knn": {"rooms_right_pc": _knn_pc}}, "walk_id": res["walk_id"]}
     await cal.store.async_save(cal.data)
     # The re-test with the walk in: now, or after a run already going (that
     # one read the points from before). Never waited for; the panel looks

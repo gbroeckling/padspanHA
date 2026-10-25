@@ -256,7 +256,7 @@ def test_save_puts_the_walk_at_the_fabric_rooms_middle_and_never_waits_on_a_rete
     assert r["ok"] and r["added"] == RW.WALK_SLICES and r["heldout_before"]["knn"]["rooms_right_pc"] == 70
     assert r["heldout_seq"] == 3
     assert cal.data["points"][:3] == EXISTING
-    assert cal.data["room_walk"] == {"before": {"knn": {"rooms_right_pc": 70}}}
+    assert cal.data["room_walk"] == {"before": {"knn": {"rooms_right_pc": 70}}, "walk_id": r["walk_id"]}
     new = cal.data["points"][3:]
     assert all((p["x_m"], p["y_m"], p["floor_id"], p["map_id"]) == (2.0, 1.0, "ground", "m") for p in new)
     assert new[0]["x_frac"] == 0.2 and new[0]["y_frac"] == 0.1
@@ -398,3 +398,30 @@ def test_no_seq_until_a_rerun_is_asked_for():
     c._heldout, c._heldout_mono = {"knn": {"spots": 1}}, 1.0
     c.hass.async_create_task = MagicMock()
     assert "seq" not in c.heldout_cached(1e12)
+
+
+def test_the_report_change_is_the_pair_stored_at_walk_time():
+    from tests.test_honest_accuracy import make_coord
+    c = make_coord()
+    c.hass.async_create_task = MagicMock()
+    cal = c.hass.data[DOMAIN][DATA_CALIBRATION]
+    cal.store.async_save = AsyncMock()
+
+    async def run(fn, *a):
+        return fn(*a)
+    c.hass.async_add_executor_job = run
+    rw = {"before": {"knn": {"rooms_right_pc": 0}}, "walk_id": "rw_x"}
+    cal.data["room_walk"] = rw
+    _run(c.async_heldout(0.0))                     # the walk's points are not in yet
+    assert "after" not in rw and cal.store.async_save.call_count == 0
+    cal.data["points"] = cal.data["points"] + [{**cal.data["points"][0], "id": "w", "source": "room_walk",
+                                                "walk_id": "rw_x"}]
+    _run(c.async_heldout(0.0))
+    after = rw["after"]["knn"]["rooms_right_pc"]
+    assert isinstance(after, (int, float)) and cal.store.async_save.call_count == 1
+    c._heldout = {"knn": {"rooms_right_pc": -50}}  # weeks later the score moves; the record does not
+    _run(c.async_heldout(0.0))
+    assert rw["after"]["knn"]["rooms_right_pc"] == after and cal.store.async_save.call_count == 1
+    src = Path(T.__file__).read_text(encoding="utf-8")
+    seg = src[src.index("from .room_walk import change_word"):][:300]
+    assert '_rwd.get("after")' in seg and "_heldout" not in seg

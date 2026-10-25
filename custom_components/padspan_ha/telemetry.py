@@ -1610,14 +1610,15 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         pass
     # Walk a room (room_walk.py), only while it is on and a walk was saved:
     # rooms walked as a bucket word, and whether the last walk moved k-NN's
-    # held-out rooms-right up, down or not at all.
+    # held-out rooms-right up, down or not at all: the pair stored at walk
+    # time, never today's score against it.
     try:
         from .room_walk import report_buckets as _rw_buckets  # noqa: PLC0415
         _cal = dom.get(DATA_CALIBRATION)
         _cd = getattr(_cal, "data", None) or {}
         from .room_walk import change_word as _rw_change  # noqa: PLC0415
-        _chg = _rw_change((_cd.get("room_walk") or {}).get("before"),
-                          getattr(dom.get("presence_coordinator"), "_heldout", None))
+        _rwd = _cd.get("room_walk") or {}
+        _chg = _rw_change(_rwd.get("before"), _rwd.get("after"))
         _rw = _rw_buckets(settings, list(_cd.get("points") or []), _chg)
         if _rw:
             env["room_walk"] = _rw
