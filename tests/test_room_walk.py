@@ -425,3 +425,11 @@ def test_the_report_change_is_the_pair_stored_at_walk_time():
     src = Path(T.__file__).read_text(encoding="utf-8")
     seg = src[src.index("from .room_walk import change_word"):][:300]
     assert '_rwd.get("after")' in seg and "_heldout" not in seg
+
+
+def test_the_card_and_changelog_say_off_keeps_saved_walks():
+    card = (_WWW / "views" / "settings.js").read_text(encoding="utf-8")
+    assert "keeps saved walks in positioning" in card and "use Remove on that room's walk" in card
+    log = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8")
+    sec = log[log.index("## 0.38.167"):log.index("## 0.38.166")]
+    assert "keeps saved walks in positioning" in sec and "Remove on that room's walk" in sec

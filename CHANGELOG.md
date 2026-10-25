@@ -12,8 +12,10 @@ Off until it is turned on. With it off, Calibration and positioning are the same
 - **Walk a room.** Settings → Presence → Walk a Room adds a "Walk a room" tab to Calibration. Pick the room, press Start and walk slowly around it for 90 seconds with the phone or tag chosen in Setup; a ring counts down while PadSpan samples that device's signal from every scanner. Afterwards it shows how many samples and scanners it heard and how far the room's signal sits from the closest other room, then asks whether to save. Nothing is stored until Save is pressed; Discard throws the walk away.
 - **A saved walk is ordinary calibration, kept apart.** It is added as six calibration points at the room's centre, one per stretch of the walk, marked as a room walk. Walking the same room again replaces only that room's earlier walk, after a confirm, and a walk can be removed room by room. No other calibration point is changed.
 - **Before and after.** After a save the tab shows the held-out score from before the walk and after it, so it is clear whether the walk helped.
+- Turning the setting off hides the tab but keeps saved walks in positioning. To take a walk out, turn it on and use Remove on that room's walk.
 - With Enhanced security on, saving or removing a walk is for admins only.
 - The opt-in usage report says whether the setting is on, and, only while it is on and a room has been walked, how many rooms have a walk (in ranges) and whether the last walk moved the held-out score up, down or not at all.
+- For developers: tools/benchmark scores PadSpan's accuracy on recorded walks (docs/BENCHMARK.md).
 
 ---
 

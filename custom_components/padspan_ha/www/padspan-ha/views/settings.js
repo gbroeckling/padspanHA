@@ -1057,7 +1057,8 @@ function _settingsPresence(ctx, el){
       el("div", { class: "muted", style: "font-size:12px" },
         "Pick a room, then walk slowly around it for 90 seconds with your phone or tag. PadSpan shows what it heard and " +
         "how different the room looks from the others, and saves the walk as calibration points only when you say so. " +
-        "Walks can be replaced or removed room by room without touching any other calibration. Off by default."),
+        "Walks can be replaced or removed room by room without touching any other calibration. " +
+        "Turning this off hides the tab but keeps saved walks in positioning; to take one out, use Remove on that room's walk. Off by default."),
     ]));
   }
 
