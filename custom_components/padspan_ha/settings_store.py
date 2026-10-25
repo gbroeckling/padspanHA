@@ -112,7 +112,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "positioning_pick_better": False,
     "positioning_unsure": False,
     "positioning_sensor_fusion": False,
-    # Walk a room (0.38.166), OFF by default: a "Walk a room" tab on
+    # Walk a room (0.38.167), OFF by default: a "Walk a room" tab on
     # Calibration (room_walk.py). Off, Calibration is exactly what it was.
     "calibration_room_walk": False,
     "assumed_device_height_m": 1.0,  # carry height above the floor for 3D distance (pocketed phone)

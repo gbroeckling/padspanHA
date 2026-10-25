@@ -343,6 +343,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
+    "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
     "live_aboard_import",
     "live_aboard_devices",                          # Live Aboard P5: furniture that is a device
@@ -595,7 +596,7 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     # 0.38.165's positioning settings, all off by default.
     "positioning_pick_better": "pick_better", "positioning_unsure": "unsure",
     "positioning_sensor_fusion": "fusion",
-    # 0.38.166: Calibration's Walk a room tab, off by default.
+    # 0.38.167: Calibration's Walk a room tab, off by default.
     "calibration_room_walk": "room_walk",
 }
 # Small enumerations reported by value (each from a fixed vocabulary in

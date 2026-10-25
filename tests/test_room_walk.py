@@ -10,10 +10,13 @@ from __future__ import annotations
 import asyncio
 import copy
 import random
-import re
+import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from custom_components.padspan_ha import room_walk as RW
 from custom_components.padspan_ha import telemetry as T
@@ -241,6 +244,41 @@ def test_off_by_default():
 
 def test_the_tab_and_the_module_only_load_when_on():
     src = (_WWW / "views" / "calibration.js").read_text(encoding="utf-8")
-    assert re.search(r'settings\?\.calibration_room_walk === true\s*\)\s*TABS\.push\(\["walk"', src)
+    assert "const _walkOn = ctx.state.settings?.calibration_room_walk === true;" in src
+    assert 'if (_walkOn) TABS.push(["walk", "Walk a room"]);' in src
     assert 'if (cs.tab === "walk" && _walkOn)' in src
-    assert 'import("./calibration_walk.js' in src and 'from "./calibration_walk.js' not in src
+    assert 'import(`./calibration_walk.js${' in src and 'from "./calibration_walk.js' not in src
+
+
+# ── The panel module, run under node ────────────────────────────────────────
+
+_NODE = shutil.which("node")
+
+
+@pytest.mark.skipif(_NODE is None, reason="node is not installed")
+def test_the_walk_module_samples_and_draws(tmp_path):
+    shutil.copy(_WWW / "views" / "calibration_walk.js", tmp_path / "calibration_walk.mjs")
+    (tmp_path / "run.mjs").write_text(r"""
+const W = await import('./calibration_walk.mjs');
+const ok = (c, m) => { if (!c) { console.error('FAIL ' + m); process.exit(1); } };
+// a stand-in for calibration.js's _acceptCalSample: drop a repeat of the same ad
+const accept = (last, src, info) => { const p = last[src]; last[src] = info.rssi; return p !== info.rssi; };
+const last = {};
+ok(JSON.stringify(W.walkRow({a: {rssi: -60}, b: {rssi: -70}}, last, accept)) === '{"a":-60,"b":-70}', 'row');
+ok(JSON.stringify(W.walkRow({a: {rssi: -60}, b: {rssi: -71}}, last, accept)) === '{"b":-71}', 'dedup');
+ok(W.ringSvg(0.5, '45').includes('>45</text>') && W.ringSvg(2, 'x').includes('stroke-dashoffset="0.0"'), 'ring');
+ok(W.summaryText({samples: 9, scanners: 1, polls: 9, looks: 'similar', nearest_room: 'Den', gap_db: 2.1})
+   .startsWith('9 samples from 1 scanner over 9 polls. Reads much like Den'), 'summary');
+// a tiny el(): text of the tree, enough to see what each state draws
+const el = (tag, attrs, kids) => ({ tag, attrs: attrs || {}, kids: [].concat(kids ?? []), appendChild(k) { this.kids.push(k); },
+  addEventListener() {}, set innerHTML(v) { this.kids.push(v); } });
+const text = (n) => typeof n === 'string' ? n : (n && n.kids ? n.kids.map(text).join(' ') : '');
+const ctx = { state: { maps: { list: [{ id: 'm', room_bounds: { Den: {}, Hall: {} } }] } }, actions: {} };
+const h = { roomCentroid: (r) => r === 'Den' ? [0.5, 0.5] : null, heldoutLine: () => null };
+ok(text(W.renderWalk(ctx, el, {}, {points: []}, h)).includes('Setup required'), 'needs setup');
+const idle = text(W.renderWalk(ctx, el, {deviceId: 'p', mapId: 'm'}, {points: [{source: 'room_walk', room: 'Den'}]}, h));
+ok(idle.includes('Den (walked)') && !idle.includes('Hall') && idle.includes('Start walking'), 'idle ' + idle);
+console.log('ok');
+""", encoding="utf-8")
+    r = subprocess.run([_NODE, str(tmp_path / "run.mjs")], capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and "ok" in r.stdout, r.stderr + r.stdout
