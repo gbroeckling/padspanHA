@@ -87,7 +87,7 @@ def test_the_shape_of_the_generated_tree(tree):
     src_lang = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha" / "i18n"
     for p in (src_lang.rglob("*.json") if src_lang.is_dir() else ()):
         assert (integ / "www" / "padspan-bright" / "i18n" / p.relative_to(src_lang)).is_file()
-    # The translated help renders Bright's name through {product}.
+    # The translated help names the product and editions as Bright's English does.
     node = shutil.which("node")
     if node:
         res = subprocess.run([node, str(_ROOT / "tests" / "js" / "help_i18n.mjs"), str(integ / "www" / "padspan-bright")],
@@ -95,7 +95,7 @@ def test_the_shape_of_the_generated_tree(tree):
         out = json.loads([ln for ln in res.stdout.splitlines() if ln.startswith("{")][-1])
         assert not out["failures"], out["failures"][:3]
         assert out["product"] == "PadSpan Bright"
-        assert out["samples"] and all("PadSpan Bright" in s["product"] for s in out["samples"].values())
+        assert out["samples"] and all("PadSpan" in s["product"] for s in out["samples"].values())
     m = json.loads((integ / "manifest.json").read_text(encoding="utf-8"))
     assert m["domain"] == "padspan_bright" and m["name"] == "PadSpan Bright"
     assert m["documentation"] == "https://github.com/gbroeckling/padspanBright"

@@ -9,7 +9,8 @@
 //   select    nl/de/fr follow the HA profile, its region (nl-BE) and the
 //             per-browser choice; English, en-GB and unshipped fetch nothing
 //   rebuilt   helpTexts() in each language: every string in its help.json
-//             used, the rest English, the note first, {product} filled
+//             used, the rest English, the note first, product and edition
+//             names exactly as in the English entry
 //
 // usage: help_i18n.mjs <www dir>
 // prints one JSON line: { cases, failures, product, samples }
@@ -48,6 +49,7 @@ const literal = SRC.slice(SRC.indexOf("{", SRC.indexOf("return {", a)), b + 2)
 const BEFORE = new Function(`return ${literal};`)();
 const strings = (help) => Object.values(help).flatMap(h => [h.title, ...h.body]);
 const en = JSON.stringify(BEFORE);
+const names = (s) => [...new Set(s.match(/PadSpan™?(?: (?:HA|Bright|Pro)\b)*/g) || [])].sort().join("|");
 
 check("unwrapped_is_plain", !/(?<![\w.$])t\(/.test(literal) && Object.keys(BEFORE).length >= 49);
 check("import_fetches_nothing", fetched.length === 0, fetched);
@@ -73,8 +75,11 @@ for (const lang of I.LANGUAGES) {
   const wrong = pairs.filter(([e, x]) => (e in file) ? x !== file[e].replace(/\{product\}/g, product) : x !== e);
   check(`${lang}_every_string_used`, wrong.length === 0, wrong.slice(0, 3));
   check(`${lang}_note`, H.helpNote() !== "" && Object.values(file).includes(H.helpNote()));
-  const withProduct = strings(T).filter(s => s.includes(product));
-  check(`${lang}_product_filled`, withProduct.length > 0 && !strings(T).some(s => s.includes("{product}")));
+  // Product and edition names exactly as the English entry has them (PadSpan,
+  // PadSpan™, PadSpan Pro): the Bright rename leaves both sides alike.
+  const off = pairs.filter(([e, x]) => names(e) !== names(x) || x.includes("{product}"));
+  check(`${lang}_names_as_english`, off.length === 0, off.slice(0, 3));
+  const withProduct = strings(T).filter(s => s.includes("PadSpan"));
   samples[lang] = { title: T.follow.title, product: withProduct[0] };
 }
 STORE.padspan_lang = "de";

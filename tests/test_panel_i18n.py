@@ -9,8 +9,8 @@ is a flat {"English": "Translation"} map, and it is held here to the strings
 the code actually asks for: a key nobody calls t()/tn() with is an orphan
 (the English was edited, the old translation would never show), placeholders
 must match the English by name, values are plain text (no markup), and no
-value names the product itself ({product} does, so the Bright build's rename
-keeps working).
+value names the product unless its English does, and then exactly as the
+English does ({product} otherwise, so the Bright build's rename keeps working).
 
 tests/js/panel_i18n.mjs runs the module for real.
 """
@@ -70,6 +70,11 @@ def _catalog() -> dict[str, set[str]]:
     return cat
 
 
+def _names(s: str) -> set[str]:
+    """The product and edition names in a string: PadSpan, PadSpan™, PadSpan Pro, PadSpan HA ..."""
+    return set(re.findall(r"PadSpan™?(?: (?:HA|Bright|Pro)\b)*", s))
+
+
 def _problems(name: str, data: object, catalog: dict[str, set[str]]) -> list[str]:
     out: list[str] = []
     if not isinstance(data, dict):
@@ -81,7 +86,7 @@ def _problems(name: str, data: object, catalog: dict[str, set[str]]) -> list[str
             return
         if "<" in val or ">" in val:
             out.append(f"{name}: {key!r} contains markup")
-        if "PadSpan" in val or "Bright" in val:
+        if ("PadSpan" in val or "Bright" in val) and (_names(val) != _names(key) or ("Bright" in val) != ("Bright" in key)):
             out.append(f"{name}: {key!r} names the product (use {{product}})")
         extra = set(_PH_RE.findall(val)) - catalog.get(key, set()) - {"product"}
         if extra:
@@ -220,8 +225,9 @@ def test_each_help_translation_covers_the_help_and_copies_no_english() -> None:
         assert not copies, (lang, copies[:3])
         for k, v in data.items():
             assert v.startswith(" ") == k.startswith(" "), (lang, k)   # the indented AUTOMORPH sub-controls
-            if "PadSpan" in k:
-                assert "{product}" in v, (lang, k)
+            # Product and edition names as the English writes them (PadSpan,
+            # PadSpan™, PadSpan Pro), never {product}: that is "PadSpan HA".
+            assert _names(v) == _names(k) and "{product}" not in v, (lang, k)
 
 
 def test_the_panel_loads_the_help_language_and_keeps_english_as_imported() -> None:

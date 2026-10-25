@@ -13,7 +13,8 @@
 // Nothing here runs on import. tests/test_panel_i18n.py holds the files to it.
 
 // Filled into {product}. The Bright build's rename rewrites this one literal,
-// so no translation ever names the product itself.
+// so no translation names "PadSpan HA" itself; PadSpan, PadSpan™ and
+// PadSpan Pro stay exactly as the English writes them.
 export const PRODUCT = "PadSpan HA";
 
 // Languages with a translation shipped, used only when the HA profile (or
