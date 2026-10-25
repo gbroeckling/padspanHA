@@ -382,7 +382,9 @@ export function tuneBeaconFromFabric(mapsList, drafts, baselines, fabric, transf
       if (!p || (was && (was.x !== b.x || was.y !== b.y))) return true;
       if (String(p.floor_id || "main") !== floor) { delete base[b.key]; return false; }
       const f = toFrac(m, p);
-      if (!f) return true;
+      // A saved spot well off this map (a pin dropped outside the house
+      // before 0.38.168) isn't drawn at the map's edge as if it were valid.
+      if (!f || f[0] < -0.05 || f[0] > 1.05 || f[1] < -0.05 || f[1] > 1.05) return true;
       b.x = r4(f[0]); b.y = r4(f[1]);
       delete b._tracked;
       base[b.key] = { x: b.x, y: b.y };

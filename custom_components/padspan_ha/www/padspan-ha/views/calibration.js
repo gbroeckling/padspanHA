@@ -4888,6 +4888,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
 
     const onMove = (ev) => {
       ev.preventDefault();
+      // A finger's jitter during a tap isn't a drag: it would eat the
+      // double-tap and nudge the pin.
+      if (!_didDrag && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return;
       _didDrag = true;
       const svgNode = isoDiv.querySelector("svg");
       if (!svgNode) return;

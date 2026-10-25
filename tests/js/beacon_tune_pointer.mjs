@@ -35,7 +35,7 @@ function tab() {
   const isoDiv = {
     style: {},
     addEventListener(tp, f) { (isoL[tp] = isoL[tp] || []).push(f); },
-    querySelector: () => ({ getScreenCTM: () => ({ inverse: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }) }) }),
+    querySelector: () => ({ getScreenCTM: () => ({ inverse: () => ({ a: 0.01, b: 0, c: 0, d: 0.01, e: 0, f: 0 }) }) }),
   };
   const bs = { draftBeacons: { m1: [{ id: "bk1", key: "ble:K", label: "Keys", x: 0.5, y: 0.5 }] },
                dirtyMaps: {}, selectedBk: null, pendingPlace: null, _dragging: false };
@@ -52,12 +52,14 @@ function tab() {
   const names = Object.keys(env);
   new Function(...names, BLOCK)(...names.map(n => env[n]));
   const fireDoc = (tp, ev) => { for (const f of [...(docL[tp] || [])]) f({ type: tp, preventDefault() {}, ...ev }); };
-  const down = (x, y) => { for (const f of isoL.pointerdown) f({ target: { closest: () => g }, clientX: x, clientY: y,
+  // 100 screen px per map unit, about what a real screen gives (taps jitter in px).
+  const down = (x, y) => { for (const f of isoL.pointerdown) f({ target: { closest: () => g }, clientX: x * 100, clientY: y * 100,
     preventDefault() {}, stopPropagation() {} }); };
   return {
     bs, saved, toasts, placed,
-    drag: (x, y) => { down(0.5, 0.5); fireDoc("pointermove", { clientX: x, clientY: y }); fireDoc("pointerup", { clientX: x, clientY: y }); },
-    tap: (x, y) => { down(x, y); fireDoc("pointerup", { clientX: x, clientY: y }); },
+    drag: (x, y) => { down(0.5, 0.5); fireDoc("pointermove", { clientX: x * 100, clientY: y * 100 }); fireDoc("pointerup", { clientX: x * 100, clientY: y * 100 }); },
+    tap: (x, y) => { down(x, y); fireDoc("pointerup", { clientX: x * 100, clientY: y * 100 }); },
+    jitter: (dpx) => { down(0.5, 0.5); fireDoc("pointermove", { clientX: 50 + dpx, clientY: 50 }); fireDoc("pointerup", { clientX: 50 + dpx, clientY: 50 }); },
     row: () => ({ x: bs.draftBeacons.m1[0].x, y: bs.draftBeacons.m1[0].y }),
   };
 }
@@ -72,4 +74,5 @@ const out = {};
   out.doubleNotPlacing = { placed: T.placed, selected: T.bs.selectedBk, saved: T.saved.length }; }
 { const T = tab(); T.bs.pendingPlace = { key: "ble:NEW" }; T.tap(0.5, 0.5); T.tap(40, 40);
   out.twoTapsApart = { placed: T.placed }; }
+{ const T = tab(); T.jitter(2); out.jitter = { saved: T.saved.length, row: T.row(), dirty: !!T.bs.dirtyMaps.m1 }; }
 console.log(JSON.stringify(out));

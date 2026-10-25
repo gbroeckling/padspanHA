@@ -87,6 +87,9 @@ export function attachPanZoom(viewport, inner, opts = {}) {
   // own element, and every touchstart sets the gesture up afresh.
   const touchEls = new Set();
   const onTouchMove = (e) => {
+    // The node the touch started on may have been redrawn away, so the move
+    // no longer reaches the viewport's own preventDefault.
+    e.preventDefault();
     if (e.touches.length === 1 && s.dragging) {
       s.tx = s.startTx + (e.touches[0].clientX - s.startX);
       s.ty = s.startTy + (e.touches[0].clientY - s.startY);

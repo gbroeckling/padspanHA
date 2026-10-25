@@ -101,7 +101,10 @@ class TestBeaconTunePointer:
 
     def test_double_click_on_a_beacon_places_there_while_placing(self):
         out = _run("beacon_tune_pointer.mjs")
-        assert out["doublePlacing"] == {"placed": [[0.5005, 0.5]], "saved": 0}
+        # The harness has 100 screen px per map unit: the second tap at (0.5005, 0.5).
+        dp = out["doublePlacing"]
+        assert dp["saved"] == 0 and len(dp["placed"]) == 1
+        assert abs(dp["placed"][0][0] - 50.05) < 1e-6 and abs(dp["placed"][0][1] - 50.0) < 1e-6
         assert out["twoTapsApart"]["placed"] == []
 
     def test_double_click_on_a_beacon_otherwise_just_selects_it(self):
@@ -114,3 +117,10 @@ class TestBeaconTunePointer:
         i = cal.index('isoDiv.addEventListener("dblclick", e => {\n    if (Date.now() - _bkTapPlacedAt < 600) return;'
                       .replace("\n", "\r\n" if "\r\n" in cal else "\n"))
         assert "_placeAtPoint(e);" in cal[i:i + 200]
+
+
+def test_a_tap_with_finger_jitter_is_not_a_drag():
+    """A 2 px wobble during a tap neither moves nor saves the pin (it would
+    eat the double-tap on a real touchscreen)."""
+    out = _run("beacon_tune_pointer.mjs")["jitter"]
+    assert out == {"saved": 0, "row": {"x": 0.5, "y": 0.5}, "dirty": False}
