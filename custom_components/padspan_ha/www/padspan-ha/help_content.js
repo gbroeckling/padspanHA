@@ -21,8 +21,10 @@
 // exactly what it always was. When a shipped language is loaded, panel.js
 // calls helpTexts() again and i18n/<lang>/help.json swaps each one in; a
 // paragraph missing there stays English. Structure stays here, never in JSON.
+// If the helper fails to load, the help is the English, as it always was.
 const { t, currentLanguage } =
-  await import(`./views/i18n.js${new URL(import.meta.url).search}`);
+  await import(`./views/i18n.js${new URL(import.meta.url).search}`)
+    .catch(() => ({ t: (s) => s, currentLanguage: () => "en" }));
 
 /** The short note a translated help page opens with: the rest of the panel
  *  is still English, so its labels are quoted in English. "" in English. */

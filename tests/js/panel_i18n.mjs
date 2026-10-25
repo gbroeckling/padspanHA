@@ -62,9 +62,9 @@ STORE.padspan_lang = "nl";
 check("lang_of_override", I.langOf({ language: "de" }) === "nl");
 delete STORE.padspan_lang;
 
-check("shipped_none_yet", Array.isArray(I.LANGUAGES) && I.LANGUAGES.length === 0 && Object.isFrozen(I.LANGUAGES));
+check("shipped_nl_de_fr", Array.isArray(I.LANGUAGES) && I.LANGUAGES.join() === "nl,de,fr" && Object.isFrozen(I.LANGUAGES));
 const r1 = await I.useLanguage({ language: "en-GB" }, ["core"], ["nl"]);
-const r2 = await I.useLanguage({ language: "nl" });   // shipped list empty: stays English
+const r2 = await I.useLanguage({ language: "pt" });   // not shipped: stays English
 check("english_and_unshipped_fetch_nothing", r1 === "en" && r2 === "en" && fetched.length === 0
   && I.t("Restore") === "Restore", { r1, r2, fetched });
 

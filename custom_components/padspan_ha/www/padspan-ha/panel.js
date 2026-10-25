@@ -499,8 +499,10 @@ const { buildEvidenceSvg, roomScoreBars } =
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
 // The panel's translations (views/i18n.js), the same module help_content.js
-// imports. English, or a language not shipped, loads nothing.
-const I18N = await import(`./views/i18n.js?b=${BUILD_ID}`);
+// imports. English, or a language not shipped, loads nothing. Not awaited:
+// if it fails to load, the help simply stays English.
+const _i18nPromise = import(`./views/i18n.js?b=${BUILD_ID}`)
+  .catch(err => { console.warn("PadSpan: i18n module failed to load", err); return null; });
 
 function pill(text){ return el("span",{class:"pill"}, text); }
 
@@ -2858,7 +2860,7 @@ class PadSpanHaApp extends HTMLElement {
   /** HELP in hass's language: a shipped one loads i18n/<lang>/help.json and
    *  rebuilds HELP through it; English keeps the imported HELP untouched. */
   _loadHelpLanguage(){
-    _criticalPromise.then(() => I18N.useLanguage(this._hass, ["help"])).then(lang => {
+    Promise.all([_i18nPromise, _criticalPromise]).then(([I18N]) => I18N ? I18N.useLanguage(this._hass, ["help"]) : "en").then(lang => {
       if(HELP_MOD && (lang !== "en" || HELP !== HELP_MOD.HELP)) HELP = lang === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();
     }).catch(err => console.warn("PadSpan: help translation failed to load", err));
   }

@@ -16,9 +16,9 @@
 // so no translation ever names the product itself.
 export const PRODUCT = "PadSpan HA";
 
-// Languages with a reviewed translation shipped. Empty until the first one
-// lands: until then everyone sees English, exactly as before.
-export const LANGUAGES = Object.freeze([]);
+// Languages with a translation shipped, used only when the HA profile (or
+// the per-browser choice) is one of them. Everyone else sees English.
+export const LANGUAGES = Object.freeze(["nl", "de", "fr"]);
 
 const _PH = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
 let _lang = "en";
