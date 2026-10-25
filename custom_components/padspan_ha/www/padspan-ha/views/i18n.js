@@ -25,6 +25,7 @@ const _PH = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
 let _lang = "en";
 let _cat = null;           // the loaded language's strings; null = English
 let _groups = new Set();
+let _req = 0;              // the latest useLanguage() call
 
 /** Base language for this browser: the per-browser choice (localStorage
  *  padspan_lang), then the HA profile, then HA's own. de-AT -> de. */
@@ -38,20 +39,23 @@ export function langOf(hass) {
 export function currentLanguage() { return _lang; }
 
 /** Load `groups` for hass's language. English, or a language not shipped,
- *  loads nothing. A group that fails to load stays English. */
+ *  loads nothing. A group that fails to load stays English; if none loads,
+ *  so does all of it. A call overtaken by a newer one changes nothing. */
 export async function useLanguage(hass, groups = ["core"], shipped = LANGUAGES) {
-  const lang = langOf(hass);
+  const lang = langOf(hass), req = ++_req;
   if (lang === "en" || !shipped.includes(lang)) { _lang = "en"; _cat = null; _groups = new Set(); return "en"; }
-  if (lang !== _lang || !_cat) { _cat = Object.create(null); _groups = new Set(); }
-  const cat = _cat;
+  const same = lang === _lang && _cat;
+  const cat = same ? _cat : Object.create(null), got = same ? _groups : new Set();
   const q = new URL(import.meta.url).search;
-  await Promise.all(groups.filter(g => !_groups.has(g)).map(async g => {
+  await Promise.all(groups.filter(g => !got.has(g)).map(async g => {
     try {
       const r = await fetch(new URL(`../i18n/${lang}/${g}.json${q}`, import.meta.url));
-      if (r.ok) { Object.assign(cat, await r.json()); _groups.add(g); }
+      if (r.ok) { Object.assign(cat, await r.json()); got.add(g); }
     } catch (_) { /* stays English */ }
   }));
-  _lang = lang;
+  if (req !== _req) return _lang;
+  if (!got.size) { _lang = "en"; _cat = null; _groups = new Set(); return "en"; }
+  _lang = lang; _cat = cat; _groups = got;
   return lang;
 }
 

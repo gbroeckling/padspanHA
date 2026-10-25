@@ -8,6 +8,8 @@
 //             t() wrappers taken off (the help as it was), no note, no fetch
 //   select    nl/de/fr follow the HA profile, its region (nl-BE) and the
 //             per-browser choice; English, en-GB and unshipped fetch nothing
+//   failed    help.json not found, or nl still loading when the profile goes
+//             back to English: the English help, no note
 //   rebuilt   helpTexts() in each language: every string in its help.json
 //             used, the rest English, the note first, product and edition
 //             names exactly as in the English entry
@@ -28,10 +30,13 @@ const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push
 
 const fetched = [];
 const STORE = {};
+let down = false, gate = null;   // help.json 404s / the network is slow
 globalThis.localStorage = { getItem: (k) => (k in STORE ? STORE[k] : null) };
 globalThis.fetch = async (url) => {
   const u = new URL(String(url));
   fetched.push(u.pathname + u.search);
+  if (gate) await gate;
+  if (down) return { ok: false, json: async () => ({}) };
   const rel = decodeURIComponent(u.pathname).split("/i18n/")[1];
   try { const d = JSON.parse(readFileSync(join(WWW, "i18n", rel), "utf-8")); return { ok: true, json: async () => d }; }
   catch (_) { return { ok: false, json: async () => ({}) }; }
@@ -87,5 +92,16 @@ check("browser_choice_wins", (await I.useLanguage({ language: "en" }, ["help"]))
 delete STORE.padspan_lang;
 const back = await I.useLanguage({ language: "en" }, ["help"]);
 check("back_to_english", back === "en" && JSON.stringify(H.helpTexts()) === en && H.helpNote() === "");
+
+down = true;
+const r404 = await I.useLanguage({ language: "nl" }, ["help"]);
+down = false;
+check("help_404_is_english", r404 === "en" && H.helpNote() === "" && JSON.stringify(H.helpTexts()) === en, { r404 });
+let open; gate = new Promise(r => { open = r; });
+const slow = I.useLanguage({ language: "nl" }, ["help"]);
+const now = await I.useLanguage({ language: "en" }, ["help"]);
+open(); gate = null;
+const late = await slow;
+check("help_stale_nl_is_english", now === "en" && late === "en" && H.helpNote() === "" && JSON.stringify(H.helpTexts()) === en, { now, late });
 
 console.log(JSON.stringify({ cases, failures, product, samples }));
