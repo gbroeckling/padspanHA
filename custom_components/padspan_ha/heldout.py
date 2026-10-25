@@ -33,6 +33,8 @@ import operator
 import random
 from typing import Any, Callable
 
+from .room_walk import is_walk_point
+
 HELDOUT_RADIUS_M = 1.5
 # Spots tested per run, at most. Each spot is a k-NN pass over every point,
 # so the cost is spots x points; past this a fixed sample is drawn, spread
@@ -132,6 +134,8 @@ class SpatialSite:
         dz_sq: dict[tuple[str, str], float] = {}   # (receiver, floor) height term
         log10 = math.log10
         for j, p in enumerate(points):
+            if is_walk_point(p):    # at the room's middle, not where it was heard
+                continue
             fl = str(p.get("floor_id") or "")
             px, py = float(p["x_m"]), float(p["y_m"])
             for r in p.get("scanner_readings", []):

@@ -162,6 +162,50 @@ def test_an_ordinary_point_save_is_unchanged():
     assert "source" not in p and "walk_id" not in p
 
 
+# ── Walk points train k-NN only, never the path-loss fits ─────────────────────
+
+class _ScannerModel(_Model):
+    def scanner_positions_m(self):
+        return {"a": {"x_m": 0.0, "y_m": 0.0}}
+
+    def scanner_absolute_z_m(self):
+        return {}
+
+
+def _surveyed():
+    # Real spots along a line from scanner a, RSSI on a clean -59 - 25*log10(d).
+    import math
+    return [_pt(f"cp{i}", "Kitchen", {"a": -59.0 - 25.0 * math.log10(d)}, x_m=d, y_m=0.0)
+            for i, d in enumerate((1.0, 2.0, 3.0, 5.0, 8.0))]
+
+
+def _walked():
+    # A walk sits at the room's middle but was heard all over it: its RSSI
+    # says nothing about the distance from the middle to the scanner.
+    return [_pt(f"rw{i}", "Office", {"a": -95.0 + i}, x_m=1.5, y_m=0.0, source="room_walk", walk_id="rw_x")
+            for i in range(6)]
+
+
+def test_walk_points_never_feed_the_path_loss_fit():
+    from custom_components.padspan_ha.heldout import SpatialSite
+    plain, walked = _store(_surveyed()), _store(_surveyed() + _walked())
+    plain._model = walked._model = _ScannerModel()
+    assert plain.fit_path_loss("a") is not None
+    assert walked.fit_path_loss("a") == plain.fit_path_loss("a")
+    site = SpatialSite(positions={"a": (0.0, 0.0, "ground")}, fit_sources={"a"}, ref=-59.0, n_exp=2.5)
+    pts = _surveyed() + _walked()
+    per, sums = site.fit_terms(pts, frozenset())["a"]
+    assert set(per) == set(range(5)) and sums == site.fit_terms(_surveyed(), frozenset())["a"][1]
+
+
+def test_walk_points_still_train_knn():
+    from custom_components.padspan_ha.heldout import _HeldIn
+    pts = [_pt(f"cp{i}", "Kitchen", {"a": -50.0 - i, "b": -80.0}) for i in range(4)] +         [_pt(f"rw{i}", "Office", {"a": -82.0 - i, "b": -52.0}, x_m=7.0, y_m=1.0, source="room_walk")
+         for i in range(6)]
+    hit = CalibrationStore.knn_locate(_HeldIn(pts, frozenset()), {"a": -83.0, "b": -53.0}, k=3)
+    assert hit and hit["nearest_room"] == "Office"
+
+
 # ── The websocket commands ──────────────────────────────────────────────────
 
 def _house(on, points=EXISTING):

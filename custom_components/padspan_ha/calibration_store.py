@@ -703,7 +703,11 @@ class CalibrationStore:
         pts = self.data.get("points", [])
         units = "m"
 
-        metre_pts = [p for p in pts if p.get("x_m") is not None and p.get("y_m") is not None]
+        # A room walk's points sit at the room's middle, not where its readings
+        # were taken, so they would bend the distance fit; k-NN keeps them.
+        from .room_walk import is_walk_point  # noqa: PLC0415
+        metre_pts = [p for p in pts if p.get("x_m") is not None and p.get("y_m") is not None
+                     and not is_walk_point(p)]
         scanner_m = None
         if metre_pts and self._model is not None:
             _sp = self._model.scanner_positions_m().get(scanner_source)
