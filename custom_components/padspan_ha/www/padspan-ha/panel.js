@@ -154,6 +154,7 @@ import(`./views/map_text.js?b=${BUILD_ID}`)
 // _loadView() fetches it immediately and re-renders.
 let SAMPLE_SNAPSHOT = null;
 let HELP = {};
+let HELP_MOD = null;   // help_content.js itself: helpTexts() rebuilds HELP in a shipped language
 const VIEWS = {};
 // Expose VIEWS globally so the Preact bridge can access loaded view modules
 window.__PADSPAN_VIEWS = VIEWS;
@@ -213,7 +214,7 @@ function _loadView(id) {
 // Phase 1: critical modules — just enough for the default view
 const _criticalPromise = Promise.allSettled([
   import(`./sample_data.js?b=${BUILD_ID}`).then(m => { SAMPLE_SNAPSHOT = m.SAMPLE_SNAPSHOT || null; }),
-  import(`./help_content.js?b=${BUILD_ID}`).then(m => { HELP = m.HELP || {}; }),
+  import(`./help_content.js?b=${BUILD_ID}`).then(m => { HELP = m.HELP || {}; HELP_MOD = m; }),
   import(`./views/overview.js?b=${BUILD_ID}`).then(m => { VIEWS.overview = m; }),
   import(`./views/follow.js?b=${BUILD_ID}`).then(m => { VIEWS.follow = m; }),
 ]).then(results => {
@@ -497,6 +498,9 @@ const { buildEvidenceSvg, roomScoreBars } =
 // A push subscription kept across HA restarts (motion_reconnects, below).
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
+// The panel's translations (views/i18n.js), the same module help_content.js
+// imports. English, or a language not shipped, loads nothing.
+const I18N = await import(`./views/i18n.js?b=${BUILD_ID}`);
 
 function pill(text){ return el("span",{class:"pill"}, text); }
 
@@ -613,6 +617,9 @@ class PadSpanHaApp extends HTMLElement {
     // which reads states off its own hass: hand it each new one.
     if(this.state && this.state._overviewAtlas) this.state._overviewAtlas.hass = hass;
     // Follow the sun (_sunLook): the look changes at sunrise and sunset.
+    // The help in the HA profile's language, asked again only when it changes.
+    const langSeen = hass ? ((hass.locale && hass.locale.language) || hass.language || "") : "";
+    if(hass && langSeen !== this._langSeen){ this._langSeen = langSeen; this._loadHelpLanguage(); }
     if(this.state?.settings?.theme_follow_sun === true && (hass?.states?.["sun.sun"]?.state || null) !== (this._sunSeen ?? null)) this._applyTheme();
     // Motion sensors back from an offline blip (motion_reconnects.py), pushed
     // on every change — one subscription per connection (a new connection,
@@ -2848,12 +2855,28 @@ class PadSpanHaApp extends HTMLElement {
     this._renderSidebarTrial();
   }
 
+  /** HELP in hass's language: a shipped one loads i18n/<lang>/help.json and
+   *  rebuilds HELP through it; English keeps the imported HELP untouched. */
+  _loadHelpLanguage(){
+    _criticalPromise.then(() => I18N.useLanguage(this._hass, ["help"])).then(lang => {
+      if(HELP_MOD && (lang !== "en" || HELP !== HELP_MOD.HELP)) HELP = lang === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();
+    }).catch(err => console.warn("PadSpan: help translation failed to load", err));
+  }
+
   /** Open a help modal for the given key (content loaded from help_content.js). */
   _showHelp(key){
     const h = HELP[key];
     if(!h){ this._toast("No help entry for: " + key, false); return; }
     const body = document.createElement("div");
     body.style.cssText = "line-height:1.75;font-size:14px";
+    // A translated page opens with a note: the rest of the panel is English.
+    const note = HELP_MOD && HELP_MOD.helpNote ? HELP_MOD.helpNote() : "";
+    if(note){
+      const n = document.createElement("div");
+      n.style.cssText = "margin-bottom:12px;color:#94a3b8;font-size:13px;font-style:italic";
+      n.textContent = note;
+      body.appendChild(n);
+    }
     const paras = Array.isArray(h.body) ? h.body : [h.body];
     for(const p of paras){
       const d = document.createElement("div");
