@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.168",
+  "title": "Beacon Tune fixes",
+  "date": "2026-10-25",
+  "body_markdown": "### Fixed\n- **Beacon Tune shows saved beacons after a reload (#89).** It read each map's own beacon list, which saves stopped writing in 0.38.107, so a saved beacon came back as \"Not placed\", or at its old spot while Overview showed the new one. It now reads the saved position, the same one Overview uses, and falls back to the map's list only for a beacon with no saved position. Nothing is rewritten or removed.\n- **Panning a map by touch ends when the finger lifts (#90).** With Auto-Cal on, Beacon Tune redraws its map every second; a redraw during a one-finger pan left the pan running, so the next beacon drag moved the map too and could save the beacon far outside the house. The same map code is used by Pin & Listen, Roam and Rooms; mouse, wheel and keyboard behave as before.\n- **Pinch zoom stays centred between the fingers.** It drifted a few pixels per zoom step; it now zooms about the same point the mouse wheel does.\n- **A beacon dropped outside the map is put back.** Beacon Tune no longer saves a beacon dragged off the edge of its map; it returns to where it was, with a message.\n- **Double-clicking on a beacon while placing another places it there.** Each click redraws the map, so a double-click on top of an existing beacon was lost. Now, while a beacon is waiting to be placed, a double-click on an existing beacon places the new one at that spot, as anywhere else on the map. Otherwise it selects the beacon, as a single click does."
+ },
+ {
   "version": "0.38.167",
   "title": "Walk a room",
   "date": "2026-10-25",
@@ -76,11 +82,5 @@
   "title": "Show HA on the sidebar Atlas too",
   "date": "2026-10-20",
   "body_markdown": "### New\n- **The sidebar Atlas has Hide HA / Show HA too**, beside Refresh, so with Home Assistant's sidebar hidden there is a way back from the Atlas as well as from PadSpan. It is the same switch as PadSpan's (0.38.153), on that browser only, and not offered on a phone. The panel and the Atlas now share one copy of it."
- },
- {
-  "version": "0.38.154",
-  "title": "Four more themes: Graphite, Ocean, Dusk and High contrast",
-  "date": "2026-10-20",
-  "body_markdown": "### New\n- **Settings → Appearance → Theme has seven choices.** Beside Night, Light (inverted) and Day:\n  - **Graphite**, **Ocean** and **Dusk** are Night in neutral charcoal, deep navy or plum. Every surface and text keeps Night's lightness, so they read exactly as well; only the tint changes.\n  - **High contrast** is black with white text and solid light edges on every card, button and field, for eyes that need it.\n\n  All four keep PadSpan's green accent and every colour that means something (alarms, warnings, tracking blue). Maps, charts, the 3D house and Pure Live keep their night colours, as with Day. Light and Day are unchanged."
  }
 ]
