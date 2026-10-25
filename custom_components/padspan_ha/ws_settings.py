@@ -505,6 +505,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("positioning_pick_better"): bool,        # prefer the method that wins the held-out test
         vol.Optional("positioning_unsure"): bool,             # hold + flag a room on thin evidence
         vol.Optional("positioning_sensor_fusion"): bool,      # motion sensors + usual moves as a tie-breaker
+        vol.Optional("calibration_room_walk"): bool,          # Calibration's "Walk a room" tab
         vol.Optional("assumed_device_height_m"): vol.Coerce(float),
         vol.Optional("fabric_origin_lat"): vol.Any(vol.Coerce(float), None),
         vol.Optional("fabric_origin_lon"): vol.Any(vol.Coerce(float), None),
@@ -765,6 +766,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         for _hk in ("positioning_pick_better", "positioning_unsure", "positioning_sensor_fusion"):
             if _hk in msg:
                 payload[_hk] = bool(msg.get(_hk))
+        if "calibration_room_walk" in msg:
+            payload["calibration_room_walk"] = bool(msg.get("calibration_room_walk"))
         if "assumed_device_height_m" in msg:
             payload["assumed_device_height_m"] = max(0.0, min(3.0, float(msg["assumed_device_height_m"])))
         if "fabric_origin_lat" in msg:

@@ -141,6 +141,10 @@ export function render(ctx) {
 
   // Tab bar
   const TABS = [["tune","Tune"],["beacon","Beacon Tune"],["setup","Setup"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"],["matrix","Error Matrix"]];
+  // Walk a room (calibration_room_walk, off by default): its tab exists only while on.
+  const _walkOn = ctx.state.settings?.calibration_room_walk === true;
+  if (_walkOn) TABS.push(["walk", "Walk a room"]);
+  else if (cs.tab === "walk") cs.tab = "tune";
   const tabBar = el("div", { class: "tabs", style: "margin-bottom:14px;flex-wrap:wrap;gap:4px" });
   for (const [id, label] of TABS) {
     tabBar.appendChild(el("button", {
@@ -157,8 +161,23 @@ export function render(ctx) {
   if (cs.tab === "matrix") root.appendChild(_matrixTab(ctx, el, cs, calData));
   if (cs.tab === "tune")  root.appendChild(_tuneTab(ctx, el, cs, calData));
   if (cs.tab === "beacon") root.appendChild(_beaconTuneTab(ctx, el, cs, calData));
+  if (cs.tab === "walk" && _walkOn) root.appendChild(_walkTab(ctx, el, cs, calData));
 
   return root;
+}
+
+// ── Walk a room (views/calibration_walk.js, loaded on first use) ─────────────
+let _WALK = null;
+function _walkTab(ctx, el, cs, calData) {
+  if (!_WALK) {
+    import(`./calibration_walk.js${new URL(import.meta.url).search}`)
+      .then(m => { _WALK = m; ctx.actions.renderRooms(); })
+      .catch(e => ctx.toast("Could not load Walk a room: " + (e && e.message || e), true));
+    return el("div", { class: "muted" }, "Loading…");
+  }
+  return _WALK.renderWalk(ctx, el, cs, calData, {
+    findAds: _findBeaconAds, accept: _acceptCalSample, snap: _recordableSnap, phase: tuneLivePhase, heldoutLine: _heldoutLine,
+  });
 }
 
 // ── Guided Calibration Wizard ────────────────────────────────────────────────

@@ -39,7 +39,8 @@ GATED = {
     "websocket": "model_update room_height_set lost_and_found_forget suspend_databases unsuspend_databases logs_get",
     "ws_adaptive": "adaptive_reset",
     "ws_calibration": "calibration_save_point calibration_delete_point calibration_compute_model "
-                      "calibration_retrain_rf calibration_swap_radio calibration_relearn_radio",
+                      "calibration_retrain_rf calibration_swap_radio calibration_relearn_radio "
+                      "calibration_room_walk_save calibration_room_walk_remove",
     "ws_companion": "companion_follow companion_unfollow",
     "ws_devices": "device_registry_migrate device_registry_merge device_registry_label_set "
                   "device_registry_add_identity device_registry_delete",
@@ -64,6 +65,7 @@ READ = set("""
 status version model_get movement_history_get lost_and_found_get traceback_get traceback_objects insights_get
 vacation_log_get tags_status wled_exact_list wled_look_get adaptive_status_get adaptive_fingerprints_get
 bright_import_status calibration_health_check calibration_get calibration_beacon_profiles companion_discover
+calibration_room_walk_preview
 device_registry_list auto_diagnostics positioning_diag propagation_health system_critics ha_entities_audit
 fabric_truth_candidates fabric_health room_tags follow_alert_get forensics_stats house3d_get
 house3d_import_preview house3d_library_search house3d_library_get private_ble_status irk_validate

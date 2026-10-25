@@ -100,6 +100,7 @@ from homeassistant.core import HomeAssistant
 
 from .build_info import BUILD_VERSION
 from .const import (
+    DATA_CALIBRATION,
     DATA_FABRIC,
     DATA_MAPS,
     DATA_MODEL,
@@ -342,6 +343,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
+    "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
     "live_aboard_import",
     "live_aboard_devices",                          # Live Aboard P5: furniture that is a device
@@ -594,6 +596,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     # 0.38.165's positioning settings, all off by default.
     "positioning_pick_better": "pick_better", "positioning_unsure": "unsure",
     "positioning_sensor_fusion": "fusion",
+    # 0.38.167: Calibration's Walk a room tab, off by default.
+    "calibration_room_walk": "room_walk",
 }
 # Small enumerations reported by value (each from a fixed vocabulary in
 # ws_settings; anything unexpected is dropped by assert_shareable's length rule).
@@ -1604,6 +1608,21 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             env["heldout"] = _ho
     except Exception:
         pass
+    # Walk a room (room_walk.py), only while it is on and a walk was saved:
+    # rooms walked as a bucket word, and whether the last walk moved k-NN's
+    # held-out rooms-right up, down or not at all.
+    try:
+        from .room_walk import report_buckets as _rw_buckets  # noqa: PLC0415
+        _cal = dom.get(DATA_CALIBRATION)
+        _cd = getattr(_cal, "data", None) or {}
+        from .room_walk import change_word as _rw_change  # noqa: PLC0415
+        _chg = _rw_change((_cd.get("room_walk") or {}).get("before"),
+                          getattr(dom.get("presence_coordinator"), "_heldout", None))
+        _rw = _rw_buckets(settings, list(_cd.get("points") or []), _chg)
+        if _rw:
+            env["room_walk"] = _rw
+    except Exception:
+        pass
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
     features.update(_overview_features(settings))
     for k, word in _FEATURE_ON_ONLY.items():
@@ -1909,6 +1928,12 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
                  "sp_med": MEDIAN_BUCKETS, "better": BETTER_WORDS}
         if not isinstance(ho, dict) or not all(k in words and v in words[k] for k, v in ho.items()):
             raise ValueError("env.heldout not in the vocabulary")
+    if isinstance(env, dict) and "room_walk" in env:
+        from .room_walk import CHANGE_WORDS, WALKS_BUCKETS  # noqa: PLC0415
+        rw = env["room_walk"]
+        words = {"walks": WALKS_BUCKETS, "change": CHANGE_WORDS}
+        if not isinstance(rw, dict) or not all(k in words and v in words[k] for k, v in rw.items()):
+            raise ValueError("env.room_walk not in the vocabulary")
     if isinstance(env, dict) and "screens" in env:
         scr = env["screens"]
         if (not isinstance(scr, list) or len(scr) > SCREENS_LISTED

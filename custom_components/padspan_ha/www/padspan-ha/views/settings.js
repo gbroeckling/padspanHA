@@ -1036,6 +1036,31 @@ function _settingsPresence(ctx, el){
     wrap.appendChild(card);
   }
 
+  // ── Walk a room (calibration_room_walk, off by default) ─────────────────────
+  {
+    const id = "calib_room_walk";
+    const tg = el("input", { type: "checkbox", id, style: "width:16px;height:16px;accent-color:#52b788;cursor:pointer" });
+    tg.checked = settings.calibration_room_walk === true;
+    tg.addEventListener("change", async () => {
+      try {
+        await ctx.actions.settingsSet({ calibration_room_walk: tg.checked });
+        ctx.toast(`Walk a room: ${tg.checked ? "on" : "off"}`);
+      } catch (e) { ctx.toast("Failed to save", true); }
+    });
+    wrap.appendChild(el("div", { class: "card" }, [
+      el("div", { class: "h2" }, "Walk a Room (Calibration)"),
+      el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
+        tg,
+        el("label", { for: id, style: "font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600" },
+          "Add a \"Walk a room\" tab to Calibration"),
+      ]),
+      el("div", { class: "muted", style: "font-size:12px" },
+        "Pick a room, then walk slowly around it for 90 seconds with your phone or tag. PadSpan shows what it heard and " +
+        "how different the room looks from the others, and saves the walk as calibration points only when you say so. " +
+        "Walks can be replaced or removed room by room without touching any other calibration. Off by default."),
+    ]));
+  }
+
   // ── Presence Poll Interval ──────────────────────────────────────────────────
   const currentPoll = (settings.presence_poll_interval_s != null ? Number(settings.presence_poll_interval_s) : 10);
   const pollInp = el("input", {

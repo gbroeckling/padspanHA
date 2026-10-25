@@ -129,6 +129,9 @@ from .ws_calibration import (  # noqa: F401  (re-exported: registration, tests, 
     ws_calibration_health_check,
     ws_calibration_relearn_radio,
     ws_calibration_retrain_rf,
+    ws_calibration_room_walk_preview,
+    ws_calibration_room_walk_remove,
+    ws_calibration_room_walk_save,
     ws_calibration_save_point,
     ws_calibration_swap_radio,
     ws_object_evict,
@@ -327,6 +330,9 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_room_tag_purge_missing)
     websocket_api.async_register_command(hass, ws_integration_reload)
     websocket_api.async_register_command(hass, ws_calibration_get)
+    websocket_api.async_register_command(hass, ws_calibration_room_walk_preview)
+    websocket_api.async_register_command(hass, ws_calibration_room_walk_save)
+    websocket_api.async_register_command(hass, ws_calibration_room_walk_remove)
     websocket_api.async_register_command(hass, ws_calibration_save_point)
     websocket_api.async_register_command(hass, ws_calibration_delete_point)
     websocket_api.async_register_command(hass, ws_calibration_clear)
