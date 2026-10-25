@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.166 — Stable: 4K wall screens, Enhanced security, an honest accuracy score, and one licence for five homes (2026-10-25)
+
+- **Coming from 0.38.157?** This stable brings in everything from the 0.38.158–0.38.165 betas below. New options are off until you turn them on; with nothing turned on, rooms, positions and screens are the same, apart from what's listed here.
+  - **Wall screens:** the sidebar Atlas as `?kiosk=1` becomes a 4K-ready wall screen sized for the screen and how far away you stand, with its own Settings card, per-screen links, night dimming, burn-in protection, and controls that fade when nobody's touching it.
+  - **Rooms taller than their floor:** a double-height living room or a hall under a gallery uses Rises to in Mapping → Rooms. Live Aboard's walls stop under the floor above, the floor stepper cuts tall rooms too, and moving a room takes its open edges with it.
+  - **Live Aboard:** a new Studio look (a lit model under a sky that follows the sun), trails, flying to what goes off and to people who arrive, and an optional frame-rate readout.
+  - **The Atlas:** lights in their own colours, blinds and garage doors, an alert pulse, and the heatmap (PadSpan Pro). Sub-zones (bed, couch, desk) with their own sensors.
+  - **Accuracy:** Calibration and QA show how each method does on spots it hasn't seen, beside the old estimate. Three new choices under Settings → Presence → Positioning Choices, all off: pick the better method, mark a room as unsure, and use motion sensors to break ties.
+  - **Security:** names are always shown as text, Follow's test sends only to notification targets, and a new Enhanced security setting (off) lets only administrators change the shared setup.
+  - **Setup:** new installs start with the iPhone setup steps on; a note appears when a Bluetooth proxy suddenly hears much less; the setup screens are translated into ten languages; the Getting Started guide says what you need and has a note about first-time HACS setup.
+  - **Everyone:** the High contrast theme is no longer PadSpan Pro only, and a screen reader can read who is in which room.
+  - **Licences:** one PadSpan Pro key covers up to five homes (with more than two, every home keeps its usage report on). Pro for life is $89 CAD until November 30, 2026, then $168 CAD.
+  - **Safer by default:** deleting another integration's entity or an area asks twice, Enable & Track only turns on a phone's BLE Transmitter, and on Home Assistant before 2026.8 PadSpan's devices no longer merge into Bermuda's.
+
 ## 0.38.165 — New-install setup help, proxy health, an honest accuracy score, High contrast for everyone, and setup screens in ten languages (2026-10-24)
 
 Everything new here is off until you turn it on, except High contrast, which every edition now gets, the new accuracy line, which sits beside the old one, and the iPhone setup guide, which is on for brand-new installs only. With nothing turned on, rooms and positions are the same as in 0.38.164.
