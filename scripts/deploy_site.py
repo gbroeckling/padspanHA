@@ -59,15 +59,20 @@ REMOTE_DE = REMOTE_DIR + "/de/index.html"
 # data-latest-version elements, so it never needs stamping) linked from the
 # #lights section as a sneak peek — it rides along unmodified, same as the
 # others.
-SIDECARS = ("robots.txt", "sitemap.xml", ".htaccess", "showcase-themes.html")
-# Guides: one standalone English page each, site/guides/<name>/index.html,
-# served at /guides/<name>/. Like showcase-themes.html they state no version,
-# so they ride along unmodified; unlike it, each needs its folder made first.
-# They are written for search: someone asking "Bermuda or PadSpan?" lands on
-# one, not on the release notes. tests/test_site_guides.py keeps each one in
-# the sitemap and pointing at its own address.
+# The IndexNow key file (site/<32 hex>.txt) rides along too: Bing checks it
+# before taking a list of changed pages from scripts/indexnow.py.
+INDEXNOW_KEYS = tuple(sorted(p.name for p in SRC.parent.glob("*.txt")
+                             if re.fullmatch(r"[0-9a-f]{32}\.txt", p.name)))
+SIDECARS = ("robots.txt", "sitemap.xml", ".htaccess", "showcase-themes.html") + INDEXNOW_KEYS
+# Guides: one standalone page each, site/guides/<name>/index.html served at
+# /guides/<name>/, and its German version, if it has one, in <name>/de/. Like
+# showcase-themes.html they state no version, so they ride along unmodified;
+# unlike it, each needs its folder made first. They are written for search:
+# someone asking "Bermuda or PadSpan?" lands on one, not on the release notes.
+# tests/test_site_guides.py keeps each one in the sitemap and pointing at its
+# own address.
 GUIDES = tuple(sorted(p.relative_to(SRC.parent).as_posix()
-                      for p in (SRC.parent / "guides").glob("*/index.html")))
+                      for p in (SRC.parent / "guides").rglob("index.html")))
 URL = "https://padspan.traks.ca/"
 MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
 SSH = "ssh -o BatchMode=yes -o ConnectTimeout=20"
@@ -325,23 +330,33 @@ def upload_guides() -> bool:
 
 
 def guides_only() -> None:
-    """Put the guides, and the sitemap that lists them, live, and nothing else.
+    """Put the guides, the sitemap that lists them and the IndexNow key live, and
+    nothing else, then tell the IndexNow engines about the guides.
 
     The home page goes live only with a stable release (release.py), because
     from the moment a beta is made it carries that beta's release notes. A new
     guide shouldn't have to wait for one, or bring the notes out early."""
-    print(f"\n=== deploy_site --guides-only: {len(GUIDES)} guide(s) and sitemap.xml ===\n")
+    print(f"\n=== deploy_site --guides-only: {len(GUIDES)} guide(s), sitemap.xml and the IndexNow key ===\n")
     ok = upload_guides()
-    r = subprocess.run(f'{SSH} {HOST} "sudo -n tee {REMOTE_DIR}/sitemap.xml > /dev/null"',
-                       shell=True, input=(SRC.parent / "sitemap.xml").read_bytes(), capture_output=True)
-    if r.returncode != 0:
-        print(f"  WARN sitemap.xml not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
-        ok = False
-    else:
-        print("  uploaded sitemap.xml")
+    for name in ("sitemap.xml",) + INDEXNOW_KEYS:
+        r = subprocess.run(f'{SSH} {HOST} "sudo -n tee {REMOTE_DIR}/{name} > /dev/null"',
+                           shell=True, input=(SRC.parent / name).read_bytes(), capture_output=True)
+        if r.returncode != 0:
+            print(f"  WARN {name} not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
+            ok = False
+        else:
+            print(f"  uploaded {name}")
     print("\nVerifying the guides...")
     if not (verify_guides() and ok):
         raise SystemExit("a guide did not go up or failed verification — look at it before leaving it")
+    # Not fatal: the pages are up either way, and search engines find them
+    # from the sitemap in the end.
+    if INDEXNOW_KEYS:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        import indexnow  # noqa: E402
+
+        status, reason = indexnow.submit([URL + g.rsplit("/", 1)[0] + "/" for g in GUIDES])
+        print(f"  {'OK  ' if status in (200, 202) else 'WARN'} IndexNow: {status} {reason}")
     print("\n=== guides live; the home page was not touched ===\n")
 
 

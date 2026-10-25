@@ -17,7 +17,7 @@ import pytest
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 _SITE = _ROOT / "site"
-_GUIDES = sorted((_SITE / "guides").glob("*/index.html"))
+_GUIDES = sorted((_SITE / "guides").rglob("index.html"))
 
 pytestmark = pytest.mark.skipif(not _GUIDES, reason="no guides in this tree")
 
@@ -32,7 +32,7 @@ def _deploy_site():
 
 
 def _url(page: pathlib.Path) -> str:
-    return f"https://padspan.traks.ca/guides/{page.parent.name}/"
+    return f"https://padspan.traks.ca/{page.parent.relative_to(_SITE).as_posix()}/"
 
 
 def test_every_guide_is_deployed() -> None:
@@ -81,8 +81,36 @@ def test_guides_only_leaves_the_home_page_alone(monkeypatch) -> None:
     monkeypatch.setattr(mod.subprocess, "run", fake_run)
     monkeypatch.setattr(mod, "verify_guides", lambda: True)
     monkeypatch.setattr(sys, "argv", ["deploy_site.py", "--guides-only"])
+    sys.path.insert(0, str(_ROOT / "scripts"))
+    import indexnow
+
+    sent: list[list[str]] = []
+    monkeypatch.setattr(indexnow, "submit", lambda urls: (sent.append(urls), (202, "Accepted"))[1])
     mod.main()
     targets = [re.search(r"tee (\S+)", c).group(1) for c in calls if "tee " in c]
-    assert f"{mod.REMOTE_DIR}/sitemap.xml" in targets
+    beside = {f"{mod.REMOTE_DIR}/{n}" for n in ("sitemap.xml",) + mod.INDEXNOW_KEYS}
+    assert beside <= set(targets)
     assert {f"{mod.REMOTE_DIR}/{g}" for g in mod.GUIDES} <= set(targets)
-    assert all(t.startswith(f"{mod.REMOTE_DIR}/guides/") or t == f"{mod.REMOTE_DIR}/sitemap.xml" for t in targets), targets
+    assert all(t.startswith(f"{mod.REMOTE_DIR}/guides/") or t in beside for t in targets), targets
+    assert sent == [[_url(p) for p in _GUIDES]]
+
+
+def test_the_indexnow_key_file_holds_its_own_name() -> None:
+    """IndexNow fetches /<key>.txt and compares what it reads with the key."""
+    keys = list(_deploy_site().INDEXNOW_KEYS)
+    assert len(keys) == 1
+    assert (_SITE / keys[0]).read_text(encoding="utf-8").strip() == keys[0][:-4]
+
+
+def test_a_guide_and_its_translation_point_at_each_other() -> None:
+    """hreflang: a search engine shows German searchers the German page only if
+    both pages name both addresses."""
+    for de in [p for p in _GUIDES if p.parent.name == "de"]:
+        en = de.parent.parent / "index.html"
+        assert en.exists(), de
+        pair = (f'<link rel="alternate" hreflang="en" href="{_url(en)}">',
+                f'<link rel="alternate" hreflang="de" href="{_url(de)}">')
+        for page in (en, de):
+            html = page.read_text(encoding="utf-8")
+            assert all(link in html for link in pair), page
+        assert '<html lang="de">' in de.read_text(encoding="utf-8")

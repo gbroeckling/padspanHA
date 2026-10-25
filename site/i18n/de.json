@@ -900,7 +900,7 @@
   },
   {
    "en": "PadSpan reads from these rather than replacing them: Home Assistant Bluetooth proxies and Bermuda proxies are picked up directly, and ESPresense nodes come in over MQTT. Already running Bermuda? <a href=\"/guides/bermuda/\">How the two work together</a>.",
-   "de": "PadSpan liest von diesen Systemen, statt sie zu ersetzen: Bluetooth-Proxys von Home Assistant und Bermuda-Proxys werden direkt erkannt, und ESPresense-Knoten kommen über MQTT. Sie nutzen schon Bermuda? <a href=\"/guides/bermuda/\">So arbeiten beide zusammen</a> (auf Englisch)."
+   "de": "PadSpan liest von diesen Systemen, statt sie zu ersetzen: Bluetooth-Proxys von Home Assistant und Bermuda-Proxys werden direkt erkannt, und ESPresense-Knoten kommen über MQTT. Du nutzt schon Bermuda? <a href=\"/guides/bermuda/de/\">So arbeiten beide zusammen</a>."
   },
   {
    "en": "Installation",

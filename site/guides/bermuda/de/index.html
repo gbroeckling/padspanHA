@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bermuda und PadSpan zusammen, auf denselben Bluetooth-Proxys | PadSpan HA</title>
+<meta name="description" content="Du nutzt schon Bermuda für die Raumerkennung per Bluetooth in Home Assistant? Behalte es. PadSpan läuft daneben, nutzt dieselben ESPHome-Bluetooth-Proxys, lässt Bermuda unverändert und zeigt jedes Handy, jede Uhr und jeden Tracker auf einem Grundriss deines Hauses.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/bermuda/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/bermuda/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/bermuda/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/bermuda/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="Bermuda und PadSpan zusammen">
+<meta property="og:description" content="Behalte Bermuda. Nimm PadSpan auf denselben Bluetooth-Proxys dazu und sieh auf einem Grundriss deines Hauses, wer wo ist.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/bermuda/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/demo/">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/bermuda/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1>Bermuda und PadSpan zusammen</h1>
+<p class="lead">Du nutzt schon Bermuda? Behalte es. PadSpan wird daneben installiert, hört auf dieselben ESPHome-Bluetooth-Proxys, lässt Bermuda, wie es ist, und zeigt dir jedes Handy, jede Uhr und jeden Tracker live auf einem Grundriss deines Hauses.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="/de/#install">Aus HACS installieren</a>
+</div>
+
+<figure>
+  <img src="/demo/preview.jpg" width="1200" height="630" alt="PadSpans 3D-Ansicht eines Demo-Hauses: zwei Personen und ein Schlüsselbund, jeweils in dem Raum, in dem sie gerade sind" loading="lazy">
+  <figcaption>Das Demo-Haus in Live Aboard, der 3D-Ansicht, die zu PadSpan Pro gehört: alles mit einem Bluetooth-Signal in dem Raum, in dem es gerade ist. Zum Anschauen musst du nichts installieren (die Demo ist auf Englisch).</figcaption>
+</figure>
+
+<h2>Was die beiden machen</h2>
+<p><b>Bermuda</b> ermittelt aus der Signalstärke, die deine Proxys messen, in welchem Bereich jedes Bluetooth-Gerät ist, und stellt dafür Sensoren in Home Assistant bereit. Es ist schnell eingerichtet und weit verbreitet. Eine Karte hat es nicht.</p>
+<p><b>PadSpan</b> beantwortet dieselbe Frage auf seine Weise und zeigt dir die Antwort: einen Grundriss deines Hauses, eine Etage nach der anderen oder alle übereinander, mit jeder Person, jedem Handy, jeder Uhr, jedem Tracker und Beacon in dem Raum, in dem sie gerade sind. Es lernt deine Räume bei einem Kalibrierungsrundgang, glättet jeden Messwert und stimmt über den Raum ab, damit ein Gerät nicht bei jedem Signaleinbruch den Raum wechselt. Außerdem liefert es Home Assistant Sensoren für Raum, Entfernung und Anwesenheit und kann dir eine E-Mail schicken, wenn ein Gerät, dem du folgst, den Raum wechselt.</p>
+
+<h2>Beide auf denselben Proxys</h2>
+<ul>
+  <li><b>Gleiche Hardware, nichts neu flashen.</b> PadSpan liest die Bluetooth-Daten von Home Assistant selbst, dieselben, die auch Bermuda nutzt. Deine ESPHome-Bluetooth-Proxys bedienen also beide gleichzeitig. ESPresense-Knoten funktionieren auch, über MQTT.</li>
+  <li><b>Bermuda bleibt, wie es ist.</b> Wenn du PadSpan installierst, neu lädst oder entfernst, ändert das nichts an Bermudas Geräten, Entitäten oder Einstellungen, und ein Test in PadSpans Code schlägt fehl, wenn neuer Code das versucht. Andere Integrationen ändert PadSpan nur über Knöpfe, die du selbst drückst, einen nach dem anderen. Die README listet sie unter <a href="https://github.com/gbroeckling/padspanHA#what-padspan-never-touches">What PadSpan never touches</a> (englisch).</li>
+  <li><b>Deine Bermuda-Geräte tauchen auf.</b> Jedes Gerät, das Bermuda verfolgt, erscheint in PadSpan als ein Gerät, in dem Raum, den Bermudas Area-Sensor meldet, und schon von Bermuda geglättet. Soll PadSpan nur seine eigenen Messungen nutzen, setz in PadSpan unter <b>Settings → Presence</b> den Haken bei <b>Ignore Bermuda</b>.</li>
+  <li><b>Eingerichtete Handys funktionieren weiter.</b> iPhones und Apple Watches, die du in Home Assistant unter <b>Private BLE Device</b> hinzugefügt hast, erkennt PadSpan am selben Schlüssel (dem IRK) und unter dem Namen, den du ihnen gegeben hast. Du musst also nichts doppelt auslesen. Android-Handys funktionieren über den <b>BLE Transmitter</b> der Home Assistant Companion App.</li>
+</ul>
+
+<h2>Was dir deine Zahl an Proxys bringt</h2>
+<table>
+  <tr><th>Proxys pro Etage</th><th>Was PadSpan dort kann</th></tr>
+  <tr><td>1 oder 2</td><td>Meist wählt es den Raum danach, welcher Proxy ein Gerät am besten hört, so wie Bermuda. Du bekommst die Karte, die Sensoren und die Benachrichtigungen, aber rechne damit, dass die Räume etwa so gut stimmen wie bei Bermuda, nicht besser.</td></tr>
+  <tr><td>3 oder mehr, auf dem Plan platziert</td><td>Es kann ein Gerät zwischen den Proxys auf der Karte verorten, und ein Kalibrierungsrundgang bringt ihm bei, wie die Signale in jedem Raum aussehen. Hier kann es „nächster Proxy“ schlagen, zum Beispiel zwischen Etagen.</td></tr>
+</table>
+<p>Das musst du nicht einfach glauben. Seit Version 0.38.166 zeigt PadSpans Bildschirm <b>Calibration</b>, wie oft es an Stellen, an denen nicht kalibriert wurde, den richtigen Raum trifft, in deinem eigenen Haus.</p>
+
+<h2>So richtest du es neben Bermuda ein</h2>
+<ol>
+  <li>Such in HACS nach <b>PadSpan HA</b> und lade es herunter (es ist in der HACS-Standardliste). Starte Home Assistant neu und füge dann die Integration unter Einstellungen → Geräte &amp; Dienste hinzu.</li>
+  <li>Öffne <b>PadSpan HA</b> in der Seitenleiste. Es startet mit Beispieldaten, damit du dich umsehen kannst; stell es oben rechts auf <b>Live</b>, wenn du so weit bist. Deine Proxys werden automatisch gefunden.</li>
+  <li>Der Einrichtungsassistent führt dich dann durch fünf Schritte: Grundriss hochladen, Maßstab setzen, Räume zeichnen, Proxys dort platzieren, wo sie wirklich hängen, und kalibrieren, indem du mit dem Handy durch die Räume gehst.</li>
+</ol>
+<p>Bermuda läuft die ganze Zeit weiter, und deine Automationen bleiben auf seinen Sensoren, bis du dich entscheidest, sie umzustellen. Das Hinzufügen der Integration in Home Assistant ist auf Deutsch. Im PadSpan-Panel sind Menüs und Einstellungen auf Englisch; die Hilfe gibt es ab Version 0.38.169 (zuerst als Beta) auch auf Deutsch.</p>
+
+<h2>Kostenlos und Pro</h2>
+<p>PadSpan ist kostenlos und Open Source (GPL-3.0). Raumerkennung, Grundrisse, die Karten, die Kalibrierung, die Sensoren und die Benachrichtigungen kosten nichts. PadSpan Pro ist ein optionaler Schlüssel, der das 3D-Haus (Live Aboard) und weitere Werkzeuge wie Forensics, Busy Times, Locate und das genaue Platzieren von Lichtern freischaltet. Mehr unter <a href="/de/#pro">Pro</a> auf der Hauptseite.</p>
+
+<h2>Gut zu wissen, bevor du anfängst</h2>
+<ul>
+  <li><b>Arbeitsspeicher.</b> Empfohlen sind mehr als 2 GB RAM. In der Nähe einer belebten Straße hört PadSpan Tausende vorbeiziehende Geräte; auf einem Rechner mit 2 GB schalte unter <b>Settings → Presence</b> den <b>Low-memory mode</b> ein. Die Seite <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/MINIMUM_REQUIREMENTS.md">Minimum requirements</a> (englisch) hat die gemessenen Zahlen.</li>
+  <li><b>Ein Raum mit nur einem Proxy kann trotzdem mal danebenliegen.</b> Mehr Proxys und ein Kalibrierungsrundgang helfen am meisten.</li>
+  <li><b>Jedes Haus ist anders.</b> Wände, Decken und der Platz der Proxys entscheiden, wie gut ein Bluetooth-System arbeitet. Der Bildschirm Calibration zeigt dir, wie gut PadSpan bei dir ist, und wenn es schlecht läuft, <a href="https://github.com/gbroeckling/padspanHA/issues">eröffne bitte ein Issue</a>.</li>
+</ul>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="/de/">Über PadSpan</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · Bermuda ist ein eigenständiges Open-Source-Projekt seiner Autoren.</p>
+</div></footer>
+</body>
+</html>
