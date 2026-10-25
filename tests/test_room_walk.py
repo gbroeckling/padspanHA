@@ -206,6 +206,16 @@ def test_walk_points_still_train_knn():
     assert hit and hit["nearest_room"] == "Office"
 
 
+def test_before_and_after_a_walk_are_scored_on_the_same_spots():
+    from custom_components.padspan_ha import heldout as H
+    base = [_pt(f"cp{i}", "Kitchen" if i % 2 else "Office",
+                {"a": -50.0 - 4 * i, "b": -80.0 + 4 * i}, x_m=2.0 * i, y_m=0.0) for i in range(8)]
+    before = H.evaluate(base)
+    after = H.evaluate(base + _walked())
+    assert before and after and after["knn"]["spots"] == before["knn"]["spots"] == 8
+    assert after["knn"]["room_spots"] == before["knn"]["room_spots"]
+
+
 # ── The websocket commands ──────────────────────────────────────────────────
 
 def _house(on, points=EXISTING):

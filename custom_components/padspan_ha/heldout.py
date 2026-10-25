@@ -397,6 +397,10 @@ def evaluate(points: list[dict[str, Any]], *,
     seen_dev: set[str] = set()
     spots: list[int] = []
     for i, p in enumerate(pts):
+        # A room walk is training data only: not a test spot, so a score from
+        # before a walk and one after it are taken on the same spots.
+        if is_walk_point(p):
+            continue
         if _is_auto(p):
             dev = str(p.get("device_id") or "")
             if dev in seen_dev:
