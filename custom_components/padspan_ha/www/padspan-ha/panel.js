@@ -2907,6 +2907,8 @@ class PadSpanHaApp extends HTMLElement {
       helpers: {
         el, esc, pill,
         HELP,
+        /** "" in English; in a shipped language, the note a translated help page opens with. */
+        helpNote: () => (HELP_MOD && HELP_MOD.helpNote ? HELP_MOD.helpNote() : ""),
         mapImageUrl,
         radioShortId,
         awayTimeoutS,

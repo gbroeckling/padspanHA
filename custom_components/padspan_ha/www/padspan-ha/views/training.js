@@ -2283,11 +2283,19 @@ const QUICKSTART_SECTIONS = [
   },
 ];
 
+// A translated help is read here inside English section names and intros:
+// the same note the help modal opens with, once at the top. English: nothing.
+function _helpNote(ctx, el, wrap) {
+  const note = ctx.helpers.helpNote ? ctx.helpers.helpNote() : "";
+  if (note) wrap.appendChild(el("div", { style: "font-size:13px;margin-bottom:12px;color:#94a3b8;font-style:italic;line-height:1.6" }, note));
+}
+
 function _renderQuickStart(ctx, el, ts, HELP) {
   const wrap = el("div", {});
 
   wrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:16px;line-height:1.6" },
     "A simplified guide covering the tabs visible in Advanced mode. For the complete reference, switch to the Full Manual tab."));
+  _helpNote(ctx, el, wrap);
 
   for (const section of QUICKSTART_SECTIONS) {
     const isOpen = ts.manualOpen["qs_" + section.id] !== false;
@@ -2347,6 +2355,7 @@ function _renderManual(ctx, el, ts, HELP) {
 
   wrap.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:16px;line-height:1.6" },
     "This manual is generated automatically from PadSpan's help content. When a new feature is added and its help text is updated, it appears here without any manual editing."));
+  _helpNote(ctx, el, wrap);
 
   for (const section of MANUAL_SECTIONS) {
     const isOpen = ts.manualOpen[section.id] !== false; // default open

@@ -243,3 +243,19 @@ def test_the_panel_loads_the_help_language_and_keeps_english_as_imported() -> No
     assert 'HELP = lang === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();' in src
     # English: helpNote() is "", so the modal gets nothing new.
     assert "if(note){" in src and 'return currentLanguage() === "en" ? ""' in help_src
+
+
+def test_the_training_manual_opens_with_the_note_only_when_translated() -> None:
+    """Quick Start and Full Manual mix English section names with translated
+    help paragraphs: the help modal's note once at the top, nothing in English
+    (tests/js/training_help_note.mjs renders views/training.js for real)."""
+    src = (_WWW / "panel.js").read_text(encoding="utf-8")
+    assert 'helpNote: () => (HELP_MOD && HELP_MOD.helpNote ? HELP_MOD.helpNote() : ""),' in src
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "training_help_note.mjs"), str(_WWW)],
+                         capture_output=True, text=True, encoding="utf-8", timeout=120)
+    lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
+    assert lines, res.stderr[-3000:]
+    out = json.loads(lines[-1])
+    assert not out["failures"] and len(out["cases"]) == 5, out["failures"]
