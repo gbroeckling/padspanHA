@@ -53,7 +53,8 @@ const { mapXform, worldGauge, metresToWorld, mapFracToMetres,
 const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflictingSources,
         tuneReconcileDraft, tuneSyncTuneDrafts, tuneSnapBaseline,
         tuneTryAcquire, tuneRelease, tuneLivePhase, tuneWriteBlock, tuneRadioSig,
-        tuneBeaconBaseline, tuneBeaconWrites, tuneBeaconHeldText, tuneBeaconFromFabric } =
+        tuneBeaconBaseline, tuneBeaconWrites, tuneBeaconHeldText, tuneBeaconFromFabric,
+        tuneBeaconInBounds } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 
@@ -4843,12 +4844,27 @@ function _beaconTuneTab(ctx, el, cs, calData) {
   // ── Drag interaction ────────────────────────────────────────────────────────
   // Document-level listeners (always fire). bs._dragging prevents DOM destruction.
   let _didDrag = false;
+  // A double-click on a beacon never reached the map's dblclick: each click
+  // redraws the map, so the second lands on a new node and the browser's
+  // dblclick has no target left on the page - a dead zone the size of the
+  // hit circle while placing. Two taps on a beacon within 500 ms and 12 px
+  // are a double-click here. Placing, it means what it means anywhere on the
+  // map (place at that spot, the banner's instruction); otherwise the first
+  // tap has already selected the beacon and the second changes nothing.
+  let _lastBkTap = null, _bkTapPlacedAt = 0;
 
   isoDiv.addEventListener("pointerdown", e => {
     const g = e.target.closest("[data-bk-id]");
     if (!g) return;
     e.preventDefault();
     e.stopPropagation();
+    const tap = _lastBkTap;
+    _lastBkTap = null;
+    if (bs.pendingPlace && tap && Date.now() - tap.t < 500 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 12) {
+      _bkTapPlacedAt = Date.now();
+      _placeAtPoint(e);
+      return;
+    }
     const mapId = g.getAttribute("data-map-id");
     const bkId  = g.getAttribute("data-bk-id");
     const z     = Number(g.getAttribute("data-z") || 0);
@@ -4866,6 +4882,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (!xf) { console.warn("[PadSpan] bk drag: no xform for map", mapId); isoDiv.style.cursor = ""; return; }
     const [origWx, origWy] = xf.mapPt(bkObj.x, bkObj.y);
     const [origPx, origPy] = iso(origWx, origWy, z);
+    const origX = bkObj.x, origY = bkObj.y, origDirty = bs.dirtyMaps[mapId];
 
     bs._dragging = true;
 
@@ -4895,7 +4912,15 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       document.removeEventListener("pointercancel", onUp, true);
       bs._dragging = false;
       isoDiv.style.cursor = "";
-      if (_didDrag) {
+      if (!_didDrag && ev.type === "pointerup") _lastBkTap = { t: Date.now(), x: ev.clientX, y: ev.clientY };
+      // Dropped off its map: put back, never saved there (#90 saved one
+      // ~86 m outside the house).
+      const offMap = _didDrag && !tuneBeaconInBounds(bkObj.x, bkObj.y);
+      if (offMap) {
+        bkObj.x = origX; bkObj.y = origY; bs.dirtyMaps[mapId] = origDirty;
+        ctx.toast(`${bkObj.label || bkObj.key || "Beacon"} was dropped outside the map - put back where it was`, true);
+      }
+      if (_didDrag && !offMap) {
         const mapObj = maps_list.find(m => m.id === mapId);
         if (mapObj) bkObj.room = _detectRoom(bkObj.x, bkObj.y, mapObj) || bkObj.room || "";
         // Auto-save position and start live timer
@@ -4991,8 +5016,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     _refreshPlaceBanner();
   }
 
-  // Double-click to place a pending beacon
-  isoDiv.addEventListener("dblclick", e => {
+  // Double-click to place a pending beacon, at the point clicked (clientX/Y).
+  function _placeAtPoint(e) {
     if (!bs.pendingPlace) return;
     const svgNode = isoDiv.querySelector("svg");
     if (!svgNode) return;
@@ -5093,6 +5118,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     });
     popup.appendChild(cancelBtn2);
     isoWrap.appendChild(popup);
+  }
+  isoDiv.addEventListener("dblclick", e => {
+    if (Date.now() - _bkTapPlacedAt < 600) return;  // placed by the beacon's own double-click
+    _placeAtPoint(e);
   });
 
   // ── Auto-save beacon position to map + start live timer ──────────────────

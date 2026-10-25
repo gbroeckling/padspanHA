@@ -407,6 +407,12 @@ export function tuneBeaconFromFabric(mapsList, drafts, baselines, fabric, transf
   }
 }
 
+// A beacon drop the map can hold: both fractions finite and on the map
+// (0..1). Anything else is put back, not saved (#90).
+export function tuneBeaconInBounds(x, y) {
+  return Number.isFinite(x) && Number.isFinite(y) && x >= 0 && x <= 1 && y >= 0 && y <= 1;
+}
+
 // Why a beacon with no fabric pin yet must not get one, or "" (#81): a pin
 // locks the device's room to the spot and adds auto-calibration points there
 // while it is elsewhere, so nothing known to move is pinned, whichever way

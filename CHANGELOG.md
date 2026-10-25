@@ -10,6 +10,8 @@ All notable changes to PadSpan HA are documented here.
 - **Beacon Tune shows saved beacons after a reload (#89).** It read each map's own beacon list, which saves stopped writing in 0.38.107, so a saved beacon came back as "Not placed", or at its old spot while Overview showed the new one. It now reads the saved position, the same one Overview uses, and falls back to the map's list only for a beacon with no saved position. Nothing is rewritten or removed.
 - **Panning a map by touch ends when the finger lifts (#90).** With Auto-Cal on, Beacon Tune redraws its map every second; a redraw during a one-finger pan left the pan running, so the next beacon drag moved the map too and could save the beacon far outside the house. The same map code is used by Pin & Listen, Roam and Rooms; mouse, wheel and keyboard behave as before.
 - **Pinch zoom stays centred between the fingers.** It drifted a few pixels per zoom step; it now zooms about the same point the mouse wheel does.
+- **A beacon dropped outside the map is put back.** Beacon Tune no longer saves a beacon dragged off the edge of its map; it returns to where it was, with a message.
+- **Double-clicking on a beacon while placing another places it there.** Each click redraws the map, so a double-click on top of an existing beacon was lost. Now, while a beacon is waiting to be placed, a double-click on an existing beacon places the new one at that spot, as anywhere else on the map. Otherwise it selects the beacon, as a single click does.
 
 ---
 
