@@ -288,6 +288,13 @@ EVENTS: frozenset[str] = frozenset({
     # ESPHome coexistence bug left proxies hearing ~9%). Counted per drop and
     # reported only as a bucket (PROXY_DROP_EVENTS), never the number.
     "proxy_rate_drop",
+    # 0.38.171: Vacation Mode switched on (a new trip, or one resumed within
+    # 14 days on the trip's own routine), and off from the panel or by a
+    # factory reset; whether the turned-off notice reached an alert target
+    # (vacation_mode.async_notify_turned_off). An accidental Disable mid-trip
+    # left a house dark for 11 days with nobody told.
+    "vacation_on", "vacation_resumed", "vacation_off_panel", "vacation_off_reset",
+    "vacation_off_notified", "vacation_off_not_pushed",
 })
 # A new install's first steps (onboarding.py): how long from setup to the
 # first room and to the first calibration point, as buckets, once per

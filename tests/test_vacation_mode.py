@@ -454,24 +454,26 @@ def test_switch_fields_and_restore_fields_keep_the_span_bookkeeping():
     # kept aside as the stand-in (round 5).
     assert switch_fields({"vacation_mode_enabled": False}, True, now) == {
         "vacation_mode_enabled_at": now, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0,
-        "vacation_mode_pattern_prev": {}}
-    off = switch_fields({"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0}, False, now)
-    assert off == {"vacation_mode_periods": [[9000.0, now]], "vacation_mode_enabled_at": 0}
+        "vacation_mode_pattern_prev": {}, "vacation_mode_pattern_for": 0}
+    off = switch_fields({"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0}, False, now,
+                        {"by": "Nicole", "via": "the Android app", "how": "panel"})
+    assert off == {"vacation_mode_periods": [[9000.0, now]], "vacation_mode_enabled_at": 0,
+                   "vacation_mode_last_off": {"ts": now, "by": "Nicole", "via": "the Android app", "how": "panel"}}
     assert switch_fields({"vacation_mode_enabled": True}, True, now) == {}
-    # Restoring an old backup taken on an earlier trip, while at home: the
-    # live spans are kept and the restored "on" starts a fresh vacation now,
-    # with a fresh pattern — never the backup's stale one.
-    live = {"vacation_mode_enabled": False, "vacation_mode_periods": [[1.0, 2.0]]}
-    backup = {"vacation_mode_enabled": True, "vacation_mode_enabled_at": 5.0,
-              "vacation_mode_pattern": {"light.a": {"0:1200": 1.0}}, "vacation_mode_periods": []}
-    r = restore_fields(live, backup, now)
-    assert r["vacation_mode_periods"] == [[1.0, 2.0]]
-    assert r["vacation_mode_enabled_at"] == now
-    assert r["vacation_mode_pattern"] == {}
-    # Restoring "off" mid-vacation closes the live span.
-    live = {"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0, "vacation_mode_periods": []}
-    r = restore_fields(live, {"vacation_mode_enabled": False}, now)
-    assert r["vacation_mode_periods"] == [[9000.0, now]] and r["vacation_mode_enabled_at"] == 0
+    # A restore leaves Vacation Mode exactly as it is (2026-10-25: an older
+    # backup restored mid-trip turned it off): the live fields win over the
+    # backup's, on or off, and every one is set so none of the backup's leak.
+    live = {"vacation_mode_enabled": True, "vacation_mode_enabled_at": 9000.0, "vacation_mode_periods": [[1.0, 2.0]],
+            "vacation_mode_pattern": {"light.a": {"0:1200": 1.0}}, "vacation_mode_pattern_until": 9000.0}
+    backup = {"vacation_mode_enabled": False, "vacation_mode_enabled_at": 0, "vacation_mode_periods": [],
+              "vacation_mode_pattern": {"light.z": {"0:1200": 1.0}}, "vacation_mode_last_off": {"ts": 5.0}}
+    restored = {**backup, **restore_fields(live)}
+    assert restored["vacation_mode_enabled"] is True and restored["vacation_mode_enabled_at"] == 9000.0
+    assert restored["vacation_mode_pattern"] == {"light.a": {"0:1200": 1.0}}
+    assert restored["vacation_mode_periods"] == [[1.0, 2.0]] and restored["vacation_mode_last_off"] == {}
+    home = {"vacation_mode_enabled": False, "vacation_mode_periods": [[1.0, 2.0]]}
+    on_in_backup = {"vacation_mode_enabled": True, "vacation_mode_enabled_at": 5.0}
+    assert {**on_in_backup, **restore_fields(home)}["vacation_mode_enabled"] is False
 
 
 async def test_an_empty_build_is_retried_hourly_not_every_tick(monkeypatch):
@@ -667,8 +669,8 @@ def test_the_last_learned_pattern_is_kept_aside_for_the_next_vacation():
     legacy = {"vacation_mode_enabled": False, "vacation_mode_pattern": learned, "vacation_mode_pattern_built_at": 1.0}
     assert learned_pattern(legacy) == {}
     # A restore keeps the live one; the backup's is not trusted.
-    r = restore_fields(home, {"vacation_mode_enabled": True, "vacation_mode_pattern_prev": {"light.z": {}}}, 30_000.0)
-    assert r["vacation_mode_pattern_prev"] == learned and r["vacation_mode_pattern"] == {}
+    r = {"vacation_mode_pattern_prev": {"light.z": {}}, **restore_fields(home)}
+    assert r["vacation_mode_pattern_prev"] == {} and r["vacation_mode_pattern"] == learned
 
 
 async def test_an_empty_build_leaves_the_last_learned_pattern_switching(monkeypatch):
@@ -765,10 +767,76 @@ def test_restoring_an_old_backup_while_home_never_brings_its_pattern_back():
     live = {"vacation_mode_enabled": False, "vacation_mode_pattern": live_pat, "vacation_mode_pattern_until": 5000.0,
             "vacation_mode_tracked_since": 0}
     backup = {"vacation_mode_enabled": False, "vacation_mode_pattern": old_pat, "vacation_mode_pattern_until": 4000.0}
-    r = restore_fields(live, backup, 9000.0)
-    restored = {**backup, **r}
-    assert restored["vacation_mode_pattern"] == {} and restored["vacation_mode_pattern_prev"] == live_pat
+    restored = {**backup, **restore_fields(live)}
+    assert restored["vacation_mode_pattern"] == live_pat
     assert switch_fields(restored, True, 10_000.0)["vacation_mode_pattern_prev"] == live_pat
+
+
+def _trip(start, end, pattern=None, **more):
+    """A house that ran Vacation Mode from start to end (epoch-s), on the
+    pattern learned for it."""
+    return {"vacation_mode_enabled": False, "vacation_mode_enabled_at": 0,
+            "vacation_mode_periods": [[start, end]], "vacation_mode_pattern": pattern or {"light.a": {"*:1900": 1.0}},
+            "vacation_mode_pattern_until": start, "vacation_mode_pattern_built_at": start + 60,
+            "vacation_mode_tracked_since": start - 12 * 86400, **more}
+
+
+def test_turned_back_on_soon_after_a_trip_it_carries_on_with_that_trips_routine():
+    """2026-10-25, a real house: on Oct 6, off by one tap Oct 14 mid-trip, the
+    house empty since. Turned back on, a fresh build learns the empty days and
+    keeps the lights off; the trip's own routine is what it should run."""
+    from custom_components.padspan_ha.vacation_mode import RESUME_S, pattern_serves, resumable, switch_fields
+    start, off = 1_791_309_516.9, 1_791_938_025.9          # the real house's span
+    data = _trip(start, off)
+    now = off + 11.4 * 86400
+    assert resumable(data, now)
+    on = switch_fields(data, True, now)
+    assert on == {"vacation_mode_enabled_at": now, "vacation_mode_pattern_for": now}
+    running = {**data, **on, "vacation_mode_enabled": True}
+    assert pattern_serves(running)
+    # Its closed span stays closed: the dark days were not Vacation Mode's.
+    assert running["vacation_mode_periods"] == [[start, off]]
+    # Off and on again within 14 days resumes the same routine again.
+    off2 = now + 3600
+    again = {**running, **switch_fields(running, False, off2), "vacation_mode_enabled": False}
+    assert resumable(again, off2 + 86400)
+    # Past 14 days, or with no pattern of that trip's, it is a new vacation.
+    assert not resumable(data, off + RESUME_S + 1)
+    assert not resumable({**data, "vacation_mode_pattern": {}}, now)
+    assert not resumable({**data, "vacation_mode_pattern_until": start - 86400}, now)
+    assert not resumable({**data, "vacation_mode_periods": []}, now)
+    fresh = switch_fields(data, True, off + RESUME_S + 1)
+    assert fresh["vacation_mode_pattern"] == {} and fresh["vacation_mode_pattern_for"] == 0
+
+
+async def test_a_resumed_vacation_switches_on_its_trips_pattern_without_a_rebuild(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    fetch = AsyncMock(return_value={"light.a": [(1.0, "off")]})
+    monkeypatch.setattr(vm, "_async_fetch_history", fetch)
+    now = datetime(2026, 1, 15, 12, 0, 0).timestamp()   # conftest.py's _fake_utcnow
+    data = _trip(now - 20 * 86400, now - 86400, {"light.a": {"*:1200": 1.0}})
+    data.update(vm.switch_fields(data, True, now), vacation_mode_enabled=True)
+    st = _settings(**data)
+    hass = _hass(st, _states(**{"light.a": "off"}))
+    await vm._async_tick(hass)
+    fetch.assert_not_called()
+    assert st.data["vacation_mode_pattern"] == {"light.a": {"*:1200": 1.0}}
+    hass.services.async_call.assert_any_call("light", "turn_on", {"entity_id": "light.a"})
+
+
+def test_who_turned_it_off_is_read_from_the_connection():
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.vacation_mode import off_message, who_from_connection
+    tok = SimpleNamespace(client_id="https://home-assistant.io/android", client_name=None)
+    hass = SimpleNamespace(auth=SimpleNamespace(async_get_refresh_token=lambda _id: tok))
+    conn = SimpleNamespace(user=SimpleNamespace(name="NSpanelAndroid"), refresh_token_id="r1")
+    who = who_from_connection(hass, conn)
+    assert who == {"by": "NSpanelAndroid", "how": "panel", "via": "the Android app"}
+    assert "by NSpanelAndroid from the Android app" in off_message(who, "Oct 13, 17:33")
+    # No token to read: still the user, from a browser.
+    bare = SimpleNamespace(auth=SimpleNamespace(async_get_refresh_token=lambda _id: None))
+    assert who_from_connection(bare, conn)["via"] == "a web browser"
+    assert "factory reset" in off_message({"how": "reset"}, "Oct 13, 17:33")
 
 
 async def test_the_upgrade_stamp_is_set_only_where_vacation_mode_ran(monkeypatch):
@@ -793,3 +861,71 @@ def test_a_light_below_full_intensity_holds_its_decision_for_the_window():
     seen = {decide_states(pattern, at0 + timedelta(minutes=m), 50).get("light.a")
             for m in range(0, WINDOW_MINUTES, 5)}
     assert len(seen) == 1
+
+
+def test_disable_from_the_panel_records_who_and_tells_the_house(monkeypatch):
+    """The settings save is where the panel's Disable lands: it closes the
+    span, records the user and app, counts it, and sends the notice; turned
+    back on within 14 days it resumes the trip and counts that."""
+    import time as _t
+    from custom_components.padspan_ha import vacation_mode as vm
+    from custom_components.padspan_ha import ws_settings as WS
+    from custom_components.padspan_ha import telemetry as T
+    from tests.test_house3d_store import _house, _run
+    h = _house()
+    tasks = []
+    h.async_create_task = lambda coro: (tasks.append(coro.cr_code.co_name), coro.close())
+    h.auth = SimpleNamespace(async_get_refresh_token=lambda _id: SimpleNamespace(
+        client_id="https://home-assistant.io/android", client_name=None))
+    st = h.data[DOMAIN][DATA_SETTINGS]
+    start = _t.time() - 7 * 86400
+    st.data.update(vacation_mode_enabled=True, vacation_mode_enabled_at=start, vacation_mode_periods=[],
+                   vacation_mode_pattern={"light.a": {"*:1900": 1.0}}, vacation_mode_pattern_until=start)
+
+    async def _set(**kw):
+        st.data.update(kw)
+    st.async_set = _set
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda _h, name, n=1: counted.append(name) or True)
+    conn = MagicMock()
+    conn.user = MagicMock(is_admin=True)
+    conn.user.name = "NSpanelAndroid"
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "type": "padspan_ha/settings_set", "vacation_mode_enabled": False}))
+    assert st.data["vacation_mode_enabled"] is False
+    assert st.data["vacation_mode_periods"][-1][0] == start
+    last = st.data["vacation_mode_last_off"]
+    assert last["by"] == "NSpanelAndroid" and last["via"] == "the Android app" and last["how"] == "panel"
+    assert counted == ["vacation_off_panel"] and "_vac_notice" in tasks
+    _run(WS.ws_settings_set(h, conn, {"id": 2, "type": "padspan_ha/settings_set", "vacation_mode_enabled": True}))
+    assert counted[-1] == "vacation_resumed"
+    assert vm.pattern_serves(st.data) and st.data["vacation_mode_pattern"] == {"light.a": {"*:1900": 1.0}}
+
+
+async def test_the_turned_off_notice_goes_to_ha_and_every_alert_target_once(monkeypatch):
+    import sys
+    import types
+    from custom_components.padspan_ha import presence_coordinator as PC
+    from custom_components.padspan_ha import vacation_mode as vm
+    from custom_components.padspan_ha.const import DATA_ALERTS
+    made, sent = [], []
+    pn = types.ModuleType("homeassistant.components.persistent_notification")
+    pn.async_create = lambda _h, msg, title=None, notification_id=None: made.append((title, msg))
+    monkeypatch.setitem(sys.modules, "homeassistant.components.persistent_notification", pn)
+
+    async def _send(_h, preferred, email, title, message, context=None):
+        sent.append((preferred, email))
+        return preferred
+    monkeypatch.setattr(PC, "async_send_follow_notify", _send)
+    alerts = SimpleNamespace(all=lambda: {"aa": {"notify_service": "notify.mobile_app_pixel", "email": ""},
+                                          "bb": {"notify_service": "notify.mobile_app_pixel", "email": ""},
+                                          "cc": {"notify_service": "", "email": "me@example.com"},
+                                          "dd": {"on_room_change": True}})
+    hass = SimpleNamespace(data={DOMAIN: {DATA_ALERTS: alerts}})
+    ok = await vm.async_notify_turned_off(hass, {"by": "Nicole", "via": "the iPhone app", "how": "panel"}, 1_791_938_025.0)
+    assert ok
+    assert made and "by Nicole from the iPhone app" in made[0][1]
+    assert sent == [("notify.mobile_app_pixel", ""), ("", "me@example.com")]
+    # No alert targets: HA's own notification only, and it says so.
+    made.clear(); sent.clear()
+    assert not await vm.async_notify_turned_off(SimpleNamespace(data={DOMAIN: {}}), {"how": "reset"}, 1.0)
+    assert made and "factory reset" in made[0][1] and not sent

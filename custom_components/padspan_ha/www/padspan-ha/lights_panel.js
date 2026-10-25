@@ -435,6 +435,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Vacation Mode's own state — read here too now that the banner lives
       // in the shared Atlas card (both hosts), not panel.js's global chrome.
       this.state._vacationModeEnabled = !!s.vacation_mode_enabled;
+      this.state._vacationModeResumed = !!s.vacation_mode_pattern_for;
       this.state._vacationModeIntensity = Number.isFinite(Number(s.vacation_mode_intensity)) ? Number(s.vacation_mode_intensity) : 100;
       // {entity_id: epoch-s of its most recent "on"} — flood_latch.py's
       // event listener writes this server-side; ungated, same reasoning as
@@ -991,13 +992,16 @@ class PadSpanLightsApp extends HTMLElement {
       // renderer rather than panel.js's global chrome).
       onVacationModeEnable: async () => {
         if (!this._hass) return false;
-        try { await this._ws({ type: "padspan_ha/settings_set", vacation_mode_enabled: true }); }
+        let res = null;
+        try { res = await this._ws({ type: "padspan_ha/settings_set", vacation_mode_enabled: true }); }
         catch (e) { return false; }
         this.state._vacationModeEnabled = true;
+        this.state._vacationModeResumed = !!res?.settings?.vacation_mode_pattern_for;
         this._render();
         return true;
       },
       vacationModeEnabled: !!this.state._vacationModeEnabled,
+      vacationModeResumed: !!this.state._vacationModeResumed,
       vacationModeIntensity: this.state._vacationModeIntensity || 100,
       onVacationModeDisable: async () => {
         if (!this._hass) return false;

@@ -979,6 +979,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["atlas_layout_v2"] = bool(msg["atlas_layout_v2"])
         if "traceback_house_focus" in msg:
             payload["traceback_house_focus"] = max(0, min(64, int(msg["traceback_house_focus"])))
+        _vac_event, _vac_who, _vac_now = "", {}, 0.0
         if "vacation_mode_enabled" in msg:
             # Admin-only: unlike a saved Whole House Preset (a one-shot,
             # user-initiated apply), this autonomously operates real lights
@@ -995,8 +996,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # it began, and it is left out of every later build once closed
             # (vacation_mode.py, NEVER LEARN FROM ITSELF).
             import time as _time
-            from .vacation_mode import switch_fields
-            payload.update(switch_fields(st.data, payload["vacation_mode_enabled"], _time.time()))
+            from .vacation_mode import resumable, switch_fields, who_from_connection
+            _vac_now = _time.time()
+            _vac_was = bool(st.data.get("vacation_mode_enabled"))
+            if payload["vacation_mode_enabled"] and not _vac_was:
+                _vac_event = "resumed" if resumable(st.data, _vac_now) else "on"
+            elif _vac_was and not payload["vacation_mode_enabled"]:
+                _vac_event = "off"
+                _vac_who = who_from_connection(hass, connection)
+            payload.update(switch_fields(st.data, payload["vacation_mode_enabled"], _vac_now,
+                                         _vac_who if _vac_event == "off" else None))
         if "vacation_mode_intensity" in msg:
             payload["vacation_mode_intensity"] = max(5, min(100, int(msg["vacation_mode_intensity"])))
         if "lights_isolux" in msg:
@@ -1240,6 +1249,25 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if msg.get("atlas_3d_enabled") is True:
             from .house3d_heights import async_move_heights  # noqa: PLC0415
             hass.async_create_task(async_move_heights(hass))
+
+        # ── Vacation Mode switched → counted; switched off → the house is
+        # told who did it (vacation_mode.async_notify_turned_off).
+        if _vac_event:
+            from .telemetry import bump  # noqa: PLC0415
+            if _vac_event == "on":
+                bump(hass, "vacation_on")
+            elif _vac_event == "resumed":
+                bump(hass, "vacation_resumed")
+            else:
+                bump(hass, "vacation_off_panel")
+                from .vacation_mode import async_notify_turned_off  # noqa: PLC0415
+
+                async def _vac_notice() -> None:
+                    if await async_notify_turned_off(hass, _vac_who, _vac_now):
+                        bump(hass, "vacation_off_notified")
+                    else:
+                        bump(hass, "vacation_off_not_pushed")
+                hass.async_create_task(_vac_notice())
 
         # ── Bright: presence revealed or hidden → it polls, or stops
         if "bright_reveal_presence" in payload:

@@ -208,6 +208,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vacation_mode_tracked_since": 0,     # backend-only: epoch-s from which every vacation span is in vacation_mode_periods (stamped once on upgrade if Vacation Mode ran before spans were recorded; 0 = always) — vacation_mode.py learned_pattern
     "vacation_mode_pattern_prev": {},     # backend-only: the last pattern learned before a vacation — stands in while a new vacation's build finds nothing (vacation_mode.py learned_pattern)
     "vacation_mode_pattern_attempt": [0, 0],  # backend-only: [enabled_at, epoch-s] of the last build that found nothing usable — retried hourly, not every tick
+    "vacation_mode_pattern_for": 0,       # backend-only: the enabled_at a carried-over pattern serves — turned back on within 14 days of a trip, it resumes that trip's routine (vacation_mode.resumable)
+    "vacation_mode_last_off": {},         # backend-only: {ts, by, via, how} — who last turned Vacation Mode off, for the panel and the turned-off notice
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object

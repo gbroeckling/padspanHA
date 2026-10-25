@@ -1578,6 +1578,57 @@ function _mkEl(tag, attrs = {}, children = []){
   }
   return n;
 }
+// Vacation Mode's banner. Disable asks first (2026-10-25: one tap on this
+// banner, dead center on a wall screen, turned it off mid-trip and the house
+// sat dark for 11 days). "Keep it on" takes Disable's place at the end of
+// the row and "Turn off" sits at the far start, so a second stray tap keeps
+// it on. The question outlasts the card's re-renders for 10 s.
+let _vacAskUntil = 0, _vacAskTimer = null;
+function _vacBanner(host) {
+  const el = _mkEl;
+  let node = null;
+  const swap = () => { if (node && node.isConnected) node.replaceWith(_vacBanner(host)); };
+  if (Date.now() < _vacAskUntil) {
+    const turnOff = el("button", {
+      class: "btn inline danger",
+      onclick: async () => {
+        turnOff.disabled = true;
+        _vacAskUntil = 0;
+        const ok = host.onVacationModeDisable && await host.onVacationModeDisable();
+        if (!ok) swap();
+      },
+    }, "Turn off");
+    node = el("div", { class: "lv-vacation", role: "alertdialog" }, [
+      turnOff,
+      el("span", { class: "lv-vacation-label" }, "Turn off Vacation Mode? The lights stop acting like someone is home."),
+      el("button", { class: "btn inline", onclick: () => { _vacAskUntil = 0; swap(); } }, "Keep it on"),
+    ]);
+    clearTimeout(_vacAskTimer);
+    _vacAskTimer = setTimeout(() => { if (Date.now() >= _vacAskUntil) swap(); }, _vacAskUntil - Date.now() + 50);
+    return node;
+  }
+  const pctLbl = el("span", { style: "font-variant-numeric:tabular-nums" }, `${host.vacationModeIntensity || 100}%`);
+  const slider = document.createElement("input");
+  slider.type = "range"; slider.min = "5"; slider.max = "100"; slider.step = "5";
+  slider.className = "lv-vacation-slider";
+  slider.value = String(host.vacationModeIntensity || 100);
+  slider.addEventListener("input", () => { pctLbl.textContent = `${slider.value}%`; });
+  slider.addEventListener("change", () => host.onVacationModeIntensity && host.onVacationModeIntensity(parseInt(slider.value, 10)));
+  node = el("div", { class: "lv-vacation" }, [
+    el("span", {}, "🌴"),
+    el("span", { class: "lv-vacation-label" }, "Vacation mode on"),
+    // Turned back on within 14 days of a trip, it carries on with that
+    // trip's routine (vacation_mode.resumable), and says so.
+    host.vacationModeResumed ? el("span", { class: "muted", style: "font-size:11px" }, "same routine as the last trip") : null,
+    el("span", { class: "lv-vacation-slider-wrap" }, [
+      el("span", { class: "muted", style: "font-size:11px" }, "Energy saving"),
+      slider,
+      pctLbl,
+    ]),
+    el("button", { class: "btn inline", onclick: () => { _vacAskUntil = Date.now() + 10000; swap(); } }, "Disable"),
+  ]);
+  return node;
+}
 // What both hosts hand openControlCard about a light, from the one registry
 // fetch they share — so the sidebar and the builder can't drift (they have
 // before). `wled` is present only for a light of HA's WLED integration: it
@@ -2959,33 +3010,7 @@ export function buildLightsMapCard(hostIn){
   // `.vacation-banner{display:flex}` declared later in the stylesheet
   // always beat, so the banner never actually hid or showed correctly.
   // Independent of V2/DISPLAY: it must show on the classic layout too.
-  if (host.vacationModeEnabled) {
-    const pctLbl = el("span", { style: "font-variant-numeric:tabular-nums" }, `${host.vacationModeIntensity || 100}%`);
-    const slider = document.createElement("input");
-    slider.type = "range"; slider.min = "5"; slider.max = "100"; slider.step = "5";
-    slider.className = "lv-vacation-slider";
-    slider.value = String(host.vacationModeIntensity || 100);
-    slider.addEventListener("input", () => { pctLbl.textContent = `${slider.value}%`; });
-    slider.addEventListener("change", () => host.onVacationModeIntensity && host.onVacationModeIntensity(parseInt(slider.value, 10)));
-    const disableBtn = el("button", {
-      class: "btn inline",
-      onclick: async () => {
-        disableBtn.disabled = true;
-        const ok = host.onVacationModeDisable && await host.onVacationModeDisable();
-        if (!ok) disableBtn.disabled = false;
-      },
-    }, "Disable");
-    mapCard.appendChild(el("div", { class: "lv-vacation" }, [
-      el("span", {}, "🌴"),
-      el("span", { class: "lv-vacation-label" }, "Vacation mode on"),
-      el("span", { class: "lv-vacation-slider-wrap" }, [
-        el("span", { class: "muted", style: "font-size:11px" }, "Energy saving"),
-        slider,
-        pctLbl,
-      ]),
-      disableBtn,
-    ]));
-  }
+  if (host.vacationModeEnabled) mapCard.appendChild(_vacBanner(host));
   const fold = (name, title) => {
     const d = document.createElement("details");
     d.className = "lv-fold";

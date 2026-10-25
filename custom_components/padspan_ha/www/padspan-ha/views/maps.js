@@ -9957,6 +9957,7 @@ function _lightsTab(ctx, maps, active) {
       return true;
     },
     vacationModeEnabled: !!ctx.state.settings?.vacation_mode_enabled,
+    vacationModeResumed: !!ctx.state.settings?.vacation_mode_pattern_for,
     vacationModeIntensity: Number.isFinite(Number(ctx.state.settings?.vacation_mode_intensity))
       ? Number(ctx.state.settings.vacation_mode_intensity) : 100,
     onVacationModeDisable: async () => {

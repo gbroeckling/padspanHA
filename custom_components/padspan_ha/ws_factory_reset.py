@@ -120,10 +120,19 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         import time as _time
         from .vacation_mode import learned_pattern, switch_fields
         _live = _live_settings.data if _live_settings else {}
+        _vac_now = _time.time()
+        _vac_was_on = bool(_live.get("vacation_mode_enabled"))
         _vac = {"vacation_mode_periods": _live.get("vacation_mode_periods") or [],
                 "vacation_mode_pattern_prev": learned_pattern(_live),
                 "vacation_mode_tracked_since": _live.get("vacation_mode_tracked_since") or 0,
-                **switch_fields(_live, False, _time.time())}
+                # Learned from the recorder, not set up by hand: kept, so a
+                # reset mid-trip can be resumed (vacation_mode.resumable).
+                "vacation_mode_pattern": _live.get("vacation_mode_pattern") or {},
+                "vacation_mode_pattern_until": _live.get("vacation_mode_pattern_until") or 0,
+                "vacation_mode_pattern_built_at": _live.get("vacation_mode_pattern_built_at") or 0,
+                "vacation_mode_pattern_for": _live.get("vacation_mode_pattern_for") or 0,
+                "vacation_mode_last_off": _live.get("vacation_mode_last_off") or {},
+                **switch_fields(_live, False, _vac_now, {"how": "reset"})}
         _vac.pop("vacation_mode_enabled_at", None)
         # A tester sign-up survives too: its id is the only way to reach the
         # server's copy, and "Stop being a tester" must keep working after a
@@ -151,6 +160,12 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         store_obj = domain.get(DATA_SETTINGS)
         if store_obj and hasattr(store_obj, "data"):
             store_obj.data = dict(_reset)
+        if _vac_was_on:
+            # A reset mid-trip turns Vacation Mode off: the house is told
+            # (vacation_mode.async_notify_turned_off), as for the panel's Disable.
+            from .vacation_mode import async_notify_turned_off
+            _bump(hass, "vacation_off_reset")
+            hass.async_create_task(async_notify_turned_off(hass, {"how": "reset"}, _vac_now))
     except Exception as e:
         _LOGGER.warning("Factory reset: settings — %s", e)
         errors.append(SETTINGS_STORE_KEY)

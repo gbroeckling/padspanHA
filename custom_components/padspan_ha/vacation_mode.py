@@ -387,51 +387,154 @@ def learned_pattern(data: dict) -> dict:
     return data.get("vacation_mode_pattern_prev") or {}
 
 
-def switch_fields(data: dict, turn_on: bool, now_ts: float) -> dict:
+# Turned back on within this long of a trip ending, Vacation Mode carries on
+# with that trip's routine. The days since are most likely the empty house
+# (2026-10-25: one tap turned it off mid-trip, and the house sat dark for
+# 11 days): a fresh build would learn those days as the routine and keep
+# the lights off.
+RESUME_S = 14 * 86400
+
+
+def resumable(data: dict, now_ts: float) -> bool:
+    """True when the last vacation ended under RESUME_S ago and the stored
+    pattern is the one it ran on (learned for it, or carried into it)."""
+    periods = [p for p in (data.get("vacation_mode_periods") or [])
+               if isinstance(p, (list, tuple)) and len(p) == 2
+               and isinstance(p[0], (int, float)) and isinstance(p[1], (int, float))]
+    if not periods or not data.get("vacation_mode_pattern"):
+        return False
+    start, end = periods[-1]
+    if not 0 <= now_ts - end <= RESUME_S:
+        return False
+    until = data.get("vacation_mode_pattern_until") or 0
+    served = data.get("vacation_mode_pattern_for") or 0
+    return abs(until - start) < 1 or abs(served - start) < 1
+
+
+def pattern_serves(data: dict) -> bool:
+    """The stored pattern is this vacation's own: learned from history that
+    ends at its start, or carried over from the trip it resumes."""
+    if not data.get("vacation_mode_pattern"):
+        return False
+    enabled_at = data.get("vacation_mode_enabled_at") or 0
+    until = data.get("vacation_mode_pattern_until") or data.get("vacation_mode_pattern_built_at") or 0
+    return until >= enabled_at or bool(enabled_at and data.get("vacation_mode_pattern_for") == enabled_at)
+
+
+def switch_fields(data: dict, turn_on: bool, now_ts: float, who: dict | None = None) -> dict:
     """The fields that go with switching Vacation Mode on or off — the ONE
-    place its span bookkeeping lives, used by settings_set and by a settings
-    restore alike. Off→on stamps the start; on→off closes the span into
-    vacation_mode_periods. No change, no fields."""
+    place its span bookkeeping lives, used by settings_set and by a factory
+    reset alike. Off→on stamps the start; on→off closes the span into
+    vacation_mode_periods and records who did it (`who`: by / via / how).
+    No change, no fields."""
     was_on = bool(data.get("vacation_mode_enabled"))
     if turn_on and not was_on:
+        if resumable(data, now_ts):
+            # The same trip carrying on: its pattern stays. The span closed
+            # when it was turned off stays closed — those days were not
+            # Vacation Mode's switching.
+            return {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern_for": now_ts}
         # A new vacation gets a new pattern. The last one learned is kept
         # aside: the recorder may already have purged the days before this
         # start (an off/on mid-trip, a trip right after another), and then
         # it stands in rather than leaving the house dark (round 5).
         return {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0,
-                "vacation_mode_pattern_prev": learned_pattern(data)}
+                "vacation_mode_pattern_prev": learned_pattern(data), "vacation_mode_pattern_for": 0}
     if was_on and not turn_on:
         return {
             "vacation_mode_periods": closed_periods(data.get("vacation_mode_periods") or [],
                                                     data.get("vacation_mode_enabled_at") or 0, now_ts),
             "vacation_mode_enabled_at": 0,
+            "vacation_mode_last_off": {"ts": now_ts, **(who or {})},
         }
     return {}
 
 
-def restore_fields(live: dict, restored: dict, now_ts: float) -> dict:
-    """A settings restore replaces the whole store, but the live store's
-    vacation bookkeeping describes what is really in the recorder: keep its
-    spans, and apply the on/off change the restore makes as a switch. A
-    vacation restored ON starts now with a fresh pattern, never an old one."""
-    out = {"vacation_mode_periods": list(live.get("vacation_mode_periods") or []),
-           "vacation_mode_pattern_prev": learned_pattern(live),
-           "vacation_mode_tracked_since": live.get("vacation_mode_tracked_since") or 0}
-    turn_on = bool(restored.get("vacation_mode_enabled"))
-    out.update(switch_fields({**live, **out}, turn_on, now_ts))
-    if turn_on and live.get("vacation_mode_enabled"):
-        for k in ("vacation_mode_enabled_at", "vacation_mode_pattern",
-                  "vacation_mode_pattern_until", "vacation_mode_pattern_built_at"):
-            out[k] = live.get(k)
-    else:
-        # Restored on as a new vacation, or off: the backup's own pattern is
-        # never let back in — the live one is already kept as prev, and an
-        # older backup's would otherwise outrank it at the next switch-on
-        # (round 6).
-        out.update(vacation_mode_pattern={}, vacation_mode_pattern_until=0, vacation_mode_pattern_built_at=0)
-        if not turn_on:
-            out.setdefault("vacation_mode_enabled_at", 0)
+# Everything Vacation Mode keeps, with its defaults (settings_store DEFAULTS).
+STATE_KEYS = {
+    "vacation_mode_enabled": False, "vacation_mode_intensity": 100, "vacation_mode_pattern": {},
+    "vacation_mode_pattern_built_at": 0, "vacation_mode_pattern_until": 0, "vacation_mode_enabled_at": 0,
+    "vacation_mode_periods": [], "vacation_mode_tracked_since": 0, "vacation_mode_pattern_prev": {},
+    "vacation_mode_pattern_attempt": [0, 0], "vacation_mode_pattern_for": 0, "vacation_mode_last_off": {},
+}
+
+
+def restore_fields(live: dict) -> dict:
+    """A settings restore leaves Vacation Mode exactly as it is: whether the
+    house is away is about now, not when the backup was taken, and its
+    bookkeeping describes what is in the recorder now. Restoring an older
+    backup mid-trip used to turn it off without a word (2026-10-25)."""
+    return {k: live.get(k, d) for k, d in STATE_KEYS.items()}
+
+
+def who_from_connection(hass: HomeAssistant, connection: Any) -> dict:
+    """Who switched Vacation Mode off, as the notice and the panel show it:
+    the Home Assistant user, and the app or browser they used."""
+    user = getattr(connection, "user", None)
+    out = {"by": str(getattr(user, "name", None) or "someone")[:60], "how": "panel", "via": "a web browser"}
+    try:
+        tok = hass.auth.async_get_refresh_token(getattr(connection, "refresh_token_id", None) or "")
+        client = str(getattr(tok, "client_id", None) or "").lower()
+        name = getattr(tok, "client_name", None)
+        if "android" in client:
+            out["via"] = "the Android app"
+        elif "ios" in client:
+            out["via"] = "the iPhone app"
+        elif name:
+            out["via"] = str(name)[:60]
+    except Exception:  # noqa: BLE001 — the user's name is enough
+        pass
     return out
+
+
+def off_message(who: dict, when: str) -> str:
+    """The turned-off notice, for the HA notification and the alert targets."""
+    if who.get("how") == "reset":
+        cause = "by a PadSpan factory reset"
+    else:
+        cause = f"by {who.get('by') or 'someone'} from {who.get('via') or 'a web browser'}"
+    return (f"Vacation Mode was turned off {when} {cause}. If nobody meant to, turn it back on "
+            f"in Whole House Presets: within 14 days it carries on with the routine it was using.")
+
+
+async def async_notify_turned_off(hass: HomeAssistant, who: dict, now_ts: float) -> bool:
+    """Tell the house Vacation Mode went off: a Home Assistant notification,
+    and the phones or mail Follow alerts go to. Nobody heard when one tap
+    turned it off mid-trip (2026-10-25). True if the notice left for at least
+    one alert target."""
+    from homeassistant.util import dt as dt_util  # noqa: PLC0415
+
+    local = dt_util.as_local(dt_util.utc_from_timestamp(now_ts))
+    when = f"{local.strftime('%b')} {local.day}, {local.strftime('%H:%M')}"
+    title = "PadSpan: Vacation Mode turned off"
+    message = off_message(who, when)
+    try:
+        from homeassistant.components.persistent_notification import async_create  # noqa: PLC0415
+        async_create(hass, message, title=title, notification_id="padspan_ha_vacation_off")
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Vacation mode: no notification: %s", err)
+    targets: list[tuple[str, str]] = []
+    try:
+        from .const import DATA_ALERTS  # noqa: PLC0415
+        store = (hass.data.get(DOMAIN) or {}).get(DATA_ALERTS)
+        for cfg in ((store.all() if store else None) or {}).values():
+            if not isinstance(cfg, dict):
+                continue
+            t = (str(cfg.get("notify_service") or "").strip(), str(cfg.get("email") or "").strip())
+            if any(t) and t not in targets:
+                targets.append(t)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Vacation mode: could not read alert targets: %s", err)
+    sent = False
+    if targets:
+        from .presence_coordinator import async_send_follow_notify  # noqa: PLC0415
+        for preferred, email in targets[:5]:
+            try:
+                await async_send_follow_notify(hass, preferred, email, title, message)
+                sent = True
+            except Exception as err:  # noqa: BLE001 — FollowNotifyNotSent or the call's own
+                _LOGGER.warning("Vacation mode: turned-off notice not sent via %s: %s", preferred or email, err)
+    return sent
 
 
 async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
@@ -450,8 +553,7 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
         await st.async_set(vacation_mode_enabled_at=enabled_at)
     # The history window a stored pattern covers ends at pattern_until; an
     # older pattern without it covered up to when it was built.
-    until = st.data.get("vacation_mode_pattern_until") or built_at or 0
-    if st.data.get("vacation_mode_pattern") and until >= enabled_at:
+    if pattern_serves(st.data):
         return
     # Nothing usable last time for this same start: the window is fixed and
     # the recorder only purges it, so try again hourly, not every tick.
@@ -532,8 +634,7 @@ async def _async_tick(hass: HomeAssistant) -> None:
     # never a stored pattern older rules may have learned from Vacation
     # Mode's own switching (rounds 4-5).
     enabled_at = st.data.get("vacation_mode_enabled_at") or 0
-    until = st.data.get("vacation_mode_pattern_until") or st.data.get("vacation_mode_pattern_built_at") or 0
-    if enabled_at and until < enabled_at:        # same rule as the refresh's
+    if enabled_at and not pattern_serves(st.data):        # same rule as the refresh's
         pattern = st.data.get("vacation_mode_pattern_prev") or {}
     # A pattern built under older rules may name lights the current ones
     # leave out (group members, team followers): apply the rules now.
