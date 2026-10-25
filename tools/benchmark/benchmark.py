@@ -48,14 +48,14 @@ GROUPINGS = ("walk", "visit", "position")
 # ── groups ────────────────────────────────────────────────────────────────────
 
 def visits(polls: list[dict[str, Any]]) -> list[int]:
-    """A visit number per poll: a run of one device's polls in one walk under
-    the same true room and spot. Polls are taken in file order."""
+    """A visit number per poll: a run of one device's polls in one walk in
+    the same true room. Polls are taken in file order."""
     out = [0] * len(polls)
     last: dict[tuple[str, str], tuple] = {}
     n = 0
     for i, p in enumerate(polls):
         key = (p["walk"], p["device"])
-        mark = (p["room"], p["x"], p["y"], p["floor"])
+        mark = (p["room"], p["floor"])
         if last.get(key, (None,))[0] != mark:
             n += 1
             last[key] = (mark, n)
@@ -190,8 +190,8 @@ def run(log: dict[str, Any], *, group_by: str | None = None, radius_m: float | N
     CalibrationStore, KNN_K = cal.CalibrationStore, cal.KNN_K
     radius_m = heldout.HELDOUT_RADIUS_M if radius_m is None else radius_m
 
-    polls = log["polls"]
-    scanners = log["scanners"]
+    polls = [walklog._poll(p, "walk") for p in log["polls"]]
+    scanners = {s: walklog._scanner(sc) for s, sc in (log.get("scanners") or {}).items()}
     walks = sorted({p["walk"] for p in polls})
     if group_by is None:
         group_by = "walk" if len(walks) >= 2 else "visit"
