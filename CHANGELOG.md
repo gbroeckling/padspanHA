@@ -8,6 +8,7 @@ All notable changes to PadSpan HA are documented here.
 
 ### Fixed
 - **Mapping → 3D Stack: the stale-receiver button no longer claims a removal.** It said "Clean N stale" and then "Removed N ✓", but nothing was ever removed or saved. It is now a read-only "N stale" button: it lists which receivers on which maps no live Bluetooth scanner matches right now (a scanner that is offline or renamed shows here too), says that nothing has been removed, and explains how to take one off a floor plan today (Edit → click the receiver → Delete receiver → Save Layout). A house with no stale receivers looks exactly as before.
+- **Code left empty when the old photo-to-metres save was removed (0.30) is tidied.** Nothing visible changes: the Edit tab's rotate no longer computes rotated pins and outlines it never sent (the server turns them with the image, as before), the Measure tool's scale save drops an empty step after it, and Calibration's radio Delete and Beacon Tune's dedup and beacon Delete lose loops and comments that said they saved something they did not.
 
 ---
 

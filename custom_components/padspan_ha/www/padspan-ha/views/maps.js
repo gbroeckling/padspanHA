@@ -2925,9 +2925,6 @@ function _edit(ctx, map, allMaps){
           try {
             // Save transform directly to fabric — fabric is the sole authority
             const _txResult = await ctx.actions.callWS({ type: "padspan_ha/fabric_map_transform_set", map_id: map.id, transform });
-            // Re-derive spatial data for this map only (don't overwrite other transforms)
-            try {
-            } catch(e2) {}
             ctx.toast(`Scale saved: ${scale_x_m.toFixed(1)}m \u00d7 ${scale_y_m.toFixed(1)}m (${ppm} px/m)`);
             ctx.state.maps._measurePts = [];
             ctx.state.maps._measurements = [];
@@ -3271,49 +3268,14 @@ function _edit(ctx, map, allMaps){
 
         applyStatus.textContent = "Uploading rotated image…";
 
-        // Remap receiver and room bound coordinates through the same rotation
-        const _rotPoint = (px, py) => {
-          // px, py are 0-1 fractions in the old image
-          const ox = px * sw - sw/2;
-          const oy = py * sh - sh/2;
-          const rx = ox * Math.cos(rad) - oy * Math.sin(rad);
-          const ry = ox * Math.sin(rad) + oy * Math.cos(rad);
-          return [Math.max(0, Math.min(1, (rx + nw/2) / nw)),
-                  Math.max(0, Math.min(1, (ry + nh/2) / nh))];
-        };
-
-        // Rotate receivers
-        const newReceivers = (map.receivers || []).map(r => {
-          const [nx, ny] = _rotPoint(r.x || 0, r.y || 0);
-          return { ...r, x: nx, y: ny };
-        });
-        // Rotate beacons
-        const newBeacons = (map.beacons || []).map(b => {
-          const [nx, ny] = _rotPoint(b.x || 0, b.y || 0);
-          return { ...b, x: nx, y: ny };
-        });
-        // Rotate room bounds
-        const newBounds = {};
-        for(const [room, b] of Object.entries(map.room_bounds || {})){
-          if(b && b.type === "poly" && Array.isArray(b.points)){
-            newBounds[room] = { ...b, points: b.points.map(p => { const [nx,ny] = _rotPoint(p[0],p[1]); return [nx,ny]; }) };
-          } else if(b && b.type === "circle"){
-            const [cx2,cy2] = _rotPoint(b.cx||0.5, b.cy||0.5);
-            newBounds[room] = { ...b, cx: cx2, cy: cy2 };
-          } else {
-            newBounds[room] = b;
-          }
-        }
-
+        // The server turns the room outlines and pins with the image (the
+        // pixel_op below): there is nothing to remap or save here.
         const _repRes = await ctx.actions.mapsReplaceImage({
           map_id: map.id, png_base64: b64, width: nw, height: nh,
           pixel_op: { deg: _rotAngle, sx: 1, sy: 1 },
         });
         if(_repRes && _repRes.scale_invalidated){
           ctx.toast("Map scale could not survive this rotation — re-measure the map (Measure tool).", true);
-        }
-        // Save rotated coordinates
-        if(newReceivers.length || Object.keys(newBounds).length || newBeacons.length){
         }
         applyStatus.style.color = "#4ade80";
         applyStatus.textContent = `Rotated ${_rotAngle}° and saved. Reloading edit…`;
