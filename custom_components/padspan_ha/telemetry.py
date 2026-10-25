@@ -289,7 +289,7 @@ EVENTS: frozenset[str] = frozenset({
     # reported only as a bucket (PROXY_DROP_EVENTS), never the number.
     "proxy_rate_drop",
     # 0.38.171: Vacation Mode switched on (a new trip, or one resumed within
-    # 14 days on the trip's own routine), and off from the panel or by a
+    # 3 weeks on the trip's own routine), and off from the panel or by a
     # factory reset; whether the turned-off notice reached an alert target
     # (vacation_mode.async_notify_turned_off). An accidental Disable mid-trip
     # left a house dark for 11 days with nobody told.
@@ -1631,6 +1631,15 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             env["room_walk"] = _rw
     except Exception:
         pass
+    # Vacation Mode (vacation_mode.report_buckets), only where it was used.
+    try:
+        from .vacation_mode import _VM_LOG, report_buckets as _vac_buckets  # noqa: PLC0415
+        _vlog = dom.get(_VM_LOG)
+        _vac = _vac_buckets(settings, list(getattr(_vlog, "entries", None) or []), time.time())
+        if _vac:
+            env["vacation"] = _vac
+    except Exception:
+        pass
     features = {k: bool(settings.get(k)) for k in _FEATURE_FLAGS}
     features.update(_overview_features(settings))
     for k, word in _FEATURE_ON_ONLY.items():
@@ -1942,6 +1951,11 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         words = {"walks": WALKS_BUCKETS, "change": CHANGE_WORDS}
         if not isinstance(rw, dict) or not all(k in words and v in words[k] for k, v in rw.items()):
             raise ValueError("env.room_walk not in the vocabulary")
+    if isinstance(env, dict) and "vacation" in env:
+        from .vacation_mode import REPORT_WORDS as _VW  # noqa: PLC0415
+        vac = env["vacation"]
+        if not isinstance(vac, dict) or not all(k in _VW and v in _VW[k] for k, v in vac.items()):
+            raise ValueError("env.vacation not in the vocabulary")
     if isinstance(env, dict) and "screens" in env:
         scr = env["screens"]
         if (not isinstance(scr, list) or len(scr) > SCREENS_LISTED

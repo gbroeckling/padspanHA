@@ -796,11 +796,11 @@ def test_turned_back_on_soon_after_a_trip_it_carries_on_with_that_trips_routine(
     assert pattern_serves(running)
     # Its closed span stays closed: the dark days were not Vacation Mode's.
     assert running["vacation_mode_periods"] == [[start, off]]
-    # Off and on again within 14 days resumes the same routine again.
+    # Off and on again within 3 weeks resumes the same routine again.
     off2 = now + 3600
     again = {**running, **switch_fields(running, False, off2), "vacation_mode_enabled": False}
     assert resumable(again, off2 + 86400)
-    # Past 14 days, or with no pattern of that trip's, it is a new vacation.
+    # Past 3 weeks, or with no pattern of that trip's, it is a new vacation.
     assert not resumable(data, off + RESUME_S + 1)
     assert not resumable({**data, "vacation_mode_pattern": {}}, now)
     assert not resumable({**data, "vacation_mode_pattern_until": start - 86400}, now)
@@ -866,7 +866,7 @@ def test_a_light_below_full_intensity_holds_its_decision_for_the_window():
 def test_disable_from_the_panel_records_who_and_tells_the_house(monkeypatch):
     """The settings save is where the panel's Disable lands: it closes the
     span, records the user and app, counts it, and sends the notice; turned
-    back on within 14 days it resumes the trip and counts that."""
+    back on within 3 weeks it resumes the trip and counts that."""
     import time as _t
     from custom_components.padspan_ha import vacation_mode as vm
     from custom_components.padspan_ha import ws_settings as WS
@@ -929,3 +929,26 @@ async def test_the_turned_off_notice_goes_to_ha_and_every_alert_target_once(monk
     made.clear(); sent.clear()
     assert not await vm.async_notify_turned_off(SimpleNamespace(data={DOMAIN: {}}), {"how": "reset"}, 1.0)
     assert made and "factory reset" in made[0][1] and not sent
+
+
+def test_the_report_says_how_vacation_mode_runs_in_closed_words_only_where_used():
+    from custom_components.padspan_ha import telemetry as T
+    from custom_components.padspan_ha.vacation_mode import REPORT_WORDS, report_buckets, switch_fields
+    now = 2_000_000_000.0
+    assert report_buckets({"vacation_mode_enabled": False, "vacation_mode_periods": []}, [], now) is None
+    start, off = now - 20 * 86400, now - 12 * 86400
+    trip = _trip(start, off, vacation_mode_intensity=60,
+                 vacation_mode_last_off={"ts": off, "by": "Nicole", "via": "the Android app", "how": "panel"})
+    log = [[start + 3600 * i, "light.a", i % 2] for i in range(8 * 24)]      # 24 a day for 8 days
+    home = report_buckets(trip, log, now)
+    assert home == {"on": "no", "intensity": "50-70", "switches_day": "11-50", "trips_60d": "1",
+                    "last_trip_days": "8-14", "last_off": "panel"}
+    running = {**trip, **switch_fields(trip, True, now), "vacation_mode_enabled": True}
+    away = report_buckets(running, log, now + 86400)
+    assert away["on"] == "yes" and away["pattern"] == "resumed" and away["lights"] == "1-5"
+    assert away["switches_day"] == "0"
+    for out in (home, away):
+        assert all(k in REPORT_WORDS and v in REPORT_WORDS[k] for k, v in out.items())
+    # Nothing a person typed reaches it: no names, no apps.
+    assert "Nicole" not in str(home) and "Android" not in str(home)
+    T.assert_shareable({"schema": 1, "env": {"vacation": away}}) if hasattr(T, "assert_shareable") else None

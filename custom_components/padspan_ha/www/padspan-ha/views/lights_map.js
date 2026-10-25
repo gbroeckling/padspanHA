@@ -1617,7 +1617,7 @@ function _vacBanner(host) {
   node = el("div", { class: "lv-vacation" }, [
     el("span", {}, "🌴"),
     el("span", { class: "lv-vacation-label" }, "Vacation mode on"),
-    // Turned back on within 14 days of a trip, it carries on with that
+    // Turned back on within 3 weeks of a trip, it carries on with that
     // trip's routine (vacation_mode.resumable), and says so.
     host.vacationModeResumed ? el("span", { class: "muted", style: "font-size:11px" }, "same routine as the last trip") : null,
     el("span", { class: "lv-vacation-slider-wrap" }, [

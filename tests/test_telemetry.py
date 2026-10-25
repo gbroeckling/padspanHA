@@ -1781,3 +1781,25 @@ def test_screens_are_listed_only_from_two_up_and_never_by_id():
     T.note_screen_word(h, b, "overview_shown:house")
     T.reset_windows(h)
     assert "screens" not in T.build_payload(h)["env"]
+
+
+def test_vacation_mode_reaches_the_report_only_where_it_was_used():
+    """0.38.171: env.vacation, closed words; an install that never used it
+    sends nothing about it."""
+    h = _hass()
+    payload = T.build_payload(h)
+    assert "vacation" not in payload["env"]
+    import time
+    now = time.time()
+    h.data[DOMAIN][DATA_SETTINGS].data.update(
+        vacation_mode_enabled=True, vacation_mode_enabled_at=now - 86400, vacation_mode_intensity=100,
+        vacation_mode_pattern={"light.a": {"*:1900": 1.0}}, vacation_mode_pattern_until=now - 86400,
+        vacation_mode_periods=[], vacation_mode_last_off={"ts": 1.0, "by": "Nicole", "via": "x", "how": "panel"})
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    vac = payload["env"]["vacation"]
+    assert vac["on"] == "yes" and vac["pattern"] == "own" and vac["last_off"] == "panel"
+    assert "Nicole" not in json.dumps(payload)
+    payload["env"]["vacation"]["by"] = "Nicole"
+    with pytest.raises(ValueError):
+        T.assert_shareable(payload)

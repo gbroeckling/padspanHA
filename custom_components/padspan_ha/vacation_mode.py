@@ -392,7 +392,7 @@ def learned_pattern(data: dict) -> dict:
 # (2026-10-25: one tap turned it off mid-trip, and the house sat dark for
 # 11 days): a fresh build would learn those days as the routine and keep
 # the lights off.
-RESUME_S = 14 * 86400
+RESUME_S = 21 * 86400
 
 
 def resumable(data: dict, now_ts: float) -> bool:
@@ -494,7 +494,7 @@ def off_message(who: dict, when: str) -> str:
     else:
         cause = f"by {who.get('by') or 'someone'} from {who.get('via') or 'a web browser'}"
     return (f"Vacation Mode was turned off {when} {cause}. If nobody meant to, turn it back on "
-            f"in Whole House Presets: within 14 days it carries on with the routine it was using.")
+            f"in Whole House Presets: within 3 weeks it carries on with the routine it was using.")
 
 
 async def async_notify_turned_off(hass: HomeAssistant, who: dict, now_ts: float) -> bool:
@@ -583,6 +583,72 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
         return
     await st.async_set(vacation_mode_pattern=pattern, vacation_mode_pattern_built_at=now_ts,
                        vacation_mode_pattern_until=enabled_at)
+
+
+# ── The opt-in report's view (telemetry.py env.vacation) ─────────────────────
+# Closed words only, and only for an install that has used Vacation Mode: is
+# it on, how strong, how many lights it learned, how it is running (its own
+# pattern, a resumed trip's, the stand-in, or nothing yet), how often it
+# switches, trips and their length, and how it was last turned off.
+REPORT_WORDS = {
+    "on": ("yes", "no"),
+    "intensity": ("100", "75-95", "50-70", "25-45", "5-20"),
+    "lights": ("0", "1-5", "6-15", "16-40", "41+"),
+    "pattern": ("own", "resumed", "standin", "none"),
+    "switches_day": ("0", "1-10", "11-50", "51-200", "201+"),
+    "trips_60d": ("0", "1", "2-3", "4+"),
+    "last_trip_days": ("<1", "1-3", "4-7", "8-14", "15+"),
+    "last_off": ("panel", "reset", "none"),
+}
+
+
+def _bucket(n: float, edges: tuple, words: tuple) -> str:
+    """words[i] for the first edge n is at or under; the last word past them."""
+    for edge, word in zip(edges, words):
+        if n <= edge:
+            return word
+    return words[-1]
+
+
+def report_buckets(data: dict, log_entries: list, now_ts: float) -> dict | None:
+    """env.vacation for the opt-in report, or None where Vacation Mode was
+    never used (a field only where it applies)."""
+    periods = [p for p in (data.get("vacation_mode_periods") or [])
+               if isinstance(p, (list, tuple)) and len(p) == 2
+               and isinstance(p[0], (int, float)) and isinstance(p[1], (int, float))]
+    on = bool(data.get("vacation_mode_enabled"))
+    if not on and not periods:
+        return None
+    pct = data.get("vacation_mode_intensity")
+    pct = 100 if not isinstance(pct, (int, float)) or isinstance(pct, bool) else pct
+    out = {"on": "yes" if on else "no",
+           "intensity": _bucket(pct, (20, 45, 70, 95), ("5-20", "25-45", "50-70", "75-95", "100"))}
+    enabled_at = data.get("vacation_mode_enabled_at") or 0
+    if on:
+        if pattern_serves(data):
+            pat = data.get("vacation_mode_pattern") or {}
+            out["pattern"] = "resumed" if data.get("vacation_mode_pattern_for") == enabled_at and enabled_at else "own"
+        elif data.get("vacation_mode_pattern_prev"):
+            pat = data["vacation_mode_pattern_prev"]
+            out["pattern"] = "standin"
+        else:
+            pat = {}
+            out["pattern"] = "none"
+        out["lights"] = _bucket(len(pat), (0, 5, 15, 40), ("0", "1-5", "6-15", "16-40", "41+"))
+        span = (enabled_at, now_ts)
+    else:
+        span = (periods[-1][0], periods[-1][1])
+    days = max((span[1] - span[0]) / 86400, 1 / 24)
+    n = sum(1 for e in log_entries or [] if isinstance(e, (list, tuple)) and e and span[0] <= e[0] <= span[1])
+    out["switches_day"] = _bucket(n / days, (0, 10, 50, 200), ("0", "1-10", "11-50", "51-200", "201+"))
+    recent = [p for p in periods if p[1] >= now_ts - 60 * 86400]
+    out["trips_60d"] = _bucket(len(recent), (0, 1, 3), ("0", "1", "2-3", "4+"))
+    if periods:
+        last = (periods[-1][1] - periods[-1][0]) / 86400
+        out["last_trip_days"] = _bucket(last, (1, 3, 7, 14), ("<1", "1-3", "4-7", "8-14", "15+"))
+    how = (data.get("vacation_mode_last_off") or {}).get("how")
+    out["last_off"] = how if how in ("panel", "reset") else "none"
+    return out
 
 
 class VacationLog:

@@ -501,6 +501,17 @@ def main() -> int:
         print(f"  {k}: " + ", ".join(f"{a}={b}" for a, b in c.most_common()))
     print()
 
+    # Vacation Mode (0.38.171, env.vacation): installs that used it, by word.
+    vac: dict[str, Counter] = defaultdict(Counter)
+    for r in latest.values():
+        for k, v in ((r.get("env") or {}).get("vacation") or {}).items():
+            vac[k][str(v)] += 1
+    if vac:
+        print(f"Vacation Mode ({sum(vac['on'].values())} installs that used it)")
+        for k, c in vac.items():
+            print(f"  {k}: " + ", ".join(f"{a}={b}" for a, b in c.most_common()))
+        print()
+
     usage: Counter = Counter()
     usage_installs: dict[str, set] = defaultdict(set)
     for r in reports:
