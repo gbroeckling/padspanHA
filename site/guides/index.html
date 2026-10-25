@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guides to Bluetooth room presence in Home Assistant | PadSpan HA</title>
-<meta name="description" content="Practical guides to room-level Bluetooth presence in Home Assistant: how many proxies you need, which ESP32 boards work, where to put them, and running PadSpan next to Bermuda.">
+<meta name="description" content="Practical guides to room-level Bluetooth presence in Home Assistant: why phones jump between rooms, how many proxies you need, which ESP32 boards work, and running PadSpan next to Bermuda.">
 <link rel="canonical" href="https://padspan.traks.ca/guides/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PadSpan">
 <meta property="og:title" content="Guides to Bluetooth room presence in Home Assistant">
-<meta property="og:description" content="How many proxies you need, which boards work, where to put them, and running PadSpan next to Bermuda.">
+<meta property="og:description" content="Why phones jump between rooms, how many proxies you need, which boards work, and running PadSpan next to Bermuda.">
 <meta property="og:url" content="https://padspan.traks.ca/guides/">
 <meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
 <meta property="og:image:width" content="1200">
@@ -65,8 +65,11 @@ footer p{margin:4px 0}
 <h1>Guides</h1>
 <p class="lead">Practical answers about room-level Bluetooth presence in Home Assistant: what to buy, where to put it, and how PadSpan fits in.</p>
 <ul class="list">
+  <li><a class="t" href="/guides/room-flapping/">Why does my phone jump between rooms?</a>
+    <p>Bluetooth signal strength is noisy, and neighbouring rooms can sound almost the same. What helps on any system, and how PadSpan smooths readings and makes a new room win a vote before it moves anyone.</p></li>
   <li><a class="t" href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a>
-    <p>One in each room you want told apart. When fewer will do, which ESP32 boards work, where to put them, and how to find the rooms that need another.</p></li>
+    <p>One in each room you want told apart. When fewer will do, which ESP32 boards work, where to put them, and how to find the rooms that need another.</p>
+    <p><a href="/guides/bluetooth-proxies/de/" hreflang="de" lang="de">Auf Deutsch: Wie viele Bluetooth-Proxys brauche ich?</a></p></li>
   <li><a class="t" href="/guides/bermuda/">Bermuda and PadSpan together</a>
     <p>Keep Bermuda. PadSpan installs next to it, listens to the same ESPHome Bluetooth proxies and shows every phone, watch and tag on a floor plan of your house, live.</p>
     <p><a href="/guides/bermuda/de/" hreflang="de" lang="de">Auf Deutsch: Bermuda und PadSpan zusammen</a></p></li>

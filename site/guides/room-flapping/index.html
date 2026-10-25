@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why does my phone jump between rooms in Home Assistant? | PadSpan HA</title>
+<meta name="description" content="Why Bluetooth room presence in Home Assistant jumps between rooms, what helps on any system (Bermuda, ESPresense or PadSpan), and how PadSpan keeps rooms steady, with the numbers from its code.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/room-flapping/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Why does my phone jump between rooms?">
+<meta property="og:description" content="Why Bluetooth room presence flaps, what helps on any system, and how PadSpan keeps rooms steady.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/room-flapping/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1>Why does my phone jump between rooms?</h1>
+<p class="lead">Because Bluetooth signal strength is noisy, and two neighbouring rooms can sound almost the same to your proxies. If the room follows whichever proxy hears your phone loudest, it changes each time the readings swap. Better placement helps on any system. PadSpan also smooths every reading and makes a new room win a vote before it moves anyone.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">See it on a demo house</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+
+<h2>Why it happens</h2>
+<p>It happens with Bermuda, ESPresense and PadSpan alike. All three start from how loudly each proxy hears each advertisement (the RSSI, in dBm), and that number moves when your phone doesn't.</p>
+<ul>
+  <li><b>Signal strength is noisy.</b> A phone lying still can read several dB louder or quieter from one advertisement to the next.</li>
+  <li><b>Bodies absorb it.</b> Turn around or pocket the phone, and the proxy behind you hears it much less.</li>
+  <li><b>Walls and floors let it through.</b> A proxy next door or upstairs can hear your phone nearly as well as the one in your room.</li>
+  <li><b>Neighbouring rooms are close.</b> Near a doorway, two rooms' proxies can be only a few dB apart.</li>
+  <li><b>Phones are irregular.</b> They don't advertise on a fixed beat, proxies miss some of it, and phones change their Bluetooth address regularly so they can't be followed.</li>
+</ul>
+
+<h2>What helps on any system</h2>
+<table>
+  <tr><th>Cause</th><th>What helps</th></tr>
+  <tr><td>Two rooms' proxies a few dB apart near the doorway</td><td>Each proxy well inside its room, nearer the middle than a corner. Not in a hallway or cabinet, behind metal or against an outside wall.</td></tr>
+  <tr><td>A room with no proxy of its own</td><td>One proxy in each room you want told apart. An open-plan kitchen and living room count as one room unless each end has its own.</td></tr>
+  <tr><td>Your body blocking the proxy when you turn around</td><td>In a large room, a second proxy. One is the minimum; two do noticeably better.</td></tr>
+  <tr><td>Proxies with only a printed antenna</td><td>An ESP32-S3 board with an external 2.4 GHz antenna.</td></tr>
+  <tr><td>A proxy that is online but hearing far less than it should</td><td>Restart it. On ESPHome, check its version and Wi-Fi.</td></tr>
+</table>
+<p>In PadSpan's developer's tests of more than 20 boards, ones with only a printed antenna were too noisy to tell rooms apart; an ESP32-S3 with an external antenna is the first choice. More in <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></p>
+
+<h2>How PadSpan keeps rooms steady</h2>
+<p>These are the steps in <a href="https://github.com/gbroeckling/padspanHA/blob/main/custom_components/padspan_ha/presence_coordinator.py">PadSpan's code</a>, with its default numbers.</p>
+<p><b>Each reading is cleaned up.</b> For each proxy and device, PadSpan takes the median of the last 15 seconds of readings (when there are three or more) and smooths it with a Kalman filter. A proxy that stops hearing the device keeps its last reading for about half a minute before it fades: its last advertisement counts as fresh for 15 seconds, then is held for about 20 more. Once PadSpan knows a phone (an iPhone by its IRK, an Android phone by the Companion app's BLE Transmitter), every address it uses is smoothed as one device.</p>
+<p><b>Every 5 seconds, a candidate room.</b> When three or more proxies placed on a measured floor plan hear the device, PadSpan works out where it is, smooths that position and takes the drawn room it is in. A jump of more than 25 m in one 5-second step (faster than 5 m/s) is ignored, up to three times in a row. Otherwise the candidate is the room whose proxy hears the device loudest, and the device keeps its room unless another is louder by:</p>
+<table>
+  <tr><th>Move</th><th>Margin</th></tr>
+  <tr><td>Same floor</td><td>3 dB</td></tr>
+  <tr><td>Same floor, room centres more than 6 m apart on the floor plan</td><td>5 dB</td></tr>
+  <tr><td>Another floor</td><td>5 dB</td></tr>
+</table>
+<p><b>Calibration corrects nearest-proxy rooms.</b> Calibration is free and needs a floor plan with its scale set: you stand at a few spots in each room, 15 seconds each by default (longer is more accurate; the panel recommends 60). With five or more spots and two or more proxies hearing the device, PadSpan compares the live readings with the three calibrated spots that sound most like them, and a close match sets the candidate. It does this only where it is choosing by nearest proxy, unless you turn on <b>Pick the better method for this house</b> (Settings → Presence → Positioning Choices) and calibration tests clearly better.</p>
+<p><b>Then a vote.</b> Every candidate goes into a vote: PadSpan keeps the last four, and a new room must win three before the device moves. For 30 seconds after a move, the next one needs all four. So does a jump on the floor plan to another floor or to a room more than 8 m away (centre to centre). When the floor-plan position already puts the device in the new room, three are enough again, except for a move to another floor within a minute of the last move. The window is <b>Room Change Delay</b> in Settings → Presence, 20 seconds by default: longer is steadier but slower. Installs that started before version 0.21 may still check every 10 seconds (<b>Presence Poll Interval</b>, in the same place, shows the current value); the vote then keeps the last two and needs both.</p>
+<p><b>Floors.</b> On a floor plan, a device's floor is the floor of its voted room, so it can't flip while the room stays put. Each floor is scored by its two loudest proxies; the current floor starts 4 dB ahead, another must beat it by 2 dB more, and while the device hears fewer than half the proxies it usually does, the floor is kept. Proxies on other floors count 10 dB weaker for each floor up or down (10 dB one floor away, 20 dB two), and only help with position when fewer than three on the device's floor hear it.</p>
+<p><b>More in Settings → Presence.</b> Under <b>Signal Filter</b>, a higher Measurement noise R (default 8.0) smooths more but reacts more slowly. Under <b>Positioning Choices</b> (all off by default):</p>
+<ul>
+  <li><b>Mark a room as unsure when the signal is thin</b> keeps a device's room, and marks it unsure, while fewer than three proxies hear it or no calibration spot matches it well. Those readings only start voting once the same new room has come up five times in a row, and it still has to win the vote.</li>
+  <li><b>Use motion sensors and usual moves to break ties</b> lets a motion, occupancy or presence sensor decide between rooms within 3 dB.</li>
+</ul>
+
+<h2>How to check it's working</h2>
+<ul>
+  <li><b>Calibration → Model</b> shows how often PadSpan picks the right room on spots it wasn't calibrated on (from version 0.38.166). Calibrated spots within 1.5 m of each test spot are set aside, so it can't just remember the answer.</li>
+  <li><b>Why This Room</b> (Settings → Presence, off by default) adds a room_reason attribute to each area sensor: votes won and needed, whether a move is being held back, and whether the margin kept the current room.</li>
+  <li><b>Health</b> warns when a proxy hears far fewer advertisements than usual for over 10 minutes while the others are normal (it learns what's usual in the first 30 minutes after Home Assistant starts), and, on a floor plan, when its reliability drops below 70%.</li>
+  <li><b>Walk a room</b>, from the 0.38.167 beta, is off by default: turning it on in Settings → Presence adds a Walk a room tab to Calibration. It records a 90-second walk around one room drawn on your floor plan and, once you save it, shows the score before and after.</li>
+</ul>
+<p>Everything on this page is in free PadSpan.</p>
+
+<h2>Already on Bermuda?</h2>
+<p>Keep it. PadSpan runs next to it on the same proxies, and shows devices Bermuda tracks in the room Bermuda reports, so the steps above apply to them once PadSpan uses its own readings. <a href="/guides/bermuda/">Bermuda and PadSpan together</a> explains how to run both, and how to have PadSpan use only its own readings.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited.</p>
+</div></footer>
+</body>
+</html>
