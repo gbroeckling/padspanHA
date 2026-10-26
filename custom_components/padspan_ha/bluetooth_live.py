@@ -63,6 +63,26 @@ def _scanning_mode(obj: Any, attr: str) -> Optional[str]:
         return None
 
 
+def reseed_interval_s(settings: Optional[Dict[str, Any]]) -> int:
+    """How often to reseed from HA's discovered-service-info, in seconds.
+
+    ble_reseed_interval_s (Settings → Presence, 1–60, default 30) is always in
+    the settings, since DEFAULT_SETTINGS is merged into every load. So "Enable
+    aggressive BLE reseed (5s)" (Manage → HA Entities → BLE Proxy
+    Compatibility, aggressive_ble_reseed) never ran: its branch only ran when
+    the interval was missing, and the panel said 5 s while it stayed at 30. Now
+    the checkbox caps the interval at 5 s, and a shorter interval stays.
+    """
+    s = settings or {}
+    try:
+        n = max(1, min(60, int(s.get("ble_reseed_interval_s", 30))))
+    except (TypeError, ValueError):
+        n = 30
+    if s.get("aggressive_ble_reseed"):
+        n = min(n, 5)
+    return n
+
+
 def _coerce_source(src: Any) -> str:
     # src may be a string, list/tuple/set of strings, or None.
     if src is None:
@@ -649,11 +669,7 @@ class BluetoothLive:
                 from .const import DOMAIN, DATA_SETTINGS
                 _st = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
                 if _st:
-                    _custom = (_st.data or {}).get("ble_reseed_interval_s")
-                    if _custom is not None:
-                        _RESEED_INTERVAL_S = max(1, min(60, int(_custom)))
-                    elif _st.data.get("aggressive_ble_reseed"):
-                        _RESEED_INTERVAL_S = 5
+                    _RESEED_INTERVAL_S = reseed_interval_s(_st.data)
             except Exception:
                 pass
             # How late a passive proxy's reports can arrive — the Find My

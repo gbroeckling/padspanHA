@@ -257,3 +257,40 @@ def test_setting_a_shellys_room_finds_its_device(index) -> None:
     # radio_area_set resolves the source alone, with no name to fall back on.
     m = index([_shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")]).resolve("A8:03:2A:B1:23:47")
     assert m.device is not None and m.device.id == "d1"
+
+
+# ═══ A scanner's own device with no area takes the area of the device it belongs to ═══
+#
+# Since 2025.2 Home Assistant files each remote Bluetooth scanner as its own
+# device under the Bluetooth integration (connections: its Bluetooth MAC), with
+# via_device_id the device that provides it, and copies that device's area only
+# when the scanner's device is set up and has none (bluetooth/__init__.py
+# async_update_device). A Shelly given its area after its scanner appeared had a
+# scanner with no area, so no room, until Home Assistant's next start.
+
+def test_a_scanner_device_without_an_area_takes_its_shellys(index) -> None:
+    shelly = _shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")
+    shelly.area_id = "kitchen"
+    scanner = _Dev("d2", "Kitchen Light (A8:03:2A:B1:23:47)", macs=["a8:03:2a:b1:23:47"])
+    scanner.via_device_id = "d1"
+    idx = index([shelly, scanner])
+    m = idx.resolve("A8:03:2A:B1:23:47", "Kitchen Light (A8:03:2A:B1:23:47)")
+    assert m.device.id == "d2"                      # HA's scanner device, by its MAC
+    assert idx.area_id_of(m.device) == "kitchen"     # ...with the Shelly's area
+
+
+def test_a_scanner_devices_own_area_wins(index) -> None:
+    shelly = _shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")
+    shelly.area_id = "kitchen"
+    scanner = _Dev("d2", "Kitchen Light (A8:03:2A:B1:23:47)", macs=["a8:03:2a:b1:23:47"], area_id="hall")
+    scanner.via_device_id = "d1"
+    idx = index([shelly, scanner])
+    assert idx.area_id_of(scanner) == "hall"
+
+
+def test_no_area_anywhere_is_no_area(index) -> None:
+    scanner = _Dev("d2", "Proxy (A8:03:2A:B1:23:47)", macs=["a8:03:2a:b1:23:47"])
+    scanner.via_device_id = "missing"
+    idx = index([scanner, _Dev("d3", "Lone")])
+    assert idx.area_id_of(scanner) is None
+    assert idx.area_id_of(idx.resolve("lone").device) is None

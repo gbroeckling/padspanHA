@@ -365,9 +365,10 @@ async def ws_radio_audit(hass: HomeAssistant, connection, msg) -> None:
                     if ce:
                         esphome_entries.append(ce.title)
 
-            # HA area assignment
-            ha_area = area_id_to_name.get(dev.area_id, "") if dev.area_id else ""
-            ha_floor = area_id_to_floor.get(dev.area_id, "") if dev.area_id else ""
+            # HA area assignment (a scanner device with none: its via device's)
+            _area_id = _radio_index.area_id_of(dev)
+            ha_area = area_id_to_name.get(_area_id, "") if _area_id else ""
+            ha_floor = area_id_to_floor.get(_area_id, "") if _area_id else ""
 
             entry["device"] = {
                 "id": dev.id,

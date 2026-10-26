@@ -4,13 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.175 — Shelly scanners find their room (2026-10-26)
-
-Shelly Gen2+ devices can be Home Assistant Bluetooth scanners with one setting in the Shelly integration (Bluetooth scanner mode). PadSpan already heard them, but didn't reliably know which room they were in.
+## 0.38.176 — Shelly scanners get their room without a restart, and the BLE Proxy Compatibility switch works (2026-10-26)
 
 ### Fixed
-- **A Shelly scanner gets its room from its Home Assistant area.** Home Assistant registers a Shelly's scanner under the Shelly's Bluetooth MAC, which is its network MAC + 2, but the Shelly's device lists only the network MAC. So PadSpan matched the scanner to its device by name, if the names happened to line up, or not at all, and the scanner had no room. Now a Shelly scanner is matched to its Shelly device by MAC, even after either has been renamed. The rule applies only to devices from the Shelly integration.
-- **Setting a Shelly scanner's room from the Overview works.** Where PadSpan hadn't matched the Shelly to its device, the area picker looked the device up from the scanner's address alone and answered "Could not find HA device for this radio source".
+- **A Bluetooth scanner whose own device has no area takes the area of the device it belongs to.** Since 2025.2 Home Assistant files each remote scanner, a Shelly's for instance, as its own device under **Settings → Devices & services → Bluetooth**. It copies the area of the device that provides it only when the scanner's device is set up and has no area yet. So a Shelly given its area after its scanner appeared had a scanner with no area, and no room, until Home Assistant restarted. Now PadSpan uses the Shelly's area until the scanner's device has one of its own; a scanner device with an area keeps it.
+- **"Enable aggressive BLE reseed (5s) for passive proxy scanners" works.** Manage → HA Entities → BLE Proxy Compatibility said it reseeded every 5 seconds, but the reseed interval in **Settings → Presence** (30 s unless changed) always won. The checkbox now caps the interval at 5 s, and a shorter interval set in Settings → Presence stays.
+
+---
+
+## 0.38.175 — A Shelly scanner finds its Shelly by MAC (2026-10-26)
+
+### Fixed
+- **A Shelly scanner finds its Shelly when no device lists its Bluetooth MAC.** Home Assistant registers a Shelly's scanner under the Shelly's Bluetooth MAC, its network MAC + 2, while the Shelly's own device lists only the network MAC. Home Assistant 2025.2 and later also file each scanner as a device of its own with that MAC, which PadSpan already used. Without one, PadSpan matched the scanner by name or not at all. Now it matches the scanner to its Shelly device by network MAC + 2, and the Overview's area picker finds it too. Only Shelly integration devices get this rule.
 
 ---
 

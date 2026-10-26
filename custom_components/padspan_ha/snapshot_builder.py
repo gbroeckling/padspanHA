@@ -764,8 +764,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             if match.device is not None:
                 if not radio.get("device_id"):
                     radio["device_id"] = match.device.id
-                if not radio.get("area_name") and match.device.area_id:
-                    area = area_names.get(match.device.area_id, "")
+                area_id = index.area_id_of(match.device)
+                if not radio.get("area_name") and area_id:
+                    area = area_names.get(area_id, "")
                     if area:
                         radio["area_name"] = area
             radio["display_name"], radio["name_from"] = radio_display(radio, match.device)

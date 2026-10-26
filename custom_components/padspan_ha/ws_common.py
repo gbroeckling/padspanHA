@@ -671,6 +671,7 @@ class RadioDeviceIndex:
         self._by_slug: dict[str, list] = {}
         self._by_mac: dict[str, list] = {}
         self._by_shelly_bt: dict[str, list] = {}   # _shelly_bluetooth_mac
+        self._by_id: dict[str, Any] = {}           # area_id_of's via device
         # Membership by id, beside each list: `dev not in bucket` compared
         # whole DeviceEntry objects, quadratic in devices sharing a name
         # (4,000 same-named devices took 1.5 s, on every snapshot build).
@@ -685,6 +686,8 @@ class RadioDeviceIndex:
         # Sorted by id so a run is reproducible. Ties are refused rather than
         # broken, but determinism means the same install answers the same way.
         for dev in sorted(devices, key=lambda d: str(getattr(d, "id", ""))):
+            if getattr(dev, "id", None):
+                self._by_id[str(dev.id)] = dev
             for cand in (getattr(dev, "name_by_user", None), getattr(dev, "name", None)):
                 slug = radio_slug(cand)
                 if slug and id(dev) not in seen_slug.setdefault(slug, set()):
@@ -704,6 +707,24 @@ class RadioDeviceIndex:
                     if bt and id(dev) not in seen_bt.setdefault(bt, set()):
                         seen_bt[bt].add(id(dev))
                         self._by_shelly_bt.setdefault(bt, []).append(dev)
+
+    def area_id_of(self, dev: Any) -> str | None:
+        """A radio device's area, else the area of the device it belongs to.
+
+        Since 2025.2 Home Assistant files each remote Bluetooth scanner as its
+        own device under the Bluetooth integration, via the device that
+        provides it, and copies that device's area to it only when the
+        scanner's device is set up and has none. A Shelly given its area after
+        its scanner appeared therefore had a scanner with no area, and so no
+        room, until Home Assistant's next start. A scanner device with no area
+        takes its via device's, as that next start would; one with an area of
+        its own keeps it.
+        """
+        area = getattr(dev, "area_id", None)
+        if area:
+            return area
+        via = self._by_id.get(str(getattr(dev, "via_device_id", None) or ""))
+        return (getattr(via, "area_id", None) or None) if via is not None else None
 
     @property
     def devices_n(self) -> int:
