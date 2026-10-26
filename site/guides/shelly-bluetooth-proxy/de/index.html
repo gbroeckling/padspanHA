@@ -102,8 +102,9 @@ footer p{margin:4px 0}
   <li>Shellys hören nur zu; eine Bluetooth-Verbindung können sie nicht halten. Für die Anwesenheit reicht Zuhören, aber ein Gerät, mit dem sich Home Assistant verbinden muss, braucht einen Proxy, der das kann.</li>
 </ul>
 
-<h2>Ein Shelly, der nichts hört</h2>
+<h2>Ein Shelly, der nichts hört oder keinen Raum hat</h2>
 <ul>
+  <li><b>Er taucht ohne Raum auf, obwohl sein Gerät einen Bereich hat?</b> Aktualisier auf PadSpan 0.38.175 oder neuer (vorerst eine Beta). Home Assistant gibt dem Scanner eines Shellys dessen Bluetooth-Adresse, nicht die, unter der sein Gerät geführt wird. Frühere Versionen fanden das Gerät deshalb nur, wenn die Namen zusammenpassten. 0.38.175 findet es über die Adresse.</li>
   <li>Prüf, ob sein <b>Bluetooth-Scanner-Modus</b> nicht auf <b>Deaktiviert</b> steht und ob seine Firmware aktuell ist. Hört er dann immer noch nichts, probier einen anderen Modus, zum Beispiel <b>Passiv</b>.</li>
   <li>Hört er Geräte, aber die Kalibrierung in PadSpan zeigt für ihn keine Signalstärken, öffne in PadSpan <b>Manage → HA Entities → BLE Proxy Compatibility</b> und hak <b>Enable aggressive BLE reseed (5s) for passive proxy scanners</b> an. Das umgeht eine Änderung in Home Assistant 2026.4, durch die wiederholte Messwerte von Scannern, die nur zuhören, zurückgehalten werden.</li>
 </ul>

@@ -101,8 +101,9 @@ footer p{margin:4px 0}
   <li>Shellys only listen; they can't hold a Bluetooth connection. Presence only needs listening, but a device Home Assistant has to connect to needs a proxy that can.</li>
 </ul>
 
-<h2>A Shelly that hears nothing</h2>
+<h2>A Shelly that hears nothing, or has no room</h2>
 <ul>
+  <li><b>It shows up without a room although its device has an area?</b> Update to PadSpan 0.38.175 or later (a beta for now). Home Assistant gives a Shelly's scanner the Shelly's Bluetooth address, not the one its device is filed under, so earlier versions found the device only when the names lined up. 0.38.175 finds it by address.</li>
   <li>Check that its <b>Bluetooth scanner mode</b> isn't <b>Disabled</b> and that its firmware is up to date. If it still hears nothing, try another mode, such as <b>Passive</b>.</li>
   <li>If it hears devices but PadSpan's calibration shows no signal strengths for it, open <b>Manage → HA Entities → BLE Proxy Compatibility</b> in PadSpan and tick <b>Enable aggressive BLE reseed (5s) for passive proxy scanners</b>. It works around a change in Home Assistant 2026.4 that holds back repeat readings from scanners that only listen.</li>
 </ul>
