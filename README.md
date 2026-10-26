@@ -10,7 +10,7 @@ PadSpan™ HA goes far beyond "home or away." It tells you **which room** every 
 
 🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
 
-📖 **Guides:** [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/)
+📖 **Guides:** [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/)
 
 🎁 **PadSpan Pro free:** testers get two years of Pro while the anonymous usage report stays on ([how](#become-a-tester-separate-from-the-usage-report)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
 

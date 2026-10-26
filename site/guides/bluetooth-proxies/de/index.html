@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wie viele Bluetooth-Proxys brauche ich für die Raumerkennung? | PadSpan HA</title>
+<meta name="description" content="Ein Bluetooth-Proxy sagt dir „zu Hause oder weg“. Für Räume stell einen in jeden Raum, den du unterscheiden willst. Was drei oder mehr auf einer Etage zusätzlich bringen, welche ESP32-Boards funktionieren, wo sie hinkommen und wie du die Räume findest, die noch einen brauchen.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/bluetooth-proxies/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/bluetooth-proxies/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/bluetooth-proxies/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/bluetooth-proxies/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="Wie viele Bluetooth-Proxys brauche ich?">
+<meta property="og:description" content="Einer bringt dir „zu Hause oder weg“. Einer in jedem Raum bringt dir Räume. Was du mit mehr Proxys gewinnst, welche Boards funktionieren und wo sie hinkommen.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/bluetooth-proxies/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/demo/">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/bluetooth-proxies/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1>Wie viele Bluetooth-Proxys brauche ich?</h1>
+<p class="lead">Einen in jedem Raum, den du unterscheiden willst. Das ist die kurze Antwort, wenn es um Raumerkennung in Home Assistant geht. Der Rest dieser Seite handelt davon, wann weniger reichen, welche Boards funktionieren, wo sie hinkommen und wie du siehst, welche Räume noch einen brauchen.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan in HACS öffnen</a>
+</div>
+
+<h2>Was dir welche Anzahl bringt</h2>
+<table>
+  <tr><th>Proxys</th><th>Was du bekommst</th></tr>
+  <tr><td>Einer im ganzen Haus</td><td>Zu Hause oder weg, keine Räume. Alles, was er hört, wird seinem Raum zugeordnet.</td></tr>
+  <tr><td>Einer in jedem Raum, den du unterscheiden willst</td><td>Räume. Jedes Gerät kommt in den Raum, dessen Proxy es am besten hört, wie auch bei Bermuda. Eine offene Küche mit Wohnbereich zählt als ein Raum, es sei denn, jedes Ende hat seinen eigenen Proxy.</td></tr>
+  <tr><td>Drei oder mehr auf einer Etage, auf einem vermessenen Grundriss platziert</td><td>PadSpan kann zusätzlich berechnen, wo zwischen den Proxys ein Gerät ist, und es so einem Raum ohne eigenen Proxy zuordnen, etwa einer Abstellkammer oder einem Flur.</td></tr>
+</table>
+<p><b>Jede Etage zählt für sich.</b> PadSpan ortet ein Gerät mit den Proxys auf dessen Etage, wenn dort mindestens drei sind. Nur wenn es weniger sind, leiht sich PadSpan Proxys von anderen Etagen aus und behandelt dabei jede Etage dazwischen als großen Signalabfall.</p>
+<p><b>Die Kalibrierung ist optional und macht die Räume genauer.</b> Du stellst dich in jedem Raum an 2 oder 3 Stellen, je 15 Sekunden lang; bei einem Haus mit zehn Räumen sind das etwa 15 bis 30 Minuten. Wo PadSpan die Räume nach dem nächstgelegenen Proxy wählt, vergleicht es die Live-Messwerte damit, wie sich jede kalibrierte Stelle angehört hat, sobald es fünf oder mehr Stellen hat und mindestens zwei Proxys das Gerät hören. Stimmen beide eng überein, korrigiert es den Raum.</p>
+
+<h2>Was du kaufen solltest</h2>
+<ul>
+  <li><b>Ein ESP32-S3-Board mit externer Antenne:</b> ein kleiner IPEX-Anschluss (u.FL) und eine 2,4-GHz-Antenne. Auf dem Board läuft der Bluetooth-Proxy von ESPHome. Home Assistant erkennt solche Boards von selbst, und PadSpan und Bermuda können sie sich teilen.</li>
+  <li><b>Die Antenne zählt mehr als der Chip.</b> PadSpans Entwickler hat mehr als 20 ESP32-Boards getestet. Boards mit nur der winzigen, auf die Platine gedruckten Antenne lieferten Messwerte, die zu stark rauschten, um Räume zu unterscheiden. Zwei Räume können nur 7 dB auseinanderliegen, und eine verrauschte Antenne lässt diese Entscheidung zufällig kippen.</li>
+  <li><b>WLAN reicht.</b> In diesen Tests haben Boards mit Ethernet die Geräte nicht spürbar besser geortet als Boards im WLAN, auch wenn Ethernet für einen Proxy sinnvoll ist, der immer am selben Platz bleibt.</li>
+  <li><b>Ältere ESP32-Boards ohne externe Antenne</b> reichen für „zu Hause oder weg“, sind für Räume aber zu unbeständig.</li>
+  <li><b>Du hast schon ESPresense oder Tasmota?</b> ESPresense-Knoten funktionieren über MQTT, und Tasmota-Geräte mit Bluetooth können auch Proxys sein (experimentell).</li>
+</ul>
+
+<h2>Wo sie hinkommen</h2>
+<ul>
+  <li>In die Räume, die du unterscheiden willst, nicht in Flure.</li>
+  <li>Näher zur Raummitte als zu einer Ecke und nicht hinter große Metallgegenstände, in Schränke oder direkt an eine Außenwand.</li>
+  <li>Nah genug beieinander, dass sich die Abdeckung benachbarter Proxys ein wenig überlappt.</li>
+  <li>In einem großen Raum ist ein Proxy das Minimum; zwei sind spürbar besser.</li>
+  <li>Sag PadSpan, wo jeder Proxy wirklich ist: Platzier ihn auf deinem Grundriss und stell unter <b>Calibration → Tune</b> seine Höhe über dem Boden ein (das Feld steht anfangs auf 2,4 m).</li>
+</ul>
+
+<h2>Handys brauchen einen Schritt mehr</h2>
+<p>Proxys hören Tracker und Beacons sofort. Handys wechseln ihre Bluetooth-Adresse regelmäßig, damit man sie nicht verfolgen kann. Deshalb braucht PadSpan ein wenig Hilfe, um zu wissen, welches Handy welches ist. iPhones und Apple Watches brauchen ihren Schlüssel (den IRK); bei neuen Installationen sind PadSpans Schritte zur iPhone-Einrichtung von Anfang an eingeschaltet. Android-Handys brauchen nur den BLE Transmitter der Home Assistant Companion App.</p>
+
+<h2>Finde die Räume, die noch einen Proxy brauchen</h2>
+<p>Das alles ist kostenlos:</p>
+<ul>
+  <li><b>Calibration → Model</b> zeigt, wie oft PadSpan an Stellen, an denen nicht kalibriert wurde, den richtigen Raum trifft (ab Version 0.38.166). Schneidet ein Raum immer wieder schlecht ab, ist das der erste Ort, an dem du einen Proxy hinzufügen oder versetzen solltest.</li>
+  <li><b>Calibration → Roam</b> zeigt, wo du bisher kalibriert hast, und sagt dir, an welche Stelle du dich als Nächstes stellen sollst.</li>
+  <li><b>Health</b> warnt, wenn die Zuverlässigkeit eines Proxys unter 70 % fällt, und ab 0.38.166 auch, wenn ein Proxy seit über 10 Minuten weit weniger Bluetooth-Advertisements hört als sonst, während die anderen normal laufen. Oft hilft es, ihn neu zu starten.</li>
+  <li><b>Walk a room</b> gibt es in der Beta 0.38.167 (<b>Settings → Presence</b>, standardmäßig aus). Es zeichnet einen Rundgang von 90 Sekunden durch einen Raum auf und zeigt die Trefferquote davor und danach.</li>
+</ul>
+
+<h2>Fang mit dem an, was du hast</h2>
+<p>Du musst nicht erst alles kaufen. PadSpan nutzt alle Proxys, die Home Assistant schon sieht, und startet mit Beispieldaten, damit du dich umsehen kannst, bevor du irgendetwas platzierst. Ergänze Proxys dort, wo die Trefferquoten es dir sagen.</p>
+<p>Du nutzt schon Bermuda? <a href="/guides/bermuda/de/">Bermuda und PadSpan zusammen</a> erklärt, wie sich die beiden dieselben Proxys teilen.</p>
+<p>Geräte springen zwischen Räumen hin und her? Woran das liegt und was hilft, steht in <a href="/guides/room-flapping/">Why does my phone jump between rooms?</a> (englisch).</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="/de/">Über PadSpan</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · Bermuda ist ein eigenständiges Open-Source-Projekt seiner Autoren.</p>
+</div></footer>
+</body>
+</html>
