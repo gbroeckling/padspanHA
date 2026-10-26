@@ -4,6 +4,25 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.172 — Vacation Mode options and a status entity (2026-10-26)
+
+Nothing changes until you set an option: an install that never opens Options runs Vacation Mode exactly as before.
+
+### New
+- **Vacation Mode options.** Open them from the banner's **Options** button, or with **Options** beside Apply while 🌴 Vacation Mode is picked in Whole house. These are the features the common away-lighting products have (Hue, Lutron, Kasa, Hubitat and others), on top of the routine PadSpan learns from your own house:
+  - **Only after dark**: lights go on only after sunset (or 30 minutes before it, or up to 2 hours after it) and before sunrise. Lights it would have turned on during the day stay off.
+  - **Ends**: set a date and time and it turns itself off then. You get a notification saying it ended as planned; the banner shows the end.
+  - **Pause while someone is home**: while anyone in Home Assistant's People is at home, nothing is switched, and nothing is forced off. It picks up again when they leave.
+  - **Bedtime**: every light it runs goes off from about that time until 5 am. The time moves up to 20 minutes either way each night, so the house doesn't go dark at the same minute every night.
+  - **Longest on**: a light it turned on goes off after 1 to 6 hours, and stays off as long.
+- **`binary_sensor.padspan_vacation_mode`**: on while Vacation Mode runs. Its attributes give when it started, when it ends, which routine it runs, the options, whether it's paused because someone is home, and who last turned it off. The **`padspan_ha_vacation_mode`** event fires on every change, with `on` and `how` (`panel`, `resumed`, `end_date`, `reset`, `paused_home`, `unpaused`), for your own automations (an alarm armed with it, a message of your own).
+- The options and the end date need an administrator account, like turning Vacation Mode on or off. A backup restore keeps the live end date.
+
+### Opt-in report
+- For installs that use Vacation Mode: which of the five options are on (yes/no), and "ended on its end date" as a way it went off. Counted: ended on its end date, paused because someone came home, and, once a day each, the after-dark, bedtime and longest-on rules holding a light off.
+
+---
+
 ## 0.38.171 — Vacation Mode can't be switched off by accident (2026-10-25)
 
 One tap on the Vacation Mode banner turned it off mid-trip at a real house, and the lights stayed off for 11 days with nobody told.

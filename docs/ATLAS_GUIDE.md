@@ -59,7 +59,18 @@ The **presets bar** saves a whole look — Showcase theme, Automorph style, and 
 
 **Whole House Presets** is a different kind of preset, right beside it: instead of the map's *look*, **Set** remembers every light and fan's real state — on/off, brightness, colour, effect, fan speed — and **Apply** puts the whole house back exactly that way, including turning off anything that was off when it was saved. It asks you to confirm before applying, since it changes every light and fan at once. Locks are never included.
 
-**🌴 Vacation Mode** is the one permanent entry at the top of that same list — it isn't a saved snapshot. Instead it learns your house's own real day-to-day pattern from Home Assistant's own history (per light, per day of the week) and keeps turning lights on and off to match it — randomly, not on a fixed schedule, so it doesn't look mechanical — until you disable it. Turning it on shows a banner at the top of every tab with an **Energy saving** slider: 100% replays the full pattern, lower settings scale down how much comes on at once, so it can double as a lighter-footprint mode as well as an away-from-home one. Requires an administrator account to turn on.
+**🌴 Vacation Mode** is the one permanent entry at the top of that same list. It isn't a saved snapshot: it learns your house's own day-to-day routine from Home Assistant's history (per light, per day of the week) and keeps switching lights to match it, with some randomness so it doesn't look like a timer, until you turn it off. While it's on, a banner sits in the middle of both Atlas screens with an **Energy saving** slider (100% follows the full routine; lower settings light less at once). Turning it on or off needs an administrator account.
+
+- **Turning it off asks first.** Disable asks "Turn off Vacation Mode?", with **Turn off** at the far left and **Keep it on** where Disable was, so a stray second tap keeps it on. When it does go off, Home Assistant shows a notification saying when, who, and from which app or browser, and the same message goes to the phones or email your Follow alerts use.
+- **Turned back on within 3 weeks of a trip**, it carries on with that trip's routine rather than learning from the days the house sat empty. The banner says "same routine as the last trip".
+- **Options** (on the banner, or beside Apply while Vacation Mode is picked), each off until you set it:
+  - **Only after dark**: lights go on only after sunset (or a set time after it) and before sunrise.
+  - **Ends**: a date and time; it turns itself off then, and tells you.
+  - **Pause while someone is home**: anyone in Home Assistant's People at home, and nothing is switched until they leave. Nothing is forced off.
+  - **Bedtime**: every light it runs goes off from about then until 5 am; the time moves up to 20 minutes either way each night.
+  - **Longest on**: a light it turned on goes off after this long, and stays off as long.
+- **For your own automations:** `binary_sensor.padspan_vacation_mode` is on while it runs (its attributes give the start, the end, which routine, the options, whether it's paused, and who last turned it off), and the `padspan_ha_vacation_mode` event fires on every change with `on` and `how`.
+- Restoring a PadSpan backup leaves Vacation Mode as it is.
 
 ## Outdoor weather
 
