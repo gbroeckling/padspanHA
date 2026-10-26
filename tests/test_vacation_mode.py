@@ -942,7 +942,8 @@ def test_the_report_says_how_vacation_mode_runs_in_closed_words_only_where_used(
     log = [[start + 3600 * i, "light.a", i % 2] for i in range(8 * 24)]      # 24 a day for 8 days
     home = report_buckets(trip, log, now)
     assert home == {"on": "no", "intensity": "50-70", "switches_day": "11-50", "trips_60d": "1",
-                    "last_trip_days": "8-14", "last_off": "panel"}
+                    "last_trip_days": "8-14", "last_off": "panel", "after_dark": "no", "end_date": "no",
+                    "pause_home": "no", "bedtime": "no", "max_on": "no"}
     running = {**trip, **switch_fields(trip, True, now), "vacation_mode_enabled": True}
     away = report_buckets(running, log, now + 86400)
     assert away["on"] == "yes" and away["pattern"] == "resumed" and away["lights"] == "1-5"
@@ -952,3 +953,153 @@ def test_the_report_says_how_vacation_mode_runs_in_closed_words_only_where_used(
     # Nothing a person typed reaches it: no names, no apps.
     assert "Nicole" not in str(home) and "Android" not in str(home)
     T.assert_shareable({"schema": 1, "env": {"vacation": away}}) if hasattr(T, "assert_shareable") else None
+
+
+# ═══ trip options (0.38.172) — each off until set ════════════════════════════
+
+def test_options_only_ever_turn_an_on_into_an_off_and_none_act_unset():
+    from custom_components.padspan_ha.vacation_mode import apply_options
+    at = datetime(2026, 10, 27, 14, 0)
+    dec = {"light.a": True, "light.b": False}
+    out, used = apply_options(dec, data={}, now_ts=at.timestamp(), at_local=at, dark=False, on_since={}, capped={})
+    assert out == dec and used == set()
+    out, used = apply_options(dec, data={"vacation_mode_dark_only": True}, now_ts=at.timestamp(), at_local=at,
+                              dark=False, on_since={}, capped={})
+    assert out == {"light.a": False, "light.b": False} and used == {"dark"}
+    # Dark, or the sun unknown (polar, no location): the pattern decides.
+    for dark in (True, None):
+        out, _ = apply_options(dec, data={"vacation_mode_dark_only": True}, now_ts=at.timestamp(), at_local=at,
+                               dark=dark, on_since={}, capped={})
+        assert out == dec
+
+
+def test_after_dark_uses_todays_sunset_and_sunrise_with_the_offset():
+    from custom_components.padspan_ha.vacation_mode import is_dark
+    rise, sset = 1000.0 * 60, 2000.0 * 60
+    assert is_dark(1500 * 60, rise, sset, 0) is False
+    assert is_dark(2001 * 60, rise, sset, 0) is True
+    assert is_dark(2010 * 60, rise, sset, 30) is False      # 30 min after sunset: not yet
+    assert is_dark(2031 * 60, rise, sset, 30) is True
+    assert is_dark(960 * 60, rise, sset, 30) is True         # before sunrise - 30
+    assert is_dark(1500 * 60, None, sset, 0) is None
+
+
+def test_bedtime_runs_to_five_with_a_nightly_jitter_and_rejects_daytimes():
+    from custom_components.padspan_ha.vacation_mode import BEDTIME_JITTER_MIN, bedtime_minutes, in_bedtime
+    assert bedtime_minutes("23:30") == 1410 and bedtime_minutes("01:15") == 75
+    for bad in ("12:00", "07:30", "25:00", "2330", "", None, "ab:cd"):
+        assert bedtime_minutes(bad) is None
+    night = datetime(2026, 10, 27, 0, 0)
+    assert in_bedtime(night.replace(hour=3), "23:30")                  # small hours: still bedtime
+    assert not in_bedtime(night.replace(hour=5, minute=1), "23:30")    # past 05:00
+    assert not in_bedtime(datetime(2026, 10, 26, 22, 0), "23:30")      # an hour before, even with jitter
+    assert in_bedtime(datetime(2026, 10, 26, 23, 30 + BEDTIME_JITTER_MIN), "23:30")
+    # A new draw each night: over two weeks, more than one start time.
+    starts = set()
+    for d in range(1, 15):
+        for m in range(-BEDTIME_JITTER_MIN, BEDTIME_JITTER_MIN + 1):
+            t = datetime(2026, 11, d, 23, 30) + timedelta(minutes=m)
+            if in_bedtime(t, "23:30"):
+                starts.add(m)
+                break
+    assert len(starts) > 1
+    assert not in_bedtime(datetime(2026, 10, 26, 23, 59), "")
+
+
+def test_max_on_time_turns_its_own_light_off_and_rests_it_as_long():
+    from custom_components.padspan_ha.vacation_mode import apply_options, on_since_from_log
+    at = datetime(2026, 10, 27, 20, 0)
+    now = at.timestamp()
+    log = [[now - 4 * 3600, "light.a", 1], [now - 3600, "light.b", 1], [now - 7200, "light.c", 1], [now - 600, "light.c", 0]]
+    since = on_since_from_log(log, {"light.a", "light.b", "light.c"})
+    assert since == {"light.a": now - 4 * 3600, "light.b": now - 3600}
+    capped: dict = {}
+    data = {"vacation_mode_max_on_min": 180}
+    out, used = apply_options({"light.a": True, "light.b": True}, data=data, now_ts=now, at_local=at, dark=None,
+                              on_since=since, capped=capped)
+    assert out == {"light.a": False, "light.b": True} and used == {"max_on"}
+    assert capped["light.a"] == now + 180 * 60
+    # Off now, the pattern asks again an hour later: it rests.
+    out, _ = apply_options({"light.a": True}, data=data, now_ts=now + 3600, at_local=at, dark=None,
+                           on_since={}, capped=capped)
+    assert out == {"light.a": False}
+    out, _ = apply_options({"light.a": True}, data=data, now_ts=now + 181 * 60, at_local=at, dark=None,
+                           on_since={}, capped=capped)
+    assert out == {"light.a": True}
+
+
+async def test_the_trip_ends_on_its_end_date_and_says_so(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    from homeassistant.util import dt as dt_util
+    now = dt_util.utcnow().timestamp()                  # conftest.py's fixed clock
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=now - 86400, vacation_mode_periods=[],
+                   vacation_mode_end_at=now - 60)
+    hass = _hass(st)
+    hass.bus = SimpleNamespace(async_fire=MagicMock())
+    made = []
+    hass.async_create_task = lambda coro: (made.append(coro.cr_code.co_name), coro.close())
+    await vm._async_tick(hass)
+    assert st.data["vacation_mode_enabled"] is False and st.data["vacation_mode_end_at"] == 0
+    assert st.data["vacation_mode_last_off"]["how"] == "end_date"
+    assert st.data["vacation_mode_periods"] == [[now - 86400, now]]
+    hass.bus.async_fire.assert_called_with(vm.EVENT_VACATION, {"on": False, "how": "end_date"})
+    assert "async_notify_turned_off" in made
+    hass.services.async_call.assert_not_called()
+    assert "on the end date" in vm.off_message({"how": "end_date"}, "Oct 31, 18:00")
+
+
+async def test_someone_home_pauses_switching_and_never_forces_lights_off(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    now = datetime(2026, 1, 15, 12, 0, 0).timestamp()
+    st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=now, vacation_mode_pause_home=True,
+                   vacation_mode_pattern={"light.a": {"*:1200": 0.0}}, vacation_mode_pattern_until=now)
+    states = _states(**{"light.a": "on"})
+    person = SimpleNamespace(state="home", entity_id="person.nicole")
+    hass = _hass(st, states)
+    hass.states.async_all = lambda domain=None: [person] if domain == "person" else []
+    hass.bus = SimpleNamespace(async_fire=MagicMock())
+    await vm._async_tick(hass)
+    hass.services.async_call.assert_not_called()          # the pattern says off; someone home: left alone
+    assert hass.data[DOMAIN][vm._VM_PAUSED] is True
+    hass.bus.async_fire.assert_called_with(vm.EVENT_VACATION, {"on": True, "how": "paused_home"})
+    person.state = "not_home"
+    await vm._async_tick(hass)
+    hass.services.async_call.assert_any_call("light", "turn_off", {"entity_id": "light.a"})
+    assert vm._VM_PAUSED not in hass.data[DOMAIN]
+
+
+def test_the_options_are_validated_admin_only_and_reach_the_status_entity(monkeypatch):
+    import time as _t
+    from custom_components.padspan_ha import ws_settings as WS
+    from custom_components.padspan_ha.vacation_mode import status_attributes
+    from tests.test_house3d_store import _house, _run
+    h = _house()
+    st = h.data[DOMAIN][DATA_SETTINGS]
+
+    async def _set(**kw):
+        st.data.update(kw)
+    st.async_set = _set
+    conn = MagicMock()
+    conn.user = MagicMock(is_admin=True)
+    end = _t.time() + 5 * 86400
+    _run(WS.ws_settings_set(h, conn, {"id": 1, "vacation_mode_dark_only": True, "vacation_mode_dark_offset_min": 500,
+                                      "vacation_mode_end_at": end, "vacation_mode_pause_home": True,
+                                      "vacation_mode_bedtime": "23:30", "vacation_mode_max_on_min": 5}))
+    d = st.data
+    assert d["vacation_mode_dark_only"] is True and d["vacation_mode_dark_offset_min"] == 120
+    assert d["vacation_mode_end_at"] == end and d["vacation_mode_pause_home"] is True
+    assert d["vacation_mode_bedtime"] == "23:30" and d["vacation_mode_max_on_min"] == 15
+    for bad in ({"vacation_mode_bedtime": "12:00"}, {"vacation_mode_end_at": _t.time() - 60},
+                {"vacation_mode_end_at": _t.time() + 400 * 86400}):
+        conn.send_error.reset_mock()
+        _run(WS.ws_settings_set(h, conn, {"id": 2, **bad}))
+        conn.send_error.assert_called_once()
+    _run(WS.ws_settings_set(h, conn, {"id": 3, "vacation_mode_end_at": 0, "vacation_mode_max_on_min": 0}))
+    assert d["vacation_mode_end_at"] == 0 and d["vacation_mode_max_on_min"] == 0
+    conn2 = MagicMock()
+    conn2.user = MagicMock(is_admin=False)
+    _run(WS.ws_settings_set(h, conn2, {"id": 4, "vacation_mode_pause_home": False}))
+    conn2.send_error.assert_called_once()
+    assert d["vacation_mode_pause_home"] is True
+    a = status_attributes(h, {**d, "vacation_mode_enabled": False})
+    assert a["after_dark_only"] and a["pause_when_home"] and a["bedtime"] == "23:30" and a["since"] is None

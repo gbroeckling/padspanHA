@@ -456,6 +456,7 @@ STATE_KEYS = {
     "vacation_mode_pattern_built_at": 0, "vacation_mode_pattern_until": 0, "vacation_mode_enabled_at": 0,
     "vacation_mode_periods": [], "vacation_mode_tracked_since": 0, "vacation_mode_pattern_prev": {},
     "vacation_mode_pattern_attempt": [0, 0], "vacation_mode_pattern_for": 0, "vacation_mode_last_off": {},
+    "vacation_mode_end_at": 0,
 }
 
 
@@ -489,6 +490,8 @@ def who_from_connection(hass: HomeAssistant, connection: Any) -> dict:
 
 def off_message(who: dict, when: str) -> str:
     """The turned-off notice, for the HA notification and the alert targets."""
+    if who.get("how") == "end_date":
+        return f"Vacation Mode ended {when}, on the end date set for it."
     if who.get("how") == "reset":
         cause = "by a PadSpan factory reset"
     else:
@@ -506,7 +509,7 @@ async def async_notify_turned_off(hass: HomeAssistant, who: dict, now_ts: float)
 
     local = dt_util.as_local(dt_util.utc_from_timestamp(now_ts))
     when = f"{local.strftime('%b')} {local.day}, {local.strftime('%H:%M')}"
-    title = "PadSpan: Vacation Mode turned off"
+    title = "PadSpan: Vacation Mode ended" if who.get("how") == "end_date" else "PadSpan: Vacation Mode turned off"
     message = off_message(who, when)
     try:
         from homeassistant.components.persistent_notification import async_create  # noqa: PLC0415
@@ -598,7 +601,12 @@ REPORT_WORDS = {
     "switches_day": ("0", "1-10", "11-50", "51-200", "201+"),
     "trips_60d": ("0", "1", "2-3", "4+"),
     "last_trip_days": ("<1", "1-3", "4-7", "8-14", "15+"),
-    "last_off": ("panel", "reset", "none"),
+    "last_off": ("panel", "reset", "end_date", "none"),
+    "after_dark": ("yes", "no"),
+    "end_date": ("yes", "no"),
+    "pause_home": ("yes", "no"),
+    "bedtime": ("yes", "no"),
+    "max_on": ("yes", "no"),
 }
 
 
@@ -608,6 +616,15 @@ def _bucket(n: float, edges: tuple, words: tuple) -> str:
         if n <= edge:
             return word
     return words[-1]
+
+
+def routine_word(data: dict) -> str:
+    """Which routine a running vacation switches on: its own, the last
+    trip's (resumed), the stand-in while its own is not built, or none yet."""
+    enabled_at = data.get("vacation_mode_enabled_at") or 0
+    if pattern_serves(data):
+        return "resumed" if enabled_at and data.get("vacation_mode_pattern_for") == enabled_at else "own"
+    return "standin" if data.get("vacation_mode_pattern_prev") else "none"
 
 
 def report_buckets(data: dict, log_entries: list, now_ts: float) -> dict | None:
@@ -625,15 +642,9 @@ def report_buckets(data: dict, log_entries: list, now_ts: float) -> dict | None:
            "intensity": _bucket(pct, (20, 45, 70, 95), ("5-20", "25-45", "50-70", "75-95", "100"))}
     enabled_at = data.get("vacation_mode_enabled_at") or 0
     if on:
-        if pattern_serves(data):
-            pat = data.get("vacation_mode_pattern") or {}
-            out["pattern"] = "resumed" if data.get("vacation_mode_pattern_for") == enabled_at and enabled_at else "own"
-        elif data.get("vacation_mode_pattern_prev"):
-            pat = data["vacation_mode_pattern_prev"]
-            out["pattern"] = "standin"
-        else:
-            pat = {}
-            out["pattern"] = "none"
+        out["pattern"] = routine_word(data)
+        pat = {"own": data.get("vacation_mode_pattern"), "resumed": data.get("vacation_mode_pattern"),
+               "standin": data.get("vacation_mode_pattern_prev")}.get(out["pattern"]) or {}
         out["lights"] = _bucket(len(pat), (0, 5, 15, 40), ("0", "1-5", "6-15", "16-40", "41+"))
         span = (enabled_at, now_ts)
     else:
@@ -647,8 +658,242 @@ def report_buckets(data: dict, log_entries: list, now_ts: float) -> dict | None:
         last = (periods[-1][1] - periods[-1][0]) / 86400
         out["last_trip_days"] = _bucket(last, (1, 3, 7, 14), ("<1", "1-3", "4-7", "8-14", "15+"))
     how = (data.get("vacation_mode_last_off") or {}).get("how")
-    out["last_off"] = how if how in ("panel", "reset") else "none"
+    out["last_off"] = how if how in ("panel", "reset", "end_date") else "none"
+    yes = lambda v: "yes" if v else "no"  # noqa: E731
+    out["after_dark"] = yes(data.get("vacation_mode_dark_only"))
+    out["end_date"] = yes(data.get("vacation_mode_end_at"))
+    out["pause_home"] = yes(data.get("vacation_mode_pause_home"))
+    out["bedtime"] = yes(bedtime_minutes(data.get("vacation_mode_bedtime")) is not None)
+    out["max_on"] = yes(data.get("vacation_mode_max_on_min"))
     return out
+
+
+# ── Trip options (0.38.172) — every one off until set ───────────────────────
+# What the common away-lighting products offer around the same idea (Hue's
+# Mimic presence and Kasa's Away Mode switch only after dark, Vacation
+# Lighting Director stops while anyone is home, Lutron's Smart Away has an
+# end time), on top of the routine this module learns. Each narrows what the
+# pattern asks for; none ever turns a light on that the pattern did not.
+OPTION_DEFAULTS = {
+    "vacation_mode_dark_only": False,     # lights go on only after sunset (+ offset) and before sunrise (- offset)
+    "vacation_mode_dark_offset_min": 0,   # -60..120 minutes; positive waits longer after sunset
+    "vacation_mode_end_at": 0,            # epoch-s the trip ends: Vacation Mode turns itself off then; 0 = no end
+    "vacation_mode_pause_home": False,    # anyone's person.* at home: nothing is switched until they leave
+    "vacation_mode_bedtime": "",          # "HH:MM": every light it runs goes off from then (±20 min, a new draw each night) until 05:00
+    "vacation_mode_max_on_min": 0,        # 0 = no limit; else a light it turned on goes off after this many minutes, and rests as long
+}
+DARK_OFFSET_RANGE = (-60, 120)
+MAX_ON_RANGE = (15, 720)
+BEDTIME_JITTER_MIN = 20
+BEDTIME_UNTIL_MIN = 5 * 60
+END_AT_MAX_S = 366 * 86400
+# The tick's in-memory state (lost on restart, rebuilt from the log or begun again).
+_VM_CAPPED = "_vacation_mode_capped"      # {entity_id: epoch-s} — rests until then (max on-time)
+_VM_PAUSED = "_vacation_mode_paused"      # True while paused because someone is home
+_VM_RULE_DAY = "_vacation_mode_rule_day"  # {rule: local date} — each rule counted once a day
+SIGNAL_VACATION = "padspan_ha_vacation_update"   # dispatcher: the status entity re-reads
+EVENT_VACATION = "padspan_ha_vacation_mode"      # bus: {on, how} on every change
+
+
+def bedtime_minutes(value: Any) -> int | None:
+    """Minute of the day for an "HH:MM" bedtime between 17:00 and 03:00, else
+    None (empty, malformed, or a time of day that is not a bedtime)."""
+    if not isinstance(value, str) or len(value) != 5 or value[2] != ":":
+        return None
+    try:
+        h, m = int(value[:2]), int(value[3:])
+    except ValueError:
+        return None
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        return None
+    mins = h * 60 + m
+    return mins if mins >= 17 * 60 or mins <= 3 * 60 else None
+
+
+def _night_jitter(night: str) -> int:
+    """-BEDTIME_JITTER_MIN..+BEDTIME_JITTER_MIN, the same all night, a new
+    one each night: a house that goes dark at 23:30 sharp every night reads as
+    a timer."""
+    import hashlib  # noqa: PLC0415
+    h = hashlib.blake2b(f"bedtime|{night}".encode(), digest_size=4).digest()
+    return int.from_bytes(h, "big") % (2 * BEDTIME_JITTER_MIN + 1) - BEDTIME_JITTER_MIN
+
+
+def in_bedtime(at: datetime, bedtime: str) -> bool:
+    """True from tonight's bedtime (with its jitter) until 05:00. `at` is
+    local time; the small hours belong to the night that began the evening
+    before."""
+    base = bedtime_minutes(bedtime)
+    if base is None:
+        return False
+    night = (at - timedelta(hours=12)).date().isoformat()
+    start = (base + _night_jitter(night)) % 1440
+    t = at.hour * 60 + at.minute
+    if start > BEDTIME_UNTIL_MIN:          # an evening bedtime: on past midnight
+        return t >= start or t < BEDTIME_UNTIL_MIN
+    return start <= t < BEDTIME_UNTIL_MIN
+
+
+def is_dark(now_ts: float, sunrise_ts: float | None, sunset_ts: float | None, offset_min: float) -> bool | None:
+    """Dark enough for lights: after today's sunset + offset, or before
+    today's sunrise - offset. None when the sun times are unknown (polar
+    day or night, no location)."""
+    if sunrise_ts is None or sunset_ts is None:
+        return None
+    off = (offset_min or 0) * 60
+    return now_ts >= sunset_ts + off or now_ts < sunrise_ts - off
+
+
+def apply_options(decisions: dict[str, bool], *, data: dict, now_ts: float, at_local: datetime,
+                  dark: bool | None, on_since: dict[str, float], capped: dict[str, float]) -> tuple[dict, set]:
+    """The trip options over the pattern's decisions — pure. Returns the
+    decisions and which rules changed any (for the report). An option only
+    ever turns an "on" into an "off": nothing here lights anything."""
+    out = dict(decisions)
+    used: set[str] = set()
+
+    def hold(eid: str, rule: str) -> None:
+        if out.get(eid):
+            out[eid] = False
+            used.add(rule)
+
+    if data.get("vacation_mode_dark_only") and dark is False:
+        for eid in list(out):
+            hold(eid, "dark")
+    if in_bedtime(at_local, data.get("vacation_mode_bedtime") or ""):
+        for eid in list(out):
+            hold(eid, "bedtime")
+    max_on = data.get("vacation_mode_max_on_min") or 0
+    if isinstance(max_on, (int, float)) and not isinstance(max_on, bool) and max_on > 0:
+        for eid in list(out):
+            if capped.get(eid, 0) > now_ts:
+                hold(eid, "max_on")
+            elif eid in on_since and now_ts - on_since[eid] >= max_on * 60:
+                hold(eid, "max_on")
+                capped[eid] = now_ts + max_on * 60
+    return out, used
+
+
+def someone_home(hass: HomeAssistant) -> bool:
+    """Any person.* entity at home."""
+    try:
+        return any(s.state == "home" for s in hass.states.async_all("person"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _sun_times(hass: HomeAssistant, at_local: datetime) -> tuple[float | None, float | None]:
+    """Today's sunrise and sunset (epoch-s) at the house, or (None, None)."""
+    try:
+        from homeassistant.helpers.sun import get_astral_event_date  # noqa: PLC0415
+        rise = get_astral_event_date(hass, "sunrise", at_local.date())
+        sset = get_astral_event_date(hass, "sunset", at_local.date())
+        return (rise.timestamp() if rise else None, sset.timestamp() if sset else None)
+    except Exception:  # noqa: BLE001
+        return (None, None)
+
+
+def _dark_now(hass: HomeAssistant, now_ts: float, at_local: datetime, offset_min: float) -> bool | None:
+    rise, sset = _sun_times(hass, at_local)
+    dark = is_dark(now_ts, rise, sset, offset_min)
+    if dark is None:
+        # Polar day or night, or no sun helper: sun.sun says which.
+        sun = hass.states.get("sun.sun") if hasattr(hass, "states") else None
+        if sun is not None and sun.state in ("above_horizon", "below_horizon"):
+            return sun.state == "below_horizon"
+    return dark
+
+
+def on_since_from_log(entries: list, eids: set) -> dict[str, float]:
+    """When Vacation Mode last turned each light on, if that is still the last
+    thing it did to it (the max on-time counts from there)."""
+    out: dict[str, float] = {}
+    seen: set[str] = set()
+    for e in reversed(entries or []):
+        if not isinstance(e, (list, tuple)) or len(e) != 3:
+            continue
+        ts, eid, on = e
+        if eid in seen or eid not in eids:
+            continue
+        seen.add(eid)
+        if on:
+            out[eid] = ts
+    return out
+
+
+def announce(hass: HomeAssistant, on: bool, how: str) -> None:
+    """Tell automations and the status entity: an event on HA's bus, and a
+    signal binary_sensor.padspan_vacation_mode re-reads on."""
+    try:
+        hass.bus.async_fire(EVENT_VACATION, {"on": bool(on), "how": how})
+    except Exception:  # noqa: BLE001
+        pass
+    refresh_status(hass)
+
+
+def status_attributes(hass: HomeAssistant, data: dict) -> dict:
+    """binary_sensor.padspan_vacation_mode's attributes."""
+    from homeassistant.util import dt as dt_util  # noqa: PLC0415
+
+    def iso(ts: Any) -> str | None:
+        return dt_util.utc_from_timestamp(ts).isoformat() if isinstance(ts, (int, float)) and ts > 0 else None
+    on = bool(data.get("vacation_mode_enabled"))
+    last = data.get("vacation_mode_last_off") or {}
+    return {
+        "since": iso(data.get("vacation_mode_enabled_at")) if on else None,
+        "routine": routine_word(data) if on else None,
+        "paused_someone_home": bool(on and (hass.data.get(DOMAIN) or {}).get(_VM_PAUSED)),
+        "ends": iso(data.get("vacation_mode_end_at")),
+        "intensity": data.get("vacation_mode_intensity", 100),
+        "after_dark_only": bool(data.get("vacation_mode_dark_only")),
+        "pause_when_home": bool(data.get("vacation_mode_pause_home")),
+        "bedtime": data.get("vacation_mode_bedtime") or None,
+        "max_on_minutes": data.get("vacation_mode_max_on_min") or None,
+        "last_off": iso(last.get("ts")),
+        "last_off_by": last.get("by") if last.get("how") == "panel" else last.get("how"),
+    }
+
+
+def refresh_status(hass: HomeAssistant) -> None:
+    """binary_sensor.padspan_vacation_mode re-reads (an option changed)."""
+    try:
+        from homeassistant.helpers.dispatcher import async_dispatcher_send  # noqa: PLC0415
+        async_dispatcher_send(hass, SIGNAL_VACATION)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _count_rule_once_a_day(hass: HomeAssistant, rule: str, day: str) -> None:
+    dom = hass.data.setdefault(DOMAIN, {})
+    seen = dom.setdefault(_VM_RULE_DAY, {})
+    if seen.get(rule) == day:
+        return
+    seen[rule] = day
+    try:
+        from .telemetry import bump  # noqa: PLC0415
+        if rule == "dark":
+            bump(hass, "vacation_rule_dark")
+        elif rule == "bedtime":
+            bump(hass, "vacation_rule_bedtime")
+        elif rule == "max_on":
+            bump(hass, "vacation_rule_max_on")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def _async_end_trip(hass: HomeAssistant, st: Any, now_ts: float) -> None:
+    """The trip's end date has come: off, as if Disable were tapped, and the
+    house is told it ended as planned."""
+    who = {"how": "end_date"}
+    await st.async_set(vacation_mode_enabled=False, vacation_mode_end_at=0,
+                       **switch_fields(st.data, False, now_ts, who))
+    try:
+        from .telemetry import bump  # noqa: PLC0415
+        bump(hass, "vacation_off_end_date")
+    except Exception:  # noqa: BLE001
+        pass
+    announce(hass, False, "end_date")
+    hass.async_create_task(async_notify_turned_off(hass, who, now_ts))
 
 
 class VacationLog:
@@ -689,6 +934,24 @@ async def _async_tick(hass: HomeAssistant) -> None:
     st = dom.get(DATA_SETTINGS)
     if not st or not st.data.get("vacation_mode_enabled"):
         return
+    now_ts = dt_util.utcnow().timestamp()
+    end_at = st.data.get("vacation_mode_end_at") or 0
+    if isinstance(end_at, (int, float)) and not isinstance(end_at, bool) and 0 < end_at <= now_ts:
+        await _async_end_trip(hass, st, now_ts)
+        return
+    # Someone home: nothing is switched (never forced off) until they leave.
+    if st.data.get("vacation_mode_pause_home") and someone_home(hass):
+        if not dom.get(_VM_PAUSED):
+            dom[_VM_PAUSED] = True
+            try:
+                from .telemetry import bump  # noqa: PLC0415
+                bump(hass, "vacation_paused_home")
+            except Exception:  # noqa: BLE001
+                pass
+            announce(hass, True, "paused_home")
+        return
+    if dom.pop(_VM_PAUSED, None):
+        announce(hass, True, "unpaused")
     await _async_refresh_pattern_if_stale(hass, st)
     # The refresh can wait seconds on the recorder: switched off meanwhile,
     # nothing may be switched after its span closed (review 2026-09-23).
@@ -713,6 +976,18 @@ async def _async_tick(hass: HomeAssistant) -> None:
         intensity = 100
     local_now = dt_util.as_local(dt_util.utcnow())
     decisions = decide_states(pattern, local_now, intensity)
+    if any(st.data.get(k) for k in ("vacation_mode_dark_only", "vacation_mode_bedtime", "vacation_mode_max_on_min")):
+        log = dom.get(_VM_LOG)
+        on_since: dict[str, float] = {}
+        if st.data.get("vacation_mode_max_on_min") and log is not None:
+            await log.async_load()
+            on_since = on_since_from_log(log.entries, set(decisions))
+        dark = (_dark_now(hass, now_ts, local_now, st.data.get("vacation_mode_dark_offset_min") or 0)
+                if st.data.get("vacation_mode_dark_only") else None)
+        decisions, used = apply_options(decisions, data=st.data, now_ts=now_ts, at_local=local_now, dark=dark,
+                                        on_since=on_since, capped=dom.setdefault(_VM_CAPPED, {}))
+        for rule in used:
+            _count_rule_once_a_day(hass, rule, local_now.date().isoformat())
     for entity_id, want_on in decisions.items():
         # Defense in depth — same reasoning as async_reset_latch sharing
         # flood_latch.py's lock: never trust stored data alone for what is

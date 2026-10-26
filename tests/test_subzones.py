@@ -99,6 +99,7 @@ BED = {"id": "sz_1", "name": "Bed", "floor_id": "main", "type": "poly",
 class _Entry:
     def __init__(self):
         self.unloads = []
+        self.entry_id = "e1"
 
     def async_on_unload(self, fn):
         self.unloads.append(fn)
@@ -314,6 +315,10 @@ def test_entities_follow_subzones(monkeypatch):
     _DiskStore.files[SUBZONES_STORE_KEY] = {"zones": {"sz_1": {**BED, "dwell_s": 0.0}}}
     occ, who = [], []
     _run(BS.async_setup_entry(hass, _Entry(), occ.extend))
+    # The platform also adds binary_sensor.padspan_vacation_mode, once.
+    vac = [e for e in occ if isinstance(e, BS.PadSpanVacationMode)]
+    assert len(vac) == 1 and vac[0]._attr_unique_id == "e1_vacation_mode" and vac[0].is_on is False
+    occ[:] = [e for e in occ if not isinstance(e, BS.PadSpanVacationMode)]
     _run(SZ.async_setup_entities(hass, _Entry(), who.extend, S.PadSpanSubzoneWhoSensor))
     assert len(occ) == 1 and len(who) == 1
     assert occ[0].unique_id == WS.unique_id("sz_1", "occupied") and who[0].unique_id == WS.unique_id("sz_1", "who")

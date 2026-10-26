@@ -210,6 +210,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vacation_mode_pattern_attempt": [0, 0],  # backend-only: [enabled_at, epoch-s] of the last build that found nothing usable — retried hourly, not every tick
     "vacation_mode_pattern_for": 0,       # backend-only: the enabled_at a carried-over pattern serves — turned back on within 3 weeks of a trip, it resumes that trip's routine (vacation_mode.resumable)
     "vacation_mode_last_off": {},         # backend-only: {ts, by, via, how} — who last turned Vacation Mode off, for the panel and the turned-off notice
+    # Trip options (0.38.172), each off until set — vacation_mode.OPTION_DEFAULTS
+    "vacation_mode_dark_only": False,     # lights go on only after sunset (+ offset) and before sunrise
+    "vacation_mode_dark_offset_min": 0,   # -60..120 minutes after sunset
+    "vacation_mode_end_at": 0,            # epoch-s the trip ends (it turns itself off then); 0 = no end
+    "vacation_mode_pause_home": False,    # anyone's person.* at home: nothing is switched until they leave
+    "vacation_mode_bedtime": "",          # "HH:MM" (17:00-03:00): lights off from then (±20 min) until 05:00
+    "vacation_mode_max_on_min": 0,        # 0 = no limit, else 15-720: a light it turned on goes off after this, and rests as long
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object
