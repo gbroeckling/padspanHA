@@ -1825,3 +1825,40 @@ def test_install_age_is_a_word_from_first_seen():
     payload["env"]["install_age"] = "2.0 days"
     with pytest.raises(ValueError):
         T.assert_shareable(payload)
+
+
+
+def test_the_days_counts_survive_a_restart_and_only_closed_names_come_back():
+    """0.38.174: counters live on disk too. What the last run saved is added
+    back at start; a name no longer on the list, or a non-count, is dropped."""
+    saved = {"counters": {"calibration_cleared_all": 1, "tab:maps": 3, "nicole_s_office": 5,
+                          "calibration_point_added": True, "follow_alert_sent": -2}}
+    out = T.merge_saved_counters({"tab:maps": 2}, saved)
+    assert out == {"tab:maps": 5, "calibration_cleared_all": 1}
+    assert T.merge_saved_counters({"a": 1}, None) == {"a": 1}
+    assert T.merge_saved_counters({}, {"counters": "junk"}) == {}
+
+
+def test_bump_saves_the_window_a_little_later():
+    h = _hass()
+    store = MagicMock()
+    h.data[DOMAIN][T._DATA_COUNTERS_STORE] = store
+    assert T.bump(h, "calibration_cleared_all")
+    store.async_delay_save.assert_called_once()
+    fn, delay = store.async_delay_save.call_args[0]
+    assert delay == T.COUNTERS_SAVE_DELAY_S and fn()["counters"]["calibration_cleared_all"] == 1
+
+
+def test_calibration_points_that_vanish_without_a_clear_are_flagged_once():
+    h = _hass()
+    st = h.data[DOMAIN][DATA_SETTINGS]
+    cal = MagicMock()
+    cal.data = {"points": [], "model": {}}
+    cal.list_points.return_value = []
+    h.data[DOMAIN]["calibration"] = cal
+    st.data["calibration_points_seen"] = 38
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    assert payload["health"].get("calibration_points_vanished") is True
+    st.data["calibration_points_seen"] = 0          # cleared on purpose, or already reported
+    assert "calibration_points_vanished" not in T.build_payload(h)["health"]

@@ -304,6 +304,10 @@ EVENTS: frozenset[str] = frozenset({
     # or anything else), and the Calibration tab showing that a floor needs
     # measuring before points can go on it.
     "calibration_save_refused_no_scale", "calibration_save_failed_other", "calib_floor_unmeasured",
+    # 0.38.174: calibration points cleared on purpose (Clear all, one map's
+    # Clear) — so a house whose points went to zero can be told apart from one
+    # that lost them (health.calibration_points_vanished).
+    "calibration_cleared_all", "calibration_cleared_map",
 })
 # A new install's first steps (onboarding.py): how long from setup to the
 # first room and to the first calibration point, as buckets, once per
@@ -943,6 +947,7 @@ def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
     dom = hass.data.setdefault(DOMAIN, {})
     counters: dict[str, int] = dom.setdefault(_DATA_COUNTERS, {})
     counters[event] = int(counters.get(event, 0)) + max(1, int(n))
+    _persist_counters(hass)
     return True
 
 
@@ -1010,6 +1015,64 @@ def note_screen(hass: HomeAssistant, screen: str, event: str = "client_screen_se
     return True
 
 
+# The window's counters on disk too (0.38.174): they lived only in memory, so
+# a restart before the day's report took them with it. A house restarted four
+# times on the day its calibration points went to zero, and its report could
+# not say whether anyone had cleared them. Saved two minutes after a count;
+# taken and given back like the in-memory ones; read back once per start.
+COUNTERS_STORE_KEY = "padspan_ha.telemetry_counters"
+_DATA_COUNTERS_STORE = "_telemetry_counters_store"
+COUNTERS_SAVE_DELAY_S = 120
+
+
+def _counters_store(hass: HomeAssistant) -> Any:
+    dom = hass.data.setdefault(DOMAIN, {})
+    st = dom.get(_DATA_COUNTERS_STORE)
+    if st is None:
+        from homeassistant.helpers.storage import Store  # noqa: PLC0415
+        st = dom[_DATA_COUNTERS_STORE] = Store(hass, 1, COUNTERS_STORE_KEY)
+    return st
+
+
+def _persist_counters(hass: HomeAssistant, now: bool = False) -> None:
+    try:
+        dom = hass.data.setdefault(DOMAIN, {})
+        snap = {"counters": dict(dom.get(_DATA_COUNTERS) or {})}
+        st = _counters_store(hass)
+        if now:
+            hass.async_create_task(st.async_save(snap))
+        else:
+            st.async_delay_save(lambda: {"counters": dict(dom.get(_DATA_COUNTERS) or {})}, COUNTERS_SAVE_DELAY_S)
+    except Exception as err:  # noqa: BLE001 — counting must never fail anything
+        _LOGGER.debug("Telemetry counters not saved: %s", err)
+
+
+def merge_saved_counters(counters: dict[str, int], saved: Any) -> dict[str, int]:
+    """The in-memory window plus what the last run had saved, names still on
+    the closed list only (a name dropped from it since is not sent)."""
+    out = dict(counters)
+    raw = saved.get("counters") if isinstance(saved, dict) else None
+    for k, v in (raw if isinstance(raw, dict) else {}).items():
+        if isinstance(k, str) and event_allowed(k) and isinstance(v, int) and not isinstance(v, bool) and v > 0:
+            out[k] = int(out.get(k, 0)) + v
+    return out
+
+
+async def async_restore_counters(hass: HomeAssistant) -> None:
+    dom = hass.data.setdefault(DOMAIN, {})
+    if dom.get("_telemetry_counters_restored"):
+        return
+    dom["_telemetry_counters_restored"] = True
+    try:
+        saved = await _counters_store(hass).async_load()
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Telemetry counters not read back: %s", err)
+        return
+    if enabled(hass):
+        dom[_DATA_COUNTERS] = merge_saved_counters(dom.get(_DATA_COUNTERS) or {}, saved)
+    _persist_counters(hass, now=True)
+
+
 def _take_counters(hass: HomeAssistant) -> dict[str, int]:
     """The counters since the last report — and reset them."""
     dom = hass.data.setdefault(DOMAIN, {})
@@ -1019,6 +1082,7 @@ def _take_counters(hass: HomeAssistant) -> dict[str, int]:
     dom[_DATA_SCREENS] = set()
     dom[_DATA_SCREEN_WORDS_TAKEN] = dom.get(_DATA_SCREEN_WORDS) or {}
     dom[_DATA_SCREEN_WORDS] = {}
+    _persist_counters(hass, now=True)
     return out
 
 
@@ -1062,6 +1126,7 @@ def _give_back_windows(hass: HomeAssistant, taken: tuple[dict[str, int], dict[st
     counters = hass.data.setdefault(DOMAIN, {}).setdefault(_DATA_COUNTERS, {})
     for k, v in usage.items():
         counters[k] = int(counters.get(k, 0)) + int(v)
+    _persist_counters(hass, now=True)
     # The screens it counted go back with their counts, so they aren't counted again.
     dom = hass.data[DOMAIN]
     dom.setdefault(_DATA_SCREENS, set()).update(dom.pop(_DATA_SCREENS_TAKEN, None) or set())
@@ -1799,6 +1864,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             _known |= {str(a.name) for a in _ar.async_get(hass).async_list_areas()}
             _pt_rooms = (str(p.get("room") or "") for p in cal_points if isinstance(p, dict))
             health["cal_points_phantom_room_n"] = sum(1 for r in _pt_rooms if r and r not in _known)
+            # 0.38.174: the last report had points, this one none, and no
+            # clear was recorded in between (calibration_points_seen, kept by
+            # send_now and by every clear) — calibration lost, not cleared.
+            # Only with the calibration store loaded, as above.
+            _seen = settings.get("calibration_points_seen")
+            if isinstance(_seen, int) and not isinstance(_seen, bool) and _seen > 0 and not cal_points:
+                health["calibration_points_vanished"] = True
     except Exception as err:
         _LOGGER.debug("Telemetry: cal_points_phantom_room_n left out: %s", err)
     # #147: Beacon Tune pins on a device that moves (tune_save_plan.js
@@ -2169,7 +2241,8 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
         return {"sent": False, "reason": "network", "bytes": len(body)}
     if st:
         try:
-            await st.async_set(telemetry_last_day=_today())
+            await st.async_set(telemetry_last_day=_today(),
+                               calibration_points_seen=int((payload.get("env") or {}).get("calibration_points") or 0))
         except Exception:
             pass
     # A new install's first steps went: never again (onboarding.py).
@@ -2193,6 +2266,7 @@ def reset_windows(hass: HomeAssistant) -> None:
     hass.data.setdefault(DOMAIN, {})[_DATA_COUNTERS] = {}
     hass.data[DOMAIN][_DATA_SCREENS] = set()
     hass.data[DOMAIN][_DATA_SCREEN_WORDS] = {}
+    _persist_counters(hass, now=True)
     try:
         from .ws_common import _log_handler  # noqa: PLC0415
         if _log_handler is not None:
@@ -2222,6 +2296,10 @@ def async_setup_telemetry(hass: HomeAssistant) -> None:
 
     dom = hass.data.setdefault(DOMAIN, {})
     dom.setdefault(_DATA_STARTED, time.monotonic())
+    try:
+        hass.async_create_task(async_restore_counters(hass))
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Telemetry counters not restored: %s", err)
     try:
         from . import perf_sampler  # noqa: PLC0415
         perf_sampler.async_start(hass)

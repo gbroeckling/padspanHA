@@ -389,6 +389,8 @@ async def ws_maps_delete(hass: HomeAssistant, connection, msg) -> None:
         cal = hass.data.get(DOMAIN, {}).get(DATA_CALIBRATION)
         if cal:
             await cal.async_clear_map(map_id)
+            from .ws_calibration import _note_points_seen  # noqa: PLC0415
+            await _note_points_seen(hass, cal)
     except Exception:
         pass
 

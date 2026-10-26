@@ -53,6 +53,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # load of this version, so its 7 days count from the update, not from
     # when it was really installed — nobody is told on update day.
     "first_seen_ts": 0,
+    "calibration_points_seen": 0,  # backend-only: calibration points in the last report sent, or after the last clear (telemetry health.calibration_points_vanished)
     # The Overview's one-time trial milestone card was answered: "No thanks",
     # its ✕, or a trial started from it. Per install; it never shows again.
     "trial_nudge_done": False,

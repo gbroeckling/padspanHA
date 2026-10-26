@@ -1397,3 +1397,35 @@ def test_the_calibration_tab_checks_the_floor_is_measured_before_a_capture():
         assert "if (!_floorScaled(ctx, cs.mapId))" in body and "_noScaleCard(ctx, el, cs)" in body, fn
     helper = js[js.index("function _floorScaled("):js.index("function _noScaleCard(")]
     assert "if (!t || !mapId) return true;" in helper, "no model loaded yet must not block"
+
+
+
+async def test_a_clear_on_purpose_is_counted_and_moves_the_reports_marker(monkeypatch):
+    """So the next report does not read cleared points as lost."""
+    import inspect
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import ws_calibration as W
+    from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
+    counted = []
+    monkeypatch.setattr(W, "_bump", lambda _h, name, n=1: counted.append(name))
+    sets = {}
+
+    async def _set(**kw):
+        sets.update(kw)
+    hass = MagicMock()
+    hass.data = {DOMAIN: {DATA_SETTINGS: SimpleNamespace(data={}, async_set=_set)}}
+    for cmd, word, msg in (("ws_calibration_clear", "calibration_cleared_all", {"id": 1}),
+                           ("ws_calibration_clear_map", "calibration_cleared_map", {"id": 2, "map_id": "m1"})):
+        cal = MagicMock()
+        cal.data = {"points": [{"id": "keep"}] if cmd.endswith("_map") else []}
+        cal.async_clear_all = AsyncMock(return_value=38)
+        cal.async_clear_map = AsyncMock(return_value=3)
+        monkeypatch.setattr(W, "_get_cal_store", AsyncMock(return_value=cal))
+        fn = getattr(W, cmd)
+        while hasattr(fn, "__wrapped__"):
+            fn = fn.__wrapped__
+        res = fn(hass, MagicMock(), msg)
+        if inspect.isawaitable(res):
+            await res
+        assert counted[-1] == word
+        assert sets["calibration_points_seen"] == len(cal.data["points"])

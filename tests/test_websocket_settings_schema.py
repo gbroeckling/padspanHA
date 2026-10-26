@@ -44,6 +44,7 @@ _BACKEND_ONLY = {
     "vacation_mode_enabled_at",        # stamped by settings_set on the off->on transition
     "vacation_mode_periods",           # appended by settings_set on the on->off transition
     "vacation_mode_pattern_attempt",   # vacation_mode.py — last empty build, for the hourly retry
+    "calibration_points_seen",         # telemetry.py — calibration points in the last report / after a clear
     "vacation_mode_pattern_for",       # vacation_mode.py — the vacation a carried-over pattern serves (resumable)
     "vacation_mode_last_off",          # vacation_mode.py — who last turned it off, set by switch_fields
     "vacation_mode_pattern_prev",      # vacation_mode.py — the last learned pattern, kept across vacations

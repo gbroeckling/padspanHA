@@ -393,6 +393,18 @@ async def ws_calibration_delete_point(hass: HomeAssistant, connection, msg) -> N
     connection.send_result(msg["id"], {"ok": deleted, "point_id": point_id})
 
 
+async def _note_points_seen(hass: HomeAssistant, cal: Any) -> None:
+    """A clear on purpose: the report's marker follows it, so the next report
+    does not read the cleared points as lost (telemetry calibration_points_vanished)."""
+    try:
+        from .const import DATA_SETTINGS  # noqa: PLC0415
+        st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        if st is not None:
+            await st.async_set(calibration_points_seen=len(cal.data.get("points") or []))
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("calibration_points_seen not updated: %s", err)
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/calibration_clear"})
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -400,6 +412,8 @@ async def ws_calibration_clear(hass: HomeAssistant, connection, msg) -> None:
     """Delete all calibration points and reset the model."""
     cal = await _get_cal_store(hass)
     count = await cal.async_clear_all()
+    _bump(hass, "calibration_cleared_all")
+    await _note_points_seen(hass, cal)
     connection.send_result(msg["id"], {"ok": True, "deleted": count})
 
 
@@ -419,6 +433,8 @@ async def ws_calibration_clear_map(hass: HomeAssistant, connection, msg) -> None
         return
     cal = await _get_cal_store(hass)
     count = await cal.async_clear_map(map_id, delete=True)
+    _bump(hass, "calibration_cleared_map")
+    await _note_points_seen(hass, cal)
     connection.send_result(msg["id"], {"ok": True, "map_id": map_id, "deleted": count})
 
 
