@@ -1750,6 +1750,9 @@ class PadSpanHaApp extends HTMLElement {
     }
     if(this._pollInFlight) return;
     if(this.state.view === "maps") return;
+    // Optimize for scale: a page nobody can see (display off, tab in the
+    // background) asks for nothing; it catches up when it is shown again.
+    if(this.state.settings && this.state.settings.optimize_for_scale && document.visibilityState === "hidden") return;
 
     this._pollInFlight = true;
     this._pollStartedAt = performance.now();
@@ -2381,7 +2384,10 @@ class PadSpanHaApp extends HTMLElement {
       return;
     }
     try {
-      const res = await this._callWS({ type: "padspan_ha/live_snapshot" });
+      // Optimize for scale (Settings): the Overview draws people, so it asks
+      // for the slim snapshot; every other view gets the whole one.
+      const slim = !!(this.state.settings && this.state.settings.optimize_for_scale) && this.state.view === "overview";
+      const res = await this._callWS(slim ? { type: "padspan_ha/live_snapshot", slim: true } : { type: "padspan_ha/live_snapshot" });
       const snap = res?.snapshot;
       // Only replace the snapshot if we got a valid response.
       // Keep the last good snapshot on WS failure to prevent flickering.
@@ -3989,6 +3995,12 @@ class PadSpanHaApp extends HTMLElement {
   // but user interactions are sacred (never destroy mid-action).
   _renderCurrentView(fromPoll){
     if(this.state._factoryResetInProgress) return;
+    // Left the Overview holding a slim snapshot (Optimize for scale): fetch
+    // the whole one now, not at the next poll, so no view draws from it.
+    if(this.state.view !== "overview" && this.state.live && this.state.live.snapshot && this.state.live.snapshot.slim && !this._slimRefetch){
+      this._slimRefetch = true;
+      this._getLiveSnapshot().finally(()=>{ this._slimRefetch = false; this._scheduleRender(); });
+    }
     if(this.state.view === "calibration" && (this.state._calibTune?._dragging || this.state._calibBeacon?._dragging || this.state._calibTune?._confirming || this.state._calibBeacon?._confirming)) return;
     if(this.state.maps?._stackDragging || this.state.maps?._editDragging) return;
     if(this.state._traceback?.active && this.state.view === "traceback") return;

@@ -638,6 +638,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("mac_rotation_bridging"): bool,
         vol.Optional("apple_auto_classify"): bool,
         vol.Optional("low_memory_mode"): bool,
+        vol.Optional("optimize_for_scale"): bool,
         vol.Optional("enhanced_security"): bool,              # admin only; ws_common.require_admin_if_enhanced
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
@@ -1166,7 +1167,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "roomplan_import_enabled", "vacuum_import_enabled",
                     "rssi_capture_enabled",
                     "phone_wizard_enabled", "iphone_irk_guide", "mac_rotation_bridging",
-                    "apple_auto_classify", "low_memory_mode"):
+                    "apple_auto_classify", "low_memory_mode", "optimize_for_scale"):
             if key in msg:
                 payload[key] = bool(msg[key])
         if "license_tier_override" in msg:

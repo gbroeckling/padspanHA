@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 import time as _time
 import asyncio
+
+import voluptuous as vol
 import time
 from typing import Any
 from homeassistant.components import websocket_api
@@ -208,15 +210,16 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
     before mutating it, as ws_live_snapshot does.
     """
     dom = hass.data.setdefault(DOMAIN, {})
+    ttl = snapshot_ttl_s(hass)
     cached = dom.get(_DATA_SNAPSHOT_CACHE)
-    if cached and (time.monotonic() - cached[0]) < _SNAPSHOT_CACHE_TTL_S:
+    if cached and (time.monotonic() - cached[0]) < ttl:
         return cached[1]
     lock = dom.get(_DATA_SNAPSHOT_CACHE_LOCK)
     if lock is None:
         lock = dom[_DATA_SNAPSHOT_CACHE_LOCK] = asyncio.Lock()
     async with lock:
         cached = dom.get(_DATA_SNAPSHOT_CACHE)
-        if cached and (time.monotonic() - cached[0]) < _SNAPSHOT_CACHE_TTL_S:
+        if cached and (time.monotonic() - cached[0]) < ttl:
             return cached[1]
         _t0 = time.perf_counter()
         snap = await _build_live_snapshot(hass)
@@ -3051,7 +3054,55 @@ def _prune_lost_and_found_strangers(hass: HomeAssistant, lf: Any, objects: list)
         _LOGGER.debug("Lost & Found stranger prune: %s", err)
 
 
-@websocket_api.websocket_command({"type": "padspan_ha/live_snapshot"})
+# ── Optimize for scale (0.38.178, Settings; off by default) ──────────────────
+# Several wall screens each fetched the whole snapshot every 5 s: 2.2 MB in a
+# real house of 1,108 objects, nine of them anyone's, about 14 Mbit/s and 150
+# GB a day for four screens. With the setting on, a screen that only draws
+# people asks for the slim copy, and polls that land within 4.5 s of a build
+# share it (four screens out of step: about one build per 5 s instead of 1.8).
+SCALE_SNAPSHOT_TTL_S = 4.5
+
+
+def _scale_on(hass: HomeAssistant) -> bool:
+    st = (hass.data.get(DOMAIN) or {}).get(DATA_SETTINGS)
+    return bool(st and (st.data or {}).get("optimize_for_scale"))
+
+
+def snapshot_ttl_s(hass: HomeAssistant) -> float:
+    """How long one build is shared: _SNAPSHOT_CACHE_TTL_S, or longer with Optimize for scale."""
+    try:
+        return SCALE_SNAPSHOT_TTL_S if _scale_on(hass) else _SNAPSHOT_CACHE_TTL_S
+    except Exception:  # noqa: BLE001
+        return _SNAPSHOT_CACHE_TTL_S
+
+
+def slim_snapshot(snap: dict, followed: set[str]) -> dict:
+    """The snapshot a screen that draws people needs: every object that is
+    not a bare Bluetooth address, and every bare one that is identified,
+    labelled, followed or placed in a room; the counts (objects.summary)
+    untouched; the raw advertisement list left out. Pure; the input is not
+    changed."""
+    objs = dict(snap.get("objects") or {})
+    full = objs.get("list") or []
+
+    def keep(o: Any) -> bool:
+        if not isinstance(o, dict):
+            return False
+        if o.get("kind") != "ble" or o.get("identified") or o.get("user_label") or o.get("room"):
+            return True
+        return any(str(o.get(f) or "").upper() in followed for f in ("key", "address", "entity_id", "canonical_id"))
+    objs["list"] = [o for o in full if keep(o)]
+    out = dict(snap)
+    out["objects"] = objs
+    ble = dict(snap.get("ble") or {})
+    if isinstance(ble.get("advertisements"), list):
+        ble["advertisements"] = []
+    out["ble"] = ble
+    out["slim"] = {"objects_kept": len(objs["list"]), "objects_total": len(full)}
+    return out
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/live_snapshot", vol.Optional("slim"): bool})
 @websocket_api.async_response
 async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     """Return the full live snapshot to the panel, enriched with presence + calibration data.
@@ -3316,4 +3367,14 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
+    # Optimize for scale: the slim copy, only while the setting is on.
+    if msg.get("slim") and _scale_on(hass):
+        try:
+            _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+            _fol = {str(f).upper() for f in ((_st.data if _st else {}).get("followed_addrs") or []) if f}
+            snap = slim_snapshot(snap, _fol)
+            from .telemetry import bump  # noqa: PLC0415
+            bump(hass, "snapshot_slim_sent")
+        except Exception as err:  # noqa: BLE001 — the full one goes instead
+            _LOGGER.debug("Slim snapshot not made: %s", err)
     connection.send_result(msg["id"], {"snapshot": snap})

@@ -1172,6 +1172,44 @@ function _settingsPresence(ctx, el){
     ),
   ]));
 
+  // ── Optimize for scale (0.38.178) ──────────────────────────────────────────
+  // Several wall screens at once. Off by default: one screen gets nothing
+  // from it, and the Overview then shows only the devices it can draw.
+  const scaleOn = !!settings.optimize_for_scale;
+  const scaleWhat =
+    "• The Overview and the Atlas's 3D people ask for a slim update: the people, tags and devices it can draw, " +
+    "with the counts, instead of every passing Bluetooth device (about 2 MB a screen every 5 seconds in a busy house).\n" +
+    "• Screens polling close together share one update (within 4.5 s instead of 2 s), so Home Assistant builds it about once per poll however many screens are on.\n" +
+    "• A screen whose page is hidden (display off, tab in the background) asks for nothing until it is shown again.\n" +
+    "Monitor, Devices, Bluetooth and every other view still get everything. On the Overview, the list behind the objects count shows only what the slim update carries.";
+  const scaleBtn = el("button", { class: "btn inline", style: scaleOn
+    ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
+    : "color:#94a3b8" }, scaleOn ? "On" : "Off");
+  scaleBtn.addEventListener("click", async () => {
+    try {
+      await ctx.actions.settingsSet({ optimize_for_scale: !scaleOn });
+      ctx.toast(`Optimize for scale ${!scaleOn ? "on" : "off"}`);
+      ctx.actions.renderRooms();
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  wrap.appendChild(el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Optimize for scale"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
+      "For houses with several wall screens or tablets showing PadSpan at once. It cuts what each screen asks Home Assistant for, " +
+      "which matters most in a busy house or on a small machine (a Raspberry Pi)."
+    ),
+    el("div", { style: "font-size:12px;white-space:pre-line;margin-bottom:12px;padding:8px 10px;" +
+      "border:1px solid #2d4a38;border-radius:6px;background:rgba(82,183,136,.06);color:#b0c4b1" },
+      "What it does:\n" + scaleWhat),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Optimize for scale"),
+      scaleBtn,
+    ]),
+    el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
+      "Applies from the next update — no restart needed. Each screen picks it up within 30 seconds."
+    ),
+  ]));
+
   // ── Update Check ───────────────────────────────────────────────────────────
   const updChkOn = settings.update_check_enabled !== false;
   const updChkBtn = el("button", { class: "btn inline", style: updChkOn

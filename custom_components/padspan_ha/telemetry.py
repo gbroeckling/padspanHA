@@ -311,6 +311,8 @@ EVENTS: frozenset[str] = frozenset({
     # and a floor plan deleted on purpose (plain, or after moving its work to
     # another map) — beside health.maps_vanished.
     "map_deleted", "map_deleted_migrated",
+    # 0.38.178: a slim snapshot sent (Optimize for scale) — how many walls use it.
+    "snapshot_slim_sent",
 })
 # A new install's first steps (onboarding.py): how long from setup to the
 # first room and to the first calibration point, as buckets, once per
@@ -647,6 +649,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "wall_fully": "wall_fully", "hold_last_room_s": "room_hold",
     "wall_floor_cycle_s": "wall_floor_cycle", "atlas_3d_director": "director",
     "enhanced_security": "enhanced_security",
+    # 0.38.178: several wall screens (Settings → Optimize for scale).
+    "optimize_for_scale": "scale",
     # 0.38.165's positioning settings, all off by default.
     "positioning_pick_better": "pick_better", "positioning_unsure": "unsure",
     "positioning_sensor_fusion": "fusion",

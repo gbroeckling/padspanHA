@@ -269,6 +269,8 @@ class PadSpanLightsApp extends HTMLElement {
 
   async _poll(){
     if(!this._hass) return;
+    // Optimize for scale (Settings): nothing while the page is hidden.
+    if(this.state._optimizeScale && document.visibilityState === "hidden") return;
     // Don't rebuild the DOM under the user's hands: a poll landing mid-drag on
     // a slider, or while a select is open, destroys the control being used.
     // (The Mapping tab's host has the same protection via _editDragging.)
@@ -436,6 +438,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Vacation Mode's own state — read here too now that the banner lives
       // in the shared Atlas card (both hosts), not panel.js's global chrome.
       this.state._vacationModeEnabled = !!s.vacation_mode_enabled;
+      this.state._optimizeScale = !!s.optimize_for_scale;
       this.state._vacationModeResumed = !!s.vacation_mode_pattern_for;
       this.state._vacationSettings = s;
       this.state._vacationModeIntensity = Number.isFinite(Number(s.vacation_mode_intensity)) ? Number(s.vacation_mode_intensity) : 100;
@@ -1116,7 +1119,13 @@ class PadSpanLightsApp extends HTMLElement {
         // Show people (P6): this panel has no live snapshot of its own, so
         // the 3D view reads Overview's through here, only while Show people
         // is on and the view shows, never more often than Overview polls.
-        people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" }).then(r=>(r && r.snapshot) || null),
+        // Optimize for scale: the slim snapshot (people only), and the last
+        // one again while the page is hidden.
+        people: { read: ()=>{
+            if(this.state._optimizeScale && document.visibilityState === "hidden" && this._lastPeople) return Promise.resolve(this._lastPeople);
+            const msg = this.state._optimizeScale ? { type:"padspan_ha/live_snapshot", slim:true } : { type:"padspan_ha/live_snapshot" };
+            return this._hass.callWS(msg).then(r=>{ const snap = (r && r.snapshot) || null; if(snap) this._lastPeople = snap; return snap; });
+          },
           everyMs: 1000 * (Number(this.state._house3d.presence_poll_interval_s) || 5) },
         // Trails: Traceback's own history (padspan_ha/traceback_get), read
         // by the view only while a screen has them on.
