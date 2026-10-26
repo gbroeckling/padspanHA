@@ -28,7 +28,8 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, spreadInRoom, createUndoStack, toggleEntity,
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
-        captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity } =
+        captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity,
+        vacationOptionsOf, vacationEndsText } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
@@ -9958,6 +9959,12 @@ function _lightsTab(ctx, maps, active) {
     },
     vacationModeEnabled: !!ctx.state.settings?.vacation_mode_enabled,
     vacationModeResumed: !!ctx.state.settings?.vacation_mode_pattern_for,
+    vacationOptions: vacationOptionsOf(ctx.state.settings),
+    vacationModeEnds: vacationEndsText(ctx.state.settings),
+    onVacationOptions: async (patch) => {
+      try { await ctx.actions.settingsSet(patch); return true; }
+      catch (e) { ctx.toast("Could not save the Vacation Mode option: " + String(e), true); return false; }
+    },
     vacationModeIntensity: Number.isFinite(Number(ctx.state.settings?.vacation_mode_intensity))
       ? Number(ctx.state.settings.vacation_mode_intensity) : 100,
     onVacationModeDisable: async () => {

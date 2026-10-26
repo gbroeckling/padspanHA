@@ -36,6 +36,13 @@
 .lv-vacation-label{font-weight:700}
 .lv-vacation-slider-wrap{display:flex;align-items:center;gap:6px}
 .lv-vacation-slider{width:100px;accent-color:#e0b23a}
+.lv-vacation-opts{z-index:41;background:rgba(30,22,6,.98);flex-direction:column;align-items:stretch;gap:8px;max-width:min(94vw,560px);max-height:80vh;overflow:auto}
+.lv-vac-opt-head{display:flex;align-items:center;gap:10px}
+.lv-vac-opt{display:flex;flex-direction:column;gap:2px;padding-top:6px;border-top:1px solid rgba(181,138,31,.35)}
+.lv-vac-opt-main{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.lv-vac-opt-lbl{font-weight:600}
+.lv-vac-opt-note{font-size:11px;line-height:1.35}
+.lv-vac-inline{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 /* Alert pulse on a wall screen (lights_map.js safetyAlerts): the worst alert
    and where, across the top until it clears; red for an alarm, amber for an
    opening. A slow breath of its border, in CSS (the map redraws every 5 s). */

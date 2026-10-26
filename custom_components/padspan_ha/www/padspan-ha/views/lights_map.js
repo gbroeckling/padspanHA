@@ -1620,15 +1620,118 @@ function _vacBanner(host) {
     // Turned back on within 3 weeks of a trip, it carries on with that
     // trip's routine (vacation_mode.resumable), and says so.
     host.vacationModeResumed ? el("span", { class: "muted", style: "font-size:11px" }, "same routine as the last trip") : null,
+    host.vacationModeEnds ? el("span", { class: "muted", style: "font-size:11px" }, `ends ${host.vacationModeEnds}`) : null,
     el("span", { class: "lv-vacation-slider-wrap" }, [
       el("span", { class: "muted", style: "font-size:11px" }, "Energy saving"),
       slider,
       pctLbl,
     ]),
+    host.onVacationOptions ? el("button", { class: "btn inline", onclick: () => _vacOptsToggle(host, true, node.parentNode) }, "Options") : null,
     // Pinned right, where "Keep it on" comes up, even when the row wraps.
     el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => { _vacAskUntil = Date.now() + 10000; swap(); } }, "Disable"),
   ]);
   return node;
+}
+// Vacation Mode's trip options (0.38.172), each off until set: only after
+// dark, an end date, pause while someone is home, a bedtime, a max on-time.
+// One box, opened from the banner or the Whole house bar. The same node is
+// kept across the card's re-renders, so a half-typed date is not lost.
+let _vacOptsOpen = false, _vacOptsNode = null;
+function _vacOptsToggle(host, open, card) {
+  _vacOptsOpen = open;
+  if (!open) { if (_vacOptsNode) _vacOptsNode.remove(); _vacOptsNode = null; return; }
+  if (card) card.appendChild(_vacOptionsBox(host));
+}
+// What both hosts hand the card about the options, from their settings.
+export function vacationOptionsOf(s) {
+  s = s || {};
+  return { dark_only: !!s.vacation_mode_dark_only, dark_offset_min: s.vacation_mode_dark_offset_min || 0,
+           end_at: s.vacation_mode_end_at || 0, pause_home: !!s.vacation_mode_pause_home,
+           bedtime: s.vacation_mode_bedtime || "", max_on_min: s.vacation_mode_max_on_min || 0 };
+}
+export function vacationEndsText(s) {
+  const ts = s && s.vacation_mode_end_at;
+  if (!ts) return "";
+  return new Date(ts * 1000).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function _vacOptionsBox(host) {
+  if (_vacOptsNode) return _vacOptsNode;
+  const el = _mkEl;
+  const o = host.vacationOptions || {};
+  const status = el("span", { class: "lv-status" }, "");
+  const save = async (patch) => {
+    status.textContent = "Saving…";
+    const ok = host.onVacationOptions && await host.onVacationOptions(patch);
+    status.textContent = ok ? "Saved ✓" : "Not saved";
+    setTimeout(() => { if (status.textContent === "Saved ✓") status.textContent = ""; }, 2000);
+    return ok;
+  };
+  const row = (label, control, note) => el("div", { class: "lv-vac-opt" }, [
+    el("div", { class: "lv-vac-opt-main" }, [el("span", { class: "lv-vac-opt-lbl" }, label), control]),
+    note ? el("div", { class: "muted lv-vac-opt-note" }, note) : null,
+  ]);
+  const check = (key, on) => {
+    const c = document.createElement("input");
+    c.type = "checkbox"; c.checked = !!on;
+    c.addEventListener("change", async () => { if (!await save({ [key]: c.checked })) c.checked = !c.checked; });
+    return c;
+  };
+  const select = (key, value, choices) => {
+    const sel = document.createElement("select");
+    sel.className = "lv-select";
+    for (const [v, t] of choices) sel.appendChild(el("option", { value: String(v) }, t));
+    sel.value = String(value);
+    if (sel.value !== String(value)) sel.value = String(choices[0][0]);
+    sel.addEventListener("change", () => save({ [key]: parseInt(sel.value, 10) }));
+    return sel;
+  };
+  // After dark, with how long after sunset.
+  const dark = el("span", { class: "lv-vac-inline" }, [
+    check("vacation_mode_dark_only", o.dark_only),
+    select("vacation_mode_dark_offset_min", o.dark_offset_min || 0, [
+      [-30, "from 30 min before sunset"], [0, "from sunset"], [15, "from 15 min after"], [30, "from 30 min after"],
+      [60, "from an hour after"], [90, "from 90 min after"], [120, "from 2 hours after"]]),
+  ]);
+  // The trip's end: a local date and time.
+  const pad = (n) => String(n).padStart(2, "0");
+  const toLocal = (ts) => { const d = new Date(ts * 1000); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const end = document.createElement("input");
+  end.type = "datetime-local";
+  end.className = "lv-preset-name";
+  if (o.end_at) end.value = toLocal(o.end_at);
+  end.addEventListener("change", async () => {
+    const ts = end.value ? Math.round(new Date(end.value).getTime() / 1000) : 0;
+    if (!await save({ vacation_mode_end_at: ts })) end.value = o.end_at ? toLocal(o.end_at) : "";
+    else o.end_at = ts;
+  });
+  const endClear = el("button", { class: "btn inline", onclick: async () => { end.value = ""; if (await save({ vacation_mode_end_at: 0 })) o.end_at = 0; } }, "No end");
+  // Bedtime.
+  const bed = document.createElement("input");
+  bed.type = "time";
+  bed.className = "lv-preset-name";
+  bed.value = o.bedtime || "";
+  bed.addEventListener("change", async () => { if (!await save({ vacation_mode_bedtime: bed.value })) bed.value = o.bedtime || ""; else o.bedtime = bed.value; });
+  const bedClear = el("button", { class: "btn inline", onclick: async () => { bed.value = ""; if (await save({ vacation_mode_bedtime: "" })) o.bedtime = ""; } }, "None");
+  _vacOptsNode = el("div", { class: "lv-vacation lv-vacation-opts", role: "dialog", "aria-label": "Vacation Mode options" }, [
+    el("div", { class: "lv-vac-opt-head" }, [
+      el("span", { class: "lv-vacation-label" }, "🌴 Vacation Mode options"),
+      status,
+      el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => _vacOptsToggle(host, false) }, "Close"),
+    ]),
+    row("Only after dark", dark, "Lights it would turn on during the day stay off."),
+    row("Ends", el("span", { class: "lv-vac-inline" }, [end, endClear]),
+      "It turns itself off then, and you get the same notice as when it's turned off."),
+    row("Pause while someone is home", check("vacation_mode_pause_home", o.pause_home),
+      "Anyone in Home Assistant's People at home: nothing is switched until they leave. Nothing is forced off."),
+    row("Bedtime", el("span", { class: "lv-vac-inline" }, [bed, bedClear]),
+      "Every light it runs goes off from about then until 5 am. The time moves up to 20 minutes either way each night."),
+    row("Longest on", select("vacation_mode_max_on_min", o.max_on_min || 0, [
+      [0, "no limit"], [60, "1 hour"], [120, "2 hours"], [180, "3 hours"], [240, "4 hours"], [360, "6 hours"]]),
+      "A light it turned on goes off after this, and stays off as long."),
+    el("div", { class: "muted lv-vac-opt-note" },
+      "binary_sensor.padspan_vacation_mode shows it in Home Assistant, and the padspan_ha_vacation_mode event fires on every change, for your own automations."),
+  ]);
+  return _vacOptsNode;
 }
 // What both hosts hand openControlCard about a light, from the one registry
 // fetch they share — so the sidebar and the builder can't drift (they have
@@ -3012,6 +3115,7 @@ export function buildLightsMapCard(hostIn){
   // always beat, so the banner never actually hid or showed correctly.
   // Independent of V2/DISPLAY: it must show on the classic layout too.
   if (host.vacationModeEnabled) mapCard.appendChild(_vacBanner(host));
+  if (_vacOptsOpen && host.onVacationOptions) mapCard.appendChild(_vacOptionsBox(host));
   const fold = (name, title) => {
     const d = document.createElement("details");
     d.className = "lv-fold";
@@ -4142,6 +4246,14 @@ export function buildLightsMapCard(hostIn){
     });
     whSel.addEventListener("change", whDisarm);
     whBar.appendChild(whApply);
+    if (host.onVacationOptions) {
+      const whVacOpts = el("button", { class: "lv-act", title: "Vacation Mode's options: after dark, end date, pause while someone is home, bedtime, longest on" }, "Options");
+      const showOpts = () => { whVacOpts.style.display = whSel.value === VACATION_VALUE ? "" : "none"; };
+      whVacOpts.addEventListener("click", () => _vacOptsToggle(host, true, mapCard));
+      whSel.addEventListener("change", showOpts);
+      showOpts();
+      whBar.appendChild(whVacOpts);
+    }
 
     if (host.onWholeHouseSet) {
       const whName = document.createElement("input");

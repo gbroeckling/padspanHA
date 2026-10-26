@@ -25,7 +25,8 @@ const { hasControlCard } =
 const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable, lightIsTouched,
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
-        wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices } =
+        wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
+        vacationOptionsOf, vacationEndsText } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
@@ -436,6 +437,7 @@ class PadSpanLightsApp extends HTMLElement {
       // in the shared Atlas card (both hosts), not panel.js's global chrome.
       this.state._vacationModeEnabled = !!s.vacation_mode_enabled;
       this.state._vacationModeResumed = !!s.vacation_mode_pattern_for;
+      this.state._vacationSettings = s;
       this.state._vacationModeIntensity = Number.isFinite(Number(s.vacation_mode_intensity)) ? Number(s.vacation_mode_intensity) : 100;
       // {entity_id: epoch-s of its most recent "on"} — flood_latch.py's
       // event listener writes this server-side; ungated, same reasoning as
@@ -1002,6 +1004,16 @@ class PadSpanLightsApp extends HTMLElement {
       },
       vacationModeEnabled: !!this.state._vacationModeEnabled,
       vacationModeResumed: !!this.state._vacationModeResumed,
+      vacationOptions: vacationOptionsOf(this.state._vacationSettings),
+      vacationModeEnds: vacationEndsText(this.state._vacationSettings),
+      onVacationOptions: async (patch) => {
+        if (!this._hass) return false;
+        let res = null;
+        try { res = await this._ws({ type: "padspan_ha/settings_set", ...patch }); }
+        catch (e) { this._toast("Could not save the Vacation Mode option: " + String(e), true); return false; }
+        if (res?.settings) this.state._vacationSettings = res.settings;
+        return true;
+      },
       vacationModeIntensity: this.state._vacationModeIntensity || 100,
       onVacationModeDisable: async () => {
         if (!this._hass) return false;
