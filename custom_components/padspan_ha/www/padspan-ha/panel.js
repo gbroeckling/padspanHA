@@ -184,6 +184,7 @@ const _VIEW_PATHS = {
   forensics:    "./views/forensics.js",
   sandbox:      "./views/sandbox.js",
   occupancy:    "./views/occupancy.js",
+  guests:       "./views/guests.js",
   installbase:  "./views/installbase.js",
 };
 
@@ -262,6 +263,7 @@ const MENU = [
   ["traceback","Traceback","mdi:history"],
   ["forensics","Forensics","mdi:magnify-scan"],
   ["occupancy","Occupancy","mdi:account-group-outline"],
+  ["guests","Guests","mdi:account-clock-outline"],
   ["health","Health","mdi:heart-pulse"],
   ["qa","QA","mdi:clipboard-check-outline"],
   ["sandbox","Sandbox","mdi:flask-outline"],
@@ -296,6 +298,7 @@ const MENU_COLORS = {
   training: "#4dd0e1",
   calibration: "#26a69a",
   occupancy: "#a78bfa",
+  guests: "#fbbf24",
   diagnostics: "#9575cd",
   debug: "#ef5350",
   traceback: "#fbbf24",
@@ -318,6 +321,7 @@ const MENU_ICONS = {
   overview:    '<rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/>',
   purelive:    '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   follow:      '<path d="M21 3 3 10.5l7.5 3L14 21l7-18z"/>',
+  guests:      '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><circle cx="17.5" cy="16.5" r="4"/><path d="M17.5 14.6v2l1.3 1"/>',
   occupancy:   '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 5.6a3.2 3.2 0 0 1 0 6.1M17.2 20c0-2.6-.9-4.2-2.4-5"/>',
   maps:        '<path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>',
   calibration: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/>',
@@ -340,7 +344,7 @@ const MENU_ICONS = {
 // id missing from this table still renders, under a trailing "More" heading, so
 // adding a tab without touching this file can never make it disappear.
 const MENU_GROUPS = [
-  ["Live",      ["overview","purelive","follow","occupancy"]],
+  ["Live",      ["overview","purelive","follow","occupancy","guests"]],
   ["Setup",     ["maps","calibration","training","manage","settings"]],
   ["Diagnose",  ["traceback","health","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
@@ -2700,19 +2704,25 @@ class PadSpanHaApp extends HTMLElement {
     // Forensics is settings-gated in EVERY mode (including Dev): the tab only
     // exists while the opt-in forensics_enabled setting is on.
     const forensicsOn = this.state.settings?.forensics_enabled === true;
+    // Guests the same way: the tab exists only while guest tags are on
+    // (Settings → Presence → Guest tags), in every mode.
+    const guestsOn = this.state.settings?.guest_tags_enabled === true;
     let out;
     if (mode === "development") {
       out = new Set(MENU.map(x => x[0]));
       if (!forensicsOn) out.delete("forensics");
+      if (!guestsOn) out.delete("guests");
     } else if (mode === "basic") {
       out = new Set(BASIC_TABS);
       if (forensicsOn) out.add("forensics");
+      if (guestsOn) out.add("guests");
     } else {
       // Advanced: base + any user-opted extra tabs
       const extras = this.state.settings?.advanced_extra_tabs || [];
       out = new Set(ADVANCED_DEFAULT);
       for (const t of extras) out.add(t);
       if (forensicsOn) out.add("forensics");
+      if (guestsOn) out.add("guests");
     }
     // The EDITION decides last: a Bright build shows its lighting surfaces
     // (and the rest only behind the reveal switch). The full edition is
@@ -2734,6 +2744,7 @@ class PadSpanHaApp extends HTMLElement {
     if (!this._settingsLoaded) return true;
     const settings = this.state.settings || {};
     if (view === "forensics" && settings.forensics_enabled !== true) return false;
+    if (view === "guests" && settings.guest_tags_enabled !== true) return false;
     if (EDITIONS && EDITIONS.surfacesForEdition && !EDITIONS.surfacesForEdition([view], settings).length) return false;
     return true;
   }

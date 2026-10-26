@@ -843,6 +843,41 @@ function _settingsPresence(ctx, el){
     ]));
   }
 
+  // ── Guest tags (guest_tags.py, 0.38.178): off until turned on here ───────
+  {
+    const gOn = settings.guest_tags_enabled === true;
+    const gToggle = el("input",{type:"checkbox",style:"width:16px;height:16px;accent-color:#fbbf24;cursor:pointer"});
+    gToggle.checked = gOn;
+    gToggle.addEventListener("change", async()=>{
+      if (gToggle.checked && !confirm("Turn on guest tags?\n\nA tag you lend to a guest (a house-sitter, a visitor, a cleaner) is followed room by room while they have it, and you can be told when they arrive, leave or go into a room you choose.\n\nTell your guests the tag is tracked.")) { gToggle.checked = false; return; }
+      try {
+        await ctx.actions.settingsSet({ guest_tags_enabled: gToggle.checked });
+        ctx.toast(gToggle.checked ? "Guest tags on — see the Guests tab" : "Guest tags off");
+        ctx.actions.renderRooms();
+      } catch(e){ gToggle.checked = !gToggle.checked; ctx.toast("Failed to save: " + (e?.message || e), true); }
+    });
+    const keep = el("select",{class:"select",style:"width:auto"});
+    for (const [v, t] of [[0,"not kept"],[7,"7 days"],[30,"30 days"],[90,"90 days"]]) keep.appendChild(el("option",{value:String(v)}, t));
+    keep.value = String(settings.guest_retention_days ?? 30);
+    keep.addEventListener("change", async()=>{
+      try { await ctx.actions.settingsSet({ guest_retention_days: parseInt(keep.value, 10) }); ctx.toast("Saved"); }
+      catch(e){ ctx.toast("Failed to save: " + (e?.message || e), true); }
+    });
+    wrap.appendChild(el("div",{class:"card",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
+      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
+        el("div",{class:"h2",style:"margin:0;color:#fbbf24"}, "Guest tags"),
+      ]),
+      el("div",{style:rowStyle},[ gToggle, el("span",{style:"font-size:13px;color:#e2e8f0"}, "Use tags as guest tags") ]),
+      el("div",{class:"muted",style:"font-size:12px;margin:4px 0 8px;line-height:1.5"},
+        "Lend a tag PadSpan already knows (a beacon, a Find My tag, a spare phone) to a guest. While they have it, the Guests tab shows where they are, " +
+        "when they arrived and left, and how long they spent in each room, and you can be told when they arrive, leave, or go into a room you set as off-limits. " +
+        "A house-sitter can count as someone home for Vacation Mode. Off: nothing is tracked or kept, and the Guests tab is hidden."),
+      el("div",{style:rowStyle},[ el("span",{style:"font-size:12px;color:#94a3b8"},"Keep a finished stay's report (name, times, rooms) for"), keep ]),
+      el("div",{class:"muted",style:"font-size:11px"},
+        "Guests' names stay in this Home Assistant: never in the usage report, never in a backup. Only an administrator can lend a tag or end a stay."),
+    ]));
+  }
+
   // ── Fabric source ─────────────────────────────────────────────────────────
   // "Runs without Home Assistant areas" — the fabric is the model, and this
   // decides whether HA's registry gets to write into it.
