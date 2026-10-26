@@ -92,7 +92,8 @@ def test_guides_only_leaves_the_home_page_alone(monkeypatch) -> None:
     assert beside <= set(targets)
     assert {f"{mod.REMOTE_DIR}/{g}" for g in mod.GUIDES} <= set(targets)
     assert all(t.startswith(f"{mod.REMOTE_DIR}/guides/") or t in beside for t in targets), targets
-    assert sent == [[_url(p) for p in _GUIDES]]
+    # One submission with every guide; the order is the deploy's own (sorted as text).
+    assert len(sent) == 1 and sorted(sent[0]) == sorted(_url(p) for p in _GUIDES)
 
 
 def test_the_indexnow_key_file_holds_its_own_name() -> None:

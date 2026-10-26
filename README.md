@@ -179,22 +179,22 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live
 
 ## How It Compares
 
-[Bermuda](https://github.com/agittins/bermuda) and [ESPresense](https://espresense.com/) are both good, and lots of people run them. This is what each does, from their own docs as of October 2026. If something here is out of date, [open an issue](https://github.com/gbroeckling/padspanHA/issues) and it gets fixed.
+[Bermuda](https://github.com/agittins/bermuda) and [ESPresense](https://espresense.com/) are both good, and lots of people run them. This is what each does, from their own docs as of October 2026 ([more detail](https://padspan.traks.ca/guides/bermuda-vs-espresense/)). If something here is out of date, [open an issue](https://github.com/gbroeckling/padspanHA/issues) and it gets fixed.
 
 | | PadSpan HA | Bermuda | ESPresense (+ Companion) |
 |:--|:--|:--|:--|
 | Room-level presence | ✅ | ✅ | ✅ |
-| Hardware | ESPHome Bluetooth proxies, HA's own Bluetooth, or ESPresense over MQTT | ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters | Its own firmware on ESP32 nodes |
-| Floor plan needed? | No: rooms come from your HA areas; the map is optional | No | No for rooms; Companion's map needs rooms typed in as coordinates |
+| Hardware | ESPHome Bluetooth proxies, HA's own Bluetooth, or ESPresense over MQTT once switched on | ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters | Its own firmware on ESP32 nodes |
+| Floor plan needed? | No: rooms come from each scanner's HA area; the map is optional | No | No for rooms; Companion's map needs your rooms as coordinates (YAML, or made with MagicPlan or its Floorplan Creator) |
 | Map of your home | ✅ draw rooms on your floor plan | — | ✅ Companion |
 | Multi-floor 3D view | ✅ (the full 3D house, Live Aboard, is Pro) | — (has a Floor sensor) | ✅ Companion |
-| Position between scanners | ✅ with 3+ scanners placed on the plan | — | ✅ Companion (X/Y/Z) |
-| Calibration | Walk-around fingerprints and per-scanner signal fit | Guided per-proxy offsets | Automatic (Companion) |
-| Signal smoothing | Kalman filter plus a room vote | Averaging plus a speed limit on distance changes | Filtering on the node, Kalman on position (Companion) |
-| iPhones and Apple Watches (IRK) | ✅ via Private BLE Device or irk-capture, with a setup guide | ✅ via Private BLE Device | ✅ captured on the node's Enroll page |
-| Tags that change address (AirTag, SmartTag) | Experimental | — | Partly, from what the tag broadcasts |
-| HA room, distance and tracker entities | ✅ | ✅ | ✅ |
-| Movement history | ✅ playback (Traceback) | — | Beta path view (Companion) |
+| Position between scanners | ✅ with 3+ scanners placed on a measured plan | — | ✅ Companion (X/Y/Z) |
+| Calibration | Walk-around fingerprints and per-scanner signal fit | Guided: global, per proxy and per device | Manual on each node; automatic in Companion |
+| Signal smoothing | Kalman filter plus a room vote | Averaging, a speed limit on moving away, and area hysteresis | Filtering on the node, Kalman on position (Companion) |
+| iPhones and Apple Watches (IRK) | ✅ via Private BLE Device or irk-capture, with a setup guide | ✅ via Private BLE Device | ✅ enrolled on the node's web page |
+| Tags that change address (AirTag, SmartTag) | Experimental | — | — (AirTags can only be counted) |
+| HA room, distance and tracker entities | ✅ | ✅ | A room sensor with distance; a tracker from Companion |
+| Movement history | ✅ playback (Traceback) | HA's own history, no playback | Path view in Companion (its history logging is in beta) |
 | Alerts when a device changes room | ✅ built in (Follow) | With your own HA automations | With your own HA automations |
 | Where you set it up | A PadSpan panel in the HA sidebar | Home Assistant's setup dialogs | The node's web page and the Companion app |
 | Try it before installing | ✅ [browser demo](https://padspan.traks.ca/demo/) and a sample house | — | — |

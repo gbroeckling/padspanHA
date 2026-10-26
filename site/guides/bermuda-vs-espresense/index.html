@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bermuda vs ESPresense vs PadSpan: Bluetooth room presence compared | PadSpan HA</title>
+<meta name="description" content="Three ways to get Bluetooth room presence in Home Assistant: Bermuda, ESPresense and PadSpan. What each one does, from their own docs as of October 2026, and which fits which house.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/bermuda-vs-espresense/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Bermuda, ESPresense or PadSpan?">
+<meta property="og:description" content="Bluetooth room presence in Home Assistant, three ways. What each does, from their own docs, and which fits which house.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/bermuda-vs-espresense/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1>Bermuda, ESPresense or PadSpan?</h1>
+<p class="lead">Three ways to get Bluetooth room presence in Home Assistant. All three answer the same question, which room each phone, watch and tag is in, in different ways. This is what each one does, from their own docs as of October 2026, and which fits which house. PadSpan's developer wrote it, so the sources are at the end.</p>
+
+<h2>The short version</h2>
+<ul>
+  <li><b><a href="https://github.com/agittins/bermuda">Bermuda</a></b> if you want room sensors from the ESPHome Bluetooth proxies you already have, with very little to set up. It has no map.</li>
+  <li><b><a href="https://espresense.com/">ESPresense</a></b> if you're happy to flash its own firmware onto ESP32 nodes. Each node does more on its own, and the ESPresense Companion app adds a floor-plan view, positions and a 3D view.</li>
+  <li><b>PadSpan</b> if you want a map of your house inside Home Assistant, on the same ESPHome proxies Bermuda uses, with a calibration walk and alerts built in. It also runs next to Bermuda, so you don't have to choose.</li>
+</ul>
+
+<h2>Side by side</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>PadSpan</th><th>Bermuda</th><th>ESPresense (+ Companion)</th></tr>
+  <tr><td>Room-level presence</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Hardware</td><td>ESPHome Bluetooth proxies, Home Assistant's own Bluetooth, or ESPresense nodes over MQTT once switched on</td><td>ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters</td><td>Its own firmware on ESP32 nodes</td></tr>
+  <tr><td>Floor plan needed?</td><td>No: rooms come from each scanner's Home Assistant area; the map is optional</td><td>No</td><td>No for rooms; Companion's map needs your rooms as coordinates (YAML, or made with MagicPlan or its Floorplan Creator)</td></tr>
+  <tr><td>Map of your home</td><td>Yes, rooms drawn on your floor plan</td><td>No</td><td>Yes, in Companion</td></tr>
+  <tr><td>Multi-floor view</td><td>Yes (the full 3D house, Live Aboard, is Pro)</td><td>No (it has a Floor sensor)</td><td>Yes, a 3D view in Companion</td></tr>
+  <tr><td>Position between scanners</td><td>Yes, with 3 or more scanners placed on a measured plan</td><td>No</td><td>Yes, X/Y/Z in Companion</td></tr>
+  <tr><td>Calibration</td><td>A walk-around: fingerprints and a per-scanner signal fit</td><td>Guided: global, per proxy and per device</td><td>Manual on each node; automatic in Companion</td></tr>
+  <tr><td>Signal smoothing</td><td>Kalman filter plus a room vote</td><td>Averaging, a speed limit on moving away, and area hysteresis</td><td>Filtering on the node; Kalman on position in Companion</td></tr>
+  <tr><td>iPhones and Apple Watches (IRK)</td><td>Through Private BLE Device or irk-capture, with a setup guide</td><td>Through Private BLE Device</td><td>Enrolled on the node's web page</td></tr>
+  <tr><td>Tags that change address (AirTag, SmartTag)</td><td>Experimental</td><td>No</td><td>No (AirTags can only be counted)</td></tr>
+  <tr><td>Home Assistant room, distance and tracker entities</td><td>Yes</td><td>Yes</td><td>A room sensor with distance; a tracker from Companion</td></tr>
+  <tr><td>Movement history</td><td>Yes, playback (Traceback)</td><td>Home Assistant's own history, no playback</td><td>A path view in Companion (its history logging is in beta)</td></tr>
+  <tr><td>Alerts when a device changes room</td><td>Built in (Follow)</td><td>With your own automations</td><td>With your own automations</td></tr>
+  <tr><td>Where you set it up</td><td>A PadSpan panel in the Home Assistant sidebar</td><td>Home Assistant's setup dialogs</td><td>Each node's web page, and the Companion app</td></tr>
+  <tr><td>Try it before installing</td><td>Yes: a <a href="/demo/">browser demo</a></td><td>No</td><td>No</td></tr>
+</table>
+</div>
+
+<h2>Bermuda</h2>
+<p>Bermuda turns the Bluetooth adverts your proxies already hear into Home Assistant sensors: which area each device is in, its distance from each proxy, and a device tracker. It works with ESPHome Bluetooth proxies, Shelly Gen2+ devices and, more basically, USB Bluetooth adapters. It recognises iPhones and Apple Watches through Home Assistant's Private BLE Device, and iBeacons even when their address changes. It smooths distances by averaging recent readings, ignores readings that would mean a device moved away faster than a set speed, and resists switching straight back to an area it just left. Its <a href="https://github.com/agittins/bermuda/wiki/Calibration">calibration</a> is guided, with settings for the whole house, each proxy and each device. Its <a href="https://github.com/agittins/bermuda/wiki">wiki</a> says a map of your house "is not yet a thing" and that one is planned: today you get sensors for the areas your proxies are in, and a Floor sensor since version 0.8.5.</p>
+<p><b>Good fit:</b> you already have ESPHome Bluetooth proxies, and sensors for your automations are all you want.</p>
+
+<h2>ESPresense</h2>
+<p><a href="https://espresense.com/">ESPresense</a> is its own firmware for ESP32 boards. Each node filters and identifies the devices it hears (counting them is in beta), can also host motion and environment sensors, and reports over MQTT to Home Assistant (and to Homebridge or Domoticz). You <a href="https://espresense.com/guides/enrolling-devices/">enroll</a> an iPhone or Apple Watch on a node's web page to capture its key (Android phones don't give one out). The separate <a href="https://espresense.com/companion/">Companion</a> app takes your rooms as corner coordinates in a YAML file (MagicPlan or its Floorplan Creator can make them), works out X/Y/Z positions, picks the most likely floor, calibrates its nodes automatically (each node can also be tuned by hand), and shows the result on a floor-plan view and a multi-floor 3D view. It doesn't use ESPHome Bluetooth proxies: the nodes run ESPresense instead.</p>
+<p><b>Good fit:</b> you're happy to dedicate ESP32 boards to it and run the Companion app, and you want positions more than room names.</p>
+
+<h2>PadSpan</h2>
+<p>PadSpan reads Home Assistant's own Bluetooth data, so the ESPHome proxies Bermuda uses serve it too, and ESPresense nodes can feed it over MQTT once you switch that on. Rooms come from each scanner's Home Assistant area, the scanner that hears a device best winning, as in Bermuda, so with a scanner in each room it works without a floor plan; with one, you draw your rooms on it and see everyone on a map, one floor at a time or all floors stacked. With three or more scanners placed on a measured plan it can put a device between them, even in a room with no scanner of its own. A walk around the house with your phone teaches it what each room's signals look like, and it smooths readings and makes a new room win a vote before it moves anyone. It recognises iPhones and Apple Watches from Private BLE Device or irk-capture, with a setup guide; follows tags (AirTags and SmartTags only experimentally); can alert you when a device changes room; and keeps a movement history you can play back. It wants more than 2 GB of RAM on your Home Assistant machine (a 2 GB machine can turn on Low-memory mode). PadSpan is free and open source; an optional paid Pro key, with a 90-day free trial, adds the 3D house (Live Aboard) and a few extra tools.</p>
+<p><b>Good fit:</b> you want to see your house, not just sensors, and keep the proxies you have.</p>
+
+<h2>Can I run them together?</h2>
+<p>PadSpan and Bermuda: yes. PadSpan installs next to Bermuda, uses the same proxies and leaves Bermuda as it is. By default, devices Bermuda tracks show up in PadSpan in the room Bermuda's Area sensor reports; <a href="/guides/bermuda/">Bermuda and PadSpan together</a> explains how. PadSpan can also take its readings from ESPresense nodes over MQTT.</p>
+<p>Room Assistant, the fourth name in older comparisons, hasn't had a release since March 2022.</p>
+
+<p style="font-size:13px;color:var(--mut)">Sources: <a href="https://github.com/agittins/bermuda">Bermuda's README</a>, <a href="https://github.com/agittins/bermuda/wiki">wiki</a> and <a href="https://github.com/agittins/bermuda/releases">releases</a>; <a href="https://espresense.com/">ESPresense's site</a> and <a href="https://espresense.com/companion/">Companion docs</a>; <a href="https://github.com/gbroeckling/padspanHA">PadSpan's README</a>. Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try PadSpan in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited.</p>
+</div></footer>
+</body>
+</html>
