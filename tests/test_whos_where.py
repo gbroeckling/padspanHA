@@ -73,3 +73,9 @@ def test_a_new_install_on_the_demo_house_notices_the_switch() -> None:
     panel = _src(_WWW / "panel.js")
     assert 'if(this.state.settings?.onboarding?.live_first === "pending" && Date.now() - (this._liveFirstTs || 0) > 10000){' in panel
     assert "async _liveFirstCheck(){" in panel
+
+
+def test_the_phone_card_starts_open_while_who_is_where_shows() -> None:
+    ov = _src(_WWW / "views" / "overview.js")
+    assert ov.count("if (whosWhere) _phoneHdr.click();") == 1      # Basic
+    assert ov.count("if (whosWhere) _aPhoneHdr.click();") == 1     # Advanced

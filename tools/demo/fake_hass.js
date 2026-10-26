@@ -87,7 +87,7 @@ export async function startDemo(page){
   // now (views/whos_where.js). Phones come from Private BLE Device.
   // ?fresh=pending: the moment before — the panel open on the demo house,
   // and the "server" finding its first scanner 8 s later, as onboarding.py does.
-  const fresh = q.get("fresh") === "1" || q.get("fresh") === "pending";
+  const fresh = ["1", "pending", "wizard"].includes(q.get("fresh"));
   if (fresh) {
     Object.assign(settings, { data_mode: "live", onboarding_completed: false, atlas_3d_enabled: false,
                               onboarding: { setup_ts: Date.now() / 1000 - 300, live_first: "switched" } });
@@ -136,6 +136,20 @@ export async function startDemo(page){
     { name: "Sam's iPhone", canonical_id: "irk:5b0c", source: "private_ble_device" },
     { name: "Jordan's Apple Watch", canonical_id: "irk:41d7", source: "private_ble_device" },
   ];
+  // ?fresh=wizard: the same house with one floor plan traced and measured
+  // in the Setup Wizard but not yet on the map (wizard_build.js): three
+  // rooms and three scanners pinned, a 12 m x 9 m placement, an empty fabric.
+  const wizard = q.get("fresh") === "wizard";
+  const WIZ_TF = { origin_x_m: 0, origin_y_m: 0, scale_x_m: 12, scale_y_m: 9, rotation_rad: 0, shear_rad: 0, floor_id: "main",
+                   reference_measurements: [{ p1: [0, 0], p2: [1, 0], distance_m: 12 }] };
+  const WIZ_MAP = { id: "demo-plan", name: "Ground floor", floor_id: "main", image: { width: 1200, height: 900 },
+    room_bounds: { Kitchen: [[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]], "Living Room": [[0.5, 0], [1, 0], [1, 0.6], [0.5, 0.6]],
+                   Hall: [[0, 0.5], [0.5, 0.5], [0.5, 1], [0, 1]] },
+    receivers: [{ id: "p1", label: "Kitchen proxy", x: 0.25, y: 0.25, room: "Kitchen", source: "demo-proxy-kitchen" },
+                { id: "p2", label: "Living room proxy", x: 0.75, y: 0.3, room: "Living Room", source: "demo-proxy-living" },
+                { id: "p3", label: "Hall proxy", x: 0.25, y: 0.75, room: "Hall", source: "demo-proxy-hall" }] };
+  if (wizard) model.map_transforms = { [WIZ_MAP.id]: WIZ_TF };
+  const toM = ([fx, fy]) => [WIZ_TF.origin_x_m + fx * WIZ_TF.scale_x_m, WIZ_TF.origin_y_m + fy * WIZ_TF.scale_y_m];
   const freshSnapshot = () => {
     const t = (Date.now() - t0) / 1000;
     const near = (w) => { const at = walkAt(w, t); return NEAREST[roomAt(freshModel, at.fid, at.x, at.y)] || "Hall"; };
@@ -183,7 +197,16 @@ export async function startDemo(page){
       case "padspan_ha/settings_set": { const { type, id, ...rest } = m; Object.assign(settings, rest); return { settings: clone(settings) }; }
       case "padspan_ha/version": return built.version;
       case "padspan_ha/model_get": return clone(model);
-      case "padspan_ha/maps_list": return { maps: [] };
+      case "padspan_ha/maps_list": return { maps: wizard ? [clone(WIZ_MAP)] : [] };
+      case "padspan_ha/fabric_truth_candidates": return { floor_id: m.floor_id, transforms: { rooms: Object.fromEntries(
+        Object.entries(WIZ_MAP.room_bounds).map(([r, pts]) => [r, { type: "poly", floor_id: "main", source_map_id: WIZ_MAP.id, points_m: pts.map(toM) }])) } };
+      case "padspan_ha/fabric_correct_room":
+        model.room_geometry_m[m.room] = { ...m.geometry, floor_id: m.floor_id };
+        model.areas = Object.keys(model.room_geometry_m).map(name => ({ id: slug(name), name, floor_id: model.room_geometry_m[name].floor_id }));
+        return { ok: true };
+      case "padspan_ha/fabric_scanner_position_set":
+        model.scanner_positions_m[m.source] = { x_m: m.x_m, y_m: m.y_m, z_m: m.z_m ?? 2.4, floor_id: m.floor_id };
+        return { ok: true };
       case "padspan_ha/live_snapshot": return { snapshot: fresh ? freshSnapshot() : snapshot() };
       case "padspan_ha/private_ble_status": return fresh ? { devices: clone(FRESH_PHONES) } : {};
       case "padspan_ha/object_label_list": return { labels: clone(labels), registry_labels: {} };

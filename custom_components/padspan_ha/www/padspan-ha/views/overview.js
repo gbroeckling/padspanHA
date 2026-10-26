@@ -3166,6 +3166,9 @@ export function renderClassic(ctx){
         _phoneArrow.style.transform = open ? "" : "rotate(90deg)";
         _phoneHdr.querySelector(".muted").textContent = open ? "Tap to expand" : "";
       });
+      // Before any room is drawn (Who's where now above), it starts open:
+      // tracking a phone is the next thing a new house does.
+      if (whosWhere) _phoneHdr.click();
       const _bLoadMsg = el("div",{class:"muted",style:"font-size:12px"}, "Discovering phones...");
       _phoneBody.appendChild(_bLoadMsg);
       (async () => {
@@ -3593,6 +3596,9 @@ export function renderClassic(ctx){
       _aPhoneArrow.style.transform = open ? "" : "rotate(90deg)";
       _aPhoneHdr.querySelector(".muted").textContent = open ? "Tap to expand" : "";
     });
+    // Before any room is drawn (Who's where now above), it starts open:
+    // tracking a phone is the next thing a new house does.
+    if (whosWhere) _aPhoneHdr.click();
     const _aLoadMsg = el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"}, "Discovering phones...");
     _aPhoneBody.appendChild(_aLoadMsg);
     (async () => {

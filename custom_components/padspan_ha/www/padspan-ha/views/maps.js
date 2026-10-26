@@ -45,6 +45,11 @@ const { whatIfDelta } =
   await import(`./whatif_placement.js${new URL(import.meta.url).search}`);
 // "Import from a robot vacuum" beside the .sh3d import (vacuum_import.js).
 // Optional: a block that fails to load must not blank the Mapping tab.
+// The Setup Wizard's "Put it on the map" (wizard_build.js) and the Tune
+// planner it writes scanners with, given this module's own conversions.
+const { planHouse, buildHouse } = await import(`./wizard_build.js${new URL(import.meta.url).search}`);
+const { tuneSavePlanInit, tuneDiffMapDraft } = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
+tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: vacuum_import failed to load", err); return null; });
 // The 90-day trial card, shared by every paid wall (trial_offer.js).
@@ -1450,6 +1455,56 @@ function _wizardFinish(ctx, map, isBasic){
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;line-height:1.6"},
     `${rooms} room${rooms===1?"":"s"} traced, ${scanners} scanner${scanners===1?"":"s"} placed. ` +
     "Next: calibrate, so PadSpan learns what those scanners actually see from each room — a few minutes walking around with your phone gets you most of the way."));
+  // What's traced here but not yet on the house the Overview draws: one
+  // explicit click puts it there (wizard_build.js), missing pieces only.
+  // The plan is read HERE, in the editor; the module only sees the fabric.
+  const traced = map ? {
+    floorId: map.floor_id || "main",
+    rooms: Object.keys(map.room_bounds || {}),
+    scanners: (map.receivers || []).map(r => r && r.source).filter(Boolean),
+    measured: !!(((ctx.state.model || {}).map_transforms || {})[map.id]?.reference_measurements || []).length,
+  } : null;
+  // The Tune planner for these pins: the rows are their own baseline, so
+  // only pins missing from the fabric are planned, never one it already has.
+  const planPins = (sources) => {
+    const mdl = ctx.state.model || {};
+    const rows = (map.receivers || []).filter(r => r && sources.includes(r.source));
+    const base = Object.fromEntries(rows.map(r => [r.source, { x: r.x, y: r.y }]));
+    return tuneDiffMapDraft(map, rows, mdl.scanner_positions_m || {}, mdl.map_transforms || {}, base, true);
+  };
+  const plan = traced ? planHouse(traced, ctx.state.model) : null;
+  if (plan && (plan.rooms.length || plan.scanners.length)) {
+    const box = el("div",{style:"padding:10px 12px;border:1px solid #2d6a4f;border-radius:8px;margin-bottom:14px","data-wizard-build":"1"});
+    const n = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
+    if (!plan.measured) {
+      box.appendChild(el("div",{style:"font-size:13px"},
+        "Set this floor's scale first (step 2): PadSpan needs to know how big it is before it can put these rooms and scanners on the map of your house."));
+    } else {
+      const what = [plan.rooms.length ? n(plan.rooms.length, "room") : "", plan.scanners.length ? n(plan.scanners.length, "scanner") : ""].filter(Boolean).join(" and ");
+      box.appendChild(el("div",{style:"font-size:13px;margin-bottom:8px;line-height:1.5"},
+        `${what} ${plan.rooms.length + plan.scanners.length === 1 ? "is" : "are"} on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.`));
+      const putBtn = el("button",{class:"btn primary"}, "Put it on the map");
+      putBtn.addEventListener("click", async () => {
+        putBtn.disabled = true;
+        putBtn.textContent = "Putting it on the map…";
+        try {
+          const r = await buildHouse(ctx, traced, planPins);
+          const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "scanner") : ""].filter(Boolean).join(" and ");
+          const left = r.failed.length + r.notConvertible.length;
+          ctx.toast(done
+            ? `${done} now on the map${left ? `; ${left} couldn't be (Mapping → Rooms shows them)` : ""}.`
+            : `Nothing could be put on the map${left ? `: ${left} couldn't be (Mapping → Rooms shows them)` : ""}.`, !done || !!left);
+          await ctx.actions.modelRefresh();
+        } catch (e) {
+          ctx.toast("Couldn't put it on the map: " + (e?.message || e), true);
+          putBtn.disabled = false;
+          putBtn.textContent = "Put it on the map";
+        }
+      });
+      box.appendChild(putBtn);
+    }
+    wrap.appendChild(box);
+  }
   const row = el("div",{style:"display:flex;gap:10px;flex-wrap:wrap"});
   const calBtn = el("button",{class:"btn primary"}, "Go to Calibration →");
   calBtn.addEventListener("click", ()=>{
