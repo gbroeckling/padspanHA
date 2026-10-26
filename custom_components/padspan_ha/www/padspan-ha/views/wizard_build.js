@@ -26,8 +26,11 @@
 // It imports nothing.
 
 /** What was traced that the house (the fabric) doesn't have yet.
- *  traced: {rooms: [name], scanners: [source], measured} from maps.js.
- *  Returns {measured, rooms, scanners}: each room and scanner once. */
+ *  traced: {mapId, floorId, rooms: [name], scanners: [source], readable}
+ *  from maps.js — readable: the plan's placement converts to metres
+ *  (tune_save_plan.js tunePlacementReadable, the backend's own test);
+ *  scanners: only those Home Assistant hears now, never the demo house's.
+ *  Returns {readable, rooms, scanners}: each room and scanner once. */
 export function planHouse(traced, model){
   const t = traced || {}, mdl = model || {};
   const fabRooms = mdl.room_geometry_m || {};
@@ -41,7 +44,7 @@ export function planHouse(traced, model){
     }
     return out;
   };
-  return { measured: !!t.measured, rooms: once(t.rooms, fabRooms), scanners: once(t.scanners, fabScanners) };
+  return { readable: !!t.readable, rooms: once(t.rooms, fabRooms), scanners: once(t.scanners, fabScanners) };
 }
 
 const geomPayload = (g) => g.type === "circle"
@@ -49,27 +52,37 @@ const geomPayload = (g) => g.type === "circle"
   : { type: "poly", points_m: g.points_m };
 
 /** Put the missing rooms and scanners into the fabric.
- *  traced: as planHouse's, plus floorId. planPins(sources): the Tune
- *  planner's answer for those pins ({writes, invalid, refused}), from
- *  maps.js. Returns {rooms, scanners, failed: [...], notConvertible: [...]};
- *  {notMeasured: true} and nothing asked or written for a plan with no scale. */
-export async function buildHouse(ctx, traced, planPins){
+ *  traced: as planHouse's. deps.refresh(): re-reads the model first, so
+ *  "missing" is today's, not the page's. deps.planPins(sources): the Tune
+ *  planner's answer for those pins across every plan ({writes, invalid,
+ *  refused}; a scanner pinned differently on two plans comes back invalid),
+ *  from maps.js. Returns {rooms, scanners, failed, notConvertible,
+ *  otherPlan}; {notReadable: true} and nothing asked or written for a plan
+ *  that doesn't convert to metres. */
+export async function buildHouse(ctx, traced, deps){
+  if (deps.refresh) await deps.refresh();
   const plan = planHouse(traced, ctx.state.model);
-  const out = { rooms: 0, scanners: 0, failed: [], notConvertible: [] };
-  if (!plan.measured) return { ...out, notMeasured: true };
+  const out = { rooms: 0, scanners: 0, failed: [], notConvertible: [], otherPlan: [] };
+  if (!plan.readable) return { ...out, notReadable: true };
   const floor_id = traced.floorId || "main";
 
   if (plan.rooms.length) {
     const res = await ctx.actions.wsCall("padspan_ha/fabric_truth_candidates", { floor_id });
     const cand = (res && res.transforms && res.transforms.rooms) || {};
+    const have = (res && res.fabric && res.fabric.rooms) || {};   // the server's, as of now
     for (const room of plan.rooms) {
+      if (have[room]) continue;                                   // already on the map: never rewritten
       const g = cand[room];
-      const usable = g && (g.type === "circle" ? Number.isFinite(g.r_m) : Array.isArray(g.points_m) && g.points_m.length >= 3);
+      // The floor's layout takes each room name from one plan (the oldest
+      // that has it): a room it takes from ANOTHER plan of this floor is not
+      // what was just traced, and is left to Mapping → Rooms.
+      if (g && g.source_map_id && g.source_map_id !== traced.mapId) { out.otherPlan.push(room); continue; }
+      const usable = g && g.source_map_id === traced.mapId
+        && (g.type === "circle" ? Number.isFinite(g.r_m) : Array.isArray(g.points_m) && g.points_m.length >= 3);
       if (!usable) { out.notConvertible.push(room); continue; }
       try {
         await ctx.actions.wsCall("padspan_ha/fabric_correct_room", {
-          floor_id, room, geometry: geomPayload(g),
-          ...(g.source_map_id ? { source_map_id: g.source_map_id } : {}),
+          floor_id, room, geometry: geomPayload(g), source_map_id: traced.mapId,
         });
         out.rooms++;
       } catch (e) { out.failed.push(room); }
@@ -77,7 +90,7 @@ export async function buildHouse(ctx, traced, planPins){
   }
 
   if (plan.scanners.length) {
-    const p = planPins(plan.scanners);
+    const p = deps.planPins(plan.scanners);
     if (!p || p.refused) out.notConvertible.push(...plan.scanners);
     else {
       out.notConvertible.push(...(p.invalid || []));

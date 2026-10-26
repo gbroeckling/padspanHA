@@ -251,8 +251,9 @@ async def async_import(hass: HomeAssistant, backup: Any) -> dict[str, Any]:
                 data["atlas_default_v1_applied"] = True
             # The trial milestone's answer and first sighting, from either
             # side (settings_store.trial_state_kept).
-            from .settings_store import trial_state_kept  # noqa: PLC0415
+            from .settings_store import live_first_kept, trial_state_kept  # noqa: PLC0415
             data.update(trial_state_kept(live_settings, data))
+            data.update(live_first_kept(live_settings, data))
             data[DONE_KEY] = dt_util.utcnow().replace(microsecond=0).isoformat()
         if suffix == "house3d":
             # What this house shared to the library stays: its owner tokens

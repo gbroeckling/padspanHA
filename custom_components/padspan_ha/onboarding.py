@@ -85,7 +85,10 @@ def note_snapshot(hass: HomeAssistant, snap: Any) -> None:
             # At once, like the steps below, so the next build does not do it again.
             st.data["onboarding"] = ob
             st.data["data_mode"] = "live"
-            hass.async_create_task(st.async_set(onboarding=ob, data_mode="live"))
+            # Saves the data as it is when the task runs: on a Home Assistant
+            # whose tasks don't start at once, a mode someone picked in between
+            # must not be overwritten with the values captured here.
+            hass.async_create_task(st.async_set())
         if not isinstance(ob, dict) or not ob.get("setup_ts") or all(ob.get(k) for k in STEPS):
             return
         t0 = float(ob["setup_ts"])

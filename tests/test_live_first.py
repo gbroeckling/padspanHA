@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 
 from custom_components.padspan_ha import onboarding as onb
 from custom_components.padspan_ha import ws_settings as WS
+from custom_components.padspan_ha.build_info import EDITION
 from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
 from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
 from tests.test_onboarding_proxy_health import _load
@@ -58,8 +59,11 @@ def test_a_brand_new_install_is_marked_and_starts_in_sample(tmp_path):
     storage = tmp_path / ".storage"
     storage.mkdir()
     data, saved = _load(None, storage)
-    assert data["onboarding"]["live_first"] == "pending"
     assert data["data_mode"] == "sample"
+    if EDITION == "bright":        # the Atlas alone: never marked (test_bright_is_never_marked)
+        assert "live_first" not in data["onboarding"]
+        return
+    assert data["onboarding"]["live_first"] == "pending"
     assert saved["onboarding"]["live_first"] == "pending"
 
 
@@ -107,6 +111,8 @@ def test_the_first_room_is_still_measured_in_the_same_build():
     snap = _snap(_RADIO)
     snap["objects"]["list"].append({"address": "CC", "user_label": "Keys", "room": "Hall"})
     onb.note_snapshot(h, snap)
+    for t in tasks:
+        _run(t)
     assert st.data["onboarding"]["live_first"] == "switched"
     assert st.data["onboarding"]["first_room"] == "lt15m"
 
@@ -158,3 +164,48 @@ def test_an_install_from_before_choosing_a_mode_gets_no_record():
     st.data.pop("onboarding", None)
     _set_mode(h, "live")
     assert st.data["data_mode"] == "live" and "onboarding" not in st.data
+
+
+# ═══ 4. after review ═════════════════════════════════════════════════════════
+
+def test_bright_is_never_marked(tmp_path, monkeypatch):
+    from custom_components.padspan_ha import settings_store as ss
+    monkeypatch.setattr(ss, "EDITION", "bright")
+    storage = tmp_path / ".storage"
+    storage.mkdir()
+    data, _ = _load(None, storage)
+    assert "live_first" not in data["onboarding"] and data["data_mode"] == "sample"
+
+
+def test_a_restore_never_brings_pending_back():
+    from custom_components.padspan_ha.settings_store import live_first_kept
+    pending = {"onboarding": {"setup_ts": 1.0, "live_first": "pending"}}
+    # A backup taken while pending, restored on an install from before: no switch.
+    assert live_first_kept({}, pending) == {"onboarding": {"setup_ts": 1.0}}
+    # ... or on one that has decided: its answer stays.
+    for mine in ("switched", "chosen"):
+        out = live_first_kept({"onboarding": {"live_first": mine}}, pending)
+        assert out["onboarding"]["live_first"] == mine and out["onboarding"]["setup_ts"] == 1.0
+    # A new install (pending) restoring an older backup: the backup's mode stands.
+    assert live_first_kept(pending, {"onboarding": {}, "data_mode": "sample"}) == {"onboarding": {}}
+    assert live_first_kept(pending, {"data_mode": "sample"}) == {}
+    # A decided backup keeps its own word where this install has none.
+    assert live_first_kept({}, {"onboarding": {"live_first": "chosen"}}) == {"onboarding": {"live_first": "chosen"}}
+
+
+def test_restore_and_bright_import_apply_it():
+    from pathlib import Path
+    cc = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+    assert "data.update(live_first_kept(store_obj.data or {}, data))" in (cc / "ws_backup.py").read_text(encoding="utf-8")
+    assert "data.update(live_first_kept(live_settings, data))" in (cc / "bright_import.py").read_text(encoding="utf-8")
+
+
+def test_a_mode_picked_before_the_save_runs_is_kept():
+    """On a Home Assistant whose tasks don't start at once, the user can pick
+    Sample between the switch and its save: the save writes what is current."""
+    h, st, tasks = _house({"setup_ts": time.time(), "live_first": "pending"})
+    onb.note_snapshot(h, _snap(_RADIO))
+    st.data["data_mode"] = "sample"            # someone's choice, before the task runs
+    for t in tasks:
+        _run(t)
+    assert st.data["data_mode"] == "sample"

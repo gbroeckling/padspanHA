@@ -26,6 +26,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
+from .build_info import EDITION
 from .const import SETTINGS_STORE_KEY
 
 _LOGGER = logging.getLogger(__name__)
@@ -350,6 +351,25 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 }
 
 
+def live_first_kept(live: dict[str, Any] | None, other: dict[str, Any] | None) -> dict[str, Any]:
+    """onboarding["live_first"] through a settings restore or a Bright import
+    (`other` is the settings coming in). Never "pending" afterwards: restoring
+    is choosing settings, the mode among them, so a new install's switch to
+    Live must not run over it. This install's own answer ("switched",
+    "chosen") stays when it has one. Returns {"onboarding": ...} to apply,
+    or {} when there is nothing to change."""
+    a, b = live or {}, other or {}
+    mine = a.get("onboarding").get("live_first") if isinstance(a.get("onboarding"), dict) else None
+    ob = dict(b["onboarding"]) if isinstance(b.get("onboarding"), dict) else None
+    if ob is None:
+        return {}
+    if mine in ("switched", "chosen"):
+        ob["live_first"] = mine
+    elif ob.get("live_first") == "pending":
+        del ob["live_first"]
+    return {"onboarding": ob}
+
+
 def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None = None) -> dict[str, Any]:
     """The trial milestone's two per-install facts, kept through a settings
     restore, a factory reset and a Bright import (`other` is the settings
@@ -425,7 +445,11 @@ class SettingsStore:
         # reset or a restore writes one too.
         if loaded is None and first_run:
             self.data["iphone_irk_guide"] = True
-            self.data["onboarding"] = {"setup_ts": time.time(), "live_first": "pending"}
+            self.data["onboarding"] = {"setup_ts": time.time()}
+            # PadSpan Bright is the Atlas alone: it has no presence screens to
+            # open on, so its mode is left as it always was.
+            if EDITION != "bright":
+                self.data["onboarding"]["live_first"] = "pending"
         # Normalize followed_addrs: uppercase + dedup (order preserved).
         # Every comparison in the system (frontend followedHas, backend
         # settings_set, tag_integration) is uppercase; historic entries were

@@ -55,8 +55,27 @@ def test_the_module_imports_nothing_and_never_reads_the_plan() -> None:
 
 def test_only_the_finish_buttons_click_runs_it() -> None:
     maps = _src(_WWW / "views" / "maps.js")
-    assert maps.count("buildHouse(") == 1
-    assert "const r = await buildHouse(ctx, traced, planPins);" in maps
+    assert maps.count("buildHouse(ctx") == 1
+    assert "const r = await buildHouse(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh() });" in maps
     assert '"Put it on the map"' in maps
     # The planner gets this module's own conversions, the ones the editor draws with.
-    assert "tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });" in maps
+    assert "if (TSP) TSP.tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });" in maps
+
+
+def test_never_from_the_demo_house_and_never_a_disputed_scanner() -> None:
+    """#88: in Sample mode the wizard's scanner list is the demo house's, and
+    a Put it on the map then would make phantom scanners in the real fabric."""
+    maps = _src(_WWW / "views" / "maps.js")
+    assert "const writeBlock = TSP ? TSP.tuneWriteBlock(ctx.state) : null;" in maps
+    assert "if (writeBlock) {" in maps
+    # Only scanners Home Assistant hears now.
+    assert "scanners: (map.receivers || []).map(r => r && r.source).filter(src => src && liveSources.has(src))," in maps
+    # Every plan's pins planned; a scanner two plans disagree about refused on both.
+    assert "const bad = new Set(TSP.tuneConflictingSources(all));" in maps
+    assert "for (const m of (ctx.state.maps?.list || [])) {" in maps
+
+
+def test_a_failed_load_never_blanks_mapping() -> None:
+    maps = _src(_WWW / "views" / "maps.js")
+    assert ".catch(() => ({ planHouse: null, buildHouse: null }));" in maps
+    assert "const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`).catch(() => null);" in maps

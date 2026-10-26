@@ -524,8 +524,11 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             data["server_offers"] = (store_obj.data or {}).get("server_offers") or {}
                             # Nor bring back the trial milestone card, or restart
                             # its week (settings_store.trial_state_kept).
-                            from .settings_store import trial_state_kept
+                            from .settings_store import live_first_kept, trial_state_kept
                             data.update(trial_state_kept(store_obj.data or {}, data))
+                            # Nor bring back a new install's pending switch to
+                            # Live over the mode restored here (live_first_kept).
+                            data.update(live_first_kept(store_obj.data or {}, data))
                             # The licence on this install stays when it is the
                             # better one: a backup from before a purchase (or
                             # from a trial) blanked the key or put the old one

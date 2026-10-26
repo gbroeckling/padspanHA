@@ -1734,10 +1734,16 @@ class PadSpanHaApp extends HTMLElement {
     if(this.state.dataMode !== "live"){
       // A new install still on the demo house turns to its own house once
       // Home Assistant reports a Bluetooth scanner. The server decides
-      // (onboarding.py, live_first); this only notices, every 10 s.
-      if(this.state.settings?.onboarding?.live_first === "pending" && Date.now() - (this._liveFirstTs || 0) > 10000){
-        this._liveFirstTs = Date.now();
-        await this._liveFirstCheck();
+      // (onboarding.py, live_first); this only notices: every 10 s for the
+      // first five minutes on the page, then every two (a house with no
+      // scanner yet isn't asked forever), and never mid-task in Mapping.
+      if(this.state.settings?.onboarding?.live_first === "pending" && this.state.view !== "maps"){
+        this._liveFirstSince = this._liveFirstSince || Date.now();
+        const _every = (Date.now() - this._liveFirstSince) < 300000 ? 10000 : 120000;
+        if(Date.now() - (this._liveFirstTs || 0) > _every){
+          this._liveFirstTs = Date.now();
+          await this._liveFirstCheck();
+        }
       }
       return;
     }
@@ -2219,7 +2225,10 @@ class PadSpanHaApp extends HTMLElement {
     try {
       await this._fetchSettings();
       if(this.state.dataMode !== "live") return;
-      this._toast("PadSpan found your Bluetooth scanners: this is your own house now.");
+      // Only when the server made the switch, not someone's own click or
+      // another tab.
+      if(this.state.settings?.onboarding?.live_first === "switched")
+        this._toast("PadSpan found your Bluetooth scanners: this is your own house now.");
       await this._refreshAll(false);
       this._startPolling();
       this._scheduleRender();

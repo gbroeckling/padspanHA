@@ -76,6 +76,22 @@ check("followed counts as known", byRoom.Hall.people.length === 1 && byRoom.Hall
 check("a room with no scanner still shows who is there", byRoom.Garage && byRoom.Garage.others === 1);
 check("not a room: left out", !rows.some(r => r.room === "unknown"));
 
+// ── after review: the panel's followed test, phones with no room ─────────────
+check("followed by its bare address, as the Follow buttons store it",
+  WW.followedObj({ kind: "ble", key: "ble:AA:BB", address: "AA:BB" }, (k) => k === "AA:BB")
+  && WW.followedObj({ kind: "entity", entity_id: "device_tracker.x" }, (k) => k === "device_tracker.x")
+  && !WW.followedObj({ kind: "ble", key: "ble:CC" }, (k) => k === "AA:BB"));
+const noArea = [
+  { kind: "private_ble", key: "irk:ff", canonical_id: "irk:ff", private_ble_name: "Robin's iPhone", room: "unknown", age_s: 1 },
+  { kind: "ble", address: "12:12", user_label: "Bag", room: "", age_s: 1 },
+  { kind: "ble", address: "13:13", room: "unknown", age_s: 1 },               // a stranger with no room: not shown
+];
+const nrRows = WW.whoIsWhere(snapOf([radio("AA", "")], noArea), WW.scannersOf(snapOf([radio("AA", "")], [])), {});
+const last = nrRows[nrRows.length - 1];
+check("heard with no room: its own last row, with Track", last && last.room === "" && last.people.length === 2
+  && last.people.some(p => p.name === "Robin's iPhone" && p.track) && last.people.some(p => p.name === "Bag" && !p.track) && last.others === 0, nrRows);
+check("no such row when there's nobody in it", !WW.whoIsWhere(snapOf(radios, objects), WW.scannersOf(snapOf(radios, [])), opts).some(r => r.room === ""));
+
 // ── phones Home Assistant knows, not heard now ───────────────────────────────
 const devices = [
   { name: "Anna's iPhone", canonical_id: "irk:aa", source: "private_ble_device" },      // heard: on the room list instead
@@ -181,6 +197,30 @@ const before = text();
 ctx.state.live.snapshot = snapOf(radios, [{ kind: "ble", address: "99:98", user_label: "Cat", room: "Office", age_s: 1 }]);
 ctx.state._whosWhereUpdate();
 check("a detached card is left alone", text() === before);
+
+// Counts change in place: the Track buttons stay.
+followed.clear();
+const ctx4 = mkCtx("live", snapOf(radios, objects));
+const card4 = WW.whosWhereCard(ctx4);
+document.body.appendChild(card4);
+const btn4 = [...card4.querySelectorAll("button")].find(b => b.textContent === "Track");
+const more = objects.concat([{ kind: "ble", address: "34:34", room: "Kitchen", age_s: 1 }]);
+ctx4.state.live.snapshot = snapOf(radios, more);
+ctx4.state._whosWhereUpdate();
+check("a new stranger updates the count and keeps the buttons",
+  [...card4.querySelectorAll("button")].includes(btn4) && /3 other Bluetooth devices/.test(card4.textContent), card4.textContent);
+
+// Enhanced security, someone who isn't an administrator: no Track, and why.
+const ctx5 = mkCtx("live", snapOf(radios, objects));
+ctx5.state.settings = { enhanced_security: true };
+ctx5.hass = { user: { is_admin: false } };
+const card5 = WW.whosWhereCard(ctx5);
+check("no Track for a non-admin under Enhanced security, and the reason",
+  ![...card5.querySelectorAll("button")].some(b => b.textContent === "Track") && /an administrator can track/.test(card5.textContent), card5.textContent);
+const ctx6 = mkCtx("live", snapOf(radios, objects));
+ctx6.state.settings = { enhanced_security: true };
+ctx6.hass = { user: { is_admin: true } };
+check("an administrator still has Track", [...WW.whosWhereCard(ctx6).querySelectorAll("button")].some(b => b.textContent === "Track"));
 
 // Names are text, never markup.
 const ctx3 = mkCtx("live", snapOf(radios, [{ kind: "ble", address: "x", user_label: "<img src=x onerror=alert(1)>", room: "Kitchen", age_s: 1 }]));

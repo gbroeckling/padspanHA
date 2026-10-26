@@ -47,9 +47,11 @@ const { whatIfDelta } =
 // Optional: a block that fails to load must not blank the Mapping tab.
 // The Setup Wizard's "Put it on the map" (wizard_build.js) and the Tune
 // planner it writes scanners with, given this module's own conversions.
-const { planHouse, buildHouse } = await import(`./wizard_build.js${new URL(import.meta.url).search}`);
-const { tuneSavePlanInit, tuneDiffMapDraft } = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
-tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
+// If either can't load, the Finish step just doesn't offer it.
+const { planHouse, buildHouse } = await import(`./wizard_build.js${new URL(import.meta.url).search}`)
+  .catch(() => ({ planHouse: null, buildHouse: null }));
+const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`).catch(() => null);
+if (TSP) TSP.tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: vacuum_import failed to load", err); return null; });
 // The 90-day trial card, shared by every paid wall (trial_offer.js).
@@ -1458,25 +1460,47 @@ function _wizardFinish(ctx, map, isBasic){
   // What's traced here but not yet on the house the Overview draws: one
   // explicit click puts it there (wizard_build.js), missing pieces only.
   // The plan is read HERE, in the editor; the module only sees the fabric.
-  const traced = map ? {
+  // Never while the demo house is on screen (#88): its radios would become
+  // phantom scanners in the real fabric, so only what Home Assistant hears.
+  const offered = !!(map && planHouse && buildHouse && TSP);
+  const liveSources = new Set(((ctx.state.live?.snapshot?.ble?.radios) || []).map(r => r && r.source).filter(Boolean));
+  const traced = offered ? {
+    mapId: map.id,
     floorId: map.floor_id || "main",
     rooms: Object.keys(map.room_bounds || {}),
-    scanners: (map.receivers || []).map(r => r && r.source).filter(Boolean),
-    measured: !!(((ctx.state.model || {}).map_transforms || {})[map.id]?.reference_measurements || []).length,
+    scanners: (map.receivers || []).map(r => r && r.source).filter(src => src && liveSources.has(src)),
+    readable: TSP.tunePlacementReadable(((ctx.state.model || {}).map_transforms || {})[map.id]),
   } : null;
-  // The Tune planner for these pins: the rows are their own baseline, so
-  // only pins missing from the fabric are planned, never one it already has.
+  // The Tune planner, as Calibration → Tune saves: every plan that pins
+  // these scanners is planned, and one pinned at different spots or floors
+  // on two plans is refused on both (tuneConflictingSources), never written
+  // from whichever came last. The rows are their own baseline, so only pins
+  // missing from the fabric are planned.
   const planPins = (sources) => {
     const mdl = ctx.state.model || {};
-    const rows = (map.receivers || []).filter(r => r && sources.includes(r.source));
-    const base = Object.fromEntries(rows.map(r => [r.source, { x: r.x, y: r.y }]));
-    return tuneDiffMapDraft(map, rows, mdl.scanner_positions_m || {}, mdl.map_transforms || {}, base, true);
+    const all = [], invalid = [];
+    let refused = false;
+    for (const m of (ctx.state.maps?.list || [])) {
+      const rows = (m.receivers || []).filter(r => r && sources.includes(r.source));
+      if (!rows.length) continue;
+      const base = Object.fromEntries(rows.map(r => [r.source, { x: r.x, y: r.y }]));
+      const p = TSP.tuneDiffMapDraft(m, rows, mdl.scanner_positions_m || {}, mdl.map_transforms || {}, base, true);
+      if (!p || p.refused) { if (m.id === map.id) refused = true; continue; }
+      all.push(...p.writes.map(w => ({ ...w, _map: m.id })));
+      invalid.push(...(p.invalid || []));
+    }
+    const bad = new Set(TSP.tuneConflictingSources(all));
+    const writes = all.filter(w => w._map === map.id && !bad.has(w.source)).map(({ _map, ...w }) => w);
+    return { writes, invalid: [...new Set([...invalid, ...bad])], refused };
   };
   const plan = traced ? planHouse(traced, ctx.state.model) : null;
+  const writeBlock = TSP ? TSP.tuneWriteBlock(ctx.state) : null;
   if (plan && (plan.rooms.length || plan.scanners.length)) {
     const box = el("div",{style:"padding:10px 12px;border:1px solid #2d6a4f;border-radius:8px;margin-bottom:14px","data-wizard-build":"1"});
     const n = (k, word) => `${k} ${word}${k === 1 ? "" : "s"}`;
-    if (!plan.measured) {
+    if (writeBlock) {
+      box.appendChild(el("div",{style:"font-size:13px"}, writeBlock));
+    } else if (!plan.readable) {
       box.appendChild(el("div",{style:"font-size:13px"},
         "Set this floor's scale first (step 2): PadSpan needs to know how big it is before it can put these rooms and scanners on the map of your house."));
     } else {
@@ -1488,9 +1512,9 @@ function _wizardFinish(ctx, map, isBasic){
         putBtn.disabled = true;
         putBtn.textContent = "Putting it on the map…";
         try {
-          const r = await buildHouse(ctx, traced, planPins);
+          const r = await buildHouse(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh() });
           const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "scanner") : ""].filter(Boolean).join(" and ");
-          const left = r.failed.length + r.notConvertible.length;
+          const left = r.failed.length + r.notConvertible.length + r.otherPlan.length;
           ctx.toast(done
             ? `${done} now on the map${left ? `; ${left} couldn't be (Mapping → Rooms shows them)` : ""}.`
             : `Nothing could be put on the map${left ? `: ${left} couldn't be (Mapping → Rooms shows them)` : ""}.`, !done || !!left);
