@@ -1803,3 +1803,25 @@ def test_vacation_mode_reaches_the_report_only_where_it_was_used():
     payload["env"]["vacation"]["by"] = "Nicole"
     with pytest.raises(ValueError):
         T.assert_shareable(payload)
+
+
+def test_install_age_is_a_word_from_first_seen():
+    """0.38.173: env.install_age says whether a newly reporting install is
+    new, or an old one that just turned the report on."""
+    import time
+    now = time.time()
+    assert T.install_age_word(now - 3600, now) == "lt1d"
+    assert T.install_age_word(now - 3 * 86400, now) == "1_7d"
+    assert T.install_age_word(now - 20 * 86400, now) == "8_30d"
+    assert T.install_age_word(now - 60 * 86400, now) == "31_90d"
+    assert T.install_age_word(now - 400 * 86400, now) == "gt90d"
+    for bad in (0, None, True, "x", now + 86400):
+        assert T.install_age_word(bad, now) is None
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data["first_seen_ts"] = now - 2 * 86400
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    assert payload["env"]["install_age"] == "1_7d"
+    payload["env"]["install_age"] = "2.0 days"
+    with pytest.raises(ValueError):
+        T.assert_shareable(payload)

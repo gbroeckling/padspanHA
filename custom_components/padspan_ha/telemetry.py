@@ -306,6 +306,25 @@ EVENTS: frozenset[str] = frozenset({
 # install. Never bumped: build_payload adds them (count 1) until a report
 # carrying them is accepted.
 ONBOARDING_EVENTS: frozenset[str] = frozenset(f"{s}:{b}" for s in _ONB_STEPS for b in _ONB_BUCKETS)
+# How long ago this install was first seen (settings first_seen_ts), as a
+# word: whether a newly reporting install is new or an old one that just
+# turned the report on. first_seen_ts exists from 0.38.87 (2026-09-28): an
+# install older than that reads as first seen the day it updated past it.
+INSTALL_AGE_WORDS: tuple[str, ...] = ("lt1d", "1_7d", "8_30d", "31_90d", "gt90d")
+
+
+def install_age_word(first_seen_ts: Any, now_ts: float) -> str | None:
+    if isinstance(first_seen_ts, bool) or not isinstance(first_seen_ts, (int, float)) or first_seen_ts <= 0:
+        return None
+    d = (now_ts - first_seen_ts) / 86400
+    if d < 0:
+        return None
+    for edge, word in ((1, "lt1d"), (7, "1_7d"), (30, "8_30d"), (90, "31_90d")):
+        if d < edge:
+            return word
+    return "gt90d"
+
+
 # The day's proxy_rate_drop count, as one of these instead of the number.
 PROXY_DROP_BUCKETS: tuple[str, ...] = ("1", "2_5", "gt5")
 PROXY_DROP_EVENTS: frozenset[str] = frozenset(f"proxy_rate_drops:{b}" for b in PROXY_DROP_BUCKETS)
@@ -1636,6 +1655,9 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             env["room_walk"] = _rw
     except Exception:
         pass
+    _age = install_age_word(settings.get("first_seen_ts"), time.time())
+    if _age:
+        env["install_age"] = _age
     # Vacation Mode (vacation_mode.report_buckets), only where it was used.
     try:
         from .vacation_mode import _VM_LOG, report_buckets as _vac_buckets  # noqa: PLC0415
@@ -1956,6 +1978,8 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         words = {"walks": WALKS_BUCKETS, "change": CHANGE_WORDS}
         if not isinstance(rw, dict) or not all(k in words and v in words[k] for k, v in rw.items()):
             raise ValueError("env.room_walk not in the vocabulary")
+    if isinstance(env, dict) and "install_age" in env and env["install_age"] not in INSTALL_AGE_WORDS:
+        raise ValueError("env.install_age not in the vocabulary")
     if isinstance(env, dict) and "vacation" in env:
         from .vacation_mode import REPORT_WORDS as _VW  # noqa: PLC0415
         vac = env["vacation"]
