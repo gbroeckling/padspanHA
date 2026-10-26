@@ -295,6 +295,11 @@ EVENTS: frozenset[str] = frozenset({
     # left a house dark for 11 days with nobody told.
     "vacation_on", "vacation_resumed", "vacation_off_panel", "vacation_off_reset",
     "vacation_off_notified", "vacation_off_not_pushed",
+    # 0.38.172, the trip options: ended on its end date, paused because
+    # someone came home, and (once a day each) the after-dark, bedtime and
+    # max on-time rules holding a light off the pattern asked for.
+    "vacation_off_end_date", "vacation_paused_home",
+    "vacation_rule_dark", "vacation_rule_bedtime", "vacation_rule_max_on",
 })
 # A new install's first steps (onboarding.py): how long from setup to the
 # first room and to the first calibration point, as buckets, once per

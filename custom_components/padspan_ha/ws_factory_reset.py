@@ -165,6 +165,8 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
             # (vacation_mode.async_notify_turned_off), as for the panel's Disable.
             from .vacation_mode import async_notify_turned_off
             _bump(hass, "vacation_off_reset")
+            from .vacation_mode import announce
+            announce(hass, False, "reset")
             hass.async_create_task(async_notify_turned_off(hass, {"how": "reset"}, _vac_now))
     except Exception as e:
         _LOGGER.warning("Factory reset: settings — %s", e)

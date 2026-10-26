@@ -572,6 +572,12 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("traceback_house_focus"): vol.Coerce(int),
         vol.Optional("vacation_mode_enabled"): bool,
         vol.Optional("vacation_mode_intensity"): vol.Coerce(int),
+        vol.Optional("vacation_mode_dark_only"): bool,
+        vol.Optional("vacation_mode_dark_offset_min"): vol.Coerce(int),
+        vol.Optional("vacation_mode_end_at"): vol.Coerce(float),
+        vol.Optional("vacation_mode_pause_home"): bool,
+        vol.Optional("vacation_mode_bedtime"): str,
+        vol.Optional("vacation_mode_max_on_min"): vol.Coerce(int),
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -1001,6 +1007,9 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             _vac_was = bool(st.data.get("vacation_mode_enabled"))
             if payload["vacation_mode_enabled"] and not _vac_was:
                 _vac_event = "resumed" if resumable(st.data, _vac_now) else "on"
+                _old_end = st.data.get("vacation_mode_end_at") or 0
+                if _old_end and _old_end <= _vac_now and "vacation_mode_end_at" not in msg:
+                    payload["vacation_mode_end_at"] = 0
             elif _vac_was and not payload["vacation_mode_enabled"]:
                 _vac_event = "off"
                 _vac_who = who_from_connection(hass, connection)
@@ -1008,6 +1017,39 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                                          _vac_who if _vac_event == "off" else None))
         if "vacation_mode_intensity" in msg:
             payload["vacation_mode_intensity"] = max(5, min(100, int(msg["vacation_mode_intensity"])))
+        # The trip options (vacation_mode.OPTION_DEFAULTS): admin-only like
+        # Vacation Mode itself — an end date or a pause can stop it.
+        _vac_opts = ("vacation_mode_dark_only", "vacation_mode_dark_offset_min", "vacation_mode_end_at",
+                     "vacation_mode_pause_home", "vacation_mode_bedtime", "vacation_mode_max_on_min")
+        if any(k in msg for k in _vac_opts):
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change Vacation Mode")
+                return
+            import time as _time
+            from .vacation_mode import DARK_OFFSET_RANGE, END_AT_MAX_S, MAX_ON_RANGE, bedtime_minutes
+            if "vacation_mode_dark_only" in msg:
+                payload["vacation_mode_dark_only"] = bool(msg["vacation_mode_dark_only"])
+            if "vacation_mode_dark_offset_min" in msg:
+                payload["vacation_mode_dark_offset_min"] = max(DARK_OFFSET_RANGE[0],
+                                                               min(DARK_OFFSET_RANGE[1], int(msg["vacation_mode_dark_offset_min"])))
+            if "vacation_mode_end_at" in msg:
+                _end = float(msg["vacation_mode_end_at"] or 0)
+                if _end and not (_time.time() < _end <= _time.time() + END_AT_MAX_S):
+                    connection.send_error(msg["id"], "invalid_format", "The end date must be in the next year")
+                    return
+                payload["vacation_mode_end_at"] = _end if _end else 0
+            if "vacation_mode_pause_home" in msg:
+                payload["vacation_mode_pause_home"] = bool(msg["vacation_mode_pause_home"])
+            if "vacation_mode_bedtime" in msg:
+                _bed = str(msg["vacation_mode_bedtime"] or "").strip()
+                if _bed and bedtime_minutes(_bed) is None:
+                    connection.send_error(msg["id"], "invalid_format", "Bedtime must be HH:MM between 17:00 and 03:00")
+                    return
+                payload["vacation_mode_bedtime"] = _bed
+            if "vacation_mode_max_on_min" in msg:
+                _mx = int(msg["vacation_mode_max_on_min"] or 0)
+                payload["vacation_mode_max_on_min"] = 0 if _mx <= 0 else max(MAX_ON_RANGE[0], min(MAX_ON_RANGE[1], _mx))
         if "lights_isolux" in msg:
             payload["lights_isolux"] = bool(msg["lights_isolux"])
         if "lights_automorph_enabled" in msg:
@@ -1254,6 +1296,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         # told who did it (vacation_mode.async_notify_turned_off).
         if _vac_event:
             from .telemetry import bump  # noqa: PLC0415
+            from .vacation_mode import announce  # noqa: PLC0415
+            announce(hass, _vac_event != "off", {"on": "panel", "resumed": "resumed", "off": "panel"}[_vac_event])
             if _vac_event == "on":
                 bump(hass, "vacation_on")
             elif _vac_event == "resumed":
@@ -1268,6 +1312,10 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     else:
                         bump(hass, "vacation_off_not_pushed")
                 hass.async_create_task(_vac_notice())
+        elif any(k in payload for k in ("vacation_mode_end_at", "vacation_mode_pause_home", "vacation_mode_dark_only",
+                                         "vacation_mode_bedtime", "vacation_mode_max_on_min")):
+            from .vacation_mode import refresh_status  # noqa: PLC0415
+            refresh_status(hass)
 
         # ── Bright: presence revealed or hidden → it polls, or stops
         if "bright_reveal_presence" in payload:
