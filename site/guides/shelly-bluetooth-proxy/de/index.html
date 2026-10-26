@@ -88,9 +88,9 @@ footer p{margin:4px 0}
 
 <h2>Was PadSpan damit macht</h2>
 <ul>
-  <li><b>Es findet sie von selbst.</b> PadSpan liest die Bluetooth-Daten von Home Assistant selbst, also taucht ein Shelly-Scanner unter <b>Bluetooth → Scanners</b> neben deinen ESPHome-Proxys auf, ohne dass du etwas hinzufügen musst.</li>
-  <li><b>Sein Raum ist sein Bereich.</b> PadSpan ordnet jeden Scanner über die MAC-Adresse seinem Home-Assistant-Gerät zu und nimmt dessen Bereich als Raum des Scanners. Mit einem Scanner in jedem Raum, den du unterscheiden willst, landet jedes Handy, jede Uhr und jeder Tracker in dem Raum, dessen Scanner es am besten hört.</li>
-  <li><b>Shellys und ESP32-Proxys mischen geht.</b> Verschiedene Funkmodule hören dasselbe Handy unterschiedlich stark. Mit einem Kalibrierungs-Rundgang berücksichtigt PadSpan jeden Scanner einzeln.</li>
+  <li><b>Es findet sie von selbst.</b> PadSpan liest die Bluetooth-Daten von Home Assistant selbst und nutzt einen Shelly-Scanner deshalb, sobald Home Assistant ihn nutzt, neben deinen ESPHome-Proxys und ohne dass du etwas hinzufügen musst. Sobald der Shelly einen Bereich hat, steht er in PadSpans Tab <b>Health</b> unter <b>Scanner → Room Mappings</b>.</li>
+  <li><b>Sein Raum ist sein Bereich.</b> PadSpan findet zu jedem Scanner sein Home-Assistant-Gerät und nimmt dessen Bereich als Raum des Scanners. Mit einem Scanner in jedem Raum, den du unterscheiden willst, landet jedes Handy, jede Uhr und jeder Tracker in dem Raum, dessen Scanner es am besten hört.</li>
+  <li><b>Shellys und ESP32-Proxys lassen sich mischen.</b> Verschiedene Funkmodule hören dasselbe Handy unterschiedlich stark. In einem gemischten Haus zählt der Kalibrierungs-Rundgang deshalb mehr: Mit ihm berücksichtigt PadSpan jeden Scanner einzeln.</li>
   <li><b>Bermuda nutzt sie auch.</b> Laut seiner eigenen Dokumentation funktioniert es mit Shelly-Geräten ab Gen2, eine Einstellung reicht also für beide. Mehr dazu in <a href="/guides/bermuda/de/">Bermuda und PadSpan zusammen</a>.</li>
 </ul>
 
