@@ -186,6 +186,28 @@ function renderUnlocked(ctx, root) {
       ], true),
     ]);
 
+    // ── new installs ──────────────────────────────────────────────────────
+    const ni = s.new_installs;
+    if (ni && (ni.weeks || []).length) {
+      const fr = (h, of) => (of ? `${h}/${of}` : "–");
+      const st = ni.stages || {};
+      const stageWords = ["none", "map", "rooms", "receivers", "calibrated"];
+      section("New installs", "By the week each install first reported, from the whole history. Really new: the first report said the install was under a week old (PadSpan 0.38.173+; – before). Still reporting: a report in the last 2 days. Day 7 and day 30 count only installs old enough.", [
+        grid([
+          cardShell(el, "By first week", "new · really new · still reporting · reached day 7 · day 30 · one report only", () =>
+            dataTable(el, ["week of", "new", "really new", "still", "day 7", "day 30", "1 report"],
+              ni.weeks.map(w => [w.week, w.new, fr(w.really_new, w.age_known), w.still, fr(w.d7, w.d7_of), fr(w.d30, w.d30_of), w.one]))),
+          cardShell(el, "How far setup got", "The last 30 days' new installs, by the furthest step in their latest report", () =>
+            dataTable(el, ["", ...stageWords],
+              [["still reporting", ...stageWords.map(w => (st.still || {})[w] || 0)],
+               ["gone quiet", ...stageWords.map(w => (st.quiet || {})[w] || 0)]])),
+        ], true),
+        cardShell(el, `Gone quiet (${(ni.quiet || []).length})`, "First report in the last 60 days, none for 7+ days: where each one stopped", () =>
+          dataTable(el, ["id", "first", "last", "reports", "version", "reached", "age"],
+            (ni.quiet || []).map(q => [q.id, q.first, q.last, q.days, q.version, q.stage, q.age || "–"]))),
+      ]);
+    }
+
     // ── 02 versions ───────────────────────────────────────────────────────
     section("Versions", `What people run, from each install's latest report. Shares on this page are of the ${fmt(n)} installs with a report on file unless they say otherwise.`, [
       grid([
@@ -484,7 +506,7 @@ function installsTable(el, rows) {
     el("div", { class: "ib-card-head" }, [el("div", { class: "ib-card-title" }, `Installs (${rows.length})`)]),
   ]);
   const t = el("table", { class: "ib-table ib-installs" });
-  const cols = ["id", "last", "days", "version", "ha", "tier", "scanners", "floors", "rooms", "maps", "cal", "irks", "irks_resolving", "objects", "identified", "pbd", "uptime", "flags"];
+  const cols = ["id", "first", "last", "days", "stage", "version", "ha", "tier", "scanners", "floors", "rooms", "maps", "cal", "irks", "irks_resolving", "objects", "identified", "pbd", "uptime", "flags"];
   const numeric = new Set(["days", "scanners", "floors", "rooms", "maps", "cal", "irks", "irks_resolving", "objects", "identified"]);
   t.appendChild(el("tr", {}, cols.map(c => el("th", { class: numeric.has(c) ? "num" : "" }, c))));
   for (const r of rows) {

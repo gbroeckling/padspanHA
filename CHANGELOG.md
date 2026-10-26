@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.173 — How new installs get on (2026-10-26)
+
+Nothing changes in the panel for anyone.
+
+### Opt-in report
+- **How old the install is, as a range** (under a day, 1-7 days, 8-30, 31-90, over 90). With it the developer can tell a brand-new install from one that has run for months and only just turned the report on. It is worked out from when PadSpan first saw the install, so an install older than 0.38.87 reads as first seen the day it updated past it.
+
+### Developer
+- **Install Base (Dev mode): a New installs section.** New installs by the week they first reported, how many were really new, still reporting, reached day 7 and day 30, and sent one report only; how far the last 30 days' new installs got with setup (map, rooms, receivers, calibrated); and the ones that went quiet, with where each stopped. The installs table gains first report and setup stage. The nightly summary has the same section.
+
+---
+
 ## 0.38.172 — Vacation Mode options and a status entity (2026-10-26)
 
 Nothing changes until you set an option: an install that never opens Options runs Vacation Mode exactly as before.
