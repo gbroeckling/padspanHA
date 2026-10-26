@@ -184,6 +184,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.172</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">26 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Vacation Mode options.</b> Open them from the banner's <b>Options</b> button, or with <b>Options</b> beside Apply while 🌴 Vacation Mode is picked in Whole house. These are the features the common away-lighting products have (Hue, Lutron, Kasa, Hubitat and others), on top of the routine PadSpan learns from your own house:</li>
+          <li><b><code>binary_sensor.padspan_vacation_mode</code></b>: on while Vacation Mode runs. Its attributes give when it started, when it ends, which routine it runs, the options, whether it's paused because someone is home, and who last turned it off. The <b><code>padspan_ha_vacation_mode</code></b> event fires on every change, with <code>on</code> and <code>how</code> (<code>panel</code>, <code>resumed</code>, <code>end_date</code>, <code>reset</code>, <code>paused_home</code>, <code>unpaused</code>), for your own automations (an alarm armed with it, a message of your own).</li>
+          <li>The options and the end date need an administrator account, like turning Vacation Mode on or off. A backup restore keeps the live end date.</li>
+          <li>For installs that use Vacation Mode: which of the five options are on (yes/no), and "ended on its end date" as a way it went off. Counted: ended on its end date, paused because someone came home, and, once a day each, the after-dark, bedtime and longest-on rules holding a light off.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.171</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">25 October 2026</span>
