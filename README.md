@@ -1,22 +1,24 @@
 # PadSpan™ HA
 
-### The most comprehensive BLE room-presence system for Home Assistant
-
-▶️ **Try it in your browser: [padspan.traks.ca/demo](https://padspan.traks.ca/demo/)**, the real panel on a made-up house. Nothing to install.
-
-[![Open PadSpan in HACS in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) Have Home Assistant? One click opens PadSpan in your HACS. It's in the default list.
-
-PadSpan™ HA goes far beyond "home or away." It tells you **which room** every Bluetooth device is in — updated every 5 seconds — with interactive floor plans, 3D multi-floor visualizations, a full calibration system, and 19 dedicated views. No other Home Assistant BLE integration comes close.
-
-🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)**
-
-📖 **Guides:** [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/)
-
-🎁 **PadSpan Pro free:** testers get two years of Pro while the anonymous usage report stays on ([how](#become-a-tester-separate-from-the-usage-report)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
+### See which room every phone, watch and tag is in, live, on a plan of your home
 
 [![PadSpan HA — room-level Bluetooth presence on a 3D multi-floor plan](images/demo-montage.gif)](https://padspan.traks.ca/demo/)
 
-<sub>20-second tour. The same shots at full size are in the table below, and the full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
+PadSpan is a Home Assistant integration for Bluetooth room presence. It listens to the Bluetooth proxies you already have, works out which room each phone, watch, tag and beacon is in, every 5 seconds, and shows it on a plan of your home: one floor at a time or all floors stacked. Your automations get room, distance and home/away sensors. Everything runs locally.
+
+▶️ **Try it in your browser: [padspan.traks.ca/demo](https://padspan.traks.ca/demo/)**, the real panel on a made-up house. Nothing to install.
+
+[![Open PadSpan in HACS in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) **Install:** one click opens PadSpan in your HACS. It's in the default list.
+
+**What you need:** Home Assistant 2024.1 or newer and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away; one in each room you want told apart gives you rooms. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) Already running Bermuda? Keep it: [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/).
+
+**Free and open source (GPL-3.0).** An optional PadSpan Pro key adds the 3D house (Live Aboard) and a few extra tools ([Editions](#editions)).
+
+🎁 **PadSpan Pro free:** testers get two years of Pro while the anonymous usage report stays on ([how](#become-a-tester-separate-from-the-usage-report)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
+
+🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)** · 📖 **Guides:** [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/)
+
+<sub>The GIF is a 20-second tour. The same shots at full size are in the table below, and the full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
 
 ---
 
@@ -24,7 +26,7 @@ PadSpan™ HA goes far beyond "home or away." It tells you **which room** every 
 
 Most BLE presence integrations give you a config flow and a sensor. PadSpan gives you a **complete tracking workstation** — floor plan editor, room boundary polygons, 3D isometric maps, walk-around calibration, follow mode with email alerts, a training hub, and a full sample/demo mode so you can explore every feature before plugging in hardware.
 
-It works with your existing BLE scanners. HA Bluetooth proxies and Bermuda proxies are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.
+It works with your existing BLE scanners. HA Bluetooth proxies and Bermuda proxies are picked up directly; ESPresense nodes come in over MQTT, which you switch on in **Manage → HA Entities → ESPresense MQTT** and which needs HA's MQTT integration configured. No custom firmware. No cloud dependency. The tracking runs locally.
 
 ---
 
@@ -177,30 +179,27 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live
 
 ## How It Compares
 
-| Feature | PadSpan HA | Bermuda | Room Assistant | ESPresense |
-|:--------|:----------:|:-------:|:--------------:|:----------:|
-| Room-level tracking | ✅ | ✅ | ✅ | ✅ |
-| Phone tracking wizard | ✅ | — | — | — |
-| IRK capture integration | ✅ | — | — | ✅ |
-| MAC rotation bridging | ✅ | — | — | — |
-| Apple device auto-classify | ✅ | — | — | ✅ |
-| Visual floor plans | ✅ | — | — | — |
-| 3D multi-floor maps | ✅ | — | — | — |
-| 2D flat map + zoom/pan | ✅ | — | — | — |
-| Room boundary editor | ✅ | — | — | — |
-| Fingerprint calibration | ✅ | — | — | — |
-| Hybrid occupancy counting | ✅ | — | — | — |
-| Stable device identity | ✅ | — | — | — |
-| Training hub (16 walkthroughs) | ✅ | — | — | — |
-| Follow mode + email alerts | ✅ | — | — | — |
-| Onboarding wizard | ✅ | — | — | — |
-| Movement history playback | ✅ | — | — | — |
-| Sample/demo mode | ✅ | — | — | — |
-| Dedicated UI views | 19 | Config flow | MQTT config | Web UI |
-| HA sensor entities | ✅ | ✅ | ✅ | ✅ |
-| Distance estimation | ✅ | ✅ | — | ✅ |
-| Kalman RSSI filtering | ✅ | — | — | — |
-| Works with ESPHome proxies | ✅ | ✅ | — | ✗ (own firmware) |
+[Bermuda](https://github.com/agittins/bermuda) and [ESPresense](https://espresense.com/) are both good, and lots of people run them. This is what each does, from their own docs as of October 2026. If something here is out of date, [open an issue](https://github.com/gbroeckling/padspanHA/issues) and it gets fixed.
+
+| | PadSpan HA | Bermuda | ESPresense (+ Companion) |
+|:--|:--|:--|:--|
+| Room-level presence | ✅ | ✅ | ✅ |
+| Hardware | ESPHome Bluetooth proxies, HA's own Bluetooth, or ESPresense over MQTT | ESPHome Bluetooth proxies, Shelly Gen2+, USB adapters | Its own firmware on ESP32 nodes |
+| Floor plan needed? | No: rooms come from your HA areas; the map is optional | No | No for rooms; Companion's map needs rooms typed in as coordinates |
+| Map of your home | ✅ draw rooms on your floor plan | — | ✅ Companion |
+| Multi-floor 3D view | ✅ (the full 3D house, Live Aboard, is Pro) | — (has a Floor sensor) | ✅ Companion |
+| Position between scanners | ✅ with 3+ scanners placed on the plan | — | ✅ Companion (X/Y/Z) |
+| Calibration | Walk-around fingerprints and per-scanner signal fit | Guided per-proxy offsets | Automatic (Companion) |
+| Signal smoothing | Kalman filter plus a room vote | Averaging plus a speed limit on distance changes | Filtering on the node, Kalman on position (Companion) |
+| iPhones and Apple Watches (IRK) | ✅ via Private BLE Device or irk-capture, with a setup guide | ✅ via Private BLE Device | ✅ captured on the node's Enroll page |
+| Tags that change address (AirTag, SmartTag) | Experimental | — | Partly, from what the tag broadcasts |
+| HA room, distance and tracker entities | ✅ | ✅ | ✅ |
+| Movement history | ✅ playback (Traceback) | — | Beta path view (Companion) |
+| Alerts when a device changes room | ✅ built in (Follow) | With your own HA automations | With your own HA automations |
+| Where you set it up | A PadSpan panel in the HA sidebar | Home Assistant's setup dialogs | The node's web page and the Companion app |
+| Try it before installing | ✅ [browser demo](https://padspan.traks.ca/demo/) and a sample house | — | — |
+
+Room Assistant isn't in the table: its last release was in March 2022.
 
 Already running Bermuda? Keep it: PadSpan runs next to it on the same proxies and leaves it as it is. [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) explains how.
 
