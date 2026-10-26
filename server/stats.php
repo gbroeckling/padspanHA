@@ -309,6 +309,9 @@ foreach ($latest as $id => $r) {
     if (!empty($h['scanner_z_uniform'])) { $bad[] = 'scanner_z_uniform'; $geometry['z_uniform']++; }
     if (!empty($h['radios_ambiguous'])) { $bad[] = 'radios_ambiguous'; }
     if (!empty($h['radios_unresolved'])) { $bad[] = 'radios_unresolved'; }
+    // 0.38.174: calibration points or floor plans gone since the last report with no clear/delete recorded.
+    if (!empty($h['calibration_points_vanished'])) { $bad[] = 'calibration_points_vanished'; }
+    if (!empty($h['maps_vanished'])) { $bad[] = 'maps_vanished'; }
     if (!empty($e['calibration_no_floor'])) { $bad[] = 'calibration_no_floor'; $geometry['cal_no_floor']++; }
     if ((int)(isset($e['floors']) ? $e['floors'] : 0) > 1) { $geometry['multi_floor']++; }
     foreach ($bad as $b) { incr($flags, $b); }

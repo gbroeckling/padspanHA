@@ -1862,3 +1862,20 @@ def test_calibration_points_that_vanish_without_a_clear_are_flagged_once():
     assert payload["health"].get("calibration_points_vanished") is True
     st.data["calibration_points_seen"] = 0          # cleared on purpose, or already reported
     assert "calibration_points_vanished" not in T.build_payload(h)["health"]
+
+
+def test_fewer_maps_than_the_last_report_without_a_delete_is_flagged():
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.const import DATA_MAPS
+    from custom_components.padspan_ha import ws_maps as WM
+    h = _hass()
+    st = h.data[DOMAIN][DATA_SETTINGS]
+    ms = SimpleNamespace(data={"maps": [{"id": "a"}, {"id": "b"}]})
+    h.data[DOMAIN][DATA_MAPS] = ms
+    st.data["maps_seen"] = 3
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    assert payload["health"].get("maps_vanished") is True
+    WM._note_map_deleted(h, ms, migrated=False)           # a delete on purpose moves the marker
+    assert st.data["maps_seen"] == 2
+    assert "maps_vanished" not in T.build_payload(h)["health"]

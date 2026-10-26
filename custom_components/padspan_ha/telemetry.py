@@ -308,6 +308,9 @@ EVENTS: frozenset[str] = frozenset({
     # Clear) — so a house whose points went to zero can be told apart from one
     # that lost them (health.calibration_points_vanished).
     "calibration_cleared_all", "calibration_cleared_map",
+    # and a floor plan deleted on purpose (plain, or after moving its work to
+    # another map) — beside health.maps_vanished.
+    "map_deleted", "map_deleted_migrated",
 })
 # A new install's first steps (onboarding.py): how long from setup to the
 # first room and to the first calibration point, as buckets, once per
@@ -1872,6 +1875,16 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             if isinstance(_seen, int) and not isinstance(_seen, bool) and _seen > 0 and not cal_points:
                 health["calibration_points_vanished"] = True
     except Exception as err:
+        _LOGGER.debug("Telemetry: calibration health left out: %s", err)
+    # 0.38.174: fewer maps than the last report, with no delete recorded in
+    # between (maps_seen, kept by send_now and by every delete).
+    try:
+        _maps_seen = settings.get("maps_seen")
+        _maps_now = _len(maps.get("maps") or [])
+        if isinstance(_maps_seen, int) and not isinstance(_maps_seen, bool) and _maps_now < _maps_seen \
+                and dom.get(DATA_MAPS) is not None:
+            health["maps_vanished"] = True
+    except Exception as err:
         _LOGGER.debug("Telemetry: cal_points_phantom_room_n left out: %s", err)
     # #147: Beacon Tune pins on a device that moves (tune_save_plan.js
     # tuneBeaconHeld: private_ble or followed; a Bermuda entity is a fixed
@@ -2242,7 +2255,8 @@ async def send_now(hass: HomeAssistant, *, force: bool = False) -> dict[str, Any
     if st:
         try:
             await st.async_set(telemetry_last_day=_today(),
-                               calibration_points_seen=int((payload.get("env") or {}).get("calibration_points") or 0))
+                               calibration_points_seen=int((payload.get("env") or {}).get("calibration_points") or 0),
+                               maps_seen=int((payload.get("env") or {}).get("maps") or 0))
         except Exception:
             pass
     # A new install's first steps went: never again (onboarding.py).

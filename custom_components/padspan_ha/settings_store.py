@@ -54,6 +54,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # when it was really installed — nobody is told on update day.
     "first_seen_ts": 0,
     "calibration_points_seen": 0,  # backend-only: calibration points in the last report sent, or after the last clear (telemetry health.calibration_points_vanished)
+    "maps_seen": 0,                # backend-only: floor plans in the last report sent, or after the last delete (telemetry health.maps_vanished)
     # The Overview's one-time trial milestone card was answered: "No thanks",
     # its ✕, or a trial started from it. Per install; it never shows again.
     "trial_nudge_done": False,

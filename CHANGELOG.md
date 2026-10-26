@@ -20,6 +20,19 @@ A new install used to open on the demo house, and showed its own rooms only afte
 
 ---
 
+## 0.38.174 — Calibration catches an unmeasured floor first (2026-10-26)
+
+### Fixed
+- **Calibration no longer lets you collect points on a floor that has no metre scale.** A calibration point is a spot in metres, so on an unmeasured floor every save was refused, after you had stood still for the capture. A new install did exactly this: seven refused saves and three exits from the guide on its first day. Now Setup says "This floor needs a measurement first" right under the floor you picked, the guide stays on Setup until the floor is measured, and Pin & Listen and Roam show the same card instead of the map. **Measure this floor →** opens that floor plan in Mapping → Edit with the Measure tool already chosen.
+
+### Opt-in report
+- **Panel errors say what kind they were and where.** Beside the module that threw, the error's kind (type, reference, range, syntax, rejection, other) and the line in PadSpan's own file it came from. Still never the message.
+- **Why a calibration save failed:** the floor had no metre scale, or something else. And when the Calibration tab showed a floor needs measuring.
+- **Clearing calibration points and deleting floor plans are counted**, and the report flags it when calibration points or floor plans are gone since the last report with no clear or delete in between. That is how lost data would show, as opposed to data someone removed.
+- **The day's counts survive a restart.** They were kept only in memory, so a day with restarts lost what happened before them.
+
+---
+
 ## 0.38.173 — How new installs get on (2026-10-26)
 
 Nothing changes in the panel for anyone.
