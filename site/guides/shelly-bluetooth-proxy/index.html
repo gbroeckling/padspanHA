@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shelly as a Bluetooth proxy for room presence in Home Assistant | PadSpan HA</title>
+<meta name="description" content="Shelly Plus, Pro, Gen3 and Gen4 devices on mains power can be Bluetooth scanners for Home Assistant. One setting per device turns it on. Bermuda and PadSpan then use them for room presence, with no ESP32 to buy or flash first.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/shelly-bluetooth-proxy/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/shelly-bluetooth-proxy/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/shelly-bluetooth-proxy/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/shelly-bluetooth-proxy/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Your Shellys can be Bluetooth proxies">
+<meta property="og:description" content="One setting per Shelly makes it a Bluetooth scanner for Home Assistant: a free way to start room presence before you buy anything.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/shelly-bluetooth-proxy/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/shelly-bluetooth-proxy/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1>Your Shellys can be Bluetooth proxies</h1>
+<p class="lead">About one in five Home Assistant installs that share analytics has the Shelly integration. If you have Shelly Plus, Pro, Gen3 or Gen4 devices on mains power, each one can be a Bluetooth scanner for Home Assistant. It's one setting per device, and a free way to start room presence before you buy or flash anything.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">See room presence on a demo house</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+
+<h2>Which Shellys can do it</h2>
+<ul>
+  <li><b>Gen2 and newer, on mains power.</b> That means the Plus and Pro models and anything with Gen3 or Gen4 in its name. In Home Assistant's words: "Shelly Gen 2 and newer devices (excluding battery-powered models) can act as Bluetooth proxies, forwarding advertisement data."</li>
+  <li><b>Not battery-powered ones, and not Gen1.</b></li>
+  <li><b>Shelly BLU devices</b> (buttons, door and window sensors, H&amp;T) are Bluetooth sensors, not scanners. Home Assistant reads them with its BTHome integration.</li>
+</ul>
+
+<h2>Switch it on</h2>
+<ol>
+  <li>In Home Assistant, go to <b>Settings → Devices &amp; services → Shelly</b>.</li>
+  <li>Each Shelly has its own entry. Select the cogwheel on the one you want.</li>
+  <li>Set <b>Bluetooth scanner mode</b> to <b>Auto</b>, which Home Assistant recommends for most setups, and select <b>Submit</b>. <b>Active</b> and <b>Passive</b> work too.</li>
+  <li>Check that the Shelly's device is in the right area: the room it's really in. PadSpan uses each scanner's Home Assistant area as its room.</li>
+</ol>
+<p>Do the same for every Shelly you want to use.</p>
+
+<h2>What PadSpan does with them</h2>
+<ul>
+  <li><b>It finds them by itself.</b> PadSpan reads Home Assistant's own Bluetooth data, so a Shelly scanner shows up under <b>Bluetooth → Scanners</b> next to any ESPHome proxies, with nothing to add.</li>
+  <li><b>Its room is its area.</b> PadSpan matches each scanner to its Home Assistant device by MAC address and takes that device's area as the scanner's room. With a scanner in each room you want told apart, every phone, watch and tag goes to the room whose scanner hears it best.</li>
+  <li><b>Mixing Shellys and ESP32 proxies is fine.</b> Different radios hear the same phone at different strengths. A calibration walk lets PadSpan allow for each scanner on its own.</li>
+  <li><b>Bermuda uses them too.</b> Its own docs list Shelly Gen2+ devices, so one setting serves both. See <a href="/guides/bermuda/">Bermuda and PadSpan together</a>.</li>
+</ul>
+
+<h2>How well it works</h2>
+<p>A Shelly sits in a wall box, often behind a switch, with a small built-in antenna. That can make it hear less, and less steadily, than a proxy out in the room with an external antenna, which is why <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a> recommends boards with one. So treat your Shellys as a free start:</p>
+<ul>
+  <li>One is enough for home or away.</li>
+  <li>Whether they're good enough for rooms depends on your house. <b>Calibration → Model</b> shows how often PadSpan picks the right room on spots it wasn't calibrated on (from version 0.38.166). The rooms that keep scoring badly are where an ESP32 proxy goes.</li>
+  <li>Shellys only listen; they can't hold a Bluetooth connection. Presence only needs listening, but a device Home Assistant has to connect to needs a proxy that can.</li>
+</ul>
+
+<h2>A Shelly that hears nothing</h2>
+<ul>
+  <li>Check that its <b>Bluetooth scanner mode</b> isn't <b>Disabled</b> and that its firmware is up to date. If it still hears nothing, try another mode, such as <b>Passive</b>.</li>
+  <li>If it hears devices but PadSpan's calibration shows no signal strengths for it, open <b>Manage → HA Entities → BLE Proxy Compatibility</b> in PadSpan and tick <b>Enable aggressive BLE reseed (5s) for passive proxy scanners</b>. It works around a change in Home Assistant 2026.4 that holds back repeat readings from scanners that only listen.</li>
+</ul>
+
+<h2>Phones need one more step</h2>
+<p>Scanners hear tags and beacons straight away. Phones change their Bluetooth address so they can't be followed: iPhones and Apple Watches need their key (the IRK), and Android phones need the Home Assistant Companion app's BLE Transmitter. <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a> has the details.</p>
+
+<h2>Sources</h2>
+<ul>
+  <li>Home Assistant's <a href="https://www.home-assistant.io/integrations/shelly/">Shelly integration</a> page: which devices can be Bluetooth proxies, the scanner modes, no connections, and BLU devices through BTHome.</li>
+  <li>Home Assistant's <a href="https://analytics.home-assistant.io/">opt-in analytics</a> on October 26, 2026: the Shelly integration in 143,027 of 711,241 installs.</li>
+  <li><a href="https://github.com/agittins/bermuda">Bermuda</a>'s documentation, for its Shelly Gen2+ support.</li>
+</ul>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo in your browser</a>
+  <a class="btn ghost" href="/guides/">All guides</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · Shelly is a trademark of Shelly Group; PadSpan isn't affiliated with it.</p>
+</div></footer>
+</body>
+</html>

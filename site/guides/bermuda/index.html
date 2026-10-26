@@ -80,7 +80,7 @@ footer p{margin:4px 0}
 
 <h2>Running both on the same proxies</h2>
 <ul>
-  <li><b>Same hardware, no reflashing.</b> PadSpan reads Home Assistant's own Bluetooth data, the same data Bermuda uses, so your ESPHome Bluetooth proxies serve both at once. ESPresense nodes work too, over MQTT.</li>
+  <li><b>Same hardware, no reflashing.</b> PadSpan reads Home Assistant's own Bluetooth data, the same data Bermuda uses, so your ESPHome Bluetooth proxies serve both at once, and so do <a href="/guides/shelly-bluetooth-proxy/">Shelly devices set up as Bluetooth scanners</a>. ESPresense nodes work too, over MQTT.</li>
   <li><b>Bermuda stays as it is.</b> Installing, reloading or removing PadSpan doesn't change Bermuda's devices, entities or settings, and a test in PadSpan's code fails if new code tries to. The only changes PadSpan ever makes to another integration are buttons you press yourself, one at a time. The README lists them under <a href="https://github.com/gbroeckling/padspanHA#what-padspan-never-touches">What PadSpan never touches</a>.</li>
   <li><b>Your Bermuda devices show up.</b> Each device Bermuda tracks appears in PadSpan as one device, in the room Bermuda's Area sensor reports, already smoothed by Bermuda. If you'd rather PadSpan used only its own readings, tick <b>Ignore Bermuda</b> in Settings → Presence.</li>
   <li><b>Phones you already set up keep working.</b> iPhones and Apple Watches you added to Home Assistant's <b>Private BLE Device</b> are recognised by the same key (the IRK) and named as you named them, so there is nothing to capture twice. Android phones work through the Home Assistant Companion app's BLE Transmitter.</li>
