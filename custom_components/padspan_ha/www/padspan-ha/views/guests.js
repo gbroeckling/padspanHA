@@ -209,8 +209,8 @@ function _report(ctx, el, s, isAdmin) {
 /** Traceback for the tag over the stay (views/traceback.js reads the preset once). */
 function _toTraceback(ctx, s) {
   const tag = ((ctx.state._guests.data || {}).tags || []).find(t => t.pid === s.pid);
-  const key = (tag && (tag.keys || [])[0]) || s.pid;
-  ctx.state._tracebackPreset = { key, start_ms: Math.round((s.start || 0) * 1000), end_ms: Math.round((s.ended || Date.now() / 1000) * 1000) };
+  const key = (tag && (tag.key || (tag.keys || [])[0])) || s.pid;
+  ctx.state._tracebackPreset = { key, name: s.name, start_ms: Math.round((s.start || 0) * 1000), end_ms: Math.round((s.ended || Date.now() / 1000) * 1000) };
   ctx.state.view = "traceback";
   ctx.actions.renderRooms();
 }

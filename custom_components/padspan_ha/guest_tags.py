@@ -132,7 +132,8 @@ class GuestStore:
         return self.data["tags"]
 
     def mark(self, pid: str, label: str, keys: list[str], kind: str, now: float) -> dict:
-        tag = {"pid": pid, "label": label[:48], "keys": sorted({str(k) for k in keys if k})[:12],
+        main = next((str(k) for k in keys if k), "")      # the snapshot key, for Traceback
+        tag = {"pid": pid, "label": label[:48], "key": main, "keys": sorted({str(k) for k in keys if k})[:12],
                "kind": kind if kind in ("ibeacon", "private_ble", "findmy", "ble", "entity") else "ble",
                "marked_at": now}
         self.data["tags"][pid] = tag
