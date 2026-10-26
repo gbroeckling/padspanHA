@@ -30,6 +30,14 @@ const houseActivity =
 const { tierAtLeast, currentTier } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
+/** Open Traceback on one object over one window (a guest stay's report):
+ *  preset = {key, start_ms, end_ms, name?}; render() uses it up once. */
+export function openTracebackFor(ctx, preset) {
+  ctx.state._tracebackPreset = preset;
+  ctx.state.view = "traceback";
+  ctx.actions.renderRooms();
+}
+
 export function render(ctx) {
   const { el, esc: _esc } = ctx.helpers;
   const roomColorFn = ctx.helpers.roomColor;
@@ -243,6 +251,27 @@ export function render(ctx) {
   }
   const tb = ctx.state._traceback;
   if (!tb.house) tb.house = { on: false, timeline: null, events: [], eids: [], window: null, loading: false, error: null };
+  // Opened on one object over one window (a guest stay's report):
+  // ctx.state._tracebackPreset = {key, start_ms, end_ms, name?}, used up here,
+  // once, by the real render (not the no-floor-plan one above). key is the
+  // snapshot object's key (o.key || o.address || o.entity_id), the one the
+  // frames carry. Playback of that object over that window, house view off.
+  const _preset = ctx.state._tracebackPreset;
+  if (_preset) {
+    delete ctx.state._tracebackPreset;
+    const s0 = Number(_preset.start_ms), s1 = Number(_preset.end_ms);
+    if (_preset.key && Number.isFinite(s0) && Number.isFinite(s1)) {
+      tb.mode = "playback";
+      tb.playing = false;
+      tb.frameIdx = 0;
+      tb.house.on = false;
+      tb.filterKey = String(_preset.key);
+      tb.filterName = String(_preset.name || _preset.key);
+      tb.startTs = Math.min(s0, s1) / 1000;
+      tb.endTs = Math.max(s0, s1) / 1000;
+      tb.rangePreset = Math.round(tb.endTs - tb.startTs);
+    }
+  }
   // PadSpan Pro specifically — below Pro the switch is not offered at all.
   const _houseOK = tierAtLeast(currentTier(ctx.state.settings), "pro");
   const _houseActive = () => _houseOK && tb.house.on && tb.mode === "playback";
