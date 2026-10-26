@@ -426,7 +426,7 @@ async def ws_maps_delete(hass: HomeAssistant, connection, msg) -> None:
 
 
 def _note_map_deleted(hass: HomeAssistant, ms: Any, migrated: bool) -> None:
-    """A map deleted on purpose (0.38.174): counted, and the report's marker
+    """A map deleted on purpose (0.38.177): counted, and the report's marker
     follows, so the next report does not read it as a map lost
     (telemetry health.maps_vanished)."""
     try:

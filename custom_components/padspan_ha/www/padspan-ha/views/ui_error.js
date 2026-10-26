@@ -142,7 +142,7 @@ export function reportUiError(ev, openView, send, now = Date.now()) {
     send("ui_error:" + mod);
     const view = String(openView || "");
     if (_NAME.test(view)) send("ui_error_while:" + view);
-    // Beside them (0.38.174), so a throw can be found in the code: its kind,
+    // Beside them (0.38.177), so a throw can be found in the code: its kind,
     // and the file and line it came from. Never the message.
     send("ui_error_kind:" + uiErrorKind(ev));
     const at = uiErrorAt(ev);

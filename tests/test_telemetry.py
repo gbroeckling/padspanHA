@@ -1829,7 +1829,7 @@ def test_install_age_is_a_word_from_first_seen():
 
 
 def test_the_days_counts_survive_a_restart_and_only_closed_names_come_back():
-    """0.38.174: counters live on disk too. What the last run saved is added
+    """0.38.177: counters live on disk too. What the last run saved is added
     back at start; a name no longer on the list, or a non-count, is dropped."""
     saved = {"counters": {"calibration_cleared_all": 1, "tab:maps": 3, "nicole_s_office": 5,
                           "calibration_point_added": True, "follow_alert_sent": -2}}

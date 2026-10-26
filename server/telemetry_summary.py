@@ -648,7 +648,7 @@ def main() -> int:
         for k, v in errs.items():
             if k.startswith("ui_error_while:"):
                 key, c = "while:" + k.split(":", 1)[1], by_tab
-            elif k.startswith(("ui_error_kind:", "ui_error_at:")):     # 0.38.174
+            elif k.startswith(("ui_error_kind:", "ui_error_at:")):     # 0.38.177
                 key, c = k[len("ui_error_"):], by_where
             elif new_style:
                 key, c = "mod:" + k.split(":", 1)[1], by_mod
@@ -665,7 +665,7 @@ def main() -> int:
             for k, v in by_tab.most_common():
                 print(f"    {k[6:]:<34} {v:>7}  {len(ins[k]):>4} installs")
         if by_where:
-            print("  ...what kind, and where in PadSpan's code (0.38.174+)")
+            print("  ...what kind, and where in PadSpan's code (0.38.177+)")
             for k, v in sorted(by_where.items(), key=lambda kv: (not kv[0].startswith("kind:"), -kv[1])):
                 print(f"    {k:<34} {v:>7}  {len(ins[k]):>4} installs")
         if by_old:

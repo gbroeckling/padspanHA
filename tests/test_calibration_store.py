@@ -1353,7 +1353,7 @@ class TestSwapAndRelearn:
 
 
 
-# ═══ 0.38.174: the refusal has a reason the report can count, and the tab
+# ═══ 0.38.177: the refusal has a reason the report can count, and the tab
 # says a floor needs measuring before anyone stands still for a capture ════
 
 async def test_the_no_scale_refusal_is_its_own_error_and_counted_as_such(monkeypatch):

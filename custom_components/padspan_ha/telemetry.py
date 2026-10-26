@@ -300,11 +300,11 @@ EVENTS: frozenset[str] = frozenset({
     # max on-time rules holding a light off the pattern asked for.
     "vacation_off_end_date", "vacation_paused_home",
     "vacation_rule_dark", "vacation_rule_bedtime", "vacation_rule_max_on",
-    # 0.38.174: why a calibration save failed (the floor has no metre scale,
+    # 0.38.177: why a calibration save failed (the floor has no metre scale,
     # or anything else), and the Calibration tab showing that a floor needs
     # measuring before points can go on it.
     "calibration_save_refused_no_scale", "calibration_save_failed_other", "calib_floor_unmeasured",
-    # 0.38.174: calibration points cleared on purpose (Clear all, one map's
+    # 0.38.177: calibration points cleared on purpose (Clear all, one map's
     # Clear) — so a house whose points went to zero can be told apart from one
     # that lost them (health.calibration_points_vanished).
     "calibration_cleared_all", "calibration_cleared_map",
@@ -419,7 +419,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "i18n",                                         # the panel's translations helper (t / tn)
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
-# 0.38.174: beside each, the kind of error (views/ui_error.js UI_ERROR_KINDS)
+# 0.38.177: beside each, the kind of error (views/ui_error.js UI_ERROR_KINDS)
 # and the line it came from, ui_error_at:<module>:<line> — a line in
 # PadSpan's own file, checked by ui_error_at_allowed.
 UI_ERROR_KINDS: tuple[str, ...] = ("type", "reference", "range", "syntax", "rejection", "other")
@@ -1018,7 +1018,7 @@ def note_screen(hass: HomeAssistant, screen: str, event: str = "client_screen_se
     return True
 
 
-# The window's counters on disk too (0.38.174): they lived only in memory, so
+# The window's counters on disk too (0.38.177): they lived only in memory, so
 # a restart before the day's report took them with it. A house restarted four
 # times on the day its calibration points went to zero, and its report could
 # not say whether anyone had cleared them. Saved two minutes after a count;
@@ -1883,7 +1883,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             _known |= {str(a.name) for a in _ar.async_get(hass).async_list_areas()}
             _pt_rooms = (str(p.get("room") or "") for p in cal_points if isinstance(p, dict))
             health["cal_points_phantom_room_n"] = sum(1 for r in _pt_rooms if r and r not in _known)
-            # 0.38.174: the last report had points, this one none, and no
+            # 0.38.177: the last report had points, this one none, and no
             # clear was recorded in between (calibration_points_seen, kept by
             # send_now and by every clear) — calibration lost, not cleared.
             # Only with the calibration store loaded, as above.
@@ -1892,7 +1892,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                 health["calibration_points_vanished"] = True
     except Exception as err:
         _LOGGER.debug("Telemetry: calibration health left out: %s", err)
-    # 0.38.174: fewer maps than the last report, with no delete recorded in
+    # 0.38.177: fewer maps than the last report, with no delete recorded in
     # between (maps_seen, kept by send_now and by every delete).
     try:
         _maps_seen = settings.get("maps_seen")

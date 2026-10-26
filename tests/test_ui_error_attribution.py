@@ -91,7 +91,7 @@ def test_one_count_per_module_per_minute_and_the_reporter_never_throws(result) -
 
 
 def test_each_error_says_its_kind_and_the_line_in_padspans_own_file(result) -> None:
-    """0.38.174: so a throw can be found in the code. The kind comes from the
+    """0.38.177: so a throw can be found in the code. The kind comes from the
     error's constructor; the line from the top-most PadSpan frame, never lib/
     when a view sits below it; nothing for a frame that is not ours."""
     k, a = result["kinds"], result["ats"]
