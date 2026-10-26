@@ -1340,6 +1340,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             from .vacation_mode import refresh_status  # noqa: PLC0415
             refresh_status(hass)
 
+        # ── Guest tags turned on or off: the guest-home entity and the panel follow.
+        if "guest_tags_enabled" in payload:
+            from .guest_tags import refresh as _guest_refresh  # noqa: PLC0415
+            _guest_refresh(hass)
+
         # ── Bright: presence revealed or hidden → it polls, or stops
         if "bright_reveal_presence" in payload:
             from . import PLATFORMS, presence_keepalive  # noqa: PLC0415

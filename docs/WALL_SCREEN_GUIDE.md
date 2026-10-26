@@ -97,6 +97,18 @@ With [Live Aboard](LIVE_ABOARD_GUIDE.md) on:
   card open, or made it full screen by hand.
 - When nothing is moving, Live Aboard draws nothing, so an idle screen costs almost nothing.
 
+## Several screens at once: Optimize for scale
+
+Every screen showing the Overview, or the Atlas's 3D view with people, asks Home Assistant for the whole live picture every 5 seconds. In a busy house that is every passing Bluetooth device: about 2 MB a screen, so four screens move about 14 Mbit/s between Home Assistant and the screens, all day. The flat Atlas wall (`?kiosk=1`) doesn't ask for it at all.
+
+**Settings → Optimize for scale** (off by default) cuts that down:
+
+- **A slim update:** the Overview and the 3D people ask only for what they draw (people, tags, labelled and followed devices, anything placed in a room) plus the counts. In a real house that was about 50 KB instead of 2.2 MB.
+- **One build for every screen:** screens polling within 4.5 seconds of each other share one build, so Home Assistant does about the same work for four screens as for one.
+- **Nothing while a screen is off:** a page that is hidden (display off, tab in the background) asks for nothing until it is shown again.
+
+Every other view (Monitor, Devices, Bluetooth and the rest) still gets everything. With it on, the list behind the Overview's objects count shows only what the slim update carries.
+
 ## Tips
 
 - On an old or slow tablet, turn **Low-memory mode** on in Settings → Presence if Home Assistant

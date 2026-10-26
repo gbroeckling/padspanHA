@@ -4,6 +4,29 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.178 — Guest tags, and walls that scale (2026-10-26)
+
+Both are off until you turn them on.
+
+### New
+- **Guest tags** (Settings → Presence → Guest tags). Lend a tag PadSpan knows (a beacon, a Find My tag, a spare phone) to a guest: a house-sitter, a visitor, a cleaner. A new **Guests** tab (there only while guest tags are on) shows where they are, since when and until when, and the time in each room. You can be told when they arrive or leave, and when they spend half a minute in a room you set as off-limits. Quiet hours hold the arrive and leave notices. A house-sitter can count as someone home for Vacation Mode.
+  - **Tag returned** ends the stay and keeps its report (first in, last out, time per room, off-limits visits, notices) for 30 days, or the 0, 7 or 90 you choose.
+  - A forgotten stay asks after two days without the tag being heard, and ends itself after a week.
+  - The tag keeps its own name and entity from guest to guest. While it is lent, its `device_tracker` carries the guest's name and stay.
+  - `binary_sensor.padspan_guest_home` and the `padspan_ha_guest` event are there for automations.
+  - Guests' names never leave your Home Assistant: not in the usage report, not in a backup. Only an administrator can lend a tag or end a stay.
+  - See docs/GUEST_TAGS_GUIDE.md.
+- **Optimize for scale** (Settings, next to Low-memory mode), for several wall screens at once:
+  - The Overview and the Atlas's 3D people ask for a slim update (people, tags and placed devices, with the counts) instead of every passing Bluetooth device. In a busy real house that was about 50 KB instead of 2.2 MB, every 5 seconds, per screen.
+  - Screens polling within 4.5 s of each other share one build.
+  - A hidden page asks for nothing.
+
+### Opt-in report
+- Only where they are on: guest tags as words (how many tags and stays, the last stay's length and how it ended, how many off-limits rooms, quiet hours, house-sitter, the kind of tag, the retention). Never a name. Plus counts of stays, notices sent, failed or held, off-limits notices and stays that ended unheard.
+- Whether Optimize for scale is on, and how many slim updates are sent.
+
+---
+
 ## 0.38.177 — Calibration catches an unmeasured floor first (2026-10-26)
 
 ### Fixed
