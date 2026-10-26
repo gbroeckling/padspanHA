@@ -205,3 +205,55 @@ def test_many_same_named_devices_index_in_linear_time():
         assert idx.resolve("same_name").reason == "ambiguous"
     assert compared[0] == 0
     assert idx.same_name_max == 3000 and idx.devices_n == 3000
+
+
+# ═══ Shelly: its scanner goes by the Bluetooth MAC, its device by the network MAC ═══
+#
+# Home Assistant's Shelly integration registers the scanner under
+# format_mac(bluetooth_mac_from_primary_mac(mac)).upper(), the network MAC + 2
+# (aioshelly), while the device it files lists only (CONNECTION_NETWORK_MAC,
+# mac). Before 0.38.175 the scanner found its device by name or not at all, and
+# "set this scanner's room" (radio_area_set), which looks up the source alone,
+# answered "Could not find HA device for this radio source".
+
+def _shelly(id, name, mac, name_by_user=None):
+    d = _Dev(id, name, name_by_user=name_by_user, macs=[mac])
+    d.identifiers = {("shelly", mac.replace(":", "").lower())}
+    return d
+
+
+def test_a_shelly_scanner_finds_its_device_by_its_bluetooth_mac(index) -> None:
+    m = index([_shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")]).resolve("A8:03:2A:B1:23:47")
+    assert m.device.id == "d1" and m.reason == "mac"
+
+
+def test_even_when_its_names_have_drifted_apart(index) -> None:
+    # The scanner keeps the entry's title; the device was renamed in HA.
+    devs = [_shelly("d1", "shellyplus1pm-a8032ab12345", "a8:03:2a:b1:23:45", name_by_user="Hall light"),
+            _Dev("d2", "Kitchen Hub")]
+    m = index(devs).resolve("A8:03:2A:B1:23:47", "shellyplus1pm-a8032ab12345 (A8:03:2A:B1:23:47)")
+    assert m.device.id == "d1" and m.reason == "mac"
+
+
+def test_the_plus_two_carries_across_octets(index) -> None:
+    m = index([_shelly("d1", "Porch", "a8:03:2a:b1:00:ff")]).resolve("A8:03:2A:B1:01:01")
+    assert m.device.id == "d1"
+
+
+def test_only_shelly_devices_get_the_rule(index) -> None:
+    # Another integration's device two addresses below a scanner is not it.
+    m = index([_Dev("d1", "Some Plug", macs=["a8:03:2a:b1:23:45"])]).resolve("A8:03:2A:B1:23:47")
+    assert m.device is None and m.reason == "none"
+
+
+def test_a_device_that_lists_the_mac_itself_still_wins(index) -> None:
+    # ESPHome lists its Bluetooth MAC among its connections: a direct match.
+    devs = [_shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45"),
+            _Dev("d2", "esp-proxy", macs=["a8:03:2a:b1:23:47"])]
+    assert index(devs).resolve("A8:03:2A:B1:23:47").device.id == "d2"
+
+
+def test_setting_a_shellys_room_finds_its_device(index) -> None:
+    # radio_area_set resolves the source alone, with no name to fall back on.
+    m = index([_shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")]).resolve("A8:03:2A:B1:23:47")
+    assert m.device is not None and m.device.id == "d1"
