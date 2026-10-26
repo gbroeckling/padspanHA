@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room presence for large homes: every floor, live, on one wall | PadSpan HA</title>
+<meta name="description" content="For homes with three, four or five floors: PadSpan shows who is in which room on every floor, live, on a wall screen sized for the room it hangs in. It runs on your own Home Assistant, and one licence covers up to five homes.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/large-homes/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Every floor of a large home, live, on one wall">
+<meta property="og:description" content="Who is in which room on every floor, live, on a wall screen sized for the room. Local, private, and one licence for up to five homes.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/large-homes/">
+<meta property="og:image" content="https://padspan.traks.ca/images/overview-3d-multifloor.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1>Every floor of a large home, live, on one wall</h1>
+<p class="lead">In a house with four or five floors, "where is everyone?" is a real question. PadSpan answers it on a screen on the wall: every floor, every room, and every phone, watch and tag you've set up, live. Homes with several floors are common here: of the 58 installs that sent PadSpan's opt-in usage report between October 12 and 26, 2026, 16 had three floors or more.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo house in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+
+<figure>
+  <img src="/images/wall-panel-in-situ.jpg" width="1400" height="1054" alt="PadSpan's Atlas on a wall screen beside a thermostat, touch panel and lighting keypad, showing a house's rooms and lights" loading="lazy">
+  <figcaption>PadSpan's Atlas of the house's lights on a wall screen beside the thermostat, in daily use.</figcaption>
+</figure>
+
+<h2>What the wall shows</h2>
+<ul>
+  <li><b>Every floor.</b> All floors stacked top to bottom, or one floor at a time. With <b>Show each floor</b> on, the wall steps through them every 15 seconds to 5 minutes, and waits while someone is using it.</li>
+  <li><b>Everyone in their room.</b> With <b>Show people</b> and <b>Show tags &amp; scanners</b> on, each person, phone, watch and tag PadSpan follows shows in its room, updated every few seconds.</li>
+  <li><b>The house itself.</b> Doors, windows, blinds, garage doors and gates on the map, once linked. With <b>Alert pulse</b> on, a door left open for hours, or a window open while it rains, rings its room in amber; leak, smoke, gas and CO alarms always ring it in red.</li>
+  <li><b>What just happened.</b> In the 3D house (Live Aboard), the view can fly to a doorbell that rings, a door that opens or an alarm that goes off, show a card with a camera's snapshot if you picked one, and fly back home.</li>
+</ul>
+
+<h2>Made for a big screen</h2>
+<ul>
+  <li><b>Sized for the room it hangs in.</b> Give the screen's size and how far away people stand, and PadSpan sizes the text by how big it looks from there, the rule control rooms use. A 55-inch screen across a room gets much bigger text than a 27-inch monitor on a desk, even when both are 4K.</li>
+  <li><b>4K-ready.</b> On a 4K screen everything draws at twice its 1080p size, so it reads from across the room.</li>
+  <li><b>Quiet when nobody is looking.</b> The controls fade 30 seconds after the last touch, the wall can dim between sunset and sunrise, and optional burn-in protection shifts the picture two pixels every three minutes for OLED and plasma screens.</li>
+  <li><b>Every screen its own.</b> Each wall can have its own size and its own link, and a wall reloads itself after an update, so it doesn't keep running old code. With the Fully Kiosk option and Fully's JavaScript Interface on, night dimming turns the tablet's own brightness down, and with Fully's Motion Detection, walking up wakes it.</li>
+</ul>
+<p>The <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/WALL_SCREEN_GUIDE.md">Wall Screen Guide</a> has every setting.</p>
+
+<figure>
+  <img src="/images/overview-3d-multifloor.jpg" width="2422" height="1372" alt="Several floors of a house stacked in PadSpan's free 3D map, with devices in their rooms" loading="lazy">
+  <figcaption>Floors stacked in the free Overview's 3D map.</figcaption>
+</figure>
+
+<h2>A large home needs more scanners, and that's fine</h2>
+<ul>
+  <li><b>One Bluetooth proxy in each room you want told apart</b> gives you rooms. Three or more on a floor, placed on a measured plan, let PadSpan put a device between them. Each floor counts on its own. <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></li>
+  <li><b>Some may already be in the walls.</b> Shelly Gen2+ relays can be Bluetooth scanners with one setting each, as a free start: in a wall box they hear less than a proxy in the room. <a href="/guides/shelly-bluetooth-proxy/">Your Shellys can be Bluetooth proxies</a>.</li>
+  <li><b>No floor plans yet?</b> If your robot vacuum runs Valetudo, or has a map camera with calibration points, the experimental Robot Vacuum Import (Settings → Features) can make its map the floor's plan: <a href="/guides/robot-vacuum-floor-plan/">Your robot vacuum already drew your floor plan</a>.</li>
+</ul>
+
+<h2>Private, and more than one home</h2>
+<ul>
+  <li><b>It runs on your own Home Assistant.</b> Room presence, the maps and the movement history stay in the house, and PadSpan works offline. A daily update check sends the version (it can be turned off); with a key, a daily licence check sends the key, Home Assistant's instance ID and this home's licence details. The usage report is opt-in, but a key on more than two homes needs it.</li>
+  <li><b>One licence, up to five homes.</b> One PadSpan Pro key covers up to five Home Assistants: the first two always, a third to fifth while every home on the key keeps PadSpan's usage report on.</li>
+  <li><b>It works next to what already runs the house.</b> PadSpan is a Home Assistant integration, so the lights, locks, doors and sensors Home Assistant already has show in their rooms.</li>
+</ul>
+
+<h2>Free and Pro</h2>
+<p>Room presence, the floor plans, calibration and the Home Assistant sensors are free and open source (GPL-3.0). The wall mode, the 3D house (Live Aboard, still experimental) and placing lights and other devices exactly on the map are part of PadSpan Pro (PadSpan's main page also has a free <code>?kiosk=1</code> link for a tablet), with a one-time 90-day free trial in <b>Settings → Features → PadSpan licence</b>. See <a href="/#pro">Pro</a> on the main page.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo house in your browser</a>
+  <a class="btn ghost" href="/guides/">All guides</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited.</p>
+</div></footer>
+</body>
+</html>
