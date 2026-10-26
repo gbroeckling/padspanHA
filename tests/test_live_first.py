@@ -191,13 +191,31 @@ def test_a_restore_never_brings_pending_back():
     assert live_first_kept(pending, {"data_mode": "sample"}) == {}
     # A decided backup keeps its own word where this install has none.
     assert live_first_kept({}, {"onboarding": {"live_first": "chosen"}}) == {"onboarding": {"live_first": "chosen"}}
+    # A backup from before 0.38.165 (no onboarding at all) keeps this install's answer.
+    assert live_first_kept({"onboarding": {"live_first": "switched"}}, {"data_mode": "sample"}) == {"onboarding": {"live_first": "switched"}}
+
+
+def test_a_move_from_bright_still_opens_on_your_own_house():
+    """Bright is never marked and never asked, so its default "sample" is no
+    one's choice: the new PadSpan HA install it's imported into keeps waiting
+    for its first scanner."""
+    from custom_components.padspan_ha.settings_store import live_first_kept
+    pending = {"onboarding": {"setup_ts": 5.0, "live_first": "pending"}}
+    bright = {"data_mode": "sample", "onboarding": {"setup_ts": 1.0}}
+    assert live_first_kept(pending, bright, from_bright=True)["onboarding"]["live_first"] == "pending"
+    assert live_first_kept(pending, {"data_mode": "sample"}, from_bright=True) == {"onboarding": {"live_first": "pending"}}
+    # Bright that was Live, or had answered, is honoured.
+    assert "live_first" not in live_first_kept(pending, {"data_mode": "live", "onboarding": {}}, from_bright=True)["onboarding"]
+    assert live_first_kept(pending, {"onboarding": {"live_first": "chosen"}}, from_bright=True)["onboarding"]["live_first"] == "chosen"
+    # A restore is not an import: "pending" doesn't survive it.
+    assert "live_first" not in live_first_kept(pending, bright)["onboarding"]
 
 
 def test_restore_and_bright_import_apply_it():
     from pathlib import Path
     cc = Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
     assert "data.update(live_first_kept(store_obj.data or {}, data))" in (cc / "ws_backup.py").read_text(encoding="utf-8")
-    assert "data.update(live_first_kept(live_settings, data))" in (cc / "bright_import.py").read_text(encoding="utf-8")
+    assert "data.update(live_first_kept(live_settings, data, from_bright=True))" in (cc / "bright_import.py").read_text(encoding="utf-8")
 
 
 def test_a_mode_picked_before_the_save_runs_is_kept():

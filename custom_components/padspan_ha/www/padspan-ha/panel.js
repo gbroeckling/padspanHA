@@ -1737,7 +1737,8 @@ class PadSpanHaApp extends HTMLElement {
       // (onboarding.py, live_first); this only notices: every 10 s for the
       // first five minutes on the page, then every two (a house with no
       // scanner yet isn't asked forever), and never mid-task in Mapping.
-      if(this.state.settings?.onboarding?.live_first === "pending" && this.state.view !== "maps"){
+      const _mapsBusy = this.state.view === "maps" && (!!this.state._mapsWizard || ["upload", "stack", "edit"].includes(this.state.mapsTab));
+      if(this.state.settings?.onboarding?.live_first === "pending" && !_mapsBusy){
         this._liveFirstSince = this._liveFirstSince || Date.now();
         const _every = (Date.now() - this._liveFirstSince) < 300000 ? 10000 : 120000;
         if(Date.now() - (this._liveFirstTs || 0) > _every){

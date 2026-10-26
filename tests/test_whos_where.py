@@ -72,7 +72,8 @@ def test_the_demo_house_has_a_way_back_and_a_way_in() -> None:
 def test_a_new_install_on_the_demo_house_notices_the_switch() -> None:
     panel = _src(_WWW / "panel.js")
     assert "const _every = (Date.now() - this._liveFirstSince) < 300000 ? 10000 : 120000;" in panel
-    assert 'if(this.state.settings?.onboarding?.live_first === "pending" && this.state.view !== "maps"){' in panel
+    assert 'const _mapsBusy = this.state.view === "maps" && (!!this.state._mapsWizard || ["upload", "stack", "edit"].includes(this.state.mapsTab));' in panel
+    assert 'if(this.state.settings?.onboarding?.live_first === "pending" && !_mapsBusy){' in panel
     assert "async _liveFirstCheck(){" in panel
     # The toast only when the server switched it.
     assert 'if(this.state.settings?.onboarding?.live_first === "switched")' in panel

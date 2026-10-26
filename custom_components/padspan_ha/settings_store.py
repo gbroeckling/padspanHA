@@ -351,21 +351,31 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 }
 
 
-def live_first_kept(live: dict[str, Any] | None, other: dict[str, Any] | None) -> dict[str, Any]:
+def live_first_kept(live: dict[str, Any] | None, other: dict[str, Any] | None,
+                    from_bright: bool = False) -> dict[str, Any]:
     """onboarding["live_first"] through a settings restore or a Bright import
-    (`other` is the settings coming in). Never "pending" afterwards: restoring
-    is choosing settings, the mode among them, so a new install's switch to
-    Live must not run over it. This install's own answer ("switched",
-    "chosen") stays when it has one. Returns {"onboarding": ...} to apply,
-    or {} when there is nothing to change."""
+    (`other` is the settings coming in). This install's own answer
+    ("switched", "chosen") always stays. Otherwise:
+
+    - a restore never leaves "pending": restoring is choosing settings, the
+      mode among them, so a new install's switch to Live must not run over it;
+    - a Bright import keeps this install's "pending" unless Bright itself was
+      Live or had answered: PadSpan Bright never asked (it is never marked),
+      so its default "sample" is no one's choice, and a move from Bright
+      would otherwise end on the demo house for good.
+
+    Returns {"onboarding": ...} to apply, or {} when there is nothing to change."""
     a, b = live or {}, other or {}
     mine = a.get("onboarding").get("live_first") if isinstance(a.get("onboarding"), dict) else None
     ob = dict(b["onboarding"]) if isinstance(b.get("onboarding"), dict) else None
+    if mine in ("switched", "chosen"):
+        return {"onboarding": {**(ob or {}), "live_first": mine}}
+    if from_bright and mine == "pending" and (ob or {}).get("live_first") not in ("switched", "chosen") \
+            and b.get("data_mode") != "live":
+        return {"onboarding": {**(ob or {}), "live_first": "pending"}}
     if ob is None:
         return {}
-    if mine in ("switched", "chosen"):
-        ob["live_first"] = mine
-    elif ob.get("live_first") == "pending":
+    if ob.get("live_first") == "pending":
         del ob["live_first"]
     return {"onboarding": ob}
 

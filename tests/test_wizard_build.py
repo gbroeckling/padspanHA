@@ -79,3 +79,18 @@ def test_a_failed_load_never_blanks_mapping() -> None:
     maps = _src(_WWW / "views" / "maps.js")
     assert ".catch(() => ({ planHouse: null, buildHouse: null }));" in maps
     assert "const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`).catch(() => null);" in maps
+
+
+def test_one_build_at_a_time_and_checked_at_the_click() -> None:
+    maps = _src(_WWW / "views" / "maps.js")
+    assert "if (ctx.state._wizardBuilding) return;" in maps
+    assert "const blockNow = TSP.tuneWriteBlock(ctx.state);" in maps
+    assert "ctx.state._wizardBuilding = false;" in maps
+
+
+def test_the_demo_houses_radios_are_never_offered_for_a_real_plan() -> None:
+    """Older than Put it on the map: in Sample mode the Edit tab and the
+    wizard's step 4 listed the demo radios under Live BLE Radios, with Add."""
+    maps = _src(_WWW / "views" / "maps.js")
+    assert "const _rxBlock = TSP ? TSP.tuneWriteBlock(ctx.state) : null;" in maps
+    assert "} else if(liveRadios.length){" in maps

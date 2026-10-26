@@ -4,6 +4,22 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.173 — Your own house first: who's where before any floor plan, and the wizard puts your plan on the map (2026-10-26)
+
+A new install used to open on the demo house, and showed its own rooms only after a floor plan, a scale, traced rooms and placed scanners. An install from before keeps the mode it is in, and its map.
+
+### New
+- **A new install opens on its own house.** As soon as Home Assistant reports a Bluetooth scanner, PadSpan switches from the demo house to Live, unless you picked a mode yourself first. A panel already open notices within seconds.
+- **Who's where now.** Until you draw rooms, the Overview starts with each room your scanners cover (each scanner's Home Assistant area) and who is in it now, from the scanner that hears them best, plus a count of everything else heard. It says what your scanners give you ("4 scanners cover 3 rooms …") and names any scanner with no Home Assistant area, which can't give a room. Someone heard only by such a scanner is listed under "Heard, no room yet".
+- **Track, in one click, for phones in Private BLE Device**, in range or not: it names the phone in PadSpan and follows it, so it gets its room and home/away sensors. With Enhanced security on, that's an administrator's. Track Your Phone (Android) opens by itself on a house with no rooms drawn.
+- **The demo house is behind "Preview a finished house"**, says it is made up, and has **Back to my house**. Getting started reads "Make it a map (optional)" while who's where already works.
+- **Setup Wizard: Put it on the map.** Finishing the wizard now says which traced rooms and placed scanners aren't on the map of your house yet, and one click puts them there, the way Mapping → Rooms → Commit and Calibration → Tune → Save do. Only what's missing is written, only from the plan you just traced, and never while the demo house is showing; nothing already on the map changes. Before, the Overview had no house until you found those two buttons.
+
+### Opt-in report
+- Nothing new is sent. The time to a new install's first room (reported since 0.38.165) shows whether this helps.
+
+---
+
 ## 0.38.172 — Vacation Mode options and a status entity (2026-10-26)
 
 Nothing changes until you set an option: an install that never opens Options runs Vacation Mode exactly as before.

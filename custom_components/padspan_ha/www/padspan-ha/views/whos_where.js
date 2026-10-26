@@ -169,7 +169,9 @@ export function whosWhereCard(ctx){
     const s = ctx.state.live?.snapshot || snap;
     const scanners = scannersOf(s);
     const rows = whoIsWhere(s, scanners, opts);
-    const heard = (s.objects?.list || []).map(o => o && (o.canonical_id || o.key)).filter(Boolean);
+    // Heard = listed above: a phone the snapshot still holds but shows as
+    // away or stale is "not heard right now", not nowhere.
+    const heard = rows.flatMap(r => r.people.map(x => x.key)).filter(Boolean);
     const notHeard = phonesNotHeard(ctx.state._whosWherePhones?.devices, ctx.state._whosWherePhones?.labels, heard,
       (k) => ctx.actions.followedHas(k));
     // The counts of other devices change on most polls: they're updated in

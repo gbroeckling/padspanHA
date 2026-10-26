@@ -1487,7 +1487,7 @@ function _wizardFinish(ctx, map, isBasic){
       const p = TSP.tuneDiffMapDraft(m, rows, mdl.scanner_positions_m || {}, mdl.map_transforms || {}, base, true);
       if (!p || p.refused) { if (m.id === map.id) refused = true; continue; }
       all.push(...p.writes.map(w => ({ ...w, _map: m.id })));
-      invalid.push(...(p.invalid || []));
+      if (m.id === map.id) invalid.push(...(p.invalid || []));   // another plan's bad row isn't this one's
     }
     const bad = new Set(TSP.tuneConflictingSources(all));
     const writes = all.filter(w => w._map === map.id && !bad.has(w.source)).map(({ _map, ...w }) => w);
@@ -1507,22 +1507,31 @@ function _wizardFinish(ctx, map, isBasic){
       const what = [plan.rooms.length ? n(plan.rooms.length, "room") : "", plan.scanners.length ? n(plan.scanners.length, "scanner") : ""].filter(Boolean).join(" and ");
       box.appendChild(el("div",{style:"font-size:13px;margin-bottom:8px;line-height:1.5"},
         `${what} ${plan.rooms.length + plan.scanners.length === 1 ? "is" : "are"} on this floor plan but not yet on the map of your house that the Overview, the Atlas and positioning draw from. Nothing already on it changes.`));
-      const putBtn = el("button",{class:"btn primary"}, "Put it on the map");
+      // Re-reading the model redraws this step mid-write: the flag keeps the
+      // new button in progress, so a second click can't start a second build.
+      const building = !!ctx.state._wizardBuilding;
+      const putBtn = el("button",{class:"btn primary"}, building ? "Putting it on the map…" : "Put it on the map");
+      putBtn.disabled = building;
       putBtn.addEventListener("click", async () => {
+        if (ctx.state._wizardBuilding) return;
+        const blockNow = TSP.tuneWriteBlock(ctx.state);   // as Tune's Save checks at the click
+        if (blockNow) { ctx.toast(blockNow, true); return; }
+        ctx.state._wizardBuilding = true;
         putBtn.disabled = true;
         putBtn.textContent = "Putting it on the map…";
         try {
           const r = await buildHouse(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh() });
           const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "scanner") : ""].filter(Boolean).join(" and ");
           const left = r.failed.length + r.notConvertible.length + r.otherPlan.length;
+          const where = "Mapping → Rooms and Calibration → Tune show them";
           ctx.toast(done
-            ? `${done} now on the map${left ? `; ${left} couldn't be (Mapping → Rooms shows them)` : ""}.`
-            : `Nothing could be put on the map${left ? `: ${left} couldn't be (Mapping → Rooms shows them)` : ""}.`, !done || !!left);
-          await ctx.actions.modelRefresh();
+            ? `${done} now on the map${left ? `; ${left} couldn't be (${where})` : ""}.`
+            : `Nothing could be put on the map${left ? `: ${left} couldn't be (${where})` : ""}.`, !done || !!left);
         } catch (e) {
           ctx.toast("Couldn't put it on the map: " + (e?.message || e), true);
-          putBtn.disabled = false;
-          putBtn.textContent = "Put it on the map";
+        } finally {
+          ctx.state._wizardBuilding = false;
+          await ctx.actions.modelRefresh();
         }
       });
       box.appendChild(putBtn);
@@ -2392,7 +2401,12 @@ function _edit(ctx, map, allMaps){
       const liveRadios = (snap2 && snap2.ble && Array.isArray(snap2.ble.radios)) ? snap2.ble.radios : [];
       const _sid = ctx.helpers.radioShortId || (src => src.slice(0,3).toUpperCase());
       right.appendChild(el("div",{class:"muted", style:"margin-top:14px;font-size:12px;font-weight:600"}, "Live BLE Radios"));
-      if(liveRadios.length){
+      // #88: in Sample mode these are the demo house's radios. Placed on a
+      // real plan they'd become phantom scanners at the next Tune → Save.
+      const _rxBlock = TSP ? TSP.tuneWriteBlock(ctx.state) : null;
+      if(_rxBlock){
+        right.appendChild(el("div",{class:"muted", style:"font-size:11px;margin-top:2px"}, _rxBlock));
+      } else if(liveRadios.length){
         right.appendChild(el("div",{class:"muted", style:"font-size:11px;margin-top:2px;margin-bottom:6px"}, "Click Add to place on map, then drag to position."));
         const radList = el("div",{style:"display:flex;flex-direction:column;gap:5px"});
         for(const radio of liveRadios){

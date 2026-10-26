@@ -222,6 +222,16 @@ ctx6.state.settings = { enhanced_security: true };
 ctx6.hass = { user: { is_admin: true } };
 check("an administrator still has Track", [...WW.whosWhereCard(ctx6).querySelectorAll("button")].some(b => b.textContent === "Track"));
 
+// A phone the snapshot still holds but shows as away is "not heard right now".
+followed.clear();
+const awayPhone = [{ kind: "private_ble", key: "irk:cc", canonical_id: "irk:cc", private_ble_name: "Nicole's Watch", room: "Den", age_s: 9999 }];
+const ctx7 = mkCtx("live", snapOf(radios, awayPhone));
+const card7 = WW.whosWhereCard(ctx7);
+document.body.appendChild(card7);
+await tick();
+await tick();
+check("an away phone still in the snapshot is listed as not heard", /Not heard right now/.test(card7.textContent) && /Nicole's Watch/.test(card7.textContent), card7.textContent);
+
 // Names are text, never markup.
 const ctx3 = mkCtx("live", snapOf(radios, [{ kind: "ble", address: "x", user_label: "<img src=x onerror=alert(1)>", room: "Kitchen", age_s: 1 }]));
 const card3 = WW.whosWhereCard(ctx3);
