@@ -53,6 +53,7 @@ STALE_END_S = 7 * 86400         # unseen this long: the stay ends itself
 OFFLIMITS_LOG_MAX = 50
 NAME_MAX = 60
 TICK_MAX_S = 60                 # a poll gap longer than this is not counted as time in a room
+SAVE_DELAY_S = 120
 
 
 def enabled(hass: HomeAssistant) -> bool:
@@ -118,7 +119,10 @@ class GuestStore:
         self.loaded = True
 
     def save(self) -> None:
-        self._store.async_delay_save(lambda: self.data, 5)
+        # Two minutes: a running stay's time per room is saved from the poll,
+        # and an SD card should not be written every few seconds. Starting,
+        # ending and forgetting a stay save at once (async_save_now).
+        self._store.async_delay_save(lambda: self.data, SAVE_DELAY_S)
 
     async def async_save_now(self) -> None:
         await self._store.async_save(self.data)
