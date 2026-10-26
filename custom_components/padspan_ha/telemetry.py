@@ -313,6 +313,13 @@ EVENTS: frozenset[str] = frozenset({
     "map_deleted", "map_deleted_migrated",
     # 0.38.178: a slim snapshot sent (Optimize for scale) — how many walls use it.
     "snapshot_slim_sent",
+    # 0.38.178, guest tags (guest_tags.py): a tag made a guest tag, a stay
+    # started and ended, notices sent / failed / held for quiet hours, an
+    # off-limits room entered, a stay ended because its tag went unheard a
+    # week (a high count says leaving is not being caught).
+    "guest_tag_marked", "guest_session_started", "guest_session_ended",
+    "guest_notice_sent", "guest_notice_failed", "guest_quiet_held",
+    "guest_offlimits_sent", "guest_stale_ended",
 })
 # A new install's first steps (onboarding.py): how long from setup to the
 # first room and to the first calibration point, as buckets, once per
@@ -351,7 +358,7 @@ VIEWS: frozenset[str] = frozenset({
     "follow", "overview", "purelive", "objects", "devices", "bluetooth", "presence",
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
-    "sandbox", "occupancy", "installbase",
+    "sandbox", "occupancy", "installbase", "guests",
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),
@@ -651,6 +658,7 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "enhanced_security": "enhanced_security",
     # 0.38.178: several wall screens (Settings → Optimize for scale).
     "optimize_for_scale": "scale",
+    "guest_tags_enabled": "guest_tags",
     # 0.38.165's positioning settings, all off by default.
     "positioning_pick_better": "pick_better", "positioning_unsure": "unsure",
     "positioning_sensor_fusion": "fusion",
@@ -1765,6 +1773,14 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     _age = install_age_word(settings.get("first_seen_ts"), time.time())
     if _age:
         env["install_age"] = _age
+    # Guest tags (guest_tags.report_buckets): words only, never a name, only where on and used.
+    try:
+        from .guest_tags import report_buckets as _guest_buckets  # noqa: PLC0415
+        _gb = _guest_buckets(hass, time.time())
+        if _gb:
+            env["guest"] = _gb
+    except Exception:
+        pass
     # Vacation Mode (vacation_mode.report_buckets), only where it was used.
     try:
         from .vacation_mode import _VM_LOG, report_buckets as _vac_buckets  # noqa: PLC0415
@@ -2104,6 +2120,11 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
             raise ValueError("env.room_walk not in the vocabulary")
     if isinstance(env, dict) and "install_age" in env and env["install_age"] not in INSTALL_AGE_WORDS:
         raise ValueError("env.install_age not in the vocabulary")
+    if isinstance(env, dict) and "guest" in env:
+        from .guest_tags import REPORT_WORDS as _GW  # noqa: PLC0415
+        gst = env["guest"]
+        if not isinstance(gst, dict) or not all(k in _GW and v in _GW[k] for k, v in gst.items()):
+            raise ValueError("env.guest not in the vocabulary")
     if isinstance(env, dict) and "vacation" in env:
         from .vacation_mode import REPORT_WORDS as _VW  # noqa: PLC0415
         vac = env["vacation"]

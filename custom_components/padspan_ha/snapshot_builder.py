@@ -3127,6 +3127,12 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
         snap["objects"] = _objs_env
     except Exception:
         pass
+    # Guest tags (guest_tags.py): a lent tag's objects carry the guest.
+    try:
+        from .guest_tags import snapshot_overlay  # noqa: PLC0415
+        snapshot_overlay(hass, snap["objects"]["list"])
+    except Exception:  # noqa: BLE001
+        pass
 
     # Overlay presence-coordinator smoothed data (x_frac, y_frac,
     # knn_confidence, room, room_confidence) so the UI can show

@@ -150,7 +150,9 @@ def test_the_snapshot_is_handed_over_only_while_show_people_is_on() -> None:
     lp = _js(_WWW / "lights_panel.js")
     block = lp[lp.index("house3d: this.state._house3d ?"):]
     block = block[:block.index("} : null,")]
-    assert 'people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" })' in block
+    # (0.38.178: with Optimize for scale on, the slim copy, and the last one again while hidden.)
+    assert 'people: { read: ()=>{' in block
+    assert 'const msg = this.state._optimizeScale ? { type:"padspan_ha/live_snapshot", slim:true } : { type:"padspan_ha/live_snapshot" };' in block
     assert "atlas_3d_people: s.atlas_3d_people, presence_poll_interval_s: s.presence_poll_interval_s" in lp
     assert "atlas_3d_tags: s.atlas_3d_tags" in lp
     # The view reads it through the host, never under 5 s apart: on each card,

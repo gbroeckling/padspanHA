@@ -50,6 +50,7 @@ GATED = {
                  "fabric_floor_elevations_set fabric_correct_room fabric_rooms_reconcile fabric_rf_barrier_set "
                  "fabric_rf_barrier_remove fabric_resync",
     "ws_follow": "follow_alert_save follow_alert_delete room_tag_purge_missing",
+    "ws_guests": "guests_get",      # guest tags (0.38.178): names of guests; the rest is admin only
     "ws_house3d": "house3d_edit",
     "ws_house3d_library": "house3d_library_report house3d_library_share house3d_terms_accept",
     "ws_house3d_photo": "house3d_from_photo",
@@ -300,7 +301,8 @@ def test_every_atlas_command_goes_through_the_one_wrapper():
     src = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     # Only _ws itself and three reads (never refused) call hass.callWS directly.
     assert src.count("this._hass.callWS(") == 4
-    for read in ('this._hass.callWS({ type:"padspan_ha/live_snapshot" })', "(msg)=>this._hass.callWS(msg) }",
+    # (The live snapshot's read sends slim:true with Optimize for scale on, 0.38.178.)
+    for read in ('return this._hass.callWS(msg).then(r=>{ const snap', "(msg)=>this._hass.callWS(msg) }",
                  'this._hass.callWS({ type:"padspan_ha/house3d_get" })'):
         assert read in src
     assert "return Promise.resolve(this._hass.callWS(msg)).catch(" in _atlas_methods()

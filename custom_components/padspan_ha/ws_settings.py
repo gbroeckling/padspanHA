@@ -639,6 +639,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("apple_auto_classify"): bool,
         vol.Optional("low_memory_mode"): bool,
         vol.Optional("optimize_for_scale"): bool,
+        vol.Optional("guest_tags_enabled"): bool,
+        vol.Optional("guest_retention_days"): vol.Coerce(int),
         vol.Optional("enhanced_security"): bool,              # admin only; ws_common.require_admin_if_enhanced
         vol.Optional("forensics_enabled"): bool,
         vol.Optional("license_tier_override"): str,
@@ -1023,6 +1025,21 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                                          _vac_who if _vac_event == "off" else None))
         if "vacation_mode_intensity" in msg:
             payload["vacation_mode_intensity"] = max(5, min(100, int(msg["vacation_mode_intensity"])))
+        # Guest tags (guest_tags.py): admin only — they track a person.
+        if "guest_tags_enabled" in msg or "guest_retention_days" in msg:
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change guest tags")
+                return
+            if "guest_tags_enabled" in msg:
+                payload["guest_tags_enabled"] = bool(msg["guest_tags_enabled"])
+            if "guest_retention_days" in msg:
+                from .guest_tags import RETENTION_CHOICES as _GRC  # noqa: PLC0415
+                _days = int(msg["guest_retention_days"])
+                if _days not in _GRC:
+                    connection.send_error(msg["id"], "invalid_format", "Keep finished stays for 0, 7, 30 or 90 days")
+                    return
+                payload["guest_retention_days"] = _days
         # The trip options (vacation_mode.OPTION_DEFAULTS): admin-only like
         # Vacation Mode itself — an end date or a pause can stop it.
         _vac_opts = ("vacation_mode_dark_only", "vacation_mode_dark_offset_min", "vacation_mode_end_at",

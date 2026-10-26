@@ -775,9 +775,16 @@ def apply_options(decisions: dict[str, bool], *, data: dict, now_ts: float, at_l
 
 
 def someone_home(hass: HomeAssistant) -> bool:
-    """Any person.* entity at home."""
+    """Any person.* entity at home, or a guest whose stay counts as someone
+    home (a house-sitter; guest_tags.py) with the tag here."""
     try:
-        return any(s.state == "home" for s in hass.states.async_all("person"))
+        if any(s.state == "home" for s in hass.states.async_all("person")):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from .guest_tags import counts_home_present  # noqa: PLC0415
+        return counts_home_present(hass)
     except Exception:  # noqa: BLE001
         return False
 

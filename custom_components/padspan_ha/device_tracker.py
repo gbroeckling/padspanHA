@@ -331,4 +331,15 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
             "age_s": round(age, 1) if isinstance(age, (int, float)) else None,
             "user_label": obj.get("user_label"),
             "home": home,
+            # A guest tag lent right now: the stay (guest_tags.py).
+            **_guest_attrs(self.coordinator.hass, obj),
         }
+
+
+
+def _guest_attrs(hass, obj):
+    try:
+        from .guest_tags import tracker_attributes  # noqa: PLC0415
+        return tracker_attributes(hass, obj)
+    except Exception:  # noqa: BLE001
+        return {}

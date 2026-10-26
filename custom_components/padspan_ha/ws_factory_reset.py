@@ -358,6 +358,20 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: house3d — %s", e)
         errors.append("padspan_ha.house3d")
 
+    # ── 9a0. Guest tags (guest_tags.py) — only a file that exists, emptied ─
+    try:
+        from .guest_tags import DATA_GUESTS, STORE_KEY as _GUEST_KEY  # noqa: PLC0415
+        from .ws_common import _store_file_written  # noqa: PLC0415
+        if await _store_file_written(hass, _GUEST_KEY):
+            await _St(hass, 1, _GUEST_KEY).async_save({"tags": {}, "sessions": {}})
+            cleared += 1
+        _g = domain.get(DATA_GUESTS)
+        if _g is not None:
+            _g.data = {"tags": {}, "sessions": {}}
+    except Exception as e:
+        _LOGGER.warning("Factory reset: guests — %s", e)
+        errors.append("padspan_ha.guests")
+
     # ── 9a'. Sub-zones (subzones.py) — only a file that exists, emptied ───
     try:
         from .const import DATA_SUBZONES, SUBZONES_STORE_KEY  # noqa: PLC0415

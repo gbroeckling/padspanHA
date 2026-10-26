@@ -358,6 +358,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .emergency_test import WS_COMMANDS as _emergency_commands
     for _cmd in _emergency_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Guest tags (ws_guests.py) — off until chosen in Settings; get works, the rest refuse while off.
+    from .ws_guests import WS_COMMANDS as _guest_commands
+    for _cmd in _guest_commands:
+        websocket_api.async_register_command(hass, _cmd)
     # Sub-zones (ws_subzones.py) — normally off; list works, the rest refuse while off.
     from .ws_subzones import WS_COMMANDS as _subzone_commands
     for _cmd in _subzone_commands:

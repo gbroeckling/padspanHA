@@ -261,7 +261,9 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     assert block.count("callWS(") + block.count("_ws(") == 6, "the report's, the Save's, the 3D file's read, Show people's, the switches' and Trails', nothing else"
     assert "trails: { read: (msg)=>this._hass.callWS(msg) }" in block
     assert 'await this._ws({ type:"padspan_ha/settings_set", [key]: v });' in block
-    assert 'people: { read: ()=>this._hass.callWS({ type:"padspan_ha/live_snapshot" })' in block
+    # (0.38.178: with Optimize for scale on, the slim copy, and the last one again while hidden.)
+    assert 'people: { read: ()=>{' in block
+    assert 'const msg = this.state._optimizeScale ? { type:"padspan_ha/live_snapshot", slim:true } : { type:"padspan_ha/live_snapshot" };' in block
     assert 'load: ()=>this._hass.callWS({ type:"padspan_ha/house3d_get" }),' in block
     maps = _js(_VIEWS / "maps.js")
     mblock = maps[maps.index("house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ?"):]

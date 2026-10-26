@@ -1948,6 +1948,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except Exception as _auto_err:
                 _LOGGER.warning("Automations error (non-fatal): %s", _auto_err)
 
+        # ── Guest tags (guest_tags.py): returns at once while they are off ──
+        try:
+            from .guest_tags import async_poll as _guest_poll  # noqa: PLC0415
+            await _guest_poll(self.hass, result, _cur_present)
+        except Exception as _guest_err:
+            _LOGGER.warning("Guest tags (non-fatal): %s", _guest_err)
+
         # ── Adjacency co-visibility learning (Phase 1) ────────────────────────
         # In auto mode, when no map-derived adjacency exists, learn room
         # adjacency from scanner co-visibility patterns.
@@ -4497,6 +4504,13 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         and sharing one cooldown key would let the first silently eat the
         second.
         """
+        # A tag lent to a guest: its stay sends its own notices (guest_tags.py).
+        try:
+            from .guest_tags import key_in_active_session  # noqa: PLC0415
+            if key_in_active_session(self.hass, key):
+                return False
+        except Exception:  # noqa: BLE001
+            pass
         email = (cfg.get("email") or "").strip()
         preferred = cfg.get("notify_service") or ""
         try:

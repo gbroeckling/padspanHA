@@ -27,6 +27,22 @@ async def async_setup_entry(
     """Set up PadSpan binary sensors. Entities are added dynamically by the presence coordinator."""
     await async_setup_entities(hass, entry, async_add_entities, PadSpanSubzoneOccupied)
     async_add_entities([PadSpanVacationMode(hass, entry)])
+    # binary_sensor.padspan_guest_home: added the first time guest tags are on
+    # (a house that never turns them on never gets the entity).
+    added: list[bool] = []
+
+    def _maybe_add_guest() -> None:
+        from .guest_tags import enabled as _guests_on  # noqa: PLC0415
+        if not added and _guests_on(hass):
+            added.append(True)
+            async_add_entities([PadSpanGuestHome(hass, entry)])
+    _maybe_add_guest()
+    try:
+        from homeassistant.helpers.dispatcher import async_dispatcher_connect  # noqa: PLC0415
+        from .guest_tags import SIGNAL_GUESTS  # noqa: PLC0415
+        entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_GUESTS, _maybe_add_guest))
+    except Exception:  # noqa: BLE001
+        pass
 
 
 class PadSpanSubzoneOccupied(SubzoneEntityMixin, CoordinatorEntity, BinarySensorEntity):
@@ -80,3 +96,41 @@ class PadSpanVacationMode(BinarySensorEntity):
     def extra_state_attributes(self) -> dict:
         from .vacation_mode import status_attributes  # noqa: PLC0415
         return status_attributes(self.hass, self._data())
+
+
+class PadSpanGuestHome(BinarySensorEntity):
+    """On while a guest's tag is heard in the house (guest_tags.py); who and
+    where in the attributes."""
+
+    _attr_should_poll = False
+    _attr_icon = "mdi:account-clock"
+    _attr_name = "PadSpan Guest home"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._attr_unique_id = f"{entry.entry_id}_guest_home"
+
+    async def async_added_to_hass(self) -> None:
+        from homeassistant.helpers.dispatcher import async_dispatcher_connect  # noqa: PLC0415
+        from .guest_tags import SIGNAL_GUESTS  # noqa: PLC0415
+        self.async_on_remove(async_dispatcher_connect(self.hass, SIGNAL_GUESTS, self.async_write_ha_state))
+
+    @property
+    def available(self) -> bool:
+        from .guest_tags import enabled  # noqa: PLC0415
+        return enabled(self.hass)
+
+    @property
+    def is_on(self) -> bool:
+        from .guest_tags import anyone_guest_home  # noqa: PLC0415
+        return anyone_guest_home(self.hass)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        from .guest_tags import store_if_loaded  # noqa: PLC0415
+        st = store_if_loaded(self.hass)
+        if st is None:
+            return {"guests": []}
+        return {"guests": [{"name": s.get("name"), "tag": (st.tags().get(s.get("pid")) or {}).get("label"),
+                            "home": bool((s.get("live") or {}).get("present")), "room": (s.get("live") or {}).get("room")}
+                           for s in st.active()]}
