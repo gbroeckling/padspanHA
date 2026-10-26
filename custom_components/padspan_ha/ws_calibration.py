@@ -256,6 +256,12 @@ async def ws_calibration_save_point(hass: HomeAssistant, connection, msg) -> Non
         })
     except Exception as e:
         _LOGGER.warning("Calibration save failed: %s", e)
+        # Why, as a word (0.38.174): the floor has no metre scale, or anything else.
+        from .calibration_store import NoScaleError  # noqa: PLC0415
+        if isinstance(e, NoScaleError):
+            _bump(hass, "calibration_save_refused_no_scale")
+        else:
+            _bump(hass, "calibration_save_failed_other")
         connection.send_error(msg["id"], "save_failed", str(e))
 
 

@@ -143,6 +143,10 @@ def _summarize_room_confusion(pairs: list[tuple[str, str]]) -> dict[str, Any]:
     }
 
 
+class NoScaleError(ValueError):
+    """A calibration point on a floor with no metre scale: it has no position."""
+
+
 @dataclass
 class CalibrationStore:
     # @dataclass only supplies __init__ when the class doesn't define its
@@ -337,7 +341,7 @@ class CalibrationStore:
         # at save time is the only moment they can still act on it — measure
         # the map, then place the point.
         if clean.get("x_m") is None or clean.get("y_m") is None:
-            raise ValueError(
+            raise NoScaleError(
                 "This map has no metre scale yet, so the point has no position. "
                 "Set a reference measurement on the map (Mapping → Measure) "
                 "before placing calibration points on it."

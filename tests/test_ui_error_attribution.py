@@ -82,11 +82,31 @@ def test_one_count_per_module_per_minute_and_the_reporter_never_throws(result) -
     assert r["bad_view_name"] == "atlas_panel"
     assert r["send_throws"] is None and r["garbage_event"] is None
     assert r["sent"] == [
-        "ui_error:overview", "ui_error_while:overview",
-        "ui_error:wled_tab_look", "ui_error_while:maps",
-        "ui_error:overview", "ui_error_while:follow",
-        "ui_error:atlas_panel",                      # no ui_error_while for a name off the list
+        "ui_error:overview", "ui_error_while:overview", "ui_error_kind:other", "ui_error_at:overview:10",
+        "ui_error:wled_tab_look", "ui_error_while:maps", "ui_error_kind:other", "ui_error_at:wled_tab_look:10",
+        "ui_error:overview", "ui_error_while:follow", "ui_error_kind:other", "ui_error_at:overview:10",
+        # no ui_error_while for a name off the list
+        "ui_error:atlas_panel", "ui_error_kind:other", "ui_error_at:atlas_panel:10",
     ]
+
+
+def test_each_error_says_its_kind_and_the_line_in_padspans_own_file(result) -> None:
+    """0.38.174: so a throw can be found in the code. The kind comes from the
+    error's constructor; the line from the top-most PadSpan frame, never lib/
+    when a view sits below it; nothing for a frame that is not ours."""
+    k, a = result["kinds"], result["ats"]
+    assert k == {"type": "type", "reference": "reference", "range": "range", "plain": "other",
+                 "ws_rejection": "rejection", "error_rejection": "type", "garbage": "other"}
+    assert a["chrome"] == "overview:10" and a["firefox"] == "overview:10"
+    assert a["lib_over_view"] == "maps:12", "a throw inside Preact is the view's line"
+    assert a["lib_only"] == "lib:10"
+    assert a["rejection_ours"] == "occupancy:10"
+    assert a["filename_only"] is None and a["foreign"] is None
+    for name in [f"ui_error_kind:{v}" for v in k.values()] + [f"ui_error_at:{v}" for v in a.values() if v]:
+        assert T.event_allowed(name), name
+    for bad in ("ui_error_at:overview:0", "ui_error_at:nicoles_office:12", "ui_error_at:overview:123456",
+                "ui_error_at:overview:12:5", "ui_error_kind:weird"):
+        assert not T.event_allowed(bad), bad
 
 
 def test_the_summary_keeps_old_whole_page_counts_apart(tmp_path) -> None:

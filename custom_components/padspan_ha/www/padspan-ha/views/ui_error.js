@@ -15,9 +15,10 @@
 // credited to the module that threw, not to the tab.
 //
 // What leaves this file is a module NAME — a view id, a helper file's base
-// name, or one of panel / atlas_panel / lib / other. The backend drops any
-// name outside its closed list (telemetry.py UI_ERRORS). Never the message,
-// never the stack, never a URL.
+// name, or one of panel / atlas_panel / lib / other — and, beside it, the
+// kind of error and the line in that PadSpan file it was thrown from. The
+// backend drops anything outside its closed lists (telemetry.py UI_ERRORS,
+// ui_error_at_allowed). Never the message, never the stack, never a URL.
 
 const _FRAME = /\/padspan_ha_static\/padspan-ha\/([A-Za-z0-9_./-]+?)\.m?js(?=[?#:)\s]|$)/g;
 const _NAME = /^[a-z0-9_]{1,40}$/;
@@ -35,6 +36,47 @@ export function moduleName(path) {
   const m = /^views\/([^/]+)$/.exec(p);
   if (m && _NAME.test(m[1])) return _AS_OTHER.has(m[1]) ? "other" : m[1];
   return "other";
+}
+
+// The same frames with their line: ".../views/calibration.js?b=…:1380:12".
+const _FRAME_LINE = /\/padspan_ha_static\/padspan-ha\/([A-Za-z0-9_./-]+?)\.m?js(?:\?[^:)\s]*)?:(\d{1,5}):\d+/g;
+// The kind of error, from the error's own constructor name; a rejected
+// promise without an Error (a Home Assistant websocket error object) is a
+// rejection.
+export const UI_ERROR_KINDS = ["type", "reference", "range", "syntax", "rejection", "other"];
+
+/** "type" for a TypeError, "rejection" for a rejected promise that was not an Error, … */
+export function uiErrorKind(ev) {
+  try {
+    const e = ev && (ev.type === "unhandledrejection" ? ev.reason : ev.error);
+    const n = e && typeof e === "object" ? String(e.name || "") : "";
+    const k = { TypeError: "type", ReferenceError: "reference", RangeError: "range", SyntaxError: "syntax" }[n];
+    if (k) return k;
+    if (ev && ev.type === "unhandledrejection" && !(e instanceof Error)) return "rejection";
+    return "other";
+  } catch (_e) {
+    return "other";
+  }
+}
+
+/** "<module>:<line>" of the top-most PadSpan frame that is not lib/, or null.
+ * A line in PadSpan's own code says nothing about the house it ran in. */
+export function uiErrorAt(ev) {
+  try {
+    const e = ev && (ev.type === "unhandledrejection" ? ev.reason : ev.error);
+    const text = e && typeof e === "object" ? e.stack : null;
+    if (typeof text !== "string" || !text) return null;
+    _FRAME_LINE.lastIndex = 0;
+    let m, first = null;
+    while ((m = _FRAME_LINE.exec(text))) {
+      const at = moduleName(m[1]) + ":" + String(parseInt(m[2], 10));
+      if (!m[1].startsWith("lib/")) return at;
+      if (!first) first = at;
+    }
+    return first;
+  } catch (_e) {
+    return null;
+  }
 }
 
 function _paths(text) {
@@ -100,6 +142,11 @@ export function reportUiError(ev, openView, send, now = Date.now()) {
     send("ui_error:" + mod);
     const view = String(openView || "");
     if (_NAME.test(view)) send("ui_error_while:" + view);
+    // Beside them (0.38.174), so a throw can be found in the code: its kind,
+    // and the file and line it came from. Never the message.
+    send("ui_error_kind:" + uiErrorKind(ev));
+    const at = uiErrorAt(ev);
+    if (at && /^[a-z0-9_]{1,40}:[1-9][0-9]{0,4}$/.test(at)) send("ui_error_at:" + at);
     return mod;
   } catch (_e) {
     return null;   // the error reporter must never be the error

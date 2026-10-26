@@ -63,4 +63,24 @@ const report = {
   garbage_event: (() => { try { return M.reportUiError(42, "overview", send, t0); } catch (e) { return "THREW"; } })(),
   sent,
 };
-console.log(JSON.stringify({ cases: out, report }));
+// The kind of error and the line in PadSpan's own file (0.38.174).
+const typeErr = () => { try { null.x; } catch (e) { return e; } };
+const kinds = {
+  type: M.uiErrorKind({ type: "error", error: typeErr() }),
+  reference: M.uiErrorKind({ type: "error", error: new ReferenceError("q") }),
+  range: M.uiErrorKind({ type: "error", error: new RangeError("q") }),
+  plain: M.uiErrorKind({ type: "error", error: new Error("q") }),
+  ws_rejection: M.uiErrorKind(rej({ code: "save_failed", message: "This map has no metre scale yet" })),
+  error_rejection: M.uiErrorKind(rej(new TypeError("q"))),
+  garbage: M.uiErrorKind(42),
+};
+const ats = {
+  chrome: M.uiErrorAt(cases.overview_chrome),
+  firefox: M.uiErrorAt(cases.overview_firefox),
+  lib_over_view: M.uiErrorAt(cases.lib_over_view),
+  lib_only: M.uiErrorAt(cases.lib_only),
+  filename_only: M.uiErrorAt(cases.filename_only),
+  rejection_ours: M.uiErrorAt(cases.rejection_ours),
+  foreign: M.uiErrorAt(cases.ha_frontend),
+};
+console.log(JSON.stringify({ cases: out, report, kinds, ats }));

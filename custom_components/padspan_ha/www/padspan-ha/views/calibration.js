@@ -192,6 +192,43 @@ function _walkTab(ctx, el, cs, calData) {
 // sure nobody reaches it without a device chosen first.
 //
 // ctx.state._calibWizard = { step } while open; falsy means closed.
+// A calibration point is a position: on a floor with no metre scale it has
+// none, and the backend refuses it (calibration_store: "This map has no metre
+// scale yet"). A new install's opt-in report showed it: seven refused saves
+// and three exits from the guide on its first day (2026-10-24), then 27
+// points once the floor was measured. So the floor's scale is checked BEFORE
+// anyone stands still for a capture. No model loaded yet: not blocked.
+function _floorScaled(ctx, mapId) {
+  const t = ctx.state.model && ctx.state.model.map_transforms;
+  if (!t || !mapId) return true;
+  return !!t[mapId];
+}
+
+function _noScaleCard(ctx, el, cs) {
+  if (cs._noScaleSeen !== cs.mapId && ctx.actions.telemetryEvent) {
+    cs._noScaleSeen = cs.mapId;
+    ctx.actions.telemetryEvent("calib_floor_unmeasured");
+  }
+  return el("div", { class: "card", style: "border-color:#f59e0b" }, [
+    el("div", { style: "font-weight:700;font-size:14px;color:#f59e0b;margin-bottom:6px" }, "This floor needs a measurement first"),
+    el("div", { style: "font-size:13px;line-height:1.6;color:#b0c4b1" },
+      "A calibration point is a spot on the floor in metres, and this floor plan has no metre scale yet, so a point placed on it can't be saved. " +
+      "Measure one distance you know on it (a wall, a doorway) in Mapping → Edit → Measure, then come back here."),
+    el("button", {
+      class: "btn", style: "margin-top:10px",
+      onclick: () => {
+        ctx.state.activeMapId = cs.mapId;
+        ctx.state.maps = ctx.state.maps || {};
+        ctx.state.maps._mode = "measure";
+        ctx.state.maps._openMode = "measure";   // kept when the plan loads into Edit (maps.js)
+        ctx.state.view = "maps";
+        if (ctx.actions.setMapsTab) ctx.actions.setMapsTab("edit");
+        else { ctx.state.mapsTab = "edit"; ctx.actions.renderRooms(); }
+      },
+    }, "Measure this floor →"),
+  ]);
+}
+
 const CALIB_WIZARD_STEPS = [
   { n: 1, id: "tune",  label: "Check scanner positions" },
   { n: 2, id: "setup", label: "Choose your device" },
@@ -237,14 +274,14 @@ function _calibWizardTune(ctx, el, cs, calData, w) {
 
 function _calibWizardSetup(ctx, el, cs, calData, w) {
   const wrap = el("div", {});
-  const ready = !!(cs.deviceId && cs.mapId);
+  const ready = !!(cs.deviceId && cs.mapId && _floorScaled(ctx, cs.mapId));
   wrap.appendChild(el("div", { class: "muted", style: "margin-bottom:10px;line-height:1.5" },
     "Pick the phone or tag you'll carry while you walk, and which floor you're calibrating. Both are needed before the next step — Roam has nothing to show without them."));
   wrap.appendChild(_setup(ctx, el, cs, calData));
   wrap.appendChild(_calibWizardFooter(ctx, el, w, { next: ready, nextLabel: "Next →" }));
   if (!ready) {
     wrap.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:6px;text-align:right" },
-      "Choose a device and a floor above to continue."));
+      cs.deviceId && cs.mapId ? "Measure this floor (above) to continue." : "Choose a device and a floor above to continue."));
   }
   return wrap;
 }
@@ -315,7 +352,7 @@ function _calibWizard(ctx, el, cs, calData) {
 
   // Every step past Setup needs a device and a floor — Roam and Model both
   // read from cs.deviceId/cs.mapId the same way the ordinary tabs do.
-  const ready = !!(cs.deviceId && cs.mapId);
+  const ready = !!(cs.deviceId && cs.mapId && _floorScaled(ctx, cs.mapId));
   if (w.step === 2 && ready) w.step = 3;   // chosen — move on without a click
   if (w.step > 2 && !ready) w.step = 2;    // lost/never had it — go back
 
@@ -894,6 +931,8 @@ function _setup(ctx, el, cs, calData) {
       "No maps uploaded yet. Upload a floor plan in the Maps tab first."));
   }
   wrap.appendChild(mapCard);
+  // Right under the floor it is about, not below the fold.
+  if (cs.mapId && !_floorScaled(ctx, cs.mapId)) wrap.appendChild(_noScaleCard(ctx, el, cs));
 
   // Duration setting
   const durCard = el("div", { class: "card" });
@@ -952,7 +991,8 @@ function _setup(ctx, el, cs, calData) {
   }
 
   // Readiness check
-  const ready = cs.deviceId && cs.mapId;
+  const scaled = _floorScaled(ctx, cs.mapId);
+  const ready = cs.deviceId && cs.mapId && scaled;
   const readyCard = el("div", { class: "card", style: `border-color:${ready ? "#52b788" : "#f59e0b"}` }, [
     el("div", { style: `font-weight:700;font-size:14px;margin-bottom:6px;color:${ready ? "#52b788" : "#f59e0b"}` },
       ready ? "✓ Ready to calibrate" : "⚠ Setup incomplete"),
@@ -962,6 +1002,8 @@ function _setup(ctx, el, cs, calData) {
       el("br"),
       el("span", { style: `color:${cs.mapId ? "#52b788" : "#f59e0b"}` },
         (cs.mapId ? "\u2713" : "\u2717") + " Floor selected"),
+      ...(cs.mapId ? [el("br"), el("span", { style: `color:${scaled ? "#52b788" : "#f59e0b"}` },
+        (scaled ? "\u2713" : "\u2717") + " Floor measured (metre scale)")] : []),
     ]),
     ...(ready ? [
       el("button", {
@@ -1006,6 +1048,11 @@ function _pinAndListen(ctx, el, cs, calData) {
         onclick: () => { cs.tab = "setup"; ctx.actions.renderRooms(); },
       }, "Go to Setup"),
     ]));
+    return wrap;
+  }
+
+  if (!_floorScaled(ctx, cs.mapId)) {
+    wrap.appendChild(_noScaleCard(ctx, el, cs));
     return wrap;
   }
 
@@ -1410,6 +1457,11 @@ function _roam(ctx, el, cs, calData) {
         onclick: () => { cs.tab = "setup"; ctx.actions.renderRooms(); },
       }, "Go to Setup"),
     ]));
+    return wrap;
+  }
+
+  if (!_floorScaled(ctx, cs.mapId)) {
+    wrap.appendChild(_noScaleCard(ctx, el, cs));
     return wrap;
   }
 

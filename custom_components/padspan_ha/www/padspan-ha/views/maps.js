@@ -1710,7 +1710,11 @@ function _edit(ctx, map, allMaps){
     ctx.state.maps._draftMapId = map.id;
     ctx.state.maps._draftImageSha = _draftImgSha;
     ctx.state.maps._selectedRxId = null;
-    ctx.state.maps._mode = "receivers"; // receivers | rooms | barriers
+    // receivers | rooms | barriers | measure. _openMode: a one-shot tool to
+    // open in, set by a link from another tab (Calibration's "Measure this
+    // floor"), so loading the plan does not put it back on Radios.
+    ctx.state.maps._mode = ctx.state.maps._openMode || "receivers";
+    ctx.state.maps._openMode = null;
     ctx.state.maps._selectedRoom = "";
     ctx.state.maps._drawing = null; // {room, points:[]} or barrier drawing
     ctx.state.maps._selectedBarrierId = null;

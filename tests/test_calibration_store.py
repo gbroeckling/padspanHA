@@ -1350,3 +1350,50 @@ class TestSwapAndRelearn:
         await self._call("ws_calibration_relearn_radio", store,
                          {"id": 1, "source": "s1", "gain_db": 3})
         store._async_train_rf.assert_awaited_once()
+
+
+
+# ═══ 0.38.174: the refusal has a reason the report can count, and the tab
+# says a floor needs measuring before anyone stands still for a capture ════
+
+async def test_the_no_scale_refusal_is_its_own_error_and_counted_as_such(monkeypatch):
+    from custom_components.padspan_ha import ws_calibration as W
+    from custom_components.padspan_ha.calibration_store import NoScaleError
+    assert issubclass(NoScaleError, ValueError)        # old callers catching ValueError still do
+    counted = []
+    monkeypatch.setattr(W, "_bump", lambda _h, name, n=1: counted.append(name))
+    for exc, word in ((NoScaleError("This map has no metre scale yet"), "calibration_save_refused_no_scale"),
+                      (RuntimeError("disk full"), "calibration_save_failed_other")):
+        cal = MagicMock()
+        cal.async_add_point = AsyncMock(side_effect=exc)
+        monkeypatch.setattr(W, "_get_cal_store", AsyncMock(return_value=cal))
+        conn = MagicMock()
+        await _call_save(W, conn)
+        conn.send_error.assert_called_once()
+        assert counted[-1] == word
+
+
+async def _call_save(W, conn):
+    import inspect
+    fn = W.ws_calibration_save_point
+    while hasattr(fn, "__wrapped__"):
+        fn = fn.__wrapped__
+    res = fn(MagicMock(), conn, {"id": 1, "point": {}})
+    if inspect.isawaitable(res):
+        await res
+
+
+def test_the_calibration_tab_checks_the_floor_is_measured_before_a_capture():
+    """The guide only moves past Setup with a measured floor; Pin & Listen and
+    Roam show the way to Measure instead of collecting points that will be
+    refused (an install's first day, 2026-10-24: seven refused saves)."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
+          / "views" / "calibration.js").read_text(encoding="utf-8")
+    assert "const ready = !!(cs.deviceId && cs.mapId && _floorScaled(ctx, cs.mapId));" in js
+    for fn in ("function _pinAndListen(", "function _roam("):
+        body = js[js.index(fn):]
+        body = body[:body.index("const maps = ctx.state.maps?.list || [];")]
+        assert "if (!_floorScaled(ctx, cs.mapId))" in body and "_noScaleCard(ctx, el, cs)" in body, fn
+    helper = js[js.index("function _floorScaled("):js.index("function _noScaleCard(")]
+    assert "if (!t || !mapId) return true;" in helper, "no model loaded yet must not block"

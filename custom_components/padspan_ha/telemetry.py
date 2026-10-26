@@ -300,6 +300,10 @@ EVENTS: frozenset[str] = frozenset({
     # max on-time rules holding a light off the pattern asked for.
     "vacation_off_end_date", "vacation_paused_home",
     "vacation_rule_dark", "vacation_rule_bedtime", "vacation_rule_max_on",
+    # 0.38.174: why a calibration save failed (the floor has no metre scale,
+    # or anything else), and the Calibration tab showing that a floor needs
+    # measuring before points can go on it.
+    "calibration_save_refused_no_scale", "calibration_save_failed_other", "calib_floor_unmeasured",
 })
 # A new install's first steps (onboarding.py): how long from setup to the
 # first room and to the first calibration point, as buckets, once per
@@ -408,10 +412,23 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "i18n",                                         # the panel's translations helper (t / tn)
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
+# 0.38.174: beside each, the kind of error (views/ui_error.js UI_ERROR_KINDS)
+# and the line it came from, ui_error_at:<module>:<line> — a line in
+# PadSpan's own file, checked by ui_error_at_allowed.
+UI_ERROR_KINDS: tuple[str, ...] = ("type", "reference", "range", "syntax", "rejection", "other")
 UI_ERRORS: frozenset[str] = frozenset(
     {f"ui_error:{m}" for m in VIEWS | UI_ERROR_HELPERS | UI_ERROR_SHELLS}
     | {f"ui_error_while:{v}" for v in VIEWS | {"atlas"}}
+    | {f"ui_error_kind:{k}" for k in UI_ERROR_KINDS}
 )
+_UI_ERROR_AT = re.compile(r"ui_error_at:([a-z0-9_]{1,40}):([1-9][0-9]{0,4})")
+
+
+def ui_error_at_allowed(name: str) -> bool:
+    """ui_error_at:<module>:<line> with a module from the closed list and a
+    line number; nothing else of the error."""
+    m = _UI_ERROR_AT.fullmatch(name)
+    return bool(m) and m.group(1) in (VIEWS | UI_ERROR_HELPERS | UI_ERROR_SHELLS)
 # The 90-day trial offer (views/trial_offer.js) and the Overview's Getting
 # started card — a funnel, like the wizards above: where the offer was SEEN
 # (once per surface per page), where it was STARTED, and where the licence
@@ -910,7 +927,7 @@ def enabled(hass: HomeAssistant) -> bool:
 
 
 def event_allowed(name: str) -> bool:
-    return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or name in OFFER_EVENTS
+    return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS)
 
