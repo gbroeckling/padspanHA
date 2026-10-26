@@ -440,6 +440,83 @@ def occupancy_section(latest: dict[str, dict]) -> list[str]:
     return out
 
 
+# How far setup got, in the order the Getting started card walks it.
+_STAGES = (("map", "maps"), ("rooms", "rooms"), ("receivers", "scanner_positions"), ("calibrated", "calibration_points"))
+_STAGE_WORDS = ("none",) + tuple(w for w, _ in _STAGES)
+# env.install_age (0.38.173+): days since this install was first seen, as a word.
+_NEW_AGES = frozenset({"lt1d", "1_7d"})
+
+
+def stage_of(r: dict) -> str:
+    """The furthest setup step a report shows: none, map, rooms, receivers, calibrated."""
+    env = r.get("env") or {}
+    stage = "none"
+    for word, key in _STAGES:
+        if (_num(env.get(key)) or 0) > 0:
+            stage = word
+    return stage
+
+
+def new_installs_section(dirpath: Path, today: date) -> list[str]:
+    """New installs, by the week they first reported (all history, not the
+    --days window): how many, how many were really new (env.install_age in
+    their first report; older PadSpan does not send it), how many still
+    report, reached day 7 and day 30, sent one report only; then how far the
+    last 30 days' new installs got with setup, and the ones that went quiet."""
+    rows, _ = load(dirpath, 3650)
+    days: dict[str, list[str]] = defaultdict(list)
+    by_day: dict[tuple[str, str], dict] = {}
+    for (iid, d), r in rows.items():
+        days[iid].append(d)
+        by_day[(iid, d)] = r
+    if not days:
+        return ["New installs: no reports"]
+    out = ["New installs (by the week each first reported; all history)",
+           "  week of      new  really new*  still reporting  reached day 7  reached day 30  one report only"]
+    weeks: dict[date, list[tuple]] = defaultdict(list)
+    info: dict[str, tuple] = {}
+    for iid, ds in days.items():
+        ds.sort()
+        first, last = date.fromisoformat(ds[0]), date.fromisoformat(ds[-1])
+        r0, r1 = by_day[(iid, ds[0])], by_day[(iid, ds[-1])]
+        age = (r0.get("env") or {}).get("install_age")
+        rec = (first, last, len(ds), age, r1)
+        info[iid] = rec
+        weeks[first - timedelta(days=first.weekday())].append(rec)
+
+    def frac(hit: int, of: int) -> str:
+        return f"{hit}/{of}" if of else "-"
+    for wk in sorted(weeks):
+        w = weeks[wk]
+        known = [x for x in w if x[3]]
+        really = frac(sum(1 for x in known if x[3] in _NEW_AGES), len(known))
+        still = sum(1 for x in w if (today - x[1]).days <= 2)
+        d7 = frac(sum(1 for x in w if (x[1] - x[0]).days >= 7), sum(1 for x in w if (today - x[0]).days >= 7))
+        d30 = frac(sum(1 for x in w if (x[1] - x[0]).days >= 30), sum(1 for x in w if (today - x[0]).days >= 30))
+        one = sum(1 for x in w if x[2] == 1)
+        out.append(f"  {wk}  {len(w):>4}  {really:>11}  {still:>15}  {d7:>13}  {d30:>14}  {one:>15}")
+    out.append("  * install_age in the first report said under a week (PadSpan 0.38.173+; '-' before it)")
+    out.append("  still reporting = a report in the last 2 days; day 7/30 counts only installs old enough")
+
+    recent = {iid: x for iid, x in info.items() if (today - x[0]).days <= 30}
+    out.append("")
+    out.append(f"Where the last 30 days' new installs got to ({len(recent)} installs; furthest step in their last report)")
+    for label, keep in (("still reporting", lambda x: (today - x[1]).days <= 2),
+                        ("gone quiet (> 2 days)", lambda x: (today - x[1]).days > 2)):
+        c = Counter(stage_of(x[4]) for x in recent.values() if keep(x))
+        out.append(f"  {label:<22} " + ", ".join(f"{w} {c[w]}" for w in _STAGE_WORDS))
+
+    quiet = sorted(((iid, x) for iid, x in info.items() if (today - x[0]).days <= 60 and (today - x[1]).days > 7),
+                   key=lambda kv: kv[1][0], reverse=True)
+    out.append("")
+    out.append(f"New installs that went quiet (first report in the last 60 days, none for 7+ days): {len(quiet)}")
+    for iid, (first, last, n, age, r1) in quiet[:25]:
+        onb = sorted(k for k in (r1.get("usage") or {}) if k.startswith(("first_room:", "first_cal")))
+        out.append(f"  {iid[:8]}  first {first}  last {last}  {n:>3} report(s)  v{r1.get('version') or '?':<9} "
+                   f"reached {stage_of(r1):<10} {'age ' + age if age else ''} {' '.join(onb)}".rstrip())
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("dir")
@@ -454,6 +531,9 @@ def main() -> int:
         latest[iid] = r
     n = len(latest)
     print(f"{n} installs, {len(rows)} install-days, last {a.days} days\n")
+    for line in new_installs_section(Path(a.dir), date.today()):
+        print(line)
+    print()
 
     def dist(title, key):
         c = Counter(key(r) for r in latest.values())

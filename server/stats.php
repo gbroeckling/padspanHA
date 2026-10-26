@@ -88,6 +88,8 @@ $rows = array();            // "$id|$day" => report
 $first_seen = array();      // id => earliest day in the spool
 $last_seen = array();       // id => latest day
 $days_reported = array();   // id => count of distinct days
+$first_age = array();       // id => env.install_age in its earliest report (0.38.173+), or null
+$first_age_day = array();
 $spool_first_day = null;
 foreach (glob($DIR . '/*.jsonl') as $f) {
     $day = basename($f, '.jsonl');
@@ -108,6 +110,11 @@ foreach (glob($DIR . '/*.jsonl') as $f) {
         $d = isset($rec['recv_ts']) ? pacific_day($rec['recv_ts'])
            : (isset($rec['recv_day']) ? (string)$rec['recv_day'] : $day);
         $rows[$id . '|' . $d] = $r;
+        if (!isset($first_age_day[$id]) || $d < $first_age_day[$id]) {
+            $first_age_day[$id] = $d;
+            $e0 = isset($r['env']) && is_array($r['env']) ? $r['env'] : array();
+            $first_age[$id] = isset($e0['install_age']) && is_string($e0['install_age']) ? $e0['install_age'] : null;
+        }
         if (!isset($first_seen[$id]) || $d < $first_seen[$id]) { $first_seen[$id] = $d; }
         if (!isset($last_seen[$id]) || $d > $last_seen[$id]) { $last_seen[$id] = $d; }
     }
@@ -372,10 +379,61 @@ foreach ($latest as $id => $r) {
         'bermuda' => (int)(isset($ints['bermuda']) ? $ints['bermuda'] : 0) > 0,
         'pbd' => (int)(isset($ints['private_ble_device']) ? $ints['private_ble_device'] : 0),
         'uptime' => isset($h['uptime']) ? $h['uptime'] : '?',
+        'stage' => setup_stage($r),
+        'age' => isset($first_age[$id]) ? $first_age[$id] : null,
         'flags' => $r['_bad'],
     );
 }
 usort($table, function ($a, $b) { return strcmp($b['last'], $a['last']) ?: strcmp($b['first'], $a['first']); });
+
+// ── new installs (all history: the ledger's first/last/days) ─────────────────
+// By the week each install first reported: how many, how many were really
+// new (env.install_age said under a week in the first report; older PadSpan
+// does not send it), still reporting (a report in the last 2 days), reached
+// day 7 / day 30 (of those old enough), one report only. Then the furthest
+// setup step of the last 30 days' new installs, and the ones gone quiet.
+function setup_stage($r) {
+    $e = isset($r['env']) && is_array($r['env']) ? $r['env'] : array();
+    $stage = 'none';
+    foreach (array('map' => 'maps', 'rooms' => 'rooms', 'receivers' => 'scanner_positions', 'calibrated' => 'calibration_points') as $w => $k) {
+        if ((int)(isset($e[$k]) ? $e[$k] : 0) > 0) { $stage = $w; }
+    }
+    return $stage;
+}
+function day_diff($a, $b) { return (int)round((strtotime($b . ' 00:00:00 UTC') - strtotime($a . ' 00:00:00 UTC')) / 86400); }
+$utc_today = gmdate('Y-m-d');
+$new_weeks = array(); $new_stages = array('still' => array(), 'quiet' => array()); $new_quiet = array();
+foreach (array('none', 'map', 'rooms', 'receivers', 'calibrated') as $w) { $new_stages['still'][$w] = 0; $new_stages['quiet'][$w] = 0; }
+foreach ($first_seen as $id => $fd) {
+    if (!$fd) { continue; }
+    $ld = isset($last_seen[$id]) ? $last_seen[$id] : $fd;
+    $n_days = isset($days_reported[$id]) ? (int)$days_reported[$id] : 1;
+    $age_d = day_diff($fd, $utc_today); $span = day_diff($fd, $ld); $quiet_d = day_diff($ld, $utc_today);
+    $wk = gmdate('Y-m-d', strtotime($fd . ' 00:00:00 UTC') - ((int)gmdate('N', strtotime($fd . ' 00:00:00 UTC')) - 1) * 86400);
+    if (!isset($new_weeks[$wk])) {
+        $new_weeks[$wk] = array('week' => $wk, 'new' => 0, 'really_new' => 0, 'age_known' => 0, 'still' => 0,
+                                'd7' => 0, 'd7_of' => 0, 'd30' => 0, 'd30_of' => 0, 'one' => 0);
+    }
+    $w = &$new_weeks[$wk];
+    $w['new']++;
+    $age = isset($first_age[$id]) ? $first_age[$id] : null;
+    if ($age !== null) { $w['age_known']++; if ($age === 'lt1d' || $age === '1_7d') { $w['really_new']++; } }
+    if ($quiet_d <= 2) { $w['still']++; }
+    if ($age_d >= 7) { $w['d7_of']++; if ($span >= 7) { $w['d7']++; } }
+    if ($age_d >= 30) { $w['d30_of']++; if ($span >= 30) { $w['d30']++; } }
+    if ($n_days <= 1) { $w['one']++; }
+    unset($w);
+    $stage = isset($latest[$id]) ? setup_stage($latest[$id]) : null;
+    if ($age_d <= 30 && $stage !== null) { $new_stages[$quiet_d <= 2 ? 'still' : 'quiet'][$stage]++; }
+    if ($age_d <= 60 && $quiet_d > 7) {
+        $new_quiet[] = array('id' => substr($id, 0, 8), 'first' => $fd, 'last' => $ld, 'days' => $n_days,
+                             'version' => isset($latest[$id]['version']) ? $latest[$id]['version'] : '?',
+                             'stage' => $stage === null ? '?' : $stage, 'age' => $age);
+    }
+}
+ksort($new_weeks);
+usort($new_quiet, function ($a, $b) { return strcmp($b['first'], $a['first']); });
+$new_installs = array('weeks' => array_values($new_weeks), 'stages' => $new_stages, 'quiet' => array_slice($new_quiet, 0, 40));
 
 $out = array(
     'ok' => true,
@@ -406,6 +464,7 @@ $out = array(
     'ui_errors' => $ui_errors,
     'errors' => $errors_out,
     'table' => $table,
+    'new_installs' => $new_installs,
 );
 $json = json_encode($out, JSON_UNESCAPED_SLASHES);
 @file_put_contents($CACHE, $json, LOCK_EX);

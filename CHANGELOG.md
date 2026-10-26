@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.173 — Your own house first: who's where before any floor plan, and the wizard puts your plan on the map (2026-10-26)
+## 0.38.174 — Your own house first: who's where before any floor plan, and the wizard puts your plan on the map (2026-10-26)
 
 A new install used to open on the demo house, and showed its own rooms only after a floor plan, a scale, traced rooms and placed scanners. An install from before keeps the mode it is in, and its map.
 
@@ -17,6 +17,18 @@ A new install used to open on the demo house, and showed its own rooms only afte
 
 ### Opt-in report
 - Nothing new is sent. The time to a new install's first room (reported since 0.38.165) shows whether this helps.
+
+---
+
+## 0.38.173 — How new installs get on (2026-10-26)
+
+Nothing changes in the panel for anyone.
+
+### Opt-in report
+- **How old the install is, as a range** (under a day, 1-7 days, 8-30, 31-90, over 90). With it the developer can tell a brand-new install from one that has run for months and only just turned the report on. It is worked out from when PadSpan first saw the install, so an install older than 0.38.87 reads as first seen the day it updated past it.
+
+### Developer
+- **Install Base (Dev mode): a New installs section.** New installs by the week they first reported, how many were really new, still reporting, reached day 7 and day 30, and sent one report only; how far the last 30 days' new installs got with setup (map, rooms, receivers, calibrated); and the ones that went quiet, with where each stopped. The installs table gains first report and setup stage. The nightly summary has the same section.
 
 ---
 
