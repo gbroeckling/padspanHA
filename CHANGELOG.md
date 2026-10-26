@@ -8,7 +8,6 @@ All notable changes to PadSpan HA are documented here.
 
 ### Fixed
 - **Calibration no longer lets you collect points on a floor that has no metre scale.** A calibration point is a spot in metres, so on an unmeasured floor every save was refused, after you had stood still for the capture. A new install did exactly this: seven refused saves and three exits from the guide on its first day. Now Setup says "This floor needs a measurement first" right under the floor you picked, the guide stays on Setup until the floor is measured, and Pin & Listen and Roam show the same card instead of the map. **Measure this floor →** opens that floor plan in Mapping → Edit with the Measure tool already chosen.
-
 - **Licence homes:** a home removed from its key can ask for a free place again by pressing Activate, and a home that is paused or has its usage report off still takes a renewed expiry date.
 
 ### Opt-in report
