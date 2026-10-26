@@ -43,6 +43,7 @@ const NS = "http://www.w3.org/2000/svg";
 const TAG = "#5eead4";                      // the flat Atlas's beacon teal (Live Aboard's tag)
 const SCANNER = "#cbd5e1";                  // a plain scanner
 const NEUTRAL = "#7dd3fc";                  // someone with no figure (Live Aboard's soft marker)
+const GUEST = "#fbbf24";                    // a tag lent to a guest: its ring (amber, the panel's guest pill)
 const JUMP_M = 8;                           // further than this (or another floor): there at once
 const C30 = Math.cos(Math.PI / 6);
 
@@ -307,6 +308,13 @@ function createLiveLayer(slot){
         it.parts.ring.setAttribute("rx", (Math.SQRT2 * C30 * S * r).toFixed(1));
         it.parts.ring.setAttribute("ry", (Math.SQRT2 * 0.5 * S * r).toFixed(1));
         it.parts.name.textContent = d.hideNames ? "" : String(w.name || "Tag").slice(0, 20);
+        // A guest's tag (wantedOf's guest): an amber ring sets it apart; back to teal once returned.
+        if (!!w.guest !== !!it.guest) {
+          it.guest = !!w.guest;
+          it.parts.ring.setAttribute("stroke", it.guest ? GUEST : TAG);
+          it.parts.ring.setAttribute("stroke-opacity", it.guest ? 0.9 : 0.42);
+          it.parts.ring.setAttribute("stroke-width", it.guest ? 1.4 : 0.8);
+        }
         it.card = w.card; it.name = w.name;
       } else if (w.kind === "scanner") {
         it.card = w.card;

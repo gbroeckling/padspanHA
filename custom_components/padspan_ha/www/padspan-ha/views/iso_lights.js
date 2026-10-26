@@ -6151,6 +6151,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(b.look) s+=beaconLookSVG(bx, by, b.look);
       else s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4.5" fill="#5eead4" `+
         `stroke="#0a1a12" stroke-width="1.2" opacity="0.9" pointer-events="none"/>`;
+      // A tag lent to a guest (maps.js sets guest): an amber ring around it.
+      if(b.guest) s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="8" fill="none" `+
+        `stroke="#fbbf24" stroke-width="1.5" opacity="0.9" pointer-events="none"/>`;
       // "Hide codes" also covers beacon names (Garry, 2026-09-09: "when txt
       // is turned off, should include beacons text") — one declutter switch,
       // not two separate label toggles to remember.

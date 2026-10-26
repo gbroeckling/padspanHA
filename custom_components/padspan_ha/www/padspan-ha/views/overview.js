@@ -156,6 +156,18 @@ function _presentInRoom(ctx, o, room){
   return !ctx.helpers.isAway(o, ctx.helpers.awayTimeoutS(ctx.state.settings));
 }
 
+// A tag lent to a guest: the snapshot carries o.guest = {name, session} only
+// while Guest tags are on and the tag is out on loan. Wherever the object is
+// named, the guest's name leads with a small amber "Guest" pill, and the
+// tag's own label stays in the tooltip. No o.guest, nothing changes.
+function _guestName(o){ return (o && o.guest && o.guest.name) ? String(o.guest.name) : ""; }
+const _GUEST_PILL_CSS = "display:inline-block;font-size:10px;line-height:14px;padding:0 6px;border-radius:999px;"
+  + "background:#f59e0b1f;color:#fbbf24;border:1px solid #f59e0b88;font-weight:600;white-space:nowrap;vertical-align:middle";
+function _guestPillSvg(cx, cy){
+  return `<rect x="${cx-17}" y="${cy-7}" width="34" height="14" rx="7" fill="#f59e0b" fill-opacity="0.14" stroke="#f59e0b" stroke-opacity="0.6"/>`
+    + `<text x="${cx}" y="${cy+3.5}" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="600">Guest</text>`;
+}
+
 export function render(ctx){
   if (atlasHomeOn(ctx)) {
     const atlas = _renderAtlasHome(ctx);
@@ -679,7 +691,7 @@ export function renderClassic(ctx){
         "data-common": isCommon ? "1":"0",
         "data-age": String(o.age_s != null ? Math.round(o.age_s) : 0),
         "data-search": [
-          kind, name, addr, room, userLabel, o.entity_id,
+          kind, name, addr, room, userLabel, o.entity_id, _guestName(o),
           o.ibeacon_uuid, o.company_name, o.device_type, o.auto_class,
           (o.service_names||[]).join(" "),
           o.canonical_id, o.key, o.name, o.private_ble_name,
@@ -695,7 +707,10 @@ export function renderClassic(ctx){
       },[
         el("td",{}, kind==="ble" ? pill("BLE","") : pill("Entity","")),
         el("td",{}, [
-          el("div",{}, name),
+          (_guestName(o)
+            ? el("div",{title:`Tag: ${name}`}, [_guestName(o), " ", el("span",{style:_GUEST_PILL_CSS}, "Guest"),
+                el("span",{style:"color:#94a3b8;margin-left:6px"}, name)])
+            : el("div",{}, name)),
           (userLabel && (o.name && o.name !== userLabel) ? el("div",{style:"color:#94a3b8"}, `raw: ${o.name}`) : null),
           (o.entity_id ? el("div",{style:"color:#94a3b8"}, o.entity_id) : null),
           (Array.isArray(o.linked_entities) && o.linked_entities.length ? el("div",{style:"color:#94a3b8"}, `Linked: ${o.linked_entities.join(", ")}`) : null),
@@ -1598,7 +1613,8 @@ export function renderClassic(ctx){
       const _objTip = (o) => {
         const parts = [];
         const n = o.user_label || o.private_ble_name || o.name || o.address || o.entity_id || "Unknown";
-        parts.push(n);
+        if(_guestName(o)) parts.push(`${_guestName(o)} (Guest)`, `Tag: ${n}`);
+        else parts.push(n);
         if(o.kind) parts.push(`Kind: ${o.kind}`);
         if(o.address && o.address !== n) parts.push(`Addr: ${o.address}`);
         if(o.room) parts.push(`Room: ${o.room}`);
@@ -1677,7 +1693,7 @@ export function renderClassic(ctx){
         const isGhost = o._ghost || o._stale;
         const ageS = typeof o.age_s === "number" ? o.age_s : 0;
         const isAway = isGhost && (o.rssi == null) && (ageS > _awayTimeoutS2);
-        const lbl = (o.user_label||o.private_ble_name||o.name||"?").substring(0,14);
+        const lbl = (_guestName(o)||o.user_label||o.private_ble_name||o.name||"?").substring(0,14);
         let bx, by;
         let posConf = 0;  // confidence for dashed circle
 
@@ -1783,6 +1799,7 @@ export function renderClassic(ctx){
         const lblW = Math.min(shownLbl.length * (7*BEACON_F) + 10, _plateMax);
         s += `<rect x="${Math.round(bx)-lblW/2}" y="${Math.round(by)-_bf(32)}" width="${lblW}" height="${_bf(16)}" rx="3" fill="#071008" opacity="0.7"/>`;
         s += `<text x="${Math.round(bx)}" y="${Math.round(by)-_bf(20)}" text-anchor="middle" fill="${lblColor}" font-size="${_bf(12)}" font-weight="700">${_esc(shownLbl)}</text>`;
+        if(_guestName(o)) s += _guestPillSvg(Math.round(bx), Math.round(by)-_bf(32)-9);
         // Locate flash (gap #10) — inside the marker's own <g> so it
         // inherits the same counter-scale transform as everything else
         // drawn at this anchor.
@@ -1818,7 +1835,7 @@ export function renderClassic(ctx){
           _renderedObjKeys.add(oKey);
           const _ok = _esc(oKey);
           const isAway = ctx.helpers.isAway(obj, ctx.helpers.awayTimeoutS(ctx.state.settings));
-          const objLabel = obj.user_label || obj.private_ble_name || obj.name || "";
+          const objLabel = _guestName(obj) || obj.user_label || obj.private_ble_name || obj.name || "";
 
           // The server's position, else the room centroid with a small
           // stagger so several room-only objects do not stack on one point.
@@ -1867,6 +1884,7 @@ export function renderClassic(ctx){
               s += `<line x1="${px}" y1="${py-27}" x2="${px}" y2="${py-14}" stroke="#ef4444" stroke-width="1.5"/>`;
               s += `<line x1="${px}" y1="${py+14}" x2="${px}" y2="${py+27}" stroke="#ef4444" stroke-width="1.5"/>`;
               if(objLabel) s += `<text x="${px}" y="${py+38}" text-anchor="middle" fill="#fca5a5" font-size="10" font-weight="600">${_esc(objLabel)}</text>`;
+              if(_guestName(obj)) s += _guestPillSvg(px, py+50);
               if(_isLocated(oKey)) s += _locateRingSvg(px, py);
               s += `</g>`;
             } else {
@@ -1877,6 +1895,7 @@ export function renderClassic(ctx){
               s += `<circle cx="${px}" cy="${py}" r="9" fill="#5eead4" stroke="#071008" stroke-width="1.5" opacity="0.95"/>`;
               s += `<circle cx="${px}" cy="${py}" r="2.5" fill="#071008" opacity="0.7"/>`;
               if(objLabel) s += `<text x="${px}" y="${py+22}" text-anchor="middle" fill="#5eead4" font-size="10" font-weight="600">${_esc(objLabel)}</text>`;
+              if(_guestName(obj)) s += _guestPillSvg(px, py+34);
               if(_isLocated(oKey)) s += _locateRingSvg(px, py);
               s += `</g>`;
             }
@@ -2283,9 +2302,14 @@ export function renderClassic(ctx){
         for(const o of (rr.objects||[]).slice(0,6)){
           const oKey = o.address || o.entity_id || "";
           const isF = ctx.actions.followedHas(oKey);
-          const lbl = (o.user_label || o.private_ble_name || o.name || o.address || "?").substring(0,16);
+          const tagLbl = o.user_label || o.private_ble_name || o.name || o.address || "?";
+          const lbl = (_guestName(o) || tagLbl).substring(0,16);
           const oc = isF ? "#fbbf24" : (o.identified ? "#5eead488" : "#f59e0b88");
           const chip = el("span",{style:`font-size:10px;padding:1px 5px;border-radius:3px;background:${oc}22;color:${isF?"#fbbf24":"#94a3b8"};border:1px solid ${oc};white-space:nowrap${isF?";font-weight:700":""}`}, isF ? lbl + " \u25C9" : lbl);
+          if(_guestName(o)){
+            chip.title = `Tag: ${tagLbl}`;
+            chip.appendChild(el("span",{style:_GUEST_PILL_CSS+";margin-left:4px;line-height:12px"}, "Guest"));
+          }
           objChips.appendChild(chip);
         }
         if(rr.objects.length > 6) objChips.appendChild(el("span",{style:"font-size:10px;color:#64748b"}, `+${rr.objects.length-6}`));
@@ -2863,7 +2887,9 @@ export function renderClassic(ctx){
         const ox = x + BW - 16 - oi * 28, oy = y + 100;
         const oc = o.identified ? "#5eead4" : "#f59e0b";
         s += `<circle cx="${ox}" cy="${oy}" r="7" fill="${oc}" opacity="0.9"/>`;
-        const lbl = (o.user_label || o.private_ble_name || o.name || "?").substring(0, 6);
+        // Guest tag: an amber ring and the guest's name; tag label in the hover.
+        if(_guestName(o)) s += `<circle cx="${ox}" cy="${oy}" r="10" fill="none" stroke="#fbbf24" stroke-width="1.5"><title>${_esc(_guestName(o))} (Guest) · Tag: ${_esc(o.user_label || o.private_ble_name || o.name || "?")}</title></circle>`;
+        const lbl = (_guestName(o) || o.user_label || o.private_ble_name || o.name || "?").substring(0, 6);
         s += `<text x="${ox}" y="${oy + 18}" text-anchor="middle" fill="${oc}" font-size="9">${_esc(lbl)}</text>`;
       });
 

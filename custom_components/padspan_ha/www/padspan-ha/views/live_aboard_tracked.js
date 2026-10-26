@@ -92,6 +92,8 @@ export function trackedOf(snapshot){
                room, age: fin(o.age_s), sure: fin(o.knn_confidence),
                heard: (Array.isArray(o.sources) ? o.sources : []).map(s => (s && typeof s === "object" ? { source: String(s.source || ""), rssi: fin(s.rssi) } : { source: String(s || ""), rssi: null }))
                  .filter(s => s.source) });
+    // A tag lent to a guest (o.guest, only while Guest tags are on): who has it.
+    if (o.guest && o.guest.name) { const to = placed ? out : byRoom; to[to.length - 1].guest = String(o.guest.name); }
   }
   return out.concat(byRoom);
 }
@@ -302,6 +304,8 @@ export function tagCard(o, model, pin, radios){
     const names = heard.slice(0, HEARD_MAX).map(s => scannerName(s.source, model, radios).replace(/ scanner \(/, " ("));
     lines.push(`Heard by: ${names.join(", ")}${heard.length > HEARD_MAX ? ` and ${heard.length - HEARD_MAX} more` : ""}`);
   } else lines.push("No scanner hears it right now");
+  // A guest's tag: the guest's name leads, the tag's own label right under it.
+  if (o.guest) { lines.unshift(`Guest tag: ${o.label || "Tag"}`); return { title: `${o.guest} (Guest)`, lines }; }
   return { title: o.label || "Tag", lines };
 }
 const clockOf = (t) => {
@@ -362,6 +366,7 @@ export function wantedOf(d){
       out.push({ key: "beacon:" + o.key, kind: "beacon", recipe: r, floor_id: pin ? pin.floor_id || o.floor_id : o.floor_id,
                  x: pin ? pin.x : o.x, y: pin ? pin.y : o.y, z: pin && pin.z !== null ? pin.z : CARRY_H, centre: true, pinned: !!pin,
                  name: o.label || "Tag", halo: haloOf(pin ? 1 : o.sure), card: tagCard(o, d.model, pin, radios), room: o.room });
+      if (o.guest) Object.assign(out[out.length - 1], { name: `${o.guest} · Guest`, guest: true });
     }
     const v = vacuumOf(d.snapshot);
     if (v) out.push(v);

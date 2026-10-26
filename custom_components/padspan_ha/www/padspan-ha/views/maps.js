@@ -9529,6 +9529,9 @@ function _lightsTab(ctx, maps, active) {
       label: o.user_label || o.private_ble_name || o.name || "",
       x_m: o.x_m, y_m: o.y_m,
       floor_id: o.floor_id || null,
+      // A tag lent to a guest (o.guest, only while Guest tags are on): the
+      // guest's name on its label and an amber ring (iso_lights.js).
+      ...(o.guest && o.guest.name ? { label: `${o.guest.name} · Guest`, guest: true } : {}),
     }));
   // Live Aboard (P6): a beacon with a look (a tag made in Furnish → People &
   // devices) wears a small drawing of it — only while Show beacons is on and
