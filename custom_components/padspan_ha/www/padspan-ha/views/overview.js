@@ -27,6 +27,13 @@ const { iphoneGuideOn, isApplePhone, iphoneSetupAlert, IPHONE_META, NO_PHONES_TE
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, iphoneSetupAlert: () => "",
                     IPHONE_META: "", NO_PHONES_TEXT: "", HELP_NOTE_TEXT: "" }));
 
+// "Who's where now" (whos_where.js): a house with no rooms drawn yet sees who
+// is in which room from its scanners' Home Assistant areas. If it can't
+// load, the Overview goes on as it always was.
+const { whosWhereCard } =
+  await import(`./whos_where.js${new URL(import.meta.url).search}`)
+    .catch(() => ({ whosWhereCard: () => null }));
+
 // What the Overview tab actually drew, for the opt-in report (telemetry.py
 // OVERVIEW_SHOWN, held equal by tests/test_telemetry.py): the classic screen
 // changes with how far a house got through setup, which settings can't tell.
@@ -188,6 +195,23 @@ export function renderClassic(ctx){
   // default is not an answer, so no Sample layout either.
   const modeKnown = !!ctx.state._dataModeKnown;
   const liveLoading = (dataMode === "live" || !modeKnown) && !liveSnap;
+
+  // Before any room is drawn, who is where comes first; the card registers
+  // its own updater for the panel's poll (cleared here when it isn't shown).
+  ctx.state._whosWhereUpdate = null;
+  const _noRoomsDrawn = !Object.keys((ctx.state.model || {}).room_geometry_m || {}).length;
+  const whosWhere = (dataMode === "live" && liveSnap && _noRoomsDrawn) ? whosWhereCard(ctx) : null;
+  // The demo house says so, with the way back, where it can't be missed.
+  const sampleBanner = (modeKnown && dataMode === "sample")
+    ? el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid #92400e;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px","data-sample-banner":"1"},[
+        el("span",{style:"font-size:13px;color:#fde68a;flex:1;min-width:12em"}, "You're looking at a made-up house, with every feature set up."),
+        (() => {
+          const b = el("button",{class:"btn inline",style:"font-size:12px;font-weight:700"}, "Back to my house");
+          b.addEventListener("click", () => ctx.actions.setDataMode("live"));
+          return b;
+        })(),
+      ])
+    : null;
 
   // Fallback counts based on roomTagMap (works in sample mode too).
   const roomTagMap = liveLoading ? {} : (ctx.state.roomTagMap || {});
@@ -3426,6 +3450,8 @@ export function renderClassic(ctx){
         ]),
         bQuietRow,
       ]),
+      sampleBanner,
+      whosWhere,
       summary,
       _buildDiagPanel(),
       basicCompanionCard,
@@ -3881,6 +3907,8 @@ export function renderClassic(ctx){
       quietRow,
     ]),
     el("div",{style:"color:#94a3b8;margin-top:2px;margin-bottom:10px"}, `Mode: ${dataMode.toUpperCase()} · ${ctx.state.versionInfo?.version || ""} (${ctx.state.versionInfo?.build_id || ""})`),
+    sampleBanner,
+    whosWhere,
     _buildDiagPanel(),
   ].filter(Boolean));
   // Migration banner — show on overview if fabric is empty but maps have data

@@ -1731,7 +1731,16 @@ class PadSpanHaApp extends HTMLElement {
    */
   async _pollTick(){
     if(!this._hass) return;
-    if(this.state.dataMode !== "live") return;
+    if(this.state.dataMode !== "live"){
+      // A new install still on the demo house turns to its own house once
+      // Home Assistant reports a Bluetooth scanner. The server decides
+      // (onboarding.py, live_first); this only notices, every 10 s.
+      if(this.state.settings?.onboarding?.live_first === "pending" && Date.now() - (this._liveFirstTs || 0) > 10000){
+        this._liveFirstTs = Date.now();
+        await this._liveFirstCheck();
+      }
+      return;
+    }
     if(this._pollInFlight) return;
     if(this.state.view === "maps") return;
 
@@ -2206,6 +2215,17 @@ class PadSpanHaApp extends HTMLElement {
    *   real BLE data every 5 seconds.
    * The choice is persisted server-side via settings_set.
    */
+  async _liveFirstCheck(){
+    try {
+      await this._fetchSettings();
+      if(this.state.dataMode !== "live") return;
+      this._toast("PadSpan found your Bluetooth scanners: this is your own house now.");
+      await this._refreshAll(false);
+      this._startPolling();
+      this._scheduleRender();
+    } catch(e){}
+  }
+
   async _setDataMode(mode){
     try {
       const res = await this._callWS({ type: "padspan_ha/settings_set", data_mode: mode });
@@ -3126,6 +3146,9 @@ class PadSpanHaApp extends HTMLElement {
         wsCall: async (type, data={}) => await this._callWS({ type, ...data }),
         // Record a data_mode the server just reported (factory reset re-read).
         applyDataMode: (mode) => this._applyDataMode(mode),
+        // Switch Sample/Live as the top bar does ("Preview a finished house",
+        // "Back to my house").
+        setDataMode: (mode) => this._setDataMode(mode),
         // Opt-in usage report: count one allow-listed event. A no-op unless the
         // person turned the report on — no traffic leaves the browser otherwise.
         telemetryEvent: (name, extra) => this._telemetryEvent(name, extra),
@@ -3981,6 +4004,9 @@ class PadSpanHaApp extends HTMLElement {
         if (typeof this.state._isoUpdateObjects === "function") {
           try { this.state._isoUpdateObjects(); } catch(e) {}
         }
+        if (typeof this.state._whosWhereUpdate === "function") {
+          try { this.state._whosWhereUpdate(); } catch(e) {}
+        }
       } else {
         // Update suspend countdown in-place (no full rebuild)
         if(_curSusp) {
@@ -3994,6 +4020,9 @@ class PadSpanHaApp extends HTMLElement {
         if (typeof this.state._isoUpdateObjects === "function") {
           try { this.state._isoUpdateObjects(); } catch(e) {}
         }
+        if (typeof this.state._whosWhereUpdate === "function") {
+          try { this.state._whosWhereUpdate(); } catch(e) {}
+        }
         this._lastGoodRender = performance.now();
         return;
       }
@@ -4006,6 +4035,9 @@ class PadSpanHaApp extends HTMLElement {
        && VIEWS.overview.atlasHomeOn && VIEWS.overview.atlasHomeOn(this._ctx())) {
       if (typeof this.state._isoUpdateObjects === "function") {
         try { this.state._isoUpdateObjects(); } catch(e) {}
+      }
+      if (typeof this.state._whosWhereUpdate === "function") {
+        try { this.state._whosWhereUpdate(); } catch(e) {}
       }
       this._lastGoodRender = performance.now();
       return;
@@ -4179,7 +4211,12 @@ class PadSpanHaApp extends HTMLElement {
         const bar = el("div",{"data-getting-started":"card",style:"background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:10px 14px;margin-bottom:12px"});
         // Header
         const hdr = el("div",{style:"display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"});
-        hdr.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788"}, `Getting started \u2014 ${_completedCount}/${_steps.length}`));
+        // A live house with no room drawn already has Who's where now on the
+        // Overview (views/whos_where.js): the map steps are the optional next
+        // step, not a gate in front of seeing anything.
+        const _mapOptional = this.state.dataMode === "live" && !Object.keys((this.state.model || {}).room_geometry_m || {}).length;
+        hdr.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788"},
+          _mapOptional ? `Make it a map (optional) \u2014 ${_completedCount}/${_steps.length}` : `Getting started \u2014 ${_completedCount}/${_steps.length}`));
         const skipBtn = el("span",{"data-getting-started":"dismiss",style:"cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline"}, "Skip setup");
         skipBtn.addEventListener("click", () => {
           this.state._onboardingDismissed = true;
@@ -4191,6 +4228,8 @@ class PadSpanHaApp extends HTMLElement {
         });
         hdr.appendChild(skipBtn);
         bar.appendChild(hdr);
+        if (_mapOptional) bar.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin:-4px 0 8px"},
+          "Who's where already works below. A floor plan adds the map, and with three or more scanners placed on it, positions between them."));
 
         // Progress dots
         const dots = el("div",{style:"display:flex;gap:4px;margin-bottom:8px"});

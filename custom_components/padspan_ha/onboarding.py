@@ -19,6 +19,15 @@ The opt-in report carries each bucket once per install, as a usage count of
 1 under a closed name (telemetry.ONBOARDING_EVENTS), until a report carrying
 it is accepted (its step is then listed in settings["onboarding"]["sent"]).
 Nothing is reported with the report off.
+
+A new install also opens on its OWN house, not the demo one
+(settings["onboarding"]["live_first"]): "pending" from setup, it becomes
+"switched" — and data_mode "live" — on the first live snapshot that lists a
+Bluetooth scanner. Before, every new install opened on the demo house, and
+getting out of it took the Sample/Live switch in the top bar: "stuck on the
+demo house" was in 2 of the 8 user-reported setup issues by October 2026.
+Anyone who picks a mode themselves first (settings_set with data_mode,
+ws_settings.py) makes it "chosen", and that is never overridden.
 """
 from __future__ import annotations
 
@@ -56,6 +65,14 @@ def _placed(snap: dict[str, Any], followed: Any) -> bool:
     return False
 
 
+def hears_a_scanner(snap: Any) -> bool:
+    """The snapshot lists at least one Bluetooth scanner: a proxy, an
+    ESPresense node or Home Assistant's own adapter."""
+    ble = snap.get("ble") if isinstance(snap, dict) else None
+    radios = ble.get("radios") if isinstance(ble, dict) else None
+    return isinstance(radios, list) and any(isinstance(r, dict) and r.get("source") for r in radios)
+
+
 def note_snapshot(hass: HomeAssistant, snap: Any) -> None:
     """After a live snapshot build. One dict lookup on an install that is
     not being measured or has both answers; never raises."""
@@ -63,6 +80,12 @@ def note_snapshot(hass: HomeAssistant, snap: Any) -> None:
         dom = hass.data.get(DOMAIN, {})
         st = dom.get(DATA_SETTINGS)
         ob = (st.data if st else {}).get("onboarding")
+        if isinstance(ob, dict) and ob.get("live_first") == "pending" and hears_a_scanner(snap):
+            ob = {**ob, "live_first": "switched"}
+            # At once, like the steps below, so the next build does not do it again.
+            st.data["onboarding"] = ob
+            st.data["data_mode"] = "live"
+            hass.async_create_task(st.async_set(onboarding=ob, data_mode="live"))
         if not isinstance(ob, dict) or not ob.get("setup_ts") or all(ob.get(k) for k in STEPS):
             return
         t0 = float(ob["setup_ts"])

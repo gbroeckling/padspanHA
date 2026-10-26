@@ -410,13 +410,15 @@ class SettingsStore:
             self.data = dict(DEFAULT_SETTINGS)
         # A brand-new install — no settings file and no other PadSpan file in
         # .storage — starts with the iPhone setup steps on and its first steps
-        # measured. Every install from before keeps what it has (the guide
-        # off unless someone turned it on). Decided once: the file saved
+        # measured, and opens on its own house as soon as Home Assistant
+        # reports a Bluetooth scanner (onboarding.py, "live_first"). Every
+        # install from before keeps what it has (the guide off unless someone
+        # turned it on, and the mode it is in). Decided once: the file saved
         # below makes every later load an existing install, and a factory
         # reset or a restore writes one too.
         if loaded is None and first_run:
             self.data["iphone_irk_guide"] = True
-            self.data["onboarding"] = {"setup_ts": time.time()}
+            self.data["onboarding"] = {"setup_ts": time.time(), "live_first": "pending"}
         # Normalize followed_addrs: uppercase + dedup (order preserved).
         # Every comparison in the system (frontend followedHas, backend
         # settings_set, tag_integration) is uppercase; historic entries were

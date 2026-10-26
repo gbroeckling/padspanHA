@@ -686,6 +686,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if mode not in ("sample", "live"):
                 mode = "sample"
             payload["data_mode"] = mode
+            # Someone chose: a new install's own switch to Live
+            # (onboarding.py, live_first) never overrides that.
+            _ob = st.data.get("onboarding") if st is not None else None
+            if isinstance(_ob, dict) and _ob.get("live_first") == "pending":
+                payload["onboarding"] = {**_ob, "live_first": "chosen"}
         if "cpu_mode" in msg:
             cm = (msg.get("cpu_mode") or "shared").strip().lower()
             if cm not in ("shared", "single", "dedicated"):

@@ -81,6 +81,23 @@ export async function startDemo(page){
     atlas_3d_carries: Object.fromEntries(WALKERS.filter(w => w.person).map(w => [w.person, [w.key]])),
     tier: "pro", edition: "full", pro_active: true, pro_has_key: false, offer_tester: false, offer_invite: false,
   });
+  // ?fresh=1: what a brand-new install sees once Home Assistant reports its
+  // Bluetooth scanners (onboarding.py, live_first): its own house, Live, no
+  // floor plan and no room drawn yet, so the Overview leads with Who's where
+  // now (views/whos_where.js). Phones come from Private BLE Device.
+  // ?fresh=pending: the moment before — the panel open on the demo house,
+  // and the "server" finding its first scanner 8 s later, as onboarding.py does.
+  const fresh = q.get("fresh") === "1" || q.get("fresh") === "pending";
+  if (fresh) {
+    Object.assign(settings, { data_mode: "live", onboarding_completed: false, atlas_3d_enabled: false,
+                              onboarding: { setup_ts: Date.now() / 1000 - 300, live_first: "switched" } });
+    model.room_geometry_m = {};
+    model.scanner_positions_m = {};
+  }
+  if (q.get("fresh") === "pending") {
+    Object.assign(settings, { data_mode: "sample", onboarding: { ...settings.onboarding, live_first: "pending" } });
+    setTimeout(() => Object.assign(settings, { data_mode: "live", onboarding: { ...settings.onboarding, live_first: "switched" } }), 8000);
+  }
   // The demo opens straight onto the house: the first-time tips (the Atlas
   // coach mark, Live Aboard's card) count as seen. The bar says what it is.
   try { localStorage.setItem("padspan_ha_lights_coach_seen", "1"); localStorage.setItem("padspan_la3d_hint_seen", "1"); } catch (_) { /* no storage */ }
@@ -101,6 +118,41 @@ export async function startDemo(page){
                knn_confidence: 0.8, sources: [{ source: "demo_scanner", rssi: -62 }] };
     });
     return { source: "demo", generated_at: now(), objects: { list } };
+  };
+
+  // ?fresh=1: four scanners, one with no area yet; each device is in the
+  // room of the scanner that hears it best, as the engine does without a map.
+  const FRESH_RADIOS = [
+    { source: "demo-proxy-kitchen", name: "Kitchen proxy", area_name: "Kitchen" },
+    { source: "demo-proxy-living", name: "Living room proxy", area_name: "Living Room" },
+    { source: "demo-proxy-hall", name: "Hall proxy", area_name: "Hall" },
+    { source: "demo-proxy-new", name: "esp32-bt-proxy-5f2a1c", area_name: "" },
+  ];
+  const NEAREST = { Kitchen: "Kitchen", Laundry: "Kitchen", "Living Room": "Living Room", Den: "Living Room", Hall: "Hall", Office: "Hall" };
+  const freshModel = harnessFixture(new URLSearchParams("calm=1")).MODEL;
+  const labels = { "IRK:5B0C": "Sam" };
+  const FRESH_PHONES = [
+    { name: "Alex's iPhone", canonical_id: "irk:9f2e", source: "private_ble_device" },
+    { name: "Sam's iPhone", canonical_id: "irk:5b0c", source: "private_ble_device" },
+    { name: "Jordan's Apple Watch", canonical_id: "irk:41d7", source: "private_ble_device" },
+  ];
+  const freshSnapshot = () => {
+    const t = (Date.now() - t0) / 1000;
+    const near = (w) => { const at = walkAt(w, t); return NEAREST[roomAt(freshModel, at.fid, at.x, at.y)] || "Hall"; };
+    const phone = (w, p) => ({ key: p.canonical_id, canonical_id: p.canonical_id, kind: "private_ble", private_ble_name: p.name,
+                               user_label: labels[p.canonical_id.toUpperCase()] || "", identified: !!labels[p.canonical_id.toUpperCase()],
+                               room: near(w), age_s: 1 });
+    const list = [
+      phone(WALKERS[0], FRESH_PHONES[0]),
+      phone(WALKERS[1], FRESH_PHONES[1]),
+      { key: "demo:keys", kind: "ble", address: "demo:keys", name: "Keys", user_label: "Keys", identified: true, room: near(WALKERS[2]), age_s: 1 },
+    ];
+    // Everything else a house hears: TVs, speakers, the neighbours' phones.
+    const others = { Kitchen: 4, "Living Room": 7, Hall: 2 };
+    for (const [room, n] of Object.entries(others)) {
+      for (let i = 0; i < n; i++) list.push({ key: `ble:${room}:${i}`, kind: "ble", address: `demo:other:${room}:${i}`, room, age_s: 2 });
+    }
+    return { source: "live", generated_at: now(), ble: { radios: FRESH_RADIOS, advertisements: [] }, objects: { list } };
   };
 
   // Overview's "People in building" (ws_occupancy.py's answer): the people
@@ -132,7 +184,10 @@ export async function startDemo(page){
       case "padspan_ha/version": return built.version;
       case "padspan_ha/model_get": return clone(model);
       case "padspan_ha/maps_list": return { maps: [] };
-      case "padspan_ha/live_snapshot": return { snapshot: snapshot() };
+      case "padspan_ha/live_snapshot": return { snapshot: fresh ? freshSnapshot() : snapshot() };
+      case "padspan_ha/private_ble_status": return fresh ? { devices: clone(FRESH_PHONES) } : {};
+      case "padspan_ha/object_label_list": return { labels: clone(labels), registry_labels: {} };
+      case "padspan_ha/object_label_set": labels[String(m.address).toUpperCase()] = m.label; return { ok: true };
       case "padspan_ha/occupancy_estimate": return occupancy();
       case "padspan_ha/house3d_get": return { enabled: true, data: clone(house3d), writable: true, counts: {} };
       case "padspan_ha/house3d_edit": {
