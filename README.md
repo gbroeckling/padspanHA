@@ -156,7 +156,7 @@ See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live
 
 ### UI & Experience
 - **Pure Live mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
-- **19 dedicated views** with Basic and Advanced modes
+- **20 dedicated views** with Basic and Advanced modes
 - **5-step onboarding wizard** with auto-detection and progress tracking
 - Dark forest-green theme designed for always-on displays
 - Built-in **Training Hub** with 16 animated walkthroughs + full manual

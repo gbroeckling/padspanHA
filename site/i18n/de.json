@@ -367,8 +367,8 @@
    "de": "Pure Live: immersives 3D-Dashboard im Vollbild"
   },
   {
-   "en": "19 dedicated views, Basic and Advanced modes",
-   "de": "19 eigene Ansichten, Basic- und Advanced-Modus"
+   "en": "20 dedicated views, Basic and Advanced modes",
+   "de": "20 eigene Ansichten, Basic- und Advanced-Modus"
   },
   {
    "en": "5-step onboarding wizard with auto-detection",
@@ -1208,9 +1208,9 @@
   "Traceback playback": "Traceback-Wiedergabe",
   "Training hub": "Training Hub",
   "WLED light control card": "WLED-Steuerkarte",
-  "PadSpan HA tells you which room every Bluetooth device is in — interactive floor plans, 3D multi-floor maps, walk-around calibration, phone tracking, lighting maps, and 19 dedicated views for Home Assistant.": "PadSpan HA zeigt dir, in welchem Raum jedes Bluetooth-Gerät ist: interaktive Grundrisse, 3D-Karten über mehrere Etagen, Kalibrierung per Rundgang, Handy-Tracking, Lichtkarten und 19 eigene Ansichten für Home Assistant.",
+  "PadSpan HA tells you which room every Bluetooth device is in — interactive floor plans, 3D multi-floor maps, walk-around calibration, phone tracking, lighting maps, and 20 dedicated views for Home Assistant.": "PadSpan HA zeigt dir, in welchem Raum jedes Bluetooth-Gerät ist: interaktive Grundrisse, 3D-Karten über mehrere Etagen, Kalibrierung per Rundgang, Handy-Tracking, Lichtkarten und 20 eigene Ansichten für Home Assistant.",
   "PadSpan™ HA — BLE room-presence tracking for Home Assistant": "PadSpan™ HA – raumgenaue Bluetooth-Anwesenheit für Home Assistant",
-  "Room-level BLE tracking with 3D floor plans, calibration, follow mode, and 19 views. The most comprehensive BLE presence system for Home Assistant.": "BLE-Tracking pro Raum mit 3D-Grundrissen, Kalibrierung, Folgemodus und 19 Ansichten. Das umfassendste BLE-Anwesenheitssystem für Home Assistant."
+  "Room-level BLE tracking with 3D floor plans, calibration, follow mode, and 20 views. The most comprehensive BLE presence system for Home Assistant.": "BLE-Tracking pro Raum mit 3D-Grundrissen, Kalibrierung, Folgemodus und 20 Ansichten. Das umfassendste BLE-Anwesenheitssystem für Home Assistant."
  },
  "raw": {
   "Your browser doesn't support embedded video. <a href=\"images/demo-walkthrough.mp4\">Download the demo</a>.": "Dein Browser kann dieses Video nicht abspielen. <a href=\"images/demo-walkthrough.mp4\">Video herunterladen</a>.",
