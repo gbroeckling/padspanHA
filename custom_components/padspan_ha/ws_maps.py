@@ -437,7 +437,9 @@ def _note_map_deleted(hass: HomeAssistant, ms: Any, migrated: bool) -> None:
             bump(hass, "map_deleted")
         _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
         if _st is not None and isinstance(_st.data, dict):
-            _st.data["maps_seen"] = len((ms.data or {}).get("maps") or [])
+            _n = len((ms.data or {}).get("maps") or [])
+            _st.data["maps_seen"] = _n                       # this run's report reads it at once
+            hass.async_create_task(_st.async_set(maps_seen=_n))   # and a restart keeps it
     except Exception as err:  # noqa: BLE001
         _LOGGER.debug("map delete not noted: %s", err)
 

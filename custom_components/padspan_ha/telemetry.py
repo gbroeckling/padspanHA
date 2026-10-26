@@ -1037,15 +1037,31 @@ def _counters_store(hass: HomeAssistant) -> Any:
     return st
 
 
+_DATA_COUNTERS_SAVE_DUE = "_telemetry_counters_save_due"
+
+
 def _persist_counters(hass: HomeAssistant, now: bool = False) -> None:
+    """Save the window now, or once within COUNTERS_SAVE_DELAY_S of a count.
+    Not Store.async_delay_save: that restarts its wait on every call, and on
+    a house counting every few seconds (irk_unresolved_rpa) it never saved."""
     try:
         dom = hass.data.setdefault(DOMAIN, {})
-        snap = {"counters": dict(dom.get(_DATA_COUNTERS) or {})}
         st = _counters_store(hass)
+
+        def _snap() -> dict:
+            return {"counters": dict(dom.get(_DATA_COUNTERS) or {})}
         if now:
-            hass.async_create_task(st.async_save(snap))
-        else:
-            st.async_delay_save(lambda: {"counters": dict(dom.get(_DATA_COUNTERS) or {})}, COUNTERS_SAVE_DELAY_S)
+            hass.async_create_task(st.async_save(_snap()))
+            return
+        if dom.get(_DATA_COUNTERS_SAVE_DUE):
+            return
+        from homeassistant.helpers.event import async_call_later  # noqa: PLC0415
+
+        def _due(_now: Any = None) -> None:
+            dom[_DATA_COUNTERS_SAVE_DUE] = False
+            hass.async_create_task(st.async_save(_snap()))
+        dom[_DATA_COUNTERS_SAVE_DUE] = True
+        async_call_later(hass, COUNTERS_SAVE_DELAY_S, _due)
     except Exception as err:  # noqa: BLE001 — counting must never fail anything
         _LOGGER.debug("Telemetry counters not saved: %s", err)
 

@@ -1839,14 +1839,24 @@ def test_the_days_counts_survive_a_restart_and_only_closed_names_come_back():
     assert T.merge_saved_counters({}, {"counters": "junk"}) == {}
 
 
-def test_bump_saves_the_window_a_little_later():
+def test_bump_saves_the_window_once_within_two_minutes_however_often_it_counts(monkeypatch):
+    """Not a trailing debounce: a house counting every second still saves."""
+    import sys
     h = _hass()
     store = MagicMock()
     h.data[DOMAIN][T._DATA_COUNTERS_STORE] = store
-    assert T.bump(h, "calibration_cleared_all")
-    store.async_delay_save.assert_called_once()
-    fn, delay = store.async_delay_save.call_args[0]
-    assert delay == T.COUNTERS_SAVE_DELAY_S and fn()["counters"]["calibration_cleared_all"] == 1
+    later = []
+    import types
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ev.async_call_later = lambda _h, delay, fn: later.append((delay, fn))
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    for _ in range(50):
+        assert T.bump(h, "calibration_cleared_all")
+    assert len(later) == 1 and later[0][0] == T.COUNTERS_SAVE_DELAY_S
+    later[0][1]()                                    # two minutes on: saved, with all 50
+    store.async_save.assert_called_once_with({"counters": {"calibration_cleared_all": 50}})
+    T.bump(h, "calibration_cleared_all")
+    assert len(later) == 2                           # the next count starts a new wait
 
 
 def test_calibration_points_that_vanish_without_a_clear_are_flagged_once():
