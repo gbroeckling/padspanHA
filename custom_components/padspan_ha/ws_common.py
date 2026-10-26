@@ -583,6 +583,34 @@ def _device_label(dev: Any) -> str:
                or getattr(dev, "id", "") or "")
 
 
+def _is_shelly(dev: Any) -> bool:
+    for ident in (getattr(dev, "identifiers", None) or set()):
+        try:
+            if ident[0] == "shelly":
+                return True
+        except (IndexError, TypeError):
+            continue
+    return False
+
+
+def _shelly_bluetooth_mac(network_mac: str) -> str:
+    """The MAC a Shelly's Bluetooth scanner goes by, from its network MAC.
+
+    Home Assistant's Shelly integration registers the scanner under the
+    device's Bluetooth MAC, its network MAC + 2 (aioshelly's
+    bluetooth_mac_from_primary_mac), but its device lists the network MAC
+    alone. So the scanner matched no device by MAC: its room was left to a
+    name match, and "set this scanner's room", which looks up the source
+    only, found no device at all. ESPHome lists its Bluetooth MAC among the
+    device's connections itself, so only Shelly needs this.
+    """
+    n = int(network_mac.replace(":", ""), 16) + 2
+    if n > 0xFFFFFFFFFFFF:
+        return ""
+    h = f"{n:012X}"
+    return ":".join(h[i:i + 2] for i in range(0, 12, 2))
+
+
 _NAME_MAC_TAIL_RE = re.compile(r"\s*\((?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\)\s*$")
 
 
@@ -642,11 +670,13 @@ class RadioDeviceIndex:
     def __init__(self, hass: HomeAssistant) -> None:
         self._by_slug: dict[str, list] = {}
         self._by_mac: dict[str, list] = {}
+        self._by_shelly_bt: dict[str, list] = {}   # _shelly_bluetooth_mac
         # Membership by id, beside each list: `dev not in bucket` compared
         # whole DeviceEntry objects, quadratic in devices sharing a name
         # (4,000 same-named devices took 1.5 s, on every snapshot build).
         seen_slug: dict[str, set[int]] = {}
         seen_mac: dict[str, set[int]] = {}
+        seen_bt: dict[str, set[int]] = {}
         try:
             from homeassistant.helpers import device_registry  # noqa: PLC0415
             devices = ha_devices(device_registry.async_get(hass))
@@ -660,6 +690,7 @@ class RadioDeviceIndex:
                 if slug and id(dev) not in seen_slug.setdefault(slug, set()):
                     seen_slug[slug].add(id(dev))
                     self._by_slug.setdefault(slug, []).append(dev)
+            shelly = _is_shelly(dev)
             for conn in (getattr(dev, "connections", None) or set()):
                 try:
                     mac = _norm_mac(conn[1])
@@ -668,6 +699,11 @@ class RadioDeviceIndex:
                 if mac and id(dev) not in seen_mac.setdefault(mac, set()):
                     seen_mac[mac].add(id(dev))
                     self._by_mac.setdefault(mac, []).append(dev)
+                if shelly and mac and conn[0] == "mac":
+                    bt = _shelly_bluetooth_mac(mac)
+                    if bt and id(dev) not in seen_bt.setdefault(bt, set()):
+                        seen_bt[bt].add(id(dev))
+                        self._by_shelly_bt.setdefault(bt, []).append(dev)
 
     @property
     def devices_n(self) -> int:
@@ -691,6 +727,11 @@ class RadioDeviceIndex:
         mac = _norm_mac(source)
         if mac:
             found = self._result(self._by_mac.get(mac) or [], "mac")
+            if found:
+                return found
+            # A Shelly's scanner: its Bluetooth MAC, which its device doesn't
+            # list (_shelly_bluetooth_mac). Still a MAC, so still before names.
+            found = self._result(self._by_shelly_bt.get(mac) or [], "mac")
             if found:
                 return found
 

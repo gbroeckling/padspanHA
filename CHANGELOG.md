@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.175 — Shelly scanners find their room (2026-10-26)
+
+Shelly Gen2+ devices can be Home Assistant Bluetooth scanners with one setting in the Shelly integration (Bluetooth scanner mode). PadSpan already heard them, but didn't reliably know which room they were in.
+
+### Fixed
+- **A Shelly scanner gets its room from its Home Assistant area.** Home Assistant registers a Shelly's scanner under the Shelly's Bluetooth MAC, which is its network MAC + 2, but the Shelly's device lists only the network MAC. So PadSpan matched the scanner to its device by name, if the names happened to line up, or not at all, and the scanner had no room. Now a Shelly scanner is matched to its Shelly device by MAC, even after either has been renamed. The rule applies only to devices from the Shelly integration.
+- **Setting a Shelly scanner's room from the Overview works.** Where PadSpan hadn't matched the Shelly to its device, the area picker looked the device up from the scanner's address alone and answered "Could not find HA device for this radio source".
+
+---
+
 ## 0.38.174 — Your own house first: who's where before any floor plan, and the wizard puts your plan on the map (2026-10-26)
 
 A new install used to open on the demo house, and showed its own rooms only after a floor plan, a scale, traced rooms and placed scanners. An install from before keeps the mode it is in, and its map.

@@ -87,9 +87,9 @@ footer p{margin:4px 0}
 
 <h2>What PadSpan does with them</h2>
 <ul>
-  <li><b>It finds them by itself.</b> PadSpan reads Home Assistant's own Bluetooth data, so a Shelly scanner shows up under <b>Bluetooth → Scanners</b> next to any ESPHome proxies, with nothing to add.</li>
-  <li><b>Its room is its area.</b> PadSpan matches each scanner to its Home Assistant device by MAC address and takes that device's area as the scanner's room. With a scanner in each room you want told apart, every phone, watch and tag goes to the room whose scanner hears it best.</li>
-  <li><b>Mixing Shellys and ESP32 proxies is fine.</b> Different radios hear the same phone at different strengths. A calibration walk lets PadSpan allow for each scanner on its own.</li>
+  <li><b>It finds them by itself.</b> PadSpan reads Home Assistant's own Bluetooth data, so it uses a Shelly scanner as soon as Home Assistant does, next to any ESPHome proxies, with nothing to add. Once the Shelly has an area, PadSpan's <b>Health</b> tab lists it under <b>Scanner → Room Mappings</b>.</li>
+  <li><b>Its room is its area.</b> PadSpan finds each scanner's Home Assistant device and takes that device's area as the scanner's room. With a scanner in each room you want told apart, every phone, watch and tag goes to the room whose scanner hears it best.</li>
+  <li><b>You can mix Shellys and ESP32 proxies.</b> Different radios hear the same phone at different strengths, so in a mixed house the calibration walk matters more: it lets PadSpan allow for each scanner on its own.</li>
   <li><b>Bermuda uses them too.</b> Its own docs list Shelly Gen2+ devices, so one setting serves both. See <a href="/guides/bermuda/">Bermuda and PadSpan together</a>.</li>
 </ul>
 
@@ -101,8 +101,9 @@ footer p{margin:4px 0}
   <li>Shellys only listen; they can't hold a Bluetooth connection. Presence only needs listening, but a device Home Assistant has to connect to needs a proxy that can.</li>
 </ul>
 
-<h2>A Shelly that hears nothing</h2>
+<h2>A Shelly that hears nothing, or has no room</h2>
 <ul>
+  <li><b>It shows up without a room although its device has an area?</b> Update to PadSpan 0.38.175 or later (a beta for now). Home Assistant gives a Shelly's scanner the Shelly's Bluetooth address, not the one its device is filed under, so earlier versions found the device only when the names lined up. 0.38.175 finds it by address.</li>
   <li>Check that its <b>Bluetooth scanner mode</b> isn't <b>Disabled</b> and that its firmware is up to date. If it still hears nothing, try another mode, such as <b>Passive</b>.</li>
   <li>If it hears devices but PadSpan's calibration shows no signal strengths for it, open <b>Manage → HA Entities → BLE Proxy Compatibility</b> in PadSpan and tick <b>Enable aggressive BLE reseed (5s) for passive proxy scanners</b>. It works around a change in Home Assistant 2026.4 that holds back repeat readings from scanners that only listen.</li>
 </ul>

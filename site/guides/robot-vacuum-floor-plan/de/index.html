@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Die Karte deines Saugroboters als Grundriss in Home Assistant | PadSpan HA</title>
+<meta name="description" content="Dein Saugroboter hat deine Böden schon vermessen. PadSpan kann eine Karte von Valetudo, Dreame oder Xiaomi als Grundriss importieren, in Metern und mit ihren Räumen, und zeigt darauf live jedes Handy, jede Uhr und jeden Tracker. Der Roboter kann sogar Kalibrierpunkte sammeln.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/robot-vacuum-floor-plan/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/robot-vacuum-floor-plan/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/robot-vacuum-floor-plan/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/robot-vacuum-floor-plan/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="Dein Saugroboter hat deinen Grundriss schon gezeichnet">
+<meta property="og:description" content="Importier die Karte deines Saugroboters (Valetudo, Dreame oder Xiaomi) als maßstabsgetreuen Grundriss mit Räumen und sieh darauf, wer in welchem Raum ist.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/robot-vacuum-floor-plan/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/demo/">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/robot-vacuum-floor-plan/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1>Dein Saugroboter hat deinen Grundriss schon gezeichnet</h1>
+<p class="lead">Einen Grundriss zu zeichnen ist der langsamste Teil, wenn du dein Zuhause auf eine Karte bringen willst. Wenn bei dir ein Saugroboter putzt, hat er deine Böden schon vermessen. PadSpan kann seine Karte als Grundriss importieren, in Metern und mit benannten Räumen, und zeigt dann live jedes Handy, jede Uhr und jeden Tracker darauf. Der Roboter kann sogar Kalibrierpunkte für dich sammeln.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan in HACS öffnen</a>
+</div>
+
+<h2>Was importiert wird</h2>
+<ul>
+  <li><b>Aus <a href="https://valetudo.cloud/">Valetudo</a>:</b> eine Valetudo-Kartendatei, die Valetudo-Adresse des Roboters oder seine Kartenkamera. Du bekommst das Kartenbild, seine Größe in Metern, Umriss und Namen jedes Raums und die Ladestation.</li>
+  <li><b>Aus einer Kartenkamera mit Kalibrierpunkten</b>, etwa der des <a href="https://github.com/PiotrMachowski/Home-Assistant-custom-components-Xiaomi-Cloud-Map-Extractor">Xiaomi Cloud Map Extractor</a> oder eines <a href="https://github.com/Tasshack/dreame-vacuum">Dreame</a>-Roboters: das Bild und seinen Maßstab, die Räume als Rechtecke, wenn die Kamera nur den Rahmen jedes Raums liefert. Die Vorschau sagt dir, wenn das so ist.</li>
+  <li><b>Du siehst zuerst eine Vorschau:</b> das Bild, seine Größe in Metern, die gefundenen Räume und ob die Ladestation gefunden wurde. Gespeichert wird erst, wenn du es hinzufügst. Eine vorhandene Karte wird nie überschrieben, und Räume, die PadSpan schon hat, werden übersprungen.</li>
+</ul>
+
+<h2>So importierst du sie</h2>
+<ol>
+  <li>Schalte in PadSpan <b>Settings → Features → Robot Vacuum Import</b> ein. Das ist eine der experimentellen Funktionen dort, noch in aktiver Entwicklung, und nur Administratoren können sie nutzen.</li>
+  <li>Öffne <b>Mapping → Rooms</b>, wähl die Etage und dann <b>Import from a robot vacuum</b>.</li>
+  <li>Gib ihm die Karte: <b>Map file (.json)</b> für eine Valetudo-Kartendatei, die Valetudo-Adresse des Roboters (zum Beispiel <code>http://valetudo.local</code>) und <b>Read</b>, oder die Kartenkamera des Roboters aus der Liste und <b>Read camera</b>.</li>
+  <li>Prüf die Vorschau, gib der Karte einen Namen und wähl <b>Add as a new map</b>.</li>
+</ol>
+<p>Pinne danach deine Bluetooth-Proxys unter <b>Calibration → Tune</b> dorthin, wo sie wirklich sind, und du hast einen maßstabsgetreuen Grundriss mit deinen Räumen.</p>
+
+<h2>Am besten auf einer Etage, auf der noch nichts ist</h2>
+<p>Die Karte des Roboters kommt am Ausgangspunkt des Hauses an, im eigenen Koordinatensystem des Roboters. Auf einer Etage ohne Pläne und Räume wird dieses System zu dem der Etage, also landen die Räume und der Roboter dort, wo sie wirklich sind. Auf einer Etage, die schon Pläne hat, würden sie nicht passen, deshalb nimmt PadSpan dort nur das Bild: Nimm den Haken bei <b>Add its rooms</b> raus und richte das Bild dann unter <b>Mapping → 3D Stack</b> an deinen anderen Plänen aus. Auch die Live-Position des Roboters und der Läufer weiter unten brauchen eine Etage, auf der noch nichts ist.</p>
+
+<h2>Lass den Roboter Kalibrierpunkte sammeln</h2>
+<p>Beim Kalibrieren stehst du an ein paar Stellen in jedem Raum, während PadSpan aufzeichnet, was deine Proxys hören. Der Roboter kann Stellen für dich anfahren. Das ist optional, und beide Teile bleiben aus, bis du sie anhakst:</p>
+<ul>
+  <li><b>Der Roboter auf der Karte.</b> Nach einem Import über die Adresse des Roboters oder seine Kartenkamera kann PadSpan den Roboter live auf deinen Karten zeigen, alle 10 Sekunden neu gelesen.</li>
+  <li><b>Der Roboter als Läufer.</b> Ist das an, befestigst du einen Bluetooth-Tracker, der seine Adresse behält, am Roboter und gibst dessen Adresse ein. Jede Stelle, an der der Roboter stillsteht, wird zu einem Kandidaten: wo er stand und was jeder Scanner von dem Tracker gehört hat.</li>
+  <li><b>Du entscheidest, was zählt.</b> In die Kalibrierung kommt nichts, bevor du es annimmst. Nimm jeden Punkt an oder lehne ihn ab, oder lehne alle ab.</li>
+</ul>
+
+<h2>Was du noch brauchst</h2>
+<ul>
+  <li><b>Bluetooth-Proxys.</b> Einen in jedem Raum, den du unterscheiden willst; drei oder mehr auf einer Etage, auf der Karte gepinnt, damit PadSpan Geräte auch dazwischen platzieren kann. Siehe <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a> Du hast Shelly Plus, Pro, Gen3 oder Gen4? <a href="/guides/shelly-bluetooth-proxy/de/">Die können auch Proxys sein</a>.</li>
+  <li><b>Ein Schritt mehr für Handys.</b> iPhones und Apple Watches brauchen ihren Schlüssel (den IRK), Android-Handys den BLE Transmitter der Home-Assistant-Companion-App.</li>
+</ul>
+<p>Der Saugroboter-Import kam mit PadSpan 0.38.160 und ist in der aktuellen stabilen Version enthalten. Was sich geändert hat, steht im <a href="https://github.com/gbroeckling/padspanHA/blob/main/CHANGELOG.md">Changelog</a> (englisch).</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="/guides/">Alle Anleitungen</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · Valetudo, Dreame, Xiaomi und der Xiaomi Cloud Map Extractor sind eigenständige Projekte und Produkte; PadSpan ist nicht mit ihnen verbunden.</p>
+</div></footer>
+</body>
+</html>
