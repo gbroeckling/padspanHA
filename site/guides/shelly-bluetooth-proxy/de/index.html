@@ -82,31 +82,31 @@ footer p{margin:4px 0}
   <li>Geh in Home Assistant zu <b>Einstellungen → Geräte &amp; Dienste → Shelly</b>.</li>
   <li>Jeder Shelly hat einen eigenen Eintrag. Wähl beim gewünschten das Zahnrad.</li>
   <li>Stell den <b>Bluetooth-Scanner-Modus</b> (englisch <i>Bluetooth scanner mode</i>) auf <b>Auto</b>, was Home Assistant für die meisten Setups empfiehlt, und wähl <b>Absenden</b>. <b>Aktiv</b> und <b>Passiv</b> gehen auch.</li>
-  <li>Prüf, ob das Gerät des Shellys im richtigen Bereich ist, also in dem Raum, in dem es wirklich sitzt. PadSpan nimmt den Home-Assistant-Bereich jedes Scanners als dessen Raum.</li>
+  <li>Prüf den Bereich des Shelly-Scanners. Home Assistant führt ihn als eigenes Gerät unter <b>Einstellungen → Geräte &amp; Dienste → Bluetooth</b> und gibt ihm beim ersten Auftauchen den Bereich des Shellys. PadSpan nimmt diesen Bereich als Raum des Scanners. Verschiebst du den Shelly später in einen anderen Raum, verschieb auch seinen Scanner.</li>
 </ol>
 <p>Mach das für jeden Shelly, den du nutzen willst.</p>
 
 <h2>Was PadSpan damit macht</h2>
 <ul>
-  <li><b>Es findet sie von selbst.</b> PadSpan liest die Bluetooth-Daten von Home Assistant selbst und nutzt einen Shelly-Scanner deshalb, sobald Home Assistant ihn nutzt, neben deinen ESPHome-Proxys und ohne dass du etwas hinzufügen musst. Sobald der Shelly einen Bereich hat, steht er in PadSpans Tab <b>Health</b> unter <b>Scanner → Room Mappings</b>.</li>
+  <li><b>Es findet sie von selbst.</b> PadSpan liest die Bluetooth-Daten von Home Assistant selbst und nutzt einen Shelly-Scanner deshalb, sobald Home Assistant ihn nutzt, neben deinen ESPHome-Proxys und ohne dass du etwas hinzufügen musst. Sobald sein Scanner einen Bereich hat, steht er in PadSpans Tab <b>Health</b> unter <b>Scanner → Room Mappings</b>, mit seiner Bluetooth-Adresse.</li>
   <li><b>Sein Raum ist sein Bereich.</b> PadSpan findet zu jedem Scanner sein Home-Assistant-Gerät und nimmt dessen Bereich als Raum des Scanners. Mit einem Scanner in jedem Raum, den du unterscheiden willst, landet jedes Handy, jede Uhr und jeder Tracker in dem Raum, dessen Scanner es am besten hört.</li>
   <li><b>Shellys und ESP32-Proxys lassen sich mischen.</b> Verschiedene Funkmodule hören dasselbe Handy unterschiedlich stark. In einem gemischten Haus zählt der Kalibrierungs-Rundgang deshalb mehr: Mit ihm berücksichtigt PadSpan jeden Scanner einzeln.</li>
   <li><b>Bermuda nutzt sie auch.</b> Laut seiner eigenen Dokumentation funktioniert es mit Shelly-Geräten ab Gen2, eine Einstellung reicht also für beide. Mehr dazu in <a href="/guides/bermuda/de/">Bermuda und PadSpan zusammen</a>.</li>
 </ul>
 
 <h2>Wie gut das funktioniert</h2>
-<p>Ein Shelly sitzt in der Unterputzdose, oft hinter einem Schalter, mit einer kleinen eingebauten Antenne. Dadurch kann er weniger und unruhiger hören als ein Proxy frei im Raum mit externer Antenne. Deshalb empfiehlt <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a> Boards mit einer. Sieh deine Shellys also als kostenlosen Einstieg:</p>
+<p>Die meisten Shellys sitzen in einer Unterputzdose hinter einem Schalter oder im Sicherungskasten, mit einer kleinen eingebauten Antenne. Dadurch kann ein Shelly weniger und unruhiger hören als ein Proxy frei im Raum mit externer Antenne. Deshalb empfiehlt <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a> Boards mit einer. Sieh deine Shellys also als kostenlosen Einstieg:</p>
 <ul>
   <li>Für „zu Hause oder weg“ reicht einer.</li>
-  <li>Ob sie für Räume reichen, hängt von deinem Haus ab. <b>Calibration → Model</b> zeigt, wie oft PadSpan an Stellen, an denen nicht kalibriert wurde, den richtigen Raum trifft (ab Version 0.38.166). Die Räume, die immer wieder schlecht abschneiden, sind die Stellen für einen ESP32-Proxy.</li>
-  <li>Shellys hören nur zu; eine Bluetooth-Verbindung können sie nicht halten. Für die Anwesenheit reicht Zuhören, aber ein Gerät, mit dem sich Home Assistant verbinden muss, braucht einen Proxy, der das kann.</li>
+  <li>Ob sie für Räume reichen, hängt von deinem Haus ab. <b>Calibration → Model</b> zeigt, wie oft PadSpan an Stellen, an denen nicht kalibriert wurde, den richtigen Raum trifft (ab Version 0.38.166). Die Räume, die immer wieder schlecht abschneiden, sind die Stellen für einen ESP32-Proxy. Für die Kalibrierung brauchst du einen Grundriss, und <a href="/guides/robot-vacuum-floor-plan/de/">vielleicht hat dein Saugroboter schon einen gezeichnet</a>.</li>
+  <li>Shellys können keine Bluetooth-Verbindung (GATT) halten. Für die Anwesenheit reichen die Advertisements, die sie weitergeben, aber ein Gerät, mit dem sich Home Assistant verbinden muss, braucht einen Proxy, der das kann.</li>
 </ul>
 
 <h2>Ein Shelly, der nichts hört oder keinen Raum hat</h2>
 <ul>
-  <li><b>Er taucht ohne Raum auf, obwohl sein Gerät einen Bereich hat?</b> Aktualisier auf PadSpan 0.38.175 oder neuer (vorerst eine Beta). Home Assistant gibt dem Scanner eines Shellys dessen Bluetooth-Adresse, nicht die, unter der sein Gerät geführt wird. Frühere Versionen fanden das Gerät deshalb nur, wenn die Namen zusammenpassten. 0.38.175 findet es über die Adresse.</li>
+  <li><b>Er taucht ohne Raum auf, obwohl der Shelly einen Bereich hat?</b> PadSpan nimmt den Bereich des Shelly-Scanners, eines eigenen Geräts unter <b>Einstellungen → Geräte &amp; Dienste → Bluetooth</b>. Den Bereich des Shellys übernimmt Home Assistant nur beim Start und nur, wenn der Scanner keinen hat. Stell den Bereich des Scanners also dort ein oder starte Home Assistant neu. Ab PadSpan 0.38.176 (vorerst eine Beta) nimmt ein Scanner ohne eigenen Bereich den seines Shellys.</li>
   <li>Prüf, ob sein <b>Bluetooth-Scanner-Modus</b> nicht auf <b>Deaktiviert</b> steht und ob seine Firmware aktuell ist. Hört er dann immer noch nichts, probier einen anderen Modus, zum Beispiel <b>Passiv</b>.</li>
-  <li>Hört er Geräte, aber die Kalibrierung in PadSpan zeigt für ihn keine Signalstärken, öffne in PadSpan <b>Manage → HA Entities → BLE Proxy Compatibility</b> und hak <b>Enable aggressive BLE reseed (5s) for passive proxy scanners</b> an. Das umgeht eine Änderung in Home Assistant 2026.4, durch die wiederholte Messwerte von Scannern, die nur zuhören, zurückgehalten werden.</li>
+  <li>Hört er Geräte, aber die Kalibrierung in PadSpan zeigt für ihn keine Signalstärken, öffne in PadSpan <b>Settings → Presence</b>, stell <b>BLE Reseed Interval</b> auf 5 und wähl <b>Save</b>. Das umgeht eine Änderung in Home Assistant 2026.4, durch die wiederholte Messwerte von passiven Scannern zurückgehalten werden. (Das Kästchen <b>BLE Proxy Compatibility</b> unter Manage → HA Entities macht ab 0.38.176 dasselbe; vorher bewirkte es nichts.)</li>
 </ul>
 
 <h2>Handys brauchen einen Schritt mehr</h2>

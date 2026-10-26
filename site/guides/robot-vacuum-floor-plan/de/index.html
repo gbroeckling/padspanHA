@@ -81,7 +81,7 @@ footer p{margin:4px 0}
 <ol>
   <li>Schalte in PadSpan <b>Settings → Features → Robot Vacuum Import</b> ein. Das ist eine der experimentellen Funktionen dort, noch in aktiver Entwicklung, und nur Administratoren können sie nutzen.</li>
   <li>Öffne <b>Mapping → Rooms</b>, wähl die Etage und dann <b>Import from a robot vacuum</b>.</li>
-  <li>Gib ihm die Karte: <b>Map file (.json)</b> für eine Valetudo-Kartendatei, die Valetudo-Adresse des Roboters (zum Beispiel <code>http://valetudo.local</code>) und <b>Read</b>, oder die Kartenkamera des Roboters aus der Liste und <b>Read camera</b>.</li>
+  <li>Gib PadSpan die Karte: <b>Map file (.json)</b> für eine Valetudo-Kartendatei, die Valetudo-Adresse des Roboters (zum Beispiel <code>http://valetudo.local</code>) und <b>Read</b>, oder die Kartenkamera des Roboters aus der Liste und <b>Read camera</b>.</li>
   <li>Prüf die Vorschau, gib der Karte einen Namen und wähl <b>Add as a new map</b>.</li>
 </ol>
 <p>Pinne danach deine Bluetooth-Proxys unter <b>Calibration → Tune</b> dorthin, wo sie wirklich sind, und du hast einen maßstabsgetreuen Grundriss mit deinen Räumen.</p>
@@ -93,7 +93,7 @@ footer p{margin:4px 0}
 <p>Beim Kalibrieren stehst du an ein paar Stellen in jedem Raum, während PadSpan aufzeichnet, was deine Proxys hören. Der Roboter kann Stellen für dich anfahren. Das ist optional, und beide Teile bleiben aus, bis du sie anhakst:</p>
 <ul>
   <li><b>Der Roboter auf der Karte.</b> Nach einem Import über die Adresse des Roboters oder seine Kartenkamera kann PadSpan den Roboter live auf deinen Karten zeigen, alle 10 Sekunden neu gelesen.</li>
-  <li><b>Der Roboter als Läufer.</b> Ist das an, befestigst du einen Bluetooth-Tracker, der seine Adresse behält, am Roboter und gibst dessen Adresse ein. Jede Stelle, an der der Roboter stillsteht, wird zu einem Kandidaten: wo er stand und was jeder Scanner von dem Tracker gehört hat.</li>
+  <li><b>Der Roboter als Läufer.</b> Ist das an, befestigst du einen Bluetooth-Tracker, der seine Adresse behält, am Roboter und gibst dessen Adresse ein. Wo der Roboter stillsteht, mindestens einen Meter von anderen Kandidaten entfernt, und mindestens zwei Scanner den Tracker hören, merkt sich PadSpan einen Kandidaten: wo er stand und was jeder Scanner von dem Tracker gehört hat.</li>
   <li><b>Du entscheidest, was zählt.</b> In die Kalibrierung kommt nichts, bevor du es annimmst. Nimm jeden Punkt an oder lehne ihn ab, oder lehne alle ab.</li>
 </ul>
 
