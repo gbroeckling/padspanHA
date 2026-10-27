@@ -4,6 +4,19 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.188 — Stairs read off your floor plans by AI (2026-10-27)
+
+### New
+- **Read stairs off the plans (AI).** With **Settings → AI → Stairs from your floor plans** on (it's off until you turn it on) and an AI Task picked, Live Aboard's Furnish → Build ▾ → House has **Read stairs off the plans (AI)**.
+  - Your AI looks at each floor plan you placed and finds the staircases. PadSpan turns each one into stairs on the floor it climbs from: a flight marked DOWN on an upper plan goes on the floor below.
+  - One staircase seen on two plans comes in once, and none is added where stairs already stand. Each is squared to its room.
+  - They come in unsaved, as a first guess to check: where each stands, and which way is up.
+  - A plan goes to your AI only when you press the button, and nothing is kept.
+- **Tested on real plans** with a small local model (qwen2.5vl:7b): it found most staircases, but sizes and which way is up need checking. A bigger or cloud model reads plans better.
+- **Usage report (if you share it):** how each plan read went (stairs found, none, an unreadable answer, a failure). Never the plan or where the stairs are.
+
+---
+
 ## 0.38.187 — Settings → AI (2026-10-27)
 
 ### New
