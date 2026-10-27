@@ -5,12 +5,12 @@
 Copies the panel's www files (custom_components/padspan_ha/www/padspan-ha)
 into <out>/padspan_ha_static/padspan-ha, so the demo always runs the code in
 this checkout, and adds the demo page (index.html), the fake Home Assistant
-(fake_hass.js) and the fictional house (fixture.js). The one change to the
+(fake_hass.js) and its houses (estate.js, and fixture.js for ?house=classic). The one change to the
 copied files: the panel's absolute "/padspan_ha_static/" URLs become relative,
 so the folder works from any path (padspan.traks.ca/demo/, a file server).
 The demo's own modules are loaded with a stamp of their contents (?v=...):
 Cloudflare and browsers keep .js for 4 hours, and a new page must never run
-an old fake_hass.js or fixture.js.
+an old fake_hass.js, estate.js or fixture.js.
 
 demo_settings.json is the integration's own DEFAULT_SETTINGS
 (settings_store.py) and its version, read from the source without importing
@@ -32,7 +32,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 INTEGRATION = ROOT / "custom_components" / "padspan_ha"
 WWW = INTEGRATION / "www" / "padspan-ha"
-DEMO_FILES = ("index.html", "fake_hass.js", "fixture.js", "preview.jpg")  # preview.jpg: the link-preview picture
+DEMO_FILES = ("index.html", "fake_hass.js", "fixture.js", "estate.js", "preview.jpg")  # preview.jpg: the link-preview picture
 REWRITE = (".js", ".mjs", ".css", ".html")
 
 
@@ -66,8 +66,9 @@ def build(out: Path) -> Path:
                 f.write_bytes(raw.replace(b"/padspan_ha_static/", b"./padspan_ha_static/"))
     for name in DEMO_FILES:
         shutil.copy2(HERE / name, out / name)
-    stamp = hashlib.sha1(b"".join((HERE / n).read_bytes() for n in ("fake_hass.js", "fixture.js"))).hexdigest()[:10]
-    for name, old in (("index.html", 'import("./fake_hass.js")'), ("fake_hass.js", 'from "./fixture.js"')):
+    stamp = hashlib.sha1(b"".join((HERE / n).read_bytes() for n in ("fake_hass.js", "fixture.js", "estate.js"))).hexdigest()[:10]
+    for name, old in (("index.html", 'import("./fake_hass.js")'), ("fake_hass.js", 'from "./fixture.js"'),
+                      ("fake_hass.js", 'from "./estate.js"')):
         f = out / name
         text = f.read_text(encoding="utf-8")
         if text.count(old) != 1:

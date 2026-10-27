@@ -1,5 +1,6 @@
 """The public demo (tools/demo): it builds from this checkout's panel files,
-and its house is fictional — nothing of a real house in a public page."""
+and its houses identify nobody — no names, entity ids or addresses of a real
+house in a public page."""
 
 from __future__ import annotations
 
@@ -22,11 +23,11 @@ import build as demo_build  # noqa: E402
 
 _WWW = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
 # What the demo shows: its own files, and the panel's Sample mode data.
-_DEMO_DATA = [_DEMO / "fixture.js", _DEMO / "fake_hass.js", _DEMO / "index.html", _WWW / "sample_data.js"]
+_DEMO_DATA = [_DEMO / "fixture.js", _DEMO / "estate.js", _DEMO / "fake_hass.js", _DEMO / "index.html", _WWW / "sample_data.js"]
 _MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 _IP = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
-_BANNER = "Demo — nothing here is a real house"
+_BANNER = "Demo — a sample house, made-up people and devices"
 
 
 def _text(p: Path) -> str:
@@ -34,7 +35,7 @@ def _text(p: Path) -> str:
 
 
 def test_the_demo_files_have_no_addresses_or_people():
-    for p in _DEMO_DATA[:3]:
+    for p in [p for p in _DEMO_DATA if p.parent == _DEMO]:
         t = _text(p)
         assert not _MAC.findall(t), p.name
         assert not _IP.findall(t), p.name
@@ -79,7 +80,7 @@ def test_writes_stay_in_the_page_and_the_banner_shows():
 
 def test_the_build_copies_this_checkout(tmp_path):
     out = demo_build.build(tmp_path / "dist")
-    for name in ("index.html", "fake_hass.js", "fixture.js", "demo_settings.json"):
+    for name in ("index.html", "fake_hass.js", "fixture.js", "estate.js", "demo_settings.json"):
         assert (out / name).is_file(), name
     copied = out / "padspan_ha_static" / "padspan-ha"
     src_files = sorted(p.relative_to(_WWW) for p in _WWW.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
@@ -98,6 +99,44 @@ def test_the_build_copies_this_checkout(tmp_path):
     manifest = json.loads((_ROOT / "custom_components" / "padspan_ha" / "manifest.json").read_text(encoding="utf-8"))
     assert built["version"]["version"] == manifest["version"]
     assert not _IP.findall(json.dumps(built)) and not _EMAIL.findall(json.dumps(built))
+
+
+def _const(text: str, name: str):
+    """One of estate.js's data blocks (const NAME = {...};), as Python."""
+    m = re.search(r"^const " + name + r" = (.*);$", text, re.M)
+    assert m, name
+    return json.loads(m.group(1))
+
+
+def test_the_estate_is_the_main_house():
+    """The demo opens on the estate: three floors, furnished, stairs between
+    them, two residents and a guest wearing a tag lent for the stay (Guest
+    tags: the snapshot's tag carries guest = {name, session}). The classic
+    house stays for ?house=classic and a new install's first minutes (?fresh=)."""
+    est = _text(_DEMO / "estate.js")
+    assert "export function estateFixture(q)" in est
+    rooms = _const(est, "ROOMS")
+    floors = {g["floor_id"] for g in rooms.values()}
+    assert floors == {"lower", "main", "upper"} and len(rooms) >= 20
+    assert any(len(g["points_m"]) > 6 for g in rooms.values()), "more than boxes"
+    pieces = _const(est, "PIECES")
+    assert len(pieces) >= 100
+    assert all(re.fullmatch(r"fur_[0-9a-f]{8}", k) and v["id"] == k for k, v in pieces.items())
+    assert all(v["floor_id"] in floors for v in pieces.values())
+    stairs = [v for v in pieces.values() if v["recipe"]["kind"] == "stairs"]
+    assert {(s["floor_id"], s["recipe"]["params"]["to_floor"]) for s in stairs} >= {("lower", "main"), ("main", "upper")}
+    walkers = _const(est, "WALKERS")
+    people = {w["person"] for w in walkers if w.get("person")}
+    assert people == {"person.alex", "person.sam"}
+    guest = next(w for w in walkers if w.get("guest"))
+    assert guest["kind"] == "ble" and "person" not in guest and guest["guest"]["name"]
+    assert any(len(p) == 4 for w in walkers for p in w["loop"]), "someone stays somewhere a while"
+    assert all({p[0] for p in w["loop"]} <= floors for w in walkers)
+    assert len({p[0] for w in walkers for p in w["loop"]}) == 3, "someone goes up and someone goes down"
+    fake = _text(_DEMO / "fake_hass.js")
+    assert 'import { estateFixture } from "./estate.js";' in fake
+    assert 'const classic = fresh || q.get("house") === "classic";' in fake
+    assert "...(w.guest ? { guest: clone(w.guest) } : {})" in fake
 
 
 # Words any house has (rooms, devices, Home Assistant's own): a name made only

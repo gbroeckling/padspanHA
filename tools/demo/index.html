@@ -3,17 +3,17 @@
 <title>PadSpan live demo: which room every phone, watch and tag is in</title>
 <!-- Found and shared: a search result and a link preview (Reddit, Discord, X)
      with a picture of the demo house, not a bare link. -->
-<meta name="description" content="Try PadSpan HA in your browser: the real Home Assistant panel on a made-up house, showing which room every phone, watch and tag is in, live, on a 3D floor plan. Nothing to install.">
+<meta name="description" content="Try PadSpan HA in your browser: the real Home Assistant panel on a sample house over three floors, showing which room every phone, watch and tag is in, live, on a 3D floor plan. Nothing to install.">
 <link rel="canonical" href="https://padspan.traks.ca/demo/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PadSpan">
 <meta property="og:title" content="PadSpan live demo: which room every phone, watch and tag is in">
-<meta property="og:description" content="The real PadSpan panel for Home Assistant on a made-up house, in your browser. Nothing to install.">
+<meta property="og:description" content="The real PadSpan panel for Home Assistant on a sample house over three floors, in your browser. Nothing to install.">
 <meta property="og:url" content="https://padspan.traks.ca/demo/">
 <meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The PadSpan demo house in 3D: two people and a set of keys, each in its room">
+<meta property="og:image:alt" content="The PadSpan demo house in 3D over three floors: two people, a guest with a visitor tag and a set of keys, each in its room">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="padspan_ha_static/padspan-ha/assets/logo-icon.png">
 <style>
@@ -45,7 +45,7 @@
 </style>
 </head><body>
 <div id="demo-bar" role="banner">
-  <b title="Changes last until you reload.">Demo — nothing here is a real house</b>
+  <b title="Changes last until you reload.">Demo — a sample house, made-up people and devices</b>
   <span id="demo-now">Which room everyone is in, live</span>
   <nav>
     <a href="?page=panel">Panel</a>
@@ -58,7 +58,8 @@
 <div id="app"></div>
 <script type="module">
 // The PadSpan panel and the sidebar Atlas over a fake Home Assistant
-// (fake_hass.js): a fictional house, writes kept in memory only.
+// (fake_hass.js): a sample house (estate.js; ?house=classic the old one),
+// writes kept in memory only.
 const page = ["panel", "atlas", "atlas3d"].includes(new URLSearchParams(location.search).get("page"))
   ? new URLSearchParams(location.search).get("page") : "atlas3d";
 // "Wall screen" is the 3D page with ?kiosk=1: the Atlas reads kiosk from the
@@ -73,7 +74,7 @@ document.documentElement.dataset.demoReady = page;
 // now. Not on the Panel page: its devices are the panel's own Sample mode house
 // (sample_data.js), not these walkers, so it keeps the tagline.
 const now = document.getElementById("demo-now");
-const who = (o) => { const n = String(o.name || ""); return n.endsWith("'s phone") ? n.split("'")[0] : n; };
+const who = (o) => { const n = String(o.name || ""); return o.guest && o.guest.name ? `${o.guest.name} (guest)` : n.endsWith("'s phone") ? n.split("'")[0] : n; };
 const tick = () => {
   try {
     const list = (window.__demo && window.__demo.snapshot().objects.list) || [];

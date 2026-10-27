@@ -24,7 +24,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from build import build  # noqa: E402
 
-BANNER = "Demo — nothing here is a real house"
+BANNER = "Demo — a sample house, made-up people and devices"
 SIZES = {"": (1600, 900), "_phone": (390, 844)}
 SHAPE = "(() => { const walk = (n) => { let t = ''; for (const c of n.childNodes) t += c.nodeType === 3 ? c.textContent : walk(c); if (n.shadowRoot) t += walk(n.shadowRoot); return t; }; return walk(document.getElementById('app')); })()"
 # Live Aboard's own window on what it draws (live_aboard.js _state), through
@@ -89,11 +89,14 @@ def main(out: Path) -> int:
                         home = "Nobody home" not in who and "Alex ·" in who and "Sam ·" in who
                         results.append((f"{tag}: Overview has people home", home, who[:120]))
                     if page_name == "atlas3d":
-                        # Both people drawn as their figures (not markers), on a floor that shows.
+                        # Both people drawn as their figures (not markers), on a floor that shows;
+                        # the guest's lent tag drawn under the guest's name.
                         drawn = page.evaluate(SLOT) or []
                         people = {d["key"]: d for d in drawn if d.get("kind") == "person"}
                         ok = set(people) == {"person.alex", "person.sam"} and all(not d["marker"] and d["shown"] for d in people.values())
                         results.append((f"{tag}: people drawn as figures", ok, "; ".join(f"{k} marker={d['marker']} shown={d['shown']}" for k, d in people.items()) or "none"))
+                        guest = [d for d in drawn if str(d.get("name") or "").endswith(" · Guest")]
+                        results.append((f"{tag}: the guest's tag", bool(guest), "; ".join(str(d.get("name")) for d in guest) or "none"))
                         # The first-time card covers the house: Got it, for the picture.
                         for _ in range(3):
                             got = [b for b in page.get_by_role("button", name="Got it").all() if b.is_visible()]
@@ -107,13 +110,13 @@ def main(out: Path) -> int:
                         results.append(("atlas3d: 3D canvas", bool(canvas), ""))
                     if page_name == "atlas" and not size:
                         # A write: a light toggled lives in memory, and a reload puts it back.
-                        before = page.evaluate("() => window.__demo.hass.states['light.living_lamp'].state")
-                        page.evaluate("() => window.__demo.hass.callService('light', 'toggle', { entity_id: 'light.living_lamp' })")
-                        after = page.evaluate("() => window.__demo.hass.states['light.living_lamp'].state")
+                        before = page.evaluate("() => window.__demo.hass.states['light.living_room_pot_1'].state")
+                        page.evaluate("() => window.__demo.hass.callService('light', 'toggle', { entity_id: 'light.living_room_pot_1' })")
+                        after = page.evaluate("() => window.__demo.hass.states['light.living_room_pot_1'].state")
                         results.append(("atlas: light toggles", before != after, f"{before} -> {after}"))
                         page.reload()
                         page.wait_for_selector("html[data-demo-ready='atlas']", timeout=20000)
-                        again = page.evaluate("() => window.__demo.hass.states['light.living_lamp'].state")
+                        again = page.evaluate("() => window.__demo.hass.states['light.living_room_pot_1'].state")
                         results.append(("atlas: reload resets", again == before, again))
                         moved = page.evaluate("async () => { const a = (await window.__demo.route({type:'padspan_ha/live_snapshot'})).snapshot.objects.list[0]; await new Promise(r => setTimeout(r, 2500)); const b = (await window.__demo.route({type:'padspan_ha/live_snapshot'})).snapshot.objects.list[0]; return [a.x_m, a.y_m, b.x_m, b.y_m]; }")
                         results.append(("atlas: people move", moved[:2] != moved[2:], str(moved)))
