@@ -1,4 +1,4 @@
-"""The one-time 3-month PadSpan Bright Pro trial.
+"""The one-time 3-month PadSpan Pro trial (the lighting half, Bright Pro, until 2026-10-27).
 
 It must mint a real key through the same slot a purchase uses (so expiry,
 grace and the editing-only gate all apply with zero new logic in licence.py),
@@ -60,6 +60,8 @@ def test_trial_start_calls_the_same_licence_server_as_a_purchase() -> None:
     assert "forensics_license_key=" in handler
     assert "forensics_license_expires=" in handler
     assert "license_tier=normalize_tier(" in handler
+    # A reply without a tier counts as Pro: the server issues trials as Pro (2026-10-27).
+    assert 'license_tier=normalize_tier(data.get("tier"), default="pro")' in handler
     assert "license_is_trial=True" in handler
 
 
@@ -90,7 +92,7 @@ def test_the_free_forever_claim_still_holds_and_the_trial_is_disclosed() -> None
     still promise the free tier is not time-limited, and now also disclose
     the trial rather than contradict it."""
     s = _read(_VIEWS / "settings.js")
-    i = s.index("A key only ever unlocks two things beyond that")
+    i = s.index("The free tier above is not a trial of anything")
     para = s[i:i + 700]
     assert "not a trial" in para or "stays free" in para, "the free-forever promise was dropped, not reworded"
     assert "90-day" in para, "the tiers wizard does not disclose the trial that contradicts its old claim"

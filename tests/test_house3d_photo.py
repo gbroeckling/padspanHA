@@ -550,7 +550,7 @@ def test_each_outcome_is_counted_by_name_only(monkeypatch, tmp_path, disk):
     _photo(h, conn)                                   # off: nothing
     assert [e for e in counted if e.startswith("photo_read:")] == ["photo_read:ok", "photo_read:bad_answer",
                                                                    "photo_read:error", "photo_read:no_ai_task"]
-    # 0.38.186: what each photo sent was of, and how long the AI took (answered or failed);
+    # 0.38.187: what each photo sent was of, and how long the AI took (answered or failed);
     # nothing for the one refused before it was sent.
     assert [e for e in counted if e.startswith("photo_subject:")] == ["photo_subject:furniture"] * 3
     assert [e for e in counted if e.startswith("photo_secs:")] == ["photo_secs:lt5"] * 3
@@ -609,7 +609,7 @@ def test_two_reads_started_together_never_take_each_others_photo(monkeypatch, tm
 
 
 def test_the_report_says_which_kind_of_ai_task_is_chosen_never_which(monkeypatch, tmp_path, disk):
-    """env.ai (0.38.186): local, cloud, unknown or unready, only where an AI Task is chosen."""
+    """env.ai (0.38.187): local, cloud, unknown or unready, only where an AI Task is chosen."""
     h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=dict(_SOFA))
     word = T.ai_task_word(h)
     assert word in ("local", "cloud", "unknown")

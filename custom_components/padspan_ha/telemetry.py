@@ -563,7 +563,7 @@ HOUSE3D_EVENTS: frozenset[str] = frozenset(
 # answer) or :error (the AI Task failed). Never the photo, the AI Task or the
 # answer; and nothing while the 3D house is off (the command refuses first).
 PHOTO_READ_OUTCOMES: tuple[str, ...] = ("ok", "no_ai_task", "bad_answer", "error")
-# And (0.38.186) what each photo sent to the AI Task was of (photo_subject:
+# And (0.38.187) what each photo sent to the AI Task was of (photo_subject:
 # furniture, tag, scanner or person) and how long the AI took to answer
 # (photo_secs:<band>, answered or failed). Never the photo or the answer.
 PHOTO_SUBJECTS: tuple[str, ...] = ("furniture", "tag", "scanner", "person")
@@ -571,7 +571,7 @@ PHOTO_SECS: tuple[str, ...] = ("lt5", "5_15", "15_45", "gt45")
 PHOTO_EVENTS: frozenset[str] = frozenset(
     {f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES} | {f"photo_subject:{k}" for k in PHOTO_SUBJECTS}
     | {f"photo_secs:{k}" for k in PHOTO_SECS})
-# The AI Task chosen for photos (env.ai, 0.38.186), only where one is chosen:
+# The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to
 # pictures, or Home Assistant too old). Never its name or entity.

@@ -139,7 +139,7 @@ def test_the_box_saves_each_control_on_its_own() -> None:
     for later in ():
         assert later not in sec, later
     # P3: the AI Task that reads photos, saved alone, from Home Assistant's ai_task.* entities.
-    # Since 0.38.186 it is in Settings → AI (_settingsAI); the Live Aboard section points there.
+    # Since 0.38.187 it is in Settings → AI (_settingsAI); the Live Aboard section points there.
     ai = src[src.index("function _settingsAI("):src.index("function _atlas3dSection(")]
     assert 'save("atlas_3d_ai_task_entity", want,' in ai and 'e.startsWith("ai_task.")' in ai
     assert 'save("atlas_3d_ai_task_entity"' not in sec and "are in Settings → AI." in sec

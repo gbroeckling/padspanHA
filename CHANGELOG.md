@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.186 — Settings → AI (2026-10-27)
+## 0.38.187 — Settings → AI (2026-10-27)
 
 ### New
 - **Settings → AI.** PadSpan's AI features in one place:
@@ -15,6 +15,16 @@ All notable changes to PadSpan HA are documented here.
 ### Changed
 - **Furniture from a photo reads beds the right way round.** The AI is told a bed's width is across the headboard. In a real test with a local vision model it had swapped them.
 - **Usage report (if you share it):** what each photo sent to the AI was of (furniture, a tag, a receiver or a person), and how long the AI took to answer, in bands. Where an AI Task is chosen, `env.ai` says only whether it runs locally or in the cloud. The photo, the answer and the AI's name are never in it.
+
+---
+
+## 0.38.186 — The trial card, put right (2026-10-27)
+
+### Changed
+- **What happens when a trial or licence ends, said truthfully.** Light placement goes read-only, and the 3D house, the wall screen, Locate and Busy Times switch off until you buy or renew. Nothing you set up is deleted, and it all comes back as you left it. The trial card, the licence card, the tiers page and its help used to say only that editing stops.
+- **The launch price, plainly.** Once a trial has started, its card gives what Pro for life costs until November 30 and after, so it can't read as lasting the whole trial. The licence card leaves it to its own lifetime link.
+- **Every place that offers the trial says it is all of Pro**: the Getting started list too, and the update banner says it once, as news, to installs without a key. On a PadSpan Bright build the trial card leaves out Forensics, which a Bright build doesn't show.
+- **The paid features are named properly.** The licence card, the tiers page and its help list light placement, the 3D house, the wall screen, Forensics, Locate and Busy Times among them, and the update banner's Pro pitch names the 3D house and the wall screen too. They used to say a key unlocks two things. On a Bright build the licence card and the tiers page name only what a Bright build shows.
 
 ---
 

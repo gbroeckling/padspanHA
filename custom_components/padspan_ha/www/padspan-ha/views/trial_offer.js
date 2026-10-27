@@ -48,18 +48,23 @@ export const TRIAL_TITLE = "PadSpan Pro free for 90 days, no card";
 // product changes, whatever anyone answers.
 export const TRIAL_HONESTY = "The presence tracking you're using stays free.";
 export const TRIAL_NEWS_LINE = "New: try all of PadSpan Pro free for 90 days, no card.";
-// The update banner says it once: in the banner for the update that brought
-// the trial (an install that was on a version before this one). Every later
+// The update banner says it once: in the banner for the update that made the
+// trial all of PadSpan Pro (0.38.186; the trial came in 0.38.37, this line in 0.38.87),
+// for an install that was on a version before this one. Every later
 // "updated to vX" banner goes back to the older Pro pitch (trialNewsDue).
-export const TRIAL_NEWS_BEFORE = "0.38.87";
+export const TRIAL_NEWS_BEFORE = "0.38.186";
 export const TRIAL_MILESTONE_TITLE = "PadSpan's working in your house.";
 export const TRIAL_MILESTONE_BODY = "Try all of PadSpan Pro on it: every light where it hangs on this map, " +
-  "the 3D house and Forensics. 90 days free, no card.";
+  "the 3D house, the wall screen and Forensics. 90 days free, no card.";
 export const TRIAL_SIDEBAR_LABEL = "✨ Pro · free trial";
-// Said once the trial has started, while Pro for life is at its launch
-// price (editions.js proLifetimeLaunch; Garry, 2026-10-27).
-export const TRIAL_LAUNCH_LINE = "PadSpan Pro for life is at its launch price until November 30: " +
-  "buy it any time during the trial, and everything you set up stays.";
+/** Said once the trial has started, while Pro for life is at its launch
+ *  price (editions.js; Garry, 2026-10-27): the price and its end date, so it
+ *  can't read as lasting the whole trial. Empty after the launch price. */
+export function trialLaunchLine(now = Date.now()) {
+  return proLifetimeLaunch(now)
+    ? "PadSpan Pro for life is " + proLifetimeWords(now) + ". Whenever you buy, everything you set up stays."
+    : "";
+}
 export const TRIAL_MILESTONE_DAYS = 7;
 export const TRIAL_BUTTON = "Start 90-day free trial";
 export const TRIAL_EMAIL_NOTE = "Your email is only used to send your key; one trial per home.";
@@ -133,20 +138,22 @@ export function trialMilestoneDue(settings, positioned, nowMs = Date.now()) {
 /** The pitch line for a surface. `feature` names a Pro feature (Locate,
  *  Busy Times) whose gate the card sits in: the trial is all of Pro (since
  *  2026-10-27), so the card says it unlocks that feature too. (The gate
- *  right above already says the feature needs Pro.) A Bright build shows
- *  only the lighting half, so its pitch stays about the lights. */
+ *  right above already says the feature needs Pro.) A Bright build's pitch
+ *  leaves out Forensics, which a Bright build doesn't show. When a trial
+ *  ends most of Pro switches off (Live Aboard, walls, Locate, Busy Times;
+ *  light placement goes read-only), so the card promises only that nothing
+ *  is deleted and that it all comes back. */
 export function trialPitch(surface, feature, settings) {
   if (feature) {
-    return `The trial unlocks ${feature} too, with everything else in PadSpan Pro, ` +
-      "on your own house for 90 days.";
+    return `The trial unlocks ${feature} and the rest of PadSpan Pro on your own house.`;
   }
   if (surface === "settings") {
-    return "Try all of PadSpan Pro on your own house. Nothing is taken away when it ends — " +
-      "editing just goes back to the free view.";
+    return "Try all of PadSpan Pro on your own house. When it ends, nothing you set up is deleted, " +
+      "and it all comes back as you left it when you buy.";
   }
   if (currentEdition(settings) === "bright") {
-    return "See every light exactly where it hangs on your floor plan — fixture shapes and sizes, " +
-      "WLED strips and Showcase. Try it on your own house.";
+    return "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your " +
+      "floor plan, the 3D house (Live Aboard) and the wall screen.";
   }
   return "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your " +
     "floor plan, the 3D house (Live Aboard), the wall screen and Forensics.";
@@ -310,8 +317,8 @@ function _startedCard(el, done) {
   return el("div", { "data-trial": "started",
     style: "padding:10px 12px;border:1px solid #2d5a3d;border-radius:8px;background:#0a1f14;margin:8px 0;font-size:12px;color:#a7f3d0;line-height:1.55" },
     "✓ Your 90-day PadSpan Pro trial has started" + (Number.isFinite(days) && days > 0 ? ` (${days} days left)` : "") +
-    ". Everything in Pro is unlocked. Start by placing your lights in Mapping → Atlas — drag each one to where it really hangs." +
-    (proLifetimeLaunch() ? " " + TRIAL_LAUNCH_LINE : ""));
+    ". Start by placing your lights in Mapping → Atlas — drag each one to where it really hangs." +
+    (trialLaunchLine() ? " " + trialLaunchLine() : ""));
 }
 
 /**

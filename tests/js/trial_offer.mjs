@@ -274,26 +274,38 @@ await check("Not now is offered only where the host asks for it", () => {
   assert(hidden === 1, "onDismiss not called");
 });
 
-await check("the started card has the launch-price line exactly while the launch price is on", async () => {
-  const E = await import(pathToFileURL(join(VIEWS, "editions.js")).href);
+await check("the started card gives the launch price before Nov 30 and drops it after", async () => {
   const h = makeHost({ answer: { ok: true, days_left: 90, settings: { tier: "pro", pro_has_key: true } } });
   const card = T.trialOfferCard(h.host, "maps");
   type(card, "someone@example.com");
   find(card, "start").click();
   await settle();
   h.host.settings = { tier: "pro", pro_has_key: true };
-  const after = T.trialOfferCard(h.host, "maps");
-  assert(/PadSpan Pro trial has started/.test(after.textContent), after.textContent);
-  const has = after.textContent.includes(T.TRIAL_LAUNCH_LINE);
-  assert(has === E.proLifetimeLaunch(), (has ? "launch line after the launch price ended: " : "no launch line: ") + after.textContent);
+  const realNow = Date.now;
+  try {
+    Date.now = () => Date.parse("2026-11-15T12:00:00Z");
+    const before = T.trialOfferCard(h.host, "maps").textContent;
+    assert(/PadSpan Pro trial has started/.test(before), before);
+    assert(/for life is \$\d+ CAD, once, until November 30/.test(before) && before.includes(T.trialLaunchLine()), "no launch line: " + before);
+    Date.now = () => Date.parse("2026-12-02T12:00:00Z");
+    const after = T.trialOfferCard(h.host, "maps").textContent;
+    assert(T.trialLaunchLine() === "" && !/for life/.test(after), "launch line after the launch price ended: " + after);
+  } finally {
+    Date.now = realNow;
+  }
 });
 
-await check("the pitch sells all of Pro, and a Bright build keeps the lighting pitch", () => {
-  const full = T.trialPitch("maps");
-  assert(/all of PadSpan Pro/.test(full) && /3D house/.test(full) && /Forensics/.test(full), full);
-  const bright = T.trialPitch("maps", undefined, { edition: "bright" });
-  assert(/every light/.test(bright) && !/3D house/.test(bright), bright);
-  assert(/all of PadSpan Pro/.test(T.trialPitch("settings")), T.trialPitch("settings"));
+await check("the card sells all of Pro, and a Bright build's card leaves out Forensics", () => {
+  const full = T.trialOfferCard(makeHost({ answer: { ok: true } }).host, "maps");
+  const fullPitch = find(full, "pitch").textContent;
+  assert(/all of PadSpan Pro/.test(fullPitch) && /3D house/.test(fullPitch) && /Forensics/.test(fullPitch), fullPitch);
+  const h = makeHost({ answer: { ok: true } });
+  h.host.settings = { ...h.host.settings, edition: "bright" };
+  const bright = T.trialOfferCard(h.host, "atlas");
+  const brightPitch = find(bright, "pitch").textContent;
+  assert(/every light/.test(brightPitch) && /3D house/.test(brightPitch) && !/Forensics/.test(brightPitch), brightPitch);
+  const s = T.trialPitch("settings");
+  assert(/all of PadSpan Pro/.test(s) && /nothing you set up is deleted/i.test(s) && !/editing just goes back/.test(s), s);
 });
 
 await check("a Pro gate's pitch says the trial unlocks that feature", () => {
@@ -306,9 +318,10 @@ await check("a Pro gate's pitch says the trial unlocks that feature", () => {
 
 await check("the update banner's trial line is news once, never on a kiosk or after an answer", () => {
   const s = { ...FREE, trial_nudge_done: false };
-  assert(T.trialNewsDue(s, "0.38.86", false) === true, "the update that brought the trial");
+  assert(T.trialNewsDue(s, "0.38.185", false) === true, "the update that made the trial all of Pro");
+  assert(T.trialNewsDue(s, "0.38.86", false) === true, "an install from before the first trial");
   assert(T.trialNewsDue(s, "0.9.3", false) === true, "an older install updating straight past it");
-  for (const seen of ["0.38.87", "0.38.88", "0.39.0", "1.0.0"]) {
+  for (const seen of ["0.38.186", "0.38.187", "0.39.0", "1.0.0"]) {
     assert(T.trialNewsDue(s, seen, false) === false, "said again in the banner from " + seen);
   }
   assert(T.trialNewsDue(s, "", false) === false, "no previous version: no banner, no line");

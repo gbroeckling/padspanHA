@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.38.185";
-const RELEASE_BUILD_ID = "20261027T221405Z";
+const APP_VERSION = "0.38.186";
+const RELEASE_BUILD_ID = "20261027T225336Z";
 // The stamp the views are actually loaded with.
 //
 // This was the release literal above, so every view URL stayed frozen between
@@ -4331,8 +4331,8 @@ class PadSpanHaApp extends HTMLElement {
         try { _trialOffer = !!(TRIAL && TRIAL.trialOfferable(this.state.settings)); } catch(e) { /* no offer */ }
         if (TRIAL && (_trialOffer || this.state._gettingStartedTrialOpen)) {
           const row = el("div",{"data-getting-started":"step-trial",style:"display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;margin-top:2px;border-top:1px solid #1a4228"});
-          row.appendChild(el("span",{style:"font-size:14px"}, "💡"));
-          row.appendChild(el("span",{style:"color:#8ee5b4"}, "See your lights on your floor plan — 90-day free trial, no card"));
+          row.appendChild(el("span",{style:"font-size:14px"}, "✨"));
+          row.appendChild(el("span",{style:"color:#8ee5b4"}, "Try all of PadSpan Pro on your house — 90 days free, no card"));
           row.addEventListener("click", () => {
             this.state._gettingStartedTrialOpen = !this.state._gettingStartedTrialOpen;
             if (this.state._gettingStartedTrialOpen) this._telemetryEvent("getting_started_step:trial");

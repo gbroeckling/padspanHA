@@ -66,18 +66,20 @@ export const EDITIONS_URL = "https://padspan.traks.ca/#editions";
 export const WHATSNEW_URL = "https://padspan.traks.ca/?hl=en#whatsnew";
 
 // ── What to say about the paid half, to whom ────────────────────────────────
-// There are exactly two paid features, and most free installs have never seen
-// either — the only place they are named is a refusal you hit by trying to use
-// them. The what's-new card is a fair place to say what they are: once per
-// release, one line, no badge and no banner.
+// Most free installs have never seen the paid features — the only place they
+// are named is a refusal you hit by trying to use them. The what's-new card
+// is a fair place to say what they are: once per release, one line, no badge
+// and no banner.
 //
 // What it says depends on what the licence already covers, because pitching
 // somebody a thing they have already bought is an insult:
 //
-//   pro     -> null. They have both. Say nothing.
-//   bright  -> Forensics only; light placement is already theirs.
-//   free    -> both.
-//   lapsed  -> what went read-only, and that nothing was lost.
+//   pro     -> null. They have it all. Say nothing.
+//   bright  -> what Pro adds: the 3D house, the wall screen and Forensics;
+//              light placement is already theirs.
+//   free    -> the main paid features, light placement first.
+//   lapsed  -> what stopped, and that nothing was lost. Never Forensics: it
+//              keeps working after a lapse.
 //
 // Pure on purpose: it takes the settings payload and returns text, so the rule
 // can be tested without a browser (tests/js/pro_pitch.mjs).
@@ -90,8 +92,9 @@ export function proPitch(settings) {
   if (hasKey && lapsed) {
     return {
       kind: "lapsed",
-      text: "Your licence has lapsed, so Forensics and light placement are read-only. "
-          + "Everything you recorded and every light you placed is still here and still exportable. ",
+      text: "Your licence has lapsed, so light placement is read-only and the 3D house, the wall screen, "
+          + "Locate and Busy Times are off. Everything you set up is still here and comes back as you left it "
+          + "when you renew. ",
       cta: `Renew PadSpan Pro — ${PRO_PRICE}`,
       url: BUY_URL,
     };
@@ -100,19 +103,19 @@ export function proPitch(settings) {
   if (tier === "bright") {
     return {
       kind: "bright",
-      text: "Your key covers the lighting half. The one thing it does not is Forensics — "
-          + "which Bluetooth devices were near a given scanner in any time window, with dwell "
-          + "time and CSV export. ",
+      text: "Your key covers the lighting half. PadSpan Pro adds the 3D house (Live Aboard), the wall "
+          + "screen and Forensics — which Bluetooth devices were near a given scanner in any time window, "
+          + "with dwell time and CSV export. ",
       cta: `PadSpan Pro — ${PRO_PRICE}`,
       url: BUY_URL,
     };
   }
   return {
     kind: "free",
-    text: "Two things a licence adds, in case you have never hit them: Forensics, which answers "
-        + "which Bluetooth devices were near a scanner in any time window; and light placement, "
-        + "which puts every light exactly where it hangs instead of clustered in the middle of "
-        + "its room. ",
+    text: "What a licence adds, in case you have never hit it: light placement, which puts every "
+        + "light exactly where it hangs instead of clustered in the middle of its room; the 3D house "
+        + "(Live Aboard); the wall screen; and Forensics, which answers which Bluetooth devices were "
+        + "near a scanner in any time window. ",
     cta: `PadSpan Pro — ${PRO_PRICE}`,
     url: BUY_URL,
   };

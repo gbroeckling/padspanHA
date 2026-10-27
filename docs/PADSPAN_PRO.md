@@ -18,7 +18,7 @@ exactly what is sent): with it off, the trial card asks you to turn it on in the
 **The usage report stays on for the whole trial and can't be turned off until the trial ends**
 (or until you enter a bought key).
 A trial or key you already have is not affected.
-Nothing you made is taken away when it ends: you go back to free and your placements stay.
+When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy.
 
 ## Enter a key
 
