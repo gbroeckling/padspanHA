@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.182 — Room timing does what Settings says (2026-10-27)
+
+### Fixed
+- **A Room Change Delay of 0 now means 0.** Settings → Presence said "Set to 0 for instant room switching", but 0 was read as the 20-second default. Now a device switches on the first poll that agrees. Moves between indoors and outdoors, and to far-apart rooms, still go through their stricter checks. An unset delay is still 20 s.
+- **A short Room Change Delay could hold a move to another floor for up to a minute.** When the delay fits in one poll (for example 10 s at a 10 s poll, or now 0), a move to another floor soon after the last one asked for two votes in a window that holds one. It now asks for at most what the window holds.
+- **The outdoor rules recognise a Home Assistant floor called Outside** (or Outdoor, Garden, Yard, …), not only PadSpan's own outside floor. A proxy on such a floor gets the indoor↔outdoor treatment (a 15 dB penalty for moving outside, an 8 dB margin and every vote), where before it was treated as just another floor. The coverage rules already read it this way.
+- **Presence Poll Interval shows the real default, 5 s** (it said 10 s). On an install still at 10 s, the old default from before 0.21, a note says that 5 s halves the wait for a room change. Nothing is changed for you: 10 s may be your choice for a slow machine.
+- **The ESP32-C3 is no longer "Not recommended"** in the Bluetooth tab. With a full-size external antenna it did room-level tracking well in testing (the third of the three boards that worked, as Training and the README say). It's marked as the budget choice; an S3 or C6 is still better.
+
+### Changed
+- Code tidying with no change in behaviour: the coordinator's description of the room vote matches what runs, and two settings that never took effect are gone.
+- **Usage report (if you share it):** `env.presence_cfg` says, in words, whether the poll interval or Room Change Delay is off its default and whether a Home Assistant floor counts as outside. It is sent only by installs where one of those applies.
+
+---
+
 ## 0.38.181 — Free licences keep the usage report on, and portrait walls (2026-10-27)
 
 ### Changed

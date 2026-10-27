@@ -1889,3 +1889,24 @@ def test_fewer_maps_than_the_last_report_without_a_delete_is_flagged():
     WM._note_map_deleted(h, ms, migrated=False)           # a delete on purpose moves the marker
     assert st.data["maps_seen"] == 2
     assert "maps_vanished" not in T.build_payload(h)["health"]
+
+
+def test_presence_cfg_only_off_the_defaults():
+    """0.38.182: env.presence_cfg says which installs run room timing off the
+    default (a delay of 0 now means 0; installs from before 0.21 may still
+    poll at 10 s) and which have a Home Assistant floor the outdoor rules now
+    count as outside. Nothing is sent from an install on the defaults."""
+    assert T.presence_cfg_words({"presence_poll_interval_s": 5}) == {}
+    assert T.presence_cfg_words({"presence_poll_interval_s": 5, "room_change_delay_s": 20}) == {}
+    assert T.presence_cfg_words({"presence_poll_interval_s": 10, "room_change_delay_s": 0}) == {"poll": "10", "delay": "0"}
+    assert T.presence_cfg_words({"presence_poll_interval_s": 3, "room_change_delay_s": 90}) == {"poll": "1_4", "delay": "gt60"}
+    assert T.presence_cfg_words({}, ["ground", "__outside__"]) == {}
+    assert T.presence_cfg_words({}, ["ground", "outside"]) == {"outdoor": "ha"}
+    h = _hass()
+    h.data[DOMAIN][DATA_SETTINGS].data["room_change_delay_s"] = 0
+    payload = T.build_payload(h)
+    T.assert_shareable(payload)
+    assert payload["env"]["presence_cfg"] == {"delay": "0"}
+    payload["env"]["presence_cfg"] = {"delay": "0.0"}
+    with pytest.raises(ValueError):
+        T.assert_shareable(payload)

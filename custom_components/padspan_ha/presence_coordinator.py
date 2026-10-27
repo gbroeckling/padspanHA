@@ -49,10 +49,14 @@ Three-stage pipeline applied each poll cycle:
     exceeds 0.30, the fingerprint result replaces the candidate.
 
   Stage 2 — Majority-vote window
-    At each poll, the candidate room (from Stage 1.5 or k-NN) is added to
-    a rolling window of VOTE_WINDOW (5) entries.  The confirmed room only changes
-    when one room appears ≥ VOTE_THRESHOLD (3) times in the window.
-    At 10 s/poll this means a room switch requires ~30 s of consistent dominance.
+    At each poll, the candidate room (from Stage 1.5 or k-NN) is added to a
+    rolling window sized from Room Change Delay (room_change_delay_s, default
+    20 s) over the poll interval (presence_poll_interval_s, default 5 s): 20 s
+    at 5 s is a window of 4, and a room needs a simple majority (3) to win.
+    A delay of 0 is a window of 1 — the first poll that agrees switches.
+    _VOTE_WINDOW (5) / _VOTE_THRESHOLD (3) are only the fallback if that
+    sizing fails. Stricter gates (indoor↔outdoor, distant rooms, a short
+    dwell) can still ask for every vote in the window.
 
     The vote window is cleared when a device re-appears after being away, preventing
     stale votes from the previous location from influencing re-entry assignment.
@@ -116,7 +120,7 @@ from .perf_sampler import record_duration
 from .presence_rules import below_floor as _below_floor
 from .telemetry import enabled as _telemetry_on
 from .presence_rules import (
-    indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor,
+    indoor_coverage_floor, is_outdoor_floor, modelled_coverage_floor, room_change_delay_s,
     coverage_evidence, coverage_window_polls, outdoor_attribution,
     outside_by_coverage, away_timeout_s, is_away,
 )
@@ -250,7 +254,6 @@ def is_background_object(obj: dict, pinned: Any, followed: set[str]) -> bool:
 # agreement regardless of timing.  This catches slow-drift teleportation where
 # a device creeps across the building over 30+ seconds without passing through
 # intermediate rooms.
-_VG_RAPID_COOLDOWN_S: float = 15.0    # seconds after a room change during which the next change is gated
 _VG_ADJACENT_THRESHOLD: float = 0.30  # normalised centroid distance — rooms within this are "adjacent"
 _VG_ADJACENT_THRESHOLD_M: float = 8.0  # metres — Phase 2 real-world adjacency threshold
 _ADJACENCY_SIGMOID_MID_M: float = 8.0  # metres — Phase 2 adjacency prior sigmoid midpoint
@@ -267,7 +270,6 @@ _ISOLATED_SCANNER_STRONG_DBM: float = -65.0  # RSSI above this = strong enough t
 # Used as a weight multiplier on each scanner's Gaussian score.
 _RELIABILITY_WINDOW: int = 30         # rolling window size (polls)
 _RELIABILITY_MIN_POLLS: int = 6       # min observations before weight differs from 1.0
-_RELIABILITY_FLOOR: float = 0.15      # minimum weight — never zero-out a scanner entirely
 
 # ── k-NN live fingerprint gating ─────────────────────────────────────────────
 # Minimum calibration points before k-NN is consulted for live room assignment.
@@ -904,7 +906,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # ── Per-scanner reliability (Phase 3) ─────────────────────────────────
         # {source: deque of bools} — True = scanner agreed with consensus this poll
         self._scanner_agree: dict[str, deque] = {}
-        # {source: float} — cached reliability weight ∈ [_RELIABILITY_FLOOR, 1.0]
+        # {source: float} — cached reliability weight ∈ [0.5, 1.0]
         self._scanner_reliability: dict[str, float] = {}
 
         # ── Adjacency co-visibility learning (Phase 1) ────────────────────────
@@ -1443,7 +1445,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # poll → window=2, threshold=2 (must win 2 of last 2 polls).
         try:
             _st2 = self.hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-            _delay_s = float(((_st2.data if _st2 else {}).get("room_change_delay_s") or 20.0))
+            _delay_s = room_change_delay_s(_st2.data if _st2 else {})
             _delay_s = max(0.0, min(300.0, _delay_s))
             _dyn_vote_window = max(1, round(_delay_s / self.update_interval.total_seconds()))
             _dyn_vote_threshold = _dyn_vote_window // 2 + 1
@@ -2847,7 +2849,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # so outdoor devices aren't forced indoors on initial detection.
                 _cur_confirmed = self._confirmed_room.get(key)
                 _cur_floor_id = _room_to_floor.get(_cur_confirmed, "") if _cur_confirmed else ""
-                if _cur_confirmed and _cur_floor_id != OUTSIDE_FLOOR_ID and _room_to_floor.get(_room) == OUTSIDE_FLOOR_ID:
+                if _cur_confirmed and not is_outdoor_floor(_cur_floor_id) and is_outdoor_floor(_room_to_floor.get(_room)):
                     _eff_rssi -= 15.0
                 # Keep best per room
                 if _room not in room_scores or _eff_rssi > room_scores[_room]:
@@ -2871,7 +2873,7 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _best_fl = _room_to_floor.get(_best_room, "")
                     _cur_fl = _room_to_floor.get(_cur_confirmed, "")
                     if _best_fl and _cur_fl and _best_fl != _cur_fl:
-                        if OUTSIDE_FLOOR_ID in {_best_fl, _cur_fl}:
+                        if is_outdoor_floor(_best_fl) or is_outdoor_floor(_cur_fl):
                             _hyst = 8.0  # indoor↔outdoor
                         else:
                             _hyst = 5.0  # cross-floor
@@ -3297,8 +3299,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         _conf_fl = _room_to_floor.get(confirmed, "")
                         _top_fl = _room_to_floor.get(top_room, "")
                         if _conf_fl and _top_fl:
-                            _conf_outside = _conf_fl == OUTSIDE_FLOOR_ID
-                            _top_outside = _top_fl == OUTSIDE_FLOOR_ID
+                            _conf_outside = is_outdoor_floor(_conf_fl)
+                            _top_outside = is_outdoor_floor(_top_fl)
                             if _conf_outside != _top_outside:
                                 _is_outdoor_cross = True
 
@@ -3314,7 +3316,9 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if _is_outdoor_cross:
                             _required = len(votes) if not _spatial_confirms_new else vote_threshold
                         elif _is_cross_floor and _dwell < 60.0:
-                            _required = len(votes) if not _spatial_confirms_new else vote_threshold + 1
+                            # Never more votes than the window holds: with a short Room Change
+                            # Delay (one vote) a confirmed move would wait out the minute.
+                            _required = len(votes) if not _spatial_confirms_new else min(len(votes), vote_threshold + 1)
                         elif _is_rapid or _is_distant:
                             _required = len(votes) if not _spatial_confirms_new else vote_threshold
                         elif _is_cross_floor and _dwell < 120.0:
@@ -3384,7 +3388,8 @@ class PresenceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _agree_rate = sum(_q) / len(_q)
                     _disagree = 1.0 - _agree_rate
                     _w = 1.0 / (1.0 + _disagree)
-                    self._scanner_reliability[_src] = max(_RELIABILITY_FLOOR, round(_w, 3))
+                    # 1 / (1 + disagreement) lies in [0.5, 1]: a scanner is never zeroed out.
+                    self._scanner_reliability[_src] = round(_w, 3)
                 else:
                     self._scanner_reliability[_src] = 1.0
 

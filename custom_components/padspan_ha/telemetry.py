@@ -345,6 +345,34 @@ def install_age_word(first_seen_ts: Any, now_ts: float) -> str | None:
     return "gt90d"
 
 
+# Room timing that is not the default, and a Home Assistant floor the outdoor
+# rules now count as outside (0.38.182: a delay of 0 means 0, the outdoor rules
+# read is_outdoor_floor). Sent only where one of them applies.
+PRESENCE_CFG_WORDS: dict[str, tuple[str, ...]] = {
+    "poll": ("1_4", "6_9", "10", "11_60"),
+    "delay": ("0", "1_19", "21_60", "gt60"),
+    "outdoor": ("ha",),
+}
+
+
+def presence_cfg_words(settings: dict, ha_floor_ids: Any = ()) -> dict[str, str]:
+    from .presence_rules import is_outdoor_floor, room_change_delay_s  # noqa: PLC0415
+    from .const import OUTSIDE_FLOOR_ID  # noqa: PLC0415
+    out: dict[str, str] = {}
+    try:
+        poll = int(settings.get("presence_poll_interval_s") or 5)
+    except (TypeError, ValueError):
+        poll = 5
+    if poll != 5:
+        out["poll"] = "1_4" if poll < 5 else "6_9" if poll < 10 else "10" if poll == 10 else "11_60"
+    d = room_change_delay_s(settings)
+    if d != 20.0:
+        out["delay"] = "0" if d == 0 else "1_19" if d < 20 else "21_60" if d <= 60 else "gt60"
+    if any(f != OUTSIDE_FLOOR_ID and is_outdoor_floor(f) for f in (ha_floor_ids or ())):
+        out["outdoor"] = "ha"
+    return out
+
+
 # The day's proxy_rate_drop count, as one of these instead of the number.
 PROXY_DROP_BUCKETS: tuple[str, ...] = ("1", "2_5", "gt5")
 PROXY_DROP_EVENTS: frozenset[str] = frozenset(f"proxy_rate_drops:{b}" for b in PROXY_DROP_BUCKETS)
@@ -1781,6 +1809,18 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             env["guest"] = _gb
     except Exception:
         pass
+    # Room timing off the default, and a registry floor named outside (presence_cfg_words).
+    try:
+        try:
+            from homeassistant.helpers import floor_registry as _fr  # noqa: PLC0415
+            _fids = [f.floor_id for f in _fr.async_get(hass).async_list_floors()]
+        except Exception:
+            _fids = []
+        _pc = presence_cfg_words(settings, _fids)
+        if _pc:
+            env["presence_cfg"] = _pc
+    except Exception:
+        pass
     # Vacation Mode (vacation_mode.report_buckets), only where it was used.
     try:
         from .vacation_mode import _VM_LOG, report_buckets as _vac_buckets  # noqa: PLC0415
@@ -2125,6 +2165,10 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         gst = env["guest"]
         if not isinstance(gst, dict) or not all(k in _GW and v in _GW[k] for k, v in gst.items()):
             raise ValueError("env.guest not in the vocabulary")
+    if isinstance(env, dict) and "presence_cfg" in env:
+        pc = env["presence_cfg"]
+        if not isinstance(pc, dict) or not all(k in PRESENCE_CFG_WORDS and v in PRESENCE_CFG_WORDS[k] for k, v in pc.items()):
+            raise ValueError("env.presence_cfg not in the vocabulary")
     if isinstance(env, dict) and "vacation" in env:
         from .vacation_mode import REPORT_WORDS as _VW  # noqa: PLC0415
         vac = env["vacation"]

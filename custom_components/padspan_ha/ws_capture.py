@@ -93,7 +93,8 @@ async def ws_capture_start(hass: HomeAssistant, connection, msg) -> None:
     # same derivation here keeps the header honest on frame zero; a mid-session
     # change to either input still surfaces as a per-frame vw/vt override.
     poll_s = coord.update_interval.total_seconds() if coord.update_interval else 5.0
-    delay_s = max(0.0, min(300.0, float(_get_settings(hass).get("room_change_delay_s") or 20.0)))
+    from .presence_rules import room_change_delay_s  # noqa: PLC0415
+    delay_s = room_change_delay_s(_get_settings(hass))
     vote_window = max(1, round(delay_s / max(1.0, poll_s)))
 
     hdr = build_header(

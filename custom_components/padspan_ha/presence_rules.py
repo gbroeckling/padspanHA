@@ -208,6 +208,18 @@ def coverage_window_polls(poll_interval_s: float | None) -> int:
 COVERAGE_WINDOW_POLLS = 6
 
 
+def room_change_delay_s(settings: dict[str, Any]) -> float:
+    """Room Change Delay in seconds, 0-300. Unset is the default 20 s; 0 is
+    0 — "switch on the first poll that agrees", as the panel says. It used to
+    read `or 20.0`, so a delay of 0 still waited 20 s."""
+    v = (settings or {}).get("room_change_delay_s")
+    try:
+        d = 20.0 if v is None or v == "" else float(v)
+    except (TypeError, ValueError):
+        d = 20.0
+    return max(0.0, min(300.0, d))
+
+
 def is_outdoor_floor(floor_id: Any) -> bool:
     """Whether a floor id names the outdoors — the fabric sentinel or a
     registry floor called outside/garden/yard/…, one list in const."""

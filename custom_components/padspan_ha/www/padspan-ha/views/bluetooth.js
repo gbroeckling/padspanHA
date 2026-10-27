@@ -1801,7 +1801,7 @@ function renderVisualization(ctx, radios, ads, objIndex) {
 // Static array of optimized ESPHome YAML configurations for each ESP32 variant.
 // Each entry has: full standalone YAML, a "minimal" snippet for adding to existing
 // configs, chip/connection metadata, and human-readable notes.
-// Ordered by recommendation: S3 Ethernet (best) → C6 WiFi → S3 WiFi → Minimal → C3 (worst).
+// Ordered by recommendation: S3 Ethernet (best) → C6 WiFi → S3 WiFi → Minimal → C3 (budget, with an external antenna).
 
 const ESPHOME_CONFIGS = [
   {
@@ -2204,9 +2204,9 @@ text_sensor:
     id: "c3_wifi",
     chip: "ESP32-C3",
     connection: "WiFi",
-    badge: "Not recommended",
-    badgeColor: "#ef4444",
-    description: "Single-core RISC-V. BLE and WiFi share the same core and radio — scan duty is low and real-world performance is worse than specs suggest. Use this config if you already own C3 boards, but buy S3 or C6 for new scanners.",
+    badge: "Budget — with an external antenna",
+    badgeColor: "#f59e0b",
+    description: "Single-core RISC-V. BLE and WiFi share the same core and radio, so scan duty is lower than on an S3. With a full-size external antenna it still did room-level tracking well in testing (the third of the three boards that worked, see Training). The cheapest good choice; an S3 or C6 is better where you can.",
     notes: [
       "Scan duty ~31% nominal, but WiFi interruptions drop real duty to ~20-25%",
       "Single-core — BLE scanning blocks WiFi, causing missed advertisements",

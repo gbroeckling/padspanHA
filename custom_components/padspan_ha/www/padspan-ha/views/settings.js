@@ -946,7 +946,7 @@ function _settingsPresence(ctx, el){
 
   // ── Room change delay ──────────────────────────────────────────────────────
   const currentDelay = (settings.room_change_delay_s != null ? Number(settings.room_change_delay_s) : 20);
-  const _pollInt = (settings.presence_poll_interval_s != null ? Number(settings.presence_poll_interval_s) : 10);
+  const _pollInt = (settings.presence_poll_interval_s != null ? Number(settings.presence_poll_interval_s) : 5);
   const polls = Math.max(1, Math.round(currentDelay / _pollInt));
   const delayInp = el("input", {
     type: "number", min: "0", max: "300", step: "5", value: String(currentDelay), style: inpStyle,
@@ -973,7 +973,7 @@ function _settingsPresence(ctx, el){
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
       `Current: ${currentDelay}s → requires ~${polls} consecutive ${_pollInt}s poll${polls !== 1 ? "s" : ""} agreement. ` +
-      `Set to 0 for instant room switching.`
+      `Set to 0 to switch on the first poll that agrees (indoor↔outdoor and far-apart rooms still need the stricter checks).`
     ),
   ]));
 
@@ -1098,13 +1098,13 @@ function _settingsPresence(ctx, el){
   }
 
   // ── Presence Poll Interval ──────────────────────────────────────────────────
-  const currentPoll = (settings.presence_poll_interval_s != null ? Number(settings.presence_poll_interval_s) : 10);
+  const currentPoll = (settings.presence_poll_interval_s != null ? Number(settings.presence_poll_interval_s) : 5);
   const pollInp = el("input", {
     type: "number", min: "1", max: "60", step: "1", value: String(currentPoll), style: inpStyle,
   });
   const pollSaveBtn = el("button", { class: "btn" }, "Save");
   pollSaveBtn.addEventListener("click", async () => {
-    const v = Math.max(1, Math.min(60, parseInt(pollInp.value) || 10));
+    const v = Math.max(1, Math.min(60, parseInt(pollInp.value) || 5));
     try {
       await ctx.actions.settingsSet({ presence_poll_interval_s: v });
       ctx.toast(`Poll interval set to ${v}s`);
@@ -1124,8 +1124,13 @@ function _settingsPresence(ctx, el){
       pollSaveBtn,
     ]),
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
-      `Current: ${currentPoll}s. Default: 10s. Range: 1–60s.`
+      `Current: ${currentPoll}s. Default: 5s. Range: 1–60s.`
     ),
+    // Installs from before 0.21 kept the old 10 s default (it was never
+    // changed for them: 10 s may also be someone's choice). Say so, once.
+    currentPoll === 10 ? el("div", { class: "muted", style: "font-size:11px;margin-top:6px;color:#fbbf24" },
+      "10 s was the default before PadSpan 0.21. At 5 s a room change needs half the wait for the same Room Change Delay. " +
+      "Keep 10 s if you chose it for a slow machine.") : null,
   ]));
 
   // ── CPU Mode ───────────────────────────────────────────────────────────────
