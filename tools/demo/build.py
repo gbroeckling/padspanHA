@@ -66,6 +66,8 @@ def build(out: Path) -> Path:
                 f.write_bytes(raw.replace(b"/padspan_ha_static/", b"./padspan_ha_static/"))
     for name in DEMO_FILES:
         shutil.copy2(HERE / name, out / name)
+    if (HERE / "media").is_dir():  # pictures the guides show, served from /demo/media/
+        shutil.copytree(HERE / "media", out / "media")
     stamp = hashlib.sha1(b"".join((HERE / n).read_bytes() for n in ("fake_hass.js", "fixture.js", "estate.js"))).hexdigest()[:10]
     for name, old in (("index.html", 'import("./fake_hass.js")'), ("fake_hass.js", 'from "./fixture.js"'),
                       ("fake_hass.js", 'from "./estate.js"')):
