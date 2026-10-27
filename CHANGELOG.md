@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.179 — Guest tags: the guest-home sensor appears when you turn them on (2026-10-26)
+
+### Fixed
+- **Turning guest tags on while Home Assistant runs now adds `binary_sensor.padspan_guest_home` straight away.** In 0.38.178 the sensor was added from a background thread, which Home Assistant refuses, so it only appeared after a restart. Checked on a real Home Assistant: guest tags refuse changes while off, only an administrator can turn them on, the sensor appears at once, Optimize for scale sends the slim update only while it is on, and nothing lands in Home Assistant's log.
+
+---
+
 ## 0.38.178 — Guest tags, and walls that scale (2026-10-26)
 
 Both are off until you turn them on.
