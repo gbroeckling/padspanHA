@@ -163,8 +163,8 @@
    "de": "Sieh dir den Rundgang an"
   },
   {
-   "en": "Or try it yourself, in your browser, on a made-up house: <a class=\"btn primary\" href=\"demo/\">Open the live demo</a>",
-   "de": "Oder probier es selbst aus, im Browser, an einem erfundenen Haus (die Demo ist auf Englisch): <a class=\"btn primary\" href=\"demo/\">Live-Demo öffnen</a>"
+   "en": "Or try it yourself, in your browser, on a sample house: <a class=\"btn primary\" href=\"demo/\">Open the live demo</a>",
+   "de": "Oder probier es selbst aus, im Browser, an einem Beispielhaus (die Demo ist auf Englisch): <a class=\"btn primary\" href=\"demo/\">Live-Demo öffnen</a>"
   },
   {
    "en": "Feature Highlights",
