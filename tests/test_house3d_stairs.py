@@ -12,9 +12,9 @@ from types import SimpleNamespace
 
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_house3d_stairs as S
-from custom_components.padspan_ha.const import DATA_MODEL, DATA_SETTINGS, DOMAIN
+from custom_components.padspan_ha.const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from tests.test_house3d_edit import disk  # noqa: F401  (the on-disk store fixture)
-from tests.test_house3d_photo import _B64, _leftovers, _ready
+from tests.test_house3d_photo import _leftovers, _ready
 from tests.test_house3d_store import _run
 
 # A plan 10 m × 8 m, 1000 × 800 pixels, unturned: 1 px = 1 cm, (0, 0) at the corner.
@@ -66,7 +66,7 @@ def test_answers_that_are_not_boxes():
 def _read(h, conn, **kw):
     conn.send_result.reset_mock()
     conn.send_error.reset_mock()
-    msg = {"id": 7, "type": "padspan_ha/house3d_stairs_read", "map_id": "m1", "image": _B64, "width": _W, "height": _H, **kw}
+    msg = {"id": 7, "type": "padspan_ha/house3d_stairs_read", "map_id": "m1", **kw}
     _run(S.ws_house3d_stairs_read(h, conn, msg))
     if conn.send_error.called:
         return {"error": conn.send_error.call_args[0][1]}
@@ -74,25 +74,45 @@ def _read(h, conn, **kw):
 
 
 def _stairs_ready(monkeypatch, tmp_path, answer):
+    from PIL import Image
     h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=answer)
     h.data[DOMAIN][DATA_SETTINGS].data["ai_stairs_enabled"] = True
     h.data[DOMAIN][DATA_MODEL] = SimpleNamespace(map_frac_to_metres=lambda fx, fy, mid: _to_m(fx, fy) if mid == "m1" else None)
+    # A 2000 × 1600 plan on disk: sent at 1024 × 819, and the boxes read in those pixels.
+    plan = tmp_path / "plan.png"
+    Image.new("RGB", (2000, 1600), "white").save(plan)
+    maps = [{"id": "m1", "name": "Main", "floor_id": "main", "image": {"filename": "plan.png"}},
+            {"id": "m2", "name": "Not placed", "floor_id": "main", "image": {"filename": "plan.png"}}]
+    h.data[DOMAIN][DATA_MAPS] = SimpleNamespace(
+        list_maps=lambda: maps, get_map=lambda mid: next((m for m in maps if m["id"] == mid), None),
+        image_file=lambda fn, must_exist: plan if fn == "plan.png" else None)
     return h, conn, ai, media
 
 
 def test_the_command_reads_one_plan_and_keeps_nothing(monkeypatch, tmp_path, disk):
-    ans = json.dumps([{"bbox_2d": [100, 200, 200, 600], "says": "UP", "up": "top"}])
+    ans = json.dumps([{"bbox_2d": [102, 164, 205, 492], "says": "UP", "up": "top"}])
     h, conn, ai, media = _stairs_ready(monkeypatch, tmp_path, ans)
     out = _read(h, conn)
-    assert out["ok"] and len(out["stairs"]) == 1 and out["stairs"][0]["depth_m"] == 4.0
+    assert out["ok"] and len(out["stairs"]) == 1 and abs(out["stairs"][0]["depth_m"] - 3.2) < 0.02
     (_, _, data), = ai.calls
-    assert "structure" not in data and "1000 by 800 pixels" in data["instructions"]
+    assert "structure" not in data and "1024 by 819 pixels" in data["instructions"]
+    sent = ai.seen[0][1]
+    assert sent[:3] == bytes.fromhex("ffd8ff")                 # a JPEG, made smaller here
     assert data["task_name"] == "PadSpan Live Aboard stairs"
     assert _leftovers(media) == [] and disk.writes == []
 
 
+def test_the_plans_to_read_are_the_placed_ones(monkeypatch, tmp_path, disk):
+    h, conn, ai, media = _stairs_ready(monkeypatch, tmp_path, "[]")
+    conn.send_result.reset_mock()
+    _run(S.ws_house3d_stairs_plans(h, conn, {"id": 3, "type": "padspan_ha/house3d_stairs_plans"}))
+    out = conn.send_result.call_args[0][1]
+    assert out == {"plans": [{"map_id": "m1", "name": "Main", "floor_id": "main"}], "ai_ready": True, "message": ""}
+
+
 def test_the_gates(monkeypatch, tmp_path, disk):
     h, conn, ai, media = _stairs_ready(monkeypatch, tmp_path, "[]")
+    assert _read(h, conn, map_id="m2") == {"error": S.NOT_PLACED_CODE}
     assert _read(h, conn, map_id="other") == {"error": S.NOT_PLACED_CODE}
     h.data[DOMAIN][DATA_SETTINGS].data["ai_stairs_enabled"] = False
     assert _read(h, conn) == {"error": S.STAIRS_OFF_CODE}
@@ -119,4 +139,4 @@ def test_each_outcome_is_counted_by_name_only(monkeypatch, tmp_path, disk):
     src = inspect.getsource(S)
     for e in T.STAIR_EVENTS:
         assert f'"{e}"' in src and T.event_allowed(e), e
-    assert S.WS_COMMANDS == (S.ws_house3d_stairs_read,)
+    assert S.WS_COMMANDS == (S.ws_house3d_stairs_plans, S.ws_house3d_stairs_read)

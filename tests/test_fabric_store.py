@@ -461,8 +461,11 @@ def test_nothing_converts_photo_coordinates_into_data() -> None:
     # one is a conversion BETWEEN two pictures, and the only honest bridge is
     # the metres both of them are placed in — the two static helpers it used
     # instead were a fourth copy of the renderer's affine.
+    # ws_house3d_stairs.py (0.38.188): stairs the AI Task found on a plan come
+    # back as a first guess in metres through the plan's own placement, never
+    # stored by it: the Furnish tab adds them unsaved, and Save keeps metres.
     allowed = {"migrations.py", "model_store.py", "fabric_truth.py",
-               "calibration_store.py", "ws_maps.py"}
+               "calibration_store.py", "ws_maps.py", "ws_house3d_stairs.py"}
     for path in src.glob("*.py"):
         text = path.read_text(encoding="utf-8")
         if path.name not in allowed:

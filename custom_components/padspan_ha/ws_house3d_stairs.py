@@ -5,9 +5,10 @@
 """Stairs read off a floor plan by the customer's own AI Task (Settings → AI →
 Stairs from your floor plans, off by default; 0.38.188).
 
-One command, house3d_stairs_read: the browser sends one placed floor plan,
-made smaller (at most 1024 px, a JPEG, as the photo step does), with its size
-in pixels. The AI Task is asked for the staircases on it as boxes in those
+Two commands. house3d_stairs_plans: the placed floor plans there are to
+read (id, name, floor). house3d_stairs_read: one of them, read here from its
+file and made smaller (at most 1024 px, a JPEG, as the photo step's browser
+does), so the 3D view never handles a plan or the maps list. The AI Task is asked for the staircases on it as boxes in those
 pixels: Qwen2.5-VL and its kind locate things in pixels, and a test on real
 plans (2026-10-27, qwen2.5vl:7b) put 3 of 4 staircases in the right place that
 way, against 1 of 2 when asked for percentages. Each box goes through the
@@ -34,7 +35,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN
+from .const import DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .house3d_store import enabled
 from .ws_common import _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
@@ -172,6 +173,54 @@ def stairs_from_answer(answer: Any, w: int, h: int, to_metres) -> list[dict[str,
     return out
 
 
+SHRINK_PX = 1024                    # the plan is sent at most this big on its long side
+
+
+def shrink(path) -> tuple[bytes, int, int]:
+    """A plan's image as a JPEG at most SHRINK_PX on its long side, and its
+    size. Pillow ships with Home Assistant. Runs in the executor."""
+    from PIL import Image  # noqa: PLC0415
+    import io  # noqa: PLC0415
+    with Image.open(path) as im:
+        im = im.convert("RGB")
+        im.thumbnail((SHRINK_PX, SHRINK_PX))
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=88)
+        return buf.getvalue(), im.size[0], im.size[1]
+
+
+def _plans(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """The floor plans that can be read: placed on their floor, with an image."""
+    maps = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
+    model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    if maps is None or model is None:
+        return []
+    out = []
+    for m in maps.list_maps():
+        mid = str(m.get("id") or "")
+        if not mid or not (m.get("image") or {}).get("filename"):
+            continue
+        if model.map_frac_to_metres(0.5, 0.5, mid) is None:
+            continue
+        out.append({"map_id": mid, "name": str(m.get("name") or "")[:80], "floor_id": str(m.get("floor_id") or "")})
+    return out
+
+
+def _refused(hass: HomeAssistant, connection, msg) -> dict | None:
+    """The gates both commands share; the AI Task when they pass."""
+    if not enabled(hass):
+        connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
+        return None
+    if not _tier_at_least(hass, "pro"):
+        connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
+        return None
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if ((st.data if st else {}) or {}).get("ai_stairs_enabled") is not True:
+        connection.send_error(msg["id"], STAIRS_OFF_CODE, STAIRS_OFF_MESSAGE)
+        return None
+    return P.ai_task(hass)
+
+
 def _bump(hass: HomeAssistant, event: str) -> None:
     try:
         from .telemetry import bump  # noqa: PLC0415
@@ -180,43 +229,50 @@ def _bump(hass: HomeAssistant, event: str) -> None:
         pass
 
 
+@websocket_api.websocket_command({"type": "padspan_ha/house3d_stairs_plans"})
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_house3d_stairs_plans(hass: HomeAssistant, connection, msg) -> None:
+    """The placed floor plans there are to read: [{map_id, name, floor_id}]."""
+    ai = _refused(hass, connection, msg)
+    if ai is None:
+        return
+    connection.send_result(msg["id"], {"plans": _plans(hass), "ai_ready": bool(ai.get("ready")),
+                                       "message": "" if ai.get("ready") else ai.get("message", "")})
+
+
 @websocket_api.websocket_command({
     "type": "padspan_ha/house3d_stairs_read",
     vol.Required("map_id"): str,
-    vol.Required("image"): str,
-    vol.Required("width"): vol.All(int, vol.Range(min=32, max=4096)),
-    vol.Required("height"): vol.All(int, vol.Range(min=32, max=4096)),
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
 async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
     """One floor plan's stairs, read by the chosen AI Task. Stores nothing."""
-    if not enabled(hass):
-        connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
+    ai = _refused(hass, connection, msg)
+    if ai is None:
         return
-    if not _tier_at_least(hass, "pro"):
-        connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
-        return
-    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    if ((st.data if st else {}) or {}).get("ai_stairs_enabled") is not True:
-        connection.send_error(msg["id"], STAIRS_OFF_CODE, STAIRS_OFF_MESSAGE)
-        return
-    ai = P.ai_task(hass)
     if not ai["ready"]:
         _bump(hass, "stair_read:no_ai_task")
         connection.send_error(msg["id"], P.NO_AI_CODE, ai["message"])
         return
     model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    maps = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     map_id = msg["map_id"]
-    if model is None or model.map_frac_to_metres(0.5, 0.5, map_id) is None:
+    m = maps.get_map(map_id) if maps is not None else None
+    if model is None or m is None or model.map_frac_to_metres(0.5, 0.5, map_id) is None:
         connection.send_error(msg["id"], NOT_PLACED_CODE, "That floor plan isn't placed on its floor yet.")
         return
+    fp = await hass.async_add_executor_job(
+        lambda: maps.image_file(str((m.get("image") or {}).get("filename") or ""), must_exist=True))
     try:
-        raw, mime = P.decode(msg["image"])
-    except P.PhotoError as err:
-        connection.send_error(msg["id"], err.code, str(err))
+        if fp is None:
+            raise OSError("no image")
+        raw, w, h = await hass.async_add_executor_job(shrink, fp)
+    except Exception:  # noqa: BLE001 — a missing or unreadable picture is one answer
+        connection.send_error(msg["id"], "bad_photo", "That floor plan's picture couldn't be read.")
         return
-    w, h = msg["width"], msg["height"]
+    mime = "image/jpeg"
     t0 = time.monotonic()
     try:
         answer = await P.ask(hass, ai["ai_task"], PROMPT.format(w=w, h=h), None, raw, mime,
@@ -242,4 +298,4 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
                                        "ai_task": ai["ai_task"]})
 
 
-WS_COMMANDS = (ws_house3d_stairs_read,)
+WS_COMMANDS = (ws_house3d_stairs_plans, ws_house3d_stairs_read)

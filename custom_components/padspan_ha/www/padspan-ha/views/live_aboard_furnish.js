@@ -838,8 +838,8 @@ export function createFurnish(ctx){
     }
     return out;
   }
-  /** Settings → AI: each placed floor plan (made smaller here, as a photo is)
-   *  read by the AI Task for its stairs (ws_house3d_stairs.py), put on the
+  /** Settings → AI: each placed floor plan read by the AI Task for its
+   *  stairs (ws_house3d_stairs.py: the server reads and sends the plan), put on the
    *  floor it climbs from (an upper plan's DOWN flight belongs to the floor
    *  below), finds of one staircase on two plans kept once, none where stairs
    *  already stand. Added unsaved, squared to their rooms. */
@@ -850,18 +850,17 @@ export function createFurnish(ctx){
     if (!call || !ctx.STOREY) return;
     reading = true;
     try {
-      const ml = await call({ type: "padspan_ha/maps_list" });
-      const maps = Array.isArray(ml && ml.maps) ? ml.maps : [], urls = (ml && ml.image_urls) || {};
+      const pl = await call({ type: "padspan_ha/house3d_stairs_plans" });
+      if (pl && pl.ai_ready === false) { ctx.hint(String(pl.message || "Pick an AI Task in Settings → AI first."), true); return; }
       const floors = floorList(), canon = (fid) => (ctx.canon ? ctx.canon(fid) : String(fid));
-      const plans = maps.filter(m => m && urls[m.id] && floors.some(f => f.id === canon(m.floor_id) && !f.outdoor));
+      const plans = (Array.isArray(pl && pl.plans) ? pl.plans : []).filter(m => floors.some(f => f.id === canon(m.floor_id) && !f.outdoor));
       if (!plans.length) { ctx.hint("No placed floor plans to read: add one in Mapping first.", true); return; }
       const found = [];
       let i = 0, failed = 0;
       for (const m of plans) {
         ctx.hint(`Reading the stairs off ${m.name || "a plan"} (${++i} of ${plans.length})… a local AI can take a minute.`);
         try {
-          const img = await shrinkImage(urls[m.id], 1024);
-          const r = await call({ type: "padspan_ha/house3d_stairs_read", map_id: m.id, image: img.data, width: img.w, height: img.h });
+          const r = await call({ type: "padspan_ha/house3d_stairs_read", map_id: m.map_id });
           if (r && r.ok) for (const st of r.stairs || []) found.push({ ...st, plan: canon(m.floor_id) });
           else failed++;
         } catch (e) {
@@ -899,19 +898,6 @@ export function createFurnish(ctx){
     } catch (e) {
       ctx.hint("Couldn't read the plans: " + String((e && (e.message || e.code)) || e), true);
     } finally { reading = false; }
-  }
-  /** An image made at most `max` px on its long side, as a JPEG: {data (base64), w, h}. */
-  async function shrinkImage(url, max){
-    const blob = await (await fetch(url, { credentials: "same-origin" })).blob();
-    const bmp = await createImageBitmap(blob);
-    const k = Math.min(1, max / Math.max(bmp.width, bmp.height)), w = Math.max(32, Math.round(bmp.width * k)), h = Math.max(32, Math.round(bmp.height * k));
-    const cv = document.createElement("canvas");
-    cv.width = w; cv.height = h;
-    const g = cv.getContext("2d");
-    g.fillStyle = "#ffffff"; g.fillRect(0, 0, w, h);
-    g.drawImage(bmp, 0, 0, w, h);
-    if (bmp.close) bmp.close();
-    return { data: cv.toDataURL("image/jpeg", 0.88).split(",")[1], w, h };
   }
   function tidyRecipe(q){
     const B = FURN();
