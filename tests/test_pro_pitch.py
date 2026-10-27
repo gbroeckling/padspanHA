@@ -1,8 +1,8 @@
 """Who gets told about the paid half, and what they are told.
 
-There are exactly two paid features, and most free installs have never seen
-either — the only place they are named is a refusal you hit by trying to use
-them. The what's-new card mentions them once per release.
+Most free installs have never seen the paid features — the only place they
+are named is a refusal you hit by trying to use them. The what's-new card
+mentions them once per release.
 
 The rule that cannot be checked by reading the card is the one that matters
 most: **a PadSpan Pro customer must never be pitched PadSpan Pro**, and a

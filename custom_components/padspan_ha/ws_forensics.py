@@ -390,7 +390,9 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
         await st.async_set(
             forensics_license_key=str(data.get("key") or ""),
             forensics_license_expires=str(data.get("expires_at") or ""),
-            license_tier=normalize_tier(data.get("tier"), default="bright"),
+            # The server issues trials as Pro (2026-10-27) and says so; a reply
+            # with no tier reads as Pro, licence.py's own rule for a bare key.
+            license_tier=normalize_tier(data.get("tier"), default="pro"),
             license_is_trial=True,
             # The usage report stays on until the trial ends (settings_store.report_locked_until).
             report_locked_key=licence_key_hash(str(data.get("key") or "")),

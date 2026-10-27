@@ -4331,8 +4331,8 @@ class PadSpanHaApp extends HTMLElement {
         try { _trialOffer = !!(TRIAL && TRIAL.trialOfferable(this.state.settings)); } catch(e) { /* no offer */ }
         if (TRIAL && (_trialOffer || this.state._gettingStartedTrialOpen)) {
           const row = el("div",{"data-getting-started":"step-trial",style:"display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;margin-top:2px;border-top:1px solid #1a4228"});
-          row.appendChild(el("span",{style:"font-size:14px"}, "💡"));
-          row.appendChild(el("span",{style:"color:#8ee5b4"}, "See your lights on your floor plan — 90-day free trial, no card"));
+          row.appendChild(el("span",{style:"font-size:14px"}, "✨"));
+          row.appendChild(el("span",{style:"color:#8ee5b4"}, "Try all of PadSpan Pro on your house — 90 days free, no card"));
           row.addEventListener("click", () => {
             this.state._gettingStartedTrialOpen = !this.state._gettingStartedTrialOpen;
             if (this.state._gettingStartedTrialOpen) this._telemetryEvent("getting_started_step:trial");

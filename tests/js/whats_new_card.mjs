@@ -242,7 +242,8 @@ t("update banner: a missing or throwing trial module costs only the line", () =>
   }
 });
 t("update banner: the trial line is news once — later banners have the Pro pitch as before", () => {
-  for (const seen of ["0.38.87", "0.38.88", "1.0.0"]) {
+  // 0.38.186 made the trial all of Pro, and the banner says so once more.
+  for (const seen of ["0.38.186", "0.38.187", "1.0.0"]) {
     const { c, obj } = setup({ ...FREE, whatsnew_seen_version: seen });
     const out = obj._whatsNewCard.call(c);
     assert(out && !q(out, "[data-trial-line]"), "the trial line again in the banner from " + seen);

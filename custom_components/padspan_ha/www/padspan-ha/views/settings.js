@@ -16,7 +16,7 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
-const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, proLifetimeLaunch, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
+const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
@@ -3082,7 +3082,10 @@ function _tiersWizardFree(ctx, w, isBright){
       ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."
       : "This install is PadSpan HA. Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.6"},
-    "A key only ever unlocks two things beyond that: Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), and light placement (fixture shapes and sizes, WLED, Showcase, Fit room). The free tier above is not a trial of anything — it stays free whether or not you ever add a key. If you want to try it on your own house first, a one-time 90-day free trial of PadSpan Pro is available below — no card, and nothing is taken away when it ends, editing just returns to the free view."));
+    (isBright
+      ? "A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more."
+      : "A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), the 3D house (Live Aboard), the wall screen, Locate, Busy Times and more.")
+    + " The free tier above is not a trial of anything — it stays free whether or not you ever add a key. To try PadSpan Pro on your own house first, a one-time 90-day free trial is available below, no card. When it ends, nothing you set up is deleted, and it all comes back as you left it when you buy."));
   wrap.appendChild(_tiersWizardFooter(ctx, w));
   return wrap;
 }
@@ -3106,9 +3109,9 @@ function _tiersWizardLadder(ctx, w, isBright){
       "Want presence tracking too? That's a separate, full download — PadSpan HA — not an upgrade of this one."));
   } else {
     wrap.appendChild(row("PadSpan HA (free)", null,
-      "Presence tracking and everything else in this app except the two paid features below. No key, no time limit."));
+      "Presence tracking and everything else in this app except the paid features below. No key, no time limit."));
     wrap.appendChild(row("PadSpan Pro", PRO_PRICE,
-      "Adds Forensics and light placement (fixture shapes and sizes, WLED, Showcase, Fit room) to this install."));
+      "Adds light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house, the wall screen, Forensics, Locate and Busy Times to this install."));
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:6px;line-height:1.5"},
       "Only want lighting, not presence tracking? PadSpan Bright is a lighter, separate download built for exactly that."));
   }
@@ -3321,23 +3324,26 @@ function _settingsLicence(ctx, el){
   // Status — the backend's own answer, never re-derived here.
   let line, colour;
   if (!hasKey) {
-    line = "No licence key on this install. Forensics and light placement are locked. " +
+    line = "No licence key on this install. " + (edition === "PadSpan Bright"
+             ? "Light placement, the 3D house and the wall screen are locked. "
+             : "The paid features are locked: light placement, Forensics, the 3D house, the wall screen, Locate and Busy Times. ") +
            "Everything else is free and stays free.";
     colour = "#94a3b8";
   } else if (lapsed) {
     line = "\u26A0 " + (isTrial ? "Your 90-day trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
-           " \u2014 paid editing is off. Everything you already built is still here, still readable and still exportable.";
+           " \u2014 light placement is read-only and the 3D house" +
+           (edition === "PadSpan Bright" ? " and the wall screen" : ", the wall screen, Locate and Busy Times") +
+           " are off. Nothing you set up is deleted: it all comes back as you left it when you " + (isTrial ? "buy." : "renew.");
     colour = "#fbbf24";
   } else if (typeof daysLeft === "number" && daysLeft < 0) {
     // Expired but inside the grace period: still working, not for long.
     const graceLeft = Math.max(1, 14 + daysLeft);   // days_left rounds down; the last day is still a day
     line = "\u26A0 " + (isTrial ? "Your trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
-           " \u2014 paid editing stops in " + graceLeft + " day" + (graceLeft === 1 ? "" : "s") + ".";
+           " \u2014 light placement goes read-only and the 3D house and the wall screen switch off in " + graceLeft + " day" + (graceLeft === 1 ? "" : "s") + ".";
     colour = "#fbbf24";
   } else if (isTrial) {
     line = "\u2713 Trial active \u00B7 " + daysLeft + " day" + (daysLeft === 1 ? "" : "s") + " left" +
-           (exp ? " (" + exp + ")" : "") + ". Buy anytime to keep editing after it ends \u2014 nothing is lost either way." +
-           (proLifetimeLaunch() ? " PadSpan Pro for life is at its launch price until November 30." : "");
+           (exp ? " (" + exp + ")" : "") + ". Buy any time to keep Pro after it ends \u2014 nothing you set up is lost either way.";
     colour = expiringSoon ? "#fbbf24" : "#8ee5b4";
   } else if (expiringSoon) {
     line = "\u2713 " + keyProd + " licensed \u00B7 renews in " + daysLeft +
@@ -3432,10 +3438,12 @@ function _settingsLicence(ctx, el){
   }
 
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.5" },
-    "One key unlocks both paid features: Forensics, and placing lights exactly where they hang " +
-    "(fixture shapes and sizes, WLED, Showcase, Fit room). A PadSpan Bright Pro key unlocks the " +
-    "lighting half only. The gate governs editing \u2014 a lapsed licence never removes or hides " +
-    "anything you already built."));
+    "A PadSpan Pro key unlocks the paid features, among them light placement (fixture shapes and sizes, " +
+    "WLED, Showcase, Fit room), " + (edition === "PadSpan Bright"
+      ? "the 3D house and the wall screen. "
+      : "Forensics, the 3D house, the wall screen, Locate and Busy Times. ") +
+    "A PadSpan Bright Pro key unlocks light placement only. A lapsed licence never deletes anything: " +
+    "what you set up comes back as you left it when you renew."));
   return card;
 }
 
@@ -3659,7 +3667,7 @@ function _settingsFeatures(ctx, el){
         // lighting product, and this card should not call it PadSpan Pro.
         const _prod = String(settings.license_tier || "").toLowerCase() === "bright" ? "PadSpan Bright Pro" : "PadSpan Pro";
         const line = lapsed
-          ? `⚠ ${_prod} licence expired${licExp ? ` on ${licExp}` : ""} — paid editing is off. Everything you already recorded is still here and still exportable.`
+          ? `⚠ ${_prod} licence expired${licExp ? ` on ${licExp}` : ""} — nothing you set up is deleted, and it comes back as you left it when you renew.`
           : expiringSoon
           ? `✓ ${_prod} licensed · renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}${licExp ? ` (${licExp})` : ""}`
           : `✓ ${_prod} licensed` + (licExp >= "2090" ? " · lifetime" : licExp ? ` · valid until ${licExp}` : "");
