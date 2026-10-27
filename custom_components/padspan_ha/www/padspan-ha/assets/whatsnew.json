@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.186",
+  "title": "The trial card, put right",
+  "date": "2026-10-27",
+  "body_markdown": "### Changed\n- **What happens when a trial or licence ends, said truthfully.** Light placement goes read-only, and the 3D house, the wall screen, Locate and Busy Times switch off until you buy or renew. Nothing you set up is deleted, and it all comes back as you left it. The trial card, the licence card, the tiers page and its help used to say only that editing stops.\n- **The launch price, plainly.** Once a trial has started, its card gives what Pro for life costs until November 30 and after, so it can't read as lasting the whole trial. The licence card leaves it to its own lifetime link.\n- **Every place that offers the trial says it is all of Pro**: the Getting started list too, and the update banner says it once, as news, to installs without a key. On a PadSpan Bright build the trial card leaves out Forensics, which a Bright build doesn't show.\n- **The paid features are named properly.** The licence card, the tiers page and its help list light placement, the 3D house, the wall screen, Forensics, Locate and Busy Times among them, and the update banner's Pro pitch names the 3D house and the wall screen too. They used to say a key unlocks two things. On a Bright build the licence card and the tiers page name only what a Bright build shows."
+ },
+ {
   "version": "0.38.185",
   "title": "The free trial is all of PadSpan Pro",
   "date": "2026-10-27",
@@ -76,11 +82,5 @@
   "title": "How new installs get on",
   "date": "2026-10-26",
   "body_markdown": "Nothing changes in the panel for anyone.\n\n### Opt-in report\n- **How old the install is, as a range** (under a day, 1-7 days, 8-30, 31-90, over 90). With it the developer can tell a brand-new install from one that has run for months and only just turned the report on. It is worked out from when PadSpan first saw the install, so an install older than 0.38.87 reads as first seen the day it updated past it.\n\n### Developer\n- **Install Base (Dev mode): a New installs section.** New installs by the week they first reported, how many were really new, still reporting, reached day 7 and day 30, and sent one report only; how far the last 30 days' new installs got with setup (map, rooms, receivers, calibrated); and the ones that went quiet, with where each stopped. The installs table gains first report and setup stage. The nightly summary has the same section."
- },
- {
-  "version": "0.38.172",
-  "title": "Vacation Mode options and a status entity",
-  "date": "2026-10-26",
-  "body_markdown": "Nothing changes until you set an option: an install that never opens Options runs Vacation Mode exactly as before.\n\n### New\n- **Vacation Mode options.** Open them from the banner's **Options** button, or with **Options** beside Apply while 🌴 Vacation Mode is picked in Whole house. These are the features the common away-lighting products have (Hue, Lutron, Kasa, Hubitat and others), on top of the routine PadSpan learns from your own house:\n  - **Only after dark**: lights go on only after sunset (or 30 minutes before it, or up to 2 hours after it) and before sunrise. Lights it would have turned on during the day stay off.\n  - **Ends**: set a date and time and it turns itself off then. You get a notification saying it ended as planned; the banner shows the end.\n  - **Pause while someone is home**: while anyone in Home Assistant's People is at home, nothing is switched, and nothing is forced off. It picks up again when they leave.\n  - **Bedtime**: every light it runs goes off from about that time until 5 am. The time moves up to 20 minutes either way each night, so the house doesn't go dark at the same minute every night.\n  - **Longest on**: a light it turned on goes off after 1 to 6 hours, and stays off as long.\n- **`binary_sensor.padspan_vacation_mode`**: on while Vacation Mode runs. Its attributes give when it started, when it ends, which routine it runs, the options, whether it's paused because someone is home, and who last turned it off. The **`padspan_ha_vacation_mode`** event fires on every change, with `on` and `how` (`panel`, `resumed`, `end_date`, `reset`, `paused_home`, `unpaused`), for your own automations (an alarm armed with it, a message of your own).\n- The options and the end date need an administrator account, like turning Vacation Mode on or off. A backup restore keeps the live end date.\n\n### Opt-in report\n- For installs that use Vacation Mode: which of the five options are on (yes/no), and \"ended on its end date\" as a way it went off. Counted: ended on its end date, paused because someone came home, and, once a day each, the after-dark, bedtime and longest-on rules holding a light off."
  }
 ]
