@@ -4,6 +4,16 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.180 — Free offers come with the usage report on (2026-10-27)
+
+### Changed
+- **The 90-day free trial and the free year of Pro need the opt-in usage report on.** The tester route already did. With the report off, the trial card adds a box, "Turn on the usage report (needed for the free trial)", with a line on what the report is. Ticking it turns the report on and starts the trial in the same step, and nothing is turned on without the tick. A free-year invite is claimed with the report still on. Keys you already have are not touched.
+
+### Opt-in report
+- A trial started together with turning the report on is counted (`trial_optin:<where>`).
+
+---
+
 ## 0.38.179 — Guest tags: the guest-home sensor appears when you turn them on (2026-10-26)
 
 ### Fixed

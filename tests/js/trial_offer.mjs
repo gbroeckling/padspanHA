@@ -387,6 +387,42 @@ await check("the card's dismiss and done are persisted, not optional-chained int
     "a Getting started event is not fired");
 });
 
+// Every free offer needs the opt-in usage report on (Garry, 2026-10-27).
+await check("report off: the card asks in the same step, and refuses without the tick", async () => {
+  T._resetTrialOffer();
+  const h = makeHost({ settings: { tier: "free", pro_has_key: false, telemetry_enabled: false },
+                       answer: { ok: true, days_left: 90 } });
+  const card = T.trialOfferCard(h.host, "overview");
+  assert(find(card, "optin-row") && find(card, "optin"), "no opt-in box with the report off");
+  type(card, "someone@example.com");
+  find(card, "start").click();
+  await settle();
+  assert(h.calls.length === 0, "a trial was asked for without the opt-in: " + JSON.stringify(h.calls));
+  const again = T.trialOfferCard(h.host, "overview");
+  assert(/needs the usage report on/.test(find(again, "error").textContent), "no reason shown");
+});
+await check("report off and ticked: the report goes on first, then the trial", async () => {
+  T._resetTrialOffer();
+  const h = makeHost({ settings: { tier: "free", pro_has_key: false, telemetry_enabled: false },
+                       answer: { ok: true, days_left: 90 } });
+  const card = T.trialOfferCard(h.host, "overview");
+  type(card, "someone@example.com");
+  const box = find(card, "optin");
+  box.checked = true;
+  box.dispatchEvent({ type: "change" });
+  find(card, "start").click();
+  await settle();
+  assert(h.calls.length === 2 && h.calls[0].type === "padspan_ha/settings_set" && h.calls[0].telemetry_enabled === true
+    && h.calls[1].type === "padspan_ha/trial_start", JSON.stringify(h.calls));
+  assert(h.events.includes("trial_optin:overview"), JSON.stringify(h.events));
+});
+await check("report already on: no box, one call", () => {
+  T._resetTrialOffer();
+  const h = makeHost();
+  const card = T.trialOfferCard(h.host, "overview");
+  assert(!find(card, "optin-row"), "the box shows with the report already on");
+});
+
 // The step ids, for the wrapper to hold equal to telemetry.py's.
 const steps = [...SRC.matchAll(/\{\s*id:\s*"([a-z_]+)",\s*label:/g)].map(m => m[1]);
 if (/"step-trial"/.test(SRC)) steps.push("trial");

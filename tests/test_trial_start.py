@@ -94,3 +94,14 @@ def test_the_free_forever_claim_still_holds_and_the_trial_is_disclosed() -> None
     para = s[i:i + 700]
     assert "not a trial" in para or "stays free" in para, "the free-forever promise was dropped, not reworded"
     assert "90-day" in para, "the tiers wizard does not disclose the trial that contradicts its old claim"
+
+
+def test_the_trial_needs_the_usage_report_on() -> None:
+    """Every free offer needs the opt-in usage report on (Garry, 2026-10-27):
+    refused before anything goes to the licence server; the card asks in the
+    same step (tests/js/trial_offer.mjs)."""
+    s = _read(_CC / "ws_forensics.py")
+    handler = s[s.index("async def ws_trial_start("):]
+    gate = handler.index("if not _report_on(hass):")
+    assert gate < handler.index("https://traks.ca/license/"), "the report is checked after the licence server is asked"
+    assert '"status": "report_off"' in handler

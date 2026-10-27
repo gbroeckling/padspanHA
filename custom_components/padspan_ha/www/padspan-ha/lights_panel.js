@@ -457,7 +457,8 @@ class PadSpanLightsApp extends HTMLElement {
       // browser when it is (panel.js _telemetryEvent's rule).
       if (s.pro_has_key !== undefined) {
         this.state._trialSettings = { pro_has_key: s.pro_has_key, tier: s.tier,
-          edition: s.edition, bright_reveal_presence: s.bright_reveal_presence };
+          edition: s.edition, bright_reveal_presence: s.bright_reveal_presence,
+          telemetry_enabled: !!s.telemetry_enabled };
         this.state._telemetryOn = !!s.telemetry_enabled;
       }
       // Hidden-map ids are read only to stay consistent with the Mapping tab

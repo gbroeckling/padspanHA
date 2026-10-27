@@ -12,8 +12,10 @@ a trial, entering a key and signing up as a tester all need a Home Assistant adm
 
 The **Start 90-day free trial** button (on the licence card, and on the trial card PadSpan shows
 on Overview once it's working in your house) gives you the full Pro product for 90 days. No card,
-one trial per home, and your email is only used to send your key. Nothing you made is taken away
-when it ends: you go back to free and your placements stay.
+one trial per home, and your email is only used to send your key. The trial needs the
+**usage report** on (anonymous counts of what is used and what breaks; Settings → Presence shows
+exactly what is sent): with it off, the trial card asks you to turn it on in the same step.
+Nothing you made is taken away when it ends: you go back to free and your placements stay.
 
 ## Enter a key
 
@@ -59,7 +61,7 @@ exactly what is sent and kept.
 ## Invites
 
 Now and then, an install that sends the usage report gets an invite to **a free year of PadSpan
-Pro**. It shows on Overview and on the licence card, to administrators only:
+Pro**. It shows on Overview and on the licence card, to administrators only, and is claimed with the usage report still on:
 
 - **Claim my free year:** enter an email and your key arrives there. No card, nothing renews.
 - **Later:** asks again in a week.

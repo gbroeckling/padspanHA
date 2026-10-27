@@ -58,6 +58,9 @@ export const TRIAL_SIDEBAR_LABEL = "💡 Lighting · free trial";
 export const TRIAL_MILESTONE_DAYS = 7;
 export const TRIAL_BUTTON = "Start 90-day free trial";
 export const TRIAL_EMAIL_NOTE = "Your email is only used to send your key; one trial per home.";
+// Every free offer needs the opt-in usage report on (Garry, 2026-10-27).
+// With it off, the card asks in the same step, never switching it silently.
+export const TRIAL_OPTIN_TEXT = "Turn on the usage report (needed for the free trial): anonymous counts of what is used and what breaks, never names, rooms or addresses. Settings → Presence shows exactly what is sent.";
 export const TRIAL_NOT_ADMIN = "An administrator of this Home Assistant has to start the trial.";
 
 const _EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -211,6 +214,14 @@ export function trialOfferCard(host, surface, opts = {}) {
       style: "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700;font-size:12px" },
       st.busy ? "Starting…" : TRIAL_BUTTON);
     if (st.busy) { go.disabled = true; input.disabled = true; }
+    // The usage report: on already, or asked for here.
+    const reportOn = !!(host.settings && host.settings.telemetry_enabled);
+    let optin = null;
+    if (!reportOn) {
+      optin = el("input", { type: "checkbox", "data-trial": "optin" });
+      optin.checked = !!st.optin;
+      optin.addEventListener("change", () => { st.optin = optin.checked; });
+    }
     const start = async () => {
       if (st.busy) return;
       const email = String(st.email || "").trim();
@@ -219,11 +230,20 @@ export function trialOfferCard(host, surface, opts = {}) {
         if (host.rerender) host.rerender();
         return;
       }
+      if (!reportOn && !st.optin) {
+        st.error = "The free trial needs the usage report on: tick the box above to turn it on.";
+        if (host.rerender) host.rerender();
+        return;
+      }
       st.busy = true;
       st.error = "";
       if (host.rerender) host.rerender();
       let r = null, why = "";
       try {
+        if (!reportOn) {
+          await host.callWS("padspan_ha/settings_set", { telemetry_enabled: true, telemetry_asked: true });
+          tel("trial_optin:" + surface);
+        }
         r = await host.callWS("padspan_ha/trial_start", { email });
         if (!(r && r.ok)) why = (r && r.message) || "Could not start a trial for this home.";
       } catch (e) {
@@ -245,6 +265,11 @@ export function trialOfferCard(host, surface, opts = {}) {
     };
     go.addEventListener("click", start);
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") start(); });
+    if (optin) {
+      card.appendChild(el("label", { "data-trial": "optin-row",
+        style: "display:flex;gap:6px;align-items:flex-start;font-size:12px;color:#cbd5e1;line-height:1.45;margin:0 0 8px;cursor:pointer" },
+        [optin, el("span", {}, TRIAL_OPTIN_TEXT)]));
+    }
     card.appendChild(el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, [input, go]));
     card.appendChild(el("div", { "data-trial": "note", class: "muted", style: "font-size:11px;margin-top:4px" }, TRIAL_EMAIL_NOTE));
   }

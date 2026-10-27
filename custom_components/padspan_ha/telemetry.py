@@ -470,7 +470,7 @@ PRO_OFFER_EVENTS: frozenset[str] = frozenset(
      "pro_invite_claim_failed", "pro_invite_declined", "free_pro_card_shown", "free_pro_card_no"}
 )
 OFFER_EVENTS: frozenset[str] = frozenset(
-    {f"{what}:{s}" for what in ("trial_offer_shown", "trial_started", "trial_failed") for s in TRIAL_SURFACES}
+    {f"{what}:{s}" for what in ("trial_offer_shown", "trial_started", "trial_failed", "trial_optin") for s in TRIAL_SURFACES}
     | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
     | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
     | PRO_OFFER_EVENTS

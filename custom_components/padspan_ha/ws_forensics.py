@@ -343,6 +343,12 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
     if not st:
         connection.send_error(msg["id"], "not_ready", "Settings store not available")
         return
+    # Every free offer needs the opt-in usage report on (Garry, 2026-10-27).
+    # The trial card asks for it in the same step (views/trial_offer.js).
+    from .telemetry import enabled as _report_on  # noqa: PLC0415
+    if not _report_on(hass):
+        connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message": "The free trial needs the usage report on (Settings → Presence → Usage report): anonymous counts that help PadSpan get better. Turn it on, then start the trial."})
+        return
     try:
         import json as _json  # noqa: PLC0415
         from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415

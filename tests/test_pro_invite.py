@@ -308,3 +308,14 @@ def test_the_panel_gets_the_switches_never_the_raw_answer():
 def test_restore_and_reset_keep_todays_offer_switches():
     assert 'data["server_offers"] = (store_obj.data or {}).get("server_offers") or {}' in         (_CC / "ws_backup.py").read_text(encoding="utf-8")
     assert '_reset["server_offers"] = _live["server_offers"]' in (_CC / "ws_factory_reset.py").read_text(encoding="utf-8")
+
+
+def test_a_free_year_is_claimed_only_with_the_usage_report_on(monkeypatch):
+    """Every free offer needs the opt-in usage report on (Garry, 2026-10-27)."""
+    calls = _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-TEST-KEY"})
+    h = _house({"token": _TOKEN, "until": _UNTIL})
+    _settings(h)["telemetry_enabled"] = False
+    sent, conn = _conn()
+    _run(P.ws_pro_invite_claim(h, conn, {"id": 1, "email": "a@b.ca"}))
+    assert sent["result"]["ok"] is False and sent["result"]["status"] == "report_off"
+    assert calls == [] and P.public_state(_settings(h))["pro_invite_open"] is True, "the invite stays for when it is back on"
