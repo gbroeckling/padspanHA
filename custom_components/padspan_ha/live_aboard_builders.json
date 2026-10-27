@@ -1650,7 +1650,9 @@
      "choices": [
       "straight",
       "l",
-      "u"
+      "u",
+      "l2",
+      "l3"
      ],
      "def": "straight",
      "sizes": {
@@ -1665,6 +1667,14 @@
       "u": {
        "width_m": 2,
        "depth_m": 2.9
+      },
+      "l2": {
+       "width_m": 2.8,
+       "depth_m": 3
+      },
+      "l3": {
+       "width_m": 3,
+       "depth_m": 3
       }
      }
     },
@@ -1677,6 +1687,30 @@
       "right"
      ],
      "def": "left"
+    },
+    {
+     "key": "style",
+     "label": "Style",
+     "type": "choice",
+     "choices": [
+      "closed",
+      "open",
+      "treads"
+     ],
+     "def": "closed"
+    },
+    {
+     "key": "rail",
+     "label": "Rail",
+     "type": "choice",
+     "choices": [
+      "auto",
+      "both",
+      "inner",
+      "outer",
+      "none"
+     ],
+     "def": "auto"
     }
    ],
    "colorNames": [

@@ -210,12 +210,15 @@ MAX_PIECES, PIECE_Z_MAX_M, SIZE_MIN_M, SIZE_MAX_M = 1000, 20.0, 0.001, 8.0   # a
 MAX_PARAMS, MAX_COLORS, NAME_MAX, TEXT_MAX, LABEL_MAX, PIECE_JSON_MAX = 40, 6, 40, 60, 60, 8000
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
-# Stairs are a piece (recipe kind "stairs"): straight, an L or a U, turning
-# left or right, from their floor up to the floor they reach (to_floor, a
+# Stairs are a piece (recipe kind "stairs"): straight, an L, a U, or round
+# two or three landings (l2, l3), turning left or right; closed, open or
+# treads only, with a rail on both sides, the inside, the outside or none
+# (auto: as closed stairs always had); from their floor up to the floor they reach (to_floor, a
 # floor's id; none: the next floor up). Width and depth are their footprint,
 # height their rise (the gap between the two floors, kept by the editor; the
 # view always draws the gap).
-STAIR_SHAPES, STAIR_TURNS = ("straight", "l", "u"), ("left", "right")
+STAIR_SHAPES, STAIR_TURNS = ("straight", "l", "u", "l2", "l3"), ("left", "right")
+STAIR_STYLES, STAIR_RAILS = ("closed", "open", "treads"), ("auto", "both", "inner", "outer", "none")
 STAIR_SIZE_MIN_M, STAIR_RISE_M = 0.5, (0.3, 8.0)
 _PIECE_OWNED = frozenset(("id", "recipe", "origin", "label", "library_id", "submission_id", "floor_id",
                           "x_m", "y_m", "z_m", "rotation", "entity_id", "entity_reg_id", "updated_at"))
@@ -377,12 +380,14 @@ def _recipe(pid: str, r: Any) -> dict:
 
 
 def _stairs(pid: str, r: dict) -> None:
-    """Stairs: a shape and a turn from the closed lists, the floor they reach
+    """Stairs: a shape, a turn, a style and a rail from the closed lists, the floor they reach
     a floor's id when given, a footprint at least half a metre each way and a
     rise in range."""
     p = r["params"]
     _pick(p.get("shape", "straight"), STAIR_SHAPES, f"{pid} stairs shape")
     _pick(p.get("turn", "left"), STAIR_TURNS, f"{pid} stairs turn")
+    _pick(p.get("style", "closed"), STAIR_STYLES, f"{pid} stairs style")
+    _pick(p.get("rail", "auto"), STAIR_RAILS, f"{pid} stairs rail")
     to = p.get("to_floor")
     if to is not None and not _plain(to, 64):
         raise EditError(f"{pid}: the floor stairs reach (to_floor) must be a floor's id")

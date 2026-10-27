@@ -268,8 +268,11 @@ for (const kind of Object.keys(F.FURNITURE)) {
         const fin = [bb.min.x, bb.min.y, bb.min.z, bb.max.x, bb.max.y, bb.max.z].every(Number.isFinite);
         check(`build: ${kind}`, g.userData.fallback === false, { where, fallback: true });
         check(`build: ${kind}`, fin && !bb.isEmpty() && bb.max.x - bb.min.x > 0 && bb.max.y - bb.min.y > 0 && bb.max.z - bb.min.z > 0, { where, bb });
+        // Stairs with a balustrade: it stands its full height over the top
+        // flights, up into the floor reached's opening (no higher than a rail).
+        const railUp = kind === "stairs" && !F.stairFlights(s, F.clampRecipe(recipe).params).plain ? F.STAIR_RAIL_M + 0.12 : 0;
         const inside = bb.min.x >= -s.w / 2 - EPS && bb.max.x <= s.w / 2 + EPS && bb.min.z >= -s.d / 2 - EPS && bb.max.z <= s.d / 2 + EPS
-          && bb.min.y >= -EPS && bb.max.y <= s.h + EPS;
+          && bb.min.y >= -EPS && bb.max.y <= s.h + railUp + EPS;
         check(`build: ${kind}`, inside, { where, s, min: bb.min, max: bb.max });
         const free = kind === "tv" && F.clampRecipe(recipe).params.unit === "none";   // a TV alone keeps its screen size
         // A round thing in a long, thin box fills its narrow side only; a
@@ -363,9 +366,15 @@ const FRONT = {
   // edge for a straight flight, the landing for an L or a U).
   stairs: (g, s, r) => {
     const sx = r.params.turn === "right" ? -1 : 1, f = Math.min(s.w, s.d) / 2;
-    const x = r.params.shape === "u" ? sx * s.w / 4 : r.params.shape === "l" ? sx * (s.w / 2 - f / 2) : 0;
+    // Two or three landings: the first flight up the side, f wide (stairFlights).
+    const fm = Math.min(1.1, r.params.shape === "l2" ? Math.min(s.w / 3, s.d / 2) : Math.min(s.w, s.d) / 3);
+    const x = r.params.shape === "u" ? sx * s.w / 4 : r.params.shape === "l" ? sx * (s.w / 2 - f / 2)
+      : r.params.shape === "l2" || r.params.shape === "l3" ? sx * (s.w / 2 - fm / 2) : 0;
     // (A rise under a metre is a step or two: never higher at the front.)
-    return topAt(g, x, s.d / 2 - 0.05) < topAt(g, x, -s.d / 2 + 0.05) - (s.h >= 1 ? 0.1 : -1e-3);
+    // Three landings: the last flight passes over the first one's front, so
+    // the front is looked at just behind it.
+    const zf = r.params.shape === "l3" ? s.d / 2 - fm - 0.05 : s.d / 2 - 0.05;
+    return topAt(g, x, zf) < topAt(g, x, -s.d / 2 + 0.05) - (s.h >= 1 ? 0.1 : -1e-3);
   },
   // A chair's back is at −z, as a sofa's; a stool has none and no front.
   chair: (g, s, r) => r.params.style === "stool" ? true

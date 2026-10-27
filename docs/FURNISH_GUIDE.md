@@ -34,8 +34,19 @@ The other ways in:
   **Delete**. **Stand on what's under it** puts a lamp on its table; **Hang on wall** at a height
   you pick.
 - Warnings tell you when a piece doesn't fit (through a wall, off the floor).
-- **Stairs** (Build ▾ → House → Stairs): straight, L or U, which way they turn and the floor they
-  go up to. Their height is always the gap up to that floor, and they open a hole in it.
+- **Stairs** (Build ▾ → House → Stairs): which way they turn and the floor they go up to. Their
+  height is always the gap up to that floor, and they open a hole in it.
+  - **Shape:** Straight, L, U, **2 landings** (up one side, across the back, down the other side to
+    the front) or **3 landings** (round an open well; the last flight passes over the start of the
+    first, high enough to walk under, and you step off at the side you started from).
+  - **Style:** **Closed** (solid steps), **Open** (the treads alone, on a board each side, with
+    gaps between them) or **Treads only** (nothing under them, as if fixed into the wall beside
+    them).
+  - **Rail:** **Auto**, **Both**, **Inside** (the well side of a turn; Left on a straight flight),
+    **Outside** (Right on a straight flight) or **None**. Auto keeps the plain rods closed
+    straight, L and U stairs have always had, and gives the other styles and shapes a handrail on
+    spindles on the open side. A rail stands its full height, so over the top flights it rises
+    into the opening in the floor above, as a real one does.
 
 ## A piece that's a real device
 

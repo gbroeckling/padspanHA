@@ -144,6 +144,15 @@ def test_stairs_are_kept_as_a_piece(shape, turn) -> None:
     assert p["recipe"]["height_m"] == 2.3 and p["floor_id"] == "main"
 
 
+@pytest.mark.parametrize("style", list(H.STAIR_STYLES))
+@pytest.mark.parametrize("rail", list(H.STAIR_RAILS))
+def test_stairs_keep_their_style_and_rail(style, rail) -> None:
+    """Closed, open or treads only; a rail on both sides, the inside, the outside, none, or as drawn."""
+    out = H.apply_edit(H.empty(), _stairs(shape="l3", style=style, rail=rail))
+    assert out["pieces"]["fur_5a6b7c8d"]["recipe"]["params"] == {"shape": "l3", "turn": "left", "to_floor": "upper",
+                                                                  "style": style, "rail": rail}
+
+
 def test_stairs_with_no_floor_named_reach_the_next_floor_up() -> None:
     p = copy.deepcopy(_STAIRS)
     del p["recipe"]["params"]["to_floor"]
@@ -152,8 +161,10 @@ def test_stairs_with_no_floor_named_reach_the_next_floor_up() -> None:
 
 
 @pytest.mark.parametrize("why,changes", [
-    ("a shape not straight, L or U", _stairs(shape="spiral")),
+    ("a shape not on the list", _stairs(shape="spiral")),
     ("a turn not left or right", _stairs(turn="up")),
+    ("a style not on the list", _stairs(style="glass")),
+    ("a rail not on the list", _stairs(rail="left")),
     ("a blank floor", _stairs(to_floor=" ")),
     ("a floor that is a number", _stairs(to_floor=3)),
     ("narrower than half a metre", _stairs_size(width_m=0.4)),

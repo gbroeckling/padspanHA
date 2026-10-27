@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.183 — Open stairs, and stairs with two or three landings (2026-10-27)
+
+### New
+- **Open stairs and treads only.** A staircase in the 3D house (Furnish → Build ▾ → House → Stairs) now has a **Style**: Closed (the solid steps it always had), **Open** (the treads alone on a board each side, with gaps between them) or **Treads only** (nothing under them, fixed to a thin board along the wall).
+- **Stairs with two or three landings.** **2 landings** goes up one side, across the back and down the other side to the front. **3 landings** goes round an open well: the last flight passes over the start of the first, high enough to walk under, and you step off at the side you started from.
+- **A proper rail.** Open and treads-only stairs, and the new shapes, get a handrail on spindles with a post at each end, on the side you pick: **Both**, **Inside** (the well), **Outside** or **None**. Over the top flights it stands its full height, up into the opening in the floor above. Closed straight, L and U stairs keep the plain rail they always had unless you pick one.
+
+### Changed
+- **Install Base (pad.traks.ca and the developer view) says what each number means** in plain words, with the report's own name for it when you hover. Usage is split into what people did, what PadSpan did by itself and the screens it runs on.
+
+---
+
 ## 0.38.182 — Room timing does what Settings says (2026-10-27)
 
 ### Fixed

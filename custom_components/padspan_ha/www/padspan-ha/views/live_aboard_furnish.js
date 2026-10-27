@@ -738,7 +738,9 @@ export function createFurnish(ctx){
     const lands = up.some(G => G.rooms.some(rm => !rm.outdoor && Array.isArray(rm.pts) && rm.pts.length >= 3 && ctx.HOUSE.inPoly(x, y, rm.pts)));
     return lands ? [] : [{ kind: "landing", floor: r.to.name || null }];
   }
-  /** The stairs' panel: straight, L or U, which way they turn, the floor they go up to. */
+  /** The stairs' panel: the shape (straight, L, U, two or three landings),
+   *  which way they turn, closed, open or treads only, the rail, the floor
+   *  they go up to. */
   function stairRows(el, p, spec){
     el.appendChild(d("div", "la3d-sec", "Stairs"));
     const params = p.recipe.params || {}, r = reachOf(p);
@@ -764,9 +766,17 @@ export function createFurnish(ctx){
       r2.append(d("span", "la3d-sub", label), s2);
       el.appendChild(r2);
     };
-    const shape = ["straight", "l", "u"].includes(params.shape) ? params.shape : "straight";
-    pick("Shape", "shape", [["straight", "Straight"], ["l", "L"], ["u", "U"]], shape);
+    const shape = ["straight", "l", "u", "l2", "l3"].includes(params.shape) ? params.shape : "straight";
+    pick("Shape", "shape", [["straight", "Straight"], ["l", "L"], ["u", "U"], ["l2", "2 landings"], ["l3", "3 landings"]], shape);
     if (shape !== "straight") pick("Turns", "turn", [["left", "Left"], ["right", "Right"]], params.turn === "right" ? "right" : "left");
+    pick("Style", "style", [["closed", "Closed"], ["open", "Open"], ["treads", "Treads only"]],
+      ["closed", "open", "treads"].includes(params.style) ? params.style : "closed");
+    // The rail: for a straight flight its sides are left and right as you go
+    // up (inner = left); for a turn, the inside is the well.
+    const railNow = ["auto", "both", "inner", "outer", "none"].includes(params.rail) ? params.rail : "auto";
+    pick("Rail", "rail", shape === "straight"
+      ? [["auto", "Auto"], ["both", "Both"], ["inner", "Left"], ["outer", "Right"], ["none", "None"]]
+      : [["auto", "Auto"], ["both", "Both"], ["inner", "Inside"], ["outer", "Outside"], ["none", "None"]], railNow);
     const from = r.from ? r.from.elev : null, ups = floorList().filter(f => !f.outdoor && from !== null && f.elev > from + 0.05);
     if (ups.length > 1) {
       const sel2 = d("select", "la3d-fin");
