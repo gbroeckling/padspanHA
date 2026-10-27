@@ -30,7 +30,9 @@ async def async_setup_entry(
     # binary_sensor.padspan_guest_home: added the first time guest tags are on
     # (a house that never turns them on never gets the entity).
     added: list[bool] = []
+    from homeassistant.core import callback  # noqa: PLC0415
 
+    @callback   # on the event loop: async_add_entities may not run in a worker thread
     def _maybe_add_guest() -> None:
         from .guest_tags import enabled as _guests_on  # noqa: PLC0415
         if not added and _guests_on(hass):
