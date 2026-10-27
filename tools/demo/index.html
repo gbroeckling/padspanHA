@@ -51,6 +51,7 @@
     <a href="?page=panel">Panel</a>
     <a href="?page=atlas">Atlas</a>
     <a href="?page=atlas3d">Live Aboard 3D</a>
+    <a href="?page=atlas3d&amp;kiosk=1" title="The 3D house as PadSpan shows it on a wall screen. Make the browser full screen for the real effect.">Wall screen</a>
   </nav>
   <a id="demo-get" href="https://padspan.traks.ca/#install" target="_blank" rel="noopener">Install free</a>
 </div>
@@ -60,7 +61,11 @@
 // (fake_hass.js): a fictional house, writes kept in memory only.
 const page = ["panel", "atlas", "atlas3d"].includes(new URLSearchParams(location.search).get("page"))
   ? new URLSearchParams(location.search).get("page") : "atlas3d";
-for (const a of document.querySelectorAll("#demo-bar nav a")) if (a.getAttribute("href") === "?page=" + page) a.setAttribute("aria-current", "page");
+// "Wall screen" is the 3D page with ?kiosk=1: the Atlas reads kiosk from the
+// URL and opens as a wall (lights_panel.js), so it gets its own tab here.
+const wallTab = new URLSearchParams(location.search).get("kiosk") === "1" && page === "atlas3d";
+const currentHref = wallTab ? "?page=atlas3d&kiosk=1" : "?page=" + page;
+for (const a of document.querySelectorAll("#demo-bar nav a")) if (a.getAttribute("href") === currentHref) a.setAttribute("aria-current", "page");
 const { startDemo } = await import("./fake_hass.js");
 await startDemo(page);
 document.documentElement.dataset.demoReady = page;

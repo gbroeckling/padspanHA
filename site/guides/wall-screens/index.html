@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which touch screen for a PadSpan wall? 37 inches and up | PadSpan HA</title>
+<meta name="description" content="A big touch screen on the wall turns PadSpan into the house itself. What the screen needs, which size and resolution, the touch monitors, Android all-in-ones and TV touch frames people use, and how to set the wall up.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/wall-screens/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Which touch screen for a PadSpan wall?">
+<meta property="og:description" content="Touch monitors, Android all-in-ones and TV touch frames from 37 inches up, and how to set PadSpan's wall up on them.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/wall-screens/">
+<meta property="og:image" content="https://padspan.traks.ca/images/overview-3d-multifloor.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+</div></nav>
+<main>
+<h1>Which touch screen for a PadSpan wall?</h1>
+<p class="lead">A big touch screen on the wall turns PadSpan into the house itself: the Atlas to run it, the 3D view to see it, and who is in which room. Here's what the screen needs, which size to pick, and example screens from 37 inches up.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/?page=atlas3d&amp;kiosk=1">See a PadSpan wall in your browser</a>
+  <a class="btn ghost" href="/guides/large-homes/">PadSpan in large homes</a>
+</div>
+
+<h2>What the screen needs</h2>
+<p>PadSpan runs inside Home Assistant, so the screen only has to show Home Assistant full screen in a current browser and take touch (the 3D view needs WebGL 2). There are three ways to get there:</p>
+<ul>
+  <li><b>An Android all-in-one.</b> The screen has Android built in: install a kiosk browser such as <a href="https://www.fully-kiosk.com/">Fully Kiosk Browser</a>, or the Home Assistant Companion app set as the home app (its minimal version on screens without Google Play), and point it at your Home Assistant. One box, one cable.</li>
+  <li><b>A touch monitor and a small computer.</b> A plain touch monitor with a mini PC or a Raspberry Pi behind it, running a browser in kiosk mode. The most flexible, and the easiest to upgrade later.</li>
+  <li><b>A TV with a touch frame.</b> An infrared touch frame fits over a TV's screen and plugs into a small computer by USB. It works on almost any TV, but it sits on the TV's bezel.</li>
+</ul>
+<p>Capacitive (PCAP) touch feels like a phone; infrared frames work on bigger and cheaper screens.</p>
+
+<h2>Size and resolution</h2>
+<ul>
+  <li><b>PadSpan Pro sizes the wall for the room.</b> In <b>Settings → UI Structure → 📺 Wall screens</b>, choose <b>Size for my room</b> and give the screen's size and how far away people stand, and it sizes the text by how big it looks from there. A 55-inch screen across a room gets far bigger text than a desk monitor.</li>
+  <li><b>1080p is enough for most walls; 4K is sharper up close.</b> With the default, <b>Size from the screen</b>, a landscape 4K wall draws everything at twice its 1080p size. For portrait, choose <b>Size for my room</b>.</li>
+  <li><b>Landscape or portrait.</b> The wall fits the whole house on the screen either way, every floor top to bottom.</li>
+</ul>
+
+<h2>Example screens</h2>
+<p>Examples from each maker's own pages, not a test of every model. Check sizes and options with the maker.</p>
+<table>
+  <tr><th>Kind</th><th>Examples</th></tr>
+  <tr><td>Touch monitors (add a small PC)</td><td><a href="https://www.touchwo.com/">TouchWo</a> 43 to 98 inches, recommended in a Home Assistant Community member's <a href="https://community.home-assistant.io/t/creating-a-large-home-assistant-display-instructions/943122">guide to large displays</a>; <a href="https://www.planar.com/">Planar</a> UltraRes P touch, 49 to 98 inches, 4K; <a href="https://www.faytech.us/">faytech</a> 55-inch 4K open-frame (no back case, for building in)</td></tr>
+  <tr><td>Android all-in-ones</td><td><a href="https://geekland.co/">GeekLand</a> 43 and 55 inches; <a href="https://iiyama.com/">iiyama</a> ProLite 55-inch 4K with Android (infrared touch); <a href="https://www.displays2go.com/">Displays2go</a> up to 55 inches</td></tr>
+  <tr><td>Touch frames for TVs</td><td><a href="https://tycotouch.com/collections/large-touch-screen-overlays">Tyco Touch</a> infrared frames for 32- to 98-inch TVs (the linked ones are Windows-only; its Mac and Linux models run 32 to 75 inches)</td></tr>
+</table>
+
+<h2>Setting up the wall in PadSpan</h2>
+<p>To see one first, the demo opens as a wall: <a href="/demo/?page=atlas3d&amp;kiosk=1">the demo house as a wall screen</a>. Make the browser full screen for the real effect.</p>
+<ul>
+  <li><b>The wall view.</b> Open the Atlas as <code>/padspan-lights?kiosk=1</code>: the whole house fits the screen and the controls floating over the map fade 30 seconds after the last touch. Wall mode needs the Atlas's new layout, which is part of PadSpan Pro. PadSpan's main page also has a free <code>?kiosk=1</code> link: it hides PadSpan's menu; the sizing, fading, keep-awake and dimming are the Pro wall's.</li>
+  <li><b>One link per screen.</b> Each wall can have its own size, for example <code>/padspan-lights?kiosk=1&amp;wall_in=55&amp;wall_m=2.5</code> for a 55-inch screen seen from 2.5 metres.</li>
+  <li><b>Kind to the screen.</b> The page keeps the screen awake while it's open (if Home Assistant is reached over HTTPS). You can dim it between sunset and sunrise, and optional burn-in protection shifts the picture two pixels every three minutes for OLED and plasma.</li>
+  <li><b>On Fully Kiosk tablets.</b> With a Fully PLUS licence, the Fully Kiosk option and Fully's JavaScript Interface on, night dimming turns the screen's own brightness down, and with Fully's Motion Detection (it needs a front camera), walking up wakes it.</li>
+</ul>
+<p>The <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.166/docs/WALL_SCREEN_GUIDE.md">Wall Screen Guide</a> has every setting.</p>
+
+<h2>Makers: get your screen tested</h2>
+<p>We test touch screens of 37 inches and up. Send us the one you would hang on the wall in the busiest part of a house, a kitchen, a front hall or a family room, and we'll test it with PadSpan. Screens that pass will go on a list of screens tested with PadSpan, in this guide and in our marketing. Write to <a href="mailto:hello@traks.ca">hello@traks.ca</a> to arrange it. If one doesn't pass, we tell you why and publish nothing. Every listing says the unit came from its maker. What we check:</p>
+<ul>
+  <li>PadSpan's wall fills the screen in landscape and in portrait, and the screen's browser runs at its native resolution.</li>
+  <li>Taps, drags and pinches on the Atlas and the 3D view land where they should, with no missed or ghost touches (the first tap on a faded wall only brings its controls back, by design).</li>
+  <li>Text sized for the screen and its viewing distance reads from across the room.</li>
+  <li>A week on the wall unattended: it stays awake (over HTTPS, or by its own setting), turns itself back on and opens PadSpan after a power cut, and recovers from a Home Assistant restart.</li>
+  <li>Night dimming works, and in Fully Kiosk it turns the screen's own brightness down.</li>
+  <li>The 3D view keeps a steady frame rate at Auto quality (Live Aboard's frame-rate readout), on the screen's own Android or on the computer you recommend with it.</li>
+</ul>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · Product names belong to their makers; PadSpan isn't affiliated with them.</p>
+</div></footer>
+</body>
+</html>
