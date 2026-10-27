@@ -310,12 +310,14 @@ def test_restore_and_reset_keep_todays_offer_switches():
     assert '_reset["server_offers"] = _live["server_offers"]' in (_CC / "ws_factory_reset.py").read_text(encoding="utf-8")
 
 
-def test_a_free_year_is_claimed_only_with_the_usage_report_on(monkeypatch):
-    """Every free offer needs the opt-in usage report on (Garry, 2026-10-27)."""
-    calls = _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-TEST-KEY"})
+def test_an_invite_already_delivered_is_claimed_even_with_the_report_off_since(monkeypatch):
+    """The opt-in came first: an invite reaches an install only through its
+    report. An existing offer is not affected by the opt-in rule (Garry,
+    2026-10-27), so turning the report off afterwards does not take it away."""
+    calls = _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-TEST-KEY", "expires_at": "2027-10-13 18:00:00",
+                                        "tier": "pro", "days_left": 365})
     h = _house({"token": _TOKEN, "until": _UNTIL})
     _settings(h)["telemetry_enabled"] = False
     sent, conn = _conn()
     _run(P.ws_pro_invite_claim(h, conn, {"id": 1, "email": "a@b.ca"}))
-    assert sent["result"]["ok"] is False and sent["result"]["status"] == "report_off"
-    assert calls == [] and P.public_state(_settings(h))["pro_invite_open"] is True, "the invite stays for when it is back on"
+    assert sent["result"]["ok"] is True and calls[0][0] == "invite_claim"

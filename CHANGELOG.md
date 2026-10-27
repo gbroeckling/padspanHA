@@ -7,7 +7,8 @@ All notable changes to PadSpan HA are documented here.
 ## 0.38.180 — Free offers come with the usage report on (2026-10-27)
 
 ### Changed
-- **The 90-day free trial and the free year of Pro need the opt-in usage report on.** The tester route already did. With the report off, the trial card adds a box, "Turn on the usage report (needed for the free trial)", with a line on what the report is. Ticking it turns the report on and starts the trial in the same step, and nothing is turned on without the tick. A free-year invite is claimed with the report still on. Keys you already have are not touched.
+- **A new 90-day free trial needs the opt-in usage report on**, as the tester route and the free-year invites (sent only to installs with the report on) already did. With the report off, the trial card adds a box, "Turn on the usage report (needed for the free trial)", with a line on what the report is. Ticking it turns the report on and starts the trial in the same step, and nothing is turned on without the tick.
+- **Existing free offers are not affected:** a trial already running, a tester key, a claimed year of Pro and an invite already delivered all work as before, report on or off.
 
 ### Opt-in report
 - A trial started together with turning the report on is counted (`trial_optin:<where>`).

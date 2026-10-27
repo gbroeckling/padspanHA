@@ -136,13 +136,10 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
     if not public_state(st.data)["pro_invite_open"]:
         connection.send_result(msg["id"], {"ok": False, "message": "This invite has ended."})
         return
-    # Every free offer needs the opt-in usage report on (Garry, 2026-10-27):
-    # the invite reached this install through its report, and is claimed with it on.
-    from .telemetry import enabled as _report_on  # noqa: PLC0415
-    if not _report_on(hass):
-        connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message":
-            "This free year needs the usage report on. Turn it back on in Settings → Presence → Usage report, then claim it."})
-        return
+    # No usage-report check here: an invite only ever reaches an install
+    # through its report, which is the opt-in every free offer needs (Garry,
+    # 2026-10-27), and an invite already delivered is an existing offer,
+    # which that rule leaves alone.
     # A key someone paid for and that still works would be replaced by a
     # one-year one: refuse, and say how to get the year added instead.
     from .ws_common import _pro_expiry_state  # noqa: PLC0415
