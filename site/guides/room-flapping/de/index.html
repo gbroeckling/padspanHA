@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warum springt mein Handy in Home Assistant zwischen Räumen hin und her? | PadSpan HA</title>
+<meta name="description" content="Warum die Bluetooth-Raumerkennung in Home Assistant zwischen Räumen springt, was bei jedem System hilft (Bermuda, ESPresense oder PadSpan) und wie PadSpan die Raumzuordnung stabil hält, mit den Zahlen aus seinem Code.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/room-flapping/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/room-flapping/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/room-flapping/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/room-flapping/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="Warum springt mein Handy zwischen den Räumen?">
+<meta property="og:description" content="Warum die Bluetooth-Raumerkennung springt, was bei jedem System hilft und wie PadSpan die Raumzuordnung stabil hält.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/room-flapping/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/demo/">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/room-flapping/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1>Warum springt mein Handy zwischen den Räumen?</h1>
+<p class="lead">Weil die Bluetooth-Signalstärke stark schwankt und zwei benachbarte Räume für deine Proxys fast gleich klingen können. Folgt der Raum einfach dem Proxy, der dein Handy am lautesten hört, wechselt er jedes Mal, wenn die Messwerte die Plätze tauschen. Bessere Platzierung hilft bei jedem System. PadSpan glättet außerdem jeden Messwert, und ein neuer Raum muss erst eine Abstimmung gewinnen, bevor PadSpan jemanden dorthin setzt.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">Im Demo-Haus ansehen</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan in HACS öffnen</a>
+</div>
+
+<h2>Woran es liegt</h2>
+<p>Das passiert bei Bermuda, ESPresense und PadSpan gleichermaßen. Alle drei rechnen mit der Signalstärke, mit der jeder Proxy jedes Advertisement hört (dem RSSI-Wert in dBm), und diese Zahl bewegt sich, auch wenn dein Handy still liegt.</p>
+<ul>
+  <li><b>Die Signalstärke schwankt.</b> Ein Handy, das still liegt, kann von einem Advertisement zum nächsten mehrere dB lauter oder leiser ankommen.</li>
+  <li><b>Körper schlucken das Signal.</b> Dreh dich um oder steck das Handy ein, und der Proxy hinter dir hört es deutlich schwächer.</li>
+  <li><b>Wände und Decken lassen es durch.</b> Ein Proxy nebenan oder ein Stockwerk höher kann dein Handy fast so gut hören wie der in deinem Raum.</li>
+  <li><b>Benachbarte Räume liegen nah beieinander.</b> In der Nähe einer Tür können die Proxys zweier Räume nur wenige dB auseinanderliegen.</li>
+  <li><b>Handys senden unregelmäßig.</b> Sie halten keinen festen Takt ein, Proxys verpassen einen Teil davon, und Handys wechseln regelmäßig ihre Bluetooth-Adresse, damit man sie nicht verfolgen kann.</li>
+</ul>
+
+<h2>Was bei jedem System hilft</h2>
+<table>
+  <tr><th>Ursache</th><th>Was hilft</th></tr>
+  <tr><td>Die Proxys zweier Räume liegen an der Tür nur wenige dB auseinander</td><td>Jeder Proxy weit genug im Raum, eher in der Mitte als in einer Ecke. Nicht im Flur oder in einem Schrank, nicht hinter Metall und nicht an einer Außenwand.</td></tr>
+  <tr><td>Ein Raum ohne eigenen Proxy</td><td>Ein Proxy in jedem Raum, den du unterscheiden willst. Eine offene Küche mit Wohnbereich zählt als ein Raum, es sei denn, jedes Ende hat seinen eigenen Proxy.</td></tr>
+  <tr><td>Dein Körper verdeckt den Proxy, wenn du dich umdrehst</td><td>In einem großen Raum ein zweiter Proxy. Einer ist das Minimum; zwei sind spürbar besser.</td></tr>
+  <tr><td>Proxys nur mit aufgedruckter Antenne</td><td>Ein ESP32-S3-Board mit externer 2,4-GHz-Antenne.</td></tr>
+  <tr><td>Ein Proxy, der online ist, aber viel weniger hört, als er sollte</td><td>Starte ihn neu. Bei ESPHome prüf seine Version und sein WLAN.</td></tr>
+</table>
+<p>In den Tests von PadSpans Entwickler mit mehr als 20 Boards waren die mit nur einer aufgedruckten Antenne zu verrauscht, um Räume zu unterscheiden; ein ESP32-S3 mit externer Antenne ist die erste Wahl. Mehr dazu in <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a></p>
+
+<h2>Wie PadSpan die Raumzuordnung stabil hält</h2>
+<p>Das sind die Schritte in <a href="https://github.com/gbroeckling/padspanHA/blob/main/custom_components/padspan_ha/presence_coordinator.py">PadSpans Code</a>, mit seinen Standardwerten. PadSpans Menüs und Einstellungen sind auf Englisch, deshalb stehen ihre Namen hier so, wie du sie im Panel siehst.</p>
+<p><b>Jeder Messwert wird bereinigt.</b> Für jeden Proxy und jedes Gerät nimmt PadSpan den Median der Messwerte aus den letzten 15 Sekunden (wenn es drei oder mehr sind) und glättet ihn mit einem Kalman-Filter. Hört ein Proxy das Gerät nicht mehr, bleibt sein letzter Messwert noch etwa eine halbe Minute stehen, bevor er abklingt: Das letzte Advertisement gilt 15 Sekunden lang als frisch und wird dann noch etwa 20 Sekunden gehalten. Sobald PadSpan ein Handy kennt (ein iPhone an seinem IRK, ein Android-Handy über den BLE Transmitter der Companion App), wird jede Adresse, die es benutzt, als ein Gerät geglättet.</p>
+<p><b>Alle 5 Sekunden ein Kandidat.</b> Wenn drei oder mehr Proxys, die auf einem vermessenen Grundriss platziert sind, das Gerät hören, berechnet PadSpan, wo es ist, glättet diese Position und nimmt den gezeichneten Raum, in dem sie liegt. Ein Sprung von mehr als 25 m in einem 5-Sekunden-Schritt (schneller als 5 m/s) wird ignoriert, bis zu dreimal hintereinander. Sonst ist der Kandidat der Raum, dessen Proxy das Gerät am lautesten hört, und das Gerät behält seinen Raum, solange kein anderer um so viel lauter ist:</p>
+<table>
+  <tr><th>Wechsel</th><th>Nötiger Vorsprung</th></tr>
+  <tr><td>Gleiche Etage</td><td>3 dB</td></tr>
+  <tr><td>Gleiche Etage, Raummitten auf dem Grundriss mehr als 6 m auseinander</td><td>5 dB</td></tr>
+  <tr><td>Andere Etage</td><td>5 dB</td></tr>
+</table>
+<p><b>Die Kalibrierung korrigiert Räume, die nach dem nächstgelegenen Proxy gewählt wurden.</b> Die Kalibrierung ist kostenlos und braucht einen Grundriss mit gesetztem Maßstab: Du stellst dich an ein paar Stellen in jedem Raum, standardmäßig 15 Sekunden pro Stelle (länger ist genauer; das Panel empfiehlt 60). Sobald es fünf oder mehr Stellen gibt und mindestens zwei Proxys das Gerät hören, vergleicht PadSpan die Live-Messwerte mit den drei kalibrierten Stellen, die ihnen am ähnlichsten klingen, und eine gute Übereinstimmung bestimmt den Kandidaten. Das tut es nur dort, wo es nach dem nächstgelegenen Proxy wählt, außer du schaltest <b>Pick the better method for this house</b> ein (Settings → Presence → Positioning Choices) und die Kalibrierung schneidet im Test deutlich besser ab.</p>
+<p><b>Dann eine Abstimmung.</b> Jeder Kandidat kommt in eine Abstimmung: PadSpan behält die letzten vier, und ein neuer Raum muss drei davon gewinnen, bevor das Gerät wechselt. In den 30 Sekunden nach einem Wechsel braucht der nächste alle vier. Das gilt auch für einen Sprung auf dem Grundriss auf eine andere Etage oder in einen Raum, der mehr als 8 m entfernt ist (Mitte zu Mitte). Wenn die Position auf dem Grundriss das Gerät schon in den neuen Raum setzt, reichen wieder drei, außer bei einem Wechsel auf eine andere Etage innerhalb einer Minute nach dem letzten Wechsel. Wie lang dieses Fenster ist, stellst du unter Settings → Presence mit <b>Room Change Delay</b> ein, standardmäßig 20 Sekunden: länger ist stabiler, aber träger. Installationen, die vor Version 0.21 eingerichtet wurden, prüfen vielleicht noch alle 10 Sekunden (<b>Presence Poll Interval</b>, an derselben Stelle, zeigt den aktuellen Wert); die Abstimmung behält dann die letzten zwei und braucht beide.</p>
+<p><b>Etagen.</b> Auf einem Grundriss ist die Etage eines Geräts die Etage des Raums, den die Abstimmung bestätigt hat; sie kann also nicht umspringen, solange der Raum gleich bleibt. Jede Etage wird nach ihren zwei lautesten Proxys bewertet. Die aktuelle Etage startet mit 4 dB Vorsprung, eine andere muss sie um weitere 2 dB schlagen, und solange das Gerät weniger als die Hälfte der Proxys hört, die es sonst hört, bleibt die Etage. Beim Berechnen der Position zählen Proxys auf anderen Etagen pro Etage nach oben oder unten 10 dB schwächer (10 dB eine Etage entfernt, 20 dB zwei), und sie helfen dabei nur, wenn weniger als drei auf der Etage des Geräts es hören.</p>
+<p><b>Mehr unter Settings → Presence.</b> Unter <b>Signal Filter</b> glättet ein höheres Measurement noise R (Standardwert 8,0) stärker, reagiert aber langsamer. Unter <b>Positioning Choices</b> (alle standardmäßig aus):</p>
+<ul>
+  <li><b>Mark a room as unsure when the signal is thin</b> behält den Raum eines Geräts und markiert ihn als unsicher, solange weniger als drei Proxys es hören oder keine Kalibrierungsstelle gut passt. Diese Messwerte stimmen erst mit ab, wenn derselbe neue Raum fünfmal hintereinander herausgekommen ist, und er muss die Abstimmung trotzdem gewinnen.</li>
+  <li><b>Use motion sensors and usual moves to break ties</b> lässt einen Bewegungs-, Belegungs- oder Anwesenheitssensor zwischen Räumen entscheiden, die höchstens 3 dB auseinanderliegen.</li>
+</ul>
+
+<h2>So prüfst du, ob es funktioniert</h2>
+<ul>
+  <li><b>Calibration → Model</b> zeigt, wie oft PadSpan an Stellen, an denen nicht kalibriert wurde, den richtigen Raum trifft (ab Version 0.38.166). Kalibrierte Stellen im Umkreis von 1,5 m um jede Teststelle bleiben dabei außen vor, damit es sich die Antwort nicht einfach merken kann.</li>
+  <li><b>Why This Room</b> (Settings → Presence, standardmäßig aus) gibt jedem Area-Sensor ein Attribut room_reason: gewonnene und nötige Stimmen, ob ein Wechsel zurückgehalten wird und ob der Vorsprung den aktuellen Raum gehalten hat.</li>
+  <li><b>Health</b> warnt, wenn ein Proxy seit über 10 Minuten weit weniger Advertisements hört als sonst, während die anderen normal sind (was für ihn normal ist, lernt PadSpan in den ersten 30 Minuten nach dem Start von Home Assistant), und auf einem Grundriss auch, wenn seine Zuverlässigkeit unter 70 % fällt.</li>
+  <li><b>Walk a room</b>, ab der Beta 0.38.167, ist standardmäßig aus: Schaltest du es unter Settings → Presence ein, bekommt Calibration einen Tab Walk a room. Er nimmt einen Rundgang von 90 Sekunden durch einen Raum auf, den du auf deinem Grundriss eingezeichnet hast, und zeigt dir nach dem Speichern die Trefferquote vorher und nachher.</li>
+</ul>
+<p>Alles auf dieser Seite gehört zum kostenlosen PadSpan.</p>
+
+<h2>Du nutzt schon Bermuda?</h2>
+<p>Behalte es. PadSpan läuft daneben auf denselben Proxys. Geräte, die Bermuda verfolgt, zeigt es in dem Raum, den Bermuda meldet; die Schritte oben gelten für sie deshalb erst, wenn PadSpan seine eigenen Messwerte nutzt. <a href="/guides/bermuda/de/">Bermuda und PadSpan zusammen</a> erklärt, wie du beide betreibst und wie du PadSpan nur seine eigenen Messwerte nutzen lässt.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan in HACS öffnen</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · Bermuda und ESPresense sind eigenständige Open-Source-Projekte ihrer Autoren.</p>
+</div></footer>
+</body>
+</html>

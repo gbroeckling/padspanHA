@@ -6,6 +6,9 @@
 <title>Why does my phone jump between rooms in Home Assistant? | PadSpan HA</title>
 <meta name="description" content="Why Bluetooth room presence in Home Assistant jumps between rooms, what helps on any system (Bermuda, ESPresense or PadSpan), and how PadSpan keeps rooms steady, with the numbers from its code.">
 <link rel="canonical" href="https://padspan.traks.ca/guides/room-flapping/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/room-flapping/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/room-flapping/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/room-flapping/">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="PadSpan">
 <meta property="og:title" content="Why does my phone jump between rooms?">
@@ -56,6 +59,7 @@ footer p{margin:4px 0}
   <a href="/demo/">Live demo</a>
   <a href="/#install">Install</a>
   <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/room-flapping/de/" hreflang="de" lang="de">Deutsch</a>
 </div></nav>
 <main>
 <h1>Why does my phone jump between rooms?</h1>
@@ -98,7 +102,7 @@ footer p{margin:4px 0}
 </table>
 <p><b>Calibration corrects nearest-proxy rooms.</b> Calibration is free and needs a floor plan with its scale set: you stand at a few spots in each room, 15 seconds each by default (longer is more accurate; the panel recommends 60). With five or more spots and two or more proxies hearing the device, PadSpan compares the live readings with the three calibrated spots that sound most like them, and a close match sets the candidate. It does this only where it is choosing by nearest proxy, unless you turn on <b>Pick the better method for this house</b> (Settings → Presence → Positioning Choices) and calibration tests clearly better.</p>
 <p><b>Then a vote.</b> Every candidate goes into a vote: PadSpan keeps the last four, and a new room must win three before the device moves. For 30 seconds after a move, the next one needs all four. So does a jump on the floor plan to another floor or to a room more than 8 m away (centre to centre). When the floor-plan position already puts the device in the new room, three are enough again, except for a move to another floor within a minute of the last move. The window is <b>Room Change Delay</b> in Settings → Presence, 20 seconds by default: longer is steadier but slower. Installs that started before version 0.21 may still check every 10 seconds (<b>Presence Poll Interval</b>, in the same place, shows the current value); the vote then keeps the last two and needs both.</p>
-<p><b>Floors.</b> On a floor plan, a device's floor is the floor of its voted room, so it can't flip while the room stays put. Each floor is scored by its two loudest proxies; the current floor starts 4 dB ahead, another must beat it by 2 dB more, and while the device hears fewer than half the proxies it usually does, the floor is kept. Proxies on other floors count 10 dB weaker for each floor up or down (10 dB one floor away, 20 dB two), and only help with position when fewer than three on the device's floor hear it.</p>
+<p><b>Floors.</b> On a floor plan, a device's floor is the floor of its voted room, so it can't flip while the room stays put. Each floor is scored by its two loudest proxies; the current floor starts 4 dB ahead, another must beat it by 2 dB more, and while the device hears fewer than half the proxies it usually does, the floor is kept. When working out a position, proxies on other floors count 10 dB weaker for each floor up or down (10 dB one floor away, 20 dB two), and they only help when fewer than three on the device's floor hear it.</p>
 <p><b>More in Settings → Presence.</b> Under <b>Signal Filter</b>, a higher Measurement noise R (default 8.0) smooths more but reacts more slowly. Under <b>Positioning Choices</b> (all off by default):</p>
 <ul>
   <li><b>Mark a room as unsure when the signal is thin</b> keeps a device's room, and marks it unsure, while fewer than three proxies hear it or no calibration spot matches it well. Those readings only start voting once the same new room has come up five times in a row, and it still has to win the vote.</li>
