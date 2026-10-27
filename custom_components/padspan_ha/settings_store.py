@@ -203,6 +203,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_3d_people": False,             # the people layer
     "atlas_3d_tags": False,               # tags and scanners: every placed tag with its name, every scanner at its height
     "atlas_3d_ai_task_entity": "",        # ai_task.* that reads photos; "" = none (the photo button explains)
+    "ai_stairs_enabled": False,           # Settings → AI: stairs read off the floor plans by the AI Task (0.38.188), off until chosen
     "ai_photos_enabled": True,            # Settings → AI: furniture (tags, receivers, people's figures) from a photo; on as it always was
     "atlas_3d_library": False,            # the shared furniture library
     "atlas_3d_weather": True,             # rain and snow in Live Aboard: follows Outdoor weather (atlas_weather_*), which must be on too

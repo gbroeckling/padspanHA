@@ -596,9 +596,10 @@ class _NoMedia(Exception):
     pass
 
 
-async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict, raw: bytes, mime: str) -> Any:
-    """One ai_task.generate_data call with the photo; the answer's data. The
-    photo's file exists only for the call."""
+async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict | None, raw: bytes, mime: str,
+              task_name: str = "PadSpan Live Aboard photo") -> Any:
+    """One ai_task.generate_data call with the photo; the answer's data (with
+    no structure, the AI's text). The photo's file exists only for the call."""
     media = _media_dir(hass)
     if media is None:
         raise _NoMedia
@@ -614,13 +615,12 @@ async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict,
         except OSError:
             raise _NoMedia from None
         async with asyncio.timeout(PHOTO_TIMEOUT_S):
-            resp = await hass.services.async_call(
-                "ai_task", "generate_data",
-                {"task_name": "PadSpan Live Aboard photo", "entity_id": eid, "instructions": instructions,
-                 "structure": structure,
-                 "attachments": [{"media_content_id": f"media-source://media_source/{dir_id}/{folder.name}/{path.name}",
-                                  "media_content_type": mime}]},
-                blocking=True, return_response=True)
+            call = {"task_name": task_name, "entity_id": eid, "instructions": instructions,
+                    "attachments": [{"media_content_id": f"media-source://media_source/{dir_id}/{folder.name}/{path.name}",
+                                     "media_content_type": mime}]}
+            if structure is not None:
+                call["structure"] = structure
+            resp = await hass.services.async_call("ai_task", "generate_data", call, blocking=True, return_response=True)
     finally:
         try:
             await hass.async_add_executor_job(_remove, folder, path)

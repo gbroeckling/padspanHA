@@ -4020,9 +4020,11 @@ function _settingsAI(ctx, el){
     "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
     "Tags, receivers and people's figures too. Tell it what the piece is first: it gets that right far more often.",
     settings.ai_photos_enabled !== false, false));
-  feats.appendChild(sw("", "Stairs from your floor plans",
-    "Reads the stairs off the floor plans you uploaded: where they are, which way is up, straight, L, U or round landings, " +
-    "and puts them in Live Aboard as a first guess to drag into place.", false, true));
+  feats.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
+    "Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor " +
+    "plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then " +
+    "drag, turn or delete it. The plans are sent to your AI only when you press it. Off until you turn it on.",
+    settings.ai_stairs_enabled === true, false));
   feats.appendChild(sw("", "Rooms and walls from a floor plan picture",
     "Traces the rooms and walls of a floor plan image for you, as a first guess to check before it is kept.", false, true));
   feats.appendChild(sw("", "Ask your voice assistant where someone is",

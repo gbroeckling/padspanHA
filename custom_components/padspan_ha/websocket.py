@@ -382,6 +382,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .ws_house3d_photo import WS_COMMANDS as _house3d_photo_commands
     for _cmd in _house3d_photo_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Stairs read off a floor plan by the same AI Task (ws_house3d_stairs.py, Settings → AI); stores nothing.
+    from .ws_house3d_stairs import WS_COMMANDS as _house3d_stairs_commands
+    for _cmd in _house3d_stairs_commands:
+        websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
     # A motion sensor's last real change across an offline blip (motion_reconnects.py).
     from .motion_reconnects import ws_motion_reconnects

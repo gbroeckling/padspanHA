@@ -568,9 +568,14 @@ PHOTO_READ_OUTCOMES: tuple[str, ...] = ("ok", "no_ai_task", "bad_answer", "error
 # (photo_secs:<band>, answered or failed). Never the photo or the answer.
 PHOTO_SUBJECTS: tuple[str, ...] = ("furniture", "tag", "scanner", "person")
 PHOTO_SECS: tuple[str, ...] = ("lt5", "5_15", "15_45", "gt45")
+# Stairs read off a floor plan (ws_house3d_stairs.py, 0.38.188), once per plan
+# sent: stair_read:found (one or more), :none, :bad_answer, :error or
+# :no_ai_task. Never the plan, the answer or where the stairs are.
+STAIR_READ_OUTCOMES: tuple[str, ...] = ("found", "none", "bad_answer", "error", "no_ai_task")
 PHOTO_EVENTS: frozenset[str] = frozenset(
     {f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES} | {f"photo_subject:{k}" for k in PHOTO_SUBJECTS}
     | {f"photo_secs:{k}" for k in PHOTO_SECS})
+STAIR_EVENTS: frozenset[str] = frozenset(f"stair_read:{k}" for k in STAIR_READ_OUTCOMES)
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to
@@ -1001,7 +1006,7 @@ def enabled(hass: HomeAssistant) -> bool:
 
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
-            or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS
+            or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS)
 
 

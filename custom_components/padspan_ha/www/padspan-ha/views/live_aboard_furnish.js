@@ -464,6 +464,13 @@ export function createFurnish(ctx){
     if (B && B.FURNITURE && B.FURNITURE.stairs && ctx.STOREY) {
       menu.appendChild(d("h5", null, "House"));
       menu.appendChild(btn("Stairs", "Stairs up to the floor above: straight, L, U, or round two or three landings", () => { closeMenu(); add([{ recipe: recipeFor("stairs") }]); }));
+      // Settings → AI → Stairs from your floor plans (off until chosen): the AI Task reads them.
+      const hs = (ctx.host() || {}).settings || {};
+      if (hs.ai_stairs_enabled === true && String(hs.atlas_3d_ai_task_entity || "").startsWith("ai_task.")) {
+        menu.appendChild(btn("Read stairs off the plans (AI)",
+          "Your AI Task looks for the stairs on each floor plan you placed and adds what it finds as a first guess to check: drag, turn or delete them; nothing is kept until Save",
+          () => { closeMenu(); readPlanStairs(); }));
+      }
       let guesses = [];
       try { guesses = stairGuesses(); } catch (_) { guesses = []; }   // a guess never costs the menu
       if (guesses.length) {
@@ -830,6 +837,81 @@ export function createFurnish(ctx){
       }
     }
     return out;
+  }
+  /** Settings → AI: each placed floor plan (made smaller here, as a photo is)
+   *  read by the AI Task for its stairs (ws_house3d_stairs.py), put on the
+   *  floor it climbs from (an upper plan's DOWN flight belongs to the floor
+   *  below), finds of one staircase on two plans kept once, none where stairs
+   *  already stand. Added unsaved, squared to their rooms. */
+  let reading = false;
+  async function readPlanStairs(){
+    if (reading) return;
+    const host = ctx.host() || {}, call = typeof host.callWS === "function" ? host.callWS : null;
+    if (!call || !ctx.STOREY) return;
+    reading = true;
+    try {
+      const ml = await call({ type: "padspan_ha/maps_list" });
+      const maps = Array.isArray(ml && ml.maps) ? ml.maps : [], urls = (ml && ml.image_urls) || {};
+      const floors = floorList(), canon = (fid) => (ctx.canon ? ctx.canon(fid) : String(fid));
+      const plans = maps.filter(m => m && urls[m.id] && floors.some(f => f.id === canon(m.floor_id) && !f.outdoor));
+      if (!plans.length) { ctx.hint("No placed floor plans to read: add one in Mapping first.", true); return; }
+      const found = [];
+      let i = 0, failed = 0;
+      for (const m of plans) {
+        ctx.hint(`Reading the stairs off ${m.name || "a plan"} (${++i} of ${plans.length})… a local AI can take a minute.`);
+        try {
+          const img = await shrinkImage(urls[m.id], 1024);
+          const r = await call({ type: "padspan_ha/house3d_stairs_read", map_id: m.id, image: img.data, width: img.w, height: img.h });
+          if (r && r.ok) for (const st of r.stairs || []) found.push({ ...st, plan: canon(m.floor_id) });
+          else failed++;
+        } catch (e) {
+          failed++;
+          if (e && (e.code === "ai_stairs_off" || e.code === "no_ai_task")) { ctx.hint(String(e.message || e.code), true); return; }
+        }
+      }
+      // Where each one goes: the floor it climbs from.
+      const c = cur(), have = Object.values((c && c.pieces) || {}).filter(q => ctx.STOREY.isStairs(q));
+      const placed = [];
+      for (const st of found) {
+        const top = !ctx.STOREY.stairReach(st.plan, null, floors).to;
+        const fid = st.says === "DOWN" || top ? PIECES.floorStep(floors, st.plan, -1) : st.plan;
+        if (!fid || floors.find(f => f.id === fid && f.outdoor)) continue;
+        const near = (q) => q.fid === fid && Math.hypot(q.x - st.x_m, q.y - st.y_m) < 2.5;
+        if (have.some(q => q.floor_id === fid && Math.hypot((num(q.x_m) ?? 0) - st.x_m, (num(q.y_m) ?? 0) - st.y_m) < 1.5)) continue;
+        const twin = placed.find(near);
+        // The same staircase on two plans: the one read where it climbs from wins.
+        if (twin) { if (twin.st.plan !== fid && st.plan === fid) Object.assign(twin, { st, x: st.x_m, y: st.y_m }); continue; }
+        placed.push({ fid, st, x: st.x_m, y: st.y_m });
+      }
+      if (!placed.length) {
+        ctx.hint(failed === plans.length ? "The AI couldn't read the plans. Try again, or place the stairs with Build → Stairs."
+          : "No stairs found on the plans (or they're already here). Place them with Build → Stairs.", failed === plans.length);
+        return;
+      }
+      const base = recipeFor("stairs");
+      add(placed.map(({ fid, st }) => {
+        const recipe = { ...base, params: { ...(base.params || {}), shape: st.shape, style: "closed", rail: "auto" },
+                         width_m: st.width_m, depth_m: st.depth_m };
+        const piece = PIECES.makePiece(recipe, fid, { x: st.x_m, y: st.y_m, rotation: st.rotation }, "build");
+        piece.label = st.sure_up ? "Stairs (from the plan)" : "Stairs (from the plan, check which way is up)";
+        return { piece, square: true };
+      }), null, `The AI found ${placed.length} staircase${placed.length === 1 ? "" : "s"} on your plans: a first guess, so check where they stand and which way is up`);
+    } catch (e) {
+      ctx.hint("Couldn't read the plans: " + String((e && (e.message || e.code)) || e), true);
+    } finally { reading = false; }
+  }
+  /** An image made at most `max` px on its long side, as a JPEG: {data (base64), w, h}. */
+  async function shrinkImage(url, max){
+    const blob = await (await fetch(url, { credentials: "same-origin" })).blob();
+    const bmp = await createImageBitmap(blob);
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height)), w = Math.max(32, Math.round(bmp.width * k)), h = Math.max(32, Math.round(bmp.height * k));
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, w, h);
+    g.drawImage(bmp, 0, 0, w, h);
+    if (bmp.close) bmp.close();
+    return { data: cv.toDataURL("image/jpeg", 0.88).split(",")[1], w, h };
   }
   function tidyRecipe(q){
     const B = FURN();

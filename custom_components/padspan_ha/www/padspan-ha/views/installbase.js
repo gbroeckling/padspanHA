@@ -598,6 +598,9 @@ function word(kind, k) {
       if (a === "first_room") return `First room drawn (${b === "lt15m" ? "within 15 min" : b})`;
       if (a === "photo_read") return { ok: "AI read a photo", no_ai_task: "AI photo refused: no AI Task set up",
                                         bad_answer: "AI answered with nothing usable", error: "AI photo read failed" }[b] || tidy(key);
+      if (a === "stair_read") return { found: "AI found stairs on a floor plan", none: "AI found no stairs on a plan",
+                                        bad_answer: "AI's stair answer unreadable", error: "AI stair read failed",
+                                        no_ai_task: "AI stair read refused: no AI Task" }[b] || tidy(key);
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
       if (a === "photo_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to answer`;
       if (a === "proxy_rate_drops") return `A receiver's reading rate dropped (${b} a day)`;

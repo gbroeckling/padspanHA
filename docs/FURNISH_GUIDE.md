@@ -55,6 +55,13 @@ The other ways in:
     against a long wall with the rail on the open side when the room is long enough, else a U or a
     flight round two landings filling it. Drag it, turn it or change it like any other; nothing is
     kept until Save.
+  - **Read stairs off the plans (AI)** (Build ▾ → House, with **Settings → AI → Stairs from your floor
+    plans** on and an AI Task picked): your AI looks for the stairs on each floor plan you placed and adds
+    what it finds, unsaved: put on the floor it climbs from (a flight marked DOWN on an upper plan goes on
+    the floor below), one staircase seen on two plans added once, none where stairs already stand, each
+    squared to its room. It's a first guess: in a test with a small local model (qwen2.5vl:7b) it found
+    most staircases but got their exact size and which way is up wrong often enough that you should check
+    every one. A bigger or cloud model reads plans better. A plan is sent to your AI only when you press it.
   - **From a file:** Import brings a Sweet Home 3D staircase in as stairs (its own staircase mark, or
     a name like "Spiral staircase" or "L-shaped stairs" for a first guess at the shape; a mirrored
     model turns the other way), and with RoomPlan import on (Settings → Features), the furniture and
