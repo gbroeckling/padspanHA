@@ -385,9 +385,10 @@ if (REAL_TOOLS) {
   await tryCase("kinds: the real builders", async () => {
     const choices = IM.kindChoices(REAL_TOOLS);
     const furn = REAL_TOOLS.FURNITURE;
+    // (Stairs since 0.38.184: a staircase in the file comes in as stairs.)
     check("kinds: the real builders' furniture and devices are offered, then Box", choices.length >= 2 && choices.at(-1).kind === IM.BOX
-      && choices.filter(c => c.kind === IM.BOX).length === 1
-      && choices.slice(0, -1).every(c => furn[c.kind] && ["furniture", "device"].includes(furn[c.kind].group)), choices.map(c => c.kind));
+      && choices.filter(c => c.kind === IM.BOX).length === 1 && choices.at(-2).kind === "stairs"
+      && choices.slice(0, -2).every(c => furn[c.kind] && ["furniture", "device"].includes(furn[c.kind].group)), choices.map(c => c.kind));
     const bad = [];
     for (const c of choices) {
       const r = IM.recipeFor(c.kind, { w: 1.0, d: 0.6, h: 0.9 }, REAL_TOOLS);

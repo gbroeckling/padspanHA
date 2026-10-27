@@ -47,6 +47,17 @@ The other ways in:
     straight, L and U stairs have always had, and gives the other styles and shapes a handrail on
     spindles on the open side. A rail stands its full height, so over the top flights it rises
     into the opening in the floor above, as a real one does.
+  - **Stairs in stair rooms** (Build ▾ → House, shown when there are some): a first guess for each
+    room called Stairs, Stairwell or Staircase (Escalier, Treppenhaus, Trap…) that has none yet and
+    a floor above. It's squared to the room's longest wall and sized to the room: a straight flight
+    against a long wall with the rail on the open side when the room is long enough, else a U or a
+    flight round two landings filling it. Drag it, turn it or change it like any other; nothing is
+    kept until Save.
+  - **From a file:** Import brings a Sweet Home 3D staircase in as stairs (its own staircase mark, or
+    a name like "Spiral staircase" or "L-shaped stairs" for a first guess at the shape; a mirrored
+    model turns the other way), and with RoomPlan import on (Settings → Features), the furniture and
+    stairs of a RoomPlan scan (.json) too. Stairs from a file are squared to their room's walls when
+    they're within about 12° of them.
 
 ## A piece that's a real device
 

@@ -81,7 +81,7 @@ def test_doors_windows_and_furniture_in_metres_and_degrees():
     door = _by_name(r["openings"], "Front door")
     assert door == {"tag": "doorOrWindow", "name": "Front door", "catalog": "eTeks#frontDoor", "category": "",
                     "level_id": "lvl0", "x_m": 2.5, "y_m": 4.0, "width_m": 0.915, "depth_m": 0.2, "height_m": 2.08,
-                    "elevation_m": 0.0, "angle_deg": 0.0}
+                    "elevation_m": 0.0, "angle_deg": 0.0, "staircase": False, "mirrored": False}
     win = _by_name(r["openings"], "Window")
     assert (win["level_id"], win["elevation_m"], win["height_m"], win["angle_deg"]) == ("lvl1", 0.9, 1.2, 90.0)
     sofa = _by_name(r["pieces"], "Corner sofa")

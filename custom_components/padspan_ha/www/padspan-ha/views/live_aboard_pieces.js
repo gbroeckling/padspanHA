@@ -400,3 +400,64 @@ export function fitChecks(p, scene){
   }
   return out;
 }
+
+// ── stairs from a plan ──────────────────────────────────────────────────────
+// A first guess, never placed silently: what a stair room (an area named
+// Stairs, Stairwell, Staircase…) would hold, and any piece squared to the
+// walls of the room it stands in. "Upstairs" and "downstairs" are not stair
+// rooms (the word has to stand alone).
+export const STAIR_ROOM = /(^|[^a-z])(stairs?|stair ?case|stair ?way|stair ?well|escaliers?|treppe(nhaus)?|escaleras?|scal[ae]|trap(pen)?(huis|hal)?)([^a-z]|$)/i;
+export const SQUARE_TOL_DEG = 12;           // a piece this near a wall's direction is squared to it
+const TREAD_M = 0.26;                       // a comfortable going, for sizing a guess
+/** `rot` turned onto the nearest direction of a room's walls (theirs or at
+ *  right angles to them), when it is within `tol` degrees of one; else as it
+ *  is. Long walls count first: a short jog in a wall doesn't decide. */
+export function squareRot(rot, pts, tol = SQUARE_TOL_DEG){
+  const r0 = normRot(rot);
+  let best = null;
+  for (let i = 0; i < (pts || []).length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!(len > 0.4)) continue;
+    const th = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+    const dlt = ((((r0 - th) % 90) + 135) % 90) - 45;           // −45 … 45
+    if (Math.abs(dlt) <= tol && (!best || len > best.len)) best = { dlt, len };
+  }
+  return best ? normRot(r0 - best.dlt) : r0;
+}
+/** The flight a stair room would hold, going up `rise` metres: squared to
+ *  its longest wall, a straight one against a long wall when the room is
+ *  long enough (the rail on the open side), else a U or a flight round two
+ *  landings filling it. {params, width_m, depth_m, x_m, y_m, rotation}. */
+export function stairForRoom(room, rise){
+  const pts = room && Array.isArray(room.pts) ? room.pts : [];
+  if (pts.length < 3) return null;
+  let e = null;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!e || len > e.len) e = { len, u: [(b[0] - a[0]) / (len || 1), (b[1] - a[1]) / (len || 1)] };
+  }
+  const u = e.u, v = [-u[1], u[0]];
+  const us = pts.map(p => p[0] * u[0] + p[1] * u[1]), vs = pts.map(p => p[0] * v[0] + p[1] * v[1]);
+  const u0 = Math.min(...us), u1 = Math.max(...us), v0 = Math.min(...vs), v1 = Math.max(...vs);
+  let Lu = u1 - u0, Lv = v1 - v0, ax = u, nx = v, a0 = u0, b0 = v0;
+  if (Lv > Lu) { [Lu, Lv] = [Lv, Lu]; ax = v; nx = [-u[0], -u[1]]; a0 = v0; b0 = -u1; }   // run along the long side
+  const R = Math.max(0.3, num(rise) ?? 2.8), N = Math.max(2, Math.ceil(R / 0.19 - 1e-9)), need = (N - 1) * TREAD_M;
+  const gap = 0.03, w = clamp(Lv - 2 * gap, 0.7, 1.0);
+  const at = (al, ac) => [ax[0] * al + nx[0] * ac, ax[1] * al + nx[1] * ac];
+  // Climbing toward +ax: the front (the bottom step) faces −ax.
+  const rotation = rotFacing(-ax[0], -ax[1]);
+  let params, W, D, c;
+  if (Lu - 2 * gap >= need * 0.85 || Lv < 1.8) {
+    D = clamp(Math.min(need, Lu - 2 * gap), 0.6, 8); W = w;
+    // Against the room's wall on its −nx side, the rail on the open side.
+    c = at(a0 + gap + D / 2, b0 + gap + W / 2);
+    const right = acrossOf(rotation), wallRight = right[0] * -nx[0] + right[1] * -nx[1] > 0;
+    params = { shape: "straight", style: "closed", rail: Lv - W > 0.3 ? (wallRight ? "inner" : "outer") : "both" };
+  } else {
+    W = clamp(Lv - 2 * gap, 1.8, 4); D = clamp(Lu - 2 * gap, 1.8, 8);
+    const f = Math.min(W / 2, D / 2), uFits = 2 * (D - f) >= need * 0.85;
+    params = { shape: uFits ? "u" : "l2", style: "closed", rail: "inner", turn: "left" };
+    c = at(a0 + gap + D / 2, b0 + gap + W / 2);
+  }
+  return { params, width_m: mm(W), depth_m: mm(D), x_m: mm(c[0]), y_m: mm(c[1]), rotation };
+}

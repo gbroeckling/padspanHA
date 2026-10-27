@@ -37,7 +37,7 @@ export const MAX_CHANGES = 1000, MAX_PIECES = 1000, MAX_OPENINGS = 500;   // wha
 export const HIGH_LIGHT_M = 1.5;                     // a lamp this high is a ceiling or wall light
 export const LEAVE_OUT = "";                         // a level that goes to no floor
 const NO_LEVEL = "";                                 // what the file has on no level
-const GROUPS = new Set(["furniture", "device"]);     // the kinds a piece can be re-mapped to
+const GROUPS = new Set(["furniture", "device", "house"]);   // the kinds a piece can be re-mapped to (house: stairs)
 const EPS = 1e-6;
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -147,7 +147,7 @@ export function placeOpening(o, W, taken){
 
 // ── A piece: kind and size ──────────────────────────────────────────────────
 /** The kinds a piece can be: the builders' furniture and device pieces, in
- *  their menu order, by name; then Box. */
+ *  their menu order, by name; then Stairs; then Box. */
 export function kindChoices(tools){
   const F = (tools && tools.FURNITURE) || {};
   const order = Array.isArray(tools && tools.FURNITURE_KINDS) ? tools.FURNITURE_KINDS : Object.keys(F);
@@ -156,18 +156,22 @@ export function kindChoices(tools){
     const d = F[k];
     if (k !== BOX && d && GROUPS.has(d.group)) out.push({ kind: k, name: String(d.name || k) });
   }
+  if (F.stairs && !order.includes("stairs")) out.push({ kind: "stairs", name: String(F.stairs.name || "Stairs") });
   out.push({ kind: BOX, name: String((F[BOX] && F[BOX].name) || "Box") });
   return out;
 }
 /** A recipe of `kind` at the file's size: the builder's defaults kept to
  *  its range (clampRecipe; the builders' own box too), else a plain box of
  *  that size; every size within what the 3D file keeps. */
-export function recipeFor(kind, size, tools){
+export function recipeFor(kind, size, tools, params = null){
   let r = null;
   const d = tools && tools.FURNITURE && tools.FURNITURE[kind];
   if (d && typeof tools.defaultRecipe === "function") {
     try {
-      r = { ...tools.defaultRecipe(kind), width_m: size.w, depth_m: size.d, height_m: size.h };
+      const r1 = tools.defaultRecipe(kind);
+      // Stairs keep what the file said of them (their shape and style: ws_house3d_import.py).
+      const own = kind === "stairs" && params && typeof params === "object" ? params : {};
+      r = { ...r1, params: { ...(r1.params || {}), ...own }, width_m: size.w, depth_m: size.d, height_m: size.h };
       if (typeof tools.clampRecipe === "function") r = tools.clampRecipe(r);
     } catch (_e) { r = null; }
   }
@@ -181,7 +185,7 @@ export function pieceFor(cand, kind, floorId, tools){
   const r0 = (cand && cand.recipe) || {};
   const size = { w: num(r0.width_m) ?? 0.5, d: num(r0.depth_m) ?? 0.5, h: num(r0.height_m) ?? 0.5 };
   const turn = num(cand.rotation) ?? 0;
-  return { id: cand.id, recipe: recipeFor(kind, size, tools), origin: "import",
+  return { id: cand.id, recipe: recipeFor(kind, size, tools, r0.params), origin: "import",
            label: String(cand.label || "").slice(0, 60), library_id: null, submission_id: null,
            floor_id: floorId, x_m: mm(num(cand.x_m) ?? 0), y_m: mm(num(cand.y_m) ?? 0),
            z_m: mm(clamp(num(cand.z_m) ?? 0, 0, Z_MAX_M)), rotation: mm(((turn % 360) + 360) % 360) % 360,
@@ -328,18 +332,23 @@ export function importFlow(ctx){
     const tools = ctx.recipeTools || null;
     let S = null, fileName = "", token = 0, done = false;
     const finish = (v) => { if (done) return; done = true; token++; el.replaceChildren(); resolve(v); };
-    const input = h("input", { type: "file", accept: ".sh3d", style: "display:none", onchange: () => pick() });
+    // A RoomPlan JSON scan too, where RoomPlan import is on (Settings → Features): its furniture and stairs.
+    const rp = !!(ctx.settings && ctx.settings.roomplan_import_enabled === true);
+    const title = rp ? "Import from Sweet Home 3D or RoomPlan" : "Import from Sweet Home 3D";
+    const input = h("input", { type: "file", accept: rp ? ".sh3d,.json" : ".sh3d", style: "display:none", onchange: () => pick() });
     const screen = (kids) => el.replaceChildren(h("div", { class: "la-import", style: CSS.wrap }, kids));
     const cancelBtn = () => h("button", { class: "btn inline", onclick: () => finish(null) }, "Cancel");
     const chooseBtn = (label, primary) => h("button", { class: "btn inline" + (primary ? " primary" : ""), onclick: () => input.click() }, label);
 
     function start(msg, bad){
       screen([
-        h("div", { style: CSS.title }, "Import from Sweet Home 3D"),
+        h("div", { style: CSS.title }, title),
         h("div", { class: "muted", style: CSS.note },
-          "Doors, windows and furniture from a .sh3d file. Furniture comes in as its kind and size. You choose what to add; nothing is saved until you press Save."),
+          (rp ? "Doors, windows, furniture and stairs from a .sh3d file, or the furniture and stairs of a RoomPlan scan (.json). "
+              : "Doors, windows, furniture and stairs from a .sh3d file. ")
+          + "Furniture comes in as its kind and size; stairs as a first guess at their shape, squared to the room. You choose what to add; nothing is saved until you press Save."),
         msg ? h("div", { role: "alert", style: bad ? CSS.bad : CSS.note }, msg) : null,
-        h("div", { style: CSS.row }, [chooseBtn("Choose a .sh3d file", true), cancelBtn(), input]),
+        h("div", { style: CSS.row }, [chooseBtn(rp ? "Choose a .sh3d or .json file" : "Choose a .sh3d file", true), cancelBtn(), input]),
       ]);
     }
     async function pick(){
@@ -351,13 +360,13 @@ export function importFlow(ctx){
         return;
       }
       const mine = ++token;
-      screen([h("div", { style: CSS.title }, "Import from Sweet Home 3D"),
+      screen([h("div", { style: CSS.title }, title),
               h("div", { class: "muted", style: CSS.note }, `Reading ${file.name}…`), h("div", { style: CSS.row }, [cancelBtn()])]);
       try {
         const b64 = await readBase64(file);
         if (mine !== token) return;
         const [prev, model, file3d] = await Promise.all([
-          call({ type: PREVIEW_TYPE, sh3d_base64: b64 }),
+          call(rp && /\.json$/i.test(file.name || "") ? { type: PREVIEW_TYPE, sh3d_base64: b64, format: "roomplan" } : { type: PREVIEW_TYPE, sh3d_base64: b64 }),
           Promise.resolve().then(() => call({ type: "padspan_ha/model_get" })).catch(() => null),
           // Furnish's draft, unsaved doors and windows too; else the saved file.
           ctx.draft ? { data: ctx.draft } : Promise.resolve().then(() => call({ type: "padspan_ha/house3d_get" })).catch(() => null),
@@ -465,7 +474,7 @@ export function importFlow(ctx){
       const left = [...S.rep.skipped.map(s => `${s.name}: ${s.why}`), ...S.rep.warnings];
       addBtn = h("button", { class: "btn inline primary", onclick: () => { if (count() && !overBy(S, tools)) finish(chosenOf(S, tools)); } }, "Add");
       screen([
-        h("div", { style: CSS.title }, "Import from Sweet Home 3D"),
+        h("div", { style: CSS.title }, title),
         h("div", {}, [h("b", {}, fileName || "The file"), `: ${found.join(", ")}.`]),
         !pIds.length && !oIds.length ? h("div", { role: "alert", style: CSS.bad }, "Nothing in this file can be added.") : null,
         S.capped ? h("div", { style: CSS.note }, `One Save takes only so many, so the last ${S.capped} start unticked. Add these and Save, then import the file again and tick the rest.`) : null,

@@ -427,6 +427,7 @@ export function createFurnish(ctx){
         p.z_m = num(p.z_m) ?? 0;
         inRange(p.recipe);
         stairFix(p);                                    // stairs: up to the floor above, their rise its gap
+        if (item.square) squareInRoom(p);               // a guess or an import: squared to its room's walls
         const PF = floorById(p.floor_id);              // under its floor's ceiling, as every other way in keeps it
         if (PF) p.z_m = PIECES.clampZ(p.z_m, ceilOf(PF), PIECES.sizeOf(p.recipe).h);
         c.pieces[p.id] = p;
@@ -459,10 +460,17 @@ export function createFurnish(ctx){
       menu.appendChild(d("h5", null, title));
       for (const k of ks) menu.appendChild(btn(B.FURNITURE[k].name || k, `Add a ${B.FURNITURE[k].name || k}`, () => { closeMenu(); add([{ recipe: recipeFor(k) }]); }));
     }
-    // The house itself: stairs (not furniture; never offered by a photo or an import).
+    // The house itself: stairs (not furniture; never offered by a photo).
     if (B && B.FURNITURE && B.FURNITURE.stairs && ctx.STOREY) {
       menu.appendChild(d("h5", null, "House"));
-      menu.appendChild(btn("Stairs", "Stairs up to the floor above: straight, L or U", () => { closeMenu(); add([{ recipe: recipeFor("stairs") }]); }));
+      menu.appendChild(btn("Stairs", "Stairs up to the floor above: straight, L, U, or round two or three landings", () => { closeMenu(); add([{ recipe: recipeFor("stairs") }]); }));
+      let guesses = [];
+      try { guesses = stairGuesses(); } catch (_) { guesses = []; }   // a guess never costs the menu
+      if (guesses.length) {
+        menu.appendChild(btn(`Stairs in stair rooms (${guesses.length})`,
+          `A flight in each room called Stairs, Stairwell or Staircase that has none yet (${guesses.map(g => g.room).join(", ")}): squared to its walls and sized to the room, a first guess to drag into place`,
+          () => { closeMenu(); add(guesses.map(g => ({ piece: g.piece })), null, "A first guess"); }));
+      }
     }
     menu.appendChild(d("h5", null, "Other"));
     menu.appendChild(btn("Box", "A plain box of any size: anything with no builder of its own", () => { closeMenu(); add([{ recipe: recipeFor(boxKind) }]); }));
@@ -529,7 +537,9 @@ export function createFurnish(ctx){
     } else if (k === "library" && r.recipe) {
       add([{ recipe: r.recipe, origin: "library", library_id: r.library_id || null }], null, "From the library");
     } else if (k === "import") {
-      const list = Object.values(r.pieces || {}).filter(p => p && p.recipe).map(p => ({ piece: { ...p, origin: "import" } }));
+      // Stairs from a file come in squared to their room's walls when they are nearly so.
+      const list = Object.values(r.pieces || {}).filter(p => p && p.recipe)
+        .map(p => ({ piece: { ...p, origin: "import" }, square: !!(ctx.STOREY && ctx.STOREY.isStairs(p)) }));
       const ops = r.openings && typeof r.openings === "object" ? r.openings : null;
       add(list, ops ? (c) => { for (const [id, o] of Object.entries(ops)) { if (o === null) delete c.openings[id]; else c.openings[id] = copy(o); } } : null, "Imported");
     } else if (k === "people") {
@@ -787,6 +797,39 @@ export function createFurnish(ctx){
     }
     el.appendChild(d("p", "la3d-sub", r.to ? `Up ${metres(r.rise)} to ${r.to.name || r.to.id}: always as high as the floor it reaches.`
       : "There is no floor above: it goes up as high as its own floor."));
+  }
+  /** A piece turned square to the walls of the room it stands in, when it is
+   *  within a few degrees of them (PIECES.squareRot). */
+  function squareInRoom(p){
+    const F = floorById(p.floor_id);
+    const room = F && F.rooms.find(r => !r.outdoor && Array.isArray(r.pts) && r.pts.length >= 3 && ctx.HOUSE.inPoly(num(p.x_m) ?? 0, num(p.y_m) ?? 0, r.pts));
+    if (room && typeof PIECES.squareRot === "function") p.rotation = PIECES.squareRot(p.rotation, room.pts);
+  }
+  /** The flights stair rooms would hold: each indoor room named like a
+   *  staircase (PIECES.STAIR_ROOM), with a floor above it and no stairs in
+   *  it yet. [{room, piece}] */
+  function stairGuesses(){
+    const B = FURN(), c = cur();
+    if (!B || !ctx.STOREY || typeof PIECES.stairForRoom !== "function") return [];
+    const have = Object.values((c && c.pieces) || {}).filter(q => ctx.STOREY.isStairs(q));
+    const out = [];
+    for (const F of ctx.floors()) {
+      if (F.fl.outdoor) continue;
+      for (const r of F.rooms) {
+        if (r.outdoor || !Array.isArray(r.pts) || r.pts.length < 3 || !PIECES.STAIR_ROOM.test(String(r.name || ""))) continue;
+        if (have.some(q => q.floor_id === F.fl.id && ctx.HOUSE.inPoly(num(q.x_m) ?? 0, num(q.y_m) ?? 0, r.pts))) continue;
+        const reach = ctx.STOREY.stairReach(F.fl.id, null, floorList());
+        if (!reach.to) continue;                                     // the top floor: nowhere to go up to
+        const g = PIECES.stairForRoom(r, reach.rise);
+        if (!g) continue;
+        const base = recipeFor("stairs");
+        const recipe = { ...base, params: { ...(base.params || {}), ...g.params }, width_m: g.width_m, depth_m: g.depth_m, height_m: reach.rise };
+        const piece = PIECES.makePiece(recipe, F.fl.id, { x: g.x_m, y: g.y_m, rotation: g.rotation }, "build");
+        piece.label = `Stairs (${r.name})`;
+        out.push({ room: r.name, piece });
+      }
+    }
+    return out;
   }
   function tidyRecipe(q){
     const B = FURN();

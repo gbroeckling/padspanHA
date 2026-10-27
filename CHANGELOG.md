@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.184 — Stairs from your plans, a first guess (2026-10-27)
+
+### New
+- **Stairs in stair rooms.** Furnish → Build ▾ → House → **Stairs in stair rooms** puts a flight in each room called Stairs, Stairwell or Staircase that has none yet. Each one is squared to the room's longest wall and sized to the room: a straight flight against a long wall, its rail on the open side, when the room is long enough, else a U or a flight round two landings filling it. It's a first guess to drag into place; nothing is kept until Save.
+- **Stairs from Sweet Home 3D.** Import brings a Sweet Home 3D staircase in as stairs, not a box. Its shape is guessed from its name ("Spiral staircase", "L-shaped stairs", "half turn"), and a mirrored one turns the other way.
+- **Stairs and furniture from a RoomPlan scan.** With RoomPlan import on (Settings → Features), Import also takes an iPhone RoomPlan scan (.json): its beds, sofas, chairs, tables, TVs, storage and stairs come in as pieces (anything else as a box of its size).
+
+### Changed
+- **Imported stairs are squared to the room.** A staircase from a file that is within about 12° of its room's walls is turned square to them.
+
+---
+
 ## 0.38.183 — Open stairs, and stairs with two or three landings (2026-10-27)
 
 ### New

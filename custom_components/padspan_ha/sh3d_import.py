@@ -248,6 +248,10 @@ def _furnishing(el: ET.Element, inherited_level: str | None, level_ids: set[str]
         warnings.append(f"'{name or el.tag}' references unknown level '{level_id}' — treated as unassigned")
         level_id = None
     out["level_id"] = level_id
+    # Sweet Home 3D marks a staircase by the hole it cuts in the floor above
+    # (staircaseCutOutShape), and a mirrored model (an L turning the other way).
+    out["staircase"] = el.get("staircaseCutOutShape") is not None
+    out["mirrored"] = str(el.get("modelMirrored") or "").lower() == "true"
     return out, ""
 
 
@@ -261,7 +265,8 @@ def parse_sh3d_furniture(data: bytes, *, max_pieces: int = MAX_IMPORT_PIECES,
       openings: doors and windows, document order:
                 {"tag", "name", "catalog", "category", "level_id", "x_m", "y_m",
                  "width_m", "depth_m", "height_m", "elevation_m", "angle_deg"}
-      pieces:   furniture (lights included), the same fields; a group's
+      pieces:   furniture (lights included), the same fields and
+                "staircase" / "mirrored" (true or false); a group's
                 pieces one by one (in its level when they name none).
       skipped:  [{"name", "why"}] for each one left out, and one line for any
                 past the caps — never dropped without a trace.

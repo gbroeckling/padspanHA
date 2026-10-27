@@ -135,7 +135,7 @@ def test_the_new_words_are_plain_and_never_say_3d() -> None:
     """New text says Live Aboard, never "3D" (the lead renames the old labels)."""
     for name, words in (("live_aboard.js", ("Roof: Auto", "Roof: Off", "The roof shows when you look at the house from outside")),
                         ("live_aboard_edit.js", ("Doorway", "an opening with no door in it", "It opens and shuts with its sensor.")),
-                        ("live_aboard_furnish.js", ("Stairs up to the floor above: straight, L or U", "There is no floor above it to go up to."))):
+                        ("live_aboard_furnish.js", ("Stairs up to the floor above: straight, L, U, or round two or three landings", "Stairs in stair rooms", "There is no floor above it to go up to."))):
         src = (_VIEWS / name).read_text(encoding="utf-8")
         for w in words:
             assert w in src, (name, w)

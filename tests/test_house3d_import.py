@@ -99,7 +99,8 @@ def test_the_light_placement_gate_any_user_no_admin(disk, tmp_path):
 
 def test_registered_with_its_schema_beside_the_3d_house_commands():
     assert WI.WS_COMMANDS == (WI.ws_house3d_import_preview,)
-    assert {str(k) for k in WI.ws_house3d_import_preview.ws_schema} == {"type", "sh3d_base64"}
+    # format: "roomplan" reads a RoomPlan scan instead (0.38.184), only with RoomPlan import on.
+    assert {str(k) for k in WI.ws_house3d_import_preview.ws_schema} == {"type", "sh3d_base64", "format"}
     assert WI.ws_house3d_import_preview.ws_schema["type"] == "padspan_ha/house3d_import_preview"
     ws = (_CC / "websocket.py").read_text(encoding="utf-8")
     at = ws.index("from .ws_house3d import WS_COMMANDS as _house3d_commands")
@@ -341,3 +342,72 @@ def test_a_rotated_opening_keeps_its_width_and_middle():
     assert math.dist(a, b) == pytest.approx(1.5, abs=0.002)
     assert [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] == pytest.approx([3.0, 2.0], abs=0.001)
     assert math.atan2(b[1] - a[1], b[0] - a[0]) == pytest.approx(0.5, abs=0.002)
+
+
+# ═══ stairs from a file (0.38.184) ════════════════════════════════════════════
+
+@pytest.mark.parametrize("name,shape,style", [
+    ("Staircase", "straight", "closed"),
+    ("Spiral staircase", "l3", "closed"),
+    ("L-shaped stairs", "l", "closed"),
+    ("Staircase with quarter landing", "l", "closed"),
+    ("Half turn staircase", "u", "closed"),
+    ("Stairs with two landings", "l2", "closed"),
+    ("Open riser staircase", "straight", "open"),
+    ("Floating stairs", "straight", "treads"),
+    ("Treppe", "straight", "closed"),
+])
+def test_a_staircase_comes_in_as_stairs_with_a_first_guess_at_its_shape(name, shape, style):
+    it = {"tag": "pieceOfFurniture", "name": name, "catalog": "", "category": ""}
+    assert WI.kind_of(it)[0] == "stairs"
+    assert WI.stair_params(it) == {"shape": shape, "turn": "left", "style": style}
+
+
+def test_upstairs_furniture_is_not_a_staircase():
+    for name in ("Upstairs desk", "Downstairs sofa"):
+        assert WI.kind_of({"tag": "pieceOfFurniture", "name": name, "catalog": "", "category": ""})[0] != "stairs"
+
+
+def test_sweet_home_3ds_own_staircase_mark_decides_and_a_mirror_turns_it_right():
+    body = ('<pieceOfFurniture name="Escalier droit" x="100" y="100" width="90" depth="300" height="270" '
+            'staircaseCutOutShape="M0,0 L90,0 L90,300 L0,300 z" modelMirrored="true"/>'
+            '<pieceOfFurniture name="Thing" x="0" y="0" width="10" depth="10" height="10"/>')
+    out = WI.preview(_make_sh3d(_home(body)))
+    by = {p["label"]: p for p in out["pieces"].values()}
+    st = by["Escalier droit"]["recipe"]
+    assert st["kind"] == "stairs" and st["params"] == {"shape": "straight", "turn": "right", "style": "closed"}
+    assert by["Thing"]["recipe"]["kind"] == "other" and by["Thing"]["recipe"]["params"] == {}
+
+
+def test_a_roomplan_scans_furniture_and_stairs_come_in_as_candidates():
+    """The 3D Import reads a RoomPlan scan too (0.38.184): its objects by
+    category, a scan's stairs as stairs with the run along the long side."""
+    from tests.test_roomplan_import import _bytes, _room, _wall_tf
+    room = _room()
+    room["objects"].append({"identifier": "33333333-3333-3333-3333-333333333333", "category": {"stairs": {}},
+                            "confidence": {"high": {}}, "dimensions": [3.2, 2.6, 1.0],
+                            "transform": _wall_tf(1.0, 1.0, 0, cy=1.3), "parentIdentifier": None,
+                            "attributes": {}, "story": 0})
+    room["objects"].append({"identifier": "44444444-4444-4444-4444-444444444444", "category": {"refrigerator": {}},
+                            "confidence": {"high": {}}, "dimensions": [0.7, 1.8, 0.7],
+                            "transform": _wall_tf(3.0, 2.5, 0, cy=0.9), "parentIdentifier": None,
+                            "attributes": {}, "story": 0})
+    out = WI.preview_roomplan(_bytes(room))
+    by = {p["label"]: p for p in out["pieces"].values()}
+    assert set(by) == {"Table", "Stairs", "Refrigerator"} and out["openings"] == {}
+    st = by["Stairs"]
+    assert st["recipe"]["kind"] == "stairs" and st["recipe"]["params"]["shape"] == "straight"
+    assert (st["recipe"]["width_m"], st["recipe"]["depth_m"]) == (1.0, 3.2) and st["rotation"] == 90.0
+    assert (st["x_m"], st["y_m"]) == (1.0, 1.0)
+    assert by["Table"]["recipe"]["kind"] == "table" and by["Refrigerator"]["recipe"]["kind"] == "other"
+    assert {r["kind"] for r in out["report"]["pieces"].values()} == {"table", "stairs", "other"}
+
+
+
+def test_a_roomplan_scan_is_refused_while_roomplan_import_is_off(tmp_path):
+    from tests.test_roomplan_import import _bytes, _room
+    h, conn = _on(tmp_path, admin=False)
+    h.data[DOMAIN][DATA_SETTINGS].data["roomplan_import_enabled"] = False
+    _run(WI.ws_house3d_import_preview(h, conn, {"id": 9, "type": WI.ws_house3d_import_preview.ws_schema["type"],
+                                                "sh3d_base64": _b64(_bytes(_room())), "format": "roomplan"}))
+    assert conn.send_error.called and conn.send_error.call_args[0][1] == WFI.ROOMPLAN_OFF_CODE

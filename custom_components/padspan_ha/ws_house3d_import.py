@@ -38,13 +38,16 @@ import secrets
 import unicodedata
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .house3d_store import DOOR_MIN_M, WINDOW_MIN_M, enabled
+from .roomplan_import import RoomPlanParseError, parse_roomplan
 from .sh3d_import import Sh3dParseError, parse_sh3d_furniture
 from .ws_common import _tier_at_least
-from .ws_floorplan_import import MAX_SH3D_BYTES
+from .const import DATA_SETTINGS, DOMAIN
+from .ws_floorplan_import import MAX_SH3D_BYTES, ROOMPLAN_OFF_CODE
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 
 BOX = "other"                  # the builders' own box, "Box" in the Build menu (contracts §3)
@@ -93,6 +96,8 @@ KIND_WORDS: dict[str, tuple[str, ...]] = {
     "mower_dock": ("mower", "lawnmower", "automower"),
     "car": ("car", "vehicle", "suv", "voiture", "coche"),
     "charger": ("charger", "wallbox", "chargepoint"),
+    "stairs": ("stair", "staircase", "stairway", "stairwell", "escalier", "treppe", "treppen", "wendeltreppe",
+               "escalera", "scala", "scalinata", "trap"),
     BOX: ("fridge", "refrigerator", "freezer", "oven", "stove", "cooker", "hob", "dishwasher", "microwave", "sink",
           "basin", "washbasin", "toilet", "bidet", "bathtub", "bath", "tub", "shower", "boiler", "piano"),
 }
@@ -140,6 +145,38 @@ def kind_of(item: dict[str, Any]) -> tuple[str, str | None]:
     if item.get("tag") == "light":
         return "lamp", "light"
     return BOX, None
+
+
+# A staircase's shape and style, from its words (a first guess the editor shows):
+# a quarter landing or a corner is an L, a half turn a U, a spiral or a round
+# one goes round a well (three landings); open treads, or floating ones.
+STAIR_L = frozenset(("l", "quarter", "corner", "angle", "angled", "winder", "landing"))
+STAIR_U = frozenset(("u", "half", "dogleg", "switchback", "return"))
+STAIR_ROUND = frozenset(("spiral", "helical", "round", "circular", "wendeltreppe", "colimacon", "caracol"))
+STAIR_OPEN = frozenset(("open", "ladder", "glass"))
+STAIR_FLOAT = frozenset(("floating", "cantilever", "cantilevered", "suspended", "wall"))
+
+
+def stair_params(item: dict[str, Any]) -> dict[str, str]:
+    """{shape, turn, style} for a staircase, from its words and whether its
+    model is mirrored; straight, closed and turning left when nothing says."""
+    words: set[str] = set()
+    for text in (item.get("name"), item.get("catalog"), item.get("category")):
+        words.update(words_of(text))
+    if words & STAIR_ROUND:
+        shape = "l3"
+    elif words & STAIR_U:
+        shape = "u"
+    elif "three" in words and words & {"landing", "landings"}:
+        shape = "l3"
+    elif "two" in words and words & {"landing", "landings"}:
+        shape = "l2"
+    elif words & STAIR_L:
+        shape = "l"
+    else:
+        shape = "straight"
+    style = "treads" if words & STAIR_FLOAT else "open" if words & STAIR_OPEN else "closed"
+    return {"shape": shape, "turn": "right" if item.get("mirrored") else "left", "style": style}
 
 
 def opening_kind(item: dict[str, Any]) -> tuple[str, str | None]:
@@ -191,10 +228,12 @@ def preview(data: bytes) -> dict[str, Any]:
     skipped = list(parsed["skipped"])
     for it in parsed["pieces"]:
         kind, word = kind_of(it)
+        if it.get("staircase") and kind != "stairs":
+            kind, word = "stairs", "staircase"           # Sweet Home 3D's own mark, whatever its name
         pid = _new_id("fur", used)
         pieces[pid] = {
             "id": pid,
-            "recipe": {"kind": kind, "params": {}, "colors": [],
+            "recipe": {"kind": kind, "params": stair_params(it) if kind == "stairs" else {}, "colors": [],
                        "width_m": it["width_m"], "depth_m": it["depth_m"], "height_m": it["height_m"]},
             "origin": "import", "label": it["name"], "library_id": None, "submission_id": None,
             "floor_id": None, "x_m": it["x_m"], "y_m": it["y_m"],
@@ -227,13 +266,65 @@ def preview(data: bytes) -> dict[str, Any]:
             "report": {"pieces": rep_p, "openings": rep_o, "skipped": skipped, "warnings": parsed["warnings"]}}
 
 
+# A RoomPlan scan's objects (its CapturedRoom "objects", by category) → kinds.
+# Everything RoomPlan names that no builder draws is a box of its size.
+ROOMPLAN_KINDS: dict[str, str] = {
+    "bed": "bed", "sofa": "sofa", "chair": "chair", "table": "table", "television": "tv", "storage": "dresser",
+    "washerDryer": "washer", "stairs": "stairs",
+}
+
+
+def preview_roomplan(data: bytes) -> dict[str, Any]:
+    """A RoomPlan JSON scan's furniture as candidates, in preview()'s shape
+    (one level; no doors or windows: the scan's openings carry no heights).
+    A scan's stairs come in as stairs, their run along the longer side: a
+    first guess at which end is the bottom, for Turn to fix. Raises
+    RoomPlanParseError as the room import does."""
+    parsed = parse_roomplan(data)
+    used: set[str] = set()
+    pieces: dict[str, Any] = {}
+    rep_p: dict[str, Any] = {}
+    skipped: list[dict[str, str]] = []
+    for o in parsed.get("objects") or []:
+        cat = str(o.get("category") or "unknown")
+        kind = ROOMPLAN_KINDS.get(cat, BOX)
+        w, d = (float(v) for v in o["size_m"])
+        h, turn = float(o["height_m"]), float(o["angle_deg"])
+        if min(w, d, h) <= 0:
+            skipped.append({"name": cat, "why": "it has no size"})
+            continue
+        params: dict[str, Any] = {}
+        if kind == "stairs":
+            if w > d:                                    # the run along the long side
+                w, d, turn = d, w, turn + 90.0
+            params = {"shape": "straight", "turn": "left", "style": "closed"}
+        pid = _new_id("fur", used)
+        name = cat[:1].upper() + re.sub("([a-z])([A-Z])", lambda m: m.group(1) + " " + m.group(2), cat[1:]).lower()
+        pieces[pid] = {
+            "id": pid,
+            "recipe": {"kind": kind, "params": params, "colors": [],
+                       "width_m": _mm(w), "depth_m": _mm(d), "height_m": _mm(h)},
+            "origin": "import", "label": name, "library_id": None, "submission_id": None,
+            "floor_id": None, "x_m": _mm(float(o["center_m"][0])), "y_m": _mm(float(o["center_m"][1])),
+            "z_m": 0.0, "rotation": round(turn % 360.0, 1) % 360.0,
+            "entity_id": None, "entity_reg_id": None,
+        }
+        rep_p[pid] = {"name": name, "level_id": parsed["levels"][0]["id"] if parsed.get("levels") else None,
+                      "word": cat, "kind": kind}
+    return {"levels": parsed.get("levels") or [], "pieces": pieces, "openings": {},
+            "report": {"pieces": rep_p, "openings": {}, "skipped": skipped, "warnings": list(parsed.get("warnings") or [])}}
+
+
 @websocket_api.websocket_command({
     "type": "padspan_ha/house3d_import_preview",
     "sh3d_base64": str,
+    # roomplan: a RoomPlan JSON scan instead (needs RoomPlan import on).
+    vol.Optional("format", default="sh3d"): vol.In(["sh3d", "roomplan"]),
 })
 @websocket_api.async_response
 async def ws_house3d_import_preview(hass: HomeAssistant, connection, msg) -> None:
-    """A .sh3d's doors, windows and furniture as candidates. Writes nothing."""
+    """A .sh3d's doors, windows and furniture (or a RoomPlan scan's
+    furniture and stairs) as candidates. Writes nothing."""
     if not enabled(hass):
         connection.send_error(msg["id"], OFF_CODE, OFF_MESSAGE)
         return
@@ -250,9 +341,15 @@ async def ws_house3d_import_preview(hass: HomeAssistant, connection, msg) -> Non
     except Exception:
         connection.send_error(msg["id"], "bad_base64", "Could not decode the uploaded file")
         return
+    roomplan = msg.get("format") == "roomplan"
+    if roomplan:
+        st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+        if not (st and st.data.get("roomplan_import_enabled") is True):
+            connection.send_error(msg["id"], ROOMPLAN_OFF_CODE, "RoomPlan import is off (Settings -> Features)")
+            return
     try:
-        result = await hass.async_add_executor_job(preview, raw)
-    except Sh3dParseError as exc:
+        result = await hass.async_add_executor_job(preview_roomplan if roomplan else preview, raw)
+    except (Sh3dParseError, RoomPlanParseError) as exc:
         connection.send_error(msg["id"], "parse_failed", str(exc))
         return
     connection.send_result(msg["id"], result)
