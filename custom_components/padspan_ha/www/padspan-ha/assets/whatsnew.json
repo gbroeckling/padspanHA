@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.184",
+  "title": "Stairs from your plans, a first guess",
+  "date": "2026-10-27",
+  "body_markdown": "### New\n- **Stairs in stair rooms.** Furnish → Build ▾ → House → **Stairs in stair rooms** puts a flight in each room called Stairs, Stairwell or Staircase that has none yet. Each one is squared to the room's longest wall and sized to the room: a straight flight against a long wall, its rail on the open side, when the room is long enough, else a U or a flight round two landings filling it. It's a first guess to drag into place; nothing is kept until Save.\n- **Stairs from Sweet Home 3D.** Import brings a Sweet Home 3D staircase in as stairs, not a box. Its shape is guessed from its name (\"Spiral staircase\", \"L-shaped stairs\", \"half turn\"), and a mirrored one turns the other way.\n- **Stairs and furniture from a RoomPlan scan.** With RoomPlan import on (Settings → Features), Import also takes an iPhone RoomPlan scan (.json): its beds, sofas, chairs, tables, TVs, storage and stairs come in as pieces (anything else as a box of its size).\n\n### Changed\n- **Imported stairs are squared to the room.** A staircase from a file that is within about 12° of its room's walls is turned square to them."
+ },
+ {
   "version": "0.38.183",
   "title": "Open stairs, and stairs with two or three landings",
   "date": "2026-10-27",
@@ -76,11 +82,5 @@
   "title": "Vacation Mode can't be switched off by accident",
   "date": "2026-10-25",
   "body_markdown": "One tap on the Vacation Mode banner turned it off mid-trip at a real house, and the lights stayed off for 11 days with nobody told.\n\n### Fixed\n- **Disable asks first.** Tapping Disable on the banner (Overview's Atlas and the sidebar Atlas) asks \"Turn off Vacation Mode? The lights stop acting like someone is home.\" \"Turn off\" is at the far left; \"Keep it on\" is at the right, where Disable was, so a second stray tap keeps it on. The question goes away by itself after 10 seconds.\n- **When it goes off, the house is told.** Home Assistant shows a notification saying when, by which user and from which app or browser (or that a PadSpan factory reset did it). The same message goes to the phones or email your Follow alerts use, if any are set.\n- **Turned back on within 3 weeks of a trip, it carries on with that trip's routine.** Before, switching it back on learned the routine from the last 30 days of light history, which after an accidental Disable is mostly the empty house, so most lights stayed off. The banner says \"same routine as the last trip\" when it does this. After 3 weeks, or for a new trip, it learns afresh as before.\n- **Restoring a PadSpan backup leaves Vacation Mode as it is.** Before, restoring a backup taken while you were home turned it off. A factory reset still turns it off (and now says so), but keeps the learned routine so it can carry on.\n\n### Opt-in report\n- Only for installs that have used Vacation Mode: whether it is on, the intensity, how many lights it learned and which routine it runs (its own, the last trip's, the stand-in, or none yet), switches a day, trips in the last 60 days and the last trip's length, all as ranges, and whether it was last turned off from the panel or by a reset. Also counted: switched on, resumed, turned off, and whether the turned-off message reached a phone or email. Never who turned it off or from what."
- },
- {
-  "version": "0.38.170",
-  "title": "Honest stale-receiver button",
-  "date": "2026-10-25",
-  "body_markdown": "### Fixed\n- **Mapping → 3D Stack: the stale-receiver button no longer claims a removal.** It said \"Clean N stale\" and then \"Removed N ✓\", but nothing was ever removed or saved. It is now a read-only \"N stale\" button: it lists which receivers on which maps no live Bluetooth scanner matches right now (a scanner that is offline or renamed shows here too), says that nothing has been removed, and explains how to take one off a floor plan today (Edit → click the receiver → Delete receiver → Save Layout). A house with no stale receivers looks exactly as before.\n- **Code left empty when the old photo-to-metres save was removed (0.30) is tidied.** Nothing visible changes: the Edit tab's rotate no longer computes rotated pins and outlines it never sent (the server turns them with the image, as before), the Measure tool's scale save drops an empty step after it, and Calibration's radio Delete and Beacon Tune's dedup and beacon Delete lose loops and comments that said they saved something they did not."
  }
 ]
