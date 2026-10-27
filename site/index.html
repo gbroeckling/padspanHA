@@ -184,6 +184,25 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.182</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">27 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>A Room Change Delay of 0 now means 0.</b> Settings → Presence said "Set to 0 for instant room switching", but 0 was read as the 20-second default. Now a device switches on the first poll that agrees. Moves between indoors and outdoors, and to far-apart rooms, still go through their stricter checks. An unset delay is still 20 s.</li>
+          <li><b>A short Room Change Delay could hold a move to another floor for up to a minute.</b> When the delay fits in one poll (for example 10 s at a 10 s poll, or now 0), a move to another floor soon after the last one asked for two votes in a window that holds one. It now asks for at most what the window holds.</li>
+          <li><b>The outdoor rules recognise a Home Assistant floor called Outside</b> (or Outdoor, Garden, Yard, …), not only PadSpan's own outside floor. A proxy on such a floor gets the indoor↔outdoor treatment (a 15 dB penalty for moving outside, an 8 dB margin and every vote), where before it was treated as just another floor. The coverage rules already read it this way.</li>
+          <li><b>Presence Poll Interval shows the real default, 5 s</b> (it said 10 s). On an install still at 10 s, the old default from before 0.21, a note says that 5 s halves the wait for a room change. Nothing is changed for you: 10 s may be your choice for a slow machine.</li>
+          <li><b>The ESP32-C3 is no longer "Not recommended"</b> in the Bluetooth tab. With a full-size external antenna it did room-level tracking well in testing (the third of the three boards that worked, as Training and the README say). It's marked as the budget choice; an S3 or C6 is still better.</li>
+          <li>Code tidying with no change in behaviour: the coordinator's description of the room vote matches what runs, and two settings that never took effect are gone.</li>
+          <li><b>Usage report (if you share it):</b> <code>env.presence_cfg</code> says, in words, whether the poll interval or Room Change Delay is off its default and whether a Home Assistant floor counts as outside. It is sent only by installs where one of those applies.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.181</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">27 October 2026</span>
