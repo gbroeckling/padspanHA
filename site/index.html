@@ -184,6 +184,19 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.179</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">26 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Turning guest tags on while Home Assistant runs now adds <code>binary_sensor.padspan_guest_home</code> straight away.</b> In 0.38.178 the sensor was added from a background thread, which Home Assistant refuses, so it only appeared after a restart. Checked on a real Home Assistant: guest tags refuse changes while off, only an administrator can turn them on, the sensor appears at once, Optimize for scale sends the slim update only while it is on, and nothing lands in Home Assistant's log.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.178</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">26 October 2026</span>
