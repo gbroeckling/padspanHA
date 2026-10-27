@@ -526,11 +526,11 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # its week (settings_store.trial_state_kept).
                             from .settings_store import live_first_kept, trial_state_kept
                             data.update(trial_state_kept(store_obj.data or {}, data))
-                            # A free trial holding the usage report on: a restore keeps it on.
-                            from .settings_store import trial_report_locked_until as _locked_until
+                            # A free licence holding the usage report on: a restore keeps it on.
+                            from .settings_store import report_locked_until as _locked_until
                             if _locked_until(store_obj.data or {}):
                                 data["telemetry_enabled"] = True
-                                data["trial_report_locked"] = True
+                                data["report_locked_key"] = (store_obj.data or {}).get("report_locked_key") or ""
                             # Nor bring back a new install's pending switch to
                             # Live over the mode restored here (live_first_kept).
                             data.update(live_first_kept(store_obj.data or {}, data))

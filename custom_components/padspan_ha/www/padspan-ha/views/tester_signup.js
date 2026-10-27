@@ -33,8 +33,8 @@ export const TESTER_INTERESTS = [
 // Characters, as tester.py counts them.
 // What a tester gets: the licence server's plan 'tester' (TESTER_YEARS = 2),
 // issued by hand to the sign-up's email, on the condition the report stays on.
-export const TESTER_PRO_LINE = "Testers get PadSpan Pro free for two years, sent to the email you sign up with, " +
-  "for as long as the usage report stays on.";
+export const TESTER_PRO_LINE = "Testers get PadSpan Pro free for two years, sent to the email you sign up with. " +
+  "The usage report stays on for those two years: it can't be turned off while the key runs.";
 export const TESTER_LIMITS ={ email: 254, github: 39, name: 64, interests_other: 80, notes: 500, timezone: 64 };
 // Character for character the patterns in tester.py (and tester.php).
 export const TESTER_PATTERNS = {

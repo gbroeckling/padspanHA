@@ -35,7 +35,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "data_mode": "sample",  # "sample" | "live"
     "cpu_mode": "shared",  # "shared" | "single" | "dedicated" — see PresenceCoordinator
     "low_memory_mode": False,  # caps for a 2 GB machine — see low_memory.py
-    "trial_report_locked": False,  # a free trial started from 0.38.181 keeps the usage report on until it ends (trial_report_locked_until)
+    "report_locked_key": "",       # sha256 of a FREE licence key granted from 0.38.181 (trial, tester, free year): the usage report stays on while that key is here and unexpired (report_locked_until)
     "guest_tags_enabled": False,   # guest tags (guest_tags.py): off until chosen in Settings; nothing runs while off
     "guest_retention_days": 30,    # a finished guest stay's report is kept this long: 0, 7, 30 or 90
     "optimize_for_scale": False,  # several wall screens: a slim snapshot for Overview and the 3D people, a longer shared cache, no polls while a page is hidden — snapshot_builder.slim_snapshot
@@ -542,16 +542,22 @@ class SettingsStore:
 
 
 
-def trial_report_locked_until(data: dict) -> str:
-    """The trial's end ("" when nothing holds the usage report on). Every
-    free offer needs the report on, and a new free trial keeps it on until it
-    ends (Garry, 2026-10-27: "the opt in can't be turned off during the
-    trial"). Only a trial started under that rule holds it (trial_report_locked),
-    and only while it is still a trial that has not ended: a bought key or
-    the trial's end lets it go."""
+
+def licence_key_hash(key: str) -> str:
+    import hashlib  # noqa: PLC0415
+    return hashlib.sha256(str(key or "").strip().upper().encode()).hexdigest() if str(key or "").strip() else ""
+
+
+def report_locked_until(data: dict) -> str:
+    """The free licence's end ("" when nothing holds the usage report on).
+    Every new free licence (the 90-day trial, a tester's two years, a free
+    year of Pro) needs the report on, and it stays on until that licence ends
+    (Garry, 2026-10-27). The lock is the key it was given with
+    (report_locked_key, a hash): a bought key in its place, or the licence's
+    end, lets it go; a free licence from before the rule never had one."""
     from datetime import datetime, timezone  # noqa: PLC0415
-    if not (data.get("trial_report_locked") and data.get("license_is_trial")
-            and str(data.get("forensics_license_key") or "").strip()):
+    locked = str(data.get("report_locked_key") or "")
+    if not locked or locked != licence_key_hash(data.get("forensics_license_key") or ""):
         return ""
     end = str(data.get("forensics_license_expires") or "").strip()
     try:
@@ -559,5 +565,5 @@ def trial_report_locked_until(data: dict) -> str:
         if exp.tzinfo is None:
             exp = exp.replace(tzinfo=timezone.utc)
     except ValueError:
-        return end or "the end of the trial"
+        return end or "the end of the free licence"
     return end if exp > datetime.now(timezone.utc) else ""

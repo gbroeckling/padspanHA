@@ -107,29 +107,38 @@ def test_the_trial_needs_the_usage_report_on() -> None:
     assert '"status": "report_off"' in handler
 
 
-def test_a_new_trial_holds_the_usage_report_on_until_it_ends() -> None:
-    """Garry, 2026-10-27: "the opt in can't be turned off during the trial".
-    Only a trial started under that rule holds it; a bought key or the end of
-    the trial lets it go; a trial from before the rule is not affected."""
-    from custom_components.padspan_ha.settings_store import trial_report_locked_until as L
-    new = {"trial_report_locked": True, "license_is_trial": True, "forensics_license_key": "PSPAN-T",
+def test_a_new_free_licence_holds_the_usage_report_on_until_it_ends() -> None:
+    """Garry, 2026-10-27: the opt-in can't be turned off during a free trial,
+    nor the new free years of Pro (a tester's two, an invite's one). The lock
+    is the key it came with: a bought key in its place, or the end, lets it go;
+    a free licence from before the rule never had one."""
+    from custom_components.padspan_ha.settings_store import licence_key_hash as H, report_locked_until as L
+    new = {"report_locked_key": H("PSPAN-T"), "forensics_license_key": "PSPAN-T",
            "forensics_license_expires": "2099-01-01 00:00:00"}
     assert L(new).startswith("2099-01-01")
-    assert L({**new, "forensics_license_expires": "2001-01-01 00:00:00"}) == "", "the trial ended"
-    assert L({**new, "license_is_trial": False}) == "", "a bought key replaced it"
-    assert L({**new, "trial_report_locked": False}) == "", "a trial from before the rule"
-    assert L({**new, "forensics_license_key": ""}) == ""
+    assert L({**new, "forensics_license_expires": "2001-01-01 00:00:00"}) == "", "it ended"
+    assert L({**new, "forensics_license_key": "PSPAN-BOUGHT"}) == "", "a bought key replaced it"
+    assert L({**new, "report_locked_key": ""}) == "", "a free licence from before the rule"
+    assert H("pspan-t ") == H("PSPAN-T") and H("") == ""
     s = _read(_CC / "ws_forensics.py")
-    assert "trial_report_locked=True," in s[s.index("async def ws_trial_start("):]
+    assert 'report_locked_key=licence_key_hash(str(data.get("key") or "")),' in s[s.index("async def ws_trial_start("):]
+    # A tester key typed in: refused with the report off, locked when new.
+    act = s[:s.index("async def ws_trial_start(")]
+    assert '_free_new = bool(data.get("valid")) and new_key and str(data.get("plan") or "") == "tester"' in act
+    assert '"report_locked_key": _lk_hash(key) if _free_new else ""' in act
+    # The panel sees only the end date, never the hash.
+    common = _read(_CC / "ws_common.py")
+    assert 'out["report_locked"] = _rlu(st.data if st else {})' in common and 'out.pop("report_locked_key", None)' in common
 
 
-def test_the_report_cannot_be_turned_off_during_a_new_trial() -> None:
+def test_the_report_cannot_be_turned_off_during_a_new_free_licence() -> None:
     import asyncio
     from types import SimpleNamespace
     from unittest.mock import MagicMock
     from custom_components.padspan_ha import ws_settings as WS
     from custom_components.padspan_ha.const import DATA_SETTINGS, DOMAIN
-    data = {"telemetry_enabled": True, "trial_report_locked": True, "license_is_trial": True,
+    from custom_components.padspan_ha.settings_store import licence_key_hash as H
+    data = {"telemetry_enabled": True, "report_locked_key": H("PSPAN-T"),
             "forensics_license_key": "PSPAN-T", "forensics_license_expires": "2099-01-01 00:00:00"}
     st = SimpleNamespace(data=data)
 
@@ -143,6 +152,5 @@ def test_the_report_cannot_be_turned_off_during_a_new_trial() -> None:
     asyncio.new_event_loop().run_until_complete(WS.ws_settings_set(hass, conn, {"id": 1, "telemetry_enabled": False}))
     conn.send_error.assert_called_once()
     assert conn.send_error.call_args.args[1] == "report_locked" and data["telemetry_enabled"] is True
-    # The wording at the opt-in says so.
     card = _read(_VIEWS / "trial_offer.js")
     assert "can't be turned off until the trial ends" in card

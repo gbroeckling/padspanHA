@@ -269,6 +269,18 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         connection.send_error(msg["id"], "network",
             f"Could not reach the licence server ({err}). Check the internet connection and try again.")
         return
+    # A NEW free licence — a tester's two years — needs the usage report on,
+    # and keeps it on while it runs (Garry, 2026-10-27). A key already here,
+    # entered again, is not new.
+    _free_new = bool(data.get("valid")) and new_key and str(data.get("plan") or "") == "tester"
+    if _free_new:
+        from .telemetry import enabled as _report_on  # noqa: PLC0415
+        if not _report_on(hass):
+            connection.send_result(msg["id"], {"ok": False, "valid": False, "status": "report_off", "message":
+                "A tester key needs the usage report on (Settings → Presence → Usage report), and it stays on while "
+                "the key runs. Turn it on, then enter the key again."})
+            return
+    from .settings_store import licence_key_hash as _lk_hash  # noqa: PLC0415
     if data.get("valid"):
         from .licence import normalize_tier  # noqa: PLC0415
         # The server names the tier it sold ("pro" / "bright"). A server that
@@ -282,6 +294,8 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
             license_is_trial=str(data.get("plan") or "") == "trial",
             forensics_enabled=True,
             license_home_status="",
+            # A new free licence holds the report on; any other new key lets go.
+            **({"report_locked_key": _lk_hash(key) if _free_new else ""} if new_key else {}),
             # Past two homes with a report off somewhere: the server's warning (or none).
             license_homes_warning=homes_warning(data),
             # A different key: a fresh home on it.
@@ -372,13 +386,14 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
         return
     if data.get("ok"):
         from .licence import normalize_tier  # noqa: PLC0415
+        from .settings_store import licence_key_hash  # noqa: PLC0415
         await st.async_set(
             forensics_license_key=str(data.get("key") or ""),
             forensics_license_expires=str(data.get("expires_at") or ""),
             license_tier=normalize_tier(data.get("tier"), default="bright"),
             license_is_trial=True,
-            # The usage report stays on until the trial ends (settings_store.trial_report_locked_until).
-            trial_report_locked=True,
+            # The usage report stays on until the trial ends (settings_store.report_locked_until).
+            report_locked_key=licence_key_hash(str(data.get("key") or "")),
             forensics_enabled=True,
             license_home_token="", license_homes_used=0, license_home_status="",
             license_homes_warning={},

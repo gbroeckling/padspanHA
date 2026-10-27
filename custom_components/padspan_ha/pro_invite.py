@@ -50,6 +50,11 @@ _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
 
 
+def _key_hash(key: str) -> str:
+    from .settings_store import licence_key_hash  # noqa: PLC0415
+    return licence_key_hash(key)
+
+
 def _today() -> str:
     return date.today().isoformat()
 
@@ -82,7 +87,10 @@ async def store_from_reply(hass: HomeAssistant, reply: Any) -> None:
         return
     if cur.get("token") == inv["token"] and cur.get("until") == inv["until"]:
         return
-    await st.async_set(**{SETTINGS_KEY: inv})
+    # Delivered under the opt-in rule (0.38.181): claimed with the report on,
+    # and the report stays on while the year runs. Invites delivered before
+    # carry no mark and are claimed as before (existing offers, Garry 2026-10-27).
+    await st.async_set(**{SETTINGS_KEY: {**inv, "optin_rule": 1}})
 
 
 def public_state(settings: dict[str, Any] | None) -> dict[str, Any]:
@@ -136,10 +144,17 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
     if not public_state(st.data)["pro_invite_open"]:
         connection.send_result(msg["id"], {"ok": False, "message": "This invite has ended."})
         return
-    # No usage-report check here: an invite only ever reaches an install
-    # through its report, which is the opt-in every free offer needs (Garry,
-    # 2026-10-27), and an invite already delivered is an existing offer,
-    # which that rule leaves alone.
+    # A new free licence needs the usage report on (Garry, 2026-10-27): an
+    # invite delivered from 0.38.181 (optin_rule) is claimed with it on, and it
+    # stays on while the year runs. One delivered before is an existing offer,
+    # claimed as before.
+    _rule = bool((st.data.get(SETTINGS_KEY) or {}).get("optin_rule"))
+    from .telemetry import enabled as _report_on  # noqa: PLC0415
+    if _rule and not _report_on(hass):
+        connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message":
+            "This free year needs the usage report on, and it stays on while the year runs. "
+            "Turn it on in Settings → Presence → Usage report, then claim it."})
+        return
     # A key someone paid for and that still works would be replaced by a
     # one-year one: refuse, and say how to get the year added instead.
     from .ws_common import _pro_expiry_state  # noqa: PLC0415
@@ -173,6 +188,8 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
         "forensics_enabled": True,
         "license_home_token": "", "license_homes_used": 0, "license_home_status": "",   # a new key: a fresh home on it
         "license_homes_warning": {},
+        # The report stays on while this free year runs (new invites only).
+        "report_locked_key": _key_hash(str(data.get("key") or "")) if _rule else "",
         SETTINGS_KEY: {"answered": token},
     })
     _invalidate_snapshot_cache(hass)

@@ -65,7 +65,7 @@ def test_a_report_reply_with_an_invite_is_kept_and_never_reported(monkeypatch):
     h = _hass()
     _wire_report(monkeypatch, {"ok": True, "invite": {"token": _TOKEN, "until": _UNTIL}})
     assert _run(T.send_now(h, force=True))["sent"] is True
-    assert _settings(h)[P.SETTINGS_KEY] == {"token": _TOKEN, "until": _UNTIL}
+    assert _settings(h)[P.SETTINGS_KEY] == {"token": _TOKEN, "until": _UNTIL, "optin_rule": 1}   # delivered under the opt-in rule (0.38.181)
     # The next report carries nothing of it.
     assert _TOKEN not in json.dumps(T.build_payload(h, consume=False))
 
@@ -321,3 +321,28 @@ def test_an_invite_already_delivered_is_claimed_even_with_the_report_off_since(m
     sent, conn = _conn()
     _run(P.ws_pro_invite_claim(h, conn, {"id": 1, "email": "a@b.ca"}))
     assert sent["result"]["ok"] is True and calls[0][0] == "invite_claim"
+
+
+
+def test_a_new_invite_needs_the_report_on_and_keeps_it_on_while_the_year_runs(monkeypatch):
+    """An invite delivered from 0.38.181 carries optin_rule: claimed only with
+    the report on, and the year holds it on (Garry, 2026-10-27). An invite
+    delivered before (no mark) is claimed as before."""
+    from custom_components.padspan_ha.settings_store import licence_key_hash as H
+    calls = _wire_licence(monkeypatch, {"ok": True, "key": "PSPAN-YEAR", "expires_at": "2027-10-27 00:00:00",
+                                        "tier": "pro", "days_left": 365})
+    h = _house({"token": _TOKEN, "until": _UNTIL, "optin_rule": 1})
+    _settings(h)["telemetry_enabled"] = False
+    sent, conn = _conn()
+    _run(P.ws_pro_invite_claim(h, conn, {"id": 1, "email": "a@b.ca"}))
+    assert sent["result"]["ok"] is False and sent["result"]["status"] == "report_off" and calls == []
+    _settings(h)["telemetry_enabled"] = True
+    sent, conn = _conn()
+    _run(P.ws_pro_invite_claim(h, conn, {"id": 2, "email": "a@b.ca"}))
+    assert sent["result"]["ok"] is True and _settings(h)["report_locked_key"] == H("PSPAN-YEAR")
+
+
+def test_a_delivered_invite_is_marked_with_the_rule(monkeypatch):
+    h = _house(None)
+    _run(P.store_from_reply(h, {"invite": {"token": _TOKEN, "until": _UNTIL}}))
+    assert _settings(h)[P.SETTINGS_KEY].get("optin_rule") == 1

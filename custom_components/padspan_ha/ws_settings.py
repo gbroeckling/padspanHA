@@ -715,12 +715,12 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "unauthorized", "Only an administrator can change the usage report")
                 return
             payload["telemetry_enabled"] = bool(msg.get("telemetry_enabled"))
-            from .settings_store import trial_report_locked_until  # noqa: PLC0415
-            _locked = trial_report_locked_until(st.data) if st is not None else ""
+            from .settings_store import report_locked_until  # noqa: PLC0415
+            _locked = report_locked_until(st.data) if st is not None else ""
             if not payload["telemetry_enabled"] and _locked:
                 connection.send_error(msg["id"], "report_locked",
-                    f"The usage report stays on during your free trial (until {_locked[:10]}). "
-                    "It can be turned off once the trial ends, or with a bought key.")
+                    f"The usage report stays on while you use a free licence (until {_locked[:10]}). "
+                    "It can be turned off once it ends, or with a bought key.")
                 return
             if payload["telemetry_enabled"]:
                 # Mint the anonymous id at opt-in, so the Preview shows the

@@ -28,7 +28,8 @@ const { tierAtLeast, currentTier, currentEdition } = await import(`./editions.js
 export const INVITE_TITLE = "A free year of PadSpan Pro";
 export const INVITE_BODY = "Thanks for sending the usage report. Houses like yours are what PadSpan gets built against, " +
   "so here's a year of PadSpan Pro free: the Atlas lighting tools, Forensics, Busy Times and Locate.";
-export const INVITE_TERMS = "No card, nothing renews, and when the year's up you go back to free. Anything you've made stays.";
+export const INVITE_TERMS = "No card, nothing renews, and when the year's up you go back to free. Anything you've made stays. " +
+  "The usage report stays on for the year: it can't be turned off while the free year runs.";
 export const INVITE_BUTTON = "Claim my free year";
 export const INVITE_EMAIL_NOTE = "Your email goes to the developer with your key. It's never shared.";
 export const INVITE_FINAL_NOTE = "No thanks is final. This won't come back.";

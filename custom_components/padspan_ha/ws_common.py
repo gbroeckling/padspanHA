@@ -195,6 +195,10 @@ def _get_settings(hass: HomeAssistant) -> dict:
     from .build_info import TIER_FLOOR as _floor  # noqa: PLC0415
     out["forensics_license_key"] = ""          # never leaves the backend
     out["license_home_token"] = ""             # nor this home's token (licence_homes.py)
+    # A free licence holding the usage report on: its end, never the key's hash.
+    from .settings_store import report_locked_until as _rlu  # noqa: PLC0415
+    out["report_locked"] = _rlu(st.data if st else {})
+    out.pop("report_locked_key", None)
     # Vacation Mode's learned patterns are backend-only and the biggest
     # thing in the store (hundreds of KiB): never sent on every settings
     # read and reply (round 6).

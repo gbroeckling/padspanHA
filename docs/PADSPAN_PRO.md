@@ -55,7 +55,8 @@ no longer use. If a home isn't counted, the licence card says why.
 ## Get Pro free by testing it
 
 **Become a tester** (on the licence card, or under **Settings → Presence → Help improve PadSpan**)
-gives you two years of PadSpan Pro free, for as long as the anonymous usage report stays on. You're
+gives you two years of PadSpan Pro free. The anonymous usage report stays on for those two years:
+it can't be turned off while the key runs (the key needs it on when you enter it). You're
 asked for an email and can add what you'd like to test. Before anything is sent you can see exactly
 what goes, and **Stop being a tester** withdraws your sign-up at any time. The README's
 [Become a tester](../README.md#become-a-tester-separate-from-the-usage-report) section explains
@@ -64,7 +65,8 @@ exactly what is sent and kept.
 ## Invites
 
 Now and then, an install that sends the usage report gets an invite to **a free year of PadSpan
-Pro**. It shows on Overview and on the licence card, to administrators only (only an install with the usage report on is ever sent one):
+Pro**. It shows on Overview and on the licence card, to administrators only (only an install with the usage report on is ever sent one). The report
+stays on for the free year: it can't be turned off while the year runs. The choices:
 
 - **Claim my free year:** enter an email and your key arrives there. No card, nothing renews.
 - **Later:** asks again in a week.
