@@ -4,6 +4,15 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.185 — The free trial is all of PadSpan Pro (2026-10-27)
+
+### Changed
+- **The 90-day free trial is all of PadSpan Pro.** It used to cover the lighting half only. Since October 27 the licence server issues every trial as full Pro, and trials already running became Pro at their next daily check, on every version. The trial card now says so ("PadSpan Pro free for 90 days, no card"), and the Locate and Busy Times gates say the trial unlocks them too. A PadSpan Bright build keeps its lighting pitch.
+- **The launch price, while it lasts.** Once a trial has started, its card and the licence card say that PadSpan Pro for life is at its launch price until November 30, and that buying during the trial keeps everything you set up. The line goes away when the launch price ends.
+- **The trial key comes by email too.** The licence server now emails the key to the address given on the trial card, as the card always said it would.
+
+---
+
 ## 0.38.184 — Stairs from your plans, a first guess (2026-10-27)
 
 ### New

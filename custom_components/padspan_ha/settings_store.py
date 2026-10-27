@@ -324,7 +324,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "forensics_license_key": "",
     "forensics_license_expires": "",
     # True only for a key minted by padspan_ha/trial_start (the one-time 3-month
-    # Bright Pro trial). Display-only — licence.py's tier ladder does not read
+    # PadSpan Pro trial; Bright Pro before 2026-10-27). Display-only — licence.py's tier ladder does not read
     # it, a trial key gates identically to a purchased one.
     "license_is_trial": False,
     # This home among the key's homes (licence_homes.py): the token the

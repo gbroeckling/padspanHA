@@ -14,9 +14,10 @@
  * used to be a window.prompt() behind one button in Settings, and in the
  * first months it was started twice.
  *
- * What the trial is: a real PadSpan Bright Pro key minted by
- * padspan_ha/trial_start (ws_forensics.py) — the lighting half, 90 days,
- * one per home (the licence server decides). The command is admin-only, so
+ * What the trial is: a real key minted by padspan_ha/trial_start
+ * (ws_forensics.py): all of PadSpan Pro for 90 days, one per home. The
+ * licence server decides the tier; it has issued trials as Pro since
+ * 2026-10-27 (before that, the lighting half). The command is admin-only, so
  * everyone else sees a line saying an administrator has to start it and no
  * email field. The email goes to that one command and nowhere else: never
  * into the usage report, whose events here carry only the surface's name.
@@ -29,7 +30,7 @@
  * card takes a small host object: trialOfferFromCtx builds one from a panel
  * ctx. tests/js/trial_offer.mjs drives it.
  */
-const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, tierAtLeast, currentTier, currentEdition } =
+const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, proLifetimeLaunch, tierAtLeast, currentTier, currentEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 
 export const TRIAL_DAYS = 90;
@@ -42,19 +43,23 @@ export const TRIAL_SURFACES = Object.freeze(["overview", "atlas", "placement", "
   "update_banner", "milestone", "sidebar"]);
 // The placements that are not a paid wall.
 const _QUIET_SURFACES = ["update_banner", "milestone", "sidebar"];
-export const TRIAL_TITLE = "90-day free trial, no card";
-// Said wherever the trial is offered: the trial is the lighting half, and
-// nothing about the free presence product changes whatever anyone answers.
+export const TRIAL_TITLE = "PadSpan Pro free for 90 days, no card";
+// Said wherever the trial is offered: nothing about the free presence
+// product changes, whatever anyone answers.
 export const TRIAL_HONESTY = "The presence tracking you're using stays free.";
-export const TRIAL_NEWS_LINE = "New: try the lighting map free for 90 days, no card.";
+export const TRIAL_NEWS_LINE = "New: try all of PadSpan Pro free for 90 days, no card.";
 // The update banner says it once: in the banner for the update that brought
 // the trial (an install that was on a version before this one). Every later
 // "updated to vX" banner goes back to the older Pro pitch (trialNewsDue).
 export const TRIAL_NEWS_BEFORE = "0.38.87";
 export const TRIAL_MILESTONE_TITLE = "PadSpan's working in your house.";
-export const TRIAL_MILESTONE_BODY = "The lighting half puts every light on this same map — tap to switch, " +
-  "hold for controls. 90 days free, no card.";
-export const TRIAL_SIDEBAR_LABEL = "💡 Lighting · free trial";
+export const TRIAL_MILESTONE_BODY = "Try all of PadSpan Pro on it: every light where it hangs on this map, " +
+  "the 3D house and Forensics. 90 days free, no card.";
+export const TRIAL_SIDEBAR_LABEL = "✨ Pro · free trial";
+// Said once the trial has started, while Pro for life is at its launch
+// price (editions.js proLifetimeLaunch; Garry, 2026-10-27).
+export const TRIAL_LAUNCH_LINE = "PadSpan Pro for life is at its launch price until November 30: " +
+  "buy it any time during the trial, and everything you set up stays.";
 export const TRIAL_MILESTONE_DAYS = 7;
 export const TRIAL_BUTTON = "Start 90-day free trial";
 export const TRIAL_EMAIL_NOTE = "Your email is only used to send your key; one trial per home.";
@@ -126,20 +131,25 @@ export function trialMilestoneDue(settings, positioned, nowMs = Date.now()) {
 }
 
 /** The pitch line for a surface. `feature` names a Pro feature (Locate,
- *  Busy Times) whose gate the card sits in — the trial does not unlock
- *  those, and the card says so rather than letting someone find out after.
- *  (The gate right above already says the feature needs Pro.) */
-export function trialPitch(surface, feature) {
+ *  Busy Times) whose gate the card sits in: the trial is all of Pro (since
+ *  2026-10-27), so the card says it unlocks that feature too. (The gate
+ *  right above already says the feature needs Pro.) A Bright build shows
+ *  only the lighting half, so its pitch stays about the lights. */
+export function trialPitch(surface, feature, settings) {
   if (feature) {
-    return `The trial doesn't unlock ${feature}. It covers the lighting side: ` +
-      "every light placed exactly where it hangs on your floor plan, with shapes, sizes and WLED strips.";
+    return `The trial unlocks ${feature} too, with everything else in PadSpan Pro, ` +
+      "on your own house for 90 days.";
   }
   if (surface === "settings") {
-    return "Try the whole lighting product on your own house. Nothing is taken away when it ends — " +
+    return "Try all of PadSpan Pro on your own house. Nothing is taken away when it ends — " +
       "editing just goes back to the free view.";
   }
-  return "See every light exactly where it hangs on your floor plan — fixture shapes and sizes, " +
-    "WLED strips and Showcase. Try it on your own house.";
+  if (currentEdition(settings) === "bright") {
+    return "See every light exactly where it hangs on your floor plan — fixture shapes and sizes, " +
+      "WLED strips and Showcase. Try it on your own house.";
+  }
+  return "Try all of PadSpan Pro on your own house: every light exactly where it hangs on your " +
+    "floor plan, the 3D house (Live Aboard), the wall screen and Forensics.";
 }
 
 // Per surface, for this page: what was typed, whether a request is out, the
@@ -193,7 +203,7 @@ export function trialOfferCard(host, surface, opts = {}) {
   }
   card.appendChild(head);
   card.appendChild(el("div", { "data-trial": "pitch", style: "font-size:12px;color:#cbd5e1;line-height:1.55;margin:4px 0 8px" },
-    trialPitch(surface, opts.feature)));
+    trialPitch(surface, opts.feature, host.settings)));
   // A host that already says it right above the card (the update banner,
   // the milestone card) passes honesty: false rather than repeat it. A
   // Bright build shows no presence, so there it is not said at all.
@@ -258,7 +268,7 @@ export function trialOfferCard(host, surface, opts = {}) {
         st.done = { days_left: r.days_left };
         st.email = "";
         tel("trial_started:" + surface);
-        if (host.toast) host.toast("Your 90-day free trial has started.");
+        if (host.toast) host.toast("Your 90-day PadSpan Pro trial has started.");
         try { if (host.onStarted) host.onStarted(r); } catch (e) { console.warn("PadSpan: trial onStarted failed", e); }
       }
       if (host.rerender) host.rerender();
@@ -299,8 +309,9 @@ function _startedCard(el, done) {
   const days = Number(done && done.days_left);
   return el("div", { "data-trial": "started",
     style: "padding:10px 12px;border:1px solid #2d5a3d;border-radius:8px;background:#0a1f14;margin:8px 0;font-size:12px;color:#a7f3d0;line-height:1.55" },
-    "✓ Your 90-day free trial has started" + (Number.isFinite(days) && days > 0 ? ` (${days} days left)` : "") +
-    ". Place your lights in Mapping → Atlas — drag each one to where it really hangs.");
+    "✓ Your 90-day PadSpan Pro trial has started" + (Number.isFinite(days) && days > 0 ? ` (${days} days left)` : "") +
+    ". Everything in Pro is unlocked. Start by placing your lights in Mapping → Atlas — drag each one to where it really hangs." +
+    (proLifetimeLaunch() ? " " + TRIAL_LAUNCH_LINE : ""));
 }
 
 /**

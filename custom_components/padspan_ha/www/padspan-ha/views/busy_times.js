@@ -257,8 +257,8 @@ function _buildProGateCard(ctx, featureName) {
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "Unlock it, and everything else gated, with a PadSpan Pro key."));
   card.appendChild(el("div", { class: "muted", style: "font-size:11px" }, "Settings → Features → PadSpan licence"));
-  // The trial is the lighting half (PadSpan Bright Pro): the card says so
-  // rather than promising Busy Times. Null once there is any key.
+  // The trial is all of PadSpan Pro (since 2026-10-27), so the card says it
+  // unlocks Busy Times too. Null once there is any key.
   const trial = trialOfferFromCtx(ctx, "busy_times", { feature: featureName });
   if (trial) card.appendChild(trial);
   return card;
