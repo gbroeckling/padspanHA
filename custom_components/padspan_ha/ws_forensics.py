@@ -347,7 +347,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
     # The trial card asks for it in the same step (views/trial_offer.js).
     from .telemetry import enabled as _report_on  # noqa: PLC0415
     if not _report_on(hass):
-        connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message": "The free trial needs the usage report on (Settings → Presence → Usage report): anonymous counts that help PadSpan get better. Turn it on, then start the trial."})
+        connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message": "The free trial needs the usage report on (Settings → Presence → Usage report), and it stays on until the trial ends. Turn it on, then start the trial."})
         return
     try:
         import json as _json  # noqa: PLC0415
@@ -377,6 +377,8 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
             forensics_license_expires=str(data.get("expires_at") or ""),
             license_tier=normalize_tier(data.get("tier"), default="bright"),
             license_is_trial=True,
+            # The usage report stays on until the trial ends (settings_store.trial_report_locked_until).
+            trial_report_locked=True,
             forensics_enabled=True,
             license_home_token="", license_homes_used=0, license_home_status="",
             license_homes_warning={},

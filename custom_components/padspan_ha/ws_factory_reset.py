@@ -112,7 +112,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _keep_licence = {
             k: (_live_settings.data if _live_settings else {}).get(k, "")
             for k in ("forensics_license_key", "forensics_license_expires", "license_is_trial", "license_tier",
-                      "license_home_token", "license_home_label", "license_homes_used")
+                      "license_home_token", "license_home_label", "license_homes_used", "trial_report_locked")
         }
         # Vacation Mode's spans describe what is in HA's recorder, which a
         # PadSpan reset does not touch — a reset mid-vacation closes the span
@@ -155,6 +155,14 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         # until the next update check (or ever, with it turned off).
         if isinstance(_live, dict) and _live.get("server_offers"):
             _reset["server_offers"] = _live["server_offers"]
+        # A free trial that holds the usage report on keeps it on through a
+        # reset (settings_store.trial_report_locked_until).
+        from .settings_store import trial_report_locked_until as _locked_until
+        if _locked_until(_live or {}):
+            _reset["telemetry_enabled"] = True
+            _reset["telemetry_asked"] = True
+            if _live.get("telemetry_install_id"):
+                _reset["telemetry_install_id"] = _live["telemetry_install_id"]
         await st.async_save(_reset)
         cleared += 1
         store_obj = domain.get(DATA_SETTINGS)

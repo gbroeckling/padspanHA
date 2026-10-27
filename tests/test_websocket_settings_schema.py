@@ -45,6 +45,7 @@ _BACKEND_ONLY = {
     "vacation_mode_periods",           # appended by settings_set on the on->off transition
     "vacation_mode_pattern_attempt",   # vacation_mode.py — last empty build, for the hourly retry
     "calibration_points_seen",         # telemetry.py — calibration points in the last report / after a clear
+    "trial_report_locked",             # settings_store — a free trial holds the usage report on (set by trial_start)
     "maps_seen",                       # telemetry.py — floor plans in the last report / after a delete
     "vacation_mode_pattern_for",       # vacation_mode.py — the vacation a carried-over pattern serves (resumable)
     "vacation_mode_last_off",          # vacation_mode.py — who last turned it off, set by switch_fields

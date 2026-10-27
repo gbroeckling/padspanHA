@@ -15,6 +15,8 @@ on Overview once it's working in your house) gives you the full Pro product for 
 one trial per home, and your email is only used to send your key. The trial needs the
 **usage report** on (anonymous counts of what is used and what breaks; Settings → Presence shows
 exactly what is sent): with it off, the trial card asks you to turn it on in the same step.
+**The usage report stays on for the whole trial and can't be turned off until the trial ends**
+(or until you enter a bought key).
 A trial or key you already have is not affected.
 Nothing you made is taken away when it ends: you go back to free and your placements stay.
 

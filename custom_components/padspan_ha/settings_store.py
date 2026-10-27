@@ -35,6 +35,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "data_mode": "sample",  # "sample" | "live"
     "cpu_mode": "shared",  # "shared" | "single" | "dedicated" — see PresenceCoordinator
     "low_memory_mode": False,  # caps for a 2 GB machine — see low_memory.py
+    "trial_report_locked": False,  # a free trial started from 0.38.181 keeps the usage report on until it ends (trial_report_locked_until)
     "guest_tags_enabled": False,   # guest tags (guest_tags.py): off until chosen in Settings; nothing runs while off
     "guest_retention_days": 30,    # a finished guest stay's report is kept this long: 0, 7, 30 or 90
     "optimize_for_scale": False,  # several wall screens: a slim snapshot for Overview and the 3D people, a longer shared cache, no polls while a page is hidden — snapshot_builder.slim_snapshot
@@ -538,3 +539,25 @@ class SettingsStore:
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
+
+
+
+def trial_report_locked_until(data: dict) -> str:
+    """The trial's end ("" when nothing holds the usage report on). Every
+    free offer needs the report on, and a new free trial keeps it on until it
+    ends (Garry, 2026-10-27: "the opt in can't be turned off during the
+    trial"). Only a trial started under that rule holds it (trial_report_locked),
+    and only while it is still a trial that has not ended: a bought key or
+    the trial's end lets it go."""
+    from datetime import datetime, timezone  # noqa: PLC0415
+    if not (data.get("trial_report_locked") and data.get("license_is_trial")
+            and str(data.get("forensics_license_key") or "").strip()):
+        return ""
+    end = str(data.get("forensics_license_expires") or "").strip()
+    try:
+        exp = datetime.fromisoformat(end.replace("Z", "+00:00"))
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return end or "the end of the trial"
+    return end if exp > datetime.now(timezone.utc) else ""

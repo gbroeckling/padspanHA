@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.181 — A new free trial keeps the usage report on until it ends (2026-10-27)
+
+### Changed
+- **The usage report stays on for a new free trial's whole 90 days.** The trial card says so where you tick the box: "It stays on for the whole trial and can't be turned off until the trial ends." During the trial, Settings → Presence shows the report as on with the reason and the trial's end date. Its switch can't be used, and a factory reset or a backup restore doesn't turn it off either. When the trial ends, or with a bought key, it can be turned off again.
+- **Existing free offers are not affected:** a trial started before this version, a tester key and a year of Pro can turn the report off as before.
+
+---
+
 ## 0.38.180 — Free offers come with the usage report on (2026-10-27)
 
 ### Changed

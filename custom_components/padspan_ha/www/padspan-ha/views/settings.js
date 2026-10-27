@@ -1329,10 +1329,16 @@ function _settingsPresence(ctx, el){
   // after opting in; the backend refuses to send anything identifier-shaped
   // regardless (telemetry.py assert_shareable).
   const telOn = !!settings.telemetry_enabled;
+  // A free trial started from 0.38.181 keeps the report on until it ends
+  // (settings_store.trial_report_locked_until; the backend refuses too).
+  const telLocked = telOn && !!settings.trial_report_locked && !!settings.license_is_trial
+    && !(settings.forensics_license_expires && Date.parse(settings.forensics_license_expires) < Date.now());
   const telBtn = el("button", { class: "btn inline", style: telOn
     ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-    : "color:#94a3b8" }, telOn ? "Opted in" : "Not sharing");
+    : "color:#94a3b8", title: telLocked ? "On for your free trial" : "" }, telOn ? "Opted in" : "Not sharing");
+  if (telLocked) telBtn.disabled = true;
   telBtn.addEventListener("click", async () => {
+    if (telLocked) return;
     // Off, on a key used on more than two homes: what that means, first.
     const offWarn = telOn ? reportOffConfirmText(settings) : "";
     if (offWarn && !confirm(offWarn)) return;
@@ -1424,6 +1430,8 @@ function _settingsPresence(ctx, el){
       telBtn,
       telStatus,
     ]),
+    telLocked ? el("div", { class: "muted", style: "font-size:11px;margin:-2px 0 6px" },
+      `On for your free trial: it can't be turned off until the trial ends${settings.forensics_license_expires ? " (" + String(settings.forensics_license_expires).slice(0, 10) + ")" : ""}, or with a bought key.`) : null,
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" }, [previewBtn, sendBtn, idBtn]),
     telOut,
     // "Become a tester": its own section, consent and button, never part of
