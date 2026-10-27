@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.185 — Settings → AI (2026-10-27)
+## 0.38.186 — Settings → AI (2026-10-27)
 
 ### New
 - **Settings → AI.** PadSpan's AI features in one place:
@@ -15,6 +15,15 @@ All notable changes to PadSpan HA are documented here.
 ### Changed
 - **Furniture from a photo reads beds the right way round.** The AI is told a bed's width is across the headboard. In a real test with a local vision model it had swapped them.
 - **Usage report (if you share it):** what each photo sent to the AI was of (furniture, a tag, a receiver or a person), and how long the AI took to answer, in bands. Where an AI Task is chosen, `env.ai` says only whether it runs locally or in the cloud. The photo, the answer and the AI's name are never in it.
+
+---
+
+## 0.38.185 — The free trial is all of PadSpan Pro (2026-10-27)
+
+### Changed
+- **The 90-day free trial is all of PadSpan Pro.** It used to cover the lighting half only. Since October 27 the licence server issues every trial as full Pro, and trials already running became Pro at their next daily check, on every version. The trial card now says so ("PadSpan Pro free for 90 days, no card"), and the Locate and Busy Times gates say the trial unlocks them too. A PadSpan Bright build keeps its lighting pitch.
+- **The launch price, while it lasts.** Once a trial has started, its card and the licence card say that PadSpan Pro for life is at its launch price until November 30, and that buying during the trial keeps everything you set up. The line goes away when the launch price ends.
+- **The trial key comes by email too.** The licence server now emails the key to the address given on the trial card, as the card always said it would.
 
 ---
 

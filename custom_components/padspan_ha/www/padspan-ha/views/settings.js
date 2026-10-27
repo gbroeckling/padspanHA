@@ -16,7 +16,7 @@
  *
  * Uses a "draft" copy of the model so edits don't take effect until Save.
  */
-const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
+const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, proLifetimeLaunch, LICENCE_PATH, BRIGHT_PRICE, BRIGHT_UPGRADE_PRICE, EDITIONS_URL,
         tierAtLeast, currentTier, IDEAS_URL, IDEAS_NEW_URL, IDEAS_MAIL, surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
@@ -3088,7 +3088,7 @@ function _tiersWizardFree(ctx, w, isBright){
       ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."
       : "This install is PadSpan HA. Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.6"},
-    "A key only ever unlocks two things beyond that: Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), and light placement (fixture shapes and sizes, WLED, Showcase, Fit room). The free tier above is not a trial of anything — it stays free whether or not you ever add a key. If you want to see light placement on your own house first, a one-time 90-day free trial of PadSpan Bright Pro is available below — no card, and nothing is taken away when it ends, editing just returns to the free view."));
+    "A key only ever unlocks two things beyond that: Forensics (which Bluetooth devices were near a scanner in any time window, with dwell time and CSV export), and light placement (fixture shapes and sizes, WLED, Showcase, Fit room). The free tier above is not a trial of anything — it stays free whether or not you ever add a key. If you want to try it on your own house first, a one-time 90-day free trial of PadSpan Pro is available below — no card, and nothing is taken away when it ends, editing just returns to the free view."));
   wrap.appendChild(_tiersWizardFooter(ctx, w));
   return wrap;
 }
@@ -3342,7 +3342,8 @@ function _settingsLicence(ctx, el){
     colour = "#fbbf24";
   } else if (isTrial) {
     line = "\u2713 Trial active \u00B7 " + daysLeft + " day" + (daysLeft === 1 ? "" : "s") + " left" +
-           (exp ? " (" + exp + ")" : "") + ". Buy anytime to keep editing after it ends \u2014 nothing is lost either way.";
+           (exp ? " (" + exp + ")" : "") + ". Buy anytime to keep editing after it ends \u2014 nothing is lost either way." +
+           (proLifetimeLaunch() ? " PadSpan Pro for life is at its launch price until November 30." : "");
     colour = expiringSoon ? "#fbbf24" : "#8ee5b4";
   } else if (expiringSoon) {
     line = "\u2713 " + keyProd + " licensed \u00B7 renews in " + daysLeft +

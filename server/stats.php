@@ -220,7 +220,7 @@ $integrations = array(); $features = array(); $flags = array(); $scanner_kinds =
 // words (env.screens: "screen:atlas_3d", screens counted, not installs), how
 // many screens a house lists, and Pro screen switches on below Pro.
 $overview = array();
-// The AI Task chosen for photos (env.ai.task, 0.38.185): local, cloud,
+// The AI Task chosen for photos (env.ai.task, 0.38.186): local, cloud,
 // unknown or unready, from each install's latest report where it chose one.
 $ai = array();
 // BLE scan mode. HA 2026.6 flipped the default for every ESPHome proxy from

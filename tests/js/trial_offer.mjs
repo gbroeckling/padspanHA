@@ -154,7 +154,7 @@ await check("a licensed house gets no card at all", () => {
 await check("the card says what it is, in the agreed words", () => {
   const { host } = makeHost();
   const card = T.trialOfferCard(host, "atlas");
-  assert(/90-day free trial, no card/.test(card.textContent), "title");
+  assert(/PadSpan Pro free for 90 days, no card/.test(card.textContent), "title");
   assert(find(card, "start").textContent === "Start 90-day free trial", "button: " + find(card, "start").textContent);
   assert(find(card, "note").textContent === "Your email is only used to send your key; one trial per home.", "note");
   assert(find(card, "buy") && /PadSpan Pro/.test(find(card, "buy").textContent), "buy link missing");
@@ -217,7 +217,7 @@ await check("success: one call, counted, settings handed back, then the started 
   assert(h.calls.length === 1 && h.calls[0].type === "padspan_ha/trial_start", JSON.stringify(h.calls));
   assert(h.calls[0].email === "someone@example.com", "email not trimmed: " + h.calls[0].email);
   assert(h.started() === 1, "onStarted not called");
-  assert(h.toasts.some(t => !t.e && /90-day free trial has started/.test(t.m)), JSON.stringify(h.toasts));
+  assert(h.toasts.some(t => !t.e && /90-day PadSpan Pro trial has started/.test(t.m)), JSON.stringify(h.toasts));
   // Even though the house is now licensed, this surface says it worked.
   h.host.settings = { tier: "bright", pro_has_key: true };
   const after = T.trialOfferCard(h.host, "maps");
@@ -274,9 +274,31 @@ await check("Not now is offered only where the host asks for it", () => {
   assert(hidden === 1, "onDismiss not called");
 });
 
-await check("a Pro gate's pitch does not promise the Pro feature", () => {
+await check("the started card has the launch-price line exactly while the launch price is on", async () => {
+  const E = await import(pathToFileURL(join(VIEWS, "editions.js")).href);
+  const h = makeHost({ answer: { ok: true, days_left: 90, settings: { tier: "pro", pro_has_key: true } } });
+  const card = T.trialOfferCard(h.host, "maps");
+  type(card, "someone@example.com");
+  find(card, "start").click();
+  await settle();
+  h.host.settings = { tier: "pro", pro_has_key: true };
+  const after = T.trialOfferCard(h.host, "maps");
+  assert(/PadSpan Pro trial has started/.test(after.textContent), after.textContent);
+  const has = after.textContent.includes(T.TRIAL_LAUNCH_LINE);
+  assert(has === E.proLifetimeLaunch(), (has ? "launch line after the launch price ended: " : "no launch line: ") + after.textContent);
+});
+
+await check("the pitch sells all of Pro, and a Bright build keeps the lighting pitch", () => {
+  const full = T.trialPitch("maps");
+  assert(/all of PadSpan Pro/.test(full) && /3D house/.test(full) && /Forensics/.test(full), full);
+  const bright = T.trialPitch("maps", undefined, { edition: "bright" });
+  assert(/every light/.test(bright) && !/3D house/.test(bright), bright);
+  assert(/all of PadSpan Pro/.test(T.trialPitch("settings")), T.trialPitch("settings"));
+});
+
+await check("a Pro gate's pitch says the trial unlocks that feature", () => {
   const p = T.trialPitch("locate", "Locate");
-  assert(/The trial doesn't unlock Locate/.test(p) && /lighting/.test(p), p);
+  assert(/The trial unlocks Locate/.test(p) && /PadSpan Pro/.test(p), p);
   // The gate right above already says Locate needs Pro; the card must not
   // say it a second time.
   assert(!/needs a PadSpan Pro key/.test(p), "the gate's own line, repeated: " + p);
@@ -337,7 +359,7 @@ await check("Locate and Busy Times gates carry the trial card with their own sur
     const root = mod.render(ctx, {});
     const card = root.querySelector("[data-trial=card]");
     assert(card && card.getAttribute("data-surface") === surface, `${surface}: no trial card`);
-    assert(new RegExp("The trial doesn't unlock " + word).test(card.textContent), `${surface}: pitch`);
+    assert(new RegExp("The trial unlocks " + word).test(card.textContent), `${surface}: pitch`);
     assert(!/3-month/.test(root.textContent), `${surface}: old 3-month wording`);
     const keyed = mod.render(viewCtx({ tier: "bright", pro_has_key: true }).ctx, {});
     assert(!keyed.querySelector("[data-trial=card]"), `${surface}: offered with a key`);

@@ -286,7 +286,7 @@ function renderUnlocked(ctx, root) {
     // ── 06 usage ──────────────────────────────────────────────────────────
     const ad = s.adoption || {};
     const tok = s.type_override_kinds || {};
-    // The AI Task people chose for photos (env.ai, 0.38.185): local or cloud.
+    // The AI Task people chose for photos (env.ai, 0.38.186): local or cloud.
     const aiMap = s.ai || {};
     // The Overview card's two kinds of row: settings changed (counted per
     // install) and what each screen showed (counted per screen, homes with 2+).

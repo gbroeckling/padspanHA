@@ -81,7 +81,7 @@ def test_licence_card_offers_the_trial_with_no_card_language() -> None:
     offer = _read(_VIEWS / "trial_offer.js")
     assert "padspan_ha/trial_start" in offer
     assert '"Start 90-day free trial"' in offer
-    assert '"90-day free trial, no card"' in offer, "the trial CTA must say no payment info is needed"
+    assert '"PadSpan Pro free for 90 days, no card"' in offer, "the trial CTA must say no payment info is needed"
 
 
 def test_the_free_forever_claim_still_holds_and_the_trial_is_disclosed() -> None:

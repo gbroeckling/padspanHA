@@ -338,7 +338,7 @@ NEEDS_ALL_REPORTS_JOIN = ("To use this key on more than 2 homes, turn on the usa
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
-    """Start the one-time 3-month PadSpan Bright Pro trial.
+    """Start the one-time 3-month PadSpan Pro trial (full Pro since 2026-10-27; it was Bright Pro before).
 
     Mints a real trial key server-side (same validate/activate path a
     purchase uses, so expiry/grace/the editing-only gate all just work) and
