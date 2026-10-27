@@ -1414,6 +1414,11 @@ class PadSpanLightsApp extends HTMLElement {
         /* Wall mode (?kiosk=1): no header, the map card the whole screen,
            its controls scaled by --wall-ui (lv- rules in styles.css). */
         :host([data-wall]){overflow:clip}
+        /* A wall turned by its link (?wall_rotate): the page is laid out
+           as tall as the screen is wide and turned onto it. */
+        :host([data-wall][data-wall-rotate]){position:fixed;top:0;left:0;width:100vh;height:100vw;transform-origin:top left}
+        :host([data-wall][data-wall-rotate="90"]){transform:rotate(90deg) translateY(-100%)}
+        :host([data-wall][data-wall-rotate="270"]){transform:rotate(-90deg) translateX(-100%)}
         :host([data-wall]) #content{padding:0}
         :host([data-wall]) .lv-hero, :host([data-wall]) .lv-coach{display:none}
         /* The wall is the map: the lights' table under it stays on the desk's
@@ -1453,6 +1458,7 @@ class PadSpanLightsApp extends HTMLElement {
       // Also when a wall stops being one without a reload (the layout or
       // the tier changed elsewhere): nothing of the wall is left behind.
       this.removeAttribute("data-wall");
+      this.removeAttribute("data-wall-rotate");
       this._wallOff();
       this._wallNight(); this._wallShift(); this._wallCycle();
       return;
@@ -1460,13 +1466,19 @@ class PadSpanLightsApp extends HTMLElement {
     this.setAttribute("data-wall", "");
     const size = ()=>{
       const p = WALLS.wallParams(location.search, this.state?._wall);
-      const s = WALLS.wallScale(window.innerWidth, window.innerHeight, { ...p, dpr: window.devicePixelRatio || 1 });
+      // A screen hung on its side whose TV can't turn its picture
+      // (?wall_rotate=90|270): the page turns itself, and is sized for the
+      // picture as it hangs (width and height swapped).
+      const rot = p.rotate || 0;
+      if(rot) this.setAttribute("data-wall-rotate", String(rot)); else this.removeAttribute("data-wall-rotate");
+      const W = rot ? window.innerHeight : window.innerWidth, H = rot ? window.innerWidth : window.innerHeight;
+      const s = WALLS.wallScale(W, H, { ...p, dpr: window.devicePixelRatio || 1 });
       this.style.setProperty("--wall-ui", String(s));
-      // How much bigger the drawing itself is than on 1080p: the rain goes with it.
-      this._wallPx = Math.max(1, Math.min(window.innerWidth / 1920, window.innerHeight / 1080));
+      // How much bigger the drawing itself is than on 1080p, either way up: the rain goes with it.
+      this._wallPx = Math.max(1, WALLS.screenRatio ? WALLS.screenRatio(W, H) : Math.min(W / 1920, H / 1080));
       this.style.setProperty("--wall-px", String(Math.round(this._wallPx * 100) / 100));
       // The buttons stop at finger size (wall_scale.js controlScale).
-      this.style.setProperty("--wall-ctl", String(WALLS.controlScale(s, p.inches, window.innerWidth, window.innerHeight, window.devicePixelRatio || 1)));
+      this.style.setProperty("--wall-ctl", String(WALLS.controlScale(s, p.inches, W, H, window.devicePixelRatio || 1)));
       this._wallUi = s;
       this._wallFit = p.inches > 0 ? "room" : "auto";
     };

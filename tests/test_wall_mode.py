@@ -84,9 +84,9 @@ def test_a_screens_own_link_wins_over_the_house():
     got = _node("console.log(JSON.stringify([wallParams('?kiosk=1&wall_in=65&wall_m=3', {wall_screen_in: 55, wall_distance_m: 2, wall_text_arcmin: 22}),"
                 " wallParams('?kiosk=1', {wall_screen_in: 55, wall_distance_m: 2, wall_text_arcmin: 22, wall_night_dim: 0.9, wall_pixel_shift: true}),"
                 " wallParams('?kiosk=1', null)]))")
-    assert got[0] == {"inches": 65, "meters": 3, "arcmin": 22, "dim": 0, "shift": False, "cycle": 0, "fully": False}
-    assert got[1] == {"inches": 55, "meters": 2, "arcmin": 22, "dim": 0.7, "shift": True, "cycle": 0, "fully": False}, "night dim kept to 70%"
-    assert got[2] == {"inches": 0, "meters": 2.5, "arcmin": 20, "dim": 0, "shift": False, "cycle": 0, "fully": False}
+    assert got[0] == {"inches": 65, "meters": 3, "arcmin": 22, "dim": 0, "shift": False, "cycle": 0, "fully": False, "rotate": 0}
+    assert got[1] == {"inches": 55, "meters": 2, "arcmin": 22, "dim": 0.7, "shift": True, "cycle": 0, "fully": False, "rotate": 0}, "night dim kept to 70%"
+    assert got[2] == {"inches": 0, "meters": 2.5, "arcmin": 20, "dim": 0, "shift": False, "cycle": 0, "fully": False, "rotate": 0}
 
 
 def test_kiosk_turns_it_on_and_only_on_the_sidebar_atlas():
@@ -149,7 +149,7 @@ def test_a_wall_that_stops_being_one_leaves_nothing_behind():
               'removeProperty("--wall-ui")', 'removeAttribute("data-wall-active")'):
         assert s in off, s
     on = src[src.index("  _wallOn(){"):]
-    assert 'this.removeAttribute("data-wall");\n      this._wallOff();' in on[:on.index("\n  }\n")]
+    assert 'this.removeAttribute("data-wall");\n      this.removeAttribute("data-wall-rotate");\n      this._wallOff();' in on[:on.index("\n  }\n")]
     assert "disconnectedCallback(){" in src and "    this._wallOff();\n" in src
 
 
@@ -296,3 +296,20 @@ def test_the_atlas_page_runs_without_the_wall_module():
     lp = _src("lights_panel.js")
     assert '.catch(err => { console.warn("PadSpan: wall_scale failed to load", err); return null; });' in lp
     assert "if(!kiosk || this._embedded || !v2 || !WALLS){" in lp, "no module: no wall mode, and every other use of it sits behind data-wall"
+
+
+def test_a_portrait_wall_is_sized_like_a_landscape_one_and_can_be_turned():
+    """A portrait 4K wall (2160 x 3840) drew its text at about half size:
+    min(w/1920, h/1080) is 1.13 there. Long side against 1920, short against
+    1080: 2 either way up. A wall whose TV can't turn its picture turns
+    itself from its link (?wall_rotate=90|270)."""
+    src = (_WWW / "views" / "wall_scale.js").read_text(encoding="utf-8")
+    assert "Math.min(Math.max(W, H) / 1920, Math.min(W, H) / 1080)" in src
+    assert "s = screenRatio(w, h) * (arcmin / 20);" in src
+    assert 'rotate: rotationOf(q.get("wall_rotate")),' in src
+    assert "if (rotationOf(o.rotate)) p.push(`wall_rotate=${rotationOf(o.rotate)}`);" in src
+    lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert "const W = rot ? window.innerHeight : window.innerWidth, H = rot ? window.innerWidth : window.innerHeight;" in lp
+    assert ':host([data-wall][data-wall-rotate="90"]){transform:rotate(90deg) translateY(-100%)}' in lp
+    card = (_WWW / "views" / "wall_card.js").read_text(encoding="utf-8")
+    assert "Screen orientation" in card and "WALLS.ROTATIONS" in card

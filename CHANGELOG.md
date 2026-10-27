@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.181 — A new free licence keeps the usage report on while it runs (2026-10-27)
+## 0.38.181 — Free licences keep the usage report on, and portrait walls (2026-10-27)
 
 ### Changed
 - **A new free licence needs the usage report on, and it stays on until that licence ends.** That covers the 90-day trial, a tester's two years of Pro and a free year of Pro from an invite. Each says so where you accept it: "can't be turned off until the trial ends", "while the key runs", "while the free year runs".
@@ -12,6 +12,12 @@ All notable changes to PadSpan HA are documented here.
   - When the licence ends, or once a bought key is entered, the report can be turned off again.
   - A tester key entered with the report off is refused until it's on. A free-year invite delivered from this version is claimed with the report on.
 - **Existing free offers are not affected:** a trial started before this version, a tester key already in use, a year of Pro already claimed and an invite delivered before this version all work as before, and the report can be turned off as before.
+
+### Fixed
+- **A portrait 4K wall draws its text, controls and rain at the right size.** The scale compared the screen's width with 1920 and its height with 1080, so a 2160 × 3840 wall came out at 1.13× instead of 2×, and everything was about half the size it should be. Now the long side is compared with 1920 and the short side with 1080, so portrait and landscape get the same scale.
+
+### New
+- **Portrait walls on screens that can't turn their picture.** Settings → UI Structure → Wall screens → **Screen orientation** adds a turn to a screen's link (`&wall_rotate=90` or `270`). PadSpan then lays itself out tall and turns onto the screen, so a TV or stick that only shows landscape can hang on its side. A screen that turns its own picture needs nothing. See docs/WALL_SCREEN_GUIDE.md.
 
 ---
 

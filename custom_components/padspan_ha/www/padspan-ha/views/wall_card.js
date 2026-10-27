@@ -223,6 +223,18 @@ export function wallCard(ctx, el, settings){
   onlyRow.appendChild(onlyCb);
   onlyRow.appendChild(el("span", { style: "color:#e2e8f0;font-size:13px" }, "Just make a link (the house's walls stay as they are)"));
   card.appendChild(onlyRow);
+  // A screen hung on its side: most TVs and sticks can't turn their picture,
+  // so the link turns PadSpan instead (wall_scale.js rotationOf). One screen's
+  // own choice, so it lives in its link, never in the house's settings.
+  const rotSel = el("select", { class: "select", style: "width:auto" });
+  for (const [deg, label] of WALLS.ROTATIONS || []) rotSel.appendChild(el("option", { value: String(deg) }, label));
+  rotSel.value = String(v.rotate || 0);
+  rotSel.addEventListener("change", () => { v.rotate = parseInt(rotSel.value, 10) || 0; paint(); });
+  card.appendChild(el("div", { style: "display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 6px" }, [
+    el("span", { style: "color:#e2e8f0;font-size:13px" }, "Screen orientation"), rotSel,
+    el("span", { class: "muted", style: "font-size:11px" },
+      "A screen that shows portrait by itself needs nothing here. Use a turn only for a screen hung on its side whose TV or stick can't turn the picture; if the map comes out upside down, pick the other one."),
+  ]));
   card.appendChild(el("div", { style: "display:flex;flex-wrap:wrap;gap:8px;align-items:center" }, [linkBox, copy]));
   card.appendChild(note);
 
@@ -244,7 +256,7 @@ export function wallCard(ctx, el, settings){
   }
 
   function paint(){
-    const o = { inches: v.mode === "room" ? v.inches : 0, meters: v.meters, arcmin: v.arcmin };
+    const o = { inches: v.mode === "room" ? v.inches : 0, meters: v.meters, arcmin: v.arcmin, rotate: v.rotate || 0 };
     const k4 = WALLS.wallScale(3840, 2160, o), k1 = WALLS.wallScale(1920, 1080, o);
     linkBox.value = WALLS.wallLink(o, linkOnly);
     // A 4K screen 320 px wide: the rail and a room's name at their share of

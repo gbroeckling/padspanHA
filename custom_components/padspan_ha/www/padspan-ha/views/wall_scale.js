@@ -21,6 +21,24 @@ export const TEXT_STEPS = [[16, "Small"], [20, "Comfortable"], [24, "Large"], [2
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+/** How much bigger a screen is than 1080p, either way up: its long side
+ *  against 1920 and its short side against 1080. A portrait 4K wall
+ *  (2160 x 3840) is 2, like a landscape one; against w/1920 and h/1080 it
+ *  came out 1.13 and drew its text at about half the size. */
+export function screenRatio(w, h){
+  const W = Number(w), H = Number(h);
+  if (!(W > 0) || !(H > 0)) return 1;
+  return Math.min(Math.max(W, H) / 1920, Math.min(W, H) / 1080);
+}
+
+/** A wall's turn, from its link (?wall_rotate=90 | 270): for a screen hung
+ *  on its side whose TV or stick can't turn its picture. 0: as it comes. */
+export const ROTATIONS = [[0, "As the screen shows it"], [90, "Portrait: turn the picture clockwise"], [270, "Portrait: turn the picture anticlockwise"]];
+export function rotationOf(v){
+  const n = parseInt(v, 10);
+  return n === 90 || n === 270 ? n : 0;
+}
+
 /** mm per device pixel of a screen `inches` across the diagonal. */
 export function pitchMm(inches, w, h, dpr = 1){
   return 25.4 * inches / Math.hypot(w * dpr, h * dpr);
@@ -34,7 +52,7 @@ export function wallScale(w, h, o = {}){
   if (inches > 0 && meters > 0 && w > 0 && h > 0) {
     s = (meters / REF_DIST_M) * (REF_PITCH_MM / pitchMm(inches, w, h, dpr)) * (arcmin / REF_ARCMIN) / dpr;
   } else {
-    s = Math.min(Number(w) / 1920, Number(h) / 1080) * (arcmin / 20);
+    s = screenRatio(w, h) * (arcmin / 20);
   }
   return Number.isFinite(s) ? clamp(Math.round(s * 100) / 100, 1, WALL_UI_MAX) : 1;
 }
@@ -75,6 +93,8 @@ export function wallParams(search, house){
     // Seconds between floors while nobody touches the wall (0: it stays put).
     cycle: Number(h.wall_floor_cycle_s) >= 10 ? Math.min(600, Math.round(Number(h.wall_floor_cycle_s))) : 0,
     fully: !!h.wall_fully,
+    // This screen's own turn, from its link only (each wall hangs its own way).
+    rotate: rotationOf(q.get("wall_rotate")),
   };
 }
 
@@ -86,6 +106,7 @@ export function wallLink(o, full = false){
   if (o.inches > 0) p.push(`wall_in=${Math.round(o.inches)}`, `wall_m=${(Math.round(o.meters * 10) / 10)}`);
   else if (full) p.push("wall_in=0");
   if (o.arcmin && (full || Math.round(o.arcmin) !== 20)) p.push(`wall_text=${Math.round(o.arcmin)}`);
+  if (rotationOf(o.rotate)) p.push(`wall_rotate=${rotationOf(o.rotate)}`);
   return `/padspan-lights?${p.join("&")}`;
 }
 

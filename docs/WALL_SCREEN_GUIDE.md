@@ -97,6 +97,14 @@ With [Live Aboard](LIVE_ABOARD_GUIDE.md) on:
   card open, or made it full screen by hand.
 - When nothing is moving, Live Aboard draws nothing, so an idle screen costs almost nothing.
 
+## Portrait walls
+
+A screen hung tall works as well as a wide one, and the text and controls are sized the same either way up. A 4K screen is 2× a 1080p one in portrait as in landscape.
+
+- If the TV or stick shows portrait by itself (the picture turns when the screen does), nothing needs setting.
+- Most TVs and streaming sticks can't turn their picture. For one of those, hang it on its side and give its link a turn: **Settings → UI Structure → Wall screens → Screen orientation → Portrait: turn the picture clockwise** (or anticlockwise). This adds `&wall_rotate=90` (or `270`) to that screen's link, and PadSpan lays itself out tall and turns onto the screen. If the map comes out upside down, use the other one.
+- The turn belongs to that one screen's link, so the house's other walls are unchanged.
+
 ## Several screens at once: Optimize for scale
 
 Every screen showing the Overview, or the Atlas's 3D view with people, asks Home Assistant for the whole live picture every 5 seconds. In a busy house that is every passing Bluetooth device: about 2 MB a screen, so four screens move about 14 Mbit/s between Home Assistant and the screens, all day. The flat Atlas wall (`?kiosk=1`) doesn't ask for it at all.
