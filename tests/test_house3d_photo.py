@@ -548,7 +548,12 @@ def test_each_outcome_is_counted_by_name_only(monkeypatch, tmp_path, disk):
     _photo(h, conn, photo=...)                        # a check is not a read
     h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_enabled"] = False
     _photo(h, conn)                                   # off: nothing
-    assert counted == ["photo_read:ok", "photo_read:bad_answer", "photo_read:error", "photo_read:no_ai_task"]
+    assert [e for e in counted if e.startswith("photo_read:")] == ["photo_read:ok", "photo_read:bad_answer",
+                                                                   "photo_read:error", "photo_read:no_ai_task"]
+    # 0.38.185: what each photo sent was of, and how long the AI took (answered or failed);
+    # nothing for the one refused before it was sent.
+    assert [e for e in counted if e.startswith("photo_subject:")] == ["photo_subject:furniture"] * 3
+    assert [e for e in counted if e.startswith("photo_secs:")] == ["photo_secs:lt5"] * 3
     assert set(counted) <= T.PHOTO_EVENTS and all(T.event_allowed(e) for e in T.PHOTO_EVENTS)
     src = inspect.getsource(P)
     for e in T.PHOTO_EVENTS:
@@ -600,3 +605,25 @@ def test_two_reads_started_together_never_take_each_others_photo(monkeypatch, tm
     out = run(both())
     assert seen == [True, True], (seen, out)
     assert not any(isinstance(o, BaseException) for o in out), out
+
+
+
+def test_the_report_says_which_kind_of_ai_task_is_chosen_never_which(monkeypatch, tmp_path, disk):
+    """env.ai (0.38.185): local, cloud, unknown or unready, only where an AI Task is chosen."""
+    h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=dict(_SOFA))
+    word = T.ai_task_word(h)
+    assert word in ("local", "cloud", "unknown")
+    h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = "ai_task.gone"
+    assert T.ai_task_word(h) == "unready"
+    h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = ""
+    assert T.ai_task_word(h) is None
+
+
+
+def test_reading_photos_switched_off_in_settings_ai_is_refused(monkeypatch, tmp_path, disk):
+    """Settings → AI → Furniture from a photo (ai_photos_enabled, on unless turned off)."""
+    h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=dict(_SOFA))
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_photos_enabled"] = False
+    _photo(h, conn)
+    assert conn.send_error.called and conn.send_error.call_args[0][1] == P.PHOTOS_OFF_CODE
+    assert ai.calls == [] and _leftovers(media) == []

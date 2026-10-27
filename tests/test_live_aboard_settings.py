@@ -138,6 +138,8 @@ def test_the_box_saves_each_control_on_its_own() -> None:
     assert 'tick("atlas_3d_people", "Show people", settings.atlas_3d_people === true,' in sec
     for later in ():
         assert later not in sec, later
-    # P3: the AI Task that reads photos, saved alone, from Home Assistant's ai_task.* entities, once on.
-    assert 'save("atlas_3d_ai_task_entity", want,' in sec and 'e.startsWith("ai_task.")' in sec
-    assert 'more.appendChild(row("AI Task for photos", [aiSel]));' in sec
+    # P3: the AI Task that reads photos, saved alone, from Home Assistant's ai_task.* entities.
+    # Since 0.38.185 it is in Settings → AI (_settingsAI); the Live Aboard section points there.
+    ai = src[src.index("function _settingsAI("):src.index("function _atlas3dSection(")]
+    assert 'save("atlas_3d_ai_task_entity", want,' in ai and 'e.startsWith("ai_task.")' in ai
+    assert 'save("atlas_3d_ai_task_entity"' not in sec and "are in Settings → AI." in sec

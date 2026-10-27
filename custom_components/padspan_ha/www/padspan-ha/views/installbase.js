@@ -286,6 +286,8 @@ function renderUnlocked(ctx, root) {
     // ── 06 usage ──────────────────────────────────────────────────────────
     const ad = s.adoption || {};
     const tok = s.type_override_kinds || {};
+    // The AI Task people chose for photos (env.ai, 0.38.185): local or cloud.
+    const aiMap = s.ai || {};
     // The Overview card's two kinds of row: settings changed (counted per
     // install) and what each screen showed (counted per screen, homes with 2+).
     const ovMap = s.overview || {};
@@ -305,6 +307,8 @@ function renderUnlocked(ctx, root) {
         barCard(el, { title: "Settings switched on", ask: "Installs with each setting on (some are on by default)", map: s.features, total: n, limit: 40, kind: "feature" }),
         ...(Object.keys(ovSettings).length ? [barCard(el, { title: "Overview and Atlas: changed from default", ask: "Installs that changed how the Overview, Atlas or 3D house looks", map: ovSettings, total: n, limit: 40, kind: "overview" })] : []),
         ...(Object.keys(ovScreens).length ? [barCard(el, { title: "Screens, in homes with two or more", ask: "Each screen PadSpan is open on, by what it is and what it shows (counted per screen)", map: ovScreens, unit: "screens", limit: 40, kind: "overview" })] : []),
+        ...(Object.keys(aiMap).length ? [barCard(el, { title: "AI chosen for photos", ask: "Installs that picked an AI Task in Settings → AI, by where it runs", map: aiMap, total: n,
+          kind: "ai" })] : []),
         kvCard(el, "Extra things placed on the map (installs)", "Installs that placed or used at least one", [
           ["Placed a motion sensor", ad.motion_sensors, n],
           ["Placed a temperature sensor", ad.temp_sensors, n],
@@ -567,6 +571,8 @@ function word(kind, k) {
     case "stage": return W_STAGE[key] || tidy(key);
     case "tier": return W_TIER[key] || tidy(key);
     case "scan": return W_SCAN[key] || tidy(key);
+    case "ai": return { local: "Local (stays in the house)", cloud: "Cloud (leaves the house)", unknown: "Another AI integration",
+                        unready: "Chosen, but not ready" }[key] || tidy(key);
     case "overview":
       if (W_OVERVIEW[key]) return W_OVERVIEW[key];
       if (a === "screen") return W_SCREEN[b] || tidy(b);
@@ -590,6 +596,10 @@ function word(kind, k) {
       if (a === "wall_reload") return `${b === "atlas" ? "Sidebar Atlas" : "Panel"} reloaded itself after an update (${W_WALL_KIND[c] || c})`;
       if (a === "ui_error_while") return `Panel error while in ${W_TAB[b] || b}`;
       if (a === "first_room") return `First room drawn (${b === "lt15m" ? "within 15 min" : b})`;
+      if (a === "photo_read") return { ok: "AI read a photo", no_ai_task: "AI photo refused: no AI Task set up",
+                                        bad_answer: "AI answered with nothing usable", error: "AI photo read failed" }[b] || tidy(key);
+      if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
+      if (a === "photo_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to answer`;
       if (a === "proxy_rate_drops") return `A receiver's reading rate dropped (${b} a day)`;
       return tidy(key);
     }

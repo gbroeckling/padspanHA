@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.185 — Settings → AI (2026-10-27)
+
+### New
+- **Settings → AI.** PadSpan's AI features in one place:
+  - **Your AI:** the Home Assistant AI Task that reads for PadSpan. It moved here from the Live Aboard section.
+  - **Furniture from a photo:** now has its own switch, on as before. It covers tags, receivers and people's figures too.
+  - **Coming soon:** stairs read off your floor plans, rooms and walls traced from a floor plan picture, and asking your AI voice assistant where someone is.
+
+### Changed
+- **Furniture from a photo reads beds the right way round.** The AI is told a bed's width is across the headboard. In a real test with a local vision model it had swapped them.
+- **Usage report (if you share it):** what each photo sent to the AI was of (furniture, a tag, a receiver or a person), and how long the AI took to answer, in bands. Where an AI Task is chosen, `env.ai` says only whether it runs locally or in the cloud. The photo, the answer and the AI's name are never in it.
+
+---
+
 ## 0.38.184 — Stairs from your plans, a first guess (2026-10-27)
 
 ### New

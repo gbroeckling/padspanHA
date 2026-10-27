@@ -51,6 +51,7 @@ import logging
 import os
 import re
 import secrets
+import time
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +84,8 @@ _CLOUD = frozenset({"openai_conversation", "google_generative_ai_conversation", 
                     "open_router", "openrouter", "mistral_ai", "azure_openai_conversation", "groq", "xai"})
 
 NO_AI_CODE = "no_ai_task"
+PHOTOS_OFF_CODE = "ai_photos_off"
+PHOTOS_OFF_MESSAGE = "Reading photos is off: turn on Furniture from a photo in Settings → AI."
 _SETTINGS_PATH = "Settings → UI Structure → Atlas → Live Aboard"
 NO_AI_CHOSEN = (f"No AI Task is chosen to read photos. It needs Home Assistant 2025.8 or newer with an AI "
                 f"Task (from an AI integration such as Ollama, OpenAI or Google), chosen in {_SETTINGS_PATH}.")
@@ -227,7 +230,8 @@ _PROMPT = {
         "piece (the one nearest the middle of the photo) so PadSpan can draw a simple 3D model of it from "
         "a few settings. Answer every field from what you can see.{kind} Colours: up to three main colours "
         "as #rrggbb, the largest area first. Sizes are in metres: width_m across the front from side to "
-        "side, depth_m from front to back, height_m from the floor to the highest point. size_confidence: "
+        "side, depth_m from front to back, height_m from the floor to the highest point (a bed: width_m across "
+        "the headboard, depth_m from the head to the foot). size_confidence: "
         "high only when something of known size is in the photo to judge the scale by (a tape measure, a "
         "door frame, a standard chair), otherwise medium or low. Details: the rooms it suits, its style, its "
         "main material, its features, and a short plain title such as \"Three-seat grey sofa, slim arms\" "
@@ -641,6 +645,16 @@ def _why(err: BaseException) -> str:
     return text or type(err).__name__
 
 
+# What a photo sent was of, and how long the AI Task took (telemetry.PHOTO_EVENTS).
+_SUBJECT_EVENT = {"furniture": "photo_subject:furniture", "tag": "photo_subject:tag",
+                  "scanner": "photo_subject:scanner", "person": "photo_subject:person"}
+
+
+def _secs_event(s: float) -> str:
+    return ("photo_secs:lt5" if s < 5 else "photo_secs:5_15" if s < 15
+            else "photo_secs:15_45" if s < 45 else "photo_secs:gt45")
+
+
 def _bump(hass: HomeAssistant, event: str) -> None:
     """Count one photo_read event (telemetry.PHOTO_EVENTS; nothing while the report is off)."""
     try:
@@ -668,6 +682,11 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
         connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
         return
     await B.async_data(hass)
+    # Settings → AI: reading photos switched off (it is on unless someone turned it off).
+    _st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if ((_st.data if _st else {}) or {}).get("ai_photos_enabled") is False:
+        connection.send_error(msg["id"], PHOTOS_OFF_CODE, PHOTOS_OFF_MESSAGE)
+        return
     ai = ai_task(hass)
     target = msg["target"]
     if "photo" not in msg:
@@ -684,6 +703,8 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
         return
     kind = msg.get("kind") if target != "person" else None
     instructions, structure = request(target, kind)
+    _bump(hass, _SUBJECT_EVENT[target])
+    t0 = time.monotonic()
     try:
         answer = await ask(hass, ai["ai_task"], instructions, structure, raw, mime)
     except _NoMedia:
@@ -692,12 +713,14 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
                                            "kind": kind, "ai_task": ai["ai_task"]})
         return
     except Exception as err:  # noqa: BLE001 — any failure of the AI Task is a plain "couldn't read it"
+        _bump(hass, _secs_event(time.monotonic() - t0))
         _LOGGER.warning("PadSpan Live Aboard: the AI Task %s couldn't read a photo: %s", ai["ai_task"], _why(err))
         _bump(hass, "photo_read:error")
         connection.send_result(msg["id"], {"ok": False, "target": target, "reason": "error",
                                            "message": FAILED.format(why=_why(err)), "kind": kind,
                                            "ai_task": ai["ai_task"]})
         return
+    _bump(hass, _secs_event(time.monotonic() - t0))
     out = parse(target, kind, answer)
     _bump(hass, "photo_read:ok" if out["ok"] else "photo_read:bad_answer")
     connection.send_result(msg["id"], {**out, "ai_task": ai["ai_task"]})

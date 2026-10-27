@@ -563,7 +563,33 @@ HOUSE3D_EVENTS: frozenset[str] = frozenset(
 # answer) or :error (the AI Task failed). Never the photo, the AI Task or the
 # answer; and nothing while the 3D house is off (the command refuses first).
 PHOTO_READ_OUTCOMES: tuple[str, ...] = ("ok", "no_ai_task", "bad_answer", "error")
-PHOTO_EVENTS: frozenset[str] = frozenset(f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES)
+# And (0.38.185) what each photo sent to the AI Task was of (photo_subject:
+# furniture, tag, scanner or person) and how long the AI took to answer
+# (photo_secs:<band>, answered or failed). Never the photo or the answer.
+PHOTO_SUBJECTS: tuple[str, ...] = ("furniture", "tag", "scanner", "person")
+PHOTO_SECS: tuple[str, ...] = ("lt5", "5_15", "15_45", "gt45")
+PHOTO_EVENTS: frozenset[str] = frozenset(
+    {f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES} | {f"photo_subject:{k}" for k in PHOTO_SUBJECTS}
+    | {f"photo_secs:{k}" for k in PHOTO_SECS})
+# The AI Task chosen for photos (env.ai, 0.38.185), only where one is chosen:
+# local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
+# unknown (another integration) or unready (chosen, but gone, blind to
+# pictures, or Home Assistant too old). Never its name or entity.
+AI_TASK_WORDS: tuple[str, ...] = ("local", "cloud", "unknown", "unready")
+
+
+def ai_task_word(hass: HomeAssistant) -> str | None:
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if not str(((st.data if st else {}) or {}).get("atlas_3d_ai_task_entity") or "").strip():
+        return None
+    try:
+        from .ws_house3d_photo import ai_task  # noqa: PLC0415
+        ai = ai_task(hass)
+    except Exception:  # noqa: BLE001
+        return None
+    if not ai.get("ready"):
+        return "unready"
+    return "local" if ai.get("local") is True else "cloud" if ai.get("local") is False else "unknown"
 # The panels' own measurements (www/padspan-ha/client_perf.js — the same lists
 # there, held equal by tests/test_telemetry.py). Once a minute while a panel
 # is on screen: its frame rate, and where the browser tells (Chromium) its
@@ -1821,6 +1847,13 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
             env["presence_cfg"] = _pc
     except Exception:
         pass
+    # The AI Task chosen for photos (ai_task_word), only where one is chosen.
+    try:
+        _ai = ai_task_word(hass)
+        if _ai:
+            env["ai"] = {"task": _ai}
+    except Exception:
+        pass
     # Vacation Mode (vacation_mode.report_buckets), only where it was used.
     try:
         from .vacation_mode import _VM_LOG, report_buckets as _vac_buckets  # noqa: PLC0415
@@ -2165,6 +2198,10 @@ def _check_load_sections(payload: dict[str, Any]) -> None:
         gst = env["guest"]
         if not isinstance(gst, dict) or not all(k in _GW and v in _GW[k] for k, v in gst.items()):
             raise ValueError("env.guest not in the vocabulary")
+    if isinstance(env, dict) and "ai" in env:
+        a = env["ai"]
+        if not isinstance(a, dict) or set(a) != {"task"} or a["task"] not in AI_TASK_WORDS:
+            raise ValueError("env.ai not in the vocabulary")
     if isinstance(env, dict) and "presence_cfg" in env:
         pc = env["presence_cfg"]
         if not isinstance(pc, dict) or not all(k in PRESENCE_CFG_WORDS and v in PRESENCE_CFG_WORDS[k] for k, v in pc.items()):

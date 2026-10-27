@@ -92,6 +92,10 @@ export function render(ctx){
       "Radio Map overlays signal heatmaps on the 3D iso view. " +
       "Distortion Map visualises where the RF model diverges from reality. " +
       "Adaptive Learning lets the system continuously improve from live positioning data."],
+    ["ai", "AI",
+      "AI power features: PadSpan can use an AI you have set up in Home Assistant (an AI Task) to read photos, " +
+      "and soon floor plans. Nothing here runs unless you switch it on and pick an AI Task. A cloud AI sends what it " +
+      "reads out of the house; a local one (like Ollama) keeps it home."],
     ["ui", "UI Structure",
       "Choose which tabs appear in the sidebar when using Advanced mode. " +
       "All tabs are always visible in Development mode regardless of these settings. " +
@@ -134,6 +138,8 @@ export function render(ctx){
     root.appendChild(_settingsPresence(ctx, el));
   } else if(activeTab === "features"){
     root.appendChild(_settingsFeatures(ctx, el));
+  } else if(activeTab === "ai"){
+    root.appendChild(_settingsAI(ctx, el));
   } else if(activeTab === "ui"){
     root.appendChild(_settingsUI(ctx, el));
   } else {
@@ -3932,6 +3938,91 @@ function _atlas3dDirector(ctx, el, settings, save, row){
     "It can also fly to a person or tag you pick when they go into a room you pick (or, with no room picked, any room, or a person arriving home), with the same card and the same rules, at most once every 2 minutes each. Only people and tags Live Aboard shows (Views → Show people, Show tags & scanners) are flown to. Nobody picked: off."));
   return wrap;
 }
+/** Settings → AI (Garry, 2026-10-27: "group AI power features into a section
+ *  called AI"): the AI Task that reads for PadSpan, the switches for what it
+ *  reads, and what is coming. An administrator's settings (ws_settings: a
+ *  cloud AI sends what it reads out of the house). */
+function _settingsAI(ctx, el){
+  const settings = ctx.state.settings || {};
+  const wrap = el("div",{});
+  const note = el("div",{style:"font-size:11px;color:#94a3b8;margin:8px 0 0"}, "Saves as soon as you change it.");
+  const save = async (key, value, undo) => {
+    try {
+      const r = await ctx.actions.wsCall("padspan_ha/settings_set", { [key]: value });
+      if (r && r.settings && ctx.state) ctx.state.settings = r.settings;
+      note.textContent = "Saved.";
+      return true;
+    } catch (e) {
+      if (undo) undo();
+      ctx.toast("Could not save: " + String((e && e.message) || e), true);
+      return false;
+    }
+  };
+  const head = el("div",{class:"card",style:"border:1px solid #1a4228;background:#0f1a12;margin-bottom:14px"});
+  head.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"}, "AI power features"));
+  head.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5"},
+    "PadSpan can use an AI you have set up in Home Assistant (an AI Task) to fill things in for you. It only reads what you " +
+    "give it, when you ask, and keeps nothing. A cloud AI (OpenAI, Google, Anthropic, Home Assistant Cloud) sends it out " +
+    "of the house; a local one (like Ollama) keeps it home."));
+  wrap.appendChild(head);
+
+  // The AI Task (ws_house3d_photo.py reads it): one for everything here.
+  const card = el("div",{class:"card",style:"margin-bottom:14px"});
+  card.appendChild(el("div",{class:"h2"}, "Your AI"));
+  const aiStates = (ctx.hass && ctx.hass.states) || {};
+  const aiCur = String(settings.atlas_3d_ai_task_entity || "");
+  const aiIds = Object.keys(aiStates).filter(e => e.startsWith("ai_task.")).sort();
+  const aiSel = document.createElement("select");
+  aiSel.className = "select";
+  aiSel.style.width = "auto";
+  aiSel.style.maxWidth = "100%";
+  aiSel.appendChild(el("option",{value:""}, "None"));
+  for (const eid of (aiCur && !aiIds.includes(aiCur) ? [aiCur, ...aiIds] : aiIds)) {
+    const n = aiStates[eid] && aiStates[eid].attributes && aiStates[eid].attributes.friendly_name;
+    aiSel.appendChild(el("option",{value:eid}, n ? `${n} (${eid})` : eid));
+  }
+  aiSel.value = aiCur;
+  let aiLast = aiCur;
+  aiSel.addEventListener("change", ()=>{ const want = aiSel.value; save("atlas_3d_ai_task_entity", want, ()=>{ aiSel.value = aiLast; }).then(ok=>{ if (ok) aiLast = want; }); });
+  card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},
+    [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, "AI Task"), aiSel]));
+  card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:6px"}, aiIds.length
+    ? "Pick one whose model can read pictures (a vision model). Needs Home Assistant 2025.8 or newer."
+    : "No AI Task in Home Assistant yet. Add an AI integration with a vision model (like Ollama, or a cloud one), then pick its AI Task here. Needs Home Assistant 2025.8 or newer."));
+  wrap.appendChild(card);
+
+  // What it reads: a switch each; what is not built yet says so.
+  const feats = el("div",{class:"card",style:"margin-bottom:14px"});
+  feats.appendChild(el("div",{class:"h2"}, "What it does for you"));
+  const sw = (key, label, desc, on, soon) => {
+    const r = el("label",{style:`display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid #1e3a2a;cursor:${soon ? "default" : "pointer"}`});
+    const cb = el("input",{type:"checkbox", style:"margin-top:3px"});
+    cb.checked = !!on; cb.disabled = !!soon;
+    if (!soon) cb.addEventListener("change", ()=>{ const want = cb.checked; save(key, want, ()=>{ cb.checked = !want; }); });
+    r.appendChild(cb);
+    r.appendChild(el("div",{},[
+      el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, [label,
+        soon ? el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "COMING SOON") : null]),
+      el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"}, desc),
+    ]));
+    return r;
+  };
+  feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
+    "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
+    "Tags, receivers and people's figures too. Tell it what the piece is first: it gets that right far more often.",
+    settings.ai_photos_enabled !== false, false));
+  feats.appendChild(sw("", "Stairs from your floor plans",
+    "Reads the stairs off the floor plans you uploaded: where they are, which way is up, straight, L, U or round landings, " +
+    "and puts them in Live Aboard as a first guess to drag into place.", false, true));
+  feats.appendChild(sw("", "Rooms and walls from a floor plan picture",
+    "Traces the rooms and walls of a floor plan image for you, as a first guess to check before it is kept.", false, true));
+  feats.appendChild(sw("", "Ask your voice assistant where someone is",
+    "Lets an AI voice assistant in Home Assistant ask PadSpan which room someone is in, in your own words.", false, true));
+  feats.appendChild(note);
+  wrap.appendChild(feats);
+  return wrap;
+}
+
 function _atlas3dSection(ctx, el, settings){
   const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
@@ -4038,27 +4129,9 @@ function _atlas3dSection(ctx, el, settings){
   // administrator's (ws_settings holds the same rule).
   more.appendChild(_atlas3dDirector(ctx, el, settings, save, row));
 
-  // The AI Task that reads photos in Furnish (ws_house3d_photo.py): an
-  // administrator's choice, since a cloud one sends each photo out of the house.
-  const aiStates = (ctx.hass && ctx.hass.states) || {};
-  const aiCur = String(settings.atlas_3d_ai_task_entity || "");
-  const aiIds = Object.keys(aiStates).filter(e => e.startsWith("ai_task.")).sort();
-  const aiSel = document.createElement("select");
-  aiSel.className = "select";
-  aiSel.style.width = "auto";
-  aiSel.style.maxWidth = "100%";
-  aiSel.appendChild(el("option",{value:""}, "None"));
-  for (const eid of (aiCur && !aiIds.includes(aiCur) ? [aiCur, ...aiIds] : aiIds)) {
-    const n = aiStates[eid] && aiStates[eid].attributes && aiStates[eid].attributes.friendly_name;
-    aiSel.appendChild(el("option",{value:eid}, n ? `${n} (${eid})` : eid));
-  }
-  aiSel.value = aiCur;
-  let aiLast = aiCur;
-  aiSel.addEventListener("change", ()=>{ const want = aiSel.value; save("atlas_3d_ai_task_entity", want, ()=>{ aiSel.value = aiLast; }).then(ok=>{ if (ok) aiLast = want; }); });
-  more.appendChild(row("AI Task for photos", [aiSel]));
-  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:4px"}, aiIds.length
-    ? "Reads the photos you take in Furnish. Pick one with a vision model. A cloud one sends each photo out of the house; a local one (like Ollama) keeps it home. Needs Home Assistant 2025.8 or newer."
-    : "No AI Task in Home Assistant yet. Add an AI integration with a vision model (like Ollama), then pick its AI Task here. Needs Home Assistant 2025.8 or newer."));
+  // The AI Task that reads photos lives in Settings → AI (with its switches).
+  more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:8px"},
+    "Furniture from a photo, and the AI Task that reads it, are in Settings → AI."));
 
   // North: the GPS Bridge's own bearing (settings.fabric_bearing_deg), kept
   // to 0–359 the same way; a blank is refused rather than saved as 0, since

@@ -220,6 +220,9 @@ $integrations = array(); $features = array(); $flags = array(); $scanner_kinds =
 // words (env.screens: "screen:atlas_3d", screens counted, not installs), how
 // many screens a house lists, and Pro screen switches on below Pro.
 $overview = array();
+// The AI Task chosen for photos (env.ai.task, 0.38.185): local, cloud,
+// unknown or unready, from each install's latest report where it chose one.
+$ai = array();
 // BLE scan mode. HA 2026.6 flipped the default for every ESPHome proxy from
 // active to auto, so most installs are now scanning passively without having
 // chosen to. Radio-level counts say how much of the fleet is in each mode;
@@ -282,6 +285,8 @@ foreach ($latest as $id => $r) {
         if ($v === true) { incr($features, $k); }
         elseif (is_array($v) && strpos($k, 'ov_') === 0) { foreach ($v as $w) { if (is_string($w)) { incr($overview, "$k:$w"); } } }
     }
+    if (isset($e['ai']) && is_array($e['ai']) && isset($e['ai']['task']) && is_string($e['ai']['task'])
+        && in_array($e['ai']['task'], array('local', 'cloud', 'unknown', 'unready'), true)) { incr($ai, $e['ai']['task']); }
     $scr = isset($e['screens']) && is_array($e['screens']) ? $e['screens'] : array();
     if (count($scr)) {
         incr($overview, 'screens_listed:' . count($scr));
@@ -457,6 +462,7 @@ $out = array(
     'scan_mode_installs' => $scan_mode_installs,
     'features' => $features,
     'overview' => $overview,
+    'ai' => $ai,
     'flags' => $flags,
     'identity' => $identity,
     'geometry' => $geometry,

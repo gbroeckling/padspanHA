@@ -14,9 +14,11 @@ a table's shape). The builders are simple shapes in the Sims' spirit, not scans.
 The other ways in:
 
 - **From a photo:** photograph a real piece and PadSpan builds a matching one. This needs Home
-  Assistant 2025.8 or newer with an **AI Task** that can read images, picked in **Settings → UI
-  Structure → 🏠 Live Aboard → AI Task for photos**. A cloud AI Task means the photo leaves your
-  house to be read; it's never stored. If the answer makes no sense, you get a box, never an error.
+  Assistant 2025.8 or newer with an **AI Task** that can read images, picked in **Settings → AI**,
+  where **Furniture from a photo** can also be switched off. A cloud AI Task means the photo leaves
+  your house to be read; it's never stored. Tell it what the piece is before you send the photo: a
+  small local model guesses the kind wrongly far more often than it gets the details of a piece it
+  has been told about. If the answer makes no sense, you get a box, never an error.
 - **Library:** furniture other PadSpan houses shared. Turn on **Shared library** in the Live Aboard
   settings and accept its terms first. Off, Live Aboard never contacts the library.
 - **Import:** doors, windows and furniture from a Sweet Home 3D file (`.sh3d`). You see them first
