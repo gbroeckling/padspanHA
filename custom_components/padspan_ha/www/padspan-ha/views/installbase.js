@@ -37,6 +37,13 @@ let _cache = null;            // last stats payload, so a re-render is not a ref
 let _loading = false, _error = null;
 let _stamp = "";              // "generated …" line, so a re-render keeps it
 const _tables = new Set();    // cards showing their table instead of the chart (kept across re-renders)
+// Sections open (the rest fold to one line with their headline) and lists
+// showing every row, both kept across re-renders. Summary first, the rest on
+// demand: only Reach and Needs attention start open.
+const _open = new Set(["Reach", "Needs attention"]);
+const _more = new Set();
+const SHORT = 6;              // a ranked list shows its top SHORT until "Show all"
+const SHORT_ROWS = 8;         // a long table shows its first SHORT_ROWS until "Show all"
 
 function isUnlocked() {
   if (_unlocked) return true;
@@ -148,17 +155,35 @@ function renderUnlocked(ctx, root) {
     const n = Object.values(dist.version || {}).reduce((a, b) => a + (Number(b) || 0), 0) || ins.reporting_window || 1;
     const W = s.window_days;
     const sections = [];
-    const section = (title, lede, children) => {
+    // A section folds to one line: its number, title and headline (the few
+    // figures that matter); open, its explanation and cards.
+    const section = (title, lede, children, headline = "") => {
       const num = String(sections.length + 1).padStart(2, "0");
-      const sec = el("section", { class: "ib-sec" }, [
-        el("div", { class: "ib-sec-head" }, [el("span", { class: "ib-num" }, num), el("h2", { class: "ib-h" }, title)]),
-        el("p", { class: "ib-lede" }, lede),
-        ...children,
+      const sec = el("details", { class: "ib-sec", ...(_open.has(title) ? { open: "" } : {}) }, [
+        el("summary", { class: "ib-sec-head" }, [
+          el("span", { class: "ib-chev", "aria-hidden": "true" }, "▸"),
+          el("span", { class: "ib-num" }, num), el("h2", { class: "ib-h" }, title),
+          headline ? el("span", { class: "ib-headline" }, headline) : null,
+        ]),
+        el("div", { class: "ib-sec-body" }, [lede ? el("p", { class: "ib-lede" }, lede) : null, ...children]),
       ]);
-      sections.push([num, title, sec]);
+      sec.addEventListener("toggle", () => { if (sec.open) _open.add(title); else _open.delete(title); });
+      sections.push([num, title, sec, headline]);
       return sec;
     };
+    const top = (map, field = null) => {
+      let best = null;
+      // "?" and "–" (not known) never lead a headline.
+      for (const [k, v] of Object.entries(map || {})) { const x = Number(field ? v && v[field] : v) || 0; if (k !== "?" && k !== "–" && (!best || x > best[1])) best = [k, x]; }
+      return best;
+    };
     const grid = (cards, wide) => el("div", { class: "ib-grid" + (wide ? " ib-grid-wide" : "") }, cards);
+    const jump = (title) => {
+      const hit = sections.find(x => x[1] === title);
+      if (!hit) return;
+      hit[2].open = true;
+      hit[2].scrollIntoView({ behavior: "smooth", block: "start" });
+    };
 
     // ── 01 reach ──────────────────────────────────────────────────────────
     // Today's figure is the honest one: a caller is a distinct IP, and IPv6
@@ -184,7 +209,45 @@ function renderUnlocked(ctx, root) {
         columnCard(el, "Installs running, per day", "Installs that checked for an update that day (all installs)", days, d => d.pings, d => d.day),
         columnCard(el, "Installs reporting, per day", "Installs that sent a usage report that day (opted in only)", days, d => d.installs, d => d.day),
       ], true),
-    ]);
+    ], `${fmt(ins.reporting_window ?? 0)} sharing · ${fmt(pg.distinct_today ?? 0)} running today · ${fmt(ins.new_window ?? 0)} new · ${fmt(ins.lapsed ?? 0)} gone quiet`);
+
+    // ── needs attention ──
+    // What a reader should look at first, worked out from the numbers below:
+    // a setup problem in a fifth of homes or more, warnings and errors, the 3D
+    // view falling back, how many run the newest PadSpan. Each opens its section.
+    const att = [];
+    const flagN = (k) => Number((s.flags || {})[k]) || 0;
+    const many = (x, one, more) => `${fmt(x)} ${Number(x) === 1 ? one : more}`;
+    for (const k of Object.keys(s.flags || {}).sort((a, b) => flagN(b) - flagN(a))) {
+      if (flagN(k) / n >= 0.2) att.push({ sev: /crypto|callback|faulted|desync|silent/.test(k) ? "bad" : "warn", text: word("flag", k),
+                                          fig: `${many(flagN(k), "home", "homes")} · ${pctOf(flagN(k), n)}`, go: "Health", name: k });
+    }
+    const sumOf = (m, f) => Object.values(m || {}).reduce((a, v) => a + (Number(f ? v && v[f] : v) || 0), 0);
+    const maxOf = (m, f) => Math.max(0, ...Object.values(m || {}).map(v => Number(v && v[f]) || 0));
+    const logLines = sumOf(s.errors, "lines");
+    if (logLines) att.push({ sev: "warn", text: "Warnings PadSpan wrote to the Home Assistant log", fig: `${many(logLines, "line", "lines")} · up to ${many(maxOf(s.errors, "installs"), "home", "homes")}`, go: "Usage" });
+    const uiErr = sumOf(s.ui_errors);
+    if (uiErr) att.push({ sev: "warn", text: "Errors caught in the PadSpan panel", fig: many(uiErr, "error", "errors"), go: "Usage" });
+    const fb = Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^house3d_fallback/.test(k)));
+    if (Object.keys(fb).length) att.push({ sev: "warn", text: "The 3D house couldn't show, and the flat Atlas did instead", fig: `${many(sumOf(fb, "count"), "time", "times")} · up to ${many(maxOf(fb, "installs"), "home", "homes")}`, go: "Usage" });
+    if (ins.lapsed) att.push({ sev: "info", text: `Installs gone quiet (no report for ${s.lapsed_days}+ days)`, fig: fmt(ins.lapsed), go: "Installs" });
+    const semver = (v) => String(v).split(".").map(Number);
+    const vers = Object.keys(dist.version || {}).filter(v => /^\d+(\.\d+)*$/.test(v))
+      .sort((a, b) => { const x = semver(a), y = semver(b); for (let i = 0; i < Math.max(x.length, y.length); i++) if ((y[i] || 0) !== (x[i] || 0)) return (y[i] || 0) - (x[i] || 0); return 0; });
+    if (vers.length) att.push({ sev: "info", text: `On the newest PadSpan that reports (${vers[0]})`, fig: `${fmt(dist.version[vers[0]])} · ${pctOf(dist.version[vers[0]], n)}`, go: "Versions" });
+    const nBad = att.filter(a => a.sev === "bad").length, nWarn = att.filter(a => a.sev === "warn").length;
+    const attList = el("div", { class: "ib-att" }, att.length ? att.map(a => {
+      const row = el("button", { class: `ib-att-row ib-att-${a.sev}`, type: "button", title: `Open ${a.go}` + (a.name ? `\nreport name: ${a.name}` : "") }, [
+        el("span", { class: "ib-att-dot", "aria-hidden": "true" }),
+        el("span", { class: "ib-att-text" }, a.text),
+        el("span", { class: "ib-att-fig" }, a.fig),
+        el("span", { class: "ib-att-go", "aria-hidden": "true" }, "→"),
+      ]);
+      row.addEventListener("click", () => jump(a.go));
+      return row;
+    }) : [el("div", { class: "ib-ok" }, "✓ Nothing stands out")]);
+    section("Needs attention", "", [attList],
+      nBad || nWarn ? [nBad ? `${nBad} serious` : null, nWarn ? `${nWarn} to look at` : null].filter(Boolean).join(" · ") : "nothing stands out");
 
     // ── new installs ──────────────────────────────────────────────────────
     const ni = s.new_installs;
@@ -196,7 +259,7 @@ function renderUnlocked(ctx, root) {
         grid([
           cardShell(el, "By the week they started", "New installs that week, and how many are still running PadSpan", () =>
             dataTable(el, ["week of", "new", "brand new", "still here", "still at day 7", "still at day 30", "only 1 report"],
-              ni.weeks.map(w => [w.week, w.new, fr(w.really_new, w.age_known), w.still, fr(w.d7, w.d7_of), fr(w.d30, w.d30_of), w.one]))),
+              ni.weeks.slice().reverse().map(w => [w.week, w.new, fr(w.really_new, w.age_known), w.still, fr(w.d7, w.d7_of), fr(w.d30, w.d30_of), w.one]), "weeks")),
           cardShell(el, "How far they got with setup", "New installs from the last 30 days, by the furthest setup step they reached", () =>
             dataTable(el, ["", ...stageWords.map(w => word("stage", w))],
               [["still here", ...stageWords.map(w => (st.still || {})[w] || 0)],
@@ -204,8 +267,11 @@ function renderUnlocked(ctx, root) {
         ], true),
         cardShell(el, `Stopped reporting (${(ni.quiet || []).length})`, "Started in the last 60 days, then nothing for 7+ days: where each one stopped", () =>
           dataTable(el, ["install", "first report", "last report", "days reported", "version", "got as far as", "age at first report"],
-            (ni.quiet || []).map(q => [q.id, q.first, q.last, q.days, q.version, word("stage", q.stage), q.age || "–"]))),
-      ]);
+            (ni.quiet || []).map(q => [q.id, q.first, q.last, q.days, q.version, word("stage", q.stage), q.age || "–"]), "quiet")),
+      ], (() => {
+        const w4 = ni.weeks.slice(-4), nNew = w4.reduce((a, w) => a + (Number(w.new) || 0), 0), still = w4.reduce((a, w) => a + (Number(w.still) || 0), 0);
+        return `${fmt(nNew)} new in the last 4 weeks · ${fmt(still)} of them still here · ${fmt((ni.quiet || []).length)} stopped`;
+      })());
     }
 
     // ── 02 versions ───────────────────────────────────────────────────────
@@ -218,7 +284,10 @@ function renderUnlocked(ctx, root) {
         barCard(el, { title: "Language", ask: "Home Assistant's language (? = PadSpan older than 0.38.148)", map: dist.language, total: n }),
         barCard(el, { title: "Running, by version", ask: `Every install that checked for an update in ${W} days, opted in or not (– = too old to say)`, map: pg.by_version, total: pg.distinct_window || 1, unit: "installs", limit: 8 }),
       ]),
-    ]);
+    ], (() => {
+      const v = top(dist.version), h = top(dist.ha_version), c = top(dist.country);
+      return [v && `most on PadSpan ${v[0]} (${pctOf(v[1], n)})`, h && `HA ${h[0]} (${pctOf(h[1], n)})`, c && `most in ${c[0]}`].filter(Boolean).join(" · ");
+    })());
 
     // ── 03 homes ──────────────────────────────────────────────────────────
     const homeCards = [barCard(el, { title: "Other Home Assistant add-ons", ask: "Installs that also run each of these", map: s.integrations, total: n, kind: "integration" })];
@@ -228,7 +297,9 @@ function renderUnlocked(ctx, root) {
                                    ["placed_lights", "Lights on the map", "Lights placed on a floor plan"], ["objects_total", "Devices seen", "Bluetooth devices PadSpan has seen (most are neighbours' and passers-by)"]]) {
       homeCards.push(barCard(el, { title: label, ask: `${ask}, grouped (≤ 4 means up to 4)`, map: orderBuckets(dist[k]), total: n, ranked: false }));
     }
-    section("Homes", "How big the houses are and what else runs in them, from each install's latest report. Numbers are grouped, never exact.", [grid(homeCards)]);
+    const most = (k) => { const t = top(dist[k]); return t ? t[0].replace("<=", "≤").replace(">=", "≥") : "?"; };
+    section("Homes", "How big the houses are and what else runs in them, from each install's latest report. Numbers are grouped, never exact.", [grid(homeCards)],
+      `most have ${most("rooms")} rooms · ${most("scanners")} receivers · ${most("floors")} floors`);
 
     // ── 04 radios ─────────────────────────────────────────────────────────
     // HA 2026.6 changed the default for every ESPHome proxy from active to
@@ -257,7 +328,8 @@ function renderUnlocked(ctx, root) {
           el("span", {}, "of installs that can say have left every receiver on Auto. That's Home Assistant's default since 2026.6: it mostly just listens, and only asks devices to answer for short spells."),
         ]));
       }
-      section("Receivers", "How the Bluetooth receivers listen. Active asks devices to answer (faster, more readings); passive only listens. Counted per receiver, and per install for what people chose.", kids);
+      section("Receivers", "How the Bluetooth receivers listen. Active asks devices to answer (faster, more readings); passive only listens. Counted per receiver, and per install for what people chose.", kids,
+        nWith ? `${Math.round(100 * (smi.all_auto || 0) / nWith)}% left every receiver on Auto` : "");
     }
 
     // ── 05 health ─────────────────────────────────────────────────────────
@@ -281,7 +353,10 @@ function renderUnlocked(ctx, root) {
           ["Calibration points with no floor", geo.cal_no_floor, n],
         ]),
       ]),
-    ]);
+    ], (() => {
+      const ks = Object.keys(s.flags || {}).sort((a, b) => flagN(b) - flagN(a));
+      return ks.length ? `${ks.length} kinds of problem · the most common: ${word("flag", ks[0])} (${pctOf(flagN(ks[0]), n)})` : "no problems found";
+    })());
 
     // ── 06 usage ──────────────────────────────────────────────────────────
     const ad = s.adoption || {};
@@ -319,7 +394,10 @@ function renderUnlocked(ctx, root) {
         pairCard(el, "Warnings in the Home Assistant log", "Warning lines PadSpan wrote, by the part of PadSpan that wrote them", s.errors, "lines", 12, "module"),
         barCard(el, { title: "Panel errors, by tab", ask: "Errors the PadSpan panel caught in each tab", map: s.ui_errors, unit: "errors", limit: 12, kind: "view" }),
       ]),
-    ]);
+    ], (() => {
+      const t = top(s.tabs, "count"), a = top(usePeople, "count");
+      return [t && `most opened: ${word("tab", t[0])}`, a && `most done: ${word("usage", a[0])}`].filter(Boolean).join(" · ");
+    })());
 
     // ── 07 installs ───────────────────────────────────────────────────────
     const rows = s.table || [];
@@ -327,15 +405,22 @@ function renderUnlocked(ctx, root) {
       installsTable(el, rows),
       el("div", { class: "ib-note" },
         `Reports kept from ${s.spool_first_day || "?"}; update checks from ${pg.first_day || "?"}. Hover a column name for what it means.`),
-    ]);
+    ], `${fmt(rows.length)} installs · ${fmt(rows.filter(r => r.flags && r.flags.length).length)} with a setup problem`);
 
     // section chips: jump within the page
     const nav = el("nav", { class: "ib-nav" });
-    for (const [num, title, sec] of sections) {
+    for (const [num, title] of sections) {
       const chip = el("button", { class: "ib-chip", type: "button" }, [el("b", {}, num), title]);
-      chip.addEventListener("click", () => sec.scrollIntoView({ behavior: "smooth", block: "start" }));
+      chip.addEventListener("click", () => jump(title));
       nav.appendChild(chip);
     }
+    // Open or close every section at once.
+    const all = (on) => { for (const [, , sec] of sections) sec.open = on; };
+    const bOpen = el("button", { class: "ib-chip ib-chip-act", type: "button" }, "Open all");
+    const bClose = el("button", { class: "ib-chip ib-chip-act", type: "button" }, "Close all");
+    bOpen.addEventListener("click", () => all(true));
+    bClose.addEventListener("click", () => all(false));
+    nav.append(el("span", { class: "ib-nav-gap" }), bOpen, bClose);
     body.appendChild(nav);
     for (const [, , sec] of sections) body.appendChild(sec);
   };
@@ -670,11 +755,33 @@ function cardShell(el, title, ask, chart, table) {
 
 function empty(el) { return el("div", { class: "ib-empty" }, "–"); }
 
-function dataTable(el, cols, rows) {
-  const t = el("table", { class: "ib-table" });
-  t.appendChild(el("tr", {}, cols.map((c, i) => el("th", { class: i ? "num" : "" }, c))));
-  for (const r of rows) t.appendChild(el("tr", {}, r.map((v, i) => el("td", { class: i ? "num" : "" }, String(v)))));
-  return el("div", { class: "ib-scroll" }, [t]);
+/** `build(limit)` drawn with the first `short` of `count` rows, and under it
+ *  a "Show all" that draws every row (kept per `key` across re-renders). */
+function expandable(el, key, count, short, build) {
+  const out = el("div");
+  const paint = () => {
+    const all = _more.has(key) || count <= short;
+    const kids = [build(all ? count : short)];
+    if (count > short) {
+      const b = el("button", { class: "ib-more", type: "button", "aria-expanded": String(all) }, all ? "Show fewer ▴" : `Show all ${fmt(count)} ▾`);
+      b.addEventListener("click", () => { if (_more.has(key)) _more.delete(key); else _more.add(key); paint(); });
+      kids.push(b);
+    }
+    out.replaceChildren(...kids);
+  };
+  paint();
+  return out;
+}
+
+/** A table; with `key`, a long one shows its first SHORT_ROWS until "Show all". */
+function dataTable(el, cols, rows, key = null) {
+  const draw = (limit) => {
+    const t = el("table", { class: "ib-table" });
+    t.appendChild(el("tr", {}, cols.map((c, i) => el("th", { class: i ? "num" : "" }, c))));
+    for (const r of rows.slice(0, limit)) t.appendChild(el("tr", {}, r.map((v, i) => el("td", { class: i ? "num" : "" }, String(v)))));
+    return el("div", { class: "ib-scroll" }, [t]);
+  };
+  return key ? expandable(el, "rows:" + key, rows.length, SHORT_ROWS, draw) : draw(rows.length);
 }
 
 /**
@@ -689,7 +796,9 @@ function barCard(el, { title, ask, map, total = null, unit = "installs", limit =
   const entries = Object.entries(map || {}).map(([k, v]) => [k, Number(v) || 0]);
   if (ranked) entries.sort((a, b) => b[1] - a[1]);
   const person = unit === "installs";
-  const chart = () => {
+  // A ranked list shows its top few; a grouped one (sizes) is short and shows whole.
+  const short = ranked ? Math.min(limit, SHORT) : entries.length;
+  const chart = () => expandable(el, title, entries.length, short, (limit) => {
     if (!entries.length) return empty(el);
     const shown = entries.slice(0, limit);
     const max = Math.max(...shown.map(e => e[1]), 1);
@@ -719,9 +828,8 @@ function barCard(el, { title, ask, map, total = null, unit = "installs", limit =
       ]));
     }
     const foot = [el("span", { class: "ib-foot-item" }, total ? [person ? PERSON() : null, `${fmt(total)} ${unit}`] : `${unit} · scaled to the largest`)];
-    if (entries.length > limit) foot.push(el("span", { class: "ib-foot-item" }, `+${entries.length - limit} more in the table`));
     return el("div", {}, [wrap, el("div", { class: "ib-foot" }, foot)]);
-  };
+  });
   const table = entries.length ? () => dataTable(el, total ? ["", unit, "share"] : ["", unit],
     entries.map(([k, v]) => total ? [name(k), fmt(v), pctOf(v, total)] : [name(k), fmt(v)])) : null;
   return cardShell(el, title, ask, chart, table);
@@ -733,7 +841,7 @@ function pairCard(el, title, ask, map, field, limit = 12, kind = null) {
   const what = field === "lines" ? "lines" : "times";
   const entries = Object.entries(map || {}).map(([k, v]) => [k, Number(v && v[field]) || 0, Number(v && v.installs) || 0]);
   entries.sort((a, b) => b[1] - a[1]);
-  const chart = () => {
+  const chart = () => expandable(el, title, entries.length, Math.min(limit, SHORT), (limit) => {
     if (!entries.length) return empty(el);
     const shown = entries.slice(0, limit);
     const max = Math.max(...shown.map(e => e[1]), 1);
@@ -749,9 +857,8 @@ function pairCard(el, title, ask, map, field, limit = 12, kind = null) {
       ]));
     });
     const foot = [el("span", { class: "ib-foot-item" }, `${what} · bars scaled to the largest`)];
-    if (entries.length > limit) foot.push(el("span", { class: "ib-foot-item" }, `+${entries.length - limit} more in the table`));
     return el("div", {}, [wrap, el("div", { class: "ib-foot" }, foot)]);
-  };
+  });
   const table = entries.length ? () => dataTable(el, ["", what, "installs"], entries.map(([k, v, inst]) => [name(k), fmt(v), fmt(inst)])) : null;
   return cardShell(el, title, ask, chart, table);
 }
@@ -804,7 +911,8 @@ function installsTable(el, rows) {
     identified: ["named", "Devices given a name or identified"], pbd: ["Private BLE", "Home Assistant Private BLE Device entries (+Bermuda: Bermuda also runs)"],
     uptime: ["up for", "Time since Home Assistant last started"], flags: ["problems", "Setup checks that found something wrong"],
   };
-  t.appendChild(el("tr", {}, cols.map(c => el("th", { class: numeric.has(c) ? "num" : "", title: (HEAD[c] || [c, ""])[1] }, (HEAD[c] || [c])[0]))));
+  const headRow = el("tr", {}, cols.map(c => el("th", { class: numeric.has(c) ? "num" : "", title: (HEAD[c] || [c, ""])[1] }, (HEAD[c] || [c])[0])));
+  const trs = [];
   for (const r of rows) {
     const tr = el("tr");
     for (const c of cols) {
@@ -816,9 +924,24 @@ function installsTable(el, rows) {
       const cls = [numeric.has(c) ? "num" : "", c === "id" ? "mono" : "", c === "flags" && r.flags && r.flags.length ? "ib-flagged" : ""].filter(Boolean).join(" ");
       tr.appendChild(el("td", { class: cls }, numeric.has(c) ? fmt(v ?? "") : String(v ?? "")));
     }
-    t.appendChild(tr);
+    trs.push(tr);
   }
-  card.appendChild(el("div", { class: "ib-scroll" }, [t]));
+  // A filter over every column (an id, a version, a problem), then the first
+  // SHORT_ROWS of what matches until "Show all".
+  const q = el("input", { class: "ib-filter", type: "search", placeholder: "Filter: an id, a version, a problem…", "aria-label": "Filter installs" });
+  const holder = el("div");
+  const paint = () => {
+    const f = String(q.value || "").trim().toLowerCase();
+    const hit = f ? trs.filter(tr => tr.textContent.toLowerCase().includes(f)) : trs;
+    holder.replaceChildren(expandable(el, "rows:installs", hit.length, SHORT_ROWS, (limit) => {
+      t.replaceChildren(headRow, ...hit.slice(0, limit));
+      return el("div", { class: "ib-scroll" }, [t]);
+    }));
+  };
+  q.addEventListener("input", paint);
+  card.querySelector(".ib-card-head").appendChild(q);
+  paint();
+  card.appendChild(holder);
   return card;
 }
 
@@ -914,26 +1037,48 @@ function styleEl() {
 #installbase .ib-lede{margin:10px 0 0;max-width:76ch;font-size:13px;line-height:1.65;color:var(--ib-ink2)}
 #installbase .ib-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0 0}
 #installbase .ib-status{font-size:11px;color:var(--ib-ink3)}
-#installbase .ib-nav{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 0;padding:12px 0;border-top:1px dashed var(--ib-line);border-bottom:1px dashed var(--ib-line)}
+#installbase .ib-nav{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0;padding:8px 0;border-bottom:1px solid var(--ib-line);position:sticky;top:0;z-index:5;background:var(--bg,#0a150e)}
+#installbase .ib-nav-gap{flex:1}
+#installbase .ib-chip-act{border-style:solid;color:var(--ib-ink3)}
 #installbase .ib-chip{width:auto;margin:0;background:transparent;border:1px dashed rgba(120,190,155,.38);border-radius:999px;padding:5px 11px;color:var(--ib-ink2);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
 #installbase .ib-chip b{font-family:var(--ib-mono);color:var(--ib-accent);margin-right:6px}
 #installbase .ib-chip:hover{color:var(--ib-ink);border-style:solid;background:rgba(120,190,155,.08)}
-#installbase .ib-sec{padding:38px 0 0;scroll-margin-top:10px}
-#installbase .ib-sec-head{display:flex;align-items:baseline;gap:12px}
-#installbase .ib-num{font:700 14px/1 var(--ib-mono);color:var(--ib-accent)}
-#installbase .ib-h{margin:0;font-size:clamp(24px,3.8vw,34px);line-height:1;font-weight:800;letter-spacing:-.01em;text-transform:uppercase}
-#installbase .ib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:14px;margin-top:18px}
+#installbase .ib-sec{margin:0;border-bottom:1px solid var(--ib-line);scroll-margin-top:52px}
+#installbase .ib-sec-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;padding:14px 4px;cursor:pointer;list-style:none;border-radius:8px}
+#installbase .ib-sec-head::-webkit-details-marker{display:none}
+#installbase .ib-sec-head:hover{background:rgba(120,190,155,.06)}
+#installbase .ib-sec-head:focus-visible{outline:2px solid var(--ib-accent);outline-offset:2px}
+#installbase .ib-chev{color:var(--ib-accent);font-size:12px;width:12px;display:inline-block;transition:transform .15s}
+#installbase .ib-sec[open] > .ib-sec-head .ib-chev{transform:rotate(90deg)}
+#installbase .ib-num{font:700 12px/1 var(--ib-mono);color:var(--ib-accent)}
+#installbase .ib-h{margin:0;font-size:18px;line-height:1.1;font-weight:800;letter-spacing:.01em;text-transform:uppercase}
+#installbase .ib-headline{font-size:12px;color:var(--ib-ink2);font-variant-numeric:tabular-nums}
+#installbase .ib-sec-body{padding:0 0 22px}
+#installbase .ib-sec-body > .ib-lede{margin-top:0;font-size:12px;color:var(--ib-ink3)}
+#installbase .ib-att{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+#installbase .ib-att-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto 14px;gap:10px;align-items:center;width:100%;margin:0;padding:8px 12px;border-radius:10px;border:1px solid var(--ib-line);background:var(--ib-surface);color:var(--ib-ink);font-size:13px;text-align:left;cursor:pointer}
+#installbase .ib-att-row:hover{border-color:var(--ib-accent)}
+#installbase .ib-att-dot{width:8px;height:8px;border-radius:50%;background:var(--ib-ink3)}
+#installbase .ib-att-bad .ib-att-dot{background:var(--ib-bad)}
+#installbase .ib-att-warn .ib-att-dot{background:var(--ib-warn)}
+#installbase .ib-att-info .ib-att-dot{background:var(--ib-accent)}
+#installbase .ib-att-fig{color:var(--ib-ink2);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#installbase .ib-att-go{color:var(--ib-ink3)}
+#installbase .ib-more{width:auto;margin:8px 0 0;padding:4px 12px;border-radius:999px;background:transparent;border:1px solid var(--ib-line);color:var(--ib-accent);font-size:11px;font-weight:600;cursor:pointer}
+#installbase .ib-more:hover{border-color:var(--ib-accent)}
+#installbase .ib-filter{width:min(100%,260px);margin:0;padding:5px 10px;border-radius:8px;border:1px solid var(--ib-line);background:#0a150e;color:var(--ib-ink);font-size:12px}
+#installbase .ib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px;margin-top:12px}
 #installbase .ib-grid-wide{grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr))}
-#installbase .ib-card{background:var(--ib-surface);border:1px solid var(--ib-line);border-radius:14px;padding:16px 16px 12px;min-width:0;position:relative}
+#installbase .ib-card{background:var(--ib-surface);border:1px solid var(--ib-line);border-radius:12px;padding:12px 14px 10px;min-width:0;position:relative}
 #installbase .ib-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 #installbase .ib-card-title{font-size:14px;font-weight:700;color:var(--ib-ink);min-width:0}
 #installbase .ib-toggle{width:auto;margin:0;padding:3px 10px;border-radius:999px;background:transparent;border:1px solid var(--ib-line);color:var(--ib-ink2);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;flex-shrink:0}
 #installbase .ib-toggle:hover{border-color:var(--ib-accent);color:var(--ib-ink)}
 #installbase .ib-toggle[aria-pressed="true"]{border-color:var(--ib-accent);color:var(--ib-ink);background:rgba(69,168,120,.12)}
-#installbase .ib-q{margin:10px 0 12px;padding:7px 12px;border-radius:12px;background:rgba(120,190,155,.07);font-size:11px;line-height:1.4;color:var(--ib-ink2)}
+#installbase .ib-q{margin:4px 0 8px;font-size:11px;line-height:1.4;color:var(--ib-ink3)}
 #installbase .ib-rows{display:flex;flex-direction:column}
 #installbase .ib-row,#installbase .ib-axis{display:grid;grid-template-columns:var(--ib-cols);column-gap:10px;align-items:center;padding:0 6px;font-size:12px}
-#installbase .ib-row{min-height:30px;border-radius:6px}
+#installbase .ib-row{min-height:26px;border-radius:6px}
 #installbase .ib-row:nth-child(odd){background:var(--ib-stripe)}
 #installbase .ib-row:hover{background:rgba(120,190,155,.13)}
 #installbase .ib-rank{color:var(--ib-ink3);font:500 11px/1 var(--ib-mono);text-align:right}
@@ -965,13 +1110,13 @@ function styleEl() {
 #installbase .ib-sev{font-weight:700;width:14px;text-align:center;font-family:inherit}
 #installbase .ib-sev-warn{color:var(--ib-warn)}
 #installbase .ib-sev-bad{color:var(--ib-bad)}
-#installbase .ib-figs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.2fr);gap:14px;margin-top:18px}
+#installbase .ib-figs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.2fr);gap:12px;margin-top:8px}
 #installbase .ib-herofig{display:flex;flex-direction:column;justify-content:center;background:linear-gradient(160deg,rgba(69,168,120,.16),rgba(15,26,18,1) 70%);border-color:rgba(69,168,120,.35)}
-#installbase .ib-herofig-value{font-size:64px;line-height:1;font-weight:800;letter-spacing:-.02em;margin:8px 0 10px;color:var(--ib-ink)}
-#installbase .ib-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-#installbase .ib-tile{padding:14px}
+#installbase .ib-herofig-value{font-size:48px;line-height:1;font-weight:800;letter-spacing:-.02em;margin:6px 0 8px;color:var(--ib-ink)}
+#installbase .ib-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#installbase .ib-tile{padding:10px 12px}
 #installbase .ib-tile-label{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ib-ink2)}
-#installbase .ib-tile-value{font-size:28px;line-height:1.1;font-weight:700;margin-top:6px;color:var(--ib-ink)}
+#installbase .ib-tile-value{font-size:24px;line-height:1.1;font-weight:700;margin-top:4px;color:var(--ib-ink)}
 #installbase .ib-tile-sub{font-size:10px;line-height:1.45;margin-top:4px;color:var(--ib-ink3)}
 #installbase .ib-cols-chart{position:relative}
 #installbase .ib-tip{position:absolute;top:-6px;display:none;pointer-events:none;background:#0a150e;border:1px solid var(--ib-line);border-radius:8px;padding:5px 9px;font-size:11px;color:var(--ib-ink);white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.4)}
@@ -1002,7 +1147,7 @@ function styleEl() {
   #installbase .ib-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   #installbase .ib-herofig-value{font-size:52px}
   #installbase .ib-card{padding:14px 12px 10px}
-  #installbase .ib-sec{padding-top:30px}
+  #installbase .ib-headline{flex-basis:100%;padding-left:24px}
   #installbase .ib-axis-track span:nth-child(2n){display:none}
 }`;
   return st;

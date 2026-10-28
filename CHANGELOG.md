@@ -15,6 +15,7 @@ All notable changes to PadSpan HA are documented here.
 ### Fixed
 - **Where a stair goes is stored as a whole floor.** In 0.38.190 the stair sheet could store a split level's own id for where a flight goes. It now stores the floor, and a flight saved that way is read as its floor.
 - **The stair sheet's "Up to" list shows whole floors only,** never a split level as if it were a floor of its own.
+- **Install Base (developer view) is easier to read.** Each section folds to one line with its key figures. A new Needs attention list sits at the top, and long lists show their top few with Show all. The installs table has a filter. The page went from about 12 screens to 2.
 
 ---
 
