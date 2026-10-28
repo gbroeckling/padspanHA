@@ -671,7 +671,8 @@ export function createFurnish(ctx){
     turnRow.append(seg(btn("⟲ 15°", "Turn it anticlockwise", () => turn(-1)), btn("⟳ 15°", "Turn it clockwise", () => turn(1))),
                    d("span", "la3d-sub", `${Math.round(p.rotation || 0)}°`));
     el.appendChild(turnRow);
-    const F = floorById(p.floor_id), floors = ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, outdoor: G.fl.outdoor }));
+    // Up or down a whole floor: a split level is part of its floor, not a step.
+    const F = floorById(p.floor_id), floors = ctx.floors().filter(G => !G.fl.parent).map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, outdoor: G.fl.outdoor }));
     const upId = PIECES.floorStep(floors, p.floor_id, 1), downId = PIECES.floorStep(floors, p.floor_id, -1);
     const bUp = btn("Floor ▲", upId ? `Move it ${towards(F, floorById(upId), 1)} ${floorById(upId).fl.name}` : "It is on the top floor", () => toFloor(1));
     const bDown = btn("Floor ▼", downId ? `Move it ${towards(F, floorById(downId), -1)} ${floorById(downId).fl.name}` : "It is on the bottom floor", () => toFloor(-1));
@@ -834,7 +835,7 @@ export function createFurnish(ctx){
         if (!g) continue;
         const base = recipeFor("stairs");
         const recipe = { ...base, params: { ...(base.params || {}), ...g.params }, width_m: g.width_m, depth_m: g.depth_m, height_m: reach.rise };
-        const piece = PIECES.makePiece(recipe, F.fl.id, { x: g.x_m, y: g.y_m, rotation: g.rotation }, "build");
+        const piece = PIECES.makePiece(recipe, F.fl.parent || F.fl.id, { x: g.x_m, y: g.y_m, rotation: g.rotation }, "build");
         piece.label = `Stairs (${r.name})`;
         out.push({ room: r.name, piece });
       }
@@ -1104,7 +1105,7 @@ export function createFurnish(ctx){
     const p = sel && pieceOf(sel);
     if (!p) return;
     const from = floorById(p.floor_id);
-    const floors = ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, outdoor: G.fl.outdoor }));
+    const floors = ctx.floors().filter(G => !G.fl.parent).map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, outdoor: G.fl.outdoor }));
     const to = PIECES.floorStep(floors, p.floor_id, dir), F = to && floorById(to);
     if (!F) return;
     if (!edit((q) => { q.floor_id = to; stairFix(q, true); q.z_m = PIECES.clampZ(q.z_m, ceilOf(F), PIECES.sizeOf(q.recipe).h); })) return;

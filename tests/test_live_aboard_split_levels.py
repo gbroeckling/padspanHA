@@ -38,7 +38,7 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("split:", 4), ("floors:", 2), ("stairs:", 2), ("stem:", 1), ("big:", 1)])
+@pytest.mark.parametrize("prefix,least", [("split:", 4), ("floors:", 3), ("stairs:", 2), ("stem:", 1), ("big:", 1)])
 def test_split_levels(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"
@@ -49,3 +49,6 @@ def test_split_levels(run: dict, prefix: str, least: int) -> None:
 def test_the_view_reads_split_levels_before_anything_else() -> None:
     src = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8")
     assert "HOUSE.splitLevels(p.model)" in src
+    # Every save from Edit and Furnish goes through editSave, which stores whole floors only.
+    assert "const ch = HOUSE.wholeFloors ? HOUSE.wholeFloors(ch0) : ch0;" in src
+    assert src.count("editSave") == 2 and "editor.setEdit(typeof p.edit === \"function\" ? editSave : null)" in src

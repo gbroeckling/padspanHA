@@ -162,6 +162,16 @@ await tryCase("stem: the storey's floor is open over a sunken room, and a raised
     { n: hm.storeys.length, reach: st.reach, tiers: st.tiers.map(t => t.top) });
 });
 
+await tryCase("floors: a split level is drawn, never stored: a save names its whole floor", () => {
+  const ch = { pieces: { a: { floor_id: "upper~0.75", x_m: 5 }, b: { floor_id: "main" }, c: null },
+               openings: { o: { floor_id: "main~-0.4" } }, heights_set: ["light.x"] };
+  const out = H.wholeFloors(ch);
+  check("floors: a split level is drawn, never stored: a save names its whole floor",
+    out.pieces.a.floor_id === "upper" && out.pieces.a.x_m === 5 && out.pieces.b.floor_id === "main" && out.pieces.c === null
+    && out.openings.o.floor_id === "main" && out.heights_set[0] === "light.x" && ch.pieces.a.floor_id === "upper~0.75"
+    && H.wholeFloorId("upper~0.75") === "upper" && H.wholeFloorId("main") === "main", out);
+});
+
 // ── big ─────────────────────────────────────────────────────────────────────
 // A gigantic house: 6 floors of 12 × 10 rooms (720 rooms, 3 m squares), a
 // light in each, every fifth room raised or sunk (one of 4 amounts), and 60

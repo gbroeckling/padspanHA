@@ -4038,7 +4038,9 @@ function createSlot(slotKey){
    *  starts from them: live_aboard_edit.js). A height written to the file
    *  for a device with no record is the newest it has from then on (fileZ).
    *  A host with no height command: all to the file, as before. */
-  async function editSave(ch, base){
+  async function editSave(ch0, base){
+    // A split level (HOUSE.splitLevels) is drawn, never stored: its floor's id goes to the file.
+    const ch = HOUSE.wholeFloors ? HOUSE.wholeFloors(ch0) : ch0;
     const p = lastP || {}, edit = p.edit, put = typeof p.heights === "function" ? p.heights : null;
     if (!put) return edit(ch);
     const split = DRAFT.splitSave(file || NO_FILE, ch, base, placedNow());

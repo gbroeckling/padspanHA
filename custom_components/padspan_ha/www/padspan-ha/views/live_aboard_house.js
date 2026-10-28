@@ -255,6 +255,23 @@ export function splitLevels(model){
   return out;
 }
 
+/** A floor id as it is stored: a split level's ("upper~0.75") is its
+ *  floor's. Home Assistant's floor ids never hold a "~". */
+export function wholeFloorId(id){
+  return typeof id === "string" && id.includes("~") ? id.slice(0, id.indexOf("~")) : id;
+}
+/** An edit for the 3D file (house3d_edit) with every entry's floor its
+ *  whole floor: a split level is drawn, never stored. */
+export function wholeFloors(ch){
+  if (!ch || typeof ch !== "object") return ch;
+  const out = { ...ch };
+  for (const [s, sec] of Object.entries(ch)) {
+    if (!sec || typeof sec !== "object" || Array.isArray(sec)) continue;
+    out[s] = Object.fromEntries(Object.entries(sec).map(([k, e]) =>
+      [k, e && typeof e === "object" && typeof e.floor_id === "string" && e.floor_id.includes("~") ? { ...e, floor_id: wholeFloorId(e.floor_id) } : e]));
+  }
+  return out;
+}
 export function floorCanon(floorList){
   const ids = new Set((floorList || []).map(f => String(f && f.id)));
   return (id) => {
