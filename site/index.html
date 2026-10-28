@@ -184,6 +184,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.189</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">27 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Furniture from a photo names what it sees, then reads it.</b> The AI now says what the piece is in its own words ("corner sofa", "office chair"), and PadSpan matches that to a kind. It then asks again for that kind's own details: seats, arms, legs, drawers.</li>
+          <li><b>It asks you for one measurement unless it can say what it judged the size by.</b> A "high" size confidence now needs something of known size in the photo, like a door or a tape measure. The model claimed "high" for nearly every photo with nothing to judge by.</li>
+          <li><b>Beds come out the right way round.</b> A bed's width is across the headboard. An answer the other way round is swapped.</li>
+          <li><b>Stairs from your floor plans place them better.</b> A shorter question placed stairs better on real plans: the boxes overlapped the real stairs 0.65 against 0.48 before, at 3–4 s a plan instead of 13. A staircase that fills much of a zoomed-in plan is no longer thrown away.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.188</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">27 October 2026</span>
