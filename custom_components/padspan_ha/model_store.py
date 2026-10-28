@@ -172,10 +172,28 @@ def room_height(v: Any) -> float | None:
     return round(max(ROOM_HEIGHT_MIN_M, min(ROOM_HEIGHT_MAX_M, float(v))), 3)
 
 
-def _room_meta_entry(floor_id: str, color: str, height: float | None) -> dict[str, Any]:
+# A split level (room_meta[room]["floor_raise_m"], 0.38.190): how far the
+# room's floor sits above its floor's, for a house whose upstairs is not one
+# level (an office up a longer flight than the bedrooms beside it). Live
+# Aboard draws the room that much higher and a stair reaching it rises that
+# much further; positioning never reads it. None or no key: level with its floor.
+ROOM_RAISE_MAX_M = 3.0
+
+
+def room_raise(v: Any) -> float | None:
+    """A room's raise as stored: a finite number over 5 cm, kept to
+    ROOM_RAISE_MAX_M, to the millimetre; anything else is none (level)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0.05:
+        return None
+    return round(min(ROOM_RAISE_MAX_M, float(v)), 3)
+
+
+def _room_meta_entry(floor_id: str, color: str, height: float | None, raise_m: float | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"floor_id": floor_id, "color": color}
     if height is not None:
         out["height_m"] = height
+    if raise_m is not None:
+        out["floor_raise_m"] = raise_m
     return out
 
 
@@ -410,7 +428,7 @@ class ModelStore:
             room = k[:120]
             floor_id = str(v.get("floor_id") or DEFAULT_FLOOR_ID)[:40]
             color = str(v.get("color") or _hash_color_hex(room))[:20]
-            rm[room] = _room_meta_entry(floor_id, color, room_height(v.get("height_m")))
+            rm[room] = _room_meta_entry(floor_id, color, room_height(v.get("height_m")), room_raise(v.get("floor_raise_m")))
         self.data["room_meta"] = rm
 
         # Only re-save on load if normalization actually changed something
@@ -465,6 +483,28 @@ class ModelStore:
             entry["height_m"] = h
         await self.store.async_save(self.data)
         return True, h
+
+    async def async_set_room_raise(self, room: str, raise_m: Any) -> tuple[bool, float | None]:
+        """Set how far a room's floor sits above its floor's (room_raise), or
+        clear it with None. (False, None) when the room is not on the map;
+        a drawn room with no room_meta entry gets one, as async_set_room_height."""
+        rm: dict[str, Any] = self.data.setdefault("room_meta", {})
+        v = room_raise(raise_m)
+        entry = rm.get(room)
+        if not isinstance(entry, dict):
+            geo = (self.room_geometry_m() or {}).get(room)
+            if not isinstance(geo, dict):
+                return False, None
+            if v is None:
+                return True, None
+            entry = rm[room] = {"floor_id": str(geo.get("floor_id") or DEFAULT_FLOOR_ID)[:40],
+                                "color": _hash_color_hex(room)}
+        if v is None:
+            entry.pop("floor_raise_m", None)
+        else:
+            entry["floor_raise_m"] = v
+        await self.store.async_save(self.data)
+        return True, v
 
     async def async_remove_room_meta(self, room: str) -> bool:
         """Forget a room's colour and floor (its HA area was deleted).
@@ -2094,7 +2134,8 @@ class ModelStore:
                 # an explicit null clears it.
                 prior = rm.get(r) if isinstance(rm.get(r), dict) else {}
                 height = room_height(meta["height_m"]) if "height_m" in meta else room_height(prior.get("height_m"))
-                rm[r] = _room_meta_entry(floor_id, color, height)
+                raised = room_raise(meta["floor_raise_m"]) if "floor_raise_m" in meta else room_raise(prior.get("floor_raise_m"))
+                rm[r] = _room_meta_entry(floor_id, color, height, raised)
             self.data["room_meta"] = rm
 
         await self.store.async_save(self.data)

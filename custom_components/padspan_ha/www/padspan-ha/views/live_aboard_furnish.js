@@ -149,8 +149,9 @@ export function createPieceLayer(ctx){
   const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
   const boxMats = new Map();
 
-  const floorOf = (fid) => {
-    const id = ctx.canon ? ctx.canon(fid) : String(fid);
+  const floorOf = (fid, x = null, y = null) => {
+    // A piece standing in a room raised above its floor goes on that room's level.
+    const id = ctx.canonAt ? ctx.canonAt(fid, x, y) : ctx.canon ? ctx.canon(fid) : String(fid);
     return ctx.floors().find(F => F.fl.id === id) || null;
   };
   // What a piece is drawn from: its recipe (stairs: with the rise up to the
@@ -177,7 +178,7 @@ export function createPieceLayer(ctx){
     D.body = null;
   }
   function place(D, p){
-    const F = floorOf(p.floor_id);
+    const F = floorOf(p.floor_id, p.x_m, p.y_m);
     if (F !== D.F) {
       if (D.root.parent) D.root.parent.remove(D.root);
       if (D.blob && D.blob.parent) D.blob.parent.remove(D.blob);
@@ -725,8 +726,10 @@ export function createFurnish(ctx){
   }
   // ── stairs ──────────────────────────────────────────────────────────────
   /** The floors a flight on `fid` may go up to, and where this one goes. */
-  const floorList = () => ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, h: G.fl.h, outdoor: G.fl.outdoor, name: G.fl.name }));
-  const reachOf = (q) => ctx.STOREY.stairReach(q.floor_id, q.recipe && q.recipe.params && q.recipe.params.to_floor, floorList());
+  const floorList = () => ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, h: G.fl.h, outdoor: G.fl.outdoor, name: G.fl.name,
+                                                   parent: G.fl.parent, pts: G.fl.pts }));
+  const reachOf = (q) => ctx.STOREY.stairReach(q.floor_id, q.recipe && q.recipe.params && q.recipe.params.to_floor, floorList(),
+                                                ctx.STOREY.footprint ? ctx.STOREY.footprint(q) : null);
   /** Stairs go up to the floor named, or the next one up (kept named, so a
    *  floor added later in between changes nothing), and their height is
    *  the gap: `moved` (a floor ▲ / ▼) picks the next one up from the new floor. */

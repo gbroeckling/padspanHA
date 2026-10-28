@@ -622,7 +622,9 @@ async def ws_model_update(hass: HomeAssistant, connection, msg) -> None:
         "type": "padspan_ha/room_height_set",
         vol.Required("room"): vol.All(str, vol.Length(min=1, max=120)),
         # Metres from the room's floor to the top of its space; null = its floor's.
-        vol.Required("height_m"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("height_m"): vol.Any(None, vol.Coerce(float)),
+        # Split level (0.38.190): how far its floor sits above its floor's; null = level.
+        vol.Optional("floor_raise_m"): vol.Any(None, vol.Coerce(float)),
     }
 )
 @websocket_api.async_response
@@ -636,15 +638,26 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
     if not mdl:
         connection.send_error(msg["id"], "no_model_store", "Model store not initialized")
         return
-    h = msg["height_m"]
-    if h is not None and not math.isfinite(h):
-        connection.send_error(msg["id"], "invalid", "height_m must be a height in metres, or null for the floor's")
+    if "height_m" not in msg and "floor_raise_m" not in msg:
+        connection.send_error(msg["id"], "invalid", "Send height_m, floor_raise_m or both")
         return
-    ok, stored = await mdl.async_set_room_height(msg["room"], h)
-    if not ok:
-        connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
-        return
-    connection.send_result(msg["id"], {"ok": True, "room": msg["room"], "height_m": stored})
+    out: dict[str, Any] = {"ok": True, "room": msg["room"]}
+    for key in ("height_m", "floor_raise_m"):
+        v = msg.get(key)
+        if v is not None and not math.isfinite(v):
+            connection.send_error(msg["id"], "invalid", f"{key} must be metres, or null")
+            return
+    if "height_m" in msg:
+        ok, out["height_m"] = await mdl.async_set_room_height(msg["room"], msg["height_m"])
+        if not ok:
+            connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+            return
+    if "floor_raise_m" in msg:
+        ok, out["floor_raise_m"] = await mdl.async_set_room_raise(msg["room"], msg["floor_raise_m"])
+        if not ok:
+            connection.send_error(msg["id"], "not_found", f"{msg['room']} is not a room on the map.")
+            return
+    connection.send_result(msg["id"], out)
 
 
 # ── Settings Helpers ───────────────────────────────────────────────────────────

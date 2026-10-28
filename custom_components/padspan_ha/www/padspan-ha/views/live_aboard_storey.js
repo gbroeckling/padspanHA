@@ -538,7 +538,18 @@ export const isStairs = (p) => !!(p && p.recipe && p.recipe.kind === "stairs");
  *  the floor named (to_floor) when it is an indoor floor higher up, else the
  *  nearest indoor floor above; none, and it rises its own floor's height.
  *  floors: [{id, elev, h, outdoor}]. {from, to, rise} (to null: none above). */
-export function stairReach(fromId, toId, floors){
+function inPolygon(x, y, P){
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, yi] = P[i], [xj, yj] = P[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi) c = !c;
+  }
+  return c;
+}
+/** at: points of the flight's footprint (footprint()): reaching a floor with a
+ *  split level (live_aboard_house.js splitLevels) over most of them, it
+ *  reaches that level, and rises that much further. */
+export function stairReach(fromId, toId, floors, at = null){
   // Its real elevation (elev0) where the floors carry one: Explode lifts the
   // storeys apart on screen, and a stair's rise must never take that in.
   const E = (f) => num(f.elev0) ?? num(f.elev);
@@ -547,7 +558,12 @@ export function stairReach(fromId, toId, floors){
   if (!from) return { from: null, to: null, rise: clamp(2.8, ...STAIR_RISE_M) };
   const up = list.filter(f => E(f) > E(from) + 0.05);
   const named = toId ? up.find(f => String(f.id) === String(toId)) : null;
-  const to = named || up.slice().sort((a, b) => E(a) - E(b))[0] || null;
+  let to = named || up.slice().sort((a, b) => E(a) - E(b))[0] || null;
+  if (to && Array.isArray(at) && at.length) {
+    const pts = [...at, [at.reduce((s, p) => s + p[0], 0) / at.length, at.reduce((s, p) => s + p[1], 0) / at.length]];
+    const lvl = list.find(f => f.parent === to.id && Array.isArray(f.pts) && pts.filter(p => inPolygon(p[0], p[1], f.pts)).length * 2 > pts.length);
+    if (lvl) to = lvl;
+  }
   const rise = to ? E(to) - E(from) : (num(from.h) ?? 2.8);
   return { from, to, rise: Math.round(clamp(rise, ...STAIR_RISE_M) * 1000) / 1000 };
 }
@@ -568,7 +584,7 @@ export function stairCuts(pieces, floors, canon = (x) => String(x)){
   const out = new Map();
   for (const p of Object.values(pieces || {})) {
     if (!isStairs(p)) continue;
-    const r = stairReach(canon(p.floor_id), p.recipe.params && p.recipe.params.to_floor, floors);
+    const r = stairReach(canon(p.floor_id), p.recipe.params && p.recipe.params.to_floor, floors, footprint(p));
     if (!r.to) continue;
     for (const fl of floors || []) {
       if (!fl || fl.outdoor || num(fl.elev) === null || Math.abs(fl.elev - r.to.elev) > 1e-3) continue;

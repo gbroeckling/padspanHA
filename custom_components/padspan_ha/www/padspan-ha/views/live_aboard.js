@@ -1323,12 +1323,16 @@ function createSlot(slotKey){
     });
     // Furniture (P2): every piece drawn on its floor, in every view.
     layer = FURNISH.createPieceLayer({ THREE, PIECES, FURN: () => FURN, floors: () => floorsUi, blobTex: shared.blobTex,
-      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low"),
+      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)),
+      canonAt: (fid, x, y) => (house && house.canonAt ? house.canonAt(fid, x, y) : (house && house.canon ? house.canon(fid) : String(fid))),
+      quality: () => (profileOf().pbr ? "high" : "low"),
       recipeOf: (p) => stairRecipe(p) });
     devices = DEVICES ? DEVICES.createDeviceLayer({ THREE, layer, FURN: () => FURN, halo: shared.haloMats.m,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi, uiScale: () => wallUiOf(root),
-      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), quality: () => (profileOf().pbr ? "high" : "low"),
+      canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)),
+      canonAt: (fid, x, y) => (house && house.canonAt ? house.canonAt(fid, x, y) : (house && house.canon ? house.canon(fid) : String(fid))),
+      quality: () => (profileOf().pbr ? "high" : "low"),
       fadeOf: TRAILS ? TRAILS.fadeOf : null, colourOf: TRAILS ? TRAILS.trailColour : null }) : null;
     marks = MARKS ? MARKS.createMarkLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     // Under the roof while it shows is hidden too (a marker, a code).
@@ -1703,7 +1707,8 @@ function createSlot(slotKey){
   /** Stairs are drawn as high as the floor they reach is now (live_aboard_storey.js stairReach). */
   function stairRecipe(p){
     if (!STOREY || !STOREY.isStairs(p) || !house) return p.recipe;
-    const r = STOREY.stairReach(house.canon ? house.canon(p.floor_id) : p.floor_id, p.recipe.params && p.recipe.params.to_floor, house.floors);
+    const r = STOREY.stairReach(house.canon ? house.canon(p.floor_id) : p.floor_id, p.recipe.params && p.recipe.params.to_floor, house.floors,
+                                STOREY.footprint(p));
     return { ...p.recipe, height_m: r.rise };
   }
   /** A band just inside each room's outline (EDGE_IN to EDGE_IN + EDGE_W in
@@ -4523,6 +4528,8 @@ function createSlot(slotKey){
 
   // ── the slot ──────────────────────────────────────────────────────────────
   function update(p){
+    // A room raised above its floor is drawn as a level of its own (HOUSE.splitLevels).
+    if (p && p.model && HOUSE.splitLevels) p = { ...p, model: HOUSE.splitLevels(p.model) };
     lastP = p;
     applyLook(p);
     const setting = HOUSE.qualitySetting(p.quality);

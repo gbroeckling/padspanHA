@@ -187,6 +187,46 @@ function circlePoly(cx, cy, r, n = 24){
 // stacks on the ones before it; an outdoor one sits at the lowest indoor
 // floor. The fabric's "__outside__" is the registry's "outside" when there
 // is one (the same rule as fabricFrame and floorIdAtLevel).
+// ── Split levels (0.38.190) ──────────────────────────────────────────────────
+/** A room raised above its floor (room_meta[name].floor_raise_m: an office
+ *  up a longer flight than the bedrooms beside it) drawn as a level of its
+ *  own: a floor "<floor>~<room>" at the floor's height plus the raise, with
+ *  the room, and everything placed in it on that floor (lights, scanners,
+ *  beacons, sensors), moved onto it. Nothing stored changes; the model with
+ *  no raised room comes back as it was. The new level follows its floor's
+ *  chip (chipElev) and never gets one of its own. */
+export function splitLevels(model){
+  const rm = (model && model.room_meta) || {}, geo = (model && model.room_geometry_m) || {};
+  const raised = Object.entries(rm).filter(([n, m]) => m && typeof m === "object" && (num(m.floor_raise_m) ?? 0) >= 0.05 && geo[n] && typeof geo[n] === "object");
+  if (!raised.length) return model;
+  const floors = Array.isArray(model.floors) ? model.floors.slice() : [];
+  const out = { ...model, floors, floor_elevations: { ...(model.floor_elevations || {}) }, room_geometry_m: { ...geo } };
+  const subs = [];
+  for (const [name, m] of raised) {
+    const g = geo[name], fid = String(g.floor_id || "main");
+    const parent = floors.find(f => f && String(f.id) === fid) || null;
+    const base = num(out.floor_elevations[fid]) ?? num(parent && parent.base_elevation_m);
+    const pts = g.type === "circle" ? circlePoly(num(g.cx_m) || 0, num(g.cy_m) || 0, num(g.r_m) || 0.5) : (Array.isArray(g.points_m) ? cleanPoly(g.points_m) : []);
+    if (base === null || pts.length < 3) continue;          // a floor with no height yet: drawn level, as before
+    const id = `${fid}~${name}`, raise = Math.min(3, num(m.floor_raise_m));
+    floors.push({ ...(parent || {}), id, name: `${(parent && parent.name) || fid} · ${name}`, parent_id: fid, base_elevation_m: base + raise });
+    out.floor_elevations[id] = Math.round((base + raise) * 1000) / 1000;
+    out.room_geometry_m[name] = { ...g, floor_id: id };
+    subs.push({ fid, id, pts });
+  }
+  if (!subs.length) return model;
+  for (const key of Object.keys(model)) {
+    if (!/_positions_m$/.test(key) || !model[key] || typeof model[key] !== "object" || Array.isArray(model[key])) continue;
+    out[key] = Object.fromEntries(Object.entries(model[key]).map(([k, v]) => {
+      const S = v && typeof v === "object" && num(v.x_m) !== null && num(v.y_m) !== null
+        ? subs.find(q => String(v.floor_id || "main") === q.fid && inPoly(num(v.x_m), num(v.y_m), q.pts)) : null;
+      return [k, S ? { ...v, floor_id: S.id } : v];
+    }));
+  }
+  out.split_levels = subs;
+  return out;
+}
+
 export function floorCanon(floorList){
   const ids = new Set((floorList || []).map(f => String(f && f.id)));
   return (id) => {
@@ -212,11 +252,14 @@ export function readFloors(model, floorList, gap = 0){
       h: num(raw && raw.floor_to_floor_m) ?? FLOOR_TO_FLOOR_M,
       outdoor: isOutdoorFloorId(id),
     };
+    if (raw && raw.parent_id) f.parent = String(raw.parent_id);
     if (!(f.h > 0.5)) f.h = FLOOR_TO_FLOOR_M;
     floors.push(f); byId.set(id, f);
   };
   for (const f of reg) if (f && f.id !== undefined && f.id !== null) add(f, String(f.id));
-  for (const g of Object.values((model && model.room_geometry_m) || {})) if (g && typeof g === "object") add({ id: canon(g.floor_id) }, canon(g.floor_id));
+  // A split level's floor (splitLevels) is in the model's list, not the registry's.
+  const own = (id) => ((model && model.floors) || []).find(f => f && String(f.id) === id) || { id };
+  for (const g of Object.values((model && model.room_geometry_m) || {})) if (g && typeof g === "object") add(own(canon(g.floor_id)), canon(g.floor_id));
   for (const lp of Object.values((model && model.light_positions_m) || {})) if (lp && typeof lp === "object") add({ id: canon(lp.floor_id) }, canon(lp.floor_id));
   let run = 0;
   for (const f of floors) {
@@ -230,11 +273,23 @@ export function readFloors(model, floorList, gap = 0){
   floors.sort((a, b) => a.elev - b.elev || Number(a.outdoor) - Number(b.outdoor));
   // elev0: where it really is; a stair's rise is always worked from that.
   for (const f of floors) f.elev0 = f.elev;
+  // A split level shows with its floor (chipElev) and knows its room's outline.
+  for (const S of (model && model.split_levels) || []) {
+    const f = byId.get(S.id), P = byId.get(S.fid);
+    if (f) { f.pts = S.pts; f.chipElev = P ? P.elev : f.elev; }
+  }
   if (gap > 0) {
     const levels = [...new Set(floors.filter(f => !f.outdoor).map(f => f.elev))].sort((a, b) => a - b);
-    for (const f of floors) if (!f.outdoor) f.elev += Math.max(0, levels.indexOf(f.elev)) * gap;
+    for (const f of floors) if (!f.outdoor) { const k = Math.max(0, levels.indexOf(f.elev)) * gap; f.elev += k; if (f.chipElev !== undefined) f.chipElev += k; }
   }
-  return { floors, byId, canon, ground };
+  // A thing on a floor, standing in one of its split levels: that level's id.
+  const canonAt = (fid, x, y) => {
+    const c = canon(fid);
+    if (num(x) === null || num(y) === null) return c;
+    const S = floors.find(f => f.parent === c && f.pts && inPoly(Number(x), Number(y), f.pts));
+    return S ? S.id : c;
+  };
+  return { floors, byId, canon, canonAt, ground };
 }
 
 /** The highest walking surface the floor chips leave showing: null for all
@@ -248,7 +303,7 @@ export function topFloorElev(floors, topIds){
   return top;
 }
 export function floorShown(floor, topElev){
-  return topElev === null || floor.elev <= topElev + 1e-3;
+  return topElev === null || (floor.chipElev ?? floor.elev) <= topElev + 1e-3;
 }
 
 // ── Rooms ────────────────────────────────────────────────────────────────────
@@ -1817,7 +1872,7 @@ export function readHouse(model, floorList, lightsByEid, hidden, overrides, gap 
     const pieces = applyBarriers(fl, settleWalls(fl, deriveWalls(fl, mine, F.ground, above, facade), rooms, openAt), barriers, F.canon, kindOf, looksDown);
     perFloor.set(fl, { rooms: mine, pieces });
   }
-  return { floors: F.floors, byId: F.byId, canon: F.canon, ground: F.ground, rooms, perFloor,
+  return { floors: F.floors, byId: F.byId, canon: F.canon, canonAt: F.canonAt, ground: F.ground, rooms, perFloor,
            lights: readLights(model, F, lightsByEid, hidden, overrides), sensors: readSensors(model, F, lightsByEid, hidden) };
 }
 

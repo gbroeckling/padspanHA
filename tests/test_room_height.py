@@ -102,7 +102,7 @@ def test_a_height_is_a_finite_number_kept_in_range() -> None:
 def test_the_schema_takes_a_number_or_null_and_nothing_else() -> None:
     assert _wire({"room": "Living", "height_m": "5.6"})["height_m"] == 5.6
     assert _wire({"room": "Living", "height_m": None})["height_m"] is None
-    for bad in ({"room": "Living"}, {"height_m": 5.6}, {"room": "", "height_m": 5.6},
+    for bad in ({"height_m": 5.6}, {"room": "", "height_m": 5.6},
                 {"room": "Living", "height_m": 5.6, "floor_id": "g"}, {"room": "Living", "height_m": "tall"}):
         with pytest.raises(vol.Invalid):
             _wire(bad)
@@ -223,3 +223,26 @@ def test_floor_elevations_never_read_a_rooms_height() -> None:
     _run(mdl.async_set_room_height("Kitchen", 7.5))
     _run(mdl.async_set_room_height("Gallery", 2.0))
     assert mdl.floor_base_elevations_m() == before == {"g": 0.0, "u": 2.8}
+
+
+
+# ── a split level (0.38.190) ──────────────────────────────────────────────────
+
+def test_a_room_raised_above_its_floor_is_kept_beside_its_height_and_cleared_by_null() -> None:
+    mdl = _mdl()
+    h = _hass(mdl)
+    assert _call(h, {"room": "Living"}) == {"error": "invalid"}, "neither a height nor a raise"
+    assert _call(h, {"room": "Kitchen", "floor_raise_m": 0.75}) == {"ok": True, "room": "Kitchen", "floor_raise_m": 0.75}
+    assert mdl.room_meta()["Kitchen"]["floor_raise_m"] == 0.75
+    out = _call(h, {"room": "Kitchen", "height_m": 2.6})
+    assert out["height_m"] == 2.6 and mdl.room_meta()["Kitchen"]["floor_raise_m"] == 0.75, "a height leaves the raise alone"
+    assert _call(h, {"room": "Kitchen", "floor_raise_m": 9})["floor_raise_m"] == 3.0
+    assert _call(h, {"room": "Kitchen", "floor_raise_m": 0.01})["floor_raise_m"] is None, "under 5 cm is level"
+    assert "floor_raise_m" not in mdl.room_meta()["Kitchen"]
+
+
+def test_a_raise_survives_a_room_meta_save_that_leaves_it_out() -> None:
+    from custom_components.padspan_ha import model_store as MS
+    assert MS.room_raise(0.75) == 0.75 and MS.room_raise(True) is None and MS.room_raise(float("nan")) is None
+    e = MS._room_meta_entry("u", "#abcdef", None, 0.75)
+    assert e == {"floor_id": "u", "color": "#abcdef", "floor_raise_m": 0.75}
