@@ -780,6 +780,36 @@ def publish_update_manifest(version, channel):
         return False
 
 
+def wait_for_ci(tag, timeout_s=1200, every_s=20):
+    """GitHub's checks on the tag (Tests, Hassfest, HACS), waited for and
+    reported. 0.38.188 and 0.38.189 went out red (an undeclared Pillow) and
+    nobody saw it, because a release never looked. True: every run passed.
+    """
+    deadline = time.time() + timeout_s
+    seen = []
+    while time.time() < deadline:
+        res = subprocess.run(
+            f'gh run list --repo {REPO} --branch {tag} --json workflowName,status,conclusion,url',
+            shell=True, text=True, capture_output=True)
+        try:
+            seen = json.loads(res.stdout or "[]")
+        except ValueError:
+            seen = []
+        if seen and all(r.get("status") == "completed" for r in seen):
+            break
+        time.sleep(every_s)
+    if not seen:
+        print(f"  !! no GitHub checks seen for {tag}: look at https://github.com/{REPO}/actions")
+        return False
+    ok = True
+    for r in sorted(seen, key=lambda r: r.get("workflowName", "")):
+        state = r.get("conclusion") or r.get("status")
+        good = state == "success"
+        ok = ok and good
+        print(f"  {'ok' if good else '!!'} {r.get('workflowName')}: {state}" + ("" if good else f"  {r.get('url')}"))
+    return ok
+
+
 def main():
     # Parse -m "message" flag for commit/release description
     argv = sys.argv[1:]
@@ -851,6 +881,11 @@ def main():
               f"python scripts/release.py --manifest-only {version}"
               + (" --stable" if channel == "stable" else ""))
 
+    print("\nWaiting for GitHub's checks on the tag...")
+    ci_ok = wait_for_ci(tag)
+    if not ci_ok:
+        print(f"  !! {tag} is out but its checks did not all pass: fix it and release again.")
+
     # The landing page states the current STABLE version, so only a stable
     # release may restamp it — a beta must never advertise itself as stable.
     # The page also reads /api/version.php at runtime, so browsers self-correct
@@ -877,7 +912,7 @@ def main():
         bright_pass(version, channel, message)
         print()
 
-    if not manifest_ok or not site_ok or not whatsnew_ok:
+    if not manifest_ok or not site_ok or not whatsnew_ok or not ci_ok:
         print("  !! Released, but a step above failed (look for '!!'): exit 3.")
         sys.exit(3)
 
