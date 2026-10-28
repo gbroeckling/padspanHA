@@ -59,9 +59,12 @@ check("a lapsed licence gets the lapsed message", lapsed && lapsed.kind === "lap
 check("lapsed message says the work survives",
   /still here|still exportable/i.test(lapsed.text), lapsed.text);
 check("lapsed message offers renewal, not a first purchase", /Renew/.test(lapsed.cta), lapsed.cta);
-// Forensics keeps recording and stays searchable after a lapse, so the lapsed
-// message must never say it stopped.
-check("lapsed message never says Forensics stopped", !/Forensics/.test(lapsed.text), lapsed.text);
+// Since 2026-10-28 Forensics stops recording when a licence lapses
+// (forensics_store._recording_enabled); what it recorded stays searchable.
+check("lapsed message says Forensics stopped recording", /Forensics has stopped recording/.test(lapsed.text), lapsed.text);
+const lapsedBright = proPitch({ tier: "bright", pro_has_key: true, pro_active: false, edition: "bright" });
+check("a lapsed Bright build is not told about Forensics", lapsedBright && lapsedBright.kind === "lapsed" && !/Forensics/.test(lapsedBright.text), lapsedBright && lapsedBright.text);
+check("the lapsed message says history lasts its retention period", /retention period/.test(lapsed.text), lapsed.text);
 check("lapsed beats tier: a lapsed pro key is not treated as pro",
   proPitch({ tier: "pro", pro_has_key: true, pro_active: false }) !== null);
 

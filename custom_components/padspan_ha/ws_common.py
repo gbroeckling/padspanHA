@@ -325,7 +325,8 @@ def _padspan_pro_active(hass: HomeAssistant) -> bool:
     features gate at `bright` — see _tier_at_least — because a Bright Pro key
     unlocks them and a Pro key is a superset. One ladder, one comparison.
 
-    Soft degrade by design: this gate governs Pro EDITING only. Data a user
+    Soft degrade by design: this gate governs Pro EDITING and Forensics
+    recording (forensics_store._recording_enabled) only. Data a user
     already created stays readable and exportable when a licence lapses —
     losing access to your own recorded history because a card expired is not
     something this product does.

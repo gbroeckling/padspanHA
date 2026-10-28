@@ -3337,15 +3337,18 @@ function _settingsLicence(ctx, el){
     colour = "#94a3b8";
   } else if (lapsed) {
     line = "\u26A0 " + (isTrial ? "Your 90-day trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
-           " \u2014 light placement is read-only and the 3D house" +
-           (edition === "PadSpan Bright" ? " and the wall screen" : ", the wall screen, Locate and Busy Times") +
+           (edition === "PadSpan Bright"
+             ? " \u2014 light placement is read-only and the 3D house and the wall screen"
+             : " \u2014 light placement is read-only, Forensics has stopped recording, and the 3D house, the wall screen, Locate and Busy Times") +
            " are off. Nothing you set up is deleted: it all comes back as you left it when you " + (isTrial ? "buy." : "renew.");
     colour = "#fbbf24";
   } else if (typeof daysLeft === "number" && daysLeft < 0) {
     // Expired but inside the grace period: still working, not for long.
     const graceLeft = Math.max(1, 14 + daysLeft);   // days_left rounds down; the last day is still a day
     line = "\u26A0 " + (isTrial ? "Your trial" : keyProd + " licence") + " expired" + (exp ? " on " + exp : "") +
-           " \u2014 light placement goes read-only and the 3D house and the wall screen switch off in " + graceLeft + " day" + (graceLeft === 1 ? "" : "s") + ".";
+           (edition === "PadSpan Bright"
+             ? " \u2014 light placement goes read-only and the 3D house and the wall screen switch off in "
+             : " \u2014 light placement goes read-only, Forensics stops recording and the 3D house, the wall screen, Locate and Busy Times switch off in ") + graceLeft + " day" + (graceLeft === 1 ? "" : "s") + ".";
     colour = "#fbbf24";
   } else if (isTrial) {
     line = "\u2713 Trial active \u00B7 " + daysLeft + " day" + (daysLeft === 1 ? "" : "s") + " left" +
@@ -3673,7 +3676,7 @@ function _settingsFeatures(ctx, el){
         // lighting product, and this card should not call it PadSpan Pro.
         const _prod = String(settings.license_tier || "").toLowerCase() === "bright" ? "PadSpan Bright Pro" : "PadSpan Pro";
         const line = lapsed
-          ? `⚠ ${_prod} licence expired${licExp ? ` on ${licExp}` : ""} — nothing you set up is deleted, and it comes back as you left it when you renew.`
+          ? `⚠ ${_prod} licence expired${licExp ? ` on ${licExp}` : ""} — Forensics has stopped recording. What it recorded stays searchable for its retention period, and recording starts again when you renew.`
           : expiringSoon
           ? `✓ ${_prod} licensed · renews in ${daysLeft} day${daysLeft === 1 ? "" : "s"}${licExp ? ` (${licExp})` : ""}`
           : `✓ ${_prod} licensed` + (licExp >= "2090" ? " · lifetime" : licExp ? ` · valid until ${licExp}` : "");

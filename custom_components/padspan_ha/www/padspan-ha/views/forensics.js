@@ -156,7 +156,7 @@ export function render(ctx){
   } else if(oldest == null){
     root.appendChild(el("div",{class:"card",style:"border-color:#f59e0b;padding:10px"},[
       el("div",{style:"font-weight:700;font-size:12px;color:#f59e0b"},
-        "⚠ No sessions recorded yet. Recording starts once Forensics is enabled and data mode is Live " +
+        "⚠ No sessions recorded yet. Recording starts once Forensics is enabled, data mode is Live and PadSpan Pro is active " +
         "(samples every 60 s). Matches below come only from the lower-confidence history overlap."),
     ]));
   }

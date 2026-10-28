@@ -200,6 +200,10 @@ def test_buttons_stop_at_finger_size_while_the_text_grows():
     assert ".lv-wall > .lv-legend{" not in css.replace(".lv-mapcard.lv-display", ""), "the only legend there is stays off a wall"
     la = _src("views/live_aboard.js")
     assert ':host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ctl,var(--wall-ui,1))}' in la
+    # The People and Motion chips and the motion colour key grow with the HUD
+    # (a 4K wall drew them 1080p-sized until 2026-10-28). The lone Motion chip
+    # matches only outside the row, so it is never zoomed twice.
+    assert ':host([data-wall]) .la3d-chiprow,:host([data-wall]) .la3d > .la3d-mchip,:host([data-wall]) .la3d-mkey,:host([data-wall]) .la3d-wet{zoom:var(--wall-ui,1)}' in la
     assert 'wallUiOf(root, "--wall-ctl")' in la, "the menu is placed by the scale it is drawn at"
 
 

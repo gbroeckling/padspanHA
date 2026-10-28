@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.191 — Forensics stops when a licence ends; the wall's People and Motion chips grow on 4K (2026-10-28)
+
+### Fixed
+- **Forensics stops recording when a licence or trial ends.** Nothing checked before, so a trial that ended kept recording every Bluetooth device it heard. What it already recorded stays searchable and exportable for its retention period, and recording starts again when you renew. The licence card, the Forensics card, the help and the update banner say so.
+- **On a 4K wall, the People and Motion chips at the top grow with everything else.** They, the motion colour key and the window-open-in-the-rain line stayed 1080p-sized while the rest of the wall doubled.
+
+---
+
 ## 0.38.190 — Split levels: a room higher or lower than the rest of its floor (2026-10-28)
 
 ### New

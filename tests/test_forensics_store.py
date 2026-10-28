@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -271,11 +272,28 @@ async def test_load_accepts_valid_and_rejects_garbage() -> None:
 # ---------------------------------------------------------------------------
 
 
+_PRO_KEY = {"forensics_license_key": "PSPAN-TEST-0000-0000-0000", "license_tier": "pro",
+            "forensics_license_expires": "2099-12-31 00:00:00"}
+
+
 def test_recording_enabled_gate() -> None:
-    assert _recording_enabled(_hass_with_settings(forensics_enabled=True, data_mode="live"))
-    assert not _recording_enabled(_hass_with_settings(forensics_enabled=False, data_mode="live"))
-    assert not _recording_enabled(_hass_with_settings(forensics_enabled=True, data_mode="sample"))
+    assert _recording_enabled(_hass_with_settings(forensics_enabled=True, data_mode="live", **_PRO_KEY))
+    assert not _recording_enabled(_hass_with_settings(forensics_enabled=False, data_mode="live", **_PRO_KEY))
+    assert not _recording_enabled(_hass_with_settings(forensics_enabled=True, data_mode="sample", **_PRO_KEY))
     assert not _recording_enabled(SimpleNamespace(data={}))
+
+
+def test_recording_stops_without_an_active_pro_licence() -> None:
+    """Forensics is Pro. With no key, a Bright key, or a key past its grace
+    period, nothing new is recorded; what was recorded stays (the query has no
+    gate). Until 2026-10-28 a trial that had ended kept recording."""
+    on = {"forensics_enabled": True, "data_mode": "live"}
+    assert not _recording_enabled(_hass_with_settings(**on)), "no key"
+    assert not _recording_enabled(_hass_with_settings(**on, **{**_PRO_KEY, "license_tier": "bright"})), "Bright key"
+    gone = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    assert not _recording_enabled(_hass_with_settings(**on, **{**_PRO_KEY, "forensics_license_expires": gone})), "lapsed"
+    grace = (datetime.now(timezone.utc) - timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
+    assert _recording_enabled(_hass_with_settings(**on, **{**_PRO_KEY, "forensics_license_expires": grace})), "in grace"
 
 
 def test_retention_days_whitelist() -> None:
