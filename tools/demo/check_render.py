@@ -65,7 +65,8 @@ def main(out: Path) -> int:
                 browser = p.chromium.launch(channel="chrome", headless=True, args=["--enable-gpu", "--enable-unsafe-swiftshader"])
                 for page_name, size in [(n, s) for s in SIZES for n in ("panel", "atlas", "atlas3d")]:
                     w, h = SIZES[size]
-                    page = browser.new_page(viewport={"width": w, "height": h})
+                    # English, whatever the machine's language: a German browser gets a German bar.
+                    page = browser.new_page(viewport={"width": w, "height": h}, locale="en-US")
                     tag = page_name + size
                     errors: list[str] = []
                     page.on("pageerror", lambda e, errors=errors: errors.append(str(e)))
@@ -124,6 +125,15 @@ def main(out: Path) -> int:
                     real = [e for e in errors if "favicon" not in e]
                     results.append((f"{tag}: no page errors", not real, "; ".join(real)[:400]))
                     page.close()
+                # The bar in German on a 360 px phone: its words, and the notice whole.
+                page = browser.new_page(viewport={"width": 360, "height": 780}, locale="de-DE")
+                page.goto(f"{base}?page=atlas3d&narrow=1")
+                page.wait_for_selector("html[data-demo-ready='atlas3d']", timeout=20000)
+                bar = page.locator("#demo-bar").inner_text()
+                results.append(("de_phone: German bar", all(w in bar for w in ("Beispielhaus", "Wanddisplay", "Teilen", "Kostenlos installieren")), ""))
+                results.append(("de_phone: notice whole", page.evaluate("() => { const b = document.querySelector('#demo-bar b'); return b.scrollWidth <= b.clientWidth; }"), ""))
+                page.screenshot(path=str(out / "demo_de_phone.png"))
+                page.close()
                 browser.close()
         finally:
             server.shutdown()

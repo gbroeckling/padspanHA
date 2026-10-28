@@ -23,21 +23,27 @@
   body { display: flex; flex-direction: column; }
   #demo-bar { flex: none; z-index: 1000; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
               padding: 6px 12px; background: #1b4332; border-bottom: 1px solid #2d6a4f; font-size: 14px; box-sizing: border-box; }
-  #demo-bar b { color: #ffd166; white-space: nowrap; }
+  /* Cut short with … only on a screen too narrow for it, never over the edge. */
+  #demo-bar b { color: #ffd166; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* Who is where right now, read from the demo house every second and a half. */
   /* A fixed basis: the line's length changes as people walk, the bar's height must not. */
   #demo-now { flex: 1 1 18em; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #cfe3d6; }
-  #demo-bar nav { display: flex; gap: 6px; }
-  #demo-bar a { color: #e8f0ea; text-decoration: none; padding: 4px 10px; border-radius: 6px; border: 1px solid #2d6a4f; white-space: nowrap; }
+  #demo-bar nav, #demo-acts { display: flex; gap: 6px; }
+  /* On the right when it wraps to a line of its own (a narrow window, a longer language). */
+  #demo-acts { margin-left: auto; }
+  #demo-bar a, #demo-share { color: #e8f0ea; text-decoration: none; padding: 4px 10px; border-radius: 6px; border: 1px solid #2d6a4f; white-space: nowrap; }
+  #demo-share { font: inherit; background: none; cursor: pointer; }
   #demo-bar a[aria-current="page"] { background: #2d6a4f; }
   #demo-bar a#demo-get { background: #ffd166; border-color: #ffd166; color: #10261a; font-weight: 600; }
   #app { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; }
   #app > * { display: block; min-height: 100%; }
-  /* A phone: the notice and Install free on the first line, who is where on
-     the second, the three pages as one row of equal buttons on the third. */
+  /* A phone: the notice, then Share and Install free on the right (beside the
+     notice when there's room), who is where, and the four pages as one row
+     of equal buttons. */
   @media (max-width: 640px) {
     #demo-bar { font-size: 12px; gap: 6px 8px; padding: 6px 8px; }
-    #demo-bar a#demo-get { order: 1; margin-left: auto; padding: 4px 8px; }
+    #demo-acts { order: 1; }
+    #demo-bar a#demo-get, #demo-share { padding: 4px 8px; }
     #demo-now { order: 2; flex-basis: 100%; }
     #demo-bar nav { order: 3; width: 100%; }
     #demo-bar nav a { flex: 1 1 0; text-align: center; padding: 6px 4px; }
@@ -53,8 +59,79 @@
     <a href="?page=atlas3d">Live Aboard 3D</a>
     <a href="?page=atlas3d&amp;kiosk=1" title="The 3D house as PadSpan shows it on a wall screen. Make the browser full screen for the real effect.">Wall screen</a>
   </nav>
-  <a id="demo-get" href="https://padspan.traks.ca/#install" target="_blank" rel="noopener">Install free</a>
+  <span id="demo-acts">
+    <button type="button" id="demo-share" title="Copy a link to this view" aria-live="polite">Share</button>
+    <a id="demo-get" href="https://padspan.traks.ca/#install" target="_blank" rel="noopener" title="Free and open source. Live Aboard 3D and the wall screen are part of PadSpan Pro: try all of Pro free for 90 days, no card.">Install free</a>
+  </span>
 </div>
+<script>
+// The bar in German for a German browser (its first language), or with
+// ?hl=de; ?hl=en keeps it English. ?lang= works too, but on this site it also
+// picks the language for a year (a cookie, site/.htaccess), so links use ?hl=.
+// Only the bar: the panel is in English.
+// Share opens a phone's share sheet, and elsewhere copies the link. The link
+// is this view (its page and options) plus ref=share, so the site's own logs
+// can count the visits shared links bring. Nothing is sent from here. It
+// leaves out hl and lang: the language is the sharer's, not the friend's.
+(() => {
+  const q = new URLSearchParams(location.search);
+  const lang = String(q.get("hl") || q.get("lang") || (navigator.languages && navigator.languages[0]) || navigator.language || "").toLowerCase();
+  const de = lang.startsWith("de");
+  const bar = document.getElementById("demo-bar");
+  const share = document.getElementById("demo-share");
+  const T = de ? { share: "Teilen", copied: "Kopiert", copyThis: "Link zum Kopieren:", title: "PadSpan Live-Demo: in welchem Raum jedes Handy, jede Uhr und jeder Tracker ist" }
+    : { share: "Share", copied: "Copied", copyThis: "Copy this link:", title: document.title };
+  const link = () => {
+    const u = new URL(location.href);
+    for (const k of [...u.searchParams.keys()]) if (/^(utm_|fbclid$|gclid$|ref$|lang$|hl$)/.test(k)) u.searchParams.delete(k);
+    u.searchParams.set("ref", "share");
+    u.hash = "";
+    return u.href;
+  };
+  const copy = async (text) => {
+    try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* an older browser: copy from a textarea */ }
+    const t = Object.assign(document.createElement("textarea"), { value: text, readOnly: true });
+    t.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.appendChild(t);
+    t.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (_) { /* nothing copied */ }
+    t.remove();
+    share.focus();
+    return ok;
+  };
+  let timer = 0;
+  share.addEventListener("click", async () => {
+    const url = link();
+    if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+      try { await navigator.share({ title: T.title, url }); return; }
+      catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    if (await copy(url)) {
+      share.textContent = T.copied;
+      clearTimeout(timer);
+      timer = setTimeout(() => { share.textContent = T.share; }, 2000);
+    } else {
+      prompt(T.copyThis, url);
+    }
+  });
+  // After Share is wired up, and one element at a time: a missing one here
+  // must not cost a German visitor the Share button.
+  if (de) {
+    bar.lang = "de";
+    const set = (el, text, title) => { if (!el) return; el.textContent = text; if (title) el.title = title; };
+    set(bar.querySelector("b"), "Demo – Beispielhaus, fiktive Personen und Geräte", "Änderungen bleiben erhalten, bis du die Seite neu lädst.");
+    set(document.getElementById("demo-now"), "Wer in welchem Raum ist – live");
+    set(bar.querySelector('nav a[href$="kiosk=1"]'), "Wanddisplay",
+      "Das 3D-Haus, wie PadSpan es auf einem Wanddisplay zeigt. Für den echten Eindruck schalte den Browser auf Vollbild.");
+    set(share, T.share, "Link zu dieser Ansicht kopieren");
+    const get = document.getElementById("demo-get");
+    set(get, "Kostenlos installieren",
+      "Kostenlos und Open Source. Live Aboard 3D und das Wanddisplay gehören zu PadSpan Pro: 90 Tage lang kostenlos testen, ohne Kreditkarte.");
+    if (get) get.href = "https://padspan.traks.ca/de/#install";
+  }
+})();
+</script>
 <div id="app"></div>
 <script type="module">
 // The PadSpan panel and the sidebar Atlas over a fake Home Assistant
@@ -74,11 +151,14 @@ document.documentElement.dataset.demoReady = page;
 // now. Not on the Panel page: its devices are the panel's own Sample mode house
 // (sample_data.js), not these walkers, so it keeps the tagline.
 const now = document.getElementById("demo-now");
-const who = (o) => { const n = String(o.name || ""); return o.guest && o.guest.name ? `${o.guest.name} (guest)` : n.endsWith("'s phone") ? n.split("'")[0] : n; };
+const de = document.getElementById("demo-bar").lang === "de";
+const who = (o) => { const n = String(o.name || ""); return o.guest && o.guest.name ? `${o.guest.name} (${de ? "Gast" : "guest"})` : n.endsWith("'s phone") ? n.split("'")[0] : n; };
+// In German the rooms keep the names the panel shows: "Alex – Kitchen".
+const where = (o) => de ? `${who(o)} – ${o.room || "zwischen zwei Räumen"}` : o.room ? `${who(o)} in the ${o.room}` : `${who(o)} between rooms`;
 const tick = () => {
   try {
     const list = (window.__demo && window.__demo.snapshot().objects.list) || [];
-    if (list.length) now.textContent = "Now: " + list.map(o => o.room ? `${who(o)} in the ${o.room}` : `${who(o)} between rooms`).join(" · ");
+    if (list.length) now.textContent = (de ? "Jetzt: " : "Now: ") + list.map(where).join(" · ");
   } catch (_) { /* keep the last line */ }
 };
 if (page !== "panel") { tick(); setInterval(tick, 1500); }

@@ -78,6 +78,37 @@ def test_writes_stay_in_the_page_and_the_banner_shows():
     assert "telemetry_enabled: false" in fake and "update_check_enabled: false" in fake
 
 
+def test_the_bar_shares_this_view_and_speaks_german():
+    """Share: a phone's share sheet, elsewhere the link copied; the link is this
+    view plus ref=share, which the site's logs count. A German browser (its
+    first language, or ?hl=de) gets the bar in German; the panel stays English."""
+    page = _text(_DEMO / "index.html")
+    assert 'id="demo-share"' in page and "navigator.clipboard.writeText(text)" in page and "navigator.share(" in page
+    assert 'u.searchParams.set("ref", "share")' in page
+    # ?lang= sets the site's language cookie for a year (site/.htaccess), ?hl= only
+    # shows a language: a shared link carries neither, the sharer's choice stays theirs.
+    assert "/^(utm_|fbclid$|gclid$|ref$|lang$|hl$)/" in page
+    assert 'String(q.get("hl") || q.get("lang") || (navigator.languages && navigator.languages[0])' in page
+    for de in ("Demo – Beispielhaus, fiktive Personen und Geräte", "Wanddisplay", '"Teilen"', '"Kopiert"',
+               "Kostenlos installieren", '"https://padspan.traks.ca/de/#install"', '"Jetzt: "', '"zwischen zwei Räumen"', '"Gast"'):
+        assert de in page, de
+    # The German words go in after Share is wired up, so a missing element can't break it.
+    assert page.index('share.addEventListener("click"') < page.index("  if (de) {")
+    # Still nothing sent from the page.
+    assert "fetch(" not in page and "sendBeacon" not in page and "WebSocket" not in page
+
+
+def test_german_guides_open_the_demo_in_german_without_switching_the_site():
+    """?hl=de shows the bar in German; ?lang=de would also send the reader's
+    front page to /de/ for a year."""
+    guides = sorted((_ROOT / "site" / "guides").glob("*/de/index.html"))
+    assert guides
+    for g in guides:
+        t = _text(g)
+        assert 'href="/demo/?hl=de"' in t, g.parent.parent.name
+        assert not re.search(r'href="/demo/(\?lang=[^"]*)?"', t), g.parent.parent.name
+
+
 def test_the_build_copies_this_checkout(tmp_path):
     out = demo_build.build(tmp_path / "dist")
     for name in ("index.html", "fake_hass.js", "fixture.js", "estate.js", "demo_settings.json"):
