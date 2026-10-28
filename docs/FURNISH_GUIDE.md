@@ -16,9 +16,10 @@ The other ways in:
 - **From a photo:** photograph a real piece and PadSpan builds a matching one. This needs Home
   Assistant 2025.8 or newer with an **AI Task** that can read images, picked in **Settings → AI**,
   where **Furniture from a photo** can also be switched off. A cloud AI Task means the photo leaves
-  your house to be read; it's never stored. Tell it what the piece is before you send the photo: a
-  small local model guesses the kind wrongly far more often than it gets the details of a piece it
-  has been told about. If the answer makes no sense, you get a box, never an error.
+  your house to be read; it's never stored. It names the piece in its own words, then reads that
+  kind's details; telling it what the piece is first saves that step. It asks you for one real
+  measurement unless something of known size (a door, a tape measure) is in the photo. If the
+  answer makes no sense, you get a box, never an error.
 - **Library:** furniture other PadSpan houses shared. Turn on **Shared library** in the Live Aboard
   settings and accept its terms first. Off, Live Aboard never contacts the library.
 - **Import:** doors, windows and furniture from a Sweet Home 3D file (`.sh3d`). You see them first

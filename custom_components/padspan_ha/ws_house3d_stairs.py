@@ -53,16 +53,18 @@ SIZE_M = (0.6, 8.0)                 # a stair's footprint, each way (house3d_sto
 # staircase (the test's 5 × 5 m "stairs" and 7 m runs), and is left out.
 STRAIGHT_MAX_M, TURNING_MAX_M = (2.4, 6.0), 4.2
 STRAIGHT_WIDTH_M = 1.3              # a plan's box takes in the wall or rail too: a straight flight is drawn no wider
-MAX_AREA_FRAC = 0.25                # nor is a box over a quarter of the whole plan
+MAX_AREA_FRAC = 0.6                 # nor is a box over most of the plan (a zoomed-in plan's stairs can fill a third of it)
 
+# Short on purpose: scored against hand-marked stairs on four real plans
+# (2026-10-27, qwen2.5vl:7b), this wording placed them best (mean overlap 0.65
+# against 0.48 for a longer one that described landings and labels) and
+# answered in 3-4 s a plan against 13. Asking for a second, zoomed look did
+# not help (0.42).
 PROMPT = (
-    "This floor plan image is {w} by {h} pixels. Locate every staircase: a run of many short parallel "
-    "lines side by side (the steps), often with an arrow and the word UP or DOWN (DN), sometimes with a "
-    "landing where it turns. Not furniture, cupboards, bathtubs, wardrobes or hatching. Output JSON only: "
-    "a list of objects {{\"bbox_2d\": [x1, y1, x2, y2], \"label\": \"stairs\", \"says\": \"UP|DOWN|none\", "
-    "\"up\": \"top|bottom|left|right|unsure\", \"shape\": \"straight|L|U|unsure\"}} with pixel coordinates "
-    "of this image. \"says\" is the word written on it, \"up\" the way the arrow or the UP word points on the "
-    "image. An empty list [] when there are none.")
+    "This floor plan image is {w} by {h} pixels. Locate every staircase (a run of many short parallel step "
+    "lines, often with an arrow and UP or DOWN). Output JSON: a list of objects {{\"bbox_2d\": [x1, y1, x2, y2], "
+    "\"label\": \"stairs\", \"says\": \"UP|DOWN|none\", \"up\": \"top|bottom|left|right\", "
+    "\"shape\": \"straight|L|U\"}} with pixel coordinates. Only staircases.")
 
 
 def _list_of(answer: Any) -> list[dict] | None:

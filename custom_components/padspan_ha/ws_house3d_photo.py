@@ -270,8 +270,11 @@ def request(target: str, kind: str | None) -> tuple[str, dict[str, dict]]:
     spec = fur.get(kind) if kind in kinds else None
     s: dict[str, dict] = {}
     if spec is None:
-        s["kind"] = _field("What it is: the closest kind, or other",
-                           _sel_select([*kinds, *([] if B.BOX_KIND in kinds else [B.BOX_KIND])]), required=True)
+        # Asked in its own words, then matched to a kind (_kind_from_words):
+        # given the list to pick from, a small local model picked "fan" for
+        # sofas, a chair and a table (real test, 2026-10-27; 3 of 7 right).
+        s["what_it_is"] = _field("What the main piece is, in two or three plain words, such as \"corner sofa\", "
+                                 "\"office chair\" or \"dining table\"", {"text": {}}, required=True)
         ranges = _size_ranges(kinds)
         said = ""
     else:
@@ -290,6 +293,10 @@ def request(target: str, kind: str | None) -> tuple[str, dict[str, dict]]:
         s[key] = _field(what, _sel_number(lo, hi, 0.01), required=True)
     s["size_confidence"] = _field("How sure the sizes are: high only with a known-size object in the photo",
                                   _sel_select(CONFIDENCE), required=True)
+    # What it judged the sizes by: a "high" with nothing to judge them by is not high (a small
+    # local model said high for every photo without a tape measure or door in it).
+    s["scale_from"] = _field("What in the photo you judged the sizes by (a door, a tape measure, a standard chair, "
+                             "a person), or none", {"text": {}})
     s.update(_details_fields(target, spec))
     return _PROMPT[target].format(kind=said), s
 
@@ -441,6 +448,8 @@ def parse(target: str, kind: str | None, answer: Any) -> dict[str, Any]:
     if a is None:
         return bad
     said = _pick(a.get("kind"), tuple(kinds)) if isinstance(a.get("kind"), str) else None
+    if said is None and isinstance(a.get("what_it_is"), str):
+        said = _kind_from_words(a["what_it_is"], kinds)
     if kind in kinds:
         k = kind
     elif said:
@@ -459,17 +468,31 @@ def parse(target: str, kind: str | None, answer: Any) -> dict[str, Any]:
             params[p["key"]] = B.clamp_param(p, raw)
     colours = [c for c in (_colour(a.get(f"color_{i}")) for i in (1, 2, 3)) if c]
     sizes = {key: B.number(a.get(key)) for key in ("width_m", "depth_m", "height_m")}
+    # A bed is longer than it is wide (width across the headboard): an answer the other way round is swapped.
+    if k == "bed" and sizes["width_m"] and sizes["depth_m"] and sizes["width_m"] > sizes["depth_m"]:
+        sizes["width_m"], sizes["depth_m"] = sizes["depth_m"], sizes["width_m"]
     used = used or bool(colours) or any(v is not None and v > 0 for v in sizes.values())
     if not used:
         return bad
     recipe = B.clamp_recipe({"kind": k, "params": params, "colors": colours,
                              **{key: v for key, v in sizes.items() if v is not None and v > 0}})
     conf = _pick(a.get("size_confidence"), CONFIDENCE)
+    ref = str(a.get("scale_from") or "").strip().lower()
+    if conf == "high" and (not ref or re.fullmatch(r"(none|nothing|n/?a|no|-|unknown|not sure)\.?", ref)):
+        conf = "medium"
     size = {key: (recipe[key] if sizes[key] is not None and sizes[key] > 0 else None) for key in sizes}
     size["confidence"] = conf if any(size[key] is not None for key in sizes) else None
     out = {"ok": True, "target": target, "kind": k, "recipe": recipe,
            "details": _details(target, k, spec, a, recipe["params"]), "size": size}
     return out
+
+
+def _kind_from_words(text: str, kinds: list[str]) -> str | None:
+    """A kind of this group from the AI's own words for it ("corner sofa" →
+    sofa), by the 3D import's word lists; None when no word names one."""
+    from .ws_house3d_import import kind_of  # noqa: PLC0415
+    k, _ = kind_of({"name": str(text)[:80]})
+    return k if k in kinds and k != B.BOX_KIND else None
 
 
 def _readable(p: dict, raw: Any) -> bool:
@@ -720,8 +743,19 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
                                            "message": FAILED.format(why=_why(err)), "kind": kind,
                                            "ai_task": ai["ai_task"]})
         return
-    _bump(hass, _secs_event(time.monotonic() - t0))
     out = parse(target, kind, answer)
+    # Its kind in its own words, then that kind's own settings, asked again as if
+    # the person had said what it is (much the better answer in the real test).
+    if (out["ok"] and target == "furniture" and kind not in B.kinds_of(_GROUPS[target])
+            and out.get("kind") not in (None, B.BOX_KIND)):
+        try:
+            i2, s2 = request(target, out["kind"])
+            o2 = parse(target, out["kind"], await ask(hass, ai["ai_task"], i2, s2, raw, mime))
+            if o2["ok"]:
+                out = o2
+        except Exception as err:  # noqa: BLE001 — the first answer stands
+            _LOGGER.debug("PadSpan Live Aboard: the second read of a photo failed: %s", _why(err))
+    _bump(hass, _secs_event(time.monotonic() - t0))
     _bump(hass, "photo_read:ok" if out["ok"] else "photo_read:bad_answer")
     connection.send_result(msg["id"], {**out, "ai_task": ai["ai_task"]})
 

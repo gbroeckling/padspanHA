@@ -4018,7 +4018,7 @@ function _settingsAI(ctx, el){
   };
   feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
     "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
-    "Tags, receivers and people's figures too. Tell it what the piece is first: it gets that right far more often.",
+    "Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.",
     settings.ai_photos_enabled !== false, false));
   feats.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
     "Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor " +

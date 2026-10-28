@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.189 — The AI features, tuned on a real model (2026-10-27)
+
+### Changed
+- **Furniture from a photo names what it sees, then reads it.** The AI now says what the piece is in its own words ("corner sofa", "office chair"), and PadSpan matches that to a kind. It then asks again for that kind's own details: seats, arms, legs, drawers.
+  - Tested on a local vision model (qwen2.5vl:7b), it named the kind right for 6 of 7 photos. Before, it picked from a list and got 3 of 7, calling sofas, a chair and a table a fan.
+  - It's quicker too, about 11 s with both questions.
+- **It asks you for one measurement unless it can say what it judged the size by.** A "high" size confidence now needs something of known size in the photo, like a door or a tape measure. The model claimed "high" for nearly every photo with nothing to judge by.
+- **Beds come out the right way round.** A bed's width is across the headboard. An answer the other way round is swapped.
+- **Stairs from your floor plans place them better.** A shorter question placed stairs better on real plans: the boxes overlapped the real stairs 0.65 against 0.48 before, at 3–4 s a plan instead of 13. A staircase that fills much of a zoomed-in plan is no longer thrown away.
+
+---
+
 ## 0.38.188 — Stairs read off your floor plans by AI (2026-10-27)
 
 ### New

@@ -216,12 +216,16 @@ def test_every_kind_asks_for_exactly_its_own_settings(target):
         assert "#rrggbb" in text and "metres" in text
 
 
-def test_without_a_kind_it_asks_what_it_is_from_the_builders_list():
+def test_without_a_kind_it_asks_what_it_is_in_its_own_words():
+    """0.38.189: in its own words, matched to a kind (a real test: picked from the list,
+    a small model said "fan" for sofas, a chair and a table; in words, 6 of 7 right)."""
     text, s = P.request("furniture", None)
     _well_formed(s)
-    opts = s["kind"]["selector"]["select"]["options"]
-    assert opts == B.kinds_of(("furniture", "device")) and B.BOX_KIND in opts
-    assert s["kind"]["required"] is True
+    assert "kind" not in s and s["what_it_is"]["selector"] == {"text": {}} and s["what_it_is"]["required"] is True
+    opts = B.kinds_of(("furniture", "device"))
+    for words, want in (("Corner sofa", "sofa"), ("Office Chair", "chair"), ("Dining table", "table"),
+                        ("Washing machine drum", "washer"), ("Bookshelf", "shelf"), ("A thingamajig", "other")):
+        assert P.parse("furniture", None, {"what_it_is": words, "width_m": 1, "depth_m": 1, "height_m": 1})["kind"] == want, words
     assert not any(k.startswith("param_") for k in s), "no one kind's settings before the kind is known"
     for key in ("category", "rooms", "style", "material", "features", "outdoor", "title"):
         assert key in s, key
@@ -230,7 +234,7 @@ def test_without_a_kind_it_asks_what_it_is_from_the_builders_list():
         cfg = s[d]["selector"]["number"]
         assert cfg["min"] == min(B.data()["furniture"][k]["size"][d][0] for k in opts)
     _, s2 = P.request("furniture", "a kind nobody has")
-    assert "kind" in s2
+    assert "what_it_is" in s2
 
 
 def test_a_person_asks_for_the_figure_only():
@@ -627,3 +631,22 @@ def test_reading_photos_switched_off_in_settings_ai_is_refused(monkeypatch, tmp_
     _photo(h, conn)
     assert conn.send_error.called and conn.send_error.call_args[0][1] == P.PHOTOS_OFF_CODE
     assert ai.calls == [] and _leftovers(media) == []
+
+
+
+def test_a_high_size_confidence_needs_something_to_judge_it_by_and_a_bed_is_longer_than_wide():
+    base = {"width_m": 2.0, "depth_m": 1.5, "height_m": 0.8, "size_confidence": "high"}
+    assert P.parse("furniture", "bed", {**base, "scale_from": "none"})["size"]["confidence"] == "medium"
+    assert P.parse("furniture", "bed", base)["size"]["confidence"] == "medium"
+    out = P.parse("furniture", "bed", {**base, "scale_from": "the door frame"})
+    assert out["size"]["confidence"] == "high"
+    assert (out["recipe"]["width_m"], out["recipe"]["depth_m"]) == (1.5, 2.0)
+
+
+def test_a_kind_from_its_words_is_read_again_for_that_kinds_settings(monkeypatch, tmp_path, disk):
+    """The second question, as if the person had said what it is: that kind's own settings."""
+    h, conn, ai, media = _ready(monkeypatch, tmp_path, answer={"what_it_is": "black leather sofa", "width_m": 2.5,
+                                                                "depth_m": 0.9, "height_m": 0.8, "size_confidence": "low"})
+    out = _photo(h, conn, kind=...)
+    assert out["ok"] and out["kind"] == "sofa" and len(ai.calls) == 2
+    assert "It is a sofa." in ai.calls[1][2]["instructions"] and _leftovers(media) == []
