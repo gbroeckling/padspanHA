@@ -127,6 +127,11 @@ def test_the_release_writes_the_notes_before_it_zips_and_commits(monkeypatch) ->
         monkeypatch.setattr(R, name, lambda *a, _n=name, **k: calls.append(_n))
     monkeypatch.setattr(R, "update_whatsnew_entry", lambda *a, **k: calls.append("update_whatsnew_entry") or True)
     monkeypatch.setattr(R, "publish_update_manifest", lambda *a, **k: True)
+    # Nothing real: no lock, no fetch or pull, no tags read, no wait for GitHub.
+    for name, val in (("acquire_release_lock", "lock"), ("release_release_lock", None), ("sync_with_origin", None),
+                      ("_tags", set()), ("gather_notes", None), ("wait_for_ci", True)):
+        if hasattr(R, name):
+            monkeypatch.setattr(R, name, lambda *a, _v=val, **k: _v)
     monkeypatch.setattr(sys, "argv", ["release.py", "9.9.9", "--no-bright"])
     R.main()
     assert "write_panel_notes" in calls, "the release never writes the panel's notes"

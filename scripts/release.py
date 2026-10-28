@@ -9,6 +9,14 @@ Usage:
 Examples:
     python scripts/release.py 0.4.22            # beta (pre-release on GitHub)
     python scripts/release.py 0.4.22 --stable   # stable (Latest on GitHub)
+    python scripts/release.py next              # the version after the newest tag
+
+Two sessions at once (2026-10-28): it holds a lock every checkout on this
+computer shares (a second release waits), starts from origin/main, takes the
+next free version if the one given is taken, gathers changelog.d/*.md notes
+into CHANGELOG.md (see changelog.d/README.md), and if a push is refused
+because someone pushed meanwhile, merges theirs in and pushes again. After
+the push it waits for GitHub's checks on the tag and says how they went.
 
 What it does:
     1. Validates hacs.json + repo structure (catches HACS-breaking mistakes)
@@ -90,6 +98,7 @@ COMMON PITFALLS (so Claude doesn't repeat them):
 """
 
 import sys
+import atexit
 import re
 import html
 import json
@@ -152,6 +161,9 @@ STATIC_FILES = [
     # release.py used to skip it, so every release needed a second hand-made
     # "CHANGELOG: x.y.z" commit after the fact — or shipped without one.
     "CHANGELOG.md",
+    # One note per change, gathered into CHANGELOG.md by the release (and
+    # removed in the same commit): two sessions never edit the same lines.
+    "changelog.d",
     # The colo endpoints (version/telemetry/stats) live in the repo and are
     # deployed from it; a release must not leave the repo's copy behind.
     "server",
@@ -189,6 +201,205 @@ def run_ok(cmd, check=True):
 
 
 # ───────────────────────── Pre-flight checks ─────────────────────────
+
+# ── Two sessions at once ─────────────────────────────────────────────────────
+# 2026-10-28: two Claude sessions released the same day. One took 0.38.191
+# while the other had already numbered its work 0.38.191; both wrote at the top
+# of CHANGELOG.md and clashed; and a push failed because the other had pushed
+# meanwhile. So a release now (1) holds a lock every checkout on this computer
+# shares, (2) starts from origin/main, (3) takes the next free version if the
+# one asked for is taken, (4) gathers changelog.d/ notes into CHANGELOG.md, and
+# (5) merges what others pushed meanwhile and pushes again.
+
+LOCK_WAIT_S = 90 * 60        # a release takes ~15 min; wait up to 90 for another
+LOCK_POLL_S = 15
+NOTES_DIR = ROOT / "changelog.d"
+NOTE_SECTIONS = ("New", "Changed", "Fixed")   # the order a release's headings go in
+
+
+def _lock_path():
+    """In git's own directory, which every worktree of this repository shares
+    (a release run from a worktree has another ROOT, the same lock)."""
+    common = subprocess.run("git rev-parse --git-common-dir", shell=True, text=True,
+                            capture_output=True, cwd=ROOT).stdout.strip()
+    base = pathlib.Path(common) if common else ROOT / ".git"
+    if not base.is_absolute():
+        base = ROOT / base
+    return base / "padspan-release.lock"
+
+
+# The lock is the operating system's own (msvcrt on Windows, flock elsewhere)
+# on an open file: one process holds it at a time, and a release that dies
+# lets go with it, so there is no "is its process still alive" to get wrong.
+# (A lock that was only a file, created then written, let two releases in:
+# tests/test_release_two_sessions.py races four processes for it.) What the
+# file says (whose release, since when) is only for the message a waiting
+# release prints; the byte locked is far past it so it stays readable.
+_LOCK_BYTE = 1 << 20
+_HELD = {}
+
+
+def _try_lock(f):
+    try:
+        if os.name == "nt":
+            import msvcrt  # noqa: PLC0415
+            f.seek(_LOCK_BYTE)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl  # noqa: PLC0415
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
+def _unlock(f):
+    try:
+        if os.name == "nt":
+            import msvcrt  # noqa: PLC0415
+            f.seek(_LOCK_BYTE)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl  # noqa: PLC0415
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
+def _holder(path):
+    try:
+        return json.loads(pathlib.Path(path).read_text(encoding="utf-8").strip("\0 \n") or "{}")
+    except (OSError, ValueError):
+        return {}
+
+
+def acquire_release_lock(version, path=None, wait_s=LOCK_WAIT_S, poll_s=LOCK_POLL_S, now=time.time, sleep=time.sleep):
+    """Take the release lock, waiting while another release holds it.
+    Returns the lock's path; exits, nothing changed, if another release still
+    holds it after `wait_s`."""
+    path = pathlib.Path(path or _lock_path())
+    f = open(path, "a+", encoding="utf-8")
+    deadline = now() + wait_s
+    said = None
+    while not _try_lock(f):
+        held = _holder(path)
+        if now() >= deadline:
+            f.close()
+            print(f"  ERROR: another release ({held.get('version', '?')}, pid {held.get('pid', '?')}, started {held.get('started', '?')}) "
+                  f"still holds {path}. Nothing was changed.")
+            sys.exit(1)
+        if said != held.get("pid"):
+            print(f"  Another release is running ({held.get('version', '?')}, pid {held.get('pid', '?')}, started {held.get('started', '?')}): waiting for it.")
+            said = held.get("pid")
+        sleep(poll_s)
+    f.seek(0)
+    f.truncate()
+    f.write(json.dumps({"pid": os.getpid(), "version": version,
+                        "started": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")}))
+    f.flush()
+    _HELD[str(path)] = f
+    return path
+
+
+def release_release_lock(path):
+    """Let go of the lock, if this process holds it."""
+    f = _HELD.pop(str(path), None)
+    if f is None:
+        return
+    _unlock(f)
+    f.close()
+
+
+def _vkey(v):
+    return tuple(int(x) for x in re.findall(r"\d+", v))
+
+
+def next_free_version(version, taken):
+    """`version` if no tag has it, else the next patch number no tag has."""
+    taken = {t.lstrip("v") for t in taken}
+    parts = [int(x) for x in version.split(".")]
+    while ".".join(map(str, parts)) in taken:
+        parts[-1] += 1
+    return ".".join(map(str, parts))
+
+
+def _tags():
+    local = subprocess.run("git tag", shell=True, text=True, capture_output=True, cwd=ROOT).stdout.split()
+    remote = subprocess.run(f"git ls-remote --tags origin", shell=True, text=True, capture_output=True, cwd=ROOT).stdout
+    return set(local) | {ln.split("refs/tags/")[-1].replace("^{}", "") for ln in remote.splitlines() if "refs/tags/" in ln}
+
+
+def latest_tag_version(taken):
+    vs = [t.lstrip("v") for t in taken if re.fullmatch(r"v?\d+\.\d+\.\d+", t)]
+    return max(vs, key=_vkey) if vs else None
+
+
+def sync_with_origin():
+    """Start from what everyone has pushed: fetch, then fast-forward. A
+    checkout with work of its own not on origin stops here, unchanged."""
+    run_ok("git fetch --tags origin")
+    res = run("git pull --ff-only", check=False)
+    if res.returncode != 0:
+        print("  ERROR: this checkout can't fast-forward to origin/main (it has commits or changes of its own).\n"
+              "  Merge or commit them first; nothing was changed.")
+        sys.exit(1)
+
+
+def note_files(notes_dir=None):
+    d = pathlib.Path(notes_dir or NOTES_DIR)
+    return sorted(p for p in d.glob("*.md") if p.name.lower() != "readme.md") if d.is_dir() else []
+
+
+def changelog_from_notes(changelog, notes, version, date):
+    """CHANGELOG.md's text with one new "## version — title (date)" section on
+    top, made of `notes` [(text)]: each note is "# Its title" then "### New" /
+    "### Changed" / "### Fixed" (or any other heading) and its lines; lines
+    before any heading count as Changed. Titles join with "; "."""
+    titles, sections = [], {}
+    for text in notes:
+        head = "Changed"
+        for ln in text.splitlines():
+            if ln.startswith("# ") and not ln.startswith("## "):
+                titles.append(ln[2:].strip())
+            elif ln.startswith("### "):
+                head = ln[4:].strip()
+            elif ln.strip():
+                sections.setdefault(head, []).append(ln.rstrip())
+    if not titles or not any(sections.values()):
+        raise ValueError("each changelog.d note needs a '# title' line and at least one entry")
+    order = [h for h in NOTE_SECTIONS if h in sections] + [h for h in sections if h not in NOTE_SECTIONS]
+    body = "\n\n".join(f"### {h}\n" + "\n".join(sections[h]) for h in order)
+    entry = f"## {version} \u2014 {'; '.join(titles)} ({date})\n\n{body}\n\n---\n\n"
+    at = changelog.find("\n## ")
+    if at == -1:
+        return changelog.rstrip("\n") + "\n\n" + entry
+    return changelog[:at + 1] + entry + changelog[at + 1:]
+
+
+def gather_notes(version):
+    """changelog.d/*.md into CHANGELOG.md as this release's section, and the
+    notes removed (the release commit records both). None: no notes, and
+    CHANGELOG.md is used as it is."""
+    notes = note_files()
+    if not notes:
+        return None
+    path = ROOT / "CHANGELOG.md"
+    text = path.read_text(encoding="utf-8")
+    if _changelog_section(version):
+        print(f"  ERROR: CHANGELOG.md already has a {version} section and changelog.d/ has notes too: use one or the other.")
+        sys.exit(1)
+    date = datetime.date.today().isoformat()
+    try:
+        new = changelog_from_notes(text, [n.read_text(encoding="utf-8") for n in notes], version, date)
+    except ValueError as err:
+        print(f"  ERROR: {err}")
+        sys.exit(1)
+    path.write_text(new, encoding="utf-8", newline="\n")
+    for n in notes:
+        n.unlink()
+    print(f"  CHANGELOG.md: {version} made from {len(notes)} note(s): {', '.join(n.name for n in notes)}")
+    return len(notes)
+
 
 def preflight_checks():
     """
@@ -462,31 +673,44 @@ def git_commit_tag_push(version, tag, message=None):
         run_ok(f'git add --pathspec-from-file="{pathspec_file}"')
     finally:
         os.unlink(pathspec_file)
+    # The changelog.d notes gathered into CHANGELOG.md are gone: stage that too.
+    run(f'git add -A -- "{NOTES_DIR.relative_to(ROOT).as_posix()}"', check=False)
     commit_msg = message or f"release {tag}"
     # Escape double quotes in message for shell safety
     safe_msg = commit_msg.replace('"', '\\"')
     run_ok(f'git commit -m "{safe_msg}"')
     run_ok(f"git tag {tag}")
 
-    # Push with retry — GitHub occasionally returns HTTP 500
-    for attempt in range(3):
-        result = run(f"git push", check=False)
-        if result.returncode == 0:
+    push_release(tag)
+
+
+def push_release(tag, attempts=3, run_=None, sleep=time.sleep):
+    """Push the release commit, then its tag. A push refused because someone
+    pushed meanwhile merges theirs in (the tag stays on the release commit)
+    and pushes again; a merge that conflicts is undone and stops here, the
+    commit and tag kept locally to push by hand. GitHub's odd HTTP 500 is
+    retried as before."""
+    run_ = run_ or (lambda cmd: run(cmd, check=False))
+    for attempt in range(attempts):
+        if run_("git push").returncode == 0:
             break
-        print(f"    Push failed (attempt {attempt + 1}/3), retrying in 3s...")
-        time.sleep(3)
+        print(f"    Push failed (attempt {attempt + 1}/{attempts}): taking in what was pushed meanwhile...")
+        if run_("git pull --no-rebase --no-edit origin main").returncode != 0:
+            run_("git merge --abort")
+            print(f"  ERROR: what was pushed meanwhile conflicts with this release. {tag} is committed and tagged here,\n"
+                  "  not pushed: merge origin/main by hand, then git push and git push origin " + tag)
+            sys.exit(1)
+        sleep(3)
     else:
         print("  ERROR: git push failed after 3 attempts")
         sys.exit(1)
-
-    for attempt in range(3):
-        result = run(f"git push origin {tag}", check=False)
-        if result.returncode == 0:
+    for attempt in range(attempts):
+        if run_(f"git push origin {tag}").returncode == 0:
             break
-        print(f"    Tag push failed (attempt {attempt + 1}/3), retrying in 3s...")
-        time.sleep(3)
+        print(f"    Tag push failed (attempt {attempt + 1}/{attempts}), retrying in 3s...")
+        sleep(3)
     else:
-        print("  ERROR: git push origin {tag} failed after 3 attempts")
+        print(f"  ERROR: the release commit is pushed but the tag {tag} isn't: git push origin {tag}")
         sys.exit(1)
 
 
@@ -832,12 +1056,33 @@ def main():
         sys.exit(1)
 
     version = args[0].lstrip("v")
-    tag = f"v{version}"
     channel = "stable" if "--stable" in flags else "beta"
 
     if "--manifest-only" in flags:
         print(f"\n=== Manifest only: {version} ({channel}) ===\n")
         sys.exit(0 if publish_update_manifest(version, channel) else 3)
+
+    # One release at a time on this computer, from what everyone has pushed,
+    # under a version no one has taken ("next": the one after the newest tag).
+    print("Taking the release lock...")
+    lock = acquire_release_lock(version)
+    atexit.register(release_release_lock, lock)
+    print("\nStarting from origin/main...")
+    sync_with_origin()
+    taken = _tags()
+    if version == "next":
+        newest = latest_tag_version(taken)
+        if not newest:
+            print("  ERROR: no tags to count on from: give the version")
+            sys.exit(1)
+        version = next_free_version(newest, taken)
+        print(f"  next: {version}")
+    else:
+        free = next_free_version(version, taken)
+        if free != version:
+            print(f"  !! v{version} is already taken (another release): this one is v{free}.")
+            version = free
+    tag = f"v{version}"
     build_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
 
     print(f"\n=== PadSpan HA Release: {tag}  build: {build_id}  channel: {channel} ===\n")
@@ -847,6 +1092,10 @@ def main():
 
     print("\nRunning tests...")
     run_tests()
+
+    print("\nGathering changelog.d notes...")
+    if gather_notes(version) is None:
+        print("  none: CHANGELOG.md is used as it is")
 
     print("\nUpdating source files...")
     update_version_files(version, build_id, channel)

@@ -22,7 +22,11 @@ import warnings
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
-_SCANNED = (_ROOT / "custom_components" / "padspan_ha", _ROOT / "tests")
+# The derived Bright tree carries tests/ but not scripts/ or tools/, whose
+# tests skip there: its tests import names this can't place, so only the
+# integration is read there.
+_FULL_TREE = (_ROOT / "scripts").is_dir() and (_ROOT / "tools").is_dir()
+_SCANNED = (_ROOT / "custom_components" / "padspan_ha",) + ((_ROOT / "tests",) if _FULL_TREE else ())
 
 # Imported only inside code the suite never runs; Home Assistant always has them.
 HA_ONLY = {
@@ -90,6 +94,9 @@ def test_every_imported_package_is_declared() -> None:
 
 
 def test_the_lists_hold_nothing_stale() -> None:
+    if not _FULL_TREE:
+        import pytest  # noqa: PLC0415
+        pytest.skip("the Bright tree holds only part of the integration")
     imported = _imports()
     for name in HA_ONLY:
         assert name in imported, f"{name} is on HA_ONLY but nothing imports it any more"
