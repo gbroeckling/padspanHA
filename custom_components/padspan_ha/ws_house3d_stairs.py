@@ -235,12 +235,15 @@ def _bump(hass: HomeAssistant, event: str) -> None:
 @websocket_api.async_response
 @admin_if_enhanced_security
 async def ws_house3d_stairs_plans(hass: HomeAssistant, connection, msg) -> None:
-    """The placed floor plans there are to read: [{map_id, name, floor_id}]."""
+    """The placed floor plans there are to read: [{map_id, name, floor_id}],
+    and whether the AI Task runs on this home's own computer (local: True,
+    False, or None when unknown): a small local model reads plans less well."""
     ai = _refused(hass, connection, msg)
     if ai is None:
         return
     connection.send_result(msg["id"], {"plans": _plans(hass), "ai_ready": bool(ai.get("ready")),
-                                       "message": "" if ai.get("ready") else ai.get("message", "")})
+                                       "message": "" if ai.get("ready") else ai.get("message", ""),
+                                       "local": ai.get("local") if ai.get("ready") else None})
 
 
 @websocket_api.websocket_command({

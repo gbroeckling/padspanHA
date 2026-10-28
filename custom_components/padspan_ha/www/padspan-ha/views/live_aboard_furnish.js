@@ -740,7 +740,8 @@ export function createFurnish(ctx){
     if (moved) delete params.to_floor;
     q.recipe.params = params;
     const r = reachOf(q);
-    if (r.to) q.recipe.params.to_floor = r.to.id; else delete q.recipe.params.to_floor;
+    // Kept as a whole floor: a split level is drawn, never stored (stairReach finds it again).
+    if (r.to) q.recipe.params.to_floor = r.to.parent || r.to.id; else delete q.recipe.params.to_floor;
     q.recipe.height_m = r.rise;
     q.z_m = 0;
   }
@@ -798,11 +799,19 @@ export function createFurnish(ctx){
     pick("Rail", "rail", shape === "straight"
       ? [["auto", "Auto"], ["both", "Both"], ["inner", "Left"], ["outer", "Right"], ["none", "None"]]
       : [["auto", "Auto"], ["both", "Both"], ["inner", "Inside"], ["outer", "Outside"], ["none", "None"]], railNow);
-    const from = r.from ? r.from.elev : null, ups = floorList().filter(f => !f.outdoor && from !== null && f.elev > from + 0.05);
+    // Whole floors above, and with a split level on its own floor, a few
+    // steps within that floor (up out of a sunken room, or up to a raised one).
+    const from = r.from ? r.from.elev : null, fl = floorList(), whole = r.from ? (r.from.parent || r.from.id) : null;
+    const ups = fl.filter(f => !f.outdoor && !f.parent && from !== null && f.elev > from + 0.05)
+      .map(f => [f.id, f.id === whole ? `A few steps, on ${f.name}` : f.name]);
+    if (whole && !ups.some(([id]) => id === whole) && fl.some(f => f.parent === whole)) {
+      const W = fl.find(f => f.id === whole);
+      ups.unshift([whole, `A few steps, on ${(W && W.name) || whole}`]);
+    }
     if (ups.length > 1) {
       const sel2 = d("select", "la3d-fin");
-      for (const f of ups) { const o = d("option", null, f.name); o.value = f.id; sel2.appendChild(o); }
-      sel2.value = r.to ? r.to.id : ups[0].id;
+      for (const [id, text] of ups) { const o = d("option", null, text); o.value = id; sel2.appendChild(o); }
+      sel2.value = r.to ? (r.to.parent || r.to.id) : ups[0][0];
       sel2.addEventListener("change", guard(() => set({ to_floor: sel2.value })));
       el.appendChild(row("Up to", sel2));
     }
@@ -896,9 +905,11 @@ export function createFurnish(ctx){
         const recipe = { ...base, params: { ...(base.params || {}), shape: st.shape, style: "closed", rail: "auto" },
                          width_m: st.width_m, depth_m: st.depth_m };
         const piece = PIECES.makePiece(recipe, fid, { x: st.x_m, y: st.y_m, rotation: st.rotation }, "build");
-        piece.label = st.sure_up ? "Stairs (from the plan)" : "Stairs (from the plan, check which way is up)";
+        piece.label = st.sure_up ? "Stairs (AI first guess)" : "Stairs (AI first guess, check which way is up)";
         return { piece, square: true };
-      }), null, `The AI found ${placed.length} staircase${placed.length === 1 ? "" : "s"} on your plans: a first guess, so check where they stand and which way is up`);
+      }), null, `The AI found ${placed.length} staircase${placed.length === 1 ? "" : "s"} on your plans: a first guess, so check where they stand, their shape and which way is up` +
+        // Tested on real plans (0.38.189): a small local model finds most, but their shape and way up often wrong.
+        (pl && pl.local === true ? ". Your AI runs on your own computer: a small model like that finds most staircases but often gets their shape and which way is up wrong. A cloud AI Task (Settings → AI) reads plans better." : ""));
     } catch (e) {
       ctx.hint("Couldn't read the plans: " + String((e && (e.message || e.code)) || e), true);
     } finally { reading = false; }

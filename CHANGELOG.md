@@ -4,6 +4,20 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.191 — A few steps within a floor, and AI stair reads that say how sure they are (2026-10-28)
+
+### New
+- **A few steps within one floor.** Stairs used to always climb a whole floor. Now a short flight can stay on its own floor: up out of a sunken garage into the house, or up to a raised room beside it.
+  - Sink the garage (or raise the room) with **Split level…** in Mapping → Rooms. Then build the stairs in the sunken room and set **Up to** → **A few steps, on (that floor)**. A flight standing in a sunken room picks this by itself.
+  - It climbs exactly the difference, for example 3 risers for 0.55 m, and cuts no hole in any floor.
+- **AI stairs say how far to trust them.** Stairs read off your plans are labelled **AI first guess**. If your AI Task runs on your own computer, the message after a read says that a small local model finds most staircases but often gets their shape and which way is up wrong, and that a cloud AI Task reads plans better. Settings → AI says the same beside the switch.
+
+### Fixed
+- **Where a stair goes is stored as a whole floor.** In 0.38.190 the stair sheet could store a split level's own id for where a flight goes. It now stores the floor, and a flight saved that way is read as its floor.
+- **The stair sheet's "Up to" list shows whole floors only,** never a split level as if it were a floor of its own.
+
+---
+
 ## 0.38.190 — Split levels: a room higher or lower than the rest of its floor (2026-10-28)
 
 ### New
@@ -14,7 +28,7 @@ All notable changes to PadSpan HA are documented here.
   - If a floor above covers the room, its ceiling stays where it was. Otherwise the room keeps its full height and its roof rises over it.
   - Rooms raised by the same amount share one level. It shows, hides and spreads apart in Explode together with its floor, and gets no floor button of its own.
   - This is how home-design programs such as Chief Architect and Home Designer handle split levels: one room's floor raised, not an extra floor added. Home Assistant has no split levels, so your floors there stay as they are.
-- **Tested on a gigantic house:** 6 floors, 720 rooms, 144 of them raised or sunk, and 60 stairs. Every stair landed on the right level. Reading the house took 0.23 s, against 0.14 s with no split levels, and turning it stayed smooth.
+- **Tested on a gigantic house:** 6 floors, 720 rooms, 144 of them raised or sunk, and 60 stairs. Every stair landed on the right level. Reading the rooms took 0.23 s against 0.14 s with no split levels; working out its floors and roof took about 0.4 s either way; and turning it stayed smooth.
 - **Usage report (if you share it):** only from a house with a split level, how many rooms are raised and how many sunk. Never which rooms or by how much.
 
 ---

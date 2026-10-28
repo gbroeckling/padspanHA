@@ -4023,7 +4023,8 @@ function _settingsAI(ctx, el){
   feats.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
     "Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor " +
     "plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then " +
-    "drag, turn or delete it. The plans are sent to your AI only when you press it. Off until you turn it on.",
+    "drag, turn or delete it. A small AI on your own computer finds most staircases but often gets their shape and which " +
+    "way is up wrong; a cloud AI reads plans better. The plans are sent to your AI only when you press it. Off until you turn it on.",
     settings.ai_stairs_enabled === true, false));
   feats.appendChild(sw("", "Rooms and walls from a floor plan picture",
     "Traces the rooms and walls of a floor plan image for you, as a first guess to check before it is kept.", false, true));

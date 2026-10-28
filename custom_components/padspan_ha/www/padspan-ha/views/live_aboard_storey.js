@@ -557,7 +557,9 @@ function inPolygon(x, y, P){
 /** at: points of the flight's footprint (footprint()): reaching a floor with a
  *  split level (live_aboard_house.js splitLevels) over most of them, it
  *  reaches that level, and rises that much further. */
-export function stairReach(fromId, toId, floors, at = null){
+export function stairReach(fromId, toId0, floors, at = null){
+  // A split level's id ("upper~0.75", stored by 0.38.190's stair sheet) is its whole floor.
+  const toId = typeof toId0 === "string" && toId0.includes("~") ? toId0.slice(0, toId0.indexOf("~")) : toId0;
   // Its real elevation (elev0) where the floors carry one: Explode lifts the
   // storeys apart on screen, and a stair's rise must never take that in.
   const E = (f) => num(f.elev0) ?? num(f.elev);
@@ -570,11 +572,30 @@ export function stairReach(fromId, toId, floors, at = null){
   const lvlOf = (fl) => (pts && list.find(f => f.parent === fl.id && Array.isArray(f.areas) && pts.filter(p => inLvl(f, p)).length * 2 > pts.length)) || fl;
   // A flight standing in a raised (or sunken) room starts from that room's level.
   if (!from.parent) from = lvlOf(from);
+  const whole = from.parent || from.id;
+  // A few steps within one floor (to_floor its own floor): from the level it
+  // stands on to the one past its top step (live_aboard_furniture.js: the
+  // top is the footprint's far side, at[0]–at[1]), if that is higher: up
+  // from a sunken garage to the house, or up to a raised room beside it.
+  if (toId && String(toId) === String(whole) && pts) {
+    const c = pts[pts.length - 1], m = [(at[0][0] + at[1][0]) / 2, (at[0][1] + at[1][1]) / 2], L = Math.hypot(m[0] - c[0], m[1] - c[1]) || 1;
+    const own = list.find(f => String(f.id) === String(whole));
+    // A step past the top, then further (room outlines drawn by hand overlap a little), until it leaves the level it starts on.
+    let at2 = null;
+    for (const dd of [0.3, 0.6, 0.9]) {
+      const q = [m[0] + (m[0] - c[0]) * dd / L, m[1] + (m[1] - c[1]) * dd / L];
+      at2 = list.find(f => f.parent === whole && (f.areas || []).some(A => inPolygon(q[0], q[1], A))) || own;
+      if (at2 !== from) break;
+    }
+    if (at2 && E(at2) > E(from) + 0.05) {
+      return { from, to: at2, within: true, rise: Math.round(clamp(E(at2) - E(from), ...STAIR_RISE_M) * 1000) / 1000 };
+    }
+  }
   // The floor above is a whole floor, never one of its split levels on its own.
   const up = list.filter(f => !f.parent && E(f) > E(from) + 0.05);
-  const named = toId ? list.find(f => String(f.id) === String(toId) && E(f) > E(from) + 0.05) : null;
+  const named = toId ? list.find(f => !f.parent && String(f.id) === String(toId) && E(f) > E(from) + 0.05) : null;
   let to = named || up.slice().sort((a, b) => E(a) - E(b))[0] || null;
-  if (to && !to.parent) to = lvlOf(to);
+  if (to && !to.parent) { const L = lvlOf(to); if (E(L) > E(from) + 0.05) to = L; }
   const rise = to ? E(to) - E(from) : (num(from.h) ?? 2.8);
   return { from, to, rise: Math.round(clamp(rise, ...STAIR_RISE_M) * 1000) / 1000 };
 }
@@ -596,7 +617,8 @@ export function stairCuts(pieces, floors, canon = (x) => String(x)){
   for (const p of Object.values(pieces || {})) {
     if (!isStairs(p)) continue;
     const r = stairReach(canon(p.floor_id), p.recipe.params && p.recipe.params.to_floor, floors, footprint(p));
-    if (!r.to) continue;
+    // A few steps within one floor open nothing: no floor is over them.
+    if (!r.to || r.within || (r.from && (r.to.parent || r.to.id) === (r.from.parent || r.from.id))) continue;
     for (const fl of floors || []) {
       if (!fl || fl.outdoor || num(fl.elev) === null || Math.abs(fl.elev - r.to.elev) > 1e-3) continue;
       const list = out.get(fl.id) || [];

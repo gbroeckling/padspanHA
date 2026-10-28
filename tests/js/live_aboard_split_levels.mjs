@@ -138,6 +138,23 @@ await tryCase("stairs: a flight topping out in a raised room climbs into it and 
     { ra: [ra.to && ra.to.id, ra.rise], rb: [rb.to && rb.to.id, rb.rise], cuts: [...cuts.keys()] });
 });
 
+await tryCase("stairs: a few steps within a floor: up out of a sunken room, or up to a raised one, opening nothing", () => {
+  const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
+  // In the sunroom (0.4 m down), climbing west into the living room: rotation 270 puts its top on the -x side.
+  const garage = stair("g", "main", 6.6, 2.5, 1, 0.9, 270, "main");
+  // In Upper's hall, climbing east into the office (0.75 m up): rotation 90.
+  const loft = stair("l", "upper", 3.4, 2.5, 1, 1.2, 90, "upper");
+  const rg = S.stairReach("main", "main", h.floors, S.footprint(garage)), rl = S.stairReach("upper", "upper", h.floors, S.footprint(loft));
+  const cuts = S.stairCuts({ g: garage, l: loft }, h.floors, h.canon);
+  // An id 0.38.190 could store for where a stair goes: read as its whole floor.
+  const old = S.stairReach("main", "upper~0.75", h.floors, S.footprint(stair("a", "main", 5.5, 2.5, 1, 3, 0, "upper")));
+  check("stairs: a few steps within a floor: up out of a sunken room, or up to a raised one, opening nothing",
+    rg.within && rg.from.id === "main~-0.4" && rg.to.id === "main" && near(rg.rise, 0.4, 1e-3)
+    && rl.within && rl.from.id === "upper" && rl.to.id === "upper~0.75" && near(rl.rise, 0.75, 1e-3)
+    && cuts.size === 0 && old.to && old.to.id === "upper~0.75" && near(old.rise, 3.55, 1e-3),
+    { rg: [rg.from && rg.from.id, rg.to && rg.to.id, rg.rise], rl: [rl.from && rl.from.id, rl.to && rl.to.id, rl.rise], cuts: [...cuts.keys()], old: old.to && old.to.id });
+});
+
 // ── stem ────────────────────────────────────────────────────────────────────
 await tryCase("stem: a raised level stands on a wall down to its floor; a sunken one does not", () => {
   const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});

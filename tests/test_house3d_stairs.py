@@ -107,7 +107,9 @@ def test_the_plans_to_read_are_the_placed_ones(monkeypatch, tmp_path, disk):
     conn.send_result.reset_mock()
     _run(S.ws_house3d_stairs_plans(h, conn, {"id": 3, "type": "padspan_ha/house3d_stairs_plans"}))
     out = conn.send_result.call_args[0][1]
-    assert out == {"plans": [{"map_id": "m1", "name": "Main", "floor_id": "main"}], "ai_ready": True, "message": ""}
+    assert out["plans"] == [{"map_id": "m1", "name": "Main", "floor_id": "main"}] and out["ai_ready"] is True and out["message"] == ""
+    # Whether the AI runs here (the Furnish message says a small local model reads plans less well).
+    assert out["local"] in (True, False, None)
 
 
 def test_the_gates(monkeypatch, tmp_path, disk):
