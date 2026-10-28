@@ -1,0 +1,223 @@
+// PadSpan HA — BLE Room-Presence Tracking for Home Assistant
+// Copyright (C) 2026 Garry Broeckling
+// Licensed under the GNU General Public License v3.0
+//
+// Live Aboard's split levels (live_aboard_house.js splitLevels, 0.38.190):
+// a room whose floor is raised (or sunk) from the rest of its floor, run for
+// real under node.
+//
+//   split    rooms raised alike share one level; what is placed in them moves
+//            onto it; the ceiling stays level under a higher floor; a sunken
+//            room; a model with none comes back as it was
+//   floors   the level shows with its floor (its chip), knows its rooms, and
+//            things standing in it are on it; Explode keeps it with its floor
+//   stairs   a flight whose top is in a raised room climbs into it and cuts
+//            its opening there
+//   stem     a raised level stands on a wall down to its floor
+//   big      a gigantic house: many floors, rooms, split levels and stairs,
+//            read in good time, one storey per floor (not one per raised
+//            room), and every stair reaching the right level
+//
+// usage: live_aboard_split_levels.mjs <www/padspan-ha dir>
+// prints one JSON line: { cases: {name: result}, failures: [...], timing }
+
+import { pathToFileURL } from "node:url";
+import { join } from "node:path";
+
+const WWW = process.argv[2];
+if (!WWW) { console.error("usage: live_aboard_split_levels.mjs <www/padspan-ha dir>"); process.exit(2); }
+const S = await import(pathToFileURL(join(WWW, "views", "live_aboard_storey.js")).href);
+const H = await import(pathToFileURL(join(WWW, "views", "live_aboard_house.js")).href);
+
+const failures = [];
+const cases = {};
+const timing = {};
+const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push({ name, detail: detail === undefined ? null : detail }); };
+const tryCase = async (name, fn) => {
+  try { await fn(); } catch (e) { failures.push({ name, detail: String(e && e.stack || e).slice(0, 900) }); cases[name] = false; }
+};
+const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
+const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
+const stair = (id, floor_id, x, y, w, d, rot, to) => ({ id, floor_id, x_m: x, y_m: y, rotation: rot,
+  recipe: { kind: "stairs", width_m: w, depth_m: d, height_m: 2.8, params: { shape: "straight", to_floor: to } } });
+
+// A house: Main at 0 (2.8 high), Upper at 2.8. Upstairs a hall, and an office
+// and a den beside each other, both 0.75 m up. Downstairs a living room under
+// the hall, and a step-down sunroom with nothing over it.
+const house = () => ({
+  floors: [{ id: "main", name: "Main", floor_to_floor_m: 2.8 }, { id: "upper", name: "Upper", floor_to_floor_m: 2.6 }],
+  floor_elevations: { main: 0, upper: 2.8 },
+  room_geometry_m: {
+    Living: rect("main", 0, 0, 6, 5), Sun: rect("main", 6, 0, 10, 5),
+    Hall: rect("upper", 0, 0, 4, 5), Office: rect("upper", 4, 0, 7, 5), Den: rect("upper", 7, 0, 10, 5),
+  },
+  room_meta: { Office: { floor_id: "upper", color: "#7c3aed", floor_raise_m: 0.75 }, Den: { floor_id: "upper", color: "#111111", floor_raise_m: 0.75 },
+               Sun: { floor_id: "main", color: "#222222", floor_raise_m: -0.4 } },
+  light_positions_m: { "light.office": { floor_id: "upper", x_m: 5, y_m: 2 }, "light.hall": { floor_id: "upper", x_m: 2, y_m: 2 },
+                       "light.sun": { floor_id: "main", x_m: 8, y_m: 2 } },
+  scanner_positions_m: { den: { floor_id: "upper", x_m: 8.5, y_m: 4 } },
+});
+
+// ── split ───────────────────────────────────────────────────────────────────
+await tryCase("split: rooms raised alike share one level, and what is in them moves onto it", () => {
+  const m = H.splitLevels(house());
+  const up = m.floors.filter(f => f.parent_id === "upper");
+  check("split: rooms raised alike share one level, and what is in them moves onto it",
+    up.length === 1 && up[0].id === "upper~0.75" && near(m.floor_elevations["upper~0.75"], 3.55)
+    && m.room_geometry_m.Office.floor_id === "upper~0.75" && m.room_geometry_m.Den.floor_id === "upper~0.75"
+    && m.room_geometry_m.Hall.floor_id === "upper"
+    && m.light_positions_m["light.office"].floor_id === "upper~0.75" && m.light_positions_m["light.hall"].floor_id === "upper"
+    && m.scanner_positions_m.den.floor_id === "upper~0.75", { up, geo: m.room_geometry_m, lights: m.light_positions_m });
+});
+await tryCase("split: a ceiling stays level under a higher floor, and keeps its height under none", () => {
+  const m = H.splitLevels(house());
+  const office = m.floors.find(f => f.id === "upper~0.75"), sun = m.floors.find(f => f.id === "main~-0.4");
+  // Nothing over Upper's office: its own full height. The den upstairs over the
+  // sunroom: its ceiling stays put (0.4 m taller). With nothing over it, its own.
+  const open = house(); delete open.room_geometry_m.Den; delete open.room_meta.Den;
+  open.room_geometry_m.Office = rect("upper", 4, 0, 5.5, 5);
+  const sun2 = H.splitLevels(open).floors.find(f => f.id === "main~-0.4");
+  check("split: a ceiling stays level under a higher floor, and keeps its height under none",
+    near(office.floor_to_floor_m, 2.6) && near(sun.floor_to_floor_m, 3.2) && near(sun2.floor_to_floor_m, 2.8)
+    && near(m.floor_elevations["main~-0.4"], -0.4), { office, sun, sun2 });
+});
+await tryCase("split: a step-down room sits lower and stands on nothing", () => {
+  const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
+  const sun = h.byId.get("main~-0.4");
+  check("split: a step-down room sits lower and stands on nothing",
+    sun && near(sun.elev0, -0.4) && sun.stem === 0 && sun.parent === "main" && h.rooms.find(r => r.name === "Sun").floor === sun, sun);
+});
+await tryCase("split: a model with no raised room comes back as it was", () => {
+  const plain = house(); plain.room_meta = { Office: { floor_id: "upper", color: "#7c3aed" } };
+  const tiny = house(); tiny.room_meta = { Office: { floor_id: "upper", color: "#7c3aed", floor_raise_m: 0.02 } };
+  const unplaced = house(); delete unplaced.floor_elevations; unplaced.floors = unplaced.floors.map(f => ({ ...f }));
+  const m3 = H.splitLevels(unplaced);
+  check("split: a model with no raised room comes back as it was",
+    H.splitLevels(plain) === plain && H.splitLevels(tiny) === tiny && H.splitLevels(null) === null
+    && m3 === unplaced, { m3floors: m3 && m3.floors });
+});
+
+// ── floors ──────────────────────────────────────────────────────────────────
+await tryCase("floors: the level shows with its floor, knows its rooms, and holds what stands in it", () => {
+  const m = H.splitLevels(house());
+  const F = H.readFloors(m, house().floors);
+  const lvl = F.byId.get("upper~0.75"), upper = F.byId.get("upper");
+  const top = H.topFloorElev(F.floors, ["upper"]), main = H.topFloorElev(F.floors, ["main"]);
+  check("floors: the level shows with its floor, knows its rooms, and holds what stands in it",
+    lvl && near(lvl.elev, 3.55) && near(lvl.chipElev, upper.elev) && lvl.areas.length === 2 && near(lvl.stem, 0.75)
+    && H.floorShown(lvl, top) && !H.floorShown(lvl, main)
+    && F.canonAt("upper", 5, 2) === "upper~0.75" && F.canonAt("upper", 8, 2) === "upper~0.75"
+    && F.canonAt("upper", 2, 2) === "upper" && F.canonAt("upper", null, null) === "upper" && F.canonAt("main", 5, 2) === "main",
+    { lvl, top, main });
+});
+await tryCase("floors: Explode lifts a level with its floor, not as a storey of its own", () => {
+  const F = H.readFloors(H.splitLevels(house()), house().floors, 2);
+  const g = (id) => F.byId.get(id);
+  check("floors: Explode lifts a level with its floor, not as a storey of its own",
+    near(g("main").elev, 0) && near(g("upper").elev, 4.8) && near(g("upper~0.75").elev, 5.55) && near(g("upper~0.75").chipElev, 4.8)
+    && near(g("main~-0.4").elev, -0.4) && near(g("upper~0.75").elev0, 3.55),
+    F.floors.map(f => [f.id, f.elev, f.chipElev]));
+});
+
+// ── stairs ──────────────────────────────────────────────────────────────────
+await tryCase("stairs: a flight topping out in a raised room climbs into it and cuts its opening there", () => {
+  const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
+  const pieces = { a: stair("a", "main", 5.5, 2.5, 1, 3, 0, "upper"), b: stair("b", "main", 2, 2.5, 1, 3, 0, "upper") };
+  const ra = S.stairReach("main", "upper", h.floors, S.footprint(pieces.a)), rb = S.stairReach("main", "upper", h.floors, S.footprint(pieces.b));
+  const cuts = S.stairCuts(pieces, h.floors, h.canon);
+  // Standing in the sunken sunroom, to Upper's den (raised): 0.4 + 2.8 + 0.75.
+  const rc = S.stairReach("main", "upper", h.floors, S.footprint(stair("c", "main", 8.5, 2.5, 1, 3, 0, "upper")));
+  // No floor named: the next whole floor up, never the next split level.
+  const rd = S.stairReach("main", null, h.floors, S.footprint(pieces.b));
+  check("stairs: a flight standing in a sunken room starts from it; with none named, the next whole floor",
+    rc.from.id === "main~-0.4" && rc.to.id === "upper~0.75" && near(rc.rise, 3.95, 1e-3) && rd.to.id === "upper",
+    { rc: [rc.from.id, rc.to && rc.to.id, rc.rise], rd: rd.to && rd.to.id });
+  check("stairs: a flight topping out in a raised room climbs into it and cuts its opening there",
+    ra.to && ra.to.id === "upper~0.75" && near(ra.rise, 3.55, 1e-3) && rb.to && rb.to.id === "upper" && near(rb.rise, 2.8, 1e-3)
+    && (cuts.get("upper~0.75") || []).length === 1 && (cuts.get("upper") || []).length === 1,
+    { ra: [ra.to && ra.to.id, ra.rise], rb: [rb.to && rb.to.id, rb.rise], cuts: [...cuts.keys()] });
+});
+
+// ── stem ────────────────────────────────────────────────────────────────────
+await tryCase("stem: a raised level stands on a wall down to its floor; a sunken one does not", () => {
+  const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
+  const lvl = h.byId.get("upper~0.75"), sun = h.byId.get("main~-0.4");
+  const pcs = h.perFloor.get(lvl).pieces.filter(pc => pc.kind !== "rail");
+  const stems = pcs.map(pc => H.wallElements(pc, lvl.h).filter(e => near(e.z0, -H.SLAB_T - 0.75) && near(e.z1, -H.SLAB_T)).length);
+  const sunStem = h.perFloor.get(sun).pieces.some(pc => pc.stem > 0);
+  const hallStem = h.perFloor.get(h.byId.get("upper")).pieces.some(pc => pc.stem > 0);
+  check("stem: a raised level stands on a wall down to its floor; a sunken one does not",
+    pcs.length > 0 && stems.every(n => n === 1) && !sunStem && !hallStem, { n: pcs.length, stems, sunStem, hallStem });
+});
+
+await tryCase("stem: the storey's floor is open over a sunken room, and a raised room is roofed at its own top", () => {
+  const top = house(); top.room_geometry_m = { Living: rect("main", 0, 0, 6, 5), Sun: rect("main", 6, 0, 10, 5), Loft: rect("main", 10, 0, 13, 5) };
+  top.room_meta = { Sun: { floor_id: "main", color: "#222222", floor_raise_m: -0.4 }, Loft: { floor_id: "main", color: "#333333", floor_raise_m: 0.6 } };
+  top.floors = [top.floors[0]]; top.floor_elevations = { main: 0 }; top.light_positions_m = {}; top.scanner_positions_m = {};
+  const h = H.readHouse(H.splitLevels(top), null, {}, new Set(), {});
+  const hm = S.houseModel(h), st = hm.storeys[0];
+  const inFloor = (x, y) => st.shapes.some(sh => S.inside(x, y, sh.outer) && !sh.holes.some(q => S.inside(x, y, q)));
+  check("stem: the storey's floor is open over a sunken room, and a raised room is roofed at its own top",
+    hm.storeys.length === 1 && inFloor(3, 2.5) && !inFloor(8, 2.5) && near(st.reach, 0.6 + 2.8),
+    { n: hm.storeys.length, reach: st.reach, tiers: st.tiers.map(t => t.top) });
+});
+
+// ── big ─────────────────────────────────────────────────────────────────────
+// A gigantic house: 6 floors of 12 × 10 rooms (720 rooms, 3 m squares), a
+// light in each, every fifth room raised or sunk (one of 4 amounts), and 60
+// stairs, each topping out in a room whose level is known.
+const gigantic = (withRaise) => {
+  const floors = [], elev = {}, geo = {}, meta = {}, lights = {}, pieces = {}, want = {};
+  const amounts = [0.45, 0.75, -0.3, 1.2];
+  for (let k = 0; k < 6; k++) {
+    const fid = `f${k}`;
+    floors.push({ id: fid, name: `Floor ${k}`, floor_to_floor_m: 3 });
+    elev[fid] = 3 * k;
+    for (let i = 0; i < 12; i++) for (let j = 0; j < 10; j++) {
+      const n = `R${k}_${i}_${j}`, x = i * 3, y = j * 3;
+      geo[n] = rect(fid, x, y, x + 3, y + 3);
+      lights[`light.${n}`] = { floor_id: fid, x_m: x + 1.5, y_m: y + 1.5 };
+      const a = amounts[(i + j + k) % 4];
+      if (withRaise && (i * 10 + j) % 5 === 0) meta[n] = { floor_id: fid, color: "#335577", floor_raise_m: a };
+    }
+  }
+  // Stairs from floor k to k+1, a 1 × 2.4 m flight inside room (i, j) of the floor above.
+  for (let s = 0; s < 60; s++) {
+    const k = s % 5, i = (s * 7) % 12, j = (s * 3) % 10, top = `R${k + 1}_${i}_${j}`;
+    pieces[`st${s}`] = stair(`st${s}`, `f${k}`, i * 3 + 1.5, j * 3 + 1.5, 1, 2.4, 0, `f${k + 1}`);
+    const r = meta[top] ? meta[top].floor_raise_m : 0;
+    // It starts in room (i, j) of floor k: raised too, it starts that much higher.
+    const r0 = meta[`R${k}_${i}_${j}`] ? meta[`R${k}_${i}_${j}`].floor_raise_m : 0;
+    want[`st${s}`] = { to: r ? `f${k + 1}~${r}` : `f${k + 1}`, rise: 3 + r - r0 };
+  }
+  return { model: { floors, floor_elevations: elev, room_geometry_m: geo, room_meta: meta, light_positions_m: lights }, pieces, want };
+};
+await tryCase("big: a gigantic house with split levels reads in good time, every stair to the right level", () => {
+  const time = (fn, n = 3) => { let best = Infinity, out; for (let i = 0; i < n; i++) { const t = performance.now(); out = fn(); best = Math.min(best, performance.now() - t); } return [best, out]; };
+  const plain = gigantic(false), split = gigantic(true);
+  const [tPlain] = time(() => H.readHouse(H.splitLevels(plain.model), plain.model.floors, {}, new Set(), {}));
+  const [tSplit, h] = time(() => H.readHouse(H.splitLevels(split.model), split.model.floors, {}, new Set(), {}));
+  const [tCuts, cuts] = time(() => S.stairCuts(split.pieces, h.floors, h.canon));
+  // One storey (one floor, one roof) per whole floor, never one per raised room.
+  const [tModel, hm] = time(() => S.houseModel(h, cuts), 1);
+  const [tModel0] = time(() => S.houseModel(H.readHouse(plain.model, plain.model.floors, {}, new Set(), {})), 1);
+  const levels = h.floors.filter(f => f.parent).length;
+  const wrong = Object.entries(split.pieces).map(([k, p]) => {
+    const r = S.stairReach(h.canon(p.floor_id), p.recipe.params.to_floor, h.floors, S.footprint(p));
+    return [k, r.to && r.to.id, r.rise, split.want[k]];
+  }).filter(([, to, rise, w]) => to !== w.to || !near(rise, w.rise, 1e-3));
+  const m = H.splitLevels(split.model);
+  const lightsOff = Object.entries(m.light_positions_m).filter(([eid, lp]) => {
+    const n = eid.slice(6), r = split.model.room_meta[n];
+    return lp.floor_id !== (r ? `${split.model.room_geometry_m[n].floor_id}~${r.floor_raise_m}` : split.model.room_geometry_m[n].floor_id);
+  }).length;
+  Object.assign(timing, { rooms: Object.keys(split.model.room_geometry_m).length, raised: Object.keys(split.model.room_meta).length,
+                          levels, plain_ms: Math.round(tPlain), split_ms: Math.round(tSplit), cuts_ms: Math.round(tCuts),
+                          shell_plain_ms: Math.round(tModel0), shell_split_ms: Math.round(tModel), storeys: hm.storeys.length });
+  check("big: a gigantic house with split levels reads in good time, every stair to the right level",
+    levels === 24 && hm.storeys.length === 6 && tModel < Math.max(3000, tModel0 * 2) && wrong.length === 0 && lightsOff === 0 && cuts.size > 0
+    && tSplit < Math.max(4000, tPlain * 3) && tCuts < 500, { timing, wrong: wrong.slice(0, 5), lightsOff });
+});
+
+console.log(JSON.stringify({ cases, failures, timing }));
+process.exit(0);

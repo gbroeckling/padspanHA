@@ -237,7 +237,9 @@ def test_a_room_raised_above_its_floor_is_kept_beside_its_height_and_cleared_by_
     out = _call(h, {"room": "Kitchen", "height_m": 2.6})
     assert out["height_m"] == 2.6 and mdl.room_meta()["Kitchen"]["floor_raise_m"] == 0.75, "a height leaves the raise alone"
     assert _call(h, {"room": "Kitchen", "floor_raise_m": 9})["floor_raise_m"] == 3.0
-    assert _call(h, {"room": "Kitchen", "floor_raise_m": 0.01})["floor_raise_m"] is None, "under 5 cm is level"
+    assert _call(h, {"room": "Kitchen", "floor_raise_m": -0.45})["floor_raise_m"] == -0.45, "a step-down room"
+    assert _call(h, {"room": "Kitchen", "floor_raise_m": -4})["floor_raise_m"] == -1.5
+    assert _call(h, {"room": "Kitchen", "floor_raise_m": -0.01})["floor_raise_m"] is None, "under 5 cm is level"
     assert "floor_raise_m" not in mdl.room_meta()["Kitchen"]
 
 

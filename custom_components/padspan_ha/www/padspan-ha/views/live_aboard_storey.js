@@ -301,9 +301,13 @@ export function shapesOf(loops){
  *  where one is set, else its floor's)}. */
 export function storeysOf(h){
   const out = [];
-  for (const fl of (h && h.floors) || []) {
-    if (fl.outdoor) continue;
-    let s = out.find(q => Math.abs(q.elev - fl.elev) <= 1e-3);
+  // A split level (live_aboard_house.js splitLevels) is part of its floor's
+  // storey: one floor and one roof, not one per raised room. Whole floors first.
+  const fls = ((h && h.floors) || []).filter(fl => !fl.outdoor);
+  for (const fl of [...fls.filter(f => !f.parent), ...fls.filter(f => f.parent)]) {
+    let s = fl.parent ? out.find(q => q.floors.some(f => f.id === fl.parent)) : null;
+    if (s) { s.floors.push(fl); continue; }
+    s = out.find(q => Math.abs(q.elev - fl.elev) <= 1e-3);
     if (!s) out.push(s = { elev: fl.elev, h: fl.h, floors: [], rooms: [] });
     s.floors.push(fl);
     s.h = Math.max(s.h, fl.h);
@@ -332,10 +336,12 @@ export function houseModel(h, cuts = null){
   const tops = st.map((s, k) => {
     const T = new Float64Array(g.nx * g.ny), A = filled[k];
     for (let i = 0; i < A.length; i++) if (A[i]) T[i] = s.elev + s.h;
-    const own = s.rooms.filter(r => num(r.h) !== null && r.floor && r.h !== r.floor.h);
+    // A room on a split level: its level's floor plus its height.
+    const own = s.rooms.filter(r => r.floor && ((num(r.h) !== null && r.h !== r.floor.h) || r.floor.parent));
     if (own.length) {
       const T2 = new Float64Array(T.length).fill(-Infinity);
-      for (const r of own) { const R = raster(g, [r], null); for (let i = 0; i < R.length; i++) if (R[i] && A[i]) T2[i] = Math.max(T2[i], s.elev + r.h); }
+      const top = (r) => (r.floor.parent ? r.floor.elev : s.elev) + (num(r.h) ?? r.floor.h);
+      for (const r of own) { const R = raster(g, [r], null); for (let i = 0; i < R.length; i++) if (R[i] && A[i]) T2[i] = Math.max(T2[i], top(r)); }
       for (let i = 0; i < T.length; i++) if (T2[i] > -Infinity) T[i] = T2[i];
     }
     return T;
@@ -344,7 +350,9 @@ export function houseModel(h, cuts = null){
   const roofed = new Uint8Array(g.nx * g.ny), out = new Array(st.length);
   for (let k = st.length - 1; k >= 0; k--) {
     const s = st[k];
-    const holes = s.floors.flatMap(fl => (cuts && cuts.get(fl.id)) || []);
+    // A sunken room's floor is below the storey's: the storey's floor is open over it.
+    const holes = s.floors.flatMap(fl => (cuts && cuts.get(fl.id)) || [])
+      .concat(s.rooms.filter(r => r.floor.parent && r.floor.elev < s.elev - 1e-3).map(r => r.pts));
     const floorCells = holes.length ? (() => { const A = filled[k].slice(), cut = raster(g, holes.map(C => ({ pts: C })), null); for (let i = 0; i < A.length; i++) if (cut[i]) A[i] = 0; return A; })() : filled[k];
     // The roof: where no storey is above this one. Every bit of it is under
     // a roof — a hipped part, a higher storey's eaves, or where neither
@@ -554,17 +562,19 @@ export function stairReach(fromId, toId, floors, at = null){
   // storeys apart on screen, and a stair's rise must never take that in.
   const E = (f) => num(f.elev0) ?? num(f.elev);
   const list = (floors || []).filter(f => f && !f.outdoor && E(f) !== null);
-  const from = list.find(f => String(f.id) === String(fromId)) || null;
+  let from = list.find(f => String(f.id) === String(fromId)) || null;
   if (!from) return { from: null, to: null, rise: clamp(2.8, ...STAIR_RISE_M) };
-  const up = list.filter(f => E(f) > E(from) + 0.05);
-  const named = toId ? up.find(f => String(f.id) === String(toId)) : null;
+  const pts = Array.isArray(at) && at.length
+    ? [...at, [at.reduce((s, p) => s + p[0], 0) / at.length, at.reduce((s, p) => s + p[1], 0) / at.length]] : null;
+  const inLvl = (f, p) => (f.areas || []).some(A => inPolygon(p[0], p[1], A));
+  const lvlOf = (fl) => (pts && list.find(f => f.parent === fl.id && Array.isArray(f.areas) && pts.filter(p => inLvl(f, p)).length * 2 > pts.length)) || fl;
+  // A flight standing in a raised (or sunken) room starts from that room's level.
+  if (!from.parent) from = lvlOf(from);
+  // The floor above is a whole floor, never one of its split levels on its own.
+  const up = list.filter(f => !f.parent && E(f) > E(from) + 0.05);
+  const named = toId ? list.find(f => String(f.id) === String(toId) && E(f) > E(from) + 0.05) : null;
   let to = named || up.slice().sort((a, b) => E(a) - E(b))[0] || null;
-  if (to && Array.isArray(at) && at.length) {
-    const pts = [...at, [at.reduce((s, p) => s + p[0], 0) / at.length, at.reduce((s, p) => s + p[1], 0) / at.length]];
-    const inLvl = (f, p) => (f.areas || []).some(A => inPolygon(p[0], p[1], A));
-    const lvl = list.find(f => f.parent === to.id && Array.isArray(f.areas) && pts.filter(p => inLvl(f, p)).length * 2 > pts.length);
-    if (lvl) to = lvl;
-  }
+  if (to && !to.parent) to = lvlOf(to);
   const rise = to ? E(to) - E(from) : (num(from.h) ?? 2.8);
   return { from, to, rise: Math.round(clamp(rise, ...STAIR_RISE_M) * 1000) / 1000 };
 }

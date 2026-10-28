@@ -11855,24 +11855,26 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           } catch (err) { ctx.toast("Height not saved: " + (err.message || err), true); }
         } }, "Set height"));
         // A split level (Live Aboard, 0.38.190): this room's floor higher than
-        // its floor's, for a house whose upstairs is not one level. Most houses
+        // its floor's, for a house whose upstairs is not one level (or lower:
+        // a step-down living room). Most houses
         // never need it, so it stays behind a quiet link until it is used.
         const curR = ctx.state.model?.room_meta?.[only]?.floor_raise_m;
-        const rIn = el("input", { type: "number", min: "0", max: "3", step: "0.05", value: curR != null ? String(curR) : "", placeholder: "0",
-          title: "For a split level: how far this room's floor sits above the rest of its floor (an office up a longer flight than the bedrooms beside it). Live Aboard draws the room that much higher, and stairs reaching it climb that much further. Blank or 0: level with its floor.",
+        const rIn = el("input", { type: "number", min: "-1.5", max: "3", step: "0.05", value: curR != null ? String(curR) : "", placeholder: "0",
+          title: "For a split level: how far this room's floor sits above the rest of its floor (an office up a longer flight than the bedrooms beside it), or below it with a minus (a step-down living room). Live Aboard draws the room that much higher or lower, and stairs reaching it climb that much further. Blank or 0: level with its floor.",
           style: "width:72px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 6px" });
         const rSet = el("button", { class: "btn inline", onclick: async () => {
           const raw = String(rIn.value || "").trim(), v = raw === "" ? null : parseFloat(raw);
-          if (v !== null && !(isFinite(v) && v >= 0 && v <= 3)) { ctx.toast("Enter how far up in metres (0 to 3), or leave it blank", true); return; }
+          if (v !== null && !(isFinite(v) && v >= -1.5 && v <= 3)) { ctx.toast("Enter how far up in metres (up to 3, or down to -1.5), or leave it blank", true); return; }
+          const off = v !== null && Math.abs(v) >= 0.05;
           try {
-            await ctx.actions.wsCall("padspan_ha/room_height_set", { room: only, floor_raise_m: v && v >= 0.05 ? v : null });
-            ctx.toast(v && v >= 0.05 ? `"${only}" sits ${v} m above the rest of its floor` : `"${only}" is level with its floor`);
+            await ctx.actions.wsCall("padspan_ha/room_height_set", { room: only, floor_raise_m: off ? v : null });
+            ctx.toast(off ? `"${only}" sits ${Math.abs(v)} m ${v > 0 ? "above" : "below"} the rest of its floor` : `"${only}" is level with its floor`);
             await ctx.actions.modelRefresh();
             ctx.actions.renderRooms();
           } catch (err) { ctx.toast("Not saved: " + (err.message || err), true); }
         } }, "Set");
-        const rRow = el("label", { style: `display:${curR ? "flex" : "none"};gap:6px;align-items:center;color:#94a3b8` }, ["Floor raised by (m)", rIn, rSet]);
-        const rLink = el("button", { class: "btn inline", title: "Only for a split-level house: this room's floor higher than the rest of its floor",
+        const rRow = el("label", { style: `display:${curR ? "flex" : "none"};gap:6px;align-items:center;color:#94a3b8` }, ["Floor up (+) or down (−), m", rIn, rSet]);
+        const rLink = el("button", { class: "btn inline", title: "Only for a split-level house: this room's floor higher or lower than the rest of its floor",
           style: `display:${curR ? "none" : ""};background:none;border:none;color:#64748b;font-size:11px;padding:2px 4px;text-decoration:underline`,
           onclick: () => { rRow.style.display = "flex"; rLink.style.display = "none"; } }, "Split level…");
         tools.appendChild(rLink);
