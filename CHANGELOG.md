@@ -4,6 +4,21 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.190 — Split levels: a room higher or lower than the rest of its floor (2026-10-28)
+
+### New
+- **Split levels.** In a split-level house one floor isn't one height. An office can sit up a longer flight than the bedrooms beside it, or a living room a few steps down. Now you can say so per room. Most houses never need it, so it stays out of the way:
+  - In **Mapping → Rooms**, pick a room. Under **Set height** there's a small **Split level…** link. Enter how far the room's floor sits above the rest of its floor (up to 3 m), or below it with a minus (down to 1.5 m).
+  - Live Aboard draws the room at that height, standing on a short wall down to its floor. Lights, scanners and sensors placed in it move with it.
+  - Stairs reaching a raised room climb the extra height and open into its floor. A flight that starts in a raised or sunken room starts from that room's floor.
+  - If a floor above covers the room, its ceiling stays where it was. Otherwise the room keeps its full height and its roof rises over it.
+  - Rooms raised by the same amount share one level. It shows, hides and spreads apart in Explode together with its floor, and gets no floor button of its own.
+  - This is how home-design programs such as Chief Architect and Home Designer handle split levels: one room's floor raised, not an extra floor added. Home Assistant has no split levels, so your floors there stay as they are.
+- **Tested on a gigantic house:** 6 floors, 720 rooms, 144 of them raised or sunk, and 60 stairs. Every stair landed on the right level. Reading the house took 0.23 s, against 0.14 s with no split levels, and turning it stayed smooth.
+- **Usage report (if you share it):** only from a house with a split level, how many rooms are raised and how many sunk. Never which rooms or by how much.
+
+---
+
 ## 0.38.189 — The AI features, tuned on a real model (2026-10-27)
 
 ### Changed

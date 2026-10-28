@@ -775,6 +775,13 @@ def test_a_configured_house_says_that_instead():
     assert p["env"]["floors_with_height"] == 2
     assert p["env"]["rooms_with_height"] == 1
     assert "Living" not in json.dumps(p), "a count, never the room"
+    assert "split_levels" not in p["env"], "only from a house with a split level"
+    dom[DATA_MODEL].data["room_meta"]["Kitchen"]["floor_raise_m"] = 0.75
+    dom[DATA_MODEL].data["room_meta"]["Living"]["floor_raise_m"] = -0.3
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["env"]["split_levels"] == {"raised": 1, "sunk": 1}
+    assert "0.75" not in json.dumps(p["env"]), "a count, never how far"
     assert p["env"]["scanners_with_z"] == 2
     assert p["health"]["floors_all_default"] is False
     assert p["health"]["scanner_z_uniform"] is False, "two distinct mounting heights"

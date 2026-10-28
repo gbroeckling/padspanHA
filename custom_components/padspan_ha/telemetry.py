@@ -1797,6 +1797,15 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         env["hw"] = _hw_payload(hass)
     except Exception:
         pass
+    # Split levels (room_meta floor_raise_m, 0.38.190), only from a house
+    # with one: how many rooms are raised and how many sunk. Counts, never
+    # which rooms or by how much.
+    _up = sum(1 for v in _rm.values() if isinstance(v, dict) and isinstance(v.get("floor_raise_m"), (int, float))
+              and not isinstance(v.get("floor_raise_m"), bool) and v["floor_raise_m"] > 0)
+    _down = sum(1 for v in _rm.values() if isinstance(v, dict) and isinstance(v.get("floor_raise_m"), (int, float))
+                and not isinstance(v.get("floor_raise_m"), bool) and v["floor_raise_m"] < 0)
+    if _up or _down:
+        env["split_levels"] = {"raised": _up, "sunk": _down}
     # Quiet mode on only (a panel filter the backend never applies): how much
     # of the house it hides. A quiet-off report is exactly what it was.
     if settings.get("quiet_mode") is True:
