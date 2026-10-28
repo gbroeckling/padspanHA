@@ -1121,6 +1121,91 @@ class PadSpanHaApp extends HTMLElement {
     return !!(this._hass && this._hass.user && this._hass.user.is_admin);
   }
 
+  // ── Accuracy tips (setup_checks.py, 0.38.193) ─────────────────────────
+  // The opt-in reports found most multi-floor homes skip three setup steps:
+  // every floor at the default height, every receiver at one height, no plan
+  // with a real-world scale. Once setup is done or skipped, the Overview says
+  // so in one small card, to an administrator, never on a wall screen; the
+  // server decides which apply (padspan_ha/setup_tips, the report's own
+  // rules), each line goes to its fix or is hidden, and the card can go for good.
+  _accuracyTipsCard(){
+    if (!this.state.settings || this.state.kioskMode || wallScreen(false)) return null;
+    if (!this.state._dataModeKnown || this.state.dataMode !== "live") return null;
+    if (!(this._hass && this._hass.user && this._hass.user.is_admin)) return null;
+    const hidden = new Set(this.state.settings.accuracy_tips_hidden || []);
+    if (hidden.has("all")) return null;
+    const T = this._tips || (this._tips = { at: 0, list: null, busy: false, shown: new Set() });
+    if (!T.busy && Date.now() - T.at > 600000) {
+      T.busy = true;
+      this._callWS({ type: "padspan_ha/setup_tips" })
+        .then(r => { T.list = Array.isArray(r && r.tips) ? r.tips : []; })
+        .catch(() => { T.list = T.list || []; })
+        .finally(() => { T.at = Date.now(); T.busy = false; this._scheduleRender(); });
+    }
+    const WORDS = {
+      floor_heights: ["Give your floors their real heights",
+        "Every floor is at the default height, so PadSpan tells floors apart less well than it could.", "Floor Heights"],
+      receiver_heights: ["Say how high each receiver is mounted",
+        "They're all at one height, which makes it harder to tell which floor someone is on.", "Receiver heights"],
+      scale: ["Measure one distance on a floor plan",
+        "With no real-world scale, positions and distances on the map are guesses.", "Measure"],
+    };
+    const tips = (T.list || []).filter(t => WORDS[t] && !hidden.has(t));
+    if (!tips.length) return null;
+    const save = (list) => {
+      if (this.state.settings) this.state.settings.accuracy_tips_hidden = list;
+      this._callWS({ type: "padspan_ha/settings_set", accuracy_tips_hidden: list })
+        .then(res => { if (res && res.settings) this.state.settings = res.settings; }).catch(() => {});
+      this._scheduleRender();
+    };
+    const go = (t) => {
+      this._telemetryEvent("tip_opened:" + t);
+      if (t === "scale") {
+        const maps = (this.state.maps && this.state.maps.list) || [];
+        const id = (this.state.activeMapId && maps.some(m => m.id === this.state.activeMapId)) ? this.state.activeMapId : ((maps[0] && maps[0].id) || null);
+        this.state.view = "maps";
+        this.state._mapsWizard = { step: 2, mapId: id };
+      } else if (t === "floor_heights") {
+        this.state.view = "maps";
+        this.state.mapsTab = "stack";
+      } else {
+        if (this.state.complexity === "basic") {
+          this.state.complexity = "advanced";
+          try { localStorage.setItem("padspan_complexity", "advanced"); } catch(e) {}
+        }
+        this.state.view = "calibration";
+        if (this.state._calib) this.state._calib.tab = "tune";
+      }
+      this._renderNav();
+      if (!VIEWS[this.state.view] && _VIEW_PATHS[this.state.view]) _loadView(this.state.view).then(() => this._scheduleRender());
+      if (this.actions?.renderRooms) this.actions.renderRooms(); else this._scheduleRender();
+    };
+    const card = el("div", { "data-accuracy-tips": "card", style: "background:#0a1f14;border:1px solid #1a4228;border-radius:8px;padding:8px 12px;margin-bottom:12px" });
+    const hdr = el("div", { style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px" });
+    hdr.appendChild(el("div", { style: "font-weight:700;font-size:12px;color:#52b788" }, "Improve accuracy"));
+    const off = el("span", { "data-accuracy-tips": "off", style: "cursor:pointer;font-size:10px;color:#64748b;text-decoration:underline" }, "Hide these tips");
+    off.addEventListener("click", () => { this._telemetryEvent("tip_hidden:all"); save([...hidden, "all"]); });
+    hdr.appendChild(off);
+    card.appendChild(hdr);
+    for (const t of tips) {
+      if (!T.shown.has(t)) { T.shown.add(t); this._telemetryEvent("tip_shown:" + t); }
+      const [title, why, btnText] = WORDS[t];
+      const row = el("div", { "data-accuracy-tips": "tip-" + t, style: "display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;border-top:1px solid #12301f" });
+      row.appendChild(el("div", { style: "flex:1;min-width:0" }, [
+        el("span", { style: "color:#e2e8f0;font-weight:600" }, title + ". "),
+        el("span", { style: "color:#94a3b8" }, why),
+      ]));
+      const fix = el("button", { class: "btn inline", style: "font-size:11px;padding:2px 10px", title: "Go there" }, btnText);
+      fix.addEventListener("click", () => go(t));
+      const x = el("span", { style: "cursor:pointer;color:#64748b;font-size:13px;padding:0 4px", title: "Hide this tip", "aria-label": "Hide this tip", role: "button" }, "\u00d7");
+      x.addEventListener("click", () => { this._telemetryEvent("tip_hidden:" + t); save([...hidden, t]); });
+      row.appendChild(fix);
+      row.appendChild(x);
+      card.appendChild(row);
+    }
+    return card;
+  }
+
   _proInviteOverviewCard(){
     if (!this._proOffersAllowed()) return null;
     const v = this._proInviteView || (this._proInviteView = { visible: false, hidden: false });
@@ -4371,6 +4456,8 @@ class PadSpanHaApp extends HTMLElement {
             const _ms = this._proInviteOverviewCard() || this._testerOverviewCard(_hasPositioned)
               || this._trialMilestoneCard(_hasPositioned);
             if (_ms) frag.appendChild(_ms);
+            // Last in line: the accuracy tips, only when no other card is up.
+            else { const _tips = this._accuracyTipsCard(); if (_tips) frag.appendChild(_tips); }
           } catch(e) { console.warn("PadSpan: trial milestone failed", e); }
         }
       }

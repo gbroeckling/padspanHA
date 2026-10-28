@@ -137,8 +137,11 @@ def test_each_outcome_is_counted_by_name_only(monkeypatch, tmp_path, disk):
     _read(h, conn)
     ai.answer = RuntimeError("down")
     _read(h, conn)
-    assert counted == ["stair_read:found", "stair_read:none", "stair_read:bad_answer", "stair_read:error"]
+    # How long the AI took is counted for each read it answered (0.38.193), in the photo bands.
+    secs = [e for e in counted if e.startswith("stair_secs:")]
+    assert [e for e in counted if not e.startswith("stair_secs:")] == ["stair_read:found", "stair_read:none", "stair_read:bad_answer", "stair_read:error"]
+    assert secs == ["stair_secs:lt5"] * 3 and all(T.event_allowed(e) for e in secs)
     src = inspect.getsource(S)
     for e in T.STAIR_EVENTS:
-        assert f'"{e}"' in src and T.event_allowed(e), e
+        assert (f'"{e}"' in src or e.startswith("stair_secs:")) and T.event_allowed(e), e
     assert S.WS_COMMANDS == (S.ws_house3d_stairs_plans, S.ws_house3d_stairs_read)

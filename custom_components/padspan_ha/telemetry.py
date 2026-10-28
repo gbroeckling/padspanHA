@@ -553,9 +553,13 @@ HOUSE3D_FALLBACK_KINDS: tuple[str, ...] = ("no_webgl", "slow_gpu", "context_lost
 # house3d_wall_capped: a wall was stopped under a floor above it, or a
 # needle-thin stretch of a tall room kept to its floor's height, once per
 # page load (0.38.164).
+# house3d_fallback_size:<band> (0.38.193), sent with each fallback: how many
+# rooms the house has, so a slow screen can be told from a very big house.
+HOUSE_SIZE_BANDS: tuple[str, ...] = ("lt20", "20_60", "60_150", "gt150")
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"}
     | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
+    | {f"house3d_fallback_size:{b}" for b in HOUSE_SIZE_BANDS}
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo
 # sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or
@@ -575,7 +579,15 @@ STAIR_READ_OUTCOMES: tuple[str, ...] = ("found", "none", "bad_answer", "error", 
 PHOTO_EVENTS: frozenset[str] = frozenset(
     {f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES} | {f"photo_subject:{k}" for k in PHOTO_SUBJECTS}
     | {f"photo_secs:{k}" for k in PHOTO_SECS})
-STAIR_EVENTS: frozenset[str] = frozenset(f"stair_read:{k}" for k in STAIR_READ_OUTCOMES)
+# And (0.38.193) how long the AI took over each plan, in the photo bands.
+STAIR_EVENTS: frozenset[str] = frozenset(
+    {f"stair_read:{k}" for k in STAIR_READ_OUTCOMES} | {f"stair_secs:{k}" for k in PHOTO_SECS})
+# The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
+# opened (gone to its fix) or hidden, and the whole card hidden. Whether the
+# nudges move the three setup steps most homes skip.
+TIP_IDS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale")
+TIP_EVENTS: frozenset[str] = frozenset(
+    {f"tip_{a}:{t}" for a in ("shown", "opened", "hidden") for t in TIP_IDS} | {"tip_hidden:all"})
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to
@@ -1007,7 +1019,7 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
-            or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS)
+            or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -1806,6 +1818,16 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                 and not isinstance(v.get("floor_raise_m"), bool) and v["floor_raise_m"] < 0)
     if _up or _down:
         env["split_levels"] = {"raised": _up, "sunk": _down}
+    # Live Aboard's stairs (0.38.193), only from a house with some and its 3D
+    # file loaded: how many, how many the AI read off a plan and were kept,
+    # how many are a few steps within one floor. Counts only.
+    try:
+        from .setup_checks import house3d_pieces, stairs_summary  # noqa: PLC0415
+        _stairs = stairs_summary(house3d_pieces(hass))
+        if _stairs:
+            env["stairs"] = _stairs
+    except Exception:
+        pass
     # Quiet mode on only (a panel filter the backend never applies): how much
     # of the house it hides. A quiet-off report is exactly what it was.
     if settings.get("quiet_mode") is True:
@@ -1979,6 +2001,16 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "radios_unresolved": sum(1 for r in radios if r.get("device_match") == "none"),
         "radios_matched_partial": sum(1 for r in radios if r.get("device_match") == "partial"),
     }
+    # Rooms on one floor drawn over each other by more than 10 cm (0.38.193):
+    # a hand-traced outline past its wall, which can put a flight of stairs
+    # or a device in the wrong room. Pairs counted; only with rooms drawn.
+    try:
+        from .setup_checks import rooms_overlapping  # noqa: PLC0415
+        _geo = dom.get(DATA_MODEL).room_geometry_m() if dom.get(DATA_MODEL) is not None else {}
+        if _geo:
+            health["rooms_overlap"] = rooms_overlapping(_geo)
+    except Exception:
+        pass
     # 0.38.122's fixes, read at the report. Each is left out, not a 0, when
     # what it reads is not there, and a failure leaves out only that one.
     # #149: calibration points whose room is no room (an [auto] point with a

@@ -241,6 +241,8 @@ $identity = array('with_irks' => 0, 'resolving' => 0, 'silent' => 0, 'private_bl
 // answer "is anyone actually using this" instead of just "how many lights".
 $adoption = array('motion_sensors' => 0, 'temp_sensors' => 0, 'fans' => 0, 'type_overrides' => 0);
 $type_override_kinds = array();
+// Live Aboard's stairs (env.stairs, 0.38.193): homes with any, and their sums.
+$stairs = array('installs' => 0, 'total' => 0, 'ai_kept' => 0, 'within' => 0);
 $geometry = array('faulted' => 0, 'anchor_faulted' => 0, 'no_anchor' => 0, 'no_anchor_known' => 0,
                   'floors_default' => 0, 'z_uniform' => 0, 'cal_no_floor' => 0, 'multi_floor' => 0);
 foreach ($latest as $id => $r) {
@@ -285,6 +287,10 @@ foreach ($latest as $id => $r) {
         if ($v === true) { incr($features, $k); }
         elseif (is_array($v) && strpos($k, 'ov_') === 0) { foreach ($v as $w) { if (is_string($w)) { incr($overview, "$k:$w"); } } }
     }
+    if (isset($e['stairs']) && is_array($e['stairs'])) {
+        $stairs['installs']++;
+        foreach (array('total', 'ai_kept', 'within') as $k) { $stairs[$k] += max(0, (int)(isset($e['stairs'][$k]) ? $e['stairs'][$k] : 0)); }
+    }
     if (isset($e['ai']) && is_array($e['ai']) && isset($e['ai']['task']) && is_string($e['ai']['task'])
         && in_array($e['ai']['task'], array('local', 'cloud', 'unknown', 'unready'), true)) { incr($ai, $e['ai']['task']); }
     $scr = isset($e['screens']) && is_array($e['screens']) ? $e['screens'] : array();
@@ -314,6 +320,8 @@ foreach ($latest as $id => $r) {
     if (!empty($h['scanner_z_uniform'])) { $bad[] = 'scanner_z_uniform'; $geometry['z_uniform']++; }
     if (!empty($h['radios_ambiguous'])) { $bad[] = 'radios_ambiguous'; }
     if (!empty($h['radios_unresolved'])) { $bad[] = 'radios_unresolved'; }
+    // 0.38.193: rooms on one floor drawn over each other by more than 10 cm.
+    if (!empty($h['rooms_overlap'])) { $bad[] = 'rooms_overlap'; }
     // 0.38.177: calibration points or floor plans gone since the last report with no clear/delete recorded.
     if (!empty($h['calibration_points_vanished'])) { $bad[] = 'calibration_points_vanished'; }
     if (!empty($h['maps_vanished'])) { $bad[] = 'maps_vanished'; }
@@ -463,6 +471,7 @@ $out = array(
     'features' => $features,
     'overview' => $overview,
     'ai' => $ai,
+    'stairs' => $stairs,
     'flags' => $flags,
     'identity' => $identity,
     'geometry' => $geometry,

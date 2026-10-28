@@ -391,6 +391,12 @@ function renderUnlocked(ctx, root) {
           ["Changed what kind of light something is (Pro)", ad.type_overrides, n],
           ...Object.keys(tok).sort().map(k => [`  ↳ as a ${k === "wled" ? "WLED strip" : k}`, tok[k], null]),
         ]),
+        ...((s.stairs && s.stairs.installs) ? [kvCard(el, "Stairs in the 3D house", "Homes with stairs in Live Aboard, and what kind", [
+          ["Homes with stairs", s.stairs.installs, n],
+          ["Stairs in all", s.stairs.total, null],
+          ["  ↳ read off a plan by AI, still there", s.stairs.ai_kept, s.stairs.total],
+          ["  ↳ a few steps within one floor", s.stairs.within, s.stairs.total],
+        ])] : []),
         pairCard(el, "Warnings in the Home Assistant log", "Warning lines PadSpan wrote, by the part of PadSpan that wrote them", s.errors, "lines", 12, "module"),
         barCard(el, { title: "Panel errors, by tab", ask: "Errors the PadSpan panel caught in each tab", map: s.ui_errors, unit: "errors", limit: 12, kind: "view" }),
       ]),
@@ -512,6 +518,7 @@ const W_FLAG = {
   radios_ambiguous: "Two receivers' names overlap, so one can't be matched",
   calibration_no_floor: "Calibration points with no floor",
   radios_unresolved: "A receiver with no Home Assistant device",
+  rooms_overlap: "Rooms on one floor drawn over each other",
 };
 const W_INTEGRATION = {
   bluetooth: "Bluetooth", mobile_app: "Home Assistant phone app", mqtt: "MQTT", ibeacon: "iBeacon tracker",
@@ -688,6 +695,12 @@ function word(kind, k) {
                                         no_ai_task: "AI stair read refused: no AI Task" }[b] || tidy(key);
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
       if (a === "photo_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to answer`;
+      if (a === "stair_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to read a floor plan`;
+      if (a === "house3d_fallback_size") return `3D house fell back, in a house of ${{ lt20: "under 20", "20_60": "20–60", "60_150": "60–150", gt150: "over 150" }[b] || b} rooms`;
+      if (a === "tip_shown" || a === "tip_opened" || a === "tip_hidden") {
+        const tip = { floor_heights: "floor heights", receiver_heights: "receiver heights", scale: "a real-world scale", all: "all of them" }[b] || b;
+        return `Accuracy tip ${{ tip_shown: "shown", tip_opened: "followed to its fix", tip_hidden: "hidden" }[a]}: ${tip}`;
+      }
       if (a === "proxy_rate_drops") return `A receiver's reading rate dropped (${b} a day)`;
       return tidy(key);
     }

@@ -387,6 +387,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     for _cmd in _house3d_stairs_commands:
         websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
+    # The Overview's accuracy tips (setup_checks.py): the setup steps the report finds skipped most.
+    from .setup_checks import WS_COMMANDS as _setup_tip_commands
+    for _cmd in _setup_tip_commands:
+        websocket_api.async_register_command(hass, _cmd)
     # A motion sensor's last real change across an offline blip (motion_reconnects.py).
     from .motion_reconnects import ws_motion_reconnects
     websocket_api.async_register_command(hass, ws_motion_reconnects)

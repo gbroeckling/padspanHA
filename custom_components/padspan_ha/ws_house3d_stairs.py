@@ -292,6 +292,8 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
         connection.send_result(msg["id"], {"ok": False, "reason": "error", "message": P.FAILED.format(why=P._why(err))})
         return
     took = round(time.monotonic() - t0, 1)
+    # How long the AI took (telemetry.STAIR_EVENTS): local and cloud told apart by env.ai.
+    _bump(hass, P._secs_event(took).replace("photo_secs:", "stair_secs:"))  # noqa: SLF001
     found = stairs_from_answer(answer, w, h, lambda fx, fy: model.map_frac_to_metres(fx, fy, map_id))
     if found is None:
         _bump(hass, "stair_read:bad_answer")

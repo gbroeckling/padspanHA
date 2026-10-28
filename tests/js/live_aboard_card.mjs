@@ -516,7 +516,8 @@ await tryCase("fallback: a GL that throws is an error, and the card still draws"
   const counted = await waitFor(() => sent.includes("house3d_fallback:error"));
   const two = card({ house3d: H3(true, "builder") });
   check("fallback: a GL that throws is an error, and the card still draws", counted && /<svg/.test(two.svg)
-    && two.stage.style.display !== "none" && one.stage.style.display !== "none" && JSON.stringify(sent) === JSON.stringify(["house3d_fallback:error"]),
+    && two.stage.style.display !== "none" && one.stage.style.display !== "none" // With the house's size beside it (0.38.193), each once.
+    && JSON.stringify(sent) === JSON.stringify(["house3d_fallback:error", "house3d_fallback_size:lt20"]),
     { counted, sent: [...sent] });
   NodeCls.prototype.getContext = realGetContext;
 });

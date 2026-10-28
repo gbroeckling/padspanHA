@@ -657,6 +657,10 @@ function createSlot(slotKey){
     if (failed) return;
     failed = HOUSE3D_FALLBACK_KINDS.includes(kind) ? kind : "error";
     HOUSE.countHouse3dOnce(`house3d_fallback:${failed}`, send);
+    // And how big the house is (telemetry.HOUSE_SIZE_BANDS), so a slow screen
+    // can be told from a very big house in the report.
+    const nRooms = Object.keys((lastP && lastP.model && lastP.model.room_geometry_m) || {}).length;
+    HOUSE.countHouse3dOnce(`house3d_fallback_size:${nRooms < 20 ? "lt20" : nRooms < 60 ? "20_60" : nRooms < 150 ? "60_150" : "gt150"}`, send);
     showFlat();
     teardown();
   }

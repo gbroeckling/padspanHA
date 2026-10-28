@@ -96,7 +96,9 @@ def test_the_report_words_are_the_frontends(house) -> None:
                                      "house3d_fallback:context_lost", "house3d_fallback:error",
                                      "house3d_wet_window",   # 0.38.127: the open-window-in-the-rain alert showed
                                      "house3d_loft_rail", "house3d_mezzanine",   # 0.38.147: a railing on an open edge, a mezzanine
-                                     "house3d_wall_capped"}   # 0.38.164: a wall stopped under a floor above
+                                     "house3d_wall_capped",   # 0.38.164: a wall stopped under a floor above
+                                     # 0.38.193: the house's size beside each fallback
+                                     *(f"house3d_fallback_size:{b}" for b in T.HOUSE_SIZE_BANDS)}
 
 
 def _hass(on: bool = True):

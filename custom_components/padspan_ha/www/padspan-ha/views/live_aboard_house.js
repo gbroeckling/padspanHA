@@ -53,8 +53,11 @@ export const HOUSE3D_FALLBACK_KINDS = ["no_webgl", "slow_gpu", "context_lost", "
 // below the Motion chip), once per page load. house3d_wall_capped: a wall
 // stopped under a floor above it, or a needle-thin stretch kept low
 // (settleWalls), once per page load.
+// house3d_fallback_size:<band> (0.38.193): beside each fallback, how many rooms
+// the house has (telemetry.HOUSE_SIZE_BANDS).
+export const HOUSE_SIZE_BANDS = ["lt20", "20_60", "60_150", "gt150"];
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window",
-  "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"];
+  "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`)];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();
 /** Count `name` once per page load, and only a name from the closed list. */
