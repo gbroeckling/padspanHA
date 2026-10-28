@@ -16,3 +16,7 @@ cryptography==50.0.2
 yarl==1.25.1
 # The config-flow translation test reads services.yaml (Home Assistant ships PyYAML).
 pyyaml==6.0.3
+# The stairs-from-plans command (ws_house3d_stairs.py) reads and shrinks each
+# placed plan with Pillow, which Home Assistant always ships; the stubbed suite
+# needs it pinned (tests/test_house3d_stairs.py).
+pillow==13.0.0
