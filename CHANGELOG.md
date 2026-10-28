@@ -4,7 +4,7 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
-## 0.38.191 — A few steps within a floor, and AI stair reads that say how sure they are (2026-10-28)
+## 0.38.192 — A few steps within a floor, and AI stair reads that say how sure they are (2026-10-28)
 
 ### New
 - **A few steps within one floor.** Stairs used to always climb a whole floor. Now a short flight can stay on its own floor: up out of a sunken garage into the house, or up to a raised room beside it.
@@ -15,6 +15,14 @@ All notable changes to PadSpan HA are documented here.
 ### Fixed
 - **Where a stair goes is stored as a whole floor.** In 0.38.190 the stair sheet could store a split level's own id for where a flight goes. It now stores the floor, and a flight saved that way is read as its floor.
 - **The stair sheet's "Up to" list shows whole floors only,** never a split level as if it were a floor of its own.
+
+---
+
+## 0.38.191 — Forensics stops when a licence ends; the wall's People and Motion chips grow on 4K (2026-10-28)
+
+### Fixed
+- **Forensics stops recording when a licence or trial ends.** Nothing checked before, so a trial that ended kept recording every Bluetooth device it heard. What it already recorded stays searchable and exportable for its retention period, and recording starts again when you renew. The licence card, the Forensics card, the help and the update banner say so.
+- **On a 4K wall, the People and Motion chips at the top grow with everything else.** They, the motion colour key and the window-open-in-the-rain line stayed 1080p-sized while the rest of the wall doubled.
 
 ---
 

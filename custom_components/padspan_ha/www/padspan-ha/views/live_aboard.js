@@ -308,6 +308,11 @@ const CSS = `
   width:calc(100% - 44px * var(--wall-ctl,var(--wall-ui,1)));margin-left:calc(44px * var(--wall-ctl,var(--wall-ui,1)))}
 .lv-mapcard.lv-display.lv-wall > .lv-rail.hidden ~ .la3d{width:100%;margin-left:0}
 :host([data-wall]) .la3d-hud{zoom:var(--wall-ui,1)}
+/* The People and Motion chips (their row, or the Motion chip alone when the
+   people chip is not loaded), the motion colour key and the window-open-in-
+   the-rain line under them are read like the HUD, so they grow with it and
+   keep their gaps; on a 4K wall they used to stay 1080p-sized. */
+:host([data-wall]) .la3d-chiprow,:host([data-wall]) .la3d > .la3d-mchip,:host([data-wall]) .la3d-mkey,:host([data-wall]) .la3d-wet{zoom:var(--wall-ui,1)}
 :host([data-wall]) .la3d-bar,:host([data-wall]) .la3d-compass,:host([data-wall]) .la3d-north,
 :host([data-wall]) .la3d-menu,:host([data-wall]) .la3d-toast,:host([data-wall]) .la3d-solo,:host([data-wall]) .la3d-corner,
 :host([data-wall]) .la3d-dircard,:host([data-wall]) .la3d-sheet,:host([data-wall]) .la3d-card{zoom:var(--wall-ctl,var(--wall-ui,1))}

@@ -141,8 +141,8 @@ export function trialMilestoneDue(settings, positioned, nowMs = Date.now()) {
  *  right above already says the feature needs Pro.) A Bright build's pitch
  *  leaves out Forensics, which a Bright build doesn't show. When a trial
  *  ends most of Pro switches off (Live Aboard, walls, Locate, Busy Times;
- *  light placement goes read-only), so the card promises only that nothing
- *  is deleted and that it all comes back. */
+ *  light placement goes read-only; Forensics stops recording), so the card
+ *  promises only that nothing is deleted and that it all comes back. */
 export function trialPitch(surface, feature, settings) {
   if (feature) {
     return `The trial unlocks ${feature} and the rest of PadSpan Pro on your own house.`;

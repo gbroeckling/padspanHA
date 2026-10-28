@@ -272,7 +272,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Helps with HA 2026.4+ where habluetooth dedup suppresses repeat callbacks.
     "aggressive_ble_reseed": False,
     # Presence poll interval (seconds).  How often the smoothing pipeline runs.
-    # Lower = faster room transitions but higher CPU.  Default 10s.
+    # Lower = faster room transitions but higher CPU.  Default 5 s (installs
+    # from before 0.21 may still hold the old 10 s).
     "presence_poll_interval_s": 5,
     # BLE reseed interval (seconds).  How often bluetooth_live re-fetches from
     # HA's discovered-service-info API.  Essential for passive proxy scanners

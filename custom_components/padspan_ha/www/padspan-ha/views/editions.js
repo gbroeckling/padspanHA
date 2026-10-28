@@ -78,8 +78,8 @@ export const WHATSNEW_URL = "https://padspan.traks.ca/?hl=en#whatsnew";
 //   bright  -> what Pro adds: the 3D house, the wall screen and Forensics;
 //              light placement is already theirs.
 //   free    -> the main paid features, light placement first.
-//   lapsed  -> what stopped, and that nothing was lost. Never Forensics: it
-//              keeps working after a lapse.
+//   lapsed  -> what stopped (Forensics stops recording; what it recorded
+//              stays searchable), and that nothing was lost.
 //
 // Pure on purpose: it takes the settings payload and returns text, so the rule
 // can be tested without a browser (tests/js/pro_pitch.mjs).
@@ -90,11 +90,15 @@ export function proPitch(settings) {
   const lapsed = st.pro_active === false;
 
   if (hasKey && lapsed) {
+    // A Bright build shows no Forensics, Locate or Busy Times: name only what it shows.
+    const off = currentEdition(st) === "bright"
+      ? "light placement is read-only and the 3D house and the wall screen are off. "
+      : "light placement is read-only, Forensics has stopped recording (what it recorded stays searchable "
+        + "for its retention period), and the 3D house, the wall screen, Locate and Busy Times are off. ";
     return {
       kind: "lapsed",
-      text: "Your licence has lapsed, so light placement is read-only and the 3D house, the wall screen, "
-          + "Locate and Busy Times are off. Everything you set up is still here and comes back as you left it "
-          + "when you renew. ",
+      text: "Your licence has lapsed, so " + off
+          + "Everything you set up is still here and comes back as you left it when you renew. ",
       cta: `Renew PadSpan Pro — ${PRO_PRICE}`,
       url: BUY_URL,
     };
