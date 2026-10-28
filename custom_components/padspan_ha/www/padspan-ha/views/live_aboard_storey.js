@@ -561,7 +561,8 @@ export function stairReach(fromId, toId, floors, at = null){
   let to = named || up.slice().sort((a, b) => E(a) - E(b))[0] || null;
   if (to && Array.isArray(at) && at.length) {
     const pts = [...at, [at.reduce((s, p) => s + p[0], 0) / at.length, at.reduce((s, p) => s + p[1], 0) / at.length]];
-    const lvl = list.find(f => f.parent === to.id && Array.isArray(f.pts) && pts.filter(p => inPolygon(p[0], p[1], f.pts)).length * 2 > pts.length);
+    const inLvl = (f, p) => (f.areas || []).some(A => inPolygon(p[0], p[1], A));
+    const lvl = list.find(f => f.parent === to.id && Array.isArray(f.areas) && pts.filter(p => inLvl(f, p)).length * 2 > pts.length);
     if (lvl) to = lvl;
   }
   const rise = to ? E(to) - E(from) : (num(from.h) ?? 2.8);

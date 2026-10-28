@@ -188,38 +188,66 @@ function circlePoly(cx, cy, r, n = 24){
 // floor. The fabric's "__outside__" is the registry's "outside" when there
 // is one (the same rule as fabricFrame and floorIdAtLevel).
 // ── Split levels (0.38.190) ──────────────────────────────────────────────────
-/** A room raised above its floor (room_meta[name].floor_raise_m: an office
- *  up a longer flight than the bedrooms beside it) drawn as a level of its
- *  own: a floor "<floor>~<room>" at the floor's height plus the raise, with
- *  the room, and everything placed in it on that floor (lights, scanners,
- *  beacons, sensors), moved onto it. Nothing stored changes; the model with
- *  no raised room comes back as it was. The new level follows its floor's
- *  chip (chipElev) and never gets one of its own. */
+/** Rooms whose floor sits above (or below) the rest of their floor
+ *  (room_meta[name].floor_raise_m: an office up a longer flight than the
+ *  bedrooms beside it, a step-down living room) drawn as a level of their
+ *  own, the way Chief Architect raises one room's floor: every room of one
+ *  floor raised by the same amount shares one level "<floor>~<raise>" (so
+ *  two side by side share their wall), at the floor's height plus the raise;
+ *  everything placed in those rooms (lights, scanners, beacons, sensors)
+ *  moves onto it. Its ceiling stays level with its floor's where a higher
+ *  floor stands over it (the room is that much lower), else it keeps the
+ *  floor's full height; a raised level stands on stem walls down to its
+ *  floor (readFloors: stem). Nothing stored changes; a model with no raised
+ *  room comes back as it was. The level follows its floor's chip
+ *  (chipElev) and never gets one of its own. */
 export function splitLevels(model){
   const rm = (model && model.room_meta) || {}, geo = (model && model.room_geometry_m) || {};
-  const raised = Object.entries(rm).filter(([n, m]) => m && typeof m === "object" && (num(m.floor_raise_m) ?? 0) >= 0.05 && geo[n] && typeof geo[n] === "object");
+  const raised = Object.entries(rm).filter(([n, m]) => m && typeof m === "object" && Math.abs(num(m.floor_raise_m) ?? 0) >= 0.05
+                                                       && geo[n] && typeof geo[n] === "object");
   if (!raised.length) return model;
   const floors = Array.isArray(model.floors) ? model.floors.slice() : [];
-  const out = { ...model, floors, floor_elevations: { ...(model.floor_elevations || {}) }, room_geometry_m: { ...geo } };
-  const subs = [];
+  const elevs = { ...(model.floor_elevations || {}) };
+  const out = { ...model, floors, floor_elevations: elevs, room_geometry_m: { ...geo } };
+  const polyOf = (g) => g.type === "circle" ? circlePoly(num(g.cx_m) || 0, num(g.cy_m) || 0, num(g.r_m) || 0.5)
+    : (Array.isArray(g.points_m) ? cleanPoly(g.points_m) : []);
+  const baseOf = (fid) => { const f = floors.find(x => x && String(x.id) === fid); return num(elevs[fid]) ?? num(f && f.base_elevation_m); };
+  const groups = new Map();
   for (const [name, m] of raised) {
-    const g = geo[name], fid = String(g.floor_id || "main");
-    const parent = floors.find(f => f && String(f.id) === fid) || null;
-    const base = num(out.floor_elevations[fid]) ?? num(parent && parent.base_elevation_m);
-    const pts = g.type === "circle" ? circlePoly(num(g.cx_m) || 0, num(g.cy_m) || 0, num(g.r_m) || 0.5) : (Array.isArray(g.points_m) ? cleanPoly(g.points_m) : []);
+    const g = geo[name], fid = String(g.floor_id || "main"), base = baseOf(fid), pts = polyOf(g);
     if (base === null || pts.length < 3) continue;          // a floor with no height yet: drawn level, as before
-    const id = `${fid}~${name}`, raise = Math.min(3, num(m.floor_raise_m));
-    floors.push({ ...(parent || {}), id, name: `${(parent && parent.name) || fid} · ${name}`, parent_id: fid, base_elevation_m: base + raise });
-    out.floor_elevations[id] = Math.round((base + raise) * 1000) / 1000;
-    out.room_geometry_m[name] = { ...g, floor_id: id };
-    subs.push({ fid, id, pts });
+    const raise = Math.round(Math.max(-1.5, Math.min(3, num(m.floor_raise_m))) * 1000) / 1000;
+    const key = `${fid}~${raise}`;
+    if (!groups.has(key)) groups.set(key, { fid, id: key, raise, base, rooms: [], areas: [] });
+    groups.get(key).rooms.push(name); groups.get(key).areas.push(pts);
   }
-  if (!subs.length) return model;
+  if (!groups.size) return model;
+  const subs = [];
+  for (const G of groups.values()) {
+    const parent = floors.find(f => f && String(f.id) === G.fid) || null;
+    const ph = num(parent && parent.floor_to_floor_m) ?? FLOOR_TO_FLOOR_M;
+    // A room of a higher floor over any of these: the ceiling stays where the floor's is.
+    const covered = Object.entries(geo).some(([n, g]) => {
+      if (!g || typeof g !== "object" || G.rooms.includes(n)) return false;
+      const e = baseOf(String(g.floor_id || "main"));
+      if (e === null || e <= G.base + 0.05) return false;
+      const P = polyOf(g);
+      return P.length >= 3 && G.areas.some(A => A.some(q => inPoly(q[0], q[1], P)) || P.some(q => inPoly(q[0], q[1], A)));
+    });
+    const h = covered ? Math.max(1.5, ph - G.raise) : ph;
+    const sign = G.raise > 0 ? "+" : "\u2212";
+    floors.push({ ...(parent || {}), id: G.id, name: `${(parent && parent.name) || G.fid} ${sign}${Math.abs(G.raise)} m`,
+                  parent_id: G.fid, floor_to_floor_m: h, base_elevation_m: G.base + G.raise });
+    elevs[G.id] = Math.round((G.base + G.raise) * 1000) / 1000;
+    for (const n of G.rooms) out.room_geometry_m[n] = { ...geo[n], floor_id: G.id };
+    subs.push({ fid: G.fid, id: G.id, raise: G.raise, areas: G.areas, rooms: G.rooms.slice() });
+  }
+  const inSub = (S, x, y) => S.areas.some(A => inPoly(x, y, A));
   for (const key of Object.keys(model)) {
     if (!/_positions_m$/.test(key) || !model[key] || typeof model[key] !== "object" || Array.isArray(model[key])) continue;
     out[key] = Object.fromEntries(Object.entries(model[key]).map(([k, v]) => {
       const S = v && typeof v === "object" && num(v.x_m) !== null && num(v.y_m) !== null
-        ? subs.find(q => String(v.floor_id || "main") === q.fid && inPoly(num(v.x_m), num(v.y_m), q.pts)) : null;
+        ? subs.find(q => String(v.floor_id || "main") === q.fid && inSub(q, num(v.x_m), num(v.y_m))) : null;
       return [k, S ? { ...v, floor_id: S.id } : v];
     }));
   }
@@ -276,17 +304,19 @@ export function readFloors(model, floorList, gap = 0){
   // A split level shows with its floor (chipElev) and knows its room's outline.
   for (const S of (model && model.split_levels) || []) {
     const f = byId.get(S.id), P = byId.get(S.fid);
-    if (f) { f.pts = S.pts; f.chipElev = P ? P.elev : f.elev; }
+    if (f) { f.areas = S.areas; f.chipElev = P ? P.elev : f.elev; f.stem = S.raise > 0 ? S.raise : 0; }
   }
   if (gap > 0) {
-    const levels = [...new Set(floors.filter(f => !f.outdoor).map(f => f.elev))].sort((a, b) => a - b);
-    for (const f of floors) if (!f.outdoor) { const k = Math.max(0, levels.indexOf(f.elev)) * gap; f.elev += k; if (f.chipElev !== undefined) f.chipElev += k; }
+    // A split level moves with its floor (its chip's height), not as a storey of its own.
+    const lvl = (f) => f.chipElev ?? f.elev;
+    const levels = [...new Set(floors.filter(f => !f.outdoor).map(lvl))].sort((a, b) => a - b);
+    for (const f of floors) if (!f.outdoor) { const k = Math.max(0, levels.indexOf(lvl(f))) * gap; f.elev += k; if (f.chipElev !== undefined) f.chipElev += k; }
   }
   // A thing on a floor, standing in one of its split levels: that level's id.
   const canonAt = (fid, x, y) => {
     const c = canon(fid);
     if (num(x) === null || num(y) === null) return c;
-    const S = floors.find(f => f.parent === c && f.pts && inPoly(Number(x), Number(y), f.pts));
+    const S = floors.find(f => f.parent === c && f.areas && f.areas.some(A => inPoly(Number(x), Number(y), A)));
     return S ? S.id : c;
   };
   return { floors, byId, canon, canonAt, ground };
@@ -416,7 +446,8 @@ export function deriveWalls(floor, rooms, ground, above = null, facade = null){
       const last = segs[segs.length - 1];
       if (last && last.v === best) last.q = q; else segs.push({ p, q, v: best });
     }
-    const tall = (pc, h) => { if (num(h) !== null && Math.abs(h - floor.h) > 1e-6) pc.wallH = h; return pc; };
+    // A raised level's outside walls reach down to its floor (stem walls, readFloors).
+    const tall = (pc, h) => { if (num(h) !== null && Math.abs(h - floor.h) > 1e-6) pc.wallH = h; if (floor.stem > 0) pc.stem = floor.stem; return pc; };
     for (const g of segs) {
       if (!g.v) {
         if (g.q - g.p < 0.12) continue;
@@ -672,6 +703,8 @@ export function wallElements(pc, floorH){
   const tint = (pc.kind === "wall" && MAT_TINT[pc.mat]) || base;
   const E = [];
   const solid = (z0, z1, col, thick = pc.thick) => E.push({ z0, z1, col, thick, glass: false, cuttable: true });
+  // A raised level stands on a stem wall down to the floor it is raised from (splitLevels).
+  if (num(pc.stem) > 0 && pc.kind !== "rail") solid(-SLAB_T - num(pc.stem), -SLAB_T, base);
   switch (pc.kind) {
     case "rail":
       E.push({ z0: RAIL_H - 0.05, z1: RAIL_H, col: RAIL_COL, thick: 0.06, glass: false, cuttable: false });

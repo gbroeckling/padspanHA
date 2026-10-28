@@ -727,7 +727,7 @@ export function createFurnish(ctx){
   // ── stairs ──────────────────────────────────────────────────────────────
   /** The floors a flight on `fid` may go up to, and where this one goes. */
   const floorList = () => ctx.floors().map(G => ({ id: G.fl.id, elev: G.fl.elev, elev0: G.fl.elev0, h: G.fl.h, outdoor: G.fl.outdoor, name: G.fl.name,
-                                                   parent: G.fl.parent, pts: G.fl.pts }));
+                                                   parent: G.fl.parent, areas: G.fl.areas }));
   const reachOf = (q) => ctx.STOREY.stairReach(q.floor_id, q.recipe && q.recipe.params && q.recipe.params.to_floor, floorList(),
                                                 ctx.STOREY.footprint ? ctx.STOREY.footprint(q) : null);
   /** Stairs go up to the floor named, or the next one up (kept named, so a

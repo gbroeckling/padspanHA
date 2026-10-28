@@ -177,15 +177,17 @@ def room_height(v: Any) -> float | None:
 # level (an office up a longer flight than the bedrooms beside it). Live
 # Aboard draws the room that much higher and a stair reaching it rises that
 # much further; positioning never reads it. None or no key: level with its floor.
-ROOM_RAISE_MAX_M = 3.0
+# Below zero: a sunken room (a step-down living room), to ROOM_SINK_MAX_M.
+ROOM_RAISE_MAX_M, ROOM_SINK_MAX_M = 3.0, 1.5
 
 
 def room_raise(v: Any) -> float | None:
-    """A room's raise as stored: a finite number over 5 cm, kept to
-    ROOM_RAISE_MAX_M, to the millimetre; anything else is none (level)."""
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0.05:
+    """A room's raise as stored: a finite number at least 5 cm from level,
+    kept -ROOM_SINK_MAX_M to ROOM_RAISE_MAX_M, to the millimetre; anything
+    else is none (level)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or abs(v) < 0.05:
         return None
-    return round(min(ROOM_RAISE_MAX_M, float(v)), 3)
+    return round(max(-ROOM_SINK_MAX_M, min(ROOM_RAISE_MAX_M, float(v))), 3)
 
 
 def _room_meta_entry(floor_id: str, color: str, height: float | None, raise_m: float | None = None) -> dict[str, Any]:
