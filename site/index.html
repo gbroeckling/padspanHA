@@ -184,6 +184,29 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.196</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">29 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Floating stairs.</b> A staircase in the 3D house (Furnish → Build ▾ → House → Stairs) has a fourth <b>Style</b>, <b>Floating</b>: open treads on one steel spine down the middle, fixed to the floor at the bottom and to the floor or landing at the top, and nowhere on a wall. <b>Treads only</b> is still the style fixed into a wall.</li>
+          <li><b>Imported stairs:</b> a staircase whose name says floating, suspended, spine or mono-stringer comes in as Floating. Cantilevered or wall-hung ones still come in as Treads only.</li>
+          <li><b>The opt-in usage report</b> counts floating stairs with the other styles (a count, nothing else), and the Install Base page names them.</li>
+          <li><b>A stair style from a newer version is kept.</b> If a later version adds another style, this one keeps it, draws it as Closed and still saves your other changes.</li>
+          <li><b>Going back to an older version after using Floating:</b> 0.38.183 to 0.38.194 keep a floating stair and draw it Closed, but refuse a save that moves or changes it, and the rest of that save with it; and if you edit one of its settings there, it's saved as Closed. 0.38.182 and older never checked a stair's style. Before you go back, set your floating stairs to another style.</li>
+          <li><b>Doors and windows go with a raised or sunken room.</b> In 0.38.190 a split level's doors and windows stayed on the rest of its floor: a sunken garage lost its garage doors in the 3D house and on a wall, and a raised room's windows stood loose beside it, as far below as it was raised. They're now cut into the room's own walls. A driveway, patio or deck drawn beside the room doesn't hold them back.</li>
+          <li><b>The door from a sunken room into the house</b> stays in the house's wall, at the top of the steps, and the sunken room's own wall now has a doorway there too, as high as the door. Before, it was solid. A door between two raised or sunken rooms on one floor opens both their walls.</li>
+          <li><b>An Open edge</b> (a loft or gallery) between a raised room and the rest of its floor opens the raised room's wall too, and keeps its rail where the drop needs one.</li>
+          <li><b>Doors and windows you drew in 3D</b> on a raised or sunken room's wall stay on it after you save. Before, they stood loose on the rest of the floor.</li>
+          <li><b>A sunken room's name and readings show with its floor.</b> In the 3D house, the name and temperature chip of a room sunk below the rest of its floor (a split level) were hidden by the floor it belongs to, even though that floor is open over it. Now only that floor's walls away from the room can hide them, as any wall in front would.</li>
+          <li><b>Stairs wider than 4 m are drawn as wide as they are.</b> The 3D house drew any staircase at most 4 m wide, but cut the opening in the floor above at its real width, so a wide L or U round a hall left a gap beside its rail. Stairs can now be up to 8 m each way, the same as the 3D file keeps, and the stairs and their opening match.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.195</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">29 October 2026</span>
