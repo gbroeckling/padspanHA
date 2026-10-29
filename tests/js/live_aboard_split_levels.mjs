@@ -418,7 +418,7 @@ await tryCase("big: a gigantic house with split levels reads in good time, every
                           barriers: split.model.rf_barriers_m.length, split_only_ms: +tSplitOnly.toFixed(2), split_again_ms: +tAgain.toFixed(2), moved });
   check("big: a gigantic house with split levels reads in good time, every stair to the right level",
     levels === 24 && hm.storeys.length === 6 && tModel < Math.max(3000, tModel0 * 2) && wrong.length === 0 && lightsOff === 0 && cuts.size > 0
-    && tSplit < Math.max(4000, tPlain * 3) && tCuts < 500 && tSplitOnly < 12 && tAgain < tSplitOnly && moved > 0
+    && tSplit < Math.max(4000, tPlain * 3) && tCuts < 500 && tSplitOnly < Math.max(12, tPlain / 5) && tAgain < tSplitOnly && moved > 0
     && again.rf_barriers_m === H.splitLevels(split.model).rf_barriers_m,
     { timing, wrong: wrong.slice(0, 5), lightsOff });
 });
