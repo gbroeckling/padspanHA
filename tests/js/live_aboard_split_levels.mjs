@@ -190,6 +190,47 @@ await tryCase("stairs: a top that comes out in no room is a landing miss", () =>
   check("stairs: a top that comes out in no room is a landing miss", P.stairOutcome(q, r, floors, FU, H.inPoly) === "landing", r);
 });
 
+// ── doors and windows ───────────────────────────────────────────────────────
+// They go with their rooms: a raised room's windows and a sunken room's
+// outside door are cut into the level's own walls; a door between a sunken
+// room and a room of its floor stays a door in the floor's wall, and the
+// level's wall gets a gap there (never a piece of its own); a barrier
+// anywhere else stays where it was.
+const barred = () => {
+  const m = house();
+  m.rf_barriers_m = [
+    { id: "w1", floor_id: "upper", name: "Office window", material: "glass", points_m: [[4.6, 0], [6.2, 0]] },
+    { id: "d1", floor_id: "main", name: "Garden door", material: "wood", points_m: [[10, 1.5], [10, 2.5]] },
+    { id: "d2", floor_id: "main", name: "Sun door", material: "wood", points_m: [[6, 2], [6, 3]] },
+    { id: "w2", floor_id: "main", name: "Living window", material: "glass", points_m: [[1, 0], [3, 0]] },
+  ];
+  return m;
+};
+await tryCase("doors: a raised room's windows and a sunken room's outside door are cut into the level's walls", () => {
+  const m = H.splitLevels(barred()), by = Object.fromEntries(m.rf_barriers_m.map(b => [b.id, b]));
+  const h = H.readHouse(m, null, {}, new Set(), {});
+  const on = (fid, id) => h.perFloor.get(h.byId.get(fid)).pieces.filter(pc => pc.barrier && pc.barrier.id === id);
+  const w1 = on("upper~0.75", "w1"), d1 = on("main~-0.4", "d1");
+  check("doors: a raised room's windows and a sunken room's outside door are cut into the level's walls",
+    by.w1.floor_id === "upper~0.75" && by.d1.floor_id === "main~-0.4" && by.w2.floor_id === "main"
+    && w1.length >= 1 && w1.every(pc => pc.kind === "window" && !pc.free) && on("upper", "w1").length === 0
+    && d1.length >= 1 && d1.every(pc => pc.kind === "door" && !pc.free) && on("main", "d1").length === 0
+    && on("main", "w2").some(pc => pc.kind === "window" && !pc.free),
+    { by, w1: w1.map(pc => [pc.kind, pc.free]), d1: d1.map(pc => [pc.kind, pc.free]) });
+});
+await tryCase("doors: a door between a sunken room and its floor stays a door, and the level's wall opens there", () => {
+  const m = H.splitLevels(barred()), h = H.readHouse(m, null, {}, new Set(), {});
+  const all = (fid) => h.perFloor.get(h.byId.get(fid)).pieces;
+  const door = all("main").filter(pc => pc.barrier && pc.barrier.id === "d2");
+  const gap = all("main~-0.4").filter(pc => pc.barrier && pc.barrier.split_of === "d2");
+  const free = [...h.perFloor.values()].flatMap(v => v.pieces).filter(pc => pc.free && pc.barrier && pc.barrier.split_of);
+  check("doors: a door between a sunken room and its floor stays a door, and the level's wall opens there",
+    door.length >= 1 && door.every(pc => pc.kind === "door") && gap.length >= 1 && gap.every(pc => pc.kind === "open" && !pc.free)
+    && free.length === 0 && m.rf_barriers_m.filter(b => b.split_of).length === 1 && barred().rf_barriers_m.length === 4
+    && H.splitLevels(m) === m && H.splitLevels(m).rf_barriers_m.length === 5,
+    { door: door.map(pc => pc.kind), gap: gap.map(pc => [pc.kind, pc.free]), free: free.length });
+});
+
 // ── stem ────────────────────────────────────────────────────────────────────
 await tryCase("stem: a raised level stands on a wall down to its floor; a sunken one does not", () => {
   const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});

@@ -208,7 +208,8 @@ function circlePoly(cx, cy, r, n = 24){
  *  moves onto it. Its ceiling stays level with its floor's where a higher
  *  floor stands over it (the room is that much lower), else it keeps the
  *  floor's full height; a raised level stands on stem walls down to its
- *  floor (readFloors: stem). Nothing stored changes; a model with no raised
+ *  floor (readFloors: stem). Its doors and windows go with it
+ *  (splitBarriers). Nothing stored changes; a model with no raised
  *  room comes back as it was. The level follows its floor's chip
  *  (chipElev) and never gets one of its own. */
 export function splitLevels(model){
@@ -264,7 +265,50 @@ export function splitLevels(model){
       return [k, S ? { ...v, floor_id: S.id } : v];
     }));
   }
+  if (Array.isArray(model.rf_barriers_m) && model.rf_barriers_m.length) out.rf_barriers_m = splitBarriers(model.rf_barriers_m, subs, geo, polyOf);
   out.split_levels = subs;
+  return out;
+}
+// A barrier this close to a room's outline runs along it (a wall's
+// thickness and a little: outlines drawn either side of one wall).
+const SPLIT_BAR_NEAR = 0.3;
+/** The doors and windows (rf_barriers_m) of floors with split levels, each
+ *  where its room went: one along a raised (or sunk) room's outline, and no
+ *  other room's of its floor, moves onto the room's level (a sunken
+ *  garage's doors, a raised study's windows). A door between such a room
+ *  and a room left on the floor (the door from a sunken garage into the
+ *  house) stays on the floor, and the level's own wall gets a gap there
+ *  too (split_of: drawn as an opening, never on its own; its leaf stays in
+ *  the floor's wall, where the steps arrive). */
+function splitBarriers(barriers, subs, geo, polyOf){
+  const stay = new Map();
+  for (const [n, g] of Object.entries(geo)) {
+    if (!g || typeof g !== "object" || subs.some(S => S.rooms.includes(n))) continue;
+    const fid = String(g.floor_id || "main"), P = polyOf(g);
+    if (P.length < 3 || !subs.some(S => S.fid === fid)) continue;
+    if (!stay.has(fid)) stay.set(fid, []);
+    stay.get(fid).push(P);
+  }
+  const near = (A, p) => inPoly(p[0], p[1], A)
+    || A.some((q, i) => { const r = A[(i + 1) % A.length]; return segDist(p[0], p[1], q[0], q[1], r[0], r[1])[0] <= SPLIT_BAR_NEAR; });
+  const out = [];
+  for (const b of barriers) {
+    const fid = b && typeof b === "object" ? String(b.floor_id || "main") : null;
+    const pts = fid && Array.isArray(b.points_m)
+      ? b.points_m.filter(p => Array.isArray(p) && num(p[0]) !== null && num(p[1]) !== null).map(p => [Number(p[0]), Number(p[1])]) : [];
+    if (!pts.length || !subs.some(S => S.fid === fid)) { out.push(b); continue; }
+    // Its ends and the middle of each stretch.
+    const probe = pts.concat(pts.slice(1).map((q, i) => [(q[0] + pts[i][0]) / 2, (q[1] + pts[i][1]) / 2]));
+    const S = subs.find(q => q.fid === fid && probe.every(p => q.areas.some(A => near(A, p))));
+    if (!S) { out.push(b); continue; }
+    if (!(stay.get(fid) || []).some(A => probe.some(p => near(A, p)))) { out.push({ ...b, floor_id: S.id }); continue; }
+    out.push(b);
+    if (b.linked_entity_id || barrierKind(b) === "door" || barrierKind(b) === "open") {
+      const gap = { ...b, id: `${b.id}@${S.id}`, floor_id: S.id, split_of: b.id };
+      delete gap.linked_entity_id; delete gap.linked_lock_entity_id;      // a gap: no sensor, no lock
+      out.push(gap);
+    }
+  }
   return out;
 }
 
@@ -666,7 +710,8 @@ export function drawnSpan(pc){
 export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKind, looksDown = null){
   for (const b of barriers || []) {
     if (!b || typeof b !== "object" || canon(b.floor_id) !== floor.id) continue;
-    const kind = kindOf(b), mat = String(b.material || "").toLowerCase();
+    // A split level's gap for a door on its floor (splitBarriers): an opening.
+    const kind = b.split_of ? "open" : kindOf(b), mat = String(b.material || "").toLowerCase();
     const pts = (b.points_m || []).filter(p => Array.isArray(p) && num(p[0]) !== null && num(p[1]) !== null).map(p => [Number(p[0]), Number(p[1])]);
     for (let i = 0; i + 1 < pts.length; i++) {
       const a = pts[i], c = pts[i + 1], L = dist(a, c);
@@ -691,8 +736,8 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
         k += parts.length - 1;
         hit = true;
       }
-      if (!hit) pieces.push({ x0: a[0], y0: a[1], x1: c[0], y1: c[1], nx: uy, ny: -ux, cls: "int", thick: 0.12,
-                              shared: false, kind, mat, barrier: b, free: true });
+      if (!hit && !b.split_of) pieces.push({ x0: a[0], y0: a[1], x1: c[0], y1: c[1], nx: uy, ny: -ux, cls: "int", thick: 0.12,
+                                             shared: false, kind, mat, barrier: b, free: true });
     }
   }
   // An open edge that looks down into the house gets a railing (a mezzanine
