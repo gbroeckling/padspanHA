@@ -273,18 +273,24 @@ export function splitLevels(model){
 // thickness and a little: outlines drawn either side of one wall).
 const SPLIT_BAR_NEAR = 0.3;
 /** The doors and windows (rf_barriers_m) of floors with split levels, each
- *  where its room went. One along a raised (or sunk) room's outline, and no
- *  indoor room's left on its floor, moves onto the room's level (a sunken
- *  garage's doors, a raised study's windows); a driveway, patio or deck drawn
- *  beside it is not the house, so a garage door onto the driveway goes with
- *  the garage. A door between such a room and a room left on the floor (the
- *  door from a sunken garage into the house), the middle of it along both,
- *  stays on the floor, and the level's own wall gets a gap there (split_of:
- *  never on its own; a door's is a doorway as high as the door, its leaf in
- *  the floor's wall where the steps arrive; an Open edge's is open, and
- *  railed over a drop). A door between two levels of one floor goes onto the
- *  first, with a gap in the other's wall. Doors and Open edges are placed by
- *  their middle, windows by every point of them. */
+ *  where its room went. A window (or a stretch of tinted wall) along a raised
+ *  (or sunk) room's outline, all of it, and no indoor room's left on its floor,
+ *  moves onto the room's level (a raised study's windows); a driveway, patio
+ *  or deck drawn beside it is not the house. A door goes by the rooms either
+ *  side of the middle of each stretch of it (as openingPlaces does for one
+ *  drawn in 3D): with only a level's room beside it (outside, a driveway) it
+ *  moves onto the level, whole, even one that starts just past the room's
+ *  corner (a sunken garage's side door); between such a room and a room left
+ *  on the floor (the door from a sunken garage into the house) it stays on the
+ *  floor, and the level's own wall gets a gap there (split_of: never on its
+ *  own; a doorway from the door's sill to its top, measured from the floor the
+ *  door stands on, so on a raised level it runs down the wall the level stands
+ *  on, and above a level raised past the door's top there is none; its leaf is
+ *  in the floor's wall where the steps arrive). A door between two levels of
+ *  one floor goes onto the first, with a gap in the other's wall. An Open edge
+ *  (a gallery) goes by the rooms either side of it all along: it stays on its
+ *  floor if any stretch of it runs along a room left there, and opens the wall
+ *  of every level it passes (railed over a drop). */
 function splitBarriers(barriers, subs, geo, polyOf){
   const N = SPLIT_BAR_NEAR;
   const area = (P) => {
@@ -306,6 +312,22 @@ function splitBarriers(barriers, subs, geo, polyOf){
   const near = (A, p) => p[0] >= A.box[0] && p[0] <= A.box[2] && p[1] >= A.box[1] && p[1] <= A.box[3]
     && (inPoly(p[0], p[1], A.P)
         || A.P.some((q, i) => { const r = A.P[(i + 1) % A.P.length]; return segDist(p[0], p[1], q[0], q[1], r[0], r[1])[0] <= N; }));
+  const inside = (A, p) => p[0] >= A.box[0] && p[0] <= A.box[2] && p[1] >= A.box[1] && p[1] <= A.box[3] && inPoly(p[0], p[1], A.P);
+  // The points N either side of a stretch, at its middle (a door) or all along it (an Open edge).
+  const sidesOf = (pts, along) => {
+    const out = [];
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], c = pts[i + 1], L = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      if (L < 1e-6) continue;
+      const nx = -(c[1] - a[1]) / L, ny = (c[0] - a[0]) / L;
+      const n = along ? Math.max(1, Math.ceil(L / 0.25)) : 1;
+      for (let k = 0; k < n; k++) {
+        const t = (k + 0.5) / n, x = a[0] + (c[0] - a[0]) * t, y = a[1] + (c[1] - a[1]) * t;
+        out.push([x + nx * N, y + ny * N], [x - nx * N, y - ny * N]);
+      }
+    }
+    return out;
+  };
   const out = [];
   for (const b of barriers) {
     const fid = b && typeof b === "object" ? String(b.floor_id || "main") : null;
@@ -313,24 +335,40 @@ function splitBarriers(barriers, subs, geo, polyOf){
     const pts = here.length && Array.isArray(b.points_m)
       ? b.points_m.filter(p => Array.isArray(p) && num(p[0]) !== null && num(p[1]) !== null).map(p => [Number(p[0]), Number(p[1])]) : [];
     if (!pts.length) { out.push(b); continue; }
-    // A door or an Open edge by the middle of each stretch (one end may run past
-    // a room's corner); a window by its ends and middles, all of it along.
-    const opening = !!b.linked_entity_id || barrierKind(b) === "door" || barrierKind(b) === "open";
-    const mids = pts.length > 1 ? pts.slice(1).map((q, i) => [(q[0] + pts[i][0]) / 2, (q[1] + pts[i][1]) / 2]) : pts;
-    const probe = opening ? mids : pts.concat(mids);
-    const on = here.filter(L => probe.every(p => L.areas.some(A => near(A, p)))).map(L => L.S);
+    const kind = barrierKind(b), open = kind === "open";
+    // A door: one named so, or tied to a sensor that isn't a window's (a window
+    // with a contact sensor stays a window, and no doorway is cut beside it).
+    const door = !open && (kind === "door" || (!!b.linked_entity_id && kind !== "window"));
+    const floorRooms = stay.get(fid) || [];
+    let on, shared;
+    if ((door || open) && pts.length > 1) {
+      const sides = sidesOf(pts, open);
+      on = here.filter(L => sides.some(p => L.areas.some(A => inside(A, p)))).map(L => L.S);
+      shared = sides.some(p => floorRooms.some(A => inside(A, p)));
+    } else {
+      // A window by its ends and middles, all of it along the room.
+      const mids = pts.length > 1 ? pts.slice(1).map((q, i) => [(q[0] + pts[i][0]) / 2, (q[1] + pts[i][1]) / 2]) : pts;
+      const probe = pts.concat(mids);
+      on = here.filter(L => probe.every(p => L.areas.some(A => near(A, p)))).map(L => L.S);
+      shared = probe.every(p => floorRooms.some(A => near(A, p)));
+    }
     if (!on.length) { out.push(b); continue; }
-    const shared = probe.every(p => (stay.get(fid) || []).some(A => near(A, p)));
     const home = shared ? null : on[0];
     out.push(home ? { ...b, floor_id: home.id } : b);
-    if (!opening) continue;                                         // a window: where it is
+    if (!door && !open) continue;                                   // a window: where it is
     for (const S of on) {
       if (S === home) continue;
       const gap = { ...b, id: `${b.id}@${S.id}`, floor_id: S.id, split_of: b.id };
       delete gap.linked_entity_id; delete gap.linked_lock_entity_id;      // a gap: no sensor, no lock
-      // A door's gap is a doorway as high as the door, measured from the lower of
-      // the two floors (an Open edge's stays open, full height, railed over a drop).
-      if (barrierKind(b) !== "open") gap.split_head_m = DOOR_H + Math.max(0, (home ? home.raise : 0) - S.raise);
+      if (!open) {
+        // A door's gap runs from its sill to its top, measured from the floor the door
+        // stands on: on a raised level from below the level's floor (down its stem),
+        // and with its top under the level's floor, no gap above the floor at all
+        // (wallElements). An Open edge's stays open, full height, railed over a drop.
+        const rel = (home ? home.raise : 0) - S.raise;
+        gap.split_head_m = DOOR_H + rel;
+        gap.split_foot_m = Math.min(0, rel);
+      }
       out.push(gap);
     }
   }
@@ -345,7 +383,12 @@ function splitBarriersOnce(barriers, subs, geo, polyOf){
   let acc = barriers.length;
   barriers.forEach((b, i) => {
     if (!b || typeof b !== "object") return;
-    acc += (String(b.floor_id || "").length * 13 + String(b.material || "").length * 7 + (b.linked_entity_id ? 3 : 0)) * (i % 89 + 1);
+    // Its floor, material, name and sensor as text (a material or name changed in place,
+    // even to one as long, is split again: a window renamed a door).
+    const s = `${b.floor_id || ""}|${b.material || ""}|${b.name || ""}|${b.linked_entity_id || ""}`;
+    let hs = 0;
+    for (let j = 0; j < s.length; j++) hs = (hs * 31 + s.charCodeAt(j)) | 0;
+    acc += hs * (i % 89 + 1);
     (Array.isArray(b.points_m) ? b.points_m : []).forEach((p, k) => {
       if (Array.isArray(p)) acc += ((Number(p[0]) || 0) * 31 + (Number(p[1]) || 0) * 17) * ((i * 7 + k) % 101 + 1);
     });
@@ -779,7 +822,9 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
         const t0 = Math.max(0, Math.min(ta, tc)), t1 = Math.min(WL, Math.max(ta, tc));
         if (t1 - t0 < 0.05) continue;
         const parts = DRAFT.splitPiece(W, WL, wx, wy, t0, t1, { kind, mat, barrier: b });
-        if (b.split_head_m) for (const q of parts) if (q.barrier === b) q.head_m = b.split_head_m;   // a door's gap: as high as the door
+        if (num(b.split_head_m) !== null) {   // a door's gap: from its sill to its top (splitBarriers)
+          for (const q of parts) if (q.barrier === b) { q.head_m = b.split_head_m; if (num(b.split_foot_m) !== null) q.foot_m = b.split_foot_m; }
+        }
         pieces.splice(k, 1, ...parts);
         k += parts.length - 1;
         hit = true;
@@ -826,8 +871,10 @@ export function wallElements(pc, floorH){
   const tint = (pc.kind === "wall" && MAT_TINT[pc.mat]) || base;
   const E = [];
   const solid = (z0, z1, col, thick = pc.thick) => E.push({ z0, z1, col, thick, glass: false, cuttable: true });
-  // A raised level stands on a stem wall down to the floor it is raised from (splitLevels).
-  if (num(pc.stem) > 0 && pc.kind !== "rail") solid(-SLAB_T - num(pc.stem), -SLAB_T, base);
+  // A raised level stands on a stem wall down to the floor it is raised from (splitLevels);
+  // a doorway cuts its own way through it (below).
+  const stem = num(pc.stem) > 0 && pc.kind !== "rail" ? num(pc.stem) : 0;
+  if (stem > 0 && pc.kind !== "doorway") solid(-SLAB_T - stem, -SLAB_T, base);
   switch (pc.kind) {
     case "rail":
       E.push({ z0: RAIL_H - 0.05, z1: RAIL_H, col: RAIL_COL, thick: 0.06, glass: false, cuttable: false });
@@ -858,9 +905,16 @@ export function wallElements(pc, floorH){
       break;
     case "doorway": {
       // An opening with no door in it (an archway, an open plan): the slab
-      // edge, the gap, the wall over it.
-      solid(-SLAB_T, 0, base);
-      solid(Math.min(num(pc.head_m) ?? DOOR_H, lim.head), top, base);
+      // edge, the gap, the wall over it. A split level's gap for a door on a
+      // lower floor (splitBarriers, openingPlaces) runs from that door's sill
+      // (foot_m, below this floor: down a raised level's stem) to its top
+      // (head_m, which may be under this floor: then no gap above it at all).
+      const low = -SLAB_T - stem;
+      const foot = Math.max(low, Math.min(num(pc.foot_m) ?? 0, 0));
+      const head = Math.max(low, Math.min(num(pc.head_m) ?? DOOR_H, lim.head));
+      if (head <= foot + 1e-6) { solid(low, top, base); break; }
+      if (foot > low + 1e-6) solid(low, foot, base);
+      solid(head, top, base);
       break;
     }
     default: solid(-SLAB_T, top, tint);

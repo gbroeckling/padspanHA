@@ -10,7 +10,9 @@ splitLevels and views/live_aboard_storey.js for real under node: rooms raised
 alike share a level, what is in them moves onto it, the ceiling stays level
 under a higher floor, a sunken room, the level shown and exploded with its
 floor, stairs climbing into a raised room and out of a sunken one, the stem
-wall, and a 720-room house read in good time with every stair on its level.
+wall, a split level's doors, windows and Open edges (each where its room went,
+and a doorway from a door's sill to its top), and a 720-room house read in good
+time with every stair on its level.
 """
 
 from __future__ import annotations
@@ -38,7 +40,7 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("split:", 5), ("floors:", 3), ("stairs:", 5), ("stem:", 1), ("big:", 1)])
+@pytest.mark.parametrize("prefix,least", [("split:", 5), ("floors:", 3), ("stairs:", 5), ("stem:", 1), ("big:", 1), ("doors:", 11)])
 def test_split_levels(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"

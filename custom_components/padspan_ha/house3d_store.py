@@ -222,7 +222,7 @@ STAIR_SHAPES, STAIR_TURNS = ("straight", "l", "u", "l2", "l3"), ("left", "right"
 STAIR_STYLES, STAIR_RAILS = ("closed", "open", "treads", "floating"), ("auto", "both", "inner", "outer", "none")
 # A style this version does not know (a newer one's) is kept, if it is a short
 # lowercase word, and drawn as closed: a save is never refused for it, as
-# 0.38.194 refused a whole save holding a floating stair.
+# 0.38.183 to 0.38.195 refuse a whole save holding a floating stair.
 STAIR_STYLE_WORD = re.compile(r"[a-z][a-z_]{0,23}")
 STAIR_SIZE_MIN_M, STAIR_RISE_M = 0.5, (0.3, 8.0)
 _PIECE_OWNED = frozenset(("id", "recipe", "origin", "label", "library_id", "submission_id", "floor_id",

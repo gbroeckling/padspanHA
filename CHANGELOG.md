@@ -22,7 +22,7 @@ All notable changes to PadSpan HA are documented here.
 - **Imported stairs:** a staircase whose name says floating, suspended, spine or mono-stringer comes in as Floating. Cantilevered or wall-hung ones still come in as Treads only.
 - **The opt-in usage report** counts floating stairs with the other styles (a count, nothing else), and the Install Base page names them.
 - **A stair style from a newer version is kept.** If a later version adds another style, this one keeps it, draws it as Closed and still saves your other changes.
-- **Going back to an older version after using Floating:** 0.38.183 to 0.38.194 keep a floating stair and draw it Closed, but refuse a save that moves or changes it, and the rest of that save with it; and if you edit one of its settings there, it's saved as Closed. 0.38.182 and older never checked a stair's style. Before you go back, set your floating stairs to another style.
+- **Going back to an older version after using Floating:** 0.38.183 to 0.38.195 keep a floating stair and draw it Closed, but refuse a save that moves or changes it, and the rest of that save with it; and if you edit one of its settings there, it's saved as Closed. 0.38.182 and older never checked a stair's style. Before you go back, set your floating stairs to another style.
 
 ### Fixed
 - **Doors and windows go with a raised or sunken room.** In 0.38.190 a split level's doors and windows stayed on the rest of its floor: a sunken garage lost its garage doors in the 3D house and on a wall, and a raised room's windows stood loose beside it, as far below as it was raised. They're now cut into the room's own walls. A driveway, patio or deck drawn beside the room doesn't hold them back.

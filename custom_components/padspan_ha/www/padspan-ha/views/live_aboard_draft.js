@@ -510,7 +510,7 @@ export function spliceOpening(pieces, id, o){
   const a = o.a_m, b = o.b_m, L = Math.hypot(b[0] - a[0], b[1] - a[1]);
   if (L < 0.03) return pieces;
   const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
-  const mine = { kind: o.kind, mat: null, barrier: null, added: id, sill_m: o.sill_m, head_m: o.head_m, ...(o.gap ? { gap: true } : null),
+  const mine = { kind: o.kind, mat: null, barrier: null, added: id, sill_m: o.sill_m, head_m: o.head_m, ...(o.gap ? { gap: true, foot_m: o.foot_m } : null),
                  override: o.kind === "door" ? { hinge: o.hinge, swing: o.swing, ...(o.shown ? { shown: o.shown } : null), ...doorTypeKeys(o) } : null };
   let hit = false;
   for (let k = 0; k < pieces.length; k++) {
@@ -597,10 +597,16 @@ function openingPlaces(h, id, o){
   const indoor = sides.some(p => h.canonAt(c, p[0], p[1]) === c
     && (h.rooms || []).some(r => r.floor && r.floor.id === c && !r.outdoor && Array.isArray(r.pts) && inPolyD(p[0], p[1], r.pts)));
   const home = indoor ? c : lv[0], out = [[home, id, o]];
-  // The gap: a doorway as high as the door, measured from the lower of the two floors.
+  // The gap: a doorway from the door's sill to its top, measured from the floor the door
+  // stands on (live_aboard_house.js splitBarriers): down a raised level's stem, and with
+  // its top under the level's floor, none above it (wallElements).
   const head = (num(o.head_m) ?? DOOR_HEAD_M);
   if (o.kind === "door" || o.kind === "doorway") {
-    for (const f of lv) if (f !== home) out.push([f, null, { ...o, kind: "doorway", head_m: head + Math.max(0, raiseOf(home) - raiseOf(f)), gap: true }]);
+    for (const f of lv) {
+      if (f === home) continue;
+      const rel = raiseOf(home) - raiseOf(f);
+      out.push([f, null, { ...o, kind: "doorway", head_m: head + rel, foot_m: Math.min(0, rel), gap: true }]);
+    }
   }
   return out;
 }

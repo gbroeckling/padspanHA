@@ -257,7 +257,10 @@ await tryCase("doors: between two levels of one floor, both walls are cut; a rai
   const gap4 = on("upper~1.2", pc => pc.barrier && pc.barrier.split_of === "d4"), door4 = on("upper", pc => pc.barrier && pc.barrier.id === "d4");
   check("doors: between two levels of one floor, both walls are cut; a raised room's doorway is never railed",
     d3[0].length >= 1 && d3[1].length >= 1 && d3.flat().includes("door") && d3.flat().includes("doorway")
-    && gap4.length >= 1 && gap4.every(pc => pc.kind === "doorway" && !pc.loftRail && !pc.free && near(pc.head_m, H.DOOR_H, 1e-9))
+    // The hall's door into the office (raised 1.2 m): its gap runs from the door's sill (1.2 m down
+    // the office's stem) to the door's top, measured from the hall (round 3 review, 2026-10-29).
+    && gap4.length >= 1 && gap4.every(pc => pc.kind === "doorway" && !pc.loftRail && !pc.free
+                                     && near(pc.head_m, H.DOOR_H - 1.2, 1e-9) && near(pc.foot_m, -1.2, 1e-9))
     && door4.some(pc => pc.kind === "door"),
     { d3, gap4: gap4.map(pc => [pc.kind, !!pc.loftRail]), door4: door4.map(pc => pc.kind) });
 });
@@ -317,6 +320,95 @@ await tryCase("doors: a door drawn on a level's wall before a save opens the flo
     door.some(pc => pc.kind === "door") && gap.length >= 1 && gap.every(pc => pc.kind === "doorway" && near(pc.head_m, H.DOOR_H + 0.4, 1e-9))
     && els.some(e => near(e.z0, Math.min(H.DOOR_H + 0.4, e.z0), 1e-9) && e.z0 >= H.DOOR_H + 0.4 - 1e-6),
     { door: door.map(pc => pc.kind), gap: gap.map(pc => [pc.kind, pc.head_m]), els: els.map(e => [e.z0, e.z1]) });
+});
+
+// Round 3 review (2026-10-29): a raised room's doorway as high as the door; a long
+// gallery along the floor and a raised room; a door at an outside corner; a
+// window with a sensor; a barrier renamed in place.
+await tryCase("doors: a raised room's doorway runs from the door's sill to its top, down the wall it stands on", () => {
+  const res = [];
+  for (const raise of [0.75, 1.2, 2.3]) {        // 0.75: Garry's office; 2.3: raised past the door's top
+    const m0 = barred();
+    m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: raise };
+    delete m0.room_meta.Den;
+    m0.rf_barriers_m.push({ id: "d6", floor_id: "upper", name: "Hall to office door", material: "wood", points_m: [[4, 2], [4, 3]] });
+    const m = H.splitLevels(m0), h = H.readHouse(m, null, {}, new Set(), {});
+    const lvl = h.byId.get(`upper~${raise}`);
+    const gap = lvl ? h.perFloor.get(lvl).pieces.filter(pc => pc.barrier && pc.barrier.split_of === "d6") : [];
+    const door = h.perFloor.get(h.byId.get("upper")).pieces.filter(pc => pc.barrier && pc.barrier.id === "d6");
+    const els = gap.length ? H.wallElements(gap[0], lvl.h) : [];
+    // From the level's floor: the door's sill is at -raise, its top at DOOR_H - raise.
+    const sill = -raise, topDoor = H.DOOR_H - raise;
+    const blocked = els.some(e => e.z0 < topDoor - 1e-6 && e.z1 > sill + 1e-6);
+    const over = els.some(e => near(e.z0, topDoor, 1e-6) && e.z1 > topDoor);
+    const under = els.some(e => near(e.z1, sill, 1e-6) && e.z0 < sill);           // the hall's slab edge under the sill
+    res.push({ raise, n: gap.length, door: door.map(pc => pc.kind), blocked, over, under, head: gap[0] && gap[0].head_m,
+               foot: gap[0] && gap[0].foot_m, els: els.map(e => [+e.z0.toFixed(3), +e.z1.toFixed(3)]) });
+  }
+  check("doors: a raised room's doorway runs from the door's sill to its top, down the wall it stands on",
+    res.every(r => r.n >= 1 && r.door.includes("door") && !r.blocked && r.over && r.under
+                   && near(r.head, H.DOOR_H - r.raise, 1e-9) && near(r.foot, -r.raise, 1e-9)), res);
+});
+await tryCase("doors: a gallery along the floor and a raised room stays open along the floor, railed as before, and opens the raised room's wall", () => {
+  const mk = (raised) => {
+    const m0 = barred();
+    if (raised) m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: 1.2 }; else delete m0.room_meta.Office;
+    delete m0.room_meta.Den;
+    // Along the north edge of the hall (x 0..4) and the office (x 4..7).
+    m0.rf_barriers_m.push({ id: "o2", floor_id: "upper", name: "Gallery", material: "open", points_m: [[2, 5], [7, 5]] });
+    const m = H.splitLevels(m0);
+    return { m, h: H.readHouse(m, null, {}, new Set(), {}) };
+  };
+  const A = mk(true), B = mk(false);
+  const on = (X, fid, f) => X.h.perFloor.get(X.h.byId.get(fid)).pieces.filter(f);
+  const alongHall = (pc) => Math.abs(pc.y0 - 5) < 0.2 && Math.abs(pc.y1 - 5) < 0.2 && Math.min(pc.x0, pc.x1) < 3.9 && Math.max(pc.x0, pc.x1) > 2.1;
+  const hallA = on(A, "upper", pc => alongHall(pc) && Math.min(pc.x0, pc.x1) >= 1.99 && Math.max(pc.x0, pc.x1) <= 4.01);
+  const hallB = on(B, "upper", pc => alongHall(pc) && pc.barrier && pc.barrier.id === "o2" && Math.max(pc.x0, pc.x1) <= 4.01);
+  const gapA = on(A, "upper~1.2", pc => pc.barrier && pc.barrier.split_of === "o2");
+  const by = Object.fromEntries(A.m.rf_barriers_m.map(b => [b.id, b]));
+  check("doors: a gallery along the floor and a raised room stays open along the floor, railed as before, and opens the raised room's wall",
+    by.o2.floor_id === "upper" && hallA.length >= 1 && hallA.every(pc => pc.kind === "open")
+    && gapA.length >= 1 && gapA.every(pc => pc.kind === "open")
+    && hallA.map(pc => !!pc.loftRail).join() === hallB.map(pc => !!pc.loftRail).join(),
+    { o2: by.o2.floor_id, hallA: hallA.map(pc => [pc.kind, !!pc.loftRail]), hallB: hallB.map(pc => [pc.kind, !!pc.loftRail]), gapA: gapA.map(pc => pc.kind) });
+});
+await tryCase("doors: a door at an outside corner goes whole with the room whose wall it is in", () => {
+  const m0 = barred();
+  // The sunroom (sunk 0.4 m) starts at x = 6 along the south wall; a side door from x 5.8 to 6.7 starts 0.2 m before it.
+  m0.rf_barriers_m.push({ id: "d7", floor_id: "main", name: "Side door", material: "wood", points_m: [[5.8, 0], [6.7, 0]] });
+  const m = H.splitLevels(m0), by = Object.fromEntries(m.rf_barriers_m.map(b => [b.id, b]));
+  const h = H.readHouse(m, null, {}, new Set(), {});
+  const on = (fid) => h.perFloor.get(h.byId.get(fid)).pieces.filter(pc => pc.barrier && (pc.barrier.id === "d7" || pc.barrier.split_of === "d7"));
+  const lvl = on("main~-0.4"), floor = on("main");
+  check("doors: a door at an outside corner goes whole with the room whose wall it is in",
+    by.d7.floor_id === "main~-0.4" && !m.rf_barriers_m.some(b => b.split_of === "d7")
+    && lvl.length >= 1 && lvl.every(pc => pc.kind === "door" && !pc.free) && floor.length === 0,
+    { d7: by.d7.floor_id, lvl: lvl.map(pc => [pc.kind, pc.free]), floor: floor.map(pc => pc.kind) });
+});
+await tryCase("doors: a window with a sensor between a raised room and its floor stays a window; no doorway is cut", () => {
+  const m0 = barred();
+  m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: 1.2 };
+  delete m0.room_meta.Den;
+  m0.rf_barriers_m.push({ id: "w4", floor_id: "upper", name: "Office window", material: "glass", linked_entity_id: "binary_sensor.office_window",
+                         points_m: [[4, 1], [4, 1.8]] });
+  const m = H.splitLevels(m0), by = Object.fromEntries(m.rf_barriers_m.map(b => [b.id, b]));
+  check("doors: a window with a sensor between a raised room and its floor stays a window; no doorway is cut",
+    by.w4.floor_id === "upper" && !m.rf_barriers_m.some(b => b.split_of === "w4"), { w4: by.w4.floor_id, gaps: m.rf_barriers_m.filter(b => b.split_of === "w4").length });
+});
+await tryCase("split: a barrier renamed or given another material in place, even one as long, is split again", () => {
+  const m0 = barred();
+  m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: 1.2 };
+  delete m0.room_meta.Den;
+  m0.rf_barriers_m.push({ id: "x1", floor_id: "upper", name: "Hall to office", material: "brick", points_m: [[4, 2], [4, 3]] });
+  const a = H.splitLevels(m0);
+  m0.rf_barriers_m[m0.rf_barriers_m.length - 1].name = "Hall to office door";       // a wall becomes a door: a gap opens
+  const b = H.splitLevels(m0);
+  m0.rf_barriers_m[0].material = "brick";                                          // the office window, "glass" to "brick": as long
+  const c = H.splitLevels(m0);
+  check("split: a barrier renamed or given another material in place, even one as long, is split again",
+    !a.rf_barriers_m.some(x => x.split_of === "x1") && b.rf_barriers_m !== a.rf_barriers_m && b.rf_barriers_m.some(x => x.split_of === "x1")
+    && c.rf_barriers_m !== b.rf_barriers_m && c.rf_barriers_m.find(x => x.id === "w1").material === "brick",
+    { a: a.rf_barriers_m.filter(x => x.split_of).map(x => x.id), b: b.rf_barriers_m.filter(x => x.split_of).map(x => x.id) });
 });
 
 // ── stem ────────────────────────────────────────────────────────────────────
