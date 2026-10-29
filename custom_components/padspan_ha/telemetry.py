@@ -139,6 +139,9 @@ _MAX_BYTES = 8192
 # closed list, because the report's KEYS are also data that leaves the box,
 # and an open pattern would let any authenticated user put a word into it.
 EVENTS: frozenset[str] = frozenset({
+    # Mapping → 3D Stack's stale-receiver list opened (0.38.170 made it read-only
+    # and honest): whether anyone looks, once per opening.
+    "stale_receivers_listed",
     # 0.38.160: a device's room held through a short gap (once per hold, so
     # whether the setting ever does anything in a real house), and a robot
     # vacuum's map imported / a walker point accepted into calibration.
@@ -502,9 +505,6 @@ OFFER_EVENTS: frozenset[str] = frozenset(
     | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
     | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
     | PRO_OFFER_EVENTS
-    # Mapping → 3D Stack's stale-receiver list opened (0.38.170 made it read-only
-    # and honest): whether anyone looks, once per opening.
-    | {"stale_receivers_listed"}
 )
 # Atlas outdoor weather (views/atlas_weather.js — the same four lists there,
 # held equal by tests/test_atlas_weather.py). Each counted once per page load
