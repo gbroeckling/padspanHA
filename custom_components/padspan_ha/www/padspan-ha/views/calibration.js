@@ -199,6 +199,9 @@ function _walkTab(ctx, el, cs, calData) {
 // points once the floor was measured. So the floor's scale is checked BEFORE
 // anyone stands still for a capture. No model loaded yet: not blocked.
 function _floorScaled(ctx, mapId) {
+  // Not until model_get has answered (the stable review, 2026-10-29): the
+  // panel's model before then can hold an empty map_transforms.
+  if (!ctx.state._modelLoaded) return true;
   const t = ctx.state.model && ctx.state.model.map_transforms;
   if (!t || !mapId) return true;
   return !!t[mapId];

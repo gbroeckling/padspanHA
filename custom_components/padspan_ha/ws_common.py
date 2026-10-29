@@ -732,6 +732,13 @@ class RadioDeviceIndex:
         area = getattr(dev, "area_id", None)
         if area:
             return area
+        # Only a scanner device Home Assistant's Bluetooth integration made
+        # (connections {("bluetooth", <its MAC>)}, via the proxy's device) takes
+        # its via device's area, as HA itself does at setup; any other device
+        # with no area stays without one (the stable review, 2026-10-29: the
+        # rule reached every device with a via device).
+        if not any(isinstance(c, (tuple, list)) and c and c[0] == "bluetooth" for c in (getattr(dev, "connections", None) or ())):
+            return None
         via = self._by_id.get(str(getattr(dev, "via_device_id", None) or ""))
         area = (getattr(via, "area_id", None) or None) if via is not None else None
         if area:

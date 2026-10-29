@@ -45,7 +45,21 @@ def test_every_case_in_the_harness_passes(harness) -> None:
 
 def test_the_overview_shows_it_only_before_any_room_is_drawn() -> None:
     ov = _src(_WWW / "views" / "overview.js")
-    assert "const _noRoomsDrawn = !Object.keys((ctx.state.model || {}).room_geometry_m || {}).length;" in ov
+    # Run for real: no fabric room AND no room drawn on any plan (room_bounds,
+    # as setup_status.js hasRooms counts them; the stable review, 2026-10-29).
+    import json as _json, shutil as _sh, subprocess as _sp
+    expr = ov[ov.index("const _noRoomsDrawn = ") + len("const _noRoomsDrawn = "):ov.index(";", ov.index("const _noRoomsDrawn = "))]
+    node = _sh.which("node")
+    if node:
+        cases = [({"model": {}, "maps": {"list": []}}, True),
+                 ({"model": {"room_geometry_m": {"Kitchen": {}}}, "maps": {"list": []}}, False),
+                 ({"model": {}, "maps": {"list": [{"room_bounds": {"Kitchen": {}}}]}}, False),
+                 ({"model": {}, "maps": {"list": [{"room_bounds": {}}, {}]}}, True),
+                 ({"model": None, "maps": None}, True)]
+        js = "const f = (ctx) => (" + expr + ");\n" + "".join(
+            f"console.log(JSON.stringify(f({{state: {_json.dumps(st)}}})));\n" for st, _ in cases)
+        out = _sp.run([node, "-e", js], capture_output=True, text=True, timeout=60).stdout.split()
+        assert out == [_json.dumps(want) for _, want in cases], (out, expr)
     assert 'const whosWhere = (dataMode === "live" && liveSnap && _noRoomsDrawn) ? whosWhereCard(ctx) : null;' in ov
     # Cleared on every render, so a house that has drawn its rooms polls nothing for it.
     assert ov.count("ctx.state._whosWhereUpdate = null;") == 1

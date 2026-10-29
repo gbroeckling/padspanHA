@@ -1397,6 +1397,19 @@ def test_the_calibration_tab_checks_the_floor_is_measured_before_a_capture():
         assert "if (!_floorScaled(ctx, cs.mapId))" in body and "_noScaleCard(ctx, el, cs)" in body, fn
     helper = js[js.index("function _floorScaled("):js.index("function _noScaleCard(")]
     assert "if (!t || !mapId) return true;" in helper, "no model loaded yet must not block"
+    # Run for real: before model_get answers, nothing is blocked, even with an
+    # empty map_transforms already there (the stable review, 2026-10-29).
+    import json as _json, shutil as _sh, subprocess as _sp
+    node = _sh.which("node")
+    if node:
+        cases = [({"_modelLoaded": False, "model": {"map_transforms": {}}}, "m1", True),
+                 ({"_modelLoaded": True, "model": {"map_transforms": {}}}, "m1", False),
+                 ({"_modelLoaded": True, "model": {"map_transforms": {"m1": {"scale_x_m": 10}}}}, "m1", True),
+                 ({"_modelLoaded": True, "model": {}}, "m1", True)]
+        code = helper + "\n" + "".join(f"console.log(JSON.stringify(_floorScaled({{state: {_json.dumps(st)}}}, {_json.dumps(mid)})));\n"
+                                        for st, mid, _ in cases)
+        out = _sp.run([node, "-e", code], capture_output=True, text=True, timeout=60).stdout.split()
+        assert out == [_json.dumps(want) for *_, want in cases], out
 
 
 

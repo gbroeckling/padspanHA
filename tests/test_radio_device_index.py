@@ -32,11 +32,11 @@ from custom_components.padspan_ha.ws_common import RadioDeviceIndex, radio_slug
 
 
 class _Dev:
-    def __init__(self, id, name, name_by_user=None, macs=(), area_id=None):
+    def __init__(self, id, name, name_by_user=None, macs=(), area_id=None, kind="mac"):
         self.id = id
         self.name = name
         self.name_by_user = name_by_user
-        self.connections = {("mac", m) for m in macs}
+        self.connections = {(kind, m) for m in macs}
         self.area_id = area_id
 
     def __repr__(self):
@@ -271,7 +271,7 @@ def test_setting_a_shellys_room_finds_its_device(index) -> None:
 def test_a_scanner_device_without_an_area_takes_its_shellys(index) -> None:
     shelly = _shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")
     shelly.area_id = "kitchen"
-    scanner = _Dev("d2", "Kitchen Light (A8:03:2A:B1:23:47)", macs=["a8:03:2a:b1:23:47"])
+    scanner = _Dev("d2", "Kitchen Light (A8:03:2A:B1:23:47)", macs=["a8:03:2a:b1:23:47"], kind="bluetooth")
     scanner.via_device_id = "d1"
     idx = index([shelly, scanner])
     m = idx.resolve("A8:03:2A:B1:23:47", "Kitchen Light (A8:03:2A:B1:23:47)")
@@ -282,7 +282,7 @@ def test_a_scanner_device_without_an_area_takes_its_shellys(index) -> None:
 def test_a_scanner_devices_own_area_wins(index) -> None:
     shelly = _shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")
     shelly.area_id = "kitchen"
-    scanner = _Dev("d2", "Kitchen Light (A8:03:2A:B1:23:47)", macs=["a8:03:2a:b1:23:47"], area_id="hall")
+    scanner = _Dev("d2", "Kitchen Light (A8:03:2A:B1:23:47)", macs=["a8:03:2a:b1:23:47"], area_id="hall", kind="bluetooth")
     scanner.via_device_id = "d1"
     idx = index([shelly, scanner])
     assert idx.area_id_of(scanner) == "hall"
@@ -300,7 +300,7 @@ def test_the_shelly_rules_are_counted_for_the_report(index) -> None:
     # 0.38.175 and 0.38.176's field signal: how often each rule decided a radio.
     shelly = _shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")
     shelly.area_id = "kitchen"
-    scanner = _Dev("d2", "Porch (A8:03:2A:B1:99:99)", macs=["a8:03:2a:b1:99:99"])
+    scanner = _Dev("d2", "Porch (A8:03:2A:B1:99:99)", macs=["a8:03:2a:b1:99:99"], kind="bluetooth")
     scanner.via_device_id = "d1"
     idx = index([shelly, scanner, _Dev("d3", "esp-proxy", macs=["11:22:33:44:55:66"], area_id="hall")])
     assert (idx.shelly_matched, idx.area_from_via) == (0, 0)
@@ -309,3 +309,20 @@ def test_the_shelly_rules_are_counted_for_the_report(index) -> None:
     idx.area_id_of(scanner)                                # the Shelly's area
     idx.area_id_of(idx.resolve("11:22:33:44:55:66").device)   # its own area
     assert (idx.shelly_matched, idx.area_from_via) == (1, 1)
+
+
+
+def test_only_a_bluetooth_scanner_device_takes_its_via_devices_area(index) -> None:
+    # The stable review (2026-10-29): the rule reached any device with a via
+    # device. Home Assistant gives its scanner devices a ("bluetooth", MAC)
+    # connection; a plug or a hub's child device keeps having no area.
+    hub = _Dev("h1", "Zigbee hub", area_id="office")
+    child = _Dev("c1", "Plug behind the hub", macs=["11:22:33:44:55:66"])
+    child.via_device_id = "h1"
+    scanner = _Dev("s1", "Proxy (AA:BB:CC:DD:EE:FF)", macs=["aa:bb:cc:dd:ee:ff"], kind="bluetooth")
+    scanner.via_device_id = "h1"
+    idx = index([hub, child, scanner])
+    assert idx.area_id_of(child) is None
+    assert idx.area_id_of(scanner) == "office"
+    # And a bluetooth connection still matches by its MAC.
+    assert idx.resolve("AA:BB:CC:DD:EE:FF").device.id == "s1"
