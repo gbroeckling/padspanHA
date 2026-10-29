@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.198",
+  "title": "Raised rooms' doorways as high as the door",
+  "date": "2026-10-29",
+  "body_markdown": "### Fixed\n- **A raised room's doorway from the rest of its floor is as high as the door.** In 0.38.196 the gap in the raised room's wall ran a door's height up from the raised floor, so a room raised well above the rest of its floor showed a hole above the floor's roof. The gap now runs from the door's sill to its top, measured from the floor the door stands on, through the wall the raised room stands on. If a room is raised past the top of the door, there's no gap above its floor at all.\n- **A gallery that runs along both the rest of its floor and a raised room** stays an open edge along the floor, with the rail it had, and opens the raised room's wall too. In 0.38.196 the whole edge went with the raised room, and the stretch along the floor turned into a solid wall.\n- **A door at an outside corner of a raised or sunken room** goes, whole, with the room whose wall it's in. In 0.38.196 a door that started just before the room's corner (a sunken garage's side door) became a sliver of door in the house's wall beside a doorless hole in the room's.\n- **A window with a contact sensor** on the wall between a raised room and the rest of its floor stays a window. No doorway is cut beside it.\n- **A door or window you rename, or give another material,** is placed again straight away, even if the new word is as long as the old one.\n- **Correction to 0.38.196's notes:** going back after using Floating, 0.38.183 to 0.38.195 (not just to 0.38.194) keep a floating stair and draw it Closed, but refuse a save that moves or changes it."
+ },
+ {
   "version": "0.38.197",
   "title": "Same as 0.38.196, with its checks passing",
   "date": "2026-10-29",
@@ -76,11 +82,5 @@
   "title": "The free trial is all of PadSpan Pro",
   "date": "2026-10-27",
   "body_markdown": "### Changed\n- **The 90-day free trial is all of PadSpan Pro.** It used to cover the lighting half only. Since October 27 the licence server issues every trial as full Pro, and trials already running became Pro at their next daily check, on every version. The trial card now says so (\"PadSpan Pro free for 90 days, no card\"), and the Locate and Busy Times gates say the trial unlocks them too. A PadSpan Bright build keeps its lighting pitch.\n- **The launch price, while it lasts.** Once a trial has started, its card and the licence card say that PadSpan Pro for life is at its launch price until November 30, and that buying during the trial keeps everything you set up. The line goes away when the launch price ends.\n- **The trial key comes by email too.** The licence server now emails the key to the address given on the trial card, as the card always said it would."
- },
- {
-  "version": "0.38.184",
-  "title": "Stairs from your plans, a first guess",
-  "date": "2026-10-27",
-  "body_markdown": "### New\n- **Stairs in stair rooms.** Furnish → Build ▾ → House → **Stairs in stair rooms** puts a flight in each room called Stairs, Stairwell or Staircase that has none yet. Each one is squared to the room's longest wall and sized to the room: a straight flight against a long wall, its rail on the open side, when the room is long enough, else a U or a flight round two landings filling it. It's a first guess to drag into place; nothing is kept until Save.\n- **Stairs from Sweet Home 3D.** Import brings a Sweet Home 3D staircase in as stairs, not a box. Its shape is guessed from its name (\"Spiral staircase\", \"L-shaped stairs\", \"half turn\"), and a mirrored one turns the other way.\n- **Stairs and furniture from a RoomPlan scan.** With RoomPlan import on (Settings → Features), Import also takes an iPhone RoomPlan scan (.json): its beds, sofas, chairs, tables, TVs, storage and stairs come in as pieces (anything else as a box of its size).\n\n### Changed\n- **Imported stairs are squared to the room.** A staircase from a file that is within about 12° of its room's walls is turned square to them."
  }
 ]
