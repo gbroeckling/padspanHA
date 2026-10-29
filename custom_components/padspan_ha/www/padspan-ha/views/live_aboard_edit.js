@@ -452,7 +452,8 @@ export function createEditor(ctx){
     for (const F of drawing ? drawFloors() : visibleFloors()) {
       for (const P of F.pieces) {
         const pc = P.pc, id = pc.added || (pc.barrier && pc.barrier.id) || null;
-        if (!id || (pc.kind !== "door" && pc.kind !== "window" && pc.kind !== "doorway")) continue;
+        // (A split level's gap for a door on its floor is no opening of its own.)
+        if (!id || (pc.barrier && pc.barrier.split_of) || (pc.kind !== "door" && pc.kind !== "window" && pc.kind !== "doorway")) continue;
         // A doorway has no leaf: its opening, floor to head, is what a tap finds.
         const leaf = P.els.find(e => e.leaf) || (pc.kind === "doorway" ? { z0: 0, z1: typeof pc.head_m === "number" ? pc.head_m : HOUSE.DOOR_H } : null);
         if (!leaf) continue;
@@ -992,9 +993,11 @@ export function createEditor(ctx){
                len: g.span.len, stop: g.span.stop, short: g.span.len < DRAFT.minWidth(kind) - 1e-6, fixed: g.fixed };
     }
     if (sel && sel.opening && sel.opening.added) {
-      const rec = draft.cur.openings[sel.opening.id], F = rec ? floorOf(rec.floor_id) : null;
+      // On the floor it is drawn on: saved, it names its whole floor, while it
+      // stands on a raised or sunk room's level (live_aboard_draft.js openingPlaces).
+      const rec = draft.cur.openings[sel.opening.id], at = rec ? addedNow(sel.opening.id) : null;
+      const F = rec ? ((at && at.F) || floorOf(rec.floor_id)) : null;
       if (!rec || !F) return null;
-      const at = addedNow(sel.opening.id);
       return { F, a: rec.a_m, b: rec.b_m, z: rec.kind === "window" ? [rec.sill_m, rec.head_m] : [0, rec.head_m], kind: rec.kind,
                thick: at ? at.P.pc.thick : 0.14, len: Math.hypot(rec.b_m[0] - rec.a_m[0], rec.b_m[1] - rec.a_m[1]),
                stop: null, short: false, handles: true };

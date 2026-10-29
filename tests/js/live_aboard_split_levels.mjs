@@ -226,7 +226,8 @@ await tryCase("doors: a door between a sunken room and its floor stays a door, a
   const gap = all("main~-0.4").filter(pc => pc.barrier && pc.barrier.split_of === "d2");
   const free = [...h.perFloor.values()].flatMap(v => v.pieces).filter(pc => pc.free && pc.barrier && pc.barrier.split_of);
   check("doors: a door between a sunken room and its floor stays a door, and the level's wall opens there",
-    door.length >= 1 && door.every(pc => pc.kind === "door") && gap.length >= 1 && gap.every(pc => pc.kind === "open" && !pc.free)
+    door.length >= 1 && door.every(pc => pc.kind === "door") && gap.length >= 1 && gap.every(pc => pc.kind === "doorway" && !pc.free)
+    && gap.every(pc => near(pc.head_m, H.DOOR_H + 0.4, 1e-9))
     && free.length === 0 && m.rf_barriers_m.filter(b => b.split_of).length === 1 && barred().rf_barriers_m.length === 4
     && H.splitLevels(m) === m && H.splitLevels(m).rf_barriers_m.length === 5,
     { door: door.map(pc => pc.kind), gap: gap.map(pc => [pc.kind, pc.free]), free: free.length });
@@ -255,8 +256,9 @@ await tryCase("doors: between two levels of one floor, both walls are cut; a rai
   const d3 = ["upper~1.2", "upper~0.4"].map(fid => on(fid, pc => pc.barrier && (pc.barrier.id === "d3" || pc.barrier.split_of === "d3")).map(pc => pc.kind));
   const gap4 = on("upper~1.2", pc => pc.barrier && pc.barrier.split_of === "d4"), door4 = on("upper", pc => pc.barrier && pc.barrier.id === "d4");
   check("doors: between two levels of one floor, both walls are cut; a raised room's doorway is never railed",
-    d3[0].length >= 1 && d3[1].length >= 1 && d3.flat().includes("door") && d3.flat().includes("open")
-    && gap4.length >= 1 && gap4.every(pc => pc.kind === "open" && !pc.loftRail && !pc.free) && door4.some(pc => pc.kind === "door"),
+    d3[0].length >= 1 && d3[1].length >= 1 && d3.flat().includes("door") && d3.flat().includes("doorway")
+    && gap4.length >= 1 && gap4.every(pc => pc.kind === "doorway" && !pc.loftRail && !pc.free && near(pc.head_m, H.DOOR_H, 1e-9))
+    && door4.some(pc => pc.kind === "door"),
     { d3, gap4: gap4.map(pc => [pc.kind, !!pc.loftRail]), door4: door4.map(pc => pc.kind) });
 });
 await tryCase("doors: doors and windows drawn in 3D go back onto their room's level after a save", () => {
@@ -266,7 +268,7 @@ await tryCase("doors: doors and windows drawn in 3D go back onto their room's le
                        door_0000abce: { floor_id: "main", a_m: [6, 2], b_m: [6, 3] } });
   const on = (fid, f) => h.perFloor.get(h.byId.get(fid)).pieces.filter(f);
   const win = on("upper~0.75", pc => pc.added === "win_0000abcd"), garden = on("main~-0.4", pc => pc.added === "door_0000abcd");
-  const sunDoor = on("main", pc => pc.added === "door_0000abce"), sunGap = on("main~-0.4", pc => pc.gap && pc.kind === "open");
+  const sunDoor = on("main", pc => pc.added === "door_0000abce"), sunGap = on("main~-0.4", pc => pc.gap && pc.kind === "doorway");
   const loose = [...h.perFloor.values()].flatMap(v => v.pieces).filter(pc => pc.free && (pc.added || pc.gap));
   check("doors: doors and windows drawn in 3D go back onto their room's level after a save",
     win.length >= 1 && win.every(pc => pc.kind === "window") && garden.length >= 1 && garden.every(pc => pc.kind === "door")
@@ -274,13 +276,47 @@ await tryCase("doors: doors and windows drawn in 3D go back onto their room's le
     && on("upper", pc => pc.added === "win_0000abcd").length === 0,
     { win: win.length, garden: garden.length, sunDoor: sunDoor.map(pc => pc.kind), sunGap: sunGap.length, loose: loose.length });
 });
-await tryCase("split: the same model again is split once, and again when a room's raise changes", () => {
+await tryCase("split: the doors and windows split once per list; positions and raises changed in place are read again", () => {
   const m0 = barred(), a = H.splitLevels(m0), b = H.splitLevels(m0);
-  m0.room_meta.Office.floor_raise_m = 1.0;
+  // A scanner moved in place (calibration.js does): read again, not kept.
+  m0.scanner_positions_m.den.x_m = 9.5;
   const c = H.splitLevels(m0);
-  check("split: the same model again is split once, and again when a room's raise changes",
-    a === b && c !== a && c.room_geometry_m.Office.floor_id === "upper~1" && a.room_geometry_m.Office.floor_id === "upper~0.75",
-    { a: a.room_geometry_m.Office.floor_id, c: c.room_geometry_m.Office.floor_id });
+  m0.room_meta.Office.floor_raise_m = 1.0;
+  const d = H.splitLevels(m0);
+  m0.rf_barriers_m[0].points_m = [[4.7, 0], [6.1, 0]];
+  const e = H.splitLevels(m0);
+  check("split: the doors and windows split once per list; positions and raises changed in place are read again",
+    a.rf_barriers_m === b.rf_barriers_m && c.scanner_positions_m.den.x_m === 9.5 && c.rf_barriers_m === a.rf_barriers_m
+    && d.room_geometry_m.Office.floor_id === "upper~1" && d.rf_barriers_m.find(x => x.id === "w1").floor_id === "upper~1"
+    && e.rf_barriers_m !== d.rf_barriers_m && e.rf_barriers_m.find(x => x.id === "w1").points_m[0][0] === 4.7,
+    { c: c.scanner_positions_m.den, d: d.rf_barriers_m.find(x => x.id === "w1").floor_id });
+});
+await tryCase("doors: a door with one end past its room's corner is placed by its middle; an Open edge to a raised room keeps its rail", () => {
+  const m0 = barred();
+  // The sunroom (sunk) and the living room meet along x = 6, y 0..5; a door from y 4.3 to 5.35 runs 0.35 m past that corner.
+  m0.rf_barriers_m.push({ id: "d5", floor_id: "main", name: "Mudroom door", material: "wood", points_m: [[6, 4.3], [6, 5.35]] });
+  m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: 1.2 };
+  m0.room_meta.Den = { floor_id: "upper", color: "#111111", floor_raise_m: 1.2 };
+  m0.rf_barriers_m.push({ id: "o1", floor_id: "upper", name: "Gallery", material: "open", points_m: [[4, 0.5], [4, 4.5]] });
+  const m = H.splitLevels(m0), h = H.readHouse(m, null, {}, new Set(), {});
+  const on = (fid, f) => h.perFloor.get(h.byId.get(fid)).pieces.filter(f);
+  const d5 = on("main", pc => pc.barrier && pc.barrier.id === "d5"), g5 = on("main~-0.4", pc => pc.barrier && pc.barrier.split_of === "d5");
+  const o1 = on("upper~1.2", pc => pc.barrier && pc.barrier.split_of === "o1");
+  check("doors: a door with one end past its room's corner is placed by its middle; an Open edge to a raised room keeps its rail",
+    d5.some(pc => pc.kind === "door") && g5.length >= 1 && g5.every(pc => pc.kind === "doorway")
+    && o1.length >= 1 && o1.every(pc => pc.kind === "open") && o1.some(pc => pc.loftRail),
+    { d5: d5.map(pc => pc.kind), g5: g5.map(pc => pc.kind), o1: o1.map(pc => [pc.kind, !!pc.loftRail]) });
+});
+await tryCase("doors: a door drawn on a level's wall before a save opens the floor's wall too; the gap is as high as the door", () => {
+  const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
+  D.applyOpenings(h, { door_0000abcf: { floor_id: "main~-0.4", a_m: [6, 2], b_m: [6, 3] } });
+  const on = (fid, f) => h.perFloor.get(h.byId.get(fid)).pieces.filter(f);
+  const door = on("main", pc => pc.added === "door_0000abcf"), gap = on("main~-0.4", pc => pc.gap);
+  const lvl = h.byId.get("main~-0.4"), els = gap.length ? H.wallElements(gap[0], lvl.h) : [];
+  check("doors: a door drawn on a level's wall before a save opens the floor's wall too; the gap is as high as the door",
+    door.some(pc => pc.kind === "door") && gap.length >= 1 && gap.every(pc => pc.kind === "doorway" && near(pc.head_m, H.DOOR_H + 0.4, 1e-9))
+    && els.some(e => near(e.z0, Math.min(H.DOOR_H + 0.4, e.z0), 1e-9) && e.z0 >= H.DOOR_H + 0.4 - 1e-6),
+    { door: door.map(pc => pc.kind), gap: gap.map(pc => [pc.kind, pc.head_m]), els: els.map(e => [e.z0, e.z1]) });
 });
 
 // ── stem ────────────────────────────────────────────────────────────────────
@@ -360,8 +396,8 @@ await tryCase("big: a gigantic house with split levels reads in good time, every
   const [tSplit, h] = time(() => H.readHouse(H.splitLevels(split.model), split.model.floors, {}, new Set(), {}));
   const [tCuts, cuts] = time(() => S.stairCuts(split.pieces, h.floors, h.canon));
   // The split alone, a fresh model each time (never the cache), and the same model again (the cache).
-  const [tSplitOnly, sm] = time(() => H.splitLevels({ ...split.model }), 5);
-  const [tAgain] = time(() => H.splitLevels(split.model), 5);
+  const [tSplitOnly, sm] = time(() => H.splitLevels({ ...split.model, rf_barriers_m: split.model.rf_barriers_m.slice() }), 5);
+  const [tAgain, again] = time(() => H.splitLevels(split.model), 5);
   const moved = sm.rf_barriers_m.filter(b => b.floor_id.includes("~")).length;
   // One storey (one floor, one roof) per whole floor, never one per raised room.
   const [tModel, hm] = time(() => S.houseModel(h, cuts), 1);
@@ -379,10 +415,11 @@ await tryCase("big: a gigantic house with split levels reads in good time, every
   Object.assign(timing, { rooms: Object.keys(split.model.room_geometry_m).length, raised: Object.keys(split.model.room_meta).length,
                           levels, plain_ms: Math.round(tPlain), split_ms: Math.round(tSplit), cuts_ms: Math.round(tCuts),
                           shell_plain_ms: Math.round(tModel0), shell_split_ms: Math.round(tModel), storeys: hm.storeys.length,
-                          barriers: split.model.rf_barriers_m.length, split_only_ms: +tSplitOnly.toFixed(2), split_again_ms: +tAgain.toFixed(3), moved });
+                          barriers: split.model.rf_barriers_m.length, split_only_ms: +tSplitOnly.toFixed(2), split_again_ms: +tAgain.toFixed(2), moved });
   check("big: a gigantic house with split levels reads in good time, every stair to the right level",
     levels === 24 && hm.storeys.length === 6 && tModel < Math.max(3000, tModel0 * 2) && wrong.length === 0 && lightsOff === 0 && cuts.size > 0
-    && tSplit < Math.max(4000, tPlain * 3) && tCuts < 500 && tSplitOnly < 12 && tAgain < 0.5 && moved > 0,
+    && tSplit < Math.max(4000, tPlain * 3) && tCuts < 500 && tSplitOnly < 12 && tAgain < tSplitOnly && moved > 0
+    && again.rf_barriers_m === H.splitLevels(split.model).rf_barriers_m,
     { timing, wrong: wrong.slice(0, 5), lightsOff });
 });
 

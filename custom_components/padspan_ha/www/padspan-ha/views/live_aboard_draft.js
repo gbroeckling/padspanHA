@@ -576,13 +576,18 @@ const inPolyD = (x, y, P) => {
 };
 /** Where a door or window drawn in 3D goes: [[floor id, its id, it]].
  *  Saved, it names its whole floor (a split level is drawn, never stored),
- *  so on a raised or sunk room's wall it goes back onto the room's level, as
+ *  (and one drawn on a level's wall before a save names the level): either
+ *  way it is placed from its whole floor, so on a raised or sunk room's wall
+ *  it goes onto the room's level, as
  *  the map's own do (live_aboard_house.js splitBarriers): looked for either
  *  side of its wall. Between such a room and a room of the floor, it stays on
  *  the floor and the level's wall opens there too (a gap, id null: nothing to
  *  pick or edit); between two levels, onto the first, with a gap in the other. */
+const wholeId = (id) => (typeof id === "string" && id.includes("~") ? id.slice(0, id.indexOf("~")) : id);
+const raiseOf = (id) => (typeof id === "string" && id.includes("~") ? Number(id.slice(id.indexOf("~") + 1)) || 0 : 0);
 function openingPlaces(h, id, o){
-  const c = h.canon(o.floor_id);
+  // From its whole floor, saved or not (one drawn on a level's wall before a save names the level).
+  const c = h.canon(wholeId(o.floor_id));
   if (typeof h.canonAt !== "function" || !(h.floors || []).some(f => f.parent === c)) return [[c, id, o]];
   const a = o.a_m, b = o.b_m, L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
   const nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
@@ -592,7 +597,11 @@ function openingPlaces(h, id, o){
   const indoor = sides.some(p => h.canonAt(c, p[0], p[1]) === c
     && (h.rooms || []).some(r => r.floor && r.floor.id === c && !r.outdoor && Array.isArray(r.pts) && inPolyD(p[0], p[1], r.pts)));
   const home = indoor ? c : lv[0], out = [[home, id, o]];
-  if (o.kind === "door" || o.kind === "doorway") for (const f of lv) if (f !== home) out.push([f, null, { ...o, kind: "open", gap: true }]);
+  // The gap: a doorway as high as the door, measured from the lower of the two floors.
+  const head = (num(o.head_m) ?? DOOR_HEAD_M);
+  if (o.kind === "door" || o.kind === "doorway") {
+    for (const f of lv) if (f !== home) out.push([f, null, { ...o, kind: "doorway", head_m: head + Math.max(0, raiseOf(home) - raiseOf(f)), gap: true }]);
+  }
   return out;
 }
 /** What the walls are drawn from, of the file: its openings. */
