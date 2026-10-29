@@ -189,8 +189,14 @@ function renderUnlocked(ctx, root) {
     // Today's figure is the honest one: a caller is a distinct IP, and IPv6
     // privacy addresses rotate, so the 30-day figure counts some installs
     // more than once.
+    const _days = s.per_day || [];
+    const homesYesterday = _days.length > 1 ? _days[_days.length - 2].pings : null;
     const tiles = el("div", { class: "ib-tiles" }, [
-      tile(el, "Running today", pg.distinct_today ?? "–", `installs that checked for an update so far today, opted in or not · ${fmt(pg.distinct_window ?? 0)} over ${W} days (some counted twice when their address changes)`),
+      // Homes running: the last FULL day's update checks, by address (a
+      // home's address rarely changes within a day). The 30-day figure counts
+      // addresses, which rotate, so one home shows up many times: never homes
+      // (2026-10-29: read as "1,600 homes" when about 400 run PadSpan).
+      tile(el, "Homes running", homesYesterday ?? "–", `different homes that checked for an update yesterday, opted in or not · ${fmt(pg.distinct_today ?? 0)} so far today`),
       tile(el, "Active", ins.active ?? 0, `sent a usage report in the last ${s.active_days} days`),
       tile(el, "Ever reported", ins.lifetime ?? 0, "installs that have ever sent a usage report"),
       tile(el, "New", ins.new_window ?? 0, `first report in the last ${W} days`),
@@ -206,10 +212,10 @@ function renderUnlocked(ctx, root) {
     section("Reach", "How many homes run PadSpan. Every install checks for updates (a ping), which is how all of them are counted; only the ones that turned the usage report on say anything more.", [
       el("div", { class: "ib-figs" }, [hero, tiles]),
       grid([
-        columnCard(el, "Installs running, per day", "Installs that checked for an update that day (all installs)", days, d => d.pings, d => d.day),
+        columnCard(el, "Homes running, per day", "Different homes that checked for an update that day (all installs, opted in or not)", days, d => d.pings, d => d.day),
         columnCard(el, "Installs reporting, per day", "Installs that sent a usage report that day (opted in only)", days, d => d.installs, d => d.day),
       ], true),
-    ], `${fmt(ins.reporting_window ?? 0)} sharing · ${fmt(pg.distinct_today ?? 0)} running today · ${fmt(ins.new_window ?? 0)} new · ${fmt(ins.lapsed ?? 0)} gone quiet`);
+    ], `${fmt(homesYesterday ?? 0)} homes running · ${fmt(ins.reporting_window ?? 0)} sharing a report · ${fmt(ins.new_window ?? 0)} new · ${fmt(ins.lapsed ?? 0)} gone quiet`);
 
     // ── needs attention ──
     // What a reader should look at first, worked out from the numbers below:
@@ -282,7 +288,7 @@ function renderUnlocked(ctx, root) {
         barCard(el, { title: "Licence", ask: "Free, Pro, or Bright (the Atlas-only edition)", map: dist.tier, total: n, kind: "tier" }),
         barCard(el, { title: "Country", ask: "The country set in Home Assistant (? = not set, or PadSpan older than 0.38.148)", map: dist.country, total: n }),
         barCard(el, { title: "Language", ask: "Home Assistant's language (? = PadSpan older than 0.38.148)", map: dist.language, total: n }),
-        barCard(el, { title: "Running, by version", ask: `Every install that checked for an update in ${W} days, opted in or not (– = too old to say)`, map: pg.by_version, total: pg.distinct_window || 1, unit: "installs", limit: 8 }),
+        barCard(el, { title: "Versions running (by address)", ask: `Addresses that checked for an update in ${W} days, by the version they run: addresses change, so a home can count more than once; read it for the mix of versions, not for how many (– = too old to say)`, map: pg.by_version, total: pg.distinct_window || 1, unit: "addresses", limit: 8 }),
       ]),
     ], (() => {
       const v = top(dist.version), h = top(dist.ha_version), c = top(dist.country);
