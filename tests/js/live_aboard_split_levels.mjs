@@ -395,6 +395,35 @@ await tryCase("doors: a window with a sensor between a raised room and its floor
   check("doors: a window with a sensor between a raised room and its floor stays a window; no doorway is cut",
     by.w4.floor_id === "upper" && !m.rf_barriers_m.some(b => b.split_of === "w4"), { w4: by.w4.floor_id, gaps: m.rf_barriers_m.filter(b => b.split_of === "w4").length });
 });
+await tryCase("doors: glass doors with a door sensor between a raised room and its floor are a door; the room's wall opens", () => {
+  const m0 = barred();
+  m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: 1.2 };
+  delete m0.room_meta.Den;
+  m0.rf_barriers_m.push({ id: "d8", floor_id: "upper", name: "Office French doors", material: "glass", linked_entity_id: "binary_sensor.office_french_door",
+                         points_m: [[4, 1], [4, 2.4]] },
+                        { id: "d9", floor_id: "upper", name: "Office slider", material: "glass", linked_entity_id: "lock.office_slider",
+                         points_m: [[4, 3], [4, 4.2]] });
+  const m = H.splitLevels(m0), by = Object.fromEntries(m.rf_barriers_m.map(b => [b.id, b]));
+  const gaps = (id) => m.rf_barriers_m.filter(b => b.split_of === id);
+  check("doors: glass doors with a door sensor between a raised room and its floor are a door; the room's wall opens",
+    by.d8.floor_id === "upper" && gaps("d8").length === 1 && gaps("d8")[0].floor_id === "upper~1.2" && near(gaps("d8")[0].split_head_m, H.DOOR_H - 1.2, 1e-9)
+    && by.d9.floor_id === "upper" && gaps("d9").length === 1,
+    { d8: by.d8.floor_id, g8: gaps("d8").map(g => [g.floor_id, g.split_head_m]), g9: gaps("d9").length });
+});
+await tryCase("doors: a door drawn in 3D between a raised room and its floor: the room's wall opens from the door's sill to its top", () => {
+  const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
+  // Drawn on the office's wall (upper~0.75) before a save: placed from its whole floor.
+  D.applyOpenings(h, { door_0000abd0: { floor_id: "upper~0.75", a_m: [4, 2], b_m: [4, 3] } });
+  const on = (fid, f) => h.perFloor.get(h.byId.get(fid)).pieces.filter(f);
+  const door = on("upper", pc => pc.added === "door_0000abd0"), gap = on("upper~0.75", pc => pc.gap);
+  const lvl = h.byId.get("upper~0.75"), els = gap.length ? H.wallElements(gap[0], lvl.h) : [];
+  const sill = -0.75, top = H.DOOR_H - 0.75;
+  check("doors: a door drawn in 3D between a raised room and its floor: the room's wall opens from the door's sill to its top",
+    door.some(pc => pc.kind === "door") && gap.length >= 1
+    && gap.every(pc => pc.kind === "doorway" && near(pc.head_m, H.DOOR_H - 0.75, 1e-9) && near(pc.foot_m, -0.75, 1e-9))
+    && !els.some(e => e.z0 < top - 1e-6 && e.z1 > sill + 1e-6) && els.some(e => near(e.z0, top, 1e-6)),
+    { door: door.map(pc => pc.kind), gap: gap.map(pc => [pc.kind, pc.head_m, pc.foot_m]), els: els.map(e => [+e.z0.toFixed(3), +e.z1.toFixed(3)]) });
+});
 await tryCase("split: a barrier renamed or given another material in place, even one as long, is split again", () => {
   const m0 = barred();
   m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: 1.2 };

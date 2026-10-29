@@ -272,6 +272,13 @@ export function splitLevels(model){
 // A barrier this close to a room's outline runs along it (a wall's
 // thickness and a little: outlines drawn either side of one wall).
 const SPLIT_BAR_NEAR = 0.3;
+// Tied to a sensor that says it is a door's: a lock, or a name or sensor id
+// with door(s) or gate in it (glass French or patio doors, which barrierKind
+// reads as glass). The 3D house knows from the sensor's own device class.
+const sensorDoor = (b) => {
+  const s = String((b && b.linked_entity_id) || "");
+  return !!s && (/^lock\./.test(s) || /door|gate/i.test(s) || /\b(doors?|gates?)\b/i.test(String((b && b.name) || "")));
+};
 /** The doors and windows (rf_barriers_m) of floors with split levels, each
  *  where its room went. A window (or a stretch of tinted wall) along a raised
  *  (or sunk) room's outline, all of it, and no indoor room's left on its floor,
@@ -336,9 +343,11 @@ function splitBarriers(barriers, subs, geo, polyOf){
       ? b.points_m.filter(p => Array.isArray(p) && num(p[0]) !== null && num(p[1]) !== null).map(p => [Number(p[0]), Number(p[1])]) : [];
     if (!pts.length) { out.push(b); continue; }
     const kind = barrierKind(b), open = kind === "open";
-    // A door: one named so, or tied to a sensor that isn't a window's (a window
-    // with a contact sensor stays a window, and no doorway is cut beside it).
-    const door = !open && (kind === "door" || (!!b.linked_entity_id && kind !== "window"));
+    // A door, as the 3D house reads one (openingKind) without the sensor's record: named a
+    // door, or tied to a lock or to a sensor that isn't a window's. Glass doors with a door
+    // sensor (French or patio doors: their name or sensor says door) are doors; a window
+    // with a contact sensor stays a window, and no doorway is cut beside it.
+    const door = !open && (sensorDoor(b) || openingKind(b, null) === "door");
     const floorRooms = stay.get(fid) || [];
     let on, shared;
     if ((door || open) && pts.length > 1) {

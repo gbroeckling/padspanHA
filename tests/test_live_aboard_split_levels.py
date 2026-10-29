@@ -40,7 +40,7 @@ def run() -> dict:
     return json.loads(lines[-1])
 
 
-@pytest.mark.parametrize("prefix,least", [("split:", 5), ("floors:", 3), ("stairs:", 5), ("stem:", 1), ("big:", 1), ("doors:", 11)])
+@pytest.mark.parametrize("prefix,least", [("split:", 5), ("floors:", 3), ("stairs:", 5), ("stem:", 1), ("big:", 1), ("doors:", 13)])
 def test_split_levels(run: dict, prefix: str, least: int) -> None:
     got = {k: v for k, v in run["cases"].items() if k.startswith(prefix)}
     assert len(got) >= least, f"{prefix} ran {len(got)} of {least}: {sorted(run['cases'])}"

@@ -156,7 +156,7 @@ def test_stairs_keep_their_style_and_rail(style, rail) -> None:
 @pytest.mark.parametrize("style", ["glass", "spiral_cast", "x"])
 def test_a_newer_style_is_kept_never_refused(style) -> None:
     """A style this version does not know (a newer version's: a short lowercase word) is kept, so a save
-    holding one is never refused, as 0.38.194 refused a whole save holding a floating stair."""
+    holding one is never refused, as 0.38.183 to 0.38.195 refuse a whole save holding a floating stair."""
     out = H.apply_edit(H.empty(), _stairs(shape="straight", style=style))
     assert out["pieces"]["fur_5a6b7c8d"]["recipe"]["params"]["style"] == style
 
