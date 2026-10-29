@@ -627,6 +627,20 @@ await tryCase("names: upright over the fixtures, never under a floor above, read
   LA.releaseLiveAboardSlot("scr-names");
 });
 
+// A sunken room (a split level, live_aboard_house.js splitLevels) is drawn
+// under its own floor, which is open over it: that floor never hides its
+// name or its chip (the demo's sunken garage, 2026-10-28).
+await tryCase("names: a sunken room's name shows with its own floor, which is open over it", async () => {
+  const SUNK = { ...MODEL, floors: [{ id: "basement", name: "Basement", floor_to_floor_m: 3 }, { id: "main", name: "Main", floor_to_floor_m: 2.8 }],
+                 floor_elevations: { basement: -3, main: 0 }, room_meta: { Den: { floor_id: "main", color: "#3a6ea5", floor_raise_m: -0.55 } } };
+  const { slot } = await newSlot("scr-sunk", { model: SUNK, floors: SUNK.floors });
+  const st = S(slot), by = Object.fromEntries(st.names.map(n => [n.room, n])), den = st.chips.find(c => c.room === "Den");
+  check("names: a sunken room's name shows with its own floor, which is open over it",
+    by.Den && by.Den.shown && !by.Den.covered && by["Living room"] && by["Living room"].shown && den && den.shown,
+    { names: st.names, den });
+  LA.releaseLiveAboardSlot("scr-sunk");
+});
+
 // ── phone ───────────────────────────────────────────────────────────────────
 await tryCase("phone: one compact row; upright, room scale with the long side up the screen", async () => {
   const slot = LA.liveAboardSlot("scr-phone");

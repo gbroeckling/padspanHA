@@ -3028,9 +3028,13 @@ function createSlot(slotKey){
     const mppAt = (v) => (persp ? c.position.distanceTo(v) * k : k);           // metres per px there
     // Drawn over the fixtures, a name must still not show through a wall
     // standing in front of it or a floor above it: one ray from the eye.
-    const walls = persp ? floorsUi.filter(G => G.group.visible && G.solid).map(G => G.solid) : [];
-    const above = (F) => (persp ? walls.concat(floorsUi.filter(G => G !== F && G.group.visible && !G.fl.outdoor && G.tiles
-                                                                  && G.fl.elev > F.fl.elev + 0.5).map(G => G.tiles)) : []);
+    // A split level's own floor never counts against it, neither its floor
+    // nor its walls: a sunken garage's name stands just under Main's floor,
+    // which is open over it, among Main's walls (2026-10-28).
+    const walled = persp ? floorsUi.filter(G => G.group.visible && G.solid) : [];
+    const above = (F) => (persp ? walled.filter(G => G.fl.id !== F.fl.parent).map(G => G.solid)
+      .concat(floorsUi.filter(G => G !== F && G.group.visible && !G.fl.outdoor && G.tiles
+                              && G.fl.elev > F.fl.elev + 0.5 && G.fl.id !== F.fl.parent).map(G => G.tiles)) : []);
     const behind = (v, occ) => {
       if (!occ.length) return false;
       _v.copy(v).sub(c.position);
@@ -3087,7 +3091,7 @@ function createSlot(slotKey){
         const at = F.rooms[i].spot;
         // Exploded, the floors stand apart: what covers a name is only what the eye's ray meets.
         lbl.userData.covered = !explodeGap() && shown.some(G => G !== F && !G.fl.outdoor && G.fl.elev > F.fl.elev + 0.5
-          && G.rooms.some(r => HOUSE.inPoly(at.x, at.y, r.pts)));
+          && G.fl.id !== F.fl.parent && G.rooms.some(r => HOUSE.inPoly(at.x, at.y, r.pts)));
       });
     }
   }
