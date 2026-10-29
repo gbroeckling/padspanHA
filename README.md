@@ -2,13 +2,13 @@
 
 ### See which room every phone, watch and tag is in, live, on a plan of your home
 
-[![PadSpan HA — room-level Bluetooth presence on a 3D multi-floor plan](images/demo-montage.gif)](https://padspan.traks.ca/demo/)
+[![PadSpan HA — room-level Bluetooth presence on a 3D multi-floor plan](./images/demo-montage.gif)](https://padspan.traks.ca/demo/)
 
 PadSpan is a Home Assistant integration for Bluetooth room presence. It listens to the Bluetooth proxies you already have, works out which room each phone, watch, tag and beacon is in, every 5 seconds, and shows it on a plan of your home: one floor at a time or all floors stacked. Your automations get room, distance and home/away sensors. Everything runs locally.
 
 ▶️ **Try it in your browser: [padspan.traks.ca/demo](https://padspan.traks.ca/demo/)**, the real panel on a sample house. Nothing to install.
 
-[![Open PadSpan in HACS in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) **Install:** one click opens PadSpan in your HACS. It's in the default list.
+[![Open PadSpan in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration) **Install:** one click opens PadSpan in **Settings → Marketplace** (Home Assistant 2026.11 and newer) or in HACS (older versions). Or search either one for PadSpan.
 
 **What you need:** Home Assistant 2024.1 or newer and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner ([one setting](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/)), your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away; one in each room you want told apart gives you rooms. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) Already running Bermuda? Keep it: [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/).
 
@@ -34,7 +34,7 @@ It works with your existing BLE scanners. HA Bluetooth proxies (ESPHome, or Shel
 
 ### Running on the wall
 
-![PadSpan live on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices](images/wall-panel-in-situ.jpg)
+![PadSpan live on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices](./images/wall-panel-in-situ.jpg)
 
 Not a mockup — this is PadSpan on a wall panel in daily use, next to the
 thermostat and light switches.
@@ -43,23 +43,23 @@ thermostat and light switches.
 
 | 3D Multi-Floor Tracking | 3D Heatmap + Signal Overlay |
 |:-:|:-:|
-| ![Live multi-floor isometric view with tracked devices across 3 floors](images/overview-3d-multifloor.jpg) | ![3D overview with RSSI heatmap crosshatch and device positions](images/overview-3d-heatmap.jpg) |
+| ![Live multi-floor isometric view with tracked devices across 3 floors](./images/overview-3d-multifloor.jpg) | ![3D overview with RSSI heatmap crosshatch and device positions](./images/overview-3d-heatmap.jpg) |
 
 | Maps Library | Scanner-to-Device Graph |
 |:-:|:-:|
-| ![9 uploaded floor plans organized by floor](images/maps-library-live.jpg) | ![Bipartite graph showing scanner-device BLE connections with RSSI](images/bluetooth-scanner-graph.jpg) |
+| ![9 uploaded floor plans organized by floor](./images/maps-library-live.jpg) | ![Bipartite graph showing scanner-device BLE connections with RSSI](./images/bluetooth-scanner-graph.jpg) |
 
 | Traceback Playback + Distance Traveled | Beacon Tune Calibration |
 |:-:|:-:|
-| ![NVR-style playback timeline with per-device distance and reliability](images/traceback-distance.jpg) | ![3D beacon tune with floor stack, auto-cal, and live device positions](images/beacon-tune-calibration.jpg) |
+| ![NVR-style playback timeline with per-device distance and reliability](./images/traceback-distance.jpg) | ![3D beacon tune with floor stack, auto-cal, and live device positions](./images/beacon-tune-calibration.jpg) |
 
 | Pure Live — Immersive Dashboard | Traceback — Movement Playback |
 |:-:|:-:|
-| ![Full-screen 3D map with pan/zoom, floating stats, scanner sonar, and tracked device strip](images/purelive-immersive.png) | ![NVR-style replay with 3D map, timeline scrubber, and distance travelled per device](images/traceback-playback-3d.png) |
+| ![Full-screen 3D map with pan/zoom, floating stats, scanner sonar, and tracked device strip](./images/purelive-immersive.png) | ![NVR-style replay with 3D map, timeline scrubber, and distance travelled per device](./images/traceback-playback-3d.png) |
 
 | Sandbox Developer Tools | Floor Plan Editor |
 |:-:|:-:|
-| ![Experimental playground — state inspector, floor towers, live signal bars, raw snapshot](images/sandbox-developer.png) | ![Room boundaries on architectural blueprint](images/floor-plan-edit.png) |
+| ![Experimental playground — state inspector, floor towers, live signal bars, raw snapshot](./images/sandbox-developer.png) | ![Room boundaries on architectural blueprint](./images/floor-plan-edit.png) |
 
 ---
 
@@ -152,7 +152,7 @@ Formerly "Lights" — renamed because it outgrew the name. One isometric map of 
 - A **hover HUD** names what's under the cursor (or a touch hold) with every stacked marker as a clickable row; **Alt+click** cycles the stack when several devices sit on top of each other
 - Full touch support — pinch-zoom, drag and tap are tuned for a wall panel or phone, not just a mouse
 
-See the [Atlas Guide](docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live Aboard Guide](docs/LIVE_ABOARD_GUIDE.md) for the 3D house (Pro). Placement, Automorph and Showcase are PadSpan Pro (or [PadSpan Bright Pro](https://github.com/gbroeckling/padspanBright)) features — see [Editions](#editions) below; a free install still gets floors, rooms and a tap-to-toggle marker per light.
+See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live Aboard Guide](./docs/LIVE_ABOARD_GUIDE.md) for the 3D house (Pro). Placement, Automorph and Showcase are PadSpan Pro (or [PadSpan Bright Pro](https://github.com/gbroeckling/padspanBright)) features — see [Editions](#editions) below; a free install still gets floors, rooms and a tap-to-toggle marker per light.
 
 ### UI & Experience
 - **Pure Live mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
@@ -224,18 +224,25 @@ No key yet? **Settings → Features → PadSpan licence** has a one-time 90-day 
 
 ## Installation
 
-### Via HACS (recommended)
+[![Open PadSpan in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration)
 
-[![Open PadSpan in HACS in your Home Assistant](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&repository=padspanHA&category=integration)
+The button opens PadSpan in the Marketplace on Home Assistant 2026.11 and newer, and in HACS on older versions.
 
-Or by hand:
+### From the Marketplace (Home Assistant 2026.11 and newer)
+
+1. Open **Settings → Marketplace** and search for **PadSpan**
+2. Open **PadSpan HA** and choose **Install**. The first time, the Marketplace asks you to confirm that what it lists isn't reviewed by the Home Assistant project
+3. The setup dialog opens right away, with no restart. Choose **Submit**
+4. Open **PadSpan HA** in the sidebar
+
+### Via HACS (Home Assistant 2026.10 and older)
 
 1. Open HACS in your Home Assistant instance
 2. Search for and install **PadSpan HA** (it's in the HACS default list, no custom repository needed)
 3. **Restart Home Assistant completely** (Settings → System → Restart)
 4. Add the integration: Settings → Devices & Services → Add Integration → PadSpan HA
 
-Setting up HACS for the first time? A GitHub change can make HACS's sign-in step fail for now, see [the note in Getting Started](docs/GETTING_STARTED.md#via-hacs-recommended).
+Setting up HACS for the first time? A GitHub change can make HACS's sign-in step fail for now, see [the note in Getting Started](./docs/GETTING_STARTED.md#via-hacs-recommended).
 
 ### Manual
 
@@ -249,15 +256,15 @@ Setting up HACS for the first time? A GitHub change can make HACS's sign-in step
 ## Requirements
 
 - Home Assistant **2024.1** or newer
-- A machine with **more than 2 GB of RAM** is recommended (a Raspberry Pi 4 or 5 with 4 GB or more, or similar). Near a busy street PadSpan hears thousands of passing devices, and on a 2 GB Pi Home Assistant can run out of memory within hours. See [Minimum requirements](docs/MINIMUM_REQUIREMENTS.md)
+- A machine with **more than 2 GB of RAM** is recommended (a Raspberry Pi 4 or 5 with 4 GB or more, or similar). Near a busy street PadSpan hears thousands of passing devices, and on a 2 GB Pi Home Assistant can run out of memory within hours. See [Minimum requirements](./docs/MINIMUM_REQUIREMENTS.md)
 - At least one BLE scanner: an HA Bluetooth proxy, a Bermuda proxy, or ESPresense nodes (ESPresense also needs HA's MQTT integration, and the ingestion switched on in Manage)
-- HACS (recommended for easy installation and updates)
+- The Marketplace (built into Home Assistant from 2026.11) or HACS, for easy installation and updates
 
 ---
 
 ## Quick Start
 
-1. Install via HACS and restart HA
+1. Install from the Marketplace (or with HACS, then restart HA)
 2. Add the PadSpan HA integration
 3. Open the **PadSpan HA** panel in the sidebar
 4. The **onboarding wizard** guides you through 5 steps: upload a map, set scale, draw rooms, place scanners, calibrate
@@ -271,18 +278,18 @@ Setting up HACS for the first time? A GitHub change can make HACS's sign-in step
 
 | Guide | Description |
 |-------|-------------|
-| [Getting Started](docs/GETTING_STARTED.md) | First 30 minutes: install, explore, track |
-| [Floor Plan Setup](docs/FLOOR_PLAN_SETUP.md) | Upload, draw rooms, place scanners, set scale |
-| [Atlas Guide](docs/ATLAS_GUIDE.md) | The device map: placing fixtures, doors/locks/sensors, heights, room scenes, Automorph, Showcase, the emergency lighting test, WLED Advanced and Exact look, and openers/locks/lights from relays |
-| [Live Aboard Guide](docs/LIVE_ABOARD_GUIDE.md) | The Atlas in 3D: getting around, motion, the heat map, scenes, and building doors, windows, heights and strips |
-| [Walls Guide](docs/WALLS_GUIDE.md) | Wall materials and signal loss: where the numbers come from, real-world ranges, old buildings, and setting your own |
-| [Furnish Guide](docs/FURNISH_GUIDE.md) | Furniture, devices and people in the 3D house: builders, from a photo, the shared library, Sweet Home 3D import |
-| [Wall Screen Guide](docs/WALL_SCREEN_GUIDE.md) | PadSpan on a tablet or wall screen: kiosk links, full screen, going back home by itself |
-| [PadSpan Pro](docs/PADSPAN_PRO.md) | The 90-day trial, entering a key, getting Pro free as a tester, and invites |
-| [Troubleshooting](docs/90_TROUBLESHOOTING.md) | Common issues and fixes |
-| [Architecture](docs/00_REPO_LOGIC_OVERVIEW.md) | High-level codebase architecture |
-| [WebSocket API](docs/02_WEBSOCKET_API.md) | API reference for custom integrations |
-| [Changelog](CHANGELOG.md) | Full version history |
+| [Getting Started](./docs/GETTING_STARTED.md) | First 30 minutes: install, explore, track |
+| [Floor Plan Setup](./docs/FLOOR_PLAN_SETUP.md) | Upload, draw rooms, place scanners, set scale |
+| [Atlas Guide](./docs/ATLAS_GUIDE.md) | The device map: placing fixtures, doors/locks/sensors, heights, room scenes, Automorph, Showcase, the emergency lighting test, WLED Advanced and Exact look, and openers/locks/lights from relays |
+| [Live Aboard Guide](./docs/LIVE_ABOARD_GUIDE.md) | The Atlas in 3D: getting around, motion, the heat map, scenes, and building doors, windows, heights and strips |
+| [Walls Guide](./docs/WALLS_GUIDE.md) | Wall materials and signal loss: where the numbers come from, real-world ranges, old buildings, and setting your own |
+| [Furnish Guide](./docs/FURNISH_GUIDE.md) | Furniture, devices and people in the 3D house: builders, from a photo, the shared library, Sweet Home 3D import |
+| [Wall Screen Guide](./docs/WALL_SCREEN_GUIDE.md) | PadSpan on a tablet or wall screen: kiosk links, full screen, going back home by itself |
+| [PadSpan Pro](./docs/PADSPAN_PRO.md) | The 90-day trial, entering a key, getting Pro free as a tester, and invites |
+| [Troubleshooting](./docs/90_TROUBLESHOOTING.md) | Common issues and fixes |
+| [Architecture](./docs/00_REPO_LOGIC_OVERVIEW.md) | High-level codebase architecture |
+| [WebSocket API](./docs/02_WEBSOCKET_API.md) | API reference for custom integrations |
+| [Changelog](./CHANGELOG.md) | Full version history |
 
 The **Training Hub** inside PadSpan has 16 animated walkthroughs covering every feature — from BLE basics to Private BLE/IRK setup.
 
@@ -294,7 +301,7 @@ PadSpan HA is built by [Garry Broeckling](https://github.com/gbroeckling) — a 
 
 The result: a solo project that ships features at a pace that would normally require a team — without compromising on quality, security, or code review.
 
-How changes are tested and released: [How PadSpan is built and checked](docs/HOW_PADSPAN_IS_BUILT.md).
+How changes are tested and released: [How PadSpan is built and checked](./docs/HOW_PADSPAN_IS_BUILT.md).
 
 ---
 
@@ -307,13 +314,13 @@ PadSpan reads your other integrations and leaves them as they are. Installing, d
 - **Never changes on its own:** anything belonging to another integration. The only exceptions are buttons you press, one at a time: Add IRK / Delete from HA (Private BLE), Manage → Delete an entity or area, assigning a radio or light to a room, and Enable & Track for a phone's BLE Transmitter.
 - **Uninstalling removes:** PadSpan's own entities and devices, and gives WLED lights their sync back. Its `.storage` files stay (Manage → Factory Reset clears your setup from them first). An IRK you added stays in Private BLE Device.
 
-Details: [What PadSpan never touches](docs/GETTING_STARTED.md#what-padspan-never-touches).
+Details: [What PadSpan never touches](./docs/GETTING_STARTED.md#what-padspan-never-touches).
 
 ---
 
 ## Security
 
-Names from devices, scanners and rooms are always shown as plain text in the panel. Backups, restores, factory reset, IRKs, map uploads and anything that sends data out of the house need a Home Assistant administrator. For homes where other people have accounts, **Settings → Presence → Enhanced security** (off by default, admin-only) makes every change to PadSpan's shared setup need an administrator as well, while the household can still view and use PadSpan. See [Who can change what](docs/GETTING_STARTED.md#who-can-change-what) and [SECURITY.md](SECURITY.md) to report an issue.
+Names from devices, scanners and rooms are always shown as plain text in the panel. Backups, restores, factory reset, IRKs, map uploads and anything that sends data out of the house need a Home Assistant administrator. For homes where other people have accounts, **Settings → Presence → Enhanced security** (off by default, admin-only) makes every change to PadSpan's shared setup need an administrator as well, while the household can still view and use PadSpan. See [Who can change what](./docs/GETTING_STARTED.md#who-can-change-what) and [SECURITY.md](./SECURITY.md) to report an issue.
 
 ---
 
@@ -363,6 +370,6 @@ If this project saved you time (or you just like knowing which room your cat is 
 
 ## License
 
-Copyright (C) 2026 Garry Broeckling. Dual-licensed: the [GNU General Public License v3.0](LICENSE) for everyone, and a commercial licence for businesses that need other terms. See [LICENSING.md](LICENSING.md).
+Copyright (C) 2026 Garry Broeckling. Dual-licensed: the [GNU General Public License v3.0](./LICENSE) for everyone, and a commercial licence for businesses that need other terms. See [LICENSING.md](./LICENSING.md).
 
 PadSpan is a trademark of Devcon Computer Services Limited. Forks are welcome under the GPL, but not under the PadSpan name.
