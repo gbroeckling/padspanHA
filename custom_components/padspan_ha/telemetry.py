@@ -559,10 +559,23 @@ HOUSE3D_FALLBACK_KINDS: tuple[str, ...] = ("no_webgl", "slow_gpu", "context_lost
 # house3d_fallback_size:<band> (0.38.193), sent with each fallback: how many
 # rooms the house has, so a slow screen can be told from a very big house.
 HOUSE_SIZE_BANDS: tuple[str, ...] = ("lt20", "20_60", "60_150", "gt150")
+# Stairs, once per page load where Live Aboard draws some (0.38.194,
+# live_aboard.js countStairs): drawn; whether every flight lands in a room on
+# the level it reaches, or some land in none, or some have nothing to reach;
+# one reaching a split level or a few steps within a floor; each shape and
+# style in use. Never where, how many or which.
+STAIR_SHAPES: tuple[str, ...] = ("straight", "l", "u", "l2", "l3")
+STAIR_STYLES: tuple[str, ...] = ("closed", "open", "treads")
+STAIR_USE_EVENTS: frozenset[str] = frozenset(
+    {"stairs_drawn", "stairs_reach:split_level", "stairs_reach:within"}
+    | {f"stairs_outcome:{k}" for k in ("all_ok", "some_landing", "some_nofloor")}
+    | {f"stairs_shape:{k}" for k in STAIR_SHAPES} | {f"stairs_style:{k}" for k in STAIR_STYLES}
+)
 HOUSE3D_EVENTS: frozenset[str] = frozenset(
     {"house3d_opened", "house3d_wet_window", "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped"}
     | {f"house3d_fallback:{k}" for k in HOUSE3D_FALLBACK_KINDS}
     | {f"house3d_fallback_size:{b}" for b in HOUSE_SIZE_BANDS}
+    | STAIR_USE_EVENTS
 )
 # Its photo step (ws_house3d_photo.py), counted by the server once per photo
 # sent: photo_read:ok, :no_ai_task (none chosen, gone, can't read pictures, or

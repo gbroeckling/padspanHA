@@ -56,8 +56,15 @@ export const HOUSE3D_FALLBACK_KINDS = ["no_webgl", "slow_gpu", "context_lost", "
 // house3d_fallback_size:<band> (0.38.193): beside each fallback, how many rooms
 // the house has (telemetry.HOUSE_SIZE_BANDS).
 export const HOUSE_SIZE_BANDS = ["lt20", "20_60", "60_150", "gt150"];
+// Stairs (0.38.194, live_aboard.js countStairs): drawn, how they come out,
+// what they reach, their shapes and styles (telemetry.STAIR_USE_EVENTS).
+export const STAIR_SHAPES = ["straight", "l", "u", "l2", "l3"];
+export const STAIR_STYLES = ["closed", "open", "treads"];
+export const STAIR_USE_EVENTS = ["stairs_drawn", ...["all_ok", "some_landing", "some_nofloor"].map(k => `stairs_outcome:${k}`),
+  "stairs_reach:split_level", "stairs_reach:within", ...STAIR_SHAPES.map(k => `stairs_shape:${k}`), ...STAIR_STYLES.map(k => `stairs_style:${k}`)];
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window",
-  "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`)];
+  "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
+  ...STAIR_USE_EVENTS];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
 const _counted = new Set();
 /** Count `name` once per page load, and only a name from the closed list. */
@@ -205,6 +212,9 @@ function circlePoly(cx, cy, r, n = 24){
  *  room comes back as it was. The level follows its floor's chip
  *  (chipElev) and never gets one of its own. */
 export function splitLevels(model){
+  // Already split (the view's redraw hands back the model it was given, 2026-10-29:
+  // split twice, a raised room rose twice as far): as it is.
+  if (model && Array.isArray(model.split_levels)) return model;
   const rm = (model && model.room_meta) || {}, geo = (model && model.room_geometry_m) || {};
   const raised = Object.entries(rm).filter(([n, m]) => m && typeof m === "object" && Math.abs(num(m.floor_raise_m) ?? 0) >= 0.05
                                                        && geo[n] && typeof geo[n] === "object");

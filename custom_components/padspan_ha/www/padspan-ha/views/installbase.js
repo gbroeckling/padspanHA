@@ -397,6 +397,8 @@ function renderUnlocked(ctx, root) {
           ["  ↳ read off a plan by AI, still there", s.stairs.ai_kept, s.stairs.total],
           ["  ↳ a few steps within one floor", s.stairs.within, s.stairs.total],
         ])] : []),
+        ...(Object.keys(s.usage || {}).some(k => /^stairs_/.test(k)) ? [pairCard(el, "Stairs at work (page loads)", "Each time Live Aboard drew a house with stairs: whether they land in a room, what they reach, their shapes and styles",
+          Object.fromEntries(Object.entries(s.usage || {}).filter(([k]) => /^stairs_/.test(k))), "count", 12, "usage")] : []),
         ...(s.fixes ? [kvCard(el, "Recent fixes at work (installs)", "Homes where a fix from the last betas made a difference", [
           ["A Shelly's scanner found by its MAC (0.38.175)", s.fixes.shelly_mac, n],
           ["A scanner's room taken from its Shelly (0.38.176)", s.fixes.shelly_area_via, n],
@@ -765,6 +767,11 @@ function word(kind, k) {
                                         no_ai_task: "AI stair read refused: no AI Task" }[b] || tidy(key);
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
       if (a === "photo_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to answer`;
+      if (a === "stairs_outcome") return { all_ok: "Stairs: every flight lands in a room", some_landing: "Stairs: one lands in no room (check where)",
+                                            some_nofloor: "Stairs: one has no floor above to reach" }[b] || tidy(key);
+      if (a === "stairs_reach") return { split_level: "Stairs: one reaches a raised or sunken room", within: "Stairs: a few steps within one floor" }[b] || tidy(key);
+      if (a === "stairs_shape") return `Stairs shaped ${{ straight: "straight", l: "L", u: "U", l2: "with two landings", l3: "with three landings" }[b] || b}`;
+      if (a === "stairs_style") return `Stairs: ${{ closed: "closed", open: "open risers", treads: "treads only" }[b] || b}`;
       if (a === "stair_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to read a floor plan`;
       if (a === "house3d_fallback_size") return `3D house fell back, in a house of ${{ lt20: "under 20", "20_60": "20–60", "60_150": "60–150", gt150: "over 150" }[b] || b} rooms`;
       if (a === "tip_shown" || a === "tip_opened" || a === "tip_hidden") {

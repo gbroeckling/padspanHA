@@ -406,6 +406,28 @@ export function fitChecks(p, scene){
 // Stairs, Stairwell, Staircase…) would hold, and any piece squared to the
 // walls of the room it stands in. "Upstairs" and "downstairs" are not stair
 // rooms (the word has to stand alone).
+/** A step past the top of a flight, on the plan: [x, y], or null. `rise` is
+ *  its climb (STOREY.stairReach), B the stairs builder (live_aboard_furniture.js). */
+export function stairExitPoint(p, rise, B){
+  if (!B || typeof B.stairFlights !== "function" || !p || !p.recipe) return null;
+  const S = sizeOf(p.recipe), L0 = B.stairFlights({ w: S.w, d: S.d, h: rise }, p.recipe.params || {});
+  if (!L0 || !L0.exit) return null;
+  const u = acrossOf(p.rotation), v = frontOf(p.rotation), lx = L0.exit.x + L0.exit.dx * 0.3, lz = L0.exit.z + L0.exit.dz * 0.3;
+  return [(num(p.x_m) ?? 0) + u[0] * lx + v[0] * lz, (num(p.y_m) ?? 0) + u[1] * lx + v[1] * lz];
+}
+/** How a flight comes out (Furnish's warnings and the opt-in report, one
+ *  rule): "ok" (its top lands in a room on the level it reaches), "landing"
+ *  (in no room there), "nofloor" (nothing above to reach), or null (not
+ *  stairs, or no floor of its own). floors: [{elev, outdoor, rooms: [{pts, outdoor}]}]. */
+export function stairOutcome(p, reach, floors, B, inPoly){
+  if (!reach || !reach.from) return null;
+  if (!reach.to) return "nofloor";
+  const pt = stairExitPoint(p, reach.rise, B);
+  if (!pt) return null;
+  const up = (floors || []).filter(f => f && !f.outdoor && Math.abs(f.elev - reach.to.elev) <= 1e-3);
+  return up.some(f => (f.rooms || []).some(rm => rm && !rm.outdoor && Array.isArray(rm.pts) && rm.pts.length >= 3 && inPoly(pt[0], pt[1], rm.pts)))
+    ? "ok" : "landing";
+}
 export const STAIR_ROOM = /(^|[^a-z])(stairs?|stair ?case|stair ?way|stair ?well|escaliers?|treppe(nhaus)?|escaleras?|scal[ae]|trap(pen)?(huis|hal)?)([^a-z]|$)/i;
 export const SQUARE_TOL_DEG = 12;           // a piece this near a wall's direction is squared to it
 const TREAD_M = 0.26;                       // a comfortable going, for sizing a guess

@@ -28,6 +28,8 @@ const WWW = process.argv[2];
 if (!WWW) { console.error("usage: live_aboard_split_levels.mjs <www/padspan-ha dir>"); process.exit(2); }
 const S = await import(pathToFileURL(join(WWW, "views", "live_aboard_storey.js")).href);
 const H = await import(pathToFileURL(join(WWW, "views", "live_aboard_house.js")).href);
+const P = await import(pathToFileURL(join(WWW, "views", "live_aboard_pieces.js")).href);
+const FU = await import(pathToFileURL(join(WWW, "views", "live_aboard_furniture.js")).href);
 
 const failures = [];
 const cases = {};
@@ -86,6 +88,13 @@ await tryCase("split: a step-down room sits lower and stands on nothing", () => 
   const sun = h.byId.get("main~-0.4");
   check("split: a step-down room sits lower and stands on nothing",
     sun && near(sun.elev0, -0.4) && sun.stem === 0 && sun.parent === "main" && h.rooms.find(r => r.name === "Sun").floor === sun, sun);
+});
+await tryCase("split: split twice is split once (the view redraws with the model it was given)", () => {
+  const once = H.splitLevels(house()), twice = H.splitLevels(once);
+  const h = H.readHouse(twice, null, {}, new Set(), {});
+  check("split: split twice is split once (the view redraws with the model it was given)",
+    twice === once && !twice.floors.some(f => /~.*~/.test(String(f.id))) && near(h.byId.get("upper~0.75").elev0, 3.55),
+    twice.floors.map(f => f.id));
 });
 await tryCase("split: a model with no raised room comes back as it was", () => {
   const plain = house(); plain.room_meta = { Office: { floor_id: "upper", color: "#7c3aed" } };
@@ -153,6 +162,32 @@ await tryCase("stairs: a few steps within a floor: up out of a sunken room, or u
     && rl.within && rl.from.id === "upper" && rl.to.id === "upper~0.75" && near(rl.rise, 0.75, 1e-3)
     && cuts.size === 0 && old.to && old.to.id === "upper~0.75" && near(old.rise, 3.55, 1e-3),
     { rg: [rg.from && rg.from.id, rg.to && rg.to.id, rg.rise], rl: [rl.from && rl.from.id, rl.to && rl.to.id, rl.rise], cuts: [...cuts.keys()], old: old.to && old.to.id });
+});
+
+await tryCase("stairs: how a flight comes out, one rule for Furnish's warnings and the report", () => {
+  const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
+  const floors = h.floors.map(f => ({ elev: f.elev, outdoor: f.outdoor, rooms: h.rooms.filter(r => r.floor === f) }));
+  const out = (q) => P.stairOutcome(q, S.stairReach(h.canon(q.floor_id), q.recipe.params.to_floor, h.floors, S.footprint(q)), floors, FU, H.inPoly);
+  // Into the raised office (top past y 1, inside it); into the hall; out past the house's edge; up from the sunroom.
+  const office = out(stair("o", "main", 5.5, 2.5, 1, 3, 0, "upper"));
+  const hall = out(stair("h", "main", 2, 2.5, 1, 3, 0, "upper"));
+  const outside = out(stair("x", "main", 2, 0.4, 1, 3, 180, "upper"));     // its top past y = 5... turned to face out: lands beyond the rooms
+  const sun = out(stair("g", "main", 6.6, 2.5, 1, 0.9, 270, "main"));
+  const top = out(stair("t", "upper", 2, 2.5, 1, 3, 0, null));              // Upper is the top floor
+  check("stairs: how a flight comes out, one rule for Furnish's warnings and the report",
+    office === "ok" && hall === "ok" && sun === "ok" && top === "nofloor" && ["landing", "ok"].includes(outside)
+    && P.stairOutcome(stair("n", "nowhere", 0, 0, 1, 1, 0, null), { from: null, to: null }, floors, FU, H.inPoly) === null,
+    { office, hall, outside, sun, top });
+});
+await tryCase("stairs: a top that comes out in no room is a landing miss", () => {
+  // One floor above with a single small room far from the flight.
+  const m = { floors: [{ id: "main", name: "Main", floor_to_floor_m: 2.8 }, { id: "up", name: "Up", floor_to_floor_m: 2.6 }],
+              floor_elevations: { main: 0, up: 2.8 }, room_geometry_m: { A: rect("main", 0, 0, 10, 10), B: rect("up", 8, 8, 10, 10) } };
+  const h = H.readHouse(m, null, {}, new Set(), {});
+  const floors = h.floors.map(f => ({ elev: f.elev, outdoor: f.outdoor, rooms: h.rooms.filter(r => r.floor === f) }));
+  const q = stair("q", "main", 2, 5, 1, 3, 0, "up");
+  const r = S.stairReach("main", "up", h.floors, S.footprint(q));
+  check("stairs: a top that comes out in no room is a landing miss", P.stairOutcome(q, r, floors, FU, H.inPoly) === "landing", r);
 });
 
 // ── stem ────────────────────────────────────────────────────────────────────

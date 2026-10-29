@@ -74,7 +74,12 @@ def test_the_stairs_in_the_3d_file():
     pieces = {"a": st("Stairs (AI first guess)", "main", "upper"), "b": st("Stairs (from the plan, check which way is up)", "main", "upper"),
               "c": st("Entrance stairs", "main", "upper"), "d": st("Garage steps", "main", "main"),
               "e": st("Old", "main", "main~-0.55"), "sofa": {"recipe": {"kind": "sofa"}, "label": "Stairs (AI first guess)"}}
-    assert C.stairs_summary(pieces) == {"total": 5, "ai_kept": 2, "within": 2}
+    assert C.stairs_summary(pieces) == {"total": 5, "ai_kept": 2, "within": 2, "imported": 0, "room_guess": 0}
+    # How they got there, and their shapes and styles (0.38.194), each only where some have it.
+    more = {"g": {"recipe": {"kind": "stairs", "params": {"shape": "l2", "style": "open"}}, "label": "Stairs (Hall)", "floor_id": "main"},
+            "i": {"recipe": {"kind": "stairs", "params": {"shape": "straight"}}, "label": "Stairs", "origin": "import", "floor_id": "main"}}
+    sm = C.stairs_summary(more)
+    assert sm == {"total": 2, "ai_kept": 0, "within": 0, "imported": 1, "room_guess": 1, "shape_l2": 1, "shape_straight": 1, "style_open": 1}, sm
     assert C.stairs_summary({}) is None and C.stairs_summary(None) is None
 
 
@@ -148,15 +153,16 @@ def test_the_report_counts_overlaps_and_stairs_only_where_they_apply():
     p = T.build_payload(h)
     T.assert_shareable(p)
     assert p["health"]["rooms_overlap"] == 1
-    assert p["env"]["stairs"] == {"total": 1, "ai_kept": 1, "within": 1}
+    assert p["env"]["stairs"] == {"total": 1, "ai_kept": 1, "within": 1, "imported": 0, "room_guess": 0}
     assert "Garage" not in json.dumps(p) and "Laundry" not in json.dumps(p), "counts, never rooms"
 
 
 def test_the_new_events_are_allowed_and_nothing_else():
     for e in ("tip_shown:scale", "tip_opened:floor_heights", "tip_hidden:receiver_heights", "tip_hidden:all",
-              "stair_secs:lt5", "stair_secs:gt45", "house3d_fallback_size:lt20", "house3d_fallback_size:gt150"):
+              "stair_secs:lt5", "stair_secs:gt45", "house3d_fallback_size:lt20", "house3d_fallback_size:gt150",
+              "stairs_drawn", "stairs_outcome:all_ok", "stairs_outcome:some_landing", "stairs_reach:within", "stairs_shape:l2", "stairs_style:treads"):
         assert T.event_allowed(e), e
-    for e in ("tip_shown:other", "tip_hidden:everything", "stair_secs:5", "house3d_fallback_size:huge"):
+    for e in ("tip_shown:other", "tip_hidden:everything", "stair_secs:5", "house3d_fallback_size:huge", "stairs_shape:spiral", "stairs_outcome:bad"):
         assert not T.event_allowed(e), e
 
 

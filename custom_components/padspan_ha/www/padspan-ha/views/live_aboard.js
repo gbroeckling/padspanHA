@@ -1676,6 +1676,7 @@ function createSlot(slotKey){
     if ([...h.perFloor.values()].some(per => per.pieces.some(pc => pc.loftRail))) HOUSE.countHouse3dOnce("house3d_loft_rail", send);
     if (HOUSE.hasNestedFloor(h)) HOUSE.countHouse3dOnce("house3d_mezzanine", send);
     if ([...h.perFloor.values()].some(per => per.pieces.some(pc => pc.capped))) HOUSE.countHouse3dOnce("house3d_wall_capped", send);
+    countStairs(h);
     if (atlas) platesOf(h);
     // The ground and the sun, sized to the house.
     const cx = (houseBox.x0 + houseBox.x1) / 2, cy = (houseBox.y0 + houseBox.y1) / 2;
@@ -1714,6 +1715,33 @@ function createSlot(slotKey){
              fascia: hex(new THREE.Color(atlas ? atlas.floor : "#efe9df").lerp(new THREE.Color("#e2ddd4"), 0.5)) };
   }
   /** Stairs are drawn as high as the floor they reach is now (live_aboard_storey.js stairReach). */
+  /** The opt-in report on stairs (closed words, once per page load): that the
+   *  house has some, whether every flight lands in a room on the level it
+   *  reaches (PIECES.stairOutcome, Furnish's own rule), whether one reaches a
+   *  split level or is a few steps within a floor, and the shapes and styles
+   *  in use. Never where, how many or which. */
+  function countStairs(h){
+    if (!STOREY || !FURN || !PIECES.stairOutcome) return;
+    const list = Object.values((file && file.pieces) || {}).filter(q => STOREY.isStairs(q));
+    if (!list.length) return;
+    const floors = h.floors.map(f => ({ elev: f.elev, outdoor: f.outdoor, rooms: h.rooms.filter(r => r.floor === f) }));
+    let landing = 0, nofloor = 0, split = false, within = false;
+    for (const q of list) {
+      const r = STOREY.stairReach(h.canon ? h.canon(q.floor_id) : q.floor_id, q.recipe.params && q.recipe.params.to_floor, h.floors, STOREY.footprint(q));
+      const out = PIECES.stairOutcome(q, r, floors, FURN, HOUSE.inPoly);
+      if (out === "landing") landing++;
+      if (out === "nofloor") nofloor++;
+      if (r.within) within = true;
+      else if (r.to && r.to.parent) split = true;
+      const params = q.recipe.params || {};
+      if (HOUSE.STAIR_SHAPES.includes(params.shape)) HOUSE.countHouse3dOnce(`stairs_shape:${params.shape}`, send);
+      if (HOUSE.STAIR_STYLES.includes(params.style)) HOUSE.countHouse3dOnce(`stairs_style:${params.style}`, send);
+    }
+    HOUSE.countHouse3dOnce("stairs_drawn", send);
+    HOUSE.countHouse3dOnce(`stairs_outcome:${nofloor ? "some_nofloor" : landing ? "some_landing" : "all_ok"}`, send);
+    if (split) HOUSE.countHouse3dOnce("stairs_reach:split_level", send);
+    if (within) HOUSE.countHouse3dOnce("stairs_reach:within", send);
+  }
   function stairRecipe(p){
     if (!STOREY || !STOREY.isStairs(p) || !house) return p.recipe;
     const r = STOREY.stairReach(house.canon ? house.canon(p.floor_id) : p.floor_id, p.recipe.params && p.recipe.params.to_floor, house.floors,

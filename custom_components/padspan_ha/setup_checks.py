@@ -115,7 +115,19 @@ def stairs_summary(pieces: Any) -> dict[str, int] | None:
     ai = sum(1 for p in rows if str(p.get("label") or "").startswith(("Stairs (AI first guess", "Stairs (from the plan")))
     within = sum(1 for p in rows
                  if str(((p["recipe"].get("params") or {}).get("to_floor")) or "").split("~")[0] == str(p.get("floor_id") or ""))
-    return {"total": len(rows), "ai_kept": ai, "within": within}
+    out = {"total": len(rows), "ai_kept": ai, "within": within,
+           # How they got there (0.38.194): imported from a home-design file, or
+           # a stair room's guess (labelled "Stairs (<room>)" until renamed).
+           "imported": sum(1 for p in rows if p.get("origin") == "import"),
+           "room_guess": sum(1 for p in rows if str(p.get("label") or "").startswith("Stairs (")
+                             and not str(p.get("label") or "").startswith(("Stairs (AI first guess", "Stairs (from the plan")))}
+    # Shapes and styles in use, each only where some stairs have it.
+    for key, allowed in (("shape", ("straight", "l", "u", "l2", "l3")), ("style", ("closed", "open", "treads"))):
+        for v in allowed:
+            n = sum(1 for p in rows if (p["recipe"].get("params") or {}).get(key) == v)
+            if n:
+                out[f"{key}_{v}"] = n
+    return out
 
 
 def house3d_pieces(hass: HomeAssistant) -> Any:

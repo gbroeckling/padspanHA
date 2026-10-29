@@ -751,14 +751,10 @@ export function createFurnish(ctx){
     const B = FURN();
     if (!ctx.STOREY || !ctx.STOREY.isStairs(p) || !B || typeof B.stairFlights !== "function") return [];
     const r = reachOf(p);
-    if (!r.to) return r.from ? [{ kind: "nofloor" }] : [];
-    const S = PIECES.sizeOf(p.recipe), L0 = B.stairFlights({ w: S.w, d: S.d, h: r.rise }, p.recipe.params || {});
-    // A step past the top, on the plan.
-    const u = PIECES.acrossOf(p.rotation), v = PIECES.frontOf(p.rotation), lx = L0.exit.x + L0.exit.dx * 0.3, lz = L0.exit.z + L0.exit.dz * 0.3;
-    const x = (num(p.x_m) ?? 0) + u[0] * lx + v[0] * lz, y = (num(p.y_m) ?? 0) + u[1] * lx + v[1] * lz;
-    const up = ctx.floors().filter(G => !G.fl.outdoor && Math.abs(G.fl.elev - r.to.elev) <= 1e-3);
-    const lands = up.some(G => G.rooms.some(rm => !rm.outdoor && Array.isArray(rm.pts) && rm.pts.length >= 3 && ctx.HOUSE.inPoly(x, y, rm.pts)));
-    return lands ? [] : [{ kind: "landing", floor: r.to.name || null }];
+    // The one rule the opt-in report counts too (PIECES.stairOutcome).
+    const out = PIECES.stairOutcome(p, r, ctx.floors().map(G => ({ elev: G.fl.elev, outdoor: G.fl.outdoor, rooms: G.rooms })), B, ctx.HOUSE.inPoly);
+    if (out === "nofloor") return [{ kind: "nofloor" }];
+    return out === "landing" ? [{ kind: "landing", floor: r.to.name || null }] : [];
   }
   /** The stairs' panel: the shape (straight, L, U, two or three landings),
    *  which way they turn, closed, open or treads only, the rail, the floor
