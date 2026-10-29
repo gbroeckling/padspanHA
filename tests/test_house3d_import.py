@@ -354,7 +354,8 @@ def test_a_rotated_opening_keeps_its_width_and_middle():
     ("Half turn staircase", "u", "closed"),
     ("Stairs with two landings", "l2", "closed"),
     ("Open riser staircase", "straight", "open"),
-    ("Floating stairs", "straight", "treads"),
+    ("Floating stairs", "straight", "floating"),
+    ("Cantilevered stairs", "straight", "treads"),
     ("Treppe", "straight", "closed"),
 ])
 def test_a_staircase_comes_in_as_stairs_with_a_first_guess_at_its_shape(name, shape, style):

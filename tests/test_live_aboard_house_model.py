@@ -126,7 +126,7 @@ def test_the_limits_are_the_servers() -> None:
     assert m and (float(m[1]), float(m[2])) == HS.STAIR_RISE_M
     fur = (_VIEWS / "live_aboard_furniture.js").read_text(encoding="utf-8")
     assert 'choice("shape", "Shape", ["straight", "l", "u", "l2", "l3"]' in fur and HS.STAIR_SHAPES == ("straight", "l", "u", "l2", "l3")
-    assert 'choice("style", "Style", ["closed", "open", "treads"]' in fur and HS.STAIR_STYLES == ("closed", "open", "treads")
+    assert 'choice("style", "Style", ["closed", "open", "treads", "floating"]' in fur and HS.STAIR_STYLES == ("closed", "open", "treads", "floating")
     assert 'choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"]' in fur and HS.STAIR_RAILS == ("auto", "both", "inner", "outer", "none")
     assert 'choice("turn", "Turns", ["left", "right"]' in fur and HS.STAIR_TURNS == ("left", "right")
 

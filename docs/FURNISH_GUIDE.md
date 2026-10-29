@@ -43,12 +43,13 @@ The other ways in:
     the front) or **3 landings** (round an open well; the last flight passes over the start of the
     first, high enough to walk under, and you step off at the side you started from).
   - **Style:** **Closed** (solid steps), **Open** (the treads alone, on a board each side, with
-    gaps between them) or **Treads only** (nothing under them, as if fixed into the wall beside
-    them).
+    gaps between them), **Treads only** (nothing under them, as if fixed into the wall beside
+    them) or **Floating** (the treads alone on one steel spine down the middle, fixed to the
+    floor at the bottom and to the floor or landing at the top, touching no wall).
   - **Rail:** **Auto**, **Both**, **Inside** (the well side of a turn; Left on a straight flight),
     **Outside** (Right on a straight flight) or **None**. Auto keeps the plain rods closed
     straight, L and U stairs have always had, and gives the other styles and shapes a handrail on
-    spindles on the open side. A rail stands its full height, so over the top flights it rises
+    spindles on the open side (both sides of a Floating stair, which has no wall beside it). A rail stands its full height, so over the top flights it rises
     into the opening in the floor above, as a real one does.
   - **Stairs in stair rooms** (Build ▾ → House, shown when there are some): a first guess for each
     room called Stairs, Stairwell or Staircase (Escalier, Treppenhaus, Trap…) that has none yet and

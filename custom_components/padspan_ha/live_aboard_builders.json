@@ -1695,7 +1695,8 @@
      "choices": [
       "closed",
       "open",
-      "treads"
+      "treads",
+      "floating"
      ],
      "def": "closed"
     },

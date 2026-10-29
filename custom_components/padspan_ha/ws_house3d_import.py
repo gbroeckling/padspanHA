@@ -149,12 +149,14 @@ def kind_of(item: dict[str, Any]) -> tuple[str, str | None]:
 
 # A staircase's shape and style, from its words (a first guess the editor shows):
 # a quarter landing or a corner is an L, a half turn a U, a spiral or a round
-# one goes round a well (three landings); open treads, or floating ones.
+# one goes round a well (three landings); open treads, treads fixed into a
+# wall (cantilevered), or floating ones (on a spine, or hung).
 STAIR_L = frozenset(("l", "quarter", "corner", "angle", "angled", "winder", "landing"))
 STAIR_U = frozenset(("u", "half", "dogleg", "switchback", "return"))
 STAIR_ROUND = frozenset(("spiral", "helical", "round", "circular", "wendeltreppe", "colimacon", "caracol"))
 STAIR_OPEN = frozenset(("open", "ladder", "glass"))
-STAIR_FLOAT = frozenset(("floating", "cantilever", "cantilevered", "suspended", "wall"))
+STAIR_WALL = frozenset(("cantilever", "cantilevered", "wall"))
+STAIR_FLOAT = frozenset(("floating", "suspended", "spine", "monostringer"))
 
 
 def stair_params(item: dict[str, Any]) -> dict[str, str]:
@@ -175,7 +177,8 @@ def stair_params(item: dict[str, Any]) -> dict[str, str]:
         shape = "l"
     else:
         shape = "straight"
-    style = "treads" if words & STAIR_FLOAT else "open" if words & STAIR_OPEN else "closed"
+    style = ("floating" if words & STAIR_FLOAT else "treads" if words & STAIR_WALL
+             else "open" if words & STAIR_OPEN else "closed")
     return {"shape": shape, "turn": "right" if item.get("mirrored") else "left", "style": style}
 
 

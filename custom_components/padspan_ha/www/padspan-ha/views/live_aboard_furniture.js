@@ -241,7 +241,7 @@ export const FURNITURE = {
   other: kind("Box", "furniture", "other", null, ["Colour"], [BOX_COLOR], BOX_SIZE, []),
   // Stairs (group "house": Furnish's Build ▾ lists them under House, not the
   // furniture; the photo and import flows never offer them): straight, L, U,
-  // two landings (l2) or three (l3); closed, open or treads only. Width and depth
+  // two landings (l2) or three (l3); closed, open, treads only or floating. Width and depth
   // are the footprint; the height is the rise, which the view always draws
   // as the gap up to the floor reached (params.to_floor: that floor's id,
   // kept with the shape and the turn; stairFlights lays the steps out).
@@ -252,11 +252,14 @@ export const FURNITURE = {
         l2: { width_m: 2.8, depth_m: 3.0 }, l3: { width_m: 3.0, depth_m: 3.0 } } }),
       choice("turn", "Turns", ["left", "right"], "left"),
       // Closed (solid steps), open (treads on a board each side, nothing
-      // between them) or treads only (nothing under them, fixed into a wall).
-      choice("style", "Style", ["closed", "open", "treads"], "closed"),
+      // between them), treads only (nothing under them, fixed into a wall) or
+      // floating (open treads on one steel spine down the middle, fixed at
+      // the bottom and the top, nothing on a wall).
+      choice("style", "Style", ["closed", "open", "treads", "floating"], "closed"),
       // auto: the plain rods closed straight, L and U stairs always had (both
-      // sides of a straight flight, the outside of a turn); anything else
-      // draws a handrail on spindles with a post at each end.
+      // sides of a straight flight, the outside of a turn; both sides of a
+      // floating stair, which has no wall); anything else draws a handrail on
+      // spindles with a post at each end.
       choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"], "auto"),
     ]),
 };
@@ -697,7 +700,7 @@ const LEG_WOOD = "#5e4431", LEG_DARK = "#2f2621", METAL = "#b9bec3";
 // at the footprint's edge (where the view cuts its opening).
 export const STAIR_RISER_M = 0.19, STAIR_RAIL_M = 0.9;
 export const STAIR_SHAPES = ["straight", "l", "u", "l2", "l3"];
-export const STAIR_STYLES = ["closed", "open", "treads"];
+export const STAIR_STYLES = ["closed", "open", "treads", "floating"];
 export const STAIR_RAILS = ["auto", "both", "inner", "outer", "none"];
 /** The steps, as numbers, in the piece's own frame (x across, z to the
  *  front, y up; metres): {risers, riser, steps: [{x0, z0, x1, z1, h, y0}]
@@ -721,10 +724,11 @@ export function stairFlights(S, p){
   // straight, L and U stairs have always drawn, until a rail is chosen.
   const plain = style === "closed" && !many && railP === "auto";
   // Which sides get a rail, +1 right of the way up, −1 left. The inside of a
-  // turn (the well) is the side it turns to: −sx.
+  // turn (the well) is the side it turns to: −sx. Auto on a floating stair:
+  // both sides, as on a straight flight (it stands clear of any wall).
   const rs = shape === "straight" ? 1 : sx;                // a straight flight: inner is its left, whichever way "turn" says
   const sides = railP === "none" ? [] : railP === "both" ? [1, -1] : railP === "inner" ? [-rs] : railP === "outer" ? [rs]
-    : shape === "straight" ? [1, -1] : plain ? [sx] : [-sx];
+    : shape === "straight" || style === "floating" ? [1, -1] : plain ? [sx] : [-sx];
   const steps = [], landings = [], rails = [], balusters = [], path = [], flights = [];
   // One flight: from s (its middle at the bottom) along d for L metres, w
   // wide, n risers from height b; the last riser at its far end.
@@ -877,6 +881,7 @@ function buildStairs(K, S, p, C){
   } else {
     // Open: the treads alone with a gap under each (open risers), on a board
     // each side of every flight. Treads only: no boards, nothing under them.
+    // Floating: the treads alone on one spine down the middle (stairSpine).
     const T = Math.min(0.045, L0.riser * 0.35);
     for (const b of L0.steps) {
       const w = b.x1 - b.x0, d = b.z1 - b.z0;
@@ -895,7 +900,8 @@ function buildStairs(K, S, p, C){
         K.box(0.08, b.h - LT, 0.08, px, (b.h - LT) / 2, pz, side);
       }
     }
-    {
+    if (L0.style === "floating") stairSpine(K, L0, T, rail);
+    else {
       // The boards (stringers): along each side of an open flight, from the
       // floor or landing at its foot up to the landing or floor at its head.
       // Treads only: one thin board on the wall side, what they're fixed to.
@@ -929,6 +935,79 @@ function buildStairs(K, S, p, C){
     if (b[1] - a[1] < 0.02) continue;
     if (rad < 0.02 && nth++ % stride) continue;
     K.box(rad * 2, b[1] - a[1], rad * 2, a[0], (a[1] + b[1]) / 2, a[2], rail);
+  }
+}
+
+// Floating stairs: one steel spine under the middle of each flight, sloped
+// as the treads climb, a bracket under each tread (high quality), a beam
+// under each landing from the flight that arrives to the one that leaves, a
+// plate on the floor where the first flight stands and a hanger up to the
+// landing or the floor reached at each flight's head: fixed at the bottom and
+// the top, nothing on a wall. All of it inside the stairs' box, none of it
+// under the floor they stand on.
+function stairSpine(K, L0, T, mat){
+  const r = L0.riser, LT = Math.max(T, 0.06), FL = L0.flights;
+  const bH = Math.min(0.1, Math.max(0.02, r * 0.55));            // the spine's depth
+  const gap = Math.max(0.01, r / 2 - T + 0.01);                  // its top to a tread's middle: clear of the tread's back edge
+  const ends = [];
+  for (const [i, F] of FL.entries()) {
+    const bW = Math.min(0.12, Math.max(0.05, F.w * 0.12));
+    const nT = F.n >= 2 ? F.n - 1 : 1, run = F.L / nT, slope = nT >= 2 ? r / run : 0;
+    const ang = Math.atan(slope), cs = Math.cos(ang), sn = Math.sin(ang);
+    const tc = (j) => run * (j + 0.5), under = (j) => F.b + (j + 1) * r - T;
+    const top = (t) => under(0) - gap + slope * (t - tc(0));
+    // The level it stands on (the floor, or under the landing it leaves) and
+    // the one it hangs from (under the landing it reaches, or the floor).
+    const footY = i === 0 ? F.b : F.b - LT, headY = i === FL.length - 1 ? L0.rise - 0.01 : F.top + r - LT;
+    const P = (t, y) => [F.s[0] + F.d[0] * t, y, F.s[1] + F.d[1] * t];
+    const bar = (q, len, w, h, rot) => F.d[0] === 0 ? K.box(w, h, len, q[0], q[1], q[2], mat, 0, rot ? [F.d[1] < 0 ? rot : -rot, 0, 0] : null)
+      : K.box(len, h, w, q[0], q[1], q[2], mat, 0, rot ? [0, 0, F.d[0] > 0 ? rot : -rot] : null);
+    // The spine: its lowest corner on the foot's level, its top end inside the run.
+    const ta = slope > 0 ? Math.max(0, tc(0) + (footY + bH * cs - top(tc(0))) / slope) : 0;
+    const tb = F.L - bH * sn - 0.002;
+    if (slope > 0 && tb - ta > 0.05) {
+      const tm = (ta + tb) / 2;
+      bar(P(tm + (bH / 2) * sn, top(tm) - (bH / 2) * cs), (tb - ta) / cs, bW, bH, ang);
+    } else if (slope === 0) {
+      const h = Math.min(bH, top(0) - footY);
+      if (h > 0.01) bar(P(F.L / 2, top(0) - h / 2), Math.max(0.01, F.L - 0.004), bW, h, 0);
+    }
+    // A bracket under each tread (a short post to the floor where the spine
+    // hasn't started yet).
+    if (K.hi) for (let j = 0; j < nT; j++) {
+      const t = tc(j), y0 = t < ta ? footY : top(t) - 0.01, y1 = under(j) + 0.002;
+      if (y1 - y0 > 0.005) bar(P(t, (y0 + y1) / 2), Math.min(0.12, run * 0.5), bW * 0.8, y1 - y0, 0);
+    }
+    // Its head hangs from the landing or the floor reached.
+    const yLo = top(tb) - (bH / 2) * cs;
+    if (headY - yLo > 0.01 && tb > 0.03) bar(P(tb - 0.015, (yLo + headY) / 2), 0.03, bW, headY - yLo, 0);
+    ends.push({ ta, bW, sn, F });
+  }
+  // On the floor at the foot: a plate where the spine stands.
+  if (ends.length) {
+    const { ta, bW, sn, F } = ends[0], t = Math.min(Math.max(ta + bH * sn, 0.08), Math.max(0.08, F.L - 0.08));
+    if (F.L > 0.16) {
+      const q = [F.s[0] + F.d[0] * t, F.b + 0.006, F.s[1] + F.d[1] * t];
+      if (F.d[0] === 0) K.box(bW * 1.8, 0.012, 0.16, q[0], q[1], q[2], mat); else K.box(0.16, 0.012, bW * 1.8, q[0], q[1], q[2], mat);
+    }
+  }
+  // Under each landing: from where the flight below arrives, round its
+  // middle, to past where the next one leaves (its spine starts on it).
+  for (const [i, Lg] of L0.landings.entries()) {
+    const A = FL[i], B = FL[i + 1];
+    if (!A || !B || Lg.h - LT - bH < 0) continue;
+    const bW = Math.min(0.12, Math.max(0.05, Math.min(A.w, B.w) * 0.12)), y = Lg.h - LT - bH / 2;
+    const C = [(Lg.x0 + Lg.x1) / 2, (Lg.z0 + Lg.z1) / 2];
+    const H = [A.s[0] + A.d[0] * (A.L - 0.08), A.s[1] + A.d[1] * (A.L - 0.08)], S = [B.s[0], B.s[1]];
+    const on = (o, d) => { const k = (C[0] - o[0]) * d[0] + (C[1] - o[1]) * d[1]; return [o[0] + d[0] * k, o[1] + d[1] * k]; };
+    const ext = Math.min(0.4, Math.max(0.1, B.L * 0.25));
+    const pts = [H, on(H, A.d), on(S, B.d), [S[0] + B.d[0] * ext, S[1] + B.d[1] * ext]];
+    for (let k = 0; k + 1 < pts.length; k++) {
+      const [a, b] = [pts[k], pts[k + 1]], dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
+      if (len < 1e-3) continue;
+      const cx = (a[0] + b[0]) / 2, cz = (a[1] + b[1]) / 2;
+      if (Math.abs(dx) >= Math.abs(dz)) K.box(len + bW, bH, bW, cx, y, cz, mat); else K.box(bW, bH, len + bW, cx, y, cz, mat);
+    }
   }
 }
 

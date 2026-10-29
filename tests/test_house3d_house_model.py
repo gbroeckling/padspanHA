@@ -147,7 +147,7 @@ def test_stairs_are_kept_as_a_piece(shape, turn) -> None:
 @pytest.mark.parametrize("style", list(H.STAIR_STYLES))
 @pytest.mark.parametrize("rail", list(H.STAIR_RAILS))
 def test_stairs_keep_their_style_and_rail(style, rail) -> None:
-    """Closed, open or treads only; a rail on both sides, the inside, the outside, none, or as drawn."""
+    """Closed, open, treads only or floating; a rail on both sides, the inside, the outside, none, or as drawn."""
     out = H.apply_edit(H.empty(), _stairs(shape="l3", style=style, rail=rail))
     assert out["pieces"]["fur_5a6b7c8d"]["recipe"]["params"] == {"shape": "l3", "turn": "left", "to_floor": "upper",
                                                                   "style": style, "rail": rail}

@@ -757,7 +757,7 @@ export function createFurnish(ctx){
     return out === "landing" ? [{ kind: "landing", floor: r.to.name || null }] : [];
   }
   /** The stairs' panel: the shape (straight, L, U, two or three landings),
-   *  which way they turn, closed, open or treads only, the rail, the floor
+   *  which way they turn, closed, open, treads only or floating, the rail, the floor
    *  they go up to. */
   function stairRows(el, p, spec){
     el.appendChild(d("div", "la3d-sec", "Stairs"));
@@ -787,8 +787,8 @@ export function createFurnish(ctx){
     const shape = ["straight", "l", "u", "l2", "l3"].includes(params.shape) ? params.shape : "straight";
     pick("Shape", "shape", [["straight", "Straight"], ["l", "L"], ["u", "U"], ["l2", "2 landings"], ["l3", "3 landings"]], shape);
     if (shape !== "straight") pick("Turns", "turn", [["left", "Left"], ["right", "Right"]], params.turn === "right" ? "right" : "left");
-    pick("Style", "style", [["closed", "Closed"], ["open", "Open"], ["treads", "Treads only"]],
-      ["closed", "open", "treads"].includes(params.style) ? params.style : "closed");
+    pick("Style", "style", [["closed", "Closed"], ["open", "Open"], ["treads", "Treads only"], ["floating", "Floating"]],
+      ["closed", "open", "treads", "floating"].includes(params.style) ? params.style : "closed");
     // The rail: for a straight flight its sides are left and right as you go
     // up (inner = left); for a turn, the inside is the well.
     const railNow = ["auto", "both", "inner", "outer", "none"].includes(params.rail) ? params.rail : "auto";

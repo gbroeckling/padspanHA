@@ -211,14 +211,15 @@ MAX_PARAMS, MAX_COLORS, NAME_MAX, TEXT_MAX, LABEL_MAX, PIECE_JSON_MAX = 40, 6, 4
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 # Stairs are a piece (recipe kind "stairs"): straight, an L, a U, or round
-# two or three landings (l2, l3), turning left or right; closed, open or
-# treads only, with a rail on both sides, the inside, the outside or none
+# two or three landings (l2, l3), turning left or right; closed, open,
+# treads only (fixed into a wall) or floating (on a spine, fixed at the bottom
+# and the top), with a rail on both sides, the inside, the outside or none
 # (auto: as closed stairs always had); from their floor up to the floor they reach (to_floor, a
 # floor's id; none: the next floor up). Width and depth are their footprint,
 # height their rise (the gap between the two floors, kept by the editor; the
 # view always draws the gap).
 STAIR_SHAPES, STAIR_TURNS = ("straight", "l", "u", "l2", "l3"), ("left", "right")
-STAIR_STYLES, STAIR_RAILS = ("closed", "open", "treads"), ("auto", "both", "inner", "outer", "none")
+STAIR_STYLES, STAIR_RAILS = ("closed", "open", "treads", "floating"), ("auto", "both", "inner", "outer", "none")
 STAIR_SIZE_MIN_M, STAIR_RISE_M = 0.5, (0.3, 8.0)
 _PIECE_OWNED = frozenset(("id", "recipe", "origin", "label", "library_id", "submission_id", "floor_id",
                           "x_m", "y_m", "z_m", "rotation", "entity_id", "entity_reg_id", "updated_at"))

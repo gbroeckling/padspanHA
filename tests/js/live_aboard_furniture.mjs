@@ -457,6 +457,36 @@ for (const kind of Object.keys(F.FURNITURE)) {
   });
 }
 
+// Floating stairs stand on one spine down the middle and touch no wall:
+// no board anywhere (the Sides colour is never drawn), the spine (the Rail
+// colour, even with no rail) is the first thing met from below under every
+// flight's middle and every landing; Auto rails both sides, while treads
+// only keeps its board on the wall side and its rail on the open side.
+tryCase("build: floating stairs stand on a spine and touch no wall", () => {
+  const SIZES = { straight: [0.95, 3.6], l: [2.0, 3.0], u: [2.0, 2.9], l2: [2.8, 3.0], l3: [3.0, 3.0] };
+  const base = F.defaultRecipe("stairs"), col = ["#ff0000", "#000000", "#0000ff"];
+  const recipeOf = (params) => ({ ...base, width_m: SIZES[params.shape][0], depth_m: SIZES[params.shape][1], height_m: 2.8,
+    colors: col, params: { ...base.params, ...params } });
+  const fromBelow = (g, x, z) => { const h = hitFrom(g, new THREE.Vector3(x, -1, z), new THREE.Vector3(0, 1, 0)); return h ? h.object.material.color.getHexString() : null; };
+  for (const shape of F.STAIR_SHAPES) for (const turn of ["left", "right"]) for (const quality of ["low", "high"]) {
+    const params = { shape, turn, style: "floating", rail: "none" }, recipe = recipeOf(params), where = `${shape} ${turn} ${quality}`;
+    const g = F.buildPiece(THREE, recipe, { quality }), s = F.pieceSize(F.clampRecipe(recipe));
+    check("build: floating stairs stand on a spine and touch no wall", centreOfColour(g, "#000000") === null, { where, boards: true });
+    check("build: floating stairs stand on a spine and touch no wall", centreOfColour(g, "#0000ff") !== null, { where, spine: false });
+    const L0 = F.stairFlights({ w: s.w, d: s.d, h: s.h }, F.clampRecipe(recipe).params);
+    const spots = [...L0.flights.map((Fl) => [Fl.s[0] + Fl.d[0] * Fl.L / 2, Fl.s[1] + Fl.d[1] * Fl.L / 2]),
+      ...L0.landings.map((Lg) => [(Lg.x0 + Lg.x1) / 2, (Lg.z0 + Lg.z1) / 2])];
+    for (const [x, z] of spots) check("build: floating stairs stand on a spine and touch no wall", fromBelow(g, x, z) === "0000ff", { where, x, z, hit: fromBelow(g, x, z) });
+    F.disposePiece(g);
+  }
+  const S = { w: 2, d: 3, h: 2.8 }, n = (p) => F.stairFlights(S, p).rails.length;
+  check("build: floating stairs stand on a spine and touch no wall", n({ shape: "l", style: "floating" }) === n({ shape: "l", style: "floating", rail: "both" }), "auto rails both sides");
+  check("build: floating stairs stand on a spine and touch no wall", n({ shape: "l", style: "treads" }) < n({ shape: "l", style: "treads", rail: "both" }), "treads only: auto on the open side");
+  const g = F.buildPiece(THREE, recipeOf({ shape: "straight", style: "treads", rail: "none" }), { quality: "low" });
+  check("build: floating stairs stand on a spine and touch no wall", centreOfColour(g, "#000000") !== null, "treads only keeps its wall board");
+  F.disposePiece(g);
+});
+
 // ── unknown ─────────────────────────────────────────────────────────────────
 tryCase("unknown: an unknown kind is a box of its size", () => {
   for (const q of ["low", "high"]) {
