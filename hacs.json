@@ -1,7 +1,8 @@
 {
   "name": "PadSpan HA",
   "content_in_root": false,
-  "zip_release": false,
+  "zip_release": true,
+  "filename": "padspan_ha.zip",
   "render_readme": true,
   "homeassistant": "2024.1.0"
 }
