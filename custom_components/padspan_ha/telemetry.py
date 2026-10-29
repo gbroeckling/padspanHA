@@ -502,6 +502,9 @@ OFFER_EVENTS: frozenset[str] = frozenset(
     | {f"getting_started_step:{s}" for s in GETTING_STARTED_STEPS}
     | {"getting_started_shown", "getting_started_dismissed", "trial_nudge_dismissed"}
     | PRO_OFFER_EVENTS
+    # Mapping → 3D Stack's stale-receiver list opened (0.38.170 made it read-only
+    # and honest): whether anyone looks, once per opening.
+    | {"stale_receivers_listed"}
 )
 # Atlas outdoor weather (views/atlas_weather.js — the same four lists there,
 # held equal by tests/test_atlas_weather.py). Each counted once per page load
@@ -2001,6 +2004,22 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "radios_unresolved": sum(1 for r in radios if r.get("device_match") == "none"),
         "radios_matched_partial": sum(1 for r in radios if r.get("device_match") == "partial"),
     }
+    # The Shelly rules' use (0.38.175: a scanner matched to its Shelly by its
+    # network MAC + 2; 0.38.176: a scanner device with no area takes its
+    # Shelly's), in the last snapshot built. Only from a house where one did.
+    _sr = ble.get("shelly_rules") if isinstance(ble.get("shelly_rules"), dict) else {}
+    for _k, _key in (("mac", "radios_shelly_mac"), ("area_via", "radios_area_via")):
+        if isinstance(_sr.get(_k), int) and _sr[_k] > 0:
+            health[_key] = _sr[_k]
+    # Forensics switched on, in live mode, but not recording because the
+    # licence no longer reaches Pro (0.38.191: it used to go on recording).
+    # Only from a house with Forensics on.
+    try:
+        if settings.get("forensics_enabled") is True and settings.get("data_mode") == "live":
+            from .forensics_store import _recording_enabled  # noqa: PLC0415
+            health["forensics_paused_licence"] = not _recording_enabled(hass)
+    except Exception:
+        pass
     # Rooms on one floor drawn over each other by more than 10 cm (0.38.193):
     # a hand-traced outline past its wall, which can put a flight of stairs
     # or a device in the wrong room. Pairs counted; only with rooms drawn.

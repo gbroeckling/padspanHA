@@ -243,11 +243,45 @@ $adoption = array('motion_sensors' => 0, 'temp_sensors' => 0, 'fans' => 0, 'type
 $type_override_kinds = array();
 // Live Aboard's stairs (env.stairs, 0.38.193): homes with any, and their sums.
 $stairs = array('installs' => 0, 'total' => 0, 'ai_kept' => 0, 'within' => 0);
+// Recent fixes at work (0.38.175/176/191): installs where each one acted.
+$fixes = array('shelly_mac' => 0, 'shelly_area_via' => 0, 'forensics_on' => 0, 'forensics_paused_licence' => 0);
 $geometry = array('faulted' => 0, 'anchor_faulted' => 0, 'no_anchor' => 0, 'no_anchor_known' => 0,
                   'floors_default' => 0, 'z_uniform' => 0, 'cal_no_floor' => 0, 'multi_floor' => 0);
+// Every env and health field, folded the same way whatever it is (2026-10-29,
+// "make sure the opt in is complete"): ~35 fields were sent and never added
+// up anywhere. Per field: the homes that sent it, and by type — true/false
+// counts, a sum and how many above zero, or each value's count (a word, or a
+// "key:value" one level into an object). The page shows the ones it has no
+// card for. Capped at 25 values a field.
+$fields = array('env' => array(), 'health' => array());
+function fold_value(&$slot, $v, $prefix = '') {
+    if (is_bool($v)) { incr($slot['values'], $prefix . ($v ? 'yes' : 'no')); return; }
+    if (is_int($v) || is_float($v)) {
+        if ($prefix === '') { $slot['sum'] += $v; if ($v > 0) { $slot['above_zero']++; } }
+        else { incr($slot['sums'], rtrim($prefix, ':'), $v); }
+        return;
+    }
+    if (is_string($v)) { incr($slot['values'], $prefix . substr($v, 0, 40)); return; }
+    if (is_array($v)) {
+        if ($prefix !== '') { incr($slot['values'], rtrim($prefix, ':')); return; }
+        $list = array_keys($v) === range(0, count($v) - 1);
+        if ($list) { $slot['sum'] += count($v); if (count($v) > 0) { $slot['above_zero']++; } return; }
+        foreach ($v as $k2 => $v2) { fold_value($slot, $v2, substr((string)$k2, 0, 40) . ':'); }
+    }
+}
+function fold_fields(&$into, $section) {
+    foreach (as_map($section) as $k => $v) {
+        if ($v === null) { continue; }
+        if (!isset($into[$k])) { $into[$k] = array('installs' => 0, 'sum' => 0, 'above_zero' => 0, 'values' => array(), 'sums' => array()); }
+        $into[$k]['installs']++;
+        fold_value($into[$k], $v);
+    }
+}
 foreach ($latest as $id => $r) {
     $e = as_map(isset($r['env']) ? $r['env'] : null);
     $h = as_map(isset($r['health']) ? $r['health'] : null);
+    fold_fields($fields['env'], $e);
+    fold_fields($fields['health'], $h);
     incr($dist['version'], isset($r['version']) ? (string)$r['version'] : '?');
     incr($dist['ha_version'], isset($r['ha_version']) ? (string)$r['ha_version'] : '?');
     incr($dist['python'], isset($r['python']) ? (string)$r['python'] : '?');
@@ -320,6 +354,9 @@ foreach ($latest as $id => $r) {
     if (!empty($h['scanner_z_uniform'])) { $bad[] = 'scanner_z_uniform'; $geometry['z_uniform']++; }
     if (!empty($h['radios_ambiguous'])) { $bad[] = 'radios_ambiguous'; }
     if (!empty($h['radios_unresolved'])) { $bad[] = 'radios_unresolved'; }
+    if (!empty($h['radios_shelly_mac'])) { $fixes['shelly_mac']++; }
+    if (!empty($h['radios_area_via'])) { $fixes['shelly_area_via']++; }
+    if (isset($h['forensics_paused_licence'])) { $fixes['forensics_on']++; if ($h['forensics_paused_licence'] === true) { $fixes['forensics_paused_licence']++; } }
     // 0.38.193: rooms on one floor drawn over each other by more than 10 cm.
     if (!empty($h['rooms_overlap'])) { $bad[] = 'rooms_overlap'; }
     // 0.38.177: calibration points or floor plans gone since the last report with no clear/delete recorded.
@@ -341,6 +378,14 @@ foreach ($latest as $id => $r) {
     $latest[$id]['_bad'] = $bad;
 }
 foreach ($dist as $k => $_) { arsort($dist[$k]); }
+foreach ($fields as $sec => $_) {
+    ksort($fields[$sec]);
+    foreach ($fields[$sec] as $k => $_f) {
+        arsort($fields[$sec][$k]['values']); arsort($fields[$sec][$k]['sums']);
+        $fields[$sec][$k]['values'] = array_slice($fields[$sec][$k]['values'], 0, 25, true);
+        $fields[$sec][$k]['sums'] = array_slice($fields[$sec][$k]['sums'], 0, 25, true);
+    }
+}
 arsort($integrations); arsort($features); arsort($flags);
 
 // ── window sums: usage, errors, ui errors ────────────────────────────────────
@@ -472,6 +517,7 @@ $out = array(
     'overview' => $overview,
     'ai' => $ai,
     'stairs' => $stairs,
+    'fixes' => $fixes,
     'flags' => $flags,
     'identity' => $identity,
     'geometry' => $geometry,
@@ -483,6 +529,7 @@ $out = array(
     'errors' => $errors_out,
     'table' => $table,
     'new_installs' => $new_installs,
+    'fields' => $fields,
 );
 $json = json_encode($out, JSON_UNESCAPED_SLASHES);
 @file_put_contents($CACHE, $json, LOCK_EX);

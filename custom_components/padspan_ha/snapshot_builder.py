@@ -773,6 +773,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     if area:
                         radio["area_name"] = area
             radio["display_name"], radio["name_from"] = radio_display(radio, match.device)
+        # The two Shelly rules' use, for the opt-in report (telemetry.py
+        # health.radios_shelly_mac / radios_area_via). Counts, never names.
+        (snapshot.setdefault("ble", {}))["shelly_rules"] = {"mac": index.shelly_matched, "area_via": index.area_from_via}
     except Exception:
         pass
 

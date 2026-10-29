@@ -294,3 +294,18 @@ def test_no_area_anywhere_is_no_area(index) -> None:
     idx = index([scanner, _Dev("d3", "Lone")])
     assert idx.area_id_of(scanner) is None
     assert idx.area_id_of(idx.resolve("lone").device) is None
+
+
+def test_the_shelly_rules_are_counted_for_the_report(index) -> None:
+    # 0.38.175 and 0.38.176's field signal: how often each rule decided a radio.
+    shelly = _shelly("d1", "Kitchen Light", "a8:03:2a:b1:23:45")
+    shelly.area_id = "kitchen"
+    scanner = _Dev("d2", "Porch (A8:03:2A:B1:99:99)", macs=["a8:03:2a:b1:99:99"])
+    scanner.via_device_id = "d1"
+    idx = index([shelly, scanner, _Dev("d3", "esp-proxy", macs=["11:22:33:44:55:66"], area_id="hall")])
+    assert (idx.shelly_matched, idx.area_from_via) == (0, 0)
+    idx.resolve("A8:03:2A:B1:23:47")                       # by the Shelly's MAC + 2
+    idx.resolve("11:22:33:44:55:66")                       # a plain MAC match
+    idx.area_id_of(scanner)                                # the Shelly's area
+    idx.area_id_of(idx.resolve("11:22:33:44:55:66").device)   # its own area
+    assert (idx.shelly_matched, idx.area_from_via) == (1, 1)

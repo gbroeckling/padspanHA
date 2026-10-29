@@ -6900,6 +6900,8 @@ function _stack(ctx, maps, helpBtn){
       if(!staleCount){ cleanLbl.textContent = "All clean"; setTimeout(()=>{ cleanLbl.textContent = ""; }, 2000); return; }
       ctx.state.maps._staleListOpen = !ctx.state.maps._staleListOpen;
       staleBox.style.display = ctx.state.maps._staleListOpen ? "" : "none";
+      // Opt-in report: the honest list (0.38.170) opened. Never which receivers.
+      if (ctx.state.maps._staleListOpen && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("stale_receivers_listed");
     }
   }, staleCount > 0 ? `${staleCount} stale` : "No stale");
 

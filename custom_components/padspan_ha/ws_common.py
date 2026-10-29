@@ -676,6 +676,10 @@ class RadioDeviceIndex:
         self._by_slug: dict[str, list] = {}
         self._by_mac: dict[str, list] = {}
         self._by_shelly_bt: dict[str, list] = {}   # _shelly_bluetooth_mac
+        # How often the two Shelly rules (0.38.175 and 0.38.176) decided a
+        # radio, read by the snapshot for the opt-in report. Counts only.
+        self.shelly_matched = 0
+        self.area_from_via = 0
         self._by_id: dict[str, Any] = {}           # area_id_of's via device
         # Membership by id, beside each list: `dev not in bucket` compared
         # whole DeviceEntry objects, quadratic in devices sharing a name
@@ -729,7 +733,10 @@ class RadioDeviceIndex:
         if area:
             return area
         via = self._by_id.get(str(getattr(dev, "via_device_id", None) or ""))
-        return (getattr(via, "area_id", None) or None) if via is not None else None
+        area = (getattr(via, "area_id", None) or None) if via is not None else None
+        if area:
+            self.area_from_via += 1           # for the opt-in report (0.38.176's field signal)
+        return area
 
     @property
     def devices_n(self) -> int:
@@ -759,6 +766,7 @@ class RadioDeviceIndex:
             # list (_shelly_bluetooth_mac). Still a MAC, so still before names.
             found = self._result(self._by_shelly_bt.get(mac) or [], "mac")
             if found:
+                self.shelly_matched += 1      # for the opt-in report (0.38.175's field signal)
                 return found
 
         keys = {k for k in (radio_slug(source), radio_slug(name)) if k}

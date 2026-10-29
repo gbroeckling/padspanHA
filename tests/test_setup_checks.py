@@ -44,6 +44,30 @@ def test_rooms_drawn_over_each_other_are_counted_by_pairs():
     assert C.rooms_overlapping(inside) == 1, "a room drawn wholly inside another"
 
 
+def test_the_count_stays_cheap_on_a_house_of_hundreds_of_rooms():
+    # It runs inside the report, on Home Assistant's event loop (the stable
+    # review, 2026-10-29: every pair compared point by point could block it
+    # for tens of seconds). 600 rooms on one floor, 40 corners each, a grid
+    # of 3 m rooms with 25 of them drawn 20 cm into the room to their left.
+    import math, time
+    geo = {}
+    for i in range(30):
+        for j in range(20):
+            k = i * 20 + j
+            x0, y0 = i * 3.0 - (0.2 if (i % 5 == 0 and i and j % 4 == 0) else 0.0), j * 3.0
+            pts = []
+            for t in range(40):   # a 3 x 3 m square traced with 40 corners
+                a = t / 40 * 4
+                side, f = int(a), a - int(a)
+                pts.append([[x0 + 3 * f, y0], [x0 + 3, y0 + 3 * f], [x0 + 3 - 3 * f, y0 + 3], [x0, y0 + 3 - 3 * f]][side])
+            geo[f"R{k}"] = {"type": "poly", "floor_id": "main", "points_m": pts}
+    t = time.perf_counter()
+    n = C.rooms_overlapping(geo)
+    took = time.perf_counter() - t
+    assert n == 25, n           # columns 5, 10, 15, 20, 25 x rows 0, 4, 8, 12, 16
+    assert took < 1.0, f"{took:.2f} s"
+
+
 # ── the stairs in the 3D file ───────────────────────────────────────────────
 def test_the_stairs_in_the_3d_file():
     st = lambda label, fid, to: {"recipe": {"kind": "stairs", "params": {"to_floor": to}}, "label": label, "floor_id": fid}
@@ -134,3 +158,25 @@ def test_the_new_events_are_allowed_and_nothing_else():
         assert T.event_allowed(e), e
     for e in ("tip_shown:other", "tip_hidden:everything", "stair_secs:5", "house3d_fallback_size:huge"):
         assert not T.event_allowed(e), e
+
+
+# ── recent fixes at work (0.38.175/176/191, the stable's field signals) ─────
+def test_the_report_says_where_recent_fixes_acted(monkeypatch):
+    from custom_components.padspan_ha import forensics_store
+    h = _report_hass()
+    dom = h.data[DOMAIN]
+    p = T.build_payload(h)
+    assert not {"radios_shelly_mac", "radios_area_via", "forensics_paused_licence"} & set(p["health"]), "nothing where nothing acted"
+    snap = dom["snapshot_cache"][1]
+    snap["ble"]["shelly_rules"] = {"mac": 2, "area_via": 0}
+    dom[DATA_SETTINGS].data["forensics_enabled"] = True
+    monkeypatch.setattr(forensics_store, "_recording_enabled", lambda hass: False)
+    p = T.build_payload(h)
+    T.assert_shareable(p)
+    assert p["health"]["radios_shelly_mac"] == 2 and "radios_area_via" not in p["health"]
+    assert p["health"]["forensics_paused_licence"] is True
+    monkeypatch.setattr(forensics_store, "_recording_enabled", lambda hass: True)
+    assert T.build_payload(h)["health"]["forensics_paused_licence"] is False
+    dom[DATA_SETTINGS].data["data_mode"] = "sample"
+    assert "forensics_paused_licence" not in T.build_payload(h)["health"], "only a live house can record"
+    assert T.event_allowed("stale_receivers_listed")

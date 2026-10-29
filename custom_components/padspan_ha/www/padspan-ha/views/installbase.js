@@ -397,6 +397,12 @@ function renderUnlocked(ctx, root) {
           ["  ↳ read off a plan by AI, still there", s.stairs.ai_kept, s.stairs.total],
           ["  ↳ a few steps within one floor", s.stairs.within, s.stairs.total],
         ])] : []),
+        ...(s.fixes ? [kvCard(el, "Recent fixes at work (installs)", "Homes where a fix from the last betas made a difference", [
+          ["A Shelly's scanner found by its MAC (0.38.175)", s.fixes.shelly_mac, n],
+          ["A scanner's room taken from its Shelly (0.38.176)", s.fixes.shelly_area_via, n],
+          ["Forensics on", s.fixes.forensics_on, n],
+          ["  ↳ paused: the licence no longer reaches Pro (0.38.191)", s.fixes.forensics_paused_licence, s.fixes.forensics_on],
+        ])] : []),
         pairCard(el, "Warnings in the Home Assistant log", "Warning lines PadSpan wrote, by the part of PadSpan that wrote them", s.errors, "lines", 12, "module"),
         barCard(el, { title: "Panel errors, by tab", ask: "Errors the PadSpan panel caught in each tab", map: s.ui_errors, unit: "errors", limit: 12, kind: "view" }),
       ]),
@@ -404,6 +410,44 @@ function renderUnlocked(ctx, root) {
       const t = top(s.tabs, "count"), a = top(usePeople, "count");
       return [t && `most opened: ${word("tab", t[0])}`, a && `most done: ${word("usage", a[0])}`].filter(Boolean).join(" · ");
     })());
+
+    // ── everything else in the reports ────────────────────────────────────
+    // Every env/health field the cards above don't show (stats.php fields),
+    // one row each: what it is, how many homes sent it, and what they said.
+    // A field added to the report later turns up here by itself.
+    const shownElsewhere = new Set(["scanners", "floors", "rooms", "maps", "calibration_points", "irks", "walls", "placed_lights",
+      "objects_total", "integrations", "scanner_kinds", "scan_modes", "scan_modes_requested", "scan_mode_installs", "ai", "screens",
+      "stairs", "calibration_no_floor", "install_age", "setup_stage", "country", "language",
+      "crypto_ok", "ble_callback_active", "ble_diag_ok", "maps_geometry_faulted", "geometry_anchor_faulted", "stack_desync", "irks_silent",
+      "has_metre_anchor", "floors_all_default", "scanner_z_uniform", "radios_ambiguous", "radios_unresolved", "calibration_points_vanished",
+      "maps_vanished", "rooms_overlap", "radios_shelly_mac", "radios_area_via", "forensics_paused_licence", "irk_devices_resolving"]);
+    const fieldRows = [];
+    for (const [sec, map] of Object.entries((s.fields) || {})) {
+      for (const [k, f] of Object.entries(map || {})) {
+        if (shownElsewhere.has(k) || !f || !f.installs) continue;
+        const bits = [];
+        if (f.above_zero || f.sum) bits.push(`above zero in ${fmt(f.above_zero)} · sum ${fmt(Math.round(f.sum * 10) / 10)}`);
+        const vals = Object.entries(f.values || {}), sums = Object.entries(f.sums || {});
+        if (vals.length) bits.push(vals.slice(0, 6).map(([v, c]) => `${v} ${fmt(c)}`).join(" · ") + (vals.length > 6 ? ` · +${vals.length - 6}` : ""));
+        if (sums.length) bits.push(sums.slice(0, 6).map(([v, c]) => `${v} Σ${fmt(Math.round(c * 10) / 10)}`).join(" · ") + (sums.length > 6 ? ` · +${sums.length - 6}` : ""));
+        fieldRows.push([word("field", k), sec, fmt(f.installs), bits.join("  |  ") || "–", `${sec}.${k}`]);
+      }
+    }
+    fieldRows.sort((a, b) => Number(String(b[2]).replace(/\D/g, "")) - Number(String(a[2]).replace(/\D/g, "")));
+    if (fieldRows.length) {
+      const q = el("input", { class: "ib-filter", type: "search", placeholder: "Filter fields…", "aria-label": "Filter fields" });
+      const holder = el("div");
+      const paint = () => {
+        const f = String(q.value || "").trim().toLowerCase();
+        const hit = f ? fieldRows.filter(r => r.join(" ").toLowerCase().includes(f)) : fieldRows;
+        holder.replaceChildren(dataTable(el, ["field", "part", "homes", "what they said"], hit.map(r => [r[0] + "  ·  " + r[4], r[1], r[2], r[3]]), "fields"));
+      };
+      q.addEventListener("input", paint);
+      paint();
+      section("Everything else in the reports", "Every other field in the usage reports, from each install's latest report: how many homes sent it, and what they said (counts of each answer, sums, or how many were above zero). New fields appear here by themselves.",
+        [el("div", { class: "ib-card" }, [el("div", { class: "ib-card-head" }, [el("div", { class: "ib-card-title" }, `Fields (${fieldRows.length})`), q]), holder])],
+        `${fmt(fieldRows.length)} more fields`);
+    }
 
     // ── 07 installs ───────────────────────────────────────────────────────
     const rows = s.table || [];
@@ -599,6 +643,7 @@ const W_SURFACE = {
   settings: "Settings", sidebar: "the sidebar", update_banner: "the update banner", overview: "the Overview",
 };
 const W_EVENT = {
+  stale_receivers_listed: "Opened the stale-receiver list (Mapping › 3D Stack)",
   backup_created: "Made a backup", beacon_tune_saved: "Saved a beacon position (Beacon Tune)",
   bermuda_history_purged: "Cleared Bermuda's old history", calibration_point_added: "Added a calibration point",
   client_screen_seen: "Screens seen", companion_tx_sent: "Phone app set to broadcast (setup wizard)",
@@ -650,11 +695,36 @@ function tidy(k) {
 }
 
 /** What a report name means, in words. `kind` says which list it comes from. */
+// What each report field is, for "Everything else in the reports" (a field
+// missing here shows its own name, tidied).
+const W_FIELD = {
+  beacon_positions: "Beacons placed on a plan", scanner_positions: "Receivers placed on a plan",
+  ble_max_age_s: "Oldest advert the live view takes (s)", object_history_days: "Days an unknown device stays in history",
+  calibration_auto_points: "Calibration points PadSpan added itself", coverage_floor_active: "A weakest-signal floor is set",
+  floors_with_height: "Floors given a real height", rooms_with_height: "Rooms given their own height", scanners_with_z: "Receivers given a mounting height",
+  geometry_fault_unplaced: "Plans with no placement", geometry_fault_unreadable: "Plans whose placement can't be read",
+  geometry_no_world_frame: "Placements on disk but no scale to draw them", maps_divergent: "Plans whose two room records disagree",
+  room_footprint_oversized: "Rooms bigger than their plan", room_footprint_undersized: "Rooms smaller than their plan",
+  guest: "Guest tags", vacation: "Vacation Mode", room_walk: "Calibration: Walk a room", heldout: "Held-out accuracy (calibration)",
+  has_any_identity: "Any phone identity set up", irks_total: "Phone keys in all", irks_by_source: "Phone keys, by where they came from",
+  irks_resolving_by_source: "Phone keys that work, by where they came from", rpas_seen: "Rotating Bluetooth addresses on the air",
+  rpas_resolved: "Rotating addresses recognised", resolver_errors: "Phone-key errors", followed: "Devices followed",
+  findmy: "Find My tags on the air", objects_by_kind: "Devices, by kind", outside_now: "Followed devices outside now",
+  positioned_now: "Followed devices placed on the map now", presence_cfg: "Room timing changed from the default",
+  quiet_hidden: "Share hidden by quiet mode", scanner_floors: "Receivers with a minimum signal set",
+  scanner_names: "Where receivers' names come from", scanner_state: "Receivers lost, off or left out",
+  split_levels: "Split levels (rooms raised or sunk)", temp_fresh: "Temperature sensors reporting on time",
+  hw: "The machine Home Assistant runs on", maps_www: "Plans moved out of the public folder",
+  cal_points_phantom_room_n: "Calibration points in a room that isn't there", entity_dup_n: "PadSpan entities duplicated (_2, _3…)",
+  pinned_movers_n: "Followed devices pinned in place", usage_dropped: "Usage counts left out to fit the report",
+  perf: "How hard PadSpan works the machine", runs: "PadSpan's background jobs",
+};
 function word(kind, k) {
   const key = String(k);
   const [a, b, c] = key.split(":");
   switch (kind) {
     case "feature": return W_FEATURE[key] || tidy(key.replace(/_enabled$/, ""));
+    case "field": return W_FIELD[key] || tidy(key);
     case "tab": return W_TAB[key] || tidy(key);
     case "flag": return W_FLAG[key] || tidy(key);
     case "integration": return W_INTEGRATION[key] || tidy(key);

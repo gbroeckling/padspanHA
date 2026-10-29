@@ -78,17 +78,28 @@ def _reaches_into(A: list[tuple[float, float]], B: list[tuple[float, float]]) ->
 
 def rooms_overlapping(geometry: dict[str, Any]) -> int:
     """Pairs of rooms on the same floor drawn over each other by more than
-    OVERLAP_M. A count, never which rooms."""
-    by_floor: dict[str, list[list[tuple[float, float]]]] = {}
+    OVERLAP_M. A count, never which rooms.
+
+    It runs inside the report on Home Assistant's event loop, so it must stay
+    cheap on a house of hundreds of rooms: each floor's rooms are sorted by
+    their left edge and only rooms whose boxes overlap by more than OVERLAP_M
+    are compared point by point (a sweep, not every pair)."""
+    by_floor: dict[str, list[tuple[tuple[float, float, float, float], list[tuple[float, float]]]]] = {}
     for g in (geometry or {}).values():
         P = _poly(g)
         if P:
-            by_floor.setdefault(str(g.get("floor_id") or "main"), []).append(P)
+            xs, ys = [p[0] for p in P], [p[1] for p in P]
+            by_floor.setdefault(str(g.get("floor_id") or "main"), []).append(((min(xs), min(ys), max(xs), max(ys)), P))
     n = 0
-    for polys in by_floor.values():
-        for i in range(len(polys)):
-            for j in range(i + 1, len(polys)):
-                if _reaches_into(polys[i], polys[j]) or _reaches_into(polys[j], polys[i]):
+    for rooms in by_floor.values():
+        rooms.sort(key=lambda r: r[0][0])
+        for i, ((ax0, ay0, ax1, ay1), A) in enumerate(rooms):
+            for (bx0, by0, bx1, by1), B in rooms[i + 1:]:
+                if bx0 > ax1 - OVERLAP_M:
+                    break                                   # sorted by left edge: none further can reach in
+                if min(ax1, bx1) - max(ax0, bx0) <= OVERLAP_M or min(ay1, by1) - max(ay0, by0) <= OVERLAP_M:
+                    continue                                # boxes not over each other by enough
+                if _reaches_into(A, B) or _reaches_into(B, A):
                     n += 1
     return n
 
