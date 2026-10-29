@@ -216,6 +216,23 @@ export function splitLevels(model){
   // Already split (the view's redraw hands back the model it was given, 2026-10-29:
   // split twice, a raised room rose twice as far): as it is.
   if (model && Array.isArray(model.split_levels)) return model;
+  // The same model again (the view splits on every update): as split last time,
+  // unless what it is split from changed (the lists, or a room's raise).
+  const sig = model && typeof model === "object" ? splitSig(model) : null;
+  const was = sig && _splitCache.get(model);
+  if (was && was.sig.length === sig.length && was.sig.every((v, i) => v === sig[i])) return was.out;
+  const out = splitOnce(model);
+  if (sig) _splitCache.set(model, { sig, out });
+  return out;
+}
+const _splitCache = new WeakMap();
+function splitSig(m){
+  const rm = m.room_meta && typeof m.room_meta === "object" ? m.room_meta : {};
+  let raises = "";
+  for (const [n, v] of Object.entries(rm)) if (v && typeof v === "object" && v.floor_raise_m !== undefined) raises += `${n}=${v.floor_raise_m};`;
+  return [m.room_meta, m.room_geometry_m, m.rf_barriers_m, (m.rf_barriers_m || []).length, m.floors, m.floor_elevations, raises];
+}
+function splitOnce(model){
   const rm = (model && model.room_meta) || {}, geo = (model && model.room_geometry_m) || {};
   const raised = Object.entries(rm).filter(([n, m]) => m && typeof m === "object" && Math.abs(num(m.floor_raise_m) ?? 0) >= 0.05
                                                        && geo[n] && typeof geo[n] === "object");
@@ -273,37 +290,54 @@ export function splitLevels(model){
 // thickness and a little: outlines drawn either side of one wall).
 const SPLIT_BAR_NEAR = 0.3;
 /** The doors and windows (rf_barriers_m) of floors with split levels, each
- *  where its room went: one along a raised (or sunk) room's outline, and no
- *  other room's of its floor, moves onto the room's level (a sunken
- *  garage's doors, a raised study's windows). A door between such a room
- *  and a room left on the floor (the door from a sunken garage into the
- *  house) stays on the floor, and the level's own wall gets a gap there
- *  too (split_of: drawn as an opening, never on its own; its leaf stays in
- *  the floor's wall, where the steps arrive). */
+ *  where its room went. One along a raised (or sunk) room's outline, and no
+ *  indoor room's left on its floor, moves onto the room's level (a sunken
+ *  garage's doors, a raised study's windows); a driveway, patio or deck drawn
+ *  beside it is not the house, so a garage door onto the driveway goes with
+ *  the garage. A door between such a room and a room left on the floor (the
+ *  door from a sunken garage into the house), every point of it along both,
+ *  stays on the floor, and the level's own wall gets a gap there (split_of:
+ *  drawn as an opening, never on its own, never railed; its leaf stays in
+ *  the floor's wall, where the steps arrive). A door between two levels of
+ *  one floor goes onto the first, with a gap in the other's wall. */
 function splitBarriers(barriers, subs, geo, polyOf){
+  const N = SPLIT_BAR_NEAR;
+  const area = (P) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const q of P) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+    return { P, box: [x0 - N, y0 - N, x1 + N, y1 + N] };
+  };
+  // Each split floor's indoor rooms left on it (never an outdoor one: OUTDOOR_ROOM).
   const stay = new Map();
   for (const [n, g] of Object.entries(geo)) {
-    if (!g || typeof g !== "object" || subs.some(S => S.rooms.includes(n))) continue;
+    if (!g || typeof g !== "object" || OUTDOOR_ROOM.test(n) || subs.some(S => S.rooms.includes(n))) continue;
     const fid = String(g.floor_id || "main"), P = polyOf(g);
-    if (P.length < 3 || !subs.some(S => S.fid === fid)) continue;
+    if (P.length < 3 || isOutdoorFloorId(fid) || !subs.some(S => S.fid === fid)) continue;
     if (!stay.has(fid)) stay.set(fid, []);
-    stay.get(fid).push(P);
+    stay.get(fid).push(area(P));
   }
-  const near = (A, p) => inPoly(p[0], p[1], A)
-    || A.some((q, i) => { const r = A[(i + 1) % A.length]; return segDist(p[0], p[1], q[0], q[1], r[0], r[1])[0] <= SPLIT_BAR_NEAR; });
+  const levels = subs.map(S => ({ S, areas: S.areas.map(area) }));
+  // Near a room: in its box first (a quick no for most of a big house), then in it or by its outline.
+  const near = (A, p) => p[0] >= A.box[0] && p[0] <= A.box[2] && p[1] >= A.box[1] && p[1] <= A.box[3]
+    && (inPoly(p[0], p[1], A.P)
+        || A.P.some((q, i) => { const r = A.P[(i + 1) % A.P.length]; return segDist(p[0], p[1], q[0], q[1], r[0], r[1])[0] <= N; }));
   const out = [];
   for (const b of barriers) {
     const fid = b && typeof b === "object" ? String(b.floor_id || "main") : null;
-    const pts = fid && Array.isArray(b.points_m)
+    const here = fid ? levels.filter(L => L.S.fid === fid) : [];
+    const pts = here.length && Array.isArray(b.points_m)
       ? b.points_m.filter(p => Array.isArray(p) && num(p[0]) !== null && num(p[1]) !== null).map(p => [Number(p[0]), Number(p[1])]) : [];
-    if (!pts.length || !subs.some(S => S.fid === fid)) { out.push(b); continue; }
-    // Its ends and the middle of each stretch.
+    if (!pts.length) { out.push(b); continue; }
+    // Its ends and the middle of each stretch: all of it along a level's rooms.
     const probe = pts.concat(pts.slice(1).map((q, i) => [(q[0] + pts[i][0]) / 2, (q[1] + pts[i][1]) / 2]));
-    const S = subs.find(q => q.fid === fid && probe.every(p => q.areas.some(A => near(A, p))));
-    if (!S) { out.push(b); continue; }
-    if (!(stay.get(fid) || []).some(A => probe.some(p => near(A, p)))) { out.push({ ...b, floor_id: S.id }); continue; }
-    out.push(b);
-    if (b.linked_entity_id || barrierKind(b) === "door" || barrierKind(b) === "open") {
+    const on = here.filter(L => probe.every(p => L.areas.some(A => near(A, p)))).map(L => L.S);
+    if (!on.length) { out.push(b); continue; }
+    const shared = probe.every(p => (stay.get(fid) || []).some(A => near(A, p)));
+    const home = shared ? null : on[0];
+    out.push(home ? { ...b, floor_id: home.id } : b);
+    if (!(b.linked_entity_id || barrierKind(b) === "door" || barrierKind(b) === "open")) continue;   // a window: where it is
+    for (const S of on) {
+      if (S === home) continue;
       const gap = { ...b, id: `${b.id}@${S.id}`, floor_id: S.id, split_of: b.id };
       delete gap.linked_entity_id; delete gap.linked_lock_entity_id;      // a gap: no sensor, no lock
       out.push(gap);
@@ -754,7 +788,8 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
   // the main floor), it stays a plain gap.
   if (looksDown && !floor.outdoor) {
     for (const pc of pieces) {
-      if (pc.kind !== "open" || pc.cls !== "ext" || pc.shared || pc.free) continue;
+      // (A split level's gap for a door on its floor is a doorway, never a drop: no rail.)
+      if (pc.kind !== "open" || pc.cls !== "ext" || pc.shared || pc.free || (pc.barrier && pc.barrier.split_of)) continue;
       pc.loftRail = [0.25, 0.5, 0.75].some(t => looksDown(pc.x0 + (pc.x1 - pc.x0) * t + pc.nx * 0.4,
                                                            pc.y0 + (pc.y1 - pc.y0) * t + pc.ny * 0.4));
     }

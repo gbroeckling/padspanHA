@@ -28,6 +28,7 @@ const WWW = process.argv[2];
 if (!WWW) { console.error("usage: live_aboard_split_levels.mjs <www/padspan-ha dir>"); process.exit(2); }
 const S = await import(pathToFileURL(join(WWW, "views", "live_aboard_storey.js")).href);
 const H = await import(pathToFileURL(join(WWW, "views", "live_aboard_house.js")).href);
+const D = await import(pathToFileURL(join(WWW, "views", "live_aboard_draft.js")).href);
 const P = await import(pathToFileURL(join(WWW, "views", "live_aboard_pieces.js")).href);
 const FU = await import(pathToFileURL(join(WWW, "views", "live_aboard_furniture.js")).href);
 
@@ -231,6 +232,57 @@ await tryCase("doors: a door between a sunken room and its floor stays a door, a
     { door: door.map(pc => pc.kind), gap: gap.map(pc => [pc.kind, pc.free]), free: free.length });
 });
 
+await tryCase("doors: a driveway is not the house, and a window by a neighbour's corner still goes with its room", () => {
+  const m0 = barred();
+  m0.room_geometry_m.Driveway = rect("main", 10, 0, 13, 5);
+  m0.rf_barriers_m.push({ id: "w3", floor_id: "upper", name: "Office window by the hall", material: "glass", points_m: [[4.1, 0], [5.5, 0]] });
+  const m = H.splitLevels(m0), by = Object.fromEntries(m.rf_barriers_m.map(b => [b.id, b]));
+  const h = H.readHouse(m, null, {}, new Set(), {});
+  const d1 = h.perFloor.get(h.byId.get("main~-0.4")).pieces.filter(pc => pc.barrier && pc.barrier.id === "d1");
+  check("doors: a driveway is not the house, and a window by a neighbour's corner still goes with its room",
+    by.d1.floor_id === "main~-0.4" && !m.rf_barriers_m.some(b => b.split_of === "d1") && d1.length >= 1 && d1.every(pc => pc.kind === "door" && !pc.free)
+    && by.w3.floor_id === "upper~0.75", { d1: by.d1, w3: by.w3 });
+});
+await tryCase("doors: between two levels of one floor, both walls are cut; a raised room's doorway is never railed", () => {
+  const m0 = barred();
+  m0.room_meta.Den = { floor_id: "upper", color: "#111111", floor_raise_m: 1.2 };
+  m0.room_meta.Office = { floor_id: "upper", color: "#7c3aed", floor_raise_m: 1.2 };
+  m0.room_meta.Den.floor_raise_m = 0.4;
+  m0.rf_barriers_m.push({ id: "d3", floor_id: "upper", name: "Office to den door", material: "wood", points_m: [[7, 2], [7, 3]] },
+                        { id: "d4", floor_id: "upper", name: "Hall to office door", material: "wood", points_m: [[4, 2], [4, 3]] });
+  const m = H.splitLevels(m0), h = H.readHouse(m, null, {}, new Set(), {});
+  const on = (fid, f) => h.perFloor.get(h.byId.get(fid)).pieces.filter(f);
+  const d3 = ["upper~1.2", "upper~0.4"].map(fid => on(fid, pc => pc.barrier && (pc.barrier.id === "d3" || pc.barrier.split_of === "d3")).map(pc => pc.kind));
+  const gap4 = on("upper~1.2", pc => pc.barrier && pc.barrier.split_of === "d4"), door4 = on("upper", pc => pc.barrier && pc.barrier.id === "d4");
+  check("doors: between two levels of one floor, both walls are cut; a raised room's doorway is never railed",
+    d3[0].length >= 1 && d3[1].length >= 1 && d3.flat().includes("door") && d3.flat().includes("open")
+    && gap4.length >= 1 && gap4.every(pc => pc.kind === "open" && !pc.loftRail && !pc.free) && door4.some(pc => pc.kind === "door"),
+    { d3, gap4: gap4.map(pc => [pc.kind, !!pc.loftRail]), door4: door4.map(pc => pc.kind) });
+});
+await tryCase("doors: doors and windows drawn in 3D go back onto their room's level after a save", () => {
+  const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
+  D.applyOpenings(h, { win_0000abcd: { floor_id: "upper", a_m: [4.6, 0], b_m: [6.2, 0] },
+                       door_0000abcd: { floor_id: "main", a_m: [10, 1.5], b_m: [10, 2.5] },
+                       door_0000abce: { floor_id: "main", a_m: [6, 2], b_m: [6, 3] } });
+  const on = (fid, f) => h.perFloor.get(h.byId.get(fid)).pieces.filter(f);
+  const win = on("upper~0.75", pc => pc.added === "win_0000abcd"), garden = on("main~-0.4", pc => pc.added === "door_0000abcd");
+  const sunDoor = on("main", pc => pc.added === "door_0000abce"), sunGap = on("main~-0.4", pc => pc.gap && pc.kind === "open");
+  const loose = [...h.perFloor.values()].flatMap(v => v.pieces).filter(pc => pc.free && (pc.added || pc.gap));
+  check("doors: doors and windows drawn in 3D go back onto their room's level after a save",
+    win.length >= 1 && win.every(pc => pc.kind === "window") && garden.length >= 1 && garden.every(pc => pc.kind === "door")
+    && sunDoor.some(pc => pc.kind === "door") && sunGap.length >= 1 && sunGap.every(pc => !pc.added) && loose.length === 0
+    && on("upper", pc => pc.added === "win_0000abcd").length === 0,
+    { win: win.length, garden: garden.length, sunDoor: sunDoor.map(pc => pc.kind), sunGap: sunGap.length, loose: loose.length });
+});
+await tryCase("split: the same model again is split once, and again when a room's raise changes", () => {
+  const m0 = barred(), a = H.splitLevels(m0), b = H.splitLevels(m0);
+  m0.room_meta.Office.floor_raise_m = 1.0;
+  const c = H.splitLevels(m0);
+  check("split: the same model again is split once, and again when a room's raise changes",
+    a === b && c !== a && c.room_geometry_m.Office.floor_id === "upper~1" && a.room_geometry_m.Office.floor_id === "upper~0.75",
+    { a: a.room_geometry_m.Office.floor_id, c: c.room_geometry_m.Office.floor_id });
+});
+
 // ── stem ────────────────────────────────────────────────────────────────────
 await tryCase("stem: a raised level stands on a wall down to its floor; a sunken one does not", () => {
   const h = H.readHouse(H.splitLevels(house()), null, {}, new Set(), {});
@@ -270,7 +322,7 @@ await tryCase("floors: a split level is drawn, never stored: a save names its wh
 // light in each, every fifth room raised or sunk (one of 4 amounts), and 60
 // stairs, each topping out in a room whose level is known.
 const gigantic = (withRaise) => {
-  const floors = [], elev = {}, geo = {}, meta = {}, lights = {}, pieces = {}, want = {};
+  const floors = [], elev = {}, geo = {}, meta = {}, lights = {}, pieces = {}, want = {}, bars = [];
   const amounts = [0.45, 0.75, -0.3, 1.2];
   for (let k = 0; k < 6; k++) {
     const fid = `f${k}`;
@@ -280,6 +332,11 @@ const gigantic = (withRaise) => {
       const n = `R${k}_${i}_${j}`, x = i * 3, y = j * 3;
       geo[n] = rect(fid, x, y, x + 3, y + 3);
       lights[`light.${n}`] = { floor_id: fid, x_m: x + 1.5, y_m: y + 1.5 };
+      // Four doors and windows each (2,880 in all), one on each side.
+      bars.push({ id: `w_${n}_s`, floor_id: fid, name: "Window", material: "glass", points_m: [[x + 1, y], [x + 2, y]] },
+                { id: `w_${n}_n`, floor_id: fid, name: "Window", material: "glass", points_m: [[x + 1, y + 3], [x + 2, y + 3]] },
+                { id: `d_${n}_e`, floor_id: fid, name: "Door", material: "wood", points_m: [[x + 3, y + 1], [x + 3, y + 2]] },
+                { id: `d_${n}_w`, floor_id: fid, name: "Door", material: "wood", points_m: [[x, y + 1], [x, y + 2]] });
       const a = amounts[(i + j + k) % 4];
       if (withRaise && (i * 10 + j) % 5 === 0) meta[n] = { floor_id: fid, color: "#335577", floor_raise_m: a };
     }
@@ -293,7 +350,8 @@ const gigantic = (withRaise) => {
     const r0 = meta[`R${k}_${i}_${j}`] ? meta[`R${k}_${i}_${j}`].floor_raise_m : 0;
     want[`st${s}`] = { to: r ? `f${k + 1}~${r}` : `f${k + 1}`, rise: 3 + r - r0 };
   }
-  return { model: { floors, floor_elevations: elev, room_geometry_m: geo, room_meta: meta, light_positions_m: lights }, pieces, want };
+  return { model: { floors, floor_elevations: elev, room_geometry_m: geo, room_meta: meta, light_positions_m: lights, rf_barriers_m: bars },
+           pieces, want };
 };
 await tryCase("big: a gigantic house with split levels reads in good time, every stair to the right level", () => {
   const time = (fn, n = 3) => { let best = Infinity, out; for (let i = 0; i < n; i++) { const t = performance.now(); out = fn(); best = Math.min(best, performance.now() - t); } return [best, out]; };
@@ -301,6 +359,10 @@ await tryCase("big: a gigantic house with split levels reads in good time, every
   const [tPlain] = time(() => H.readHouse(H.splitLevels(plain.model), plain.model.floors, {}, new Set(), {}));
   const [tSplit, h] = time(() => H.readHouse(H.splitLevels(split.model), split.model.floors, {}, new Set(), {}));
   const [tCuts, cuts] = time(() => S.stairCuts(split.pieces, h.floors, h.canon));
+  // The split alone, a fresh model each time (never the cache), and the same model again (the cache).
+  const [tSplitOnly, sm] = time(() => H.splitLevels({ ...split.model }), 5);
+  const [tAgain] = time(() => H.splitLevels(split.model), 5);
+  const moved = sm.rf_barriers_m.filter(b => b.floor_id.includes("~")).length;
   // One storey (one floor, one roof) per whole floor, never one per raised room.
   const [tModel, hm] = time(() => S.houseModel(h, cuts), 1);
   const [tModel0] = time(() => S.houseModel(H.readHouse(plain.model, plain.model.floors, {}, new Set(), {})), 1);
@@ -316,10 +378,12 @@ await tryCase("big: a gigantic house with split levels reads in good time, every
   }).length;
   Object.assign(timing, { rooms: Object.keys(split.model.room_geometry_m).length, raised: Object.keys(split.model.room_meta).length,
                           levels, plain_ms: Math.round(tPlain), split_ms: Math.round(tSplit), cuts_ms: Math.round(tCuts),
-                          shell_plain_ms: Math.round(tModel0), shell_split_ms: Math.round(tModel), storeys: hm.storeys.length });
+                          shell_plain_ms: Math.round(tModel0), shell_split_ms: Math.round(tModel), storeys: hm.storeys.length,
+                          barriers: split.model.rf_barriers_m.length, split_only_ms: +tSplitOnly.toFixed(2), split_again_ms: +tAgain.toFixed(3), moved });
   check("big: a gigantic house with split levels reads in good time, every stair to the right level",
     levels === 24 && hm.storeys.length === 6 && tModel < Math.max(3000, tModel0 * 2) && wrong.length === 0 && lightsOff === 0 && cuts.size > 0
-    && tSplit < Math.max(4000, tPlain * 3) && tCuts < 500, { timing, wrong: wrong.slice(0, 5), lightsOff });
+    && tSplit < Math.max(4000, tPlain * 3) && tCuts < 500 && tSplitOnly < 12 && tAgain < 0.5 && moved > 0,
+    { timing, wrong: wrong.slice(0, 5), lightsOff });
 });
 
 console.log(JSON.stringify({ cases, failures, timing }));

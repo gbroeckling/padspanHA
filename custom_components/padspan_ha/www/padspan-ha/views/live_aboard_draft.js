@@ -510,7 +510,7 @@ export function spliceOpening(pieces, id, o){
   const a = o.a_m, b = o.b_m, L = Math.hypot(b[0] - a[0], b[1] - a[1]);
   if (L < 0.03) return pieces;
   const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
-  const mine = { kind: o.kind, mat: null, barrier: null, added: id, sill_m: o.sill_m, head_m: o.head_m,
+  const mine = { kind: o.kind, mat: null, barrier: null, added: id, sill_m: o.sill_m, head_m: o.head_m, ...(o.gap ? { gap: true } : null),
                  override: o.kind === "door" ? { hinge: o.hinge, swing: o.swing, ...(o.shown ? { shown: o.shown } : null), ...doorTypeKeys(o) } : null };
   let hit = false;
   for (let k = 0; k < pieces.length; k++) {
@@ -530,8 +530,8 @@ export function spliceOpening(pieces, id, o){
     k += parts.length - 1;
     hit = true;
   }
-  if (!hit) pieces.push({ x0: a[0], y0: a[1], x1: b[0], y1: b[1], nx: uy, ny: -ux, cls: "int", thick: 0.12, shared: false,
-                          free: true, ...mine });
+  if (!hit && !o.gap) pieces.push({ x0: a[0], y0: a[1], x1: b[0], y1: b[1], nx: uy, ny: -ux, cls: "int", thick: 0.12, shared: false,
+                                    free: true, ...mine });
   return pieces;
 }
 /** A map door or window as the 3D file has it (o: its openings[<barrier
@@ -559,11 +559,41 @@ export function applyOpenings(h, openings){
   }
   for (const id of Object.keys(ops).sort()) {
     const o = addedOf(id, ops[id]);
-    const fl = o ? h.byId.get(h.canon(o.floor_id)) : null;
-    const per = fl ? h.perFloor.get(fl) : null;
-    if (per) spliceOpening(per.pieces, id, o);
+    if (!o) continue;
+    for (const [fid, gid, oo] of openingPlaces(h, id, o)) {
+      const fl = h.byId.get(fid), per = fl ? h.perFloor.get(fl) : null;
+      if (per) spliceOpening(per.pieces, gid, oo);
+    }
   }
   return h;
+}
+const inPolyD = (x, y, P) => {
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    if ((P[i][1] > y) !== (P[j][1] > y) && x < (P[j][0] - P[i][0]) * (y - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) c = !c;
+  }
+  return c;
+};
+/** Where a door or window drawn in 3D goes: [[floor id, its id, it]].
+ *  Saved, it names its whole floor (a split level is drawn, never stored),
+ *  so on a raised or sunk room's wall it goes back onto the room's level, as
+ *  the map's own do (live_aboard_house.js splitBarriers): looked for either
+ *  side of its wall. Between such a room and a room of the floor, it stays on
+ *  the floor and the level's wall opens there too (a gap, id null: nothing to
+ *  pick or edit); between two levels, onto the first, with a gap in the other. */
+function openingPlaces(h, id, o){
+  const c = h.canon(o.floor_id);
+  if (typeof h.canonAt !== "function" || !(h.floors || []).some(f => f.parent === c)) return [[c, id, o]];
+  const a = o.a_m, b = o.b_m, L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+  const sides = [0.3, -0.3].map(d => [mx + nx * d, my + ny * d]);
+  const lv = [...new Set(sides.map(p => h.canonAt(c, p[0], p[1])).filter(f => f !== c))];
+  if (!lv.length) return [[c, id, o]];
+  const indoor = sides.some(p => h.canonAt(c, p[0], p[1]) === c
+    && (h.rooms || []).some(r => r.floor && r.floor.id === c && !r.outdoor && Array.isArray(r.pts) && inPolyD(p[0], p[1], r.pts)));
+  const home = indoor ? c : lv[0], out = [[home, id, o]];
+  if (o.kind === "door" || o.kind === "doorway") for (const f of lv) if (f !== home) out.push([f, null, { ...o, kind: "open", gap: true }]);
+  return out;
 }
 /** What the walls are drawn from, of the file: its openings. */
 export const openingsSignature = (vd) => JSON.stringify(Object.keys((vd && vd.openings) || {}).sort().map(k => [k, vd.openings[k]]));
