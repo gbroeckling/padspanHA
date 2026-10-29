@@ -220,6 +220,10 @@ REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 # view always draws the gap).
 STAIR_SHAPES, STAIR_TURNS = ("straight", "l", "u", "l2", "l3"), ("left", "right")
 STAIR_STYLES, STAIR_RAILS = ("closed", "open", "treads", "floating"), ("auto", "both", "inner", "outer", "none")
+# A style this version does not know (a newer one's) is kept, if it is a short
+# lowercase word, and drawn as closed: a save is never refused for it, as
+# 0.38.194 refused a whole save holding a floating stair.
+STAIR_STYLE_WORD = re.compile(r"^[a-z][a-z_]{0,23}$")
 STAIR_SIZE_MIN_M, STAIR_RISE_M = 0.5, (0.3, 8.0)
 _PIECE_OWNED = frozenset(("id", "recipe", "origin", "label", "library_id", "submission_id", "floor_id",
                           "x_m", "y_m", "z_m", "rotation", "entity_id", "entity_reg_id", "updated_at"))
@@ -387,7 +391,9 @@ def _stairs(pid: str, r: dict) -> None:
     p = r["params"]
     _pick(p.get("shape", "straight"), STAIR_SHAPES, f"{pid} stairs shape")
     _pick(p.get("turn", "left"), STAIR_TURNS, f"{pid} stairs turn")
-    _pick(p.get("style", "closed"), STAIR_STYLES, f"{pid} stairs style")
+    style = p.get("style", "closed")
+    if style not in STAIR_STYLES and not (isinstance(style, str) and STAIR_STYLE_WORD.match(style)):
+        raise EditError(f"{pid} stairs style must be a short lowercase word ({', '.join(STAIR_STYLES)})")
     _pick(p.get("rail", "auto"), STAIR_RAILS, f"{pid} stairs rail")
     to = p.get("to_floor")
     if to is not None and not _plain(to, 64):

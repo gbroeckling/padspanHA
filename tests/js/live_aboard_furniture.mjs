@@ -164,6 +164,14 @@ tryCase("recipe: nothing is ever refused", () => {
     F.disposePiece(g);
   }
 });
+// A stair style a newer version made (a short lowercase word) is kept by an
+// edit here and drawn closed; anything else becomes closed.
+tryCase("recipe: a newer stair style is kept and drawn closed", () => {
+  const keep = F.clampRecipe({ kind: "stairs", params: { style: "glass" } }), junk = F.clampRecipe({ kind: "stairs", params: { style: "Glass!" } });
+  const L0 = F.stairFlights({ w: 1, d: 3, h: 2.8 }, keep.params);
+  check("recipe: a newer stair style is kept and drawn closed", keep.params.style === "glass" && junk.params.style === "closed" && L0.style === "closed"
+    && F.clampRecipe({ kind: "sofa", params: { arms: "glass" } }).params.arms !== "glass", { keep: keep.params.style, junk: junk.params.style, drawn: L0.style });
+});
 tryCase("recipe: pieceSize is the clamped box", () => {
   const s = F.pieceSize({ kind: "bed", width_m: 50, depth_m: 1.9, height_m: "x" });
   const d = F.FURNITURE.bed.size;
@@ -485,6 +493,35 @@ tryCase("build: floating stairs stand on a spine and touch no wall", () => {
   const g = F.buildPiece(THREE, recipeOf({ shape: "straight", style: "treads", rail: "none" }), { quality: "low" });
   check("build: floating stairs stand on a spine and touch no wall", centreOfColour(g, "#000000") !== null, "treads only keeps its wall board");
   F.disposePiece(g);
+});
+
+// Floating stairs from above and below, every shape, rises down to a few
+// steps: nothing of the spine's metal shows on top of a tread (a hanger
+// through it, a landing's beam over the last one), and under every tread,
+// something holds it within 0.12 m (the spine, a bracket, a post, a beam).
+tryCase("build: floating stairs, every tread held from below, nothing through it", () => {
+  const SIZES = { straight: [0.95, 3.6], l: [2.0, 3.0], u: [2.0, 2.9], l2: [2.8, 3.0], l3: [3.0, 3.0] };
+  const base = F.defaultRecipe("stairs"), col = ["#ff0000", "#000000", "#0000ff"], DOWN = new THREE.Vector3(0, -1, 0);
+  for (const shape of F.STAIR_SHAPES) for (const rise of [0.3, 0.55, 0.8, 1.0, 1.6, 2.8]) for (const quality of ["low", "high"]) {
+    const recipe = { ...base, width_m: SIZES[shape][0], depth_m: SIZES[shape][1], height_m: rise, colors: col,
+                     params: { ...base.params, shape, style: "floating", rail: "none" } };
+    const g = F.buildPiece(THREE, recipe, { quality }), s = F.pieceSize(F.clampRecipe(recipe));
+    const L0 = F.stairFlights({ w: s.w, d: s.d, h: s.h }, F.clampRecipe(recipe).params), T = Math.min(0.045, L0.riser * 0.35);
+    const where = `${shape} rise ${rise} ${quality}`;
+    for (const st of L0.steps) {
+      const cx = (st.x0 + st.x1) / 2, cz = (st.z0 + st.z1) / 2;
+      for (const f of [0.1, 0.5, 0.9]) {
+        const x = st.ax === "x" ? st.x0 + (st.x1 - st.x0) * f : cx, z = st.ax === "z" ? st.z0 + (st.z1 - st.z0) * f : cz;
+        const top = hitFrom(g, new THREE.Vector3(x, st.h + 6, z), DOWN);
+        const c = top ? top.object.material.color.getHexString() : null;
+        check("build: floating stairs, every tread held from below, nothing through it", c === "ff0000", { where, x, z, h: st.h, top: c, y: top && top.point.y });
+      }
+      // From inside the tread down (a bracket or post reaches into it): how far below its underside the first thing is.
+      const y = st.h - T / 2, under = hitFrom(g, new THREE.Vector3(cx, y, cz), DOWN), gap = Math.max(0, (st.h - T) - (under ? under.point.y : 0));
+      check("build: floating stairs, every tread held from below, nothing through it", gap <= 0.12, { where, cx, cz, h: st.h, gap });
+    }
+    F.disposePiece(g);
+  }
 });
 
 // Stairs are drawn at the width they are kept at (up to the 3D file's 8 m),

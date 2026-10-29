@@ -177,7 +177,7 @@ def stair_params(item: dict[str, Any]) -> dict[str, str]:
         shape = "l"
     else:
         shape = "straight"
-    style = ("floating" if words & STAIR_FLOAT else "treads" if words & STAIR_WALL
+    style = ("floating" if words & STAIR_FLOAT or {"mono", "stringer"} <= words else "treads" if words & STAIR_WALL
              else "open" if words & STAIR_OPEN else "closed")
     return {"shape": shape, "turn": "right" if item.get("mirrored") else "left", "style": style}
 

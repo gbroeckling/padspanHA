@@ -1698,7 +1698,8 @@
       "treads",
       "floating"
      ],
-     "def": "closed"
+     "def": "closed",
+     "keepWord": true
     },
     {
      "key": "rail",

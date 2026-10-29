@@ -356,6 +356,8 @@ def test_a_rotated_opening_keeps_its_width_and_middle():
     ("Open riser staircase", "straight", "open"),
     ("Floating stairs", "straight", "floating"),
     ("Cantilevered stairs", "straight", "treads"),
+    ("Mono-stringer staircase", "straight", "floating"),
+    ("Mono stringer stairs", "straight", "floating"),
     ("Treppe", "straight", "closed"),
 ])
 def test_a_staircase_comes_in_as_stairs_with_a_first_guess_at_its_shape(name, shape, style):
