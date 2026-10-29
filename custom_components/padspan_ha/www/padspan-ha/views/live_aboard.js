@@ -177,6 +177,8 @@ const PREF_FPS = "fps";                    // the frame-rate readout on this scr
 // the wall tops show, and a fixture that is off darkens with the house.
 const NIGHT_FLOOR = 0.3, NIGHT_EDGE = 0.85, NIGHT_TOP = 0.42, NIGHT_GRID = 0.6;
 const NAME_PX = [12, 17];                  // a room's name on screen (px), never under / over
+// A split level's floor's walls this close to the level's own rooms stand round them (sizeNames).
+const OWN_WALL_M = 0.5;
 // On a wall (?kiosk=1, lights_panel.js _wallOn) the names and the controls
 // grow with the screen: --wall-ui is the screen against 1080p, never under 1.
 // The wall is the page (the Atlas element carries data-wall), not the card,
@@ -3028,20 +3030,28 @@ function createSlot(slotKey){
     const mppAt = (v) => (persp ? c.position.distanceTo(v) * k : k);           // metres per px there
     // Drawn over the fixtures, a name must still not show through a wall
     // standing in front of it or a floor above it: one ray from the eye.
-    // A split level's own floor never counts against it, neither its floor
-    // nor its walls: a sunken garage's name stands just under Main's floor,
-    // which is open over it, among Main's walls (2026-10-28).
+    // A split level's own floor never hides its names with its floor (open
+    // over a sunken room), nor with its walls round the level's own rooms (a
+    // sunken garage's name stands just under Main's floor, among them); the
+    // floor's other walls still do (2026-10-29).
     const walled = persp ? floorsUi.filter(G => G.group.visible && G.solid) : [];
     const above = (F) => (persp ? walled.filter(G => G.fl.id !== F.fl.parent).map(G => G.solid)
       .concat(floorsUi.filter(G => G !== F && G.group.visible && !G.fl.outdoor && G.tiles
                               && G.fl.elev > F.fl.elev + 0.5 && G.fl.id !== F.fl.parent).map(G => G.tiles)) : []);
-    const behind = (v, occ) => {
-      if (!occ.length) return false;
+    const parentWalls = (F) => (persp && F && F.fl.parent ? walled.filter(G => G.fl.id === F.fl.parent).map(G => G.solid) : []);
+    const ownEdge = (F, x, y) => F.rooms.some(r => Array.isArray(r.pts) && r.pts.some((a, i) => {
+      const b = r.pts[(i + 1) % r.pts.length];
+      return HOUSE.segDist(x, y, a[0], a[1], b[0], b[1])[0] <= OWN_WALL_M;
+    }));
+    const behind = (v, occ, F = null) => {
+      const pw = parentWalls(F);
+      if (!occ.length && !pw.length) return false;
       _v.copy(v).sub(c.position);
       const d = _v.length();
       _hit.set(c.position, _v.normalize());
       _hit.near = 0; _hit.far = Math.max(0, d - 0.05);
-      return _hit.intersectObjects(occ, false).length > 0;
+      if (occ.length && _hit.intersectObjects(occ, false).length > 0) return true;
+      return pw.length > 0 && _hit.intersectObjects(pw, false).some(hp => !ownEdge(F, hp.point.x, hp.point.z));
     };
     const wallK = wallUiOf(root);
     for (const F of floorsUi) {
@@ -3053,13 +3063,13 @@ function createSlot(slotKey){
         lbl.position.copy(u.home);
         const mpp = mppAt(lbl.position), roomPx = u.ext / mpp;
         const letters = Math.max(NAME_PX[0] * wallK, Math.min(NAME_PX[1] * wallK, roomPx / 9)), hPx = letters / u.letters, wPx = hPx * u.aspect;
-        if (persp) u.behind = !u.covered && (underRoof(F, lbl.position) || behind(lbl.position, occ));
+        if (persp) u.behind = !u.covered && (underRoof(F, lbl.position) || behind(lbl.position, occ, F));
         // Exploded, a storey above can hang over a room's middle while the
         // rest of it shows: the name moves toward a corner that is in view.
         if (persp && u.behind && xGapNow && F.rooms[li]) {
           for (const q of F.rooms[li].pts) {
             _v2.set(u.home.x + (q[0] - u.home.x) * 0.55, u.home.y, u.home.z + (q[1] - u.home.z) * 0.55);
-            if (!underRoof(F, _v2) && !behind(_v2, occ)) { lbl.position.copy(_v2); u.behind = false; break; }
+            if (!underRoof(F, _v2) && !behind(_v2, occ, F)) { lbl.position.copy(_v2); u.behind = false; break; }
           }
         }
         lbl.visible = !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
@@ -3077,7 +3087,7 @@ function createSlot(slotKey){
       // Under the room's name (or where the name would be), clear of it.
       const nameH = C.label ? Math.max(C.label.userData.px, 18) : 0;
       C.sprite.center.set(0.5, C.label ? 0.5 + (nameH / 2 + 2 + hPx / 2) / hPx : 0.5);
-      if (persp && !C.label) C.behind = underRoof(C.F, C.sprite.position) || behind(C.sprite.position, above(C.F));
+      if (persp && !C.label) C.behind = underRoof(C.F, C.sprite.position) || behind(C.sprite.position, above(C.F), C.F);
       C.sprite.visible = !!C.parts && !(C.label ? C.label.userData.covered || (persp && C.label.userData.behind) : persp && C.behind);
     }
   }
