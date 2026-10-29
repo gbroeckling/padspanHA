@@ -184,6 +184,37 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.199</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">29 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Your own house first.</b> A new install shows who's where in your home before any floor plan is drawn, and the map wizard puts your plan in place for you.</li>
+          <li><b>Vacation Mode</b> can't be turned off by accident. It also has options (after dark only, an end date, pause when someone is home, bedtime, the longest a light stays on) and a status sensor, <code>binary_sensor.padspan_vacation_mode</code>.</li>
+          <li><b>Improve accuracy tips on the Overview.</b> If your home skips floor heights, receiver heights or a real-world scale, a small card says so and takes you to the fix. Hide one tip, or the whole card.</li>
+          <li><b>Help in Dutch, German and French.</b></li>
+          <li><b>Shelly scanners</b> find their Shelly by its address, and get their room without a restart.</li>
+          <li><b>Calibration</b> tells you a floor has no real-world scale before you stand still for a capture, not after.</li>
+          <li><b>Forensics stops recording when a licence or trial ends.</b> What it already recorded stays searchable.</li>
+          <li><b>Stairs:</b> open stairs, treads only, Floating stairs (open treads on one steel spine), and stairs with two or three landings. Stairs can also come from your floor plans (AI, a first guess) or from rooms named for stairs. You can also have a few steps within one floor, such as up from a sunken garage.</li>
+          <li><b>Split levels.</b> In Mapping → Rooms, a room's floor can sit higher or lower than the rest of its floor. Stairs climb into it, and it sits on a short wall.</li>
+          <li><b>Settings → AI</b> holds the AI features: furniture from a photo, and stairs from plans. All are off until you turn them on.</li>
+          <li>Guest tags.</li>
+          <li>Optimize for scale.</li>
+          <li>Calibration's Walk a room.</li>
+          <li><b>A house with a Floating staircase needs 0.38.196 or later.</b> Older versions can't save its 3D file. If you go back to an older version, set those stairs to another style first.</li>
+          <li><b>Room Change Delay now does what it says.</b> A delay of 0 used to act as 20 seconds; now 0 means a person's room changes as soon as PadSpan is sure. If you set 0 and rooms now switch too eagerly, set it to 10–20 seconds in Settings → Presence.</li>
+          <li>the accuracy tips</li>
+          <li>stairs and split levels</li>
+          <li>rooms drawn over each other</li>
+          <li>how recent fixes act in real homes</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.198</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">29 October 2026</span>
