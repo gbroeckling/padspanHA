@@ -43,7 +43,7 @@
   @media (max-width: 640px) {
     #demo-bar { font-size: 12px; gap: 6px 8px; padding: 6px 8px; }
     #demo-acts { order: 1; }
-    #demo-bar a#demo-get, #demo-share { padding: 4px 8px; }
+    #demo-bar a#demo-get, #demo-bar a#demo-guides, #demo-share { padding: 4px 8px; }
     #demo-now { order: 2; flex-basis: 100%; }
     #demo-bar nav { order: 3; width: 100%; }
     #demo-bar nav a { flex: 1 1 0; text-align: center; padding: 6px 4px; }
@@ -61,6 +61,7 @@
   </nav>
   <span id="demo-acts">
     <button type="button" id="demo-share" title="Copy a link to this view" aria-live="polite">Share</button>
+    <a id="demo-guides" href="/guides/" target="_blank" rel="noopener" title="How many proxies you need, Shellys as proxies, Bermuda next to PadSpan, wall screens and more">Guides</a>
     <a id="demo-get" href="https://padspan.traks.ca/#install" target="_blank" rel="noopener" title="Free and open source. Live Aboard 3D and the wall screen are part of PadSpan Pro: try all of Pro free for 90 days, no card.">Install free</a>
   </span>
 </div>
@@ -125,6 +126,8 @@
     set(bar.querySelector('nav a[href$="kiosk=1"]'), "Wanddisplay",
       "Das 3D-Haus, wie PadSpan es auf einem Wanddisplay zeigt. Für den echten Eindruck schalte den Browser auf Vollbild.");
     set(share, T.share, "Link zu dieser Ansicht kopieren");
+    set(document.getElementById("demo-guides"), "Anleitungen",
+      "Wie viele Proxys du brauchst, Shellys als Proxys, Bermuda neben PadSpan, Wanddisplays und mehr");
     const get = document.getElementById("demo-get");
     set(get, "Kostenlos installieren",
       "Kostenlos und Open Source. Live Aboard 3D und das Wanddisplay gehören zu PadSpan Pro: 90 Tage lang kostenlos testen, ohne Kreditkarte.");

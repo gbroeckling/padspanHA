@@ -92,6 +92,8 @@ def test_the_bar_shares_this_view_and_speaks_german():
     for de in ("Demo – Beispielhaus, fiktive Personen und Geräte", "Wanddisplay", '"Teilen"', '"Kopiert"',
                "Kostenlos installieren", '"https://padspan.traks.ca/de/#install"', '"Jetzt: "', '"zwischen zwei Räumen"', '"Gast"'):
         assert de in page, de
+    # The guides, linked from the page search engines crawl most (Anleitungen in German).
+    assert 'id="demo-guides" href="/guides/"' in page and '"Anleitungen"' in page
     # The German words go in after Share is wired up, so a missing element can't break it.
     assert page.index('share.addEventListener("click"') < page.index("  if (de) {")
     # Still nothing sent from the page.
