@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.197",
+  "title": "Same as 0.38.196, with its checks passing",
+  "date": "2026-10-29",
+  "body_markdown": "### Changed\n- **Nothing changes in PadSpan itself.** This is 0.38.196 again: Floating stairs, and doors, windows, rails and names put right on split levels (see 0.38.196 below). One of 0.38.196's own tests had a time limit too tight for GitHub's slower machines, so its checks failed. This release passes them. If you're already on 0.38.196, you don't need it."
+ },
+ {
   "version": "0.38.196",
   "title": "Floating stairs; Doors and windows on split levels; A sunken room's name shows; Stairs wider than 4 m",
   "date": "2026-10-29",
@@ -76,11 +82,5 @@
   "title": "Stairs from your plans, a first guess",
   "date": "2026-10-27",
   "body_markdown": "### New\n- **Stairs in stair rooms.** Furnish → Build ▾ → House → **Stairs in stair rooms** puts a flight in each room called Stairs, Stairwell or Staircase that has none yet. Each one is squared to the room's longest wall and sized to the room: a straight flight against a long wall, its rail on the open side, when the room is long enough, else a U or a flight round two landings filling it. It's a first guess to drag into place; nothing is kept until Save.\n- **Stairs from Sweet Home 3D.** Import brings a Sweet Home 3D staircase in as stairs, not a box. Its shape is guessed from its name (\"Spiral staircase\", \"L-shaped stairs\", \"half turn\"), and a mirrored one turns the other way.\n- **Stairs and furniture from a RoomPlan scan.** With RoomPlan import on (Settings → Features), Import also takes an iPhone RoomPlan scan (.json): its beds, sofas, chairs, tables, TVs, storage and stairs come in as pieces (anything else as a box of its size).\n\n### Changed\n- **Imported stairs are squared to the room.** A staircase from a file that is within about 12° of its room's walls is turned square to them."
- },
- {
-  "version": "0.38.183",
-  "title": "Open stairs, and stairs with two or three landings",
-  "date": "2026-10-27",
-  "body_markdown": "### New\n- **Open stairs and treads only.** A staircase in the 3D house (Furnish → Build ▾ → House → Stairs) now has a **Style**: Closed (the solid steps it always had), **Open** (the treads alone on a board each side, with gaps between them) or **Treads only** (nothing under them, fixed to a thin board along the wall).\n- **Stairs with two or three landings.** **2 landings** goes up one side, across the back and down the other side to the front. **3 landings** goes round an open well: the last flight passes over the start of the first, high enough to walk under, and you step off at the side you started from.\n- **A proper rail.** Open and treads-only stairs, and the new shapes, get a handrail on spindles with a post at each end, on the side you pick: **Both**, **Inside** (the well), **Outside** or **None**. Over the top flights it stands its full height, up into the opening in the floor above. Closed straight, L and U stairs keep the plain rail they always had unless you pick one.\n\n### Changed\n- **Install Base (pad.traks.ca and the developer view) says what each number means** in plain words, with the report's own name for it when you hover. Usage is split into what people did, what PadSpan did by itself and the screens it runs on."
  }
 ]

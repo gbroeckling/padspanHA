@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.197 — Same as 0.38.196, with its checks passing (2026-10-29)
+
+### Changed
+- **Nothing changes in PadSpan itself.** This is 0.38.196 again: Floating stairs, and doors, windows, rails and names put right on split levels (see 0.38.196 below). One of 0.38.196's own tests had a time limit too tight for GitHub's slower machines, so its checks failed. This release passes them. If you're already on 0.38.196, you don't need it.
+
+---
+
 ## 0.38.196 — Floating stairs; Doors and windows on split levels; A sunken room's name shows; Stairs wider than 4 m (2026-10-29)
 
 ### New
