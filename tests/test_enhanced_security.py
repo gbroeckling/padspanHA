@@ -74,6 +74,7 @@ house3d_import_preview house3d_library_search house3d_library_get private_ble_st
 irk_auto_detect maps_list maps_image_urls notify_services_list object_label_list occupancy_estimate
 radio_audit settings_get subzones_list telemetry_preview live_snapshot motion_reconnects emergency_status
 wled_devices wled_get wled_state wled_backups wled_teams_get vendor_lookup
+setup_tips
 """.split())
 # Everyday use, open to everyone as Home Assistant's own controls are.
 EVERYDAY = {"emergency_test", "emergency_force_off", "emergency_member", "flood_reset", "wled_power",
