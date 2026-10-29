@@ -16,7 +16,8 @@ import * as shim from "./dom_shim.mjs";
 
 const WWW = process.argv[2];
 shim.install(globalThis);
-const src = readFileSync(join(WWW, "panel.js"), "utf-8");
+// Line endings as checked out (CRLF on a Windows checkout, LF here): one form to cut by.
+const src = readFileSync(join(WWW, "panel.js"), "utf-8").replace(/\r\n/g, "\n");
 const start = src.indexOf("  _accuracyTipsCard(){");
 const end = src.indexOf("\n  _proInviteOverviewCard(){", start);
 const elSrc = src.slice(src.indexOf("function el(tag, attrs={}, children=[]){"), src.indexOf("\n}\n", src.indexOf("function el(tag, attrs={}, children=[]){")) + 2);
