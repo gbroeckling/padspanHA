@@ -87,6 +87,7 @@ counters survive a failed send and go with the next one.
 
 from __future__ import annotations
 
+import threading
 import json
 import logging
 import math
@@ -96,7 +97,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 from .build_info import BUILD_VERSION
 from .const import (
@@ -1143,6 +1144,15 @@ def _persist_counters(hass: HomeAssistant, now: bool = False) -> None:
     """Save the window now, or once within COUNTERS_SAVE_DELAY_S of a count.
     Not Store.async_delay_save: that restarts its wait on every call, and on
     a house counting every few seconds (irk_unresolved_rpa) it never saved."""
+    # Only ever on Home Assistant's event loop. bump() can be called from code
+    # running in a worker thread, and there async_call_later and
+    # async_create_task are refused: the save was created and never run
+    # (Garry's house, 2026-10-29: "calls hass.async_create_task from a thread
+    # other than the event loop", telemetry.py _due, since 0.38.177).
+    tid = getattr(hass, "loop_thread_id", None)
+    if isinstance(tid, int) and threading.get_ident() != tid:
+        hass.loop.call_soon_threadsafe(_persist_counters, hass, now)
+        return
     try:
         dom = hass.data.setdefault(DOMAIN, {})
         st = _counters_store(hass)
@@ -1156,6 +1166,9 @@ def _persist_counters(hass: HomeAssistant, now: bool = False) -> None:
             return
         from homeassistant.helpers.event import async_call_later  # noqa: PLC0415
 
+        # A callback: without it Home Assistant runs a plain function given
+        # to async_call_later in a worker thread, where creating the task is refused.
+        @callback
         def _due(_now: Any = None) -> None:
             dom[_DATA_COUNTERS_SAVE_DUE] = False
             hass.async_create_task(st.async_save(_snap()))

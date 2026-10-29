@@ -1860,10 +1860,38 @@ def test_bump_saves_the_window_once_within_two_minutes_however_often_it_counts(m
     for _ in range(50):
         assert T.bump(h, "calibration_cleared_all")
     assert len(later) == 1 and later[0][0] == T.COUNTERS_SAVE_DELAY_S
+    # A callback, or Home Assistant runs it in a worker thread and the save is
+    # created but refused (Garry's house, 2026-10-29).
+    assert getattr(later[0][1], "_hass_callback", False) is True
     later[0][1]()                                    # two minutes on: saved, with all 50
     store.async_save.assert_called_once_with({"counters": {"calibration_cleared_all": 50}})
     T.bump(h, "calibration_cleared_all")
     assert len(later) == 2                           # the next count starts a new wait
+
+
+def test_a_count_from_a_worker_thread_is_handed_to_the_event_loop(monkeypatch):
+    """bump() from code in a worker thread schedules nothing there: the save
+    is handed to Home Assistant's loop (call_soon_threadsafe) and done there."""
+    import sys
+    import threading
+    import types
+    h = _hass()
+    h.data[DOMAIN][T._DATA_COUNTERS_STORE] = MagicMock()
+    h.loop_thread_id = threading.get_ident()            # this thread is "the loop"
+    handed, later = [], []
+    h.loop.call_soon_threadsafe = lambda fn, *a: handed.append((fn, a))
+    ev = types.ModuleType("homeassistant.helpers.event")
+    ev.async_call_later = lambda _h, delay, fn: later.append(fn)
+    monkeypatch.setitem(sys.modules, "homeassistant.helpers.event", ev)
+    t = threading.Thread(target=lambda: T.bump(h, "calibration_cleared_all"))
+    t.start()
+    t.join()
+    assert later == [] and len(handed) == 1 and handed[0][0] is T._persist_counters
+    handed[0][0](*handed[0][1])                         # on the loop: the wait starts there
+    assert len(later) == 1 and later[0]._hass_callback is True
+    # On the loop itself, nothing is handed over.
+    T.bump(h, "calibration_cleared_all")
+    assert len(handed) == 1
 
 
 def test_calibration_points_that_vanish_without_a_clear_are_flagged_once():

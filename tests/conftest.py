@@ -62,7 +62,18 @@ _core = _ha_mods["homeassistant.core"]
 _core.HomeAssistant = MagicMock  # type: ignore[attr-defined]
 _core.ServiceCall = MagicMock    # type: ignore[attr-defined]
 _core.State = MagicMock          # type: ignore[attr-defined]
-_core.callback = lambda fn: fn   # type: ignore[attr-defined]  # decorator passthrough
+def _callback(fn):
+    # As Home Assistant's own: marks fn, which is how its scheduler tells a
+    # callback (run on the event loop) from a plain function (run in a worker
+    # thread). A test can then check that what is scheduled is a callback.
+    try:
+        fn._hass_callback = True
+    except AttributeError:
+        pass
+    return fn
+
+
+_core.callback = _callback   # type: ignore[attr-defined]
 
 # homeassistant.config_entries
 _ce = _ha_mods["homeassistant.config_entries"]
