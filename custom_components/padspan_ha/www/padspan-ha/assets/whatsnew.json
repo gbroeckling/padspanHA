@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.193",
+  "title": "Accuracy tips, and a few more things in the usage report; The usage report says where recent fixes acted",
+  "date": "2026-10-29",
+  "body_markdown": "### New\n- **Improve accuracy tips on the Overview.** The usage reports show most multi-floor homes skip three setup steps: 39% leave every floor at the default height, 30% leave every receiver at one height, and 28% never give a floor plan a real-world scale. Once setup is done or skipped, the Overview now says which of these apply to your home, in one small card:\n  - **Floor Heights** opens Mapping → 3D Stack, **Receiver heights** opens Calibration → Tune, **Measure** opens the map wizard's scale step.\n  - Hide one tip with its ×, or the whole card with **Hide these tips**. It stays hidden.\n  - Only administrators see it, never on a wall screen, and only when no other Overview card (what's new, an offer) is showing.\n- **Usage report (if you share it):**\n  - Rooms on one floor drawn over each other by more than 10 cm, a common slip that can put a device or a staircase in the wrong room. A count of pairs, never which rooms.\n  - Live Aboard's stairs: how many, how many the AI read off a plan and are still there, and how many are a few steps within one floor.\n  - How long the AI takes to read a floor plan, in bands.\n  - Beside each time the 3D house couldn't show, how many rooms the house has (in bands), to tell a slow screen from a very big house.\n  - Each accuracy tip shown, followed to its fix, or hidden.\n\n### Changed\n- **Usage report (if you share it):** three recent fixes now say when they act, so they can be checked in real homes before the next stable:\n  - a Shelly's Bluetooth scanner found by the Shelly's network address (0.38.175), and a scanner given its Shelly's room (0.38.176), counted per home;\n  - Forensics switched on but paused because the licence no longer reaches Pro (0.38.191);\n  - the stale-receiver list in Mapping → 3D Stack opened (0.38.170).\n  Counts only, never which scanner, room or receiver.\n\n### Fixed\n- **The new room-overlap count stays quick on very big houses.** It compares only rooms whose outlines come near each other: 600 rooms of 40 corners take about 20 ms."
+ },
+ {
   "version": "0.38.192",
   "title": "A few steps within a floor, and AI stair reads that say how sure they are",
   "date": "2026-10-28",
@@ -76,11 +82,5 @@
   "title": "Free offers come with the usage report on",
   "date": "2026-10-27",
   "body_markdown": "### Changed\n- **A new 90-day free trial needs the opt-in usage report on**, as the tester route and the free-year invites (sent only to installs with the report on) already did. With the report off, the trial card adds a box, \"Turn on the usage report (needed for the free trial)\", with a line on what the report is. Ticking it turns the report on and starts the trial in the same step, and nothing is turned on without the tick.\n- **Existing free offers are not affected:** a trial already running, a tester key, a claimed year of Pro and an invite already delivered all work as before, report on or off.\n\n### Opt-in report\n- A trial started together with turning the report on is counted (`trial_optin:<where>`)."
- },
- {
-  "version": "0.38.179",
-  "title": "Guest tags: the guest-home sensor appears when you turn them on",
-  "date": "2026-10-26",
-  "body_markdown": "### Fixed\n- **Turning guest tags on while Home Assistant runs now adds `binary_sensor.padspan_guest_home` straight away.** In 0.38.178 the sensor was added from a background thread, which Home Assistant refuses, so it only appeared after a restart. Checked on a real Home Assistant: guest tags refuse changes while off, only an administrator can turn them on, the sensor appears at once, Optimize for scale sends the slim update only while it is on, and nothing lands in Home Assistant's log."
  }
 ]

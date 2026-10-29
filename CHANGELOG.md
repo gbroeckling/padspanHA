@@ -4,6 +4,32 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.193 — Accuracy tips, and a few more things in the usage report; The usage report says where recent fixes acted (2026-10-29)
+
+### New
+- **Improve accuracy tips on the Overview.** The usage reports show most multi-floor homes skip three setup steps: 39% leave every floor at the default height, 30% leave every receiver at one height, and 28% never give a floor plan a real-world scale. Once setup is done or skipped, the Overview now says which of these apply to your home, in one small card:
+  - **Floor Heights** opens Mapping → 3D Stack, **Receiver heights** opens Calibration → Tune, **Measure** opens the map wizard's scale step.
+  - Hide one tip with its ×, or the whole card with **Hide these tips**. It stays hidden.
+  - Only administrators see it, never on a wall screen, and only when no other Overview card (what's new, an offer) is showing.
+- **Usage report (if you share it):**
+  - Rooms on one floor drawn over each other by more than 10 cm, a common slip that can put a device or a staircase in the wrong room. A count of pairs, never which rooms.
+  - Live Aboard's stairs: how many, how many the AI read off a plan and are still there, and how many are a few steps within one floor.
+  - How long the AI takes to read a floor plan, in bands.
+  - Beside each time the 3D house couldn't show, how many rooms the house has (in bands), to tell a slow screen from a very big house.
+  - Each accuracy tip shown, followed to its fix, or hidden.
+
+### Changed
+- **Usage report (if you share it):** three recent fixes now say when they act, so they can be checked in real homes before the next stable:
+  - a Shelly's Bluetooth scanner found by the Shelly's network address (0.38.175), and a scanner given its Shelly's room (0.38.176), counted per home;
+  - Forensics switched on but paused because the licence no longer reaches Pro (0.38.191);
+  - the stale-receiver list in Mapping → 3D Stack opened (0.38.170).
+  Counts only, never which scanner, room or receiver.
+
+### Fixed
+- **The new room-overlap count stays quick on very big houses.** It compares only rooms whose outlines come near each other: 600 rooms of 40 corners take about 20 ms.
+
+---
+
 ## 0.38.192 — A few steps within a floor, and AI stair reads that say how sure they are (2026-10-28)
 
 ### New
