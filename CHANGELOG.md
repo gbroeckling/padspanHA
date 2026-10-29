@@ -4,6 +4,18 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.194 — Fixes from the stable review; Stairs in the usage report, and split levels that stay put (2026-10-29)
+
+### Changed
+- **Usage report (if you share it): how stairs are used, and whether they work.** Each time Live Aboard draws a house with stairs: whether every flight lands in a room on the level it reaches, or one lands in no room, or one has no floor above to reach (the same check as Furnish's warnings); whether one reaches a raised or sunken room or is a few steps within a floor; and which shapes and styles are used. The daily report also says how many stairs were imported or came from a stair room's guess, and their shapes and styles. Never where they are or which.
+
+### Fixed
+- **A device takes the room of the device it belongs to only if it is a Bluetooth scanner.** Since 0.38.176, any device with no area took its parent device's area. Now only the scanner devices Home Assistant's Bluetooth integration makes for each proxy do (as Home Assistant itself does when it sets them up). A plug behind a hub keeps having no room.
+- **Calibration no longer says a floor has no scale while the house is still loading.** For a moment after the panel opened, a floor could be blocked for capture before PadSpan had read the floor plans.
+- **A raised or sunken room no longer moves again when Live Aboard redraws.** Since 0.38.190, any redraw (after an edit in Furnish, for example) applied the raise a second time, so a room raised 0.75 m was drawn 1.5 m up until the page was reloaded.
+
+---
+
 ## 0.38.193 — Accuracy tips, and a few more things in the usage report; The usage report says where recent fixes acted (2026-10-29)
 
 ### New

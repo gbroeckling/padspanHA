@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.194",
+  "title": "Fixes from the stable review; Stairs in the usage report, and split levels that stay put",
+  "date": "2026-10-29",
+  "body_markdown": "### Changed\n- **Usage report (if you share it): how stairs are used, and whether they work.** Each time Live Aboard draws a house with stairs: whether every flight lands in a room on the level it reaches, or one lands in no room, or one has no floor above to reach (the same check as Furnish's warnings); whether one reaches a raised or sunken room or is a few steps within a floor; and which shapes and styles are used. The daily report also says how many stairs were imported or came from a stair room's guess, and their shapes and styles. Never where they are or which.\n\n### Fixed\n- **A device takes the room of the device it belongs to only if it is a Bluetooth scanner.** Since 0.38.176, any device with no area took its parent device's area. Now only the scanner devices Home Assistant's Bluetooth integration makes for each proxy do (as Home Assistant itself does when it sets them up). A plug behind a hub keeps having no room.\n- **Calibration no longer says a floor has no scale while the house is still loading.** For a moment after the panel opened, a floor could be blocked for capture before PadSpan had read the floor plans.\n- **A raised or sunken room no longer moves again when Live Aboard redraws.** Since 0.38.190, any redraw (after an edit in Furnish, for example) applied the raise a second time, so a room raised 0.75 m was drawn 1.5 m up until the page was reloaded."
+ },
+ {
   "version": "0.38.193",
   "title": "Accuracy tips, and a few more things in the usage report; The usage report says where recent fixes acted",
   "date": "2026-10-29",
@@ -76,11 +82,5 @@
   "title": "Free licences keep the usage report on, and portrait walls",
   "date": "2026-10-27",
   "body_markdown": "### Changed\n- **A new free licence needs the usage report on, and it stays on until that licence ends.** That covers the 90-day trial, a tester's two years of Pro and a free year of Pro from an invite. Each says so where you accept it: \"can't be turned off until the trial ends\", \"while the key runs\", \"while the free year runs\".\n  - During the licence, Settings → Presence shows the report as on, with the reason and the end date, and its switch can't be used. A factory reset or a backup restore doesn't turn it off either.\n  - When the licence ends, or once a bought key is entered, the report can be turned off again.\n  - A tester key entered with the report off is refused until it's on. A free-year invite delivered from this version is claimed with the report on.\n- **Existing free offers are not affected:** a trial started before this version, a tester key already in use, a year of Pro already claimed and an invite delivered before this version all work as before, and the report can be turned off as before.\n\n### Fixed\n- **A portrait 4K wall draws its text, controls and rain at the right size.** The scale compared the screen's width with 1920 and its height with 1080, so a 2160 × 3840 wall came out at 1.13× instead of 2×, and everything was about half the size it should be. Now the long side is compared with 1920 and the short side with 1080, so portrait and landscape get the same scale.\n\n### New\n- **Portrait walls on screens that can't turn their picture.** Settings → UI Structure → Wall screens → **Screen orientation** adds a turn to a screen's link (`&wall_rotate=90` or `270`). PadSpan then lays itself out tall and turns onto the screen, so a TV or stick that only shows landscape can hang on its side. A screen that turns its own picture needs nothing. See docs/WALL_SCREEN_GUIDE.md."
- },
- {
-  "version": "0.38.180",
-  "title": "Free offers come with the usage report on",
-  "date": "2026-10-27",
-  "body_markdown": "### Changed\n- **A new 90-day free trial needs the opt-in usage report on**, as the tester route and the free-year invites (sent only to installs with the report on) already did. With the report off, the trial card adds a box, \"Turn on the usage report (needed for the free trial)\", with a line on what the report is. Ticking it turns the report on and starts the trial in the same step, and nothing is turned on without the tick.\n- **Existing free offers are not affected:** a trial already running, a tester key, a claimed year of Pro and an invite already delivered all work as before, report on or off.\n\n### Opt-in report\n- A trial started together with turning the report on is counted (`trial_optin:<where>`)."
  }
 ]

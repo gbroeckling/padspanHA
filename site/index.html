@@ -184,6 +184,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.194</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">29 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Usage report (if you share it): how stairs are used, and whether they work.</b> Each time Live Aboard draws a house with stairs: whether every flight lands in a room on the level it reaches, or one lands in no room, or one has no floor above to reach (the same check as Furnish's warnings); whether one reaches a raised or sunken room or is a few steps within a floor; and which shapes and styles are used. The daily report also says how many stairs were imported or came from a stair room's guess, and their shapes and styles. Never where they are or which.</li>
+          <li><b>A device takes the room of the device it belongs to only if it is a Bluetooth scanner.</b> Since 0.38.176, any device with no area took its parent device's area. Now only the scanner devices Home Assistant's Bluetooth integration makes for each proxy do (as Home Assistant itself does when it sets them up). A plug behind a hub keeps having no room.</li>
+          <li><b>Calibration no longer says a floor has no scale while the house is still loading.</b> For a moment after the panel opened, a floor could be blocked for capture before PadSpan had read the floor plans.</li>
+          <li><b>A raised or sunken room no longer moves again when Live Aboard redraws.</b> Since 0.38.190, any redraw (after an edit in Furnish, for example) applied the raise a second time, so a room raised 0.75 m was drawn 1.5 m up until the page was reloaded.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.193</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">29 October 2026</span>
