@@ -7,3 +7,4 @@
 
 ### Changed
 - **Imported stairs:** a staircase whose name says floating, suspended or spine comes in as Floating. Cantilevered or wall-hung ones still come in as Treads only.
+- **The opt-in usage report** counts floating stairs with the other styles (a count, nothing else), and the Install Base page names them.

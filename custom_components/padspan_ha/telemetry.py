@@ -566,7 +566,7 @@ HOUSE_SIZE_BANDS: tuple[str, ...] = ("lt20", "20_60", "60_150", "gt150")
 # one reaching a split level or a few steps within a floor; each shape and
 # style in use. Never where, how many or which.
 STAIR_SHAPES: tuple[str, ...] = ("straight", "l", "u", "l2", "l3")
-STAIR_STYLES: tuple[str, ...] = ("closed", "open", "treads")
+STAIR_STYLES: tuple[str, ...] = ("closed", "open", "treads", "floating")
 STAIR_USE_EVENTS: frozenset[str] = frozenset(
     {"stairs_drawn", "stairs_reach:split_level", "stairs_reach:within"}
     | {f"stairs_outcome:{k}" for k in ("all_ok", "some_landing", "some_nofloor")}

@@ -127,6 +127,12 @@ def test_the_limits_are_the_servers() -> None:
     fur = (_VIEWS / "live_aboard_furniture.js").read_text(encoding="utf-8")
     assert 'choice("shape", "Shape", ["straight", "l", "u", "l2", "l3"]' in fur and HS.STAIR_SHAPES == ("straight", "l", "u", "l2", "l3")
     assert 'choice("style", "Style", ["closed", "open", "treads", "floating"]' in fur and HS.STAIR_STYLES == ("closed", "open", "treads", "floating")
+    # The usage report's stair styles (0.38.194) and the view's count of them are the stored list too.
+    from custom_components.padspan_ha import setup_checks as SC, telemetry as T  # noqa: PLC0415
+    house = (_VIEWS / "live_aboard_house.js").read_text(encoding="utf-8")
+    assert T.STAIR_STYLES == HS.STAIR_STYLES and 'export const STAIR_STYLES = ["closed", "open", "treads", "floating"];' in house
+    summary = SC.stairs_summary({f"fur_{i}": {"recipe": {"kind": "stairs", "params": {"style": s}}} for i, s in enumerate(HS.STAIR_STYLES)})
+    assert all(summary.get(f"style_{s}") == 1 for s in HS.STAIR_STYLES)
     assert 'choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"]' in fur and HS.STAIR_RAILS == ("auto", "both", "inner", "outer", "none")
     assert 'choice("turn", "Turns", ["left", "right"]' in fur and HS.STAIR_TURNS == ("left", "right")
 

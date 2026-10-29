@@ -122,7 +122,7 @@ def stairs_summary(pieces: Any) -> dict[str, int] | None:
            "room_guess": sum(1 for p in rows if str(p.get("label") or "").startswith("Stairs (")
                              and not str(p.get("label") or "").startswith(("Stairs (AI first guess", "Stairs (from the plan")))}
     # Shapes and styles in use, each only where some stairs have it.
-    for key, allowed in (("shape", ("straight", "l", "u", "l2", "l3")), ("style", ("closed", "open", "treads"))):
+    for key, allowed in (("shape", ("straight", "l", "u", "l2", "l3")), ("style", ("closed", "open", "treads", "floating"))):
         for v in allowed:
             n = sum(1 for p in rows if (p["recipe"].get("params") or {}).get(key) == v)
             if n:

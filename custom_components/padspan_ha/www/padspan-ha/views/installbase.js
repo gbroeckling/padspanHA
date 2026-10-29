@@ -771,7 +771,7 @@ function word(kind, k) {
                                             some_nofloor: "Stairs: one has no floor above to reach" }[b] || tidy(key);
       if (a === "stairs_reach") return { split_level: "Stairs: one reaches a raised or sunken room", within: "Stairs: a few steps within one floor" }[b] || tidy(key);
       if (a === "stairs_shape") return `Stairs shaped ${{ straight: "straight", l: "L", u: "U", l2: "with two landings", l3: "with three landings" }[b] || b}`;
-      if (a === "stairs_style") return `Stairs: ${{ closed: "closed", open: "open risers", treads: "treads only" }[b] || b}`;
+      if (a === "stairs_style") return `Stairs: ${{ closed: "closed", open: "open risers", treads: "treads only", floating: "floating (on a spine)" }[b] || b}`;
       if (a === "stair_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to read a floor plan`;
       if (a === "house3d_fallback_size") return `3D house fell back, in a house of ${{ lt20: "under 20", "20_60": "20–60", "60_150": "60–150", gt150: "over 150" }[b] || b} rooms`;
       if (a === "tip_shown" || a === "tip_opened" || a === "tip_hidden") {

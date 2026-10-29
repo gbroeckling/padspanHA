@@ -59,7 +59,7 @@ export const HOUSE_SIZE_BANDS = ["lt20", "20_60", "60_150", "gt150"];
 // Stairs (0.38.194, live_aboard.js countStairs): drawn, how they come out,
 // what they reach, their shapes and styles (telemetry.STAIR_USE_EVENTS).
 export const STAIR_SHAPES = ["straight", "l", "u", "l2", "l3"];
-export const STAIR_STYLES = ["closed", "open", "treads"];
+export const STAIR_STYLES = ["closed", "open", "treads", "floating"];
 export const STAIR_USE_EVENTS = ["stairs_drawn", ...["all_ok", "some_landing", "some_nofloor"].map(k => `stairs_outcome:${k}`),
   "stairs_reach:split_level", "stairs_reach:within", ...STAIR_SHAPES.map(k => `stairs_shape:${k}`), ...STAIR_STYLES.map(k => `stairs_style:${k}`)];
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window",
