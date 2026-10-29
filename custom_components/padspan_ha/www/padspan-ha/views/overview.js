@@ -211,10 +211,7 @@ export function renderClassic(ctx){
   // Before any room is drawn, who is where comes first; the card registers
   // its own updater for the panel's poll (cleared here when it isn't shown).
   ctx.state._whosWhereUpdate = null;
-  // Rooms drawn on a plan only (room_bounds, no fabric) count as drawn too,
-  // as the setup checklist counts them (setup_status.js hasRooms).
-  const _noRoomsDrawn = !Object.keys((ctx.state.model || {}).room_geometry_m || {}).length
-    && !(((ctx.state.maps && ctx.state.maps.list) || []).some(m => Object.keys((m && m.room_bounds) || {}).length));
+  const _noRoomsDrawn = !Object.keys((ctx.state.model || {}).room_geometry_m || {}).length;
   const whosWhere = (dataMode === "live" && liveSnap && _noRoomsDrawn) ? whosWhereCard(ctx) : null;
   // The demo house says so, with the way back, where it can't be missed.
   const sampleBanner = (modeKnown && dataMode === "sample")
