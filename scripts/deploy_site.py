@@ -70,9 +70,11 @@ SIDECARS = ("robots.txt", "sitemap.xml", ".htaccess", "showcase-themes.html") + 
 # unlike it, each needs its folder made first. They are written for search:
 # someone asking "Bermuda or PadSpan?" lands on one, not on the release notes.
 # tests/test_site_guides.py keeps each one in the sitemap and pointing at its
-# own address.
+# own address. The creators kit (site/creators/, served at /creators/) is a
+# standalone page of the same kind, so it goes up with them.
 GUIDES = tuple(sorted(p.relative_to(SRC.parent).as_posix()
-                      for p in (SRC.parent / "guides").rglob("index.html")))
+                      for folder in ("guides", "creators")
+                      for p in (SRC.parent / folder).rglob("index.html")))
 URL = "https://padspan.traks.ca/"
 MANIFEST_URL = "https://padspan.traks.ca/api/version.php"
 SSH = "ssh -o BatchMode=yes -o ConnectTimeout=20"
@@ -319,7 +321,7 @@ def upload_guides() -> bool:
     for name in GUIDES:
         folder = f"{REMOTE_DIR}/{name.rsplit('/', 1)[0]}"
         r = subprocess.run(f'{SSH} {HOST} "sudo -n mkdir -p {folder} && sudo -n tee {REMOTE_DIR}/{name} > /dev/null'
-                           f' && sudo -n chown -R --reference={REMOTE} {REMOTE_DIR}/guides"',
+                           f' && sudo -n chown -R --reference={REMOTE} {REMOTE_DIR}/{name.split("/", 1)[0]}"',
                            shell=True, input=(SRC.parent / name).read_bytes(), capture_output=True)
         if r.returncode != 0:
             print(f"  WARN {name} not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")

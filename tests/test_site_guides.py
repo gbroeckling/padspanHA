@@ -17,7 +17,8 @@ import pytest
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 _SITE = _ROOT / "site"
-_GUIDES = sorted((_SITE / "guides").rglob("index.html"))
+# The creators kit at /creators/ is deployed and checked like a guide.
+_GUIDES = sorted(p for folder in ("guides", "creators") for p in (_SITE / folder).rglob("index.html"))
 
 pytestmark = pytest.mark.skipif(not _GUIDES, reason="no guides in this tree")
 
@@ -67,6 +68,15 @@ def test_links_into_the_site_are_absolute() -> None:
             assert re.match(r"(/|#|https?:|mailto:)", url), (page, url)
 
 
+def test_every_demo_picture_a_page_shows_is_in_the_demo() -> None:
+    """Pictures under /demo/media/ go live with the demo (tools/demo/build.py copies
+    tools/demo/media/). A page that links one the demo doesn't have shows a broken image."""
+    media = _ROOT / "tools" / "demo" / "media"
+    for page in _GUIDES:
+        for name in re.findall(r'"/demo/media/([^"]+)"', page.read_text(encoding="utf-8")):
+            assert (media / name).is_file(), (page, name)
+
+
 def test_guides_only_leaves_the_home_page_alone(monkeypatch) -> None:
     """The home page carries the betas' release notes and goes live only with a
     stable release; --guides-only must not bring it, the German page or the
@@ -91,7 +101,8 @@ def test_guides_only_leaves_the_home_page_alone(monkeypatch) -> None:
     beside = {f"{mod.REMOTE_DIR}/{n}" for n in ("sitemap.xml",) + mod.INDEXNOW_KEYS}
     assert beside <= set(targets)
     assert {f"{mod.REMOTE_DIR}/{g}" for g in mod.GUIDES} <= set(targets)
-    assert all(t.startswith(f"{mod.REMOTE_DIR}/guides/") or t in beside for t in targets), targets
+    pages = (f"{mod.REMOTE_DIR}/guides/", f"{mod.REMOTE_DIR}/creators/")
+    assert all(t.startswith(pages) or t in beside for t in targets), targets
     # One submission with every guide; the order is the deploy's own (sorted as text).
     assert len(sent) == 1 and sorted(sent[0]) == sorted(_url(p) for p in _GUIDES)
 
