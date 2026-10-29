@@ -487,6 +487,21 @@ tryCase("build: floating stairs stand on a spine and touch no wall", () => {
   F.disposePiece(g);
 });
 
+// Stairs are drawn at the width they are kept at (up to the 3D file's 8 m),
+// the width the floor above is cut at (live_aboard_storey.js footprint): an
+// L round a hall 4.09 m wide is drawn 4.09 m wide, not 4.
+tryCase("build: stairs are drawn as wide as they are kept, as wide as their opening", () => {
+  const base = F.defaultRecipe("stairs");
+  for (const [shape, w] of [["l2", 4.09], ["u", 5.5], ["straight", 8]]) {
+    const r = { ...base, width_m: w, depth_m: 3.0, height_m: 2.8, params: { ...base.params, shape } };
+    const g = F.buildPiece(THREE, r, { quality: "low" }), bb = boundsOf(g);
+    check("build: stairs are drawn as wide as they are kept, as wide as their opening",
+      Math.abs(F.pieceSize(F.clampRecipe(r)).w - w) < 1e-9 && bb.max.x - bb.min.x > w - 0.1 && bb.max.x - bb.min.x <= w + EPS,
+      { shape, w, size: F.pieceSize(F.clampRecipe(r)), x: [bb.min.x, bb.max.x] });
+    F.disposePiece(g);
+  }
+});
+
 // ── unknown ─────────────────────────────────────────────────────────────────
 tryCase("unknown: an unknown kind is a box of its size", () => {
   for (const q of ["low", "high"]) {

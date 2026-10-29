@@ -245,8 +245,11 @@ export const FURNITURE = {
   // are the footprint; the height is the rise, which the view always draws
   // as the gap up to the floor reached (params.to_floor: that floor's id,
   // kept with the shape and the turn; stairFlights lays the steps out).
+  // Up to 8 m each way, as the 3D file keeps them (SIZE_MAX_M): an L or a U
+  // round a hall can be wider than 4 m (the test home's entrance stairs are
+  // 4.09 m), and the floor above is cut at the width they are drawn.
   stairs: kind("Stairs", "house", "other", null, ["Treads", "Sides", "Rail"], ["#8b6a4f", "#e8e2d6", "#3d3a36"],
-    sz([0.6, 4, 0.95], [0.6, 8, 3.6], [0.3, 8, 2.8]), [
+    sz([0.6, 8, 0.95], [0.6, 8, 3.6], [0.3, 8, 2.8]), [
       choice("shape", "Shape", ["straight", "l", "u", "l2", "l3"], "straight", { sizes: {
         straight: { width_m: 0.95, depth_m: 3.6 }, l: { width_m: 2.0, depth_m: 3.0 }, u: { width_m: 2.0, depth_m: 2.9 },
         l2: { width_m: 2.8, depth_m: 3.0 }, l3: { width_m: 3.0, depth_m: 3.0 } } }),
