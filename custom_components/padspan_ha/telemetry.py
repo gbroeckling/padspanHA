@@ -442,6 +442,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
+    "calibration_results",                          # Calibration's Results tab (the one it opens on)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
     "live_aboard_import",
     "live_aboard_devices",                          # Live Aboard P5: furniture that is a device
@@ -621,6 +622,15 @@ STAIR_EVENTS: frozenset[str] = frozenset(
 TIP_IDS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale")
 TIP_EVENTS: frozenset[str] = frozenset(
     {f"tip_{a}:{t}" for a in ("shown", "opened", "hidden") for t in TIP_IDS} | {"tip_hidden:all"})
+# Calibration → Results (views/calibration_results.js, 2026-10-30): each
+# opening of the tab, and which button was used: the next best thing to do
+# (by its kind) or Guided calibration. Whether opening on results gets
+# people to the step that helps. Kinds only, never a room.
+CAL_RESULTS_ACTIONS: tuple[str, ...] = (
+    "scale", "start", "receiver_heights", "floor_heights", "compute",
+    "room_empty", "room_weak", "stale", "matrix", "guided")
+CAL_RESULTS_EVENTS: frozenset[str] = frozenset(
+    {f"cal_results_action:{k}" for k in CAL_RESULTS_ACTIONS} | {"cal_results_opened"})
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to
@@ -1052,7 +1062,8 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
-            or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS)
+            or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
+            or name in CAL_RESULTS_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

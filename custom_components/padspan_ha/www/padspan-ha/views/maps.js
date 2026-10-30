@@ -1544,7 +1544,7 @@ function _wizardFinish(ctx, map, isBasic){
     ctx.state._mapsWizard = null;
     if (isBasic) ctx.actions.setComplexity("advanced");
     ctx.state.view = "calibration";
-    if (ctx.state._calib) ctx.state._calib.tab = "beacon";
+    ctx.state._calibTabRequest = "beacon";
     ctx.actions.renderRooms();
   });
   row.appendChild(calBtn);

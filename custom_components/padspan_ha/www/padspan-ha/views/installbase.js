@@ -691,6 +691,7 @@ const W_EVENT = {
   wizard_tiers_step_upgrade: "Editions tour: upgrade", wizard_tiers_completed: "Editions tour: finished",
   wizard_la_opened: "3D house setup: opened", wizard_la_finished: "3D house setup: finished",
   menu_more_tools_open: "Opened More tools in the menu",
+  cal_results_opened: "Opened Calibration Results",
 };
 const W_GS_STEP = { upload: "add a floor plan", scale: "set the scale", rooms: "draw rooms", scanners: "place receivers",
                     calibrate: "calibrate", positioned: "see devices placed" };
@@ -786,6 +787,9 @@ function word(kind, k) {
         const tip = { floor_heights: "floor heights", receiver_heights: "receiver heights", scale: "a real-world scale", all: "all of them" }[b] || b;
         return `Accuracy tip ${{ tip_shown: "shown", tip_opened: "followed to its fix", tip_hidden: "hidden" }[a]}: ${tip}`;
       }
+      if (a === "cal_results_action") return `Calibration Results: ${{ scale: "went to measure a floor plan", start: "started calibrating", receiver_heights: "went to receiver heights",
+        floor_heights: "went to floor heights", compute: "went to work out the accuracy", room_empty: "went to add points in an empty room",
+        room_weak: "went to add points in a weak room", stale: "walked the house again", matrix: "opened Accuracy by spot", guided: "opened Guided calibration" }[b] || b}`;
       if (a === "proxy_rate_drops") return `A receiver's reading rate dropped (${b} a day)`;
       return tidy(key);
     }
