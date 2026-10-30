@@ -652,6 +652,7 @@ const W_SURFACE = {
 };
 const W_EVENT = {
   stale_receivers_listed: "Opened the stale-receiver list (Mapping › 3D Stack)",
+  status_dot_open: "Opened Health from the top bar's status dot",
   backup_created: "Made a backup", beacon_tune_saved: "Saved a beacon position (Beacon Tune)",
   bermuda_history_purged: "Cleared Bermuda's old history", calibration_point_added: "Added a calibration point",
   client_screen_seen: "Screens seen", companion_tx_sent: "Phone app set to broadcast (setup wizard)",

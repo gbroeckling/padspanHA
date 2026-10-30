@@ -117,7 +117,7 @@ const Panel = new Function("SAMPLE_SNAPSHOT", "BADGE_HTML", `return class Panel 
   get badge(){ return this._els["#dataModeToggle"].textContent; }
   $(sel){ return this._els[sel] || null; }
   _toast(m){ this.toasts.push(String(m)); }
-  _updateEmergencyBanner(){}
+  _updateEmergencyBanner(){} _paintStatusDot(){} _updateStatusDot(){}
   _scheduleRender(){} _applyTheme(){} _applySkin(){} _renderNav(){} _telemetryFlush(){}
   _startPolling(){} _stopPolling(){} _startDataPoll(){ this.polls++; this._pollTimer = 1; }
   async _getMapsList(){} async _getModel(){} async _getStatus(){} async _getVersionInfo(){}

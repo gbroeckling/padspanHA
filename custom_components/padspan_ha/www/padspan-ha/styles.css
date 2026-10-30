@@ -205,6 +205,23 @@
 .pill.good{border-color:rgba(94,234,212,.7);background:rgba(94,234,212,.12)}
 .pill.ok{border-color:rgba(245,158,11,.7);background:rgba(245,158,11,.12)}
 .pill.bad{border-color:rgba(248,113,113,.7);background:rgba(248,113,113,.12)}
+/* The status dot (panel.js _paintStatusDot, views/status_dot.js): nothing
+   when all is well; red = broken, a round mark; amber = needs attention, a
+   triangle. Shape and count as well as colour; the words are its tooltip.
+   On ?kiosk=1 (no top bars) red only, in the top-right corner. */
+.status-dot{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px 0 4px;
+  margin:0 6px 6px 0;border-radius:999px;border:1px solid #2d4a38;font-size:11px;font-weight:700;line-height:1;cursor:pointer;flex-shrink:0}
+.status-dot.hidden{display:none}
+.status-dot:focus-visible{outline:2px solid #52b788;outline-offset:2px}
+.status-dot-mark{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;font-size:10px;font-weight:800;color:#0a150e}
+.status-dot-red{border-color:rgba(248,113,113,.7);background:rgba(248,113,113,.12);color:#fca5a5}
+.status-dot-red .status-dot-mark{border-radius:50%;background:#f87171}
+.status-dot-amber{border-color:rgba(245,158,11,.7);background:rgba(245,158,11,.12);color:#fcd34d}
+.status-dot-amber .status-dot-mark{background:#f59e0b;clip-path:polygon(50% 0,100% 100%,0 100%);padding-top:3px;box-sizing:border-box}
+.mobile-topbar .status-dot{margin:0;height:26px}
+.status-dot.status-dot-wall{position:fixed;top:12px;right:12px;z-index:42;margin:0;cursor:default;height:auto;
+  padding:.35em .8em .35em .4em;gap:.4em;font-size:clamp(14px,.9vw,28px);background:rgba(40,10,10,.92)}
+.status-dot-wall .status-dot-mark{width:1.3em;height:1.3em;font-size:.8em}
 .card.warn{border-color:rgba(245,158,11,.6)}
 .bt-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .bt-viz{width:100%;height:auto;border:1px solid var(--line);border-radius:14px;background:rgba(10,21,14,.45)}

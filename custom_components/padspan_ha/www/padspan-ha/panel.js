@@ -137,6 +137,13 @@ let DAY_THEME = null;
 import(`./views/ui_error.js?b=${BUILD_ID}`)
   .then(m => { UI_ERROR = m; })
   .catch(err => console.warn("PadSpan: ui_error module failed to load", err));
+// The top bar's status dot (views/status_dot.js): what is wrong, from the
+// live poll. Optional like the rest: until it lands, or if it never does,
+// there is simply no dot.
+let STATUS_DOT = null;
+import(`./views/status_dot.js?b=${BUILD_ID}`)
+  .then(m => { STATUS_DOT = m; })
+  .catch(err => console.warn("PadSpan: status_dot module failed to load", err));
 
 // The map as text for screen readers (views/map_text.js). Until it lands, or
 // if it never does, the Overview simply has no hidden text.
@@ -749,6 +756,7 @@ class PadSpanHaApp extends HTMLElement {
             <button class="mobile-topbar-btn" id="mobileBackBtn" title="Back to Home Assistant" style="font-size:18px;padding:4px 6px">&#x2190;</button>
             <button class="mobile-topbar-btn" id="mobileMenuBtn">&#9776;</button>
             <span class="mobile-topbar-title" id="mobileTitle">Overview</span>
+            <button class="status-dot hidden" type="button" data-status-dot="mobile"></button>
             <button class="mobile-topbar-pill" id="mobileDataPill">…</button>
             <button class="mobile-topbar-pill" id="mobileModePill">Advanced</button>
             <button class="mobile-topbar-pill hidden" id="mobileEmergencyPill" style="background:#7f1d1d;border-color:#dc2626;color:#fecaca">🚨 0</button>
@@ -757,6 +765,7 @@ class PadSpanHaApp extends HTMLElement {
             <span class="pill" id="cloudBadge">Cloud disabled</span>
             <span class="pill" id="scanBadge">Scan: —</span>
             <span class="pill" id="statusBadge">Status: —</span>
+            <button class="status-dot hidden" type="button" data-status-dot="desktop"></button>
 
             <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
               <span class="muted" style="font-size:12px">Data</span>
@@ -764,6 +773,8 @@ class PadSpanHaApp extends HTMLElement {
               <button class="btn inline" id="complexityToggle" title="Cycle between Basic, Advanced, and Development modes">Advanced</button>
             </span>
           </div>
+          <!-- ?kiosk=1 hides both top bars: there, red only, in a corner. -->
+          <div class="status-dot status-dot-wall hidden" role="status" data-status-dot="wall"></div>
           <div id="toast" class="toast hidden"></div>
           <div id="staleBuild" class="stale-build hidden"></div>
           <div id="modal" class="modal hidden"></div>
@@ -822,6 +833,10 @@ class PadSpanHaApp extends HTMLElement {
     this.$("#toggleSide").addEventListener("click", ()=>this.$("#app").classList.toggle("mini"));
     this.$("#haSide").addEventListener("click", ()=>this._toggleHaSidebar());
     this._paintHaSide();
+    for (const b of this.shadowRoot.querySelectorAll('button[data-status-dot]')) {
+      b.addEventListener("click", () => this._openHealthFromDot());
+    }
+    this._paintStatusDot();
 
     // Mobile navigation wiring
     const _openDrawer = () => {
@@ -1846,6 +1861,7 @@ class PadSpanHaApp extends HTMLElement {
     this._pollInFlight = true;
     this._pollStartedAt = performance.now();
     const t0 = this._pollStartedAt;
+    let _pollOk = false;
     try{
       // Race WS calls against a 15s timeout to prevent indefinite hangs
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("poll_timeout")), 15_000));
@@ -1886,6 +1902,7 @@ class PadSpanHaApp extends HTMLElement {
         timeout,
       ]);
       this.state.timing.lastRefreshMs = Math.round(performance.now() - t0);
+      _pollOk = true;
       this._updateBadges();
 
       // Re-render views that show live data.
@@ -1934,6 +1951,9 @@ class PadSpanHaApp extends HTMLElement {
     } finally {
       this._pollInFlight = false;
       this._pollStartedAt = null;
+      // The status dot counts polls (views/status_dot.js PERSIST): once per
+      // poll, here, whether it answered or not.
+      try { this._updateStatusDot(!_pollOk || !!this.state.live.error); } catch(e){}
     }
   }
 
@@ -2690,6 +2710,7 @@ class PadSpanHaApp extends HTMLElement {
     this.$("#statusBadge").textContent = `Status: ${st}`;
     this.$("#cloudBadge").textContent = "Cloud disabled";
     this._updateEmergencyBanner();
+    this._paintStatusDot();
 
     this._paintDataModeLabel();
     const cb = this.$("#complexityToggle");
@@ -2699,6 +2720,70 @@ class PadSpanHaApp extends HTMLElement {
       cb.style.outline = mode === "basic" ? "2px solid rgba(94,234,212,.6)"
                        : mode === "development" ? "2px solid rgba(239,83,80,.5)" : "";
     }
+  }
+
+  /** The status dot (views/status_dot.js): one live poll's look at what is
+   *  wrong, through the persistence rule. `failed`: the poll got no answer. */
+  _updateStatusDot(failed){
+    if (!STATUS_DOT) return;
+    const issues = STATUS_DOT.statusIssues({
+      live: this.state.dataMode === "live", failed,
+      snapshot: this.state.live && this.state.live.snapshot,
+      maps: this.state.maps && this.state.maps.list,
+    });
+    this._statusDotTrack = this._statusDotTrack || new Map();
+    this._statusDotActive = STATUS_DOT.trackIssues(this._statusDotTrack, issues);
+    this._paintStatusDot();
+  }
+
+  /** Nothing when all is well (and in sample mode); a dot with a mark and a
+   *  count otherwise, its words in the tooltip and aria-label. On a wall
+   *  screen red only: ?kiosk=1 hides the top bars, so there it sits in a
+   *  corner and only says so (nobody is there to click). No toast, no sound. */
+  _paintStatusDot(){
+    if (!STATUS_DOT || !this.shadowRoot || !this.state) return;
+    if (this.state.dataMode !== "live") { this._statusDotTrack = null; this._statusDotActive = null; }
+    const kiosk = !!this.state.kioskMode;
+    // A full-screen window counts as a wall once nobody has touched it for two
+    // minutes (the self-reload's own rule): a desktop at F11 still sees amber.
+    const wall = kiosk || (wallScreen(false) && untouchedFor(120000));
+    const view = STATUS_DOT.dotView(this._statusDotActive || [], { wall });
+    for (const b of this.shadowRoot.querySelectorAll("[data-status-dot]")) {
+      const wallHost = b.getAttribute("data-status-dot") === "wall";
+      const show = !!view && (wallHost ? kiosk : !kiosk);
+      if (!show) {
+        if (!b.classList.contains("hidden")) { b.className = "status-dot hidden" + (wallHost ? " status-dot-wall" : ""); b.textContent = ""; }
+        b.removeAttribute("title"); b.removeAttribute("aria-label");
+        continue;
+      }
+      const sig = view.level + "|" + view.count + "|" + view.label;
+      b.className = "status-dot status-dot-" + view.level + (wallHost ? " status-dot-wall" : "");
+      if (b._dotSig === sig && b.childElementCount) continue;
+      b._dotSig = sig;
+      b.title = view.label;
+      b.setAttribute("aria-label", view.label);
+      b.textContent = "";
+      b.appendChild(el("span", { class: "status-dot-mark", "aria-hidden": "true" }, "!"));
+      b.appendChild(el("span", { class: "status-dot-n", "aria-hidden": "true" },
+        wallHost ? (view.count === 1 ? "1 problem" : view.count + " problems") : String(view.count)));
+    }
+  }
+
+  /** The dot pressed: Health, where the details are (Advanced has it; Basic
+   *  does not, so Basic moves up, as the accuracy tips do for Calibration). */
+  _openHealthFromDot(){
+    this._telemetryEvent("status_dot_open");
+    if (this.state.complexity === "basic") {
+      this.state.complexity = "advanced";
+      try { localStorage.setItem("padspan_complexity", "advanced"); } catch(e) {}
+    }
+    this.state.view = "health";
+    this._logEvent("view_change", "health");
+    if (this._closeDrawer) this._closeDrawer();
+    this._updateBadges();
+    this._renderNav();
+    if (!VIEWS.health && _VIEW_PATHS.health) _loadView("health").then(() => this._scheduleRender());
+    this._scheduleRender();
   }
 
   /** Flood alarm latches (flood_latch.py), off to the side regardless of the
