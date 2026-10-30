@@ -1299,12 +1299,19 @@ function _startCollection(ctx, cs, _snap, _mapData) {
   ctx.actions.renderRooms();
 
   const endTime = Date.now() + cs.duration * 1000;
+  // This run's token: Stop & Discard (or a new Start) during the slow
+  // snapshot fetch used to let this loop carry on into cleared readings
+  // (a TypeError in the field) or run alongside the next capture.
+  const run = cs._run = (cs._run || 0) + 1;
+  const readings = cs.readings;
+  const gone = () => cs.stopFlag || cs._run !== run || cs.readings !== readings;
 
   const loop = async () => {
-    if (cs.stopFlag) return;
+    if (gone()) return;
 
     // Poll snapshot
     try { await ctx.actions.refreshSnapshot(); } catch (_) { /**/ }
+    if (gone()) return;
     cs._pollCount = (cs._pollCount || 0) + 1;
 
     const snap = _recordableSnap(ctx);
