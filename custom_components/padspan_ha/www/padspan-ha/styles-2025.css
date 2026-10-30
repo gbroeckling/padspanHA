@@ -266,6 +266,8 @@ svg text, svg tspan { letter-spacing: normal; }
 .pill.good{border-color:var(--ps-ac-ln);background:var(--ps-ac-bg);color:var(--ps-tx)}
 .pill.ok{border-color:rgba(242,181,68,.45);background:rgba(242,181,68,.11);color:var(--ps-tx)}
 .pill.bad{border-color:rgba(242,104,92,.45);background:rgba(242,104,92,.11);color:var(--ps-tx)}
+/* The status dot (styles.css .status-dot): the pills' height, no margin, as .pill here. */
+.desktop-topbar .status-dot{height:25px;margin:0}
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn, select, input[type="text"]{

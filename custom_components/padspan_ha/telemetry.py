@@ -143,6 +143,9 @@ EVENTS: frozenset[str] = frozenset({
     # Mapping → 3D Stack's stale-receiver list opened (0.38.170 made it read-only
     # and honest): whether anyone looks, once per opening.
     "stale_receivers_listed",
+    # The top bar's status dot (views/status_dot.js) clicked through to
+    # Health: whether a dot that says something is wrong gets looked at.
+    "status_dot_open",
     # 0.38.160: a device's room held through a short gap (once per hold, so
     # whether the setting ever does anything in a real house), and a robot
     # vacuum's map imported / a walker point accepted into calibration.
@@ -470,6 +473,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "wled_tab_sync", "wled_ui", "trial_offer", "release_notes", "pro_invite",
     "aboard_wizard",                                # the Live Aboard setup wizard (Settings, Mapping → Atlas)
     "i18n",                                         # the panel's translations helper (t / tn)
+    "status_dot",                                   # the top bar's status dot (what is wrong, from the live poll)
 })
 UI_ERROR_SHELLS: frozenset[str] = frozenset({"panel", "atlas_panel", "lib", "other"})
 # 0.38.177: beside each, the kind of error (views/ui_error.js UI_ERROR_KINDS)

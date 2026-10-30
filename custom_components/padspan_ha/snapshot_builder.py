@@ -3363,6 +3363,10 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
                 else:
                     _remaining = max(0, _pc_sus._suspend_until - _time_mod.monotonic())
                     snap["suspend_remaining_s"] = round(_remaining)
+            # The panel's status dot (views/status_dot.js): positioning's last
+            # update failed. Only then; a working house's snapshot is as before.
+            if getattr(_pc_sus, "last_update_success", True) is False:
+                snap["positioning_failed"] = True
     except Exception:
         pass
 
