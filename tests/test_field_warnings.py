@@ -137,14 +137,31 @@ async def test_one_phone_with_odd_major_minor_does_not_fail_the_search(monkeypat
     monkeypatch.setattr(dr_mod, "async_get", lambda h: drg, raising=False)
     st = SimpleNamespace(entity_id=eid, state="Stopped",
                          attributes={"UUID": "e2c56db5-dffb-48d2-b060-d0f5a71096e0", "Major": bad, "Minor": bad})
+    # a second phone that reads fine is still listed
+    eid2 = "sensor.iphone_ble_transmitter"
+    dev2 = SimpleNamespace(id="dev2", name="iPhone", name_by_user=None, model="iPhone 15",
+                           manufacturer="Apple", identifiers={("mobile_app", "9a1b")}, connections=set())
+    ent2 = SimpleNamespace(entity_id=eid2, platform="mobile_app", device_id="dev2", disabled_by=None,
+                           original_name="BLE Transmitter", name=None)
+    er.entities[eid2] = ent2
+    er.async_get = lambda e: {eid: ent, eid2: ent2}.get(e)
+    drg.devices["dev2"] = dev2
+    drg.async_get = lambda i: {"dev1": dev, "dev2": dev2}.get(i)
+    st2 = SimpleNamespace(entity_id=eid2, state="Transmitting",
+                          attributes={"UUID": "f7826da6-4fa2-4e98-8024-bc5b71e0893e", "Major": 100, "Minor": 40004})
     hass = MagicMock()
     hass.data = {}
-    hass.states.get = lambda e: st if e == eid else None
-    hass.states.async_all = lambda *a: [st]
+    hass.states.get = lambda e: {eid: st, eid2: st2}.get(e)
+    hass.states.async_all = lambda *a: [st, st2]
     hass.services.async_services.return_value = {"notify": {"mobile_app_pixel": True}}
     conn = MagicMock()
     await WC.ws_companion_discover(hass, conn, {"id": 1})
     out = conn.send_result.call_args.args[1]
     assert "error" not in out, out.get("error")
-    assert [p["device_name"] for p in out["phones"]] == ["Pixel"]
+    # the odd phone is listed without a key to follow (a 0:0 key would never
+    # match its adverts), as a phone whose sensor PadSpan can't use
+    assert [p["device_name"] for p in out["phones"]] == ["iPhone", "Pixel"]
+    assert out["phones"][0]["ibeacon_key"] == "ibeacon:f7826da6-4fa2-4e98-8024-bc5b71e0893e:100:40004"
+    assert out["phones"][1]["ibeacon_key"] == ""
+    assert out["phones"][1]["state"] == "sensor_not_registered"
     assert bumped == ["companion_ids_unreadable"]

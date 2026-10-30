@@ -176,15 +176,17 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
                 uuid_attr = str(attrs.get("UUID") or attrs.get("uuid") or "")
                 # One phone's Major/Minor that is not a number (None, "", a
                 # word) used to fail the whole discovery, so no phone was
-                # listed at all. Read as 0, as a missing one already is.
+                # listed at all. Skip it here, as one with no UUID is (the
+                # later scans list it with no key): read as 0 it would be
+                # followed under a key it never sends.
                 try:
                     major = int(attrs.get("Major", attrs.get("major", 0)))
                     minor = int(attrs.get("Minor", attrs.get("minor", 0)))
                 except (TypeError, ValueError):
                     from .telemetry import bump  # noqa: PLC0415
                     bump(hass, "companion_ids_unreadable")
-                    _LOGGER.debug("companion_discover: %s — Major/Minor not numbers", eid)
-                    major = minor = 0
+                    _LOGGER.debug("companion_discover: %s — Major/Minor not numbers, skipping", eid)
+                    continue
             else:
                 # Fall back to combined transmitting_id / id attribute or state
                 transmitting_id = (

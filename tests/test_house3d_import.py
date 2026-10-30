@@ -123,7 +123,9 @@ def test_the_room_imports_upload_limit_and_field(disk, tmp_path):
     (_b64(_make_sh3d('<?xml version="1.0"?><!DOCTYPE home [<!ENTITY a "a">]><home/>')), "parse_failed", "DOCTYPE"),
     (_b64(_make_sh3d("<home><pieceOfFurniture")), "parse_failed", "not valid XML"),
     ("", "parse_failed", "not a ZIP"),
-])
+# Named ids: a ZIP made here carries the clock in its header, and xdist
+# workers that collect a second apart refuse to run differing test names.
+], ids=["not_base64", "not_a_zip", "doctype", "bad_xml", "empty"])
 def test_what_cannot_be_read_is_said_plainly_and_nothing_is_written(disk, tmp_path, b64, code, words):
     h, conn = _on(tmp_path)
     out = _preview(h, conn, b64)

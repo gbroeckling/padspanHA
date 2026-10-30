@@ -66,7 +66,7 @@ _GAUGES = [20.0, 1.0, 0.375, 137.4]
 
 
 @pytest.fixture(scope="module")
-def result() -> dict:
+def result(tmp_path_factory) -> dict:
     world = []
     for gk in _GAUGES:
         gauge = {"m_per_unit": gk, "source_map_id": "m0"}
@@ -107,7 +107,9 @@ def result() -> dict:
                             "m": m, "dx": dx, "dy": dy, "fracs": _FRACS,
                             "expected": expected})
 
-    cases = _ROOT / "tests" / "js" / "_derived_stack_cases.json"
+    # A temp path of its own: under xdist two workers can build this fixture
+    # at once, and a shared file was deleted under the other one's node.
+    cases = tmp_path_factory.mktemp("derived_stack") / "_derived_stack_cases.json"
     cases.write_text(json.dumps(
         {"world": world, "stage": stage, "point_align": point_align}), encoding="utf-8")
     try:
