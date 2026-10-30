@@ -184,6 +184,43 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.203</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">30 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Setup, one step after another.</b> Setting up a house is now one list in order: upload a floor plan, set its scale, give the floors their heights, draw the rooms, place the receivers and say how high each is, then calibrate. Each step says whether it's done, next, still to do or skipped, and opens the tool that already does it (the Mapping Setup Wizard at that step, Mapping → 3D Stack's Floor Heights, or the guided calibration). A bar over that tool shows which step you're on and leads back to Setup.</li>
+          <li><b>Skip a step and come back later.</b> Setup remembers the step you were on and the ones you skipped, so it picks up where you left off, on any screen. Whether a step is done comes from your house itself: a plan uploaded, a distance measured, a floor given a height (a one-floor house has nothing to set), a room drawn, receivers placed and not all at one height in a house of two floors or more, and five calibration points or a computed model.</li>
+          <li><b>Where to find it.</b> "Open Setup" on the Overview's Getting started card, a Setup button beside Refresh on Mapping, and "Make it a map" on a new install's Who's where. With no floor plan yet, Mapping's "Start Setup Wizard" is Setup's first step: the same wizard, with the bar back to Setup (and no second Setup button above it). The Getting started steps still go straight to their tool, now with the bar back to Setup. The Mapping Setup Wizard and Guided calibration are still where they were, and Mapping's and Calibration's tabs are unchanged.</li>
+          <li><b>Setup is about your own house.</b> While the demo house is showing (Sample mode), Setup says so, its step buttons wait for your own house, and nothing is stored or counted.</li>
+          <li><b>Receivers, a new screen in the menu's Setup group, in every mode.</b> One row for each Bluetooth receiver PadSpan hears from: its room, its floor, whether it is on a floor plan, its height, its signal adjustment, its status, how many devices it hears right now, and when it was last heard. Until now these were spread over Mapping, Calibration, Settings, Health and Bluetooth. In Basic mode it is in the main list, beside Calibration: every home has receivers, and a silent one is the commonest reason a room is wrong.</li>
+          <li><b>Height and signal adjustment can be changed right in the table.</b> They are the same values as Calibration → Tune, Mapping → Edit → Radios and Settings → Tracking → Receivers, saved the same way: change one in any place and the others show the new number. Nothing new is stored.</li>
+          <li><b>Status uses the top bar dot's rules:</b> Online, Silent (not heard for over 10 minutes, with how long; never one that is scanning or heard just now), Hearing less (far fewer devices than usual while the others are normal), or Not in use (marked lost, disabled or excluded, which the dot leaves out too). Problem rows are marked; tick <b>Problems only</b> to see just those. Click a column heading to sort by it.</li>
+          <li><b>Place or Move</b> opens Mapping with that receiver selected (in Basic, the floor plan setup's Place scanners step), to put it where it is mounted. Positions and calibration are never changed from this page.</li>
+          <li>In Sample mode the demo house's receivers are shown read-only, with a note. On a phone each receiver is a card.</li>
+          <li>Mapping → Edit → Radios, Settings → Tracking → Receivers, Health's Scanner Health and Bluetooth → Receivers keep their controls and gain an <b>All receivers</b> link to the new page.</li>
+          <li><b>Rooms, one page for every room.</b> A new Rooms screen in the menu's Setup group, in every mode (Basic included: Basic's Mapping has no Edit or Rooms tab, so this is its only room-by-room screen). Each room is listed under its floor, with its colour, whether its outline is drawn (and its size in m² when it is), its ceiling height, its split level, how many receivers are in it and who is in it now.</li>
+          <li><b>Edit in place.</b> The colour, the ceiling height and the split level save right there, the same way Settings → Appearance and Mapping → Rooms save them, so all three screens always show the same values. Nothing new is stored.</li>
+          <li><b>Rooms are still your Home Assistant Areas.</b> Names and floors come from Home Assistant: "Rename in Home Assistant" and "Add a room in Home Assistant" open its Areas page, and Refresh reads the change back. A room drawn only in PadSpan's layout is listed too, marked as not an area.</li>
+          <li><b>Edit outline</b> opens Mapping → Edit on the floor plan the room is drawn on, with the Rooms tool on and that room chosen. In Basic it switches to Advanced first and says so, as Mapping's own Open does. <b>See receivers</b> opens the receiver list.</li>
+          <li>Settings → Appearance's Rooms card, Mapping → Rooms and Mapping → Edit's Rooms tool each have a small <b>All rooms</b> link to the new page. They keep their own controls.</li>
+          <li>In Sample mode your own rooms are listed read-only, with a note, and without the demo house's people in them.</li>
+          <li><b>Calibration opens on a new Results tab.</b> It answers the two questions people come with: how accurate is it, and how do I make it better.</li>
+          <li>A new house with no calibration points sees two lines about what calibration does and the Guided calibration button.</li>
+          <li>In Sample mode, Results shows the sample house's made-up results. Nothing on Results saves or changes anything; calibration points are only read.</li>
+          <li>Every other tab is still there, with the same name, in the tab bar. A tab you pick is kept while the page stays open. Links like <code>?view=calibration&amp;tab=tune</code> open that tab, and the Overview's receiver-heights tip and Mapping's "Go to Calibration" open their tabs even when Calibration hadn't been opened yet.</li>
+          <li><b>Getting started's "Calibrate" means calibrated.</b> It used to tick as soon as receivers were placed in the layout, which is its own step (Place Scanners). Now it needs five calibration points or a computed model, the same as Setup's Calibrate step. A house whose Getting started was already finished or skipped doesn't see the card again.</li>
+          <li>With the usage report on: how often Calibration's Results tab is opened, and which of its buttons is used (the kind of step, such as "set receiver heights" or "Guided calibration"; never a room). Not counted in Sample mode.</li>
+          <li><b>How far people get through Setup:</b> each step reached, each step skipped, and Setup finished (once per install, and only for a house that used it). Counts only, by step name, so the developer can see where people stop.</li>
+          <li>Opening the page is counted like every other screen (<code>tab:receivers</code>), and a height or signal adjustment saved from its table is counted once per save (<code>receivers_page_edit</code>). Never which receiver or the value.</li>
+          <li>Opening the Rooms page is counted like every other screen (from the menu or an All rooms link), and each colour, ceiling height or split level saved on it is counted (only that it happened, never the room or the value).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.202</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">30 October 2026</span>
