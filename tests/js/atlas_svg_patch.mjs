@@ -17,7 +17,7 @@
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
-import { install } from "./dom_shim.mjs";
+import { install, timerQueue } from "./dom_shim.mjs";
 
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: atlas_svg_patch.mjs <www/padspan-ha dir>"); process.exit(2); }
@@ -180,12 +180,28 @@ tryCase("patch: parts laid in the drawing from outside stay where they were", ()
   // atlas_aboard.js lays its people layer in the drawing itself, just under a floor's plate.
   const slab = a.parts.find(n => n._leaf.startsWith('<g data-role="floorslab" data-z="1"'));
   const live = document.createElementNS(SVG_NS, "g");
+  live.setAttribute("data-live", "");
   a.svg.insertBefore(live, slab);
   const b = card(view, { states: flip("light.office") });
   const kids = b.svg.childNodes, i = kids.indexOf(live);
   check("patch: parts laid in the drawing from outside stay where they were",
     b.svg === a.svg && i >= 0 && kids[i + 1] && /^<g data-role="floorslab" data-z="1"/.test(kids[i + 1]._leaf || "")
     && markupOf(b.svg) === fullMarkup(view, { states: flip("light.office") }), i);
+});
+
+tryCase("patch: anything else left in the drawing goes", () => {
+  const view = newView();
+  const a = card(view);
+  // A press ring (pressRing) a hold left when the poll cut it short.
+  const ring = document.createElementNS(SVG_NS, "circle");
+  ring.setAttribute("class", "lpress");
+  a.svg.appendChild(ring);
+  const live = document.createElementNS(SVG_NS, "g");
+  live.setAttribute("data-live", "");
+  a.svg.appendChild(live);
+  const b = card(view);
+  check("patch: anything else left in the drawing goes", b.svg === a.svg
+    && !b.svg.childNodes.includes(ring) && b.svg.childNodes.includes(live) && markupOf(b.svg) === fullMarkup(view));
 });
 
 // ── rebuild ──────────────────────────────────────────────────────────────────
@@ -251,6 +267,28 @@ tryCase("wiring: a kept marker is wired once, to the newest api", () => {
   LM.wireUseSurface(b.stage, api);
   const n2 = Object.values(g._listeners).reduce((t, l) => t + l.length, 0);
   check("wiring: a kept marker is wired once, to the newest api", b.svg === a.svg && hex() === g && n1 > 0 && n2 === n1, { n1, n2 });
+});
+tryCase("wiring: a hold the poll cut short leaves no timer, ring or dimming", () => {
+  const view = newView();
+  const a = card(view);
+  const L = lightsOf(STATES);
+  const api = { lightsByEid: L.byEid, controlsFor: () => true, openRoom() {}, openFloor() {}, toggle() {}, hass: null };
+  const g = a.svg.childNodes.find(n => n._leaf && n._leaf.startsWith('<g class="lhex" data-eid="light.kitchen"'));
+  g.className = "lhex"; g.dataset.eid = "light.kitchen"; g.dataset.cx = "1"; g.dataset.cy = "1";
+  LM.wireUseSurface(a.stage, api);
+  const t0 = timerQueue.length;
+  g._listeners.pointerdown[0]({ button: 0, pointerType: "touch", clientX: 5, clientY: 5, timeStamp: 0, pointerId: 1, stopPropagation() {} });
+  const pending = timerQueue.slice(t0).filter(Boolean);
+  pending[0].fn();                                   // the ring shows (PRESS_RING_MS)
+  const ring = a.svg.childNodes.find(n => n.getAttribute && n.getAttribute("class") === "lpress");
+  g.style.opacity = "0.6";                           // hovered (a touch screen sends no mouseout)
+  // The poll lands mid-hold: a new card, the drawing kept, wired again.
+  const b = card(view);
+  LM.wireUseSurface(b.stage, api);
+  check("wiring: a hold the poll cut short leaves no timer, ring or dimming",
+    pending.length === 2 && ring && b.svg === a.svg && !b.svg.childNodes.includes(ring)
+    && timerQueue.slice(t0, t0 + 2).every(t => t === null) && g.style.opacity === "",
+    { pending: pending.length, ring: !!ring, timers: timerQueue.slice(t0, t0 + 2).map(t => !!t), opacity: g.style.opacity });
 });
 
 console.log(JSON.stringify({ cases, failures }));

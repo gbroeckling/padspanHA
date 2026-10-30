@@ -136,6 +136,7 @@ try {
   if (_reloadNote) sessionStorage.removeItem("padspan_reload_how");
 } catch(e) {}
 
+const NO_FLOORS = [];
 const LS_HIDDEN = "padspan_ha_lights_hidden";
 // The one-time coach mark ("tap to switch · code or hold for controls") —
 // per browser, because that is where the hands are.
@@ -912,7 +913,8 @@ class PadSpanLightsApp extends HTMLElement {
     }
 
     // ── The shared map card — identical map to the Mapping → Lights tab ──────
-    const floors=this.state.model.floors||[];
+    // The same empty list every render: the map's patch keys on it (lights_map.js drawStageSvg).
+    const floors=this.state.model.floors||NO_FLOORS;
     // Door/window/lock click-to-control (Garry, 2026-09-22) — same gate as
     // maps.js's own barrierHit (_isPro there): Bright or Pro, never free.
     const paid=["bright","pro"].includes(String(this.state._tier||"").toLowerCase());

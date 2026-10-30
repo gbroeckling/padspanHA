@@ -44,7 +44,7 @@ def harness() -> dict:
 
 def test_every_case_in_the_harness_passes(harness) -> None:
     assert not harness["failures"], json.dumps(harness["failures"][:6], indent=2, ensure_ascii=False)
-    assert len(harness["cases"]) >= 12
+    assert len(harness["cases"]) >= 14
 
 
 def test_only_the_sidebar_host_patches() -> None:
