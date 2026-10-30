@@ -65,7 +65,7 @@ themeBtn.onclick = () => { const t = document.documentElement.dataset.theme === 
 function attentionItems() {
   if (Array.isArray(M.needs_attention)) return M.needs_attention.map(a => ({
     level: a.kind === "issue" || a.kind === "setup" ? "bad" : "watch", what: a.title,
-    why: [a.detail, a.homes != null && a.of ? `${a.homes} of ${a.of} homes.` : (a.homes != null ? `${a.homes} home${a.homes === 1 ? "" : "s"}.` : ""),
+    why: [a.detail || (a.homes != null && a.of ? `${a.homes} of ${a.of} homes.` : (a.homes != null ? `${a.homes} home${a.homes === 1 ? "" : "s"}.` : "")),
           a.first_seen ? `Listed since ${fmtDay(a.first_seen)}${a.growing ? ", still growing" : ""}.` : ""].filter(Boolean).join(" ") }));
   if (Array.isArray(M.attention)) return M.attention;
   const items = (M.watch || []).map(x => ({ level: "watch", what: `${x.what} on ${M.prev}`,
@@ -162,19 +162,27 @@ function renderSameAge() {
   box.append(tbl(["Same age", `${L.v} (newest)`, P.v], rows.map(([label, f]) => [label, f(L), f(P)])));
   for (const x of (S.watch || [])) box.append(el("p", { class: "cap" }, `▲ ${x.what}: ${x.a[0]} of ${x.a[1]} on ${L.v} against ${x.b[0]} of ${x.b[1]} on ${P.v}.`));
 }
+// Report words as people say them (install types and boards from the usage report's fixed lists).
+const NICE = { os: "Home Assistant OS", container: "Container", supervised: "Supervised", core: "Core", vm: "Virtual machine",
+  generic_x86_64: "Generic x86-64", generic_aarch64: "Generic ARM64", green: "Home Assistant Green", yellow: "Home Assistant Yellow",
+  rpi2: "Raspberry Pi 2", rpi3: "Raspberry Pi 3", rpi4: "Raspberry Pi 4", rpi5: "Raspberry Pi 5", odroid: "ODROID", tinker: "Tinker Board",
+  khadas: "Khadas", unknown: "Unknown", other: "Other" };
+const nice = k => NICE[String(k).toLowerCase()] || String(k);
 // New installs that don't finish setting up, against a threshold (Play Console's bad-behaviour bar).
 function renderSetup() {
   const card = $("#setup-card"), F = M.setup_fail; if (!F) { card.hidden = true; return; }
   card.hidden = false;
   const box = $("#setup"); box.replaceChildren();
-  $("#setup-cap").textContent = `New opt-in installs first seen in the last ${F.window_days} days and at least ${F.grace_days} days old. ${F.definition || ""}`.trim();
+  $("#setup-cap").textContent = F.definition || `New opt-in installs first seen in the last ${F.window_days} days and at least ${F.grace_days} days old.`;
   const line = el("p", {});
   line.append(el("b", {}, `${F.failing} of ${F.total}`), document.createTextNode(F.total ? ` didn't finish (${Math.round(F.rate ?? pct(F.failing, F.total))}%). The bar is ${F.threshold_pct}%` : " yet."));
   if (F.total) line.append(el("span", { class: "st " + (F.over ? "bad" : "normal"), style: "margin-left:6px" }, F.over ? "▲ over the bar" : "under the bar"));
   box.append(line);
   const lab = { ha_version: "Home Assistant version", install_type: "Install type", hardware: "Hardware" };
+  const splits = el("div", { class: "splits" });
   for (const [k, title] of Object.entries(lab)) { const rows = ((F.by || {})[k] || []); if (!rows.length) continue;
-    box.append(tbl([title, "Didn't finish"], rows.map(r => [r.k, r.of < 30 ? `${r.failing} of ${r.of}` : `${r.failing} of ${r.of} · ${pct(r.failing, r.of)}%`]))); }
+    splits.append(tbl([title, "Didn't finish"], rows.map(r => [nice(r.k), r.of < 30 ? `${r.failing} of ${r.of}` : `${r.failing} of ${r.of} · ${pct(r.failing, r.of)}%`]))); }
+  box.append(splits);
 }
 
 // ── generic line chart (one y-axis, crosshair tooltip) ──────────────────────
@@ -296,6 +304,7 @@ function spanIdx(xs, from, to) {
   let b = -1; for (let i = xs.length - 1; i >= 0; i--) if (xs[i] <= (to || xs[xs.length - 1])) { b = i; break; }
   return b < a ? null : [a, b];
 }
+const short0 = s => s.length > 40 ? s.slice(0, 38) + "…" : s;
 function renderGrowth() {
   const ns = M.ns, sr = M.series;
   $("#ns-cap").textContent = `All installs, last ${sr.length} days. Yesterday ${fmtN(ns.yday)}, typical ${fmtN(ns.typ)}. Dots are days, the line is the 7-day average, and the shaded band is the normal range around it.` +
@@ -306,7 +315,7 @@ function renderGrowth() {
   const leg = $("#ns-legend"); leg.replaceChildren();
   const add = (cls, color, text) => { const sp = el("span"); const k = el("span", { class: cls }); k.style.background = color; sp.append(k, document.createTextNode(text)); leg.append(sp); };
   add("key-dot", css("--s1"), "Homes that day"); add("key-line", css("--s1"), "7-day average"); add("key-band", css("--s1"), "Normal range");
-  if (camps.length) add("key-band", css("--wash"), camps.length === 1 ? camps[0].label : "Marketing pushes");
+  if (camps.length) add("key-band", css("--wash"), camps.length === 1 ? short0(camps[0].label) : "Marketing pushes");
   add("key-dot", css("--s3"), "Guide or demo went live"); add("key-line", css("--muted"), "Stable release");
   const xs = sr.map(s => s.d), vals = sr.map(s => s.v), lo = Math.min(...sr.map(s => s.lo), ...vals), hi = Math.max(...sr.map(s => s.hi), ...vals);
   const stp = [5, 10, 20, 25, 50, 100].find(s => (Math.ceil(hi / s) - Math.floor(lo / s)) <= 6) || 100;
@@ -315,11 +324,14 @@ function renderGrowth() {
   const contentByIdx = {}; ((M.markers || {}).content || []).forEach(c => { const i = idx(c.d); if (i >= 0) contentByIdx[i] = c.items; });
   const stableByIdx = {}; ((M.markers || {}).stables || []).forEach(r => { const i = idx(r.d); if (i >= 0) stableByIdx[i] = r.tag; });
   const spans = camps.map(c => ({ c, r: spanIdx(xs, c.from, c.to) })).filter(x => x.r);
+  const cover = xs.map(() => []); for (const { c, r: [a, b] } of spans) for (let i = a; i <= b; i++) if (!cover[i].includes(c.label)) cover[i].push(c.label);
+  const runs = []; cover.forEach((ls, i) => { if (!ls.length) return; const last = runs[runs.length - 1]; if (last && last[1] === i - 1) last[1] = i; else runs.push([i, i]); });
+  const short = s => s.length > 64 ? s.slice(0, 62) + "…" : s;
   lineChart($("#ns"), { label: "Homes checking in each day", x: xs, y: [y0, y1], ticks, height: 280, top: 30,
     series: [{ band: sr.map(s => [s.lo, s.hi]), color: css("--s1") }, { dots: true, values: vals, color: css("--s1") }, { values: sr.map(s => s.avg), color: css("--s1") }],
     under: (s, X, Y, W, H, m) => {
       const step = (W - m.l - m.r) / Math.max(1, xs.length - 1);
-      for (const { r: [a, b] } of spans) s.append(sv("rect", { x: X(a) - step / 2, y: m.t, width: Math.max(6, X(b) - X(a) + step), height: H - m.t - m.b, fill: css("--wash") }));
+      for (const [a, b] of runs) s.append(sv("rect", { x: X(a) - step / 2, y: m.t, width: Math.max(6, X(b) - X(a) + step), height: H - m.t - m.b, fill: css("--wash") }));
       let lastX = -1e9; for (const [i, tag] of Object.entries(stableByIdx).sort((p, q) => q[0] - p[0])) { s.append(sv("line", { x1: X(+i), x2: X(+i), y1: m.t, y2: H - m.b, stroke: css("--muted"), "stroke-width": 1, opacity: .7 }));
         if (Math.abs(lastX - X(+i)) < 44) continue; lastX = X(+i);
         const tx = sv("text", { x: X(+i) - 3, y: m.t + 9, "text-anchor": "end", "font-size": 10.5, fill: css("--muted") }); tx.textContent = tag; s.append(tx); }
@@ -327,7 +339,7 @@ function renderGrowth() {
     over: (s, X, Y, W, H, m) => { for (const i of Object.keys(contentByIdx)) s.append(sv("circle", { cx: X(+i), cy: m.t - 14, r: 4, fill: css("--s3"), stroke: css("--surface"), "stroke-width": 2 })); },
     tip: i => { const r = [{ text: fmtDay(xs[i]), cls: "m" }, { text: `${sr[i].v} homes`, strong: true, color: css("--s1") }, { text: `7-day average ${sr[i].avg}` }, { text: `normal ${Math.round(sr[i].lo)}–${Math.round(sr[i].hi)}` }];
       if (stableByIdx[i]) r.push({ text: `Stable ${stableByIdx[i]} released` }); if (contentByIdx[i]) contentByIdx[i].forEach(t => r.push({ text: "Live: " + t, color: css("--s3") }));
-      for (const { c, r: [a, b] } of spans) if (i >= a && i <= b) r.push({ text: c.label, color: css("--s2") });
+      const ls = cover[i]; ls.slice(0, 3).forEach(l => r.push({ text: short(l), color: css("--s2") })); if (ls.length > 3) r.push({ text: `+${ls.length - 3} more` });
       return r; } });
   const ba = M.ba, v = $("#ba"); v.replaceChildren();
   if (ba) {

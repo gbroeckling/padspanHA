@@ -123,3 +123,5 @@ button.btn[disabled] { opacity:.55; cursor:progress; }
 .same-age:not(:empty) { margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--grid); }
 /* On a phone, a wide table scrolls inside its card with its first column pinned. */
 @media (max-width:760px) { .tablewrap th:first-child, .tablewrap td:first-child { position:sticky; left:0; background:var(--surface); z-index:1; } }
+.splits { display:grid; gap:4px 16px; grid-template-columns:minmax(0,1fr); margin-top:8px; }
+@media (min-width:980px) { .splits { grid-template-columns:repeat(3,minmax(0,1fr)); } }
