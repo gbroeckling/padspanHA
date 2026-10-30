@@ -1166,6 +1166,9 @@ class PadSpanLightsApp extends HTMLElement {
         .filter(b => b.linked_entity_id).map(b => b.linked_entity_id)),
       doorInvertByEid: doorInvertOf(this.state.model),
       view: this._view,
+      // Every poll builds this card afresh: the map's drawing is patched from
+      // the last one (lights_map.js drawStageSvg), not parsed again whole.
+      patchSvg: true,
       saveView: ()=>this._saveSettings(),
       callWS: (msg)=>this._ws(msg),
       toast: (m,isErr)=>this._toast(m,isErr),
