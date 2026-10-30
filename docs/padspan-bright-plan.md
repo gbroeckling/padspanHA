@@ -197,7 +197,7 @@ without changing a single thing they do see.
 **Keeps:** Mapping (floors, rooms, the fabric, the Lights tab), the Lights
 sidebar panel, a trimmed Settings, a trimmed Health for install problems.
 
-**Drops:** Overview, Pure Live, Follow, Devices, Bluetooth, Presence, Monitor,
+**Drops:** Overview, Live Tracker, Follow, Devices, Bluetooth, Presence, Monitor,
 Training, Calibration, Traceback, Forensics, Occupancy, QA, Sandbox.
 
 **And the entity platforms with them** — every sensor published today describes

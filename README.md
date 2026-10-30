@@ -53,7 +53,7 @@ thermostat and light switches.
 |:-:|:-:|
 | ![NVR-style playback timeline with per-device distance and reliability](./images/traceback-distance.jpg) | ![3D beacon tune with floor stack, auto-cal, and live device positions](./images/beacon-tune-calibration.jpg) |
 
-| Pure Live — Immersive Dashboard | Traceback — Movement Playback |
+| Live Tracker — Immersive Dashboard | Traceback — Movement Playback |
 |:-:|:-:|
 | ![Full-screen 3D map with pan/zoom, floating stats, scanner sonar, and tracked device strip](./images/purelive-immersive.png) | ![NVR-style replay with 3D map, timeline scrubber, and distance travelled per device](./images/traceback-playback-3d.png) |
 
@@ -155,7 +155,7 @@ Formerly "Lights" — renamed because it outgrew the name. One isometric map of 
 See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Live Aboard Guide](./docs/LIVE_ABOARD_GUIDE.md) for the 3D house (Pro). Placement, Automorph and Showcase are PadSpan Pro (or [PadSpan Bright Pro](https://github.com/gbroeckling/padspanBright)) features — see [Editions](#editions) below; a free install still gets floors, rooms and a tap-to-toggle marker per light.
 
 ### UI & Experience
-- **Pure Live mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
+- **Live Tracker mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
 - **20 dedicated views** with Basic and Advanced modes
 - **5-step onboarding wizard** with auto-detection and progress tracking
 - Dark forest-green theme designed for always-on displays

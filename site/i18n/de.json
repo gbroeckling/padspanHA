@@ -103,8 +103,8 @@
    "de": "<b>Beacon-Tune-Kalibrierung</b>3D-Etagenstapel mit Autokalibrierung und Live-Positionen"
   },
   {
-   "en": "<b>Pure Live — Immersive Dashboard</b>Full-screen 3D map with pan/zoom, sonar, and floating stats",
-   "de": "<b>Pure Live – immersives Dashboard</b>3D-Karte im Vollbild mit Verschieben und Zoomen, Sonar und schwebenden Werten"
+   "en": "<b>Live Tracker — Immersive Dashboard</b>Full-screen 3D map with pan/zoom, sonar, and floating stats",
+   "de": "<b>Live-Tracker – immersives Dashboard</b>3D-Karte im Vollbild mit Verschieben und Zoomen, Sonar und schwebenden Werten"
   },
   {
    "en": "<b>Traceback — Movement Playback</b>Replay with 3D map, timeline scrubber, and distance per device",
@@ -363,8 +363,8 @@
    "de": "Oberfläche &amp; Bedienung"
   },
   {
-   "en": "Pure Live immersive full-screen 3D dashboard",
-   "de": "Pure Live: immersives 3D-Dashboard im Vollbild"
+   "en": "Live Tracker immersive full-screen 3D dashboard",
+   "de": "Live-Tracker: immersives 3D-Dashboard im Vollbild"
   },
   {
    "en": "20 dedicated views, Basic and Advanced modes",
@@ -1199,11 +1199,11 @@
   "Floor plan editor": "Grundriss-Editor",
   "Lighting map with floors and rooms": "Lichtkarte mit Etagen und Räumen",
   "Live Aboard: the house in 3D at night with its lights on": "Live Aboard: das Haus nachts in 3D, mit eingeschalteten Lichtern",
+  "Live Tracker immersive dashboard": "Live-Tracker, immersives Dashboard",
   "Maps library": "Kartenbibliothek",
   "Maps library view": "Ansicht der Kartenbibliothek",
   "PadSpan logo": "PadSpan-Logo",
   "PadSpan running on a wall-mounted panel in the great room, showing the multi-floor map with tracked devices": "PadSpan auf einem Wanddisplay im Wohnzimmer, mit der Karte aller Etagen und den erfassten Geräten",
-  "Pure Live immersive dashboard": "Pure Live, immersives Dashboard",
   "Sandbox dashboard": "Sandbox-Dashboard",
   "Sandbox developer tools": "Sandbox-Entwicklerwerkzeuge",
   "Scanner-device graph": "Scanner-Geräte-Graph",
