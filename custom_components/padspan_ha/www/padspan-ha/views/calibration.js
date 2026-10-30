@@ -141,7 +141,7 @@ export function render(ctx) {
   ]));
 
   // Tab bar
-  const TABS = [["tune","Tune"],["beacon","Beacon Tune"],["setup","Setup"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"],["matrix","Error Matrix"]];
+  const TABS = [["tune","Tune"],["beacon","Beacon Tune"],["setup","Beacon and floor"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"],["matrix","Accuracy by spot"]];
   // Walk a room (calibration_room_walk, off by default): its tab exists only while on.
   const _walkOn = ctx.state.settings?.calibration_room_walk === true;
   if (_walkOn) TABS.push(["walk", "Walk a room"]);
@@ -726,7 +726,7 @@ function _setup(ctx, el, cs, calData) {
   // How-it-works explainer
   wrap.appendChild(el("div", { class: "card", style: "border-color:#52b788" }, [
     el("div", { style: "font-weight:700;font-size:14px;margin-bottom:8px;color:#52b788" },
-      "Phone-Based Calibration (Setup)"),
+      "Phone-Based Calibration (Beacon and floor)"),
     el("div", { style: "font-size:13px;line-height:1.7;color:#b0c4b1" }, [
       el("div", {}, "This tab configures phone-based calibration (Pin & Listen / Roam)."),
       el("div", { style: "margin-top:4px" }, "1. Your phone broadcasts BLE. The house scanners hear it."),
@@ -1045,11 +1045,11 @@ function _pinAndListen(ctx, el, cs, calData) {
     wrap.appendChild(el("div", { class: "card", style: "border-color:#f59e0b" }, [
       el("div", { style: "font-size:13px;color:#f59e0b;font-weight:700" }, "Setup required"),
       el("div", { class: "muted", style: "font-size:12px;margin-top:4px" },
-        "Return to Setup and select your beacon device and floor."),
+        "Go back to the Beacon and floor tab and pick your beacon device and floor."),
       el("button", {
         class: "btn", style: "margin-top:10px",
         onclick: () => { cs.tab = "setup"; ctx.actions.renderRooms(); },
-      }, "Go to Setup"),
+      }, "Go to Beacon and floor"),
     ]));
     return wrap;
   }
@@ -1464,7 +1464,7 @@ function _roam(ctx, el, cs, calData) {
       el("button", {
         class: "btn", style: "margin-top:10px",
         onclick: () => { cs.tab = "setup"; ctx.actions.renderRooms(); },
-      }, "Go to Setup"),
+      }, "Go to Beacon and floor"),
     ]));
     return wrap;
   }
@@ -1972,7 +1972,7 @@ function _modelTab(ctx, el, cs, calData) {
   // Per-scanner path-loss stats
   if (model.path_loss && Object.keys(model.path_loss).length) {
     const plCard = el("div", { class: "card" });
-    plCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Path-Loss Fits"));
+    plCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:10px" }, "Signal vs distance"));
     plCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
       "RSSI = RSSI_1m − 10 · n · log₁₀(d). n > 3 = heavy attenuation (walls/floors). R² > 0.7 = reliable fit."));
     const tbody = el("tbody");
@@ -2165,9 +2165,9 @@ function _matrixTab(ctx, el, cs, calData) {
   }));
 
   const infoCard = el("div", { class: "card" });
-  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Calibration Error Matrix"));
+  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Accuracy by spot"));
   infoCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
-    "Each cell compares a point's known fabric distance to a scanner against the distance that scanner's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that scanner never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk."));
+    "Each cell compares a point's known distance to a scanner (from the room and receiver layout) against the distance that scanner's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that scanner never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk."));
 
   if (anchors.length) {
     const driftColor = { ok: "#52b788", warn: "#f59e0b", bad: "#f87171", unknown: "#4a6052" };
@@ -2541,7 +2541,7 @@ function _tuneTab(ctx, el, cs, calData) {
   wrap.appendChild(el("div", { class: "card", style: "border-color:#52b788" }, [
     el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "Receiver Position Tuning"),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
-      "Drag BLE scanner markers to match their real-world positions. The 3D view matches the Overview map. Saves go to the fabric."),
+      "Drag BLE scanner markers to match their real-world positions. The 3D view matches the Overview map. Saves go to the room and receiver layout."),
   ]));
 
   // ── Constants & state ─────────────────────────────────────────────────────
@@ -3428,7 +3428,7 @@ function _tuneTab(ctx, el, cs, calData) {
       const zBtn = document.createElement("button");
       zBtn.className = "btn inline";
       zBtn.style.cssText = "font-size:10px;padding:2px 10px";
-      zBtn.textContent = "Save Z";
+      zBtn.textContent = "Save height";
       zBtn.title = "Mounting height above this scanner's own floor. Used for 3D distance; survives map syncs.";
       zBtn.addEventListener("click", async () => {
         const v = parseFloat(zInp.value);
@@ -3811,7 +3811,7 @@ function _showPosHelp(ctx) {
       <li><b>Calibration reference</b> &mdash; PadSpan records which Bluetooth scanners can see this
         beacon at this position, and how strong the signal is. Over time, this builds a
         <em>radio fingerprint database</em> that maps signal strengths to physical locations.</li>
-      <li><b>k-NN positioning</b> &mdash; When PadSpan sees a device with similar signal readings
+      <li><b>Matching to calibration points</b> &mdash; When PadSpan sees a device with similar signal readings
         to a known calibration point, it estimates the device's position using k-Nearest Neighbors
         (k-NN). More pinned beacons at accurate positions = better positioning accuracy.</li>
       <li><b>Sub-room tracking</b> &mdash; Unlike room-level presence which only knows "Kitchen" or

@@ -2620,7 +2620,7 @@ export function renderClassic(ctx){
       _ovDistBtn = document.createElement("button");
       _ovDistBtn.className = "btn inline";
       _ovDistBtn.style.cssText = _distStyle(ctx.state._overviewShowDistortion);
-      _ovDistBtn.textContent = ctx.state._overviewShowDistortion ? "\u2192 Distortion ON" : "\u2192 Distortion";
+      _ovDistBtn.textContent = ctx.state._overviewShowDistortion ? "\u2192 Signal distortion ON" : "\u2192 Signal distortion";
       _ovDistBtn.addEventListener("click", () => {
         ctx.state._overviewShowDistortion = !ctx.state._overviewShowDistortion;
         if (ctx.state._overviewShowDistortion) ctx.state._overviewShowHeatmap = false; // mutual exclusion
@@ -3147,7 +3147,7 @@ export function renderClassic(ctx){
         const empty = cs.empty_points || 0;
         const usable = total - empty;
         const color = !usable ? "#f87171" : usable >= (cs.knn_min_required||5) ? "#52b788" : "#f59e0b";
-        const algoName = cs.positioning_algorithm === "rf" ? "RF" : "k-NN";
+        const algoName = cs.positioning_algorithm === "rf" ? "Learned model" : "Calibration match";
         const knnLabel = cs.store_initialized === false ? "Store not loaded" :
           !cs.knn_active ? `Need ${(cs.knn_min_required||5) - usable} more` :
           cs.knn_positioned_objects > 0 ? `${algoName} active (${cs.knn_positioned_objects})` : `${algoName} ready`;
@@ -3548,10 +3548,11 @@ export function renderClassic(ctx){
       const storeOk = cs.store_initialized !== false;
       const knnPos = cs.knn_positioned_objects || 0;
       const color = !storeOk ? "#f87171" : !total ? "#f87171" : empty > 0 ? "#f59e0b" : ready ? "#52b788" : "#f59e0b";
-      const algoLabel = cs.positioning_algorithm === "rf" ? "Random Forest" : "k-NN";
+      const algoLabel = cs.positioning_algorithm === "rf" ? "Learned model" : "Matched to calibration points";
+      const algoTech = cs.positioning_algorithm === "rf" ? "Random Forest" : "k-NN (k-nearest neighbours)";
       const statusText = !storeOk ? "Store not loaded (restart HA)" :
         !total ? "No data" : !ready ? `Need ${(cs.knn_min_required||5) - usable} more` :
-        knnPos > 0 ? `${algoLabel} — ${knnPos} objects positioned` : `${algoLabel} ready (no objects matched yet)`;
+        knnPos > 0 ? `${algoLabel} — ${knnPos} objects positioned` : `${algoLabel} — ready (no objects matched yet)`;
       const parts = [];
       if (cs.manual_points > 0) parts.push(`${cs.manual_points} manual`);
       if (cs.auto_points > 0) parts.push(`${cs.auto_points} auto`);
@@ -3563,10 +3564,10 @@ export function renderClassic(ctx){
         ]),
         el("div",{style:"font-size:11px;color:#94a3b8;margin-top:4px"},
           parts.join(" · ") + (cs.scanners ? ` · ${cs.scanners} scanners` : "") + (cs.maps ? ` · ${cs.maps} maps` : "")),
-        el("div",{style:`font-size:11px;margin-top:4px;color:${color}`},
-          `k-NN: ${statusText}`),
+        el("div",{style:`font-size:11px;margin-top:4px;color:${color}`,title:algoTech},
+          `Positioning: ${statusText}`),
         !storeOk ? el("div",{style:"font-size:11px;margin-top:4px;color:#f87171;font-weight:600"},
-          "CalibrationStore was not loaded at startup. Restart Home Assistant to activate k-NN positioning.") : null,
+          "CalibrationStore was not loaded at startup. Restart Home Assistant to turn on positioning from calibration points.") : null,
         empty > 0 ? el("div",{style:"font-size:11px;margin-top:4px;color:#f59e0b"},
           `${empty} point(s) have no RSSI data — re-calibrate to fix`) : null,
         // k-NN diagnostic: collapsible
@@ -3575,10 +3576,10 @@ export function renderClassic(ctx){
           const diagHdr = el("div",{style:"display:flex;align-items:center;gap:6px;cursor:pointer"});
           const diagArrow = el("span",{style:"font-size:10px;color:#52b788;transition:transform .2s"}, "\u25B6");
           diagHdr.appendChild(diagArrow);
-          diagHdr.appendChild(el("span",{style:"font-weight:600;color:#e2e8f0"}, `${algoLabel} Diagnostic`));
+          diagHdr.appendChild(el("span",{style:"font-weight:600;color:#e2e8f0"}, `${algoLabel}: details`));
           diagWrap.appendChild(diagHdr);
           const diagBody = el("div",{style:"display:none;margin-top:4px"});
-          diagBody.appendChild(el("div",{}, `Cal sources: ${(cs.cal_sources||[]).length} · Live EMA sources: ${(cs.ema_sources||[]).length} · Overlap: ${cs.source_overlap}`));
+          diagBody.appendChild(el("div",{}, `Cal sources: ${(cs.cal_sources||[]).length} · Live signal sources: ${(cs.ema_sources||[]).length} · Overlap: ${cs.source_overlap}`));
           if (cs.source_overlap === 0) diagBody.appendChild(el("div",{style:"color:#f87171;font-weight:600;margin-top:3px"},
             "No scanner overlap between calibration data and live objects — cannot match!"));
           if (cs.source_overlap === 0 && (cs.cal_sources||[]).length > 0 && (cs.ema_sources||[]).length > 0)
@@ -3586,7 +3587,7 @@ export function renderClassic(ctx){
               `Cal: ${(cs.cal_sources||[]).slice(0,3).join(", ")} · Live: ${(cs.ema_sources||[]).slice(0,3).join(", ")}`));
           (cs.knn_diag||[]).forEach(d => {
             diagBody.appendChild(el("div",{style:"margin-top:3px;border-top:1px solid #1b3526;padding-top:3px"}, [
-              el("div",{}, `${d.key}: ${d.ema_scanners} EMA, ${d.shared_with_cal} overlap cal`),
+              el("div",{}, `${d.key}: ${d.ema_scanners} smoothed, ${d.shared_with_cal} overlap cal`),
               d.knn_result ? el("div",{style:"color:#52b788"},
                 `→ conf=${(d.knn_result.confidence*100).toFixed(0)}% room=${d.knn_result.room} k=${d.knn_result.k_used} shared=${d.knn_result.shared_scanners||"?"}`) :
                 el("div",{style:"color:#f87171"}, d.shared_with_cal > 0 ? "→ locate returned null" : "→ no shared scanners"),
@@ -3950,8 +3951,8 @@ export function renderClassic(ctx){
     const _hasFabric = Object.keys(ctx.state.model?.scanner_positions_m || {}).length > 0 || Object.keys(ctx.state.model?.room_geometry_m || {}).length > 0;
     if (_hasMaps && !_hasFabric) {
       section.appendChild(el("div",{style:"padding:10px 14px;border:2px solid #f59e0b;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px"},[
-        el("div",{style:"font-weight:700;color:#fbbf24;font-size:13px"},"\u26a0 Positioning fabric not built yet"),
-        el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px"},"Go to Mapping \u2192 Rooms and place scanners and draw rooms there \u2014 the positioning fabric builds from that automatically, there is nothing separate to migrate."),
+        el("div",{style:"font-weight:700;color:#fbbf24;font-size:13px"},"\u26a0 Room and receiver layout not built yet"),
+        el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px"},"Go to Mapping \u2192 Rooms and place scanners and draw rooms there \u2014 the layout builds from that automatically, there is nothing separate to migrate."),
       ]));
     }
   }

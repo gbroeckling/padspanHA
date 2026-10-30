@@ -75,9 +75,9 @@ export function renderWalk(ctx, el, cs, calData, h) {
     wrap.appendChild(el("div", { class: "card", style: "border-color:#f59e0b" }, [
       el("div", { style: "font-size:13px;color:#f59e0b;font-weight:700" }, "Setup required"),
       el("div", { class: "muted", style: "font-size:12px;margin-top:4px" },
-        "Pick the phone or tag you will carry, and the floor, in Setup first."),
+        "Pick the phone or tag you will carry, and the floor, in the Beacon and floor tab first."),
       el("button", { class: "btn", style: "margin-top:10px", onclick: () => { cs.tab = "setup"; ctx.actions.renderRooms(); } },
-        "Go to Setup"),
+        "Go to Beacon and floor"),
     ]));
     return wrap;
   }

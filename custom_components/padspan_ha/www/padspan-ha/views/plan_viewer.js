@@ -461,7 +461,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
       sep2d2.style.cssText = "width:1px;height:16px;background:#334155;margin:0 2px";
       filterBar.appendChild(sep2d2);
       if (_radioMapOn) filterBar.appendChild(makeFilterBtn("radioMap", "Radio Map", "#e879f9"));
-      if (_distortionOn) filterBar.appendChild(makeFilterBtn("distortion", "Distortion", "#fb923c"));
+      if (_distortionOn) filterBar.appendChild(makeFilterBtn("distortion", "Signal distortion", "#fb923c"));
     }
     filterBar.appendChild(helpBtn("overview_2d_controls"));
     outer.appendChild(filterBar);

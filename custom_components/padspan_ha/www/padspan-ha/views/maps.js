@@ -1960,7 +1960,7 @@ function _edit(ctx, map, allMaps){
   const modeRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios"),
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms"),
-    el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "RF Barriers"),
+    el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Signal walls"),
     el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure"),
     ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
@@ -2483,7 +2483,7 @@ function _edit(ctx, map, allMaps){
         ]));
       }
     } else if(ctx.state.maps._mode==="barriers"){
-      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "RF Barrier tools"));
+      right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "Signal wall tools"));
 
       // Material selector
       const matSel = document.createElement("select");
@@ -2539,7 +2539,7 @@ function _edit(ctx, map, allMaps){
       right.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:6px"}, bDrawing
         ? `Drawing: ${bPts} point${bPts!==1?"s":""} placed. Click on map to add, double-click or Finish to complete.`
         : (_wallTx()
-            ? "Click on the map to start drawing a wall. It is stored in metres in the fabric the moment you finish."
+            ? "Click on the map to start drawing a wall. It is stored in metres in the room and receiver layout the moment you finish."
             : "Measure this map first (Measure tool): walls are stored in metres, and this map has no scale yet.")));
 
       // Door/window marking (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 3):
@@ -2699,7 +2699,7 @@ function _edit(ctx, map, allMaps){
           layersDiv.appendChild(row);
         }
         const clearAllBtn = el("button",{class:"btn inline",style:"margin-top:6px",onclick: async ()=>{
-          if(!confirm(`Delete all ${bList.length} wall(s) on this floor from the fabric?`)) return;
+          if(!confirm(`Delete all ${bList.length} wall(s) on this floor from the layout?`)) return;
           for (const bar of bList) await _removeWall(bar.id);
           ctx.state.maps._selectedBarrierId = null;
           renderAll(); renderTools();
@@ -2777,7 +2777,7 @@ function _edit(ctx, map, allMaps){
 
       // "Enclose" button — auto-generate RF barriers along all edges of this room's polygon
       const encloseBtn = el("button",{class:"btn inline", style:"color:#f59e0b;border-color:#92400e",
-        title:"Add weak RF barriers (3 dB) along every edge of this room's boundary polygon — models thin interior walls",
+        title:"Add weak signal walls (3 dB) along every edge of this room's boundary polygon — models thin interior walls",
         onclick: async ()=>{
         const r2 = ctx.state.maps._selectedRoom;
         if(!r2){ ctx.toast("Choose a room first.", true); return; }
@@ -3039,7 +3039,7 @@ function _edit(ctx, map, allMaps){
       const _fabTx = (ctx.state.model?.map_transforms || {})[map.id];
       if (_fabTx && _fabTx.scale_x_m) {
         mPanel.appendChild(el("div",{style:"font-size:11px;color:#52b788;margin-top:8px"},
-          `Current fabric scale: ${_fabTx.scale_x_m.toFixed(1)}m \u00d7 ${_fabTx.scale_y_m.toFixed(1)}m`));
+          `Current layout scale: ${_fabTx.scale_x_m.toFixed(1)}m \u00d7 ${_fabTx.scale_y_m.toFixed(1)}m`));
         mPanel.appendChild(el("div",{style:"font-size:10px;color:#64748b;margin-top:2px"},
           `World origin: (${(_fabTx.origin_x_m||0).toFixed(2)}, ${(_fabTx.origin_y_m||0).toFixed(2)})m \u2014 locked; display edits never move it`));
         // No "Re-anchor origin" button: it sent only the map id, which the
@@ -3048,7 +3048,7 @@ function _edit(ctx, map, allMaps){
         // align editor, which sends the new pose.
       } else if (cal.px_per_meter) {
         mPanel.appendChild(el("div",{style:"font-size:11px;color:#f59e0b;margin-top:8px"},
-          `Legacy map scale: ${cal.px_per_meter.toFixed(1)} px/m (not in fabric yet)`));
+          `Legacy map scale: ${cal.px_per_meter.toFixed(1)} px/m (not in the layout yet)`));
       }
       const resetBtn = el("button",{class:"btn inline",style:"font-size:10px;padding:2px 8px;margin-top:6px;color:#94a3b8"}, "Start Over");
       resetBtn.addEventListener("click", () => { ctx.state.maps._measurePts = []; ctx.state.maps._measurements = []; renderAll(); renderTools(); });
@@ -4226,7 +4226,7 @@ const BRIGHT_PRO_MANUAL = [
     "subsections": [
       {
         "heading": "What your licence unlocks",
-        "body": "PadSpan Bright already shows every light on your map. Tap one to switch it, or tap and hold for brightness and colour. Without a Bright Pro key, unplaced lights stay grouped in the middle of their rooms and the placement and styling tools are switched off.\n\nA Bright Pro key lets you place each fixture where it really hangs, rotate it, set its shape and size, and use the Showcase, Isolux, Scene and Ripple map tools. Correcting a light that PadSpan has mistaken for the wrong type is a separate PadSpan Pro feature. Your sidebar does not depend on either key: a Bright build always shows Mapping, Health and Settings.",
+        "body": "PadSpan Bright already shows every light on your map. Tap one to switch it, or tap and hold for brightness and colour. Without a Bright Pro key, unplaced lights stay grouped in the middle of their rooms and the placement and styling tools are switched off.\n\nA Bright Pro key lets you place each fixture where it really hangs, rotate it, set its shape and size, and use the Showcase, Light spread, Scene and Ripple map tools. Correcting a light that PadSpan has mistaken for the wrong type is a separate PadSpan Pro feature. Your sidebar does not depend on either key: a Bright build always shows Mapping, Health and Settings.",
         "steps": [],
         "notes": []
       },
@@ -4372,7 +4372,7 @@ const BRIGHT_PRO_MANUAL = [
         "heading": "Add interior walls (optional)",
         "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
         "steps": [
-          "In the Edit tab, click RF Barriers.",
+          "In the Edit tab, click Signal walls.",
           "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to in Rooms) gets a railing; anywhere else it stays an open gap.",
           "Click along the wall on the photo, one point per corner or bend.",
           "Click Undo point to remove the last point.",
@@ -4461,11 +4461,11 @@ const BRIGHT_PRO_MANUAL = [
     "intro": "The buttons above the map change only what you see. They do not change saved placements, sizes or rotations. A marker's outline colour identifies the type of device.",
     "subsections": [
       {
-        "heading": "The view buttons: Showcase, Isolux, Scene and Ripple",
-        "body": "Showcase draws fixtures in their current colours and adds light pools and shadows. It does not move a fixture or stop you from editing it.\n\nFit room appears when Showcase is on. It keeps a fixture's drawing inside its room with a small gap at the walls. Your saved size and rotation do not change.\n\nIsolux adds contour bands showing the estimated spread from each fixture's position and brightness.\n\nScene previews four colour layouts: Sunset, Dusk, Ember and Ocean. Tap Scene to move through them, then tap once more to turn the preview off. The rotate button turns the layout 45° at a time. Your lights do not change until you press Apply; Apply changes only the fixtures that are already on.\n\nRipple waits for you to tap the map, then runs a brightness pulse outward from that point. Only lights that are already on take part.",
+        "heading": "The view buttons: Showcase, Light spread, Scene and Ripple",
+        "body": "Showcase draws fixtures in their current colours and adds light pools and shadows. It does not move a fixture or stop you from editing it.\n\nFit room appears when Showcase is on. It keeps a fixture's drawing inside its room with a small gap at the walls. Your saved size and rotation do not change.\n\nLight spread adds contour bands showing the estimated spread from each fixture's position and brightness.\n\nScene previews four colour layouts: Sunset, Dusk, Ember and Ocean. Tap Scene to move through them, then tap once more to turn the preview off. The rotate button turns the layout 45° at a time. Your lights do not change until you press Apply; Apply changes only the fixtures that are already on.\n\nRipple waits for you to tap the map, then runs a brightness pulse outward from that point. Only lights that are already on take part.",
         "steps": [],
         "notes": [
-          "Showcase, Fit room and Isolux are remembered the next time you open the map. Scene and Ripple are not — they reset when you leave, so a preview never repaints the map on its own."
+          "Showcase, Fit room and Light spread are remembered the next time you open the map. Scene and Ripple are not — they reset when you leave, so a preview never repaints the map on its own."
         ]
       },
       {
@@ -4535,7 +4535,7 @@ const BRIGHT_PRO_MANUAL = [
       },
       {
         "heading": "Checking Health",
-        "body": "Health shows the UI version and build, data mode, refresh time, discovered rooms, scanners and objects, scanner reliability, positioning checks and any problems found by System Critics. Check it when the map is missing data or a scanner or room is behaving unexpectedly.",
+        "body": "Health shows the UI version and build, data mode, refresh time, discovered rooms, scanners and objects, scanner reliability, positioning checks and the Problems found list. Check it when the map is missing data or a scanner or room is behaving unexpectedly.",
         "steps": [],
         "notes": []
       }
@@ -7779,7 +7779,7 @@ export async function _commitDoorCircle(ctx, mapState) {
     const detail = nearestName
       ? ` Nearest wall ("${nearestName}") is ${nearestGapM > 0 ? nearestGapM.toFixed(2) + "m past the circle's own edge" : "already inside the circle, but not crossing its boundary twice"} — floor "${fid}", circle r=${circle.r_m.toFixed(2)}m at (${circle.x_m.toFixed(2)}, ${circle.y_m.toFixed(2)}).`
       : "";
-    ctx.toast("Move or resize the circle so it crosses a wall — either an RF Barrier or a room's own edge." + detail, true);
+    ctx.toast("Move or resize the circle so it crosses a wall — either a signal wall or a room's own edge." + detail, true);
     return;
   }
   const bar = match.bar;
@@ -9953,7 +9953,7 @@ function _lightsTab(ctx, maps, active) {
     onIsolux: async (v) => {
       mapState._lightsIsolux = v;
       try { await ctx.actions.settingsSet({ lights_isolux: v }); }
-      catch (e) { ctx.toast("Could not save Isolux: " + String(e), true); }
+      catch (e) { ctx.toast("Could not save Light spread: " + String(e), true); }
       ctx.actions.renderRooms();
     },
     // Automorph (Garry, 2026-09-07): same remembered-rendering-mode pattern
@@ -10746,12 +10746,12 @@ function _roomsTab(ctx, maps) {
   const fabricFloors = ctx.state.model?.fabric_floors || {};
 
   card.appendChild(el("div", { class: "card-head", style: "margin-bottom:4px" }, [
-    el("div", { style: "font-weight:700;font-size:15px" }, "The Fabric — rooms and scanners, in metres"),
+    el("div", { style: "font-weight:700;font-size:15px" }, "Room and receiver layout, in metres"),
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "The real-world model the positioning engine uses — edited directly, in metres, with no floor " +
     "plan involved. Green pins are your scanners: drag one to say where it actually is. " +
-    "Compare the saved fabric against the other forms of truth (your hand-tuned stack alignment, " +
+    "Compare the saved layout against the other forms of truth (your hand-tuned stack alignment, " +
     "or each photo's own calibration), refine, and only then commit the best layout. " +
     "Click a room to select it (Shift-click for a group), drag to move, drag a corner to reshape."));
 
@@ -10833,7 +10833,7 @@ function _roomsTab(ctx, maps) {
       },
     }, "+ Add room"));
     addRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-      "Exists in the fabric only — no Home Assistant area or floor plan required."));
+      "Exists in the layout only — no Home Assistant area or floor plan required."));
     card.appendChild(addRow);
   }
 
@@ -11114,7 +11114,7 @@ function _roomsTab(ctx, maps) {
   // are tellable apart when stacked: fabric solid, placements dotted.
   const _blendLabeledSets = () => {
     const sets = [];
-    if (blendSources.fabric && Object.keys(fabricDraft).length) sets.push({ key: "fabric", label: "Fabric", rooms: fabricDraft, dashKind: null });
+    if (blendSources.fabric && Object.keys(fabricDraft).length) sets.push({ key: "fabric", label: "Saved layout", rooms: fabricDraft, dashKind: null });
     if (blendSources.transforms && candidates.transforms) sets.push({ key: "transforms", label: "Placements", rooms: candidates.transforms.rooms, dashKind: "dot" });
     return sets;
   };
@@ -11180,7 +11180,7 @@ function _roomsTab(ctx, maps) {
       ? ` · ${stats.rooms} rooms · ${stats.clusters > 1 ? "⚠" + stats.clusters : "✓" + (stats.clusters || 0)}`
       : "";
     const fabricStats = { rooms: Object.keys(fabricDraft).length, clusters: _roomClusterCount(Object.entries(fabricDraft)) };
-    const options = [["fabric", "Fabric (saved)", fabricStats]];
+    const options = [["fabric", "Saved layout", fabricStats]];
     if (candidates.transforms) options.push(["transforms", "Map placements", candidates.transforms.stats]);
     if (candidates.blended) options.push(["blended", "Blended", candidates.blended.stats]);
     if (candidates.imported) options.push(["imported", candidates.imported.label, candidates.imported.stats]);
@@ -11200,7 +11200,7 @@ function _roomsTab(ctx, maps) {
       // Which layouts feed the average — the user decides what's credible.
       const srcRow = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:#94a3b8;margin-left:8px" });
       srcRow.appendChild(el("span", {}, "averaging:"));
-      const srcs = [["fabric", "Fabric", Object.keys(fabricDraft).length > 0],
+      const srcs = [["fabric", "Saved layout", Object.keys(fabricDraft).length > 0],
                     ["transforms", "Placements", !!candidates.transforms]];
       for (const [key, label, avail] of srcs) {
         const lbl = el("label", { style: `display:flex;gap:4px;align-items:center;cursor:pointer;${avail ? "" : "opacity:0.4"}` });
@@ -11275,7 +11275,7 @@ function _roomsTab(ctx, maps) {
           `⚠ “${d.map_name}”: its trace and the saved rooms differ by one shared factor (×${d.ratio_x} across, ×${d.ratio_y} down) — one of the two predates a map change.`));
       }
       dRow.appendChild(el("span", { class: "muted", style: "font-size:10px" },
-        "Compare “Fabric (saved)” and “Map placements” over the photo; commit whichever matches the picture. Health → Auto Diagnostics has the full note."));
+        "Compare “Saved layout” and “Map placements” over the photo; commit whichever matches the picture. Health → Auto Diagnostics has the full note."));
       card.appendChild(dRow);
     }
   }
@@ -11892,7 +11892,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         tools.appendChild(el("button", {
           class: "btn inline", style: "color:#f87171;border-color:#f8717140",
           onclick: async () => {
-            if (!confirm(`Delete room "${only}" from the fabric? Its shape, adjacency and scanner assignments go with it.`)) return;
+            if (!confirm(`Delete room "${only}" from the layout? Its shape, adjacency and scanner assignments go with it.`)) return;
             try {
               await ctx.actions.wsCall("padspan_ha/fabric_room_remove", { room: only });
               ctx.toast(`Deleted "${only}"`);
@@ -11962,7 +11962,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               ok++;
             } catch (err) { fail++; console.warn("fabric_rf_barrier_set failed", b.name, err); }
           }
-          ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} fabric correction${ok !== 1 ? "s" : ""} saved`, !!fail);
+          ctx.toast(fail ? `Saved ${ok}, failed ${fail}` : `✔ ${ok} layout correction${ok !== 1 ? "s" : ""} saved`, !!fail);
           mapState._roomsDraftFloorId = null;   // re-copy from refreshed model
           mapState._roomsTruthCache = null;
           mapState._roomsScannerDraft = null;
@@ -12009,7 +12009,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           const rooms = Object.keys(draft);
           const fabricCount = Object.keys(fabricDraft).length;
           const edited = changedRooms.length ? ` (incl. your ${changedRooms.length} edit${changedRooms.length !== 1 ? "s" : ""})` : "";
-          if (!confirm(`Commit this ${cand.label} layout${edited} to the base fabric for "${floorId}"? ${rooms.length} rooms will be written; ${fabricCount > rooms.length ? (fabricCount - rooms.length) + " fabric-only room(s) stay untouched." : "existing shapes with the same names are replaced."}`)) return;
+          if (!confirm(`Commit this ${cand.label} layout${edited} to the saved layout for "${floorId}"? ${rooms.length} rooms will be written; ${fabricCount > rooms.length ? (fabricCount - rooms.length) + " layout-only room(s) stay untouched." : "existing shapes with the same names are replaced."}`)) return;
           const btn = e.currentTarget;
           btn.disabled = true; btn.textContent = "Committing…";
           let ok = 0, fail = 0;
@@ -12028,14 +12028,14 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
               ok++;
             } catch (err) { fail++; console.warn("fabric_correct_room failed", room, err); }
           }
-          ctx.toast(fail ? `Committed ${ok}, failed ${fail}` : `✔ ${cand.label} committed to fabric (${ok} rooms)`, !!fail);
+          ctx.toast(fail ? `Committed ${ok}, failed ${fail}` : `✔ ${cand.label} committed to the layout (${ok} rooms)`, !!fail);
           mapState._roomsDraftFloorId = null;
           mapState._roomsCandDraft = null;
           mapState._roomsTruthCache = null;
           mapState._roomsTruth = "fabric";
           await ctx.actions.modelRefresh();
         },
-      }, `💾 Commit this layout to fabric${changedRooms.length ? ` (${changedRooms.length} edited)` : ""}`));
+      }, `💾 Commit this layout${changedRooms.length ? ` (${changedRooms.length} edited)` : ""}`));
       if (changedRooms.length) {
         pRow.appendChild(el("button", {
           class: "btn inline",
@@ -12055,12 +12055,12 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           mapState._roomsDraft = merged;
           mapState._roomsTruth = "fabric";
           mapState._roomsSel = [];
-          ctx.toast(`${cand.label} loaded into the Fabric editor — refine, then Save corrections`);
+          ctx.toast(`${cand.label} loaded into the layout editor — refine, then Save corrections`);
           ctx.actions.renderRooms();
         },
-      }, "✏ Load into Fabric editor"));
+      }, "✏ Load into the layout editor"));
       pRow.appendChild(el("span", { class: "muted", style: "font-size:11px" },
-        "Drag/reshape rooms right here — nothing reaches the fabric until you commit."));
+        "Drag/reshape rooms right here — nothing reaches the saved layout until you commit."));
       card.appendChild(pRow);
     }
   } else {

@@ -1711,7 +1711,7 @@ const WALKTHROUGHS = [
     summary: "Meet Atlas — the isometric map for lights, fans, sensors, locks and doors. What's free, what needs a key, and how to get there.",
     steps: [
       { title: "What Atlas Is",                          text: "Atlas is one isometric map of every floor, drawn the way an electrician draws a lighting plan, for placing and controlling real devices — lights, fans, locks, motion/temperature/humidity/air-quality sensors, doors and windows — at their real position. It used to be called 'Lights'; it outgrew that name once everything beyond lighting joined it.", svg: _svgAtlasOverview },
-      { title: "Free vs. Pro",                           text: "A free install gets floors, rooms and one marker per light — tap the marker (or its sidebar row) to toggle it. A PadSpan Pro or PadSpan Bright Pro key unlocks the rest: real placement, shapes, every sensor class, doors/locks as RF barriers, Automorph and Showcase.", svg: _svgAtlasEditions },
+      { title: "Free vs. Pro",                           text: "A free install gets floors, rooms and one marker per light — tap the marker (or its sidebar row) to toggle it. A PadSpan Pro or PadSpan Bright Pro key unlocks the rest: real placement, shapes, every sensor class, doors/locks as signal walls, Automorph and Showcase.", svg: _svgAtlasEditions },
       { title: "Getting There",                          text: "Open Mapping → Atlas for the full builder, or turn on the standalone Atlas sidebar panel in Settings for a lighter view without the rest of Mapping.", svg: _svgAtlasNav },
     ],
   },
@@ -1734,7 +1734,7 @@ const WALKTHROUGHS = [
     icon: "🚪",
     summary: "Mark real barriers on the map — doors and windows that block signal, locks you can tap from the plan.",
     steps: [
-      { title: "Mark a Door or Window",                  text: "Mark a door or window on a wall from the Rooms tab's wall list, or draw one directly from the Atlas map, and it becomes a real RF barrier, not just a picture. Set its material — a steel door blocks harder than a hollow-core one — and its live open/closed state draws on the map from the linked sensor.", svg: _svgAtlasDoor },
+      { title: "Mark a Door or Window",                  text: "Mark a door or window on a wall from the Rooms tab's wall list, or draw one directly from the Atlas map, and it becomes a real signal wall, not just a picture. Set its material — a steel door blocks harder than a hollow-core one — and its live open/closed state draws on the map from the linked sensor.", svg: _svgAtlasDoor },
       { title: "Invert for a Backwards Sensor",          text: "Some door/vibration sensors report state:on as closed, not open. If a door on the map seems to show the wrong state, check the Invert toggle next to Delete in the wall list — it flips the reading without touching the sensor itself.", svg: _svgAtlasInvert },
       { title: "Locks on the Map",                       text: "Locks placed on Atlas behave like any other fixture — tap to lock or unlock, with the held state shown live.", svg: _svgAtlasLock },
     ],
@@ -1970,7 +1970,7 @@ const MANUAL_SECTIONS = [
     icon: "🎯",
     paragraphs: [
       "Calibration improves room detection accuracy by collecting real signal fingerprints from your home. Instead of relying solely on 'strongest signal wins', PadSpan can match new signals against your calibration data using k-NN (k-Nearest Neighbours).",
-      "Setup tab — choose the BLE device you'll carry (usually your phone) and the floor plan to calibrate on.",
+      "Beacon and floor tab — choose the BLE device you'll carry (usually your phone) and the floor plan to calibrate on.",
       "Pin & Listen tab — tap the map where you're physically standing, then hold still for ~10 seconds. PadSpan records the RSSI from every scanner. Repeat at 15–30 locations spread around your home.",
       "Roam tab — shows a coverage heatmap (10×10 grid). Green = well-covered, red = needs more data. A guided target marker suggests where to collect next.",
       "Model tab — click Compute Model to fit the calibration data. Shows point count, scanner count, and LOO (leave-one-out) cross-validation accuracy. 80%+ is good, 90%+ is excellent. You can export or clear the model here.",
@@ -2259,7 +2259,7 @@ const QUICKSTART_SECTIONS = [
       "Calibration improves room detection accuracy by collecting real signal fingerprints from your home. The default Advanced view exposes two calibration tools:",
       "Tune — a 3D isometric view of your floor plans with draggable scanner markers. Drag each marker to match the scanner's real-world position so PadSpan's distance calculations start from the right place.",
       "Beacon Tune — mark a beacon's physical position on the map, then let PadSpan auto-collect a 60-second RSSI fingerprint from every scanner. Repeat at several locations for best coverage.",
-      "Additional calibration tools (Setup, Pin & Listen, Roam, Model) are available in Development mode for advanced fingerprint collection and model analysis.",
+      "Additional calibration tools (Beacon and floor, Pin & Listen, Roam, Model) are available in Development mode for advanced fingerprint collection and model analysis.",
     ],
   },
   {

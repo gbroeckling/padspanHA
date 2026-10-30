@@ -64,7 +64,7 @@ export function render(ctx){
   const activeTab = ctx.state._monitorTab;
   const setTab = (t) => { ctx.state._monitorTab = t; ctx.actions.renderRooms(); };
 
-  const TABS = [["diagnostics","Diagnostics"],["zones","Zones"],["insights","Insights"],["health","Health"],["diag_export","Diag Export"],["debug","Debug"]];
+  const TABS = [["diagnostics","Calls and timing"],["zones","Zones"],["insights","Signal and coverage"],["health","Quick status"],["diag_export","Export for support"],["debug","Debug"]];
   const tabBar = el("div",{class:"tabs",style:"margin-bottom:14px;flex-wrap:wrap;gap:4px"});
   for(const [id,label] of TABS){
     tabBar.appendChild(el("button",{
@@ -673,7 +673,7 @@ function _health(ctx, el){
     el("div",{class:"mono"},`Radios: ${radios}`),
     el("div",{class:"mono"},`Objects tracked: ${(snap?.objects?.list||[]).length}`),
     el("div",{class:"mono"},`Tags: ${tags}`),
-    el("div",{class:"muted",style:"margin-top:8px"},"For deeper validation, open the Diag Export tab and paste the JSON into chat."),
+    el("div",{class:"muted",style:"margin-top:8px"},"For deeper validation, open the Export for support tab and paste the JSON into chat."),
   ]));
   if(snap?.ble){
     wrap.appendChild(el("div",{class:"card"},[
@@ -710,7 +710,7 @@ async function _fetchCriticsInline(ctx, el, container) {
   }
   container.innerHTML = "";
   container.appendChild(el("div",{class:"card",style:"text-align:center;color:#94a3b8;padding:16px"},
-    "Loading system critics\u2026"
+    "Checking for problems\u2026"
   ));
   try {
     const res = await ctx.actions.callWS({ type: "padspan_ha/system_critics" });
@@ -720,7 +720,7 @@ async function _fetchCriticsInline(ctx, el, container) {
   } catch (err) {
     container.innerHTML = "";
     container.appendChild(el("div",{class:"card",style:"color:#fca5a5"},
-      `Failed to load system critics: ${err.message || err}`
+      `Could not check for problems: ${err.message || err}`
     ));
   }
 }
@@ -744,7 +744,7 @@ function _renderCriticsInline(ctx, el, container, data) {
 
   const banner = el("div",{class:"card",style:`border:1px solid ${bannerColor}33;background:${bannerColor}08`},[
     el("div",{style:`display:flex;align-items:center;gap:8px`},[
-      el("div",{style:`font-weight:800;font-size:14px;color:${bannerColor}`},"System Critics (Phase 4)"),
+      el("div",{style:`font-weight:800;font-size:14px;color:${bannerColor}`},"Problems found"),
       el("div",{class:"pill",style:`background:${bannerColor}22;color:${bannerColor};font-size:10px;padding:2px 8px`},
         summary.healthy ? "HEALTHY" : `${summary.total} ISSUE${summary.total !== 1 ? "S" : ""}`
       ),
@@ -886,7 +886,7 @@ function _diagExport(ctx, el){
   const diagCard = el("div",{class:"card"});
   diagCard.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
     el("div",{},[
-      el("div",{style:"font-weight:700"},"Diagnostics Export"),
+      el("div",{style:"font-weight:700"},"Export for support"),
       el("div",{class:"muted"},"Paste this back into chat when something breaks."),
     ]),
     el("div",{style:"display:flex;gap:8px;align-items:center"},[btnBuild,btnSelect,btnCopy]),

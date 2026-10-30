@@ -2344,7 +2344,7 @@ class PadSpanHaApp extends HTMLElement {
       if(this.state.dataMode === "live") this._startPolling();
       else this._stopPolling();
     } catch (e) {
-      this._toast("Failed to switch data mode. See Diagnostics.", true);
+      this._toast("Failed to switch data mode. The browser console has the details.", true);
       console.error(e);
     }
   }
@@ -2612,7 +2612,7 @@ class PadSpanHaApp extends HTMLElement {
         checks: [{ name:"ws_auto_diagnostics", ok:false, detail:String(e) }],
         recommendations: ["Check Home Assistant logs for padspan_ha errors."],
       };
-      if(userAction) this._toast("Auto diagnostics failed. See Diagnostics.", true);
+      if(userAction) this._toast("Auto diagnostics failed. See Monitor → Export for support.", true);
     }
   }
 

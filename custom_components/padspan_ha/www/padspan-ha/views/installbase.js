@@ -510,7 +510,7 @@ const W_FEATURE = {
   quiet_mode: "Quiet mode (hides unnamed devices)",
   forensics_enabled: "Forensics (Pro)",
   adaptive_floor_detection: "Learns how much each floor blocks signal",
-  distortion_map_enabled: "Distortion Map tab",
+  distortion_map_enabled: "Signal distortion map tab",
   bermuda_ignore: "Ignores Bermuda's data",
   overview_2d_mode: "Overview drawn flat (2D)",
   ha_entity_occupancy_enabled: "Home Assistant: a sensor per room that says if it's occupied",
