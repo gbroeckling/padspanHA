@@ -2277,7 +2277,7 @@ const QUICKSTART_SECTIONS = [
     paragraphs: [
       "PadSpan has three UI modes, cycled by the toggle button in the top-right corner. Every tab is in the menu in every mode: the mode only changes how much detail each tab shows. Tabs outside the main list are under More tools at the bottom of the menu, closed until you open it (PadSpan remembers whether you left it open). Opening a tab from More tools never changes the mode.",
       "Basic — 6 tabs (Follow, Overview, Maps, Calibration, Settings, Training) in the main list; everything else is under More tools. Best for everyday use after initial setup. Includes one-click phone tracking and Quiet Mode.",
-      "Advanced — the main list adds Pure Live, Manage, Traceback, Occupancy and Health. Adds Clear Unidentified, detailed phone tracking status, and more diagnostic info. Devices, Bluetooth, Presence, Monitor, QA, Sandbox and Install Base are under More tools; Settings → UI Structure moves any of the first six into the main list.",
+      "Advanced — the main list adds Live Tracker, Manage, Traceback, Occupancy and Health. Adds Clear Unidentified, detailed phone tracking status, and more diagnostic info. Devices, Bluetooth, Presence, Monitor, QA, Sandbox and Install Base are under More tools; Settings → UI Structure moves any of the first six into the main list.",
       "Development — the same menu as Advanced, with the most detail inside each tab, for debugging and development.",
     ],
   },

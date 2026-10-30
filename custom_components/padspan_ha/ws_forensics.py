@@ -277,7 +277,7 @@ async def ws_forensics_license_activate(hass: HomeAssistant, connection, msg) ->
         from .telemetry import enabled as _report_on  # noqa: PLC0415
         if not _report_on(hass):
             connection.send_result(msg["id"], {"ok": False, "valid": False, "status": "report_off", "message":
-                "A tester key needs the usage report on (Settings → Presence → Usage report), and it stays on while "
+                "A tester key needs the usage report on (Settings → Tracking → Usage report), and it stays on while "
                 "the key runs. Turn it on, then enter the key again."})
             return
     from .settings_store import licence_key_hash as _lk_hash  # noqa: PLC0415
@@ -361,7 +361,7 @@ async def ws_trial_start(hass: HomeAssistant, connection, msg) -> None:
     # The trial card asks for it in the same step (views/trial_offer.js).
     from .telemetry import enabled as _report_on  # noqa: PLC0415
     if not _report_on(hass):
-        connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message": "The free trial needs the usage report on (Settings → Presence → Usage report), and it stays on until the trial ends. Turn it on, then start the trial."})
+        connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message": "The free trial needs the usage report on (Settings → Tracking → Usage report), and it stays on until the trial ends. Turn it on, then start the trial."})
         return
     try:
         import json as _json  # noqa: PLC0415

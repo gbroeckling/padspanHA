@@ -101,7 +101,7 @@ function renderUnlocked(ctx, root) {
   root.appendChild(el("header", { class: "ib-hero" }, [
     el("div", { class: "ib-kicker" }, "PadSpan opt-in reports"),
     el("div", { class: "ib-title-row" }, [el("h1", { class: "ib-h1" }, "Install Base"), helpBtn("installbase")]),
-    el("p", { class: "ib-lede" }, "What the usage reports add up to, from installs that turned the report on (Settings → Presence). Every figure is a count across homes; nothing here says who or where anyone is. Hover a row to see the report's own name for it."),
+    el("p", { class: "ib-lede" }, "What the usage reports add up to, from installs that turned the report on (Settings → Tracking). Every figure is a count across homes; nothing here says who or where anyone is. Hover a row to see the report's own name for it."),
   ]));
 
   if (String(settings.tier || "") !== "pro") {

@@ -70,7 +70,7 @@ export const TRIAL_BUTTON = "Start 90-day free trial";
 export const TRIAL_EMAIL_NOTE = "Your email is only used to send your key; one trial per home.";
 // Every free offer needs the opt-in usage report on (Garry, 2026-10-27).
 // With it off, the card asks in the same step, never switching it silently.
-export const TRIAL_OPTIN_TEXT = "Turn on the usage report (needed for the free trial). It stays on for the whole trial and can't be turned off until the trial ends. It sends anonymous counts of what is used and what breaks, never names, rooms or addresses; Settings → Presence shows exactly what is sent.";
+export const TRIAL_OPTIN_TEXT = "Turn on the usage report (needed for the free trial). It stays on for the whole trial and can't be turned off until the trial ends. It sends anonymous counts of what is used and what breaks, never names, rooms or addresses; Settings → Tracking shows exactly what is sent.";
 export const TRIAL_NOT_ADMIN = "An administrator of this Home Assistant has to start the trial.";
 
 const _EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;

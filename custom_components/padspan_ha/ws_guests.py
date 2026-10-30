@@ -24,7 +24,7 @@ from .guest_tags import (RETENTION_CHOICES, async_get_store, enabled, fire, rete
 from .ws_common import admin_if_enhanced_security
 
 OFF_CODE = "guest_tags_off"
-OFF_MESSAGE = "Guest tags are off. Turn them on in Settings → Presence → Guest tags."
+OFF_MESSAGE = "Guest tags are off. Turn them on in Settings → Tracking → Guest tags."
 _TAG_KINDS = ("ibeacon", "private_ble", "findmy", "ble", "entity")
 
 

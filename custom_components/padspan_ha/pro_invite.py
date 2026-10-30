@@ -153,7 +153,7 @@ async def ws_pro_invite_claim(hass: HomeAssistant, connection, msg) -> None:
     if _rule and not _report_on(hass):
         connection.send_result(msg["id"], {"ok": False, "status": "report_off", "message":
             "This free year needs the usage report on, and it stays on while the year runs. "
-            "Turn it on in Settings → Presence → Usage report, then claim it."})
+            "Turn it on in Settings → Tracking → Usage report, then claim it."})
         return
     # A key someone paid for and that still works would be replaced by a
     # one-year one: refuse, and say how to get the year added instead.

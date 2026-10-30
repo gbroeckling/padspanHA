@@ -101,10 +101,9 @@ export function render(ctx){
       "The Atlas, PadSpan's house map for everyday light control, and Live Aboard, its 3D view: whether the Atlas is in the " +
       "Home Assistant sidebar, what it draws, its outdoor weather, wall screens, and the Atlas as your Overview."],
     ["ui", "UI Structure",
-      "Choose which tabs appear in the sidebar when using Advanced mode. " +
-      "All tabs are always visible in Development mode regardless of these settings. " +
-      "Use this to show only the views you need — for example, enable Devices and Bluetooth for installers, " +
-      "or keep it minimal with just Follow and Overview for end users."],
+      "Every tab is in the sidebar in every mode; the ones not in the main list are under More tools. " +
+      "Tick a tab here to move it into the main list in Advanced and Development mode (Basic keeps its short list). " +
+      "For example, tick Devices and Bluetooth for installers."],
   ];
 
   const tabBar = el("div",{class:"tabs", style:"margin-bottom:14px;flex-wrap:wrap;gap:4px;align-items:center"});

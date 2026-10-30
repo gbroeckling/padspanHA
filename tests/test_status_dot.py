@@ -90,6 +90,8 @@ def test_it_is_labelled_and_not_colour_only() -> None:
     assert ".status-dot-red .status-dot-mark{border-radius:50%;" in css
     assert "clip-path:polygon(50% 0,100% 100%,0 100%)" in css
     assert ".status-dot:focus-visible{" in css
+    # Day theme: a dark amber count (the day rule alone gave 2.3:1 on white).
+    assert ':host([data-theme="day"]) .status-dot-amber{color:#92400e}' in css
 
 
 def test_a_click_opens_health_and_is_counted() -> None:
@@ -100,6 +102,8 @@ def test_a_click_opens_health_and_is_counted() -> None:
     assert 'this.state.view = "health";' in body
     assert '_loadView("health")' in body
     assert "_toast" not in body
+    # Health is in every mode's menu (More tools in Basic): the mode stays.
+    assert "complexity" not in body
     assert "status_dot_open" in T.EVENTS
     assert T.event_allowed("status_dot_open")
     ib = _read(_WWW / "views" / "installbase.js")

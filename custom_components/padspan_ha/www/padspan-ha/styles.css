@@ -222,6 +222,8 @@
 .status-dot-red .status-dot-mark{border-radius:50%;background:#f87171}
 .status-dot-amber{border-color:rgba(245,158,11,.7);background:rgba(245,158,11,.12);color:#fcd34d}
 .status-dot-amber .status-dot-mark{background:#f59e0b;clip-path:polygon(50% 0,100% 100%,0 100%);padding-top:3px;box-sizing:border-box}
+/* Day: the amber count darkened past what day_theme.js's text rule gives (#bf9303, 2.3:1) to 5.8:1. */
+:host([data-theme="day"]) .status-dot-amber{color:#92400e}
 .mobile-topbar .status-dot{margin:0;height:26px}
 .status-dot.status-dot-wall{position:fixed;top:12px;right:12px;z-index:42;margin:0;cursor:default;height:auto;
   padding:.35em .8em .35em .4em;gap:.4em;font-size:clamp(14px,.9vw,28px);background:rgba(40,10,10,.92)}

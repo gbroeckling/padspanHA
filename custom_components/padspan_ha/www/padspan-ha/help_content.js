@@ -147,12 +147,12 @@ export function helpTexts() { return {
   settings: {
     title: t("Settings — Customise PadSpan™"),
     body: [
-      t("In Advanced or Development mode, Settings has tabs: Appearance, Scanner Map, Presence, Features, and UI Structure."),
+      t("In Advanced or Development mode, Settings has tabs: Appearance, Scanner Map, Tracking, Features, AI, Atlas, and UI Structure."),
       t("Appearance — change room colours. Your floors and rooms are read from HA; add or rename them in HA Settings → Areas & Zones."),
       t("Scanner Map — see estimated scanner positions on your floor plans, derived from calibration fingerprint data."),
-      t("Presence — tune room-switching speed and set the Home/Away timeout."),
+      t("Tracking — tune room-switching speed and set the Home/Away timeout."),
       t("Features — turn on experimental features, and the PadSpan Pro licence and Forensics cards live here too."),
-      t("UI Structure — choose which extra tabs appear in Advanced mode. All tabs are always visible in Development mode."),
+      t("UI Structure — tick a tab to move it from More tools into the main list in Advanced and Development mode. Basic keeps its short list."),
       t("In Basic mode only the Appearance tab is shown."),
     ],
   },
@@ -167,7 +167,7 @@ export function helpTexts() { return {
   settings_manage: {
     title: t("Untagging devices and deleting rooms"),
     body: [
-      t("Settings doesn't have its own Manage tab — for this, open the separate Manage entry in the sidebar (Advanced and Development modes)."),
+      t("Settings doesn't have its own Manage tab — for this, open the separate Manage entry in the sidebar (in Basic mode it's under More tools)."),
       t("BLE Tags — every named BLE device is listed with its address, kind, and last-seen time. Click Untag to remove the friendly name (two-click confirm prevents accidents). The device reverts to its hardware address but continues to be tracked."),
       t("Rooms (HA Areas) — lists every area from Home Assistant. Click Delete to remove an area from HA entirely. This also unassigns any scanners in that room. Cannot be undone from within PadSpan — re-add in HA Settings → Areas & Zones if needed."),
       t("The Manage sidebar entry also covers deeper data management — orphan cleanup, entity deletion, integration controls, and Factory Reset."),
@@ -361,11 +361,11 @@ export function helpTexts() { return {
   complexity_mode: {
     title: t("Complexity Mode — Basic / Advanced / Development"),
     body: [
-      t("PadSpan's complexity mode controls how many tabs and features are visible in the sidebar:"),
-      t("BASIC — Shows only the essential tabs: Follow, Overview, Maps, Settings, and Training. Designed for non-technical household members who just want to see where things are."),
-      t("ADVANCED — The default for power users. Shows Basic tabs plus Live Tracker, Manage, Calibration, Traceback, Occupancy, and Health. You can add more tabs (Devices, Bluetooth, Presence, Monitor, QA, Sandbox) in Settings → UI Structure."),
-      t("DEVELOPMENT — Shows everything Advanced does, plus every tab in UI Structure at once (Devices, Bluetooth, Presence, Monitor, QA, Sandbox). Use this when troubleshooting issues or when Claude asks you to check diagnostic data."),
-      t("Changing complexity mode doesn't delete any data — it only controls what's visible in the sidebar. Your settings, calibration, and device data are always preserved."),
+      t("Every screen is in the sidebar in every mode. PadSpan's complexity mode decides which screens are in the main list (the rest are under More tools) and how much detail the screens show:"),
+      t("BASIC — A short main list: Follow, Overview, Mapping, Calibration, Settings, and Training; everything else is under More tools. The screens keep to the essentials. Designed for non-technical household members who just want to see where things are."),
+      t("ADVANCED — The default for power users. The main list adds Live Tracker, Manage, Traceback, Occupancy, and Health; the rest (Devices, Bluetooth, Presence, Monitor, QA, Sandbox and more) are under More tools. Tick a tab in Settings → UI Structure to move it into the main list."),
+      t("DEVELOPMENT — The same menu as Advanced, with more diagnostic detail inside the screens. Use this when troubleshooting issues or when Claude asks you to check diagnostic data."),
+      t("Changing complexity mode doesn't delete any data — it only changes the sidebar's main list and the detail inside screens. Your settings, calibration, and device data are always preserved."),
     ],
   },
 
@@ -379,7 +379,7 @@ export function helpTexts() { return {
       t("PINS OFF hides those markers but leaves unlabelled identified devices visible and dimmed."),
       t("WALLS — Toggles signal wall lines on the 3D map. Walls affect how PadSpan calculates signal propagation between rooms. If walls are drawn on your maps, turning this ON helps you see where signal blockage occurs."),
       t("HEAT — Shows a radio signal coverage overlay on each floor (requires Radio Map enabled in Settings → Features). Green = strong signal, red = weak. This uses your calibration data to visualize where scanners have good coverage and where dead zones exist."),
-      t("WARP (labelled Signal distortion until you first turn it on) — Shows positioning error vectors (requires Distortion Map enabled in Settings → Features). Arrows point from where a device actually is to where PadSpan thinks it is, based on leave-one-out cross-validation of calibration data. Heat and Warp are mutually exclusive — turning one on switches the other off."),
+      t("WARP (labelled Signal distortion until you first turn it on) — Shows positioning error vectors (requires Signal distortion map enabled in Settings → Features). Arrows point from where a device actually is to where PadSpan thinks it is, based on leave-one-out cross-validation of calibration data. Heat and Warp are mutually exclusive — turning one on switches the other off."),
       t("FLOOR SLIDER — Focuses on a specific floor or pair of adjacent floors. 'All floors' shows the full building. Focusing on a single floor makes it larger and easier to see detail."),
       t("GAP — How far apart floors are drawn, vertically, in the isometric stack. Purely visual — it does not change any stored measurement, only how tall the drawing looks."),
       t("L / R — Shifts each floor sideways relative to the one below it, so a staggered building (an upper floor that does not sit directly over the main floor) can be drawn the way it actually looks, instead of every storey stacking straight up."),
@@ -397,7 +397,7 @@ export function helpTexts() { return {
       t("TAGGED — Shows/hides devices that have been given a name (tagged). These are your known devices like phones, keys, and wearables."),
       t("UNKNOWN — Shows/hides unidentified Bluetooth devices. These are anonymous BLE signals — usually other people's phones, fitness trackers, or IoT devices passing nearby."),
       t("RADIO MAP — Signal strength heatmap overlay (requires Radio Map enabled in Settings → Features). Shows where Bluetooth coverage is strong (green) vs weak (red) based on your calibration data."),
-      t("SIGNAL DISTORTION — Positioning error analysis overlay (requires Distortion Map enabled in Settings → Features). Shows where the system's predictions disagree with actual positions."),
+      t("SIGNAL DISTORTION — Positioning error analysis overlay (requires Signal distortion map enabled in Settings → Features). Shows where the system's predictions disagree with actual positions."),
       t("FLOOR SELECTOR — When you have multiple floors, click a floor name to switch. If a floor has multiple maps, they are stitched together into one unified view using their alignment transforms."),
       t("SCANNER SELECTOR — When Radio Map is active, choose 'Combined' to see overall coverage or click a specific scanner name to see that scanner's individual reach."),
       t("Zoom with mouse wheel. Pan by clicking and dragging. Click 'Reset zoom' to return to the default view."),
@@ -428,7 +428,7 @@ export function helpTexts() { return {
 
   // ── Settings Presence ──────────────────────────────────────────────────
   settings_presence: {
-    title: t("Presence Settings — Tuning the Positioning Engine"),
+    title: t("Tracking Settings — Tuning the Positioning Engine"),
     body: [
       t("These sliders control how PadSpan's positioning algorithm behaves. Changes take effect immediately."),
       t("ROOM CHANGE DELAY — How many seconds a device must consistently appear in a new room before PadSpan confirms the move. Higher = more stable (fewer false room changes), lower = faster response. Default: 20s. Range: 0–300s."),
@@ -465,7 +465,7 @@ export function helpTexts() { return {
       t("These features are under active development. Enable them to preview and help test. They may change or be removed."),
       t("WALK-TO-IDENTIFY — Discover unknown BLE devices by walking into a room. PadSpan correlates signal changes with your location to identify who owns which device."),
       t("RADIO MAP — Signal strength heatmap overlay on floor plan maps. Shows coverage from calibration data — green = strong, red = weak. Appears as a toggle button in Overview (2D and 3D)."),
-      t("DISTORTION MAP — Shows where calibration predictions disagree with reality. Renders error arrows on the map so you can see where walls or interference cause positioning problems."),
+      t("SIGNAL DISTORTION MAP — Shows where calibration predictions disagree with reality. Renders error arrows on the map so you can see where walls or interference cause positioning problems."),
       t("PHONE SETUP WIZARD, MAC ROTATION BRIDGING, APPLE DEVICE CLASSIFICATION, RSSI VECTOR CAPTURE — a related group of experimental tools for phones and Apple devices that rotate their Bluetooth address, aimed at keeping a tag attached to a device through those rotations."),
       t("This tab also holds the PadSpan Pro licence card and, once you have a key, the Forensics card — a paid, time-window presence search. Turning Forensics on for the first time asks for a licence key if you don't already have one entered."),
     ],

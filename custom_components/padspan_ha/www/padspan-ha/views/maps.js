@@ -1447,7 +1447,7 @@ function _wizardScanners(ctx, map, maps, w){
   return wrap;
 }
 
-function _wizardFinish(ctx, map, isBasic){
+function _wizardFinish(ctx, map){
   const { el } = ctx.helpers;
   const wrap = el("div",{class:"card"});
   const rooms = map ? Object.keys(map.room_bounds || {}).length : 0;
@@ -1542,9 +1542,9 @@ function _wizardFinish(ctx, map, isBasic){
   const calBtn = el("button",{class:"btn primary"}, "Go to Calibration →");
   calBtn.addEventListener("click", ()=>{
     ctx.state._mapsWizard = null;
-    if (isBasic) ctx.actions.setComplexity("advanced");
     ctx.state.view = "calibration";
     if (ctx.state._calib) ctx.state._calib.tab = "beacon";
+    ctx.actions.renderNav();
     ctx.actions.renderRooms();
   });
   row.appendChild(calBtn);
@@ -1641,7 +1641,7 @@ function _wizard(ctx, maps, isBasic){
   else if (w.step === 2) body.appendChild(_wizardScale(ctx, map, maps, w));
   else if (w.step === 3) body.appendChild(_wizardRooms(ctx, map, maps, w));
   else if (w.step === 4) body.appendChild(_wizardScanners(ctx, map, maps, w));
-  else body.appendChild(_wizardFinish(ctx, map, isBasic));
+  else body.appendChild(_wizardFinish(ctx, map));
   root.appendChild(body);
 
   return root;
