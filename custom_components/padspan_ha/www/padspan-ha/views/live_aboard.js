@@ -4077,6 +4077,7 @@ function createSlot(slotKey){
   const PART_FAILED = {
     read_failed: "Live Aboard's file couldn't be read", save_failed: "Live Aboard's file couldn't be written",
     house3d_newer: "a newer PadSpan saved Live Aboard's file, and this version never changes it",
+    house3d_sample: "this is the sample house; switch to Live to edit your own",
   };
   const why = (err) => PART_FAILED[err && err.code] || String((err && (err.message || err.code)) || err);
   /** Edit's Save: one Save, two writes. The heights the draft changed (from
@@ -4128,7 +4129,8 @@ function createSlot(slotKey){
       if (fileLoad !== mine) return false;
       fileRaw = (r && r.data) || null;
       file = DRAFT.ownedOf(r && r.data);
-      setFileErr(DRAFT.writable(r && r.data, r && r.writable) ? null : "house3d_newer");
+      // Sample mode's house is read-only for its own reason (sample_house.js), not a newer file.
+      setFileErr(DRAFT.writable(r && r.data, r && r.writable) ? null : (r && r.sample ? "house3d_sample" : "house3d_newer"));
       if (editor) editor.fileChanged();                   // an open draft follows what was removed elsewhere
       redraw();
       return true;

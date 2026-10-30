@@ -61,7 +61,7 @@ def test_rooms_is_a_main_setup_screen_in_every_mode() -> None:
         body = re.search(rf"const {name} = new Set\(\[(.*?)\]\)", src).group(1)
         assert '"rooms"' in body, name
     assert '"rooms"' not in src.split("const DEV_ONLY_TABS")[1].split("\n")[0]
-    assert '["Setup",     ["maps","rooms",' in src
+    assert '["Build",     ["maps","rooms",' in src
     assert "rooms:" in src.split("const MENU_ICONS = {")[1].split("};")[0]
 
 
@@ -85,7 +85,7 @@ def test_no_new_storage_and_never_calibration() -> None:
 def test_the_other_screens_link_to_all_rooms() -> None:
     # Through panel.js's one open helper, so each is counted as tab:rooms
     # like "All receivers" is tab:receivers; left out where the build has
-    # no Rooms page (Bright).
+    # no Rooms page (Bright has one since 2026-10-30: tests/test_rooms_bright.py).
     link = 'onclick:()=>ctx.actions.openRooms()}, "All rooms")'
     shown = '(!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el('
     settings, maps = _read("views/settings.js"), _read("views/maps.js")

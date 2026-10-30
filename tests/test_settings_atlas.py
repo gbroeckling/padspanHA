@@ -89,12 +89,13 @@ def test_old_tab_ids_still_open_their_tabs(drawn):
     assert drawn["ui"]["wentTo"] == "atlas"
     # "presence" opens the tab now called Tracking.
     assert len(drawn["presence"]["cards"]) > 20
-    assert 'activeTab === "presence"' in SETTINGS_JS and 'activeTab === "atlas"' in SETTINGS_JS
+    assert 'id === "presence" ? _settingsPresence(ctx, el) :' in SETTINGS_JS and 'id === "atlas" ? _settingsAtlas(ctx, el) :' in SETTINGS_JS
+    assert "root.appendChild(_tabBody(activeTab));" in SETTINGS_JS
     assert '["presence", "Tracking",' in SETTINGS_JS and '["atlas", "Atlas",' in SETTINGS_JS
 
 
 def test_links_to_atlas_settings_point_at_the_new_tab():
-    assert 'ctx.state._settingsTab = "atlas"' in WIZARD_JS and '_settingsTab = "ui"' not in WIZARD_JS
+    assert 'typeof where.settings === "string" ? where.settings : "atlas"' in WIZARD_JS and '_settingsTab = "ui"' not in WIZARD_JS
     for rel in ("views/aboard_wizard.js", "views/live_aboard_library.js", "views/live_aboard_people.js",
                 "views/live_aboard_photo.js", "views/maps.js", "views/overview.js"):
         src = (WWW / rel).read_text(encoding="utf-8")

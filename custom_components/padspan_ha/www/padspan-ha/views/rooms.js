@@ -19,6 +19,45 @@ const { scannersOf, whoIsWhere, followedObj } =
   await import(`./whos_where.js${new URL(import.meta.url).search}`)
     .catch(() => ({ scannersOf: () => [], whoIsWhere: () => [], followedObj: () => false }));
 
+// ── PadSpan Bright (2026-10-30) ─────────────────────────────────────────────
+// Garry: "Bright should get a rooms page, but only items on it that apply to
+// Bright functionality." So in a Bright build each row is the room's colour,
+// outline, ceiling height, split level and the lights in it (counted as the
+// Atlas counts them, lights_map.js, loaded only here). Its receivers and who
+// is in it now are presence: shown exactly when the build shows the Receivers
+// screen (always in the full edition; in Bright only behind the reveal switch).
+const { currentEdition, surfacesForEdition } =
+  await import(`./editions.js${new URL(import.meta.url).search}`)
+    .catch(() => ({ currentEdition: () => "full", surfacesForEdition: (ids) => ids.slice() }));
+// Basic's focused views: a link opens just the part it is about (views/focus.js).
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+
+let _LM = null;            // lights_map.js once loaded; false if it failed
+function _roomLights(ctx) {
+  if (_LM === false) return { failed: true };
+  if (!_LM) {
+    _LM = import(`./lights_map.js${new URL(import.meta.url).search}`)
+      .then(m => { _LM = m; ctx.actions.renderRooms(); }, () => { _LM = false; ctx.actions.renderRooms(); });
+    return null;
+  }
+  if (typeof _LM.then === "function") return null;
+  // The Atlas's own pipeline (maps.js's Atlas tab): the same registry cache,
+  // the same light list, its hidden lights left out.
+  const st = ctx.state, s = st.settings || {};
+  if (!st._lightsRegStore) st._lightsRegStore = {};
+  const reg = st._modelLoaded
+    ? _LM.ensureLightsRegistry(st._lightsRegStore, ctx.hass, (st.model && st.model.areas) || [], () => ctx.actions.renderRooms())
+    : { loading: true };
+  if (reg.loading) return null;
+  const obj = (v) => (v && typeof v === "object" ? v : {});
+  const lights = _LM.gatherLights((ctx.hass && ctx.hass.states) || {}, reg.areaMap, obj(s.light_shapes), s.tier,
+    reg.platformMap, obj(s.light_type_overrides), reg.pairMap, reg.manufacturerMap, undefined, false, st._motionReconnects,
+    new Set(((st.model && st.model.rf_barriers_m) || []).map(b => b.linked_entity_id).filter(Boolean)));
+  const hidden = new Set(Array.isArray(s.lights_hidden) ? s.lights_hidden : []);
+  const shown = lights.filter(l => !hidden.has(l.entity_id));
+  return { of: (room) => { const a = _LM.roomAggregate(shown, room); return { total: a.lightsTotal, on: a.lightsOn }; } };
+}
+
 const okRoom = (r) => typeof r === "string" && r !== "" && r !== "unknown" && r !== "not_home";
 
 /** "#rrggbb" for a stored colour or room_color.js's "hsl(h 70% 55%)". */
@@ -61,6 +100,8 @@ export function roomGroups(ctx) {
   const scannerRoom = model.scanners || {};
   const maps = (ctx.state.maps && ctx.state.maps.list) || [];
   const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
+  // Bright only: the lights in each room (null while the Atlas's list loads).
+  const lit = currentEdition(ctx.state.settings) === "bright" ? _roomLights(ctx) : undefined;
 
   const rooms = areas.filter(a => a && a.name).map(a => ({ name: String(a.name), haId: a.id || null, floorId: String(a.floor_id || "main") }));
   const named = new Set(rooms.map(r => r.name));
@@ -77,8 +118,9 @@ export function roomGroups(ctx) {
 
   // Who is in each room now (the Overview's own "Who's where" reading).
   const now = {};
-  // Not the demo house's people in your own rooms (Sample mode).
-  if (snap && !_isSample(ctx.state)) {
+  // Not the demo house's people in your own rooms (Sample mode): only the
+  // sample house's people in its own rooms (sample_house.js).
+  if (snap && (!_isSample(ctx.state) || (ctx.state.live && ctx.state.live.fromSample))) {
     const h = ctx.helpers || {};
     const opts = {
       followed: (o) => !!(ctx.actions && ctx.actions.followedHas) && followedObj(o, ctx.actions.followedHas),
@@ -112,6 +154,7 @@ export function roomGroups(ctx) {
       receivers: rx[r.name] ? rx[r.name].size : 0,
       people: (now[r.name] && now[r.name].people.map(p => p.name)) || [],
       others: (now[r.name] && now[r.name].others) || 0,
+      ...(lit === undefined ? {} : { lights: !lit ? null : lit.failed ? false : lit.of(r.name) }),
     };
   });
 
@@ -136,8 +179,9 @@ function _go(ctx, view) {
 }
 
 /** Mapping → Edit with the Rooms tool on and the room chosen, on the plan
- *  it is traced on (maps.js finds that one) or else one of its floor's. Basic has no Edit tab, so it
- *  switches to Advanced and says so, as Mapping's own Open does. */
+ *  it is traced on (maps.js finds that one) or else one of its floor's. In
+ *  Basic only the Rooms tool, on that room, with a way back here
+ *  (views/focus.js); Advanced, the whole Edit tab. */
 function _editOutline(ctx, row) {
   ctx.state.maps = ctx.state.maps || {};
   const ms = ctx.state.maps;
@@ -146,13 +190,7 @@ function _editOutline(ctx, row) {
   // plan's unsaved drafts.
   ms._openMode = "rooms";
   ms._openRoom = row.name;
-  if (ctx.state.complexity === "basic") {
-    ctx.actions.setComplexity("advanced");
-    ctx.toast("Drawing a room's outline is in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
-  }
-  ctx.state.view = "maps";
-  if (ctx.actions.renderNav) ctx.actions.renderNav();
-  ctx.actions.setMapsTab("edit");
+  FOCUS.openFocus(ctx, FOCUS.part("roomOutline", { item: row.name, title: "Outline: " + row.name }));
 }
 
 /** The receivers: the Receivers page (panel.js openReceivers, which loads
@@ -218,11 +256,11 @@ function _field(el, label, kids, basis = 130) {
   ]);
 }
 
-// Sample mode shows the demo house everywhere else (Mapping, Receivers):
-// nothing is saved from here then, and nothing counted.
+// Sample mode shows the sample house (its rooms come with it): nothing is
+// saved from here then, and nothing counted.
 const _isSample = (st) => st.dataMode === "sample" && !!st._dataModeKnown;
 
-function _row(ctx, el, row, readOnly = false) {
+function _row(ctx, el, row, readOnly = false, presence = true) {
   const card = el("div", { style: "border-top:1px solid #1b3526;padding:12px 0", "data-room": row.name });
 
   // Name, colour, and where to rename it.
@@ -235,7 +273,7 @@ function _row(ctx, el, row, readOnly = false) {
     el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, row.name),
     row.haId
       ? _haLink(el, `/config/areas/area/${encodeURIComponent(row.haId)}`, "Rename in Home Assistant")
-      : el("span", { class: "muted", style: "font-size:11px", title: "Drawn in PadSpan's layout (Mapping → Rooms) but not an area in Home Assistant" }, "PadSpan only, not a Home Assistant area"),
+      : el("span", { class: "muted", style: "font-size:11px", title: "Drawn in PadSpan's layout (Mapping → Layout) but not an area in Home Assistant" }, "PadSpan only, not a Home Assistant area"),
   ]));
 
   const fields = el("div", { style: "display:flex;flex-wrap:wrap;gap:12px 16px" });
@@ -284,8 +322,16 @@ function _row(ctx, el, row, readOnly = false) {
     onclick: () => { rEdit.style.display = "inline-flex"; rText.style.display = "none"; rLink.style.display = "none"; } }, "Change");
   fields.appendChild(_field(el, "Split level (m up or down)", [rText, rLink, rEdit]));
 
+  // Lights (Bright): how many the Atlas has in the room, and how many are on.
+  if ("lights" in row) {
+    const L = row.lights;
+    fields.appendChild(_field(el, "Lights", [el("span", { "data-lights": "1" },
+      L === null ? "Loading…" : L === false ? "Not available"
+        : L.total ? `${L.total} light${L.total === 1 ? "" : "s"}, ${L.on ? `${L.on} on` : "all off"}` : "None")]));
+  }
+
   // Receivers.
-  fields.appendChild(_field(el, "Receivers", [
+  if (presence) fields.appendChild(_field(el, "Receivers", [
     el("span", {}, row.receivers ? `${row.receivers} receiver${row.receivers === 1 ? "" : "s"}` : "None"),
     el("button", { style: LINKBTN, "data-link": "receivers", onclick: () => _receivers(ctx) }, "See receivers"),
   ]));
@@ -294,7 +340,7 @@ function _row(ctx, el, row, readOnly = false) {
   const nowText = row.people.length
     ? row.people.join(", ") + (row.others ? `, and ${row.others} other device${row.others === 1 ? "" : "s"}` : "")
     : row.others ? `${row.others} unnamed device${row.others === 1 ? "" : "s"}` : "Nobody";
-  fields.appendChild(_field(el, "In it now", [el("span", { "data-now": "1" }, nowText)]));
+  if (presence) fields.appendChild(_field(el, "In it now", [el("span", { "data-now": "1" }, nowText)]));
 
   card.appendChild(fields);
   return card;
@@ -316,12 +362,18 @@ export function render(ctx) {
   head.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-top:6px;line-height:1.5" },
     "Each room's settings in one place. Rooms and floors are your Home Assistant Areas: add or rename them there, then press Refresh. " +
     "Colour, ceiling height and split level save here at once; the outline is drawn on your floor plan in Mapping."
-    + (isBasic ? "" : " The layout in metres is in Mapping → Rooms.")));
+    + (isBasic ? "" : " The layout in metres is in Mapping → Layout.")));
   root.appendChild(head);
   const readOnly = _isSample(ctx.state);
+  // Receivers and people only where the build shows the Receivers screen (not Bright).
+  const presence = surfacesForEdition(["receivers"], ctx.state.settings || {}).length > 0;
   if (readOnly) {
     root.appendChild(el("div", { class: "card", style: "margin-top:12px;font-size:12px", "data-rooms-note": "sample" },
-      "Sample mode is on: your own rooms are shown, without who is in them, and nothing can be changed here until you switch back to Live."));
+      ctx.state.live && ctx.state.live.fromSample
+        ? "Sample mode: these are the sample house's rooms, shown read-only. Switch to Live mode to see and change yours."
+        // The sample house could not load: your own rooms (panel.js reads them then), and nobody in them.
+        : "Sample mode is on but the sample house could not be shown, so these are your own rooms"
+          + (presence ? ", without who is in them" : "") + ". Nothing can be changed here until you switch back to Live."));
   }
 
   const groups = roomGroups(ctx);
@@ -338,7 +390,7 @@ export function render(ctx) {
       el("div", { style: "font-weight:700;font-size:13px;color:#a7f3d0" }, g.floorName),
       el("span", { class: "muted", style: "font-size:12px" }, `${g.rooms.length} room${g.rooms.length === 1 ? "" : "s"}`),
     ]));
-    for (const row of g.rooms) card.appendChild(_row(ctx, el, row, readOnly));
+    for (const row of g.rooms) card.appendChild(_row(ctx, el, row, readOnly, presence));
     root.appendChild(card);
   }
   return root;

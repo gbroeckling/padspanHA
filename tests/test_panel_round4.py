@@ -27,7 +27,7 @@ def test_a_flood_alarm_reset_confirm_survives_the_poll():
     """The banner list was rebuilt every poll, wiping Reset -> Yes/No."""
     s = _src("panel.js")
     assert "if(this._emergencyListSig === _sig && listEl.childElementCount) return;" in s
-    assert 'eid + "=" + (this._hass?.states?.[eid]?.attributes?.friendly_name || "")' in s   # renames show
+    assert 'eid + "=" + (realStates?.[eid]?.attributes?.friendly_name || "")' in s   # renames show
     assert 'this._emergencyListSig = "";     // the next update rebuilds the row' in s
 
 

@@ -63,11 +63,14 @@ const FEW = (n) => `${n} change${n === 1 ? "" : "s"}`;
 const CANT_EDIT = {
   read_failed: "Can't edit: Live Aboard's file couldn't be read (nothing in it was changed). Show Map, then Live Aboard, to try again.",
   house3d_newer: "Can't edit: a newer PadSpan saved Live Aboard's file, and this version never changes it. Update PadSpan to edit it.",
+  // Sample mode (sample_house.js answers house3d_get with sample: true).
+  house3d_sample: "This is the sample house; switch to Live to edit your own.",
 };
 const NOT_SAVED = {
   read_failed: "Not saved: Live Aboard's file couldn't be read, so nothing was changed. Your changes are still here: Save to try again.",
   save_failed: "Not saved: Live Aboard's file couldn't be written, so nothing was changed. Your changes are still here: Save to try again.",
   house3d_newer: "Not saved: a newer PadSpan saved Live Aboard's file, and this version never changes it. Update PadSpan to save these changes.",
+  house3d_sample: "Not saved: This is the sample house; switch to Live to edit your own.",
 };
 
 const CSS = `
@@ -701,7 +704,7 @@ export function createEditor(ctx){
     bUndo.disabled = !on || saving || !draft.canUndo;
     bRedo.disabled = !on || saving || !draft.canRedo;
     const dirty = on && draft.dirty;
-    bSave.disabled = !dirty || saving || problemCode() === "house3d_newer";
+    bSave.disabled = !dirty || saving || problemCode() === "house3d_newer" || problemCode() === "house3d_sample";
     bSave.textContent = saving ? "Saving…" : "Save";
     bDiscard.disabled = !dirty || saving;
     sheet.classList.toggle("busy", saving);

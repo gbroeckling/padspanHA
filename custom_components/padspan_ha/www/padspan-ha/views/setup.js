@@ -15,6 +15,8 @@
 
 const { hasMaps, hasScale, hasRooms, hasReceivers, hasCalibration, undrawnAreaNames } =
   await import(`./setup_status.js${new URL(import.meta.url).search}`);
+// Basic's focused views: a link opens just the part it is about (views/focus.js).
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 
 // setup_checks.SETUP_STEPS, in order (tests/test_guided_setup.py holds them equal).
 export const SETUP_STEPS = ["plan", "scale", "floors", "rooms", "receivers", "calibration"];
@@ -185,14 +187,9 @@ export function openStep(ctx, id) {
     return;
   }
   if (id === "floors") {
-    // Floor Heights is on Mapping → 3D Stack, an Advanced tab (as _openForEdit switches).
-    st._mapsWizard = null;
-    if (st.complexity === "basic" && ctx.actions.setComplexity) {
-      ctx.actions.setComplexity("advanced");
-      ctx.toast("Floor heights are in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
-    }
-    st.mapsTab = "stack";
-    ctx.actions.showView("maps");
+    // Floor Heights, on Mapping → 3D Stack: in Basic only that card
+    // (views/focus.js), under the bar back to Setup; Advanced, the tab.
+    FOCUS.openFocus(ctx, FOCUS.part("floorHeights", { back: { view: "setup", label: "Setup" } }));
     return;
   }
   const maps = (st.maps && st.maps.list) || [];

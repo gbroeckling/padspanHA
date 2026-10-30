@@ -843,7 +843,7 @@ async def test_the_control_a_pad_with_no_rebase_moves_the_whole_map(tmp_path) ->
 # ── One record-usability predicate, in three places ─────────────────────────
 
 
-def test_three_implementations_of_usable_agree() -> None:
+def test_three_implementations_of_usable_agree(tmp_path) -> None:
     """`placement_is_readable`, `metres_to_map_frac` and the panel's
     `metresToMapFrac` are one question asked three times.
 
@@ -884,9 +884,12 @@ def test_three_implementations_of_usable_agree() -> None:
 
     views = (Path(__file__).resolve().parents[1] / "custom_components" /
              "padspan_ha" / "www" / "padspan-ha" / "views")
-    probe = views / "_usable_probe.mjs"
+    # The probe in a temp dir of its own, never in views/: a file that comes
+    # and goes there races another xdist worker's copytree of the panel
+    # (test_live_aboard_library.py), which then fails on the vanished file.
+    probe = tmp_path / "_usable_probe.mjs"
     probe.write_text(
-        "import { metresToMapFrac } from './stack_transform.js';\n"
+        "import { metresToMapFrac } from " + json.dumps((views / "stack_transform.js").as_uri()) + ";\n"
         "const C = " + json.dumps(cases) + ";\n"
         "const out = {};\n"
         "for (const k of Object.keys(C)) out[k] = metresToMapFrac(C[k], 1, 1) !== null;\n"

@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as shim from "./dom_shim.mjs";
+import { pathToFileURL } from "node:url";
 
 const WWW = process.argv[2];
 shim.install(globalThis);
@@ -30,7 +31,9 @@ const tick = () => shim.flush();
 
 let wall = false;
 const VIEWS = { maps: {}, calibration: {} };
-const make = new Function("el", "wallScreen", "VIEWS", "_VIEW_PATHS", "_loadView", elSrc + "\nreturn function(){" + method + "};");
+// Basic's focused views (views/focus.js), as panel.js loads them.
+const _focusPromise = import(pathToFileURL(join(WWW, "views", "focus.js")).href);
+const make = new Function("el", "wallScreen", "VIEWS", "_VIEW_PATHS", "_loadView", "_focusPromise", elSrc + "\nreturn function(){" + method + "};");
 
 function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "scale"], hidden = [], kiosk = false, mode = "live" } = {}){
   const calls = [], events = [], toasts = [];
@@ -42,9 +45,12 @@ function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "sca
     _telemetryEvent: (n) => events.push(n),
     _scheduleRender: () => {}, _renderNav: () => {},
     _setComplexity: (m) => { p.state.complexity = m; }, _toast: (t) => toasts.push(t),
+    // The panel's ctx, as far as views/focus.js uses it (showView forgets a focus, as panel.js's does).
+    _ctx: () => ({ state: p.state, helpers: { el: globalThis.__el },
+      actions: { showView: (id, o) => { if (!(o && o.keepFocus)) p.state._focus = null; p.state.view = id; }, renderNav: () => {}, renderRooms: () => {} } }),
     calls, events, toasts,
   };
-  p.card = make((t, a, c) => globalThis.__el(t, a, c), () => wall, VIEWS, {}, async () => {}).bind(p);
+  p.card = make((t, a, c) => globalThis.__el(t, a, c), () => wall, VIEWS, {}, async () => {}, _focusPromise).bind(p);
   return p;
 }
 globalThis.__el = new Function("return " + elSrc.replace(/^function el/, "function"))();
@@ -111,13 +117,16 @@ const rows = (card) => card ? card.querySelectorAll("[data-accuracy-tips]").map(
   };
   const f = await go("floor_heights"), r = await go("receiver_heights"), s = await go("scale");
   const fa = await go("floor_heights", "advanced");
-  check("fix: floor heights from Advanced: no switch, no toast",
-    fa.state.view === "maps" && fa.state.mapsTab === "stack" && fa.state.complexity === "advanced" && fa.toasts.length === 0,
-    { fa: [fa.state.view, fa.state.mapsTab, fa.state.complexity, fa.toasts] });
-  // Basic's Mapping has no 3D Stack (maps.js sends it to Library): floor heights switches to Advanced and says so.
-  check("fix: floor heights → Maps 3D Stack (Basic switched to Advanced, with a toast), receiver heights → Calibration Tune (still in Basic mode), scale → the map wizard's Measure step",
-    f.state.view === "maps" && f.state.mapsTab === "stack" && f.events.includes("tip_opened:floor_heights")
-    && f.state.complexity === "advanced" && f.toasts.length === 1 && /switched to Advanced/.test(f.toasts[0])
+  await tick(); await tick();
+  check("fix: floor heights from Advanced: the whole 3D Stack tab, no focus, no switch, no toast",
+    fa.state.view === "maps" && fa.state.mapsTab === "stack" && !fa.state._focus && fa.state.complexity === "advanced" && fa.toasts.length === 0,
+    { fa: [fa.state.view, fa.state.mapsTab, fa.state._focus, fa.state.complexity, fa.toasts] });
+  // Basic: only the Floor Heights card (views/focus.js), back to the Overview, and Basic stays Basic.
+  const ff = f.state._focus || {};
+  check("fix: floor heights → only 3D Stack's Floor Heights card in Basic (back to Overview, still Basic, no toast), receiver heights → Calibration Tune (still in Basic mode), scale → the map wizard's Measure step",
+    f.state.view === "maps" && f.state.mapsTab === "stack" && ff.part === "floor_heights" && ff.tab === "stack"
+    && ff.back && ff.back.view === "overview" && f.events.includes("tip_opened:floor_heights")
+    && f.state.complexity === "basic" && f.toasts.length === 0
     && r.state.view === "calibration" && r.state._calibTabRequest === "tune" && r.state.complexity === "basic" && r.events.includes("tip_opened:receiver_heights")
     && s.state.view === "maps" && s.state._mapsWizard && s.state._mapsWizard.step === 2 && s.state._mapsWizard.mapId === "m1" && s.events.includes("tip_opened:scale"),
     { f: [f.state.view, f.state.mapsTab, f.state.complexity, f.toasts], r: [r.state.view, r.state._calibTabRequest, r.state.complexity], s: [s.state.view, s.state._mapsWizard] });

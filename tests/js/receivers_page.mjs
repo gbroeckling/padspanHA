@@ -13,7 +13,7 @@
 //   sample    Sample mode: rows shown, nothing editable, a note
 //   empty     no receivers: an empty state
 //   place     Place / Move opens Mapping → Edit → Radios with it selected
-//             (Basic: the map wizard's Place scanners step)
+//             (in Basic too, as a link: Basic stays Basic)
 //
 // usage: receivers_page.mjs <views dir>
 // prints one JSON line: { name: {ok, detail} }
@@ -337,8 +337,21 @@ const maps = await import(pathToFileURL(join(VIEWS_DIR, "maps.js")).href);
 {
   const ctx = makeCtx([], { complexity: "basic" });
   find(cell(rowOf(R.render(ctx), A), "On a floor plan"), n => n.tagName === "BUTTON").click();
-  check("place (Basic): the map wizard's Place scanners step on that map",
-    ctx.state._mapsWizard && ctx.state._mapsWizard.step === 4 && ctx.state._mapsWizard.mapId === "m1", ctx.state._mapsWizard);
+  const f = ctx.state._focus;
+  check("place (Basic): only Mapping → Edit's Radios tool on that map, back to Receivers, the mode unchanged",
+    !ctx.state._mapsWizard && ctx.state.mapsTab === "edit" && !!f && f.view === "maps" && f.tab === "edit" && f.part === "receivers"
+    && f.item === "rx_k" && f.back && f.back.view === "receivers" && ctx.state.activeMapId === "m1"
+    && ctx.state.complexity === "basic", [ctx.state.mapsTab, f, ctx.state.activeMapId, ctx.state._mapsWizard]);
+  maps.render(ctx); await flush();
+  check("place (Basic): Edit stays open in Basic, on Radios", ctx.state.mapsTab === "edit" && ctx.state.maps._mode === "receivers"
+    && ctx.state.complexity === "basic", [ctx.state.mapsTab, ctx.state.maps._mode]);
+}
+{
+  // Advanced: the whole Edit tab, as before; no focus.
+  const ctx = makeCtx([], { complexity: "advanced" });
+  find(cell(rowOf(R.render(ctx), A), "On a floor plan"), n => n.tagName === "BUTTON").click();
+  check("place (Advanced): Mapping → Edit, no focus", ctx.state.mapsTab === "edit" && !ctx.state._focus && ctx.state.view === "maps",
+    [ctx.state.mapsTab, ctx.state._focus, ctx.state.view]);
 }
 
 console.log(JSON.stringify(results));

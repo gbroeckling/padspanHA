@@ -216,7 +216,7 @@ export function renderClassic(ctx){
   // The demo house says so, with the way back, where it can't be missed.
   const sampleBanner = (modeKnown && dataMode === "sample")
     ? el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid #92400e;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px","data-sample-banner":"1"},[
-        el("span",{style:"font-size:13px;color:#fde68a;flex:1;min-width:12em"}, "You're looking at a made-up house, with every feature set up."),
+        el("span",{style:"font-size:13px;color:#fde68a;flex:1;min-width:12em"}, "You're looking at a sample house, with every feature set up."),
         (() => {
           const b = el("button",{class:"btn inline",style:"font-size:12px;font-weight:700"}, "Back to my house");
           b.addEventListener("click", () => ctx.actions.setDataMode("live"));
@@ -1278,7 +1278,7 @@ export function renderClassic(ctx){
       s += `</defs>`;
 
       if(!sortedIsoLevels.length){
-        s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">No rooms yet — draw them in Mapping → Rooms to build the map</text>`;
+        s += `<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="13">No rooms yet — draw them in Mapping → Layout to build the map</text>`;
         return _finishIso(s);
       }
 
@@ -3952,7 +3952,7 @@ export function renderClassic(ctx){
     if (_hasMaps && !_hasFabric) {
       section.appendChild(el("div",{style:"padding:10px 14px;border:2px solid #f59e0b;background:rgba(245,158,11,.08);border-radius:8px;margin-bottom:10px"},[
         el("div",{style:"font-weight:700;color:#fbbf24;font-size:13px"},"\u26a0 Room and receiver layout not built yet"),
-        el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px"},"Go to Mapping \u2192 Rooms and place scanners and draw rooms there \u2014 the layout builds from that automatically, there is nothing separate to migrate."),
+        el("div",{style:"font-size:11px;color:#e2e8f0;margin-top:4px"},"Go to Mapping \u2192 Layout and place scanners and draw rooms there \u2014 the layout builds from that automatically, there is nothing separate to migrate."),
       ]));
     }
   }

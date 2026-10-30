@@ -18,6 +18,9 @@
 // it hasn't seen") is the honest one, so it leads; the method shown is the
 // one that did better there, fingerprints on a tie. With no held-out result
 // yet, the old estimate (loo_accuracy) is shown and labelled as such.
+// Basic's focused views (views/focus.js).
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
+
 export function houseAccuracy(calData) {
   const ho = calData && calData.heldout;
   const loo = calData && calData.model && calData.model.loo_accuracy;
@@ -139,8 +142,10 @@ function _words(a) {
 
 const _pcColor = (pc) => pc == null ? "#94a3b8" : pc >= 80 ? "#52b788" : pc >= 50 ? "#f59e0b" : "#dc2626";
 
-// The sample house's results (Sample mode), for the five sample rooms.
-// Read-only like everything here; dates are relative to `now`.
+// The small demo house's results, for its five rooms: Sample mode's when the
+// sample house's own (calibration_get from sample_house.js, marked
+// sample: true) are not there. Read-only like everything here; dates are
+// relative to `now`.
 export const SAMPLE_ROOMS = ["Living Room", "Kitchen", "Master Bedroom", "Office", "Guest Room"];
 export function sampleCalibration(now = Date.now()) {
   const per = { "Living Room": 9, "Kitchen": 6, "Master Bedroom": 7, "Office": 4, "Guest Room": 2 };
@@ -204,8 +209,10 @@ function _roomNames(ctx) {
 // deps: { sample, weakestRoom, heldoutLine, openWizard(), goTab(id), telemetry(name) }
 export function renderResults(ctx, el, cs, calData, deps) {
   const sample = !!deps.sample;
-  const data = sample ? sampleCalibration() : (calData || { points: [], model: {} });
-  const roomNames = sample ? SAMPLE_ROOMS : _roomNames(ctx);
+  // Sample mode: the sample house's walk (its rooms are the model's), else the small demo house's.
+  const house = sample && !!(calData && calData.sample === true && Array.isArray(calData.points));
+  const data = house ? calData : sample ? sampleCalibration() : (calData || { points: [], model: {} });
+  const roomNames = sample && !house ? SAMPLE_ROOMS : _roomNames(ctx);
   const tips = _tips(ctx, cs, !sample);
   const action = nextAction({ tips, calData: data, roomNames, weakestRoom: deps.weakestRoom });
   const pts = data.points || [];
@@ -229,17 +236,9 @@ export function renderResults(ctx, el, cs, calData, deps) {
       ctx.actions.renderRooms();
     } else if (kind === "floor_heights") {
       cs._resultsCounted = false;
-      // 3D Stack is Advanced-only (Basic's Mapping sends it to Library):
-      // switch and say so, as the Overview's floor-heights tip does.
-      if (ctx.state.complexity === "basic" && ctx.actions.setComplexity) {
-        ctx.actions.setComplexity("advanced");
-        // ctx.toast, as every view says it (there is no ctx.actions.toast).
-        if (ctx.toast) ctx.toast("Floor heights are in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
-      }
-      ctx.state.view = "maps";
-      if (ctx.actions.renderNav) ctx.actions.renderNav();
-      if (ctx.actions.setMapsTab) ctx.actions.setMapsTab("stack");
-      else { ctx.state.mapsTab = "stack"; ctx.actions.renderRooms(); }
+      // Mapping → 3D Stack's Floor Heights: in Basic only that card, back to
+      // Results (views/focus.js), as the Overview's floor-heights tip does.
+      FOCUS.openFocus(ctx, FOCUS.part("floorHeights"));
     } else if (kind === "start" || kind === "stale" || kind === "guided") {
       deps.openWizard();
     } else {

@@ -13,6 +13,8 @@
  * are on.
  */
 
+// Basic's focused views (views/focus.js).
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 const REFRESH_MS = 10000;
 const AMBER = "#fbbf24";
 
@@ -94,7 +96,8 @@ function _draw(ctx, el, content, data) {
   if (!data.enabled) {
     content.appendChild(_card(el, "Guest tags are off", [
       el("div", { class: "muted", style: "font-size:13px;margin-bottom:10px" }, "Turn them on in Settings → Tracking → Guest tags."),
-      el("button", { class: "btn", onclick: () => { ctx.state.view = "settings"; ctx.state._settingsTab = "presence"; ctx.state._presenceReveal = "phones"; ctx.state._settingsDeep = "presence"; ctx.actions.renderRooms(); } }, "Open Settings"),
+      // Settings → Tracking; in Basic only the Guest tags card (views/focus.js).
+      el("button", { class: "btn", onclick: () => { ctx.state._presenceReveal = "phones"; FOCUS.openFocus(ctx, FOCUS.part("guestTags")); } }, "Open Settings"),
     ]));
     return;
   }

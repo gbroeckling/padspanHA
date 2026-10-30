@@ -122,7 +122,9 @@ def test_become_a_tester_opens_the_reports_section(drawn):
 
 def test_the_guests_link_opens_the_guest_tags_section():
     guests = (VIEWS / "guests.js").read_text(encoding="utf-8")
-    assert 'ctx.state._settingsTab = "presence"; ctx.state._presenceReveal = "phones";' in guests
+    # Settings -> Tracking with its Phones and guest tags section open; in
+    # Basic only the Guest tags card (views/focus.js PARTS.guestTags).
+    assert 'ctx.state._presenceReveal = "phones"; FOCUS.openFocus(ctx, FOCUS.part("guestTags"));' in guests
 
 
 # ── One place per setting ────────────────────────────────────────────────────

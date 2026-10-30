@@ -164,7 +164,8 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
       const data = draft || (got && got.data ? got.data : {});
       m.file = { figures: { ...(data.figures || {}) }, devices: { ...(data.devices || {}) } };
       if (got && got.error) m.warn = got.error;
-      else if (got && got.writable === false) m.warn = "A newer PadSpan saved Live Aboard's file: changes here can't be saved until PadSpan is updated.";
+      else if (got && got.writable === false) m.warn = got.sample ? "This is the sample house; switch to Live to edit your own."
+        : "A newer PadSpan saved Live Aboard's file: changes here can't be saved until PadSpan is updated.";
       m.info = info;
       m.loading = false;
       return m;

@@ -89,7 +89,7 @@ def test_registered_everywhere_a_view_is() -> None:
     for const in ("BASIC_TABS", "ADVANCED_DEFAULT"):
         line = panel.split(f"const {const} = new Set(")[1].split("\n")[0]
         assert '"receivers"' in line, const
-    setup = panel.split('["Setup",')[1].split("\n")[0]
+    setup = panel.split('["Build",')[1].split("\n")[0]
     assert '"receivers"' in setup
     assert "  receivers:   '<" in panel                                  # its menu icon
     assert "receivers" in T.VIEWS and T.event_allowed("tab:receivers")

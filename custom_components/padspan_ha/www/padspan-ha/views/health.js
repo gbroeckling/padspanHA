@@ -15,6 +15,8 @@
 // Cache for critics data — refreshed when view is active
 let _criticsCache = null;
 let _criticsFetchTs = 0;
+// The data mode the caches below were read in: Sample mode's sample house is never shown as Live's.
+let _cacheMode = null;
 const _CRITICS_TTL_MS = 30000; // refresh every 30s
 
 export function render(ctx){
@@ -199,6 +201,7 @@ const _FABRIC_TTL_MS = 15000;
 async function _fetchAndRenderFabric(ctx, container) {
   const { el } = ctx.helpers;
   const now = Date.now();
+  if (_cacheMode !== ctx.state.dataMode) { _cacheMode = ctx.state.dataMode; _fabricCache = null; _criticsCache = null; }
   if (_fabricCache && (now - _fabricFetchTs) < _FABRIC_TTL_MS) {
     _renderFabric(ctx, container, _fabricCache);
     return;
@@ -613,6 +616,7 @@ async function _fetchAndRenderCritics(ctx, container) {
   const now = Date.now();
 
   // Use cache if fresh enough
+  if (_cacheMode !== ctx.state.dataMode) { _cacheMode = ctx.state.dataMode; _fabricCache = null; _criticsCache = null; }
   if (_criticsCache && (now - _criticsFetchTs) < _CRITICS_TTL_MS) {
     _renderCritics(ctx, container, _criticsCache);
     return;

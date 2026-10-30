@@ -1111,7 +1111,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
                     f"{len(_bbs)} rooms form one connected floor plan"
                     if _clusters <= 1 else
                     f"{len(_bbs)} rooms fall into {_clusters} disconnected groups — "
-                    "open Mapping → Rooms and drag the stray group into place"
+                    "open Mapping → Layout and drag the stray group into place"
                 ),
             })
     else:

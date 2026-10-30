@@ -183,8 +183,10 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
     st._mapsWizard.step === 1 && st._mapsWizard.mapId === null && st.activeMapId === null);
   st.view = "setup"; st.complexity = "basic";
   const fc = tool("floors");
-  check("open: Floors opens Mapping → 3D Stack (Floor Heights), switching Basic to Advanced and saying so",
-    st.view === "maps" && st.mapsTab === "stack" && st._mapsWizard === null && st.complexity === "advanced" && fc.some(c => c[0] === "toast"), { tab: st.mapsTab, mode: st.complexity });
+  const ff = st._focus || {};
+  check("open: Floors opens only Mapping → 3D Stack's Floor Heights card in Basic, back to Setup: Basic stays Basic, no toast",
+    st.view === "maps" && st.mapsTab === "stack" && ff.part === "floor_heights" && ff.back && ff.back.view === "setup"
+    && st._setupReturn === "floors" && st._mapsWizard === null && st.complexity === "basic" && !fc.some(c => c[0] === "toast"), { tab: st.mapsTab, mode: st.complexity, ff });
   st.view = "setup";
   tool("calibration");
   check("open: Calibrate opens the guided calibration at its first step",

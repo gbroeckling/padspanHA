@@ -31,7 +31,7 @@ This works for lights, fans, locks, and motion, temperature, humidity, air-quali
 
 ## Doors, windows and locks
 
-Mark a door or window on a wall from the Rooms tab's wall list (or the Atlas map's own door/window tool) and it becomes a real signal wall, not just a picture:
+Mark a door or window on a wall from the Layout tab's wall list (or the Atlas map's own door/window tool) and it becomes a real signal wall, not just a picture:
 
 - **Material** sets attenuation — a steel door blocks a BLE signal harder than a hollow-core one.
 - **Live open/closed state** draws on the map from the linked binary sensor.

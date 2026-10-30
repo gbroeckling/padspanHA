@@ -214,10 +214,15 @@ for (const mode of ["advanced", "basic"]) {
   const root = R.render(ctx);
   q(roomNode(root, "Living Room"), "data-link", "outline").click();
   const ms = ctx.state.maps;
-  check(`link: ${mode}: Edit outline opens Mapping → Edit on the room's plan with the Rooms tool and the room`,
-    ctx.state.view === "maps" && ctx.state.mapsTab === "edit" && ctx.state.activeMapId === "m_ground"
-    && ms._openMode === "rooms" && ms._openRoom === "Living Room" && ctx.state.complexity === "advanced"
-    && (mode === "basic" ? toasts.some(t => /switched to Advanced/.test(t.m)) : toasts.length === 0), { ms, nav, c: ctx.state.complexity });
+  // Basic: only the Rooms tool on that room, back to Rooms (views/focus.js); Advanced: the Edit tab, no focus.
+  const f = ctx.state._focus;
+  const focusOk = mode === "basic"
+    ? !!f && f.view === "maps" && f.tab === "edit" && f.part === "rooms" && f.item === "Living Room" && f.back && f.back.view === "rooms"
+    : !f;
+  check(`link: ${mode}: Edit outline opens Mapping → Edit on the room's plan with the Rooms tool and the room (Basic: only that tool, back to Rooms; the mode unchanged)`,
+    ctx.state.view === "maps" && ctx.state.mapsTab === "edit" && focusOk && ctx.state.activeMapId === "m_ground"
+    && ms._openMode === "rooms" && ms._openRoom === "Living Room" && ctx.state.complexity === mode
+    && toasts.length === 0, { ms, nav, c: ctx.state.complexity, f });
 }
 {
   const { ctx } = makeCtx();

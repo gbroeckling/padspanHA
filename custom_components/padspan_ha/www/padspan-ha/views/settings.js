@@ -22,6 +22,8 @@ const { BUY_URL, PRO_PRICE, proLifetimeWords, proLifetimeOpen, LICENCE_PATH, BRI
 // 📺 Wall screens (views/wall_card.js). Optional: a card that fails to load
 // leaves the rest of Settings as it is.
 const WALLCARD = await import(`./wall_card.js${new URL(import.meta.url).search}`).catch(() => null);
+// Basic's focused views: a link opens one card of a tab (views/focus.js).
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 // Optional too: the tester sign-up must not take the Settings tab with it.
 const { testerSection } = await import(`./tester_signup.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: tester_signup failed to load", err); return { testerSection: () => null }; });
@@ -54,27 +56,34 @@ export function render(ctx){
   const haFloors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
   const haAreas  = (ctx.state.model && Array.isArray(ctx.state.model.areas))  ? ctx.state.model.areas  : [];
 
-  // Basic mode: no tabs, just appearance. A link that opens Settings → Tracking
-  // (state._settingsDeep = "presence": Manage, Guests, the tester sign-up, the
-  // line below) opens it in Basic too, with a way back; leaving Settings by
-  // the menu forgets it (panel.js).
+  // One tab's content, for the tab bar below and for a link's tab in Basic.
+  const _tabBody = (id) =>
+    id === "appearance" ? _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomColor, false) :
+    id === "presence" ? _settingsPresence(ctx, el) :
+    id === "features" ? _settingsFeatures(ctx, el) :
+    id === "ai" ? _settingsAI(ctx, el) :
+    id === "atlas" ? _settingsAtlas(ctx, el) :
+    id === "ui" ? _settingsUI(ctx, el) :
+    _scannerMap(ctx, el, haFloors);
+
+  // Basic mode: no tabs, just appearance. A link from something Basic asks
+  // for (the usage report, a guest tag, the licence, a Live Aboard setting)
+  // opens just that card (state._focus, views/focus.js) with one way back:
+  // nothing else of its tab, and the mode stays Basic.
   if(isBasic){
-    if(ctx.state._settingsDeep === "presence"){
-      root.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;margin-bottom:12px"},[
-        el("button",{class:"btn inline","data-settings-back":"appearance",onclick:()=>{
-          ctx.state._settingsDeep = null; ctx.state._settingsTab = "appearance"; ctx.actions.renderRooms();
-        }},"← Appearance"),
-        el("div",{style:"font-weight:700"},"Settings → Tracking"),
-      ]));
-      root.appendChild(_settingsPresence(ctx, el));
+    const f = FOCUS.focusFor(ctx.state, "settings");
+    if(f){
+      root.appendChild(FOCUS.focusBar(ctx, f));
+      const part = FOCUS.pickPart(_tabBody(f.tab), f.part);
+      root.appendChild(!part ? el("div",{class:"card muted","data-focus-missing":f.part},"This isn't available on this install.")
+        : part.classList.contains("card") ? part : el("div",{class:"card"},[part]));
       return root;
     }
     root.appendChild(_settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomColor, true));
     root.appendChild(el("div",{class:"card",style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px"},[
-      el("span",{class:"muted"},"The usage report, guest tags and receiver settings are under Tracking."),
-      el("button",{class:"btn inline","data-settings-open":"presence",onclick:()=>{
-        ctx.state._settingsDeep = "presence"; ctx.state._settingsTab = "presence"; ctx.actions.renderRooms();
-      }},"Open Tracking →"),
+      el("span",{class:"muted"},"The usage report and guest tags have their own settings."),
+      el("button",{class:"btn inline","data-settings-open":"usage_report",onclick:()=>FOCUS.openFocus(ctx, PART.usageReport)},"Usage report →"),
+      el("button",{class:"btn inline","data-settings-open":"guest_tags",onclick:()=>FOCUS.openFocus(ctx, PART.guestTags)},"Guest tags →"),
     ]));
     return root;
   }
@@ -154,23 +163,13 @@ export function render(ctx){
   }
   root.appendChild(tabBar);
 
-  if(activeTab === "appearance"){
-    root.appendChild(_settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomColor, false));
-  } else if(activeTab === "presence"){
-    root.appendChild(_settingsPresence(ctx, el));
-  } else if(activeTab === "features"){
-    root.appendChild(_settingsFeatures(ctx, el));
-  } else if(activeTab === "ai"){
-    root.appendChild(_settingsAI(ctx, el));
-  } else if(activeTab === "atlas"){
-    root.appendChild(_settingsAtlas(ctx, el));
-  } else if(activeTab === "ui"){
-    root.appendChild(_settingsUI(ctx, el));
-  } else {
-    root.appendChild(_scannerMap(ctx, el, haFloors));
-  }
+  root.appendChild(_tabBody(activeTab));
   return root;
 }
+
+// The cards a link opens on their own in Basic (views/focus.js PARTS) are
+// marked data-focus-part where they are built.
+const PART = FOCUS.PARTS;
 
 // ── Appearance tab ─────────────────────────────────────────────────────────────
 function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomColor, isBasic){
@@ -949,7 +948,7 @@ function _settingsPresence(ctx, el){
       try { await ctx.actions.settingsSet({ guest_retention_days: parseInt(keep.value, 10) }); ctx.toast("Saved"); }
       catch(e){ ctx.toast("Failed to save: " + (e?.message || e), true); }
     });
-    put("phones", el("div",{class:"card",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
+    put("phones", el("div",{class:"card","data-focus-part":"guest_tags",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
         el("div",{class:"h2",style:"margin:0;color:#fbbf24"}, "Guest tags"),
       ]),
@@ -1497,7 +1496,7 @@ function _settingsPresence(ctx, el){
       ]),
     ]));
   }
-  put("privacy", el("div", { class: "card" }, [
+  put("privacy", el("div", { class: "card", "data-focus-part": "usage_report" }, [
     el("div", { class: "h2" }, "Help improve PadSpan"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
@@ -3544,10 +3543,11 @@ function _settingsLicence(ctx, el){
       const go = el("button", { class: "btn inline", "data-licence": "tester",
         style: "font-size:12px;margin-left:6px" }, "Become a tester");
       go.addEventListener("click", () => {
-        ctx.state._settingsTab = "presence";
         ctx.state._testerFocus = true;
         ctx.state._testerScrolled = null;
-        ctx.actions.renderRooms();
+        // Settings → Tracking; in Basic just the report's card, where the
+        // sign-up is (views/focus.js), its back the licence card.
+        FOCUS.openFocus(ctx, PART.usageReport);
       });
       card.appendChild(el("div", { style: "font-size:12px;color:#cbd5e1;margin-top:8px;line-height:1.55" },
         [PRO.TESTER_CARD_BODY_SHORT, go]));
@@ -3610,13 +3610,13 @@ function _settingsFeatures(ctx, el){
     {
       key: "roomplan_import_enabled",
       label: "RoomPlan Import",
-      desc: "Lets Maps → Rooms import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), " +
+      desc: "Lets Maps → Layout import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), " +
             "beside Sweet Home 3D files. Rooms come in as a candidate to review before anything is saved.",
     },
     {
       key: "vacuum_import_enabled",
       label: "Robot Vacuum Import",
-      desc: "Lets Maps → Rooms import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms " +
+      desc: "Lets Maps → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms " +
             "on a floor that has no plans yet. Admins only. A robot already linked keeps working while this is off.",
     },
     {
@@ -3867,7 +3867,7 @@ function _settingsFeatures(ctx, el){
 // (settingsSet would re-render the page and drop unsaved edits elsewhere);
 // the Atlas picks it up at its next settings refresh.
 function _atlasWeatherSection(ctx, el, settings){
-  const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  const box = el("div",{"data-focus-part":"atlas_weather",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🌧️ Outdoor weather"));
   box.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
     "Rain or snow drawn around the house on the Atlas, never over a room or between floors, only while it is actually raining or snowing. " +
@@ -4087,7 +4087,7 @@ function _settingsAI(ctx, el){
   wrap.appendChild(head);
 
   // The AI Task (ws_house3d_photo.py reads it): one for everything here.
-  const card = el("div",{class:"card",style:"margin-bottom:14px"});
+  const card = el("div",{class:"card","data-focus-part":"ai_task",style:"margin-bottom:14px"});
   card.appendChild(el("div",{class:"h2"}, "Your AI"));
   const aiStates = (ctx.hass && ctx.hass.states) || {};
   const aiCur = String(settings.atlas_3d_ai_task_entity || "");
@@ -4147,7 +4147,7 @@ function _settingsAI(ctx, el){
 }
 
 function _atlas3dSection(ctx, el, settings){
-  const box = el("div",{style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
+  const box = el("div",{"data-focus-part":"la3d",style:"margin-top:14px;padding-top:12px;border-top:1px solid #1e3a2a"});
   box.appendChild(el("div",{style:"font-weight:600;font-size:14px;color:#e2e8f0;margin-bottom:4px"},"🏠 Live Aboard"));
   // Experimental for now (Garry, 2026-10-05: label it so in the stable release).
   box.appendChild(el("div",{"data-la3d-experimental":"",style:"display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:1px 8px;margin:0 0 6px"},
@@ -4346,7 +4346,8 @@ function _atlas3dSection(ctx, el, settings){
       into.appendChild(el("div",{"data-la3d-state":key,style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px"},[
         el("span",{style:"color:#e2e8f0;font-size:13px"}, `${label}: ${checked ? "On" : "Off"}`),
         el("span",{style:"color:#94a3b8;font-size:12px"}, `Switch it in Live Aboard: Views \u25be \u2192 ${_LA_SWITCHED[key]}.`),
-        go,
+        // Mapping → Atlas is the builder, an expert screen: not from Basic.
+        FOCUS.expertLinks(ctx.state) ? go : null,
       ]));
       into.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 0;line-height:1.5"}, hint));
       return;
@@ -4732,7 +4733,7 @@ function _settingsAtlas(ctx, el){
   // Overview (a presence surface) — there is no Overview there to change.
   const ovShown = surfacesForEdition(["overview"], settings).length > 0;
   const ovPro = tierAtLeast(settings.tier, "pro");
-  const ovCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
+  const ovCard = el("div",{class:"card","data-focus-part":"atlas_overview",style:"padding:16px;margin-top:20px"});
   ovCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"},"\uD83D\uDDFA\uFE0F Overview \u2014 the Atlas as your main map"));
   ovCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
     "Overview, the first tab, shows the Atlas (your lights, devices and rooms, and Live Aboard if it's on) instead of the classic map. The classic Overview moves under Live Tracker, which gets a switch between the two."));

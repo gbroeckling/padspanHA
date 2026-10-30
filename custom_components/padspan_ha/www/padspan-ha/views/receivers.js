@@ -28,6 +28,8 @@
 
 const SD = await import(`./status_dot.js${new URL(import.meta.url).search}`);
 const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`).catch(() => null);
+// Basic's focused views: a link opens just the part it is about (views/focus.js).
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 
 // "Devices heard now": distinct addresses this receiver heard in the last minute.
 export const HEARD_NOW_S = 60;
@@ -131,8 +133,8 @@ export function viewRows(rows, { sort = "name", dir = 1, problems = false } = {}
 }
 
 // Mapping's placement, opened on this radio: the map it is on (or the map of
-// its floor), Edit → Radios with it selected; in Basic, where Mapping has no
-// Edit tab, the map wizard's Place scanners step (the same editor).
+// its floor), Edit → Radios with it selected. In Basic only the Radios tool,
+// its height row included, with a way back here (views/focus.js).
 function _openPlacement(ctx, row) {
   const maps = (ctx.state.maps && ctx.state.maps.list) || [];
   const mapId = (row.placed && row.placed.mapId)
@@ -140,8 +142,8 @@ function _openPlacement(ctx, row) {
     || (maps.some(m => m && m.id === ctx.state.activeMapId) ? ctx.state.activeMapId : null)
     || (maps[0] && maps[0].id) || null;
   ctx.state.maps = ctx.state.maps || {};
-  ctx.state.view = "maps";
   if (!mapId) {
+    ctx.state.view = "maps";
     ctx.state._mapsWizard = { step: 1, mapId: null };
     if (ctx.actions.renderNav) ctx.actions.renderNav();
     ctx.actions.renderRooms();
@@ -150,12 +152,9 @@ function _openPlacement(ctx, row) {
   ctx.state.activeMapId = mapId;
   // One-shot, read by maps.js once its Edit draft is loaded.
   ctx.state.maps._openRadios = { rxId: (row.placed && row.placed.rxId) || null };
-  if (ctx.actions.renderNav) ctx.actions.renderNav();
-  if (ctx.state.complexity === "basic") {
-    ctx.state._mapsWizard = { step: 4, mapId };
-    ctx.actions.renderRooms();
-  } else if (ctx.actions.setMapsTab) ctx.actions.setMapsTab("edit");
-  else { ctx.state.mapsTab = "edit"; ctx.actions.renderRooms(); }
+  const name = row.name || "";
+  FOCUS.openFocus(ctx, FOCUS.part("receiverPlace", { item: (row.placed && row.placed.rxId) || null,
+    title: (row.placed ? "Move: " : "Place: ") + name }));
 }
 
 const INPUT = "width:68px;background:#071008;border:1px solid #2d4a38;color:#e2e8f0;padding:5px 7px;border-radius:8px;font-size:12px";

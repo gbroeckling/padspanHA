@@ -249,7 +249,7 @@ export function whosWhereCard(ctx){
   // The guided Setup (views/setup.js): plan, scale, floors, rooms, receivers,
   // calibration, in order, each opening its own tool.
   mapBtn.addEventListener("click", () => ctx.actions.showView("setup"));
-  const demoBtn = el("button", { class: "btn inline", style: "font-size:12px", title: "A made-up house with every feature set up. Your own house is one click away." }, "Preview a finished house");
+  const demoBtn = el("button", { class: "btn inline", style: "font-size:12px", title: "A sample house with every feature set up. Your own house is one click away." }, "Preview a finished house");
   demoBtn.addEventListener("click", () => ctx.actions.setDataMode("sample"));
   foot.appendChild(mapBtn);
   foot.appendChild(demoBtn);

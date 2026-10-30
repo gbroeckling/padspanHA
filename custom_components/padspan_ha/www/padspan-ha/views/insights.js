@@ -17,10 +17,12 @@
  */
 
 let _cache = null, _loading = null, _loadingDays = null, _error = null, _days = 7;
+let _cacheMode = null;   // the data mode _cache was read in: the real house's is never shown in Sample mode, nor the reverse
 
 export function render(ctx) {
   const { el, helpBtn } = ctx.helpers;
   const root = el("section", { id: "insights" });
+  if (_cacheMode !== ctx.state.dataMode) { _cacheMode = ctx.state.dataMode; _cache = null; _error = null; }
 
   root.appendChild(el("div", { class: "row", style: "align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap" }, [
     el("h2", {}, "Insights"),

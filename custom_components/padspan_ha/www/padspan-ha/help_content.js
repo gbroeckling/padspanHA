@@ -130,7 +130,7 @@ export function helpTexts() { return {
     title: t("Map library — Your uploaded floor plans"),
     body: [
       t("The library shows all the floor plans you've uploaded."),
-      t("In Sample mode, a demonstration home (Smith Residence) is shown so you can explore how the feature works without uploading anything."),
+      t("In Sample mode, a sample house on three floors is shown so you can explore how the feature works without uploading anything."),
       t("Switch to Live mode and go to the Upload tab to add your own floor plans."),
     ],
   },
@@ -182,7 +182,7 @@ export function helpTexts() { return {
       t("Calls and timing — websocket call counts, timing, scanner performance, advertisement freshness, and session info. The Per-Scanner Breakdown table shows each scanner's device count, average RSSI, and quality grade."),
       t("Zones — every room as a card sorted by occupancy. Occupied rooms have a coloured border; empty rooms are dimmed. Click a room card to see its detail. Rooms are grouped by floor when configured in HA."),
       t("Signal and coverage — charts for room occupancy, scanner signal quality, devices moving between rooms, coverage gaps, and devices by type."),
-      t("Quick status — the current Problems found results described below. Export for support — press Build export to collect the current diagnostics as JSON, then copy it (to attach to a support request or a GitHub issue). Long lists are cut to 200 entries, but every device you tagged or follow is always kept. Debug — show the values the panel is currently using for troubleshooting."),
+      t("Quick status — a way to the Health page, which has the system checks and the Problems found list. Export for support — press Build export to collect the current diagnostics as JSON, then copy it (to attach to a support request or a GitHub issue). Long lists are cut to 200 entries, but every device you tagged or follow is always kept. Debug — show the values the panel is currently using for troubleshooting."),
     ],
   },
   zones: {
@@ -217,7 +217,7 @@ export function helpTexts() { return {
     body: [
       t("Locate is an option on Follow: pick a tag to follow, then tap 📍 Locate. It answers \"which way do I walk from here to that\" without a compass or a camera. Pick which tracked device is yours — the same one your Phone Setup Wizard or IRK setup already tracks — and it guides you to the tag you are following."),
       t("If you're in the same room already, Locate shows the live distance in metres between you, with \"getting closer\" or \"getting further\" as you move."),
-      t("If you're in a different room, Locate walks a path over your drawn room-adjacency map (Mapping → Rooms) and tells you which room to head to next, with the full route shown as a trail. If a floor change is needed it says so up front. If no route is drawn between the two rooms yet, it tells you the target's room and floor so you can head there directly."),
+      t("If you're in a different room, Locate walks a path over your drawn room-adjacency map (Mapping → Layout) and tells you which room to head to next, with the full route shown as a trail. If a floor change is needed it says so up front. If no route is drawn between the two rooms yet, it tells you the target's room and floor so you can head there directly."),
       t("This deliberately does not use your phone's compass — indoors, near BLE scanners and building wiring, a magnetic compass is not reliable enough to trust. Locate is a PadSpan Pro feature, and needs \"you\" set to a tracked device to work at all."),
     ],
   },

@@ -44,10 +44,10 @@ def test_opening_calibration_never_switches_basic_to_advanced() -> None:
     gs = src[src.index("if (s.wizardStep) {"):]
     gs = gs[:gs.index("this.state.view = s.view;")]
     assert 'complexity = "advanced"' not in gs
-    # Nor does the tester sign-up: its Settings -> Tracking opens in Basic too.
+    # Nor does the tester sign-up: in Basic it opens the report's card alone.
     signup = src[src.index("  _openTesterSignup(){"):]
     signup = signup[:signup.index("\n  }\n")]
-    assert 'this.state._settingsDeep = "presence";' in signup
+    assert 'F.openFocus(this._ctx(), F.part("usageReport"))' in signup
     assert "complexity" not in signup
     # Mapping's set-up wizard ends with "Go to Calibration": no switch either.
     maps = _read("views/maps.js")

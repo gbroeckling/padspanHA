@@ -641,8 +641,8 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                     ),
                     "action": (
                         "Don't redraw these rooms by hand to compensate — that discards real "
-                        "data to paper over a stale scale. In Mapping → Rooms, switch Layout to "
-                        "“Map placements” to preview this floor's rooms as this map's "
+                        "data to paper over a stale scale. In Mapping → Layout, pick “Map placements” "
+                        "in its Layout row to preview this floor's rooms as this map's "
                         "current placement implies them; if that preview looks right, Save "
                         "commits it over the current fabric."
                     ),
@@ -675,10 +675,10 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                         "the trace predates a trim/rotate that moved the picture under it."
                     ),
                     "action": (
-                        "In Mapping → Rooms, compare Layout “Fabric (saved)” against "
+                        "In Mapping → Layout, compare its Layout row's “Saved layout” and "
                         "“Map placements” over the floor photo — whichever matches the "
                         "picture is the good record. If “Map placements” matches, commit it. "
-                        "If “Fabric (saved)” matches, the trace is stale: re-upload this "
+                        "If “Saved layout” matches, the trace is stale: re-upload this "
                         "map's original image (Mapping → Edit → Replace image), check the "
                         "trace sits correctly on it, then redo the trim — from 0.38.10 the "
                         "trace follows every image edit."

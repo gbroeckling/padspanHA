@@ -212,8 +212,9 @@ def test_one_overview_card_per_page_load_and_basic_mode_reaches_the_sign_up():
     slot = src[src.index("const _ms = this._proInviteOverviewCard()"):][:200]
     assert slot.index("_proInviteOverviewCard") < slot.index("_testerOverviewCard") < slot.index("_trialMilestoneCard")
     sign = src[src.index("_openTesterSignup(){"):][:600]
-    # Basic reaches it without a mode switch: the link opens Settings -> Tracking in any mode.
-    assert 'this.state._settingsDeep = "presence";' in sign
+    # Basic reaches it without a mode switch: in Basic just the report's card
+    # (views/focus.js), in Advanced Settings -> Tracking.
+    assert 'F.openFocus(this._ctx(), F.part("usageReport"))' in sign
     assert "complexity" not in sign[:sign.index("\n  }\n")]
 
 

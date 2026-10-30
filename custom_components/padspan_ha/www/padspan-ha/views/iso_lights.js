@@ -3608,7 +3608,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // does not use and cannot draw from.
   if(!rooms.length && !lights.length){
     s+=`<text x="${W/2}" y="${BASE_H/2}" text-anchor="middle" fill="#4a6052" font-size="14">`+
-      `No rooms in the layout yet — build a floor in Mapping → Rooms.</text>`;
+      `No rooms in the layout yet — build a floor in Mapping → Layout.</text>`;
     s+=`</svg>`; return s;
   }
 

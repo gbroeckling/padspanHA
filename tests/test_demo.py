@@ -22,8 +22,10 @@ sys.path.insert(0, str(_DEMO))
 import build as demo_build  # noqa: E402
 
 _WWW = _ROOT / "custom_components" / "padspan_ha" / "www" / "padspan-ha"
+# The estate: the panel's own (Sample mode's sample house), which the demo shows too.
+_ESTATE = [_WWW / "estate.js", _WWW / "sample_house.js"]
 # What the demo shows: its own files, and the panel's Sample mode data.
-_DEMO_DATA = [_DEMO / "fixture.js", _DEMO / "estate.js", _DEMO / "fake_hass.js", _DEMO / "index.html", _WWW / "sample_data.js"]
+_DEMO_DATA = [_DEMO / "fixture.js", *_ESTATE, _DEMO / "fake_hass.js", _DEMO / "index.html", _WWW / "sample_data.js"]
 _MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 _IP = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
@@ -35,7 +37,7 @@ def _text(p: Path) -> str:
 
 
 def test_the_demo_files_have_no_addresses_or_people():
-    for p in [p for p in _DEMO_DATA if p.parent == _DEMO]:
+    for p in [p for p in _DEMO_DATA if p.parent == _DEMO or p in _ESTATE]:
         t = _text(p)
         assert not _MAC.findall(t), p.name
         assert not _IP.findall(t), p.name
@@ -113,9 +115,12 @@ def test_german_guides_open_the_demo_in_german_without_switching_the_site():
 
 def test_the_build_copies_this_checkout(tmp_path):
     out = demo_build.build(tmp_path / "dist")
-    for name in ("index.html", "fake_hass.js", "fixture.js", "estate.js", "demo_settings.json"):
+    for name in ("index.html", "fake_hass.js", "fixture.js", "demo_settings.json"):
         assert (out / name).is_file(), name
     copied = out / "padspan_ha_static" / "padspan-ha"
+    # The estate comes with the panel's files, never as a copy of its own.
+    assert not (out / "estate.js").exists()
+    assert (copied / "estate.js").is_file() and (copied / "sample_house.js").is_file()
     src_files = sorted(p.relative_to(_WWW) for p in _WWW.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
     assert sorted(p.relative_to(copied) for p in copied.rglob("*") if p.is_file()) == src_files
     absolute = re.compile(r"(?<!\.)/padspan_ha_static/")
@@ -146,7 +151,7 @@ def test_the_estate_is_the_main_house():
     them, two residents and a guest wearing a tag lent for the stay (Guest
     tags: the snapshot's tag carries guest = {name, session}). The classic
     house stays for ?house=classic and a new install's first minutes (?fresh=)."""
-    est = _text(_DEMO / "estate.js")
+    est = _text(_WWW / "estate.js")
     assert "export function estateFixture(q)" in est
     rooms = _const(est, "ROOMS")
     floors = {g["floor_id"] for g in rooms.values()}
@@ -167,9 +172,12 @@ def test_the_estate_is_the_main_house():
     assert all({p[0] for p in w["loop"]} <= floors for w in walkers)
     assert len({p[0] for w in walkers for p in w["loop"]}) == 3, "someone goes up and someone goes down"
     fake = _text(_DEMO / "fake_hass.js")
-    assert 'import { estateFixture } from "./estate.js";' in fake
+    # One estate for the website and the panel's Sample mode: the panel's module, at the panel's URL.
+    assert "estate.js" not in "".join(l for l in fake.splitlines() if "import" in l)
+    assert "const SH = await import(`./${WWW}sample_house.js?b=${built.version.build_id}`);" in fake
+    assert "SH.estateFixture(q)" in fake
     assert 'const classic = fresh || q.get("house") === "classic";' in fake
-    assert "...(w.guest ? { guest: clone(w.guest) } : {})" in fake
+    assert "...(w.guest ? { guest: clone1(w.guest) } : {})" in _text(_WWW / "sample_house.js")
 
 
 # Words any house has (rooms, devices, Home Assistant's own): a name made only

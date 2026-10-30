@@ -60,6 +60,8 @@ const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflicti
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 const { renderResults } = await import(`./calibration_results.js${new URL(import.meta.url).search}`);
+// Basic's links (views/focus.js): which lead out to an expert screen.
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 
 // The line to show when the snapshot holds no radios or devices (#88).
 // "Switch to Live mode" only when the server really said Sample; Live (or a
@@ -363,7 +365,9 @@ function _calibWizardFinish(ctx, el, cs, calData) {
     ctx.state.view = "qa";
     ctx.actions.renderRooms();
   });
-  row.appendChild(qaBtn);
+  // QA is a More tools screen for installers: not a step out of Basic
+  // (views/focus.js expertLinks). The tabs here are the same in every mode.
+  if (FOCUS.expertLinks(ctx.state)) row.appendChild(qaBtn);
   const anotherBtn = el("button", { class: "btn inline" }, "+ Calibrate another floor");
   anotherBtn.addEventListener("click", () => {
     cs.mapId = null;

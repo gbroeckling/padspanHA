@@ -272,7 +272,7 @@ function _buildGuidance(ctx, self, target) {
     card.appendChild(el("div", { style: "font-weight:700;font-size:15px;margin-bottom:6px" },
       `Head toward ${target.room}${floorNote ? "" : ""}`));
     card.appendChild(el("div", { class: "muted", style: "font-size:12px" },
-      `No mapped route between ${self.room} and ${target.room} yet — draw room adjacency in Mapping → Rooms to get turn-by-turn steps here.`));
+      `No mapped route between ${self.room} and ${target.room} yet — draw room adjacency in Mapping → Layout to get turn-by-turn steps here.`));
     return card;
   }
 

@@ -41,10 +41,12 @@ const { trialOfferFromCtx } = await import(`./trial_offer.js${new URL(import.met
   .catch(err => { console.warn("PadSpan: trial_offer failed to load", err); return { trialOfferFromCtx: () => null }; });
 
 let _cache = null, _loading = null, _loadingDays = null, _error = null, _days = 7;
+let _cacheMode = null;   // the data mode _cache was read in: the sample house's is never shown as Live's
 
 export function render(ctx) {
   const { el, helpBtn } = ctx.helpers;
   const root = el("section", { id: "busytimes" });
+  if (_cacheMode !== ctx.state.dataMode) { _cacheMode = ctx.state.dataMode; _cache = null; _error = null; }
 
   root.appendChild(el("div", { class: "row", style: "align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap" }, [
     el("h2", {}, "Busy Times"),

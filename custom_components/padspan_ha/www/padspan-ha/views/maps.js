@@ -52,6 +52,8 @@ const { whatIfDelta } =
 const { planHouse, buildHouse } = await import(`./wizard_build.js${new URL(import.meta.url).search}`)
   .catch(() => ({ planHouse: null, buildHouse: null }));
 const TSP = await import(`./tune_save_plan.js${new URL(import.meta.url).search}`).catch(() => null);
+// Basic's focused views (views/focus.js): a link opens one tool or one card.
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 if (TSP) TSP.tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
 const VACUUM = await import(`./vacuum_import.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: vacuum_import failed to load", err); return null; });
@@ -108,6 +110,16 @@ export function render(ctx){
   const activeId = ctx.state.activeMapId || (maps[0] && maps[0].id) || null;
   const active = maps.find(m=>m.id===activeId) || null;
 
+  // Basic, from a link (views/focus.js): just the part it is about, the
+  // editor with one tool or the Floor Heights card, under a "← Back" bar.
+  // No Mapping header or tab bar, so nothing leads into the rest of it.
+  const focus = FOCUS.focusFor(ctx.state, "maps");
+  if (focus) {
+    root.appendChild(FOCUS.focusBar(ctx, focus));
+    root.appendChild(_focused(ctx, focus, active, maps));
+    return root;
+  }
+
   // Setup Wizard — a guided walkthrough that takes over the whole Mapping
   // surface while active (see _wizard below). Short-circuits before the
   // normal tab bar so a household setting up a floor is never shown two
@@ -128,7 +140,7 @@ export function render(ctx){
   // without a key, which left PadSpan Bright's free program with no map at all.
   const tabDefs = isBasic
     ? [["library","Library"],["upload","Upload"]]
-    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Rooms"],["lights","Atlas"],["export","Export"],["help","Help"]];
+    : [["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Layout"],["lights","Atlas"],["export","Export"],["help","Help"]];
 
   // Live Aboard's Furnish (P2), after Atlas: only while Live Aboard shows (the
   // switch on, at Pro or Bright Pro). Otherwise there is no such tab, the way
@@ -137,7 +149,8 @@ export function render(ctx){
   if (furnishTab) tabDefs.splice(tabDefs.findIndex(([id]) => id === "lights") + 1, 0, ["furnish", "Furnish"]);
   else if (tab === "furnish") ctx.state.mapsTab = "lights";
 
-  // If current tab is not in basic tab list, reset to library
+  // If current tab is not in basic tab list, reset to library (a link's
+  // part of another tab is the focus above)
   if(isBasic && tab !== "library" && tab !== "upload"){
     ctx.state.mapsTab = "library";
   }
@@ -198,6 +211,16 @@ export function render(ctx){
   root.appendChild(header);
   root.appendChild(body);
   return root;
+}
+
+// A focused part (views/focus.js), in Basic: Edit with the one tool the link
+// is about (rooms: that room's outline; receivers: that receiver's place and
+// height), or 3D Stack's Floor Heights card on its own.
+function _focused(ctx, f, active, maps){
+  const { el } = ctx.helpers;
+  if (f.tab === "edit") return _edit(ctx, active, maps, { tools: [f.part], focused: true });
+  if (f.part === "floor_heights") return el("div",{class:"card","data-focus-part":"floor_heights"},[_floorHeights(ctx)]);
+  return el("div",{class:"card muted","data-focus-missing":f.part},"This isn't available on this install.");
 }
 
 // ── Tab Button Helper ─────────────────────────────────────────────────────────
@@ -354,16 +377,18 @@ function _compareAllMaps(ctx, maps, resultDiv) {
 // buttons. Each row shows receiver count, dimensions, floor, whether a
 // coverage gap was detected, and its placed size (or "not placed"). Includes
 // the undo-migration banner.
-// Opening a floor plan to edit it lives in Advanced mode: Basic has only
-// Library and Upload, and render() puts any other tab straight back to
-// Library. So in Basic, Open did nothing at all, with no sign why (Jay,
-// 2026-10-04, placing a BLE proxy he had missed). It switches to Advanced,
-// says so, and opens the plan.
+// Basic has only Library and Upload in its tab bar, and render() puts any
+// other tab straight back to Library. So in Basic, Open did nothing at all,
+// with no sign why (Jay, 2026-10-04, placing a BLE proxy he had missed). In
+// Basic it opens the plan in the Setup Wizard at its scale step: Basic's own
+// way through a plan (scale, rooms, scanners), each step with only its tool.
+// Advanced and Development open Edit.
 function _openForEdit(ctx, mapId){
   ctx.actions.mapsSetActive(mapId);
   if (ctx.state.complexity === "basic") {
-    ctx.actions.setComplexity("advanced");
-    ctx.toast("Editing a floor plan is in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
+    ctx.state._mapsWizard = { step: 2, mapId };
+    ctx.actions.renderRooms();
+    return;
   }
   ctx.actions.setMapsTab("edit");
 }
@@ -389,9 +414,13 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     _compareResultDiv,
   ]);
 
-  // Sample mode: always show the demo floor plan regardless of real map count
+  // Sample mode: the sample house's measured floor plans (sample_house.js),
+  // read-only (panel.js refuses every save); the small demo house's drawing
+  // when that house could not load.
   if(ctx.state.dataMode !== "live"){
-    return _sampleDemo(ctx);
+    if(!maps.some(m => /^estate_/.test(String(m.id || "")))) return _sampleDemo(ctx);
+    wrap.appendChild(el("div",{class:"muted","data-maps-note":"sample",style:"margin-top:8px;font-size:12px"},
+      "Sample mode: these are the sample house's floor plans, shown read-only. Switch to Live mode to see and edit yours."));
   }
 
   if(!maps.length){
@@ -1366,6 +1395,12 @@ function _wizardForceEditMode(ctx, w, mode){
   }
 }
 
+// In Basic a wizard step's editor has only that step's tool (no Signal walls
+// or Sub-zones beside it); Advanced and Development keep every tool there.
+function _wizardTools(ctx, mode){
+  return ctx.state.complexity === "basic" ? { tools: [mode] } : undefined;
+}
+
 // The Back / Skip / Next bar every wizard step ends with. `opts.skip` gates
 // whether a Skip button appears at all (a step already satisfied, e.g. scale
 // already set, shows Skip so re-doing it is optional, not mandatory); `onNext`
@@ -1426,7 +1461,7 @@ function _wizardScale(ctx, map, maps, w){
     "Rooms can be drawn without this, but wall attenuation and any real-world measurement need it, so it's worth doing now while you're here."));
   if (done) wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     "✓ Scale is set for this house."));
-  wrap.appendChild(_edit(ctx, map, maps));
+  wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "measure")));
   wrap.appendChild(_wizardFooter(ctx, w, { skip: !done, skipLabel: "Skip — set this later" }));
   return wrap;
 }
@@ -1455,7 +1490,7 @@ function _wizardRooms(ctx, map, maps, w){
     }
     wrap.appendChild(check);
   }
-  wrap.appendChild(_edit(ctx, map, maps));
+  wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "rooms")));
   wrap.appendChild(_wizardFooter(ctx, w, { skip: drawnCount < areaNames.length, skipLabel: "Skip — finish rooms later" }));
   return wrap;
 }
@@ -1469,7 +1504,7 @@ function _wizardScanners(ctx, map, maps, w){
     "Place a marker for every Bluetooth scanner on this floor, where it's actually mounted. Double-click the map to add one, then drag it into position."));
   wrap.appendChild(el("div",{style:"margin-bottom:10px;padding:8px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:6px;color:#a7f3d0;font-size:13px"},
     count ? `${count} scanner${count===1?"":"s"} placed on this floor.` : "No scanners placed on this floor yet."));
-  wrap.appendChild(_edit(ctx, map, maps));
+  wrap.appendChild(_edit(ctx, map, maps, _wizardTools(ctx, "receivers")));
   wrap.appendChild(_wizardFooter(ctx, w, { skip: count === 0, skipLabel: "Skip — place scanners later", nextLabel: "Finish →" }));
   return wrap;
 }
@@ -1550,7 +1585,7 @@ function _wizardFinish(ctx, map){
           const r = await buildHouse(ctx, traced, { planPins, refresh: () => ctx.actions.modelRefresh() });
           const done = [r.rooms ? n(r.rooms, "room") : "", r.scanners ? n(r.scanners, "scanner") : ""].filter(Boolean).join(" and ");
           const left = r.failed.length + r.notConvertible.length + r.otherPlan.length;
-          const where = "Mapping → Rooms and Calibration → Tune show them";
+          const where = "Mapping → Layout and Calibration → Tune show them";
           ctx.toast(done
             ? `${done} now on the map${left ? `; ${left} couldn't be (${where})` : ""}.`
             : `Nothing could be put on the map${left ? `: ${left} couldn't be (${where})` : ""}.`, !done || !!left);
@@ -1753,9 +1788,19 @@ function _rxHeightRow(ctx, sel, rerender){
 // Draft state is kept on ctx.state.maps._draft* so edits survive tab switches
 // within the same session. Changes are only persisted on explicit "Save Layout".
 // Also includes Trim Image and Rotate Image sub-panels.
-function _edit(ctx, map, allMaps){
+//
+// opts.tools: the only tools offered (Basic's wizard steps and focused views:
+// one of receivers, rooms, measure); the Signal walls tool's Enclose goes
+// with them. opts.focused (Basic, a link's part, views/focus.js): no map or
+// floor switch, Trim, Rotate, Suggest Placement or "All rooms / receivers"
+// either, so the one task is all there is.
+function _edit(ctx, map, allMaps, opts){
   const { el, roomColor, helpBtn } = ctx.helpers;
   const card = el("div",{class:"card"});
+  const _tools = (opts && Array.isArray(opts.tools) && opts.tools.length) ? opts.tools : null;
+  const _toolOk = (m) => !_tools || _tools.includes(m);
+  const _focused = !!(opts && opts.focused);
+  if(_focused) card.setAttribute("data-focus-part", _tools ? _tools.join(" ") : "edit");
 
   if(!map){
     card.appendChild(el("div",{class:"muted"},"No map selected. Go to Library or Upload tab."));
@@ -1833,6 +1878,11 @@ function _edit(ctx, map, allMaps){
     ctx.state.maps._mode = "receivers";
     if(_want && ctx.state.maps._draftReceivers.some(r=>r.id===_want)) ctx.state.maps._selectedRxId = _want;
   }
+  // Only the tools offered: anything else open goes to the first of them.
+  if(_tools && !_tools.includes(ctx.state.maps._mode)){
+    ctx.state.maps._mode = _tools[0];
+    ctx.state.maps._drawing = null;
+  }
 
   // Cache-buster: map.updated changes on every trim/replace so the browser fetches fresh content
   const url = map.image && map.image.filename
@@ -1875,7 +1925,7 @@ function _edit(ctx, map, allMaps){
   }
   mapSel.onchange = ()=>{ ctx.actions.mapsSetActive(mapSel.value); };
 
-  const titleBtns = el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end"},[
+  const titleBtns = el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end"}, _focused ? [] : [
     el("div",{class:"muted", style:"font-size:12px"},"Map:"),
     mapSel,
     el("div",{class:"muted", style:"font-size:12px"},"Floor:"),
@@ -1891,7 +1941,9 @@ function _edit(ctx, map, allMaps){
   const title = el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},[
     el("div",{},[
       el("div",{style:"font-weight:700"}, `Edit: ${map.name || map.id}`),
-      el("div",{class:"muted", style:"font-size:12px"}, "Place receivers and then draw room boundaries. Save when done."),
+      el("div",{class:"muted", style:"font-size:12px"}, !_focused ? "Place receivers and then draw room boundaries. Save when done."
+        : _toolOk("rooms") ? "Draw the room's outline on the plan, then Save Layout."
+        : "Drag the receiver to where it is mounted and set its height, then Save Layout."),
     ]),
     titleBtns,
   ]);
@@ -2070,11 +2122,11 @@ function _edit(ctx, map, allMaps){
   const right = el("div",{class:"card", style:"margin-top:10px"},[]);
   const _modeHelp = {"receivers":"Double-click map to place radio; drag to reposition","rooms":"Click map to add points; double-click to finish","barriers":"Click to draw wall segments; double-click to finish","measure":"Click two points you know the real distance between","subzones":"Click points around the bed, couch or desk; double-click to finish"};
   const modeRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[
-    el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios"),
-    el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms"),
-    el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Signal walls"),
-    el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure"),
-    ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []),
+    _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios") : null,
+    _toolOk("rooms") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), "data-edit-tool":"rooms", onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms") : null,
+    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Signal walls") : null,
+    _toolOk("measure") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), "data-edit-tool":"measure", style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure") : null,
+    ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), "data-edit-tool":"subzones", onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []).filter(() => _toolOk("subzones")),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
     helpBtn("maps_edit"),
   ]);
@@ -2416,7 +2468,7 @@ function _edit(ctx, map, allMaps){
     right.appendChild(modeRow);
 
     // ── Suggest Placement button ──────────────────────────────────────────────
-    {
+    if(!_focused){
       const polyRooms = Object.values(ctx.state.maps._draftRoomBounds||{})
         .filter(b=>b?.type==="poly" && Array.isArray(b.points) && b.points.length>=3);
       const hasData = polyRooms.length >= 1;
@@ -2519,7 +2571,7 @@ function _edit(ctx, map, allMaps){
       const _sid = ctx.helpers.radioShortId || (src => src.slice(0,3).toUpperCase());
       right.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:14px"},[
         el("div",{class:"muted", style:"font-size:12px;font-weight:600"}, "Live BLE Radios"),
-        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, "All receivers") : null,
+        !_focused && ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, "All receivers") : null,
       ].filter(Boolean)));
       // #88: in Sample mode these are the demo house's radios. Placed on a
       // real plan they'd become phantom scanners at the next Tune → Save.
@@ -2884,7 +2936,7 @@ function _edit(ctx, map, allMaps){
 
       right.appendChild(el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},[
         roomSel,
-        (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"edit", title:"Every room's settings on one page (unsaved outlines stay here until you Save)", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
+        !_focused && (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"edit", title:"Every room's settings on one page (unsaved outlines stay here until you Save)", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
       ]));
 
       // Warning if selected room is already drawn on another map
@@ -2917,7 +2969,7 @@ function _edit(ctx, map, allMaps){
       }}, "Enclose (3dB walls)");
 
       right.appendChild(el("div",{style:"display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"},[
-        startBtn, undoPt, finishBtn, clearBtn, encloseBtn,
+        startBtn, undoPt, finishBtn, clearBtn, _toolOk("barriers") ? encloseBtn : null,
       ]));
 
       const r = ctx.state.maps._selectedRoom;
@@ -3418,7 +3470,7 @@ function _edit(ctx, map, allMaps){
   }}, "Trim Image");
 
   // Insert Trim button into the existing title row buttons (direct reference — no fragile querySelector)
-  if (ctx.hass?.user?.is_admin !== false) titleBtns.insertBefore(trimToggleBtn, titleBtns.firstChild);
+  if (!_focused && ctx.hass?.user?.is_admin !== false) titleBtns.insertBefore(trimToggleBtn, titleBtns.firstChild);
 
   // ── Rotate Image Panel ─────────────────────────────────────────────────
   // Bakes rotation directly into the image file (not a CSS transform) so all
@@ -3432,7 +3484,7 @@ function _edit(ctx, map, allMaps){
   const _canRotate = !_hasStackTieIns;
 
   const rotatePanel = el("div",{style:"display:none;margin-top:10px"});
-  if(_canRotate && url && ctx.hass?.user?.is_admin !== false){
+  if(!_focused && _canRotate && url && ctx.hass?.user?.is_admin !== false){
     let _rotAngle = 0;
     const rotStatus = el("div",{class:"mono",style:"font-size:12px;margin-top:6px"}, "0°");
 
@@ -3558,8 +3610,7 @@ function _edit(ctx, map, allMaps){
       picStatus, picInput,
     ]));
   }
-  card.appendChild(rotatePanel);
-  card.appendChild(trimPanel);
+  if(!_focused){ card.appendChild(rotatePanel); card.appendChild(trimPanel); }
   card.appendChild(stage);
   card.appendChild(info);
   card.appendChild(right);
@@ -4345,7 +4396,7 @@ const BRIGHT_PRO_MANUAL = [
     "subsections": [
       {
         "heading": "What your licence unlocks",
-        "body": "PadSpan Bright already shows every light on your map. Tap one to switch it, or tap and hold for brightness and colour. Without a Bright Pro key, unplaced lights stay grouped in the middle of their rooms and the placement and styling tools are switched off.\n\nA Bright Pro key lets you place each fixture where it really hangs, rotate it, set its shape and size, and use the Showcase, Light spread, Scene and Ripple map tools. Correcting a light that PadSpan has mistaken for the wrong type is a separate PadSpan Pro feature. Your sidebar does not depend on either key: a Bright build always shows Mapping, Health and Settings.",
+        "body": "PadSpan Bright already shows every light on your map. Tap one to switch it, or tap and hold for brightness and colour. Without a Bright Pro key, unplaced lights stay grouped in the middle of their rooms and the placement and styling tools are switched off.\n\nA Bright Pro key lets you place each fixture where it really hangs, rotate it, set its shape and size, and use the Showcase, Light spread, Scene and Ripple map tools. Correcting a light that PadSpan has mistaken for the wrong type is a separate PadSpan Pro feature. Your sidebar does not depend on either key: a Bright build always shows Mapping, Rooms, Health and Settings.",
         "steps": [],
         "notes": []
       },

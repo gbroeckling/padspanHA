@@ -183,9 +183,10 @@ def test_the_product_name_is_one_literal() -> None:
 # ── Phase 1: the help in nl / de / fr ────────────────────────────────────────
 
 def _help_keys() -> tuple[set[str], set[str]]:
-    """Every t() string in help_content.js, and the ones left English on
-    purpose: settings_tiers names the editions (PadSpan HA, PadSpan Bright),
-    which a translation may not, so that page stays English everywhere."""
+    """Every t() string in help_content.js, and settings_tiers' (the editions
+    page). That page was left English at first; it is translated now, with
+    PadSpan HA, PadSpan Bright, PadSpan Pro and PadSpan Bright Pro written
+    as the English writes them, like every other sentence."""
     src = _HELP.read_text(encoding="utf-8")
     keys = {_unjs(m.group(1)) for m in _T_RE.finditer(src)}
     a = src.index("  settings_tiers: {")
@@ -223,7 +224,7 @@ def test_each_help_translation_covers_the_help_and_copies_no_english() -> None:
     assert len(keys) >= 340 and tiers
     for lang in _SHIPPED:
         data = json.loads((_LANG_DIR / lang / "help.json").read_text(encoding="utf-8"))
-        assert set(data) == keys - tiers, (lang, sorted(keys - tiers - set(data))[:3], sorted(set(data) - keys)[:3])
+        assert set(data) == keys, (lang, sorted(keys - set(data))[:3], sorted(set(data) - keys)[:3])
         copies = [k for k, v in data.items() if v.strip() == k.strip()]
         assert not copies, (lang, copies[:3])
         for k, v in data.items():

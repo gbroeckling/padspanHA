@@ -2,9 +2,10 @@
 
 Basic mode shows only the Library and Upload tabs, and maps.js's render()
 puts any other tab straight back to Library — so Open (which goes to the Edit
-tab) did nothing at all in Basic mode, with no sign why. It now switches to
-Advanced, says so, and opens the plan (tests/js/maps_basic_open.mjs drives the
-real view). The same silent bounce hit two Advanced-mode links into
+tab) did nothing at all in Basic mode, with no sign why. It switched to
+Advanced for a while. Since 2026-10-30 Basic's Open opens the plan in the
+Setup Wizard at its scale step, each step's editor with only its tool, and
+Basic stays Basic (tests/js/maps_basic_open.mjs drives the real view). The same silent bounce hit two Advanced-mode links into
 Development-only views (the calibration wizard's quality report → QA, the
 Atlas's "Build from relays" → Devices); panel.js lets those two views stay
 open when reached by link.
@@ -25,20 +26,21 @@ _NODE = shutil.which("node")
 
 
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
-def test_open_in_basic_mode_switches_to_advanced_and_opens_the_plan() -> None:
+def test_open_in_basic_mode_opens_the_plan_and_stays_basic() -> None:
     res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "maps_basic_open.mjs"), str(_WWW / "views")],
-                         capture_output=True, text=True, timeout=120)
+                         capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert res.returncode == 0, res.stderr[-2000:]
     got = json.loads(res.stdout.strip().splitlines()[-1])
-    assert len(got) >= 7, got
+    assert len(got) >= 10, got
     bad = {k: v for k, v in got.items() if not v["ok"]}
     assert not bad, bad
 
 
 def test_the_mode_switch_is_one_door() -> None:
-    """The top toggle, Mapping's Open and the setup wizard all change the
-    mode through _setComplexity, which also repaints the button and the menu
-    (the wizard used to set the mode behind the menu's back)."""
+    """The top toggle changes the mode through _setComplexity, which also
+    repaints the button and the menu (the wizard used to set the mode behind
+    the menu's back). Since 2026-10-30 no link changes the mode at all: in
+    Basic a link opens just the part it is about (views/focus.js)."""
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     assert "setComplexity: (mode)=>this._setComplexity(mode)," in panel
@@ -46,6 +48,11 @@ def test_the_mode_switch_is_one_door() -> None:
     assert 'localStorage.setItem("padspan_complexity"' not in maps
     assert maps.count("=>_openForEdit(ctx, ") == 2          # Open and "Review map"
     assert "ctx.actions.setMapsTab('edit')" not in maps
+    views = _WWW / "views"
+    for f in [_WWW / "panel.js", *views.glob("*.js")]:
+        src = f.read_text(encoding="utf-8")
+        assert 'etComplexity("advanced")' not in src, f.name
+        assert "switched to Advanced" not in src, f.name
 
 
 def test_links_into_development_views_are_not_bounced() -> None:

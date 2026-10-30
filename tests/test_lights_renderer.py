@@ -350,7 +350,7 @@ def test_empty_fabric_points_at_the_fabric_not_at_uploading_a_photo(tmp_path):
         "const svg=M.buildIsoSVG({},{},new Set(),null,150,0,{},false,[]);"
         "out.svg=svg;"
     ))
-    assert "Mapping → Rooms" in out["svg"]
+    assert "Mapping → Layout" in out["svg"]
     assert "uploaded" not in out["svg"], "no photo is involved in this view"
 
 

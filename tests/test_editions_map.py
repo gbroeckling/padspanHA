@@ -79,6 +79,7 @@ def test_the_complexity_mode_tab_sets_are_all_real_views() -> None:
 
 def test_bright_keeps_exactly_the_lighting_product() -> None:
     """The product promise, pinned: Mapping (rooms, floors, the fabric, the
-    Lights tab), Settings, Health. Everything else is presence."""
+    Lights tab), Rooms (its lighting fields only, 2026-10-30), Settings,
+    Health. Everything else is presence."""
     lighting = {k for k, v in _classified().items() if v == "lighting"}
-    assert lighting == {"maps", "settings", "health"}, sorted(lighting)
+    assert lighting == {"maps", "rooms", "settings", "health"}, sorted(lighting)

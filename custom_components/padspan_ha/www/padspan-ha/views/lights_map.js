@@ -4747,18 +4747,68 @@ export function buildLightsMapCard(hostIn){
 //   onRowLongPress(l)                 optional; sidebar: effects popup (500ms hold)
 //   onToggleHidden(eid)               persist + re-render
 //   afterAssign()                     invalidate registry cache + re-render
-export function buildLightsTable(host, lights){
+// ── The poll's table, kept (host.keepTable: the sidebar's 5 s tick) ─────────
+// The sidebar builds its page afresh every poll, and the index under the map
+// is most of it: a row per device, and laying a new table out again is most
+// of an update's time. So the sidebar hands in one object it keeps
+// (host.keepTable) and the table card stays on screen: a row is built again
+// only when what it is built from changed (its device, its state word), the
+// header line only when its counts did, and anything else the table reads
+// from the host (TABLE_HOST_KEYS: a filter, the sort, hidden lights, a
+// setting, another map) builds the whole card again, as before. A kept row's
+// handlers reach the newest host through keep.proxy, and the device it holds
+// is the same as the newest one, field for field. host.keepFocused (the poll):
+// a row or header holding the focused control is not replaced. The Mapping
+// tab hands no keepTable: a new card every time, as ever.
+export const TABLE_HOST_KEYS = ["afterAssign", "callWS", "classFilter", "doorCircleArmedEid", "doorCircleM",
+  "doorInvertByEid", "doorLinkedIds", "doorLockByEid", "doorMaterialByEid", "doorOpenerByEid", "doorOpenerCandidates",
+  "floodLatches", "focusRowEid", "hiddenEids", "keepFocused", "keepTable", "lightsLoading", "lockCandidates", "model",
+  "onBuildFromRelays", "onConfigureDoor", "onFloodReset", "onLinkDoorLock", "onLinkDoorOpener", "onPlaceRow",
+  "onRevertUntouched", "onRowClick", "onRowLongPress", "onRowMore", "onSelectForPlacement", "onTableClassFilter",
+  "onTableHealthFilter", "onTableSort", "onToggleDoorInvert", "onToggleDoorSteel", "onToggleHidden", "onTypeOverride",
+  "onUnlinkDoor", "placeQueue", "selectedEids", "tableClassFilter", "tableHealthFilter", "tableSort", "toast", "typeOverrides"];
+const _TABLE_SIG_SKIP = new Set(["keepFocused", "keepTable", "model"]);
+// What the card is built from, besides the devices: a function as "fn" (only
+// whether it is there shows), a Set as its sorted members; the map by identity.
+function _tableSig(host){
+  return JSON.stringify(TABLE_HOST_KEYS.filter(k => !_TABLE_SIG_SKIP.has(k)).map(k => {
+    const v = host[k];
+    return typeof v === "function" ? "fn" : v instanceof Set ? [...v].sort() : v === undefined ? null : v;
+  }));
+}
+// Lays want as parent's children: the ones not wanted come out first, then
+// each is put where it belongs. A kept node already in its place is never
+// moved (a node taken out and put back is styled and laid out again).
+export function layChildren(parent, want){
+  const wanted = new Set(want);
+  for (const n of [...parent.childNodes]) if (!wanted.has(n)) parent.removeChild(n);
+  want.forEach((n, i) => { if (parent.childNodes[i] !== n) parent.insertBefore(n, parent.childNodes[i] || null); });
+}
+
+export function buildLightsTable(hostIn, lights){
+  const keep = hostIn.keepTable || null;
+  let host = hostIn;
+  if (keep) {
+    keep.host = hostIn;
+    host = keep.proxy || (keep.proxy = new Proxy({}, { get: (_, k) => keep.host[k], has: (_, k) => k in keep.host }));
+  }
   const { el } = host;
   const hidden = host.hiddenEids;
+  // The last tick's card, when it is still on screen and built from the same.
+  const sig = keep ? _tableSig(hostIn) : null;
+  const reuse = !!(keep && keep.root && keep.root.isConnected && keep.sig === sig && keep.model === hostIn.model && !hostIn.focusRowEid);
+  const active = reuse && hostIn.keepFocused ? ((keep.root.getRootNode && keep.root.getRootNode().activeElement) || null) : null;
+  const holds = (n) => !!(active && n && (n === active || n.contains(active)));
   // The card wrapper lives HERE, not in the hosts — same objects AND same
   // layout in both views.
-  const root = el("div", { class: "card lv-tablecard lv-index" });
+  const root = reuse ? keep.root : el("div", { class: "card lv-tablecard lv-index" });
+  const top = [];   // the note and the header line, before the table
 
   const unassigned = lights.filter(l => !l.area_name && !hidden.has(l.entity_id));
   if (host.lightsLoading) {
-    root.appendChild(el("div", { class: "lv-note" }, "Loading room assignments…"));
+    top.push(el("div", { class: "lv-note" }, "Loading room assignments…"));
   } else if (unassigned.length) {
-    root.appendChild(el("div", { class: "lv-note" },
+    top.push(el("div", { class: "lv-note" },
       `${unassigned.length} light(s) not assigned to a room — shown in index only.`));
   }
 
@@ -4780,7 +4830,7 @@ export function buildLightsTable(host, lights){
   const byClass = tableFilter === "all" ? lights : lights.filter(l => lightClassOf(l) === tableFilter);
   const filtered = healthFilter ? byClass.filter(l => !l.healthy) : byClass;
   const unhealthyCount = lights.filter(l => !l.healthy).length;
-  root.appendChild(el("div", { class: "lv-tbl-head" }, [
+  top.push(el("div", { class: "lv-tbl-head" }, [
     el("span", { class: "lv-tbl-title" }, "Light Index"),
     el("span", { class: "lv-count" }, (tableFilter === "all" && !healthFilter) ? String(lights.length) : `${filtered.length} / ${lights.length}`),
     hiddenCount ? el("span", { class: "lv-hint" }, `${hiddenCount} hidden from map`) : null,
@@ -4813,6 +4863,16 @@ export function buildLightsTable(host, lights){
       return sel;
     })()] : []),
   ]));
+  // The note and the header line come again when what they say does.
+  const headSig = keep ? JSON.stringify([unassigned.length, hiddenCount, filtered.length, lights.length, unhealthyCount,
+    [...new Set(lights.map(l => lightClassOf(l)))].sort()]) : null;
+  if (!reuse) for (const n of top) root.appendChild(n);
+  else if (keep.headSig !== headSig && !keep.top.some(holds)) {
+    const anchor = keep.top.length ? keep.top[keep.top.length - 1].nextSibling : root.firstChild;
+    for (const n of keep.top) root.removeChild(n);
+    for (const n of top) root.insertBefore(n, anchor);
+    keep.top = top; keep.headSig = headSig;
+  }
 
   // Garry, 2026-09-22: "add this to the mapping atlas section under the
   // devices filter pull down. That's where I wanted it, leave it where it
@@ -4824,7 +4884,7 @@ export function buildLightsTable(host, lights){
   // circle tool already uses. host-gated (builder only, paid, not
   // preview) so it's absent from the sidebar Atlas panel, which has no
   // Devices section of its own to land in.
-  if (host.onBuildFromRelays) {
+  if (host.onBuildFromRelays && !reuse) {
     root.appendChild(el("div", { style: "padding:0 12px 10px;border-bottom:1px solid #1b3526" },
       el("button", { class: "lv-act", onclick: host.onBuildFromRelays },
         "+ Build an opener, lock, or light from relays")));
@@ -4873,8 +4933,8 @@ export function buildLightsTable(host, lights){
   // Health and Brand; the Pro pulldown only on a phone, so it stays in the
   // desktop builder's 440px column.
   const typeNarrow = host.onTypeOverride ? "lv-phone" : "lv-narrow";
-  const tbl = el("table", { class: "table lv-table", style: "width:100%" });
-  tbl.appendChild(el("thead", {}, el("tr", {}, [
+  const tbl = reuse ? null : el("table", { class: "table lv-table", style: "width:100%" });
+  if (tbl) tbl.appendChild(el("thead", {}, el("tr", {}, [
     th("code", "Code"),
     th("name", "Light"),
     th("room", "Room"),
@@ -4884,7 +4944,7 @@ export function buildLightsTable(host, lights){
     th(null, "Type", "text-align:center", typeNarrow),
     th(null, "Map", "width:60px;text-align:center"),
   ])));
-  const tbody = el("tbody");
+  const tbody = reuse ? keep.tbody : el("tbody");
   const placements = (host.model && host.model.light_positions_m) || {};
   if (sortState) {
     const key = COLUMNS.find(([k]) => k === sortState.column)[2];
@@ -4898,7 +4958,16 @@ export function buildLightsTable(host, lights){
   }
   const selected = host.selectedEids || null;
   const queued = host.placeQueue || null;
+  // Kept: each row with what it was built from (its device, field for field,
+  // and its state word, which reads the clock).
+  const rowsNow = keep ? new Map() : null, rowsOut = [];
   for (const l of lights) {
+    let rowSig = null;
+    if (keep) {
+      rowSig = JSON.stringify([l, stateWordOf(l, host.floodLatches, host.doorInvertByEid) || null]);
+      const old = reuse && !rowsNow.has(l.entity_id) ? keep.rows.get(l.entity_id) : null;
+      if (old && (old.sig === rowSig || holds(old.row))) { rowsNow.set(l.entity_id, old); rowsOut.push(old.row); continue; }
+    }
     const on = l.isLock ? l.state === "locked" : l.state === "on";
     const isHidden = hidden.has(l.entity_id);
     // A row filtered out by the layer chips dims like its marker does; a
@@ -5272,12 +5341,20 @@ export function buildLightsTable(host, lights){
       row.addEventListener("pointercancel", lpCancel);
       row.addEventListener("contextmenu", (e) => e.preventDefault());
     }
-    tbody.appendChild(row);
+    if (keep && !rowsNow.has(l.entity_id)) rowsNow.set(l.entity_id, { sig: rowSig, row });
+    if (reuse) rowsOut.push(row); else tbody.appendChild(row);
   }
-  tbl.appendChild(tbody);
-  // A row still too wide for a narrow card (the builder's buttons) scrolls
-  // here, inside the card, never the page (styles.css .lv-index).
-  root.appendChild(el("div", { class: "lv-tblwrap" }, tbl));
+  if (reuse) layChildren(tbody, rowsOut);
+  else {
+    tbl.appendChild(tbody);
+    // A row still too wide for a narrow card (the builder's buttons) scrolls
+    // here, inside the card, never the page (styles.css .lv-index).
+    root.appendChild(el("div", { class: "lv-tblwrap" }, tbl));
+  }
+  if (keep) {
+    Object.assign(keep, { root, sig, model: hostIn.model, tbody, rows: rowsNow });
+    if (!reuse) Object.assign(keep, { top, headSig });
+  }
   // Map → index: selecting a marker brings its row into view (the builder
   // sets focusRowEid for the render right after a map selection, only).
   if (host.focusRowEid) {

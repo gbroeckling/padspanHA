@@ -1734,7 +1734,7 @@ const WALKTHROUGHS = [
     icon: "🚪",
     summary: "Mark real barriers on the map — doors and windows that block signal, locks you can tap from the plan.",
     steps: [
-      { title: "Mark a Door or Window",                  text: "Mark a door or window on a wall from the Rooms tab's wall list, or draw one directly from the Atlas map, and it becomes a real signal wall, not just a picture. Set its material — a steel door blocks harder than a hollow-core one — and its live open/closed state draws on the map from the linked sensor.", svg: _svgAtlasDoor },
+      { title: "Mark a Door or Window",                  text: "Mark a door or window on a wall from the Layout tab's wall list, or draw one directly from the Atlas map, and it becomes a real signal wall, not just a picture. Set its material — a steel door blocks harder than a hollow-core one — and its live open/closed state draws on the map from the linked sensor.", svg: _svgAtlasDoor },
       { title: "Invert for a Backwards Sensor",          text: "Some door/vibration sensors report state:on as closed, not open. If a door on the map seems to show the wrong state, check the Invert toggle next to Delete in the wall list — it flips the reading without touching the sensor itself.", svg: _svgAtlasInvert },
       { title: "Locks on the Map",                       text: "Locks placed on Atlas behave like any other fixture — tap to lock or unlock, with the held state shown live.", svg: _svgAtlasLock },
     ],
@@ -1785,7 +1785,7 @@ const MANUAL_SECTIONS = [
       "Follow — mark a device to track it. Followed devices appear in the Follow tab with live location, are preserved when clearing unidentified objects, and create ghost placeholders if not yet visible to scanners.",
       "Quiet Mode — toggle in Overview top-right. Hides unidentified devices from the overview and room grid, showing only tagged and followed objects. Default off.",
       "Home/Away — if a device hasn't been seen for longer than the away timeout (configurable, default 5 min), its device_tracker state changes to not_home and a red Away badge appears in the Objects tab.",
-      "Sample Mode — a demo mode using fictional data (the Smith Residence). Great for exploring PadSpan without live hardware. Toggle between Sample and Live in the top bar.",
+      "Sample Mode — a demo mode showing a sample house on three floors. Great for exploring PadSpan without live hardware. Toggle between Sample and Live in the top bar.",
     ],
   },
   {

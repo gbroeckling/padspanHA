@@ -13,7 +13,7 @@
 //   HA Entities      — Entity reference docs, publishing toggles, live audit,
 //                      automation YAML library, MQTT config
 //   Beacon Chars     — Per-beacon signal profiles from calibration, model grouping
-//   History          — Persisted room-transition log (backend movement_history store)
+//   History          — A way to the History screen's Movement tab (the same log)
 //   Events           — Session event log (in-memory), email alert configuration
 //   Logs             — Live integration log viewer with level filtering
 //   Factory Reset    — Nuclear option: wipes all PadSpan stores + browser caches
@@ -22,6 +22,9 @@
 // Live mode. In Sample mode the buttons render but are disabled, and a
 // warning banner tells the user to switch.
 // ══════════════════════════════════════════════════════════════════════════════
+
+// Basic's links (views/focus.js): which lead out to an expert screen.
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 
 export function render(ctx){
   const { el } = ctx.helpers;
@@ -932,7 +935,6 @@ function _haBleReseedSection(ctx, el, settings){
   go.addEventListener("click", ()=>{
     ctx.state.view = "settings";
     ctx.state._settingsTab = "presence";
-    ctx.state._settingsDeep = "presence";   // Basic too (settings.js)
     ctx.state._presenceReveal = "receivers";
     if (ctx.actions.renderNav) ctx.actions.renderNav();
     ctx.actions.renderRooms();
@@ -940,7 +942,9 @@ function _haBleReseedSection(ctx, el, settings){
   card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px"},[
     el("span",{style:"color:#e2e8f0"}, settings.aggressive_ble_reseed === true ? "Aggressive BLE reseed is on." : "Aggressive BLE reseed is off."),
     el("span",{style:"color:#94a3b8"},"Set it in Settings → Tracking → Receivers (Bluetooth refresh interval)."),
-    go,
+    // The Bluetooth refresh interval is receiver tuning, Advanced's: Basic
+    // has no Tracking tab to open, so no button (views/focus.js).
+    FOCUS.expertLinks(ctx.state) ? go : null,
   ]));
 
   if(settings.aggressive_ble_reseed){
@@ -1818,123 +1822,25 @@ function _haEspresenseSection(ctx, el, settings){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// History sub-tab — persisted room-transition timeline
+// History sub-tab — now a way to the History screen
 //
-// Fetches the backend movement_history store (up to 500 entries) and renders
-// them newest-first in a scrollable timeline. Each entry shows timestamp,
-// device label, from-room, and to-room with a colour-coded left border.
-//
-// Friendly names are resolved from three sources (in priority order):
-//   1. Live snapshot objects (BLE devices)
-//   2. Snapshot tags (entity trackers)
-//   3. Stored object labels (padspan_ha.objects store)
+// It drew the backend movement_history store as a timeline, the same entries
+// the History screen's Movement tab draws (which also tells a first sighting
+// from a room change, filters them and jumps to Traceback). Interface review,
+// 2026-10-30: one place for it. The tab id stays so a remembered Manage tab
+// still lands here.
 // ══════════════════════════════════════════════════════════════════════════════
 function _history(ctx, el){
-  const { roomColor } = ctx.helpers;
-  const wrap = el("div",{style:"display:flex;flex-direction:column;gap:12px"});
-
-  // Lazy-load object labels from the backend (once per session).
-  // Triggers a re-render when labels arrive so device names appear.
-  if(!ctx.state._objectLabelsLoaded){
-    ctx.state._objectLabelsLoaded = true;
-    ctx.actions.objectLabelList().then(r => {
-      if(r && r.labels && Object.keys(r.labels).length){
-        ctx.state._objectLabels = r.labels;
-        ctx.actions.renderRooms();
-      }
-    }).catch(()=>{});
-  }
-
-  // Fetch persisted movement history from backend (once per session).
-  // The _manageMovementLoaded flag prevents re-fetching on every render.
-  if(!ctx.state._manageMovementLoaded){
-    ctx.state._manageMovementLoaded = true;
-    ctx.state._manageMovementEntries = [];
-    ctx.actions.wsCall("padspan_ha/movement_history_get", {limit: 500}).then(r => {
-      ctx.state._manageMovementEntries = (r && r.entries) || [];
-      ctx.actions.renderRooms();
-    }).catch(e => {
-      console.error("Movement history load failed:", e);
-    });
-  }
-
-  const entries = ctx.state._manageMovementEntries || [];
-
-  // Build a lookup for friendly names from all available sources
-  const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
-  const _nameMap = {};
-  // From snapshot objects (BLE devices)
-  const _objs = (snap && snap.objects && Array.isArray(snap.objects.list)) ? snap.objects.list : [];
-  for(const o of _objs){
-    const addr = o.address || o.entity_id || "";
-    if(addr && (o.user_label || o.name)) _nameMap[addr] = o.user_label || o.name;
-  }
-  // From snapshot tags (entity trackers)
-  const _tags = (snap && Array.isArray(snap.tags)) ? snap.tags : [];
-  for(const t of _tags){
-    if(t.entity_id && (t.name || t.entity_id)){
-      if(!_nameMap[t.entity_id]) _nameMap[t.entity_id] = t.name || t.entity_id;
-    }
-  }
-  // From stored object labels
-  const _storedLabels = ctx.state._objectLabels || {};
-  for(const [addr, info] of Object.entries(_storedLabels)){
-    if(addr && !_nameMap[addr]){
-      _nameMap[addr] = (typeof info === "string") ? info : (info && info.label) || addr;
-    }
-  }
-
-  // Toolbar
-  const toolbar = el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px"});
-  toolbar.appendChild(el("div",{class:"muted",style:"font-size:12px"}, `${entries.length} room transitions (persisted)`));
-  toolbar.appendChild(el("div",{style:"flex:1"}));
-  const refreshBtn = el("button",{class:"btn inline",style:"font-size:11px;padding:2px 8px"}, "Refresh");
-  refreshBtn.addEventListener("click", ()=>{
-    ctx.state._manageMovementLoaded = false;
-    ctx.actions.renderRooms();
-  });
-  toolbar.appendChild(refreshBtn);
-  wrap.appendChild(toolbar);
-
-  if(entries.length === 0){
-    wrap.appendChild(el("div",{class:"card"},[
-      el("div",{class:"muted"},"No movement history recorded yet. Room transitions are automatically saved when tracked devices move between rooms."),
-    ]));
-    return wrap;
-  }
-
-  // Timeline (newest first)
-  const listContainer = el("div",{style:"max-height:500px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"});
-  const sorted = [...entries].reverse();
-  for(const entry of sorted){
-    const ts = entry.ts ? new Date(entry.ts * 1000) : null;
-    let timeStr = "\u2014";
-    let dateStr = "";
-    if(ts){
-      const hh = String(ts.getHours()).padStart(2, "0");
-      const mm = String(ts.getMinutes()).padStart(2, "0");
-      const ss = String(ts.getSeconds()).padStart(2, "0");
-      timeStr = `${hh}:${mm}:${ss}`;
-      const today = new Date();
-      if(ts.toDateString() !== today.toDateString()){
-        dateStr = `${ts.getMonth()+1}/${ts.getDate()} `;
-      }
-    }
-    const _dev = entry.device || "";
-    const label = entry.label || _nameMap[_dev] || _dev || "Unknown";
-    const fromRoom = entry.from || "?";
-    const toRoom = entry.to || "?";
-    const rc = roomColor ? roomColor(toRoom) : "#52b788";
-    const row = el("div",{style:"display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:4px;background:rgba(255,255,255,0.02);border-left:3px solid " + rc});
-    row.appendChild(el("span",{style:"font-family:monospace;font-size:11px;color:#64748b;flex-shrink:0;width:72px"}, dateStr + timeStr));
-    row.appendChild(el("span",{style:"font-size:12px;font-weight:600;color:#e2e8f0;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"}, label));
-    row.appendChild(el("span",{style:"font-size:11px;color:#94a3b8;flex-shrink:0"}, fromRoom));
-    row.appendChild(el("span",{style:"font-size:11px;color:#5eead4"}, "\u2192"));
-    row.appendChild(el("span",{style:`font-size:11px;color:${rc};font-weight:600`}, toRoom));
-    listContainer.appendChild(row);
-  }
-  wrap.appendChild(listContainer);
-  return wrap;
+  const open = () => {
+    ctx.state._historyTab = "movement";
+    if (ctx.actions.showView) ctx.actions.showView("history");
+    else { ctx.state.view = "history"; ctx.actions.renderRooms(); }
+  };
+  return el("div",{class:"card","data-manage-history":"",style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
+    el("span",{style:"font-size:13px;color:#cbd5e1"},
+      "The saved room changes (who moved from which room to which, and when) are on the History screen, under Movement."),
+    el("button",{class:"btn inline","data-goto":"history-movement",onclick:open},"Open History"),
+  ]);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

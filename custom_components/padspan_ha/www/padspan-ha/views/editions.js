@@ -147,7 +147,8 @@ export function currentEdition(settings) {
 // The classification. `lighting` is what PadSpan Bright is; `presence` is
 // everything the lighting product does not show. Health and Settings are
 // lighting because a Bright install still has to be diagnosed and configured
-// — both trim themselves by edition inside.
+// — both trim themselves by edition inside, as Rooms does (no receivers or
+// people in Bright: views/rooms.js).
 export const SURFACE_CLASS = Object.freeze({
   overview:    "presence",
   purelive:    "presence",
@@ -159,7 +160,7 @@ export const SURFACE_CLASS = Object.freeze({
   history:     "presence",
   monitor:     "presence",
   maps:        "lighting",
-  rooms:       "presence",      // the Rooms page (2026-10-30): who is in each room now
+  rooms:       "lighting",      // the Rooms page (2026-10-30); in Bright it trims itself to the lighting fields
   events:      "presence",
   health:      "lighting",
   settings:    "lighting",

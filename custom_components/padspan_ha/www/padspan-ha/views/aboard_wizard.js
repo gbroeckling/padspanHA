@@ -11,6 +11,8 @@
 // survey() and the step checks are pure, for tests (tests/js/aboard_wizard.mjs).
 
 const { tierAtLeast, surfacesForEdition } = await import(`./editions.js${new URL(import.meta.url).search}`);
+// Basic's focused views (views/focus.js): a setting's link opens its card.
+const FOCUS = await import(`./focus.js${new URL(import.meta.url).search}`);
 
 export const GUIDE_URL = "https://github.com/gbroeckling/padspanHA/blob/main/docs/LIVE_ABOARD_GUIDE.md";
 
@@ -159,6 +161,14 @@ export async function openLiveAboardWizard(ctx, step) {
   };
   await load();
   const S = () => survey({ settings: ctx.state.settings || {}, model: ctx.state.model || {}, states, house, webgl: hasWebGL() });
+  // First setup: this run began with Live Aboard never switched on (the
+  // "Turn it on" step's own check, settings.atlas_3d_enabled). Decided when a
+  // run starts (W.started is false until Finish ends it) and kept for the
+  // whole run, so switching it on in step 1, or a trip to a tool and back,
+  // doesn't take the switches away mid-way. Then the extras are real
+  // switches, so a new house is set up in one place; on any later run each
+  // shows its value and a link to the Settings tab that switches it.
+  if (!W.started) W.firstSetup = S().on !== true;
   if (step) W.i = Math.max(0, STEPS.findIndex(s => s.id === step));
   else if (!W.started) {
     const c = checks(S());
@@ -184,7 +194,14 @@ export async function openLiveAboardWizard(ctx, step) {
     if (where.liveAboard) { try { localStorage.setItem("padspan_lv_3d_builder", "1"); } catch (_) { /* private mode */ } }
     if (where.tool) { ctx.state.maps = ctx.state.maps || {}; ctx.state.maps._laOpenTool = { tool: where.tool, eid: where.eid || null }; }
     W.away = where.finish ? null : STEPS[W.i].id;
-    if (where.settings) { ctx.state.view = "settings"; ctx.state._settingsTab = "atlas"; ctx.actions.renderRooms(); return; }
+    // A Settings tab: in Basic just the card the setting is on, with a way
+    // back (views/focus.js); Advanced, the tab. The Mapping tabs are the
+    // builder's, which only Advanced opens.
+    if (where.settings) {
+      const tab = typeof where.settings === "string" ? where.settings : "atlas";
+      FOCUS.openFocus(ctx, FOCUS.part(where.part || (tab === "ai" ? "aiTask" : "liveAboard")));
+      return;
+    }
     ctx.state.view = "maps";
     if (ctx.actions.setMapsTab) ctx.actions.setMapsTab(where.tab); else { ctx.state.mapsTab = where.tab; ctx.actions.renderRooms(); }
     if (where.toast && ctx.toast) ctx.toast(where.toast);
@@ -215,6 +232,21 @@ export async function openLiveAboardWizard(ctx, step) {
       sub ? el("div", { style: "font-size:11px;color:#94a3b8;margin:2px 0 0 0;line-height:1.45" }, sub) : null,
     ]);
   };
+  // After first setup: a setting's value and the Settings tab that switches it
+  // (Settings → Atlas, or → AI for the photo AI task), instead of a second switch.
+  // The card each one is on (views/focus.js PARTS), for Basic.
+  const SETTING_PART = { "Show the Atlas as Overview": "atlasHome", "Outdoor weather on the Atlas": "atlasWeather" };
+  const setting = (label, value, tab = "atlas") => el("div", { "data-wiz-setting": label, style: "margin:8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:#e2e8f0" }, [
+    el("span", { style: "min-width:150px" }, label), el("span", {}, value),
+    btn(`Open Settings → ${tab === "ai" ? "AI" : "Atlas"}`, () => go({ settings: tab, part: SETTING_PART[label] })),
+  ]);
+  const first = !!W.firstSetup;
+  const OPT = (options, v) => (options.find(([k]) => String(k) === String(v)) || options[0])[1];
+  const QUALITY = [["auto", "Auto: picked for this screen"], ["low", "Low: wall tablets and phones"], ["high", "High: sun shadows and more lamps"]];
+  const IDLE = [["0", "Off"], ["30", "After 30 s"], ["60", "After 1 min"], ["300", "After 5 min"]];
+  const overviewAtlas = (s, sub) => !s.hasOverview ? null : first
+    ? toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); }, sub)
+    : setting("Show the Atlas as Overview", s.overviewAtlas ? "On" : "Off");
   const list = (rows) => el("ul", { style: "margin:6px 0 6px 18px;padding:0;font-size:12px;color:#e2e8f0;line-height:1.6;max-height:160px;overflow:auto" },
     rows.map(r => el("li", {}, r)));
 
@@ -228,7 +260,7 @@ export async function openLiveAboardWizard(ctx, step) {
       out.push(toggle("Show Live Aboard on the Atlas", s.on, (v, n) => save({ atlas_3d_enabled: v }, n),
         "Saves right away. In the sidebar Atlas, 🏠 on the left switches between the flat map and Live Aboard; in Mapping → Atlas, the Map | Live Aboard switch does."));
       if (s.webgl === false) out.push(tip("This browser can't draw 3D (no WebGL). Live Aboard still works on other screens; this one keeps the flat map."));
-      if (s.hasOverview) out.push(toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); },
+      out.push(overviewAtlas(s,
         "Optional, off unless you turn it on. Overview, the first tab, shows the Atlas (and Live Aboard) instead of the classic map; Live Tracker gets a switch to the classic Overview. You can change it any time in Settings → Atlas."));
       return out;
     },
@@ -258,7 +290,7 @@ export async function openLiveAboardWizard(ctx, step) {
       return [p("Walls in Live Aboard come from the rooms you drew: every room's outline stands up as its walls, at the floor's height."),
         list(s.floors.map(f => `${f.name}: ${f.rooms} room${f.rooms === 1 ? "" : "s"}`)),
         tip("Room names match Home Assistant's areas, which is what puts each device in its room. A floor with no rooms shows as a bare slab."),
-        btn("Open Mapping → Rooms", () => go({ tab: "rooms" }))];
+        btn("Open Mapping → Layout", () => go({ tab: "rooms" }))];
     },
     devices(s) {
       return [p("Everything Live Aboard shows lives on the Atlas: place a light, sensor, fan, lock or thermometer on the flat map and it's in the 3D house too, in its room."),
@@ -310,13 +342,18 @@ export async function openLiveAboardWizard(ctx, step) {
     },
     furniture(s) {
       const set = ctx.state.settings || {};
-      const out = [p("Furniture makes it a home: build a sofa, bed, table and more with sliders, make one from a photo, or find one in the shared library. A piece can be a device too, so a lamp glows, a fan turns or a washer shakes when the real one does."),
-        toggle("Use the shared furniture library", set.atlas_3d_library === true, (v, n) => save({ atlas_3d_library: v }, n),
-          "Optional. Find pieces other PadSpan users shared, and share yours. Nothing is shared unless you press Share on a piece.")];
-      out.push(select("Make furniture from a photo", set.atlas_3d_ai_task_entity || "",
-        [["", "Off (no AI task)"], ...s.aiTasks.map(e => [e, e])], (v, n) => save({ atlas_3d_ai_task_entity: v }, n),
-        s.aiTasks.length ? "Optional. Uses the Home Assistant AI Task you pick to turn a photo into a piece." :
-          "Optional. Needs an AI Task entity in Home Assistant (an AI integration that provides ai_task)."));
+      const out = [p("Furniture makes it a home: build a sofa, bed, table and more with sliders, make one from a photo, or find one in the shared library. A piece can be a device too, so a lamp glows, a fan turns or a washer shakes when the real one does.")];
+      if (first) {
+        out.push(toggle("Use the shared furniture library", set.atlas_3d_library === true, (v, n) => save({ atlas_3d_library: v }, n),
+          "Optional. Find pieces other PadSpan users shared, and share yours. Nothing is shared unless you press Share on a piece."));
+        out.push(select("Make furniture from a photo", set.atlas_3d_ai_task_entity || "",
+          [["", "Off (no AI task)"], ...s.aiTasks.map(e => [e, e])], (v, n) => save({ atlas_3d_ai_task_entity: v }, n),
+          s.aiTasks.length ? "Optional. Uses the Home Assistant AI Task you pick to turn a photo into a piece." :
+            "Optional. Needs an AI Task entity in Home Assistant (an AI integration that provides ai_task)."));
+      } else {
+        out.push(setting("Use the shared furniture library", set.atlas_3d_library === true ? "On" : "Off"));
+        out.push(setting("Make furniture from a photo", set.atlas_3d_ai_task_entity || "Off (no AI task)", "ai"));
+      }
       out.push(btn("Open Mapping → Furnish", () => go({ tab: "furnish" }), true));
       return out;
     },
@@ -332,14 +369,18 @@ export async function openLiveAboardWizard(ctx, step) {
         el("span", { style: "font-size:11px;color:#94a3b8" }, "Set it in Settings → Atlas."),
         btn("Open Settings → Atlas", () => go({ settings: true })),
       ]));
-      out.push(select("Quality", set.atlas_3d_quality || "auto",
-        [["auto", "Auto: picked for this screen"], ["low", "Low: wall tablets and phones"], ["high", "High: sun shadows and more lamps"]],
-        (v, n) => save({ atlas_3d_quality: v }, n)));
-      if (!s.weather.on) out.push(toggle("Outdoor weather on the Atlas", false, (v, n) => save({ atlas_weather_enabled: v }, n),
-        "Rain and snow (and the open-window warning) follow the Atlas's outdoor weather: your weather entity's condition, or a rain sensor. Pick those in Mapping → Atlas."));
-      out.push(toggle("Rain and snow", s.weather.rain, (v, n) => save({ atlas_3d_weather: v }, n),
-        s.weather.on ? `Falls outside the house when your weather says so${s.weather.source ? ` (${s.weather.source})` : ""}. With windows linked to sensors, an open window in the rain glows blue and gets a warning.`
-          : "Needs the Atlas's Outdoor weather on (Mapping → Atlas), with a rain sensor or weather entity."));
+      if (first) {
+        out.push(select("Quality", set.atlas_3d_quality || "auto", QUALITY, (v, n) => save({ atlas_3d_quality: v }, n)));
+        if (!s.weather.on) out.push(toggle("Outdoor weather on the Atlas", false, (v, n) => save({ atlas_weather_enabled: v }, n),
+          "Rain and snow (and the open-window warning) follow the Atlas's outdoor weather: your weather entity's condition, or a rain sensor. Pick those in Mapping → Atlas."));
+        out.push(toggle("Rain and snow", s.weather.rain, (v, n) => save({ atlas_3d_weather: v }, n),
+          s.weather.on ? `Falls outside the house when your weather says so${s.weather.source ? ` (${s.weather.source})` : ""}. With windows linked to sensors, an open window in the rain glows blue and gets a warning.`
+            : "Needs the Atlas's Outdoor weather on (Mapping → Atlas), with a rain sensor or weather entity."));
+      } else {
+        out.push(setting("Quality", OPT(QUALITY, set.atlas_3d_quality || "auto")));
+        if (!s.weather.on) out.push(setting("Outdoor weather on the Atlas", "Off"));
+        out.push(setting("Rain and snow", s.weather.rain ? "On" : "Off"));
+      }
       // Show people / Show tags & scanners: switched in Live Aboard's Views ▾
       // while it is on, in Settings → Atlas while it is off (settings.js).
       const shown = (label, on, sub) => el("div", { "data-wiz-shown": "", style: "margin:8px 0" }, [
@@ -351,9 +392,9 @@ export async function openLiveAboardWizard(ctx, step) {
         `Optional. Everyone PadSpan can place (${s.people} ${s.people === 1 ? "person" : "people"} in Home Assistant) as a figure in their room. Furnish → People & devices says who carries what.`));
       out.push(shown("Show tags & scanners", set.atlas_3d_tags === true,
         "Optional. Every placed tag with its name, and every scanner at its height."));
-      out.push(select("Back to home view", String(set.atlas_3d_home_idle_s ?? 60),
-        [["0", "Off"], ["30", "After 30 s"], ["60", "After 1 min"], ["300", "After 5 min"]], (v, n) => save({ atlas_3d_home_idle_s: Number(v) }, n),
-        "On the sidebar Atlas: how long it waits untouched before flying back to its home view."));
+      out.push(first ? select("Back to home view", String(set.atlas_3d_home_idle_s ?? 60), IDLE, (v, n) => save({ atlas_3d_home_idle_s: Number(v) }, n),
+        "On the sidebar Atlas: how long it waits untouched before flying back to its home view.")
+        : setting("Back to home view", OPT(IDLE, set.atlas_3d_home_idle_s ?? 60)));
       out.push(tip("Built in, nothing to set: ⇕ Explode (with All floors) pulls the floors apart; ☰ → Temps turns each room its temperature colour; motion lights up badges with lines to the floor; at night lit rooms glow through the windows; a leak, smoke, gas or CO alarm sends rings across its room; the room sheet has ▶ for the room's scenes and scripts" + (s.scenes ? ` (${s.scenes} in your house)` : "") + "."));
       return out;
     },
@@ -364,8 +405,8 @@ export async function openLiveAboardWizard(ctx, step) {
           "Views ▾ → Save this view for other angles you use a lot.",
           "On a wall tablet: the sidebar Atlas, full screen with the corner button. With nothing changing, it draws nothing.",
         ]),
-        s.hasOverview ? toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); },
-          "Optional, off unless you turn it on. Overview shows the Atlas instead of the classic map; the classic Overview moves under Live Tracker, behind a ⚡ Live Tracker | ▦ Overview switch.") : null,
+        overviewAtlas(s,
+          "Optional, off unless you turn it on. Overview shows the Atlas instead of the classic map; the classic Overview moves under Live Tracker, behind a ⚡ Live Tracker | ▦ Overview switch."),
         el("div", { style: "margin-top:8px;font-size:12px" }, [el("a", { href: GUIDE_URL, target: "_blank", rel: "noopener" }, "The Live Aboard Guide"), " has every tool in detail."]),
       ];
     },

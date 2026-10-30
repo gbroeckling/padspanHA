@@ -149,6 +149,9 @@ EVENTS: frozenset[str] = frozenset({
     # The Receivers page (views/receivers.js): a height or signal adjustment
     # saved from its table, once per save. Never which receiver or the value.
     "receivers_page_edit",
+    # "Preview a finished house" (Sample mode, panel.js _setDataMode): opened
+    # from Live, and back to Live from it. Sample mode itself counts nothing.
+    "preview_open", "preview_back",
     # 0.38.160: a device's room held through a short gap (once per hold, so
     # whether the setting ever does anything in a real house), and a robot
     # vacuum's map imported / a walker point accepted into calibration.
@@ -461,6 +464,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "map_text",                                     # the map as text for screen readers (Overview, the flat Atlas)
     "whos_where",                                   # Who's where now, before any room is drawn (Overview)
     "wizard_build",                                 # the Setup Wizard's "Put it on the map" (Mapping)
+    "focus",                                        # Basic's focused views: a link opens just its part
     "atlas_heatmap",                                # the flat Atlas: temperature / humidity / CO2 heatmap
     "live_aboard_marks",                            # Live Aboard: the Atlas's leak sensors, locks, codes and class chips
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)

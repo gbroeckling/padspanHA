@@ -93,7 +93,7 @@ def test_entry_points() -> None:
     assert 'setup:        "./views/setup.js",' in panel
     assert '"devices", "setup"]);' in panel                    # reached by link, never a menu tab
     assert '["setup",' not in panel[panel.index("const MENU = ["):panel.index("];", panel.index("const MENU = ["))]
-    assert "showView: (id) => {" in panel
+    assert "showView: (id, opts) => {" in panel
     # The Overview's Getting started: Open Setup, and each step's bar back to it.
     assert '{"data-getting-started":"setup"' in panel and 'this.state.view = "setup";' in panel
     assert 'scanners: "receivers", calibrate: "calibration" }[s.id] || null;' in panel
@@ -102,7 +102,7 @@ def test_entry_points() -> None:
     # Mapping: a Setup button beside Refresh, the tab bar as it was.
     maps = _read("views/maps.js")
     assert '"data-setup-link":"maps"' in maps and 'onclick:()=>ctx.actions.showView("setup")}, "Setup")' in maps
-    assert '[["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Rooms"],["lights","Atlas"],["export","Export"],["help","Help"]]' in maps
+    assert '[["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Layout"],["lights","Atlas"],["export","Export"],["help","Help"]]' in maps
     # A new install's Who's where: Make it a map lands in Setup.
     assert 'mapBtn.addEventListener("click", () => ctx.actions.showView("setup"));' in _read("views/whos_where.js")
     # No floor plans yet: one way in, not two. The empty state's Start Setup

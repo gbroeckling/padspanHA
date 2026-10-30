@@ -5,8 +5,10 @@
 // Mapping → Library → Open in Basic mode (Jay, 2026-10-04). Basic mode has
 // only the Library and Upload tabs and render() puts any other tab straight
 // back to Library, so Open used to do nothing at all, with no sign why. It
-// now switches to Advanced, says so, and opens the plan. In Advanced it just
-// opens the plan, as before.
+// switched to Advanced for a while. Since 2026-10-30 Basic's Open opens the
+// plan in the Setup Wizard at its scale step, Basic's own way through a plan
+// (scale, rooms, scanners), each step with only its tool; Basic stays Basic.
+// In Advanced it just opens the plan in Edit, as before.
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
@@ -84,12 +86,34 @@ for (const mode of ["basic", "advanced"]) {
   const switched = calls.find(c => c[0] === "setComplexity");
   const told = calls.find(c => c[0] === "toast");
   if (mode === "basic") {
-    check("basic: Open switches to Advanced before it opens the Edit tab",
-      switched && switched[1] === "advanced" && tab && tab[1] === "edit" && tab[2] === "advanced"
-      && calls.indexOf(switched) < calls.indexOf(tab), calls);
-    check("basic: Open says why the mode changed", told && /Advanced mode/.test(told[1]) && !told[2], calls);
+    check("basic: Open opens the plan in the Setup Wizard at its scale step; the mode stays Basic",
+      !switched && !told && !tab && ctx.state._mapsWizard && ctx.state._mapsWizard.step === 2 && ctx.state._mapsWizard.mapId === "m1"
+      && ctx.state.complexity === "basic", [calls, ctx.state._mapsWizard]);
+    // Each step's editor has only its tool: no Signal walls, Sub-zones or the others beside it.
+    const toolsAt = async (step) => {
+      ctx.state._mapsWizard.step = step;
+      const r = maps.render(ctx); await flush();
+      const t = [];
+      (function walk(n){ if (n.getAttribute && n.getAttribute("data-edit-tool")) t.push(n.getAttribute("data-edit-tool")); for (const c of n.childNodes || []) walk(c); })(r);
+      return { t, r };
+    };
+    const sc = await toolsAt(2), ro = await toolsAt(3), rx = await toolsAt(4);
+    check("basic: the wizard's steps have one tool each (Measure, Rooms, Radios)",
+      JSON.stringify(sc.t) === '["measure"]' && JSON.stringify(ro.t) === '["rooms"]' && JSON.stringify(rx.t) === '["receivers"]', [sc.t, ro.t, rx.t]);
+    check("basic: no Signal walls anywhere in the wizard", ![sc.r, ro.r, rx.r].some(r => /Signal walls|Enclose \(3dB walls\)/.test(textOf(r))), null);
+    // A remembered Edit tab without a link (the menu forgot it): Library, as before.
+    ctx.state._mapsWizard = null;
+    ctx.state.mapsTab = "edit"; ctx.state._focus = null;
+    maps.render(ctx);
+    check("basic: without a link Edit still falls back to Library", ctx.state.mapsTab === "library", ctx.state.mapsTab);
   } else {
-    check("advanced: Open just opens the Edit tab", !switched && !told && tab && tab[1] === "edit", calls);
+    check("advanced: Open just opens the Edit tab", !switched && !told && tab && tab[1] === "edit" && !ctx.state._mapsWizard, calls);
+    // Advanced's wizard keeps every tool.
+    ctx.state._mapsWizard = { step: 3, mapId: "m1" };
+    const r = maps.render(ctx); await flush();
+    const t = [];
+    (function walk(n){ if (n.getAttribute && n.getAttribute("data-edit-tool")) t.push(n.getAttribute("data-edit-tool")); for (const c of n.childNodes || []) walk(c); })(r);
+    check("advanced: the wizard's Rooms step still has every tool", ["receivers", "rooms", "barriers", "measure"].every(x => t.includes(x)), t);
   }
   check(`${mode}: Open makes the plan the active one`, calls.some(c => c[0] === "mapsSetActive" && c[1] === "m1"), calls);
 }

@@ -9,10 +9,17 @@ used to land on Library or Appearance, with no sign why:
 
   Calibration's "Measure this floor"  the set-up wizard's scale step, in every
                                       mode (as the accuracy tip "Measure" does)
-  the accuracy tip "Floor Heights"    Mapping's 3D Stack: Basic switches to
-                                      Advanced and says so (as Mapping's Open)
-  Manage's "Open Settings", Guests'   Settings → Tracking, which a link opens
-  "Open Settings", the tester sign-up in Basic too (state._settingsDeep)
+  the accuracy tip "Floor Heights"    in Basic only 3D Stack's Floor Heights
+                                      card (views/focus.js); Basic stays Basic
+  Guests' "Open Settings", the tester in Basic only the Guest tags or the usage
+  sign-up                             report's card
+  Manage's "Open Settings"            receiver tuning: not shown in Basic
+
+Since 2026-10-30 (Garry: "no access to things that are so foreign to the user
+that it doesn't tie together") a link from Basic opens just the part it is
+about, with one "← Back", and no link changes the mode. Advanced and
+Development open the whole tab as before. tests/js/basic_focus.mjs renders
+every one of them (tests/test_basic_focus.py).
 """
 
 from __future__ import annotations
@@ -35,7 +42,8 @@ def test_basic_mapping_tabs_are_library_and_upload_only() -> None:
     maps = _read("views/maps.js")
     assert '? [["library","Library"],["upload","Upload"]]' in maps
     assert 'if(isBasic && tab !== "library" && tab !== "upload"){' in maps
-    # The wizard is drawn before that, in every mode.
+    # A link's part (the focus) and the wizard are drawn before that, in every mode.
+    assert maps.index('const focus = FOCUS.focusFor(ctx.state, "maps");') < maps.index("if (ctx.state._mapsWizard) {")
     assert maps.index("if (ctx.state._mapsWizard) {") < maps.index('if(isBasic && tab !== "library"')
 
 
@@ -49,32 +57,38 @@ def test_measure_this_floor_opens_the_wizard_scale_step() -> None:
     assert "this.state._mapsWizard = { step: 2, mapId: id };" in tip
 
 
-def test_floor_heights_tip_switches_basic_and_says_so() -> None:
+def test_floor_heights_tip_opens_only_its_card_and_basic_stays_basic() -> None:
     tip = _between(_read("panel.js"), "  _accuracyTipsCard(){", "\n  _proInviteOverviewCard(){")
     fh = _between(tip, '} else if (t === "floor_heights") {', "} else {")
-    assert 'if (this.state.complexity === "basic") {' in fh
-    assert 'this._setComplexity("advanced");' in fh
-    assert "this._toast(\"Floor heights are in Advanced mode" in fh
-    assert fh.index("_setComplexity") < fh.index('this.state.mapsTab = "stack";')
+    assert "_setComplexity" not in fh and "complexity" not in fh
+    assert 'F.openFocus(this._ctx(), F.part("floorHeights"))' in fh
 
 
-def test_links_to_settings_tracking_open_it_in_basic() -> None:
-    manage = _between(_read("views/manage.js"), '"data-goto":"settings-receivers"', "card.appendChild(")
-    assert 'ctx.state._settingsDeep = "presence";' in manage
+def test_links_to_settings_open_one_card_in_basic() -> None:
     guests = _read("views/guests.js")
-    assert 'ctx.state._presenceReveal = "phones"; ctx.state._settingsDeep = "presence";' in guests
+    assert 'ctx.state._presenceReveal = "phones"; FOCUS.openFocus(ctx, FOCUS.part("guestTags"));' in guests
     settings = _read("views/settings.js")
     basic = _between(settings, "  if(isBasic){", "\n  // Advanced / Development mode: tabbed")
-    assert 'if(ctx.state._settingsDeep === "presence"){' in basic
-    deep = _between(basic, 'if(ctx.state._settingsDeep === "presence"){', "return root;")
-    assert "root.appendChild(_settingsPresence(ctx, el));" in deep
-    assert '"data-settings-back":"appearance"' in deep
-    # Basic's own Settings links there too, so the messages naming
-    # Settings → Tracking (the report, the trial, the invite) hold in Basic.
-    assert '"data-settings-open":"presence"' in basic
-    assert 'ctx.state._settingsDeep = "presence"; ctx.state._settingsTab = "presence";' in basic
+    assert 'const f = FOCUS.focusFor(ctx.state, "settings");' in basic
+    assert "FOCUS.pickPart(_tabBody(f.tab), f.part)" in basic
+    # Basic's own Settings has the two cards the messages name (the report,
+    # the trial, the invite: "Settings → Tracking → Help improve PadSpan").
+    assert '"data-settings-open":"usage_report"' in basic and "PART.usageReport" in basic
+    assert '"data-settings-open":"guest_tags"' in basic and "PART.guestTags" in basic
+    assert "_settingsDeep" not in settings
 
 
-def test_the_menu_forgets_the_link() -> None:
-    sw = _between(_read("panel.js"), "    const _switchView = (id) => {", 'this._logEvent("view_change", id);')
-    assert "this.state._settingsDeep = null;" in sw
+def test_receiver_tuning_has_no_link_in_basic() -> None:
+    manage = _between(_read("views/manage.js"), '"data-goto":"settings-receivers"', "\n}\n")
+    assert "FOCUS.expertLinks(ctx.state) ? go : null," in manage
+
+
+def test_the_menu_and_other_screens_forget_the_focus() -> None:
+    src = _read("panel.js")
+    sw = _between(src, "    const _switchView = (id) => {", 'this._logEvent("view_change", id);')
+    assert "this.state._focus = null;" in sw
+    assert "_settingsDeep" not in src and "_mapsDeep" not in src
+    show = _between(src, "        showView: (id, opts) => {", "        },")
+    assert "this.state._focus = null;" in show
+    assert "this.state._focus = null;" in _between(src, "  _openCountedView(id){", "\n  }\n")
+    assert "this.state._focus = null;" in _between(src, "  _setComplexity(mode){", "\n  }\n")

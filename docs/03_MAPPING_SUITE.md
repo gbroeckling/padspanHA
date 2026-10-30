@@ -171,7 +171,7 @@ the svg in place, in whichever view holds it.
 
 A wall (`rf_barriers_m`) is a fabric object with an **id**, a name, a material,
 an attenuation and `points_m`, on a floor. It is placed and edited in metres:
-the Rooms tab drags and deletes walls directly; the Edit tab is where you
+the Layout tab drags and deletes walls directly; the Edit tab is where you
 *draw* one on a photo, and the drawn points go through that map's metre
 transform (`mapFracToMetres`, mirroring `ModelStore.map_frac_to_metres`) into
 the fabric the moment you finish — the photo is the input surface, never the

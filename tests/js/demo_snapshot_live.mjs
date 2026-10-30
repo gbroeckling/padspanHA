@@ -75,7 +75,10 @@ const REQUIRED = ["_wsCount", "_logEvent", "_callWS", "_fetchSettings", "_loadSe
   "_updateBadges"];
 // The fixes' own methods: taken when they exist, so this same harness also
 // runs (and fails) against the pre-fix panel.js.
-const OPTIONAL = ["_applyDataMode", "_dataModeLabel", "_retryDataMode", "_onDataModeClick", "_paintDataModeLabel"];
+const OPTIONAL = ["_applyDataMode", "_dataModeLabel", "_retryDataMode", "_onDataModeClick", "_paintDataModeLabel",
+  // Sample mode's gate in front of Home Assistant (panel.js _sampleCall).
+  "_sampleGateOn", "_sampleBlocked", "_sampleCall", "_viewHass", "_syncSampleHass", "_dropHouseCaches",
+  "_keepLiveFollow", "_restoreLiveFollow"];
 const bodies = [];
 for (const n of REQUIRED) {
   const b = extractMethod(n);
@@ -83,6 +86,26 @@ for (const n of REQUIRED) {
   bodies.push(b);
 }
 for (const n of OPTIONAL) { const b = extractMethod(n); if (b) bodies.push(b); }
+
+// Sample mode's refusal text, this browser's mode choice and the message
+// sorter: module-level in panel.js, from SAMPLE_READONLY_MSG to the end of
+// _sampleKind().
+const SAMPLE_KIND_SRC = (() => {
+  const s0 = src.indexOf("\nconst SAMPLE_READONLY_MSG = ");
+  const i = src.indexOf("\nfunction _sampleKind(");
+  if (s0 < 0 || i < 0) return "const SAMPLE_READONLY_MSG = ''; let _dataModeMem = null; function _localDataMode(){ return null; } function _saveLocalDataMode(){} function _sampleKind(){ return 'pass'; }";
+  let depth = 0;
+  for (let j = src.indexOf("{", i); j < src.length; j++) {
+    if (src[j] === "{") depth++;
+    else if (src[j] === "}" && !--depth) return src.slice(s0 + 1, j + 1);
+  }
+  throw new Error("unbalanced braces reading _sampleKind()");
+})();
+// Each Panel is a browser of its own: its storage starts empty (panel.js keeps
+// the Sample / Live choice there, _applyDataMode).
+const STORE = new Map();
+const STORAGE = { getItem: (k) => (STORE.has(k) ? STORE.get(k) : null), setItem: (k, v) => { STORE.set(k, String(v)); },
+                  removeItem: (k) => { STORE.delete(k); }, clear: () => STORE.clear() };
 
 /** The text a panel.js HTML button starts with, by id. */
 function initialText(id) {
@@ -94,9 +117,12 @@ const BADGE_HTML = initialText("dataModeToggle");
 const PILL_HTML = initialText("mobileDataPill");
 
 // eslint-disable-next-line no-new-func
-const Panel = new Function("SAMPLE_SNAPSHOT", "BADGE_HTML", `return class Panel {
+const Panel = new Function("SAMPLE_SNAPSHOT", "BADGE_HTML", "localStorage", `${SAMPLE_KIND_SRC}
+return class Panel {
   constructor(hass){
+    localStorage.clear(); _dataModeMem = null;
     this._hass = hass;
+    this._realHass = hass;
     // The constructor's own default: dataMode "sample" before settings land.
     this.state = {
       dataMode: "sample", view: "calibration", settings: null,
@@ -122,8 +148,12 @@ const Panel = new Function("SAMPLE_SNAPSHOT", "BADGE_HTML", `return class Panel 
   _startPolling(){} _stopPolling(){} _startDataPoll(){ this.polls++; this._pollTimer = 1; }
   async _getMapsList(){} async _getModel(){} async _getStatus(){} async _getVersionInfo(){}
   async _runAutoDiag(){} async _loadAlertConfigs(){}
+  // This harness is about the small demo house: the sample one
+  // (sample_house.js, tests/js/sample_estate.mjs) is never loaded here.
+  _ensureSampleHouse(){ return Promise.resolve(null); }
+  _telemetryEvent(){}
 ${bodies.join("\n\n")}
-}`)(SAMPLE_SNAPSHOT, BADGE_HTML);
+}`)(SAMPLE_SNAPSHOT, BADGE_HTML, STORAGE);
 
 // A live snapshot as snapshot_builder.py builds it (source:"live").
 const REAL = { source: "live", ble: { radios: [
@@ -835,7 +865,9 @@ await run("data toggle: two clicks within 3 s switch Live to Sample", async () =
   await p._onDataModeClick();
   later(1200);                                                // read "Show demo data?", clicked again
   await p._onDataModeClick();
-  expect(sets.join(",") === "sample" && p.state.dataMode === "sample", `settings_set calls: ${JSON.stringify(sets)}`);
+  // Sample is this browser's own choice: kept here, never sent to the server (panel.js _applyDataMode).
+  expect(!sets.length && p.state.dataMode === "sample" && STORE.get("padspan_data_mode") === "sample",
+    `settings_set calls: ${JSON.stringify(sets)}, mode ${p.state.dataMode}`);
   expect(p.state.live.snapshot === SAMPLE_SNAPSHOT && p.badge === "Sample" && pill() === "Sample",
     `after the switch: badge "${p.badge}" / pill "${pill()}"`);
   await flush();                                              // the 3 s timer, cleared by the switch
@@ -886,7 +918,7 @@ await run("data toggle: a double-click on Live only asks; its second click is no
   expect(p.badge === CONFIRM, `after a double-click the top bar reads "${p.badge}", not the question`);
   later(1200);                                                // then a real answer
   await p._onDataModeClick();
-  expect(sets.join(",") === "sample", `the deliberate second click did not switch: ${JSON.stringify(sets)}`);
+  expect(!sets.length && p.state.dataMode === "sample", `the deliberate second click did not switch: ${JSON.stringify(sets)}`);
 });
 
 await run("data toggle: clicks that keep coming ~30 ms apart (a held Enter) never switch Live to Sample", async () => {

@@ -34,6 +34,7 @@ function svg(tag, attrs = {}, children = []) {
 }
 
 let _cache = null;            // last stats payload, so a re-render is not a refetch
+let _cacheMode = null;        // the data mode it was read in (Sample mode answers its own)
 let _loading = false, _error = null;
 let _stamp = "";              // "generated …" line, so a re-render keeps it
 const _tables = new Set();    // cards showing their table instead of the chart (kept across re-renders)
@@ -53,6 +54,7 @@ function isUnlocked() {
 export function render(ctx) {
   const { el } = ctx.helpers;
   const root = el("section", { id: "installbase" });
+  if (_cacheMode !== ctx.state.dataMode) { _cacheMode = ctx.state.dataMode; _cache = null; _error = null; _stamp = ""; }
   root.appendChild(styleEl());
   if (!isUnlocked()) {
     root.appendChild(pinGate(el, () => {
@@ -654,6 +656,7 @@ const W_EVENT = {
   stale_receivers_listed: "Opened the stale-receiver list (Mapping › 3D Stack)",
   status_dot_open: "Opened Health from the top bar's status dot",
   receivers_page_edit: "Saved a height or signal adjustment on the Receivers page",
+  preview_open: "Opened Preview a finished house (the sample house)", preview_back: "Went back to their own house from the preview",
   backup_created: "Made a backup", beacon_tune_saved: "Saved a beacon position (Beacon Tune)",
   bermuda_history_purged: "Cleared Bermuda's old history", calibration_point_added: "Added a calibration point",
   client_screen_seen: "Screens seen", companion_tx_sent: "Phone app set to broadcast (setup wizard)",
@@ -677,6 +680,10 @@ const W_EVENT = {
   scan_mode_flip_auto: "A receiver switched to auto scanning", scan_mode_flip_pinned: "A receiver's scan mode pinned",
   tagged_arrived: "Tagged device arrived home", tagged_departed: "Tagged device left home",
   vacation_resumed: "Vacation Mode resumed after a restart", wall_placed: "Drew a wall", wall_removed: "Removed a wall",
+  vacation_rule_max_lights: "Vacation Mode held a light back (most lights on at once)", vacation_anchor_on: "Vacation Mode kept an evening light on",
+  vacation_rule_max_on: "Vacation Mode turned a light off (longest on)",
+  setup_done: "Finished the guided Setup", vacation_preview: "Looked at the Vacation Mode preview", vacation_preview_empty: "Vacation Mode preview had nothing to show",
+  companion_ids_unreadable: "A phone's beacon ID couldn't be read", device_identity_refused: "A device key already belonged to another device",
   "view_link:kept": "A ?view= link opened its tab", "view_link:forensics_off": "A ?view= link went to the menu (Forensics off)",
   "view_link:edition": "A ?view= link went to the menu (not in this edition)",
   "ha_sidebar:hidden": "Hid Home Assistant's sidebar", "ha_sidebar:shown": "Brought the sidebar back",
@@ -792,6 +799,10 @@ function word(kind, k) {
       if (a === "cal_results_action") return `Calibration Results: ${{ scale: "went to measure a floor plan", start: "started calibrating", receiver_heights: "went to receiver heights",
         floor_heights: "went to floor heights", compute: "went to work out the accuracy", room_empty: "went to add points in an empty room",
         room_weak: "went to add points in a weak room", stale: "walked the house again", matrix: "opened Accuracy by spot", guided: "opened Guided calibration" }[b] || b}`;
+      if (a === "setup_step" || a === "setup_skip") {
+        const step = { plan: "floor plan", scale: "scale", floors: "floors and heights", rooms: "rooms", receivers: "receivers", calibration: "calibration" }[b] || b;
+        return `Setup: ${a === "setup_step" ? "reached" : "skipped"} the ${step} step`;
+      }
       if (a === "proxy_rate_drops") return `A receiver's reading rate dropped (${b} a day)`;
       return tidy(key);
     }

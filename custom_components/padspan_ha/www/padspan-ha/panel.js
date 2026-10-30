@@ -119,6 +119,11 @@ let PRO_INVITE = null;
 import(`./views/pro_invite.js?b=${BUILD_ID}`)
   .then(m => { PRO_INVITE = m; })
   .catch(err => console.warn("PadSpan: pro_invite module failed to load", err));
+// Basic's focused views (views/focus.js): a link from Basic opens just the
+// part it is about. Settings and Mapping load it too; the panel's own links
+// (an Overview tip, the tester card) wait for it.
+const _focusPromise = import(`./views/focus.js?b=${BUILD_ID}`)
+  .catch(err => { console.warn("PadSpan: focus module failed to load", err); return null; });
 
 // Hide HA / Show HA (ha_sidebar.js), shared with the sidebar Atlas. Until it
 // lands the button keeps its first word and a press does nothing; panels that
@@ -256,6 +261,69 @@ function _startDeferredLoads() {
 // Backwards compat: anything that awaits _viewsPromise still works
 const _viewsPromise = _criticalPromise;
 
+// ── Sample mode: the sample house, and nothing written ─────────────────────
+// Sample mode ("Preview a finished house") shows the estate (sample_house.js,
+// loaded only then). Every message the panel, a view or the embedded Atlas
+// sends while it is on goes through _sampleCall, which sorts it here:
+//   "pass"  - to the real Home Assistant, as Sample mode always sent them:
+//             the settings read, the version, the opt-in report's preview,
+//             and a settings save that only switches the data mode back to
+//             Live, records the release notes seen, answers the report's
+//             question or changes how the panel looks (theme, palette, Day /
+//             Light, follow the sun, the 2025 look: display preferences, not
+//             the house). Nothing about the house.
+//   "drop"  - the opt-in report's counts: answered at once, never sent. The
+//             sample house's stairs, 3D and screens are never counted as the
+//             real one's (nothing is counted from Sample mode).
+//   "read"  - answered from the sample house (or an empty answer); never
+//             sent to Home Assistant.
+//   "write" - anything else: refused with SAMPLE_READONLY_MSG. Something new
+//             is a write until it is listed, so it can only ever be refused.
+const SAMPLE_READONLY_MSG = "Sample mode shows a sample house, so nothing can be changed. Switch to Live mode to change your own.";
+// This browser's Sample / Live choice (_applyDataMode), and the real follow
+// choices kept aside while Sample mode shows (_keepLiveFollow).
+const _DATA_MODE_KEY = "padspan_data_mode";
+const _FOLLOW_ASIDE = "padspan_follow_live";
+let _dataModeMem = null;   // the choice when this browser keeps no storage: it lasts the page
+function _localDataMode(){
+  try { const v = localStorage.getItem(_DATA_MODE_KEY); if (v === "live" || v === "sample") return v; } catch (_) { /* no storage */ }
+  return _dataModeMem;
+}
+function _saveLocalDataMode(mode){
+  _dataModeMem = mode;
+  try { localStorage.setItem(_DATA_MODE_KEY, mode); } catch (_) { /* no storage: _dataModeMem */ }
+}
+function _sampleKind(payload){
+  const type = String((payload && payload.type) || "");
+  const PASS = ["padspan_ha/settings_get", "padspan_ha/version", "padspan_ha/telemetry_preview"];
+  if (PASS.includes(type)) return "pass";
+  if (type === "padspan_ha/telemetry_event") return "drop";
+  if (type === "padspan_ha/settings_set") {
+    const keys = Object.keys(payload).filter(k => k !== "type" && k !== "id");
+    const ok = ["data_mode", "whatsnew_seen_version", "telemetry_enabled", "telemetry_asked",
+                "theme_palette", "light_theme", "day_theme", "theme_follow_sun", "ui_skin"];
+    // Only ever back to Live (_setDataMode): Sample is this browser's own choice, never the server's.
+    if ("data_mode" in payload && payload.data_mode !== "live") return "write";
+    return keys.length && keys.every(k => ok.includes(k)) ? "pass" : "write";
+  }
+  // A photo-to-3D status check (no photo sent) is a read; with a photo it is work done for the real house.
+  if (type === "padspan_ha/house3d_from_photo") return payload.photo ? "write" : "read";
+  const READS = new Set(("adaptive_fingerprints_get adaptive_status_get auto_diagnostics bright_import_status calibration_beacon_profiles "
+    + "calibration_get calibration_health_check calibration_room_walk_preview capture_get capture_list capture_status device_registry_list "
+    + "emergency_status fabric_health fabric_truth_candidates follow_alert_get forensics_query forensics_stats guests_get ha_entities_audit "
+    + "house3d_get house3d_import_preview house3d_library_get house3d_library_search house3d_stairs_plans house3d_stairs_read insights_get "
+    + "install_base licence_homes live_snapshot logs_get lost_and_found_get maps_image_urls maps_list model_get movement_history_get "
+    + "notify_services_list object_label_list occupancy_estimate positioning_diag private_ble_status propagation_health radio_audit "
+    + "room_tags setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
+    + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status vendor_lookup wled_backups wled_devices "
+    + "wled_exact_list wled_get wled_look_get wled_teams_get motion_reconnects vacuum_import_preview irk_validate "
+    + "companion_discover").split(" ").map(t => "padspan_ha/" + t));
+  for (const t of ["config/entity_registry/list", "config/entity_registry/list_for_display", "config/entity_registry/get",
+                   "config/device_registry/list", "config/area_registry/list", "config/floor_registry/list",
+                   "history/history_during_period"]) READS.add(t);
+  return READS.has(type) ? "read" : "write";
+}
+
 // ── Sidebar Menu Definition ──────────────────────────────────────────────────
 // Each entry: [route_id, display_label, mdi_icon].
 // Order here determines sidebar rendering order. Visibility is filtered
@@ -372,7 +440,7 @@ const MENU_ICONS = {
 // adding a tab without touching this file can never make it disappear.
 const MENU_GROUPS = [
   ["Live",      ["overview","purelive","follow","occupancy","guests"]],
-  ["Setup",     ["maps","rooms","receivers","calibration","training","manage","settings"]],
+  ["Build",     ["maps","rooms","receivers","calibration","training","manage","settings"]],
   ["Diagnose",  ["traceback","health","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
 ];
@@ -554,7 +622,12 @@ function pill(text){ return el("span",{class:"pill"}, text); }
 class PadSpanHaApp extends HTMLElement {
   constructor(){
     super();
+    // _hass is what the panel and its views talk to: Home Assistant itself,
+    // or in Sample mode the sample house in front of it (_viewHass).
+    // _realHass is always Home Assistant's own.
     this._hass = null;
+    this._realHass = null;
+    this._sampleHouse = null;
 
     // ── Centralized application state ──────────────────────────────────────
     // All UI state is kept here so views can read it through ctx.state.
@@ -643,12 +716,15 @@ class PadSpanHaApp extends HTMLElement {
   //   2. WS reconnect (connection object changed): re-bootstrap everything
   //   3. Sidebar re-entry: restart timers/listeners if they were cleared by disconnect
   set hass(hass){
-    const prevHass = this._hass;
-    this._hass = hass;
+    // prevHass: Home Assistant's own, as before (the reconnect test below
+    // compares its connections); the views get _viewHass's answer.
+    const prevHass = this._realHass;
+    this._realHass = hass;
+    this._hass = this._viewHass(hass);
     if (hass && (!prevHass || prevHass.dockedSidebar !== hass.dockedSidebar)) this._paintHaSide();
     // The Atlas as Overview (views/overview.js) is the sidebar Atlas page,
     // which reads states off its own hass: hand it each new one.
-    if(this.state && this.state._overviewAtlas) this.state._overviewAtlas.hass = hass;
+    if(this.state && this.state._overviewAtlas) this.state._overviewAtlas.hass = this._hass;
     // Follow the sun (_sunLook): the look changes at sunrise and sunset.
     // The help in the HA profile's language, asked again only when it changes.
     const langSeen = hass ? ((hass.locale && hass.locale.language) || hass.language || "") : "";
@@ -1203,14 +1279,13 @@ class PadSpanHaApp extends HTMLElement {
         this.state.view = "maps";
         this.state._mapsWizard = { step: 2, mapId: id };
       } else if (t === "floor_heights") {
-        // Floor Heights is on Mapping's 3D Stack, which Basic doesn't have
-        // (maps.js sends it back to Library): switch and say so, as Open does.
-        if (this.state.complexity === "basic") {
-          this._setComplexity("advanced");
-          this._toast("Floor heights are in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
-        }
-        this.state.view = "maps";
-        this.state.mapsTab = "stack";
+        // Mapping → 3D Stack's Floor Heights; in Basic only that card, with
+        // a way back here (views/focus.js). Advanced: the whole tab.
+        _focusPromise.then(F => {
+          if (F) { F.openFocus(this._ctx(), F.part("floorHeights")); return; }
+          this.state.view = "maps"; this.state.mapsTab = "stack"; this._renderNav(); this._scheduleRender();
+        });
+        return;
       } else {
         this.state.view = "calibration";
         this.state._calibTabRequest = "tune";
@@ -1290,16 +1365,18 @@ class PadSpanHaApp extends HTMLElement {
 
   // Settings → Tracking, where the report switch and the tester sign-up are;
   // the sign-up opens itself there (tester_signup.js, state._testerFocus).
-  // In Basic too: a link's Tracking tab opens in any mode (settings.js).
+  // In Basic just the report's card, with a way back (views/focus.js).
   _openTesterSignup(){
     this.state._testerScrolled = null;
-    this.state.view = "settings";
-    this.state._settingsTab = "presence";
-    this.state._settingsDeep = "presence";
     this.state._testerFocus = true;
-    this._renderNav();
-    if (!VIEWS.settings && _VIEW_PATHS.settings) _loadView("settings").then(() => this._scheduleRender());
-    this._scheduleRender();
+    _focusPromise.then(F => {
+      if (F) { F.openFocus(this._ctx(), F.part("usageReport")); return; }
+      this.state.view = "settings";
+      this.state._settingsTab = "presence";
+      this._renderNav();
+      if (!VIEWS.settings && _VIEW_PATHS.settings) _loadView("settings").then(() => this._scheduleRender());
+      this._scheduleRender();
+    });
   }
 
   // ── The trial's milestone card, once per install ─────────────────────────
@@ -1626,6 +1703,8 @@ class PadSpanHaApp extends HTMLElement {
           }
           // 5b. Data mode still unknown (every settings_get failed): ask again
           this._retryDataMode();
+          // 5c. Sample mode has no data poll: its settings re-read
+          this._sampleSettingsTick();
 
           // 6. Escalation: no successful render in 20s → full rebuild
           // Skip for non-live views (calibration, maps, etc.) — they don't poll-render,
@@ -2013,6 +2092,241 @@ class PadSpanHaApp extends HTMLElement {
     }
   }
 
+  // ── Sample mode: the sample house in front of Home Assistant ──────────────
+  // While this browser is in Sample mode (_applyDataMode), _hass is a copy of
+  // Home Assistant's hass whose states are the sample house's and whose
+  // every call goes through _sampleCall (_sampleKind above): reads are
+  // answered from the house, writes refused, and only the "pass" messages
+  // reach Home Assistant. The website demo's fake Home Assistant
+  // (hass.padspan_demo) is its own in-memory sample house, so it is asked
+  // directly.
+
+  /** Sample mode is on (_applyDataMode) and Home Assistant is a real one. */
+  _sampleGateOn(){
+    return this.state.dataMode === "sample" && !!this.state._dataModeKnown
+      && !(this._realHass && this._realHass.padspan_demo === true);
+  }
+
+  /** The sample house, loaded the first time Sample mode needs it (never in Live mode). null if it could not load. */
+  _ensureSampleHouse(){
+    if (this._sampleHouse) return Promise.resolve(this._sampleHouse);
+    if (this._sampleHouseFailed) return Promise.resolve(null);
+    if (!this._sampleHouseP) {
+      this._sampleHouseP = import(`./sample_house.js?b=${BUILD_ID}`)
+        .then(m => {
+          if (this._sampleGateOn() && !this._sampleHouse) {
+            this._sampleHouse = m.createSampleHouse();
+            // The settings already read are the real house's: its Vacation
+            // Mode, flood latches and so on are not the sample house's.
+            if (this.state.settings) { this._realSettings = this.state.settings; this.state.settings = this._sampleHouse.settingsFor(this.state.settings); }
+            this._syncSampleHass();
+          }
+          return this._sampleHouse;
+        })
+        .catch(err => {
+          // Sample mode then shows the small demo house (sample_data.js) as before.
+          console.warn("PadSpan: the sample house failed to load", err);
+          this._sampleHouseFailed = true;
+          return null;
+        })
+        .finally(() => { this._sampleHouseP = null; });
+    }
+    return this._sampleHouseP;
+  }
+
+  /** A write refused in Sample mode: said once (not again within 3 s, and
+   *  kept over the view's own "failed" toast that follows), and the error
+   *  the caller gets. */
+  _sampleBlocked(){
+    const now = Date.now();
+    if (!(this._sampleToastAt && now - this._sampleToastAt < 3000)) this._toast(SAMPLE_READONLY_MSG);
+    this._sampleToastAt = now;
+    this._adminOnlyToastUntil = now + 4500;
+    const err = new Error(SAMPLE_READONLY_MSG);
+    err.code = "sample_mode";
+    return err;
+  }
+
+  /** Every message sent while Sample mode is on (_sampleKind). */
+  async _sampleCall(payload){
+    const real = this._realHass;
+    // Switched back to Live while a view still held the sample hass.
+    if (!this._sampleGateOn()) return real.callWS(payload);
+    const kind = _sampleKind(payload);
+    if (kind === "drop") return {};
+    if (kind === "write") throw this._sampleBlocked();
+    if (kind === "pass") {
+      const res = await real.callWS(payload);
+      // A settings answer as the sample house has it (no real Vacation Mode, receiver offsets or
+      // hidden plans); the real one kept for the switch back (_syncSampleHass).
+      if (!(this._sampleHouse && res && res.settings)) return res;
+      this._realSettings = res.settings;
+      return { ...res, settings: this._sampleHouse.settingsFor(res.settings) };
+    }
+    const house = await this._ensureSampleHouse();
+    // The house could not load: reads go to Home Assistant, as Sample mode always sent them.
+    if (!house) return real.callWS(payload);
+    const res = house.route(payload);
+    return res === undefined ? {} : res;
+  }
+
+  /** What the views talk to: real, or in Sample mode the sample house in
+   *  front of it. The same object until either changes, and one connection
+   *  object for the whole Sample session (set hass's reconnect test). */
+  _viewHass(real){
+    if (!real || !this._sampleGateOn()) return real;
+    const house = this._sampleHouse;
+    const w0 = this._sampleWrap;
+    if (w0 && w0._real === real && w0._house === house) return w0;
+    const self = this;
+    const conn = this._sampleConn || (this._sampleConn = {
+      connected: true, addEventListener(){}, removeEventListener(){},
+      sendMessagePromise: (m) => self._sampleCall(m),
+      // Nothing is pushed from a sample house.
+      subscribeMessage: async () => () => {}, subscribeEvents: async () => () => {},
+    });
+    const w = Object.assign({}, real, {
+      callWS: (m) => self._sampleCall(m),
+      sendWS: (m) => { self._sampleCall(m).catch(() => {}); },
+      // Refused only while Sample mode is on: a view still holding this copy
+      // after the switch back to Live is talking to the real house again.
+      callService: (...a) => self._sampleGateOn() ? Promise.reject(self._sampleBlocked()) : self._realHass.callService(...a),
+      // A history read gets nothing; anything else is a change.
+      callApi: (method, ...a) => !self._sampleGateOn() ? self._realHass.callApi(method, ...a)
+        : String(method).toUpperCase() === "GET" ? Promise.resolve([]) : Promise.reject(self._sampleBlocked()),
+      connection: conn,
+      padspan_sample: true,
+    });
+    if (house) {
+      // The sample house's own lights and sensors; the real sun, so a theme
+      // that follows it does not jump at the switch.
+      w.states = Object.assign({}, house.states, real.states && real.states["sun.sun"] ? { "sun.sun": real.states["sun.sun"] } : {});
+      w.entities = house.entities;
+      w.devices = {};
+      w.areas = Object.fromEntries(house.model.areas.map(a => [a.id, { area_id: a.id, name: a.name, floor_id: a.floor_id }]));
+      w.floors = Object.fromEntries(house.model.floors.map(f => [f.id, { floor_id: f.id, name: f.name, level: f.level }]));
+    }
+    Object.defineProperty(w, "_real", { value: real });
+    Object.defineProperty(w, "_house", { value: house });
+    this._sampleWrap = w;
+    return w;
+  }
+
+  /**
+   * After every data-mode answer (_applyDataMode): which hass the views get,
+   * and on a change of mode, nothing of the other house kept. Entering
+   * Sample mode starts loading the sample house and puts the real follow
+   * choices aside; leaving it drops the house, gives them back, and the
+   * refresh that follows the switch reloads the real model.
+   */
+  _syncSampleHass(){
+    const on = this._sampleGateOn();
+    if (on !== !!this._sampleOn) {
+      this._sampleOn = on;
+      this._dropHouseCaches();
+      if (!on) {
+        this._sampleHouse = null; this._sampleWrap = null;
+        // The real settings back, not the sample copy, even if the next read fails: a Live
+        // save must never send the copy's blanks (hidden plans, receiver offsets).
+        if (this._realSettings) this.state.settings = this._realSettings;
+      }
+      this._realSettings = null;
+    }
+    if (on) this._keepLiveFollow();
+    else this._restoreLiveFollow();
+    if (on && !this._sampleHouse) this._ensureSampleHouse();
+    const h = this._viewHass(this._realHass);
+    if (h !== this._hass) {
+      this._hass = h;
+      if (this.state._overviewAtlas) this.state._overviewAtlas.hass = h;
+    }
+  }
+
+  /** What the panel and its views hold of one house, dropped when the
+   *  data mode changes; the refresh after the switch reads the other's. */
+  _dropHouseCaches(){
+    const st = this.state;
+    const atlas = st._overviewAtlas;
+    if (atlas && atlas.parentNode) atlas.parentNode.removeChild(atlas);
+    st._overviewAtlas = null;
+    if (st.live) { st.live.snapshot = null; st.live.fromSample = false; }
+    // The model too: a failed model_get after the switch must not leave the
+    // other house's rooms under a Live edit. Views wait for _modelLoaded.
+    st.model = { floors: [], areas: [], room_meta: {}, scanners: {}, room_adjacency: {}, scanner_positions_m: {},
+                 room_geometry_m: {}, rf_barriers_m: [], map_transforms: {}, beacon_positions_m: {},
+                 light_positions_m: {}, floor_elevations: {}, fabric_floors: {} };
+    st._modelLoaded = false;
+    // The plans and everything Mapping keeps about them (drafts, alignments).
+    st.maps = { list: [], lastError: null };
+    st._mapsLoaded = false;
+    st.activeMapId = null;
+    st._mapsWizard = null;
+    st.calibration = null;
+    st._setupCalAsked = false;
+    st._lightsRegStore = null;
+    st._settingsDraft = null;
+    st.diag = null;
+    st.status = null;
+    st.savedRoomTagMap = {};
+    st.roomTagMap = {};
+    if (st._calib) st._calib._resultsTips = null;
+  }
+
+  /**
+   * Sample mode has no data poll, so its settings are re-read here every
+   * 30 s (from the watchdog): a real flood alarm still shows on a screen
+   * left in Sample mode (a wall display), and a screen with no choice of
+   * its own follows another screen's "Back to my house" (_applyDataMode).
+   */
+  _sampleSettingsTick(){
+    if (this.state.dataMode === "live" || !this.state._dataModeKnown || this._sampleTickBusy) return;
+    if (Date.now() - (this._settingsPollTs || 0) < 30000) return;
+    this._settingsPollTs = Date.now();
+    this._sampleTickBusy = true;
+    return this._fetchSettings()
+      .then(async () => {
+        this._updateEmergencyBanner();
+        if (this.state.dataMode === "live") { await this._refreshAll(false); this._startPolling(); this._scheduleRender(); }
+      })
+      .catch(() => {})
+      .finally(() => { this._sampleTickBusy = false; });
+  }
+
+  /**
+   * Following in Sample mode (M2): the Follow view, the Overview and the
+   * device sheet change state.followedAddrs / followAddr and their
+   * localStorage copies (padspan_followed, padspan_followAddr) as they
+   * always did, so following the sample house's people works; the server's
+   * list is never written (_sampleKind). The real choices are put aside
+   * here on entering Sample mode, in localStorage too so a reload or a
+   * closed tab in between keeps them, and given back on leaving it.
+   */
+  _keepLiveFollow(){
+    try {
+      if (localStorage.getItem(_FOLLOW_ASIDE) !== null) return;
+      localStorage.setItem(_FOLLOW_ASIDE, JSON.stringify({ followed: localStorage.getItem("padspan_followed"),
+                                                           addr: localStorage.getItem("padspan_followAddr") }));
+    } catch (_) { /* no storage: nothing kept, nothing to give back */ }
+  }
+
+  _restoreLiveFollow(){
+    let kept = null;
+    try { kept = JSON.parse(localStorage.getItem(_FOLLOW_ASIDE) || "null"); } catch (_) { kept = null; }
+    if (!kept || typeof kept !== "object") return;
+    try {
+      for (const [key, v] of [["padspan_followed", kept.followed], ["padspan_followAddr", kept.addr]]) {
+        if (v === null || v === undefined) localStorage.removeItem(key); else localStorage.setItem(key, v);
+      }
+      localStorage.removeItem(_FOLLOW_ASIDE);
+    } catch (_) { /* storage went away */ }
+    let list = [];
+    try { list = JSON.parse(kept.followed || "[]"); } catch (_) { list = []; }
+    this.state.followedAddrs = new Set(Array.isArray(list) ? list : []);
+    this.state.followAddr = kept.addr || "";
+    // The server's list is read again with the next settings (Live).
+    this._followedLoadedFromServer = false;
+  }
+
   // Fetch settings and store quietly (no re-render, no toast) — called from _refreshAll
   async _fetchSettings(){
     const attempt = async () => {
@@ -2028,12 +2342,15 @@ class PadSpanHaApp extends HTMLElement {
         // The first settings decide what the menu shows (Forensics, Bright):
         // a ?view= link kept until now is checked against them (issue #93).
         if (first && this.$nav) this._renderNav();
-        this._telemetryFlush();
         if ("cpu_pinning_supported" in res) this.state.cpuPinningSupported = !!res.cpu_pinning_supported;
+        // The mode first, then the counts queued before it was known: a page
+        // that opens in Sample mode sends none of them (_sampleKind "drop").
         this._applyDataMode(res.settings.data_mode);
+        this._telemetryFlush();
         // Load followed addrs from server ONCE on boot (not on every poll,
-        // which would race with local toggles and revert user clicks)
-        if(!this._followedLoadedFromServer && Array.isArray(res.settings.followed_addrs)){
+        // which would race with local toggles and revert user clicks); in
+        // Live mode only (Sample mode keeps the real ones aside, _keepLiveFollow).
+        if(!this._followedLoadedFromServer && this.state.dataMode === "live" && Array.isArray(res.settings.followed_addrs)){
           this.state.followedAddrs = new Set(res.settings.followed_addrs);
           this._followedLoadedFromServer = true;
         }
@@ -2340,13 +2657,29 @@ class PadSpanHaApp extends HTMLElement {
    * is now known, and a Live answer evicts the demo snapshot on the spot.
    */
   _applyDataMode(raw){
-    const mode = (String(raw || "sample").toLowerCase() === "live") ? "live" : "sample";
+    // Sample / Live is this browser's own choice (M3): one person's preview
+    // must not turn every screen in the house (a wall display) to the sample
+    // house. The rule:
+    //   - this browser has a choice (localStorage padspan_data_mode, set by
+    //     its own Sample / Live switch): that, whatever the server says;
+    //   - no choice yet: the server's data_mode on the page's first answer
+    //     (a house still in Sample from before stays there, and a new
+    //     install starts on the sample house), and after that the server
+    //     only ever turns it to Live (onboarding.py's first scanner, another
+    //     screen's "Back to my house"), never to Sample.
+    // The #88 rule stands: nothing is known before the server has answered.
+    const server = (String(raw || "sample").toLowerCase() === "live") ? "live" : "sample";
+    const own = _localDataMode();
+    const mode = own || (!this.state._dataModeKnown || server === "live" ? server : this.state.dataMode);
     this.state.dataMode = mode;
     this.state._dataModeKnown = true;
-    if(mode === "live" && this.state.live.snapshot === SAMPLE_SNAPSHOT){
+    if(mode === "live" && (this.state.live.snapshot === SAMPLE_SNAPSHOT || this.state.live.fromSample)){
       this.state.live.snapshot = null;
+      this.state.live.fromSample = false;
       this._recomputeDerived();
     }
+    // The sample house in front of Home Assistant, or not (Sample mode).
+    this._syncSampleHass();
   }
 
   /**
@@ -2373,13 +2706,42 @@ class PadSpanHaApp extends HTMLElement {
 
   async _setDataMode(mode){
     try {
-      const res = await this._callWS({ type: "padspan_ha/settings_set", data_mode: mode });
+      mode = mode === "live" ? "live" : "sample";
+      const was = this.state.dataMode;
+      // This browser's choice (_applyDataMode): Sample is never sent to the
+      // server. Back to Live is, while the server still says sample, so the
+      // server's own Live-only work (Forensics recording, the room tags)
+      // runs again, and screens with no choice of their own follow. The
+      // choice is kept only once the server took it: a refusal (Enhanced
+      // security and no admin) or no answer leaves this screen in Sample,
+      // and says so, rather than Live over a server still in Sample.
+      let server = this.state.settings && this.state.settings.data_mode;
+      if(mode === "live" && server !== "live"){
+        let res;
+        try { res = await this._callWS({ type: "padspan_ha/settings_set", data_mode: "live" }); }
+        catch(err){
+          this._adminOnlyToastUntil = 0;
+          this._toast(err && err.code === "admin_only"
+            ? "Only an admin can switch the house back to live data while Enhanced security is on. Ask an admin to press \"Back to my house\"; this screen stays on the sample house."
+            : "Couldn't switch back to live data: Home Assistant didn't answer. This screen stays on the sample house; try again in a moment.", true);
+          return;
+        }
+        if(res && res.settings){ this.state.settings = res.settings; server = res.settings.data_mode; }
+      }
+      // Opt-in report: the preview opened, counted while still Live (Sample
+      // mode counts nothing, _sampleKind "drop").
+      if(mode === "sample" && was === "live") this._telemetryEvent("preview_open");
+      _saveLocalDataMode(mode);
       // A Live answer clears the sample snapshot here (see _applyDataMode) so
       // the first live fetch replaces it.
-      this._applyDataMode(res?.settings?.data_mode);
+      this._applyDataMode(server);
+      // ... and left, counted once Live again.
+      if(mode === "live" && was === "sample" && this.state.dataMode === "live") this._telemetryEvent("preview_back");
       this._toast(`Data mode: ${this.state.dataMode.toUpperCase()}`);
-      // When switching to sample, explicitly assign sample snapshot.
-      if(this.state.dataMode !== "live"){
+      // When switching to sample, explicitly assign sample snapshot: the
+      // small demo house's, only when the sample house (whose own comes
+      // with the refresh below) could not load.
+      if(this.state.dataMode !== "live" && !(this._sampleGateOn() && await this._ensureSampleHouse())){
         this.state.live.snapshot = SAMPLE_SNAPSHOT;
         this._recomputeDerived();
       }
@@ -2506,9 +2868,21 @@ class PadSpanHaApp extends HTMLElement {
       // "sample" before any settings answer is the constructor default, not
       // the server's choice — no demo data until the mode is known (#88).
       if(!this.state._dataModeKnown) return;
+      // The sample house's people where they are now (sample_house.js), or
+      // the website demo's own; never a request to a real Home Assistant
+      // (_sampleCall answers it). SAMPLE_SNAPSHOT if neither is there.
+      let snap = null;
+      const demo = !!(this._realHass && this._realHass.padspan_demo === true);
+      if(demo || (this._sampleGateOn() && await this._ensureSampleHouse())){
+        try { snap = (await this._callWS({ type: "padspan_ha/live_snapshot" }))?.snapshot || null; } catch(e) { snap = null; }
+      }
+      if(this.state.dataMode !== "live" && snap && typeof snap === "object"){
+        this.state.live.snapshot = snap;
+        this.state.live.fromSample = true;
+      }
       // But only assign if we don't already have a live snapshot cached
       // (prevents race conditions during _refreshAll where settings haven't loaded yet).
-      if(!this.state.live.snapshot || this.state.live.snapshot === SAMPLE_SNAPSHOT){
+      else if(!this.state.live.snapshot || this.state.live.snapshot === SAMPLE_SNAPSHOT){
         this.state.live.snapshot = SAMPLE_SNAPSHOT;
       }
       this.state.live.error = null;
@@ -2673,6 +3047,8 @@ class PadSpanHaApp extends HTMLElement {
     const t0 = performance.now();
     if(userAction) this._toast("Refreshing…");
     await Promise.allSettled([this._fetchSettings()]);
+    // Sample mode: the sample house answers everything below (_sampleCall).
+    if(this._sampleGateOn()) await this._ensureSampleHouse();
     // Stamp the throttle _pollTick's own quiet settings repoll checks
     // against, so the very next 5s tick doesn't immediately re-fetch what
     // was just fetched here.
@@ -2714,6 +3090,7 @@ class PadSpanHaApp extends HTMLElement {
    *  Jay 2026-10-04: the button did nothing at all). */
   _setComplexity(mode){
     this.state.complexity = mode;
+    this.state._focus = null;   // a focused part is Basic's only (views/focus.js)
     try { localStorage.setItem("padspan_complexity", mode); } catch(e) {}
     // If switching to basic/advanced and current view isn't visible, go to
     // follow — unless the URL explicitly pinned the view (kiosk deep-link).
@@ -2849,12 +3226,15 @@ class PadSpanHaApp extends HTMLElement {
     // Rebuilt only when the set of alarms changes: this runs on every poll,
     // and rebuilding wiped a Reset -> Yes/No confirm within a second or five,
     // so Yes was nearly impossible to press.
-    const _sig = active.map(([eid]) => eid + "=" + (this._hass?.states?.[eid]?.attributes?.friendly_name || "")).sort().join("|");
+    // The latches are the real house's in Sample mode too: so are their names.
+    const realStates = (this._realHass || this._hass)?.states;
+    const sample = this.state.dataMode !== "live";
+    const _sig = (sample ? "sample|" : "") + active.map(([eid]) => eid + "=" + (realStates?.[eid]?.attributes?.friendly_name || "")).sort().join("|");
     if(this._emergencyListSig === _sig && listEl.childElementCount) return;
     this._emergencyListSig = _sig;
     listEl.innerHTML = "";
     for(const [eid] of active){
-      const name = this._hass?.states?.[eid]?.attributes?.friendly_name || eid;
+      const name = realStates?.[eid]?.attributes?.friendly_name || eid;
       const row = document.createElement("div");
       row.className = "emergency-banner-row";
       const nameEl = document.createElement("span");
@@ -2887,7 +3267,13 @@ class PadSpanHaApp extends HTMLElement {
         });
         return b;
       };
-      wrap.appendChild(makeResetBtn());
+      // Sample mode: the alarm is the real house's, and so is its Reset: the way there.
+      if (sample) {
+        const back = document.createElement("button");
+        back.className = "btn tiny"; back.textContent = "Back to my house";
+        back.addEventListener("click", (e) => { e.stopPropagation(); this._setDataMode("live"); });
+        wrap.appendChild(back);
+      } else wrap.appendChild(makeResetBtn());
       row.appendChild(wrap);
       listEl.appendChild(row);
     }
@@ -2986,7 +3372,7 @@ class PadSpanHaApp extends HTMLElement {
       this._scheduleRender();
     }
     // Main groups and More tools. More tools lists in MENU_GROUPS order
-    // (Live, Setup, Diagnose, Internals), anything ungrouped last.
+    // (Live, Build, Diagnose, Internals), anything ungrouped last.
     const main = this._getMainTabs();
     const _order = MENU_GROUPS.flatMap(g => g[1]);
     const _rank = (id) => { const i = _order.indexOf(id); return i < 0 ? _order.length : i; };
@@ -3025,9 +3411,9 @@ class PadSpanHaApp extends HTMLElement {
         if (this.state._calibBeacon) this.state._calibBeacon._confirming = false;
         if (this.state._calib) this.state._calib._resultsCounted = false;   // the next visit to Results counts
       }
-      // A link's Settings → Tracking in Basic (settings.js _settingsDeep):
-      // the menu's Settings is Appearance again.
-      this.state._settingsDeep = null;
+      // A link's focused part in Basic (views/focus.js): the menu's Settings
+      // is Appearance again, its Mapping Library.
+      this.state._focus = null;
       this.state.view = id;
       this.state._setupReturn = null;   // a menu pick leaves the guided Setup's step
       this._logEvent("view_change", id);
@@ -3196,6 +3582,7 @@ class PadSpanHaApp extends HTMLElement {
   // receivers"): counted as a tab open, highlighted like a menu pick, loaded
   // if the background load has not reached it yet.
   _openCountedView(id){
+    this.state._focus = null;   // views/focus.js
     this.state.view = id;
     this._telemetryEvent("tab:" + id);
     this._renderNav();
@@ -3452,7 +3839,10 @@ class PadSpanHaApp extends HTMLElement {
         // Open another screen from inside one (the guided Setup's steps):
         // highlighted like a menu pick, loaded if the background load has not
         // reached it yet.
-        showView: (id) => {
+        showView: (id, opts) => {
+          // Another screen: a link's focused part is left (views/focus.js),
+          // unless focus.js opens the screen on that part (opts.keepFocus).
+          if (!(opts && opts.keepFocus)) this.state._focus = null;
           this.state.view = id;
           this._renderNav();
           if (!VIEWS[id] && _VIEW_PATHS[id]) _loadView(id).then(() => this._scheduleRender());
@@ -3470,8 +3860,8 @@ class PadSpanHaApp extends HTMLElement {
           } else {
             this.state.followedAddrs.add(key);
           }
-          // Persist to server (fire-and-forget)
-          this._callWS({
+          // Persist to server (fire-and-forget); not from Sample mode (_keepLiveFollow)
+          if(this.state.dataMode === "live") this._callWS({
             type: "padspan_ha/settings_set",
             followed_addrs: [...this.state.followedAddrs],
           }).catch(()=>{});
@@ -3974,8 +4364,8 @@ class PadSpanHaApp extends HTMLElement {
         const wasFollowed = this.state.followedAddrs.has(_followKey);
         if(wasFollowed) this.state.followedAddrs.delete(_followKey);
         else this.state.followedAddrs.add(_followKey);
-        // Persist to server
-        this._callWS({
+        // Persist to server (not from Sample mode: _keepLiveFollow)
+        if(this.state.dataMode === "live") this._callWS({
           type: "padspan_ha/settings_set",
           followed_addrs: [...this.state.followedAddrs],
         }).catch(()=>{});
@@ -4021,7 +4411,7 @@ class PadSpanHaApp extends HTMLElement {
         // Unfollow
         if(_followKey && this.state.followedAddrs.has(_followKey)){
           this.state.followedAddrs.delete(_followKey);
-          this._callWS({
+          if(this.state.dataMode === "live") this._callWS({
             type: "padspan_ha/settings_set",
             followed_addrs: [...this.state.followedAddrs],
           }).catch(()=>{});
@@ -4516,7 +4906,8 @@ class PadSpanHaApp extends HTMLElement {
 
       // Auto-mark completed when all steps done \u2014 tried once per page, so a
       // save that fails is not re-sent on every render.
-      if (_allDone && !_onboardingDone && this.state.settings && !this._onboardingAutoTried) {
+      // Never from Sample mode: the sample house is finished, the real one may not be.
+      if (_allDone && !_onboardingDone && this.state.settings && !this._onboardingAutoTried && this.state.dataMode === "live") {
         this._onboardingAutoTried = true;
         _markOnboarded();
       }

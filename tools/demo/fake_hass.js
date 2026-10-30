@@ -1,9 +1,11 @@
 // The public demo's Home Assistant: just enough of `hass` for the real
 // PadSpan panel and the sidebar Atlas to run in a browser with no server.
-// The house is the estate (estate.js: three floors, furnished, two residents,
-// a guest wearing a visitor tag); ?house=classic is the old one-box-a-room
-// house (fixture.js, the Live Aboard harness's), which ?fresh= keeps too. The
-// panel's own Sample mode (sample_data.js) supplies its tracking data.
+// The house is the estate (the panel's own estate.js, through sample_house.js:
+// three floors, furnished, two residents, a guest wearing a visitor tag) — the
+// same house the panel's Sample mode shows ("Preview a finished house");
+// ?house=classic is the old one-box-a-room house (fixture.js, the Live Aboard
+// harness's), which ?fresh= keeps too. The panel sees hass.padspan_demo and
+// asks this fake for everything, its Sample-mode snapshot included.
 //
 // Everything is in memory: a light tapped on, a setting changed, a door drawn
 // in 3D last until the page reloads. Nothing is sent anywhere.
@@ -11,7 +13,6 @@
 // startDemo(page) mounts the panel ("panel") or the Atlas ("atlas", "atlas3d").
 
 import { harnessFixture } from "./fixture.js";
-import { estateFixture } from "./estate.js";
 
 const WWW = "padspan_ha_static/padspan-ha/";
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -33,59 +34,26 @@ const CLASSIC_WALKERS = [
 const CLASSIC_MOTION = { Kitchen: "binary_sensor.kitchen_motion", "Living Room": "binary_sensor.living_motion", Hall: "binary_sensor.hall_motion",
                          Den: "binary_sensor.den_motion", Laundry: "binary_sensor.laundry_motion", Office: "binary_sensor.office_motion" };
 
-/** Whether (x, y) is inside polygon P ([[x, y], ...]): the even-odd rule. */
-function inPoly(P, x, y){
-  let inside = false;
-  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-    const [xi, yi] = P[i], [xj, yj] = P[j];
-    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-/** Which room (plan metres) holds (x, y) on floor fid: its outline, not its box (an L-shaped room's box takes in its neighbour). */
-function roomAt(model, fid, x, y){
-  for (const [name, g] of Object.entries(model.room_geometry_m || {})) {
-    if (g.floor_id === fid && inPoly(g.points_m, x, y)) return name;
-  }
-  return "";
-}
-
-/** Where a walker is t seconds in: along its loop at 0.4 m/s, a floor change a
- *  step. A waypoint's fourth number is how long they stay there (s): at the
- *  desk, on the sofa. */
-function walkAt(w, t){
-  const L = w.loop, legs = L.map((p, i) => {
-    const q = L[(i + 1) % L.length];
-    return { p, q, stay: p[3] || 0, s: (p[0] === q[0] ? Math.hypot(q[1] - p[1], q[2] - p[2]) : 0.5) / 0.4 };
-  });
-  const total = legs.reduce((s, l) => s + l.stay + l.s, 0);
-  let s = t % total;
-  for (const l of legs) {
-    if (s <= l.stay) return { fid: l.p[0], x: l.p[1], y: l.p[2] };
-    s -= l.stay;
-    if (s <= l.s) {
-      const f = l.s ? s / l.s : 1;
-      if (l.p[0] !== l.q[0]) return { fid: f < 0.5 ? l.p[0] : l.q[0], x: f < 0.5 ? l.p[1] : l.q[1], y: f < 0.5 ? l.p[2] : l.q[2] };
-      return { fid: l.p[0], x: l.p[1] + (l.q[1] - l.p[1]) * f, y: l.p[2] + (l.q[2] - l.p[2]) * f };
-    }
-    s -= l.s;
-  }
-  return { fid: L[0][0], x: L[0][1], y: L[0][2] };
-}
-
 export async function startDemo(page){
   const q = new URLSearchParams(location.search);
   const built = await (await fetch("demo_settings.json")).json();
+  // The estate and its helpers: the panel's own module (sample_house.js), at
+  // the URL the panel imports it from, so both share one copy.
+  const SH = await import(`./${WWW}sample_house.js?b=${built.version.build_id}`);
+  const { roomAt, walkAt, snapshotOf, occupancyOf } = SH;
   // ?fresh=: a new install's first minutes, on the classic house (below).
   const fresh = ["1", "pending", "wizard"].includes(q.get("fresh"));
   // The estate, or with ?house=classic the quiet classic house (fixture.js
   // calm=1: no alarm, windows shut, °C throughout).
   const classic = fresh || q.get("house") === "classic";
   const house = classic ? { ...harnessFixture(new URLSearchParams("calm=1")), HOUSE3D: null, WALKERS: CLASSIC_WALKERS, MOTION: CLASSIC_MOTION }
-    : estateFixture(q);
+    : SH.estateFixture(q);
   const { MODEL, STATES, WALKERS, MOTION } = house;
+  // The estate as the panel's Sample mode shows it: measured floor plans,
+  // calibration, diagnostics (the reads this fake does not answer itself).
+  const finished = classic ? null : SH.createSampleHouse(q);
   const model = clone(MODEL);
+  if (finished) model.map_transforms = clone(finished.model.map_transforms);
   model.areas = Object.keys(model.room_geometry_m).map(name => ({ id: slug(name), name, floor_id: model.room_geometry_m[name].floor_id }));
   model.room_meta = clone(MODEL.room_meta || {});
   let states = clone(STATES);
@@ -125,6 +93,9 @@ export async function startDemo(page){
   // The demo opens straight onto the house: the first-time tips (the Atlas
   // coach mark, Live Aboard's card) count as seen. The bar says what it is.
   try { localStorage.setItem("padspan_ha_lights_coach_seen", "1"); localStorage.setItem("padspan_la3d_hint_seen", "1"); } catch (_) { /* no storage */ }
+  // Sample / Live is each browser's own choice in the panel (panel.js _applyDataMode): the demo
+  // always opens on its own settings, whatever a visit before chose.
+  try { localStorage.removeItem("padspan_data_mode"); localStorage.removeItem("padspan_follow_live"); } catch (_) { /* no storage */ }
   // The flat Atlas or Live Aboard: the Atlas card's own choice, kept per browser.
   if (page === "atlas") localStorage.setItem("padspan_lv_3d_atlas", "0");
   if (page === "atlas3d") localStorage.setItem("padspan_lv_3d_atlas", "1");
@@ -135,18 +106,7 @@ export async function startDemo(page){
 
   // ?at=: start everyone that many seconds along their walk (a picture of a given moment).
   const t0 = Date.now() - 1000 * Math.max(0, Number(q.get("at")) || 0);
-  const snapshot = () => {
-    const t = (Date.now() - t0) / 1000;
-    const list = WALKERS.map(w => {
-      const at = walkAt(w, t), room = roomAt(model, at.fid, at.x, at.y);
-      return { key: w.key, kind: w.kind, name: w.name, user_label: w.name, identified: true, entity_id: w.eid || null,
-               linked_entities: w.eid ? [w.eid] : [], x_m: at.x, y_m: at.y, floor_id: at.fid, room, age_s: 1,
-               knn_confidence: 0.8, sources: [{ source: "demo_scanner", rssi: -62 }],
-               // A tag lent to a guest for their stay: who has it (guest_tags.py snapshot_overlay).
-               ...(w.guest ? { guest: clone(w.guest) } : {}) };
-    });
-    return { source: "demo", generated_at: now(), objects: { list } };
-  };
+  const snapshot = () => snapshotOf(model, WALKERS, (Date.now() - t0) / 1000, { source: "demo", generatedAt: now() });
 
   // ?fresh=1: four scanners, one with no area yet; each device is in the
   // room of the scanner that hears it best, as the engine does without a map.
@@ -199,25 +159,7 @@ export async function startDemo(page){
 
   // Overview's "People in building" (ws_occupancy.py's answer): the people
   // the snapshot places, the tag seen and not counted, motion where they are.
-  const occupancy = () => {
-    const list = snapshot().objects.list, mine = list.filter(o => o.entity_id);
-    const people = WALKERS.filter(w => w.person).map(w => {
-      const o = list.find(x => x.key === w.key);
-      return { name: states[w.person].attributes.friendly_name, kind: "known", room: (o && o.room) || null, via: "person entity", aliases: [], assumed: false };
-    });
-    const motion = Object.entries(MOTION).filter(([, eid]) => states[eid] && states[eid].state === "on").map(([r]) => r);
-    const rooms = {};
-    for (const p of people) if (p.room) (rooms[p.room] = rooms[p.room] || { room: p.room, people: [], phones: 0, occupancy: false, motion: false }).people.push(p.name);
-    for (const r of motion) (rooms[r] = rooms[r] || { room: r, people: [], phones: 0, occupancy: false, motion: false }).motion = true;
-    for (const r of Object.values(rooms)) r.agreement = r.people.length && r.motion ? "agree" : r.people.length ? "ble_only" : "sensor_only";
-    const n = people.length;
-    return { total_estimate: n, total_low: n, total_high: n, confidence: "high", known: n, unknown: 0, people,
-             rooms: Object.values(rooms).sort((a, b) => a.room.localeCompare(b.room)),
-             evidence: { persons_home: people.map(p => p.name), persons_unlocated: [], phone_clusters: mine.length, phone_addresses: mine.length,
-                         occupancy_rooms: [], motion_rooms: motion, unaccounted_rooms: [], stuck_sensors: [],
-                         things_seen: list.filter(o => !o.entity_id).map(o => ({ label: o.name, kind: o.kind, room: o.room || null })) },
-             hybrid_enabled: true, cluster_threshold: 0, training_count: 0, accuracy: null };
-  };
+  const occupancy = () => occupancyOf(snapshot().objects.list, WALKERS, states, MOTION);
 
   const route = async (m) => {
     switch (m.type) {
@@ -225,7 +167,7 @@ export async function startDemo(page){
       case "padspan_ha/settings_set": { const { type, id, ...rest } = m; Object.assign(settings, rest); return { settings: clone(settings) }; }
       case "padspan_ha/version": return built.version;
       case "padspan_ha/model_get": return clone(model);
-      case "padspan_ha/maps_list": return { maps: wizard ? [clone(WIZ_MAP)] : [] };
+      case "padspan_ha/maps_list": return wizard ? { maps: [clone(WIZ_MAP)] } : finished ? finished.route(m) : { maps: [] };
       case "padspan_ha/fabric_truth_candidates": return { floor_id: m.floor_id, transforms: { rooms: Object.fromEntries(
         Object.entries(WIZ_MAP.room_bounds).map(([r, pts]) => [r, { type: "poly", floor_id: "main", source_map_id: WIZ_MAP.id, points_m: pts.map(toM) }])) } };
       case "padspan_ha/fabric_correct_room":
@@ -256,7 +198,7 @@ export async function startDemo(page){
       case "config/device_registry/list": return [];
       case "config/area_registry/list": return model.areas.map(a => ({ area_id: a.id, name: a.name, floor_id: a.floor_id }));
       case "config/floor_registry/list": return model.floors.map(f => ({ floor_id: f.id, name: f.name, level: f.level }));
-      default: return {};
+      default: { const r = finished && finished.route(m); return r === undefined ? {} : r; }
     }
   };
 
@@ -282,6 +224,9 @@ export async function startDemo(page){
   };
 
   const hass = () => ({
+    // padspan_demo: this is the demo's own in-memory house, so the panel's
+    // Sample mode asks it rather than answering from its own copy (panel.js _sampleGateOn).
+    padspan_demo: true,
     states, user: { is_admin: true, name: "Demo", id: "demo" }, language: "en", locale: { language: "en" }, themes: { darkMode: true },
     config: { latitude: 0, longitude: 0, time_zone: "UTC", unit_system: { temperature: "°C", length: "km" }, version: "2026.10.0" },
     callWS: (msg) => route(msg), callService, callApi: async () => ({}),

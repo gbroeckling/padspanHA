@@ -143,7 +143,7 @@ const text = (n) => n ? n.textContent : "";
   nx.querySelector('[data-cal-results="go"]').click();
   check("empty: Measure goes to the map wizard's scale step", st2.view === "maps" && st2._mapsWizard && st2._mapsWizard.step === 2 && st2._mapsWizard.mapId === "m1"
     && s2.events.includes("cal_results_action:scale"), { v: st2.view, w: st2._mapsWizard });
-  // Floor heights live on Mapping's 3D Stack, Advanced only: Basic switches and says so.
+  // Floor heights live on Mapping's 3D Stack: a link (maps.js _mapsDeep), so Basic opens it too and stays Basic.
   for (const mode of ["basic", "advanced"]) {
     const st3 = { ...LIVE(), complexity: mode, calibration: CALDATA(), _tipsAnswer: ["floor_heights"], maps: { list: [{ id: "m1" }] } };
     const s3 = screen(st3);
@@ -156,9 +156,12 @@ const text = (n) => n ? n.textContent : "";
     s3.render(); await tick(); await tick();
     const fx = s3.render().querySelector('[data-cal-results="next"]');
     fx.querySelector('[data-cal-results="go"]').click();
-    check(`data: floor heights from ${mode}: Mapping's 3D Stack, ${mode === "basic" ? "switched to Advanced with a toast" : "no switch, no toast"}`,
-      fx.attributes["data-kind"] === "floor_heights" && st3.view === "maps" && st3.mapsTab === "stack" && st3.complexity === "advanced"
-      && toasts.length === (mode === "basic" ? 1 : 0) && (mode !== "basic" || /switched to Advanced/.test(toasts[0])),
+    // Basic: only the Floor Heights card, back to Calibration (views/focus.js); Advanced: the whole 3D Stack tab.
+    const f3 = st3._focus;
+    const focusOk = mode === "basic" ? !!f3 && f3.part === "floor_heights" && f3.back && f3.back.view === "calibration" : !f3;
+    check(`data: floor heights from ${mode}: Mapping's 3D Stack (Basic: only its Floor Heights card), the mode unchanged, no toast`,
+      fx.attributes["data-kind"] === "floor_heights" && st3.view === "maps" && st3.mapsTab === "stack" && focusOk
+      && st3.complexity === mode && toasts.length === 0,
       { kind: fx.attributes["data-kind"], v: st3.view, tab: st3.mapsTab, c: st3.complexity, toasts });
   }
 }
