@@ -12,6 +12,12 @@ filter, the sort, hidden lights, another map, a setting) builds a new card,
 as before. The result is always what a new card makes. On the poll's update a
 row holding the focused control stays. The Mapping tab's builder keeps nothing.
 
+The map card above it is kept the same way (buildLightsMapCard with
+host.keepCard): the same card and stage while it is built from the same, the
+newest host in its closures, the layer bar built again only when what it shows
+changed, and the drawing patched in place with the rain, the people, Live
+Aboard and the stage's wiring left where they are.
+
 tests/js/atlas_keep_card.mjs runs the modules for real; the wiring is held here.
 """
 
@@ -46,7 +52,8 @@ def harness() -> dict:
 
 def test_every_case_in_the_harness_passes(harness) -> None:
     assert not harness["failures"], json.dumps(harness["failures"][:6], indent=2, ensure_ascii=False)
-    assert len(harness["cases"]) >= 15
+    assert len(harness["cases"]) >= 22
+    assert sum(1 for k in harness["cases"] if k.startswith("card:")) >= 7
 
 
 def test_only_the_sidebar_keeps_its_table() -> None:
@@ -54,6 +61,12 @@ def test_only_the_sidebar_keeps_its_table() -> None:
     assert "keepTable: this._tableKeep || (this._tableKeep = {})," in panel
     # The Mapping tab's builder builds a new table every time, as ever.
     assert "keepTable" not in _read("views/maps.js")
+
+
+def test_only_the_sidebar_keeps_its_map_card() -> None:
+    panel = _read("lights_panel.js")
+    assert "keepCard: this._cardKeep || (this._cardKeep = {})," in panel
+    assert "keepCard" not in _read("views/maps.js")
 
 
 def test_only_the_poll_holds_a_focused_row() -> None:
@@ -68,8 +81,9 @@ def test_the_page_lays_its_parts_around_the_kept_table() -> None:
     panel = _read("lights_panel.js")
     i = panel.index("  _render(){")
     body = panel[i:panel.index("\n  }\n", i)]
-    # The kept table never leaves the page: the rest comes out before the build.
-    assert "if(n!==kept) root.removeChild(n);" in body
+    # The kept table and map card never leave the page: the rest comes out before the build.
+    assert "this._cardKeep && this._cardKeep.card" in body
+    assert "if(!kept.includes(n)) root.removeChild(n);" in body
     assert "layChildren(root, parts);" in body
 
 
