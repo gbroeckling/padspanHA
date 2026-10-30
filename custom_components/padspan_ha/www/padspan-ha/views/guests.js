@@ -9,7 +9,7 @@
  * it ("Guest tag 1"). Lending it starts a stay: who has it, until when, the
  * rooms they should not go into, and the notices wanted. The stay's report —
  * arrived, left, time in each room, off-limits visits — is kept the days set
- * in Settings → Presence → Guest tags. The tab exists only while guest tags
+ * in Settings → Tracking → Guest tags. The tab exists only while guest tags
  * are on.
  */
 
@@ -93,7 +93,7 @@ function _draw(ctx, el, content, data) {
   content.innerHTML = "";
   if (!data.enabled) {
     content.appendChild(_card(el, "Guest tags are off", [
-      el("div", { class: "muted", style: "font-size:13px;margin-bottom:10px" }, "Turn them on in Settings → Presence → Guest tags."),
+      el("div", { class: "muted", style: "font-size:13px;margin-bottom:10px" }, "Turn them on in Settings → Tracking → Guest tags."),
       el("button", { class: "btn", onclick: () => { ctx.state.view = "settings"; ctx.state._settingsTab = "presence"; ctx.state._presenceReveal = "phones"; ctx.actions.renderRooms(); } }, "Open Settings"),
     ]));
     return;
@@ -147,7 +147,7 @@ function _draw(ctx, el, content, data) {
   // ── Finished stays: their reports ─────────────────────────────────────
   content.appendChild(_card(el, `Past stays (${done.length})`, done.length
     ? done.map(s => _report(ctx, el, s, isAdmin))
-    : [el("div", { class: "muted", style: "font-size:13px" }, `None kept. Finished stays are kept ${data.retention_days ? data.retention_days + " days" : "not at all"} (Settings → Presence → Guest tags).`)]));
+    : [el("div", { class: "muted", style: "font-size:13px" }, `None kept. Finished stays are kept ${data.retention_days ? data.retention_days + " days" : "not at all"} (Settings → Tracking → Guest tags).`)]));
 }
 
 function _runningRow(ctx, el, s, isAdmin) {

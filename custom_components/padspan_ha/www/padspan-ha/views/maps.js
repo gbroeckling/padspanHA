@@ -4248,7 +4248,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "",
         "steps": [
           "The Atlas is its own entry in your sidebar, on by default — that's the one to use day to day, not the PadSpan Mapping tab.",
-          "To turn it off or back on: Settings → UI Structure (Advanced mode), the Atlas card. Tick or untick Show the Atlas in the Home Assistant sidebar, click Save, and restart Home Assistant."
+          "To turn it off or back on: Settings → Atlas (Advanced mode), the Atlas card. Tick or untick Show the Atlas in the Home Assistant sidebar, click Save, and restart Home Assistant."
         ],
         "notes": [
           "It stays the way you leave it after updates."

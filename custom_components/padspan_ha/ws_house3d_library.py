@@ -33,7 +33,7 @@ from .ws_common import admin_if_enhanced_security, _tier_at_least
 from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE, READ_CODE, READ_MESSAGE
 
 LIBRARY_OFF_CODE = "library_off"
-LIBRARY_OFF_MESSAGE = ("The shared library is off. An administrator can turn it on in Settings → UI Structure "
+LIBRARY_OFF_MESSAGE = ("The shared library is off. An administrator can turn it on in Settings "
                        "→ Atlas → Live Aboard → Shared library.")
 
 

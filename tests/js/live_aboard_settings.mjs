@@ -50,7 +50,7 @@ function settingsPage(settings, { refuse = false, admin = true } = {}) {
   let rerenders = 0;
   const ctx = {
     hass: { user: { is_admin: admin }, states: {} },
-    state: { view: "settings", complexity: "advanced", _settingsTab: "ui", model: { floors: [], areas: [], room_geometry_m: {
+    state: { view: "settings", complexity: "advanced", _settingsTab: "atlas", model: { floors: [], areas: [], room_geometry_m: {
       Kitchen: { type: "poly", floor_id: "main", points_m: [[0, 0], [6, 0], [6, 2], [0, 2]] },
       Garage: { type: "poly", floor_id: "main", points_m: [[0, 4], [6, 4], [6, 6], [0, 6]] },
       Yard: { type: "poly", floor_id: "__outside__", points_m: [[20, 0], [30, 0], [30, 9], [20, 9]] } } },
@@ -69,7 +69,7 @@ function settingsPage(settings, { refuse = false, admin = true } = {}) {
   };
   const root = S.render(ctx);
   const box = root._all().find(n => n.children && n.children.some(c => c.textContent === "🏠 Live Aboard"));
-  if (!box) { if (settings.__maybe) return null; throw new Error("no Live Aboard box on Settings → UI Structure"); }
+  if (!box) { if (settings.__maybe) return null; throw new Error("no Live Aboard box on Settings → Atlas"); }
   const all = box._all();
   const cb = all.find(n => n.localName === "input" && n.getAttribute("type") === "checkbox");
   const sel = all.find(n => n.localName === "select");

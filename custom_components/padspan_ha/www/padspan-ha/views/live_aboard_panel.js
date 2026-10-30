@@ -365,7 +365,7 @@ export function createPanel(v){
     for (const [key, words] of [["atlas_3d_people", "Show people"], ["atlas_3d_tags", "Show tags & scanners"]]) {
       const on = s[key] === true;
       out.push({ text: `${words}: ${on ? "On" : "Off"}`, on, disabled: !may,
-                 title: may ? `Turn ${words.toLowerCase()} ${on ? "off" : "on"} (the same switch as in Settings)` : "Only an administrator can change this",
+                 title: may ? `Turn ${words.toLowerCase()} ${on ? "off" : "on"} (Settings \u2192 Atlas shows it; this is its switch while Live Aboard is on)` : "Only an administrator can change this",
                  act: () => { if (may) Promise.resolve().then(() => h.saveSetting(key, !on)).catch(e => v.toast(`Could not save: ${String((e && e.message) || e)}`)); } });
     }
     return out;

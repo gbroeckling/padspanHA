@@ -651,7 +651,7 @@ function _svgAwayBadge() {
 <text x="234" y="137" fill="#94a3b8" font-size="10" font-family="system-ui">3s</text>
 <text x="316" y="137" fill="#6b9e7e" font-size="9" font-family="system-ui">living_room_hub</text>
 <text x="200" y="174" text-anchor="middle" fill="#f87171" font-size="9" font-family="system-ui">Away = device_tracker shows not_home in HA</text>
-<text x="200" y="190" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Timeout configurable in Settings → Presence</text>
+<text x="200" y="190" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Timeout configurable in Settings → Tracking</text>
 </svg>`;
 }
 
@@ -766,7 +766,7 @@ function _svgPresenceSettings() {
 @keyframes saveGlow{0%,100%{stroke:#2d5a3d}50%{stroke:#52b788}}
 .saveBtn{animation:saveGlow 2s ease-in-out infinite}
 </style>
-<text x="200" y="14" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Settings → Presence tab</text>
+<text x="200" y="14" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Settings → Tracking tab</text>
 <rect x="8" y="22" width="384" height="78" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1.5"/>
 <text x="22" y="40" fill="#a7f3d0" font-size="11" font-weight="700" font-family="system-ui">Room Change Delay</text>
 <text x="22" y="55" fill="#6b9e7e" font-size="9" font-family="system-ui">Seconds a scanner must dominate before switching rooms</text>
@@ -1641,7 +1641,7 @@ const WALKTHROUGHS = [
       { title: "Devices Are Tracked Even When Away",      text: "PadSpan keeps every tagged device in its tracking list even after it disappears from your scanners. A growing age_s counter tracks how long it's been since the device was last seen — no information is lost while waiting for it to return.", svg: _svgHaEntities },
       { title: "Away Badge Appears in Objects Tab",       text: "Once a device hasn't been seen for longer than the away timeout (default 5 minutes), a red Away badge replaces the signal bar in the Objects tab. 'Last: Kitchen' shows where it was before it went out of range. The normal teal/green badge returns the moment it reappears.", svg: _svgAwayBadge },
       { title: "HA Entities Switch to not_home",         text: "PadSpan creates a device_tracker entity (e.g. device_tracker.car_keys) and an area sensor (sensor.car_keys_area) for every tagged BLE device. When the device goes away, both entities automatically change state to not_home — ready for use in HA automations, the logbook, and Person tracking.", svg: _svgHaEntities },
-      { title: "Configure the Timeout",                  text: "Go to Settings → Presence → Home/Away Timeout to change how long before a device is marked away. Default is 5 minutes. Raise it if devices drop off briefly in thick-walled rooms or during normal use (10–30 min is common). Set it lower for fast away detection (minimum 1 minute).", svg: _svgPresenceSettings },
+      { title: "Configure the Timeout",                  text: "Go to Settings → Tracking → Home/Away Timeout to change how long before a device is marked away. Default is 5 minutes. Raise it if devices drop off briefly in thick-walled rooms or during normal use (10–30 min is common). Set it lower for fast away detection (minimum 1 minute).", svg: _svgPresenceSettings },
     ],
   },
   {
@@ -2028,8 +2028,8 @@ const MANUAL_SECTIONS = [
       "No live Bluetooth data after install — HA needs a full restart (not just integration reload) after first install via HACS. Go to HA Settings → System → Restart.",
       "Devices not appearing in Objects — the device must be in range of at least one scanner and actively transmitting BLE. Check your scanner's integration (ESPresense / Bermuda) is working first.",
       "Location seems wrong (device in wrong room) — signal strength can be affected by walls, interference, or scanner placement. Adding more scanners improves accuracy. Make sure scanners are assigned to the correct HA area in Bluetooth → Scanners. Use the per-scanner RSSI offset (Bluetooth → Scanners → offset input) to compensate if one scanner reads consistently stronger or weaker.",
-      "Device keeps flickering between two rooms — raise the Room Change Delay in Settings → Presence. 20–60 seconds is usually enough to stabilise a device on a room boundary.",
-      "device_tracker shows not_home too quickly — raise the Home/Away Timeout in Settings → Presence. If a device is briefly out of range in a thick-walled room, try 10–30 minutes.",
+      "Device keeps flickering between two rooms — raise the Room Change Delay in Settings → Tracking. 20–60 seconds is usually enough to stabilise a device on a room boundary.",
+      "device_tracker shows not_home too quickly — raise the Home/Away Timeout in Settings → Tracking. If a device is briefly out of range in a thick-walled room, try 10–30 minutes.",
       "device_tracker shows not_home too slowly — lower the timeout. The minimum is 1 minute.",
       "iBeacon not appearing or keeps splitting into multiple objects — make sure your BLE scanner integration is forwarding the full manufacturer data. PadSpan looks for company ID 0x004C with an iBeacon payload. ESPresense and Bermuda both support this. An AirTag or other Find My tag turning into a new object from time to time is expected: it changes its address (every 15 minutes near its owner, once a day away) — turn on MAC Rotation Bridging in Settings → Features to keep a named one.",
       "iBeacon tag name disappeared after MAC rotation — this should not happen (the UUID key is stable). If it does, check that the UUID in the new advertisement matches the original — some third-party trackers change their UUID.",

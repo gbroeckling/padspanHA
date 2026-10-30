@@ -439,7 +439,7 @@ async function settingsBox(settings){
   const sent = [], toasts = [];
   const ctx = {
     hass: { user: { is_admin: true }, states: {} },
-    state: { view: "settings", complexity: "advanced", _settingsTab: "ui", model: { floors: [], areas: [], room_geometry_m: {} },
+    state: { view: "settings", complexity: "advanced", _settingsTab: "atlas", model: { floors: [], areas: [], room_geometry_m: {} },
       settings: { lights_panel_enabled: true, advanced_extra_tabs: [], tier: "pro", ...settings } },
     helpers: new Proxy({ el: hel, esc: (s) => String(s), roomColor: () => "#52b788", helpBtn: () => hel("span") },
       { get: (t, k) => (k in t ? t[k] : () => hel("span")) }),

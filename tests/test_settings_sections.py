@@ -32,11 +32,11 @@ EXPECTED = {
     "phones": ["Guest tags", "Phone Tracking (Private BLE)"],
     "shown": ["Quiet Mode", "Object History Retention", "BLE Advertisement Timeout"],
     "positioning": ["Positioning Algorithm", "Positioning Choices", "Walk a Room (Calibration)", "Distance Calibration",
-                    "Signal Filter", "3D Positioning — Device Height", "Calibration Accuracy Reminders",
+                    "Signal smoothing", "3D Positioning — Device Height", "Calibration Accuracy Reminders",
                     "Adaptive Learning", "Positioning Test Mode"],
-    "receivers": ["BLE Reseed Interval", "Scanner RSSI Offsets"],
+    "receivers": ["Bluetooth refresh interval", "Receiver signal adjustments"],
     "performance": ["Presence Poll Interval", "CPU Mode", "Low-memory mode", "Optimize for scale"],
-    "integrations": ["Fabric source", "GPS Bridge", "Automations", "HA Tags Integration", "Ignore Bermuda"],
+    "integrations": ["Room and receiver layout source", "GPS Bridge", "Automations", "HA Tags Integration", "Ignore Bermuda"],
     "privacy": ["Update Check", "Enhanced security", "💡 Suggest an idea", "Help improve PadSpan"],
 }
 
@@ -155,13 +155,13 @@ def test_aggressive_reseed_is_switched_only_in_settings_beside_the_interval():
     assert _writers("ble_reseed_interval_s") == ["views/settings.js"]
     src = _presence_src()
     # In the BLE Reseed Interval card, so in the Receivers section.
-    i = src.index('"BLE Reseed Interval"')
+    i = src.index('"Bluetooth refresh interval"')
     card_start = src.rindex('put("', 0, i)
     assert src.startswith('put("receivers"', card_start)
     assert "aggressiveReseedRow," in src[card_start:i + 2000]
-    assert "Enable aggressive BLE reseed (5s) for passive proxy scanners" in src
+    assert "Refresh every 5 s for passive proxy scanners" in src
     manage = (VIEWS / "manage.js").read_text(encoding="utf-8")
-    assert "Set it in Settings → Presence → Receivers (BLE Reseed Interval)." in manage
+    assert "Set it in Settings → Tracking → Receivers (Bluetooth refresh interval)." in manage
     assert 'ctx.state._presenceReveal = "receivers";' in manage
 
 

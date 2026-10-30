@@ -60,7 +60,8 @@ export function render(ctx){
     return root;
   }
 
-  // Advanced / Development mode: tabbed — Appearance | Scanner Map | Presence | UI Structure
+  // Advanced / Development mode: tabbed — Appearance | Scanner Map | Tracking (id "presence") | Features | AI | Atlas | UI Structure.
+  // The Atlas and Live Aboard settings were under UI Structure until 2026-10-30; "ui" still opens UI Structure, which links to Atlas.
   if(!ctx.state._settingsTab) ctx.state._settingsTab = "appearance";
   const activeTab = ctx.state._settingsTab;
   const setTab = (t) => { ctx.state._settingsTab = t; ctx.actions.renderRooms(); };
@@ -79,7 +80,7 @@ export function render(ctx){
       "If a dot is in the wrong place, collect more calibration points near that scanner to fix it. " +
       "This tab also has Replace Scanner (swap calibration data when hardware is replaced) and " +
       "Relearn Radio (adjust readings after antenna upgrade/downgrade)."],
-    ["presence", "Presence",
+    ["presence", "Tracking",
       "Controls how PadSpan determines which room a device is in and when it's considered 'away'. " +
       "Room change delay prevents flicker when a device is near a boundary between rooms. " +
       "Away timeout sets how long a device must be unseen before it's marked as gone. " +
@@ -90,12 +91,15 @@ export function render(ctx){
       "Trackability Rating scores how reliably each device can be tracked. " +
       "Walk-to-Identify discovers unknown devices by correlating signal changes with your movement. " +
       "Radio Map overlays signal heatmaps on the 3D iso view. " +
-      "Distortion Map visualises where the RF model diverges from reality. " +
+      "Signal distortion map visualises where the RF model diverges from reality. " +
       "Adaptive Learning lets the system continuously improve from live positioning data."],
     ["ai", "AI",
       "AI power features: PadSpan can use an AI you have set up in Home Assistant (an AI Task) to read photos, " +
       "and soon floor plans. Nothing here runs unless you switch it on and pick an AI Task. A cloud AI sends what it " +
       "reads out of the house; a local one (like Ollama) keeps it home."],
+    ["atlas", "Atlas",
+      "The Atlas, PadSpan's house map for everyday light control, and Live Aboard, its 3D view: whether the Atlas is in the " +
+      "Home Assistant sidebar, what it draws, its outdoor weather, wall screens, and the Atlas as your Overview."],
     ["ui", "UI Structure",
       "Choose which tabs appear in the sidebar when using Advanced mode. " +
       "All tabs are always visible in Development mode regardless of these settings. " +
@@ -140,6 +144,8 @@ export function render(ctx){
     root.appendChild(_settingsFeatures(ctx, el));
   } else if(activeTab === "ai"){
     root.appendChild(_settingsAI(ctx, el));
+  } else if(activeTab === "atlas"){
+    root.appendChild(_settingsAtlas(ctx, el));
   } else if(activeTab === "ui"){
     root.appendChild(_settingsUI(ctx, el));
   } else {
@@ -864,7 +870,7 @@ function _settingsPresence(ctx, el){
   const bins = {};
   const put = (key, node) => { (bins[key] = bins[key] || []).push(node); };
   wrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
-    el("div",{style:"font-weight:700;font-size:15px;color:#52b788"},"Presence Settings"),
+    el("div",{style:"font-weight:700;font-size:15px;color:#52b788"},"Tracking Settings"),
     helpBtn("settings_presence"),
   ]));
 
@@ -961,7 +967,7 @@ function _settingsPresence(ctx, el){
       } catch(e) { ctx.toast("Failed to save", true); }
     });
     put("integrations", el("div", { class: "card" }, [
-      el("div", { class: "h2", style: "color:#52b788" }, "Fabric source"),
+      el("div", { class: "h2", style: "color:#52b788" }, "Room and receiver layout source"),
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [sel]),
       el("div", { class: "muted", style: "font-size:12px" },
         "Standalone lets PadSpan run with rooms you created here and no Home Assistant areas at all."),
@@ -976,8 +982,8 @@ function _settingsPresence(ctx, el){
     const algoSel = el("select", {
       style: "width:180px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
     });
-    const optKnn = el("option", { value: "knn" }, "k-NN (default)");
-    const optRf = el("option", { value: "rf" }, "Random Forest (experimental)" + (rfReady ? "" : " — not trained"));
+    const optKnn = el("option", { value: "knn", title: "k-NN (k-nearest neighbours)" }, "Matched to calibration points (default)");
+    const optRf = el("option", { value: "rf", title: "Random Forest" }, "Learned model (experimental)" + (rfReady ? "" : " — not trained"));
     if (curAlgo === "knn") optKnn.selected = true;
     else optRf.selected = true;
     algoSel.appendChild(optKnn);
@@ -985,7 +991,7 @@ function _settingsPresence(ctx, el){
     algoSel.addEventListener("change", async () => {
       try {
         await ctx.actions.settingsSet({ positioning_algorithm: algoSel.value });
-        ctx.toast(`Positioning algorithm: ${algoSel.value === "rf" ? "Random Forest" : "k-NN"}`);
+        ctx.toast(`Positioning algorithm: ${algoSel.value === "rf" ? "Learned model" : "Matched to calibration points"}`);
         ctx.actions.renderRooms();
       } catch(e) { ctx.toast("Failed to save", true); }
     });
@@ -994,11 +1000,11 @@ function _settingsPresence(ctx, el){
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
         algoSel,
         el("span", { class: "muted", style: "font-size:12px" },
-          curAlgo === "rf" ? (rfReady ? "Active" : "Falling back to k-NN") : ""),
+          curAlgo === "rf" ? (rfReady ? "Active" : "Falling back to matching calibration points") : ""),
       ]),
       el("div", { class: "muted", style: "font-size:12px;line-height:1.6" },
-        "k-NN compares live signals to the nearest calibration points — works well even with sparse scanner coverage. " +
-        "Random Forest (experimental) trains a decision-tree model — needs dense multi-scanner overlap per object to outperform k-NN. " +
+        "Matched to calibration points compares live signals to the nearest calibration points — works well even with sparse scanner coverage. " +
+        "The learned model (experimental) trains a decision-tree model — needs dense multi-scanner overlap per object to do better than matching. " +
         "Both use the same calibration dataset — switching is instant and safe."),
     ]));
   }
@@ -1510,13 +1516,13 @@ function _settingsPresence(ctx, el){
   aggressiveChk.addEventListener("change", async()=>{
     try {
       await ctx.actions.settingsSet({aggressive_ble_reseed: aggressiveChk.checked});
-      ctx.toast(aggressiveChk.checked ? "Aggressive BLE reseed enabled (5s cycle)." : "BLE reseed set to normal (30s cycle).");
+      ctx.toast(aggressiveChk.checked ? "Bluetooth refresh every 5 s on." : "Bluetooth refresh back to its interval.");
       ctx.actions.renderRooms();
     } catch(e){ ctx.toast("Failed: "+String(e), true); aggressiveChk.checked = !aggressiveChk.checked; }
   });
   const aggressiveReseedRow = el("div", { "data-setting": "aggressive_ble_reseed", style: "margin-top:10px" }, [
     el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
-      aggressiveChk, el("span",{},"Enable aggressive BLE reseed (5s) for passive proxy scanners"),
+      aggressiveChk, el("span",{},"Refresh every 5 s for passive proxy scanners"),
     ]),
     el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5;margin-top:4px"},
       "Enable this if Shelly BLE proxies or other passive Bluetooth relay scanners aren't showing RSSI values during calibration. " +
@@ -1533,18 +1539,18 @@ function _settingsPresence(ctx, el){
     const v = Math.max(1, Math.min(60, parseInt(reseedInp.value) || 30));
     try {
       await ctx.actions.settingsSet({ ble_reseed_interval_s: v });
-      ctx.toast(`BLE reseed interval set to ${v}s`);
+      ctx.toast(`Bluetooth refresh interval set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
   put("receivers", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "BLE Reseed Interval"),
+    el("div", { class: "h2" }, "Bluetooth refresh interval"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How often PadSpan re-fetches BLE data from HA's scanner infrastructure. " +
       "Essential for passive proxy scanners (Shelly, ESPHome BLE proxy) whose " +
       "advertisements don't arrive via callbacks. Lower values improve freshness on fast hardware."
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Reseed interval"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Refresh interval"),
       reseedInp,
       el("div", { class: "muted", style: "font-size:12px" }, "seconds"),
       reseedSaveBtn,
@@ -2308,11 +2314,11 @@ function _settingsPresence(ctx, el){
     const r = Math.max(0.5, Math.min(50.0, parseFloat(krInp.value) || 8.0));
     try {
       await ctx.actions.settingsSet({ kalman_q: q, kalman_r: r });
-      ctx.toast(`Signal filter saved: Q=${q}, R=${r}`);
+      ctx.toast(`Signal smoothing saved: Q=${q}, R=${r}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
   put("positioning", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Signal Filter"),
+    el("div", { class: "h2" }, "Signal smoothing"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Kalman filter parameters for per-scanner RSSI smoothing. " +
       "Q (process noise) controls how quickly the filter responds to real movement — lower = more smoothing, slower response. " +
@@ -2513,7 +2519,7 @@ function _settingsPresence(ctx, el){
       ].filter(Boolean)));
     }
     put("receivers", el("div",{class:"card"},[
-      el("div",{class:"h2"},"Scanner RSSI Offsets"),
+      el("div",{class:"h2"},"Receiver signal adjustments"),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
         "Only the manual offset you save is applied. The suggestion beside it is half the gap between this " +
         "scanner's median signal and the fleet median, from live data — a starting point for hardware " +
@@ -3292,7 +3298,7 @@ const HOME_REFUSED = {
   activation_rate: "This home isn't counted: the key joined many new homes this month. It joins once the month is over.",
   homes_frozen: "This home isn't counted: the key is paused for new homes. Reply to your licence email to sort it out.",
   removed: "This home isn't counted: it was removed from the key. Remove another home below (from any home) or reply to your licence email to use it here.",
-  needs_report: "This home isn't counted: a licence's first two homes always count, and to use it on more than two, every home needs its usage report on (Settings \u2192 Presence \u2192 Help improve PadSpan).",
+  needs_report: "This home isn't counted: a licence's first two homes always count, and to use it on more than two, every home needs its usage report on (Settings \u2192 Tracking \u2192 Help improve PadSpan).",
 };
 // A key on more than two homes needs every home's usage report on (0.38.163).
 // The licence server decides and names the homes; these only say it.
@@ -3306,7 +3312,7 @@ export function homesWarningText(s){
   if (s.license_home_status === "needs_all_reports") {
     if (s.telemetry_enabled === false) {
       return "This home stopped using Pro because its own usage report is off, and every home on a key with more than 2 must keep it on. " +
-        "Turn it back on here (Settings \u2192 Presence \u2192 Help improve PadSpan) and this home picks up again at its next check.";
+        "Turn it back on here (Settings \u2192 Tracking \u2192 Help improve PadSpan) and this home picks up again at its next check.";
     }
     return "This home stopped using Pro because the usage report is off on another home on this key" + (labels ? " (" + labels + ")" : "") +
       ". Turn it back on there and this home picks up again at its next check.";
@@ -3333,7 +3339,7 @@ function _licenceHomes(ctx, el, s){
   box.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#cbd5e1;margin-bottom:4px" }, "Homes"));
   box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
     "One licence covers up to five homes (five Home Assistants). The first two always count. With more than two, every home must keep its usage report on " +
-    "(Settings \u2192 Presence \u2192 Help improve PadSpan), which is how one licence's homes are seen together; if one turns it off, the key drops back to its first two homes after 14 days. " +
+    "(Settings \u2192 Tracking \u2192 Help improve PadSpan), which is how one licence's homes are seen together; if one turns it off, the key drops back to its first two homes after 14 days. " +
     "A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself."));
   if (HOME_REFUSED[s.license_home_status]) {
     box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]));
@@ -3573,7 +3579,7 @@ function _settingsFeatures(ctx, el){
     },
     {
       key: "distortion_map_enabled",
-      label: "Distortion Map",
+      label: "Signal distortion map",
       desc: "Shows where calibration predictions disagree with reality. Renders disagreement vectors on the map to reveal " +
             "areas where walls, furniture, or interference cause positioning errors.",
     },
@@ -4297,7 +4303,30 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan."));
   // Rain and snow, people, tags: each its own switch, saved alone.
+  // Show people and Show tags & scanners are switched in ONE place
+  // (2026-10-30): Live Aboard's Views ▾ while Live Aboard is on, where they
+  // are seen; here, with the state and a way there. With Live Aboard off
+  // that menu doesn't exist, and both still draw on the flat map, so the
+  // switch is here then (the only place it can be reached).
+  const _LA_SWITCHED = { atlas_3d_people: "Show people", atlas_3d_tags: "Show tags & scanners" };
+  const laOn = settings.atlas_3d_enabled === true;
   const tick = (key, label, checked, hint, into = more) => {
+    if (laOn && _LA_SWITCHED[key]) {
+      const go = el("button",{class:"btn inline","data-goto":"live-aboard-views"},"Open Live Aboard");
+      go.addEventListener("click", ()=>{
+        try { localStorage.setItem("padspan_lv_3d_builder", "1"); } catch (_) { /* private mode */ }
+        ctx.state.view = "maps";
+        if (ctx.actions.renderNav) ctx.actions.renderNav();
+        if (ctx.actions.setMapsTab) ctx.actions.setMapsTab("lights"); else { ctx.state.mapsTab = "lights"; ctx.actions.renderRooms(); }
+      });
+      into.appendChild(el("div",{"data-la3d-state":key,style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px"},[
+        el("span",{style:"color:#e2e8f0;font-size:13px"}, `${label}: ${checked ? "On" : "Off"}`),
+        el("span",{style:"color:#94a3b8;font-size:12px"}, `Switch it in Live Aboard: Views \u25be \u2192 ${_LA_SWITCHED[key]}.`),
+        go,
+      ]));
+      into.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 0;line-height:1.5"}, hint));
+      return;
+    }
     const r = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
     const cb = el("input",{type:"checkbox"});
     cb.checked = checked;
@@ -4472,6 +4501,71 @@ function _settingsUI(ctx, el){
   });
   wrap.appendChild(el("div",{style:"display:flex;align-items:center"}, [saveBtn, status]));
 
+  // The Atlas and Live Aboard settings have their own tab (Settings → Atlas)
+  // since 2026-10-30; this says where they went, for anyone who looks here.
+  const atlasGo = el("button",{class:"btn inline","data-goto":"settings-atlas"},"Open Settings \u2192 Atlas");
+  atlasGo.addEventListener("click", ()=>{ ctx.state._settingsTab = "atlas"; ctx.actions.renderRooms(); });
+  wrap.appendChild(el("div",{class:"card","data-atlas-moved":"",style:"padding:12px 16px;margin-top:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
+    el("span",{style:"color:#94a3b8;font-size:13px"}, "The Atlas, Live Aboard, wall screens and the Atlas as Overview are on the Atlas tab."),
+    atlasGo,
+  ]));
+
+  // ── Edition & tier ──
+  // What this build is and what the key lets it do (licence.py). The reveal
+  // switch exists only on a Bright build: hide-by-default, never hidden for
+  // good. The tier override can only LOWER the effective tier — it is how a
+  // Pro developer looks at what a free or Bright user sees, and never a way
+  // past the licence.
+  const edCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
+  const _ed = String(settings.edition || "full"), _tier = String(settings.tier || "free");
+  edCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},"Edition & tier"));
+  edCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
+    `This build: ${_ed === "bright" ? "PadSpan Bright" : "PadSpan HA"} · running at tier "${_tier}"` +
+    (settings.license_tier_override ? ` (override: ${settings.license_tier_override})` : "") + `.`));
+  if(_ed === "bright"){
+    const revRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px"});
+    const revCb = el("input",{type:"checkbox"});
+    revCb.checked = !!settings.bright_reveal_presence;
+    revCb.addEventListener("change", async ()=>{
+      await ctx.actions.settingsSet({ bright_reveal_presence: revCb.checked });
+      ctx.actions.renderNav();
+    });
+    revRow.appendChild(revCb);
+    revRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the presence tabs too (Overview, Follow, Calibration, …)"));
+    edCard.appendChild(revRow);
+  }
+  if(ctx.state.complexity === "development"){
+    const ovRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
+    ovRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Look at this install as tier:"));
+    const ovSel = document.createElement("select"); ovSel.className = "select";
+    for(const [v,l] of [["","(no override)"],["free","free"],["bright","bright"],["pro","pro"]]){
+      const o = document.createElement("option"); o.value = v; o.textContent = l; ovSel.appendChild(o);
+    }
+    ovSel.value = String(settings.license_tier_override || "");
+    ovSel.addEventListener("change", async ()=>{
+      await ctx.actions.settingsSet({ license_tier_override: ovSel.value });
+      ctx.toast(ovSel.value ? `Viewing as tier ${ovSel.value} (lower only)` : "Tier override cleared");
+      ctx.actions.renderRooms();
+    });
+    ovRow.appendChild(ovSel);
+    ovRow.appendChild(el("span",{class:"muted",style:"font-size:11px"}, "lowers only — the licence still decides upward"));
+    edCard.appendChild(ovRow);
+  }
+  wrap.appendChild(edCard);
+
+  return wrap;
+}
+
+// ── Atlas tab ────────────────────────────────────────────────────────────────
+// The Atlas and Live Aboard settings, moved out of UI Structure as they were
+// (2026-10-30): the same cards, rows, keys and saves.
+function _settingsAtlas(ctx, el){
+  const wrap = el("div",{});
+  const settings = ctx.state.settings || {};
+  wrap.appendChild(el("h3",{style:"color:#52b788;margin-bottom:8px"},"Atlas"));
+  wrap.appendChild(el("p",{style:"color:#94a3b8;font-size:13px;margin-bottom:0"},
+    "The Atlas (the house map for everyday light control) and Live Aboard, its 3D view."));
+
   // ── The Atlas (was "Mapped Light Control Goodie") ──
   // The Atlas is on by default now (settings_store.py). Two switches that
   // behave differently, so each says how: the sidebar entry is registered at
@@ -4645,49 +4739,6 @@ function _settingsUI(ctx, el){
     }
   });
   if (ovShown) wrap.appendChild(ovCard);
-
-  // ── Edition & tier ──
-  // What this build is and what the key lets it do (licence.py). The reveal
-  // switch exists only on a Bright build: hide-by-default, never hidden for
-  // good. The tier override can only LOWER the effective tier — it is how a
-  // Pro developer looks at what a free or Bright user sees, and never a way
-  // past the licence.
-  const edCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
-  const _ed = String(settings.edition || "full"), _tier = String(settings.tier || "free");
-  edCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},"Edition & tier"));
-  edCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
-    `This build: ${_ed === "bright" ? "PadSpan Bright" : "PadSpan HA"} · running at tier "${_tier}"` +
-    (settings.license_tier_override ? ` (override: ${settings.license_tier_override})` : "") + `.`));
-  if(_ed === "bright"){
-    const revRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px"});
-    const revCb = el("input",{type:"checkbox"});
-    revCb.checked = !!settings.bright_reveal_presence;
-    revCb.addEventListener("change", async ()=>{
-      await ctx.actions.settingsSet({ bright_reveal_presence: revCb.checked });
-      ctx.actions.renderNav();
-    });
-    revRow.appendChild(revCb);
-    revRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the presence tabs too (Overview, Follow, Calibration, …)"));
-    edCard.appendChild(revRow);
-  }
-  if(ctx.state.complexity === "development"){
-    const ovRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
-    ovRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Look at this install as tier:"));
-    const ovSel = document.createElement("select"); ovSel.className = "select";
-    for(const [v,l] of [["","(no override)"],["free","free"],["bright","bright"],["pro","pro"]]){
-      const o = document.createElement("option"); o.value = v; o.textContent = l; ovSel.appendChild(o);
-    }
-    ovSel.value = String(settings.license_tier_override || "");
-    ovSel.addEventListener("change", async ()=>{
-      await ctx.actions.settingsSet({ license_tier_override: ovSel.value });
-      ctx.toast(ovSel.value ? `Viewing as tier ${ovSel.value} (lower only)` : "Tier override cleared");
-      ctx.actions.renderRooms();
-    });
-    ovRow.appendChild(ovSel);
-    ovRow.appendChild(el("span",{class:"muted",style:"font-size:11px"}, "lowers only — the licence still decides upward"));
-    edCard.appendChild(ovRow);
-  }
-  wrap.appendChild(edCard);
 
   return wrap;
 }

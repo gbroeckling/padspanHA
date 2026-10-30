@@ -499,7 +499,7 @@ export async function peopleFlow(ctx){
       const out = [el("h3", {}, "People, beacons and scanners"),
         el("p", { class: "muted" }, `${LIKENESS} People's figures stay in this house: they are never shared.`)];
       if (ctx.settings && ctx.settings.atlas_3d_people === false) {
-        out.push(el("p", { class: "note" }, "Figures show in Live Aboard when Show people is on (Settings → UI Structure → Atlas → Live Aboard)."));
+        out.push(el("p", { class: "note" }, "Figures show in Live Aboard when Show people is on (Live Aboard: Views ▾ → Show people)."));
       }
       if (m.warn) out.push(el("p", { class: "warn" }, m.warn));
       out.push(el("h3", {}, "People"));

@@ -92,7 +92,7 @@ function _renderAtlasHome(ctx){
     // check, so the Atlas skips its own (set before hass, which boots it).
     app._embedded = true;
     import(`../lights_panel.js${new URL(import.meta.url).search}`)
-      .catch(() => { if (ctx.toast) ctx.toast("The Atlas could not load. Turn \"Overview shows the Atlas\" off in Settings → UI Structure.", true); });
+      .catch(() => { if (ctx.toast) ctx.toast("The Atlas could not load. Turn \"Overview shows the Atlas\" off in Settings → Atlas.", true); });
   }
   if (ctx.hass) app.hass = ctx.hass;
   const wrap = document.createElement("div");
