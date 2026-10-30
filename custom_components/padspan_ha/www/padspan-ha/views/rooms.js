@@ -154,11 +154,10 @@ function _editOutline(ctx, row) {
   ctx.actions.setMapsTab("edit");
 }
 
-/** The receivers: the Receivers page when this build has one, else
- *  Bluetooth → Receivers. */
+/** The receivers: the Receivers page (panel.js openReceivers, which loads
+ *  it if the background load has not yet), else Bluetooth → Receivers. */
 function _receivers(ctx) {
-  const views = (typeof window !== "undefined" && window.__PADSPAN_VIEWS) || {};
-  if (views.receivers) { _go(ctx, "receivers"); return; }
+  if (ctx.actions.openReceivers) { ctx.actions.openReceivers(); return; }
   ctx.state.btTab = "scanners";
   _go(ctx, "bluetooth");
 }

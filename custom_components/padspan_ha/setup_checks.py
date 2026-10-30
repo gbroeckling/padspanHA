@@ -25,6 +25,23 @@ from homeassistant.core import HomeAssistant
 from .const import DATA_FABRIC, DATA_HOUSE3D, DATA_MAPS, DATA_MODEL, DATA_SETTINGS, DOMAIN
 
 TIPS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale")
+# The guided Setup's steps, in order (views/setup.js SETUP_STEPS, held equal
+# by tests/test_guided_setup.py): settings["setup_progress"] names only these,
+# and so do the report's setup_step:/setup_skip: counters.
+SETUP_STEPS: tuple[str, ...] = ("plan", "scale", "floors", "rooms", "receivers", "calibration")
+
+
+def clean_setup_progress(raw: Any) -> dict[str, Any]:
+    """settings["setup_progress"] as the panel may store it: the step last
+    opened (`at`), the steps skipped, and whether finishing was counted."""
+    raw = raw if isinstance(raw, dict) else {}
+    at = raw.get("at")
+    skipped = raw.get("skipped")
+    return {
+        "at": at if at in SETUP_STEPS else None,
+        "skipped": [s for s in SETUP_STEPS if isinstance(skipped, list) and s in skipped],
+        "done": raw.get("done") is True,
+    }
 # How far past each other two rooms' outlines must reach to count as drawn
 # over each other: outlines traced by hand meet a few centimetres apart.
 OVERLAP_M = 0.10

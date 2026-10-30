@@ -411,7 +411,7 @@ VIEWS: frozenset[str] = frozenset({
     "follow", "overview", "purelive", "objects", "devices", "bluetooth", "presence",
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
-    "sandbox", "occupancy", "installbase", "guests", "rooms", "receivers",
+    "sandbox", "occupancy", "installbase", "guests", "rooms", "receivers", "setup",
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),
@@ -637,6 +637,12 @@ CAL_RESULTS_ACTIONS: tuple[str, ...] = (
     "room_empty", "room_weak", "stale", "matrix", "guided")
 CAL_RESULTS_EVENTS: frozenset[str] = frozenset(
     {f"cal_results_action:{k}" for k in CAL_RESULTS_ACTIONS} | {"cal_results_opened"})
+# The guided Setup (views/setup.js): each step reached (once per page), each
+# step skipped, and the whole sequence finished (once per install, only by a
+# house that used it). Where people stop, beside the two wizards' own funnels.
+from .setup_checks import SETUP_STEPS  # noqa: E402
+SETUP_EVENTS: frozenset[str] = frozenset(
+    {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"})
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to
@@ -1069,7 +1075,7 @@ def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
-            or name in CAL_RESULTS_EVENTS)
+            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

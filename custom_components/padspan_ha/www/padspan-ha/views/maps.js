@@ -5,7 +5,8 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast } =
+const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
+        surfacesForEdition: _surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
 // from this file's own former _attachPanZoom, see pan_zoom.js's header.
@@ -167,6 +168,11 @@ export function render(ctx){
       ]),
       el("div",{style:"display:flex;gap:8px;align-items:center;flex:none"},[
         el("button",{class:"btn inline", style:"white-space:nowrap", onclick:()=>ctx.actions.mapsRefresh()}, "Refresh"),
+        // The guided Setup (views/setup.js), where this build shows it.
+        ...(_surfacesForEdition(["setup"], ctx.state.settings).length && ctx.actions.showView
+          ? [el("button",{class:"btn inline", style:"white-space:nowrap", "data-setup-link":"maps",
+              title:"Plan, scale, floors, rooms, receivers and calibration, one step at a time",
+              onclick:()=>ctx.actions.showView("setup")}, "Setup")] : []),
       ])
     ]),
     tabs,

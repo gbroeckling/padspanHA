@@ -462,7 +462,7 @@ def _sanitize_whole_house_presets(presets_in: Any) -> list[dict[str, Any]]:
 # does for the whole home.
 _EVERYONE_KEYS = frozenset({
     "whatsnew_seen_version", "telemetry_asked", "trial_nudge_done", "tester_nudge_done",
-    "onboarding_completed", "health_reminder_last_ts", "locate_self_key", "followed_addrs",
+    "onboarding_completed", "setup_progress", "health_reminder_last_ts", "locate_self_key", "followed_addrs",
     "hidden_map_ids", "lights_hidden", "maps_iso_floor_gap", "maps_iso_horiz_gap", "maps_iso_focus",
     "overview_iso_floor_gap", "overview_iso_horiz_gap", "overview_iso_focus", "overview_iso_zoom",
     "traceback_house_focus", "overview_show_walls", "overview_show_outdoor", "overview_show_trails",
@@ -659,6 +659,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("onboarding_completed"): bool,
         # The Overview's accuracy tips hidden (setup_checks.TIPS), or "all": the card off.
         vol.Optional("accuracy_tips_hidden"): list,
+        # The guided Setup's place (setup_checks.clean_setup_progress).
+        vol.Optional("setup_progress"): dict,
         # Radio map visualization parameters (clamped in handler below)
         vol.Optional("heatmap_gain"): vol.Coerce(int),        # -20 to +20 dB
         vol.Optional("heatmap_contrast"): vol.Coerce(int),    # -15 to +15
@@ -1257,6 +1259,9 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             from .setup_checks import TIPS as _TIPS  # noqa: PLC0415
             raw = msg["accuracy_tips_hidden"]
             payload["accuracy_tips_hidden"] = sorted({str(x) for x in raw if str(x) in _TIPS or str(x) == "all"}) if isinstance(raw, list) else []
+        if "setup_progress" in msg:
+            from .setup_checks import clean_setup_progress  # noqa: PLC0415
+            payload["setup_progress"] = clean_setup_progress(msg["setup_progress"])
         if "espresense_companion_url" in msg:
             # Admin-only (Phase 2i security audit, 2026-09-19): this URL is
             # later fetched server-side, verbatim, by the admin-only

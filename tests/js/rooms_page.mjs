@@ -222,13 +222,12 @@ for (const mode of ["advanced", "basic"]) {
 {
   const { ctx } = makeCtx();
   const root = R.render(ctx);
-  delete globalThis.__PADSPAN_VIEWS;
   q(roomNode(root, "Kitchen"), "data-link", "receivers").click();
   check("link: receivers go to Bluetooth → Receivers when there is no Receivers page", ctx.state.view === "bluetooth" && ctx.state.btTab === "scanners");
-  globalThis.__PADSPAN_VIEWS = { receivers: {} };
+  // The Receivers page through panel.js's openReceivers, loaded or not yet.
+  ctx.actions.openReceivers = () => { ctx.state.view = "receivers"; };
   q(roomNode(root, "Kitchen"), "data-link", "receivers").click();
   check("link: and to the Receivers page once it exists", ctx.state.view === "receivers");
-  delete globalThis.__PADSPAN_VIEWS;
 }
 {
   const { ctx } = makeCtx({ maps: [] });
