@@ -387,8 +387,8 @@
    "de": "Bewegungswiedergabe im NVR-Stil"
   },
   {
-   "en": "Seven themes: Night and Light (inverted) for everyone; Day, Graphite, Ocean, Dusk and High contrast with Pro <span class=\"pill soon\">Beta</span>",
-   "de": "Sieben Designs: Night und Light (invertiert) für alle; Day, Graphite, Ocean, Dusk und High contrast mit Pro <span class=\"pill soon\">Beta</span>"
+   "en": "Seven themes: Night, Light (inverted) and High contrast for everyone; Day, Graphite, Ocean and Dusk with Pro <span class=\"pill soon\">Beta</span>",
+   "de": "Sieben Designs: Night, Light (invertiert) und High contrast für alle; Day, Graphite, Ocean und Dusk mit Pro <span class=\"pill soon\">Beta</span>"
   },
   {
    "en": "Hide Home Assistant's sidebar from PadSpan or the Atlas, for a wall screen <span class=\"pill soon\">Beta</span>",
@@ -1181,6 +1181,10 @@
   {
    "en": "✓ Thanks for your purchase! Your PadSpan Pro license key is on its way to your PayPal email — check your inbox (and spam) in the next few minutes.",
    "de": "✓ Danke für deinen Kauf! Dein PadSpan-Pro-Lizenzschlüssel ist unterwegs an deine PayPal-E-Mail-Adresse. Schau in den nächsten Minuten in deinen Posteingang (und in den Spam-Ordner)."
+  },
+  {
+   "en": "Day and three more themes",
+   "de": "Day und drei weitere Designs"
   }
  ],
  "attrs": {
