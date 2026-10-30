@@ -5,6 +5,9 @@
 # libraries the tested modules import directly are needed.
 pytest==9.1.1
 pytest-asyncio==1.4.0
+# Runs the generated Bright tree's copy of the suite on every core
+# (scripts/bright_build.run_suite, which falls back to one process without it).
+pytest-xdist==3.8.0
 voluptuous==0.16.0
 # The IRK resolver's AES path (private_ble_resolver._address_matches_irk).
 # It imports cryptography inside a try/except ImportError and returns False on

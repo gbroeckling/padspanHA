@@ -258,9 +258,13 @@ def build_zip(tree: Path, zip_path: Path) -> int:
 
 
 def run_suite(tree: Path) -> subprocess.CompletedProcess:
-    """The renamed suite, run inside the generated tree."""
+    """The renamed suite, run inside the generated tree. Spread over every
+    core when pytest-xdist is installed (requirements_test.txt): the same
+    tests, ~5 min -> ~1.5; without it, one process as before."""
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    return subprocess.run([sys.executable, "-m", "pytest", "tests", "-q", "--no-header", "-p", "no:cacheprovider"],
+    import importlib.util  # noqa: PLC0415
+    par = ["-n", "auto"] if importlib.util.find_spec("xdist") else []
+    return subprocess.run([sys.executable, "-m", "pytest", "tests", "-q", "--no-header", "-p", "no:cacheprovider", *par],
                           cwd=tree, env=env, text=True, capture_output=True, encoding="utf-8")
 
 
