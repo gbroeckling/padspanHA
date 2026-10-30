@@ -174,8 +174,17 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
             # Try separate UUID / Major / Minor attributes first (most reliable)
             if attrs.get("UUID") or attrs.get("uuid"):
                 uuid_attr = str(attrs.get("UUID") or attrs.get("uuid") or "")
-                major = int(attrs.get("Major", attrs.get("major", 0)))
-                minor = int(attrs.get("Minor", attrs.get("minor", 0)))
+                # One phone's Major/Minor that is not a number (None, "", a
+                # word) used to fail the whole discovery, so no phone was
+                # listed at all. Read as 0, as a missing one already is.
+                try:
+                    major = int(attrs.get("Major", attrs.get("major", 0)))
+                    minor = int(attrs.get("Minor", attrs.get("minor", 0)))
+                except (TypeError, ValueError):
+                    from .telemetry import bump  # noqa: PLC0415
+                    bump(hass, "companion_ids_unreadable")
+                    _LOGGER.debug("companion_discover: %s — Major/Minor not numbers", eid)
+                    major = minor = 0
             else:
                 # Fall back to combined transmitting_id / id attribute or state
                 transmitting_id = (
@@ -688,7 +697,7 @@ async def ws_companion_discover(hass: HomeAssistant, connection, msg) -> None:
             },
         })
     except Exception as err:
-        _LOGGER.warning("companion_discover failed: %s", err)
+        _LOGGER.warning("Could not look for Companion App phones: %s", err)
         connection.send_result(msg["id"], {"phones": [], "error": str(err)})
 
 
@@ -874,7 +883,7 @@ async def ws_companion_follow(hass: HomeAssistant, connection, msg) -> None:
             "actions": results,
         })
     except Exception as err:
-        _LOGGER.warning("companion_follow failed: %s", err)
+        _LOGGER.warning("Could not follow the Companion App phone: %s", err)
         connection.send_error(msg["id"], "follow_failed", str(err))
 
 
@@ -935,5 +944,5 @@ async def ws_companion_unfollow(hass: HomeAssistant, connection, msg) -> None:
             "actions": results,
         })
     except Exception as err:
-        _LOGGER.warning("companion_unfollow failed: %s", err)
+        _LOGGER.warning("Could not stop following the Companion App phone: %s", err)
         connection.send_error(msg["id"], "unfollow_failed", str(err))

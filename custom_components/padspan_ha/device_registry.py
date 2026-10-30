@@ -288,8 +288,12 @@ class DeviceRegistry:
         # Check if this identity is already on another device
         existing_pid = self.resolve(value)
         if existing_pid and existing_pid != padspan_id:
-            _LOGGER.warning("Identity %s already belongs to %s, not adding to %s",
-                            value, existing_pid, padspan_id)
+            # The guard doing its job (it keeps two devices from being merged),
+            # not something the user can act on from the log: debug, counted.
+            _LOGGER.debug("Identity %s already belongs to %s, not adding to %s",
+                          value, existing_pid, padspan_id)
+            from .telemetry import bump  # noqa: PLC0415
+            bump(self.hass, "device_identity_refused")
             return
         # Add if not already present
         idents = dev.setdefault("identities", [])

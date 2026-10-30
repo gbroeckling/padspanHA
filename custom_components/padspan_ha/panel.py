@@ -67,11 +67,16 @@ async def _register_static(hass: HomeAssistant, static_dir: Path, url: str = STA
         _LOGGER.debug("Static register fallback failed (url=%s)", url)
 
 def _remove_panels(hass: HomeAssistant) -> None:
-    """Remove existing panel registrations so they can be refreshed."""
+    """Remove the panels Home Assistant has registered, so they can be refreshed.
+
+    Only the ones it actually has: removing an unknown panel logs "Removing
+    unknown panel" on every fresh start (Atlas is often off)."""
     try:
         from homeassistant.components.frontend import async_remove_panel  # type: ignore
-        async_remove_panel(hass, "padspan-ha")
-        async_remove_panel(hass, "padspan-lights")
+        panels = hass.data.get("frontend_panels") or {}   # frontend.DATA_PANELS
+        for path in ("padspan-ha", "padspan-lights"):
+            if path in panels:
+                async_remove_panel(hass, path)
     except Exception:
         pass
 
@@ -79,13 +84,13 @@ def _remove_panels(hass: HomeAssistant) -> None:
 async def async_setup_panel(hass: HomeAssistant) -> None:
     hass.data.setdefault(DOMAIN, {})
 
-    # Re-register panels whenever called (clear stale registrations first) —
-    # but only if we actually registered them before. On a fresh start there's
-    # nothing to remove yet, and calling async_remove_panel anyway just logs
-    # "Removing unknown panel" on every boot for no reason.
+    # Re-register panels whenever called (clear stale registrations first).
     # This ensures HACS reloads (without full restart) always get the new module_url/BUILD_ID.
-    if hass.data[DOMAIN].get(DATA_PANEL_REGISTERED):
-        _remove_panels(hass)
+    # Asked of Home Assistant's own panel list, not of DATA_PANEL_REGISTERED:
+    # a config-entry reload clears that flag (async_unload_entry) while the
+    # panel stays registered, so the re-register raised "Overwriting panel
+    # padspan-ha" and logged "Panel re-registration failed" on every reload.
+    _remove_panels(hass)
     hass.data[DOMAIN][DATA_PANEL_REGISTERED] = False
 
     await _register_static(hass, Path(__file__).parent / "www")
