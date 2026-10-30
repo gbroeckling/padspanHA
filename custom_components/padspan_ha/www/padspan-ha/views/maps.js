@@ -97,6 +97,13 @@ export function render(ctx){
   root.className = ctx.state.view==="maps" ? "" : "hidden";
 
   const maps = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
+  // The Rooms page's "Edit outline" (rooms.js sets _openRoom): open the plan
+  // the room is traced on, when one is; else the one it picked by floor.
+  const _openRoom = ctx.state.maps && ctx.state.maps._openRoom;
+  if (_openRoom) {
+    const tracedOn = maps.find(m => m.room_bounds && m.room_bounds[_openRoom]);
+    if (tracedOn) ctx.state.activeMapId = tracedOn.id;
+  }
   const activeId = ctx.state.activeMapId || (maps[0] && maps[0].id) || null;
   const active = maps.find(m=>m.id===activeId) || null;
 
@@ -140,6 +147,8 @@ export function render(ctx){
     if(ctx.state.mapsTab === "upload") ctx.state.mapsTab = "library";
   }
   const activeTab = ctx.state.mapsTab || "library";
+  // "Edit outline" is for the Edit tab only: anywhere else it is dropped.
+  if (activeTab !== "edit" && ctx.state.maps) ctx.state.maps._openRoom = null;
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
 
@@ -1783,11 +1792,20 @@ function _edit(ctx, map, allMaps){
     // floor"), so loading the plan does not put it back on Radios.
     ctx.state.maps._mode = ctx.state.maps._openMode || "receivers";
     ctx.state.maps._openMode = null;
-    ctx.state.maps._selectedRoom = "";
+    // _openRoom: the room the Rooms page's "Edit outline" opened it on.
+    ctx.state.maps._selectedRoom = ctx.state.maps._openRoom || "";
+    ctx.state.maps._openRoom = null;
     ctx.state.maps._drawing = null; // {room, points:[]} or barrier drawing
     ctx.state.maps._selectedBarrierId = null;
     ctx.state.maps._barrierMaterial = "metal";
     ctx.state.maps._recommendPoly = null;
+  } else if (ctx.state.maps._openRoom) {
+    // Already open on this plan: the Rooms tool and the room, drafts kept.
+    ctx.state.maps._mode = ctx.state.maps._openMode || "rooms";
+    ctx.state.maps._selectedRoom = ctx.state.maps._openRoom;
+    ctx.state.maps._drawing = null;
+    ctx.state.maps._openMode = null;
+    ctx.state.maps._openRoom = null;
   }
 
   // Cache-buster: map.updated changes on every trim/replace so the browser fetches fresh content
@@ -2835,7 +2853,10 @@ function _edit(ctx, map, allMaps){
         renderAll(); refreshList(); renderTools();
       }}, "Clear boundary");
 
-      right.appendChild(roomSel);
+      right.appendChild(el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},[
+        roomSel,
+        el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", title:"Every room's settings on one page (unsaved outlines stay here until you Save)", onclick:()=>{ ctx.state.view = "rooms"; ctx.actions.renderNav(); ctx.actions.renderRooms(); }}, "All rooms"),
+      ]));
 
       // Warning if selected room is already drawn on another map
       const _selRoom = ctx.state.maps._selectedRoom;
@@ -10816,6 +10837,7 @@ function _roomsTab(ctx, maps) {
 
   card.appendChild(el("div", { class: "card-head", style: "margin-bottom:4px" }, [
     el("div", { style: "font-weight:700;font-size:15px" }, "Room and receiver layout, in metres"),
+    el("button", {class:"btn inline", style:"font-size:11px;padding:2px 10px", title:"Every room's settings on one page", onclick:()=>{ ctx.state.view = "rooms"; ctx.actions.renderNav(); ctx.actions.renderRooms(); }}, "All rooms"),
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "The real-world model the positioning engine uses — edited directly, in metres, with no floor " +

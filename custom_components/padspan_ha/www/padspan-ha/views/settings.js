@@ -179,7 +179,10 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   const roomsCard = el("div",{class:"card", style:"margin-top:12px"});
   roomsCard.appendChild(el("div",{class:"card-head"},[
     el("div",{style:"font-weight:700"}, isBasic ? "Room colours" : "Rooms"),
-    helpBtn("settings_colors"),
+    el("div",{style:"display:flex;gap:6px;align-items:center"},[
+      el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", title:"Every room's settings on one page", onclick:()=>{ ctx.state.view = "rooms"; ctx.actions.renderNav(); ctx.actions.renderRooms(); }}, "All rooms"),
+      helpBtn("settings_colors"),
+    ]),
   ]));
   roomsCard.appendChild(el("div",{class:"muted", style:"font-size:12px;margin-top:6px"},
     isBasic

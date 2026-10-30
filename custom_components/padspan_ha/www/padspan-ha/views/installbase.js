@@ -553,7 +553,7 @@ const W_TAB = {
   overview: "Overview", maps: "Maps", calibration: "Calibration", follow: "Follow", purelive: "Live Tracker",
   settings: "Settings", manage: "Manage", training: "Training", devices: "Devices", occupancy: "Occupancy",
   health: "Health", bluetooth: "Bluetooth", monitor: "Monitor", traceback: "Traceback", presence: "Presence",
-  qa: "QA", installbase: "Install Base (this page)", sandbox: "Sandbox", forensics: "Forensics", insights: "Insights",
+  qa: "QA", rooms: "Rooms", installbase: "Install Base (this page)", sandbox: "Sandbox", forensics: "Forensics", insights: "Insights",
   "maps/edit": "Maps › Edit", "maps/rooms": "Maps › Rooms", "maps/stack": "Maps › Floor stack",
   "maps/library": "Maps › Library", "maps/upload": "Maps › Upload a plan", "maps/lights": "Maps › Lights",
   "maps/export": "Maps › Export", "maps/help": "Maps › Help",
@@ -691,6 +691,7 @@ const W_EVENT = {
   wizard_tiers_step_upgrade: "Editions tour: upgrade", wizard_tiers_completed: "Editions tour: finished",
   wizard_la_opened: "3D house setup: opened", wizard_la_finished: "3D house setup: finished",
   menu_more_tools_open: "Opened More tools in the menu",
+  rooms_page_edit: "Rooms page: a colour, ceiling height or split level saved",
 };
 const W_GS_STEP = { upload: "add a floor plan", scale: "set the scale", rooms: "draw rooms", scanners: "place receivers",
                     calibrate: "calibrate", positioned: "see devices placed" };
