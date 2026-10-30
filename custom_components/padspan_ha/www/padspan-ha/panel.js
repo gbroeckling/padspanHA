@@ -193,6 +193,9 @@ const _VIEW_PATHS = {
   occupancy:    "./views/occupancy.js",
   guests:       "./views/guests.js",
   installbase:  "./views/installbase.js",
+  // The guided Setup (plan → … → calibration): reached from the Overview's
+  // Getting started and from Mapping, never a menu tab.
+  setup:        "./views/setup.js",
 };
 
 // Views reachable by internal navigation but never listed in MENU. Being
@@ -203,7 +206,7 @@ const _VIEW_PATHS = {
 // user back to the first menu view, the same silent no-op as Mapping's Open
 // in Basic mode. (Since More tools, 2026-10-30, every mode lists qa and
 // devices; they stay here harmlessly.)
-const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics", "qa", "devices"]);
+const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics", "qa", "devices", "setup"]);
 
 // Track in-flight imports to avoid duplicate fetches
 const _viewLoading = {};
@@ -2994,6 +2997,7 @@ class PadSpanHaApp extends HTMLElement {
         if (this.state._calibBeacon) this.state._calibBeacon._confirming = false;
       }
       this.state.view = id;
+      this.state._setupReturn = null;   // a menu pick leaves the guided Setup's step
       this._logEvent("view_change", id);
       // Opt-in usage report: count the tab open.
       this._telemetryEvent("tab:" + id);
@@ -3103,7 +3107,7 @@ class PadSpanHaApp extends HTMLElement {
     const mobileTitle = this.shadowRoot.querySelector("#mobileTitle");
     if (mobileTitle) {
       const mi = MENU.find(x => x[0] === this.state.view);
-      mobileTitle.textContent = mi ? mi[1] : this.state.view;
+      mobileTitle.textContent = mi ? mi[1] : this.state.view === "setup" ? "Setup" : this.state.view;
     }
     this._paintDataModeLabel();
     const mobileModePill = this.shadowRoot.querySelector("#mobileModePill");
@@ -3389,6 +3393,15 @@ class PadSpanHaApp extends HTMLElement {
         // Opt-in usage report: count one allow-listed event. A no-op unless the
         // person turned the report on — no traffic leaves the browser otherwise.
         telemetryEvent: (name, extra) => this._telemetryEvent(name, extra),
+        // Open another screen from inside one (the guided Setup's steps):
+        // highlighted like a menu pick, loaded if the background load has not
+        // reached it yet.
+        showView: (id) => {
+          this.state.view = id;
+          this._renderNav();
+          if (!VIEWS[id] && _VIEW_PATHS[id]) _loadView(id).then(() => this._scheduleRender());
+          this._scheduleRender();
+        },
         // ── Followed Beacons ──────────────────────────────────────────────
         // Multi-device follow set — persisted both to server (via settings_set)
         // and to localStorage as a fallback. Addresses are stored uppercase.
@@ -4367,6 +4380,13 @@ class PadSpanHaApp extends HTMLElement {
       }
     }
 
+    // A step opened from the guided Setup (views/setup.js): which step, and
+    // the way back, over the tool that does it. Gone with a menu pick.
+    if (this.state._setupReturn && (v === "maps" || v === "calibration") && VIEWS.setup && VIEWS.setup.returnBar) {
+      try { const _sb = VIEWS.setup.returnBar(this._ctx()); if (_sb) frag.appendChild(_sb); }
+      catch(e) { console.warn("PadSpan: setup bar failed", e); }
+    }
+
     // ── Onboarding wizard ──────────────────────────────────────────────────
     // Shows a persistent progress bar when setup is incomplete. Detects each
     // step's completion from live state. Navigates to the right view on click.
@@ -4469,7 +4489,15 @@ class PadSpanHaApp extends HTMLElement {
           _markOnboarded();
           this._scheduleRender();
         });
-        hdr.appendChild(skipBtn);
+        // The guided Setup: the same steps in order, with skip and resume.
+        const setupBtn = el("span",{"data-getting-started":"setup",style:"cursor:pointer;font-size:11px;color:#5eead4;text-decoration:underline;margin-right:12px"}, "Open Setup");
+        setupBtn.addEventListener("click", () => {
+          this.state.view = "setup";
+          this._renderNav();
+          if (!VIEWS.setup) _loadView("setup").then(() => this._scheduleRender());
+          this._scheduleRender();
+        });
+        hdr.appendChild(el("span",{style:"display:flex;align-items:baseline"},[setupBtn, skipBtn]));
         bar.appendChild(hdr);
         if (_mapOptional) bar.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin:-4px 0 8px"},
           "Who's where already works below. A floor plan adds the map, and with three or more scanners placed on it, positions between them."));
@@ -4493,6 +4521,8 @@ class PadSpanHaApp extends HTMLElement {
           row.setAttribute("data-getting-started", "step-" + s.id);
           row.addEventListener("click", () => {
             this._telemetryEvent("getting_started_step:" + s.id);
+            // The guided Setup's step this is (views/setup.js): its bar leads back there.
+            this.state._setupReturn = { upload: "plan", scale: "scale", rooms: "rooms", scanners: "receivers", calibrate: "calibration" }[s.id] || null;
             // The four map-building steps launch the Setup Wizard AT that
             // step, on whatever map is already active (or the first one, or
             // none yet — the wizard's own Upload step handles that) — rather
