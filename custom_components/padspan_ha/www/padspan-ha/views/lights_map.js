@@ -1099,7 +1099,9 @@ export function wireUseSurface(isoDiv, api){
   const q = (sel) => isoDiv.querySelectorAll(sel);
   const svg = isoDiv.querySelector("svg");
   // A drawing the poll patched keeps its parts (drawStageSvg): the last
-  // wiring's listeners come off them first, so each is wired once, to this api.
+  // wiring comes off them first, so each is wired once, to this api: its
+  // listeners, a press under way (its timers, ring and readout) and the
+  // hover dimming (a touch screen never sends the mouseout).
   if (svg && svg._psUnwire) svg._psUnwire();
   const offs = [];
   const on = (n, type, fn) => { n.addEventListener(type, fn); offs.push(() => n.removeEventListener(type, fn)); };
@@ -1118,6 +1120,7 @@ export function wireUseSurface(isoDiv, api){
       if (ring) { try { ring.remove(); } catch (_) {} ring = null; }
       if (readout) { try { readout.remove(); } catch (_) {} readout = null; }
     };
+    offs.push(clearAll);
     on(g, "pointerdown", (e) => {
       if (e.button !== undefined && e.button !== 0 && e.pointerType === "mouse") return;
       e.stopPropagation();
@@ -1191,6 +1194,7 @@ export function wireUseSurface(isoDiv, api){
     wirePress(g, g.dataset.eid, Number(g.dataset.cx), Number(g.dataset.cy));
     on(g, "mouseover", () => { g.style.opacity = String(Math.max(0.2, (parseFloat(g.getAttribute("opacity")) || 1) * 0.75)); });
     on(g, "mouseout", () => { g.style.opacity = ""; });
+    offs.push(() => { g.style.opacity = ""; });
   });
   q(".lhalo").forEach(c => wirePress(c, c.dataset.eid, Number(c.getAttribute("cx")), Number(c.getAttribute("cy")), Number(c.getAttribute("r")) + 2));
   // The code chip is drawn INSIDE the marker's own group (see codeChipSvg in
@@ -3213,6 +3217,13 @@ export function drawStageSvg(stage, svgStr, view, key){
         if (plan[j] >= 0) nodes[j] = prev.nodes[plan[j]];
         else { nodes[j] = parsed[--m]; svg.insertBefore(nodes[j], ref); }
         ref = nodes[j];
+      }
+      // Nothing else stays in the drawing but the people layer
+      // (atlas_aboard.js, [data-live]): a press ring left by a hold the
+      // poll cut short goes, as a full rebuild would take it.
+      const mine = new Set(nodes);
+      for (const n of [...svg.childNodes]) {
+        if (!mine.has(n) && !(n.getAttribute && n.getAttribute("data-live") !== null)) svg.removeChild(n);
       }
       stage.appendChild(svg);
       _svgKept.set(view, { svg, open: next.open, kids, nodes, key });
