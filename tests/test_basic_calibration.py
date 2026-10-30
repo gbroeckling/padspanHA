@@ -30,7 +30,7 @@ def _set(src: str, name: str) -> set[str]:
 def test_basic_mode_lists_calibration() -> None:
     src = _read("panel.js")
     basic = _set(src, "BASIC_TABS")
-    assert basic == {"follow", "overview", "maps", "calibration", "settings", "training"}, sorted(basic)
+    assert basic == {"follow", "overview", "maps", "rooms", "calibration", "settings", "training"}, sorted(basic)
     assert "calibration" in _set(src, "ADVANCED_DEFAULT")
     assert "calibration" not in _set(src, "DEV_ONLY_TABS")
 

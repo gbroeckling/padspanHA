@@ -159,6 +159,7 @@ export const SURFACE_CLASS = Object.freeze({
   history:     "presence",
   monitor:     "presence",
   maps:        "lighting",
+  rooms:       "presence",      // the Rooms page (2026-10-30): who is in each room now
   events:      "presence",
   health:      "lighting",
   settings:    "lighting",

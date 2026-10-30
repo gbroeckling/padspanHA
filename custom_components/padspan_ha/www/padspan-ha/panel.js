@@ -178,6 +178,7 @@ const _VIEW_PATHS = {
   history:      "./views/history.js",
   monitor:      "./views/monitor.js",
   maps:         "./views/maps.js",
+  rooms:        "./views/rooms.js",
   events:       "./views/events.js",
   health:       "./views/health.js",
   settings:     "./views/settings.js",
@@ -264,6 +265,7 @@ const MENU = [
   ["presence","Presence","mdi:map-marker-radius-outline"],
   ["monitor","Monitor","mdi:monitor-dashboard"],
   ["maps","Mapping","mdi:map"],
+  ["rooms","Rooms","mdi:floor-plan"],
   ["settings","Settings","mdi:cog-outline"],
   ["manage","Manage","mdi:cog-wrench"],
   ["training","Training","mdi:school-outline"],
@@ -283,12 +285,14 @@ const MENU = [
 // every mode. These sets only decide which screens sit in the main groups;
 // the rest go in one "More tools" group, closed until opened (remembered).
 //   Basic     — a short main list for non-technical users (follow + overview +
-//               essentials, Calibration among them: every home needs it)
+//               essentials, Calibration among them: every home needs it; Rooms
+//               too: Basic's Mapping has no Edit or Rooms tab, so it is Basic's
+//               only room-by-room screen, its colours included)
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
 //   Dev       — the same menu as Advanced; it changes detail inside screens
 // DEV_ONLY_TABS: the screens only Development used to list.
-const BASIC_TABS = new Set(["follow", "overview", "maps", "calibration", "settings", "training"]);
-const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","occupancy","health"]);
+const BASIC_TABS = new Set(["follow", "overview", "maps", "rooms", "calibration", "settings", "training"]);
+const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","rooms","settings","training","manage","calibration","traceback","occupancy","health"]);
 const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
 
 // Accent color per tab — used for the sidebar dot, mobile nav, and active highlights
@@ -303,6 +307,7 @@ const MENU_COLORS = {
   history: "#90a4ae",
   monitor: "#f06292",
   maps: "#4caf50",
+  rooms: "#66bb6a",
   events: "#ffb74d",
   health: "#e57373",
   settings: "#b0bec5",
@@ -336,6 +341,7 @@ const MENU_ICONS = {
   guests:      '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><circle cx="17.5" cy="16.5" r="4"/><path d="M17.5 14.6v2l1.3 1"/>',
   occupancy:   '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 5.6a3.2 3.2 0 0 1 0 6.1M17.2 20c0-2.6-.9-4.2-2.4-5"/>',
   maps:        '<path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>',
+  rooms:       '<rect x="3" y="3" width="18" height="18" rx="1.6"/><path d="M3 12h7M14 12h7M12 3v6M12 15v6"/>',
   calibration: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/>',
   training:    '<path d="M12 4 2 9l10 5 10-5-10-5z"/><path d="M6 11.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/>',
   manage:      '<path d="M4 6h9M19 6h1M4 12h4M13 12h7M4 18h9M19 18h1"/><circle cx="16" cy="6" r="2.1"/><circle cx="10.5" cy="12" r="2.1"/><circle cx="16" cy="18" r="2.1"/>',
@@ -357,7 +363,7 @@ const MENU_ICONS = {
 // adding a tab without touching this file can never make it disappear.
 const MENU_GROUPS = [
   ["Live",      ["overview","purelive","follow","occupancy","guests"]],
-  ["Setup",     ["maps","calibration","training","manage","settings"]],
+  ["Setup",     ["maps","rooms","calibration","training","manage","settings"]],
   ["Diagnose",  ["traceback","health","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
 ];

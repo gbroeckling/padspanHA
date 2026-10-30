@@ -292,6 +292,9 @@ EVENTS: frozenset[str] = frozenset({
     # screens; the ones only Development listed sit there, closed by default).
     # Counted on opening only: whether anyone finds it.
     "menu_more_tools_open",
+    # The Rooms page (views/rooms.js, 2026-10-30): a colour, ceiling height or
+    # split level saved there (its opens are tab:rooms).
+    "rooms_page_edit",
     # Settings → Suggest an idea: which way people take (0.38.140).
     "suggest_idea_posted", "suggest_idea_browsed", "suggest_idea_mail",
     # A Bluetooth proxy that suddenly hears far fewer advertisements than it
@@ -405,7 +408,7 @@ VIEWS: frozenset[str] = frozenset({
     "follow", "overview", "purelive", "objects", "devices", "bluetooth", "presence",
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
-    "sandbox", "occupancy", "installbase", "guests",
+    "sandbox", "occupancy", "installbase", "guests", "rooms",
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),
