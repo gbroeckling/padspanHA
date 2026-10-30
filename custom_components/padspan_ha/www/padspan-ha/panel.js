@@ -272,10 +272,11 @@ const MENU = [
 
 // ── Complexity Mode Tab Sets ─────────────────────────────────────────────────
 // Three complexity tiers control which sidebar tabs are visible:
-//   Basic     — simplified for non-technical users (follow + overview + essentials)
+//   Basic     — simplified for non-technical users (follow + overview + essentials,
+//               Calibration among them: every home needs it for accuracy)
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
 //   Dev       — everything visible (includes QA, Sandbox, raw Debug, etc.)
-const BASIC_TABS = new Set(["follow", "overview", "maps", "settings", "training"]);
+const BASIC_TABS = new Set(["follow", "overview", "maps", "calibration", "settings", "training"]);
 const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","occupancy","health"]);
 const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
 
@@ -1169,10 +1170,6 @@ class PadSpanHaApp extends HTMLElement {
         this.state.view = "maps";
         this.state.mapsTab = "stack";
       } else {
-        if (this.state.complexity === "basic") {
-          this.state.complexity = "advanced";
-          try { localStorage.setItem("padspan_complexity", "advanced"); } catch(e) {}
-        }
         this.state.view = "calibration";
         if (this.state._calib) this.state._calib.tab = "tune";
       }
@@ -1251,8 +1248,7 @@ class PadSpanHaApp extends HTMLElement {
 
   // Settings → Presence, where the report switch and the tester sign-up are;
   // the sign-up opens itself there (tester_signup.js, state._testerFocus).
-  // Basic mode has no Presence tab: promote to Advanced, as Getting started
-  // does for calibration.
+  // Basic mode has no Presence tab: promote to Advanced.
   _openTesterSignup(){
     if (this.state.complexity === "basic") {
       this.state.complexity = "advanced";
@@ -2904,7 +2900,7 @@ class PadSpanHaApp extends HTMLElement {
       const seen = new Set();
       let firstHeading = true;
       const _heading = (text) => {
-        // Basic mode shows five tabs; headings would outnumber the content.
+        // Basic mode shows six tabs; headings would outnumber the content.
         if (isBasic) return;
         this.$nav.appendChild(el("div", { class: "navgrp" + (firstHeading ? " first" : "") }, text));
         firstHeading = false;
@@ -4383,11 +4379,6 @@ class PadSpanHaApp extends HTMLElement {
               if (this.actions?.renderRooms) this.actions.renderRooms();
               else this._scheduleRender();
               return;
-            }
-            // Auto-promote to Advanced if step needs calibration (not in Basic mode)
-            if (s.view === "calibration" && this.state.complexity === "basic") {
-              this.state.complexity = "advanced";
-              try { localStorage.setItem("padspan_complexity", "advanced"); } catch(e) {}
             }
             if (s.calibWizard) {
               this.state.view = "calibration";

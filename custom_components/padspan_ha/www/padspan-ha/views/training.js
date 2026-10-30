@@ -1650,7 +1650,7 @@ const WALKTHROUGHS = [
     icon: "🎯",
     summary: "Walk around your home collecting signal fingerprints to build a calibration model for precise room detection.",
     steps: [
-      { title: "Choose a Device and Floor Plan",           text: "Open the Calibration tab (visible in Advanced and Development modes) or use the standalone Calibration panel on your phone. Pick the BLE device you'll carry — usually your phone — and select which floor plan to calibrate. The standalone panel is optimised for one-handed phone use while walking around.", svg: _svgCalibSetup },
+      { title: "Choose a Device and Floor Plan",           text: "Open the Calibration tab (visible in every mode) or use the standalone Calibration panel on your phone. Pick the BLE device you'll carry — usually your phone — and select which floor plan to calibrate. The standalone panel is optimised for one-handed phone use while walking around.", svg: _svgCalibSetup },
       { title: "Pin & Listen — Collect Fingerprints",      text: "In the Pin & Listen tab, tap the floor plan where you're physically standing. Stand still for about 10 seconds while PadSpan records the RSSI signal strength from every scanner that can see your device. Each tap-and-wait creates one calibration point. Collect 15–30 points spread around your home for a good model.", svg: _svgCalibPin },
       { title: "Roam — Check Coverage",                    text: "Switch to the Roam tab to see a coverage heatmap. Green cells have good fingerprint data, yellow have some, red need more. Walk to the red areas and collect more points there. The guided 'walk here next' target helps you fill gaps efficiently.", svg: _svgCalibHeatmap },
       { title: "Compute Model & Validate",                 text: "Switch to the Model tab and click Compute Model. PadSpan fits a k-NN fingerprint model and per-scanner OLS path-loss model from your collected data. Leave-one-out cross-validation scores the accuracy. 80%+ is good, 90%+ is excellent. You can always collect more points and recompute to improve the score.", svg: _svgCalibModel },
@@ -2276,8 +2276,8 @@ const QUICKSTART_SECTIONS = [
     icon: "⚡",
     paragraphs: [
       "PadSpan has three UI modes, cycled by the toggle button in the top-right corner:",
-      "Basic — 5 tabs (Follow, Overview, Maps, Settings, Training). Best for everyday use after initial setup. Includes one-click phone tracking and Quiet Mode.",
-      "Advanced — 7 tabs by default (adds Manage and Calibration). Adds Clear Unidentified, detailed phone tracking status, and more diagnostic info. You can opt extra tabs into Advanced via Settings → UI Structure.",
+      "Basic — 6 tabs (Follow, Overview, Maps, Calibration, Settings, Training). Best for everyday use after initial setup. Includes one-click phone tracking and Quiet Mode.",
+      "Advanced — 7 tabs by default (adds Manage). Adds Clear Unidentified, detailed phone tracking status, and more diagnostic info. You can opt extra tabs into Advanced via Settings → UI Structure.",
       "Development — all 14 tabs visible. Includes Objects, Devices, Bluetooth, Presence, Monitor, QA, and Sandbox for debugging and development.",
     ],
   },
