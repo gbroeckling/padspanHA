@@ -1647,6 +1647,74 @@ function _wizard(ctx, maps, isBasic){
   return root;
 }
 
+// Edit → Radios: the selected radio's mounting height. The same value,
+// command and payload as Calibration → Tune's "Save Z" (one height, two
+// places): read from the model's scanner_positions_m[source].z_m, written
+// with padspan_ha/fabric_scanner_z_set {source, z_m}. Only the height is
+// sent — never a position. Shares Tune's fabric-writer lock when Tune has
+// been opened, so a height never lands in the middle of a Tune save.
+function _rxHeightRow(ctx, sel, rerender){
+  const { el } = ctx.helpers;
+  const src = (sel && sel.source) || "";
+  const fab = src ? ((ctx.state.model && ctx.state.model.scanner_positions_m) || {})[src] : null;
+  if(!fab){
+    return el("div",{class:"muted", style:"font-size:11px;margin-top:8px", "data-rx-height":"none"},
+      "Height: set once this radio has a position (Save Layout, then Calibration → Tune → Save).");
+  }
+  const zInp = el("input",{type:"number", min:"0", max:"100", step:"0.1",
+    style:"width:72px;background:#071008;border:1px solid #2d4a38;color:#e2e8f0;padding:6px 8px;border-radius:8px;font-size:12px"});
+  zInp.value = String(fab.z_m != null ? fab.z_m : 2.4);
+  zInp.setAttribute("aria-label", "Height above floor (m)");
+  const zBtn = el("button",{class:"btn inline", style:"margin-top:0",
+    title:"Mounting height above this radio's own floor. Used for 3D distance; survives map syncs. Same value as Calibration → Tune."}, "Save height");
+  zBtn.addEventListener("click", async ()=>{
+    const v = parseFloat(zInp.value);
+    if(!Number.isFinite(v) || v < 0 || v > 100){
+      ctx.toast("Height must be 0–100 m", true);
+      return;
+    }
+    const ts = (TSP && ctx.state._calibTune) || null;
+    if(ts && !TSP.tuneTryAcquire(ts)){
+      ctx.toast("A save is in progress — try again in a moment", true);
+      return;
+    }
+    zBtn.disabled = true;
+    try{
+      const res = await ctx.actions.callWS({
+        type: "padspan_ha/fabric_scanner_z_set",
+        source: src, z_m: v,
+      });
+      if(res && res.ok === false){
+        ctx.toast("Save failed: height not stored", true);
+        return;
+      }
+      // Publish the acknowledged height before refreshing (modelRefresh
+      // swallows fetch errors), rounded as the backend stores it.
+      try{
+        const mdl = ctx.state.model || (ctx.state.model = {});
+        const spm = mdl.scanner_positions_m || (mdl.scanner_positions_m = {});
+        const prev = spm[src];
+        spm[src] = { ...(prev && typeof prev === "object" ? prev : {}),
+          z_m: Math.round(Math.max(0, Math.min(100, v)) * 100) / 100 };
+      }catch(_e){ /* best-effort */ }
+      ctx.toast(`${sel.label || src}: height set to ${v} m`);
+      if(ts) ts._tuneRev = (ts._tuneRev || 0) + 1;
+      if(ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
+    }catch(e){
+      ctx.toast("Save failed: height not stored", true);
+    }finally{
+      if(ts) TSP.tuneRelease(ts);
+      zBtn.disabled = false;
+    }
+    if(rerender) rerender();
+  });
+  return el("div",{style:"display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px", "data-rx-height":src},[
+    el("span",{class:"muted", style:"font-size:12px"}, "Height above floor (m)"),
+    zInp,
+    zBtn,
+  ]);
+}
+
 // ── Edit Tab ─────────────────────────────────────────────────────────────────
 // Full map editor with two modes:
 //   Receivers mode — double-click to place BLE scanner markers, drag to
@@ -2390,6 +2458,7 @@ function _edit(ctx, map, allMaps){
           lbl,
           roomLbl,
           roomSel,
+          _rxHeightRow(ctx, sel, renderTools),
           el("button",{class:"btn inline", style:"margin-top:8px", onclick:()=>{
             ctx.state.maps._draftReceivers = ctx.state.maps._draftReceivers.filter(x=>x.id!==sel.id);
             ctx.state.maps._selectedRxId = null;
