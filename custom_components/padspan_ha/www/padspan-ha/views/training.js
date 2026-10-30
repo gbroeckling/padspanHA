@@ -2256,10 +2256,10 @@ const QUICKSTART_SECTIONS = [
     title: "Calibration",
     icon: "📐",
     paragraphs: [
-      "Calibration improves room detection accuracy by collecting real signal fingerprints from your home. The default Advanced view exposes two calibration tools:",
+      "Calibration improves room detection accuracy by collecting real signal fingerprints from your home. It is in the menu in every mode; the two tools most homes start with:",
       "Tune — a 3D isometric view of your floor plans with draggable scanner markers. Drag each marker to match the scanner's real-world position so PadSpan's distance calculations start from the right place.",
       "Beacon Tune — mark a beacon's physical position on the map, then let PadSpan auto-collect a 60-second RSSI fingerprint from every scanner. Repeat at several locations for best coverage.",
-      "Additional calibration tools (Setup, Pin & Listen, Roam, Model) are available in Development mode for advanced fingerprint collection and model analysis.",
+      "Its other tabs (Setup, Pin & Listen, Roam, Model) are for collecting more fingerprints and checking the model.",
     ],
   },
   {
