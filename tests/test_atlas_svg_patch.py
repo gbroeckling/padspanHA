@@ -60,7 +60,7 @@ def test_the_card_draws_through_the_patch_only_when_asked() -> None:
     body = src[i:src.index("\n  };\n", i)]
     assert "if (host.patchSvg) {" in body
     assert "drawStageSvg(isoDiv, svgStr, view," in body
-    assert "} else isoDiv.innerHTML = svgStr;" in body
+    assert "} else { isoDiv.innerHTML = svgStr; drawnWhole = true; }" in body
     # The map itself is part of the key: the host's own model, not the tier's copy.
     assert "model: hostIn.model" in body
 

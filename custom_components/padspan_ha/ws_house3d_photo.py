@@ -12,7 +12,8 @@ people from photos"). One command, house3d_from_photo:
   the kind the person says it is. Without a photo it only says whether the
   photo step can run and which AI Task would read it (local or cloud).
 - It calls Home Assistant's own ai_task.generate_data on the AI Task chosen
-  in Settings (atlas_3d_ai_task_entity), with a fixed prompt, the photo as an
+  in Settings (atlas_3d_ai_task_entity; the backup one,
+  atlas_3d_ai_task_backup_entity, when that can't be reached: ask_ai), with a fixed prompt, the photo as an
   attachment and a structure: Home Assistant's field list (selectors), flat,
   built from the builders' own settings (house3d_builders, from
   views/live_aboard_furniture.js) and the library's details sheet.
@@ -46,13 +47,16 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import errno
 import json
 import logging
 import os
 import re
 import secrets
+import socket
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Any
 
 import voluptuous as vol
@@ -139,14 +143,21 @@ def _platform(hass: HomeAssistant, eid: str) -> str | None:
         return None
 
 
-def ai_task(hass: HomeAssistant) -> dict[str, Any]:
+def ai_task(hass: HomeAssistant, *, with_backup: bool = False) -> dict[str, Any]:
     """The AI Task that would read a photo: {ready: True, ai_task, name,
-    local (True, False, or None when unknown)}, or {ready: False, message}."""
+    local (True, False, or None when unknown)}, or {ready: False, message}.
+
+    with_backup (the reads): where a usable backup AI Task is set (Settings →
+    AI), also backup: its entity, and main_away: True when the main one is
+    unavailable or gone from Home Assistant (name and local stay the main
+    one's while it is only unavailable, and are the backup's once it is gone).
+    With no backup set, exactly the main one's answer."""
     v = _ha_version()
     if v is None or v < MIN_HA:
         return {"ready": False, "message": NO_AI_OLD}
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    eid = str(((st.data if st else {}) or {}).get("atlas_3d_ai_task_entity") or "").strip()
+    data = (st.data if st else {}) or {}
+    eid = str(data.get("atlas_3d_ai_task_entity") or "").strip()
     if not eid.startswith("ai_task."):
         return {"ready": False, "message": NO_AI_CHOSEN}
     try:
@@ -155,6 +166,29 @@ def ai_task(hass: HomeAssistant) -> dict[str, Any]:
         has = False
     if not has:
         return {"ready": False, "message": NO_AI_SERVICE}
+    out = _entity_ready(hass, eid)
+    if not with_backup:
+        return out
+    bk = str(data.get("atlas_3d_ai_task_backup_entity") or "").strip()
+    if not bk.startswith("ai_task.") or bk == eid:
+        return out
+    b = _entity_ready(hass, bk)
+    if not b["ready"] or _state_of(hass, bk) == "unavailable":
+        return out                                     # no backup to switch to: the main one, as with none set
+    if out["ready"]:
+        return {**out, "backup": bk, **({"main_away": True} if _state_of(hass, eid) == "unavailable" else {})}
+    if hass.states.get(eid) is None:                   # the main one is gone from Home Assistant: the backup reads
+        return {**b, "ai_task": eid, "backup": bk, "main_away": True}
+    return out                                         # a main one blind to pictures is a setting to fix, not away
+
+
+def _state_of(hass: HomeAssistant, eid: str) -> str | None:
+    state = hass.states.get(eid)
+    return getattr(state, "state", None) if state is not None else None
+
+
+def _entity_ready(hass: HomeAssistant, eid: str) -> dict[str, Any]:
+    """One AI Task entity, as ai_task answers for it."""
     state = hass.states.get(eid)
     if state is None:
         return {"ready": False, "message": NO_AI_GONE.format(eid=eid)}
@@ -620,7 +654,7 @@ class _NoMedia(Exception):
 
 
 async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict | None, raw: bytes, mime: str,
-              task_name: str = "PadSpan Live Aboard photo") -> Any:
+              task_name: str = "PadSpan Live Aboard photo", timeout_s: float | None = None) -> Any:
     """One ai_task.generate_data call with the photo; the answer's data (with
     no structure, the AI's text). The photo's file exists only for the call."""
     media = _media_dir(hass)
@@ -637,7 +671,7 @@ async def ask(hass: HomeAssistant, eid: str, instructions: str, structure: dict 
             await hass.async_add_executor_job(_write, folder, path, raw)
         except OSError:
             raise _NoMedia from None
-        async with asyncio.timeout(PHOTO_TIMEOUT_S):
+        async with asyncio.timeout(PHOTO_TIMEOUT_S if timeout_s is None else timeout_s):
             call = {"task_name": task_name, "entity_id": eid, "instructions": instructions,
                     "attachments": [{"media_content_id": f"media-source://media_source/{dir_id}/{folder.name}/{path.name}",
                                      "media_content_type": mime}]}
@@ -666,6 +700,157 @@ def _why(err: BaseException) -> str:
         return f"no answer in {PHOTO_TIMEOUT_S // 60} minutes"
     text = " ".join(_BLOB.sub("…", str(err)).split())[:160]
     return text or type(err).__name__
+
+
+# ── the backup AI Task (Settings → AI; none until one is chosen) ─────────────
+# Garry's case (2026-10-30): the main AI Task runs on a computer that leaves
+# the house; a slower one elsewhere reads instead, with no setting changed.
+# The rule (ask_ai): the main one reads unless it is away: its entity is
+# unavailable or gone, it couldn't be reached in the last MAIN_AWAY_S, its
+# server (where the integration keeps a url, as Ollama does) doesn't take a
+# connection within PROBE_S, or its call fails because it can't be reached
+# (unreachable(): refused, no route, no name, a dropped connection). Never a
+# timeout while it reads, nor a bad answer: a slow main one is never cut
+# short. "unknown" is not away: it is the state of an AI Task never used yet.
+PROBE_S = 5.0                         # a server on the home network takes a connection in well under this
+MAIN_AWAY_S = 300                     # a main one that couldn't be reached is skipped this long, then tried again
+BACKUP_MIN_S = 60                     # the backup isn't asked with less than this left of PHOTO_TIMEOUT_S
+_AWAY = "ai_main_away_until"          # hass.data[DOMAIN]: {entity: monotonic time it is tried again}
+# Errors that say the AI's server couldn't be reached, by class name (no
+# import of the libraries): httpx's (Ollama's client) and aiohttp's (most
+# others); the operating system's own are checked by errno.
+_NET_NAMES = frozenset({"ConnectError", "ConnectTimeout", "NetworkError", "ClientConnectionError",
+                        "ClientConnectorError", "ServerDisconnectedError"})
+_NET_MODULES = ("httpx", "httpcore", "aiohttp")
+_NET_ERRNOS = frozenset(e for e in (errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.ENETUNREACH, errno.ENETDOWN,
+                                    errno.ECONNRESET, errno.ECONNABORTED, errno.ETIMEDOUT,
+                                    getattr(errno, "EHOSTDOWN", None)) if e is not None)
+
+
+def unreachable(err: BaseException) -> bool:
+    """Whether a failed AI Task call failed because its server couldn't be
+    reached (the error itself or anything it was raised from)."""
+    seen: set[int] = set()
+    todo: list[BaseException | None] = [err]
+    while todo and len(seen) < 10:
+        e = todo.pop()
+        if e is None or id(e) in seen:
+            continue
+        seen.add(id(e))
+        names = {c.__name__ for c in type(e).__mro__}
+        if isinstance(e, TimeoutError):
+            if "ConnectionTimeoutError" in names:      # aiohttp: no connection in time (not a slow answer)
+                return True
+        elif (isinstance(e, (ConnectionError, socket.gaierror))
+              or (isinstance(e, OSError) and e.errno in _NET_ERRNOS)):
+            return True
+        elif names & _NET_NAMES and type(e).__module__.split(".")[0] in _NET_MODULES:
+            return True
+        todo += [e.__cause__, e.__context__]
+    return False
+
+
+def _away_until(hass: HomeAssistant) -> dict[str, float]:
+    return hass.data.setdefault(DOMAIN, {}).setdefault(_AWAY, {})
+
+
+def _remembered_away(hass: HomeAssistant, eid: str) -> bool:
+    until = _away_until(hass).get(eid)
+    if until is None:
+        return False
+    if time.monotonic() >= until:
+        _away_until(hass).pop(eid, None)               # its time is up: tried again
+        return False
+    return True
+
+
+def _server_url(hass: HomeAssistant, eid: str) -> str | None:
+    """The AI Task's server, where its integration keeps one (Ollama's url)."""
+    try:
+        from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+        ent = er.async_get(hass).async_get(eid)
+        entry_id = getattr(ent, "config_entry_id", None)
+        entry = hass.config_entries.async_get_entry(entry_id) if isinstance(entry_id, str) else None
+        url = {**(entry.data or {}), **(entry.options or {})}.get("url") if entry is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+    return url.strip() if isinstance(url, str) and url.strip() else None
+
+
+async def _probe(hass: HomeAssistant, eid: str) -> str | None:
+    """Why the AI Task's server can't be reached, or None (reached, or no
+    server known to try). One connection opened and closed, nothing sent."""
+    url = _server_url(hass, eid)
+    if url is None:
+        return None
+    # As Ollama's own client reads it: with no scheme, http on its port 11434.
+    parts = urlsplit(url if "://" in url else f"http://{url}")
+    try:
+        host = parts.hostname
+        port = parts.port or (443 if parts.scheme == "https" else 80 if "://" in url else 11434)
+    except ValueError:
+        return None
+    if not host:
+        return None
+    try:
+        async with asyncio.timeout(PROBE_S):
+            _reader, writer = await asyncio.open_connection(host, port)
+    except TimeoutError:
+        return f"no connection in {PROBE_S:g} s"
+    except OSError as err:
+        return type(err).__name__
+    writer.close()
+    try:
+        await writer.wait_closed()
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+async def ask_ai(hass: HomeAssistant, ai: dict[str, Any], instructions: str, structure: dict | None, raw: bytes,
+                 mime: str, task_name: str = "PadSpan Live Aboard photo", *, count: bool = True) -> tuple[Any, str]:
+    """ask() on the main AI Task, or on the backup when the main one is away
+    (the rule above): the answer and the entity that gave it. With no backup
+    set, ask() on the main one exactly as before."""
+    main, backup = ai["ai_task"], ai.get("backup")
+    if not backup:
+        return await ask(hass, main, instructions, structure, raw, mime, task_name), main
+    t0 = time.monotonic()
+    if ai.get("main_away"):
+        why = "unavailable"
+    elif _remembered_away(hass, main):
+        why = "couldn't be reached a moment ago"
+    else:
+        why = await _probe(hass, main)
+        if why is not None:
+            _away_until(hass)[main] = time.monotonic() + MAIN_AWAY_S
+    if why is None:
+        try:
+            answer = await ask(hass, main, instructions, structure, raw, mime, task_name)
+        except Exception as err:  # noqa: BLE001 — only an unreachable server switches; anything else stands
+            if not unreachable(err):
+                raise
+            _away_until(hass)[main] = time.monotonic() + MAIN_AWAY_S
+            if PHOTO_TIMEOUT_S - (time.monotonic() - t0) < BACKUP_MIN_S:
+                raise
+            why = _why(err)
+        else:
+            _away_until(hass).pop(main, None)
+            return answer, main
+    _LOGGER.info("PadSpan Live Aboard: the main AI Task %s is away (%s); the backup %s reads instead%s",
+                 main, why, backup,
+                 f" (the main one is tried again after {MAIN_AWAY_S // 60} minutes)" if _remembered_away(hass, main)
+                 else " (the main one is checked again on the next read)")
+    if count:
+        _bump(hass, "ai_backup_used")
+    try:
+        answer = await ask(hass, backup, instructions, structure, raw, mime, task_name,
+                           timeout_s=max(BACKUP_MIN_S, PHOTO_TIMEOUT_S - (time.monotonic() - t0)))
+    except Exception:
+        if count:
+            _bump(hass, "ai_backup_failed")
+        raise
+    return answer, backup
 
 
 # What a photo sent was of, and how long the AI Task took (telemetry.PHOTO_EVENTS).
@@ -710,7 +895,7 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
     if ((_st.data if _st else {}) or {}).get("ai_photos_enabled") is False:
         connection.send_error(msg["id"], PHOTOS_OFF_CODE, PHOTOS_OFF_MESSAGE)
         return
-    ai = ai_task(hass)
+    ai = ai_task(hass, with_backup=True)
     target = msg["target"]
     if "photo" not in msg:
         connection.send_result(msg["id"], ai)
@@ -729,7 +914,7 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
     _bump(hass, _SUBJECT_EVENT[target])
     t0 = time.monotonic()
     try:
-        answer = await ask(hass, ai["ai_task"], instructions, structure, raw, mime)
+        answer, by = await ask_ai(hass, ai, instructions, structure, raw, mime)
     except _NoMedia:
         _bump(hass, "photo_read:error")
         connection.send_result(msg["id"], {"ok": False, "target": target, "reason": "error", "message": NO_MEDIA,
@@ -750,14 +935,16 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
             and out.get("kind") not in (None, B.BOX_KIND)):
         try:
             i2, s2 = request(target, out["kind"])
-            o2 = parse(target, out["kind"], await ask(hass, ai["ai_task"], i2, s2, raw, mime))
+            a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)
+            o2 = parse(target, out["kind"], a2)
             if o2["ok"]:
-                out = o2
+                out, by = o2, by2
         except Exception as err:  # noqa: BLE001 — the first answer stands
             _LOGGER.debug("PadSpan Live Aboard: the second read of a photo failed: %s", _why(err))
     _bump(hass, _secs_event(time.monotonic() - t0))
     _bump(hass, "photo_read:ok" if out["ok"] else "photo_read:bad_answer")
-    connection.send_result(msg["id"], {**out, "ai_task": ai["ai_task"]})
+    # Which AI Task answered; by_backup only where the backup did (Settings → AI).
+    connection.send_result(msg["id"], {**out, "ai_task": by, **({"by_backup": True} if by != ai["ai_task"] else {})})
 
 
 WS_COMMANDS = (ws_house3d_from_photo,)

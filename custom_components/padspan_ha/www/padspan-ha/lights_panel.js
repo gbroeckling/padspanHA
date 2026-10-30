@@ -847,14 +847,15 @@ class PadSpanLightsApp extends HTMLElement {
     if(!this.shadowRoot) return;
     const $c=this.shadowRoot.querySelector("#content");
     if(!$c) return;
-    // The lights' index stays on screen from one update to the next
-    // (lights_map.js buildLightsTable, host.keepTable): it is laid out again
-    // only where a row changed. Everything else comes out first and is built
+    // The lights' index and the map card stay on screen from one update to
+    // the next (lights_map.js buildLightsTable, host.keepTable, and
+    // buildLightsMapCard, host.keepCard): each is laid out again only where
+    // something in it changed. Everything else comes out first and is built
     // again, as ever.
-    const kept=this._tableKeep && this._tableKeep.root;
+    const kept=[this._tableKeep && this._tableKeep.root, this._cardKeep && this._cardKeep.card].filter(Boolean);
     let root=$c.firstChild;
-    if(root && kept && kept.parentNode===root && root===$c.lastChild){
-      for(const n of [...root.childNodes]) if(n!==kept) root.removeChild(n);
+    if(root && kept.some(k=>k.parentNode===root) && root===$c.lastChild){
+      for(const n of [...root.childNodes]) if(!kept.includes(n)) root.removeChild(n);
     }else{
       while($c.firstChild) $c.removeChild($c.firstChild);
       root=null;
@@ -1200,6 +1201,9 @@ class PadSpanLightsApp extends HTMLElement {
       // The index under the map, kept between updates (buildLightsTable);
       // on the poll's update a row holding the focused control stays as it is.
       keepTable: this._tableKeep || (this._tableKeep = {}),
+      // The map card above it too (buildLightsMapCard): the same card while
+      // it is built from the same, its drawing and stage kept as they are.
+      keepCard: this._cardKeep || (this._cardKeep = {}),
       keepFocused: !!this._pollRender,
       saveView: ()=>this._saveSettings(),
       callWS: (msg)=>this._ws(msg),
@@ -1320,7 +1324,9 @@ class PadSpanLightsApp extends HTMLElement {
     // "Test emergency lighting" floats over the map's TOP-right corner (the
     // map's top is on screen when the Atlas opens; its bottom often is not):
     // a zero-height anchor right before the stage, so nothing moves.
+    // A kept card (host.keepCard) still holds the last one: it comes out first.
     const emerg=this._emergencyOverlay();
+    for(const n of [...mapCard.childNodes]) if(n.classList && n.classList.contains("lv-emerg-anchor")) mapCard.removeChild(n);
     const stage=emerg && mapCard.querySelector(".lv-stage");
     if(stage) stage.parentNode.insertBefore(emerg, stage);
 

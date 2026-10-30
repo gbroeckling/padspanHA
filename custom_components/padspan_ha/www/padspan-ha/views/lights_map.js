@@ -918,6 +918,9 @@ export function wireHoverHud(isoDiv, opts){
 
   // A zero-height sticky anchor rides the stage's own scroll (both axes)
   // without pushing the drawing down; the box hangs off it.
+  // A stage wired before (a kept card: the poll wires it again each tick)
+  // loses the last box and its listeners first, so it holds one of each.
+  if (isoDiv._psHudOff) isoDiv._psHudOff();
   const anchor = mk("div", "lv-hoverhud-anchor");
   const hud = mk("div", "lv-hoverhud");
   hud.hidden = true;
@@ -995,15 +998,23 @@ export function wireHoverHud(isoDiv, opts){
       hud.appendChild(mk("div", "lv-hoverhud-hit", [mk("span", "lv-hoverhud-k", "Click"), line]));
     }
   };
-  isoDiv.addEventListener("pointermove", (ev) => {
+  const onMove = (ev) => {
     if (ev.pointerType === "touch") return;
     if (hud.contains(ev.target)) { cancelHide(); return; }   // reading the HUD must not clear it
     if (opts.isDragging && opts.isDragging()) return;
     show(stackAt(ev.clientX, ev.clientY), roomAt(ev.clientX, ev.clientY));
-  });
+  };
+  isoDiv.addEventListener("pointermove", onMove);
   // Genuinely leaving the stage IS an unambiguous "done" — no grace needed,
   // unlike the mid-transit case show() itself now debounces.
   isoDiv.addEventListener("pointerleave", hideNow);
+  isoDiv._psHudOff = () => {
+    isoDiv.removeEventListener("pointermove", onMove);
+    isoDiv.removeEventListener("pointerleave", hideNow);
+    cancelHide();
+    if (anchor.parentNode) anchor.parentNode.removeChild(anchor);
+    isoDiv._psHudOff = null;
+  };
   return stackAt;
 }
 
@@ -3186,8 +3197,10 @@ export function drawStageSvg(stage, svgStr, view, key){
   const same = prev && next && key && prev.key && prev.key.text === key.text && prev.key.model === key.model
     && prev.key.floors === key.floors && prev.open === next.open;
   // Only into a new, empty stage (the poll's new card), and never out of a
-  // card still on screen.
-  if (same && !stage.firstChild && !prev.svg.isConnected && prev.nodes.every(n => n.parentNode === prev.svg)) {
+  // card still on screen; or where it is, in the stage it is in (a kept
+  // card, host.keepCard: the rain, the hover box and the rest stay there).
+  const inPlace = !!(same && prev.svg.parentNode === stage);
+  if (same && (inPlace || (!stage.firstChild && !prev.svg.isConnected)) && prev.nodes.every(n => n.parentNode === prev.svg)) {
     const svg = prev.svg, old = prev.kids, kids = next.kids;
     // Each new part takes the first unused old node with the same markup,
     // in order; the rest are made, all in one parse.
@@ -3225,7 +3238,7 @@ export function drawStageSvg(stage, svgStr, view, key){
       for (const n of [...svg.childNodes]) {
         if (!mine.has(n) && !(n.getAttribute && n.getAttribute("data-live") !== null)) svg.removeChild(n);
       }
-      stage.appendChild(svg);
+      if (!inPlace) stage.appendChild(svg);
       _svgKept.set(view, { svg, open: next.open, kids, nodes, key });
       return { full: false, replaced: made.length, kept: used.size };
     }
@@ -3261,10 +3274,63 @@ function _abLoad(){
     .catch((err) => { console.warn("PadSpan: atlas_aboard failed to load", err); _abFailed = true; });
 }
 
+// ── The poll's map card, kept (host.keepCard: the sidebar's 5 s tick) ───────
+// The sidebar builds its page afresh every poll; the map card under it (its
+// toolbar, rail, drawers, chips, legend and the stage) came out and went in
+// again whole, and laying a new card out on a 4K wall was most of an update.
+// So the sidebar hands in one object it keeps (host.keepCard), and a card
+// still on screen and built from the same stays: the newest host goes into
+// the card's own closures (every control reads it when used), the layer bar
+// is built again only when what it shows changed (its counts, its dots), and
+// the drawing is patched in place (drawStageSvg) with everything on the stage
+// (the rain, the people, Live Aboard, the double-tap and the touch wiring)
+// kept as it is. Anything else the card is built from (_cardSig: a setting,
+// the tier, the layout, the floor, the spacing, an alert, the legend, another
+// map) builds a new card, as before. The Mapping tab hands no keepCard.
+const _CARD_DATA = new Set(["lightsByEid", "byRoom", "hiddenEids", "hiddenEidsMap", "ambient", "states", "entities", "config",
+  "regIds", "emergency", "floodLatches", "model", "floors", "view", "lightsLoading", "shownAt", "keepTable", "keepFocused", "keepCard"]);
+function _cardSig(host, extra){
+  return JSON.stringify([host, extra], (k, v) => (_CARD_DATA.has(k) ? undefined
+    : typeof v === "function" ? "fn" : v instanceof Set ? [...v].sort() : v));
+}
+// Alert pulse's alerts (host.alertPulse; null while off) and the openings they flag.
+function _cardAlerts(host){
+  if (!host.alertPulse) return { alerts: null, openings: null };
+  let wet = null;
+  try {
+    const w = host.weather;
+    const d = WX && w && w.settings ? WX.decideAtlasWeather(WX.weatherSettingsFrom(w.settings), w.states, w.entities) : null;
+    wet = d && (d.kind === "rain" || d.kind === "snow") ? d.kind : null;
+  } catch (_) { wet = null; }
+  const alerts = safetyAlerts(Object.values(host.lightsByEid || {}),
+    { wet, floodLatches: host.floodLatches || {}, doorInvert: doorInvertOf(host.model), nowMs: Date.now() });
+  const openings = {};
+  for (const a of alerts) if (a.kind === "rain_open" || a.kind === "left_open") openings[a.eid] = a.kind;
+  return { alerts, openings };
+}
+// The 3D house's part of the host while it is on (see h3 below), else null.
+const _cardH3 = (host) => (host.house3d && host.house3d.settings && host.house3d.settings.atlas_3d_enabled === true
+  && tierAtLeast(host.tier, "pro") ? host.house3d : null);
+// An el() that also notes what it made (tag, attributes, text): what a part
+// shows, as a key to compare from one tick to the next.
+const _noting = (el, notes) => (tag, attrs, kids) => {
+  notes.push([tag, Object.entries(attrs || {}).filter(([, v]) => typeof v !== "function"),
+    (Array.isArray(kids) ? kids : [kids]).filter(c => typeof c === "string" || typeof c === "number")]);
+  return el(tag, attrs, kids);
+};
+
 export function buildLightsMapCard(hostIn){
+  const keep = hostIn.keepCard || null;
+  if (keep && keep.refresh && keep.card && keep.card.isConnected && keep.refresh(hostIn)) return keep.card;
+  // A new card: the last one leaves the page first, so its drawing can move
+  // into this one (drawStageSvg patches only a drawing no longer on screen).
+  if (keep) {
+    if (keep.card && keep.card.parentNode) keep.card.parentNode.removeChild(keep.card);
+    keep.card = null; keep.refresh = null;
+  }
   // The tier decides what is drawn, whatever the host asked for. One place,
   // for both hosts — see lightsHostForTier.
-  const host = lightsHostForTier(hostIn);
+  let host = lightsHostForTier(hostIn);
   const { el, view } = host;
   const floors = host.floors || [];
   // lv-atlascard: this card (the map and its bars) keeps its night colours in
@@ -3287,23 +3353,13 @@ export function buildLightsMapCard(hostIn){
   // flagged opening's room rings amber (rebuildISO's alertOpenings) and a
   // wall screen names the worst alert across its top until it clears. Rain
   // is the Atlas's own weather decision, as the rain over the map has it.
-  let alerts = null, alertOpenings = null;
-  if (host.alertPulse) {
-    let wet = null;
-    try {
-      const w = host.weather;
-      const d = WX && w && w.settings ? WX.decideAtlasWeather(WX.weatherSettingsFrom(w.settings), w.states, w.entities) : null;
-      wet = d && (d.kind === "rain" || d.kind === "snow") ? d.kind : null;
-    } catch (_) { wet = null; }
-    alerts = safetyAlerts(Object.values(host.lightsByEid || {}),
-      { wet, floodLatches: host.floodLatches || {}, doorInvert: doorInvertOf(host.model), nowMs: Date.now() });
-    alertOpenings = {};
-    for (const a of alerts) if (a.kind === "rain_open" || a.kind === "left_open") alertOpenings[a.eid] = a.kind;
-    if (WALL && alerts.length) {
-      const top = alerts[0].kind;
-      mapCard.appendChild(el("div", { class: "lv-alertbar" + (top === "rain_open" || top === "left_open" ? " lv-alertbar-open" : ""),
-        role: "alert", "data-alert": top }, alertBannerText(alerts)));
-    }
+  let { alerts, openings: alertOpenings } = _cardAlerts(host);
+  // What the wall's alert bar says (a kept card is one that says the same).
+  const alertKeyOf = (a) => (WALL && a && a.length ? [a[0].kind, alertBannerText(a)] : null);
+  if (alerts && WALL && alerts.length) {
+    const top = alerts[0].kind;
+    mapCard.appendChild(el("div", { class: "lv-alertbar" + (top === "rain_open" || top === "left_open" ? " lv-alertbar-open" : ""),
+      role: "alert", "data-alert": top }, alertBannerText(alerts)));
   }
 
   // Vacation Mode banner — pinned dead-center of the screen, on both Atlas
@@ -3429,8 +3485,7 @@ export function buildLightsMapCard(hostIn){
   // the tier is Pro (PadSpan Pro or Bright Pro — Garry, 2026-09-30). Below Pro
   // it is exactly off; the stored setting is left alone, so a renewed key
   // brings it back as it was.
-  const h3 = host.house3d && host.house3d.settings && host.house3d.settings.atlas_3d_enabled === true
-    && tierAtLeast(host.tier, "pro") ? host.house3d : null;
+  let h3 = _cardH3(host);
   // Switched off since it was on (this page load): its GL context goes back,
   // and a 3D view still loading never mounts on a card from before.
   if (!h3 && host.house3d && host.house3d.slot) {
@@ -3645,7 +3700,7 @@ export function buildLightsMapCard(hostIn){
   // where, through the very reader Live Aboard reads (one read serves both);
   // with Live Aboard on, the light kinds set there and, with Show furniture,
   // its furniture, doors and windows. None of it on: nothing is fetched.
-  const abSet = host.house3d && host.house3d.settings ? host.house3d.settings : {};
+  let abSet = host.house3d && host.house3d.settings ? host.house3d.settings : {};
   const abSlot = scr ? host.screen.slot : null;
   const abLive = !!(scr && tierAtLeast(host.tier, "pro") && host.house3d && host.house3d.people
     && (abSet.atlas_3d_people === true || abSet.atlas_3d_tags === true));
@@ -3737,6 +3792,7 @@ export function buildLightsMapCard(hostIn){
     isoDiv.scrollTop = by * next - cy;
   };
 
+  let drawnWhole = false;   // the last rebuildISO drew a new <svg> (not patched)
   const rebuildISO = () => {
     // The map may hide MORE than the index does — "Hide untouched" is a view
     // filter on the drawing, not the persisted hidden set, so the table still
@@ -3799,12 +3855,12 @@ export function buildLightsMapCard(hostIn){
     // zoom, the wall, the settings that shape it, and the map itself.
     if (host.patchSvg) {
       const o = isoOpts;
-      drawStageSvg(isoDiv, svgStr, view, { model: hostIn.model, floors: hostIn.floors, text: JSON.stringify([
+      drawnWhole = drawStageSvg(isoDiv, svgStr, view, { model: hostIn.model, floors: hostIn.floors, text: JSON.stringify([
         getFocusZ(view.focusIdx), view.floorGap, view.horizGap, view.zoom, V2, WALL, o.showcase, o.showcaseTheme, o.liveColours,
         o.fitRooms, o.isolux, o.sceneField, o.codeChip, o.hideCodes, o.classFilter, o.hitHalo, o.collapseUnplaced, o.dropMarker,
         o.labelScale, o.heatmap, o.barrierHit, o.automorph, o.automorphRoomPct, o.automorphHardness, o.automorphStyle,
-        o.automorphSubtlety, !!o.underlay]) });
-    } else isoDiv.innerHTML = svgStr;
+        o.automorphSubtlety, !!o.underlay]) }).full;
+    } else { isoDiv.innerHTML = svgStr; drawnWhole = true; }
     // People, tags and scanners over it, then the newest positions (while
     // the flat map shows and the page is in sight).
     if (abLive && _AB) {
@@ -4518,15 +4574,20 @@ export function buildLightsMapCard(hostIn){
   // are the thumb-reach floor switcher — each carries an activity dot (how
   // many devices are on / sensors tripped up there) — and each floor keeps
   // its own camera (zoom + scroll), restored when you come back to it.
-  const allLights = Object.values(host.lightsByEid || {});
+  let allLights = Object.values(host.lightsByEid || {});
   // The heatmap chip: offered for the kinds this house has a sensor of,
   // cycling Off → Temperature → Humidity → CO₂ → Off.
-  const heatKinds = host.onHeatmap ? [
-    allLights.some(l => l.isTemp) && "temp",
-    allLights.some(l => l.isHumidity) && "humidity",
-    allLights.some(l => l.isAir && l.device_class === "carbon_dioxide") && "co2",
-  ].filter(Boolean) : [];
-  if (host.onClassFilter || sortedLevels.length > 1 || heatKinds.length) {
+  const heatKindsOf = (h, all) => (h.onHeatmap ? [
+    all.some(l => l.isTemp) && "temp",
+    all.some(l => l.isHumidity) && "humidity",
+    all.some(l => l.isAir && l.device_class === "carbon_dioxide") && "co2",
+  ].filter(Boolean) : []);
+  const heatKinds = heatKindsOf(host, allLights);
+  // Built as one part (a kept card builds it again when what it shows
+  // changed: the key is everything its el() calls made).
+  const layerBar = () => {
+    const notes = [], el = _noting(host.el, notes);
+    const SEP = () => el("span", { class: "lv-sep" }, "");
     const bar = el("div", { class: "lv-layerbar" });
     if (heatKinds.length) {
       const cur = heatKinds.includes(host.heatmap) ? host.heatmap : null;
@@ -4605,7 +4666,12 @@ export function buildLightsMapCard(hostIn){
           isoDiv.scrollTop += (gr.top + gr.height / 2) - (sr.top + sr.height / 2);
         } }, "◎ Find active"));
     }
-    mount(bar, "layers");
+    return { node: bar, key: JSON.stringify(notes) };
+  };
+  let layer = null;
+  if (host.onClassFilter || sortedLevels.length > 1 || heatKinds.length) {
+    layer = layerBar();
+    mount(layer.node, "layers");
   }
 
   // 2026-09-16 live finding: the sticky toolbar (host.stickyToolbar, above)
@@ -4695,12 +4761,52 @@ export function buildLightsMapCard(hostIn){
   mapCard.appendChild(isoDiv);
   if (scr) mapCard.appendChild(scr.anchor);
   // The shapes as drawn: with Live Aboard's kinds once its file has been read.
-  const abLegend = _AB && abFile ? _AB.fileData(abSlot) : null;
-  const legend = buildShapeLegend(el, Object.values(abLegend
-    ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abLegend, host.lightsByEid, h3.settings.light_shapes)).lightsByEid
-    : host.lightsByEid));
-  if (legend) { legend.classList.add("lv-shapes"); mapCard.appendChild(legend); }   // a wall leaves it out (styles.css)
+  const legendOf = (h, h3x) => {
+    const abLegend = _AB && abFile && h3x ? _AB.fileData(abSlot) : null;
+    const notes = [];
+    const node = buildShapeLegend(_noting(el, notes), Object.values(abLegend
+      ? _AB.drawnWith(h.lightsByEid, h.byRoom, _AB.kindShapes(abLegend, h.lightsByEid, h3x.settings.light_shapes)).lightsByEid
+      : h.lightsByEid));
+    return { node, key: JSON.stringify(notes) };
+  };
+  const legend = legendOf(host, h3);
+  if (legend.node) { legend.node.classList.add("lv-shapes"); mapCard.appendChild(legend.node); }   // a wall leaves it out (styles.css)
   rebuildISO();
+  // Kept (host.keepCard, see _cardSig): what this card is built from, besides
+  // the devices, and the next tick's way in. A card built from the same takes
+  // the newest host into its closures, builds its layer bar again only when
+  // what it shows changed (a bar holding the focused control stays on the
+  // poll's update), and redraws the drawing in place; false: a new card.
+  if (keep) {
+    const sigOf = (h, a, lg) => _cardSig(h, [view.floorGap, view.horizGap, view.focusIdx, view.drawer || null, !!view.railHidden,
+      !!_AB, _vacOptsOpen, Date.now() < _vacAskUntil, alertKeyOf(a), lg, heatKindsOf(h, Object.values(h.lightsByEid || {}))]);
+    const refresh = (next) => {
+      if (next.model !== hostIn.model || next.floors !== hostIn.floors || next.view !== view) return false;
+      const h = lightsHostForTier(next), a = _cardAlerts(h), h3n = _cardH3(h), lg = legendOf(h, h3n);
+      if (sigOf(h, a.alerts, lg.key) !== keep.sig) return false;
+      hostIn = next; host = h; h3 = h3n;
+      alerts = a.alerts; alertOpenings = a.openings;
+      abSet = host.house3d && host.house3d.settings ? host.house3d.settings : {};
+      allLights = Object.values(host.lightsByEid || {});
+      if (layer && layer.node.parentNode) {
+        const nb = layerBar();
+        const act = next.keepFocused && layer.node.getRootNode ? layer.node.getRootNode().activeElement : null;
+        if (nb.key !== layer.key && !(act && layer.node.contains(act))) { layer.node.parentNode.replaceChild(nb.node, layer.node); layer = nb; }
+      }
+      if (scr) scr.paint();
+      // A new drawing (the zoom or the codes changed it whole) empties the
+      // stage for a moment, and the browser takes the pan back to 0,0: put
+      // it back where it was, as a new card does (view.scrollLeft below).
+      const sl = view.scrollLeft, stp = view.scrollTop;
+      rebuildISO();
+      if (drawnWhole) {
+        if (sl !== undefined) isoDiv.scrollLeft = sl;
+        if (stp !== undefined) isoDiv.scrollTop = stp;
+      }
+      return true;
+    };
+    Object.assign(keep, { card: mapCard, refresh, sig: sigOf(host, alerts, legend.key) });
+  }
   // Restore the pan position a previous rebuild of this same card saved
   // (see the scroll listener above) — skipped on the very first-ever
   // mount, where there is nothing to restore yet and 0,0 is already

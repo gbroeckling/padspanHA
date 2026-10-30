@@ -220,7 +220,7 @@ def _refused(hass: HomeAssistant, connection, msg) -> dict | None:
     if ((st.data if st else {}) or {}).get("ai_stairs_enabled") is not True:
         connection.send_error(msg["id"], STAIRS_OFF_CODE, STAIRS_OFF_MESSAGE)
         return None
-    return P.ai_task(hass)
+    return P.ai_task(hass, with_backup=True)
 
 
 def _bump(hass: HomeAssistant, event: str) -> None:
@@ -280,8 +280,8 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
     mime = "image/jpeg"
     t0 = time.monotonic()
     try:
-        answer = await P.ask(hass, ai["ai_task"], PROMPT.format(w=w, h=h), None, raw, mime,
-                             task_name="PadSpan Live Aboard stairs")
+        answer, by = await P.ask_ai(hass, ai, PROMPT.format(w=w, h=h), None, raw, mime,
+                                    task_name="PadSpan Live Aboard stairs")
     except P._NoMedia:  # noqa: SLF001
         _bump(hass, "stair_read:error")
         connection.send_result(msg["id"], {"ok": False, "reason": "error", "message": P.NO_MEDIA})
@@ -301,8 +301,9 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
                                            "message": "The AI's answer had no stairs in it that PadSpan could read."})
         return
     _bump(hass, "stair_read:found" if found else "stair_read:none")
+    # Which AI Task answered; by_backup only where the backup did (Settings → AI).
     connection.send_result(msg["id"], {"ok": True, "map_id": map_id, "stairs": found, "took_s": took,
-                                       "ai_task": ai["ai_task"]})
+                                       "ai_task": by, **({"by_backup": True} if by != ai["ai_task"] else {})})
 
 
 WS_COMMANDS = (ws_house3d_stairs_plans, ws_house3d_stairs_read)

@@ -203,6 +203,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_3d_people": False,             # the people layer
     "atlas_3d_tags": False,               # tags and scanners: every placed tag with its name, every scanner at its height
     "atlas_3d_ai_task_entity": "",        # ai_task.* that reads photos; "" = none (the photo button explains)
+    "atlas_3d_ai_task_backup_entity": "", # ai_task.* used when the main one can't be reached (ws_house3d_photo.ask_ai); "" = no backup
     "ai_stairs_enabled": False,           # Settings → AI: stairs read off the floor plans by the AI Task (0.38.188), off until chosen
     "ai_photos_enabled": True,            # Settings → AI: furniture (tags, receivers, people's figures) from a photo; on as it always was
     "atlas_3d_library": False,            # the shared furniture library

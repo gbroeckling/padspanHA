@@ -67,7 +67,8 @@ def test_both_atlas_hosts_ask_only_when_it_is_on() -> None:
     maps = (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     assert "...(ctx.state.settings && ctx.state.settings.atlas_alert_pulse === true ? { alertPulse: true } : {})," in maps
     lm = (_WWW / "views" / "lights_map.js").read_text(encoding="utf-8")
-    assert "let alerts = null, alertOpenings = null;\n  if (host.alertPulse) {" in lm
+    assert "function _cardAlerts(host){\n  if (!host.alertPulse) return { alerts: null, openings: null };" in lm.replace("\r\n", "\n")
+    assert "let { alerts, openings: alertOpenings } = _cardAlerts(host);" in lm
 
 
 def test_the_banner_breathes_in_css_and_rests_for_reduced_motion() -> None:

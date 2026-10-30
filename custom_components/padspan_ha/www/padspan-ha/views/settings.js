@@ -4103,12 +4103,34 @@ function _settingsAI(ctx, el){
   }
   aiSel.value = aiCur;
   let aiLast = aiCur;
-  aiSel.addEventListener("change", ()=>{ const want = aiSel.value; save("atlas_3d_ai_task_entity", want, ()=>{ aiSel.value = aiLast; }).then(ok=>{ if (ok) aiLast = want; }); });
+  aiSel.addEventListener("change", ()=>{ const want = aiSel.value; save("atlas_3d_ai_task_entity", want, ()=>{ aiSel.value = aiLast; }).then(ok=>{ if (ok) { aiLast = want; syncBackup(); } }); });
   card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},
     [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, "AI Task"), aiSel]));
   card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:6px"}, aiIds.length
     ? "Pick one whose model can read pictures (a vision model). Needs Home Assistant 2025.8 or newer."
     : "No AI Task in Home Assistant yet. Add an AI integration with a vision model (like Ollama, or a cloud one), then pick its AI Task here. Needs Home Assistant 2025.8 or newer."));
+  // The backup AI Task (ws_house3d_photo.ask_ai): the same list, the main one hidden; none until chosen.
+  const bkCur = String(settings.atlas_3d_ai_task_backup_entity || "");
+  const bkSel = document.createElement("select");
+  bkSel.className = "select";
+  bkSel.style.width = "auto";
+  bkSel.style.maxWidth = "100%";
+  bkSel.setAttribute("data-ai-backup", "");
+  bkSel.appendChild(el("option",{value:""}, "None"));
+  for (const eid of (bkCur && !aiIds.includes(bkCur) ? [bkCur, ...aiIds] : aiIds)) {
+    const n = aiStates[eid] && aiStates[eid].attributes && aiStates[eid].attributes.friendly_name;
+    bkSel.appendChild(el("option",{value:eid}, n ? `${n} (${eid})` : eid));
+  }
+  bkSel.value = bkCur;
+  // A new main one is no backup to itself (the server clears a backup the same as the main).
+  function syncBackup(){ for (const o of Array.from(bkSel.children)) { const v = o.getAttribute("value"); o.hidden = !!v && v === aiSel.value; } if (bkSel.value && bkSel.value === aiSel.value) { bkSel.value = ""; bkLast = ""; } }
+  let bkLast = bkCur;
+  bkSel.addEventListener("change", ()=>{ const want = bkSel.value; save("atlas_3d_ai_task_backup_entity", want, ()=>{ bkSel.value = bkLast; }).then(ok=>{ if (ok) bkLast = want; }); });
+  syncBackup();
+  card.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px"},
+    [el("span",{style:"font-size:13px;color:#a7f3d0;min-width:130px"}, "Backup AI task"), bkSel]));
+  card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:6px"},
+    "Used when the main one can't be reached, e.g. a computer that's away."));
   wrap.appendChild(card);
 
   // What it reads: a switch each; what is not built yet says so.

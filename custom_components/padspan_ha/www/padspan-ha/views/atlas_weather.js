@@ -871,9 +871,12 @@ function createSlot(slotKey){
         paintLayers(now);
         // Out of the old stage (a removed element's animations restart —
         // the anchored delays above are what keep them continuous), into
-        // the new one, right after the SVG.
-        detach();
-        isoDiv.appendChild(root);
+        // the new one, right after the SVG. A stage kept from the last tick
+        // (the sidebar's kept card) keeps it where it is.
+        if (!isoDiv || root.parentNode !== isoDiv) {
+          detach();
+          isoDiv.appendChild(root);
+        }
         fit(p.zoom, p.centred);
         const st = shownStateOf(shown);
         if (st) countWeatherOnce(`weather_shown:${st}`, send);
