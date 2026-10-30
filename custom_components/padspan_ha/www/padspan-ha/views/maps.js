@@ -29,7 +29,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity,
-        vacationOptionsOf, vacationEndsText, vacationLightChoices } =
+        vacationOptionsOf, vacationEndsText } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
@@ -10062,7 +10062,10 @@ function _lightsTab(ctx, maps, active) {
     vacationModeEnabled: !!ctx.state.settings?.vacation_mode_enabled,
     vacationModeResumed: !!ctx.state.settings?.vacation_mode_pattern_for,
     vacationOptions: vacationOptionsOf(ctx.state.settings),
-    vacationLights: vacationLightChoices(ctx.hass),
+    onVacationLights: async () => {
+      try { return (await ctx.actions.callWS({ type: "padspan_ha/vacation_lights" }))?.lights || []; }
+      catch (e) { return null; }
+    },
     onVacationPreview: async () => {
       try { return await ctx.actions.callWS({ type: "padspan_ha/vacation_preview" }); }
       catch (e) { ctx.toast("Could not make the Vacation Mode preview: " + String(e), true); return null; }

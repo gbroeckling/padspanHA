@@ -352,6 +352,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_insights_get)
     websocket_api.async_register_command(hass, ws_vacation_log_get)
     websocket_api.async_register_command(hass, ws_vacation_preview)
+    websocket_api.async_register_command(hass, ws_vacation_lights)
     # The Atlas WLED card's Advanced tab — a safe proxy to the device (ws_wled.py).
     from .ws_wled import async_register as _wled_register
     _wled_register(hass)
@@ -927,6 +928,17 @@ async def ws_vacation_preview(hass: HomeAssistant, connection, msg) -> None:
     else:
         bump(hass, "vacation_preview_empty")
     connection.send_result(msg["id"], out)
+
+
+@websocket_api.websocket_command({
+    "type": "padspan_ha/vacation_lights",
+})
+@websocket_api.async_response
+async def ws_vacation_lights(hass: HomeAssistant, connection, msg) -> None:
+    """The lights an evening (anchor) light can be — the ones Vacation Mode
+    switches, by name (vacation_mode.eligible_lights)."""
+    from .vacation_mode import eligible_lights
+    connection.send_result(msg["id"], {"lights": eligible_lights(hass)})
 
 
 # Flood/water-leak alarm latching (flood_latch.py) — the Atlas Reset button.

@@ -26,7 +26,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         sunAmbient, toggleEntity, atlasLookFromSettings,
         wireUseSurface, openControlCard, controlApiFor, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         wireHoverHud, screenHeight, captureWholeHouse, applyWholeHouse, ensureExactDevices,
-        vacationOptionsOf, vacationEndsText, vacationLightChoices } =
+        vacationOptionsOf, vacationEndsText } =
   await import(`./views/lights_map.js${new URL(import.meta.url).search}`);
 const { keepSubscribed } =
   await import(`./views/push_subscription.js${new URL(import.meta.url).search}`);
@@ -1009,7 +1009,11 @@ class PadSpanLightsApp extends HTMLElement {
       vacationModeEnabled: !!this.state._vacationModeEnabled,
       vacationModeResumed: !!this.state._vacationModeResumed,
       vacationOptions: vacationOptionsOf(this.state._vacationSettings),
-      vacationLights: vacationLightChoices(this._hass),
+      onVacationLights: async () => {
+        if (!this._hass) return null;
+        try { return (await this._ws({ type: "padspan_ha/vacation_lights" }))?.lights || []; }
+        catch (e) { return null; }
+      },
       onVacationPreview: async () => {
         if (!this._hass) return null;
         try { return await this._ws({ type: "padspan_ha/vacation_preview" }); }

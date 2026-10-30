@@ -121,19 +121,19 @@ async def test_with_no_new_option_set_the_tick_switches_as_before(monkeypatch):
 def test_the_preview_steps_the_tick_and_matches_its_draws():
     start = datetime(2026, 10, 27, 17, 2)
     pat = {"light.a": {"*:1800": 1.0, "*:1830": 1.0, "*:1900": 0.0}, "light.b": {"*:1900": 0.0}}
-    spans = vm.preview_spans(pat, {}, start, lambda ts, at: True)
+    spans = vm.preview_spans(pat, {}, start.timestamp(), datetime.fromtimestamp, lambda ts, at: True)
     t18 = datetime(2026, 10, 27, 18, 0).timestamp()
     assert spans == {"light.a": [[t18, t18 + 3600]]}
     # With the options and an anchor: capped, held, and bedtime-ended.
     data = {"vacation_mode_max_on_min": 30, "vacation_mode_bedtime": "22:00"}
-    spans = vm.preview_spans(pat, data, start, lambda ts, at: at.hour >= 17, ["light.porch"])
+    spans = vm.preview_spans(pat, data, start.timestamp(), datetime.fromtimestamp, lambda ts, at: at.hour >= 17, ["light.porch"])
     assert spans["light.a"][0] == [t18, t18 + 1800]
     porch = spans["light.porch"]
     assert porch[0][0] == datetime(2026, 10, 27, 17, 0).timestamp()
     assert 21 * 3600 + 40 * 60 <= porch[0][1] - datetime(2026, 10, 27).timestamp() <= 22 * 3600 + 20 * 60
     # An end date inside the window: nothing after it.
     end = datetime(2026, 10, 27, 18, 15).timestamp()
-    spans = vm.preview_spans(pat, {"vacation_mode_end_at": end}, start, lambda ts, at: True)
+    spans = vm.preview_spans(pat, {"vacation_mode_end_at": end}, start.timestamp(), datetime.fromtimestamp, lambda ts, at: True)
     assert spans == {"light.a": [[t18, end]]}
 
 
@@ -154,7 +154,8 @@ async def test_the_preview_switches_and_stores_nothing(monkeypatch):
     await W.ws_vacation_preview(hass, conn, {"id": 1})
     out = conn.send_result.call_args.args[1]
     assert out["routine"] == "own" and out["lights"][0]["name"] == "Kitchen"
-    assert out["lights"][0]["on"][0][0] == now.timestamp()
+    from homeassistant.util import dt as dt_util
+    assert out["lights"][0]["on"][0][0] == dt_util.utcnow().timestamp()      # real time, not wall time
     hass.services.async_call.assert_not_called()
     st.async_set.assert_not_called()
     assert st.data == before and bumped == ["vacation_preview"]
@@ -219,4 +220,78 @@ def test_the_options_box_offers_them_and_both_hosts_wire_the_preview():
     assert "vacation_mode_max_lights" in lm and "vacation_mode_anchors" in lm and "Show the next 24 hours" in lm
     for host in (www / "lights_panel.js", www / "views" / "maps.js"):
         src = host.read_text(encoding="utf-8")
-        assert "padspan_ha/vacation_preview" in src and "vacationLights: vacationLightChoices(" in src
+        assert "padspan_ha/vacation_preview" in src and "padspan_ha/vacation_lights" in src and "onVacationLights" in src
+
+
+# ═══ review fixes ════════════════════════════════════════════════════════════
+
+def test_the_cap_never_counts_or_turns_off_a_light_on_by_hand_or_an_anchor_in_its_window():
+    at = datetime(2026, 10, 27, 20, 0)
+    dec = {"light.hand": True, "light.porch": True, "light.a": True, "light.b": True}
+    out, used = vm.apply_options(dec, data={"vacation_mode_max_lights": 1}, now_ts=at.timestamp(), at_local=at,
+                                 dark=True, on_since={"light.a": at.timestamp() - 60}, capped={},
+                                 lit={"light.a"}, on_by_hand={"light.hand"}, anchored={"light.porch"})
+    assert out == {"light.hand": True, "light.porch": True, "light.a": True, "light.b": False}
+    assert used == {"max_lights"}
+
+
+def test_longest_on_leaves_an_anchor_in_its_window_alone_and_uncounted():
+    at = datetime(2026, 10, 27, 21, 0)
+    now = at.timestamp()
+    capped: dict = {}
+    out, used = vm.apply_options({"light.porch": True}, data={"vacation_mode_max_on_min": 60}, now_ts=now,
+                                 at_local=at, dark=True, on_since={"light.porch": now - 3 * 3600}, capped=capped,
+                                 anchored={"light.porch"})
+    assert out == {"light.porch": True} and used == set() and capped == {}
+
+
+def test_an_anchor_already_on_is_not_counted_as_held():
+    _, held = vm.apply_anchors({}, ["light.porch"], True, {"light.porch"}, {"light.porch"})
+    assert not held
+    _, held = vm.apply_anchors({}, ["light.porch"], True, set(), set())
+    assert held
+
+
+def test_the_preview_steps_real_time_across_a_daylight_saving_change():
+    from datetime import timezone, timedelta as td
+    change = datetime(2026, 11, 1, 9, 0, tzinfo=timezone.utc).timestamp()     # 02:00 PDT -> 01:00 PST
+
+    def to_local(ts):
+        return datetime.fromtimestamp(ts, tz=timezone(td(hours=-7 if ts < change else -8)))
+    start = datetime(2026, 10, 31, 12, 0, tzinfo=timezone(td(hours=-7))).timestamp()
+    pat = {"light.a": {"*:" + f"{h:02d}{m:02d}": 1.0 for h in range(24) for m in (0, 30)}}
+    spans = vm.preview_spans(pat, {}, start, to_local, lambda ts, at: True)
+    assert spans == {"light.a": [[start, start + 24 * 3600]]}                  # 24 real hours, not 25
+    pat = {"light.a": {"*:0000": 1.0, "*:0100": 0.0, "*:0130": 0.0}}
+    for a, b in vm.preview_spans(pat, {}, start, to_local, lambda ts, at: True)["light.a"]:
+        assert a < b
+
+
+async def test_the_preview_reuses_the_routine_it_learned_for_a_few_minutes(monkeypatch):
+    from custom_components.padspan_ha import websocket as W
+    st = _settings(vacation_mode_enabled=False)
+    hass = _hass(st, _states(**{"light.a": "off"}))
+    calls = []
+
+    async def fetch(*a, **k):
+        calls.append(1)
+        return {"light.a": [(0.0, "on")]}
+    monkeypatch.setattr(vm, "_async_fetch_history", fetch)
+    monkeypatch.setattr(vm, "_sun_times", lambda *a: (None, None))
+    monkeypatch.setattr("custom_components.padspan_ha.telemetry.bump", lambda h, n: None)
+    await W.ws_vacation_preview(hass, MagicMock(), {"id": 1})
+    await W.ws_vacation_preview(hass, MagicMock(), {"id": 2})
+    assert len(calls) == 1
+    cached = hass.data[DOMAIN][vm._VM_PREVIEW]
+    hass.data[DOMAIN][vm._VM_PREVIEW] = (cached[0] - vm.PREVIEW_CACHE_S - 1, cached[1], cached[2])
+    await W.ws_vacation_preview(hass, MagicMock(), {"id": 3})
+    assert len(calls) == 2
+
+
+def test_the_anchor_picker_lists_only_lights_vacation_mode_switches():
+    st = _settings()
+    states = _states(**{"light.porch": "off", "light.hall_group": "off", "fan.attic": "off"})
+    states["light.porch"].attributes = {"friendly_name": "Porch"}
+    states["light.hall_group"].attributes = {"entity_id": ["light.porch"]}
+    hass = _hass(st, states)
+    assert vm.eligible_lights(hass) == [["light.porch", "Porch"]]
