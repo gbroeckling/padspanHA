@@ -1,7 +1,0 @@
-# Settings: an Atlas tab, and plainer names
-
-### Changed
-- **The Atlas has its own Settings tab.** Everything about the Atlas and Live Aboard (the sidebar Atlas, what it draws, outdoor weather, Live Aboard, wall screens and the Atlas as Overview) moved from Settings → UI Structure to a new Settings → Atlas tab, unchanged. UI Structure keeps the menu and edition settings and points to the new tab.
-- **Show people and Show tags & scanners have one switch.** While Live Aboard is on, you switch them in Live Aboard's Views menu, and Settings → Atlas shows whether they are on, with a button to open Live Aboard. While Live Aboard is off they are switched in Settings → Atlas, because they still show on the flat map.
-- **Live Aboard's look is chosen in Settings → Atlas.** The setup wizard shows the current look and opens Settings → Atlas. A first setup doesn't need to pick one: "Same as the Atlas" is the default.
-- **Plainer names in Settings.** The Presence tab is now called Tracking (the Presence page in the menu keeps its name). "Fabric source" is now "Room and receiver layout source". The positioning choices are "Matched to calibration points" and "Learned model", with the technical names on hover. "Signal Filter" is now "Signal smoothing", "BLE Reseed Interval" is now "Bluetooth refresh interval", "Scanner RSSI Offsets" is now "Receiver signal adjustments", and "Distortion Map" is now "Signal distortion map". Only the words changed; every setting works as before.

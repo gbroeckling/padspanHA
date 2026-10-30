@@ -4,6 +4,53 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.202 — Calibration in Basic mode; Pure Live is now Live Tracker; Every screen in every mode, with More tools; Plain names for expert words; Receiver height in Edit → Radios; Settings: an Atlas tab, and plainer names; Settings in sections; A status dot in the top bar (2026-10-30)
+
+### New
+- **A status dot in the top bar says when something is wrong.** When all is well there is nothing there. A red dot with a round "!" means something is broken: PadSpan isn't answering, positioning's last update failed, or no Bluetooth receiver is reporting. An amber dot with a triangle means something needs attention: a receiver not heard from in over 10 minutes, one hearing far fewer devices than usual, or learning suspended. A receiver you marked lost, disabled or excluded on the Bluetooth screen isn't counted, and one the Bluetooth screen shows as scanning or listening is never "not heard from". The number beside it is how many issues there are, and hovering (or a screen reader) says what they are in plain words. Click it to open Health.
+- **It doesn't blink or nag.** A problem has to be there on two polls in a row before the dot shows (red: three, about 15 seconds), and gone for two before it goes. "No receiver is reporting" waits two minutes after the panel opens or PadSpan answers again, while receivers report in. No pop-ups, no sounds, and nothing in sample mode.
+- **On a wall screen, red only.** With `?kiosk=1` the top bars are hidden, so a red problem shows in the bottom-right corner instead (screen readers hear what it says); amber stays off the wall. Setup tips, scanner reliability scores and floor-plan receivers no live receiver matches aren't counted: they are advice, and stay on the Overview, in Health and in Mapping.
+
+### Changed
+- **Calibration is in Basic mode's menu.** Every home needs it for accuracy, so you no longer have to switch to Advanced to reach it. Inside, it has the same tabs as in Advanced.
+- **The accuracy tip about receiver heights opens Calibration → Tune and leaves you in Basic mode.** Getting started's calibration step no longer switches you to Advanced either.
+- **Mapping's "Go to Calibration" (the end of setting up a floor) leaves you in Basic mode too.**
+- **Calibration's "Measure this floor" works in Basic mode.** It opens Mapping's set-up at the step where you measure one distance (in every mode, as the accuracy tip "Measure" does); in Basic it used to land on Mapping's Library.
+- **The accuracy tip about floor heights says why it switches you.** Floor heights are on Mapping → 3D Stack, which Basic doesn't have, so from Basic it switches to Advanced and says so (as Mapping's Open does); it used to land on Mapping's Library.
+- **Links to Settings → Tracking open it in Basic mode.** Manage's and Guests' "Open Settings" and the tester sign-up open the Tracking settings with a way back to Appearance, and the tester sign-up no longer switches you to Advanced. Basic's Settings also has an "Open Tracking" button, so the usage report, guest tags and receiver settings the messages point to are there in every mode.
+- **The Training help now says Calibration is in every mode.**
+- Pure Live is now called Live Tracker. Links and settings are unchanged.
+- **Modes no longer hide screens.** Every screen is in the menu in Basic, Advanced and Development. The everyday screens stay in the main list; the rest (Devices, Bluetooth, Presence, Monitor, QA, Sandbox, Install Base) are in a new **More tools** group at the bottom of the menu. It starts closed, and PadSpan remembers whether you left it open. Many homes were switching to Development just to reach Devices or Bluetooth: now they can open them from any mode, and opening one never changes the mode.
+- **Basic stays short.** Basic's main list is still Follow, Overview, Mapping, Calibration, Settings and Training; Live Tracker, Occupancy, Manage, Traceback and Health join the other screens under More tools.
+- **Advanced and Development share one menu.** The modes now change only how much detail each screen shows. Settings → UI Structure still moves Devices, Bluetooth, Presence, Monitor, QA or Sandbox into the main list (in Advanced and Development).
+- **On a phone**, More tools is in the menu that the bottom bar's More button opens.
+- A link that opens a screen directly (`?view=devices`) opens it in every mode, as before.
+- **Screens and buttons use plain names now.** Nothing moved and nothing else changed; only the words:
+  - Monitor's tabs: Diagnostics → Calls and timing, Insights → Signal and coverage, Health → Quick status, Diag Export → Export for support
+  - Manage → HA Entities: Insights → Tips
+  - Calibration: Setup → Beacon and floor, Error Matrix → Accuracy by spot, Path-Loss Fits → Signal vs distance, Save Z → Save height
+  - Positioning Fabric → Room and receiver layout (Fabric Status → Layout status, Room Fabric by Floor → Room layout by floor, Load into Fabric editor → Load into the layout editor, Refresh Fabric → Refresh layout)
+  - System Critics → Problems found, Refresh Critics → Check again, Room Confusion Matrix → Room mix-ups
+  - k-NN / Random Forest → Matched to calibration points / Learned model (hover the status line for the method's own name)
+  - Mapping → Edit: RF Barriers → Signal walls
+  - Atlas: Isolux → Light spread
+  - Overview: Live EMA sources → Live signal sources; the Distortion buttons on the Overview and floor plans → Signal distortion
+- **Two error messages point to the right place.** A failed data-mode switch now says the details are in the browser console, and failed auto diagnostics point to Monitor → Export for support.
+- **A receiver's height can now be set in Mapping → Edit → Radios.** Select a placed radio and its height above the floor (in metres) shows under its room, with a **Save height** button. It is the same height as Calibration → Tune's Save height: saving it in either place changes the one stored value, and the other place shows the new number. Only the height is saved; the radio's position and calibration are left as they are. A radio that has no position yet says so instead of showing the box.
+- **The Atlas has its own Settings tab.** Everything about the Atlas and Live Aboard (the sidebar Atlas, what it draws, outdoor weather, Live Aboard, wall screens and the Atlas as Overview) moved from Settings → UI Structure to a new Settings → Atlas tab, unchanged. UI Structure keeps the menu and edition settings and points to the new tab.
+- **Show people and Show tags & scanners have one switch.** While Live Aboard is on, you switch them in Live Aboard's Views menu, and Settings → Atlas shows whether they are on, with a button to open Live Aboard. While Live Aboard is off they are switched in Settings → Atlas, because they still show on the flat map.
+- **Live Aboard's look is chosen in Settings → Atlas.** The setup wizard shows the current look and opens Settings → Atlas. A first setup doesn't need to pick one: "Same as the Atlas" is the default.
+- **Plainer names in Settings.** The Presence tab is now called Tracking (the Presence page in the menu keeps its name). "Fabric source" is now "Room and receiver layout source". The positioning choices are "Matched to calibration points" and "Learned model", with the technical names on hover. "Signal Filter" is now "Signal smoothing", "BLE Reseed Interval" is now "Bluetooth refresh interval", "Scanner RSSI Offsets" is now "Receiver signal adjustments", and "Distortion Map" is now "Signal distortion map". Only the words changed; every setting works as before.
+- **Settings → Tracking is in sections.** Its thirty-odd cards now sit under eight headings: Rooms and timing, Phones and guest tags, What the panel shows, Positioning and calibration, Receivers, Performance, Home Assistant and integrations, and Privacy, updates and feedback. Click a heading to fold it away; this browser remembers which ones you folded. Every section starts open, and no setting or default changed; the one card whose text changed is Quiet mode (below).
+- **Quiet mode is switched in one place: the Quiet tick at the top of the Overview.** Its card in Settings still explains it, shows whether it is on, and opens the Overview (the classic Overview when the Atlas is your Overview).
+- **"Aggressive BLE reseed (5s)" moved next to the Bluetooth refresh interval it shortens**, in Settings → Tracking → Receivers. Manage → HA Entities → BLE Proxy Compatibility now says whether it is on and opens that section, in Basic mode too.
+
+### Opt-in report
+- Opening More tools is counted (only the opening, not closing), to see whether people find it.
+- **Whether the dot gets looked at:** a count of clicks from the status dot through to Health (`status_dot_open`). Never what the dot said.
+
+---
+
 ## 0.38.201 — The Atlas redraws only what changed; Stopping a calibration capture early; Vacation Mode: evening lights, a limit on lights at once, and a preview (2026-10-30)
 
 ### New
