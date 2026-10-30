@@ -226,6 +226,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "vacation_mode_pause_home": False,    # anyone's person.* at home: nothing is switched until they leave
     "vacation_mode_bedtime": "",          # "HH:MM" (17:00-03:00): lights off from then (±20 min) until 05:00
     "vacation_mode_max_on_min": 0,        # 0 = no limit, else 15-720: a light it turned on goes off after this, and rests as long
+    "vacation_mode_max_lights": 0,        # 0 = no limit, else 1-50: at most this many of the pattern's lights on at once
+    "vacation_mode_anchors": [],          # up to 10 light entity ids held on from dark until bedtime (or about 23:00)
     "overview_show_walls": False,   # Overview: draw RF barrier walls over the map
     "overview_show_outdoor": False, # Overview: draw outdoor areas (sheds, driveways) as an overlay
     "overview_show_trails": False,  # Overview/Pure Live: fading movement trail behind each tracked object

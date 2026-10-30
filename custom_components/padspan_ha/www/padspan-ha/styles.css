@@ -43,6 +43,9 @@
 .lv-vac-opt-lbl{font-weight:600}
 .lv-vac-opt-note{font-size:11px;line-height:1.35}
 .lv-vac-inline{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lv-vac-anchors{display:flex;flex-direction:column;gap:2px;max-height:140px;overflow:auto;min-width:180px}
+.lv-vac-preview{display:flex;flex-direction:column;gap:3px;font-size:12px}
+.lv-vac-preview-row{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 /* Alert pulse on a wall screen (lights_map.js safetyAlerts): the worst alert
    and where, across the top until it clears; red for an alarm, amber for an
    opening. A slow breath of its border, in CSS (the map redraws every 5 s). */

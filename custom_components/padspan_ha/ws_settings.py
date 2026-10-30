@@ -580,6 +580,8 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("vacation_mode_pause_home"): bool,
         vol.Optional("vacation_mode_bedtime"): str,
         vol.Optional("vacation_mode_max_on_min"): vol.Coerce(int),
+        vol.Optional("vacation_mode_max_lights"): vol.Coerce(int),
+        vol.Optional("vacation_mode_anchors"): list,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -1055,7 +1057,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         # The trip options (vacation_mode.OPTION_DEFAULTS): admin-only like
         # Vacation Mode itself — an end date or a pause can stop it.
         _vac_opts = ("vacation_mode_dark_only", "vacation_mode_dark_offset_min", "vacation_mode_end_at",
-                     "vacation_mode_pause_home", "vacation_mode_bedtime", "vacation_mode_max_on_min")
+                     "vacation_mode_pause_home", "vacation_mode_bedtime", "vacation_mode_max_on_min",
+                     "vacation_mode_max_lights", "vacation_mode_anchors")
         if any(k in msg for k in _vac_opts):
             _user = getattr(connection, "user", None)
             if _user is not None and getattr(_user, "is_admin", True) is False:
@@ -1085,6 +1088,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             if "vacation_mode_max_on_min" in msg:
                 _mx = int(msg["vacation_mode_max_on_min"] or 0)
                 payload["vacation_mode_max_on_min"] = 0 if _mx <= 0 else max(MAX_ON_RANGE[0], min(MAX_ON_RANGE[1], _mx))
+            if "vacation_mode_max_lights" in msg:
+                from .vacation_mode import MAX_LIGHTS_RANGE  # noqa: PLC0415
+                _ml = int(msg["vacation_mode_max_lights"] or 0)
+                payload["vacation_mode_max_lights"] = (0 if _ml <= 0
+                                                       else max(MAX_LIGHTS_RANGE[0], min(MAX_LIGHTS_RANGE[1], _ml)))
+            if "vacation_mode_anchors" in msg:
+                # Lights only, never a lock or a cover (anchor_ids holds it
+                # again at every tick); at most ANCHORS_MAX.
+                from .vacation_mode import anchor_ids  # noqa: PLC0415
+                payload["vacation_mode_anchors"] = anchor_ids({"vacation_mode_anchors": msg["vacation_mode_anchors"]})
         if "lights_isolux" in msg:
             payload["lights_isolux"] = bool(msg["lights_isolux"])
         if "lights_automorph_enabled" in msg:
@@ -1352,7 +1365,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                         bump(hass, "vacation_off_not_pushed")
                 hass.async_create_task(_vac_notice())
         elif any(k in payload for k in ("vacation_mode_end_at", "vacation_mode_pause_home", "vacation_mode_dark_only",
-                                         "vacation_mode_bedtime", "vacation_mode_max_on_min")):
+                                         "vacation_mode_bedtime", "vacation_mode_max_on_min",
+                                         "vacation_mode_max_lights", "vacation_mode_anchors")):
             from .vacation_mode import refresh_status  # noqa: PLC0415
             refresh_status(hass)
 

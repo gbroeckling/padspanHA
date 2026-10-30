@@ -943,7 +943,7 @@ def test_the_report_says_how_vacation_mode_runs_in_closed_words_only_where_used(
     home = report_buckets(trip, log, now)
     assert home == {"on": "no", "intensity": "50-70", "switches_day": "11-50", "trips_60d": "1",
                     "last_trip_days": "8-14", "last_off": "panel", "after_dark": "no", "end_date": "no",
-                    "pause_home": "no", "bedtime": "no", "max_on": "no"}
+                    "pause_home": "no", "bedtime": "no", "max_on": "no", "max_lights": "no", "anchors": "no"}
     running = {**trip, **switch_fields(trip, True, now), "vacation_mode_enabled": True}
     away = report_buckets(running, log, now + 86400)
     assert away["on"] == "yes" and away["pattern"] == "resumed" and away["lights"] == "1-5"

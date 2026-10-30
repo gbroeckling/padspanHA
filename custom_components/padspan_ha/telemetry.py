@@ -304,6 +304,10 @@ EVENTS: frozenset[str] = frozenset({
     # max on-time rules holding a light off the pattern asked for.
     "vacation_off_end_date", "vacation_paused_home",
     "vacation_rule_dark", "vacation_rule_bedtime", "vacation_rule_max_on",
+    # The most-at-once cap holding a light off and an anchor light held on
+    # (once a day each), and the preview opened — empty when it had nothing
+    # to show (vacation_mode.async_preview).
+    "vacation_rule_max_lights", "vacation_anchor_on", "vacation_preview", "vacation_preview_empty",
     # 0.38.177: why a calibration save failed (the floor has no metre scale,
     # or anything else), and the Calibration tab showing that a floor needs
     # measuring before points can go on it.

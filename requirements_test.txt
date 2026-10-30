@@ -23,3 +23,7 @@ pyyaml==6.0.3
 # placed plan with Pillow, which Home Assistant always ships; the stubbed suite
 # needs it pinned (tests/test_house3d_stairs.py).
 pillow==13.0.0
+# dwell_analytics.py buckets days with zoneinfo.ZoneInfo. Windows has no system
+# time-zone database, so without this even ZoneInfo("UTC") raises and every
+# tests/test_dwell_analytics.py test fails there (Linux CI reads /usr/share/zoneinfo).
+tzdata==2026.6

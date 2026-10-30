@@ -20,6 +20,7 @@ import os
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -47,13 +48,14 @@ _HOLD = textwrap.dedent("""
     r = importlib.util.module_from_spec(spec); spec.loader.exec_module(r)
     r.acquire_release_lock("held", path=sys.argv[2], wait_s=float(sys.argv[3]), poll_s=0.2)
     print("GOT", flush=True)
-    time.sleep(float(sys.argv[4]))
+    # A negative hold: until the test closes our stdin (communicate() does).
+    sys.stdin.read() if float(sys.argv[4]) < 0 else time.sleep(float(sys.argv[4]))
 """)
 
 
 def _holder(lock, wait=0.0, hold=3.0):
     return subprocess.Popen([sys.executable, "-c", _HOLD, str(_RELEASE_PY), str(lock), str(wait), str(hold)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=_ROOT)
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=_ROOT)
 
 
 def _wait_for_got(p):
@@ -100,12 +102,17 @@ def test_the_lock_is_shared_by_every_worktree():
 
 @pytest.mark.parametrize("left", [False, True], ids=["no lock file", "a dead release's lock file"])
 def test_processes_racing_get_the_lock_once(tmp_path, left):
-    # Four at once, three times over: exactly one holds it each time.
+    # Four at once, three times over: exactly one holds it each time. The
+    # holder keeps it until the other three have tried and given up (a fixed
+    # hold let a process started late on a busy machine take it afterwards).
     for round_ in range(3):
         lock = tmp_path / f"padspan-release-{round_}.lock"
         if left:
             lock.write_text(json.dumps({"pid": 999999, "version": "dead", "started": "x"}))
-        procs = [_holder(lock, wait=0, hold=3) for _ in range(4)]
+        procs = [_holder(lock, wait=0, hold=-1) for _ in range(4)]
+        deadline = time.monotonic() + 120
+        while sum(p.poll() is not None for p in procs) < 3 and time.monotonic() < deadline:
+            time.sleep(0.05)
         outs = [p.communicate(timeout=180) for p in procs]
         assert sum("GOT" in o for o, _ in outs) == 1, (round_, outs)
         assert sum("another release" in o for o, _ in outs) == 3, (round_, outs)
