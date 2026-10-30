@@ -5,7 +5,7 @@
 
 session_name('padspan_report');
 session_start(['read_and_close' => true]);
-if (empty($_SESSION['ok'])) {
+if (empty($_SESSION['pad_ok'])) {
     http_response_code(403);
     header('Content-Type: application/json');
     header('Cache-Control: no-store');

@@ -9,7 +9,7 @@ session_start(['read_and_close' => true]);
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
-if (empty($_SESSION['ok'])) { http_response_code(403); echo '{"ok":false}'; exit; }
+if (empty($_SESSION['pad_ok'])) { http_response_code(403); echo '{"ok":false}'; exit; }
 
 $private = __DIR__ . '/../../private';
 function read_json($f) {

@@ -1,17 +1,29 @@
 # pad.traks.ca digest — data contract (schema 1)
 
 The page fetches **`GET /digest.php`** (same origin, `pad.traks.ca`), with the `padspan_report`
-session cookie that index.php sets on sign-in.
+session cookie that index.php sets on sign-in. The session key is **`pad_ok`**, set only by pad's own
+index.php and checked by digest.php, data.php and pro.php (other sites on this server keep an `ok` key in
+their sessions; it opens nothing here).
 
 | Answer | When |
 |---|---|
 | `200` + the model below | signed in, model present |
-| `403 {"ok":false}` | no session (same gate as data.php) |
+| `403 {"ok":false}` | no `pad_ok` in the session (same gate as data.php and pro.php) |
 | `503 {"ok":false,"error":"not ready"}` | the model file doesn't exist yet |
 
-The model is rebuilt **every 5 minutes** by a root cron on bcmail
-(`/usr/local/lib/pad-digest/pad_digest.py` → `private/pad-digest/model.json`). The page should show
-`generated` and treat a model older than `stale_after_s` as stale ("data is N min old").
+The model is rebuilt **every 5 minutes** by a root cron on bcmail, under a lock
+(`flock -n /var/lib/pad-digest/.digest.lock … /usr/local/lib/pad-digest/pad_digest.py` →
+`/var/lib/pad-digest/model.json`, root:www-data 0640). Nothing is written under the site's `private/`
+(www-data's). The page should show `generated` and treat a model older than `stale_after_s` as stale
+("data is N min old").
+
+**Fail closed.** If any source can't be read (the pings log, the reports, the licence database, the
+site logs, the releases cache, the markers), the run stops and logs why to syslog, and the last good model
+stays. The page then shows the model as stale; it never shows zeros or "All normal" for a source it
+couldn't read.
+
+**Whole days only.** Every count on the page is for whole BC days (yesterday and before). Nothing counts
+"today so far"; the event feed may still list today's events.
 
 All days are **BC days** (UTC−7, no DST). "Homes" = distinct addresses that sent an update check
 (all installs, not just opt-in). "Opt-in homes" = installs that send the usage report (~1 in 3).
@@ -62,11 +74,18 @@ New fields are marked **NEW**.
 | `archive` | object | **NEW** longer history from the daily archive |
 
 ## Tile
-`{label, value:int, unit:str, cmp:str, delta:number|null, state, spark:int[]|null, help:str}` —
+`{label, value:int, unit:str, cmp:str, delta:number|null, state, spark:int[]|null, sub:str|null, help:str}` —
 `state` ∈ `normal | above | below | good | bad | watch | info`. `above/below` = beyond 3σ of the
 typical (median of the previous 7 days; noise from the data's own spread, MAD × 1.4826).
-Order: Homes checking in (yesterday) · Today so far (same hour) · On `<latest>` · New or regressed
+`sub` = an optional second line under the unit (e.g. `demo 41 · guides 63`).
+Order: Homes checking in (yesterday) · **Site visits yesterday** · On `<latest>` · New or regressed
 issues (3 days) · Opt-in homes with lag over 1 s (yesterday) · Keys issued (yesterday).
+
+**Site visits yesterday**: people (not bots; not Garry's own installs' addresses, `pings_skip_ips`, nor
+our own, `own_ips` in `/etc/pad-digest.json`) who loaded the demo or a guide on yesterday's BC day.
+`cmp` = `typical N` (median of the 7 whole days before), `state` from the 3σ band (σ = max(MAD × 1.4826,
+√typical)), `sub` = `demo N · guides N`, `spark` = the last 14 whole days. If the logs don't hold
+yesterday whole, `value` is 0, `delta` null, `state` `info` and `cmp` says so.
 
 ## Attention (NEW)
 ```
@@ -77,7 +96,7 @@ issues (3 days) · Opt-in homes with lag over 1 s (yesterday) · Keys issued (ye
   significant, from `health_same_age`, else 7-day `watch`) · `setup` (`setup_fail.over`) ·
   `growth` (yesterday's homes below the 3σ band).
 - An item first listed more than **7 days** ago is dropped unless `growing` (homes affected rose vs
-  the 3 days before). First-seen dates persist in `private/pad-digest/attention-state.json`.
+  the 3 days before). First-seen dates persist in `/var/lib/pad-digest/attention-state.json` (root only, 0600).
 - Sorted: regression, issue, setup, growth; then by `homes` desc.
 
 ## HealthRow (as mockup)
@@ -141,11 +160,13 @@ to 14 after `push`; `band` = 3σ for those window sizes; `verdict` ∈ `too earl
 `{d, v, avg, lo, hi}` — `v` homes that day, `avg` 7-day average, `lo/hi` the 3σ noise band.
 
 ## small
-`new|stars:[{d, v}]`, `keys:[{d, v, paid}]`, `site:[{d, v|null}]` (null = no site log for that day;
-the archive extends this back from Oct 30 2026 on).
+`new|stars:[{d, v}]`, `keys:[{d, v, paid}]`, `site:[{d, v|null}]` — `site` is null for a day the logs
+(or the archive) don't hold **whole**: the oldest log day starts at the 17:00 BC rotation, so it is
+partial. The archive extends whole days back from Oct 16 2026 on.
 
 ## Step (funnel)
-`{step, n, note}` — 15 days. Visitors and homes aren't linked: label site→install as a ratio.
+`{step, n, note}` — the last 14 whole days, ending yesterday (`src_days` = how many of them the logs hold
+whole). Visitors and homes aren't linked: label site→install as a ratio.
 
 ## archive (NEW)
 ```
@@ -156,6 +177,9 @@ the archive extends this back from Oct 30 2026 on).
 ```
 
 ## digest / feed (as mockup)
-`digest = {Releases:[str], Problems:[str], Growth:[str], Money:[str], Marketing:[str]}` — only events and
-out-of-band values; the page adds "Everything else is within its normal range."
+`digest = {Releases:[str], Problems:[str], Growth:[str], Money:[str], Marketing:[str]}` — yesterday's
+numbers, events, and out-of-band values only; never a partial-day count. Growth: homes yesterday against
+typical, new opt-in installs and stars yesterday. Marketing: yesterday's and today's pieces and sends, and
+site visits yesterday only when above or below normal. The page adds "Everything else is within its normal
+range."
 `feed = [{t:"Oct 30 09:12" | "Oct 30", kind, text}]`, kind ∈ Release · Marketing · Email · Keys · Installs.

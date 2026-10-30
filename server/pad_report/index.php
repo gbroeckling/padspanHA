@@ -62,14 +62,14 @@ function recent_fails($file, $window) {
 }
 
 $msg = '';
-if (empty($_SESSION['ok']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if (empty($_SESSION['pad_ok']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $fails = recent_fails($FAILS, $FAIL_WINDOW_S);
     $hash = is_readable($PASS) ? trim((string)file_get_contents($PASS)) : '';
     if (count($fails) >= $FAIL_MAX) {
         $msg = 'Too many wrong passwords. Try again in a few minutes.';
     } elseif ($hash !== '' && password_verify((string)($_POST['password'] ?? ''), $hash)) {
         session_regenerate_id(true);
-        $_SESSION['ok'] = 1;
+        $_SESSION['pad_ok'] = 1;  // pad's own key: other sites here set 'ok' in their sessions
         header('Location: /', true, 303);
         exit;
     } else {
@@ -84,7 +84,7 @@ $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 0;
 
 // The page's numbers (signed in only). Until that file is deployed, / shows the old view.
 $DATA = 'digest.php';
-$signed = !empty($_SESSION['ok']);
+$signed = !empty($_SESSION['pad_ok']);
 $have_data = is_file(__DIR__ . '/' . $DATA);
 $old = $signed && (isset($_GET['old']) || !$have_data);
 $new = $signed && !$old;

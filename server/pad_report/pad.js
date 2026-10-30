@@ -106,6 +106,7 @@ function renderTiles() {
   for (const t of M.tiles) {
     const d = el("div", { class: "tile", title: t.help || "" });
     d.append(el("div", { class: "lab" }, t.label), el("div", { class: "val" }, fmtN(t.value)), el("div", { class: "unit" }, t.unit));
+    if (t.sub) d.append(el("div", { class: "unit" }, t.sub));
     const c = el("div", { class: "cmp" });
     const word = { normal: "normal", above: "above normal", below: "below normal", good: "✓ none", bad: "needs you", watch: "▲ worth a look", info: "" }[t.state] || "";
     if (t.delta != null) { const sign = t.delta > 0 ? "+" : t.delta < 0 ? "−" : "±"; c.append(el("span", {}, `${sign}${fmtN(Math.abs(t.delta))} vs ${t.cmp}`)); }
@@ -343,8 +344,12 @@ function renderGrowth() {
       return r; } });
   const ba = M.ba, v = $("#ba"); v.replaceChildren();
   if (ba) {
+    // Launches and campaigns that start inside the 14 days after the push share its window (from the markers).
+    const winEnd = (() => { const d = new Date(ba.push + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 13); return d.toISOString().slice(0, 10); })();
+    const overlap = ((M.markers && M.markers.ranges) || []).filter(r => r.kind !== "outreach" && r.from >= ba.push && r.from <= winEnd);
+    const ov = overlap.length ? ` ${overlap.map(r => `${r.label} (${fmtDay(r.from)})`).join(" and ")} ${overlap.length === 1 ? "starts" : "start"} inside this window, so their effects can't be told apart.` : "";
     v.append(el("div", { class: "big" }, ba.verdict === "too early" ? `Outreach push since ${fmtDay(ba.push)}: too early to call (${ba.after_days} of 14 days)` : `Outreach push since ${fmtDay(ba.push)}: ${ba.verdict}`));
-    v.append(el("div", {}, `So far ${ba.after} homes a day, against ${ba.before} in the 14 days before (${ba.diff >= 0 ? "+" : "−"}${Math.abs(ba.diff)}). A real lift has to beat ±${ba.band} at these numbers, so this ${Math.abs(ba.diff) > ba.band ? "already stands out" : "is still inside normal day-to-day noise"}. The Marketplace launch on Nov 4 will overlap this window.`));
+    v.append(el("div", {}, `So far ${ba.after} homes a day, against ${ba.before} in the 14 days before (${ba.diff >= 0 ? "+" : "−"}${Math.abs(ba.diff)}). A real lift has to beat ±${ba.band} at these numbers, so this ${Math.abs(ba.diff) > ba.band ? "already stands out" : "is still inside normal day-to-day noise"}.${ov}`));
   } else v.remove();
   const t = $("#ns-table"); t.replaceChildren(); const hr = el("tr"); ["Day", "Homes", "7-day avg", "Normal range"].forEach((h, i) => hr.append(el("th", { class: i ? "num" : "" }, h))); t.append(hr);
   (M.series_all || sr).slice().reverse().forEach(s => { const tr = el("tr"); tr.append(el("td", {}, fmtDay(s.d)), el("td", { class: "num" }, s.v), el("td", { class: "num" }, s.avg), el("td", { class: "num" }, `${Math.round(s.lo)}–${Math.round(s.hi)}`)); t.append(tr); });

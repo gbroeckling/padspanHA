@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """pad.traks.ca archive: keep, once a day, what would otherwise disappear.
 
-Runs on bcmail as root from /etc/cron.d/pad-digest at 00:20 BC:
+Runs on bcmail as root from /etc/cron.d/pad-digest at 00:20 BC, under a lock:
 
-    python3 /usr/local/lib/pad-digest/pad_archive.py
+    flock -w 600 /var/lib/pad-digest/.archive.lock python3 /usr/local/lib/pad-digest/pad_archive.py
 
-and writes dated JSON under private/pad-archive/ (root only, 0600):
+and writes dated JSON under /var/lib/pad-archive/ (root only, 0600), with pad_digest's safe writes:
   ha-analytics/YYYY-MM-DD.json   HA analytics' custom_integrations.json entry for padspan_ha
                                  (HA keeps no history for custom integrations)
-  site/YYYY-MM-DD.json           page loads by kind (people vs bots) and people's sources for each
-                                 complete BC day still in the site's logs (Apache keeps about 15 days)
+  site/YYYY-MM-DD.json           page loads by kind (people vs bots) and people's sources for each day
+                                 still in the site's logs (Apache keeps about 15), with "complete": whether
+                                 the logs held the whole day. A partial day never replaces a complete one.
   github/                        releases and the star count, refreshed by pad_digest.py; touched here too
 
-GitHub traffic (views, clones, referrers) needs a signed-in token, so the Mac's
-~/padspan-mac/tools/outreach/markers_export.py uploads it to github-traffic/ instead.
-Nothing here is an IP: addresses are only used to tell people from bots and are never stored.
+GitHub's dated stars and traffic need a signed-in token, so the Mac's markers_export.py sends them
+through pad_put.py instead. Nothing here is an IP: addresses only tell people from bots and are never stored.
 """
 from __future__ import annotations
 
@@ -45,17 +45,20 @@ def archive_ha(archive, now, fetch=None):
     return "saved" if entry is not None else "saved (no padspan_ha entry)"
 
 
-def archive_site(archive, pattern, skip, now):
-    """One file per complete BC day still in the logs; a day already archived is left alone."""
-    site, sources = P.collect_site(pattern, skip, now)
+def archive_site(archive, pattern, skip, now, glob_fn=None):
+    """One file per day the logs hold (today aside). A complete day is written once and never replaced;
+    a partial day (the oldest log day) is written only when nothing is there, and a complete one replaces it."""
+    site, sources, complete = P.collect_site(pattern, skip, now, glob_fn)
     saved = 0
     for d, kinds in site.items():
         if d >= now.date():
             continue
         path = os.path.join(archive, "site", f"{d.isoformat()}.json")
-        if os.path.exists(path):
+        whole = d in complete
+        old = P.read_json(path)
+        if isinstance(old, dict) and (old.get("complete") or not whole):
             continue
-        P.write_json(path, {"d": d.isoformat(), "kinds": dict(kinds), "sources": dict(sources.get(d, {}))}, 0o600)
+        P.write_json(path, {"d": d.isoformat(), "complete": whole, "kinds": dict(kinds), "sources": dict(sources.get(d, {}))}, 0o600)
         saved += 1
     return saved
 
@@ -63,14 +66,16 @@ def archive_site(archive, pattern, skip, now):
 def main(paths=None, now=None):
     p = dict(P.DEFAULTS, **(paths or {}))
     now = now or dt.datetime.now(P.BC)
-    cfg = P.read_json(p["config"], {}) or {}
-    skip = set(cfg.get("pings_skip_ips", []) if isinstance(cfg.get("pings_skip_ips"), list) else [])
+    _, site_skip = P.skip_lists(p)
     out = []
     try:
         out.append("ha " + archive_ha(p["archive"], now))
     except Exception as e:
         out.append(f"ha failed: {type(e).__name__}: {e}")
-    out.append(f"site days saved {archive_site(p['archive'], p['site_logs'], skip, now)}")
+    try:
+        out.append(f"site days saved {archive_site(p['archive'], p['site_logs'], site_skip, now)}")
+    except Exception as e:
+        out.append(f"site failed: {type(e).__name__}: {e}")
     try:
         rel, stars, count = P.refresh_github(p["archive"], p["repo"], now)
         out.append(f"github {len(rel)} releases, {count} stars ({len(stars)} dated)")
@@ -81,5 +86,7 @@ def main(paths=None, now=None):
 
 if __name__ == "__main__":
     msg = main()
+    if "failed" in msg:
+        P.log_error("pad_archive: " + msg)
+        sys.exit(1)
     print(msg)
-    sys.exit(1 if "failed" in msg else 0)

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """pad.traks.ca digest: the dashboard's whole model (schema 1), built from the server's own data.
 
-Runs on bcmail as root from /etc/cron.d/pad-digest every 5 minutes:
+Runs on bcmail as root from /etc/cron.d/pad-digest every 5 minutes, under a lock:
 
-    python3 /usr/local/lib/pad-digest/pad_digest.py
+    flock -n /var/lib/pad-digest/.digest.lock python3 /usr/local/lib/pad-digest/pad_digest.py
 
-and writes private/pad-digest/model.json (www-data:client1, 0640). digest.php serves that file to a
+and writes /var/lib/pad-digest/model.json (root:www-data 0640). digest.php serves that file to a
 browser signed in on index.php. The contract is server/pad_report/DIGEST.md.
 
 Sources (all read only):
@@ -13,9 +13,18 @@ Sources (all read only):
   private/padspan-telemetry/*.jsonl the opt-in usage reports (and installs.json, the first-seen ledger)
   /var/log/apache2/padspan.traks.ca-access.log*   the site's own logs (about 15 days are kept)
   wp_traks_ca.traks_licenses        licence counts by day and plan (counts only)
-  private/pad-archive/              what pad_archive.py and markers_export.py keep: GitHub releases
-                                    and stars, GitHub traffic, HA analytics, site days past the logs,
-                                    and the marketing markers from the 5810 workbook
+  /var/lib/pad-archive/             what pad_archive.py and the Mac's markers_export.py keep: GitHub
+                                    releases and stars, GitHub traffic, HA analytics, site days past the
+                                    logs, and the marketing markers from the 5810 workbook
+
+Safety. private/ belongs to www-data, the user every PHP site on this server runs as, so nothing is
+ever written there, and its files are opened without following a symlink and only if they are regular
+files. Output goes only into directories that root owns and no one else can write; each file is made
+with mkstemp there, its mode and owner set on the open descriptor, synced, and renamed into place.
+
+Fail closed. If any source can't be read (the pings log, the reports, the licence database, the site
+logs, the releases, the markers), the run stops, says why in syslog, and the last good model stays;
+the page then shows it as stale rather than "All normal".
 
 It never outputs an IP, email, licence key or install id: addresses are only counted, install ids only
 become masked labels ("home A"), and the licence table is read through COUNT(*) alone.
@@ -24,13 +33,12 @@ from __future__ import annotations
 
 import collections
 import datetime as dt
-import glob
 import gzip
 import json
 import math
 import os
 import re
-import shutil
+import stat
 import statistics
 import subprocess
 import sys
@@ -44,10 +52,12 @@ DEFAULTS = {
     "pings": WEB10 + "/private/padspan-pings.log",
     "telemetry": WEB10 + "/private/padspan-telemetry",
     "site_logs": "/var/log/apache2/padspan.traks.ca-access.log*",
-    "archive": WEB10 + "/private/pad-archive",
-    "out": WEB10 + "/private/pad-digest",
-    "config": "/etc/dcs-reports/config.json",
+    "archive": "/var/lib/pad-archive",
+    "out": "/var/lib/pad-digest",
+    "config": "/etc/dcs-reports/config.json",   # pings_skip_ips: Garry's own installs
+    "own_config": "/etc/pad-digest.json",       # own_ips: our own addresses (bcmail's), for site visits
     "repo": "gbroeckling/padspanHA",
+    "web_group": "www-data",
 }
 SCHEMA = 1
 STALE_AFTER_S = 900
@@ -56,14 +66,23 @@ TOO_EARLY = 20            # opt-in homes on a version before its health is judge
 ADOPTED_PCT = 10.0        # a version counts as adopted at this share of the last 24 h (Sentry's rule)
 SETUP_WINDOW, SETUP_GRACE, SETUP_THRESHOLD, SETUP_MIN = 28, 3, 40.0, 10
 ATTENTION_DAYS = 7        # an attention item is dropped after this long unless it is growing
+FUNNEL_DAYS = 14          # complete days, ending yesterday
+
+
+class SourceError(Exception):
+    """A source couldn't be read: the run stops and the last good model stays."""
+
+
+class UnsafePath(Exception):
+    """A directory someone else could write: nothing is written there."""
 
 
 # ── small helpers ───────────────────────────────────────────────────────────
-
 def _fmt(t, f: str) -> str:
     """strftime with %-d (day without a leading zero) on every platform:
     Windows' strftime has no %-d, and the release runs the tests there."""
     return t.strftime(f.replace("%-d", str(t.day)))
+
 
 def med(v):
     return statistics.median(v) if v else 0
@@ -99,55 +118,145 @@ def D(s):
 
 
 def diff_sig(a, na, b, nb):
-    """Two proportions differ at about 95%: a/na against b/nb."""
+    """Two proportions differ at about 95%: a/na against b/nb (the pooled two-proportion z-test, so a
+    version that lags in every home against one that lagged in none still counts)."""
     if not na or not nb:
         return False
-    p1, p2 = a / na, b / nb
-    se = math.sqrt(p1 * (1 - p1) / na + p2 * (1 - p2) / nb)
-    return se > 0 and abs(p1 - p2) > 1.96 * se
+    p = (a + b) / (na + nb)
+    se = math.sqrt(p * (1 - p) * (1 / na + 1 / nb))
+    return se > 0 and abs(a / na - b / nb) > 1.96 * se
 
 
-def vkey(v):
-    """Sort key for versions like 0.38.199."""
+_EMAIL = re.compile(r"[\w.%+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+")  # bounded: linear on long tokens
+_IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+
+
+def scrub(v):
+    """Strings from the workbook lose any email address or IP before they reach the page."""
+    if isinstance(v, str):
+        return _IPV4.sub("(address)", _EMAIL.sub("(address)", v) if "@" in v else v)
+    if isinstance(v, list):
+        return [scrub(x) for x in v]
+    if isinstance(v, dict):
+        return {k: scrub(x) for k, x in v.items()}
+    return v
+
+
+# ── safe files ──────────────────────────────────────────────────────────────
+def open_source(path, binary=False):
+    """Open a file another user may control: never through a symlink, only a regular file."""
     try:
-        return tuple(int(x) for x in str(v).split("."))
-    except ValueError:
-        return (0,)
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    except OSError as e:
+        raise SourceError(f"{path}: {e.strerror}") from None
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        os.close(fd)
+        raise SourceError(f"{path}: not a regular file")
+    if binary:
+        return os.fdopen(fd, "rb")
+    return os.fdopen(fd, "r", encoding="utf-8", errors="replace")
+
+
+def check_dir(d):
+    """d is a real directory that we own and no one else can write, and every directory above it is ours
+    or root's and not writable by others (a sticky one, like /tmp, is fine)."""
+    me = os.geteuid()
+    st = os.lstat(d)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != me or st.st_mode & 0o022:
+        raise UnsafePath(f"{d}: not a directory that only uid {me} can write")
+    p = os.path.dirname(os.path.abspath(d))
+    while True:
+        st = os.lstat(p)
+        if st.st_uid not in (0, me):
+            raise UnsafePath(f"{p}: owned by uid {st.st_uid}")
+        if stat.S_ISDIR(st.st_mode) and st.st_mode & 0o022 and not st.st_mode & stat.S_ISVTX:
+            raise UnsafePath(f"{p}: writable by others")
+        if p == "/":
+            break
+        p = os.path.dirname(p)
+
+
+def ensure_dir(d, mode=0o700):
+    if not os.path.lexists(d):
+        check_dir(os.path.dirname(os.path.abspath(d)))
+        os.mkdir(d, mode)
+    check_dir(d)
+
+
+def write_json(path, obj, mode=0o600, gid=None):
+    """Write obj to path atomically, in a directory only we can write: mkstemp there, set the mode and
+    owner on the open descriptor, sync, rename into place, sync the directory."""
+    d = os.path.dirname(os.path.abspath(path))
+    ensure_dir(d)
+    data = json.dumps(obj, default=str, separators=(",", ":")).encode("utf-8")
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-")
+    try:
+        try:
+            view = memoryview(data)
+            while view:
+                view = view[os.write(fd, view):]
+            os.fchmod(fd, mode)
+            if gid is not None:
+                os.fchown(fd, os.geteuid(), gid)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    dfd = os.open(d, os.O_RDONLY)
+    try:
+        os.fsync(dfd)
+    finally:
+        os.close(dfd)
+
+
+def read_json(path, default=None):
+    """Read JSON from our own (root-only) directories."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return default
 
 
 # ── 1. update checks ────────────────────────────────────────────────────────
 def collect_pings(path, skip, now):
-    today, tod = now.date(), now.hour * 3600 + now.minute * 60 + now.second
+    today = now.date()
     cut24 = now - dt.timedelta(hours=24)
     day_ips = collections.defaultdict(set)
-    day_tod_ips = collections.defaultdict(set)
     day_ver = collections.defaultdict(dict)
     last24, first_ver = {}, {}
-    if os.path.exists(path):
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                p = line.rstrip("\n").split("\t")
-                if len(p) < 3 or not p[2] or p[1] in skip:
-                    continue
-                try:
-                    t = dt.datetime.fromisoformat(p[0]).astimezone(BC)
-                except ValueError:
-                    continue
-                if t > now:
-                    continue
-                d = t.date()
-                day_ips[d].add(p[1])
-                if t.hour * 3600 + t.minute * 60 + t.second <= tod:
-                    day_tod_ips[d].add(p[1])
-                day_ver[d][p[1]] = p[2]
-                if t >= cut24:
-                    last24[p[1]] = p[2]
-                if p[2] not in first_ver or d < first_ver[p[2]]:
-                    first_ver[p[2]] = d
+    parsed = 0
+    with open_source(path) as fh:
+        for line in fh:
+            p = line.rstrip("\n").split("\t")
+            if len(p) < 3 or not p[2]:
+                continue
+            try:
+                t = dt.datetime.fromisoformat(p[0]).astimezone(BC)
+            except ValueError:
+                continue
+            parsed += 1
+            if p[1] in skip or t > now:
+                continue
+            d = t.date()
+            day_ips[d].add(p[1])
+            day_ver[d][p[1]] = p[2]
+            if t >= cut24:
+                last24[p[1]] = p[2]
+            if p[2] not in first_ver or d < first_ver[p[2]]:
+                first_ver[p[2]] = d
+    if not parsed:
+        raise SourceError(f"{path}: no update checks in it")
     days = sorted(day_ips)
     return {
         "per_day": {d: len(day_ips[d]) for d in days},
-        "same_time": {d: len(day_tod_ips[d]) for d in days if (today - d).days <= 8},
         "last24": collections.Counter(last24.values()),
         "last24_total": len(last24),
         "ver_per_day": {d: collections.Counter(day_ver[d].values()) for d in days if (today - d).days <= 30},
@@ -156,39 +265,59 @@ def collect_pings(path, skip, now):
 
 
 # ── 2. opt-in reports ───────────────────────────────────────────────────────
+def report_day(rec, fallback):
+    """The BC day a report arrived on."""
+    if rec.get("recv_ts"):
+        return dt.datetime.fromisoformat(str(rec["recv_ts"]).replace("Z", "+00:00")).astimezone(BC).date()
+    return D(str(rec.get("recv_day") or fallback))
+
+
 def collect_reports(directory, now):
+    try:
+        st = os.lstat(directory)
+    except OSError as e:
+        raise SourceError(f"{directory}: {e.strerror}") from None
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        raise SourceError(f"{directory}: not a directory")
+    try:
+        names = sorted(e.name for e in os.scandir(directory) if e.name.endswith(".jsonl"))
+    except OSError as e:
+        raise SourceError(f"{directory}: {e.strerror}") from None
+    if not names:
+        raise SourceError(f"{directory}: no report files")
     rows, first = {}, {}
-    for f in sorted(glob.glob(os.path.join(directory, "*.jsonl"))):
-        with open(f, encoding="utf-8", errors="replace") as fh:
+    for name in names:
+        with open_source(os.path.join(directory, name)) as fh:
             for line in fh:
                 try:
                     rec = json.loads(line)
                     r = rec["report"]
                     iid = str(r["install_id"])
+                    d = report_day(rec, name[:10])
                 except Exception:
-                    continue
-                try:
-                    if rec.get("recv_ts"):
-                        d = dt.datetime.fromisoformat(str(rec["recv_ts"]).replace("Z", "+00:00")).astimezone(BC).date()
-                    else:
-                        d = D(str(rec.get("recv_day") or os.path.basename(f)[:10]))
-                except ValueError:
                     continue
                 if d > now.date():
                     continue
                 rows[(iid, d)] = r
                 if iid not in first or d < first[iid]:
                     first[iid] = d
-    try:
-        with open(os.path.join(directory, "installs.json"), encoding="utf-8") as fh:
-            ledger = json.load(fh)
+    if not rows:
+        raise SourceError(f"{directory}: no readable reports")
+    ledger_path = os.path.join(directory, "installs.json")
+    if os.path.lexists(ledger_path):
+        with open_source(ledger_path) as fh:
+            try:
+                ledger = json.load(fh)
+            except ValueError:
+                raise SourceError(f"{ledger_path}: not JSON") from None
         for iid, e in (ledger.items() if isinstance(ledger, dict) else []):
             if isinstance(e, dict) and e.get("first"):
-                fd = D(str(e["first"])[:10])
+                try:
+                    fd = D(str(e["first"])[:10])
+                except ValueError:
+                    continue
                 if iid in first and fd < first[iid]:
                     first[iid] = fd
-    except Exception:
-        pass
     return rows, first
 
 
@@ -406,18 +535,30 @@ LIC_SQL = ("SELECT DATE(CONVERT_TZ(created_at,'+00:00','-07:00')) d, plan, (txn_
 
 
 def collect_licences(run_sql=None):
+    """Licence counts by BC day, plan and paid. A database that fails or answers nothing stops the run:
+    0 keys must mean no keys, never "MySQL was down"."""
     if run_sql is None:
         def run_sql(q):
-            res = subprocess.run(["mysql", "-N", "-B", "wp_traks_ca", "-e", q], capture_output=True, text=True, timeout=60)
-            return res.stdout if res.returncode == 0 else ""
+            try:
+                res = subprocess.run(["mysql", "-N", "-B", "wp_traks_ca", "-e", q], capture_output=True, text=True, timeout=60)
+            except (OSError, subprocess.SubprocessError) as e:
+                raise SourceError(f"mysql: {e}") from None
+            if res.returncode != 0:
+                raise SourceError(f"mysql exited {res.returncode}: {res.stderr.strip()[-200:]}")
+            return res.stdout
+    raw = run_sql(LIC_SQL)
+    if not raw or not raw.strip():
+        raise SourceError("licences: the query answered nothing")
     out = []
-    for ln in run_sql(LIC_SQL).splitlines():
+    for ln in raw.splitlines():
         p = ln.split("\t")
         if len(p) == 4 and p[0] not in ("NULL", ""):
             try:
                 out.append((D(p[0]), p[1], p[2] == "1", int(p[3])))
             except ValueError:
                 continue
+    if not out:
+        raise SourceError("licences: no rows parsed")
     return out
 
 
@@ -461,65 +602,61 @@ def page_kind(path):
     return None
 
 
-def collect_site(pattern, skip, now):
-    """Page loads by BC day and kind (people vs bots), and sources of people's loads."""
+def site_day(ts):
+    """The BC day of an Apache timestamp such as 30/Oct/2026:06:30:00 +0000."""
+    return dt.datetime.strptime(ts, "%d/%b/%Y:%H:%M:%S %z").astimezone(BC)
+
+
+def collect_site(pattern, skip, now, glob_fn=None):
+    """Page loads by BC day and kind (people vs bots), people's sources, and which days the logs hold
+    whole: a day is complete only if the oldest log line is from before it began (logs rotate at 17:00
+    BC, so the oldest day is always partial) and it has ended."""
+    import glob as _glob
+    files = sorted((glob_fn or _glob.glob)(pattern))
+    if not files:
+        raise SourceError(f"{pattern}: no site logs")
     site = collections.defaultdict(collections.Counter)
     sources_by_day = collections.defaultdict(collections.Counter)
-    for f in sorted(glob.glob(pattern)):
+    first_seen = None
+    for f in files:
         op = gzip.open if f.endswith(".gz") else open
         try:
             with op(f, "rt", encoding="utf-8", errors="replace") as fh:
                 for line in fh:
                     m = LOG.match(line)
-                    if not m or m.group(1) in skip:
+                    if not m:
                         continue
-                    _ip, ts, _meth, path, status, ref, ua = m.groups()
-                    if status not in ("200", "304"):
+                    ip, ts, _meth, path, status, ref, ua = m.groups()
+                    try:
+                        t = site_day(ts)
+                    except ValueError:
+                        continue
+                    if first_seen is None or t < first_seen:
+                        first_seen = t
+                    if ip in skip or status not in ("200", "304") or t > now:
                         continue
                     pth, _, qs = path.partition("?")
                     kind = page_kind(pth)
                     if not kind:
                         continue
-                    try:
-                        d = dt.datetime.strptime(ts, "%d/%b/%Y:%H:%M:%S %z").astimezone(BC).date()
-                    except ValueError:
-                        continue
-                    if d > now.date():
-                        continue
+                    d = t.date()
                     bot = bool(BOT.search(ua))
                     site[d][kind + ("_bot" if bot else "")] += 1
                     if not bot:
                         s = source_of(ref, qs)
                         if s:
                             sources_by_day[d][s] += 1
-        except OSError:
-            continue
-    return site, sources_by_day
+        except (OSError, EOFError) as e:
+            raise SourceError(f"{f}: {e}") from None
+    complete = set()
+    if first_seen is not None:
+        for d in site:
+            if d < now.date() and first_seen <= dt.datetime.combine(d, dt.time(0, 0), BC):
+                complete.add(d)
+    return site, sources_by_day, complete
 
 
 # ── 5. archive and GitHub ───────────────────────────────────────────────────
-def read_json(path, default=None):
-    try:
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
-    except (OSError, ValueError):
-        return default
-
-
-def write_json(path, obj, mode=0o640, owner=None):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(obj, fh, default=str, separators=(",", ":"))
-    os.chmod(tmp, mode)
-    if owner:
-        try:
-            shutil.chown(tmp, *owner)
-        except (LookupError, PermissionError, OSError):
-            pass
-    os.replace(tmp, path)
-
-
 def gh_get(url, accept="application/vnd.github+json"):
     req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "pad.traks.ca-digest"})
     with urllib.request.urlopen(req, timeout=20) as r:
@@ -568,21 +705,24 @@ def refresh_github(archive, repo, now, fetch=gh_get):
 
 
 def read_archive(archive):
-    """Daily snapshots pad_archive.py and markers_export.py keep: site days, HA analytics, GitHub traffic."""
-    site, sources = {}, {}
-    for f in sorted(glob.glob(os.path.join(archive, "site", "*.json"))):
+    """Daily snapshots pad_archive.py and markers_export.py keep: site days (with whether each is whole),
+    HA analytics, GitHub traffic, and the markers (scrubbed of addresses)."""
+    import glob as _glob
+    site, sources, complete = {}, {}, {}
+    for f in sorted(_glob.glob(os.path.join(archive, "site", "*.json"))):
         j = read_json(f)
         if isinstance(j, dict) and j.get("d"):
             site[D(j["d"])] = collections.Counter(j.get("kinds") or {})
             sources[D(j["d"])] = collections.Counter(j.get("sources") or {})
+            complete[D(j["d"])] = bool(j.get("complete"))
     ha = []
-    for f in sorted(glob.glob(os.path.join(archive, "ha-analytics", "*.json"))):
+    for f in sorted(_glob.glob(os.path.join(archive, "ha-analytics", "*.json"))):
         j = read_json(f)
         if isinstance(j, dict) and j.get("d") and j.get("padspan_ha") is not None:
             n = j["padspan_ha"].get("total") if isinstance(j["padspan_ha"], dict) else j["padspan_ha"]
             ha.append({"d": j["d"], "n": n})
     traffic, referrers = {}, []
-    for f in sorted(glob.glob(os.path.join(archive, "github-traffic", "*.json"))):
+    for f in sorted(_glob.glob(os.path.join(archive, "github-traffic", "*.json"))):
         j = read_json(f)
         if not isinstance(j, dict):
             continue
@@ -592,26 +732,23 @@ def read_archive(archive):
             traffic.setdefault(v["d"], {}).update({"clones": v.get("count"), "clone_uniques": v.get("uniques")})
         if j.get("referrers"):
             referrers = [[r.get("referrer"), r.get("count")] for r in j["referrers"]]
-    markers = read_json(os.path.join(archive, "markers.json"), {}) or {}
-    return site, sources, ha, traffic, referrers, markers
+    markers = read_json(os.path.join(archive, "markers.json"))
+    return site, sources, complete, ha, traffic, referrers, (scrub(markers) if isinstance(markers, dict) else None)
 
 
 # ── 6. the model ────────────────────────────────────────────────────────────
-def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_raw, markers, archive, now, state, stars_count=None):
+def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, releases, stars_raw, markers, archive,
+          now, state, stars_count=None):
     gen = now
     today = now.date()
     # north star
     pd_ = pings["per_day"]
     full = sorted(d for d in pd_ if d < today)
     if not full:
-        raise ValueError("no complete day of update checks yet")
+        raise SourceError("no complete day of update checks yet")
     yday = full[-1]
     prev7 = [pd_[d] for d in full[-8:-1]]
     ns_typ = med(prev7)
-    st = pings["same_time"]
-    same_prev = [st[d] for d in sorted(st) if d < today][-7:]
-    today_typ = med(same_prev)
-    today_sig = max(mad_sigma(same_prev), math.sqrt(today_typ or 1) * 0.5)
     avg7 = {}
     for i, d in enumerate(full):
         w7 = [pd_[x] for x in full[max(0, i - 6): i + 1]]
@@ -624,7 +761,6 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
         series_all.append({"d": ds(d), "v": pd_[d], "avg": round(avg7[d], 1), "lo": round(avg7[d] - 3 * s, 1), "hi": round(avg7[d] + 3 * s, 1)})
     series = series_all[-45:]
     ns_sig = max(mad_sigma([resid[d] for d in full[-28:]]), 2.0)
-    today_n = st.get(today, 0)
 
     # releases and adoption
     rel = []
@@ -654,7 +790,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
             row["Other"] = round(100 - sum(row[v] for v in adopt_versions), 1)
             adopt.append(row)
 
-    # release health, 7 days (as the mockup)
+    # release health, 7 days
     vh = rep["version_health"]
 
     def vrow(v):
@@ -665,6 +801,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
     health = [vrow(v) for v in adopt_versions]
 
     def watch_of(a, b):
+        """Rows where the newer version a is significantly WORSE than b (never flags an improvement)."""
         out = []
         if not a or not b or not a["homes"] or not b["homes"]:
             return out
@@ -677,7 +814,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
     for w in watch:
         w["version"] = health[1]["v"]
 
-    # release health at the same age (NEW)
+    # release health at the same age
     same_age = None
     if ls and p1:
         fv = pings["first_ver"]
@@ -729,17 +866,27 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
             pass
     stars_total = max(sum(stars.values()), int(stars_count or 0))  # the repo's live count when the dated list lags
 
-    # site: the archive fills days the logs no longer hold
-    site_all = dict(archive["site"])
-    site_all.update(site)
-    src_all = dict(archive["sources"])
-    src_all.update(sources_by_day)
-    sdays = sorted(site_all)
+    # site: whole days win; a partial day never replaces a whole one
+    site_all, src_all, whole = {}, {}, {}
+    for d, c in archive["site"].items():
+        site_all[d], src_all[d], whole[d] = c, archive["sources"].get(d, collections.Counter()), archive["complete"].get(d, False)
+    for d, c in site.items():
+        live_whole = d in site_complete
+        if d not in site_all or (live_whole and not whole[d]) or (live_whole == whole[d] and sum(c.values()) >= sum(site_all[d].values())):
+            site_all[d], src_all[d], whole[d] = c, sources_by_day.get(d, collections.Counter()), live_whole
+    whole_days = sorted(d for d in site_all if whole.get(d) and d < today)
 
     def people(d):
         return sum(n for k, n in site_all[d].items() if not k.endswith("_bot"))
-    demo_today = site_all.get(today, {}).get("demo", 0)
-    demo_prev = [site_all[d].get("demo", 0) for d in sdays if d < today][-7:]
+
+    def visits(d):
+        c = site_all.get(d, {})
+        return c.get("demo", 0) + c.get("guide", 0)
+    v_prev = [visits(d) for d in whole_days if d < yday][-7:]
+    v_typ = med(v_prev)
+    v_sig = max(mad_sigma(v_prev), math.sqrt(v_typ) if v_typ else 1.0)
+    v_y = visits(yday) if yday in whole_days else None
+    v_state = verdict(v_y, v_typ, v_sig) if v_y is not None else "info"
 
     # marketing markers
     start = full[0]
@@ -763,7 +910,8 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
             continue  # the workbook also tracks Garry's other products
         if c.get("from") and re.match(r"\d{4}-\d{2}-\d{2}$", c["from"]) and D(c["from"]) >= start:
             lab = str(c.get("label") or "")
-            kind = "launch" if re.search(r"launch|marketplace", lab, re.I) else "campaign"
+            kind = c.get("kind") if c.get("kind") in ("outreach", "campaign", "launch") else \
+                ("launch" if re.search(r"launch|marketplace", lab, re.I) else "campaign")
             ranges.append({"from": c["from"], "to": c.get("to") or c["from"], "label": lab, "kind": kind})
     campaign = None
     if sends:
@@ -789,30 +937,30 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
             ba["verdict"] = ("too early" if len(after) < 14 else "lift" if ba["diff"] > ba["band"]
                              else "drop" if ba["diff"] < -ba["band"] else "no detectable change")
 
-    # funnel and sources, last 15 days
-    f0 = today - dt.timedelta(days=14)
+    # funnel and sources: the last FUNNEL_DAYS whole days, ending yesterday
+    f0 = yday - dt.timedelta(days=FUNNEL_DAYS - 1)
+    fdays = [d for d in whole_days if f0 <= d <= yday]
     funnel = [
-        {"step": "Site page views by people", "n": sum(people(d) for d in sdays if d >= f0), "note": "home, guides, demo, creators"},
-        {"step": "Demo loads by people", "n": sum(site_all[d].get("demo", 0) for d in sdays if d >= f0), "note": ""},
-        {"step": "New installs that share a report", "n": rep["new15"],
-         "note": f"about 1 in 3 installs share one; {rep['new15_stage'].get('calibrated', 0)} of {rep['new15']} reached calibration"},
-        {"step": "Trials started", "n": lic_sum(f0, today, "trial"), "note": "all installs"},
-        {"step": "Paid keys", "n": lic_sum(f0, today, "paid"), "note": "all installs"},
+        {"step": "Site page views by people", "n": sum(people(d) for d in fdays), "note": "home, guides, demo, creators"},
+        {"step": "Demo loads by people", "n": sum(site_all[d].get("demo", 0) for d in fdays), "note": ""},
+        {"step": "New installs that share a report", "n": sum(newp.get(d, 0) for d in newp if f0 <= d <= yday),
+         "note": "about 1 in 3 installs share one"},
+        {"step": "Trials started", "n": lic_sum(f0, yday, "trial"), "note": "all installs"},
+        {"step": "Paid keys", "n": lic_sum(f0, yday, "paid"), "note": "all installs"},
     ]
     src_c = collections.Counter()
-    for d in sdays:
-        if d >= f0:
-            src_c.update(src_all.get(d, {}))
+    for d in fdays:
+        src_c.update(src_all.get(d, {}))
     sources = [list(t) for t in src_c.most_common()]
 
-    # today & yesterday digest
+    # yesterday's digest (and events of today; never a partial-day count)
     def rel_on(day, stable=None):
         return [r for r in rel if r["t"].date() == day and (stable is None or r["stable"] == stable)]
     digest = {"Releases": [], "Problems": [], "Growth": [], "Money": [], "Marketing": []}
     if ls:
         pct = 100 * l24.get(ls["tag"], 0) / l24_total if l24_total else 0
         digest["Releases"].append(f"{ls['tag']} became the stable {'yesterday' if ls['t'].date() == yday else 'today' if ls['t'].date() == today else _fmt(ls['t'], '%b %-d')} "
-                                  f"at {ls['t'].strftime('%H:%M')}. After {hours_out:.0f} h it's on {l24.get(ls['tag'], 0)} of {l24_total} homes that checked for updates ({pct:.0f}%).")
+                                  f"at {ls['t'].strftime('%H:%M')}. After {hours_out:.0f} h it's on {l24.get(ls['tag'], 0)} of {l24_total} homes that checked for updates in the last 24 h ({pct:.0f}%).")
     bt, by = rel_on(today, False), rel_on(yday, False)
     if bt or by:
         def rng(rs):
@@ -831,16 +979,14 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
     if setupf["over"]:
         digest["Problems"].append(f"Setups: {setupf['failing']} of {setupf['total']} new opt-in installs never got past the map ({setupf['rate']:.0f}%, flag at {setupf['threshold_pct']:.0f}%).")
     nv = verdict(pd_[yday], ns_typ, ns_sig)
-    digest["Growth"].append(f"{pd_[yday]} homes checked in yesterday (typical {ns_typ:.0f}, {nv}). "
-                            f"Today {today_n} by {gen.strftime('%H:%M')} (typical {today_typ:.0f} by this hour, {verdict(today_n, today_typ, today_sig)}).")
-    digest["Growth"].append(f"New opt-in installs: {newp.get(yday, 0)} yesterday, {newp.get(today, 0)} today. "
-                            f"GitHub stars: +{stars.get(yday, 0)} yesterday, +{stars.get(today, 0)} today ({stars_total} total).")
-    ly, lt = lic_day.get(yday, {}), lic_day.get(today, {})
+    digest["Growth"].append(f"{pd_[yday]} homes checked in yesterday (typical {ns_typ:.0f}, {nv}).")
+    digest["Growth"].append(f"New opt-in installs yesterday: {newp.get(yday, 0)}. GitHub stars yesterday: +{stars.get(yday, 0)} ({stars_total} total).")
+    ly = lic_day.get(yday, {})
 
     def keys_txt(v):
         parts = [f"{v.get(k, 0)} {k}" for k in ("trial", "pro", "lifetime", "tester") if v.get(k)]
         return (", ".join(parts) + (f" ({v.get('paid', 0)} paid)" if v.get("paid") else " (none paid)")) if parts else "none"
-    digest["Money"].append(f"Keys yesterday: {keys_txt(ly)}. Today so far: {keys_txt(lt)}.")
+    digest["Money"].append(f"Keys yesterday: {keys_txt(ly)}.")
 
     def short(x):
         x = str(x).split(" (")[0]
@@ -855,8 +1001,10 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
             bits.append(f"{k} pitch email{'s' if k != 1 else ''} ({', '.join(sends[ds(day)])})")
         if bits:
             digest["Marketing"].append(f"{label}: " + " · ".join(bits) + ".")
-    if demo_prev and demo_today > 3 * max(1, med(demo_prev)):
-        digest["Marketing"].append(f"Demo loads today: {demo_today} by people, against a typical {med(demo_prev):.0f}. May include our own test visits.")
+    if v_y is not None and v_state in ("above", "below"):
+        c = site_all[yday]
+        digest["Marketing"].append(f"Site visits yesterday: {v_y} people (demo {c.get('demo', 0)} · guides {c.get('guide', 0)}), "
+                                   f"against a typical {v_typ:.0f}: {v_state} normal.")
 
     feed = []
     for r in rel:
@@ -875,7 +1023,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
     feed.sort(key=lambda e: e[0], reverse=True)
     feed = [{"t": _fmt(e[0], "%b %-d %H:%M") if e[0].time() < dt.time(23, 50) else _fmt(e[0], "%b %-d"), "kind": e[1], "text": e[2]} for e in feed]
 
-    # versions: top 5 of the last 24 h + Other (NEW)
+    # versions: top 5 of the last 24 h + Other
     unknown = {"-", "", "?"}
     top = [(v, n) for v, n in l24.most_common() if v not in unknown]
     rows5 = [{"v": v, "n": n, "share": round(100 * n / l24_total, 1) if l24_total else 0.0,
@@ -885,7 +1033,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
                     "other": {"n": sum(n for _, n in rest), "share": round(100 * sum(n for _, n in rest) / l24_total, 1) if l24_total else 0.0,
                               "versions": len(rest)}}
 
-    # needs attention (NEW): empty when all is fine
+    # needs attention: empty when all is fine
     items = []
     for i in new_iss:
         items.append({"key": "issue:" + i["key"], "kind": "issue",
@@ -923,28 +1071,37 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
             continue
         it.update({"first_seen": s["first_seen"], "days_listed": listed, "growing": growing})
         kept.append(it)
-    # forget items not seen for 30 days
     state["attention"] = {k: v for k, v in st_items.items() if (today - D(v.get("last_seen", ds(today)))).days <= 30}
     rank = {"regression": 0, "issue": 1, "setup": 2, "growth": 3}
     kept.sort(key=lambda it: (rank[it["kind"]], -(it["homes"] or 0)))
 
-    # headline strip
+    # headline strip: whole days only
+    yc = site_all.get(yday, {})
     tiles = [
         {"label": "Homes checking in", "value": pd_[yday], "unit": "yesterday", "cmp": f"typical {ns_typ:.0f}", "delta": pd_[yday] - ns_typ,
-         "state": nv, "spark": [s["v"] for s in series[-30:]], "help": "Distinct addresses that checked for an update on the BC day. All installs, not only opt-in."},
-        {"label": "Today so far", "value": today_n, "unit": "by " + gen.strftime("%H:%M"), "cmp": f"typical {today_typ:.0f} by now", "delta": today_n - today_typ,
-         "state": verdict(today_n, today_typ, today_sig), "spark": None, "help": "Same count, today until now, against the previous 7 days at the same time."},
+         "state": nv, "spark": [s["v"] for s in series[-30:]], "sub": None,
+         "help": "Distinct addresses that checked for an update on the BC day. All installs, not only opt-in."},
+        {"label": "Site visits yesterday", "value": v_y if v_y is not None else 0, "unit": "people on the demo or a guide",
+         "cmp": f"typical {v_typ:.0f}" if v_y is not None else "no whole log for yesterday",
+         "delta": (v_y - v_typ) if v_y is not None else None, "state": v_state,
+         "spark": [visits(d) for d in whole_days[-14:]] or None,
+         "sub": f"demo {yc.get('demo', 0)} · guides {yc.get('guide', 0)}" if v_y is not None else None,
+         "help": "People (not bots, not our own addresses) who loaded the demo or a guide on the BC day. "
+                 "Typical is the median of the 7 days before; above or below means beyond 3 sigma."},
         {"label": f"On {ls['tag']}" if ls else "Newest stable", "value": l24.get(ls["tag"], 0) if ls else 0, "unit": f"of {l24_total} homes",
          "cmp": f"{(100 * l24.get(ls['tag'], 0) / l24_total) if (ls and l24_total) else 0:.0f}% after {hours_out:.0f} h", "delta": None,
-         "state": "info", "spark": None, "help": "Homes whose last update check in the past 24 h reported the newest stable."},
+         "state": "info", "spark": None, "sub": None,
+         "help": "Homes whose last update check in the past 24 h reported the newest stable."},
         {"label": "New or regressed issues", "value": len(new_iss), "unit": "last 3 days", "cmp": f"{len(ongoing)} ongoing", "delta": None,
-         "state": "good" if not new_iss else "bad", "spark": None, "help": "Errors, log warnings and 3D fallbacks first seen, or back after a quiet week, in opt-in reports."},
+         "state": "good" if not new_iss else "bad", "spark": None, "sub": None,
+         "help": "Errors, log warnings and 3D fallbacks first seen, or back after a quiet week, in opt-in reports."},
         {"label": "Opt-in homes with lag over 1 s", "value": lag_y, "unit": f"of {ry['homes']} yesterday", "cmp": f"typical {med(lag_prev):.0f}",
          "delta": lag_y - med(lag_prev),
          "state": "watch" if reg else verdict(lag_y, med(lag_prev), max(mad_sigma(lag_prev), math.sqrt(med(lag_prev) or 1))),
-         "spark": [x[1] for x in lag_share], "help": "Opt-in homes where Home Assistant's event loop stalled 1 s or more at least once that day."},
+         "spark": [x[1] for x in lag_share], "sub": None,
+         "help": "Opt-in homes where Home Assistant's event loop stalled 1 s or more at least once that day."},
         {"label": "Keys issued", "value": sum(ly.get(k, 0) for k in ("trial", "pro", "lifetime", "tester")), "unit": "yesterday",
-         "cmp": f"{ly.get('paid', 0)} paid", "delta": None, "state": "info", "spark": None,
+         "cmp": f"{ly.get('paid', 0)} paid", "delta": None, "state": "info", "spark": None, "sub": None,
          "help": "Trial, Pro, lifetime and tester keys created on the BC day. Paid means a payment is attached."},
     ]
 
@@ -963,8 +1120,8 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
                   "keys": [{"d": ds(d), "v": sum(lic_day.get(d, {}).get(k, 0) for k in ("trial", "pro", "lifetime", "tester")),
                             "paid": lic_day.get(d, {}).get("paid", 0)} for d in full],
                   "stars": [{"d": ds(d), "v": stars.get(d, 0)} for d in full],
-                  "site": [{"d": ds(d), "v": people(d) if d in site_all else None} for d in full]},
-        "funnel": funnel, "sources": sources, "src_days": len([d for d in sdays if d >= f0]),
+                  "site": [{"d": ds(d), "v": people(d) if whole.get(d) else None} for d in full]},
+        "funnel": funnel, "sources": sources, "src_days": len(fdays),
         "setup28": rep["new_setup_28d"], "new15": rep["new15"], "new15_stage": rep["new15_stage"],
         "versions24": [list(t) for t in l24.most_common()], "l24_total": l24_total, "tiers": [list(t) for t in rep["tier_latest"]],
         "lic_totals": {k: sum(v.get(k, 0) for v in lic_day.values()) for k in ("trial", "tester", "pro", "lifetime", "paid")},
@@ -978,44 +1135,70 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
     return model, state
 
 
+def skip_lists(p):
+    cfg = read_json(p["config"], {}) or {}
+    pings_skip = cfg.get("pings_skip_ips", [])
+    pings_skip = set(pings_skip) if isinstance(pings_skip, list) and all(isinstance(x, str) for x in pings_skip) else set()
+    own = read_json(p["own_config"], {}) or {}
+    own_ips = own.get("own_ips", [])
+    own_ips = set(own_ips) if isinstance(own_ips, list) and all(isinstance(x, str) for x in own_ips) else set()
+    return pings_skip, pings_skip | own_ips
+
+
 def run(paths=None, now=None, run_sql=None, fetch=gh_get, refresh=True):
     p = dict(DEFAULTS, **(paths or {}))
     now = now or dt.datetime.now(BC)
-    cfg = read_json(p["config"], {}) or {}
-    skip = set(cfg.get("pings_skip_ips", []) if isinstance(cfg.get("pings_skip_ips"), list) else [])
-    pings = collect_pings(p["pings"], skip, now)
+    pings_skip, site_skip = skip_lists(p)
+    pings = collect_pings(p["pings"], pings_skip, now)
     rows, first = collect_reports(p["telemetry"], now)
     rep = report_aggregates(rows, first, now)
     rep["rows"] = rows
     setupf = setup_failures(first, rep["latest"], now)
     licences = collect_licences(run_sql)
-    site, sources_by_day = collect_site(p["site_logs"], skip, now)
+    site, sources_by_day, site_complete = collect_site(p["site_logs"], site_skip, now)
     if refresh:
         releases, stars, stars_count = refresh_github(p["archive"], p["repo"], now, fetch)
     else:
         releases = read_json(os.path.join(p["archive"], "github", "releases.json"), []) or []
         stars = read_json(os.path.join(p["archive"], "github", "stars.json"), []) or []
         stars_count = (read_json(os.path.join(p["archive"], "github", "meta.json"), {}) or {}).get("stars_count")
-    a_site, a_sources, ha, traffic, referrers, markers = read_archive(p["archive"])
-    state_path = os.path.join(p["out"], "attention-state.json")
-    state = read_json(state_path, {}) or {}
-    model, state = build(pings, rep, setupf, licences, site, sources_by_day, releases, stars, markers,
-                         {"site": a_site, "sources": a_sources, "ha": ha, "traffic": traffic, "referrers": referrers},
-                         now, state, stars_count)
+    if not releases:
+        raise SourceError("no releases (GitHub cache empty)")
+    a_site, a_sources, a_complete, ha, traffic, referrers, markers = read_archive(p["archive"])
+    if markers is None:
+        raise SourceError("markers.json missing or unreadable (the Mac's markers_export.py uploads it)")
+    state = read_json(os.path.join(p["out"], "attention-state.json"), {}) or {}
+    model, state = build(pings, rep, setupf, licences, site, sources_by_day, site_complete, releases, stars, markers,
+                         {"site": a_site, "sources": a_sources, "complete": a_complete, "ha": ha, "traffic": traffic,
+                          "referrers": referrers}, now, state, stars_count)
     return model, state, p
 
 
-def main():
-    model, state, p = run()
-    owner = ("www-data", "client1")
-    write_json(os.path.join(p["out"], "model.json"), model, 0o640, owner)
-    write_json(os.path.join(p["out"], "attention-state.json"), state, 0o600)
-    print(f"ok {model['generated']}: need {model['need']}, {len(json.dumps(model, default=str))} bytes")
+def log_error(msg):
+    try:
+        import syslog
+        syslog.openlog("pad_digest")
+        syslog.syslog(syslog.LOG_ERR, msg)
+    except Exception:
+        pass
+    print(msg, file=sys.stderr)
+
+
+def main(paths=None, now=None, run_sql=None, fetch=gh_get, refresh=True, gid="auto"):
+    """Build and write the model. On any failure nothing is written: the last good model stays."""
+    try:
+        model, state, p = run(paths, now, run_sql, fetch, refresh)
+        if gid == "auto":
+            import grp
+            gid = grp.getgrnam(p["web_group"]).gr_gid
+        write_json(os.path.join(p["out"], "model.json"), model, 0o640, gid)
+        write_json(os.path.join(p["out"], "attention-state.json"), state, 0o600)
+    except Exception as e:
+        log_error(f"pad_digest: run stopped, last good model kept: {type(e).__name__}: {e}")
+        return 1
+    print(f"ok {model['generated']}: need {model['need']}")
+    return 0
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:  # cron mails root on output; keep it to one line
-        print(f"pad_digest failed: {type(e).__name__}: {e}", file=sys.stderr)
-        sys.exit(1)
+    sys.exit(main())
