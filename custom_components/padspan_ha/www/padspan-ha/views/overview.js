@@ -124,7 +124,7 @@ export function liveSwitch(ctx){
     return b;
   };
   return el("div", { class: "live-switch", style: "display:flex;gap:6px;align-items:center;margin:0 0 12px" }, [
-    btn(!classic, "⚡ Pure Live", "The live view", false),
+    btn(!classic, "⚡ Live Tracker", "The live view", false),
     btn(classic, "▦ Overview", "The classic Overview (the Overview tab shows the Atlas)", true),
   ]);
 }

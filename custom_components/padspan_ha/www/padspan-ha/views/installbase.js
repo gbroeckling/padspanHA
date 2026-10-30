@@ -550,7 +550,7 @@ const W_FEATURE = {
   enhanced_security: "Enhanced security",
 };
 const W_TAB = {
-  overview: "Overview", maps: "Maps", calibration: "Calibration", follow: "Follow", purelive: "Pure Live",
+  overview: "Overview", maps: "Maps", calibration: "Calibration", follow: "Follow", purelive: "Live Tracker",
   settings: "Settings", manage: "Manage", training: "Training", devices: "Devices", occupancy: "Occupancy",
   health: "Health", bluetooth: "Bluetooth", monitor: "Monitor", traceback: "Traceback", presence: "Presence",
   qa: "QA", installbase: "Install Base (this page)", sandbox: "Sandbox", forensics: "Forensics", insights: "Insights",

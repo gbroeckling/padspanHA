@@ -157,12 +157,12 @@ the label written into every frame, or any of the four runtime ReferenceErrors.
 
 ## 12. Two views that draw one thing must share a contract, not a guess
 
-Pure Live borrows the overview's map element and zooms it. Its counter-scale
+Live Tracker borrows the overview's map element and zooms it. Its counter-scale
 found each marker's anchor by looking for a child `<circle>` and then *set* the
 group's transform to `scale(1/zoom)` — overwriting the annotation scale the
 overview had baked into that same attribute. At zoom 1 the labels were giant;
 at zoom 2 they were giant. Nothing threw. The overview had "fixed the fonts"
-and Pure Live had "fixed the zoom", each correctly, on the same attribute.
+and Live Tracker had "fixed the zoom", each correctly, on the same attribute.
 
 When one view mutates markup another view composed, the composer publishes what
 it did (`data-ann-k` on the root, `data-ann="x y"` on each group) and the

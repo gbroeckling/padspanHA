@@ -363,7 +363,7 @@ export function helpTexts() { return {
     body: [
       t("PadSpan's complexity mode controls how many tabs and features are visible in the sidebar:"),
       t("BASIC — Shows only the essential tabs: Follow, Overview, Maps, Settings, and Training. Designed for non-technical household members who just want to see where things are."),
-      t("ADVANCED — The default for power users. Shows Basic tabs plus Pure Live, Manage, Calibration, Traceback, Occupancy, and Health. You can add more tabs (Devices, Bluetooth, Presence, Monitor, QA, Sandbox) in Settings → UI Structure."),
+      t("ADVANCED — The default for power users. Shows Basic tabs plus Live Tracker, Manage, Calibration, Traceback, Occupancy, and Health. You can add more tabs (Devices, Bluetooth, Presence, Monitor, QA, Sandbox) in Settings → UI Structure."),
       t("DEVELOPMENT — Shows everything Advanced does, plus every tab in UI Structure at once (Devices, Bluetooth, Presence, Monitor, QA, Sandbox). Use this when troubleshooting issues or when Claude asks you to check diagnostic data."),
       t("Changing complexity mode doesn't delete any data — it only controls what's visible in the sidebar. Your settings, calibration, and device data are always preserved."),
     ],
@@ -449,7 +449,7 @@ export function helpTexts() { return {
     title: t("Free, Bright, Bright Pro, Pro — What Each Unlocks"),
     body: [
       t("Two separate things decide what you see and what you can do: which download you installed (PadSpan HA, the full app, or PadSpan Bright, a lighting-only download), and whether a licence key is on this install. A PadSpan Pro key unlocks the paid features (light placement, the 3D house, the wall screen, Forensics, Locate, Busy Times and more); a PadSpan Bright Pro key unlocks light placement. Which download you're running decides whether the presence-tracking half exists to unlock at all."),
-      t("PADSPAN HA (this app, full) — Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, with no key, forever. A key upgrades this install to PadSpan Pro."),
+      t("PADSPAN HA (this app, full) — Presence tracking, Overview, Follow, Live Tracker, Occupancy, Calibration, mapping and everything else here is free, with no key, forever. A key upgrades this install to PadSpan Pro."),
       t("PADSPAN BRIGHT — A separate, lighter download for a household that only wants lighting from a map, not presence tracking. Free forever on its own: every light shown room-by-room on a map, switched on or off, no key needed. A key upgrades a Bright install to PadSpan Bright Pro, which places each one exactly where it hangs."),
       t("PADSPAN PRO — Light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen, Forensics (which Bluetooth devices were near a given scanner in any time window, with dwell time and CSV export), Locate and Busy Times, on a full PadSpan HA install."),
       t("PADSPAN BRIGHT PRO — The same light-placement unlock as Pro, on a PadSpan Bright install. The 3D house and the wall screen need a PadSpan Pro key, and Forensics needs presence tracking to have anything to report on, so it isn't part of Bright Pro."),

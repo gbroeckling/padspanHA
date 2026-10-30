@@ -303,7 +303,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         "anyone who can't use a dark screen; photos and map images are turned back so they still " +
         "look normal. Day is the panel redrawn in light colours. Every one keeps the green accent " +
         "and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D " +
-        "house and Pure Live keep their night colours. It takes effect immediately, in every browser."),
+        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser."),
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night","Night"), mkTheme("graphite","Graphite"), mkTheme("ocean","Ocean"),
         mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
@@ -3164,7 +3164,7 @@ function _tiersWizardFree(ctx, w, isBright){
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
     isBright
       ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."
-      : "This install is PadSpan HA. Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
+      : "This install is PadSpan HA. Presence tracking, Overview, Follow, Live Tracker, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.6"},
     (isBright
       ? "A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more."
@@ -4619,7 +4619,7 @@ function _settingsUI(ctx, el){
   const ovCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
   ovCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"},"\uD83D\uDDFA\uFE0F Overview \u2014 the Atlas as your main map"));
   ovCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
-    "Overview, the first tab, shows the Atlas (your lights, devices and rooms, and Live Aboard if it's on) instead of the classic map. The classic Overview moves under Pure Live, which gets a switch between the two."));
+    "Overview, the first tab, shows the Atlas (your lights, devices and rooms, and Live Aboard if it's on) instead of the classic map. The classic Overview moves under Live Tracker, which gets a switch between the two."));
   const ovRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:" + (ovPro ? "pointer" : "not-allowed")});
   const ovCb = el("input",{type:"checkbox"});
   ovCb.checked = ovPro && settings.overview_atlas === true;
@@ -4635,7 +4635,7 @@ function _settingsUI(ctx, el){
       await ctx.actions.settingsSet({ overview_atlas: ovCb.checked });
       ctx.state._liveClassic = false;
       ovNote.textContent = ovCb.checked
-        ? "Saved \u2014 Overview now shows the Atlas; the classic Overview is under Pure Live."
+        ? "Saved \u2014 Overview now shows the Atlas; the classic Overview is under Live Tracker."
         : "Saved \u2014 Overview is back to the classic map.";
       ovNote.style.color = "#52b788";
     } catch (e) {

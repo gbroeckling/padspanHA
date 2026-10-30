@@ -229,7 +229,7 @@ export async function openLiveAboardWizard(ctx, step) {
         "Saves right away. In the sidebar Atlas, 🏠 on the left switches between the flat map and Live Aboard; in Mapping → Atlas, the Map | Live Aboard switch does."));
       if (s.webgl === false) out.push(tip("This browser can't draw 3D (no WebGL). Live Aboard still works on other screens; this one keeps the flat map."));
       if (s.hasOverview) out.push(toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); },
-        "Optional, off unless you turn it on. Overview, the first tab, shows the Atlas (and Live Aboard) instead of the classic map; Pure Live gets a switch to the classic Overview. You can change it any time in Settings → UI Structure."));
+        "Optional, off unless you turn it on. Overview, the first tab, shows the Atlas (and Live Aboard) instead of the classic map; Live Tracker gets a switch to the classic Overview. You can change it any time in Settings → UI Structure."));
       return out;
     },
     floors(s) {
@@ -351,7 +351,7 @@ export async function openLiveAboardWizard(ctx, step) {
           "On a wall tablet: the sidebar Atlas, full screen with the corner button. With nothing changing, it draws nothing.",
         ]),
         s.hasOverview ? toggle("Show the Atlas as Overview", s.overviewAtlas, (v, n) => { ctx.state._liveClassic = false; save({ overview_atlas: v }, n); },
-          "Optional, off unless you turn it on. Overview shows the Atlas instead of the classic map; the classic Overview moves under Pure Live, behind a ⚡ Pure Live | ▦ Overview switch.") : null,
+          "Optional, off unless you turn it on. Overview shows the Atlas instead of the classic map; the classic Overview moves under Live Tracker, behind a ⚡ Live Tracker | ▦ Overview switch.") : null,
         el("div", { style: "margin-top:8px;font-size:12px" }, [el("a", { href: GUIDE_URL, target: "_blank", rel: "noopener" }, "The Live Aboard Guide"), " has every tool in detail."]),
       ];
     },
