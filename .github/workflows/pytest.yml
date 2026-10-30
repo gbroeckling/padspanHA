@@ -36,5 +36,7 @@ jobs:
         run: npx --yes -p eslint@9 -p globals@17 eslint "custom_components/padspan_ha/www/**/*.js"
       - name: Install test dependencies
         run: pip install -r requirements_test.txt
+      # Spread over the runner's cores; pytest-xdist is pinned in
+      # requirements_test.txt, installed above.
       - name: Run tests
-        run: python -m pytest tests -q
+        run: python -m pytest tests -q -n auto

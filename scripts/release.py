@@ -469,9 +469,13 @@ def run_tests():
     any files are modified, committed, or pushed.
     """
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    print(f"  $ {sys.executable} -m pytest tests -q --no-header")
+    # Every core when pytest-xdist is installed (requirements_test.txt), as
+    # bright_build.run_suite does: ~6.5 min -> ~2.5; one process without it.
+    import importlib.util  # noqa: PLC0415
+    par = ["-n", "auto"] if importlib.util.find_spec("xdist") else []
+    print(f"  $ {sys.executable} -m pytest tests -q --no-header {' '.join(par)}".rstrip())
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests", "-q", "--no-header"],
+        [sys.executable, "-m", "pytest", "tests", "-q", "--no-header", *par],
         cwd=ROOT, env=env, text=True, capture_output=True,
     )
     # Print the tail of pytest's output (summary + failures) indented
