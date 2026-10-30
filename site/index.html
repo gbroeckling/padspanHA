@@ -184,6 +184,23 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.200</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">29 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Reloading PadSpan no longer logs "Panel re-registration failed".</b> Saving PadSpan's options or pressing Reload tried to add the sidebar panel a second time, which Home Assistant refuses. PadSpan now takes its own panel down first, so the panel is refreshed and the log stays quiet.</li>
+          <li><b>The phone search in Track Your Phone no longer fails because of one phone.</b> A phone whose BLE Transmitter reported a Major or Minor that was not a number stopped the whole search, so no phone was listed. The other phones are now listed. That one shows as a phone whose sensor PadSpan can't use yet, with no Follow, so it can't be followed under an ID it never sends.</li>
+          <li><b>A calibration point refused on a map with no metre scale is no longer a log warning.</b> The Calibration tab already tells you why and what to do (measure the map first); the log only repeated it on every try. Other save failures still show in the log.</li>
+          <li><b>A device key that already belongs to another device is no longer a log warning.</b> PadSpan still refuses to merge the two devices, as before; it just doesn't warn about doing its job.</li>
+          <li>Two new counters: <code>companion_ids_unreadable</code> (a phone left out of the search because its Major/Minor could not be read) and <code>device_identity_refused</code> (a device key that already belongs to another device).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.199</span>
         <span class="pill stable">Stable</span>
         <span class="reldate">29 October 2026</span>

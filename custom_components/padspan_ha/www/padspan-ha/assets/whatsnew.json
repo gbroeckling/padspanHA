@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.200",
+  "title": "Fewer warnings in the Home Assistant log",
+  "date": "2026-10-29",
+  "body_markdown": "### Fixed\n- **Reloading PadSpan no longer logs \"Panel re-registration failed\".** Saving PadSpan's options or pressing Reload tried to add the sidebar panel a second time, which Home Assistant refuses. PadSpan now takes its own panel down first, so the panel is refreshed and the log stays quiet.\n- **The phone search in Track Your Phone no longer fails because of one phone.** A phone whose BLE Transmitter reported a Major or Minor that was not a number stopped the whole search, so no phone was listed. The other phones are now listed. That one shows as a phone whose sensor PadSpan can't use yet, with no Follow, so it can't be followed under an ID it never sends.\n- **A calibration point refused on a map with no metre scale is no longer a log warning.** The Calibration tab already tells you why and what to do (measure the map first); the log only repeated it on every try. Other save failures still show in the log.\n- **A device key that already belongs to another device is no longer a log warning.** PadSpan still refuses to merge the two devices, as before; it just doesn't warn about doing its job.\n\n### Opt-in report\n- Two new counters: `companion_ids_unreadable` (a phone left out of the search because its Major/Minor could not be read) and `device_identity_refused` (a device key that already belongs to another device)."
+ },
+ {
   "version": "0.38.199",
   "title": "The stable after 0.38.166: everything from the last four days of betas",
   "date": "2026-10-29",
@@ -76,11 +82,5 @@
   "title": "Settings → AI",
   "date": "2026-10-27",
   "body_markdown": "### New\n- **Settings → AI.** PadSpan's AI features in one place:\n  - **Your AI:** the Home Assistant AI Task that reads for PadSpan. It moved here from the Live Aboard section.\n  - **Furniture from a photo:** now has its own switch, on as before. It covers tags, receivers and people's figures too.\n  - **Coming soon:** stairs read off your floor plans, rooms and walls traced from a floor plan picture, and asking your AI voice assistant where someone is.\n\n### Changed\n- **Furniture from a photo reads beds the right way round.** The AI is told a bed's width is across the headboard. In a real test with a local vision model it had swapped them.\n- **Usage report (if you share it):** what each photo sent to the AI was of (furniture, a tag, a receiver or a person), and how long the AI took to answer, in bands. Where an AI Task is chosen, `env.ai` says only whether it runs locally or in the cloud. The photo, the answer and the AI's name are never in it."
- },
- {
-  "version": "0.38.186",
-  "title": "The trial card, put right",
-  "date": "2026-10-27",
-  "body_markdown": "### Changed\n- **What happens when a trial or licence ends, said truthfully.** Light placement goes read-only, and the 3D house, the wall screen, Locate and Busy Times switch off until you buy or renew. Nothing you set up is deleted, and it all comes back as you left it. The trial card, the licence card, the tiers page and its help used to say only that editing stops.\n- **The launch price, plainly.** Once a trial has started, its card gives what Pro for life costs until November 30 and after, so it can't read as lasting the whole trial. The licence card leaves it to its own lifetime link.\n- **Every place that offers the trial says it is all of Pro**: the Getting started list too, and the update banner says it once, as news, to installs without a key. On a PadSpan Bright build the trial card leaves out Forensics, which a Bright build doesn't show.\n- **The paid features are named properly.** The licence card, the tiers page and its help list light placement, the 3D house, the wall screen, Forensics, Locate and Busy Times among them, and the update banner's Pro pitch names the 3D house and the wall screen too. They used to say a key unlocks two things. On a Bright build the licence card and the tiers page name only what a Bright build shows."
  }
 ]
