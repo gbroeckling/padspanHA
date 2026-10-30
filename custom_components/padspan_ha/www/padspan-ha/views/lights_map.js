@@ -1647,7 +1647,16 @@ export function vacationOptionsOf(s) {
   s = s || {};
   return { dark_only: !!s.vacation_mode_dark_only, dark_offset_min: s.vacation_mode_dark_offset_min || 0,
            end_at: s.vacation_mode_end_at || 0, pause_home: !!s.vacation_mode_pause_home,
-           bedtime: s.vacation_mode_bedtime || "", max_on_min: s.vacation_mode_max_on_min || 0 };
+           bedtime: s.vacation_mode_bedtime || "", max_on_min: s.vacation_mode_max_on_min || 0,
+           max_lights: s.vacation_mode_max_lights || 0,
+           anchors: Array.isArray(s.vacation_mode_anchors) ? s.vacation_mode_anchors.slice() : [] };
+}
+// The lights an anchor can be: every light, by name (the options box's list).
+export function vacationLightChoices(hass) {
+  const states = (hass && hass.states) || {};
+  return Object.keys(states).filter((eid) => eid.startsWith("light."))
+    .map((eid) => [eid, String((states[eid].attributes || {}).friendly_name || eid)])
+    .sort((a, b) => a[1].localeCompare(b[1]));
 }
 export function vacationEndsText(s) {
   const ts = s && s.vacation_mode_end_at;
@@ -1712,6 +1721,44 @@ function _vacOptionsBox(host) {
   bed.value = o.bedtime || "";
   bed.addEventListener("change", async () => { if (!await save({ vacation_mode_bedtime: bed.value })) bed.value = o.bedtime || ""; else o.bedtime = bed.value; });
   const bedClear = el("button", { class: "btn inline", onclick: async () => { bed.value = ""; if (await save({ vacation_mode_bedtime: "" })) o.bedtime = ""; } }, "None");
+  // Evening lights (anchors): a tick per light, up to 10.
+  const anchors = new Set(o.anchors || []);
+  const anchorList = el("div", { class: "lv-vac-anchors", role: "group", "aria-label": "Evening lights" },
+    (host.vacationLights || []).map(([eid, name]) => {
+      const c = document.createElement("input");
+      c.type = "checkbox"; c.checked = anchors.has(eid);
+      c.addEventListener("change", async () => {
+        if (c.checked && anchors.size >= 10) { c.checked = false; status.textContent = "Up to 10 evening lights"; return; }
+        c.checked ? anchors.add(eid) : anchors.delete(eid);
+        if (!await save({ vacation_mode_anchors: [...anchors] })) { c.checked ? anchors.delete(eid) : anchors.add(eid); c.checked = !c.checked; }
+        else o.anchors = [...anchors];
+      });
+      return el("label", { class: "lv-vac-inline" }, [c, name]);
+    }));
+  // Preview: what the next 24 hours would look like.
+  const previewOut = el("div", { class: "lv-vac-preview", "aria-live": "polite" }, "");
+  const hm = (ts) => new Date(ts * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const showPreview = (r) => {
+    previewOut.textContent = "";
+    const lights = (r && r.lights) || [];
+    if (!lights.length) {
+      previewOut.appendChild(el("div", { class: "muted" },
+        r && r.routine === "none" ? "Nothing yet: there is no light history to learn a routine from." : "Nothing would be switched in the next 24 hours."));
+      return;
+    }
+    for (const l of lights) {
+      previewOut.appendChild(el("div", { class: "lv-vac-preview-row" }, [
+        el("span", { class: "lv-vac-opt-lbl" }, l.name + (l.anchor ? " (evening light)" : "")),
+        el("span", { class: "muted" }, l.on.map(([a, b]) => `${hm(a)}–${hm(b)}`).join(", ")),
+      ]));
+    }
+  };
+  const previewBtn = el("button", { class: "btn inline", onclick: async () => {
+    previewOut.textContent = "Working it out…";
+    let r = null;
+    try { r = host.onVacationPreview ? await host.onVacationPreview() : null; } catch (e) { r = null; }
+    if (r) showPreview(r); else previewOut.textContent = "Could not make the preview.";
+  } }, "Show the next 24 hours");
   _vacOptsNode = el("div", { class: "lv-vacation lv-vacation-opts", role: "dialog", "aria-label": "Vacation Mode options" }, [
     el("div", { class: "lv-vac-opt-head" }, [
       el("span", { class: "lv-vacation-label" }, "🌴 Vacation Mode options"),
@@ -1728,6 +1775,14 @@ function _vacOptionsBox(host) {
     row("Longest on", select("vacation_mode_max_on_min", o.max_on_min || 0, [
       [0, "no limit"], [60, "1 hour"], [120, "2 hours"], [180, "3 hours"], [240, "4 hours"], [360, "6 hours"]]),
       "A light it turned on goes off after this, and stays off as long."),
+    row("Most lights on at once", select("vacation_mode_max_lights", o.max_lights || 0, [
+      [0, "no limit"], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [6, "6"], [8, "8"], [12, "12"]]),
+      "Lights already on keep their place; the rest wait. Evening lights don't count."),
+    host.vacationLights && host.vacationLights.length ? row("Evening lights", anchorList,
+      "Stay on from dark until bedtime (about 11 pm if no bedtime is set), like a porch or hall light. Up to 10.") : null,
+    host.onVacationPreview ? row("Preview", previewBtn,
+      "What it would switch over the next 24 hours, with these options. Nothing is switched.") : null,
+    previewOut,
     el("div", { class: "muted lv-vac-opt-note" },
       "binary_sensor.padspan_vacation_mode shows it in Home Assistant, and the padspan_ha_vacation_mode event fires on every change, for your own automations."),
   ]);
@@ -4247,7 +4302,7 @@ export function buildLightsMapCard(hostIn){
     whSel.addEventListener("change", whDisarm);
     whBar.appendChild(whApply);
     if (host.onVacationOptions) {
-      const whVacOpts = el("button", { class: "lv-act", title: "Vacation Mode's options: after dark, end date, pause while someone is home, bedtime, longest on" }, "Options");
+      const whVacOpts = el("button", { class: "lv-act", title: "Vacation Mode's options: after dark, end date, pause while someone is home, bedtime, longest on, most at once, evening lights, preview" }, "Options");
       const showOpts = () => { whVacOpts.style.display = whSel.value === VACATION_VALUE ? "" : "none"; };
       whVacOpts.addEventListener("click", () => _vacOptsToggle(host, true, mapCard));
       whSel.addEventListener("change", showOpts);
