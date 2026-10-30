@@ -99,7 +99,7 @@ footer p{margin:4px 0}
 </ul>
 
 <h2>Phones need one more step</h2>
-<p>Proxies hear tags and beacons straight away. Phones change their Bluetooth address regularly so they can't be followed, so PadSpan needs a little help to know which phone is which. iPhones and Apple Watches need their key (the IRK); new installs start with PadSpan's iPhone setup steps switched on. Android phones only need the Home Assistant Companion app's BLE Transmitter.</p>
+<p>Proxies hear tags and beacons straight away. Phones change their Bluetooth address regularly so they can't be followed, so PadSpan needs a little help to know which phone is which. iPhones and Apple Watches need their key (the IRK); new installs start with PadSpan's iPhone setup steps switched on. Android phones need the Home Assistant Companion app's BLE Transmitter. <a href="/guides/phone-room-presence/">Which room is my phone in?</a> has the steps for each.</p>
 
 <h2>Find the rooms that need another proxy</h2>
 <p>All of these are free:</p>
@@ -107,7 +107,7 @@ footer p{margin:4px 0}
   <li><b>Calibration → Model</b> shows how often PadSpan picks the right room on spots it wasn't calibrated on (from version 0.38.166). If one room keeps scoring badly, that's the first place to add or move a proxy.</li>
   <li><b>Calibration → Roam</b> shows where you have calibrated so far and points you to the next spot to stand.</li>
   <li><b>Health</b> warns when a proxy's reliability drops below 70%, and, from 0.38.166, when a proxy has heard far fewer Bluetooth advertisements than usual for over 10 minutes while the others are normal. Restarting it often helps.</li>
-  <li><b>Walk a room</b>, in the 0.38.167 beta (Settings → Presence, off by default), records a 90-second walk around one room and shows the score before and after.</li>
+  <li><b>Walk a room</b>, from 0.38.167 (Settings → Presence, off by default), records a 90-second walk around one room and shows the score before and after.</li>
 </ul>
 
 <h2>Start with what you have</h2>

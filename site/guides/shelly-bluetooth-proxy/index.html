@@ -103,13 +103,13 @@ footer p{margin:4px 0}
 
 <h2>A Shelly that hears nothing, or has no room</h2>
 <ul>
-  <li><b>It shows up without a room although the Shelly has an area?</b> PadSpan uses the area of the Shelly's scanner, its own device under <b>Settings → Devices &amp; services → Bluetooth</b>. Home Assistant copies the Shelly's area to it only when Home Assistant starts, and only if it has none, so set the scanner's area there, or restart Home Assistant. From PadSpan 0.38.176 (a beta for now), a scanner with no area of its own takes its Shelly's.</li>
+  <li><b>It shows up without a room although the Shelly has an area?</b> PadSpan uses the area of the Shelly's scanner, its own device under <b>Settings → Devices &amp; services → Bluetooth</b>. Home Assistant copies the Shelly's area to it only when Home Assistant starts, and only if it has none, so set the scanner's area there, or restart Home Assistant. From PadSpan 0.38.176 (in the stable since 0.38.199), a scanner with no area of its own takes its Shelly's.</li>
   <li>Check that its <b>Bluetooth scanner mode</b> isn't <b>Disabled</b> and that its firmware is up to date. If it still hears nothing, try another mode, such as <b>Passive</b>.</li>
   <li>If it hears devices but PadSpan's calibration shows no signal strengths for it, open <b>Settings → Presence</b> in PadSpan, set <b>BLE Reseed Interval</b> to 5 and select <b>Save</b>. It works around a change in Home Assistant 2026.4 that holds back repeat readings from passive scanners. (The <b>BLE Proxy Compatibility</b> checkbox under Manage → HA Entities does the same from 0.38.176; before that it did nothing.)</li>
 </ul>
 
 <h2>Phones need one more step</h2>
-<p>Scanners hear tags and beacons straight away. Phones change their Bluetooth address so they can't be followed: iPhones and Apple Watches need their key (the IRK), and Android phones need the Home Assistant Companion app's BLE Transmitter. <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a> has the details.</p>
+<p>Scanners hear tags and beacons straight away. Phones change their Bluetooth address so they can't be followed: iPhones and Apple Watches need their key (the IRK), and Android phones need the Home Assistant Companion app's BLE Transmitter. <a href="/guides/phone-room-presence/">Which room is my phone in?</a> has the steps for each.</p>
 
 <h2>Sources</h2>
 <ul>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iPhone, Apple Watch and Android room presence in Home Assistant | PadSpan HA</title>
+<meta name="description" content="Bluetooth proxies hear your phone straight away, but phones change their address so they can't be followed. Android phones need the Companion app's BLE transmitter; iPhones and Apple Watches need their key, the IRK. How to set up each for room presence in Home Assistant.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/phone-room-presence/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/phone-room-presence/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/phone-room-presence/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/phone-room-presence/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Which room is my phone in?">
+<meta property="og:description" content="iPhones, Apple Watches and Android phones each need a step before Bermuda or PadSpan can put them in a room. Here's what each one needs.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/phone-room-presence/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figure.phone{max-width:330px;margin:24px auto}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/phone-room-presence/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1>Which room is my phone in?</h1>
+<p class="lead">Your Bluetooth proxies hear your phone straight away. What they can't tell on their own is whose phone it is, because phones keep changing their Bluetooth address so that nobody can follow them. One step per phone fixes that. An Android phone sends a beacon from the Home Assistant Companion app; an iPhone or Apple Watch is recognised by its key, the IRK. From then on, Bermuda or PadSpan can put each phone in a room.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">See phones in rooms on a demo house</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+
+<h2>The short version</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>What it needs</th><th>In PadSpan</th></tr>
+  <tr><td><b>Android phone</b></td><td>The Companion app's <b>BLE Transmitter</b> sensor, switched on</td><td><b>Track this phone</b></td></tr>
+  <tr><td><b>iPhone</b></td><td>Its key (the IRK), added to Home Assistant's <b>Private BLE Device</b>. You get the key once, from a Mac signed in to the same iCloud account or with irk-capture on a spare ESP32</td><td>A name, with <b>Tag</b></td></tr>
+  <tr><td><b>Apple Watch</b></td><td>Its own key, the same way as an iPhone</td><td>The same</td></tr>
+</table>
+</div>
+<p>You also need at least one Bluetooth proxy, or a Shelly Gen2+ <a href="/guides/shelly-bluetooth-proxy/">set up as a scanner</a>. One is enough to tell home from away. For rooms, put one in every room you want to tell apart. <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a> goes into the details.</p>
+
+<h2>Why a phone needs a step at all</h2>
+<p>Most tags and beacons keep one Bluetooth address, so a proxy knows them every time it hears them. Phones don't. They advertise from a random address and change it regularly: Android at least every 15 minutes, Apple "on a frequent basis", in its own words. That stops strangers following your phone around a shop, and it's also why Home Assistant sees your phone as a string of new devices. There are two ways around it:</p>
+<ul>
+  <li><b>The phone says who it is.</b> The Android Companion app can send an iBeacon, a Bluetooth advert with an ID that never changes.</li>
+  <li><b>You hold its key.</b> Every iPhone and Apple Watch has an Identity Resolving Key (IRK) that turns its changing addresses back into one device. Give Home Assistant the key, and it knows the phone whatever address it uses.</li>
+</ul>
+
+<h2>Android: switch on the BLE Transmitter</h2>
+<ol>
+  <li>Install the Home Assistant Companion app and sign in to your Home Assistant.</li>
+  <li>In the app, go to <b>Settings → Companion app → Manage sensors</b> and open <b>BLE Transmitter</b>. Most of the app's sensors start switched off, so switch this one on.</li>
+  <li>Start with its settings as they are. The app's docs warn that it can cost battery, especially with <b>Transmit power</b> on High, and it can be set to transmit only on your home Wi-Fi.</li>
+  <li>If the phone drops off after a while, take the Companion app out of Android's battery optimisation. ESPresense's guide advises it too, because Android will otherwise stop the app.</li>
+</ol>
+<p>Then name the phone in PadSpan, which is what gives it its Home Assistant entities. On PadSpan's <b>Overview</b>, open <b>Track Your Phone</b>. Your Companion app phones are listed there, and PadSpan knows each one's beacon by the ID the app reports to Home Assistant (UUID, major and minor). Select <b>Track this phone</b>: it takes the name of the phone's Home Assistant device and asks the app to switch its transmitter on. If the sensor is disabled in Home Assistant, the button reads <b>Enable &amp; Track</b> instead; it switches the sensor back on in Home Assistant, and PadSpan then asks you to restart Home Assistant and turn the transmitter on in the app. The phone appears in its room within seconds of a proxy hearing it.</p>
+<p>Bermuda tracks the same beacon: its README lists Android phones running the Companion app.</p>
+
+<h2>iPhone: get its key once</h2>
+<p>The iPhone app has no BLE Transmitter: on iOS, the Companion app only listens for iBeacons, to tell when you arrive in a zone. So an iPhone is recognised by its key instead. You get it once, in one of two ways.</p>
+<ul>
+  <li><b>On a Mac signed in to the same iCloud account.</b> Open <b>Keychain Access</b>, find the iPhone's Bluetooth entry, and copy its <b>Remote IRK</b>. Home Assistant's <a href="https://www.home-assistant.io/integrations/private_ble_device/">Private BLE Device page</a> has the steps, including how to tell which entry is your iPhone.</li>
+  <li><b>With irk-capture on a spare ESP32.</b> <a href="https://github.com/DerekSeaman/irk-capture">irk-capture</a>, by Derek Seaman, is an ESPHome package that makes an ESP32 look like a Bluetooth heart-rate sensor. Pair your iPhone with it in <b>Settings → Bluetooth</b>, and the key appears in Home Assistant as the ESP32's <b>IRK</b> sensor, ready to copy. That ESP32 can't be a Bluetooth proxy at the same time, so use a spare one.</li>
+</ul>
+<p>Then give the key to Home Assistant, in either of two places:</p>
+<ul>
+  <li><b>In Home Assistant:</b> <b>Settings → Devices &amp; services → Add integration → Private BLE Device</b>, and paste it. Hex and base64 both work.</li>
+  <li><b>In PadSpan:</b> <b>Settings → Presence → Phone Tracking (Private BLE) → Add IRK</b>. PadSpan listens for up to 30 seconds to check that the key matches a phone your proxies can hear, then adds the Private BLE Device entry to Home Assistant for you. (From the 0.38.202 beta, Presence is called Tracking.)</li>
+</ul>
+<p>Either way, keep the iPhone awake, with Bluetooth on, near a proxy while you do it: Home Assistant only accepts a key once it can hear the phone it belongs to. Adding a key needs a Home Assistant administrator. PadSpan reloads its list of keys every five minutes, so a key added in Home Assistant reaches it within about five minutes. Bermuda gives every Private BLE Device its sensors automatically.</p>
+<p>Last, name the iPhone in PadSpan, which is what gives it its Home Assistant entities. On <b>Overview</b>, open <b>All objects</b> in the <b>Objects</b> card, select <b>Tag</b> on the iPhone's row, type a name and select <b>Save label</b>. On a new install, before you've drawn any rooms, the <b>Who's where now</b> card has a <b>Track</b> button beside the iPhone's name that does the same.</p>
+<p>Installed PadSpan before version 0.38.165? Then <b>Overview → Track Your Phone</b> shows iPhones the Android steps, unless you switch on <b>Settings → Features → iPhone Setup Path</b> (experimental; newer installs start with it on). The steps on this page work either way.</p>
+
+<h2>Apple Watch</h2>
+<p>An Apple Watch has its own key, separate from its iPhone's, and the same two ways get it. Home Assistant's Keychain steps are written for "your iPhone or Apple Watch", and irk-capture lists Apple Watches among the devices it was tested with: pair the watch from its own <b>Settings → Bluetooth</b>. Then add the key to Private BLE Device as an entry of its own, and tag the watch in PadSpan the same way.</p>
+
+<h2>What you get</h2>
+<ul>
+  <li><b>In PadSpan:</b> each named phone shows in its room on a floor plan of your house, and the Overview's <b>People in building</b> card lists who's home and the room each person is in. An Android phone counts as a person there when Home Assistant shows that person as home and the phone's PadSpan name matches the person's name or one of their trackers.</li>
+  <li><b>In Home Assistant:</b> once a phone has a name in PadSpan, it gets a device tracker whose state is the room it's in (or away, once it hasn't been heard for five minutes, by default), an <b>Area</b> sensor and <b>Distance</b> sensors. Link the tracker to a person under <b>Settings → People</b> and the person shows the room too. One catch: if that person also has another tracker, such as the Companion app's GPS or a router's, Home Assistant goes by that one and shows them as home, not in a room.</li>
+  <li><b>Private BLE Device on its own</b> gives home or away and an estimated distance to the nearest proxy, not a room. Bermuda and PadSpan add the room.</li>
+  <li><b>Alerts:</b> PadSpan's <b>Follow</b> screen has <b>Movement Alerts</b> for when a phone changes room.</li>
+</ul>
+<figure class="phone">
+  <img src="/demo/media/estate-phone-panel.jpg" width="390" height="844" alt="PadSpan's Overview on a phone, on the demo house: People in building, 2 people, Alex in the Living Room and Sam in the Walk-in Closet, 2 phones heard" loading="lazy">
+  <figcaption>The demo house on a phone: <b>People in building</b> lists who's home and which room each is in, from their phones. The names are made up. <a href="/demo/?page=panel">Open it yourself</a>.</figcaption>
+</figure>
+
+<h2>Phones you haven't set up</h2>
+<p>A phone without a key or a beacon is nameless, not invisible. PadSpan counts it as an unknown phone in its room in <b>People in building</b> when at least two proxies hear it, one of them strongly, and its advert is a kind iPhones and Apple Watches send (such as Nearby Info or Handoff) or comes from a wearable such as a Garmin, Fitbit, Polar, Oura or Withings. If someone is home but not placed in a room, PadSpan assumes it's them and says so. These phones get no entities and no names; for that, give them their step above.</p>
+
+<h2>Free, and what Pro adds</h2>
+<p>Everything on this page is free in PadSpan: phone tracking, the key and Companion app setup, the people cards, the Home Assistant entities and the Movement Alerts. PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, so every light and device sits where it really is; Live Aboard, the 3D house; and Locate, Busy Times and Forensics. You can try all of Pro free for 90 days, no card (from 0.38.180, the trial needs the opt-in usage report on).</p>
+
+<h2>When a phone won't show up</h2>
+<ul>
+  <li><b>"The provided IRK does not match any BLE devices that Home Assistant can see."</b> Wake the phone, bring it near a proxy and try again.</li>
+  <li><b>"The key does not look like a valid IRK."</b> Copy the whole key: 32 hex characters, or the base64 text that ends in "=".</li>
+  <li><b>An Android phone disappears after a while.</b> Battery optimisation has usually stopped the Companion app; see step 4 above.</li>
+  <li><b>irk-capture can't get a key from a watch.</b> Its docs say watches that need "reverse" pairing won't work, and some watches, including some Garmins, keep a fixed Bluetooth address and have no IRK. A watch with a fixed address doesn't need one: it can be tracked like a tag.</li>
+  <li><b>A phone keeps jumping between rooms.</b> That's signal noise, not setup: <a href="/guides/room-flapping/">Why does my phone jump between rooms?</a> explains what helps. And if whole rooms never show up, <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></li>
+</ul>
+
+<h2>Sources</h2>
+<ul>
+  <li>The Home Assistant Companion app docs: <a href="https://companion.home-assistant.io/docs/core/sensors#bluetooth-sensors">the BLE Transmitter sensor</a> and <a href="https://companion.home-assistant.io/docs/core/location#ibeacons">iBeacons on iOS</a>.</li>
+  <li>Home Assistant's <a href="https://www.home-assistant.io/integrations/private_ble_device/">Private BLE Device</a> integration, and its setup messages in Home Assistant's code.</li>
+  <li><a href="https://github.com/DerekSeaman/irk-capture">irk-capture</a>'s README (version 1.7.0).</li>
+  <li><a href="https://github.com/agittins/bermuda">Bermuda</a>'s README and <a href="https://github.com/agittins/bermuda/wiki/FAQ">FAQ</a>, and ESPresense's <a href="https://espresense.com/guides/enrolling-devices/">Enrolling devices</a> guide.</li>
+  <li>How often the address changes: Android's <a href="https://source.android.com/docs/compatibility/17/android-17-cdd">compatibility definition</a> (no longer than 15 minutes) and Apple's <a href="https://support.apple.com/guide/security/bluetooth-security-sec82597d97e/web">Bluetooth security</a> page.</li>
+  <li>PadSpan's <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/README.md">README</a> and <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/docs/GETTING_STARTED.md">Getting Started</a> guide, at the 0.38.199 stable.</li>
+</ul>
+<p style="font-size:13px;color:var(--mut)">Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone and Apple Watch are trademarks of Apple Inc.; Android is a trademark of Google LLC. PadSpan isn't affiliated with either.</p>
+</div></footer>
+</body>
+</html>

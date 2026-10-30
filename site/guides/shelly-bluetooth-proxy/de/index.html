@@ -104,13 +104,13 @@ footer p{margin:4px 0}
 
 <h2>Ein Shelly, der nichts hört oder keinen Raum hat</h2>
 <ul>
-  <li><b>Er taucht ohne Raum auf, obwohl der Shelly einen Bereich hat?</b> PadSpan nimmt den Bereich des Shelly-Scanners, eines eigenen Geräts unter <b>Einstellungen → Geräte &amp; Dienste → Bluetooth</b>. Den Bereich des Shellys übernimmt Home Assistant nur beim Start und nur, wenn der Scanner keinen hat. Stell den Bereich des Scanners also dort ein oder starte Home Assistant neu. Ab PadSpan 0.38.176 (vorerst eine Beta) nimmt ein Scanner ohne eigenen Bereich den seines Shellys.</li>
+  <li><b>Er taucht ohne Raum auf, obwohl der Shelly einen Bereich hat?</b> PadSpan nimmt den Bereich des Shelly-Scanners, eines eigenen Geräts unter <b>Einstellungen → Geräte &amp; Dienste → Bluetooth</b>. Den Bereich des Shellys übernimmt Home Assistant nur beim Start und nur, wenn der Scanner keinen hat. Stell den Bereich des Scanners also dort ein oder starte Home Assistant neu. Ab PadSpan 0.38.176 (stabil seit 0.38.199) nimmt ein Scanner ohne eigenen Bereich den seines Shellys.</li>
   <li>Prüf, ob sein <b>Bluetooth-Scanner-Modus</b> nicht auf <b>Deaktiviert</b> steht und ob seine Firmware aktuell ist. Hört er dann immer noch nichts, probier einen anderen Modus, zum Beispiel <b>Passiv</b>.</li>
   <li>Hört er Geräte, aber die Kalibrierung in PadSpan zeigt für ihn keine Signalstärken, öffne in PadSpan <b>Settings → Presence</b>, stell <b>BLE Reseed Interval</b> auf 5 und wähl <b>Save</b>. Das umgeht eine Änderung in Home Assistant 2026.4, durch die wiederholte Messwerte von passiven Scannern zurückgehalten werden. (Das Kästchen <b>BLE Proxy Compatibility</b> unter Manage → HA Entities macht ab 0.38.176 dasselbe; vorher bewirkte es nichts.)</li>
 </ul>
 
 <h2>Handys brauchen einen Schritt mehr</h2>
-<p>Scanner hören Tracker und Beacons sofort. Handys wechseln ihre Bluetooth-Adresse, damit man ihnen nicht folgen kann: iPhones und Apple Watches brauchen ihren Schlüssel (den IRK), Android-Handys den BLE Transmitter der Home-Assistant-Companion-App. Die Details stehen in <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a></p>
+<p>Scanner hören Tracker und Beacons sofort. Handys wechseln ihre Bluetooth-Adresse, damit man ihnen nicht folgen kann: iPhones und Apple Watches brauchen ihren Schlüssel (den IRK), Android-Handys den BLE Transmitter der Home-Assistant-Companion-App. Die Schritte für jedes Gerät stehen in <a href="/guides/phone-room-presence/de/">In welchem Raum ist mein Handy?</a></p>
 
 <h2>Quellen</h2>
 <ul>
