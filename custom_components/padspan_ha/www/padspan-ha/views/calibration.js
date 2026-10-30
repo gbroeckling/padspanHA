@@ -207,6 +207,10 @@ function _floorScaled(ctx, mapId) {
   return !!t[mapId];
 }
 
+// The button opens Mapping's set-up wizard at its scale step for this floor,
+// as the accuracy tip "Measure" does (panel.js _accuracyTipsCard): it works in
+// every mode, where Mapping's Edit tab is not in Basic (maps.js sends it back
+// to Library).
 function _noScaleCard(ctx, el, cs) {
   if (cs._noScaleSeen !== cs.mapId && ctx.actions.telemetryEvent) {
     cs._noScaleSeen = cs.mapId;
@@ -216,17 +220,15 @@ function _noScaleCard(ctx, el, cs) {
     el("div", { style: "font-weight:700;font-size:14px;color:#f59e0b;margin-bottom:6px" }, "This floor needs a measurement first"),
     el("div", { style: "font-size:13px;line-height:1.6;color:#b0c4b1" },
       "A calibration point is a spot on the floor in metres, and this floor plan has no metre scale yet, so a point placed on it can't be saved. " +
-      "Measure one distance you know on it (a wall, a doorway) in Mapping → Edit → Measure, then come back here."),
+      "Measure one distance you know on it (a wall, a doorway), then come back here."),
     el("button", {
       class: "btn", style: "margin-top:10px",
       onclick: () => {
         ctx.state.activeMapId = cs.mapId;
-        ctx.state.maps = ctx.state.maps || {};
-        ctx.state.maps._mode = "measure";
-        ctx.state.maps._openMode = "measure";   // kept when the plan loads into Edit (maps.js)
         ctx.state.view = "maps";
-        if (ctx.actions.setMapsTab) ctx.actions.setMapsTab("edit");
-        else { ctx.state.mapsTab = "edit"; ctx.actions.renderRooms(); }
+        ctx.state._mapsWizard = { step: 2, mapId: cs.mapId };
+        if (ctx.actions.renderNav) ctx.actions.renderNav();
+        ctx.actions.renderRooms();
       },
     }, "Measure this floor →"),
   ]);

@@ -33,7 +33,7 @@ const VIEWS = { maps: {}, calibration: {} };
 const make = new Function("el", "wallScreen", "VIEWS", "_VIEW_PATHS", "_loadView", elSrc + "\nreturn function(){" + method + "};");
 
 function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "scale"], hidden = [], kiosk = false, mode = "live" } = {}){
-  const calls = [], events = [];
+  const calls = [], events = [], toasts = [];
   const p = {
     state: { settings: { accuracy_tips_hidden: hidden }, kioskMode: kiosk, _dataModeKnown: true, dataMode: mode,
              maps: { list: [{ id: "m1" }] }, activeMapId: null, complexity: "basic", _calib: { tab: "beacon" }, view: "overview" },
@@ -41,7 +41,8 @@ function panel({ admin = true, tips = ["floor_heights", "receiver_heights", "sca
     _callWS: async (msg) => { calls.push(msg); return msg.type === "padspan_ha/setup_tips" ? { tips } : { settings: { ...p.state.settings, ...msg } }; },
     _telemetryEvent: (n) => events.push(n),
     _scheduleRender: () => {}, _renderNav: () => {},
-    calls, events,
+    _setComplexity: (m) => { p.state.complexity = m; }, _toast: (t) => toasts.push(t),
+    calls, events, toasts,
   };
   p.card = make((t, a, c) => globalThis.__el(t, a, c), () => wall, VIEWS, {}, async () => {}).bind(p);
   return p;
@@ -100,19 +101,26 @@ const rows = (card) => card ? card.querySelectorAll("[data-accuracy-tips]").map(
 }
 // Each fix goes to its place.
 {
-  const go = async (tip) => {
+  const go = async (tip, complexity) => {
     const p = panel({ tips: [tip] });
+    if (complexity) p.state.complexity = complexity;
     p.card(); await tick(); await tick();
     const card = p.card();
     card.querySelector(`[data-accuracy-tips="tip-${tip}"]`).querySelector("button").click();
     return p;
   };
   const f = await go("floor_heights"), r = await go("receiver_heights"), s = await go("scale");
-  check("fix: floor heights → Maps 3D Stack, receiver heights → Calibration Tune (still in Basic mode), scale → the map wizard's Measure step",
+  const fa = await go("floor_heights", "advanced");
+  check("fix: floor heights from Advanced: no switch, no toast",
+    fa.state.view === "maps" && fa.state.mapsTab === "stack" && fa.state.complexity === "advanced" && fa.toasts.length === 0,
+    { fa: [fa.state.view, fa.state.mapsTab, fa.state.complexity, fa.toasts] });
+  // Basic's Mapping has no 3D Stack (maps.js sends it to Library): floor heights switches to Advanced and says so.
+  check("fix: floor heights → Maps 3D Stack (Basic switched to Advanced, with a toast), receiver heights → Calibration Tune (still in Basic mode), scale → the map wizard's Measure step",
     f.state.view === "maps" && f.state.mapsTab === "stack" && f.events.includes("tip_opened:floor_heights")
+    && f.state.complexity === "advanced" && f.toasts.length === 1 && /switched to Advanced/.test(f.toasts[0])
     && r.state.view === "calibration" && r.state._calib.tab === "tune" && r.state.complexity === "basic" && r.events.includes("tip_opened:receiver_heights")
     && s.state.view === "maps" && s.state._mapsWizard && s.state._mapsWizard.step === 2 && s.state._mapsWizard.mapId === "m1" && s.events.includes("tip_opened:scale"),
-    { f: [f.state.view, f.state.mapsTab], r: [r.state.view, r.state._calib.tab, r.state.complexity], s: [s.state.view, s.state._mapsWizard] });
+    { f: [f.state.view, f.state.mapsTab, f.state.complexity, f.toasts], r: [r.state.view, r.state._calib.tab, r.state.complexity], s: [s.state.view, s.state._mapsWizard] });
 }
 
 console.log(JSON.stringify({ cases, failures }));

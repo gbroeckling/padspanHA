@@ -212,7 +212,8 @@
 /* The status dot (panel.js _paintStatusDot, views/status_dot.js): nothing
    when all is well; red = broken, a round mark; amber = needs attention, a
    triangle. Shape and count as well as colour; the words are its tooltip.
-   On ?kiosk=1 (no top bars) red only, in the top-right corner. */
+   On ?kiosk=1 (no top bars) red only, in the bottom-right corner: kiosk
+   drops the page padding, so the top right is the Overview header's Quiet tick. */
 .status-dot{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px 0 4px;
   margin:0 6px 6px 0;border-radius:999px;border:1px solid #2d4a38;font-size:11px;font-weight:700;line-height:1;cursor:pointer;flex-shrink:0}
 .status-dot.hidden{display:none}
@@ -225,9 +226,10 @@
 /* Day: the amber count darkened past what day_theme.js's text rule gives (#bf9303, 2.3:1) to 5.8:1. */
 :host([data-theme="day"]) .status-dot-amber{color:#92400e}
 .mobile-topbar .status-dot{margin:0;height:26px}
-.status-dot.status-dot-wall{position:fixed;top:12px;right:12px;z-index:42;margin:0;cursor:default;height:auto;
+.status-dot.status-dot-wall{position:fixed;bottom:calc(12px + env(safe-area-inset-bottom,0px));right:12px;z-index:42;margin:0;cursor:default;height:auto;
   padding:.35em .8em .35em .4em;gap:.4em;font-size:clamp(14px,.9vw,28px);background:rgba(40,10,10,.92)}
 .status-dot-wall .status-dot-mark{width:1.3em;height:1.3em;font-size:.8em}
+.status-dot-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 .card.warn{border-color:rgba(245,158,11,.6)}
 .bt-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .bt-viz{width:100%;height:auto;border:1px solid var(--line);border-radius:14px;background:rgba(10,21,14,.45)}

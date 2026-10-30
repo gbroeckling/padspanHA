@@ -11,5 +11,4 @@
   - Mapping → Edit: RF Barriers → Signal walls
   - Atlas: Isolux → Light spread
   - Overview: Live EMA sources → Live signal sources; the Distortion buttons on the Overview and floor plans → Signal distortion
-  - Settings keeps its current names for now; they change in a later release
 - **Two error messages point to the right place.** A failed data-mode switch now says the details are in the browser console, and failed auto diagnostics point to Monitor → Export for support.

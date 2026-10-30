@@ -78,6 +78,23 @@ def test_it_sits_in_both_top_bars_and_a_wall_corner() -> None:
     # Kiosk hides the top bars: the corner shows there, the bars' dots elsewhere.
     assert 'const show = !!view && (wallHost ? kiosk : !kiosk);' in js
     assert "const wall = kiosk || (wallScreen(false) && untouchedFor(120000));" in js
+    # The corner is the bottom right: kiosk drops the page padding, and the top
+    # right is the Overview header's Quiet tick. Its words are text a screen
+    # reader reads (role="status" is read by its content, not a label).
+    css = _read(_WWW / "styles.css")
+    wall_rule = css[css.index(".status-dot.status-dot-wall{"):][:300]
+    assert "bottom:calc(12px + env(safe-area-inset-bottom,0px));right:12px;" in wall_rule and "top:" not in wall_rule
+    assert ".status-dot-sr{position:absolute;width:1px;height:1px;" in css
+    assert 'if (wallHost) b.appendChild(el("span", { class: "status-dot-sr" }, view.label));' in js
+
+
+def test_masked_receivers_and_the_warm_up_are_passed_in() -> None:
+    js = _read(_WWW / "panel.js")
+    body = js.split("  _updateStatusDot(failed){", 1)[1].split("\n  }\n", 1)[0]
+    assert "s.excluded_scanners" in body and "s.lost_radios" in body and "s.disabled_radios" in body
+    assert "excluded, warmup: now < this._statusDotWarmUntil," in body
+    assert "(!failed && this._statusDotLastFailed)" in body
+    assert "maps:" not in body
 
 
 def test_it_is_labelled_and_not_colour_only() -> None:

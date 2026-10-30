@@ -778,7 +778,7 @@ class PadSpanHaApp extends HTMLElement {
               <button class="btn inline" id="complexityToggle" title="Cycle between Basic, Advanced, and Development modes">Advanced</button>
             </span>
           </div>
-          <!-- ?kiosk=1 hides both top bars: there, red only, in a corner. -->
+          <!-- ?kiosk=1 hides both top bars: there, red only, in the bottom corner (the top right is the Overview's Quiet tick). -->
           <div class="status-dot status-dot-wall hidden" role="status" data-status-dot="wall"></div>
           <div id="toast" class="toast hidden"></div>
           <div id="staleBuild" class="stale-build hidden"></div>
@@ -1186,6 +1186,12 @@ class PadSpanHaApp extends HTMLElement {
         this.state.view = "maps";
         this.state._mapsWizard = { step: 2, mapId: id };
       } else if (t === "floor_heights") {
+        // Floor Heights is on Mapping's 3D Stack, which Basic doesn't have
+        // (maps.js sends it back to Library): switch and say so, as Open does.
+        if (this.state.complexity === "basic") {
+          this._setComplexity("advanced");
+          this._toast("Floor heights are in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
+        }
         this.state.view = "maps";
         this.state.mapsTab = "stack";
       } else {
@@ -1265,17 +1271,14 @@ class PadSpanHaApp extends HTMLElement {
     });
   }
 
-  // Settings → Presence, where the report switch and the tester sign-up are;
+  // Settings → Tracking, where the report switch and the tester sign-up are;
   // the sign-up opens itself there (tester_signup.js, state._testerFocus).
-  // Basic mode has no Presence tab: promote to Advanced.
+  // In Basic too: a link's Tracking tab opens in any mode (settings.js).
   _openTesterSignup(){
-    if (this.state.complexity === "basic") {
-      this.state.complexity = "advanced";
-      try { localStorage.setItem("padspan_complexity", "advanced"); } catch(e) {}
-    }
     this.state._testerScrolled = null;
     this.state.view = "settings";
     this.state._settingsTab = "presence";
+    this.state._settingsDeep = "presence";
     this.state._testerFocus = true;
     this._renderNav();
     if (!VIEWS.settings && _VIEW_PATHS.settings) _loadView("settings").then(() => this._scheduleRender());
@@ -2726,10 +2729,19 @@ class PadSpanHaApp extends HTMLElement {
    *  wrong, through the persistence rule. `failed`: the poll got no answer. */
   _updateStatusDot(failed){
     if (!STATUS_DOT) return;
+    // Warm-up: from the first poll, and again whenever PadSpan answers after
+    // not answering (Home Assistant restarting), receivers get two minutes to
+    // report in before "no receivers reporting" can count.
+    const now = Date.now();
+    if (!this._statusDotWarmUntil || (!failed && this._statusDotLastFailed)) this._statusDotWarmUntil = now + STATUS_DOT.WARMUP_MS;
+    this._statusDotLastFailed = !!failed;
+    const s = this.state.settings || {};
+    const excluded = [...(Array.isArray(s.excluded_scanners) ? s.excluded_scanners : []),
+      ...Object.keys(s.lost_radios || {}), ...Object.keys(s.disabled_radios || {})];
     const issues = STATUS_DOT.statusIssues({
       live: this.state.dataMode === "live", failed,
       snapshot: this.state.live && this.state.live.snapshot,
-      maps: this.state.maps && this.state.maps.list,
+      excluded, warmup: now < this._statusDotWarmUntil,
     });
     this._statusDotTrack = this._statusDotTrack || new Map();
     this._statusDotActive = STATUS_DOT.trackIssues(this._statusDotTrack, issues);
@@ -2766,6 +2778,9 @@ class PadSpanHaApp extends HTMLElement {
       b.appendChild(el("span", { class: "status-dot-mark", "aria-hidden": "true" }, "!"));
       b.appendChild(el("span", { class: "status-dot-n", "aria-hidden": "true" },
         wallHost ? (view.count === 1 ? "1 problem" : view.count + " problems") : String(view.count)));
+      // The wall's role="status" box is read out by its text, not a label:
+      // the words, there for a screen reader only.
+      if (wallHost) b.appendChild(el("span", { class: "status-dot-sr" }, view.label));
     }
   }
 
@@ -2989,6 +3004,9 @@ class PadSpanHaApp extends HTMLElement {
         if (this.state._calibTune) this.state._calibTune._confirming = false;
         if (this.state._calibBeacon) this.state._calibBeacon._confirming = false;
       }
+      // A link's Settings → Tracking in Basic (settings.js _settingsDeep):
+      // the menu's Settings is Appearance again.
+      this.state._settingsDeep = null;
       this.state.view = id;
       this._logEvent("view_change", id);
       // Opt-in usage report: count the tab open.

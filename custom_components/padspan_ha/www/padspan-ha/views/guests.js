@@ -94,7 +94,7 @@ function _draw(ctx, el, content, data) {
   if (!data.enabled) {
     content.appendChild(_card(el, "Guest tags are off", [
       el("div", { class: "muted", style: "font-size:13px;margin-bottom:10px" }, "Turn them on in Settings → Tracking → Guest tags."),
-      el("button", { class: "btn", onclick: () => { ctx.state.view = "settings"; ctx.state._settingsTab = "presence"; ctx.state._presenceReveal = "phones"; ctx.actions.renderRooms(); } }, "Open Settings"),
+      el("button", { class: "btn", onclick: () => { ctx.state.view = "settings"; ctx.state._settingsTab = "presence"; ctx.state._presenceReveal = "phones"; ctx.state._settingsDeep = "presence"; ctx.actions.renderRooms(); } }, "Open Settings"),
     ]));
     return;
   }

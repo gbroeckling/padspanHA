@@ -1,6 +1,6 @@
 // The top bar's status dot (views/status_dot.js), run for real:
 //   issues   statusIssues — what counts as red, amber and nothing
-//   persist  trackIssues — shown after 2 polls in a row, gone after 2 without
+//   persist  trackIssues — shown after 2 polls in a row (red: 3), gone after 2 without
 //   view     dotView — the level, the count, the words; a wall shows red only
 //
 // usage: status_dot.mjs <www/padspan-ha dir>
@@ -20,7 +20,7 @@ const check = (name, ok, detail) => { cases[name] = !!ok; if (!ok) failures.push
 const R = (source, last_heard_s, extra = {}) => ({ source, name: source.toUpperCase() + " proxy", last_heard_s, ...extra });
 const snap = (radios, extra = {}) => ({ ble: { radios }, ...extra });
 const ids = (list) => list.map(i => i.level + ":" + i.id).join(",");
-const issues = (o) => D.statusIssues({ live: true, failed: false, maps: [], ...o });
+const issues = (o) => D.statusIssues({ live: true, failed: false, ...o });
 
 // ── issues ──
 const fine = snap([R("aa", 3), R("bb", 40)]);
@@ -47,13 +47,19 @@ check("not heard yet (null) is not silent", issues({ snapshot: snap([R("aa", nul
   check("hearing less than usual: amber", ids(got) === "amber:hearing_less" && got[0].text.startsWith("1 receiver is hearing"), got);
 }
 {
-  const maps = [{ receivers: [{ source: "AA" }, { label: "bb PROXY" }, { label: "Old one" }, { source: "zz", label: "Gone" }] }, { receivers: [] }];
-  const got = issues({ snapshot: fine, maps });
-  check("floor-plan receivers no live radio matches: amber, counted", ids(got) === "amber:map_receivers_missing"
-    && got[0].text === "2 receivers on your floor plans don't match any live receiver", got);
-  check("matched by source or name, any case", D.missingReceivers(maps.slice(0, 1), fine.ble.radios) === 2);
-  check("an older HA with no sources: no map check", D.missingReceivers(maps, [{ source: "", name: "Scanners active: 3" }]) === 0);
-  check("no radios: the map check isn't added to the red", ids(issues({ snapshot: snap([]), maps })) === "red:no_receivers");
+  // Only receivers in use count: lost, disabled or excluded ones are left out.
+  const lost = snap([R("aa", 2), R("bb", 5000, { lost: true }), R("cc", 5000, { disabled: true }), R("dd", 5000)]);
+  check("a lost or disabled receiver never keeps the dot amber", ids(issues({ snapshot: lost, excluded: ["dd"] })) === "", ids(issues({ snapshot: lost, excluded: ["dd"] })));
+  check("an excluded receiver is left out too", ids(issues({ snapshot: lost })) === "amber:receivers_silent");
+  const onlyLost = snap([R("bb", 5000, { lost: true })]);
+  check("the only receiver listed is marked lost: no red silence", ids(issues({ snapshot: onlyLost })) === "red:no_receivers");
+  check("...that's no receivers in use, which is red only after the warm-up", ids(issues({ snapshot: onlyLost, warmup: true })) === "");
+  check("warm-up keeps no-receivers quiet, not the rest", ids(issues({ snapshot: snap([], { positioning_failed: true }), warmup: true })) === "red:positioning_failed");
+  // The Bluetooth screen's "scanning" / "listening" are never silent here.
+  check("scanning: not silent", issues({ snapshot: snap([R("aa", 5000, { scanning: true }), R("bb", 2)]) }).length === 0);
+  const withAds = { ble: { radios: [R("aa", 5000), R("bb", 2)], advertisements: [{ source: "aa" }] } };
+  check("advertisements from it in this snapshot: not silent", issues({ snapshot: withAds }).length === 0);
+  check("no floor-plan check any more", D.missingReceivers === undefined);
 }
 check("learning suspended: amber", ids(issues({ snapshot: snap([R("aa", 1)], { suspended: true }) })) === "amber:learning_suspended");
 check("positioning failed: red", ids(issues({ snapshot: snap([R("aa", 1)], { positioning_failed: true }) })) === "red:positioning_failed");
@@ -64,11 +70,15 @@ check("only a true flag counts", issues({ snapshot: snap([R("aa", 1)], { positio
   const t = new Map();
   const red = [{ id: "no_receivers", level: "red", text: "x" }];
   check("one poll: not yet", D.trackIssues(t, red).length === 0);
-  check("two polls in a row: shown", D.trackIssues(t, red).length === 1);
+  check("red, two polls: not yet", D.trackIssues(t, red).length === 0);
+  check("red, three polls in a row: shown", D.trackIssues(t, red).length === 1);
   check("one poll without: still shown", D.trackIssues(t, []).length === 1);
   check("back again: still shown", D.trackIssues(t, red).length === 1);
   D.trackIssues(t, []);
   check("two polls without: gone", D.trackIssues(t, []).length === 0 && t.size === 0);
+  const am = new Map(), amber = [{ id: "learning_suspended", level: "amber", text: "x" }];
+  D.trackIssues(am, amber);
+  check("amber, two polls in a row: shown", D.trackIssues(am, amber).length === 1);
   const blink = new Map();
   let ever = false;
   for (let i = 0; i < 10; i++) ever = ever || D.trackIssues(blink, i % 2 ? [] : red).length > 0;
@@ -79,7 +89,7 @@ check("only a true flag counts", issues({ snapshot: snap([R("aa", 1)], { positio
   check("the count changing is the same issue, newest words", w.length === 1 && w[0].text === "2 receivers", w);
   const mix = new Map();
   const both = [{ id: "a", level: "amber", text: "a" }, { id: "r", level: "red", text: "r" }];
-  D.trackIssues(mix, both);
+  D.trackIssues(mix, both); D.trackIssues(mix, both);
   check("worst first", ids(D.trackIssues(mix, both)) === "red:r,amber:a");
 }
 

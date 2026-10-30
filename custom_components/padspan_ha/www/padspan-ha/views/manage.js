@@ -932,6 +932,7 @@ function _haBleReseedSection(ctx, el, settings){
   go.addEventListener("click", ()=>{
     ctx.state.view = "settings";
     ctx.state._settingsTab = "presence";
+    ctx.state._settingsDeep = "presence";   // Basic too (settings.js)
     ctx.state._presenceReveal = "receivers";
     if (ctx.actions.renderNav) ctx.actions.renderNav();
     ctx.actions.renderRooms();

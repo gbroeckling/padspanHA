@@ -44,9 +44,11 @@ def test_opening_calibration_never_switches_basic_to_advanced() -> None:
     gs = src[src.index("if (s.wizardStep) {"):]
     gs = gs[:gs.index("this.state.view = s.view;")]
     assert 'complexity = "advanced"' not in gs
-    # The tester sign-up still promotes: Basic has no Presence tab.
+    # Nor does the tester sign-up: its Settings -> Tracking opens in Basic too.
     signup = src[src.index("  _openTesterSignup(){"):]
-    assert 'this.state.complexity = "advanced"' in signup[:400]
+    signup = signup[:signup.index("\n  }\n")]
+    assert 'this.state._settingsDeep = "presence";' in signup
+    assert "complexity" not in signup
     # Mapping's set-up wizard ends with "Go to Calibration": no switch either.
     maps = _read("views/maps.js")
     fin = maps[maps.index("function _wizardFinish("):maps.index("function _wizard(ctx")]

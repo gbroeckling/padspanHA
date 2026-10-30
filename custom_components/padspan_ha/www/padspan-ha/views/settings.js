@@ -54,9 +54,28 @@ export function render(ctx){
   const haFloors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
   const haAreas  = (ctx.state.model && Array.isArray(ctx.state.model.areas))  ? ctx.state.model.areas  : [];
 
-  // Basic mode: no tabs, just appearance
+  // Basic mode: no tabs, just appearance. A link that opens Settings → Tracking
+  // (state._settingsDeep = "presence": Manage, Guests, the tester sign-up, the
+  // line below) opens it in Basic too, with a way back; leaving Settings by
+  // the menu forgets it (panel.js).
   if(isBasic){
+    if(ctx.state._settingsDeep === "presence"){
+      root.appendChild(el("div",{style:"display:flex;align-items:center;gap:10px;margin-bottom:12px"},[
+        el("button",{class:"btn inline","data-settings-back":"appearance",onclick:()=>{
+          ctx.state._settingsDeep = null; ctx.state._settingsTab = "appearance"; ctx.actions.renderRooms();
+        }},"← Appearance"),
+        el("div",{style:"font-weight:700"},"Settings → Tracking"),
+      ]));
+      root.appendChild(_settingsPresence(ctx, el));
+      return root;
+    }
     root.appendChild(_settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomColor, true));
+    root.appendChild(el("div",{class:"card",style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px"},[
+      el("span",{class:"muted"},"The usage report, guest tags and receiver settings are under Tracking."),
+      el("button",{class:"btn inline","data-settings-open":"presence",onclick:()=>{
+        ctx.state._settingsDeep = "presence"; ctx.state._settingsTab = "presence"; ctx.actions.renderRooms();
+      }},"Open Tracking →"),
+    ]));
     return root;
   }
 
