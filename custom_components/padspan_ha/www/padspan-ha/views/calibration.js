@@ -1313,7 +1313,6 @@ function _startCollection(ctx, cs, _snap, _mapData) {
     try { await ctx.actions.refreshSnapshot(); } catch (_) { /**/ }
     if (gone()) return;
     cs._pollCount = (cs._pollCount || 0) + 1;
-
     const snap = _recordableSnap(ctx);
 
     // ── Collect per-radio RSSI from BLE advertisements (primary source) ──────
