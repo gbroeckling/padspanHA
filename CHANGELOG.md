@@ -4,6 +4,26 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.201 — The Atlas redraws only what changed; Stopping a calibration capture early; Vacation Mode: evening lights, a limit on lights at once, and a preview (2026-10-30)
+
+### New
+- **Evening lights.** In Vacation Mode's Options you can tick up to 10 lights, like a porch or hall light, to stay on from dark until your bedtime (about 11 pm if no bedtime is set, give or take 20 minutes each night). Dark follows the after-dark offset and needs Home Assistant's sun times. If one is turned off during the evening, it comes back on within 5 minutes, like the routine's lights. After bedtime they follow the routine again, and one you turn on by hand then is left alone.
+- **Most lights on at once.** An option to cap how many lights the routine has on at the same time. Lights it already has on stay on, and the others wait their turn. Evening lights and lights turned on by hand don't count, and the cap never turns those off.
+- **Preview.** "Show the next 24 hours" in Vacation Mode's Options lists which lights it would turn on and when, using your current options. It works before you turn Vacation Mode on, and it doesn't switch or save anything.
+- All three are off until you set them, and Vacation Mode works exactly as before until then. `binary_sensor.padspan_vacation_mode` now also shows `max_lights_at_once` and `anchor_lights`.
+
+### Changed
+- **The sidebar Atlas no longer redraws the whole map every 5 seconds.** Each update now keeps the floors, rooms, walls and labels it already drew and replaces only the parts that changed: a light switched, motion, a new reading. Switching floors, changing the spacing or zoom, a setting, or a new map still redraws it whole. The drawing is the same as a full redraw would make. It does a little less work on every update, which helps most on a large wall screen. The fading rings around recent motion now keep pulsing smoothly instead of starting over at every update.
+
+### Fixed
+- **Stop & Discard during a calibration capture no longer causes a hidden error.** Pressing it while PadSpan was fetching the next reading let the capture carry on into readings it had just thrown away. A Stop then a quick Start could also leave the old capture running alongside the new one, doubling its samples. Pin & Listen, Roam and Guided calibration all share this fix.
+
+### Opt-in report
+- The Vacation Mode section says yes or no for whether the light cap and evening lights are set. It never includes which lights.
+- New counts: the cap holding a light off (once a day), an evening light turned on (once a day), and the preview opened, counted separately when it had nothing to show.
+
+---
+
 ## 0.38.200 — Fewer warnings in the Home Assistant log (2026-10-29)
 
 ### Fixed

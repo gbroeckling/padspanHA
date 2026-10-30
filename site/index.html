@@ -184,6 +184,26 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.201</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">30 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Evening lights.</b> In Vacation Mode's Options you can tick up to 10 lights, like a porch or hall light, to stay on from dark until your bedtime (about 11 pm if no bedtime is set, give or take 20 minutes each night). Dark follows the after-dark offset and needs Home Assistant's sun times. If one is turned off during the evening, it comes back on within 5 minutes, like the routine's lights. After bedtime they follow the routine again, and one you turn on by hand then is left alone.</li>
+          <li><b>Most lights on at once.</b> An option to cap how many lights the routine has on at the same time. Lights it already has on stay on, and the others wait their turn. Evening lights and lights turned on by hand don't count, and the cap never turns those off.</li>
+          <li><b>Preview.</b> "Show the next 24 hours" in Vacation Mode's Options lists which lights it would turn on and when, using your current options. It works before you turn Vacation Mode on, and it doesn't switch or save anything.</li>
+          <li>All three are off until you set them, and Vacation Mode works exactly as before until then. <code>binary_sensor.padspan_vacation_mode</code> now also shows <code>max_lights_at_once</code> and <code>anchor_lights</code>.</li>
+          <li><b>The sidebar Atlas no longer redraws the whole map every 5 seconds.</b> Each update now keeps the floors, rooms, walls and labels it already drew and replaces only the parts that changed: a light switched, motion, a new reading. Switching floors, changing the spacing or zoom, a setting, or a new map still redraws it whole. The drawing is the same as a full redraw would make. It does a little less work on every update, which helps most on a large wall screen. The fading rings around recent motion now keep pulsing smoothly instead of starting over at every update.</li>
+          <li><b>Stop &amp; Discard during a calibration capture no longer causes a hidden error.</b> Pressing it while PadSpan was fetching the next reading let the capture carry on into readings it had just thrown away. A Stop then a quick Start could also leave the old capture running alongside the new one, doubling its samples. Pin &amp; Listen, Roam and Guided calibration all share this fix.</li>
+          <li>The Vacation Mode section says yes or no for whether the light cap and evening lights are set. It never includes which lights.</li>
+          <li>New counts: the cap holding a light off (once a day), an evening light turned on (once a day), and the preview opened, counted separately when it had nothing to show.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.200</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">29 October 2026</span>
