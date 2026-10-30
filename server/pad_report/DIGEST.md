@@ -12,10 +12,11 @@ their sessions; it opens nothing here).
 | `503 {"ok":false,"error":"not ready"}` | the model file doesn't exist yet |
 
 The model is rebuilt **every 5 minutes** by a root cron on bcmail, under a lock
-(`flock -n /var/lib/pad-digest/.digest.lock … /usr/local/lib/pad-digest/pad_digest.py` →
-`/var/lib/pad-digest/model.json`, root:www-data 0640). Nothing is written under the site's `private/`
-(www-data's). The page should show `generated` and treat a model older than `stale_after_s` as stale
-("data is N min old").
+(`umask 077; flock -n /var/lib/pad-digest/.digest.lock … /usr/local/lib/pad-digest/pad_digest.py` →
+`/var/lib/pad-digest/model.json`, root:www-data 0640; the lock files are root 0600, so www-data can't
+hold them). Nothing is written under the site's `private/` (www-data's). The page treats a model older
+than `stale_after_s` as stale: a "Data is N min old" banner, the status pill and tiles greyed out, no
+"All normal" anywhere, and it checks again every 60 s.
 
 **Fail closed.** If any source can't be read (the pings log, the reports, the licence database, the
 site logs, the releases cache, the markers), the run stops and logs why to syslog, and the last good model
@@ -60,7 +61,7 @@ New fields are marked **NEW**.
 | `series`, `series_all` | Day[] | homes per day: last 45 days / since the log began |
 | `markers` | object | chart markers (stables, campaign ranges, content) |
 | `ba` | object | before/after verdict for the latest push |
-| `ns` | object | north star numbers |
+| `ns` | object | north star numbers: `yday`, `typ` (the tile's typical), `sig` (before/after noise), `goal` |
 | `small` | object | small multiples, same days as `series_all` |
 | `funnel` | Step[5] | last 15 days |
 | `sources`, `src_days` | — | page views by people by source; days covered |
@@ -74,18 +75,28 @@ New fields are marked **NEW**.
 | `archive` | object | **NEW** longer history from the daily archive |
 
 ## Tile
-`{label, value:int, unit:str, cmp:str, delta:number|null, state, spark:int[]|null, sub:str|null, help:str}` —
-`state` ∈ `normal | above | below | good | bad | watch | info`. `above/below` = beyond 3σ of the
-typical (median of the previous 7 days; noise from the data's own spread, MAD × 1.4826).
-`sub` = an optional second line under the unit (e.g. `demo 41 · guides 63`).
+`{label, value:int, unit:str, cmp:str, delta:number|null, state, spark:int[]|null, sub:str|null,
+better:"up"|"down"|null, help:str}` — `state` ∈ `normal | above | below | good | bad | watch | info`.
+`sub` = an optional second line under the unit (e.g. `demo 41 · guides 63`). `better` = which way is good,
+for the status colour: the page shows **↑ above normal** / **↓ below normal**, blue when the count moved
+the good way and orange when it moved the bad way (`up` for homes, site visits and keys; `down` for lag).
+
+**Normal range for a count** (homes, site visits, keys, lag homes; also each day of `series`): the
+natural limits of the 7 days before it (whole days for the site), XmR with the median moving range.
+`typical` = the mean of those days; the range = typical ± 3.145 × the median moving range, **never wider
+than the c-chart's** typical ± 3√typical (NIST), and the c-chart alone when fewer than 3 moving ranges
+are left or their median is 0. Special causes, days outside the limits around the median, are left out
+and the limits recomputed (at least 2 days are kept), so one spike such as an outreach day can't widen
+the band. `above/below` = outside the range. `cmp` = `typical N` (rounded half up), `delta` = value − N.
 Order: Homes checking in (yesterday) · **Site visits yesterday** · On `<latest>` · New or regressed
 issues (3 days) · Opt-in homes with lag over 1 s (yesterday) · Keys issued (yesterday).
 
 **Site visits yesterday**: people (not bots; not Garry's own installs' addresses, `pings_skip_ips`, nor
 our own, `own_ips` in `/etc/pad-digest.json`) who loaded the demo or a guide on yesterday's BC day.
-`cmp` = `typical N` (median of the 7 whole days before), `state` from the 3σ band (σ = max(MAD × 1.4826,
-√typical)), `sub` = `demo N · guides N`, `spark` = the last 14 whole days. If the logs don't hold
-yesterday whole, `value` is 0, `delta` null, `state` `info` and `cmp` says so.
+`cmp` = `typical N` and `state` from the normal range of the 7 whole days before (above), `sub` =
+`demo N · guides N`, `spark` = the last 14 whole days. If the logs don't hold yesterday whole, `value` is 0,
+`delta` null, `state` `info` and `cmp` says so. **Keys issued**: `cmp` = `typical N` from the 7 days
+before, `sub` = `N paid`.
 
 ## Attention (NEW)
 ```
@@ -94,7 +105,7 @@ yesterday whole, `value` is 0, `delta` null, `state` `info` and `cmp` says so.
 ```
 - `kind` ∈ `issue` (new/regressed error, log warning or 3D fallback) · `regression` (latest-vs-previous
   significant, from `health_same_age`, else 7-day `watch`) · `setup` (`setup_fail.over`) ·
-  `growth` (yesterday's homes below the 3σ band).
+  `growth` (yesterday's homes below their normal range).
 - An item first listed more than **7 days** ago is dropped unless `growing` (homes affected rose vs
   the 3 days before). First-seen dates persist in `/var/lib/pad-digest/attention-state.json` (root only, 0600).
 - Sorted: regression, issue, setup, growth; then by `homes` desc.
@@ -154,10 +165,12 @@ Show counts, not just %, when `of` < 30.
 
 ## ba (as mockup)
 `{push, after_days, after, before, sig, diff, band, verdict}` — means of homes/day, 14 days before vs up
-to 14 after `push`; `band` = 3σ for those window sizes; `verdict` ∈ `too early | lift | drop | no detectable change`.
+to 14 after `push`; `sig` = day-to-day noise (MAD × 1.4826 of the last 28 days' residuals from the 7-day
+average, at least 2; also `ns.sig`); `band` = 3σ for those window sizes; `verdict` ∈ `too early | lift | drop | no detectable change`.
 
 ## Day (series)
-`{d, v, avg, lo, hi}` — `v` homes that day, `avg` 7-day average, `lo/hi` the 3σ noise band.
+`{d, v, avg, lo, hi}` — `v` homes that day, `avg` the 7-day average (the line), `lo/hi` that day's normal
+range from the 7 days before it (as for tiles; with no day before it, its own value ± 3√value).
 
 ## small
 `new|stars:[{d, v}]`, `keys:[{d, v, paid}]`, `site:[{d, v|null}]` — `site` is null for a day the logs
@@ -179,7 +192,8 @@ whole). Visitors and homes aren't linked: label site→install as a ratio.
 ## digest / feed (as mockup)
 `digest = {Releases:[str], Problems:[str], Growth:[str], Money:[str], Marketing:[str]}` — yesterday's
 numbers, events, and out-of-band values only; never a partial-day count. Growth: homes yesterday against
-typical, new opt-in installs and stars yesterday. Marketing: yesterday's and today's pieces and sends, and
-site visits yesterday only when above or below normal. The page adds "Everything else is within its normal
+typical, with ↑ above normal / ↓ below normal / normal, new opt-in installs and stars yesterday. Money: keys
+yesterday, with the typical only when outside the normal range. Marketing: yesterday's and today's pieces
+and sends, and site visits yesterday only when above or below normal. The page adds "Everything else is within its normal
 range."
 `feed = [{t:"Oct 30 09:12" | "Oct 30", kind, text}]`, kind ∈ Release · Marketing · Email · Keys · Installs.

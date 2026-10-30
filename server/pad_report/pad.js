@@ -74,14 +74,30 @@ function attentionItems() {
     why: `${x.homes7} home${x.homes7 === 1 ? "" : "s"} in 7 days, first seen ${fmtDay(x.first)}.` });
   return items;
 }
+// ── stale numbers: never "All normal" from a model the 5-minute build hasn't renewed ──────────
+const ageS = () => (M && M.generated_iso ? (Date.now() - Date.parse(M.generated_iso)) / 1000 : 0);
+const isStale = () => !!(M && M.stale_after_s && ageS() > M.stale_after_s);
+const oldMin = () => Math.round(ageS() / 60);
+function renderStale() {
+  const stale = isStale();
+  let b = $("#stale");
+  if (!b) { b = el("div", { class: "err", id: "stale", role: "status" }); $("#loaderr").after(b); }
+  b.hidden = !stale;
+  if (stale) b.replaceChildren(el("b", {}, `Data is ${oldMin()} min old. `), document.createTextNode(`These numbers were built ${M.generated || "earlier"}, and the build that runs every 5 minutes hasn't renewed them since, so nothing here is current. The page checks again every minute.`));
+  $("#tiles").classList.toggle("stale", stale);
+  $("#status").classList.toggle("stale", stale);
+  renderStatus();
+}
 function renderStatus() {
   const n = attentionItems().length, st = $("#status");
+  if (isStale()) { st.querySelector(".dot").style.background = css("--muted"); st.querySelector("span:last-child").textContent = `Data is ${oldMin()} min old`; return; }
   st.querySelector(".dot").style.background = n ? css("--serious") : css("--good");
   st.querySelector("span:last-child").textContent = n ? `${n} worth a look` : "All normal";
 }
 function renderAttention() {
   const box = $("#attention"); box.replaceChildren();
   const items = attentionItems();
+  if (!items.length && isStale()) { const d = el("div", { class: "allok stale" }); d.append(el("span", {}, `Not checked for ${oldMin()} min`), el("span", {}, "The numbers are out of date, so this can't say all is normal.")); box.append(d); return; }
   if (!items.length) { const d = el("div", { class: "allok" }); d.append(el("span", { class: "ok" }, "✓ All normal"), el("span", {}, "Nothing new, back or out of its normal range.")); box.append(d); return; }
   const c = el("div", { class: "card attn" }); c.append(el("h3", {}, "Needs attention"));
   c.append(el("p", { class: "cap" }, "Only what's new, back, or outside its normal range. Each item drops off after 7 days unless it grows."));
@@ -108,10 +124,12 @@ function renderTiles() {
     d.append(el("div", { class: "lab" }, t.label), el("div", { class: "val" }, fmtN(t.value)), el("div", { class: "unit" }, t.unit));
     if (t.sub) d.append(el("div", { class: "unit" }, t.sub));
     const c = el("div", { class: "cmp" });
-    const word = { normal: "normal", above: "above normal", below: "below normal", good: "✓ none", bad: "needs you", watch: "▲ worth a look", info: "" }[t.state] || "";
+    const word = { normal: "normal", above: "↑ above normal", below: "↓ below normal", good: "✓ none", bad: "needs you", watch: "▲ worth a look", info: "" }[t.state] || "";
+    // blue when the count moved the good way, orange when it moved the bad way (t.better: "up" or "down")
+    const shift = (t.state === "above" || t.state === "below") && t.better ? ((t.state === "above") === (t.better === "up") ? " shift-good" : " shift-bad") : "";
     if (t.delta != null) { const sign = t.delta > 0 ? "+" : t.delta < 0 ? "−" : "±"; c.append(el("span", {}, `${sign}${fmtN(Math.abs(t.delta))} vs ${t.cmp}`)); }
     else c.append(el("span", {}, t.cmp));
-    if (word) c.append(el("span", { class: "st " + t.state }, word));
+    if (word) c.append(el("span", { class: "st " + t.state + shift }, word));
     d.append(c);
     if (t.spark && t.spark.length > 1) d.append(sparkline(t.spark));
     box.append(d);
@@ -284,7 +302,7 @@ function renderDigest() {
   const box = $("#digest"); box.replaceChildren();
   for (const [k, lines] of Object.entries(M.digest || {})) { if (!lines || !lines.length) continue;
     const g = el("div", { class: "grp" }); g.append(el("div", { class: "k" }, k)); const body = el("div"); lines.forEach(l => body.append(el("p", {}, l))); g.append(body); box.append(g); }
-  box.append(el("p", { class: "cap", style: "margin:8px 0 0" }, "Everything else is within its normal range."));
+  box.append(el("p", { class: "cap", style: "margin:8px 0 0" }, isStale() ? `As of ${M.generated}: everything else was within its normal range then.` : "Everything else is within its normal range."));
   const feed = M.feed || [];
   const d = el("details"); d.append(el("summary", {}, `All events, yesterday and today (${feed.length})`));
   const ul = el("ul", { class: "feed" }); feed.forEach(f => { const li = el("li"); li.append(el("span", { class: "t" }, f.t), el("span", { class: "kd" }, f.kind), document.createTextNode(f.text)); ul.append(li); });
@@ -308,7 +326,7 @@ function spanIdx(xs, from, to) {
 const short0 = s => s.length > 40 ? s.slice(0, 38) + "…" : s;
 function renderGrowth() {
   const ns = M.ns, sr = M.series;
-  $("#ns-cap").textContent = `All installs, last ${sr.length} days. Yesterday ${fmtN(ns.yday)}, typical ${fmtN(ns.typ)}. Dots are days, the line is the 7-day average, and the shaded band is the normal range around it.` +
+  $("#ns-cap").textContent = `All installs, last ${sr.length} days. Yesterday ${fmtN(ns.yday)}, typical ${fmtN(ns.typ)}. Dots are days, the line is the 7-day average, and the shaded band is each day's normal range, from the 7 days before it.` +
     (M.series_all && M.series_all.length ? ` Since ${fmtDay(M.series_all[0].d)} it grew from ${fmtN(M.series_all[0].v)} to ${fmtN(ns.yday)}; the table has every day.` : "");
   $("#goal-bar").style.width = Math.max(0.4, 100 * ns.yday / ns.goal) + "%";
   $("#goal-cap").textContent = `${fmtN(ns.yday)} of the ${fmtN(ns.goal)} goal (${(100 * ns.yday / ns.goal).toFixed(1)}%).`;
@@ -461,14 +479,12 @@ function renderCharts() { safe(renderTiles, "#tiles"); safe(renderAdopt, "#adopt
 function renderAll() {
   $("#app").hidden = false; $("#loading").hidden = true;   // first: hidden boxes measure 0 wide
   const gen = $("#gen"); gen.replaceChildren(document.createTextNode("Updated " + (M.generated || "–")));
-  const age = M.generated_iso ? (Date.now() - Date.parse(M.generated_iso)) / 1000 : 0;
-  if (M.stale_after_s && age > M.stale_after_s) gen.append(el("span", { class: "st watch", style: "margin-left:8px" }, `▲ ${Math.round(age / 60)} min old`));
   safe(renderAttention, "#attention"); safe(renderHealth, "#health"); safe(renderSameAge, "#same-age"); safe(renderSetup, "#setup"); safe(renderIssues, "#issues"); safe(renderPerf, "#perf");
-  safe(renderDigest, "#digest"); safe(renderElse, "#else"); renderCharts();
+  safe(renderDigest, "#digest"); safe(renderElse, "#else"); renderCharts(); safe(renderStale);
 }
 const refreshBtn = $("#refresh");
-async function load(fresh) {
-  refreshBtn.disabled = true; refreshBtn.textContent = "Refreshing…";
+async function load(fresh, quiet) {
+  if (!quiet) { refreshBtn.disabled = true; refreshBtn.textContent = "Refreshing…"; }
   try {
     const url = SRC + (fresh ? (SRC.includes("?") ? "&" : "?") + "fresh=1" : "");
     const r = await fetch(url, { cache: "no-store", credentials: "same-origin" });
@@ -476,14 +492,18 @@ async function load(fresh) {
     const d = await r.json().catch(() => null);
     if (r.status === 503) throw new Error("they aren't built yet (the first build runs within 5 minutes of setup)");
     if (!r.ok || !d || d.ok === false) throw new Error(`the numbers answered ${r.status}`);
+    const before = M && M.generated_iso;
     M = d.model || d;
     $("#loaderr").hidden = true;
-    renderAll();
+    if (quiet && before === M.generated_iso) renderStale(); else renderAll();
   } catch (e) {
     const box = $("#loaderr"); box.hidden = false; box.replaceChildren(el("b", {}, "Couldn't load the numbers. "), document.createTextNode(e.message + ". Try Refresh, or the old view."));
     $("#loading").hidden = true;
-  } finally { refreshBtn.disabled = false; refreshBtn.textContent = "Refresh"; }
+    if (M) safe(renderStale);
+  } finally { if (!quiet) { refreshBtn.disabled = false; refreshBtn.textContent = "Refresh"; } }
 }
 refreshBtn.onclick = () => load(true);
+// every minute: a stale model is fetched again (and drawn if the build has renewed it); otherwise just re-check its age
+setInterval(() => { if (!M || refreshBtn.disabled) return; if (isStale()) load(false, true); else safe(renderStale); }, 60000);
 let rz; addEventListener("resize", () => { if (!M) return; clearTimeout(rz); rz = setTimeout(renderCharts, 150); });
 load(false);

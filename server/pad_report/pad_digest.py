@@ -3,7 +3,10 @@
 
 Runs on bcmail as root from /etc/cron.d/pad-digest every 5 minutes, under a lock:
 
-    flock -n /var/lib/pad-digest/.digest.lock python3 /usr/local/lib/pad-digest/pad_digest.py
+    umask 077; flock -n /var/lib/pad-digest/.digest.lock python3 /usr/local/lib/pad-digest/pad_digest.py
+
+(the lock files are root 0600: www-data can read the directory, and a lock it could open it could hold,
+stopping every run)
 
 and writes /var/lib/pad-digest/model.json (root:www-data 0640). digest.php serves that file to a
 browser signed in on index.php. The contract is server/pad_report/DIGEST.md.
@@ -66,6 +69,9 @@ TOO_EARLY = 20            # opt-in homes on a version before its health is judge
 ADOPTED_PCT = 10.0        # a version counts as adopted at this share of the last 24 h (Sentry's rule)
 SETUP_WINDOW, SETUP_GRACE, SETUP_THRESHOLD, SETUP_MIN = 28, 3, 40.0, 10
 ATTENTION_DAYS = 7        # an attention item is dropped after this long unless it is growing
+BASELINE_DAYS = 7         # a day's count is judged against the days before it (whole days for the site)
+XMR_K = 3.145             # 3 sigma from the median moving range (Wheeler: sigma = median MR / 0.954)
+SHIFT = {"above": "↑ above normal", "below": "↓ below normal", "normal": "normal"}
 FUNNEL_DAYS = 14          # complete days, ending yesterday
 
 
@@ -95,11 +101,45 @@ def mad_sigma(v):
     return 1.4826 * med([abs(x - m) for x in v])
 
 
-def verdict(val, typ, sig):
-    if sig <= 0:
-        return "normal"
-    z = (val - typ) / sig
-    return "above" if z > 3 else "below" if z < -3 else "normal"
+def rnd(x):
+    """Round half up, as the page does (Python's round() goes to even)."""
+    return int(math.floor(x + 0.5))
+
+
+def count_band(base):
+    """Natural limits for a daily count from its baseline days (oldest first): (center, half-width), or None.
+
+    XmR with the median moving range: center = the mean, half-width = 3.145 x the median moving range, never
+    wider than the c-chart's 3 x sqrt(center) (NIST), and the c-chart alone when fewer than 3 moving ranges
+    are left or their median is 0 (a run of equal counts). Special causes, baseline days outside the limits
+    around the median, are left out and the limits recomputed as if those days never happened (at least 2
+    days are kept), so one spike, such as an outreach day, can't widen the band."""
+    vals = [float(v) for v in base]
+    if not vals:
+        return None
+
+    def limits(vs):
+        c = sum(vs) / len(vs)
+        cap = 3 * math.sqrt(max(c, 0.0))
+        mrs = [abs(b - a) for a, b in zip(vs, vs[1:])]
+        m = med(mrs) if len(mrs) >= 3 else 0
+        return c, (min(XMR_K * m, cap) if m > 0 else cap)
+
+    while True:
+        c, h = limits(vals)
+        mid = med(vals)
+        kept = [v for v in vals if abs(v - mid) <= h]
+        if len(kept) == len(vals) or len(kept) < 2:
+            return c, h
+        vals = kept
+
+
+def band_state(v, band):
+    """above / below / normal against count_band's limits; info without a baseline."""
+    if band is None or v is None:
+        return "info"
+    c, h = band
+    return "above" if v > c + h else "below" if v < c - h else "normal"
 
 
 def quant(vals, p):
@@ -143,10 +183,11 @@ def scrub(v):
 
 
 # ── safe files ──────────────────────────────────────────────────────────────
-def open_source(path, binary=False):
-    """Open a file another user may control: never through a symlink, only a regular file."""
+def open_source(path, binary=False, dir_fd=None):
+    """Open a file another user may control: never through a symlink, only a regular file (path relative
+    to the open directory dir_fd when given)."""
     try:
-        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0), dir_fd=dir_fd)
     except OSError as e:
         raise SourceError(f"{path}: {e.strerror}") from None
     st = os.fstat(fd)
@@ -273,21 +314,31 @@ def report_day(rec, fallback):
 
 
 def collect_reports(directory, now):
+    """The opt-in reports. www-data owns the folder, so it is opened once, never through a symlink, and
+    every file is read through that handle: swapping the folder part-way can't redirect the reads."""
     try:
-        st = os.lstat(directory)
+        dfd = os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
     except OSError as e:
         raise SourceError(f"{directory}: {e.strerror}") from None
-    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
-        raise SourceError(f"{directory}: not a directory")
     try:
-        names = sorted(e.name for e in os.scandir(directory) if e.name.endswith(".jsonl"))
+        if not stat.S_ISDIR(os.fstat(dfd).st_mode):
+            raise SourceError(f"{directory}: not a directory")
+        return _read_reports(dfd, directory, now)
+    finally:
+        os.close(dfd)
+
+
+def _read_reports(dfd, directory, now):
+    try:
+        with os.scandir(dfd) as it:
+            names = sorted(e.name for e in it if e.name.endswith(".jsonl"))
     except OSError as e:
         raise SourceError(f"{directory}: {e.strerror}") from None
     if not names:
         raise SourceError(f"{directory}: no report files")
     rows, first = {}, {}
     for name in names:
-        with open_source(os.path.join(directory, name)) as fh:
+        with open_source(name, dir_fd=dfd) as fh:
             for line in fh:
                 try:
                     rec = json.loads(line)
@@ -303,13 +354,17 @@ def collect_reports(directory, now):
                     first[iid] = d
     if not rows:
         raise SourceError(f"{directory}: no readable reports")
-    ledger_path = os.path.join(directory, "installs.json")
-    if os.path.lexists(ledger_path):
-        with open_source(ledger_path) as fh:
+    try:
+        os.stat("installs.json", dir_fd=dfd, follow_symlinks=False)
+        has_ledger = True
+    except FileNotFoundError:
+        has_ledger = False
+    if has_ledger:
+        with open_source("installs.json", dir_fd=dfd) as fh:
             try:
                 ledger = json.load(fh)
             except ValueError:
-                raise SourceError(f"{ledger_path}: not JSON") from None
+                raise SourceError(f"{directory}/installs.json: not JSON") from None
         for iid, e in (ledger.items() if isinstance(ledger, dict) else []):
             if isinstance(e, dict) and e.get("first"):
                 try:
@@ -747,19 +802,20 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
     if not full:
         raise SourceError("no complete day of update checks yet")
     yday = full[-1]
-    prev7 = [pd_[d] for d in full[-8:-1]]
-    ns_typ = med(prev7)
+    ns_band = count_band([pd_[d] for d in full[-BASELINE_DAYS - 1:-1]])
+    ns_typ = rnd(ns_band[0]) if ns_band else pd_[yday]
     avg7 = {}
     for i, d in enumerate(full):
         w7 = [pd_[x] for x in full[max(0, i - 6): i + 1]]
         avg7[d] = sum(w7) / len(w7)
-    resid = {d: pd_[d] - avg7[d] for d in full}
     series_all = []
     for i, d in enumerate(full):
-        r28 = [resid[x] for x in full[max(0, i - 27): i + 1]]
-        s = max(mad_sigma(r28), 2.0)
-        series_all.append({"d": ds(d), "v": pd_[d], "avg": round(avg7[d], 1), "lo": round(avg7[d] - 3 * s, 1), "hi": round(avg7[d] + 3 * s, 1)})
+        # each day's normal range comes from the days before it, as the tile's does
+        c, h = count_band([pd_[x] for x in full[max(0, i - BASELINE_DAYS): i]]) or (pd_[d], 3 * math.sqrt(pd_[d]))
+        series_all.append({"d": ds(d), "v": pd_[d], "avg": round(avg7[d], 1), "lo": round(c - h, 1), "hi": round(c + h, 1)})
     series = series_all[-45:]
+    # day-to-day noise for the before/after test (the mean of 14 days against up to 14), from the residuals
+    resid = {d: pd_[d] - avg7[d] for d in full}
     ns_sig = max(mad_sigma([resid[d] for d in full[-28:]]), 2.0)
 
     # releases and adoption
@@ -844,7 +900,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
     lag_share = [(d, rp[d]["lag"], rp[d]["homes"]) for d in rdays[-30:]]
     ry = rp.get(yday, {"lag": 0, "homes": 0, "unclean": 0})
     lag_y = ry["lag"]
-    lag_prev = [rp[d]["lag"] for d in rdays if d < yday][-7:]
+    lag_band = count_band([rp[d]["lag"] for d in rdays if d < yday][-BASELINE_DAYS:])
     newp = rep["new_per_day"]
 
     # licences
@@ -856,6 +912,12 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
 
     def lic_sum(d0, d1, k):
         return sum(v.get(k, 0) for d, v in lic_day.items() if d0 <= d <= d1)
+
+    def keys_on(d):
+        return sum(lic_day.get(d, {}).get(k, 0) for k in ("trial", "pro", "lifetime", "tester"))
+    k_y = keys_on(yday)
+    k_band = count_band([keys_on(d) for d in full[-BASELINE_DAYS - 1:-1]])
+    k_state = band_state(k_y, k_band)
 
     # stars
     stars = collections.Counter()
@@ -882,11 +944,10 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
     def visits(d):
         c = site_all.get(d, {})
         return c.get("demo", 0) + c.get("guide", 0)
-    v_prev = [visits(d) for d in whole_days if d < yday][-7:]
-    v_typ = med(v_prev)
-    v_sig = max(mad_sigma(v_prev), math.sqrt(v_typ) if v_typ else 1.0)
+    v_band = count_band([visits(d) for d in whole_days if d < yday][-BASELINE_DAYS:])
+    v_typ = rnd(v_band[0]) if v_band else None
     v_y = visits(yday) if yday in whole_days else None
-    v_state = verdict(v_y, v_typ, v_sig) if v_y is not None else "info"
+    v_state = band_state(v_y, v_band)
 
     # marketing markers
     start = full[0]
@@ -978,15 +1039,17 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
                                   + " and ".join(w["what"].lower().replace("home assistant", "Home Assistant") for w in watch) + " (see Release health).")
     if setupf["over"]:
         digest["Problems"].append(f"Setups: {setupf['failing']} of {setupf['total']} new opt-in installs never got past the map ({setupf['rate']:.0f}%, flag at {setupf['threshold_pct']:.0f}%).")
-    nv = verdict(pd_[yday], ns_typ, ns_sig)
-    digest["Growth"].append(f"{pd_[yday]} homes checked in yesterday (typical {ns_typ:.0f}, {nv}).")
+    nv = band_state(pd_[yday], ns_band)
+    digest["Growth"].append(f"{pd_[yday]} homes checked in yesterday " +
+                            (f"(typical {ns_typ}, {SHIFT[nv]})." if ns_band else "(no days before it to compare)."))
     digest["Growth"].append(f"New opt-in installs yesterday: {newp.get(yday, 0)}. GitHub stars yesterday: +{stars.get(yday, 0)} ({stars_total} total).")
     ly = lic_day.get(yday, {})
 
     def keys_txt(v):
         parts = [f"{v.get(k, 0)} {k}" for k in ("trial", "pro", "lifetime", "tester") if v.get(k)]
         return (", ".join(parts) + (f" ({v.get('paid', 0)} paid)" if v.get("paid") else " (none paid)")) if parts else "none"
-    digest["Money"].append(f"Keys yesterday: {keys_txt(ly)}.")
+    digest["Money"].append(f"Keys yesterday: {keys_txt(ly)}" +
+                           (f", against a typical {rnd(k_band[0])}: {SHIFT[k_state]}." if k_state in ("above", "below") else "."))
 
     def short(x):
         x = str(x).split(" (")[0]
@@ -1004,7 +1067,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
     if v_y is not None and v_state in ("above", "below"):
         c = site_all[yday]
         digest["Marketing"].append(f"Site visits yesterday: {v_y} people (demo {c.get('demo', 0)} · guides {c.get('guide', 0)}), "
-                                   f"against a typical {v_typ:.0f}: {v_state} normal.")
+                                   f"against a typical {v_typ}: {SHIFT[v_state]}.")
 
     feed = []
     for r in rel:
@@ -1053,7 +1116,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
                       "homes": setupf["failing"], "of": setupf["total"]})
     if nv == "below":
         items.append({"key": "growth:below", "kind": "growth", "title": "Fewer homes checked in than normal",
-                      "detail": f"{pd_[yday]} yesterday against a typical {ns_typ:.0f} (normal range ±{3 * ns_sig:.0f}).",
+                      "detail": f"{pd_[yday]} yesterday against a typical {ns_typ} (normal range ±{rnd(ns_band[1])}).",
                       "homes": pd_[yday], "of": None})
     st_items = state.get("attention", {})
     kept = []
@@ -1078,31 +1141,37 @@ def build(pings, rep, setupf, licences, site, sources_by_day, site_complete, rel
     # headline strip: whole days only
     yc = site_all.get(yday, {})
     tiles = [
-        {"label": "Homes checking in", "value": pd_[yday], "unit": "yesterday", "cmp": f"typical {ns_typ:.0f}", "delta": pd_[yday] - ns_typ,
-         "state": nv, "spark": [s["v"] for s in series[-30:]], "sub": None,
-         "help": "Distinct addresses that checked for an update on the BC day. All installs, not only opt-in."},
+        {"label": "Homes checking in", "value": pd_[yday], "unit": "yesterday",
+         "cmp": f"typical {ns_typ}" if ns_band else "no days before it", "delta": pd_[yday] - ns_typ if ns_band else None,
+         "state": nv, "spark": [s["v"] for s in series[-30:]], "sub": None, "better": "up",
+         "help": "Distinct addresses that checked for an update on the BC day. All installs, not only opt-in. "
+                 "Typical and the normal range come from the 7 days before, with one-off spikes left out."},
         {"label": "Site visits yesterday", "value": v_y if v_y is not None else 0, "unit": "people on the demo or a guide",
-         "cmp": f"typical {v_typ:.0f}" if v_y is not None else "no whole log for yesterday",
-         "delta": (v_y - v_typ) if v_y is not None else None, "state": v_state,
+         "cmp": ("no whole log for yesterday" if v_y is None else f"typical {v_typ}" if v_band else "no whole days before it"),
+         "delta": (v_y - v_typ) if (v_y is not None and v_band) else None, "state": v_state,
          "spark": [visits(d) for d in whole_days[-14:]] or None,
-         "sub": f"demo {yc.get('demo', 0)} · guides {yc.get('guide', 0)}" if v_y is not None else None,
-         "help": "People (not bots, not our own addresses) who loaded the demo or a guide on the BC day. "
-                 "Typical is the median of the 7 days before; above or below means beyond 3 sigma."},
+         "sub": f"demo {yc.get('demo', 0)} · guides {yc.get('guide', 0)}" if v_y is not None else None, "better": "up",
+         "help": "People (not bots, not our own addresses) who loaded the demo or a guide on the BC day. Typical and the "
+                 "normal range come from the 7 whole days before, with one-off spikes left out, and are never wider than counting noise."},
         {"label": f"On {ls['tag']}" if ls else "Newest stable", "value": l24.get(ls["tag"], 0) if ls else 0, "unit": f"of {l24_total} homes",
          "cmp": f"{(100 * l24.get(ls['tag'], 0) / l24_total) if (ls and l24_total) else 0:.0f}% after {hours_out:.0f} h", "delta": None,
-         "state": "info", "spark": None, "sub": None,
+         "state": "info", "spark": None, "sub": None, "better": None,
          "help": "Homes whose last update check in the past 24 h reported the newest stable."},
         {"label": "New or regressed issues", "value": len(new_iss), "unit": "last 3 days", "cmp": f"{len(ongoing)} ongoing", "delta": None,
-         "state": "good" if not new_iss else "bad", "spark": None, "sub": None,
+         "state": "good" if not new_iss else "bad", "spark": None, "sub": None, "better": None,
          "help": "Errors, log warnings and 3D fallbacks first seen, or back after a quiet week, in opt-in reports."},
-        {"label": "Opt-in homes with lag over 1 s", "value": lag_y, "unit": f"of {ry['homes']} yesterday", "cmp": f"typical {med(lag_prev):.0f}",
-         "delta": lag_y - med(lag_prev),
-         "state": "watch" if reg else verdict(lag_y, med(lag_prev), max(mad_sigma(lag_prev), math.sqrt(med(lag_prev) or 1))),
-         "spark": [x[1] for x in lag_share], "sub": None,
+        {"label": "Opt-in homes with lag over 1 s", "value": lag_y, "unit": f"of {ry['homes']} yesterday",
+         "cmp": f"typical {rnd(lag_band[0])}" if lag_band else "no days before it",
+         "delta": lag_y - rnd(lag_band[0]) if lag_band else None,
+         "state": "watch" if reg else band_state(lag_y, lag_band),
+         "spark": [x[1] for x in lag_share], "sub": None, "better": "down",
          "help": "Opt-in homes where Home Assistant's event loop stalled 1 s or more at least once that day."},
-        {"label": "Keys issued", "value": sum(ly.get(k, 0) for k in ("trial", "pro", "lifetime", "tester")), "unit": "yesterday",
-         "cmp": f"{ly.get('paid', 0)} paid", "delta": None, "state": "info", "spark": None, "sub": None,
-         "help": "Trial, Pro, lifetime and tester keys created on the BC day. Paid means a payment is attached."},
+        {"label": "Keys issued", "value": k_y, "unit": "yesterday",
+         "cmp": f"typical {rnd(k_band[0])}" if k_band else "no days before it",
+         "delta": k_y - rnd(k_band[0]) if k_band else None, "state": k_state, "spark": None,
+         "sub": f"{ly.get('paid', 0)} paid", "better": "up",
+         "help": "Trial, Pro, lifetime and tester keys created on the BC day. Paid means a payment is attached. "
+                 "Typical and the normal range come from the 7 days before."},
     ]
 
     model = {

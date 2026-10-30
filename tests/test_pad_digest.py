@@ -191,7 +191,8 @@ def test_the_model_has_every_field_of_schema_1(tmp_path):
         assert k in m, k
     assert m["ok"] is True and m["schema"] == 1
     assert [t["label"] for t in m["tiles"]][:2] == ["Homes checking in", "Site visits yesterday"]
-    assert all("sub" in t for t in m["tiles"])
+    assert all("sub" in t and "better" in t for t in m["tiles"])
+    assert [t["better"] for t in m["tiles"]] == ["up", "up", None, None, "down", "up"]
     json.dumps(m)
 
 
@@ -233,7 +234,32 @@ def test_a_spike_in_site_visits_is_above_normal_and_named_in_the_digest(tmp_path
     m, _ = w.write().run()
     t = m["tiles"][1]
     assert t["value"] == 76 and t["state"] == "above"
-    assert any(line.startswith("Site visits yesterday: 76 people") for line in m["digest"]["Marketing"])
+    assert "Site visits yesterday: 76 people (demo 10 · guides 66), against a typical 16: ↑ above normal." in m["digest"]["Marketing"]
+
+
+def _site_world(tmp_path, base, yday_demo, yday_guides):
+    """Whole site days: the 7 before yesterday load the demo base[i] times; yesterday has its own split."""
+    w = World(tmp_path).standard()
+    w.site_lines = []
+    w.visit(at(day(9), 17, 0), "/demo/")  # the logs begin at 17:00 on day 9, so day 8 on is whole
+    for n, back in zip(base, range(8, 1, -1)):
+        for k in range(n):
+            w.visit(at(day(back), 10 + k // 60, k % 60), "/demo/", ip=f"10.1.{k // 250}.{k % 250}")
+    for k in range(yday_demo):
+        w.visit(at(day(1), 10, k % 60), "/demo/", ip=f"10.1.0.{k}")
+    for k in range(yday_guides):
+        w.visit(at(day(1), 12 + k // 60, k % 60), "/guides/bermuda/", ip=f"10.2.0.{k}")
+    return w.write().run()
+
+
+def test_site_visits_of_94_against_the_launch_week_are_above_normal(tmp_path):
+    # the live week before Oct 29: a slow start, the Oct 26-27 outreach spike, then 44
+    m, _ = _site_world(tmp_path, [10, 10, 6, 47, 103, 137, 44], 29, 65)
+    t = m["tiles"][1]
+    assert (t["value"], t["cmp"], t["delta"], t["state"], t["better"], t["sub"]) == (94, "typical 46", 48, "above", "up", "demo 29 · guides 65")
+    assert "Site visits yesterday: 94 people (demo 29 · guides 65), against a typical 46: ↑ above normal." in m["digest"]["Marketing"]
+    m2, _ = _site_world(tmp_path / "b", [10, 10, 6, 47, 103, 137, 44], 20, 40)
+    assert m2["tiles"][1]["state"] == "normal", "60 is inside 46 ± 20 (counting noise caps the band)"
 
 
 def test_nothing_counts_today_so_far(tmp_path):
@@ -270,13 +296,24 @@ def _mad(v):
     return 1.4826 * statistics.median([abs(x - m) for x in v])
 
 
-def _expected_band(vals):
-    """lo, avg, hi for the last of vals, from the definition in DIGEST.md: a 7-day average and 3 sigma,
-    sigma = max(1.4826 x MAD of the last 28 residuals, 2)."""
+def _noise_sigma(vals):
+    """The before/after test's day-to-day noise: MAD x 1.4826 of the last 28 residuals from the 7-day average, at least 2."""
     avg = [sum(vals[max(0, i - 6): i + 1]) / len(vals[max(0, i - 6): i + 1]) for i in range(len(vals))]
-    resid = [v - a for v, a in zip(vals, avg)]
-    s = max(_mad(resid[-28:]), 2.0)
-    return round(avg[-1] - 3 * s, 1), round(avg[-1], 1), round(avg[-1] + 3 * s, 1), s
+    return max(_mad([v - a for v, a in zip(vals, avg)][-28:]), 2.0)
+
+
+def _ref_band(base):
+    """The normal range exactly as DIGEST.md words it, written out apart from the code."""
+    vals = [float(v) for v in base]
+    while True:
+        c = sum(vals) / len(vals)
+        mrs = [abs(b - a) for a, b in zip(vals, vals[1:])]
+        cap = 3 * math.sqrt(c)
+        h = min(3.145 * statistics.median(mrs), cap) if len(mrs) >= 3 and statistics.median(mrs) > 0 else cap
+        kept = [v for v in vals if abs(v - statistics.median(vals)) <= h]
+        if len(kept) == len(vals) or len(kept) < 2:
+            return c, h
+        vals = kept
 
 
 def _counts_world(tmp_path, counts, push_back):
@@ -297,31 +334,66 @@ def _counts_world(tmp_path, counts, push_back):
 NOISY = [100 + (30 if i % 2 else -30) for i in range(12)] + [100 + ((i * 7) % 11) * 2 - 10 for i in range(28)]
 
 
-def test_the_noise_band_is_three_sigma_around_the_seven_day_average(tmp_path):
+def test_each_days_band_comes_from_the_seven_days_before_it(tmp_path):
     m, _ = _counts_world(tmp_path, NOISY, 3)
-    lo, avg, hi, s = _expected_band(NOISY)
-    assert s > 5, "the test needs sigma off its floor"
-    last = m["series_all"][-1]
-    assert (last["v"], last["lo"], last["avg"], last["hi"]) == (NOISY[-1], lo, avg, hi)
-    assert m["ns"]["sig"] == round(s, 1), "sigma from the last 28 days only (the wild first 12 are left out)"
-    assert m["ns"]["typ"] == statistics.median(NOISY[-8:-1])
-    for i in range(7, len(NOISY)):
-        lo_i, avg_i, hi_i, _ = _expected_band(NOISY[: i + 1])
-        assert (m["series_all"][i]["lo"], m["series_all"][i]["avg"], m["series_all"][i]["hi"]) == (lo_i, avg_i, hi_i), i
+    for i, row in enumerate(m["series_all"]):
+        c, h = _ref_band(NOISY[max(0, i - 7): i]) if i else (NOISY[0], 3 * math.sqrt(NOISY[0]))
+        assert (row["v"], row["lo"], row["hi"]) == (NOISY[i], round(c - h, 1), round(c + h, 1)), i
+        assert row["avg"] == round(sum(NOISY[max(0, i - 6): i + 1]) / len(NOISY[max(0, i - 6): i + 1]), 1), i
+    assert m["ns"]["typ"] == 101, "the mean of the 7 days before yesterday, rounded half up"
+    assert m["ns"]["sig"] == round(_noise_sigma(NOISY), 1), "the before/after noise is unchanged"
 
 
-def test_a_flat_series_gets_the_sigma_floor_of_two(tmp_path):
+def test_a_flat_series_gets_counting_noise_as_its_band(tmp_path):
     m, _ = _counts_world(tmp_path, [100] * 30, 3)
     last = m["series_all"][-1]
-    assert (last["lo"], last["avg"], last["hi"]) == (94.0, 100.0, 106.0) and m["ns"]["sig"] == 2.0
+    assert (last["lo"], last["avg"], last["hi"]) == (70.0, 100.0, 130.0) and m["ns"]["sig"] == 2.0
 
 
-@pytest.mark.parametrize("last, state", [(200, "above"), (106, "normal"), (20, "below")])
-def test_homes_beyond_three_sigma_are_above_or_below(tmp_path, last, state):
+# the 7 days before yesterday are [106, 98, 90, 104, 96, 110, 102]: 100.857 +- 3.145 x 8 = 75.70 .. 126.02
+@pytest.mark.parametrize("last, state", [(200, "above"), (127, "above"), (126, "normal"), (106, "normal"), (76, "normal"),
+                                         (75, "below"), (20, "below")])
+def test_homes_outside_their_normal_range_are_above_or_below(tmp_path, last, state):
     m, _ = _counts_world(tmp_path, NOISY[:-1] + [last], 3)
-    assert m["tiles"][0]["value"] == last and m["tiles"][0]["state"] == state
-    assert m["digest"]["Growth"][0] == f"{last} homes checked in yesterday (typical {m['ns']['typ']:.0f}, {state})."
+    t = m["tiles"][0]
+    assert (t["value"], t["cmp"], t["delta"], t["state"]) == (last, "typical 101", last - 101, state)
+    assert m["digest"]["Growth"][0] == f"{last} homes checked in yesterday (typical 101, {P.SHIFT[state]})."
     assert any(i["kind"] == "growth" for i in m["needs_attention"]) == (state == "below")
+
+
+def test_homes_of_359_against_the_live_week_read_normal(tmp_path):
+    m, _ = _counts_world(tmp_path, [350, 352, 361, 342, 350, 354, 347, 353, 350, 349, 358, 361, 359, 351, 359], 3)
+    t = m["tiles"][0]
+    assert (t["value"], t["cmp"], t["state"]) == (359, "typical 354", "normal")
+    assert m["digest"]["Growth"][0] == "359 homes checked in yesterday (typical 354, normal)."
+
+
+def test_a_spike_in_the_baseline_does_not_widen_the_band(tmp_path):
+    week = [353, 350, 349, 361, 359, 351]
+    assert P.count_band(week[:3] + [600] + week[3:]) == P.count_band(week), "the spike day is left out"
+    m, _ = _counts_world(tmp_path, [352] * 8 + week[:3] + [600] + week[3:] + [380], 3)
+    c, h = P.count_band(week)
+    assert (m["series_all"][-1]["lo"], m["series_all"][-1]["hi"]) == (round(c - h, 1), round(c + h, 1))
+    assert m["tiles"][0]["state"] == "above", "380 stands out once the 600 is left out"
+
+
+def test_the_normal_range_for_a_count():
+    def band(xs):
+        c, h = P.count_band(xs)
+        return round(c, 3), round(h, 3)
+    assert band([353, 350, 349, 358, 361, 359, 351]) == (354.429, 9.435), "XmR: 3.145 x the median moving range of 3"
+    assert band([10, 10, 6, 47, 103, 137, 44]) == (45.5, 20.236), "the spike and the slow start left out; c-chart cap"
+    assert P.band_state(94, P.count_band([10, 10, 6, 47, 103, 137, 44])) == "above"
+    assert band([44, 46, 43, 137, 45, 44, 47]) == band([44, 46, 43, 45, 44, 47]) == (44.833, 6.29)
+    assert band([40, 60, 40, 60, 40, 60, 40]) == (48.571, 20.908), "never wider than the c-chart's 3 x sqrt(c)"
+    assert band([5] * 7) == (5.0, 6.708), "equal days: the c-chart alone"
+    assert band([10, 12]) == (11.0, 9.95) and band([10, 12, 14]) == (12.0, 10.392), "under 3 moving ranges: the c-chart"
+    assert band([0, 0, 2, 2, 2, 0, 0]) == (0.857, 2.777), "keys: mostly zeros"
+    assert band([0] * 7) == (0.0, 0.0) and P.band_state(1, P.count_band([0] * 7)) == "above"
+    assert band([0, 0, 0, 100, 200, 300, 400]) == (142.857, 35.857), "at least 2 days are kept"
+    assert P.count_band([]) is None
+    for xs in ([353, 350, 349, 358, 361, 359, 351], [10, 10, 6, 47, 103, 137, 44], [0, 0, 2, 2, 2, 0, 0], [7, 30, 2, 2, 90, 3, 3]):
+        assert P.count_band(xs) == pytest.approx(_ref_band(xs))
 
 
 def test_the_two_proportion_test():
@@ -334,9 +406,11 @@ def test_dates_print_without_a_leading_zero_on_every_platform():
     assert P._fmt(dt.datetime(2026, 11, 4, 9, 5, tzinfo=BC), "%a %b %-d, %H:%M") == "Wed Nov 4, 09:05"
 
 
-def test_the_verdict_edges_and_the_mad_sigma():
-    assert P.verdict(13.01, 10, 1) == "above" and P.verdict(13, 10, 1) == "normal" and P.verdict(12.5, 10, 1) == "normal"
-    assert P.verdict(6.99, 10, 1) == "below" and P.verdict(7, 10, 1) == "normal" and P.verdict(50, 10, 0) == "normal"
+def test_band_state_edges_rounding_and_the_mad_sigma():
+    assert P.band_state(13.01, (10, 3)) == "above" and P.band_state(13, (10, 3)) == "normal"
+    assert P.band_state(6.99, (10, 3)) == "below" and P.band_state(7, (10, 3)) == "normal"
+    assert P.band_state(5, None) == "info" and P.band_state(None, (1, 1)) == "info"
+    assert (P.rnd(45.5), P.rnd(44.5), P.rnd(0.857), P.rnd(354.429)) == (46, 45, 1, 354)
     assert P.mad_sigma([1, 2, 3, 4, 100]) == pytest.approx(1.4826)
     assert P.mad_sigma([5, 9]) == 0
 
@@ -498,6 +572,24 @@ def test_unreadable_reports_stop_the_run(tmp_path):
     w3.tel.symlink_to(tmp_path / "c" / "real-tel")
     with pytest.raises(P.SourceError):
         w3.run()
+
+
+def test_reports_are_read_through_one_handle_on_their_folder(tmp_path, monkeypatch):
+    w = World(tmp_path).standard().write()
+    calls, real = [], os.open
+
+    def spy(path, flags, mode=0o777, *, dir_fd=None):
+        fd = real(path, flags, mode, dir_fd=dir_fd)
+        calls.append((str(path), flags, dir_fd, fd))
+        return fd
+    monkeypatch.setattr(os, "open", spy)
+    rows, _ = P.collect_reports(str(w.tel), NOW)
+    assert rows
+    folder = [c for c in calls if c[0] == str(w.tel)]
+    assert len(folder) == 1 and folder[0][1] & os.O_DIRECTORY and folder[0][1] & os.O_NOFOLLOW
+    files = [c for c in calls if c[0] != str(w.tel)]
+    assert {c[0] for c in files} == {p.name for p in w.tel.iterdir()}, "every report and the ledger, by name"
+    assert all(c[2] == folder[0][3] and c[1] & os.O_NOFOLLOW for c in files), "relative to the folder's handle"
 
 
 def test_missing_pings_or_markers_stop_the_run(tmp_path):
@@ -748,12 +840,23 @@ def test_markers_span_their_dates_and_other_products_are_left_out(tmp_path):
 
 def test_money_stars_funnel_and_archive(tmp_path):
     m, _ = build(tmp_path)
-    assert m["tiles"][5]["value"] == 3 and m["tiles"][5]["cmp"] == "1 paid"
+    k = m["tiles"][5]
+    assert (k["value"], k["cmp"], k["delta"], k["state"], k["sub"], k["better"]) == (3, "typical 0", 3, "above", "1 paid", "up")
+    assert m["digest"]["Money"] == ["Keys yesterday: 2 trial, 1 lifetime (1 paid), against a typical 0: ↑ above normal."]
     assert m["stars_total"] == 7, "the repo's count wins over a dated list that lags"
     assert m["src_days"] == 14 and m["funnel"][1]["n"] == 140, "14 whole days of 10 demo loads, bots and us left out"
     assert dict(m["sources"])["GitHub"] == 14
     assert m["funnel"][2]["n"] == 12, "new opt-in installs first seen in the window (the ledger dates the old ones)"
     assert m["funnel"][3]["n"] == 2, "trials over the whole days ending yesterday"
+
+
+def test_keys_are_judged_against_the_7_days_before_yesterday(tmp_path):
+    w = World(tmp_path).standard()
+    w.lic = f"{day(1).isoformat()}\ttrial\t0\t1\n{day(9).isoformat()}\ttrial\t0\t5\n"  # day 9 is outside the 7 days
+    m, _ = w.write().run()
+    k = m["tiles"][5]
+    assert (k["value"], k["cmp"], k["state"], k["sub"]) == (1, "typical 0", "above", "0 paid")
+    assert m["digest"]["Money"] == ["Keys yesterday: 1 trial (none paid), against a typical 0: ↑ above normal."]
 
 
 def test_our_own_addresses_leave_the_site_counts_but_not_the_homes(tmp_path):
@@ -787,6 +890,28 @@ def test_digest_php_serves_the_root_owned_model_only_to_a_signed_in_session():
     gate = src.index("empty($_SESSION['pad_ok'])")
     assert src.index("http_response_code(403)") > gate and src.index("readfile(") > src.index("http_response_code(403)")
     assert "$model = '/var/lib/pad-digest/model.json';" in src and "private" not in src
+
+
+def test_the_page_words_and_colours_a_shift_by_its_direction():
+    js = (SRV / "pad.js").read_text(encoding="utf-8")
+    assert 'above: "↑ above normal", below: "↓ below normal"' in js
+    assert '(t.state === "above") === (t.better === "up") ? " shift-good" : " shift-bad"' in js
+    css = (SRV / "pad.css").read_text(encoding="utf-8")
+    assert ".st.shift-good { color:var(--s1); }" in css and ".st.shift-bad { color:var(--serious); }" in css
+
+
+def test_a_stale_model_is_never_shown_as_all_normal():
+    js = (SRV / "pad.js").read_text(encoding="utf-8")
+    status = js[js.index("function renderStatus()"):js.index("function renderAttention()")]
+    assert status.index("if (isStale())") < status.index('"All normal"'), "the pill checks staleness first"
+    attn = js[js.index("function renderAttention()"):]
+    assert attn.index("isStale()") < attn.index('"✓ All normal"'), "so does the attention box"
+    assert "`Data is ${oldMin()} min old. `" in js and '$("#tiles").classList.toggle("stale", stale)' in js
+    assert '$("#status").classList.toggle("stale", stale)' in js
+    assert "setInterval(() => { if (!M || refreshBtn.disabled) return; if (isStale()) load(false, true); else safe(renderStale); }, 60000);" in js
+    assert 'isStale() ? `As of ${M.generated}' in js, "the digest's closing line too"
+    css = (SRV / "pad.css").read_text(encoding="utf-8")
+    assert ".tiles.stale { filter:grayscale(1); opacity:.55; }" in css and ".pill.stale { color:var(--muted); }" in css
 
 
 def test_the_page_takes_launch_dates_from_the_markers_and_shows_the_sub_line():

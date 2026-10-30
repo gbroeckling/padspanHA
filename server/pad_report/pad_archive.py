@@ -3,7 +3,7 @@
 
 Runs on bcmail as root from /etc/cron.d/pad-digest at 00:20 BC, under a lock:
 
-    flock -w 600 /var/lib/pad-digest/.archive.lock python3 /usr/local/lib/pad-digest/pad_archive.py
+    umask 077; flock -w 600 /var/lib/pad-digest/.archive.lock python3 /usr/local/lib/pad-digest/pad_archive.py
 
 and writes dated JSON under /var/lib/pad-archive/ (root only, 0600), with pad_digest's safe writes:
   ha-analytics/YYYY-MM-DD.json   HA analytics' custom_integrations.json entry for padspan_ha
