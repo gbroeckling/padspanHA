@@ -23,7 +23,7 @@
 
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
-import { install, flush } from "./dom_shim.mjs";
+import { install, flush, timerQueue } from "./dom_shim.mjs";
 
 const WWW = process.argv[2];
 if (!WWW) { console.error("usage: atlas_keep_card.mjs <www/padspan-ha dir>"); process.exit(2); }
@@ -542,6 +542,33 @@ await tryCase("card: 500 ticks, the same listeners, observers, hover box and rai
   const at503 = count();
   check("card: 500 ticks, the same listeners, observers, hover box and rain", c === first && at3.huds === 1 && at3.wx === 1
     && JSON.stringify(at503) === JSON.stringify(at3) && kser(c) === f, { same: c === first, at3, at503, equal: kser(c) === f });
+});
+await tryCase("card: a kept card's whole-house confirm goes back to Apply on its own", async () => {
+  // Review 2026-10-30: the poll no longer resets it, so a timer does
+  // (WH_ARM_MS): never an armed "Yes, change the whole house" left on a wall.
+  const P = pair(), applied = [];
+  const o = { extra: { wholeHousePresets: [{ name: "Night", entities: { "light.hall": {} } }],
+    onWholeHouseApply: async (p) => { applied.push(p.name); return null; } } };
+  const [a] = await P.tick(CBASE, o);
+  const sel = a._all().find(n => n.localName === "select" && String(n.title || "").startsWith("A saved state"));
+  const apply = sel.parentNode.childNodes.find(n => n.localName === "button" && n.textContent === "Apply");
+  sel.value = "Night";
+  timerQueue.length = 0;
+  apply.click();
+  const armed = apply.textContent === "Yes, change the whole house";
+  clock += 6000;
+  const [b] = await P.tick(flip(CBASE, "light.hall"), o);
+  const kept = b === a && apply.textContent === "Yes, change the whole house";
+  const t = timerQueue.find(x => x && x.ms === LM.WH_ARM_MS);
+  if (t) t.fn();
+  const back = apply.textContent === "Apply";
+  apply.click();                              // armed again, nothing applied
+  const again = apply.textContent === "Yes, change the whole house";
+  apply.click();                              // the second tap applies
+  await settle();
+  check("card: a kept card's whole-house confirm goes back to Apply on its own",
+    armed && kept && !!t && back && again && applied.join() === "Night" && apply.textContent === "Apply",
+    { armed, kept, timer: !!t, back, again, applied, text: apply.textContent });
 });
 await tryCase("card: the Mapping tab's host (no keepCard) builds a new card every time", async () => {
   const view = cviewOf();

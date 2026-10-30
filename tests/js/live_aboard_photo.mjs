@@ -180,6 +180,15 @@ await tryCase("photo: which AI Task, and whether the photo leaves", async () => 
   check("note: cloud", PH.aiNote({ name: "Google AI", local: false }).includes("leaves the house"));
   check("note: unknown", PH.aiNote({ name: "X", local: null }).startsWith("X will read the photo. If it runs in the cloud"));
   check("note: never kept", PH.aiNote(INFO).includes("PadSpan never keeps the photo"));
+  // A backup AI Task set (Settings → AI): where a photo it reads goes is said too.
+  const lb = PH.aiNote({ name: "Mac", local: true, backup: "ai_task.g", backup_name: "Google AI", backup_local: false });
+  check("note: a local main, a cloud backup", lb.startsWith("Mac will read the photo. It runs in your home")
+    && lb.includes("If it's away, the backup, Google AI, reads it instead. That one runs in the cloud: the photo leaves the house"), lb);
+  const aw = PH.aiNote({ name: "Mac", local: true, backup: "ai_task.g", backup_name: "Google AI", backup_local: false, main_away: true });
+  check("note: the main one away", aw.startsWith("The main AI Task is away, so the backup, Google AI, will read the photo. It runs in the cloud"), aw);
+  check("note: no backup, as before", PH.aiNote({ name: "Ollama", local: true }) === "Ollama will read the photo. It runs in your home, so the photo stays in the house. PadSpan never keeps the photo.");
+  check("may leave: local main, cloud backup", PH.mayLeave({ local: true, backup: "ai_task.g", backup_local: false })
+    && !PH.mayLeave({ local: true }) && !PH.mayLeave({ local: true, backup: "ai_task.o", backup_local: true }) && PH.mayLeave({ local: null }));
   const kinds = PH.photoKinds(F);
   check("kinds: the furniture and device kinds, no box, in menu order", kinds.length > 0 && !kinds.some(k => k.kind === "other")
     && kinds.every(k => ["furniture", "device"].includes(F.FURNITURE[k.kind].group)) && kinds[0].kind === F.FURNITURE_KINDS[0]);

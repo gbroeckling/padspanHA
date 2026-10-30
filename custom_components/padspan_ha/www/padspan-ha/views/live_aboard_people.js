@@ -579,7 +579,7 @@ export async function peopleFlow(ctx){
         out.push(el("label", { class: "warn" }, tick, `${e.name}, the person in the photo, agrees to it being read by the AI Task.`),
           el("p", { class: "muted" }, CHILD_TIP + " ", el("button", { onclick: () => { m.editFigure(e.id, e.name); draw(); } }, "Use the sliders")));
       }
-      out.push(el("p", { class: "note" }, aiNote(m.info) + (forPerson && m.info.local !== true ? ` ${LOCAL_TIP}` : "")));
+      out.push(el("p", { class: "note" }, aiNote(m.info) + (forPerson && PH.mayLeave(m.info) ? ` ${LOCAL_TIP}` : "")));
       out.push(photoButtons(async (file) => {
         try { const p = await shrinkPhoto(file); m.setPhoto(p.b64); shot = p.url; m.error = null; }
         catch (err) { m.setPhoto(null); shot = null; m.error = errText(err); }

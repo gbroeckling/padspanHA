@@ -466,3 +466,25 @@ def test_a_furniture_photos_second_look_doesnt_count_the_backup_again() -> None:
            / "ws_house3d_photo.py").read_text(encoding="utf-8").replace("\r\n", "\n")
     assert "a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)" in src
     assert 'if count:\n        _bump(hass, "ai_backup_used")' in src
+
+
+def test_the_photo_step_knows_where_the_backup_would_send_a_photo(monkeypatch, tmp_path, disk):
+    """Review 2026-10-30: a local main with a cloud backup said "the photo
+    stays in the house" while the backup could read it."""
+    h, conn, ai, media, counted, probes = _with_backup(monkeypatch, tmp_path)
+    info = P.ai_task(h, with_backup=True)
+    assert info["backup"] == _BK and info["backup_name"] == "Server vision" and "backup_local" in info
+    ph = (WWW / "views" / "live_aboard_photo.js").read_text(encoding="utf-8")
+    assert "export const mayLeave" in ph
+    pe = (WWW / "views" / "live_aboard_people.js").read_text(encoding="utf-8")
+    assert "forPerson && PH.mayLeave(m.info)" in pe
+
+
+def test_a_stair_read_that_worked_is_never_counted_failed():
+    """Review 2026-10-30: `if (r.by_backup) …; else failed++` counted every
+    plan read by the main one as failed ("The AI couldn't read the plans")."""
+    fu = (WWW / "views" / "live_aboard_furnish.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert ("          if (r && r.ok) {\n"
+            "            for (const st of r.stairs || []) found.push({ ...st, plan: canon(m.floor_id) });\n"
+            "            if (r.by_backup) byBackup = true;\n"
+            "          } else failed++;") in fu

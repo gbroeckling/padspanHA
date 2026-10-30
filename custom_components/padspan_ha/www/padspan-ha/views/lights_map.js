@@ -3274,6 +3274,9 @@ function _abLoad(){
     .catch((err) => { console.warn("PadSpan: atlas_aboard failed to load", err); _abFailed = true; });
 }
 
+// How long Whole house's "Yes, change the whole house" stays armed untouched.
+export const WH_ARM_MS = 10000;
+
 // ── The poll's map card, kept (host.keepCard: the sidebar's 5 s tick) ───────
 // The sidebar builds its page afresh every poll; the map card under it (its
 // toolbar, rail, drawers, chips, legend and the stage) came out and went in
@@ -4495,11 +4498,19 @@ export function buildLightsMapCard(hostIn){
     const whFlash = (msg, ms = 2600) => { whStatus.textContent = msg; setTimeout(() => { whStatus.textContent = ""; }, ms); };
 
     const whApply = el("button", { class: "lv-act primary", title: "Put every light and fan back the way this preset remembers it — including turning OFF what was off" }, "Apply");
-    let whArmed = null;
-    const whDisarm = () => { whArmed = null; whApply.textContent = "Apply"; };
+    // The "Yes, …" goes back to Apply after WH_ARM_MS untouched: the sidebar
+    // keeps this card between polls (host.keepCard), and a confirm left armed
+    // on a wall screen must not wait hours for one stray tap.
+    let whArmed = null, whArmT = null;
+    const whDisarm = () => { whArmed = null; whApply.textContent = "Apply"; if (whArmT) { clearTimeout(whArmT); whArmT = null; } };
+    const whArm = (what, text) => {
+      whArmed = what; whApply.textContent = text;
+      if (whArmT) clearTimeout(whArmT);
+      whArmT = setTimeout(whDisarm, WH_ARM_MS);
+    };
     whApply.addEventListener("click", async () => {
       if (whSel.value === VACATION_VALUE) {
-        if (whArmed !== VACATION_VALUE) { whArmed = VACATION_VALUE; whApply.textContent = "Yes, turn on Vacation Mode"; return; }
+        if (whArmed !== VACATION_VALUE) { whArm(VACATION_VALUE, "Yes, turn on Vacation Mode"); return; }
         whDisarm();
         const ok = await host.onVacationModeEnable();
         if (ok) whFlash("Vacation Mode on ✓", 4000);
@@ -4507,7 +4518,7 @@ export function buildLightsMapCard(hostIn){
       }
       const p = whp.find((x) => x.name === whSel.value);
       if (!p) { whFlash("Pick a preset first"); return; }
-      if (whArmed !== p.name) { whArmed = p.name; whApply.textContent = "Yes, change the whole house"; return; }
+      if (whArmed !== p.name) { whArm(p.name, "Yes, change the whole house"); return; }
       whDisarm();
       const r = await host.onWholeHouseApply(p);
       if (r) whFlash(wholeHouseText(r), (r.problems || []).length ? 8000 : 4000);

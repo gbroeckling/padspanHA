@@ -53,14 +53,22 @@ export function photoKinds(F, groups = GROUPS){
     .map(k => ({ kind: k, name: F.FURNITURE[k].name || k }));
 }
 
-/** Which AI Task reads the photo, and whether the photo leaves the house. */
+/** Which AI Task reads the photo, and whether the photo leaves the house;
+ *  with a backup AI Task set (info.backup), the backup's too: it reads
+ *  whenever the main one is away (ws_house3d_photo.ask_ai). */
 export function aiNote(info){
   const name = (info && info.name) || "The AI Task";
-  const where = info && info.local === true ? "It runs in your home, so the photo stays in the house."
-    : info && info.local === false ? "It runs in the cloud: the photo leaves the house for that service."
-    : "If it runs in the cloud, the photo leaves the house for that service.";
-  return `${name} will read the photo. ${where} PadSpan never keeps the photo.`;
+  const whereOf = (local, it = "it") => (local === true ? `${it[0].toUpperCase()}${it.slice(1)} runs in your home, so the photo stays in the house.`
+    : local === false ? `${it[0].toUpperCase()}${it.slice(1)} runs in the cloud: the photo leaves the house for that service.`
+    : `If ${it} runs in the cloud, the photo leaves the house for that service.`);
+  const bk = info && info.backup ? (info.backup_name || info.backup) : null;
+  if (bk && info.main_away) return `The main AI Task is away, so the backup, ${bk}, will read the photo. ${whereOf(info.backup_local)} PadSpan never keeps the photo.`;
+  const also = bk ? ` If it's away, the backup, ${bk}, reads it instead. ${whereOf(info.backup_local, "that one")}` : "";
+  return `${name} will read the photo. ${whereOf(info && info.local)}${also} PadSpan never keeps the photo.`;
 }
+
+/** Whether a photo could leave the house: the main AI Task, or a backup that could read it, not local. */
+export const mayLeave = (info) => !!info && (info.local !== true || (!!info.backup && info.backup_local !== true));
 
 /** The AI's own size is taken only when it was sure and gave all three. */
 export function sizeTrusted(size){

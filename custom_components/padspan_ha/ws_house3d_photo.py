@@ -148,10 +148,12 @@ def ai_task(hass: HomeAssistant, *, with_backup: bool = False) -> dict[str, Any]
     local (True, False, or None when unknown)}, or {ready: False, message}.
 
     with_backup (the reads): where a usable backup AI Task is set (Settings →
-    AI), also backup: its entity, and main_away: True when the main one is
-    unavailable or gone from Home Assistant (name and local stay the main
-    one's while it is only unavailable, and are the backup's once it is gone).
-    With no backup set, exactly the main one's answer."""
+    AI), also backup: its entity, backup_name and backup_local (whether a
+    photo it reads stays in the house: the photo step says so before a photo
+    is sent), and main_away: True when the main one is unavailable or gone
+    from Home Assistant (name and local stay the main one's while it is only
+    unavailable, and are the backup's once it is gone). With no backup set,
+    exactly the main one's answer."""
     v = _ha_version()
     if v is None or v < MIN_HA:
         return {"ready": False, "message": NO_AI_OLD}
@@ -175,10 +177,11 @@ def ai_task(hass: HomeAssistant, *, with_backup: bool = False) -> dict[str, Any]
     b = _entity_ready(hass, bk)
     if not b["ready"] or _state_of(hass, bk) == "unavailable":
         return out                                     # no backup to switch to: the main one, as with none set
+    named = {"backup": bk, "backup_name": b["name"], "backup_local": b["local"]}
     if out["ready"]:
-        return {**out, "backup": bk, **({"main_away": True} if _state_of(hass, eid) == "unavailable" else {})}
+        return {**out, **named, **({"main_away": True} if _state_of(hass, eid) == "unavailable" else {})}
     if hass.states.get(eid) is None:                   # the main one is gone from Home Assistant: the backup reads
-        return {**b, "ai_task": eid, "backup": bk, "main_away": True}
+        return {**b, "ai_task": eid, **named, "main_away": True}
     return out                                         # a main one blind to pictures is a setting to fix, not away
 
 

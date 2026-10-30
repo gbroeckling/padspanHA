@@ -870,9 +870,10 @@ export function createFurnish(ctx){
         ctx.hint(`Reading the stairs off ${m.name || "a plan"} (${++i} of ${plans.length})… a local AI can take a minute.`);
         try {
           const r = await call({ type: "padspan_ha/house3d_stairs_read", map_id: m.map_id });
-          if (r && r.ok) for (const st of r.stairs || []) found.push({ ...st, plan: canon(m.floor_id) });
-          if (r && r.ok && r.by_backup) byBackup = true;
-          else failed++;
+          if (r && r.ok) {
+            for (const st of r.stairs || []) found.push({ ...st, plan: canon(m.floor_id) });
+            if (r.by_backup) byBackup = true;
+          } else failed++;
         } catch (e) {
           failed++;
           if (e && (e.code === "ai_stairs_off" || e.code === "no_ai_task")) { ctx.hint(String(e.message || e.code), true); return; }
