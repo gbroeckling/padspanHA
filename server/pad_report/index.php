@@ -1,16 +1,25 @@
 <?php
-// PadSpan HA — the Install Base view (opt-in report totals) on its own page,
-// behind a password, for a browser that has no Home Assistant to hand.
+// PadSpan HA — the Install Base page, behind a password, for a browser that
+// has no Home Assistant to hand.
+//
+// Two views once signed in:
+//   /         the page (pad.js draws it, pad.css styles it): problems first, then
+//             today and yesterday, growth with releases and marketing marked,
+//             and everything else folded. Its numbers come from $DATA below.
+//   /?old=1   the previous page (the panel's own Install Base view), kept until
+//             Nov 6 2026. It's also what / shows while $DATA isn't deployed, so
+//             the page never comes up empty.
 //
 // Deployed at https://pad.traks.ca/ (vhost /etc/apache2/sites-available/
 // pad.traks.ca.conf on bcmail, docroot web10/web/pad/) with, beside it:
-//   data.php        this folder's data.php (stats.php's numbers, signed in only)
+//   pad.js, pad.css this folder's files (the page)
+//   data.php        this folder's data.php (stats.php's numbers, signed in only; the old view)
 //   pro.php         this folder's pro.php (the free-Pro invite list and tester count, signed in only)
-//   installbase.js  custom_components/padspan_ha/www/padspan-ha/views/installbase.js, unchanged
-//   styles.css      custom_components/padspan_ha/www/padspan-ha/styles.css, unchanged
+//   installbase.js  custom_components/padspan_ha/www/padspan-ha/views/installbase.js, unchanged (the old view)
+//   styles.css      custom_components/padspan_ha/www/padspan-ha/styles.css, unchanged (the old view)
 //   robots.txt      Disallow everything
 //   favicon.png     custom_components/padspan_ha/brand/icon.png
-// Copy installbase.js and styles.css again when they change.
+// Copy installbase.js and styles.css again when they change, until the old view goes.
 //
 // The password's hash (password_hash) is the one line of
 // private/padspan-report-pass. This page is the gate; the view's own PIN is
@@ -72,15 +81,25 @@ if (empty($_SESSION['ok']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 0;
+
+// The page's numbers (signed in only). Until that file is deployed, / shows the old view.
+$DATA = 'digest.php';
+$signed = !empty($_SESSION['ok']);
+$have_data = is_file(__DIR__ . '/' . $DATA);
+$old = $signed && (isset($_GET['old']) || !$have_data);
+$new = $signed && !$old;
 ?><!doctype html>
-<html lang="en">
+<html lang="en"<?= $new ? ' data-theme="dark"' : '' ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>PadSpan Install Base</title>
-<link rel="stylesheet" href="styles.css?v=<?= $v('styles.css') ?>">
 <link rel="icon" href="favicon.png">
+<?php if ($new): ?>
+<link rel="stylesheet" href="pad.css?v=<?= $v('pad.css') ?>">
+<?php else: ?>
+<link rel="stylesheet" href="styles.css?v=<?= $v('styles.css') ?>">
 <style>
   /* styles.css puts its colours on :host (the panel's shadow root); a plain page needs them here. */
   body{--accent:#52b788;--bg:#0a150e;--panel:#0f1a12;--line:#1b3526;--text:#e2e8f0;
@@ -106,9 +125,10 @@ $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 0;
   .pro-key summary{cursor:pointer;color:var(--accent);font-weight:700}
   .pro-key code{font-size:12px;background:#0a150e;padding:1px 4px;border-radius:4px}
 </style>
+<?php endif; ?>
 </head>
-<body>
-<?php if (empty($_SESSION['ok'])): ?>
+<body<?= $new ? ' data-src="' . htmlspecialchars($DATA) . '"' : '' ?>>
+<?php if (!$signed): ?>
 <form class="pad-login" method="post" action="/">
   <div class="k">PadSpan opt-in reports</div>
   <h1>Install Base</h1>
@@ -116,8 +136,8 @@ $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 0;
   <button type="submit">Sign in</button>
   <div class="m" role="status"><?= htmlspecialchars($msg) ?></div>
 </form>
-<?php else: ?>
-<div class="pad-top"><a href="?logout=1">Sign out</a></div>
+<?php elseif ($old): ?>
+<div class="pad-top"><?php if ($have_data): ?><a href="/">New view</a>&nbsp;&nbsp;·&nbsp;&nbsp;<?php endif; ?><a href="?logout=1">Sign out</a></div>
 <section class="pro" id="pro" aria-label="Free Pro push">
   <div class="k">Free Pro push · 2026</div>
   <div class="pro-nums" id="pro-nums">Loading…</div>
@@ -199,6 +219,97 @@ const ctx = {
 };
 document.getElementById("app").appendChild(render(ctx));
 </script>
+<?php else: ?>
+<div class="wrap">
+<div class="top"><a href="?old=1">Old view</a><a href="?logout=1">Sign out</a></div>
+<header>
+  <h1>PadSpan · Install base</h1>
+  <span class="pill" id="status"><span class="dot"></span><span>Loading…</span></span>
+  <span class="sub" id="gen"></span>
+  <span class="spacer"></span>
+  <button class="btn" id="refresh" type="button">Refresh</button>
+  <button class="theme" id="theme" type="button">Light</button>
+</header>
+<div class="err" id="loaderr" role="alert" hidden></div>
+<p class="loading" id="loading">Loading the numbers…</p>
+<div id="app" hidden>
+<section aria-label="Headline numbers"><div class="tiles" id="tiles"></div></section>
+<div id="attention"></div>
+
+<h2>1 · Release health<span class="q">Is anything broken or getting worse? Did the last release help or hurt?</span></h2>
+<div class="two wide-left">
+  <div class="card">
+    <div class="same-age" id="same-age"></div>
+    <h3>Latest stable against the two before it</h3>
+    <p class="cap">Opt-in homes, last 7 days. A home counts once per version. Under 20 homes is too early to judge.</p>
+    <div id="watch"></div>
+    <div class="tablewrap"><table id="health"></table></div>
+  </div>
+  <div class="card">
+    <h3>Which version homes run</h3>
+    <p class="cap">Share of homes checking for updates each day, last 21 days. All installs.</p>
+    <div class="legend" id="adopt-legend"></div>
+    <div class="chart" id="adopt"></div>
+    <div class="vtable" id="vtop"></div>
+    <details><summary>Show as table</summary><div class="tablewrap"><table id="adopt-table"></table></div></details>
+  </div>
+</div>
+<div class="card" id="setup-card" style="margin-top:12px" hidden>
+  <h3>Setups that don't finish</h3>
+  <p class="cap" id="setup-cap"></p>
+  <div id="setup"></div>
+</div>
+<div class="two" style="margin-top:12px">
+  <div class="card">
+    <h3>Issues</h3>
+    <p class="cap">Panel errors, log warnings and 3D fallbacks in opt-in reports. "New" means first seen in the last 3 days; "back" means seen again after a quiet week.</p>
+    <div id="issues"></div>
+  </div>
+  <div class="card">
+    <h3>Slowest homes</h3>
+    <p class="cap">Worst event-loop stall per opt-in home, last 7 days. The whole of Home Assistant, as PadSpan measures it.</p>
+    <div id="perf"></div>
+  </div>
+</div>
+
+<h2>2 · Today and yesterday<span class="q">Only what changed, and only what's outside the normal range.</span></h2>
+<div class="card digest" id="digest"></div>
+
+<h2>3 · Growth<span class="q">Is it moving, and did marketing shift it?</span></h2>
+<div class="card">
+  <h3>Homes checking in each day</h3>
+  <p class="cap" id="ns-cap"></p>
+  <div class="meter" aria-hidden="true"><i id="goal-bar"></i></div>
+  <p class="cap" id="goal-cap" style="margin-top:0"></p>
+  <div class="legend" id="ns-legend"></div>
+  <div class="chart" id="ns"></div>
+  <div class="verdict" id="ba"></div>
+  <details><summary>Show as table</summary><div class="tablewrap"><table id="ns-table"></table></div></details>
+</div>
+<div class="small" style="margin-top:12px" id="small"></div>
+<div class="two" style="margin-top:12px">
+  <div class="card"><h3>From visit to paid</h3><p class="cap" id="funnel-cap"></p><div id="funnel"></div></div>
+  <div class="card"><h3>Where visitors came from</h3><p class="cap" id="src-cap"></p><div id="sources"></div></div>
+</div>
+
+<h2>4 · Everything else<span class="q">Folded until you need it.</span></h2>
+<div id="else"></div>
+</div>
+
+<footer>
+  <b>Definitions</b>
+  <dl>
+    <dt>Homes checking in</dt><dd>Distinct addresses that asked for an update on the BC day. All installs. One home behind two addresses counts twice, and two homes behind one address count once.</dd>
+    <dt>Opt-in homes</dt><dd>Installs that send the usage report, about 1 in 3. Percentages always show the count beside them.</dd>
+    <dt>Typical</dt><dd>The median of the previous 7 days. For today, it's the same 7 days up to the same time of day.</dd>
+    <dt>Normal range</dt><dd>Within 3 spreads of typical, using the spread of the last 28 days. Only values outside it are called out.</dd>
+    <dt>Days</dt><dd>BC days (UTC−7). Site logs are kept 15 days. Opt-in reports go back to Aug 18 and update checks to Aug 4.</dd>
+  </dl>
+  <p><a href="?old=1">The old view</a> stays here until Nov 6.</p>
+</footer>
+</div>
+<div id="tip" role="tooltip"></div>
+<script src="pad.js?v=<?= $v('pad.js') ?>"></script>
 <?php endif; ?>
 </body>
 </html>
