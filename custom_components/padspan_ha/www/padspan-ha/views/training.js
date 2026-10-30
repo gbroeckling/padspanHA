@@ -1698,7 +1698,7 @@ const WALKTHROUGHS = [
     icon: "⚙️",
     summary: "Clean up tags, delete HA areas, remove orphaned map data, and keep your system tidy.",
     steps: [
-      { title: "The Manage Tab",                         text: "The Manage tab gives you full control over your PadSpan data. It's visible in Advanced and Development modes (cycle the mode toggle in the top bar). Click Manage in the sidebar to find tabs for BLE Tags, Rooms (HA Areas), Maps, and Data.", svg: _svgManageOverview },
+      { title: "The Manage Tab",                         text: "The Manage tab gives you full control over your PadSpan data. It's in the main menu in Advanced and Development modes, and under More tools in Basic. Click Manage in the sidebar to find tabs for BLE Tags, Rooms (HA Areas), Maps, and Data.", svg: _svgManageOverview },
       { title: "Untag or Remove BLE Devices",           text: "Under BLE Tags, every named BLE device is listed with its last-seen time. Click Delete to remove the name — the device reverts to showing its hardware address. A two-click confirm prevents accidental deletes.", svg: _svgUntagDevice },
       { title: "Clean Up Orphan Polygons",              text: "The Data tab's Orphan Room Polygons scanner finds room boundaries in your maps that no longer match a real HA area — commonly leftover from sample mode or rooms that were deleted. Delete them individually or all at once.", svg: _svgOrphanClean },
       { title: "Factory Reset",                         text: "When you need a completely fresh start, use Factory Reset in Settings → Manage tab. This erases all PadSpan persistent data — settings, calibration, objects, maps, model, alerts, movement history, and backups. BLE radio data is kept intact so scanners continue working. You must type 'FACTORY RESET' to confirm (admin only). Restart HA afterwards. Use this when troubleshooting persistent issues or starting a clean setup from scratch.", svg: _svgFactoryReset },
@@ -2000,7 +2000,7 @@ const MANUAL_SECTIONS = [
     paragraphs: [
       "PadSpan has two 'Manage' areas, each for different tasks:",
       "Settings → Manage tab (Advanced / Development mode) — quick access for everyday cleanup: untag BLE devices and delete HA areas.",
-      "Sidebar Manage tab (Advanced / Development mode) — deeper data management: BLE tag operations, HA entity deletion, map and integration controls, orphan room polygon cleanup.",
+      "Sidebar Manage tab (main menu in Advanced / Development mode, More tools in Basic) — deeper data management: BLE tag operations, HA entity deletion, map and integration controls, orphan room polygon cleanup.",
       "Untag a BLE device — go to Settings → Manage → BLE Tags. Find the device and click Untag (two-click confirm). The device reverts to its hardware address but is still tracked.",
       "Delete an HA Area — go to Settings → Manage → Rooms. Click Delete next to an area. This removes it from Home Assistant entirely and cannot be undone from within PadSpan. Re-add in HA Settings → Areas & Zones if needed.",
       "Orphan Room Polygons — found in Manage sidebar → Data. These are room boundaries in your maps that no longer match a real HA area — usually leftover from sample mode or deleted rooms. Delete individually or all at once.",
@@ -2235,7 +2235,7 @@ const QUICKSTART_SECTIONS = [
       "Presence — adjust Room Change Delay (how long before PadSpan confirms a room switch) and Home/Away Timeout (how long before a missing device is marked away).",
       "Private BLE Devices — add IRKs for iPhones and Apple Watches so PadSpan resolves their rotating MAC addresses into stable identities.",
       "Quiet Mode — toggle in Overview top-right. Hides unidentified devices to reduce clutter. Only shows tagged and followed objects.",
-      "UI Structure — choose which extra tabs appear in Advanced mode. All tabs are always visible in Development mode.",
+      "UI Structure — choose which extra tabs appear in the main menu in Advanced and Development mode instead of under More tools.",
     ],
   },
   {
@@ -2275,10 +2275,10 @@ const QUICKSTART_SECTIONS = [
     title: "Basic / Advanced / Development",
     icon: "⚡",
     paragraphs: [
-      "PadSpan has three UI modes, cycled by the toggle button in the top-right corner:",
-      "Basic — 6 tabs (Follow, Overview, Maps, Calibration, Settings, Training). Best for everyday use after initial setup. Includes one-click phone tracking and Quiet Mode.",
-      "Advanced — 7 tabs by default (adds Manage). Adds Clear Unidentified, detailed phone tracking status, and more diagnostic info. You can opt extra tabs into Advanced via Settings → UI Structure.",
-      "Development — all 14 tabs visible. Includes Objects, Devices, Bluetooth, Presence, Monitor, QA, and Sandbox for debugging and development.",
+      "PadSpan has three UI modes, cycled by the toggle button in the top-right corner. Every tab is in the menu in every mode: the mode only changes how much detail each tab shows. Tabs outside the main list are under More tools at the bottom of the menu, closed until you open it (PadSpan remembers whether you left it open). Opening a tab from More tools never changes the mode.",
+      "Basic — 6 tabs (Follow, Overview, Maps, Calibration, Settings, Training) in the main list; everything else is under More tools. Best for everyday use after initial setup. Includes one-click phone tracking and Quiet Mode.",
+      "Advanced — the main list adds Pure Live, Manage, Traceback, Occupancy and Health. Adds Clear Unidentified, detailed phone tracking status, and more diagnostic info. Devices, Bluetooth, Presence, Monitor, QA, Sandbox and Install Base are under More tools; Settings → UI Structure moves any of the first six into the main list.",
+      "Development — the same menu as Advanced, with the most detail inside each tab, for debugging and development.",
     ],
   },
 ];

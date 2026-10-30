@@ -194,7 +194,8 @@ const _VIEW_PATHS = {
 // link (the calibration wizard's "See detailed quality report →", the Atlas's
 // "Build from relays"): without them here the next nav rebuild bounced the
 // user back to the first menu view, the same silent no-op as Mapping's Open
-// in Basic mode.
+// in Basic mode. (Since More tools, 2026-10-30, every mode lists qa and
+// devices; they stay here harmlessly.)
 const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics", "qa", "devices"]);
 
 // Track in-flight imports to avoid duplicate fetches
@@ -271,11 +272,14 @@ const MENU = [
 ];
 
 // ── Complexity Mode Tab Sets ─────────────────────────────────────────────────
-// Three complexity tiers control which sidebar tabs are visible:
-//   Basic     — simplified for non-technical users (follow + overview + essentials,
-//               Calibration among them: every home needs it for accuracy)
+// Modes no longer hide screens (2026-10-30): every screen is in the menu in
+// every mode. These sets only decide which screens sit in the main groups;
+// the rest go in one "More tools" group, closed until opened (remembered).
+//   Basic     — a short main list for non-technical users (follow + overview +
+//               essentials, Calibration among them: every home needs it)
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
-//   Dev       — everything visible (includes QA, Sandbox, raw Debug, etc.)
+//   Dev       — the same menu as Advanced; it changes detail inside screens
+// DEV_ONLY_TABS: the screens only Development used to list.
 const BASIC_TABS = new Set(["follow", "overview", "maps", "calibration", "settings", "training"]);
 const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","occupancy","health"]);
 const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
@@ -2779,32 +2783,18 @@ class PadSpanHaApp extends HTMLElement {
   // and calls _renderCurrentView(), which looks up the module in the VIEWS map
   // and calls its render(ctx) function.
 
-  /** Return the Set of tab IDs visible in the current complexity mode. */
+  /** Return the Set of tab IDs in the menu: every screen, in every mode
+   *  (the mode decides only which of them sit under More tools). */
   _getVisibleTabs(){
-    const mode = this.state.complexity;
     // Forensics is settings-gated in EVERY mode (including Dev): the tab only
     // exists while the opt-in forensics_enabled setting is on.
     const forensicsOn = this.state.settings?.forensics_enabled === true;
     // Guests the same way: the tab exists only while guest tags are on
     // (Settings → Presence → Guest tags), in every mode.
     const guestsOn = this.state.settings?.guest_tags_enabled === true;
-    let out;
-    if (mode === "development") {
-      out = new Set(MENU.map(x => x[0]));
-      if (!forensicsOn) out.delete("forensics");
-      if (!guestsOn) out.delete("guests");
-    } else if (mode === "basic") {
-      out = new Set(BASIC_TABS);
-      if (forensicsOn) out.add("forensics");
-      if (guestsOn) out.add("guests");
-    } else {
-      // Advanced: base + any user-opted extra tabs
-      const extras = this.state.settings?.advanced_extra_tabs || [];
-      out = new Set(ADVANCED_DEFAULT);
-      for (const t of extras) out.add(t);
-      if (forensicsOn) out.add("forensics");
-      if (guestsOn) out.add("guests");
-    }
+    let out = new Set(MENU.map(x => x[0]));
+    if (!forensicsOn) out.delete("forensics");
+    if (!guestsOn) out.delete("guests");
     // The EDITION decides last: a Bright build shows its lighting surfaces
     // (and the rest only behind the reveal switch). The full edition is
     // untouched by this — surfacesForEdition returns its input.
@@ -2812,6 +2802,36 @@ class PadSpanHaApp extends HTMLElement {
       out = new Set(EDITIONS.surfacesForEdition([...out], this.state.settings || {}));
     }
     return out;
+  }
+
+  /** The tabs in the main groups for the current mode; every other visible
+   *  tab is under More tools. Basic keeps its short list; Advanced and
+   *  Development share one (Development changes detail inside screens), plus
+   *  the tabs Settings → UI Structure opted in. Forensics and Guests, while
+   *  switched on, are main tabs in every mode. */
+  _getMainTabs(){
+    const s = this.state.settings || {};
+    const out = new Set(this.state.complexity === "basic" ? BASIC_TABS : ADVANCED_DEFAULT);
+    if (this.state.complexity !== "basic") for (const t of (s.advanced_extra_tabs || [])) out.add(t);
+    out.add("forensics");
+    out.add("guests");
+    const visible = this._getVisibleTabs();
+    return new Set([...out].filter(id => visible.has(id)));
+  }
+
+  /** More tools open or closed: closed until opened, remembered per browser. */
+  _moreToolsOpen(){
+    try { return localStorage.getItem("padspan_more_tools") === "open"; }
+    catch (e) { return this._moreToolsMem === true; }
+  }
+
+  _toggleMoreTools(){
+    const open = !this._moreToolsOpen();
+    this._moreToolsMem = open;
+    try { localStorage.setItem("padspan_more_tools", open ? "open" : "closed"); } catch (e) {}
+    // Opt-in usage report: whether anyone opens it (only the opening is counted).
+    if (open) this._telemetryEvent("menu_more_tools_open");
+    this._renderNav();
   }
 
   /** Whether a view opened by a ?view= link stays open though the menu
@@ -2849,6 +2869,28 @@ class PadSpanHaApp extends HTMLElement {
       this.state.view = items[0][0];
       this._scheduleRender();
     }
+    // Main groups and More tools. More tools lists in MENU_GROUPS order
+    // (Live, Setup, Diagnose, Internals), anything ungrouped last.
+    const main = this._getMainTabs();
+    const _order = MENU_GROUPS.flatMap(g => g[1]);
+    const _rank = (id) => { const i = _order.indexOf(id); return i < 0 ? _order.length : i; };
+    const moreItems = items.filter(x => !main.has(x[0])).sort((a, b) => _rank(a[0]) - _rank(b[0]));
+    const moreOpen = this._moreToolsOpen();
+    // The disclosure, then its screens. Closed, it still shows the screen
+    // open now if that is one of them, so the menu always says where you are.
+    const _moreTools = (button) => {
+      if (!moreItems.length) return;
+      const t = el("button", {
+        class: "navbtn navmore", title: "More tools", "aria-expanded": moreOpen ? "true" : "false",
+        onclick: () => this._toggleMoreTools()
+      });
+      t.innerHTML = '<svg class="navicon navchev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+      t.appendChild(el("span", { class: "navlabel" }, "More tools"));
+      this.$nav.appendChild(t);
+      for (const [id, label] of moreItems) {
+        if (moreOpen || id === this.state.view) this.$nav.appendChild(button(id, label));
+      }
+    };
     const _switchView = (id) => {
       // Clear traceback active flag when leaving traceback tab
       if (this.state._traceback && this.state.view === "traceback" && id !== "traceback") {
@@ -2885,7 +2927,7 @@ class PadSpanHaApp extends HTMLElement {
       // Grouped icon list. `items` above stays the flat, MENU-ordered
       // visibility set — the items[0][0] fallback a few lines up depends on
       // that, so headings are appended as a separate pass and never enter it.
-      const byId = new Map(items.map(x => [x[0], x[1]]));
+      const byId = new Map(items.filter(x => main.has(x[0])).map(x => [x[0], x[1]]));
       const _navButton = (id, label) => {
         const btn = el("button", {
           class: "navbtn" + (this.state.view === id ? " active" : ""),
@@ -2912,21 +2954,23 @@ class PadSpanHaApp extends HTMLElement {
         for (const id of present) { seen.add(id); this.$nav.appendChild(_navButton(id, byId.get(id))); }
       }
       // A MENU entry that nobody added to MENU_GROUPS still renders.
-      const orphans = items.filter(x => !seen.has(x[0]));
+      const orphans = items.filter(x => byId.has(x[0]) && !seen.has(x[0]));
       if (orphans.length) {
         _heading("More");
         for (const [id, label] of orphans) this.$nav.appendChild(_navButton(id, label));
       }
+      _moreTools(_navButton);
     } else {
-      for(const [id,label] of items.map(x=>[x[0],x[1]])) {
+      const _classicButton = (id, label) => {
         const color = MENU_COLORS[id] || "#37588f";
-        const btn = el("button",{
+        return el("button",{
           class:"navbtn"+(this.state.view===id?" active":""),
           style:`--navcolor:${color}`,
           onclick:()=>_switchView(id)
         }, [el("span",{class:"navdot"}), el("span",{}, label)]);
-        this.$nav.appendChild(btn);
-      }
+      };
+      for(const [id,label] of items.filter(x => main.has(x[0]))) this.$nav.appendChild(_classicButton(id, label));
+      _moreTools(_classicButton);
     }
 
     // ── Mobile bottom nav: pinned tabs + "More" button ──────────────

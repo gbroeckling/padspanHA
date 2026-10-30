@@ -160,6 +160,10 @@
 .nav button.navbtn.active{outline:2px solid var(--navcolor,#52b788)}
 .nav button.navbtn:hover{border-color:var(--navcolor,#52b788)}
 .navdot{display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--navcolor,#52b788);margin-right:10px;vertical-align:middle}
+/* More tools: the menu's closed group (panel.js _renderNav) */
+.nav button.navmore{display:flex;align-items:center;gap:8px;color:#94a3b8;--navcolor:#78909c}
+.navmore .navchev{width:14px;height:14px;flex:0 0 14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s ease}
+.navmore[aria-expanded="true"] .navchev{transform:rotate(90deg)}
 
 /* --- Added for Bluetooth view --- */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}

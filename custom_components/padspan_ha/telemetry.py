@@ -285,6 +285,10 @@ EVENTS: frozenset[str] = frozenset({
     # The Live Aboard setup wizard (views/aboard_wizard.js): opened, and
     # finished (its last step's "open Live Aboard").
     "wizard_la_opened", "wizard_la_finished",
+    # The menu's More tools group opened (2026-10-30: modes stopped hiding
+    # screens; the ones only Development listed sit there, closed by default).
+    # Counted on opening only: whether anyone finds it.
+    "menu_more_tools_open",
     # Settings → Suggest an idea: which way people take (0.38.140).
     "suggest_idea_posted", "suggest_idea_browsed", "suggest_idea_mail",
     # A Bluetooth proxy that suddenly hears far fewer advertisements than it

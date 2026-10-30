@@ -166,6 +166,9 @@ svg text, svg tspan { letter-spacing: normal; }
   stroke-linecap:round;stroke-linejoin:round;
 }
 .nav button.navbtn.active .navicon{color:var(--ps-ac)}
+/* More tools: a heading you can open, set apart from the groups above it */
+.nav button.navmore{margin-top:10px;color:var(--ps-tx3)}
+.nav button.navmore .navchev{width:14px;height:14px;flex:0 0 16px;stroke-width:2}
 
 .navlabel{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 

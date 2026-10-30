@@ -4363,7 +4363,7 @@ function _settingsUI(ctx, el){
 
   wrap.appendChild(el("h3",{style:"color:#52b788;margin-bottom:8px"},"UI Structure"));
   wrap.appendChild(el("p",{style:"color:#94a3b8;font-size:13px;margin-bottom:16px"},
-    "Choose which tabs appear in Advanced mode. All tabs are always visible in Development mode."));
+    "Every tab is in the menu in every mode; the ones not in the main list are under More tools. Tick a tab to list it in the main menu in Advanced and Development mode. Basic keeps its short list."));
 
   const card = el("div",{class:"card",style:"padding:16px"});
   const checks = [];
@@ -4387,9 +4387,7 @@ function _settingsUI(ctx, el){
     const selected = checks.filter(c => c.checked).map(c => c.dataset.tab);
     await ctx.actions.settingsSet({ advanced_extra_tabs: selected });
     status.textContent = "Saved!";
-    if(ctx.state.complexity === "advanced"){
-      ctx.actions.renderNav();
-    }
+    ctx.actions.renderNav();
     setTimeout(()=>{ status.textContent = ""; }, 2000);
   });
   wrap.appendChild(el("div",{style:"display:flex;align-items:center"}, [saveBtn, status]));

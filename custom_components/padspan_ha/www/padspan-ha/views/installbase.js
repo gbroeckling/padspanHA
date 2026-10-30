@@ -689,6 +689,7 @@ const W_EVENT = {
   wizard_tiers_step_free: "Editions tour: Free", wizard_tiers_step_ladder: "Editions tour: compare",
   wizard_tiers_step_upgrade: "Editions tour: upgrade", wizard_tiers_completed: "Editions tour: finished",
   wizard_la_opened: "3D house setup: opened", wizard_la_finished: "3D house setup: finished",
+  menu_more_tools_open: "Opened More tools in the menu",
 };
 const W_GS_STEP = { upload: "add a floor plan", scale: "set the scale", rooms: "draw rooms", scanners: "place receivers",
                     calibrate: "calibrate", positioned: "see devices placed" };
