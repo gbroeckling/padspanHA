@@ -52,7 +52,7 @@ from .house3d_store import (EDIT_SECTIONS, NEWER_MESSAGE, EditError, House3dStor
 from .ws_common import admin_if_enhanced_security, _tier_at_least
 
 OFF_CODE = "house3d_off"
-OFF_MESSAGE = "Live Aboard is off. Turn it on in Settings → UI Structure → Atlas → Live Aboard."
+OFF_MESSAGE = "Live Aboard is off. Turn it on in Settings → Atlas → Live Aboard."
 # Below Pro the 3D house is as if off, whatever the switch says; the message
 # says what would bring it back (editions.js: a gate is never a dead end).
 PRO_MESSAGE = ("Live Aboard (experimental) needs PadSpan Pro. Enter a key in Settings → Features "

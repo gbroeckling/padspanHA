@@ -161,7 +161,7 @@ factor â€” designed-px-per-unit (0.84) over actual-px-per-unit, never above 1 â€
 substituted when the svg is composed (`_finishIso`), so it does not depend on
 what was drawn before what. The factor is published on the root as
 `data-ann-k` and every group carries `data-ann="x y"`; **that is the contract
-Pure Live's zoom composes with** (`_counterScaleSVG` sets `k / zoom` about the
+Live Tracker's zoom composes with** (`_counterScaleSVG` sets `k / zoom` about the
 anchor). Overwriting the transform with `scale(1/zoom)` discarded k and brought
 the giant labels back the moment the map was zoomed or rebuilt. Rings that
 belong to a marker live *inside* its group. A container width change rebuilds

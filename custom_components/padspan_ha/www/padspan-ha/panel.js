@@ -250,7 +250,7 @@ const _viewsPromise = _criticalPromise;
 // at render time based on the current complexity mode (Basic/Advanced/Dev).
 const MENU = [
   ["overview","Overview","mdi:view-dashboard-outline"],
-  ["purelive","Pure Live","mdi:lightning-bolt-outline"],
+  ["purelive","Live Tracker","mdi:lightning-bolt-outline"],
   ["follow","Follow","mdi:crosshairs-gps"],
   ["devices","Devices","mdi:devices"],
   ["bluetooth","Bluetooth","mdi:bluetooth"],

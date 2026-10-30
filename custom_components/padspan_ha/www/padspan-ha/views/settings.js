@@ -60,7 +60,8 @@ export function render(ctx){
     return root;
   }
 
-  // Advanced / Development mode: tabbed — Appearance | Scanner Map | Presence | UI Structure
+  // Advanced / Development mode: tabbed — Appearance | Scanner Map | Tracking (id "presence") | Features | AI | Atlas | UI Structure.
+  // The Atlas and Live Aboard settings were under UI Structure until 2026-10-30; "ui" still opens UI Structure, which links to Atlas.
   if(!ctx.state._settingsTab) ctx.state._settingsTab = "appearance";
   const activeTab = ctx.state._settingsTab;
   const setTab = (t) => { ctx.state._settingsTab = t; ctx.actions.renderRooms(); };
@@ -79,7 +80,7 @@ export function render(ctx){
       "If a dot is in the wrong place, collect more calibration points near that scanner to fix it. " +
       "This tab also has Replace Scanner (swap calibration data when hardware is replaced) and " +
       "Relearn Radio (adjust readings after antenna upgrade/downgrade)."],
-    ["presence", "Presence",
+    ["presence", "Tracking",
       "Controls how PadSpan determines which room a device is in and when it's considered 'away'. " +
       "Room change delay prevents flicker when a device is near a boundary between rooms. " +
       "Away timeout sets how long a device must be unseen before it's marked as gone. " +
@@ -90,12 +91,15 @@ export function render(ctx){
       "Trackability Rating scores how reliably each device can be tracked. " +
       "Walk-to-Identify discovers unknown devices by correlating signal changes with your movement. " +
       "Radio Map overlays signal heatmaps on the 3D iso view. " +
-      "Distortion Map visualises where the RF model diverges from reality. " +
+      "Signal distortion map visualises where the RF model diverges from reality. " +
       "Adaptive Learning lets the system continuously improve from live positioning data."],
     ["ai", "AI",
       "AI power features: PadSpan can use an AI you have set up in Home Assistant (an AI Task) to read photos, " +
       "and soon floor plans. Nothing here runs unless you switch it on and pick an AI Task. A cloud AI sends what it " +
       "reads out of the house; a local one (like Ollama) keeps it home."],
+    ["atlas", "Atlas",
+      "The Atlas, PadSpan's house map for everyday light control, and Live Aboard, its 3D view: whether the Atlas is in the " +
+      "Home Assistant sidebar, what it draws, its outdoor weather, wall screens, and the Atlas as your Overview."],
     ["ui", "UI Structure",
       "Choose which tabs appear in the sidebar when using Advanced mode. " +
       "All tabs are always visible in Development mode regardless of these settings. " +
@@ -140,6 +144,8 @@ export function render(ctx){
     root.appendChild(_settingsFeatures(ctx, el));
   } else if(activeTab === "ai"){
     root.appendChild(_settingsAI(ctx, el));
+  } else if(activeTab === "atlas"){
+    root.appendChild(_settingsAtlas(ctx, el));
   } else if(activeTab === "ui"){
     root.appendChild(_settingsUI(ctx, el));
   } else {
@@ -303,7 +309,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         "anyone who can't use a dark screen; photos and map images are turned back so they still " +
         "look normal. Day is the panel redrawn in light colours. Every one keeps the green accent " +
         "and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D " +
-        "house and Pure Live keep their night colours. It takes effect immediately, in every browser."),
+        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser."),
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night","Night"), mkTheme("graphite","Graphite"), mkTheme("ocean","Ocean"),
         mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
@@ -808,37 +814,90 @@ function _toHex(c){
 }
 
 // ── Presence tab ────────────────────────────────────────────────────────────────
+// ── Settings → Presence in sections (2026-10-30) ──────────────────────────
+// [key, heading], most-used first. Every card on the tab goes into exactly
+// one of them through put() (tests/test_settings_sections.py). A section
+// folds to its heading; a folded one is remembered in this browser
+// (padspan_settings_fold_<key> = "0"), and every section is open until
+// someone folds it.
+export const PRESENCE_SECTIONS = [
+  ["rooms",        "Rooms and timing"],
+  ["phones",       "Phones and guest tags"],
+  ["shown",        "What the panel shows"],
+  ["positioning",  "Positioning and calibration"],
+  ["receivers",    "Receivers"],
+  ["performance",  "Performance"],
+  ["integrations", "Home Assistant and integrations"],
+  ["privacy",      "Privacy, updates and feedback"],
+];
+const _FOLD = "padspan_settings_fold_";
+const _foldClosed = (key) => { try { return localStorage.getItem(_FOLD + key) === "0"; } catch (_) { return false; } };
+const _foldSave = (key, open) => { try { if (open) localStorage.removeItem(_FOLD + key); else localStorage.setItem(_FOLD + key, "0"); } catch (_) {} };
+
+function _presenceSections(ctx, el, bins){
+  // A link that lands on one card opens its section: "Become a tester" (the
+  // report's card) and anything that sets state._presenceReveal once.
+  const reveal = ctx.state._testerFocus === true ? "privacy" : ctx.state._presenceReveal;
+  ctx.state._presenceReveal = null;
+  const out = [];
+  for (const [key, title] of PRESENCE_SECTIONS) {
+    const cards = bins[key] || [];
+    if (!cards.length) continue;
+    if (reveal === key) _foldSave(key, true);
+    const open = !_foldClosed(key);
+    const chev = el("span", { style: "display:inline-block;width:14px;color:#52b788;font-size:16px;line-height:1" }, open ? "▾" : "▸");
+    const det = el("details", { "data-presence-section": key }, [
+      el("summary", { style: "cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #1b3526;user-select:none" }, [
+        chev,
+        el("span", { style: "font-weight:700;font-size:14px;color:#52b788" }, title),
+      ]),
+      el("div", { style: "display:flex;flex-direction:column;gap:12px;margin-top:12px" }, cards),
+    ]);
+    det.open = open;
+    det.addEventListener("toggle", () => { chev.textContent = det.open ? "▾" : "▸"; _foldSave(key, det.open); });
+    out.push(det);
+  }
+  return out;
+}
+
 function _settingsPresence(ctx, el){
   const helpBtn = ctx.helpers.helpBtn;
   const settings = ctx.state.settings || {};
   const inpStyle = "width:72px;text-align:center;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:13px";
   const rowStyle = "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px";
   const wrap = el("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  // Each card goes into one section (PRESENCE_SECTIONS); they are drawn at the end.
+  const bins = {};
+  const put = (key, node) => { (bins[key] = bins[key] || []).push(node); };
   wrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
-    el("div",{style:"font-weight:700;font-size:15px;color:#52b788"},"Presence Settings"),
+    el("div",{style:"font-weight:700;font-size:15px;color:#52b788"},"Tracking Settings"),
     helpBtn("settings_presence"),
   ]));
 
   // ── Quiet Mode ────────────────────────────────────────────────────────────
+  // Switched in one place: the Quiet tick at the top of the Overview, which
+  // Basic mode has too (it has no Presence tab). With the Atlas as Overview
+  // that tick is on Pure Live's classic Overview side. This card explains it
+  // and links there.
   {
     const quietOn = settings.quiet_mode === true;
-    const quietToggle = el("input",{type:"checkbox",id:"quietModeToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
-    quietToggle.checked = quietOn;
-    quietToggle.addEventListener("change", async()=>{
-      try {
-        await ctx.actions.settingsSet({ quiet_mode: quietToggle.checked });
-        ctx.toast(quietToggle.checked ? "Quiet mode on — only tracked objects visible" : "Quiet mode off — all objects visible");
-        ctx.actions.renderRooms();
-      } catch(e){ ctx.toast("Failed to save", true); }
+    const atlasHome = settings.overview_atlas === true && tierAtLeast(settings.tier, "pro");
+    const quietGo = el("button",{class:"btn inline","data-goto":"overview-quiet"}, atlasHome ? "Open the classic Overview" : "Open the Overview");
+    quietGo.addEventListener("click", ()=>{
+      if (atlasHome) { ctx.state.view = "purelive"; ctx.state._liveClassic = true; }
+      else ctx.state.view = "overview";
+      if (ctx.actions.renderNav) ctx.actions.renderNav();
+      ctx.actions.renderRooms();
     });
-    wrap.appendChild(el("div",{class:"card",style:"border-color:" + (quietOn ? "#52b788" : "#2d4a38")},[
+    put("shown", el("div",{class:"card",style:"border-color:" + (quietOn ? "#52b788" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
         el("div",{class:"h2",style:"margin:0;color:#52b788"}, "Quiet Mode"),
       ]),
-      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
-        quietToggle,
-        el("label",{for:"quietModeToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-          "Only show identified & followed objects"),
+      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"},[
+        el("span",{style:"font-size:13px;color:#e2e8f0;font-weight:600"},
+          quietOn ? "On: only identified & followed objects are shown." : "Off: all objects are shown."),
+        el("span",{class:"muted",style:"font-size:12px"}, "Switch it with the Quiet tick at the top of the Overview."),
+        quietGo,
       ]),
       el("div",{class:"muted",style:"font-size:12px"},
         "Hides all unidentified BLE devices from the Objects list, overview counts, and dropdowns. " +
@@ -869,7 +928,7 @@ function _settingsPresence(ctx, el){
       try { await ctx.actions.settingsSet({ guest_retention_days: parseInt(keep.value, 10) }); ctx.toast("Saved"); }
       catch(e){ ctx.toast("Failed to save: " + (e?.message || e), true); }
     });
-    wrap.appendChild(el("div",{class:"card",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
+    put("phones", el("div",{class:"card",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
         el("div",{class:"h2",style:"margin:0;color:#fbbf24"}, "Guest tags"),
       ]),
@@ -907,8 +966,8 @@ function _settingsPresence(ctx, el){
         await ctx.actions.modelRefresh();
       } catch(e) { ctx.toast("Failed to save", true); }
     });
-    wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "h2", style: "color:#52b788" }, "Fabric source"),
+    put("integrations", el("div", { class: "card" }, [
+      el("div", { class: "h2", style: "color:#52b788" }, "Room and receiver layout source"),
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [sel]),
       el("div", { class: "muted", style: "font-size:12px" },
         "Standalone lets PadSpan run with rooms you created here and no Home Assistant areas at all."),
@@ -923,8 +982,8 @@ function _settingsPresence(ctx, el){
     const algoSel = el("select", {
       style: "width:180px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
     });
-    const optKnn = el("option", { value: "knn" }, "k-NN (default)");
-    const optRf = el("option", { value: "rf" }, "Random Forest (experimental)" + (rfReady ? "" : " — not trained"));
+    const optKnn = el("option", { value: "knn", title: "k-NN (k-nearest neighbours)" }, "Matched to calibration points (default)");
+    const optRf = el("option", { value: "rf", title: "Random Forest" }, "Learned model (experimental)" + (rfReady ? "" : " — not trained"));
     if (curAlgo === "knn") optKnn.selected = true;
     else optRf.selected = true;
     algoSel.appendChild(optKnn);
@@ -932,20 +991,20 @@ function _settingsPresence(ctx, el){
     algoSel.addEventListener("change", async () => {
       try {
         await ctx.actions.settingsSet({ positioning_algorithm: algoSel.value });
-        ctx.toast(`Positioning algorithm: ${algoSel.value === "rf" ? "Random Forest" : "k-NN"}`);
+        ctx.toast(`Positioning algorithm: ${algoSel.value === "rf" ? "Learned model" : "Matched to calibration points"}`);
         ctx.actions.renderRooms();
       } catch(e) { ctx.toast("Failed to save", true); }
     });
-    wrap.appendChild(el("div", { class: "card" }, [
+    put("positioning", el("div", { class: "card" }, [
       el("div", { class: "h2", style: "color:#52b788" }, "Positioning Algorithm"),
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
         algoSel,
         el("span", { class: "muted", style: "font-size:12px" },
-          curAlgo === "rf" ? (rfReady ? "Active" : "Falling back to k-NN") : ""),
+          curAlgo === "rf" ? (rfReady ? "Active" : "Falling back to matching calibration points") : ""),
       ]),
       el("div", { class: "muted", style: "font-size:12px;line-height:1.6" },
-        "k-NN compares live signals to the nearest calibration points — works well even with sparse scanner coverage. " +
-        "Random Forest (experimental) trains a decision-tree model — needs dense multi-scanner overlap per object to outperform k-NN. " +
+        "Matched to calibration points compares live signals to the nearest calibration points — works well even with sparse scanner coverage. " +
+        "The learned model (experimental) trains a decision-tree model — needs dense multi-scanner overlap per object to do better than matching. " +
         "Both use the same calibration dataset — switching is instant and safe."),
     ]));
   }
@@ -965,7 +1024,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Room change delay set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("rooms", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Room Change Delay"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How long a scanner must consistently dominate before PadSpan switches a device to a new room. " +
@@ -996,7 +1055,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(v > 0 ? `Room held through gaps up to ${v}s` : "Room hold off");
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("rooms", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Hold Room Through Short Gaps"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "When a device goes quiet for a minute and comes back, PadSpan forgets its room until the room vote agrees again, " +
@@ -1025,7 +1084,7 @@ function _settingsPresence(ctx, el){
         ctx.toast(reasonToggle.checked ? "Room reason attribute on" : "Room reason attribute off");
       } catch(e){ ctx.toast("Failed to save", true); }
     });
-    wrap.appendChild(el("div",{class:"card"},[
+    put("rooms", el("div",{class:"card"},[
       el("div",{class:"h2"}, "Why This Room (Sensor Attribute)"),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
         reasonToggle,
@@ -1074,7 +1133,7 @@ function _settingsPresence(ctx, el){
     }
     card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:10px" },
       "All off by default. Off, rooms and positions are worked out exactly as before."));
-    wrap.appendChild(card);
+    put("positioning", card);
   }
 
   // ── Walk a room (calibration_room_walk, off by default) ─────────────────────
@@ -1088,7 +1147,7 @@ function _settingsPresence(ctx, el){
         ctx.toast(`Walk a room: ${tg.checked ? "on" : "off"}`);
       } catch (e) { ctx.toast("Failed to save", true); }
     });
-    wrap.appendChild(el("div", { class: "card" }, [
+    put("positioning", el("div", { class: "card" }, [
       el("div", { class: "h2" }, "Walk a Room (Calibration)"),
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
         tg,
@@ -1116,7 +1175,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Poll interval set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("performance", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Presence Poll Interval"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How often the smoothing pipeline runs to update room assignments. " +
@@ -1160,7 +1219,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`CPU mode: ${cpuSel.value}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("performance", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "CPU Mode"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Where the presence-smoothing computation runs. Shared runs it on Home Assistant's " +
@@ -1199,7 +1258,7 @@ function _settingsPresence(ctx, el){
       ctx.actions.renderRooms();
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("performance", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Low-memory mode"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
       "For a Home Assistant machine with 2 GB of RAM. Next to a busy street PadSpan hears " +
@@ -1238,7 +1297,7 @@ function _settingsPresence(ctx, el){
       ctx.actions.renderRooms();
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("performance", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Optimize for scale"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
       "For houses with several wall screens or tablets showing PadSpan at once. It cuts what each screen asks Home Assistant for, " +
@@ -1268,7 +1327,7 @@ function _settingsPresence(ctx, el){
       ctx.actions.renderRooms();
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Update Check"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Once a day PadSpan asks padspan.traks.ca whether a newer version exists and " +
@@ -1312,7 +1371,7 @@ function _settingsPresence(ctx, el){
     "PadSpan's log",
     "Settings that apply to the whole home (the update check, device maker lookup, positioning and the rest)",
   ];
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Enhanced security"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "When this is on, only a Home Assistant administrator can change how PadSpan is set up for this home. " +
@@ -1408,7 +1467,7 @@ function _settingsPresence(ctx, el){
     browse.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_browsed"); });
     const mail = link(IDEAS_MAIL, "Email an idea");
     mail.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_mail"); });
-    wrap.appendChild(el("div", { class: "card" }, [
+    put("privacy", el("div", { class: "card" }, [
       el("div", { class: "h2" }, "💡 Suggest an idea"),
       el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
         "Something PadSpan should do, or do better? Post it where other people can vote on it, or vote on ideas already there. No GitHub account? Email it instead."),
@@ -1417,7 +1476,7 @@ function _settingsPresence(ctx, el){
       ]),
     ]));
   }
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Help improve PadSpan"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
@@ -1452,6 +1511,25 @@ function _settingsPresence(ctx, el){
   ]));
 
   // ── BLE Reseed Interval ──────────────────────────────────────────────────
+  const aggressiveChk = el("input",{type:"checkbox"});
+  aggressiveChk.checked = settings.aggressive_ble_reseed === true;
+  aggressiveChk.addEventListener("change", async()=>{
+    try {
+      await ctx.actions.settingsSet({aggressive_ble_reseed: aggressiveChk.checked});
+      ctx.toast(aggressiveChk.checked ? "Bluetooth refresh every 5 s on." : "Bluetooth refresh back to its interval.");
+      ctx.actions.renderRooms();
+    } catch(e){ ctx.toast("Failed: "+String(e), true); aggressiveChk.checked = !aggressiveChk.checked; }
+  });
+  const aggressiveReseedRow = el("div", { "data-setting": "aggressive_ble_reseed", style: "margin-top:10px" }, [
+    el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
+      aggressiveChk, el("span",{},"Refresh every 5 s for passive proxy scanners"),
+    ]),
+    el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5;margin-top:4px"},
+      "Enable this if Shelly BLE proxies or other passive Bluetooth relay scanners aren't showing RSSI values during calibration. " +
+      "This increases the BLE data reseed frequency from every 30 seconds to every 5 seconds, working around a deduplication change in HA 2026.4."),
+    settings.aggressive_ble_reseed ? el("div",{style:"font-size:11px;color:#26c6da;margin-top:6px"},
+      "Active — reseeding from HA Bluetooth discovery every 5 seconds. This uses slightly more CPU but ensures Shelly and passive scanner data stays fresh.") : null,
+  ]);
   const currentReseed = (settings.ble_reseed_interval_s != null ? Number(settings.ble_reseed_interval_s) : 30);
   const reseedInp = el("input", {
     type: "number", min: "1", max: "60", step: "1", value: String(currentReseed), style: inpStyle,
@@ -1461,18 +1539,18 @@ function _settingsPresence(ctx, el){
     const v = Math.max(1, Math.min(60, parseInt(reseedInp.value) || 30));
     try {
       await ctx.actions.settingsSet({ ble_reseed_interval_s: v });
-      ctx.toast(`BLE reseed interval set to ${v}s`);
+      ctx.toast(`Bluetooth refresh interval set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "BLE Reseed Interval"),
+  put("receivers", el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Bluetooth refresh interval"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How often PadSpan re-fetches BLE data from HA's scanner infrastructure. " +
       "Essential for passive proxy scanners (Shelly, ESPHome BLE proxy) whose " +
       "advertisements don't arrive via callbacks. Lower values improve freshness on fast hardware."
     ),
     el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Reseed interval"),
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Refresh interval"),
       reseedInp,
       el("div", { class: "muted", style: "font-size:12px" }, "seconds"),
       reseedSaveBtn,
@@ -1480,6 +1558,11 @@ function _settingsPresence(ctx, el){
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
       `Current: ${currentReseed}s. Default: 30s. Range: 1–60s.`
     ),
+    // "Aggressive BLE reseed" lived in Manage → HA Entities → BLE Proxy
+    // Compatibility until 2026-10-30; it caps this interval at 5 s
+    // (bluetooth_live.reseed_interval_s), so it lives beside it now and that
+    // card links here.
+    aggressiveReseedRow,
   ]));
 
   // ── Object History Retention ───────────────────────────────────────────────
@@ -1504,7 +1587,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Object history set to ${v} day${v !== 1 ? "s" : ""}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("shown", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Object History Retention"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How long a device that you never labelled is kept in history. " +
@@ -1538,7 +1621,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Away timeout set to ${v} min`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("rooms", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Home/Away Timeout"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "If a device hasn't been detected for this long, it is marked as not_home in HA. " +
@@ -1576,7 +1659,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`BLE timeout set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("shown", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "BLE Advertisement Timeout"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How long to keep a BLE device visible after its last advertisement. " +
@@ -2170,7 +2253,7 @@ function _settingsPresence(ctx, el){
 
     irkCard.appendChild(guidePanel);
 
-    wrap.appendChild(irkCard);
+    put("phones", irkCard);
   }
 
   // ── Distance Calibration ───────────────────────────────────────────────────
@@ -2191,7 +2274,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Distance params saved: ref=${ref} dBm, n=${pl}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("positioning", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Distance Calibration"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Parameters for the log-distance path-loss formula used by the sensor.{device}_distance HA entity. " +
@@ -2231,11 +2314,11 @@ function _settingsPresence(ctx, el){
     const r = Math.max(0.5, Math.min(50.0, parseFloat(krInp.value) || 8.0));
     try {
       await ctx.actions.settingsSet({ kalman_q: q, kalman_r: r });
-      ctx.toast(`Signal filter saved: Q=${q}, R=${r}`);
+      ctx.toast(`Signal smoothing saved: Q=${q}, R=${r}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Signal Filter"),
+  put("positioning", el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Signal smoothing"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Kalman filter parameters for per-scanner RSSI smoothing. " +
       "Q (process noise) controls how quickly the filter responds to real movement — lower = more smoothing, slower response. " +
@@ -2275,7 +2358,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Device height set to ${v} m`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("positioning", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "3D Positioning — Device Height"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "RSSI measures the straight-line (slant) distance to a scanner, but positioning solves on the " +
@@ -2333,7 +2416,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(lat == null ? "GPS bridge disabled" : "GPS origin saved");
     } catch (e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("integrations", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "GPS Bridge"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Anchor the fabric to a real-world location so tracked objects' device_tracker entities report a " +
@@ -2435,8 +2518,8 @@ function _settingsPresence(ctx, el){
         medLabel,
       ].filter(Boolean)));
     }
-    wrap.appendChild(el("div",{class:"card"},[
-      el("div",{class:"h2"},"Scanner RSSI Offsets"),
+    put("receivers", el("div",{class:"card"},[
+      el("div",{class:"h2"},"Receiver signal adjustments"),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
         "Only the manual offset you save is applied. The suggestion beside it is half the gap between this " +
         "scanner's median signal and the fleet median, from live data — a starting point for hardware " +
@@ -2566,7 +2649,7 @@ function _settingsPresence(ctx, el){
     ? `Last checked: ${new Date(reminderLastTs*1000).toLocaleDateString()}`
     : "Never checked";
 
-  wrap.appendChild(el("div",{class:"card"},[
+  put("positioning", el("div",{class:"card"},[
     el("div",{class:"h2"},"Calibration Accuracy Reminders"),
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
       reminderToggle,
@@ -2671,7 +2754,7 @@ function _settingsPresence(ctx, el){
     finally{ resetAdaptiveBtn.disabled=false; resetAdaptiveBtn.textContent="Reset Learned Data"; }
   });
 
-  wrap.appendChild(el("div",{class:"card"},[
+  put("positioning", el("div",{class:"card"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
       el("div",{class:"h2",style:"margin:0"},"Adaptive Learning"),
       el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},"EXPERIMENTAL"),
@@ -2815,7 +2898,7 @@ function _settingsPresence(ctx, el){
     cardChildren.push(el("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:6px"},[
       triggerSel, deviceSel, actionSel, entitySel, addBtn,
     ]));
-    wrap.appendChild(el("div",{class:"card"}, cardChildren));
+    put("integrations", el("div",{class:"card"}, cardChildren));
   }
 
   // ── Suspend Databases (raw radio test) ─────────────────────────────────
@@ -2883,7 +2966,7 @@ function _settingsPresence(ctx, el){
       cardChildren.push(suspendBtn);
     }
 
-    wrap.appendChild(el("div",{class:"card"}, cardChildren));
+    put("positioning", el("div",{class:"card"}, cardChildren));
   }
 
   // ── HA Tags Integration ─────────────────────────────────────────────────
@@ -2945,7 +3028,7 @@ function _settingsPresence(ctx, el){
       } catch(e) {}
     })();
 
-    wrap.appendChild(el("div",{class:"card"},[
+    put("integrations", el("div",{class:"card"},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px"},[
         el("div",{class:"h2",style:"margin:0;color:#60a5fa"}, "HA Tags Integration"),
       ]),
@@ -3016,7 +3099,7 @@ function _settingsPresence(ctx, el){
     finally { refreshBtn.disabled = false; refreshBtn.textContent = "Refresh Snapshot"; }
   });
 
-  wrap.appendChild(el("div",{class:"card"},[
+  put("integrations", el("div",{class:"card"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
       el("div",{class:"h2",style:"margin:0"},"Ignore Bermuda"),
       el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},"EXPERIMENTAL"),
@@ -3036,6 +3119,7 @@ function _settingsPresence(ctx, el){
     ]),
   ]));
 
+  for (const sec of _presenceSections(ctx, el, bins)) wrap.appendChild(sec);
   return wrap;
 }
 
@@ -3086,7 +3170,7 @@ function _tiersWizardFree(ctx, w, isBright){
   wrap.appendChild(el("div",{class:"muted", style:"margin-bottom:10px;line-height:1.6"},
     isBright
       ? "This install is PadSpan Bright — a lighter download for a household that only wants lighting from a map, not presence tracking. Every light shown room-by-room on a map and switched on or off from here is free, no key, forever. Placing each one exactly where it hangs needs a key — see below."
-      : "This install is PadSpan HA. Presence tracking, Overview, Follow, Pure Live, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
+      : "This install is PadSpan HA. Presence tracking, Overview, Follow, Live Tracker, Occupancy, Calibration, mapping and everything else here is free, no key, forever."));
   wrap.appendChild(el("div",{style:"padding:10px 12px;background:#0a1a12;border:1px solid #1a4228;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.6"},
     (isBright
       ? "A PadSpan Pro key adds the paid features: light placement (fixture shapes and sizes, WLED, Showcase, Fit room), the 3D house (Live Aboard), the wall screen and more."
@@ -3214,7 +3298,7 @@ const HOME_REFUSED = {
   activation_rate: "This home isn't counted: the key joined many new homes this month. It joins once the month is over.",
   homes_frozen: "This home isn't counted: the key is paused for new homes. Reply to your licence email to sort it out.",
   removed: "This home isn't counted: it was removed from the key. Remove another home below (from any home) or reply to your licence email to use it here.",
-  needs_report: "This home isn't counted: a licence's first two homes always count, and to use it on more than two, every home needs its usage report on (Settings \u2192 Presence \u2192 Help improve PadSpan).",
+  needs_report: "This home isn't counted: a licence's first two homes always count, and to use it on more than two, every home needs its usage report on (Settings \u2192 Tracking \u2192 Help improve PadSpan).",
 };
 // A key on more than two homes needs every home's usage report on (0.38.163).
 // The licence server decides and names the homes; these only say it.
@@ -3228,7 +3312,7 @@ export function homesWarningText(s){
   if (s.license_home_status === "needs_all_reports") {
     if (s.telemetry_enabled === false) {
       return "This home stopped using Pro because its own usage report is off, and every home on a key with more than 2 must keep it on. " +
-        "Turn it back on here (Settings \u2192 Presence \u2192 Help improve PadSpan) and this home picks up again at its next check.";
+        "Turn it back on here (Settings \u2192 Tracking \u2192 Help improve PadSpan) and this home picks up again at its next check.";
     }
     return "This home stopped using Pro because the usage report is off on another home on this key" + (labels ? " (" + labels + ")" : "") +
       ". Turn it back on there and this home picks up again at its next check.";
@@ -3255,7 +3339,7 @@ function _licenceHomes(ctx, el, s){
   box.appendChild(el("div", { style: "font-weight:700;font-size:13px;color:#cbd5e1;margin-bottom:4px" }, "Homes"));
   box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5;margin-bottom:8px" },
     "One licence covers up to five homes (five Home Assistants). The first two always count. With more than two, every home must keep its usage report on " +
-    "(Settings \u2192 Presence \u2192 Help improve PadSpan), which is how one licence's homes are seen together; if one turns it off, the key drops back to its first two homes after 14 days. " +
+    "(Settings \u2192 Tracking \u2192 Help improve PadSpan), which is how one licence's homes are seen together; if one turns it off, the key drops back to its first two homes after 14 days. " +
     "A reinstalled or replaced Home Assistant takes the place of a home that hasn't checked in for 14 days, and one silent for 45 days frees its place by itself."));
   if (HOME_REFUSED[s.license_home_status]) {
     box.appendChild(el("div", { style: "font-size:12px;color:#fbbf24;line-height:1.5;margin-bottom:8px" }, "\u26A0 " + HOME_REFUSED[s.license_home_status]));
@@ -3495,7 +3579,7 @@ function _settingsFeatures(ctx, el){
     },
     {
       key: "distortion_map_enabled",
-      label: "Distortion Map",
+      label: "Signal distortion map",
       desc: "Shows where calibration predictions disagree with reality. Renders disagreement vectors on the map to reveal " +
             "areas where walls, furniture, or interference cause positioning errors.",
     },
@@ -4219,7 +4303,30 @@ function _atlas3dSection(ctx, el, settings){
   more.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:4px 0 0 140px;line-height:1.5"},
     "The same bearing the GPS Bridge uses. The arrow shows where it puts north on your plan."));
   // Rain and snow, people, tags: each its own switch, saved alone.
+  // Show people and Show tags & scanners are switched in ONE place
+  // (2026-10-30): Live Aboard's Views ▾ while Live Aboard is on, where they
+  // are seen; here, with the state and a way there. With Live Aboard off
+  // that menu doesn't exist, and both still draw on the flat map, so the
+  // switch is here then (the only place it can be reached).
+  const _LA_SWITCHED = { atlas_3d_people: "Show people", atlas_3d_tags: "Show tags & scanners" };
+  const laOn = settings.atlas_3d_enabled === true;
   const tick = (key, label, checked, hint, into = more) => {
+    if (laOn && _LA_SWITCHED[key]) {
+      const go = el("button",{class:"btn inline","data-goto":"live-aboard-views"},"Open Live Aboard");
+      go.addEventListener("click", ()=>{
+        try { localStorage.setItem("padspan_lv_3d_builder", "1"); } catch (_) { /* private mode */ }
+        ctx.state.view = "maps";
+        if (ctx.actions.renderNav) ctx.actions.renderNav();
+        if (ctx.actions.setMapsTab) ctx.actions.setMapsTab("lights"); else { ctx.state.mapsTab = "lights"; ctx.actions.renderRooms(); }
+      });
+      into.appendChild(el("div",{"data-la3d-state":key,style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px"},[
+        el("span",{style:"color:#e2e8f0;font-size:13px"}, `${label}: ${checked ? "On" : "Off"}`),
+        el("span",{style:"color:#94a3b8;font-size:12px"}, `Switch it in Live Aboard: Views \u25be \u2192 ${_LA_SWITCHED[key]}.`),
+        go,
+      ]));
+      into.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;margin:2px 0 0 0;line-height:1.5"}, hint));
+      return;
+    }
     const r = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px"});
     const cb = el("input",{type:"checkbox"});
     cb.checked = checked;
@@ -4392,6 +4499,71 @@ function _settingsUI(ctx, el){
   });
   wrap.appendChild(el("div",{style:"display:flex;align-items:center"}, [saveBtn, status]));
 
+  // The Atlas and Live Aboard settings have their own tab (Settings → Atlas)
+  // since 2026-10-30; this says where they went, for anyone who looks here.
+  const atlasGo = el("button",{class:"btn inline","data-goto":"settings-atlas"},"Open Settings \u2192 Atlas");
+  atlasGo.addEventListener("click", ()=>{ ctx.state._settingsTab = "atlas"; ctx.actions.renderRooms(); });
+  wrap.appendChild(el("div",{class:"card","data-atlas-moved":"",style:"padding:12px 16px;margin-top:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
+    el("span",{style:"color:#94a3b8;font-size:13px"}, "The Atlas, Live Aboard, wall screens and the Atlas as Overview are on the Atlas tab."),
+    atlasGo,
+  ]));
+
+  // ── Edition & tier ──
+  // What this build is and what the key lets it do (licence.py). The reveal
+  // switch exists only on a Bright build: hide-by-default, never hidden for
+  // good. The tier override can only LOWER the effective tier — it is how a
+  // Pro developer looks at what a free or Bright user sees, and never a way
+  // past the licence.
+  const edCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
+  const _ed = String(settings.edition || "full"), _tier = String(settings.tier || "free");
+  edCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},"Edition & tier"));
+  edCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
+    `This build: ${_ed === "bright" ? "PadSpan Bright" : "PadSpan HA"} · running at tier "${_tier}"` +
+    (settings.license_tier_override ? ` (override: ${settings.license_tier_override})` : "") + `.`));
+  if(_ed === "bright"){
+    const revRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px"});
+    const revCb = el("input",{type:"checkbox"});
+    revCb.checked = !!settings.bright_reveal_presence;
+    revCb.addEventListener("change", async ()=>{
+      await ctx.actions.settingsSet({ bright_reveal_presence: revCb.checked });
+      ctx.actions.renderNav();
+    });
+    revRow.appendChild(revCb);
+    revRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the presence tabs too (Overview, Follow, Calibration, …)"));
+    edCard.appendChild(revRow);
+  }
+  if(ctx.state.complexity === "development"){
+    const ovRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
+    ovRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Look at this install as tier:"));
+    const ovSel = document.createElement("select"); ovSel.className = "select";
+    for(const [v,l] of [["","(no override)"],["free","free"],["bright","bright"],["pro","pro"]]){
+      const o = document.createElement("option"); o.value = v; o.textContent = l; ovSel.appendChild(o);
+    }
+    ovSel.value = String(settings.license_tier_override || "");
+    ovSel.addEventListener("change", async ()=>{
+      await ctx.actions.settingsSet({ license_tier_override: ovSel.value });
+      ctx.toast(ovSel.value ? `Viewing as tier ${ovSel.value} (lower only)` : "Tier override cleared");
+      ctx.actions.renderRooms();
+    });
+    ovRow.appendChild(ovSel);
+    ovRow.appendChild(el("span",{class:"muted",style:"font-size:11px"}, "lowers only — the licence still decides upward"));
+    edCard.appendChild(ovRow);
+  }
+  wrap.appendChild(edCard);
+
+  return wrap;
+}
+
+// ── Atlas tab ────────────────────────────────────────────────────────────────
+// The Atlas and Live Aboard settings, moved out of UI Structure as they were
+// (2026-10-30): the same cards, rows, keys and saves.
+function _settingsAtlas(ctx, el){
+  const wrap = el("div",{});
+  const settings = ctx.state.settings || {};
+  wrap.appendChild(el("h3",{style:"color:#52b788;margin-bottom:8px"},"Atlas"));
+  wrap.appendChild(el("p",{style:"color:#94a3b8;font-size:13px;margin-bottom:0"},
+    "The Atlas (the house map for everyday light control) and Live Aboard, its 3D view."));
+
   // ── The Atlas (was "Mapped Light Control Goodie") ──
   // The Atlas is on by default now (settings_store.py). Two switches that
   // behave differently, so each says how: the sidebar entry is registered at
@@ -4539,7 +4711,7 @@ function _settingsUI(ctx, el){
   const ovCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
   ovCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"},"\uD83D\uDDFA\uFE0F Overview \u2014 the Atlas as your main map"));
   ovCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
-    "Overview, the first tab, shows the Atlas (your lights, devices and rooms, and Live Aboard if it's on) instead of the classic map. The classic Overview moves under Pure Live, which gets a switch between the two."));
+    "Overview, the first tab, shows the Atlas (your lights, devices and rooms, and Live Aboard if it's on) instead of the classic map. The classic Overview moves under Live Tracker, which gets a switch between the two."));
   const ovRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:" + (ovPro ? "pointer" : "not-allowed")});
   const ovCb = el("input",{type:"checkbox"});
   ovCb.checked = ovPro && settings.overview_atlas === true;
@@ -4555,7 +4727,7 @@ function _settingsUI(ctx, el){
       await ctx.actions.settingsSet({ overview_atlas: ovCb.checked });
       ctx.state._liveClassic = false;
       ovNote.textContent = ovCb.checked
-        ? "Saved \u2014 Overview now shows the Atlas; the classic Overview is under Pure Live."
+        ? "Saved \u2014 Overview now shows the Atlas; the classic Overview is under Live Tracker."
         : "Saved \u2014 Overview is back to the classic map.";
       ovNote.style.color = "#52b788";
     } catch (e) {
@@ -4565,49 +4737,6 @@ function _settingsUI(ctx, el){
     }
   });
   if (ovShown) wrap.appendChild(ovCard);
-
-  // ── Edition & tier ──
-  // What this build is and what the key lets it do (licence.py). The reveal
-  // switch exists only on a Bright build: hide-by-default, never hidden for
-  // good. The tier override can only LOWER the effective tier — it is how a
-  // Pro developer looks at what a free or Bright user sees, and never a way
-  // past the licence.
-  const edCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
-  const _ed = String(settings.edition || "full"), _tier = String(settings.tier || "free");
-  edCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},"Edition & tier"));
-  edCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
-    `This build: ${_ed === "bright" ? "PadSpan Bright" : "PadSpan HA"} · running at tier "${_tier}"` +
-    (settings.license_tier_override ? ` (override: ${settings.license_tier_override})` : "") + `.`));
-  if(_ed === "bright"){
-    const revRow = el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px"});
-    const revCb = el("input",{type:"checkbox"});
-    revCb.checked = !!settings.bright_reveal_presence;
-    revCb.addEventListener("change", async ()=>{
-      await ctx.actions.settingsSet({ bright_reveal_presence: revCb.checked });
-      ctx.actions.renderNav();
-    });
-    revRow.appendChild(revCb);
-    revRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:14px"}, "Show the presence tabs too (Overview, Follow, Calibration, …)"));
-    edCard.appendChild(revRow);
-  }
-  if(ctx.state.complexity === "development"){
-    const ovRow = el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"});
-    ovRow.appendChild(el("span",{style:"color:#e2e8f0;font-size:13px"}, "Look at this install as tier:"));
-    const ovSel = document.createElement("select"); ovSel.className = "select";
-    for(const [v,l] of [["","(no override)"],["free","free"],["bright","bright"],["pro","pro"]]){
-      const o = document.createElement("option"); o.value = v; o.textContent = l; ovSel.appendChild(o);
-    }
-    ovSel.value = String(settings.license_tier_override || "");
-    ovSel.addEventListener("change", async ()=>{
-      await ctx.actions.settingsSet({ license_tier_override: ovSel.value });
-      ctx.toast(ovSel.value ? `Viewing as tier ${ovSel.value} (lower only)` : "Tier override cleared");
-      ctx.actions.renderRooms();
-    });
-    ovRow.appendChild(ovSel);
-    ovRow.appendChild(el("span",{class:"muted",style:"font-size:11px"}, "lowers only — the licence still decides upward"));
-    edCard.appendChild(ovRow);
-  }
-  wrap.appendChild(edCard);
 
   return wrap;
 }

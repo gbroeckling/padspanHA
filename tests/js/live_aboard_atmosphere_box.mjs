@@ -48,7 +48,7 @@ function settingsPage(settings, { refuse = false } = {}) {
   let rerenders = 0;
   const ctx = {
     hass: { user: { is_admin: true }, states: {} },
-    state: { view: "settings", complexity: "advanced", _settingsTab: "ui", model: { floors: [], areas: [], room_geometry_m: {} },
+    state: { view: "settings", complexity: "advanced", _settingsTab: "atlas", model: { floors: [], areas: [], room_geometry_m: {} },
       settings: { lights_panel_enabled: true, atlas_emergency_button: true, advanced_extra_tabs: [], tier: "pro", ...settings } },
     helpers: new Proxy({ el, esc: (s) => String(s), roomColor: () => "#52b788", helpBtn: noop },
       { get: (t, k) => (k in t ? t[k] : noop) }),
@@ -64,7 +64,7 @@ function settingsPage(settings, { refuse = false } = {}) {
   };
   const root = S.render(ctx);
   const box = root._all().find(n => n.children && n.children.some(c => c.textContent === "🏠 Live Aboard"));
-  if (!box) throw new Error("no Live Aboard box on Settings → UI Structure");
+  if (!box) throw new Error("no Live Aboard box on Settings → Atlas");
   const all = box._all();
   const more = all.find(n => n.attributes && "data-la3d-more" in n.attributes);
   const tick = (key) => all.find(n => (n.localName === "input" || n.localName === "select") && n.getAttribute("data-la3d-key") === key) || null;

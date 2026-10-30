@@ -50,7 +50,7 @@ export const TERMS = {
     "By sharing a piece you give PadSpan (every edition, free and paid) a permanent licence to use, show, copy and "
       + "change it and its details, and to let other PadSpan users place it in their houses. You keep your own "
       + "rights to it. The library gives nobody a licence outside PadSpan.",
-    "You can withdraw your pieces at any time: Settings → UI Structure → Atlas → Live Aboard → Withdraw my shared "
+    "You can withdraw your pieces at any time: Settings → Atlas → Live Aboard → Withdraw my shared "
       + "furniture. Copies already placed in other houses stay there and can still be used.",
     "You don't need these terms to browse the library or to build furniture for your own house.",
   ],
@@ -889,7 +889,7 @@ export function libraryFlow(ctx){
     function setStatus(){
       const n = lib.total;
       const text = {
-        off: LIBRARY_SERVER_LIVE ? "The shared library is off, so these are the starter pieces that come with PadSpan. An administrator can turn it on in Settings → UI Structure → Atlas → Live Aboard."
+        off: LIBRARY_SERVER_LIVE ? "The shared library is off, so these are the starter pieces that come with PadSpan. An administrator can turn it on in Settings → Atlas → Live Aboard."
           : "These are the starter pieces that come with PadSpan.",
         down: "Can't reach the shared library right now. The starter set below still works.",
         busy: "Searching the shared library…",
@@ -1007,7 +1007,7 @@ export function shareFlow(ctx, piece){
     async function start(){
       if (!(ctx.settings && ctx.settings.atlas_3d_library === true)) {
         root.appendChild(head("Share to the library"));
-        root.appendChild(h("p", { "data-lal": "off" }, "The shared library is off. An administrator can turn it on in Settings → UI Structure → Atlas → Live Aboard → Shared library."));
+        root.appendChild(h("p", { "data-lal": "off" }, "The shared library is off. An administrator can turn it on in Settings → Atlas → Live Aboard → Shared library."));
         return;
       }
       let accepted = false;

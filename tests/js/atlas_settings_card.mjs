@@ -46,7 +46,7 @@ let rerenders = 0;   // settingsSet re-renders the whole Settings view in panel.
 const S = await import(pathToFileURL(join(VIEWS, "settings.js")).href);
 const ctx = {
   hass: { user: { is_admin: true }, states: {} },
-  state: { view: "settings", complexity: "advanced", _settingsTab: "ui", model: { floors: [], areas: [] },
+  state: { view: "settings", complexity: "advanced", _settingsTab: "atlas", model: { floors: [], areas: [] },
     settings: { lights_panel_enabled: true, atlas_emergency_button: true, advanced_extra_tabs: [] } },
   helpers: new Proxy({ el, esc: (s) => String(s), roomColor: () => "#52b788", helpBtn: noop },
     { get: (t, k) => (k in t ? t[k] : noop) }),
@@ -63,7 +63,7 @@ try {
   const root = S.render(ctx);
   const all = root._all();
   const card = all.find(n => (n.className || "") === "card" && /emergency lighting button/.test(n.textContent || ""));
-  if (!card) throw new Error("no Atlas card on Settings → UI Structure");
+  if (!card) throw new Error("no Atlas card on Settings → Atlas");
   const kids = card._all();
   out.title = kids.find(n => /font-weight:700;font-size:14px/.test(n.getAttribute && n.getAttribute("style") || ""))?.textContent || null;
   out.blurb = card.children[1] && card.children[1].textContent;
