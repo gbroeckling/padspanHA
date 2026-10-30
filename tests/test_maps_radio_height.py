@@ -62,6 +62,8 @@ def test_both_places_read_the_same_value_with_the_same_limits() -> None:
         assert "Math.round(Math.max(0, Math.min(100, v)) * 100) / 100" in src   # same publish rounding
 
 
-def test_save_z_label_in_calibration_is_unchanged() -> None:
-    assert 'zBtn.textContent = "Save Z";' in _read("calibration.js")
+def test_both_places_say_save_height() -> None:
+    # Garry, 2026-10-30: "Save Z" became "Save height" in Calibration too
+    assert 'zBtn.textContent = "Save height";' in _read("calibration.js")
+    assert '"Save Z"' not in _read("calibration.js")
     assert '"Save height")' in _read("maps.js")
