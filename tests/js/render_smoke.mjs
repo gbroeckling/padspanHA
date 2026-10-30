@@ -385,7 +385,9 @@ const VARIANTS = {
     { name: "lights-tour-paid-step6", state: { mapsTab: "lights", settings: { tier: "pro" }, _lightsTour: { step: 6 } } },
   ],
   "calibration.js": [
-    null, // default cs.tab === "tune"
+    null, // default cs.tab === "results" (Calibration opens on Results)
+    { name: "tune",   state: { view: "calibration", _calib: CALIB_STATE({ tab: "tune" }) } },
+    { name: "results-sample", state: { view: "calibration", dataMode: "sample", _dataModeKnown: true, _calib: CALIB_STATE({ tab: "results" }) } },
     { name: "setup",  state: { view: "calibration", _calib: CALIB_STATE({ tab: "setup" }) } },
     { name: "pin-unguarded",  state: { view: "calibration", _calib: CALIB_STATE({ tab: "pin" }) } },
     { name: "pin-ready",      state: { view: "calibration", _calib: CALIB_STATE({ tab: "pin", deviceId: "AA:BB:CC:DD:EE:01", mapId: "ground" }) } },

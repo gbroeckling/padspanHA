@@ -936,6 +936,8 @@ class PadSpanHaApp extends HTMLElement {
       // here so "edit this light" is one tap from the map you are using.
       const reqTab = q.get("tab");
       if (reqView === "maps" && reqTab && /^[a-z]+$/.test(reqTab)) this.state.mapsTab = reqTab;
+      // ?view=calibration&tab=tune opens that Calibration tab (Results otherwise).
+      if (reqView === "calibration" && reqTab && /^[a-z]+$/.test(reqTab)) this.state._calibTabRequest = reqTab;
       const reqLight = q.get("light");
       if (reqLight && /^(light|fan|binary_sensor|sensor)\.[a-z0-9_]+$/.test(reqLight)) {
         this.state.maps._selLight = { eid: reqLight, mapId: null };
@@ -1196,7 +1198,7 @@ class PadSpanHaApp extends HTMLElement {
         this.state.mapsTab = "stack";
       } else {
         this.state.view = "calibration";
-        if (this.state._calib) this.state._calib.tab = "tune";
+        this.state._calibTabRequest = "tune";
       }
       this._renderNav();
       if (!VIEWS[this.state.view] && _VIEW_PATHS[this.state.view]) _loadView(this.state.view).then(() => this._scheduleRender());
@@ -3003,6 +3005,7 @@ class PadSpanHaApp extends HTMLElement {
       if (this.state.view === "calibration" && id !== "calibration") {
         if (this.state._calibTune) this.state._calibTune._confirming = false;
         if (this.state._calibBeacon) this.state._calibBeacon._confirming = false;
+        if (this.state._calib) this.state._calib._resultsCounted = false;   // the next visit to Results counts
       }
       // A link's Settings → Tracking in Basic (settings.js _settingsDeep):
       // the menu's Settings is Appearance again.
@@ -4533,7 +4536,7 @@ class PadSpanHaApp extends HTMLElement {
             this.state.view = s.view;
             // Route to the correct sub-tab
             if (s.mapsTab) this.state.mapsTab = s.mapsTab;
-            if (s.calibTab && this.state._calib) this.state._calib.tab = s.calibTab;
+            if (s.calibTab) this.state._calibTabRequest = s.calibTab;
             // A view reached from here is highlighted like one picked from
             // the menu, and loads if the background load has not reached it.
             this._renderNav();

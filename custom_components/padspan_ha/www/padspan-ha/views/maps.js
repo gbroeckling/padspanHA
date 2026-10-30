@@ -1543,7 +1543,7 @@ function _wizardFinish(ctx, map){
   calBtn.addEventListener("click", ()=>{
     ctx.state._mapsWizard = null;
     ctx.state.view = "calibration";
-    if (ctx.state._calib) ctx.state._calib.tab = "beacon";
+    ctx.state._calibTabRequest = "beacon";
     ctx.actions.renderNav();
     ctx.actions.renderRooms();
   });
