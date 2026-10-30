@@ -10,6 +10,8 @@ import { attachPanZoom } from "./pan_zoom.js";
 // Phone-based signal collection for precise indoor location modelling.
 //
 // Sub-tabs:
+//   Results     — accuracy now, room by room, the next best thing to do
+//                 (views/calibration_results.js); Calibration opens on it
 //   Tune        — position scanner/receiver markers on 3D iso map
 //   Beacon Tune — mark beacon positions, auto-collect 60s RSSI fingerprints
 //   Setup       — pick your beacon device, collection settings
@@ -57,6 +59,7 @@ const { tuneSavePlanInit, tuneDiffMapDraft, tuneMissingFabricPins, tuneConflicti
         tuneBeaconInBounds } =
   await import(`./tune_save_plan.js${new URL(import.meta.url).search}`);
 tuneSavePlanInit({ mapFracToMetres, metresToMapFrac });
+const { renderResults } = await import(`./calibration_results.js${new URL(import.meta.url).search}`);
 
 // The line to show when the snapshot holds no radios or devices (#88).
 // "Switch to Live mode" only when the server really said Sample; Live (or a
@@ -86,8 +89,10 @@ export function render(ctx) {
   root.className = ctx.state.view === "calibration" ? "" : "hidden";
 
   // Per-session UI state
+  // Calibration opens on Results (interface review item 13); a tab picked
+  // in this session is kept, as before.
   if (!ctx.state._calib) ctx.state._calib = {
-    tab:        "tune",
+    tab:        "results",
     deviceId:   null,
     deviceLabel: null,
     mapId:      null,
@@ -125,13 +130,29 @@ export function render(ctx) {
     return root;
   }
 
-  // Header
+  // Tabs
+  const TABS = [["results","Results"],["tune","Tune"],["beacon","Beacon Tune"],["setup","Beacon and floor"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"],["matrix","Accuracy by spot"]];
+  // Walk a room (calibration_room_walk, off by default): its tab exists only while on.
+  const _walkOn = ctx.state.settings?.calibration_room_walk === true;
+  if (_walkOn) TABS.push(["walk", "Walk a room"]);
+  else if (cs.tab === "walk") cs.tab = "tune";
+  // A tab asked for from elsewhere (?view=calibration&tab=…, the Overview's
+  // accuracy tip, Mapping's "Go to Calibration"), whether or not Calibration
+  // was opened before; an id that is no tab here is ignored.
+  const _req = ctx.state.view === "calibration" ? ctx.state._calibTabRequest : null;
+  if (_req) {
+    ctx.state._calibTabRequest = null;
+    if (TABS.some(([id]) => id === _req)) cs.tab = _req;
+  }
+
+  // Header. Results has Guided calibration as its main button, so the
+  // header's is left out there (one button, not two).
   root.appendChild(el("div", { style: "margin-bottom:10px" }, [
     el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
       el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, "BLE Location Calibration"),
       ctx.helpers.helpBtn("calibration_overview"),
-      (() => {
-        const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto" }, "🧭 Guided calibration");
+      cs.tab === "results" ? null : (() => {
+        const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto", "data-calib-guided": "header" }, "🧭 Guided calibration");
         b.addEventListener("click", () => { ctx.state._calibWizard = { step: 1 }; ctx.actions.renderRooms(); });
         return b;
       })(),
@@ -141,11 +162,6 @@ export function render(ctx) {
   ]));
 
   // Tab bar
-  const TABS = [["tune","Tune"],["beacon","Beacon Tune"],["setup","Beacon and floor"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"],["matrix","Accuracy by spot"]];
-  // Walk a room (calibration_room_walk, off by default): its tab exists only while on.
-  const _walkOn = ctx.state.settings?.calibration_room_walk === true;
-  if (_walkOn) TABS.push(["walk", "Walk a room"]);
-  else if (cs.tab === "walk") cs.tab = "tune";
   const tabBar = el("div", { class: "tabs", style: "margin-bottom:14px;flex-wrap:wrap;gap:4px" });
   for (const [id, label] of TABS) {
     tabBar.appendChild(el("button", {
@@ -155,6 +171,20 @@ export function render(ctx) {
   }
   root.appendChild(tabBar);
 
+  // Opt-in report: each opening of Results (reset when another tab or
+  // view is shown), never a poll's redraw.
+  const _onResults = cs.tab === "results" && ctx.state.view === "calibration";
+  if (_onResults && !cs._resultsCounted && tuneLivePhase(ctx.state) !== "sample" && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("cal_results_opened");
+  cs._resultsCounted = _onResults;
+
+  if (cs.tab === "results") root.appendChild(renderResults(ctx, el, cs, calData, {
+    sample: tuneLivePhase(ctx.state) === "sample",
+    weakestRoom: _weakestRoom,
+    heldoutLine: _heldoutLine,
+    telemetry: (n) => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent(n); },
+    openWizard: () => { ctx.state._calibWizard = { step: 1, from: "results" }; ctx.actions.renderRooms(); },
+    goTab: (id) => { cs.tab = id; ctx.actions.renderRooms(); },
+  }));
   if (cs.tab === "setup") root.appendChild(_setup(ctx, el, cs, calData));
   if (cs.tab === "pin")   root.appendChild(_pinAndListen(ctx, el, cs, calData));
   if (cs.tab === "roam")  root.appendChild(_roam(ctx, el, cs, calData));
@@ -337,14 +367,14 @@ function _calibWizardFinish(ctx, el, cs, calData) {
   const anotherBtn = el("button", { class: "btn inline" }, "+ Calibrate another floor");
   anotherBtn.addEventListener("click", () => {
     cs.mapId = null;
-    ctx.state._calibWizard = { step: 2 };
+    ctx.state._calibWizard = { step: 2, from: ctx.state._calibWizard && ctx.state._calibWizard.from };
     ctx.actions.renderRooms();
   });
   row.appendChild(anotherBtn);
   const doneBtn = el("button", { class: "btn inline" }, "Done");
   doneBtn.addEventListener("click", () => {
+    cs.tab = (ctx.state._calibWizard && ctx.state._calibWizard.from) || "model";
     ctx.state._calibWizard = null;
-    cs.tab = "model";
     ctx.actions.renderRooms();
   });
   row.appendChild(doneBtn);
@@ -398,6 +428,7 @@ function _calibWizard(ctx, el, cs, calData) {
   }, "✕ Exit guide → full tabs");
   closeBtn.addEventListener("click", () => {
     if (w.step < 5 && ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("wizard_calib_exited_early");
+    if (w.from) cs.tab = w.from;   // opened from Results: back there
     ctx.state._calibWizard = null;
     ctx.actions.renderRooms();
   });

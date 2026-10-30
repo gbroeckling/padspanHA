@@ -37,6 +37,61 @@ export const WARMUP_MS = 120000;
 // The panel's own "idle" line (panel.js scannerStatus): not heard for 10 minutes.
 export const SILENT_S = 600;
 
+// One receiver's conditions, shared with the Receivers page
+// (views/receivers.js) so a row there says what the dot counts.
+//
+// In use: not marked lost or disabled (the snapshot's flags), and not in
+// `masked` (the sources Settings marks excluded, lost or disabled; see
+// maskedSources). The dot leaves the rest out.
+export const inUse = (r, masked) => !!r && typeof r === "object" && !r.lost && !r.disabled
+  && !(masked && masked.has(String(r.source || "")));
+/** Settings' excluded_scanners, lost_radios and disabled_radios, as one Set
+ *  of sources (what panel.js passes statusIssues as `excluded`). */
+export function maskedSources(settings) {
+  const s = settings || {};
+  return new Set([...(Array.isArray(s.excluded_scanners) ? s.excluded_scanners : []),
+    ...Object.keys(s.lost_radios || {}), ...Object.keys(s.disabled_radios || {})].map(String));
+}
+/** The sources with advertisements in this snapshot. */
+export function heardSources(snapshot) {
+  const ads = snapshot && snapshot.ble && Array.isArray(snapshot.ble.advertisements) ? snapshot.ble.advertisements : [];
+  return new Set(ads.map(a => a && a.source).filter(Boolean));
+}
+// Silent: not heard for over 10 minutes. A radio with no last_heard_s yet is
+// not silent: PadSpan can't tell "not heard yet" from "gone" (just after a
+// restart). One the Bluetooth screen calls fine (scanning, or in `heard`, the
+// sources with advertisements in this snapshot) never is.
+export const isSilent = (r, heard) => !!r && r.scanning !== true && !(heard && r.source && heard.has(r.source))
+  && typeof r.last_heard_s === "number" && r.last_heard_s > SILENT_S;
+export const isHearingLess = (r) => !!r && r.adv_rate_low === true;
+
+/** One receiver's status for the Receivers page, by the dot's own rules:
+ *  {id, level: "ok"|"amber", label, title}. Not in use wins (the dot leaves
+ *  it out), then silent, then hearing less.
+ *  heardNow: devices it was heard reporting in the live snapshot just now
+ *  (a radio with no last_heard_s but with fresh advertisements is online).
+ *  opts: { heard: heardSources(snapshot), masked: maskedSources(settings) } */
+export function receiverStatus(r, heardNow = 0, { heard, masked } = {}) {
+  if (r && !inUse(r, masked)) {
+    return { id: "not_used", level: "ok", label: "Not in use",
+      title: "Marked lost, disabled or excluded, so the status dot leaves it out" };
+  }
+  if (!(heardNow > 0) && isSilent(r, heard)) {
+    const min = Math.floor(r.last_heard_s / 60);
+    return { id: "silent", level: "amber", label: `Silent ${min} min`,
+      title: `Not heard from in ${min} minutes (over 10 minutes counts as silent)` };
+  }
+  if (isHearingLess(r)) {
+    return { id: "hearing_less", level: "amber", label: "Hearing less",
+      title: "Hearing far fewer devices than usual for over 10 minutes, while the others are normal" };
+  }
+  if (!r || (typeof r.last_heard_s !== "number" && !(heardNow > 0))) {
+    return { id: "not_heard", level: "ok", label: "Not heard yet",
+      title: "Nothing heard from it since PadSpan started" };
+  }
+  return { id: "online", level: "ok", label: "Online", title: "Reporting normally" };
+}
+
 const _n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 
 /** What is wrong right now, worst first: [{id, level: "red"|"amber", text}].
@@ -53,15 +108,11 @@ export function statusIssues({ live, failed, snapshot, excluded, warmup = false 
   }
   const masked = new Set([...(excluded || [])].map(String));
   const radios = Array.isArray(snap.ble && snap.ble.radios)
-    ? snap.ble.radios.filter(r => r && typeof r === "object" && !r.lost && !r.disabled && !masked.has(String(r.source || "")))
+    ? snap.ble.radios.filter(r => inUse(r, masked))
     : null;
   if (radios) {
-    const ads = Array.isArray(snap.ble && snap.ble.advertisements) ? snap.ble.advertisements : [];
-    const heard = new Set(ads.map(a => a && a.source).filter(Boolean));
-    // A radio with no last_heard_s yet is not counted as silent: PadSpan
-    // can't tell "not heard yet" from "gone" (just after a restart).
-    const silent = radios.filter(r => r.scanning !== true && !(r.source && heard.has(r.source))
-      && typeof r.last_heard_s === "number" && r.last_heard_s > SILENT_S);
+    const heard = heardSources(snap);
+    const silent = radios.filter(r => isSilent(r, heard));
     if (!radios.length || silent.length === radios.length) {
       if (!warmup) out.push({ id: "no_receivers", level: "red", text: "No Bluetooth receivers are reporting" });
     } else {
@@ -69,7 +120,7 @@ export function statusIssues({ live, failed, snapshot, excluded, warmup = false 
         out.push({ id: "receivers_silent", level: "amber",
           text: `${_n(silent.length, "receiver hasn't", "receivers haven't")} been heard from in over 10 minutes` });
       }
-      const deaf = radios.filter(r => r.adv_rate_low === true);
+      const deaf = radios.filter(isHearingLess);
       if (deaf.length) {
         out.push({ id: "hearing_less", level: "amber",
           text: `${_n(deaf.length, "receiver is", "receivers are")} hearing far fewer devices than usual` });

@@ -130,6 +130,7 @@ const mkCtx = (mode, snap) => ({
     },
     renderRooms: () => calls.push(["renderRooms"]),
     setDataMode: (m) => calls.push(["setDataMode", m]),
+    showView: (v) => calls.push(["showView", v]),
   },
   toast: (m, err) => toasts.push([m, !!err]),
 });
@@ -177,8 +178,7 @@ const btn = (label) => [...card.querySelectorAll("button")].find(b => b.textCont
 btn("Preview a finished house").click();
 check("Preview switches to the demo house", calls.some(c => c[0] === "setDataMode" && c[1] === "sample"));
 btn("Make it a map").click();
-check("Make it a map opens the setup wizard", ctx.state.view === "maps" && ctx.state._mapsWizard && ctx.state._mapsWizard.step === 1
-  && calls.some(c => c[0] === "renderRooms"));
+check("Make it a map opens the guided Setup", calls.some(c => c[0] === "showView" && c[1] === "setup"));
 
 // A Track that fails says so and can be pressed again (Anna not followed yet here).
 followed.clear();

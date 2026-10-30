@@ -5,7 +5,8 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
-const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast } =
+const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
+        surfacesForEdition: _surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // Shared pan/zoom viewport (gap #11, best-in-class roadmap) — extracted
 // from this file's own former _attachPanZoom, see pan_zoom.js's header.
@@ -97,6 +98,13 @@ export function render(ctx){
   root.className = ctx.state.view==="maps" ? "" : "hidden";
 
   const maps = (ctx.state.maps && ctx.state.maps.list) ? ctx.state.maps.list : [];
+  // The Rooms page's "Edit outline" (rooms.js sets _openRoom): open the plan
+  // the room is traced on, when one is; else the one it picked by floor.
+  const _openRoom = ctx.state.maps && ctx.state.maps._openRoom;
+  if (_openRoom) {
+    const tracedOn = maps.find(m => m.room_bounds && m.room_bounds[_openRoom]);
+    if (tracedOn) ctx.state.activeMapId = tracedOn.id;
+  }
   const activeId = ctx.state.activeMapId || (maps[0] && maps[0].id) || null;
   const active = maps.find(m=>m.id===activeId) || null;
 
@@ -140,8 +148,13 @@ export function render(ctx){
     if(ctx.state.mapsTab === "upload") ctx.state.mapsTab = "library";
   }
   const activeTab = ctx.state.mapsTab || "library";
+  // "Edit outline" is for the Edit tab only: anywhere else it is dropped.
+  if (activeTab !== "edit" && ctx.state.maps) ctx.state.maps._openRoom = null;
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
+  const _setupShown = !!(_surfacesForEdition(["setup"], ctx.state.settings).length && ctx.actions.showView);
+  // The Library's empty state (_library): its Start Setup Wizard is Setup's first step.
+  const _noPlansYet = activeTab === "library" && !maps.length && ctx.state.dataMode === "live";
 
   // The text takes what is left and wraps by word; Refresh keeps its width
   // (on a phone it squeezed to one letter per line).
@@ -158,6 +171,12 @@ export function render(ctx){
       ]),
       el("div",{style:"display:flex;gap:8px;align-items:center;flex:none"},[
         el("button",{class:"btn inline", style:"white-space:nowrap", onclick:()=>ctx.actions.mapsRefresh()}, "Refresh"),
+        // The guided Setup (views/setup.js), where this build shows it; not
+        // over the Library's "No floor plans yet", whose button opens it.
+        ...(_setupShown && !_noPlansYet
+          ? [el("button",{class:"btn inline", style:"white-space:nowrap", "data-setup-link":"maps",
+              title:"Plan, scale, floors, rooms, receivers and calibration, one step at a time",
+              onclick:()=>ctx.actions.showView("setup")}, "Setup")] : []),
       ])
     ]),
     tabs,
@@ -381,7 +400,15 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     empty.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;font-size:13px"},
       "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing scanners, one step at a time."));
     const startBtn = el("button",{class:"btn primary", style:"font-size:13px;padding:8px 18px"}, "Start Setup Wizard");
+    startBtn.setAttribute("data-maps-start", "setup");
     startBtn.addEventListener("click", ()=>{
+      // Through the guided Setup's first step (views/setup.js openStep): the
+      // same wizard at step 1, with the bar back to Setup over it. A build
+      // without Setup (Bright) opens the wizard as before.
+      if (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], ctx.state.settings).length) {
+        ctx.actions.openSetupStep("plan");
+        return;
+      }
       ctx.state._mapsWizard = { step: 1, mapId: null };
       ctx.actions.renderRooms();
     });
@@ -1543,7 +1570,7 @@ function _wizardFinish(ctx, map){
   calBtn.addEventListener("click", ()=>{
     ctx.state._mapsWizard = null;
     ctx.state.view = "calibration";
-    if (ctx.state._calib) ctx.state._calib.tab = "beacon";
+    ctx.state._calibTabRequest = "beacon";
     ctx.actions.renderNav();
     ctx.actions.renderRooms();
   });
@@ -1778,13 +1805,33 @@ function _edit(ctx, map, allMaps){
     ctx.state.maps._draftMapId = map.id;
     ctx.state.maps._draftImageSha = _draftImgSha;
     ctx.state.maps._selectedRxId = null;
-    // receivers | rooms | barriers | measure.
-    ctx.state.maps._mode = "receivers";
-    ctx.state.maps._selectedRoom = "";
+    // receivers | rooms | barriers | measure. _openMode: a one-shot tool to
+    // open in, set by the Rooms page's "Edit outline" (rooms.js), so loading
+    // the plan does not put it back on Radios.
+    ctx.state.maps._mode = ctx.state.maps._openMode || "receivers";
+    ctx.state.maps._openMode = null;
+    // _openRoom: the room the Rooms page's "Edit outline" opened it on.
+    ctx.state.maps._selectedRoom = ctx.state.maps._openRoom || "";
+    ctx.state.maps._openRoom = null;
     ctx.state.maps._drawing = null; // {room, points:[]} or barrier drawing
     ctx.state.maps._selectedBarrierId = null;
     ctx.state.maps._barrierMaterial = "metal";
     ctx.state.maps._recommendPoly = null;
+  } else if (ctx.state.maps._openRoom) {
+    // Already open on this plan: the Rooms tool and the room, drafts kept.
+    ctx.state.maps._mode = ctx.state.maps._openMode || "rooms";
+    ctx.state.maps._selectedRoom = ctx.state.maps._openRoom;
+    ctx.state.maps._drawing = null;
+    ctx.state.maps._openMode = null;
+    ctx.state.maps._openRoom = null;
+  }
+  // The Receivers page's Place / Move (views/receivers.js): a one-shot that
+  // opens Radios with that receiver selected (none: just Radios).
+  if(ctx.state.maps._openRadios){
+    const _want = ctx.state.maps._openRadios.rxId;
+    ctx.state.maps._openRadios = null;
+    ctx.state.maps._mode = "receivers";
+    if(_want && ctx.state.maps._draftReceivers.some(r=>r.id===_want)) ctx.state.maps._selectedRxId = _want;
   }
 
   // Cache-buster: map.updated changes on every trim/replace so the browser fetches fresh content
@@ -2470,7 +2517,10 @@ function _edit(ctx, map, allMaps){
       const snap2 = (ctx.state.live && ctx.state.live.snapshot) || null;
       const liveRadios = (snap2 && snap2.ble && Array.isArray(snap2.ble.radios)) ? snap2.ble.radios : [];
       const _sid = ctx.helpers.radioShortId || (src => src.slice(0,3).toUpperCase());
-      right.appendChild(el("div",{class:"muted", style:"margin-top:14px;font-size:12px;font-weight:600"}, "Live BLE Radios"));
+      right.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:14px"},[
+        el("div",{class:"muted", style:"font-size:12px;font-weight:600"}, "Live BLE Radios"),
+        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, "All receivers") : null,
+      ].filter(Boolean)));
       // #88: in Sample mode these are the demo house's radios. Placed on a
       // real plan they'd become phantom scanners at the next Tune → Save.
       const _rxBlock = TSP ? TSP.tuneWriteBlock(ctx.state) : null;
@@ -2832,7 +2882,10 @@ function _edit(ctx, map, allMaps){
         renderAll(); refreshList(); renderTools();
       }}, "Clear boundary");
 
-      right.appendChild(roomSel);
+      right.appendChild(el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},[
+        roomSel,
+        (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"edit", title:"Every room's settings on one page (unsaved outlines stay here until you Save)", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
+      ]));
 
       // Warning if selected room is already drawn on another map
       const _selRoom = ctx.state.maps._selectedRoom;
@@ -10813,6 +10866,7 @@ function _roomsTab(ctx, maps) {
 
   card.appendChild(el("div", { class: "card-head", style: "margin-bottom:4px" }, [
     el("div", { style: "font-weight:700;font-size:15px" }, "Room and receiver layout, in metres"),
+    (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button", {class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"rooms", title:"Every room's settings on one page", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "The real-world model the positioning engine uses — edited directly, in metres, with no floor " +

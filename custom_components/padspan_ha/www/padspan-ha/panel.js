@@ -178,6 +178,7 @@ const _VIEW_PATHS = {
   history:      "./views/history.js",
   monitor:      "./views/monitor.js",
   maps:         "./views/maps.js",
+  rooms:        "./views/rooms.js",
   events:       "./views/events.js",
   health:       "./views/health.js",
   settings:     "./views/settings.js",
@@ -187,12 +188,16 @@ const _VIEW_PATHS = {
   qa:           "./views/qa.js",
   training:     "./views/training.js",
   calibration:  "./views/calibration.js",
+  receivers:    "./views/receivers.js",
   traceback:    "./views/traceback.js",
   forensics:    "./views/forensics.js",
   sandbox:      "./views/sandbox.js",
   occupancy:    "./views/occupancy.js",
   guests:       "./views/guests.js",
   installbase:  "./views/installbase.js",
+  // The guided Setup (plan → … → calibration): reached from the Overview's
+  // Getting started and from Mapping, never a menu tab.
+  setup:        "./views/setup.js",
 };
 
 // Views reachable by internal navigation but never listed in MENU. Being
@@ -203,7 +208,7 @@ const _VIEW_PATHS = {
 // user back to the first menu view, the same silent no-op as Mapping's Open
 // in Basic mode. (Since More tools, 2026-10-30, every mode lists qa and
 // devices; they stay here harmlessly.)
-const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics", "qa", "devices"]);
+const _VIEW_PATHS_HIDDEN_OK = new Set(["objects", "history", "events", "debug", "diagnostics", "qa", "devices", "setup"]);
 
 // Track in-flight imports to avoid duplicate fetches
 const _viewLoading = {};
@@ -264,6 +269,8 @@ const MENU = [
   ["presence","Presence","mdi:map-marker-radius-outline"],
   ["monitor","Monitor","mdi:monitor-dashboard"],
   ["maps","Mapping","mdi:map"],
+  ["rooms","Rooms","mdi:floor-plan"],
+  ["receivers","Receivers","mdi:access-point"],
   ["settings","Settings","mdi:cog-outline"],
   ["manage","Manage","mdi:cog-wrench"],
   ["training","Training","mdi:school-outline"],
@@ -283,12 +290,16 @@ const MENU = [
 // every mode. These sets only decide which screens sit in the main groups;
 // the rest go in one "More tools" group, closed until opened (remembered).
 //   Basic     — a short main list for non-technical users (follow + overview +
-//               essentials, Calibration among them: every home needs it)
+//               essentials, Calibration among them: every home needs it; Rooms
+//               too: Basic's Mapping has no Edit or Rooms tab, so it is Basic's
+//               only room-by-room screen, its colours included; and Receivers:
+//               every home has them, and a silent one is the commonest cause
+//               of wrong rooms)
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
 //   Dev       — the same menu as Advanced; it changes detail inside screens
 // DEV_ONLY_TABS: the screens only Development used to list.
-const BASIC_TABS = new Set(["follow", "overview", "maps", "calibration", "settings", "training"]);
-const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","settings","training","manage","calibration","traceback","occupancy","health"]);
+const BASIC_TABS = new Set(["follow", "overview", "maps", "rooms", "receivers", "calibration", "settings", "training"]);
+const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","rooms","receivers","settings","training","manage","calibration","traceback","occupancy","health"]);
 const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
 
 // Accent color per tab — used for the sidebar dot, mobile nav, and active highlights
@@ -303,12 +314,14 @@ const MENU_COLORS = {
   history: "#90a4ae",
   monitor: "#f06292",
   maps: "#4caf50",
+  rooms: "#66bb6a",
   events: "#ffb74d",
   health: "#e57373",
   settings: "#b0bec5",
   manage: "#78909c",
   training: "#4dd0e1",
   calibration: "#26a69a",
+  receivers: "#86efac",
   occupancy: "#a78bfa",
   guests: "#fbbf24",
   diagnostics: "#9575cd",
@@ -336,7 +349,9 @@ const MENU_ICONS = {
   guests:      '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><circle cx="17.5" cy="16.5" r="4"/><path d="M17.5 14.6v2l1.3 1"/>',
   occupancy:   '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 5.6a3.2 3.2 0 0 1 0 6.1M17.2 20c0-2.6-.9-4.2-2.4-5"/>',
   maps:        '<path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>',
+  rooms:       '<rect x="3" y="3" width="18" height="18" rx="1.6"/><path d="M3 12h7M14 12h7M12 3v6M12 15v6"/>',
   calibration: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/>',
+  receivers:   '<circle cx="12" cy="11" r="1.8"/><path d="M12 12.8V21"/><path d="M8.3 7.3a5.2 5.2 0 0 0 0 7.4M15.7 7.3a5.2 5.2 0 0 1 0 7.4M5.5 4.5a9.2 9.2 0 0 0 0 13M18.5 4.5a9.2 9.2 0 0 1 0 13"/>',
   training:    '<path d="M12 4 2 9l10 5 10-5-10-5z"/><path d="M6 11.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/>',
   manage:      '<path d="M4 6h9M19 6h1M4 12h4M13 12h7M4 18h9M19 18h1"/><circle cx="16" cy="6" r="2.1"/><circle cx="10.5" cy="12" r="2.1"/><circle cx="16" cy="18" r="2.1"/>',
   settings:    '<circle cx="12" cy="12" r="3.1"/><path d="M12 2.2v2.6M12 19.2v2.6M4.4 4.4l1.9 1.9M17.7 17.7l1.9 1.9M2.2 12h2.6M19.2 12h2.6M4.4 19.6l1.9-1.9M17.7 6.3l1.9-1.9"/>',
@@ -357,7 +372,7 @@ const MENU_ICONS = {
 // adding a tab without touching this file can never make it disappear.
 const MENU_GROUPS = [
   ["Live",      ["overview","purelive","follow","occupancy","guests"]],
-  ["Setup",     ["maps","calibration","training","manage","settings"]],
+  ["Setup",     ["maps","rooms","receivers","calibration","training","manage","settings"]],
   ["Diagnose",  ["traceback","health","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
 ];
@@ -936,6 +951,8 @@ class PadSpanHaApp extends HTMLElement {
       // here so "edit this light" is one tap from the map you are using.
       const reqTab = q.get("tab");
       if (reqView === "maps" && reqTab && /^[a-z]+$/.test(reqTab)) this.state.mapsTab = reqTab;
+      // ?view=calibration&tab=tune opens that Calibration tab (Results otherwise).
+      if (reqView === "calibration" && reqTab && /^[a-z]+$/.test(reqTab)) this.state._calibTabRequest = reqTab;
       const reqLight = q.get("light");
       if (reqLight && /^(light|fan|binary_sensor|sensor)\.[a-z0-9_]+$/.test(reqLight)) {
         this.state.maps._selLight = { eid: reqLight, mapId: null };
@@ -1196,7 +1213,7 @@ class PadSpanHaApp extends HTMLElement {
         this.state.mapsTab = "stack";
       } else {
         this.state.view = "calibration";
-        if (this.state._calib) this.state._calib.tab = "tune";
+        this.state._calibTabRequest = "tune";
       }
       this._renderNav();
       if (!VIEWS[this.state.view] && _VIEW_PATHS[this.state.view]) _loadView(this.state.view).then(() => this._scheduleRender());
@@ -1914,7 +1931,7 @@ class PadSpanHaApp extends HTMLElement {
       // a full DOM rebuild which causes flicker — throttle those to every 35s.
       const _view = this.state.view;
       const _fastViews = new Set(["overview","purelive"]);  // efficient partial update
-      const _slowViews = new Set(["follow","monitor"]);                 // full rebuild — throttle
+      const _slowViews = new Set(["follow","monitor","receivers"]);     // full rebuild — throttle
       const _SLOW_INTERVAL = 20_000;   // the ~20 s cadence Follow/Monitor have always had in practice
 
       if(_fastViews.has(_view)){
@@ -1925,7 +1942,10 @@ class PadSpanHaApp extends HTMLElement {
       } else if(_slowViews.has(_view)){
         // Follow/Monitor: only re-render every 35s to avoid flicker
         const sinceLastRender = this._lastGoodRender ? (performance.now() - this._lastGoodRender) : _SLOW_INTERVAL;
-        if(sinceLastRender >= _SLOW_INTERVAL){
+        // Receivers has inline height/offset fields: never rebuild under a
+        // half-typed value (the next slow tick catches up).
+        const _typing = _view === "receivers" && /^(INPUT|SELECT|TEXTAREA)$/.test((this.shadowRoot && this.shadowRoot.activeElement && this.shadowRoot.activeElement.tagName) || "");
+        if(sinceLastRender >= _SLOW_INTERVAL && !_typing){
           this._scheduleRender(true);
         } else if(_view === "follow" && this.state._followLocateRefresh){
           // Follow's 📍 Locate card follows every poll without the full
@@ -3003,11 +3023,13 @@ class PadSpanHaApp extends HTMLElement {
       if (this.state.view === "calibration" && id !== "calibration") {
         if (this.state._calibTune) this.state._calibTune._confirming = false;
         if (this.state._calibBeacon) this.state._calibBeacon._confirming = false;
+        if (this.state._calib) this.state._calib._resultsCounted = false;   // the next visit to Results counts
       }
       // A link's Settings → Tracking in Basic (settings.js _settingsDeep):
       // the menu's Settings is Appearance again.
       this.state._settingsDeep = null;
       this.state.view = id;
+      this.state._setupReturn = null;   // a menu pick leaves the guided Setup's step
       this._logEvent("view_change", id);
       // Opt-in usage report: count the tab open.
       this._telemetryEvent("tab:" + id);
@@ -3117,7 +3139,7 @@ class PadSpanHaApp extends HTMLElement {
     const mobileTitle = this.shadowRoot.querySelector("#mobileTitle");
     if (mobileTitle) {
       const mi = MENU.find(x => x[0] === this.state.view);
-      mobileTitle.textContent = mi ? mi[1] : this.state.view;
+      mobileTitle.textContent = mi ? mi[1] : this.state.view === "setup" ? "Setup" : this.state.view;
     }
     this._paintDataModeLabel();
     const mobileModePill = this.shadowRoot.querySelector("#mobileModePill");
@@ -3170,6 +3192,17 @@ class PadSpanHaApp extends HTMLElement {
   //
   // This pattern keeps views as pure render functions with no direct access
   // to the PadSpanHaApp instance, making them easier to test and reason about.
+  // A screen opened from a link inside another one ("All rooms", "All
+  // receivers"): counted as a tab open, highlighted like a menu pick, loaded
+  // if the background load has not reached it yet.
+  _openCountedView(id){
+    this.state.view = id;
+    this._telemetryEvent("tab:" + id);
+    this._renderNav();
+    if (!VIEWS[id]) _loadView(id).then(() => this._scheduleRender());
+    this._scheduleRender();
+  }
+
   _ctx(){
     const self = this;
     return {
@@ -3240,6 +3273,19 @@ class PadSpanHaApp extends HTMLElement {
         // Re-render triggers (views call these after local UI changes)
         renderRooms: ()=>this._scheduleRender(),
         renderNav: ()=>this._renderNav(),
+        // The Receivers page (views/receivers.js), from the screens that list
+        // receivers (their "All receivers" link): counted as a tab open.
+        openReceivers: ()=>this._openCountedView("receivers"),
+        // The Rooms page (views/rooms.js), from the screens' "All rooms" links: the same.
+        openRooms: ()=>this._openCountedView("rooms"),
+        // Whether this build's menu has a screen (a Bright install has no
+        // Rooms or Receivers): its links are left out where it hasn't.
+        canOpen: (id)=>this._getVisibleTabs().has(id),
+        // A guided Setup step's own tool, with the bar back to Setup
+        // (views/setup.js openStep), loading Setup first if need be.
+        openSetupStep: (id)=>{
+          _loadView("setup").then(m => { if (m && m.openStep) m.openStep(this._ctx(), id); });
+        },
         // Targeted tag-list re-render — avoids a full view rebuild which would
         // cause infinite loops in the Objects view's search/filter interaction
         renderTags: (target=null)=>{
@@ -3403,6 +3449,15 @@ class PadSpanHaApp extends HTMLElement {
         // Opt-in usage report: count one allow-listed event. A no-op unless the
         // person turned the report on — no traffic leaves the browser otherwise.
         telemetryEvent: (name, extra) => this._telemetryEvent(name, extra),
+        // Open another screen from inside one (the guided Setup's steps):
+        // highlighted like a menu pick, loaded if the background load has not
+        // reached it yet.
+        showView: (id) => {
+          this.state.view = id;
+          this._renderNav();
+          if (!VIEWS[id] && _VIEW_PATHS[id]) _loadView(id).then(() => this._scheduleRender());
+          this._scheduleRender();
+        },
         // ── Followed Beacons ──────────────────────────────────────────────
         // Multi-device follow set — persisted both to server (via settings_set)
         // and to localStorage as a fallback. Addresses are stored uppercase.
@@ -4381,6 +4436,13 @@ class PadSpanHaApp extends HTMLElement {
       }
     }
 
+    // A step opened from the guided Setup (views/setup.js): which step, and
+    // the way back, over the tool that does it. Gone with a menu pick.
+    if (this.state._setupReturn && (v === "maps" || v === "calibration") && VIEWS.setup && VIEWS.setup.returnBar) {
+      try { const _sb = VIEWS.setup.returnBar(this._ctx()); if (_sb) frag.appendChild(_sb); }
+      catch(e) { console.warn("PadSpan: setup bar failed", e); }
+    }
+
     // ── Onboarding wizard ──────────────────────────────────────────────────
     // Shows a persistent progress bar when setup is incomplete. Detects each
     // step's completion from live state. Navigates to the right view on click.
@@ -4405,11 +4467,13 @@ class PadSpanHaApp extends HTMLElement {
       const _hasRooms = _hasFabricRooms
         || (_hasMaps && this.state.maps.list.some(m => Object.keys(m.room_bounds || {}).length > 0));
       const _hasScale = !!(this.state.model && this.state.model.map_transforms && Object.values(this.state.model.map_transforms).some(t => t && t.reference_measurements && t.reference_measurements.length > 0));
-      // Accept any calibration method: cal points, fitted model, or positioned scanners in fabric
+      // Calibrated: five calibration points or a fitted model, the guided
+      // Setup's rule (setup_status.js hasCalibration). Receivers placed in
+      // the layout are the Place Scanners step, not this one; a checklist
+      // already finished keeps onboarding_completed.
       const _calPoints = (this.state.calibration && this.state.calibration.points) ? this.state.calibration.points.length : 0;
       const _hasModel = !!(this.state.calibration && this.state.calibration.model && Object.keys(this.state.calibration.model).length > 0);
-      const _hasFabricScanners = !!(this.state.model && this.state.model.scanner_positions_m && Object.keys(this.state.model.scanner_positions_m).length > 0);
-      const _hasCal = _calPoints >= 5 || _hasModel || _hasFabricScanners;
+      const _hasCal = _calPoints >= 5 || _hasModel;
       // Someone on the map NOW: what the steps above are for. An object the
       // engine counts as the house's own (presence_coordinator
       // is_identified_object: labelled, identified, or an IRK phone) with a
@@ -4483,7 +4547,15 @@ class PadSpanHaApp extends HTMLElement {
           _markOnboarded();
           this._scheduleRender();
         });
-        hdr.appendChild(skipBtn);
+        // The guided Setup: the same steps in order, with skip and resume.
+        const setupBtn = el("span",{"data-getting-started":"setup",style:"cursor:pointer;font-size:11px;color:#5eead4;text-decoration:underline;margin-right:12px"}, "Open Setup");
+        setupBtn.addEventListener("click", () => {
+          this.state.view = "setup";
+          this._renderNav();
+          if (!VIEWS.setup) _loadView("setup").then(() => this._scheduleRender());
+          this._scheduleRender();
+        });
+        hdr.appendChild(el("span",{style:"display:flex;align-items:baseline"},[setupBtn, skipBtn]));
         bar.appendChild(hdr);
         if (_mapOptional) bar.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin:-4px 0 8px"},
           "Who's where already works below. A floor plan adds the map, and with three or more scanners placed on it, positions between them."));
@@ -4507,6 +4579,8 @@ class PadSpanHaApp extends HTMLElement {
           row.setAttribute("data-getting-started", "step-" + s.id);
           row.addEventListener("click", () => {
             this._telemetryEvent("getting_started_step:" + s.id);
+            // The guided Setup's step this is (views/setup.js): its bar leads back there.
+            this.state._setupReturn = { upload: "plan", scale: "scale", rooms: "rooms", scanners: "receivers", calibrate: "calibration" }[s.id] || null;
             // The four map-building steps launch the Setup Wizard AT that
             // step, on whatever map is already active (or the first one, or
             // none yet — the wizard's own Upload step handles that) — rather
@@ -4533,7 +4607,7 @@ class PadSpanHaApp extends HTMLElement {
             this.state.view = s.view;
             // Route to the correct sub-tab
             if (s.mapsTab) this.state.mapsTab = s.mapsTab;
-            if (s.calibTab && this.state._calib) this.state._calib.tab = s.calibTab;
+            if (s.calibTab) this.state._calibTabRequest = s.calibTab;
             // A view reached from here is highlighted like one picked from
             // the menu, and loads if the background load has not reached it.
             this._renderNav();

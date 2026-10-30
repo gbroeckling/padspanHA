@@ -47,15 +47,18 @@ export function hasScale(state) {
 }
 
 /**
- * Calibration exists in some form — enough calibration points, a fitted
- * model, or scanners positioned in the fabric all count; there is more than
- * one legitimate way to arrive at a working model.
+ * The house has been calibrated: five calibration points or more (the
+ * number calibration_store fits a model from), or a fitted model. One rule
+ * for the Overview's Getting started "Calibrate" and the guided Setup's
+ * "Calibrate" step (views/setup.js). Receivers placed in the layout
+ * (model.scanner_positions_m) used to count here too; they are the
+ * Receivers step's, not calibration. A house whose checklist was already
+ * finished keeps settings.onboarding_completed, so it never comes back.
  */
 export function hasCalibration(state) {
   const calPoints = (state.calibration && state.calibration.points) ? state.calibration.points.length : 0;
   const hasModel = !!(state.calibration && state.calibration.model && Object.keys(state.calibration.model).length > 0);
-  const hasFabricScanners = !!(state.model && state.model.scanner_positions_m && Object.keys(state.model.scanner_positions_m).length > 0);
-  return calPoints >= 5 || hasModel || hasFabricScanners;
+  return calPoints >= 5 || hasModel;
 }
 
 /**

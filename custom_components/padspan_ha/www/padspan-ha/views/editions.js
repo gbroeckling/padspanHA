@@ -159,6 +159,7 @@ export const SURFACE_CLASS = Object.freeze({
   history:     "presence",
   monitor:     "presence",
   maps:        "lighting",
+  rooms:       "presence",      // the Rooms page (2026-10-30): who is in each room now
   events:      "presence",
   health:      "lighting",
   settings:    "lighting",
@@ -168,11 +169,13 @@ export const SURFACE_CLASS = Object.freeze({
   qa:          "presence",
   training:    "presence",
   calibration: "presence",
+  receivers:   "presence",    // Bluetooth receivers: the presence build's
   traceback:   "presence",
   forensics:   "presence",
   sandbox:     "presence",
   occupancy:   "presence",
   guests:      "presence",      // guest tags (0.38.178): a tag lent to a guest is presence
+  setup:       "presence",      // the guided Setup: receivers and calibration are presence
   // The developer's install-base dashboard is about BOTH builds' installs,
   // but it is a presence-build surface: Bright has no Pro key to present.
   installbase: "presence",

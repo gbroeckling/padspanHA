@@ -46,10 +46,10 @@ for (const [varName] of PAIRS) {
 
 if (Object.keys(lifted).length === PAIRS.length) {
   // _hasRooms and _hasCal reference a couple of helper consts panel.js
-  // declares between the five (_hasFabricRooms, _calPoints, _hasModel,
-  // _hasFabricScanners) — pull those in too so the reconstructed scope
-  // actually has what the expressions reference.
-  const helperNames = ["_hasFabricRooms", "_calPoints", "_hasModel", "_hasFabricScanners"];
+  // declares between the five (_hasFabricRooms, _calPoints, _hasModel) —
+  // pull those in too so the reconstructed scope actually has what the
+  // expressions reference.
+  const helperNames = ["_hasFabricRooms", "_calPoints", "_hasModel"];
   const helpers = {};
   for (const h of helperNames) {
     const hm = SRC.match(new RegExp(`const\\s+${h}\\s*=\\s*([^;]+);`));
@@ -82,6 +82,7 @@ if (Object.keys(lifted).length === PAIRS.length) {
     { name: "4 cal points",      state: { maps: { list: [] }, model: {}, calibration: { points: [1, 2, 3, 4] } } },
     { name: "fitted cal model",  state: { maps: { list: [] }, model: {}, calibration: { model: { a: 1 } } } },
     { name: "fabric scanners",   state: { maps: { list: [] }, model: { scanner_positions_m: { s1: [0, 0] } }, calibration: {} } },
+    { name: "fabric scanners, 4 cal points", state: { maps: { list: [] }, model: { scanner_positions_m: { s1: [0, 0] } }, calibration: { points: [1, 2, 3, 4] } } },
     { name: "everything done",   state: {
         maps: { list: [{ id: "m1", receivers: [{ id: "r1" }], room_bounds: { Kitchen: {} } }] },
         model: { room_geometry_m: { Kitchen: {} }, map_transforms: { m1: { reference_measurements: [{}] } } },

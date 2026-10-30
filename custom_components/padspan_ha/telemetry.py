@@ -146,6 +146,9 @@ EVENTS: frozenset[str] = frozenset({
     # The top bar's status dot (views/status_dot.js) clicked through to
     # Health: whether a dot that says something is wrong gets looked at.
     "status_dot_open",
+    # The Receivers page (views/receivers.js): a height or signal adjustment
+    # saved from its table, once per save. Never which receiver or the value.
+    "receivers_page_edit",
     # 0.38.160: a device's room held through a short gap (once per hold, so
     # whether the setting ever does anything in a real house), and a robot
     # vacuum's map imported / a walker point accepted into calibration.
@@ -292,6 +295,9 @@ EVENTS: frozenset[str] = frozenset({
     # screens; the ones only Development listed sit there, closed by default).
     # Counted on opening only: whether anyone finds it.
     "menu_more_tools_open",
+    # The Rooms page (views/rooms.js, 2026-10-30): a colour, ceiling height or
+    # split level saved there (its opens are tab:rooms).
+    "rooms_page_edit",
     # Settings → Suggest an idea: which way people take (0.38.140).
     "suggest_idea_posted", "suggest_idea_browsed", "suggest_idea_mail",
     # A Bluetooth proxy that suddenly hears far fewer advertisements than it
@@ -405,7 +411,7 @@ VIEWS: frozenset[str] = frozenset({
     "follow", "overview", "purelive", "objects", "devices", "bluetooth", "presence",
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
-    "sandbox", "occupancy", "installbase", "guests",
+    "sandbox", "occupancy", "installbase", "guests", "rooms", "receivers", "setup",
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),
@@ -442,6 +448,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
+    "calibration_results",                          # Calibration's Results tab (the one it opens on)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
     "live_aboard_import",
     "live_aboard_devices",                          # Live Aboard P5: furniture that is a device
@@ -621,6 +628,21 @@ STAIR_EVENTS: frozenset[str] = frozenset(
 TIP_IDS: tuple[str, ...] = ("floor_heights", "receiver_heights", "scale")
 TIP_EVENTS: frozenset[str] = frozenset(
     {f"tip_{a}:{t}" for a in ("shown", "opened", "hidden") for t in TIP_IDS} | {"tip_hidden:all"})
+# Calibration → Results (views/calibration_results.js, 2026-10-30): each
+# opening of the tab, and which button was used: the next best thing to do
+# (by its kind) or Guided calibration. Whether opening on results gets
+# people to the step that helps. Kinds only, never a room.
+CAL_RESULTS_ACTIONS: tuple[str, ...] = (
+    "scale", "start", "receiver_heights", "floor_heights", "compute",
+    "room_empty", "room_weak", "stale", "matrix", "guided")
+CAL_RESULTS_EVENTS: frozenset[str] = frozenset(
+    {f"cal_results_action:{k}" for k in CAL_RESULTS_ACTIONS} | {"cal_results_opened"})
+# The guided Setup (views/setup.js): each step reached (once per page), each
+# step skipped, and the whole sequence finished (once per install, only by a
+# house that used it). Where people stop, beside the two wizards' own funnels.
+from .setup_checks import SETUP_STEPS  # noqa: E402
+SETUP_EVENTS: frozenset[str] = frozenset(
+    {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"})
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
 # local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to
@@ -1052,7 +1074,8 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
-            or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS)
+            or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
+            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

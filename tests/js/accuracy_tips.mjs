@@ -118,9 +118,9 @@ const rows = (card) => card ? card.querySelectorAll("[data-accuracy-tips]").map(
   check("fix: floor heights → Maps 3D Stack (Basic switched to Advanced, with a toast), receiver heights → Calibration Tune (still in Basic mode), scale → the map wizard's Measure step",
     f.state.view === "maps" && f.state.mapsTab === "stack" && f.events.includes("tip_opened:floor_heights")
     && f.state.complexity === "advanced" && f.toasts.length === 1 && /switched to Advanced/.test(f.toasts[0])
-    && r.state.view === "calibration" && r.state._calib.tab === "tune" && r.state.complexity === "basic" && r.events.includes("tip_opened:receiver_heights")
+    && r.state.view === "calibration" && r.state._calibTabRequest === "tune" && r.state.complexity === "basic" && r.events.includes("tip_opened:receiver_heights")
     && s.state.view === "maps" && s.state._mapsWizard && s.state._mapsWizard.step === 2 && s.state._mapsWizard.mapId === "m1" && s.events.includes("tip_opened:scale"),
-    { f: [f.state.view, f.state.mapsTab, f.state.complexity, f.toasts], r: [r.state.view, r.state._calib.tab, r.state.complexity], s: [s.state.view, s.state._mapsWizard] });
+    { f: [f.state.view, f.state.mapsTab, f.state.complexity, f.toasts], r: [r.state.view, r.state._calibTabRequest, r.state.complexity], s: [s.state.view, s.state._mapsWizard] });
 }
 
 console.log(JSON.stringify({ cases, failures }));

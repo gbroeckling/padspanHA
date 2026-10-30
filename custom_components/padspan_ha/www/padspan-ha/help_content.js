@@ -329,6 +329,17 @@ export function helpTexts() { return {
     ],
   },
 
+  receivers: {
+    title: t("Receivers — every Bluetooth receiver in one table"),
+    body: [
+      t("One row for each Bluetooth receiver (an ESPHome proxy, a Shelly, Home Assistant's own adapter) PadSpan hears from: its room, its floor, whether it is on a floor plan, its height, its signal adjustment, how it is doing, how many devices it hears right now, and when it was last heard."),
+      t("Height and signal adjustment can be changed right in the table. They are the same values as Calibration → Tune, Mapping → Edit → Radios and Settings → Tracking → Receivers: saving in one place changes them everywhere."),
+      t("Status uses the same rules as the dot in the top bar: Silent means not heard for over 10 minutes, Hearing less means it hears far fewer devices than usual while the others are normal."),
+      t("Place (or Move) opens Mapping with that receiver selected, to put it where it is mounted. Positions and calibration are never changed from this page."),
+      t("Click a column heading to sort by it; tick Problems only to see just the receivers that need attention. In Sample mode the demo house's receivers are shown and nothing can be edited."),
+    ],
+  },
+
   installbase: {
     title: t("Install Base — what the opt-in reports add up to"),
     body: [
@@ -362,7 +373,7 @@ export function helpTexts() { return {
     title: t("Complexity Mode — Basic / Advanced / Development"),
     body: [
       t("Every screen is in the sidebar in every mode. PadSpan's complexity mode decides which screens are in the main list (the rest are under More tools) and how much detail the screens show:"),
-      t("BASIC — A short main list: Follow, Overview, Mapping, Calibration, Settings, and Training; everything else is under More tools. The screens keep to the essentials. Designed for non-technical household members who just want to see where things are."),
+      t("BASIC — A short main list: Follow, Overview, Mapping, Rooms, Receivers, Calibration, Settings, and Training; everything else is under More tools. The screens keep to the essentials. Designed for non-technical household members who just want to see where things are."),
       t("ADVANCED — The default for power users. The main list adds Live Tracker, Manage, Traceback, Occupancy, and Health; the rest (Devices, Bluetooth, Presence, Monitor, QA, Sandbox and more) are under More tools. Tick a tab in Settings → UI Structure to move it into the main list."),
       t("DEVELOPMENT — The same menu as Advanced, with more diagnostic detail inside the screens. Use this when troubleshooting issues or when Claude asks you to check diagnostic data."),
       t("Changing complexity mode doesn't delete any data — it only changes the sidebar's main list and the detail inside screens. Your settings, calibration, and device data are always preserved."),

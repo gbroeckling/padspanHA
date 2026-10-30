@@ -30,7 +30,7 @@ def _set(src: str, name: str) -> set[str]:
 def test_basic_mode_lists_calibration() -> None:
     src = _read("panel.js")
     basic = _set(src, "BASIC_TABS")
-    assert basic == {"follow", "overview", "maps", "calibration", "settings", "training"}, sorted(basic)
+    assert basic == {"follow", "overview", "maps", "rooms", "receivers", "calibration", "settings", "training"}, sorted(basic)
     assert "calibration" in _set(src, "ADVANCED_DEFAULT")
     assert "calibration" not in _set(src, "DEV_ONLY_TABS")
 
@@ -64,4 +64,4 @@ def test_calibration_tabs_do_not_depend_on_the_mode() -> None:
 def test_training_no_longer_calls_calibration_advanced_only() -> None:
     src = _read("views/training.js")
     assert "Calibration tab (visible in Advanced and Development modes)" not in src
-    assert "Basic — 6 tabs (Follow, Overview, Maps, Calibration, Settings, Training)" in src
+    assert "Basic — 8 tabs (Follow, Overview, Maps, Rooms, Receivers, Calibration, Settings, Training)" in src
