@@ -149,8 +149,9 @@ def ai_task(hass: HomeAssistant, *, with_backup: bool = False) -> dict[str, Any]
 
     with_backup (the reads): where a usable backup AI Task is set (Settings →
     AI), also backup: its entity, and main_away: True when the main one is
-    unavailable or gone from Home Assistant (then name and local are the
-    backup's). With no backup set, exactly the main one's answer."""
+    unavailable or gone from Home Assistant (name and local stay the main
+    one's while it is only unavailable, and are the backup's once it is gone).
+    With no backup set, exactly the main one's answer."""
     v = _ha_version()
     if v is None or v < MIN_HA:
         return {"ready": False, "message": NO_AI_OLD}
@@ -807,7 +808,7 @@ async def _probe(hass: HomeAssistant, eid: str) -> str | None:
 
 
 async def ask_ai(hass: HomeAssistant, ai: dict[str, Any], instructions: str, structure: dict | None, raw: bytes,
-                 mime: str, task_name: str = "PadSpan Live Aboard photo") -> tuple[Any, str]:
+                 mime: str, task_name: str = "PadSpan Live Aboard photo", *, count: bool = True) -> tuple[Any, str]:
     """ask() on the main AI Task, or on the backup when the main one is away
     (the rule above): the answer and the entity that gave it. With no backup
     set, ask() on the main one exactly as before."""
@@ -836,14 +837,18 @@ async def ask_ai(hass: HomeAssistant, ai: dict[str, Any], instructions: str, str
         else:
             _away_until(hass).pop(main, None)
             return answer, main
-    _LOGGER.info("PadSpan Live Aboard: the main AI Task %s is away (%s); the backup %s reads instead "
-                 "(the main one is tried again after %d minutes)", main, why, backup, MAIN_AWAY_S // 60)
-    _bump(hass, "ai_backup_used")
+    _LOGGER.info("PadSpan Live Aboard: the main AI Task %s is away (%s); the backup %s reads instead%s",
+                 main, why, backup,
+                 f" (the main one is tried again after {MAIN_AWAY_S // 60} minutes)" if _remembered_away(hass, main)
+                 else " (the main one is checked again on the next read)")
+    if count:
+        _bump(hass, "ai_backup_used")
     try:
         answer = await ask(hass, backup, instructions, structure, raw, mime, task_name,
                            timeout_s=max(BACKUP_MIN_S, PHOTO_TIMEOUT_S - (time.monotonic() - t0)))
     except Exception:
-        _bump(hass, "ai_backup_failed")
+        if count:
+            _bump(hass, "ai_backup_failed")
         raise
     return answer, backup
 
@@ -930,7 +935,7 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
             and out.get("kind") not in (None, B.BOX_KIND)):
         try:
             i2, s2 = request(target, out["kind"])
-            a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime)
+            a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)
             o2 = parse(target, out["kind"], a2)
             if o2["ok"]:
                 out, by = o2, by2

@@ -457,3 +457,12 @@ def test_the_reads_say_when_the_backup_answered():
     assert pe.count("byBackup: !!out.by_backup") == 2 and "PH.BACKUP_NOTE" in pe
     fu = (WWW / "views" / "live_aboard_furnish.js").read_text(encoding="utf-8")
     assert "r.by_backup" in fu and "Read by the backup AI task" in fu
+
+
+def test_a_furniture_photos_second_look_doesnt_count_the_backup_again() -> None:
+    """End-to-end check 2026-10-30: one photo read counted ai_backup_used twice
+    (its second look is a second ask_ai call)."""
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
+           / "ws_house3d_photo.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)" in src
+    assert 'if count:\n        _bump(hass, "ai_backup_used")' in src
