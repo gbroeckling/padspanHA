@@ -248,10 +248,10 @@ export function peopleMachine({ F, callWS, hass, draft = null, settings = null }
       try { out = await callWS({ type: CMD, target, photo }); }
       catch (e) { out = { ok: false, message: errText(e) }; }
       if (out && out.ok && back === "figphoto" && out.figure) {
-        m.edit = { ...m.edit, params: clampFigureParams(F, out.figure.params), origin: "photo" };
+        m.edit = { ...m.edit, params: clampFigureParams(F, out.figure.params), origin: "photo", byBackup: !!out.by_backup };
         m.step = "figure";
       } else if (out && out.ok && back === "lookphoto" && out.recipe) {
-        m.edit = { ...m.edit, recipe: F.clampRecipe({ ...out.recipe, details: out.details || undefined }) };
+        m.edit = { ...m.edit, recipe: F.clampRecipe({ ...out.recipe, details: out.details || undefined }), byBackup: !!out.by_backup };
         m.step = "look";
       } else {
         m.error = (out && out.message) || "Couldn't read it. Use the sliders instead.";
@@ -554,7 +554,7 @@ export async function peopleFlow(ctx){
       show();
       return [
         el("h3", {}, `${e.name}'s figure`),
-        el("p", { class: "muted" }, e.origin === "photo" ? `Read from the photo; adjust anything. ${LIKENESS}` : LIKENESS),
+        el("p", { class: "muted" }, e.origin === "photo" ? `Read from the photo${e.byBackup ? " (by the backup AI task)" : ""}; adjust anything. ${LIKENESS}` : LIKENESS),
         el("div", { class: "edit" }, grid, preview.el),
         el("div", { class: "row" },
           el("button", { class: "go", onclick: () => { m.keepFigure(); closePreview(); draw(); } }, "Keep"),
@@ -640,6 +640,7 @@ export async function peopleFlow(ctx){
       show();
       return [
         el("h3", {}, `How ${e.name} looks`),
+        e.byBackup ? el("p", { class: "muted" }, PH.BACKUP_NOTE) : null,
         el("div", { class: "edit" }, grid, preview.el),
         el("div", { class: "row" },
           el("button", { class: "go", onclick: () => { m.keepLook(); closePreview(); draw(); } }, "Keep"),

@@ -41,6 +41,8 @@ const NEEDS = "Reading photos needs Home Assistant 2025.8 or newer, with an AI T
   + `(one with a vision model), chosen in ${SETTINGS_WHERE}.`;
 
 export const errText = (e) => String((e && (e.message || e.code)) || e || "Something went wrong.");
+// The answer came from the backup AI Task (Settings → AI): the main one was away.
+export const BACKUP_NOTE = "Read by the backup AI task.";
 const m2 = (v) => `${Number(v).toFixed(2)} m`;
 
 /** The kinds a photo can be read as, in the Build menu's order: [{kind, name}]. */
@@ -346,6 +348,7 @@ export async function photoFlow(ctx){
         el("div", { class: "row" }, (r.colors || []).map(c => el("span", { class: "swatch", title: c, style: `background:${c}` })),
           a.details && a.details.title ? el("span", { class: "muted" }, a.details.title) : null),
         el("p", {}, read),
+        a.by_backup ? el("p", { class: "muted" }, BACKUP_NOTE) : null,
         trusted ? el("p", { class: "note" }, "It was measured against something of known size in the shot.") : null,
         trusted ? el("div", { class: "row" }, el("button", { class: "go", onclick: () => finish(m.accept()) }, "Use these sizes")) : null,
         el("p", {}, trusted ? "Or type one real size:" : "Type one real size (usually the width). The other two follow the photo."),

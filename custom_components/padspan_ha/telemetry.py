@@ -152,6 +152,10 @@ EVENTS: frozenset[str] = frozenset({
     # "Preview a finished house" (Sample mode, panel.js _setDataMode): opened
     # from Live, and back to Live from it. Sample mode itself counts nothing.
     "preview_open", "preview_back",
+    # The backup AI Task (Settings → AI, ws_house3d_photo.ask_ai): a photo or
+    # plan read by the backup because the main one was away, and one the
+    # backup then failed too. Never which AI Task.
+    "ai_backup_used", "ai_backup_failed",
     # 0.38.160: a device's room held through a short gap (once per hold, so
     # whether the setting ever does anything in a real house), and a robot
     # vacuum's map imported / a walker point accepted into calibration.
@@ -786,6 +790,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "wall_fully": "wall_fully", "hold_last_room_s": "room_hold",
     "wall_floor_cycle_s": "wall_floor_cycle", "atlas_3d_director": "director",
     "enhanced_security": "enhanced_security",
+    # A backup AI Task is set (Settings → AI): yes only, never which one.
+    "atlas_3d_ai_task_backup_entity": "ai_backup",
     # 0.38.178: several wall screens (Settings → Optimize for scale).
     "optimize_for_scale": "scale",
     "guest_tags_enabled": "guest_tags",

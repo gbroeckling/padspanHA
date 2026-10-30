@@ -150,6 +150,12 @@ def _atlas_3d_ai_task(value: Any) -> str:
     return _weather_entity(value, ("ai_task.",))
 
 
+def _atlas_3d_ai_task_backup(value: Any, main: Any) -> str:
+    """The backup AI Task: an ai_task.* entity id that is not the main one, or "" (no backup)."""
+    v = _atlas_3d_ai_task(value)
+    return "" if v and v == _atlas_3d_ai_task(main) else v
+
+
 # The sidebar's Live Aboard goes back to its home view after this long
 # untouched (views/live_aboard_panel.js): never, 30 s, 1 min or 5 min.
 ATLAS_3D_IDLE_CHOICES = (0, 30, 60, 300)
@@ -546,6 +552,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_3d_people"): bool,
         vol.Optional("atlas_3d_tags"): bool,
         vol.Optional("atlas_3d_ai_task_entity"): vol.Any(str, None),
+        vol.Optional("atlas_3d_ai_task_backup_entity"): vol.Any(str, None),
         vol.Optional("ai_photos_enabled"): bool,
         vol.Optional("ai_stairs_enabled"): bool,
         vol.Optional("atlas_3d_library"): bool,
@@ -744,7 +751,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 from .perf_sampler import async_runs_opted_out  # noqa: PLC0415
                 await async_runs_opted_out(hass)
         if ("atlas_3d_library" in msg or "atlas_3d_ai_task_entity" in msg or "ai_photos_enabled" in msg
-                or "ai_stairs_enabled" in msg):
+                or "ai_stairs_enabled" in msg or "atlas_3d_ai_task_backup_entity" in msg):
             # Live Aboard's shared library and a cloud AI Task reading photos
             # both let data leave the house: an administrator's call, like the
             # usage report above.
@@ -932,6 +939,15 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             payload["atlas_3d_look"] = _atlas_3d_look(msg["atlas_3d_look"])
         if "atlas_3d_ai_task_entity" in msg:
             payload["atlas_3d_ai_task_entity"] = _atlas_3d_ai_task(msg["atlas_3d_ai_task_entity"])
+        if "atlas_3d_ai_task_entity" in msg or "atlas_3d_ai_task_backup_entity" in msg:
+            # The backup AI Task: an ai_task.* that is not the main one. A main
+            # changed to the backup's own entity leaves no backup.
+            _have = (st.data if st is not None else {}) or {}
+            _main = payload.get("atlas_3d_ai_task_entity", _have.get("atlas_3d_ai_task_entity"))
+            _bk = _atlas_3d_ai_task_backup(
+                msg.get("atlas_3d_ai_task_backup_entity", _have.get("atlas_3d_ai_task_backup_entity")), _main)
+            if "atlas_3d_ai_task_backup_entity" in msg or _bk != (_have.get("atlas_3d_ai_task_backup_entity") or ""):
+                payload["atlas_3d_ai_task_backup_entity"] = _bk
         if "atlas_3d_home_idle_s" in msg:
             payload["atlas_3d_home_idle_s"] = _atlas_3d_idle(msg["atlas_3d_home_idle_s"])
         if "atlas_3d_carries" in msg and isinstance(msg["atlas_3d_carries"], dict):

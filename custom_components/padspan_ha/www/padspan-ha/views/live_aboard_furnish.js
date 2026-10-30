@@ -865,12 +865,13 @@ export function createFurnish(ctx){
       const plans = (Array.isArray(pl && pl.plans) ? pl.plans : []).filter(m => floors.some(f => f.id === canon(m.floor_id) && !f.outdoor));
       if (!plans.length) { ctx.hint("No placed floor plans to read: add one in Mapping first.", true); return; }
       const found = [];
-      let i = 0, failed = 0;
+      let i = 0, failed = 0, byBackup = false;
       for (const m of plans) {
         ctx.hint(`Reading the stairs off ${m.name || "a plan"} (${++i} of ${plans.length})… a local AI can take a minute.`);
         try {
           const r = await call({ type: "padspan_ha/house3d_stairs_read", map_id: m.map_id });
           if (r && r.ok) for (const st of r.stairs || []) found.push({ ...st, plan: canon(m.floor_id) });
+          if (r && r.ok && r.by_backup) byBackup = true;
           else failed++;
         } catch (e) {
           failed++;
@@ -905,6 +906,7 @@ export function createFurnish(ctx){
         return { piece, square: true };
       }), null, `The AI found ${placed.length} staircase${placed.length === 1 ? "" : "s"} on your plans: a first guess, so check where they stand, their shape and which way is up` +
         // Tested on real plans (0.38.189): a small local model finds most, but their shape and way up often wrong.
+        (byBackup ? ". Read by the backup AI task" : "") +
         (pl && pl.local === true ? ". Your AI runs on your own computer: a small model like that finds most staircases but often gets their shape and which way is up wrong. A cloud AI Task (Settings → AI) reads plans better." : ""));
     } catch (e) {
       ctx.hint("Couldn't read the plans: " + String((e && (e.message || e.code)) || e), true);
