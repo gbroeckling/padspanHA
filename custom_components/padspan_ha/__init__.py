@@ -585,7 +585,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await async_setup_panel(hass)
     except Exception as err:
-        _LOGGER.warning("Panel re-registration failed: %s", err)
+        _LOGGER.warning("The PadSpan HA sidebar panel could not be refreshed: %s. Restart Home Assistant if the panel does not open", err)
 
     # Ensure critical stores are present (reload-safe); deferred stores
     # are loaded in background by async_setup's _background_init task.

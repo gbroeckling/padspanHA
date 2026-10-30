@@ -324,6 +324,10 @@ EVENTS: frozenset[str] = frozenset({
     "guest_tag_marked", "guest_session_started", "guest_session_ended",
     "guest_notice_sent", "guest_notice_failed", "guest_quiet_held",
     "guest_offlimits_sent", "guest_stale_ended",
+    # Field warnings: a phone's BLE Transmitter Major/Minor that is not a
+    # number (it used to fail the phone search), and an identity a device
+    # could not take because another device already has it (was a warning).
+    "companion_ids_unreadable", "device_identity_refused",
 })
 # A new install's first steps (onboarding.py): how long from setup to the
 # first room and to the first calibration point, as buckets, once per
