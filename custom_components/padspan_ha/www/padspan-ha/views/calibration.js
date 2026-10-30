@@ -130,22 +130,7 @@ export function render(ctx) {
     return root;
   }
 
-  // Header
-  root.appendChild(el("div", { style: "margin-bottom:10px" }, [
-    el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
-      el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, "BLE Location Calibration"),
-      ctx.helpers.helpBtn("calibration_overview"),
-      (() => {
-        const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto" }, "🧭 Guided calibration");
-        b.addEventListener("click", () => { ctx.state._calibWizard = { step: 1, from: cs.tab === "results" ? "results" : undefined }; ctx.actions.renderRooms(); });
-        return b;
-      })(),
-    ]),
-    el("div", { style: "font-size:12px;color:#78909c;margin-top:2px" },
-      "Build a fingerprint database so PadSpan™ can pinpoint every beacon in 3D space."),
-  ]));
-
-  // Tab bar
+  // Tabs
   const TABS = [["results","Results"],["tune","Tune"],["beacon","Beacon Tune"],["setup","Beacon and floor"],["pin","Pin & Listen"],["roam","Roam"],["model","Model"],["matrix","Accuracy by spot"]];
   // Walk a room (calibration_room_walk, off by default): its tab exists only while on.
   const _walkOn = ctx.state.settings?.calibration_room_walk === true;
@@ -159,6 +144,24 @@ export function render(ctx) {
     ctx.state._calibTabRequest = null;
     if (TABS.some(([id]) => id === _req)) cs.tab = _req;
   }
+
+  // Header. Results has Guided calibration as its main button, so the
+  // header's is left out there (one button, not two).
+  root.appendChild(el("div", { style: "margin-bottom:10px" }, [
+    el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
+      el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, "BLE Location Calibration"),
+      ctx.helpers.helpBtn("calibration_overview"),
+      cs.tab === "results" ? null : (() => {
+        const b = el("button", { class: "btn inline", style: "font-size:11px;margin-left:auto", "data-calib-guided": "header" }, "🧭 Guided calibration");
+        b.addEventListener("click", () => { ctx.state._calibWizard = { step: 1 }; ctx.actions.renderRooms(); });
+        return b;
+      })(),
+    ]),
+    el("div", { style: "font-size:12px;color:#78909c;margin-top:2px" },
+      "Build a fingerprint database so PadSpan™ can pinpoint every beacon in 3D space."),
+  ]));
+
+  // Tab bar
   const tabBar = el("div", { class: "tabs", style: "margin-bottom:14px;flex-wrap:wrap;gap:4px" });
   for (const [id, label] of TABS) {
     tabBar.appendChild(el("button", {

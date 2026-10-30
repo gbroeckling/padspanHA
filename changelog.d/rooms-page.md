@@ -6,6 +6,7 @@
 - **Rooms are still your Home Assistant Areas.** Names and floors come from Home Assistant: "Rename in Home Assistant" and "Add a room in Home Assistant" open its Areas page, and Refresh reads the change back. A room drawn only in PadSpan's layout is listed too, marked as not an area.
 - **Edit outline** opens Mapping → Edit on the floor plan the room is drawn on, with the Rooms tool on and that room chosen. In Basic it switches to Advanced first and says so, as Mapping's own Open does. **See receivers** opens the receiver list.
 - Settings → Appearance's Rooms card, Mapping → Rooms and Mapping → Edit's Rooms tool each have a small **All rooms** link to the new page. They keep their own controls.
+- In Sample mode your own rooms are listed read-only, with a note, and without the demo house's people in them.
 
 ### Opt-in report
-- Opening the Rooms page is counted like every other screen, and each colour, ceiling height or split level saved on it is counted (only that it happened, never the room or the value).
+- Opening the Rooms page is counted like every other screen (from the menu or an All rooms link), and each colour, ceiling height or split level saved on it is counted (only that it happened, never the room or the value).

@@ -233,7 +233,8 @@ export function renderResults(ctx, el, cs, calData, deps) {
       // switch and say so, as the Overview's floor-heights tip does.
       if (ctx.state.complexity === "basic" && ctx.actions.setComplexity) {
         ctx.actions.setComplexity("advanced");
-        if (ctx.actions.toast) ctx.actions.toast("Floor heights are in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
+        // ctx.toast, as every view says it (there is no ctx.actions.toast).
+        if (ctx.toast) ctx.toast("Floor heights are in Advanced mode, so PadSpan switched to Advanced. The Basic / Advanced button at the top switches back.");
       }
       ctx.state.view = "maps";
       if (ctx.actions.renderNav) ctx.actions.renderNav();

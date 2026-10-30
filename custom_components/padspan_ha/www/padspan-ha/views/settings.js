@@ -198,7 +198,7 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
   roomsCard.appendChild(el("div",{class:"card-head"},[
     el("div",{style:"font-weight:700"}, isBasic ? "Room colours" : "Rooms"),
     el("div",{style:"display:flex;gap:6px;align-items:center"},[
-      el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", title:"Every room's settings on one page", onclick:()=>{ ctx.state.view = "rooms"; ctx.actions.renderNav(); ctx.actions.renderRooms(); }}, "All rooms"),
+      (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"settings", title:"Every room's settings on one page", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
       helpBtn("settings_colors"),
     ]),
   ]));
@@ -2542,7 +2542,7 @@ function _settingsPresence(ctx, el){
     put("receivers", el("div",{class:"card"},[
       el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"},[
         el("div",{class:"h2",style:"margin:0"},"Receiver signal adjustments"),
-        ctx.actions.openReceivers ? el("button",{class:"btn inline","data-all-receivers":"settings",style:"font-size:11px;padding:2px 10px;margin:0",onclick:()=>ctx.actions.openReceivers()},"All receivers") : null,
+        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline","data-all-receivers":"settings",style:"font-size:11px;padding:2px 10px;margin:0",onclick:()=>ctx.actions.openReceivers()},"All receivers") : null,
       ].filter(Boolean)),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
         "Only the manual offset you save is applied. The suggestion beside it is half the gap between this " +

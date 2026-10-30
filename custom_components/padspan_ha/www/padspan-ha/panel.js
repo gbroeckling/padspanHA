@@ -3189,6 +3189,17 @@ class PadSpanHaApp extends HTMLElement {
   //
   // This pattern keeps views as pure render functions with no direct access
   // to the PadSpanHaApp instance, making them easier to test and reason about.
+  // A screen opened from a link inside another one ("All rooms", "All
+  // receivers"): counted as a tab open, highlighted like a menu pick, loaded
+  // if the background load has not reached it yet.
+  _openCountedView(id){
+    this.state.view = id;
+    this._telemetryEvent("tab:" + id);
+    this._renderNav();
+    if (!VIEWS[id]) _loadView(id).then(() => this._scheduleRender());
+    this._scheduleRender();
+  }
+
   _ctx(){
     const self = this;
     return {
@@ -3261,12 +3272,16 @@ class PadSpanHaApp extends HTMLElement {
         renderNav: ()=>this._renderNav(),
         // The Receivers page (views/receivers.js), from the screens that list
         // receivers (their "All receivers" link): counted as a tab open.
-        openReceivers: ()=>{
-          this.state.view = "receivers";
-          this._telemetryEvent("tab:receivers");
-          this._renderNav();
-          if (!VIEWS.receivers) _loadView("receivers").then(() => this._scheduleRender());
-          this._scheduleRender();
+        openReceivers: ()=>this._openCountedView("receivers"),
+        // The Rooms page (views/rooms.js), from the screens' "All rooms" links: the same.
+        openRooms: ()=>this._openCountedView("rooms"),
+        // Whether this build's menu has a screen (a Bright install has no
+        // Rooms or Receivers): its links are left out where it hasn't.
+        canOpen: (id)=>this._getVisibleTabs().has(id),
+        // A guided Setup step's own tool, with the bar back to Setup
+        // (views/setup.js openStep), loading Setup first if need be.
+        openSetupStep: (id)=>{
+          _loadView("setup").then(m => { if (m && m.openStep) m.openStep(this._ctx(), id); });
         },
         // Targeted tag-list re-render — avoids a full view rebuild which would
         // cause infinite loops in the Objects view's search/filter interaction

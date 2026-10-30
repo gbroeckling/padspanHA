@@ -152,6 +152,9 @@ export function render(ctx){
   if (activeTab !== "edit" && ctx.state.maps) ctx.state.maps._openRoom = null;
 
   const tabs = el("div",{class:"tabs"}, tabDefs.map(([id,label])=>_tabBtn(id,label,activeTab,setTab)));
+  const _setupShown = !!(_surfacesForEdition(["setup"], ctx.state.settings).length && ctx.actions.showView);
+  // The Library's empty state (_library): its Start Setup Wizard is Setup's first step.
+  const _noPlansYet = activeTab === "library" && !maps.length && ctx.state.dataMode === "live";
 
   // The text takes what is left and wraps by word; Refresh keeps its width
   // (on a phone it squeezed to one letter per line).
@@ -168,8 +171,9 @@ export function render(ctx){
       ]),
       el("div",{style:"display:flex;gap:8px;align-items:center;flex:none"},[
         el("button",{class:"btn inline", style:"white-space:nowrap", onclick:()=>ctx.actions.mapsRefresh()}, "Refresh"),
-        // The guided Setup (views/setup.js), where this build shows it.
-        ...(_surfacesForEdition(["setup"], ctx.state.settings).length && ctx.actions.showView
+        // The guided Setup (views/setup.js), where this build shows it; not
+        // over the Library's "No floor plans yet", whose button opens it.
+        ...(_setupShown && !_noPlansYet
           ? [el("button",{class:"btn inline", style:"white-space:nowrap", "data-setup-link":"maps",
               title:"Plan, scale, floors, rooms, receivers and calibration, one step at a time",
               onclick:()=>ctx.actions.showView("setup")}, "Setup")] : []),
@@ -396,7 +400,15 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     empty.appendChild(el("div",{class:"muted", style:"margin-bottom:14px;font-size:13px"},
       "The setup wizard walks you through uploading a floor plan, setting its scale, drawing rooms, and placing scanners, one step at a time."));
     const startBtn = el("button",{class:"btn primary", style:"font-size:13px;padding:8px 18px"}, "Start Setup Wizard");
+    startBtn.setAttribute("data-maps-start", "setup");
     startBtn.addEventListener("click", ()=>{
+      // Through the guided Setup's first step (views/setup.js openStep): the
+      // same wizard at step 1, with the bar back to Setup over it. A build
+      // without Setup (Bright) opens the wizard as before.
+      if (ctx.actions.openSetupStep && _surfacesForEdition(["setup"], ctx.state.settings).length) {
+        ctx.actions.openSetupStep("plan");
+        return;
+      }
       ctx.state._mapsWizard = { step: 1, mapId: null };
       ctx.actions.renderRooms();
     });
@@ -2507,7 +2519,7 @@ function _edit(ctx, map, allMaps){
       const _sid = ctx.helpers.radioShortId || (src => src.slice(0,3).toUpperCase());
       right.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:14px"},[
         el("div",{class:"muted", style:"font-size:12px;font-weight:600"}, "Live BLE Radios"),
-        ctx.actions.openReceivers ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, "All receivers") : null,
+        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, "All receivers") : null,
       ].filter(Boolean)));
       // #88: in Sample mode these are the demo house's radios. Placed on a
       // real plan they'd become phantom scanners at the next Tune → Save.
@@ -2872,7 +2884,7 @@ function _edit(ctx, map, allMaps){
 
       right.appendChild(el("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},[
         roomSel,
-        el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", title:"Every room's settings on one page (unsaved outlines stay here until you Save)", onclick:()=>{ ctx.state.view = "rooms"; ctx.actions.renderNav(); ctx.actions.renderRooms(); }}, "All rooms"),
+        (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button",{class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"edit", title:"Every room's settings on one page (unsaved outlines stay here until you Save)", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
       ]));
 
       // Warning if selected room is already drawn on another map
@@ -10854,7 +10866,7 @@ function _roomsTab(ctx, maps) {
 
   card.appendChild(el("div", { class: "card-head", style: "margin-bottom:4px" }, [
     el("div", { style: "font-weight:700;font-size:15px" }, "Room and receiver layout, in metres"),
-    el("button", {class:"btn inline", style:"font-size:11px;padding:2px 10px", title:"Every room's settings on one page", onclick:()=>{ ctx.state.view = "rooms"; ctx.actions.renderNav(); ctx.actions.renderRooms(); }}, "All rooms"),
+    (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button", {class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"rooms", title:"Every room's settings on one page", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "The real-world model the positioning engine uses — edited directly, in metres, with no floor " +

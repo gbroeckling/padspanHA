@@ -105,6 +105,14 @@ const text = (n) => n ? n.textContent : "";
   st._calib.tab = "results"; s.render();
   check("data: coming back to Results counts a new opening", s.events.filter(e => e === "cal_results_opened").length === 2, s.events);
   root = s.render();
+  const guidedN = (r) => r.querySelectorAll("button").filter(b => text(b).includes("Guided calibration")).length;
+  check("data: Results shows Guided calibration once (its own, not the header's too)",
+    guidedN(root) === 1 && !root.querySelector('[data-calib-guided="header"]'), guidedN(root));
+  st._calib.tab = "tune";
+  const onTune = s.render();
+  check("data: on another tab the header's Guided calibration is there", !!onTune.querySelector('[data-calib-guided="header"]'));
+  st._calib.tab = "results";
+  root = s.render();
   root.querySelector('[data-cal-results="guided"]').click();
   check("data: Guided calibration is the main button and opens the walk-through",
     st._calibWizard && st._calibWizard.step === 1 && st._calibWizard.from === "results" && s.events.includes("cal_results_action:guided"), st._calibWizard);
@@ -141,7 +149,9 @@ const text = (n) => n ? n.textContent : "";
     const s3 = screen(st3);
     const toasts = [];
     s3.ctx.actions.setComplexity = (m) => { st3.complexity = m; };
-    s3.ctx.actions.toast = (t) => toasts.push(t);
+    // A view's toast is ctx.toast; the real ctx.actions has no toast.
+    s3.ctx.toast = (t) => toasts.push(t);
+    s3.ctx.actions.toast = undefined;
     s3.ctx.actions.setMapsTab = (t) => { st3.mapsTab = t; };
     s3.render(); await tick(); await tick();
     const fx = s3.render().querySelector('[data-cal-results="next"]');

@@ -77,7 +77,8 @@ export function roomGroups(ctx) {
 
   // Who is in each room now (the Overview's own "Who's where" reading).
   const now = {};
-  if (snap) {
+  // Not the demo house's people in your own rooms (Sample mode).
+  if (snap && !_isSample(ctx.state)) {
     const h = ctx.helpers || {};
     const opts = {
       followed: (o) => !!(ctx.actions && ctx.actions.followedHas) && followedObj(o, ctx.actions.followedHas),
@@ -186,6 +187,7 @@ async function _saved(ctx, ok) {
 }
 
 async function _setColor(ctx, row, hex) {
+  if (_isSample(ctx.state)) return;
   try {
     // Settings → Appearance's own save, for this one room: model_update
     // merges per room and keeps a height it is not sent.
@@ -195,6 +197,7 @@ async function _setColor(ctx, row, hex) {
 }
 
 async function _setRoom(ctx, row, msg, ok) {
+  if (_isSample(ctx.state)) return;
   try {
     await ctx.actions.wsCall("padspan_ha/room_height_set", { room: row.name, ...msg });
     await _saved(ctx, ok);
@@ -215,7 +218,11 @@ function _field(el, label, kids, basis = 130) {
   ]);
 }
 
-function _row(ctx, el, row) {
+// Sample mode shows the demo house everywhere else (Mapping, Receivers):
+// nothing is saved from here then, and nothing counted.
+const _isSample = (st) => st.dataMode === "sample" && !!st._dataModeKnown;
+
+function _row(ctx, el, row, readOnly = false) {
   const card = el("div", { style: "border-top:1px solid #1b3526;padding:12px 0", "data-room": row.name });
 
   // Name, colour, and where to rename it.
@@ -270,9 +277,10 @@ function _row(ctx, el, row) {
   } }, "Save");
   rBtn.setAttribute("data-save", "raise");
   if (!row.heightEditable) { rIn.disabled = true; rBtn.disabled = true; }
+  if (readOnly) { col.disabled = true; hIn.disabled = true; hBtn.disabled = true; rIn.disabled = true; rBtn.disabled = true; }
   const rEdit = el("span", { style: `display:${row.raiseM ? "inline-flex" : "none"};align-items:center;gap:6px` }, [rIn, rBtn]);
   const rText = el("span", { style: `display:${row.raiseM ? "none" : "inline"}` }, "Level with its floor");
-  const rLink = el("button", { style: LINKBTN + `;display:${row.raiseM || !row.heightEditable ? "none" : ""}`, "data-link": "split",
+  const rLink = el("button", { style: LINKBTN + `;display:${row.raiseM || !row.heightEditable || readOnly ? "none" : ""}`, "data-link": "split",
     onclick: () => { rEdit.style.display = "inline-flex"; rText.style.display = "none"; rLink.style.display = "none"; } }, "Change");
   fields.appendChild(_field(el, "Split level (m up or down)", [rText, rLink, rEdit]));
 
@@ -310,6 +318,11 @@ export function render(ctx) {
     "Colour, ceiling height and split level save here at once; the outline is drawn on your floor plan in Mapping."
     + (isBasic ? "" : " The layout in metres is in Mapping → Rooms.")));
   root.appendChild(head);
+  const readOnly = _isSample(ctx.state);
+  if (readOnly) {
+    root.appendChild(el("div", { class: "card", style: "margin-top:12px;font-size:12px", "data-rooms-note": "sample" },
+      "Sample mode is on: your own rooms are shown, without who is in them, and nothing can be changed here until you switch back to Live."));
+  }
 
   const groups = roomGroups(ctx);
   if (!groups.length) {
@@ -325,7 +338,7 @@ export function render(ctx) {
       el("div", { style: "font-weight:700;font-size:13px;color:#a7f3d0" }, g.floorName),
       el("span", { class: "muted", style: "font-size:12px" }, `${g.rooms.length} room${g.rooms.length === 1 ? "" : "s"}`),
     ]));
-    for (const row of g.rooms) card.appendChild(_row(ctx, el, row));
+    for (const row of g.rooms) card.appendChild(_row(ctx, el, row, readOnly));
     root.appendChild(card);
   }
   return root;

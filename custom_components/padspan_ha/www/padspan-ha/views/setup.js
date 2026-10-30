@@ -151,15 +151,20 @@ export function openProgress(progress, id) {
 
 // ── the report and the store ────────────────────────────────────────────────
 
+// The demo house showing (Sample mode, or the mode not known yet): Setup is
+// about your own house, so nothing is stored or counted meanwhile.
+const _demo = (st) => st.dataMode !== "live";
+
 const _counted = new Set();   // setup_step:<id>, once per page
 function _countStep(ctx, id) {
-  if (_counted.has(id) || !ctx.actions.telemetryEvent) return;
+  if (_demo(ctx.state) || _counted.has(id) || !ctx.actions.telemetryEvent) return;
   _counted.add(id);
   ctx.actions.telemetryEvent("setup_step:" + id);
 }
 
 function _save(ctx, p) {
   const st = ctx.state;
+  if (_demo(st)) return;
   if (st.settings) st.settings.setup_progress = p;
   ctx.actions.callWS({ type: "padspan_ha/settings_set", setup_progress: p })
     .then(res => { if (res && res.settings) st.settings = res.settings; })
@@ -252,7 +257,7 @@ export function render(ctx) {
     "Six steps, in this order. Each one opens the tool for it; come back here when it's done. " +
     "Skip any step and come back to it later: Setup remembers where you were."));
 
-  if (st.dataMode !== "live") {
+  if (_demo(st)) {
     const note = el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 12px;border:1px solid #f59e0b;border-radius:8px;font-size:12px;color:#e2e8f0" }, [
       el("span", { style: "flex:1 1 auto;min-width:0" }, "The demo house is showing. Setup works on your own house."),
     ]);
@@ -283,7 +288,7 @@ export function render(ctx) {
     card.appendChild(el("div", { "data-setup": "all-done", style: "margin-top:10px;padding:8px 12px;background:#0a1f14;border:1px solid #1a4228;border-radius:8px;color:#a7f3d0;font-size:13px" },
       "Your house is set up. Every step stays here if you want to change one."));
     // Finished: counted once per install, and only by a house that used Setup.
-    if ((progress.at || progress.skipped.length) && !progress.done) {
+    if ((progress.at || progress.skipped.length) && !progress.done && !_demo(st)) {
       if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("setup_done");
       _save(ctx, { ...progress, done: true });
     }
@@ -314,7 +319,9 @@ export function render(ctx) {
     // Every step after it draws on a plan: no Skip for the plan (as the wizard's Upload).
     if (cur && !s.done && s.id !== "plan") {
       const sk = el("button", { class: "btn inline", style: "font-size:12px;color:#94a3b8", "data-setup": "skip-" + s.id }, "Skip for now");
+      if (_demo(st)) sk.disabled = true;
       sk.addEventListener("click", () => {
+        if (_demo(st)) return;
         if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("setup_skip:" + s.id);
         _save(ctx, skipStep(st, progress, s.id));
         ctx.actions.renderRooms();
@@ -323,7 +330,9 @@ export function render(ctx) {
     }
     const word = s.done ? (s.id === "plan" ? "Add a floor" : "Change") : cur ? (progress.at === s.id ? "Continue →" : "Start →") : "Open";
     const go = el("button", { class: "btn inline" + (cur ? " primary" : ""), style: "font-size:12px", "data-setup": "open-" + s.id }, word);
-    go.addEventListener("click", () => openStep(ctx, s.id));
+    // The tools show the demo house too: open them from your own.
+    if (_demo(st)) go.disabled = true;
+    go.addEventListener("click", () => { if (!_demo(st)) openStep(ctx, s.id); });
     btns.appendChild(go);
     row.appendChild(btns);
     list.appendChild(row);

@@ -105,6 +105,15 @@ def test_entry_points() -> None:
     assert '[["library","Library"],["upload","Upload"],["edit","Edit"],["stack","3D Stack"],["rooms","Rooms"],["lights","Atlas"],["export","Export"],["help","Help"]]' in maps
     # A new install's Who's where: Make it a map lands in Setup.
     assert 'mapBtn.addEventListener("click", () => ctx.actions.showView("setup"));' in _read("views/whos_where.js")
+    # No floor plans yet: one way in, not two. The empty state's Start Setup
+    # Wizard is Setup's first step (the wizard at step 1, with the bar), and
+    # the header's Setup is left out over it; a build without Setup (Bright)
+    # opens the wizard as before.
+    assert 'const _noPlansYet = activeTab === "library" && !maps.length && ctx.state.dataMode === "live";' in maps
+    assert "...(_setupShown && !_noPlansYet" in maps
+    start = maps.split('startBtn.setAttribute("data-maps-start", "setup");')[1].split("empty.appendChild(startBtn);")[0]
+    assert 'ctx.actions.openSetupStep("plan");' in start and "ctx.state._mapsWizard = { step: 1, mapId: null };" in start
+    assert 'openSetupStep: (id)=>{' in panel and "m.openStep(this._ctx(), id)" in panel
     # The old wizards stay reachable directly.
     assert '"Start Setup Wizard"' in maps and '"+ Add a floor"' in maps
     assert "🧭 Guided calibration" in _read("views/calibration.js")

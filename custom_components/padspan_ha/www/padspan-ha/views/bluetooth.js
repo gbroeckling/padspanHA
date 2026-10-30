@@ -1142,7 +1142,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
         el("div", { class: "bt-panel-title" }, "Scanners"),
         el("div", { class: "bt-panel-sub" }, "Pick one to see what it hears. Each row carries that scanner's own controls."),
         chip(el, `${radios.length}`, "quiet"),
-        ctx.actions.openReceivers ? el("button", { class: "btn tiny", "data-all-receivers": "bluetooth", onclick: () => ctx.actions.openReceivers() }, "All receivers") : null,
+        ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? el("button", { class: "btn tiny", "data-all-receivers": "bluetooth", onclick: () => ctx.actions.openReceivers() }, "All receivers") : null,
       ].filter(Boolean)),
       scannerListEl,
     ]),

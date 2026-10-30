@@ -107,7 +107,14 @@ def test_other_screens_link_to_the_page() -> None:
         assert f'"data-all-receivers":"{where}"' in src.replace(" ", "") or f'"data-all-receivers": "{where}"' in src, name
         assert "ctx.actions.openReceivers()" in src, name
     panel = _read(_WWW / "panel.js")
-    assert "openReceivers: ()=>{" in panel and 'this._telemetryEvent("tab:receivers");' in panel
+    # One open helper for the in-screen links, counted as a tab open.
+    assert 'openReceivers: ()=>this._openCountedView("receivers"),' in panel
+    helper = panel.split("  _openCountedView(id){")[1].split("\n  }\n")[0]
+    assert 'this._telemetryEvent("tab:" + id);' in helper and "_loadView(id)" in helper
+    # A build without the page (Bright) leaves the link out.
+    assert "canOpen: (id)=>this._getVisibleTabs().has(id)," in panel
+    for name in ("maps.js", "settings.js", "health.js", "bluetooth.js"):
+        assert 'ctx.actions.openReceivers && (!ctx.actions.canOpen || ctx.actions.canOpen("receivers")) ? ' in _read(_VIEWS / name), name
 
 
 def test_maps_one_shot_selects_and_is_used_up() -> None:

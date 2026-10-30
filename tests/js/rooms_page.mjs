@@ -235,6 +235,26 @@ for (const mode of ["advanced", "basic"]) {
   q(roomNode(root, "Kitchen"), "data-link", "mapping").click();
   check("link: with no floor plan the outline links to Mapping's Library", ctx.state.view === "maps" && ctx.state.mapsTab === "library");
 }
+// ── Sample mode: the demo house elsewhere, so nothing saved or counted here
+{
+  const { ctx, calls, events } = makeCtx();
+  Object.assign(ctx.state, { dataMode: "sample", _dataModeKnown: true });
+  const root = R.render(ctx);
+  const k = roomNode(root, "Kitchen");
+  const col = q(k, "data-edit", "color");
+  col.value = "#00ff00";
+  col.dispatchEvent && col.dispatchEvent(new Event("change"));
+  check("sample: says so, and every edit is switched off",
+    !!q(root, "data-rooms-note", "sample") && col.disabled && q(k, "data-edit", "height").disabled
+    && q(k, "data-save", "height").disabled && q(k, "data-edit", "raise").disabled, text(root).slice(0, 300));
+  check("sample: the demo house's people are not put in your rooms", !/Alice/.test(text(k)), text(k));
+  await flush();
+  check("sample: nothing sent, nothing counted", !calls.length && !events.length, { calls, events });
+  const live = makeCtx();
+  Object.assign(live.ctx.state, { dataMode: "live", _dataModeKnown: true });
+  const lr = R.render(live.ctx);
+  check("live: no note, edits on", !q(lr, "data-rooms-note", "sample") && !q(roomNode(lr, "Kitchen"), "data-edit", "color").disabled);
+}
 {
   const { ctx } = makeCtx({ model: { floors: [], areas: [] }, snap: null, maps: [] });
   const root = R.render(ctx);

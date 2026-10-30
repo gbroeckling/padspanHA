@@ -220,6 +220,24 @@ const saved = (calls) => calls.filter(c => c[0] === "ws" && c[1].type === "padsp
   check("view: once fetched, calibration reads as to do", st.calibration && S.deriveSetup(st).current === "calibration");
 }
 
+// Sample mode: Setup is about your own house, so nothing stored or counted.
+{
+  const st = house(2, { dataMode: "sample", calibration: { points: [], model: {} },
+    settings: { setup_progress: { at: "floors", skipped: [], done: false } } });
+  const { ctx, calls, events } = mkCtx(st);
+  const root = S.render(ctx);
+  const open = btn(root, "open-floors"), skip = btn(root, "skip-floors");
+  check("sample: the step buttons are off", open && open.disabled && skip && skip.disabled);
+  open.click(); skip.click();
+  check("sample: nothing opened, stored or counted", st.view === "setup" && !saved(calls).length && !events.length, { calls, events });
+  S.openStep(ctx, "rooms");
+  check("sample: a step opened from elsewhere is not stored or counted either", !saved(calls).length && !events.length, { calls, events });
+  const done = house(6, { dataMode: "sample", settings: { setup_progress: { at: "calibration", skipped: [], done: false } } });
+  const d = mkCtx(done);
+  S.render(d.ctx);
+  check("sample: a finished house is not counted as finishing", !d.events.includes("setup_done") && !saved(d.calls).length, d.events);
+}
+
 // Finished.
 {
   const used = house(6, { settings: { setup_progress: { at: "calibration", skipped: [], done: false } } });
