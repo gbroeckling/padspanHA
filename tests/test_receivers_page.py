@@ -121,3 +121,13 @@ def test_maps_one_shot_selects_and_is_used_up() -> None:
     maps = _read(_VIEWS / "maps.js")
     assert "ctx.state.maps._openRadios = null;" in maps
     assert 'ctx.state.maps._mode = "receivers";' in maps
+
+
+def test_the_poll_refreshes_receivers_but_not_under_typing() -> None:
+    """Status and last-heard froze when the page opened (batch 2 review):
+    it joins the 20 s slow redraw, skipped while one of its fields has focus."""
+    src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha" / "www"
+           / "padspan-ha" / "panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert 'new Set(["follow","monitor","receivers"])' in src
+    assert '_view === "receivers" && /^(INPUT|SELECT|TEXTAREA)$/' in src
+    assert "sinceLastRender >= _SLOW_INTERVAL && !_typing" in src

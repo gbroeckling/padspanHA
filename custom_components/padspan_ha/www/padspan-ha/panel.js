@@ -1931,7 +1931,7 @@ class PadSpanHaApp extends HTMLElement {
       // a full DOM rebuild which causes flicker — throttle those to every 35s.
       const _view = this.state.view;
       const _fastViews = new Set(["overview","purelive"]);  // efficient partial update
-      const _slowViews = new Set(["follow","monitor"]);                 // full rebuild — throttle
+      const _slowViews = new Set(["follow","monitor","receivers"]);     // full rebuild — throttle
       const _SLOW_INTERVAL = 20_000;   // the ~20 s cadence Follow/Monitor have always had in practice
 
       if(_fastViews.has(_view)){
@@ -1942,7 +1942,10 @@ class PadSpanHaApp extends HTMLElement {
       } else if(_slowViews.has(_view)){
         // Follow/Monitor: only re-render every 35s to avoid flicker
         const sinceLastRender = this._lastGoodRender ? (performance.now() - this._lastGoodRender) : _SLOW_INTERVAL;
-        if(sinceLastRender >= _SLOW_INTERVAL){
+        // Receivers has inline height/offset fields: never rebuild under a
+        // half-typed value (the next slow tick catches up).
+        const _typing = _view === "receivers" && /^(INPUT|SELECT|TEXTAREA)$/.test((this.shadowRoot && this.shadowRoot.activeElement && this.shadowRoot.activeElement.tagName) || "");
+        if(sinceLastRender >= _SLOW_INTERVAL && !_typing){
           this._scheduleRender(true);
         } else if(_view === "follow" && this.state._followLocateRefresh){
           // Follow's 📍 Locate card follows every poll without the full
