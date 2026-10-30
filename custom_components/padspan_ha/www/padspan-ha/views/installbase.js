@@ -412,7 +412,7 @@ function renderUnlocked(ctx, root) {
           ["  ↳ paused: the licence no longer reaches Pro (0.38.191)", s.fixes.forensics_paused_licence, s.fixes.forensics_on],
         ])] : []),
         pairCard(el, "Warnings in the Home Assistant log", "Warning lines PadSpan wrote, by the part of PadSpan that wrote them", s.errors, "lines", 12, "module"),
-        barCard(el, { title: "Panel errors, by tab", ask: "Errors the PadSpan panel caught in each tab", map: s.ui_errors, unit: "errors", limit: 12, kind: "view" }),
+        barCard(el, { title: "Panel errors, by where", ask: "Errors the PadSpan panel caught: by the file that threw on 0.38.85 and later, by the open tab before that (when any error on the page counted)", map: s.ui_errors, unit: "errors", limit: 12, kind: "view" }),
       ]),
     ], (() => {
       const t = top(s.tabs, "count"), a = top(usePeople, "count");
