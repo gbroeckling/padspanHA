@@ -54,9 +54,10 @@ def test_the_menu_per_mode(run: dict) -> None:
     """The final lists, pinned: Basic's short main list with everything else
     under More tools; Advanced and Development the same menu."""
     m = run["menus"]
-    assert set(m["basic/2025"]["main"]) == {"overview", "follow", "maps", "rooms", "calibration", "training", "settings"}
-    # The Rooms page (2026-10-30) is a main screen in every mode.
-    assert all("rooms" in m[f"{mode}/{skin}"]["main"] for mode in ("basic", "advanced", "development") for skin in ("2025", "classic"))
+    assert set(m["basic/2025"]["main"]) == {"overview", "follow", "maps", "rooms", "receivers", "calibration", "training", "settings"}
+    # The Rooms and Receivers pages (2026-10-30) are main screens in every mode.
+    assert all(v in m[f"{mode}/{skin}"]["main"] for v in ("rooms", "receivers")
+               for mode in ("basic", "advanced", "development") for skin in ("2025", "classic"))
     assert m["advanced/2025"] == m["development/2025"]
     assert m["advanced/2025"]["more"] == ["monitor", "devices", "bluetooth", "presence", "qa", "sandbox", "installbase"]
     assert m["basic/2025"]["more"][:5] == ["purelive", "occupancy", "manage", "traceback", "health"]

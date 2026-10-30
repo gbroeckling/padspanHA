@@ -1807,6 +1807,14 @@ function _edit(ctx, map, allMaps){
     ctx.state.maps._openMode = null;
     ctx.state.maps._openRoom = null;
   }
+  // The Receivers page's Place / Move (views/receivers.js): a one-shot that
+  // opens Radios with that receiver selected (none: just Radios).
+  if(ctx.state.maps._openRadios){
+    const _want = ctx.state.maps._openRadios.rxId;
+    ctx.state.maps._openRadios = null;
+    ctx.state.maps._mode = "receivers";
+    if(_want && ctx.state.maps._draftReceivers.some(r=>r.id===_want)) ctx.state.maps._selectedRxId = _want;
+  }
 
   // Cache-buster: map.updated changes on every trim/replace so the browser fetches fresh content
   const url = map.image && map.image.filename
@@ -2491,7 +2499,10 @@ function _edit(ctx, map, allMaps){
       const snap2 = (ctx.state.live && ctx.state.live.snapshot) || null;
       const liveRadios = (snap2 && snap2.ble && Array.isArray(snap2.ble.radios)) ? snap2.ble.radios : [];
       const _sid = ctx.helpers.radioShortId || (src => src.slice(0,3).toUpperCase());
-      right.appendChild(el("div",{class:"muted", style:"margin-top:14px;font-size:12px;font-weight:600"}, "Live BLE Radios"));
+      right.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:14px"},[
+        el("div",{class:"muted", style:"font-size:12px;font-weight:600"}, "Live BLE Radios"),
+        ctx.actions.openReceivers ? el("button",{class:"btn inline", "data-all-receivers":"maps", style:"font-size:10px;padding:2px 8px;margin:0", onclick:()=>ctx.actions.openReceivers()}, "All receivers") : null,
+      ].filter(Boolean)));
       // #88: in Sample mode these are the demo house's radios. Placed on a
       // real plan they'd become phantom scanners at the next Tune → Save.
       const _rxBlock = TSP ? TSP.tuneWriteBlock(ctx.state) : null;

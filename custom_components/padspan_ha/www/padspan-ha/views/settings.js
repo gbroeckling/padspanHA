@@ -2540,7 +2540,10 @@ function _settingsPresence(ctx, el){
       ].filter(Boolean)));
     }
     put("receivers", el("div",{class:"card"},[
-      el("div",{class:"h2"},"Receiver signal adjustments"),
+      el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap"},[
+        el("div",{class:"h2",style:"margin:0"},"Receiver signal adjustments"),
+        ctx.actions.openReceivers ? el("button",{class:"btn inline","data-all-receivers":"settings",style:"font-size:11px;padding:2px 10px;margin:0",onclick:()=>ctx.actions.openReceivers()},"All receivers") : null,
+      ].filter(Boolean)),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
         "Only the manual offset you save is applied. The suggestion beside it is half the gap between this " +
         "scanner's median signal and the fleet median, from live data — a starting point for hardware " +

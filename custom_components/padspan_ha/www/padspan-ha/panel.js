@@ -188,6 +188,7 @@ const _VIEW_PATHS = {
   qa:           "./views/qa.js",
   training:     "./views/training.js",
   calibration:  "./views/calibration.js",
+  receivers:    "./views/receivers.js",
   traceback:    "./views/traceback.js",
   forensics:    "./views/forensics.js",
   sandbox:      "./views/sandbox.js",
@@ -266,6 +267,7 @@ const MENU = [
   ["monitor","Monitor","mdi:monitor-dashboard"],
   ["maps","Mapping","mdi:map"],
   ["rooms","Rooms","mdi:floor-plan"],
+  ["receivers","Receivers","mdi:access-point"],
   ["settings","Settings","mdi:cog-outline"],
   ["manage","Manage","mdi:cog-wrench"],
   ["training","Training","mdi:school-outline"],
@@ -287,12 +289,14 @@ const MENU = [
 //   Basic     — a short main list for non-technical users (follow + overview +
 //               essentials, Calibration among them: every home needs it; Rooms
 //               too: Basic's Mapping has no Edit or Rooms tab, so it is Basic's
-//               only room-by-room screen, its colours included)
+//               only room-by-room screen, its colours included; and Receivers:
+//               every home has them, and a silent one is the commonest cause
+//               of wrong rooms)
 //   Advanced  — default set plus user-chosen extras from Settings -> UI Structure
 //   Dev       — the same menu as Advanced; it changes detail inside screens
 // DEV_ONLY_TABS: the screens only Development used to list.
-const BASIC_TABS = new Set(["follow", "overview", "maps", "rooms", "calibration", "settings", "training"]);
-const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","rooms","settings","training","manage","calibration","traceback","occupancy","health"]);
+const BASIC_TABS = new Set(["follow", "overview", "maps", "rooms", "receivers", "calibration", "settings", "training"]);
+const ADVANCED_DEFAULT = new Set(["follow","overview","purelive","maps","rooms","receivers","settings","training","manage","calibration","traceback","occupancy","health"]);
 const DEV_ONLY_TABS = ["devices","bluetooth","presence","monitor","qa","sandbox","installbase"];
 
 // Accent color per tab — used for the sidebar dot, mobile nav, and active highlights
@@ -314,6 +318,7 @@ const MENU_COLORS = {
   manage: "#78909c",
   training: "#4dd0e1",
   calibration: "#26a69a",
+  receivers: "#86efac",
   occupancy: "#a78bfa",
   guests: "#fbbf24",
   diagnostics: "#9575cd",
@@ -343,6 +348,7 @@ const MENU_ICONS = {
   maps:        '<path d="M9 4 3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>',
   rooms:       '<rect x="3" y="3" width="18" height="18" rx="1.6"/><path d="M3 12h7M14 12h7M12 3v6M12 15v6"/>',
   calibration: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.6"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/>',
+  receivers:   '<circle cx="12" cy="11" r="1.8"/><path d="M12 12.8V21"/><path d="M8.3 7.3a5.2 5.2 0 0 0 0 7.4M15.7 7.3a5.2 5.2 0 0 1 0 7.4M5.5 4.5a9.2 9.2 0 0 0 0 13M18.5 4.5a9.2 9.2 0 0 1 0 13"/>',
   training:    '<path d="M12 4 2 9l10 5 10-5-10-5z"/><path d="M6 11.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/>',
   manage:      '<path d="M4 6h9M19 6h1M4 12h4M13 12h7M4 18h9M19 18h1"/><circle cx="16" cy="6" r="2.1"/><circle cx="10.5" cy="12" r="2.1"/><circle cx="16" cy="18" r="2.1"/>',
   settings:    '<circle cx="12" cy="12" r="3.1"/><path d="M12 2.2v2.6M12 19.2v2.6M4.4 4.4l1.9 1.9M17.7 17.7l1.9 1.9M2.2 12h2.6M19.2 12h2.6M4.4 19.6l1.9-1.9M17.7 6.3l1.9-1.9"/>',
@@ -363,7 +369,7 @@ const MENU_ICONS = {
 // adding a tab without touching this file can never make it disappear.
 const MENU_GROUPS = [
   ["Live",      ["overview","purelive","follow","occupancy","guests"]],
-  ["Setup",     ["maps","rooms","calibration","training","manage","settings"]],
+  ["Setup",     ["maps","rooms","receivers","calibration","training","manage","settings"]],
   ["Diagnose",  ["traceback","health","forensics","monitor"]],
   ["Internals", ["devices","bluetooth","presence","qa","sandbox","installbase"]],
 ];
@@ -3249,6 +3255,15 @@ class PadSpanHaApp extends HTMLElement {
         // Re-render triggers (views call these after local UI changes)
         renderRooms: ()=>this._scheduleRender(),
         renderNav: ()=>this._renderNav(),
+        // The Receivers page (views/receivers.js), from the screens that list
+        // receivers (their "All receivers" link): counted as a tab open.
+        openReceivers: ()=>{
+          this.state.view = "receivers";
+          this._telemetryEvent("tab:receivers");
+          this._renderNav();
+          if (!VIEWS.receivers) _loadView("receivers").then(() => this._scheduleRender());
+          this._scheduleRender();
+        },
         // Targeted tag-list re-render — avoids a full view rebuild which would
         // cause infinite loops in the Objects view's search/filter interaction
         renderTags: (target=null)=>{

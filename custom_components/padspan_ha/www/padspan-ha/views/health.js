@@ -71,7 +71,10 @@ export function render(ctx){
     for (const r of liveRadios) { if(r.source && r.name) nameMap[r.source] = r.name; }
     const entries = Object.entries(sh).sort((a,b) => a[1].reliability - b[1].reliability);
     const shCard = el("div",{class:"card",style:"margin-top:12px"});
-    shCard.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px"},"Scanner Health"));
+    shCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px"},[
+      el("div",{style:"font-weight:700"},"Scanner Health"),
+      ctx.actions.openReceivers ? el("button",{class:"btn inline","data-all-receivers":"health",style:"font-size:11px;padding:2px 10px;margin:0",onclick:()=>ctx.actions.openReceivers()},"All receivers") : null,
+    ].filter(Boolean)));
     const tbl = el("div",{style:"display:grid;grid-template-columns:auto 1fr auto auto auto;gap:4px 10px;font-size:11px;align-items:center"});
     // Header
     for(const h of ["","Scanner","Room","Agreement","Weight"]){
