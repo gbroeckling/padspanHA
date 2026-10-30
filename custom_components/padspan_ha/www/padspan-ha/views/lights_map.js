@@ -1098,6 +1098,12 @@ export function screenHeight(slot, model, eid, l){
 export function wireUseSurface(isoDiv, api){
   const q = (sel) => isoDiv.querySelectorAll(sel);
   const svg = isoDiv.querySelector("svg");
+  // A drawing the poll patched keeps its parts (drawStageSvg): the last
+  // wiring's listeners come off them first, so each is wired once, to this api.
+  if (svg && svg._psUnwire) svg._psUnwire();
+  const offs = [];
+  const on = (n, type, fn) => { n.addEventListener(type, fn); offs.push(() => n.removeEventListener(type, fn)); };
+  if (svg) svg._psUnwire = () => { for (const off of offs.splice(0)) off(); };
   const ringAt = (cx, cy, r) => pressRing(svg, cx, cy, r);
   const wirePress = (g, eid, cx, cy, ringR = 12) => {
     const l0 = api.lightsByEid[eid];
@@ -1112,7 +1118,7 @@ export function wireUseSurface(isoDiv, api){
       if (ring) { try { ring.remove(); } catch (_) {} ring = null; }
       if (readout) { try { readout.remove(); } catch (_) {} readout = null; }
     };
-    g.addEventListener("pointerdown", (e) => {
+    on(g, "pointerdown", (e) => {
       if (e.button !== undefined && e.button !== 0 && e.pointerType === "mouse") return;
       e.stopPropagation();
       try { g.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1124,7 +1130,7 @@ export function wireUseSurface(isoDiv, api){
         }, HOLD_MS);
       }
     });
-    g.addEventListener("pointermove", (e) => {
+    on(g, "pointermove", (e) => {
       if (!tracker.active) return;
       const r = tracker.move(e.clientX, e.clientY);
       if (r === "cancel") { clearAll(); return; }
@@ -1175,16 +1181,16 @@ export function wireUseSurface(isoDiv, api){
         setTimeout(() => api.rerender(), 500);
       }
     };
-    g.addEventListener("pointerup", finish);
-    g.addEventListener("pointercancel", finish);
-    g.addEventListener("contextmenu", e => e.preventDefault());
+    on(g, "pointerup", finish);
+    on(g, "pointercancel", finish);
+    on(g, "contextmenu", e => e.preventDefault());
     // Click is swallowed: the tracker already decided what the release meant.
-    g.addEventListener("click", e => { e.stopPropagation(); e.preventDefault(); });
+    on(g, "click", e => { e.stopPropagation(); e.preventDefault(); });
   };
   q(".lhex").forEach(g => {
     wirePress(g, g.dataset.eid, Number(g.dataset.cx), Number(g.dataset.cy));
-    g.addEventListener("mouseover", () => { g.style.opacity = String(Math.max(0.2, (parseFloat(g.getAttribute("opacity")) || 1) * 0.75)); });
-    g.addEventListener("mouseout", () => { g.style.opacity = ""; });
+    on(g, "mouseover", () => { g.style.opacity = String(Math.max(0.2, (parseFloat(g.getAttribute("opacity")) || 1) * 0.75)); });
+    on(g, "mouseout", () => { g.style.opacity = ""; });
   });
   q(".lhalo").forEach(c => wirePress(c, c.dataset.eid, Number(c.getAttribute("cx")), Number(c.getAttribute("cy")), Number(c.getAttribute("r")) + 2));
   // The code chip is drawn INSIDE the marker's own group (see codeChipSvg in
@@ -1193,9 +1199,9 @@ export function wireUseSurface(isoDiv, api){
   // marker, so it is identical to tapping the glyph: quick switches, a
   // genuine 500ms hold opens the controls. It used to be its own always-open
   // target; Garry never asked for that split and it is gone.
-  q(".lroom").forEach(r => r.addEventListener("click", (e) => { e.stopPropagation(); api.openRoom(r.dataset.room); }));
-  q(".lstack").forEach(st => st.addEventListener("click", (e) => { e.stopPropagation(); api.openRoom(st.dataset.room, String(st.dataset.eids || "").split(",").filter(Boolean)); }));
-  q(".lfloor").forEach(f => f.addEventListener("click", (e) => { e.stopPropagation(); api.openFloor(f.dataset.z); }));
+  q(".lroom").forEach(r => on(r, "click", (e) => { e.stopPropagation(); api.openRoom(r.dataset.room); }));
+  q(".lstack").forEach(st => on(st, "click", (e) => { e.stopPropagation(); api.openRoom(st.dataset.room, String(st.dataset.eids || "").split(",").filter(Boolean)); }));
+  q(".lfloor").forEach(f => on(f, "click", (e) => { e.stopPropagation(); api.openFloor(f.dataset.z); }));
   // Door/window/lock barrier line (Garry, 2026-09-22: "the ability to click
   // on the line... bring up a card that clearly says this door/window is
   // open, and the ability to open/close it"). Only present at all when the
@@ -1204,7 +1210,7 @@ export function wireUseSurface(isoDiv, api){
   // there is nothing here for free to wire up either. A plain click is
   // safe (it only shows a card, never itself toggles anything), unlike the
   // builder's own hold-to-select gesture on the same element.
-  q(".lbarhit").forEach(hb => hb.addEventListener("click", (e) => {
+  q(".lbarhit").forEach(hb => on(hb, "click", (e) => {
     e.stopPropagation();
     const eid = hb.dataset.eid;
     if (!eid || !api.hass) return;
@@ -3037,6 +3043,124 @@ const _LA_WHY = {
 // A hold then a drag in 3D dims exactly as wirePress does, with its two helpers.
 export { _exactBrightness, _tellProblems };
 
+// ── The poll's redraw, patched (host.patchSvg: the sidebar's 5 s tick) ───────
+// The sidebar builds a fresh card every poll, and the map's SVG with it. The
+// drawing is one flat run of small parts under <svg> (floor plates, rooms,
+// walls, each marker, the legend), and from one tick to the next almost all
+// of them come out byte for byte the same. So the drawing is still made as one
+// string, as ever; the last tick's <svg> moves into the new stage and only the
+// parts whose markup changed are replaced. What is left is what a full rebuild
+// would have made: the same markup, part for part. A different <svg> tag
+// (size, viewBox), another key (floor, gaps, zoom, settings, map), a stage
+// that already holds something, or anything that does not split cleanly:
+// the full rebuild, as before.
+
+/** An <svg>…</svg> string as {open, kids, close}: its tag, each top-level
+ *  part's markup (a text run is a part too), and "</svg>". null when it does
+ *  not split cleanly (the caller rebuilds in full). */
+export function svgParts(str){
+  const s = String(str || "");
+  if (!s.startsWith("<svg") || !s.endsWith("</svg>")) return null;
+  const end = s.length - 6;
+  // The end of the tag starting at i (its ">"), quotes respected; -1 if none.
+  const tagEnd = (i) => {
+    let q = "";
+    for (let j = i + 1; j < s.length; j++) {
+      const c = s[j];
+      if (q) { if (c === q) q = ""; }
+      else if (c === '"' || c === "'") q = c;
+      else if (c === ">") return j;
+    }
+    return -1;
+  };
+  const o = tagEnd(0);
+  if (o < 0 || o >= end || s[o - 1] === "/") return null;
+  const kids = [];
+  let i = o + 1, depth = 0, start = i;
+  while (i < end) {
+    if (s[i] !== "<") {
+      const n = s.indexOf("<", i);
+      const j = n < 0 || n > end ? end : n;
+      if (depth === 0) kids.push(s.slice(i, j));
+      i = j;
+      continue;
+    }
+    if (s.startsWith("<!--", i) || s.startsWith("<![CDATA[", i)) {
+      const close = s.startsWith("<!--", i) ? "-->" : "]]>";
+      const j = s.indexOf(close, i);
+      if (j < 0 || j + close.length > end) return null;
+      if (depth === 0) kids.push(s.slice(i, j + close.length));
+      i = j + close.length;
+      continue;
+    }
+    const j = tagEnd(i);
+    if (j < 0 || j >= end) return null;
+    if (depth === 0) start = i;
+    if (s[i + 1] === "/") depth--;
+    else if (s[j - 1] !== "/") depth++;
+    if (depth < 0) return null;
+    if (depth === 0) kids.push(s.slice(start, j + 1));
+    i = j + 1;
+  }
+  return depth === 0 ? { open: s.slice(0, o + 1), kids, close: "</svg>" } : null;
+}
+
+const _svgKept = new WeakMap();       // view -> the last drawing: {svg, open, kids, nodes, key}
+/** Draws svgStr into stage, patching the last drawing for this view when it
+ *  can (see above), else stage.innerHTML = svgStr. key = {text, model, floors}:
+ *  a full rebuild whenever any of them is not what the last drawing had.
+ *  Returns {full: true} or {full: false, replaced, kept} (the tests). */
+export function drawStageSvg(stage, svgStr, view, key){
+  const next = svgParts(svgStr);
+  const prev = view ? _svgKept.get(view) : null;
+  const same = prev && next && key && prev.key && prev.key.text === key.text && prev.key.model === key.model
+    && prev.key.floors === key.floors && prev.open === next.open;
+  // Only into a new, empty stage (the poll's new card), and never out of a
+  // card still on screen.
+  if (same && !stage.firstChild && !prev.svg.isConnected && prev.nodes.every(n => n.parentNode === prev.svg)) {
+    const svg = prev.svg, old = prev.kids, kids = next.kids;
+    // Each new part takes the first unused old node with the same markup,
+    // in order; the rest are made, all in one parse.
+    const pool = new Map();
+    old.forEach((k, i) => { const a = pool.get(k); if (a) a.push(i); else pool.set(k, [i]); });
+    const plan = [], made = [];
+    let at = 0;
+    for (const k of kids) {
+      const a = pool.get(k);
+      while (a && a.length && a[0] < at) a.shift();
+      if (a && a.length) { at = a.shift() + 1; plan.push(at - 1); }
+      else { plan.push(-1); made.push(k); }
+    }
+    let parsed = [];
+    if (made.length) {
+      const tmp = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      tmp.innerHTML = made.join("");
+      parsed = [...tmp.childNodes];
+    }
+    if (parsed.length === made.length) {
+      const used = new Set(plan.filter(i => i >= 0));
+      const tail = prev.nodes.length ? prev.nodes[prev.nodes.length - 1].nextSibling : svg.firstChild;
+      prev.nodes.forEach((n, i) => { if (!used.has(i)) svg.removeChild(n); });
+      const nodes = new Array(kids.length);
+      let ref = tail, m = parsed.length;
+      for (let j = kids.length - 1; j >= 0; j--) {
+        if (plan[j] >= 0) nodes[j] = prev.nodes[plan[j]];
+        else { nodes[j] = parsed[--m]; svg.insertBefore(nodes[j], ref); }
+        ref = nodes[j];
+      }
+      stage.appendChild(svg);
+      _svgKept.set(view, { svg, open: next.open, kids, nodes, key });
+      return { full: false, replaced: made.length, kept: used.size };
+    }
+  }
+  stage.innerHTML = svgStr;
+  const svg = stage.firstChild;
+  if (view && key && next && svg && stage.childNodes.length === 1 && svg.childNodes.length === next.kids.length) {
+    _svgKept.set(view, { svg, open: next.open, kids: next.kids, nodes: [...svg.childNodes], key });
+  } else if (view) _svgKept.delete(view);
+  return { full: true };
+}
+
 // ── The map card: control row + iso map ──────────────────────────────────────
 // host = {
 //   el(tag,attrs,children)            DOM builder
@@ -3544,8 +3668,7 @@ export function buildLightsMapCard(hostIn){
     // Live Aboard's light kinds and furniture (atlas_aboard.js; none: as ever).
     abData = _AB && abFile ? _AB.fileOf(abSlot, h3.load, host.screen.shownAt, () => { const f = _abRedraw.get(abSlot); if (f) f(); }) : null;
     const abDrawn = abData ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abData, host.lightsByEid, h3.settings.light_shapes)) : null;
-    const svgStr = buildIsoSVG(host.model, abDrawn ? abDrawn.byRoom : host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
-      view.floorGap, view.horizGap, abDrawn ? abDrawn.lightsByEid : host.lightsByEid, host.lightsLoading, floors,
+    const isoOpts =
       { showcase: !!host.showcase, showcaseTheme: host.showcaseTheme || "classic",
         liveColours: !!host.liveColours,
         fitRooms: !!host.showcase && !!host.fitRooms,
@@ -3591,8 +3714,20 @@ export function buildLightsMapCard(hostIn){
         automorphSubtlety: view.automorphLiveSubtlety !== undefined ? view.automorphLiveSubtlety : (host.automorphSubtlety || 0),
         underlay: abData && abFurn() ? _AB.underlayOf(abData) : null,
         // Live Aboard's own hinge, swing, type and Shown for a door, when it is on.
-        doorOpenings: abData && abData.openings && typeof abData.openings === "object" ? abData.openings : null });
-    isoDiv.innerHTML = svgStr;
+        doorOpenings: abData && abData.openings && typeof abData.openings === "object" ? abData.openings : null };
+    const svgStr = buildIsoSVG(host.model, abDrawn ? abDrawn.byRoom : host.byRoom, host.hiddenEidsMap || host.hiddenEids, getFocusZ(view.focusIdx),
+      view.floorGap, view.horizGap, abDrawn ? abDrawn.lightsByEid : host.lightsByEid, host.lightsLoading, floors, isoOpts);
+    // The sidebar's poll patches the last drawing (drawStageSvg above); the
+    // key is what makes it a different drawing: the floor shown, the gaps,
+    // zoom, the wall, the settings that shape it, and the map itself.
+    if (host.patchSvg) {
+      const o = isoOpts;
+      drawStageSvg(isoDiv, svgStr, view, { model: hostIn.model, floors: hostIn.floors, text: JSON.stringify([
+        getFocusZ(view.focusIdx), view.floorGap, view.horizGap, view.zoom, V2, WALL, o.showcase, o.showcaseTheme, o.liveColours,
+        o.fitRooms, o.isolux, o.sceneField, o.codeChip, o.hideCodes, o.classFilter, o.hitHalo, o.collapseUnplaced, o.dropMarker,
+        o.labelScale, o.heatmap, o.barrierHit, o.automorph, o.automorphRoomPct, o.automorphHardness, o.automorphStyle,
+        o.automorphSubtlety, !!o.underlay]) });
+    } else isoDiv.innerHTML = svgStr;
     // People, tags and scanners over it, then the newest positions (while
     // the flat map shows and the page is in sight).
     if (abLive && _AB) {
