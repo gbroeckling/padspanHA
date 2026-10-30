@@ -1651,13 +1651,6 @@ export function vacationOptionsOf(s) {
            max_lights: s.vacation_mode_max_lights || 0,
            anchors: Array.isArray(s.vacation_mode_anchors) ? s.vacation_mode_anchors.slice() : [] };
 }
-// The lights an anchor can be: every light, by name (the options box's list).
-export function vacationLightChoices(hass) {
-  const states = (hass && hass.states) || {};
-  return Object.keys(states).filter((eid) => eid.startsWith("light."))
-    .map((eid) => [eid, String((states[eid].attributes || {}).friendly_name || eid)])
-    .sort((a, b) => a[1].localeCompare(b[1]));
-}
 export function vacationEndsText(s) {
   const ts = s && s.vacation_mode_end_at;
   if (!ts) return "";
@@ -1721,20 +1714,32 @@ function _vacOptionsBox(host) {
   bed.value = o.bedtime || "";
   bed.addEventListener("change", async () => { if (!await save({ vacation_mode_bedtime: bed.value })) bed.value = o.bedtime || ""; else o.bedtime = bed.value; });
   const bedClear = el("button", { class: "btn inline", onclick: async () => { bed.value = ""; if (await save({ vacation_mode_bedtime: "" })) o.bedtime = ""; } }, "None");
-  // Evening lights (anchors): a tick per light, up to 10.
+  // Evening lights (anchors): a tick per light Vacation Mode switches (the
+  // server's list: no group helpers, no team followers), up to 10. A saved
+  // one that is gone is listed too, so it can be unticked.
   const anchors = new Set(o.anchors || []);
-  const anchorList = el("div", { class: "lv-vac-anchors", role: "group", "aria-label": "Evening lights" },
-    (host.vacationLights || []).map(([eid, name]) => {
-      const c = document.createElement("input");
-      c.type = "checkbox"; c.checked = anchors.has(eid);
-      c.addEventListener("change", async () => {
-        if (c.checked && anchors.size >= 10) { c.checked = false; status.textContent = "Up to 10 evening lights"; return; }
-        c.checked ? anchors.add(eid) : anchors.delete(eid);
-        if (!await save({ vacation_mode_anchors: [...anchors] })) { c.checked ? anchors.delete(eid) : anchors.add(eid); c.checked = !c.checked; }
-        else o.anchors = [...anchors];
-      });
-      return el("label", { class: "lv-vac-inline" }, [c, name]);
-    }));
+  const anchorList = el("div", { class: "lv-vac-anchors", role: "group", "aria-label": "Evening lights" }, "Loading…");
+  const anchorTick = ([eid, name]) => {
+    const c = document.createElement("input");
+    c.type = "checkbox"; c.checked = anchors.has(eid);
+    c.addEventListener("change", async () => {
+      if (c.checked && anchors.size >= 10) { c.checked = false; status.textContent = "Up to 10 evening lights"; return; }
+      c.checked ? anchors.add(eid) : anchors.delete(eid);
+      if (!await save({ vacation_mode_anchors: [...anchors] })) { c.checked ? anchors.delete(eid) : anchors.add(eid); c.checked = !c.checked; }
+      else o.anchors = [...anchors];
+    });
+    return el("label", { class: "lv-vac-inline" }, [c, name]);
+  };
+  if (host.onVacationLights) {
+    Promise.resolve().then(() => host.onVacationLights()).catch(() => null).then((lights) => {
+      anchorList.textContent = "";
+      const known = new Set((lights || []).map((l) => l[0]));
+      const gone = [...anchors].filter((eid) => !known.has(eid)).map((eid) => [eid, eid + " (not found)"]);
+      const all = [...(lights || []), ...gone];
+      if (!all.length) anchorList.textContent = lights ? "No lights to choose from." : "Could not load the lights.";
+      for (const l of all) anchorList.appendChild(anchorTick(l));
+    });
+  }
   // Preview: what the next 24 hours would look like.
   const previewOut = el("div", { class: "lv-vac-preview", "aria-live": "polite" }, "");
   const hm = (ts) => new Date(ts * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -1754,9 +1759,12 @@ function _vacOptionsBox(host) {
     }
   };
   const previewBtn = el("button", { class: "btn inline", onclick: async () => {
+    if (previewBtn.disabled) return;
+    previewBtn.disabled = true;
     previewOut.textContent = "Working it out…";
     let r = null;
     try { r = host.onVacationPreview ? await host.onVacationPreview() : null; } catch (e) { r = null; }
+    finally { previewBtn.disabled = false; }
     if (r) showPreview(r); else previewOut.textContent = "Could not make the preview.";
   } }, "Show the next 24 hours");
   _vacOptsNode = el("div", { class: "lv-vacation lv-vacation-opts", role: "dialog", "aria-label": "Vacation Mode options" }, [
@@ -1777,9 +1785,12 @@ function _vacOptionsBox(host) {
       "A light it turned on goes off after this, and stays off as long."),
     row("Most lights on at once", select("vacation_mode_max_lights", o.max_lights || 0, [
       [0, "no limit"], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [6, "6"], [8, "8"], [12, "12"]]),
-      "Lights already on keep their place; the rest wait. Evening lights don't count."),
-    host.vacationLights && host.vacationLights.length ? row("Evening lights", anchorList,
-      "Stay on from dark until bedtime (about 11 pm if no bedtime is set), like a porch or hall light. Up to 10.") : null,
+      "Lights it already has on keep their place; the rest wait. Evening lights and lights turned on by hand don't count."),
+    host.onVacationLights ? row("Evening lights", anchorList,
+      "On from dark until bedtime (about 11 pm if none is set), like a porch or hall light; turned off in the evening, "
+      + "one comes back on within 5 minutes. Up to 10.") : null,
+    host.onVacationLights ? el("div", { class: "muted lv-vac-opt-note" },
+      "Dark follows the after-dark offset above and needs Home Assistant's sun times (sun.sun).") : null,
     host.onVacationPreview ? row("Preview", previewBtn,
       "What it would switch over the next 24 hours, with these options. Nothing is switched.") : null,
     previewOut,

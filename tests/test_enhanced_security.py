@@ -65,7 +65,7 @@ PER_KEY = {"settings_set"}
 # Reads: never gated.
 READ = set("""
 status version model_get movement_history_get lost_and_found_get traceback_get traceback_objects insights_get
-vacation_log_get vacation_preview tags_status wled_exact_list wled_look_get adaptive_status_get adaptive_fingerprints_get
+vacation_log_get vacation_preview vacation_lights tags_status wled_exact_list wled_look_get adaptive_status_get adaptive_fingerprints_get
 bright_import_status calibration_health_check calibration_get calibration_beacon_profiles companion_discover
 calibration_room_walk_preview
 device_registry_list auto_diagnostics positioning_diag propagation_health system_critics ha_entities_audit
