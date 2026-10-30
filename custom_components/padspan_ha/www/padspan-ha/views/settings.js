@@ -808,37 +808,90 @@ function _toHex(c){
 }
 
 // ── Presence tab ────────────────────────────────────────────────────────────────
+// ── Settings → Presence in sections (2026-10-30) ──────────────────────────
+// [key, heading], most-used first. Every card on the tab goes into exactly
+// one of them through put() (tests/test_settings_sections.py). A section
+// folds to its heading; a folded one is remembered in this browser
+// (padspan_settings_fold_<key> = "0"), and every section is open until
+// someone folds it.
+export const PRESENCE_SECTIONS = [
+  ["rooms",        "Rooms and timing"],
+  ["phones",       "Phones and guest tags"],
+  ["shown",        "What the panel shows"],
+  ["positioning",  "Positioning and calibration"],
+  ["receivers",    "Receivers"],
+  ["performance",  "Performance"],
+  ["integrations", "Home Assistant and integrations"],
+  ["privacy",      "Privacy, updates and feedback"],
+];
+const _FOLD = "padspan_settings_fold_";
+const _foldClosed = (key) => { try { return localStorage.getItem(_FOLD + key) === "0"; } catch (_) { return false; } };
+const _foldSave = (key, open) => { try { if (open) localStorage.removeItem(_FOLD + key); else localStorage.setItem(_FOLD + key, "0"); } catch (_) {} };
+
+function _presenceSections(ctx, el, bins){
+  // A link that lands on one card opens its section: "Become a tester" (the
+  // report's card) and anything that sets state._presenceReveal once.
+  const reveal = ctx.state._testerFocus === true ? "privacy" : ctx.state._presenceReveal;
+  ctx.state._presenceReveal = null;
+  const out = [];
+  for (const [key, title] of PRESENCE_SECTIONS) {
+    const cards = bins[key] || [];
+    if (!cards.length) continue;
+    if (reveal === key) _foldSave(key, true);
+    const open = !_foldClosed(key);
+    const chev = el("span", { style: "display:inline-block;width:14px;color:#52b788;font-size:16px;line-height:1" }, open ? "▾" : "▸");
+    const det = el("details", { "data-presence-section": key }, [
+      el("summary", { style: "cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #1b3526;user-select:none" }, [
+        chev,
+        el("span", { style: "font-weight:700;font-size:14px;color:#52b788" }, title),
+      ]),
+      el("div", { style: "display:flex;flex-direction:column;gap:12px;margin-top:12px" }, cards),
+    ]);
+    det.open = open;
+    det.addEventListener("toggle", () => { chev.textContent = det.open ? "▾" : "▸"; _foldSave(key, det.open); });
+    out.push(det);
+  }
+  return out;
+}
+
 function _settingsPresence(ctx, el){
   const helpBtn = ctx.helpers.helpBtn;
   const settings = ctx.state.settings || {};
   const inpStyle = "width:72px;text-align:center;background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:13px";
   const rowStyle = "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px";
   const wrap = el("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  // Each card goes into one section (PRESENCE_SECTIONS); they are drawn at the end.
+  const bins = {};
+  const put = (key, node) => { (bins[key] = bins[key] || []).push(node); };
   wrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
     el("div",{style:"font-weight:700;font-size:15px;color:#52b788"},"Presence Settings"),
     helpBtn("settings_presence"),
   ]));
 
   // ── Quiet Mode ────────────────────────────────────────────────────────────
+  // Switched in one place: the Quiet tick at the top of the Overview, which
+  // Basic mode has too (it has no Presence tab). With the Atlas as Overview
+  // that tick is on Pure Live's classic Overview side. This card explains it
+  // and links there.
   {
     const quietOn = settings.quiet_mode === true;
-    const quietToggle = el("input",{type:"checkbox",id:"quietModeToggle",style:"width:16px;height:16px;accent-color:#52b788;cursor:pointer"});
-    quietToggle.checked = quietOn;
-    quietToggle.addEventListener("change", async()=>{
-      try {
-        await ctx.actions.settingsSet({ quiet_mode: quietToggle.checked });
-        ctx.toast(quietToggle.checked ? "Quiet mode on — only tracked objects visible" : "Quiet mode off — all objects visible");
-        ctx.actions.renderRooms();
-      } catch(e){ ctx.toast("Failed to save", true); }
+    const atlasHome = settings.overview_atlas === true && tierAtLeast(settings.tier, "pro");
+    const quietGo = el("button",{class:"btn inline","data-goto":"overview-quiet"}, atlasHome ? "Open the classic Overview" : "Open the Overview");
+    quietGo.addEventListener("click", ()=>{
+      if (atlasHome) { ctx.state.view = "purelive"; ctx.state._liveClassic = true; }
+      else ctx.state.view = "overview";
+      if (ctx.actions.renderNav) ctx.actions.renderNav();
+      ctx.actions.renderRooms();
     });
-    wrap.appendChild(el("div",{class:"card",style:"border-color:" + (quietOn ? "#52b788" : "#2d4a38")},[
+    put("shown", el("div",{class:"card",style:"border-color:" + (quietOn ? "#52b788" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
         el("div",{class:"h2",style:"margin:0;color:#52b788"}, "Quiet Mode"),
       ]),
-      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
-        quietToggle,
-        el("label",{for:"quietModeToggle",style:"font-size:13px;color:#e2e8f0;cursor:pointer;font-weight:600"},
-          "Only show identified & followed objects"),
+      el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"},[
+        el("span",{style:"font-size:13px;color:#e2e8f0;font-weight:600"},
+          quietOn ? "On: only identified & followed objects are shown." : "Off: all objects are shown."),
+        el("span",{class:"muted",style:"font-size:12px"}, "Switch it with the Quiet tick at the top of the Overview."),
+        quietGo,
       ]),
       el("div",{class:"muted",style:"font-size:12px"},
         "Hides all unidentified BLE devices from the Objects list, overview counts, and dropdowns. " +
@@ -869,7 +922,7 @@ function _settingsPresence(ctx, el){
       try { await ctx.actions.settingsSet({ guest_retention_days: parseInt(keep.value, 10) }); ctx.toast("Saved"); }
       catch(e){ ctx.toast("Failed to save: " + (e?.message || e), true); }
     });
-    wrap.appendChild(el("div",{class:"card",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
+    put("phones", el("div",{class:"card",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
         el("div",{class:"h2",style:"margin:0;color:#fbbf24"}, "Guest tags"),
       ]),
@@ -907,7 +960,7 @@ function _settingsPresence(ctx, el){
         await ctx.actions.modelRefresh();
       } catch(e) { ctx.toast("Failed to save", true); }
     });
-    wrap.appendChild(el("div", { class: "card" }, [
+    put("integrations", el("div", { class: "card" }, [
       el("div", { class: "h2", style: "color:#52b788" }, "Fabric source"),
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [sel]),
       el("div", { class: "muted", style: "font-size:12px" },
@@ -936,7 +989,7 @@ function _settingsPresence(ctx, el){
         ctx.actions.renderRooms();
       } catch(e) { ctx.toast("Failed to save", true); }
     });
-    wrap.appendChild(el("div", { class: "card" }, [
+    put("positioning", el("div", { class: "card" }, [
       el("div", { class: "h2", style: "color:#52b788" }, "Positioning Algorithm"),
       el("div", { style: "display:flex;align-items:center;gap:10px;margin-bottom:8px" }, [
         algoSel,
@@ -965,7 +1018,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Room change delay set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("rooms", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Room Change Delay"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How long a scanner must consistently dominate before PadSpan switches a device to a new room. " +
@@ -996,7 +1049,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(v > 0 ? `Room held through gaps up to ${v}s` : "Room hold off");
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("rooms", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Hold Room Through Short Gaps"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "When a device goes quiet for a minute and comes back, PadSpan forgets its room until the room vote agrees again, " +
@@ -1025,7 +1078,7 @@ function _settingsPresence(ctx, el){
         ctx.toast(reasonToggle.checked ? "Room reason attribute on" : "Room reason attribute off");
       } catch(e){ ctx.toast("Failed to save", true); }
     });
-    wrap.appendChild(el("div",{class:"card"},[
+    put("rooms", el("div",{class:"card"},[
       el("div",{class:"h2"}, "Why This Room (Sensor Attribute)"),
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
         reasonToggle,
@@ -1074,7 +1127,7 @@ function _settingsPresence(ctx, el){
     }
     card.appendChild(el("div", { class: "muted", style: "font-size:11px;margin-top:10px" },
       "All off by default. Off, rooms and positions are worked out exactly as before."));
-    wrap.appendChild(card);
+    put("positioning", card);
   }
 
   // ── Walk a room (calibration_room_walk, off by default) ─────────────────────
@@ -1088,7 +1141,7 @@ function _settingsPresence(ctx, el){
         ctx.toast(`Walk a room: ${tg.checked ? "on" : "off"}`);
       } catch (e) { ctx.toast("Failed to save", true); }
     });
-    wrap.appendChild(el("div", { class: "card" }, [
+    put("positioning", el("div", { class: "card" }, [
       el("div", { class: "h2" }, "Walk a Room (Calibration)"),
       el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" }, [
         tg,
@@ -1116,7 +1169,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Poll interval set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("performance", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Presence Poll Interval"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How often the smoothing pipeline runs to update room assignments. " +
@@ -1160,7 +1213,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`CPU mode: ${cpuSel.value}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("performance", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "CPU Mode"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Where the presence-smoothing computation runs. Shared runs it on Home Assistant's " +
@@ -1199,7 +1252,7 @@ function _settingsPresence(ctx, el){
       ctx.actions.renderRooms();
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("performance", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Low-memory mode"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
       "For a Home Assistant machine with 2 GB of RAM. Next to a busy street PadSpan hears " +
@@ -1238,7 +1291,7 @@ function _settingsPresence(ctx, el){
       ctx.actions.renderRooms();
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("performance", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Optimize for scale"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
       "For houses with several wall screens or tablets showing PadSpan at once. It cuts what each screen asks Home Assistant for, " +
@@ -1268,7 +1321,7 @@ function _settingsPresence(ctx, el){
       ctx.actions.renderRooms();
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Update Check"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Once a day PadSpan asks padspan.traks.ca whether a newer version exists and " +
@@ -1312,7 +1365,7 @@ function _settingsPresence(ctx, el){
     "PadSpan's log",
     "Settings that apply to the whole home (the update check, device maker lookup, positioning and the rest)",
   ];
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Enhanced security"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "When this is on, only a Home Assistant administrator can change how PadSpan is set up for this home. " +
@@ -1408,7 +1461,7 @@ function _settingsPresence(ctx, el){
     browse.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_browsed"); });
     const mail = link(IDEAS_MAIL, "Email an idea");
     mail.addEventListener("click", () => { if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("suggest_idea_mail"); });
-    wrap.appendChild(el("div", { class: "card" }, [
+    put("privacy", el("div", { class: "card" }, [
       el("div", { class: "h2" }, "💡 Suggest an idea"),
       el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
         "Something PadSpan should do, or do better? Post it where other people can vote on it, or vote on ideas already there. No GitHub account? Email it instead."),
@@ -1417,7 +1470,7 @@ function _settingsPresence(ctx, el){
       ]),
     ]));
   }
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Help improve PadSpan"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px;line-height:1.55" },
       "Opt in to send the developer an anonymous usage report at most once a day: which version and " +
@@ -1452,6 +1505,25 @@ function _settingsPresence(ctx, el){
   ]));
 
   // ── BLE Reseed Interval ──────────────────────────────────────────────────
+  const aggressiveChk = el("input",{type:"checkbox"});
+  aggressiveChk.checked = settings.aggressive_ble_reseed === true;
+  aggressiveChk.addEventListener("change", async()=>{
+    try {
+      await ctx.actions.settingsSet({aggressive_ble_reseed: aggressiveChk.checked});
+      ctx.toast(aggressiveChk.checked ? "Aggressive BLE reseed enabled (5s cycle)." : "BLE reseed set to normal (30s cycle).");
+      ctx.actions.renderRooms();
+    } catch(e){ ctx.toast("Failed: "+String(e), true); aggressiveChk.checked = !aggressiveChk.checked; }
+  });
+  const aggressiveReseedRow = el("div", { "data-setting": "aggressive_ble_reseed", style: "margin-top:10px" }, [
+    el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
+      aggressiveChk, el("span",{},"Enable aggressive BLE reseed (5s) for passive proxy scanners"),
+    ]),
+    el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5;margin-top:4px"},
+      "Enable this if Shelly BLE proxies or other passive Bluetooth relay scanners aren't showing RSSI values during calibration. " +
+      "This increases the BLE data reseed frequency from every 30 seconds to every 5 seconds, working around a deduplication change in HA 2026.4."),
+    settings.aggressive_ble_reseed ? el("div",{style:"font-size:11px;color:#26c6da;margin-top:6px"},
+      "Active — reseeding from HA Bluetooth discovery every 5 seconds. This uses slightly more CPU but ensures Shelly and passive scanner data stays fresh.") : null,
+  ]);
   const currentReseed = (settings.ble_reseed_interval_s != null ? Number(settings.ble_reseed_interval_s) : 30);
   const reseedInp = el("input", {
     type: "number", min: "1", max: "60", step: "1", value: String(currentReseed), style: inpStyle,
@@ -1464,7 +1536,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`BLE reseed interval set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("receivers", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "BLE Reseed Interval"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How often PadSpan re-fetches BLE data from HA's scanner infrastructure. " +
@@ -1480,6 +1552,11 @@ function _settingsPresence(ctx, el){
     el("div", { class: "muted", style: "font-size:11px;margin-top:8px" },
       `Current: ${currentReseed}s. Default: 30s. Range: 1–60s.`
     ),
+    // "Aggressive BLE reseed" lived in Manage → HA Entities → BLE Proxy
+    // Compatibility until 2026-10-30; it caps this interval at 5 s
+    // (bluetooth_live.reseed_interval_s), so it lives beside it now and that
+    // card links here.
+    aggressiveReseedRow,
   ]));
 
   // ── Object History Retention ───────────────────────────────────────────────
@@ -1504,7 +1581,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Object history set to ${v} day${v !== 1 ? "s" : ""}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("shown", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Object History Retention"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How long a device that you never labelled is kept in history. " +
@@ -1538,7 +1615,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Away timeout set to ${v} min`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("rooms", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Home/Away Timeout"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "If a device hasn't been detected for this long, it is marked as not_home in HA. " +
@@ -1576,7 +1653,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`BLE timeout set to ${v}s`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("shown", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "BLE Advertisement Timeout"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "How long to keep a BLE device visible after its last advertisement. " +
@@ -2170,7 +2247,7 @@ function _settingsPresence(ctx, el){
 
     irkCard.appendChild(guidePanel);
 
-    wrap.appendChild(irkCard);
+    put("phones", irkCard);
   }
 
   // ── Distance Calibration ───────────────────────────────────────────────────
@@ -2191,7 +2268,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Distance params saved: ref=${ref} dBm, n=${pl}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("positioning", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Distance Calibration"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Parameters for the log-distance path-loss formula used by the sensor.{device}_distance HA entity. " +
@@ -2234,7 +2311,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Signal filter saved: Q=${q}, R=${r}`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("positioning", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Signal Filter"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Kalman filter parameters for per-scanner RSSI smoothing. " +
@@ -2275,7 +2352,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(`Device height set to ${v} m`);
     } catch(e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("positioning", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "3D Positioning — Device Height"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "RSSI measures the straight-line (slant) distance to a scanner, but positioning solves on the " +
@@ -2333,7 +2410,7 @@ function _settingsPresence(ctx, el){
       ctx.toast(lat == null ? "GPS bridge disabled" : "GPS origin saved");
     } catch (e) { ctx.toast("Failed to save setting", true); }
   });
-  wrap.appendChild(el("div", { class: "card" }, [
+  put("integrations", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "GPS Bridge"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Anchor the fabric to a real-world location so tracked objects' device_tracker entities report a " +
@@ -2435,7 +2512,7 @@ function _settingsPresence(ctx, el){
         medLabel,
       ].filter(Boolean)));
     }
-    wrap.appendChild(el("div",{class:"card"},[
+    put("receivers", el("div",{class:"card"},[
       el("div",{class:"h2"},"Scanner RSSI Offsets"),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
         "Only the manual offset you save is applied. The suggestion beside it is half the gap between this " +
@@ -2566,7 +2643,7 @@ function _settingsPresence(ctx, el){
     ? `Last checked: ${new Date(reminderLastTs*1000).toLocaleDateString()}`
     : "Never checked";
 
-  wrap.appendChild(el("div",{class:"card"},[
+  put("positioning", el("div",{class:"card"},[
     el("div",{class:"h2"},"Calibration Accuracy Reminders"),
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"},[
       reminderToggle,
@@ -2671,7 +2748,7 @@ function _settingsPresence(ctx, el){
     finally{ resetAdaptiveBtn.disabled=false; resetAdaptiveBtn.textContent="Reset Learned Data"; }
   });
 
-  wrap.appendChild(el("div",{class:"card"},[
+  put("positioning", el("div",{class:"card"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
       el("div",{class:"h2",style:"margin:0"},"Adaptive Learning"),
       el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},"EXPERIMENTAL"),
@@ -2815,7 +2892,7 @@ function _settingsPresence(ctx, el){
     cardChildren.push(el("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:6px"},[
       triggerSel, deviceSel, actionSel, entitySel, addBtn,
     ]));
-    wrap.appendChild(el("div",{class:"card"}, cardChildren));
+    put("integrations", el("div",{class:"card"}, cardChildren));
   }
 
   // ── Suspend Databases (raw radio test) ─────────────────────────────────
@@ -2883,7 +2960,7 @@ function _settingsPresence(ctx, el){
       cardChildren.push(suspendBtn);
     }
 
-    wrap.appendChild(el("div",{class:"card"}, cardChildren));
+    put("positioning", el("div",{class:"card"}, cardChildren));
   }
 
   // ── HA Tags Integration ─────────────────────────────────────────────────
@@ -2945,7 +3022,7 @@ function _settingsPresence(ctx, el){
       } catch(e) {}
     })();
 
-    wrap.appendChild(el("div",{class:"card"},[
+    put("integrations", el("div",{class:"card"},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px"},[
         el("div",{class:"h2",style:"margin:0;color:#60a5fa"}, "HA Tags Integration"),
       ]),
@@ -3016,7 +3093,7 @@ function _settingsPresence(ctx, el){
     finally { refreshBtn.disabled = false; refreshBtn.textContent = "Refresh Snapshot"; }
   });
 
-  wrap.appendChild(el("div",{class:"card"},[
+  put("integrations", el("div",{class:"card"},[
     el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
       el("div",{class:"h2",style:"margin:0"},"Ignore Bermuda"),
       el("span",{style:"font-size:10px;font-weight:600;color:#fbbf24;background:#422006;padding:2px 6px;border-radius:4px"},"EXPERIMENTAL"),
@@ -3036,6 +3113,7 @@ function _settingsPresence(ctx, el){
     ]),
   ]));
 
+  for (const sec of _presenceSections(ctx, el, bins)) wrap.appendChild(sec);
   return wrap;
 }
 

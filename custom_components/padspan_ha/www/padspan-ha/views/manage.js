@@ -908,10 +908,12 @@ function _haEntities(ctx, el){
 }
 
 /**
- * Aggressive BLE Reseed toggle — for Shelly and passive BLE proxies.
+ * Aggressive BLE Reseed — for Shelly and passive BLE proxies.
  * When enabled, reseeds from HA's discovered-service-info API every 5s
  * instead of 30s. Helps with HA 2026.4+ where habluetooth dedup
  * suppresses repeat callbacks from passive proxies.
+ * The switch itself lives in Settings → Presence → Receivers, beside the
+ * BLE Reseed Interval it caps (2026-10-30); this card says where.
  */
 function _haBleReseedSection(ctx, el, settings){
   const card = el("div",{class:"card",style:"border-color:#26c6da"});
@@ -926,17 +928,18 @@ function _haBleReseedSection(ctx, el, settings){
     "This increases the BLE data reseed frequency from every 30 seconds to every 5 seconds, working around a deduplication change in HA 2026.4."
   ));
 
-  const chk = el("input",{type:"checkbox"});
-  chk.checked = settings.aggressive_ble_reseed === true;
-  chk.addEventListener("change", async()=>{
-    try {
-      await ctx.actions.settingsSet({aggressive_ble_reseed: chk.checked});
-      ctx.toast(chk.checked ? "Aggressive BLE reseed enabled (5s cycle)." : "BLE reseed set to normal (30s cycle).");
-      ctx.actions.renderRooms();
-    } catch(e){ ctx.toast("Failed: "+String(e), true); chk.checked = !chk.checked; }
+  const go = el("button",{class:"btn inline","data-goto":"settings-receivers"},"Open Settings");
+  go.addEventListener("click", ()=>{
+    ctx.state.view = "settings";
+    ctx.state._settingsTab = "presence";
+    ctx.state._presenceReveal = "receivers";
+    if (ctx.actions.renderNav) ctx.actions.renderNav();
+    ctx.actions.renderRooms();
   });
-  card.appendChild(el("label",{style:"display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px"},[
-    chk, el("span",{},"Enable aggressive BLE reseed (5s) for passive proxy scanners"),
+  card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px"},[
+    el("span",{style:"color:#e2e8f0"}, settings.aggressive_ble_reseed === true ? "Aggressive BLE reseed is on." : "Aggressive BLE reseed is off."),
+    el("span",{style:"color:#94a3b8"},"Set it in Settings → Presence → Receivers (BLE Reseed Interval)."),
+    go,
   ]));
 
   if(settings.aggressive_ble_reseed){
