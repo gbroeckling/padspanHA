@@ -59,6 +59,12 @@ ATTENTION_DAYS = 7        # an attention item is dropped after this long unless 
 
 
 # ── small helpers ───────────────────────────────────────────────────────────
+
+def _fmt(t, f: str) -> str:
+    """strftime with %-d (day without a leading zero) on every platform:
+    Windows' strftime has no %-d, and the release runs the tests there."""
+    return t.strftime(f.replace("%-d", str(t.day)))
+
 def med(v):
     return statistics.median(v) if v else 0
 
@@ -805,7 +811,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
     digest = {"Releases": [], "Problems": [], "Growth": [], "Money": [], "Marketing": []}
     if ls:
         pct = 100 * l24.get(ls["tag"], 0) / l24_total if l24_total else 0
-        digest["Releases"].append(f"{ls['tag']} became the stable {'yesterday' if ls['t'].date() == yday else 'today' if ls['t'].date() == today else ls['t'].strftime('%b %-d')} "
+        digest["Releases"].append(f"{ls['tag']} became the stable {'yesterday' if ls['t'].date() == yday else 'today' if ls['t'].date() == today else _fmt(ls['t'], '%b %-d')} "
                                   f"at {ls['t'].strftime('%H:%M')}. After {hours_out:.0f} h it's on {l24.get(ls['tag'], 0)} of {l24_total} homes that checked for updates ({pct:.0f}%).")
     bt, by = rel_on(today, False), rel_on(yday, False)
     if bt or by:
@@ -867,7 +873,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
         if newp.get(d):
             feed.append((dt.datetime.combine(d, dt.time(23, 56), BC), "Installs", f"{newp[d]} new opt-in install{'s' if newp[d] != 1 else ''}"))
     feed.sort(key=lambda e: e[0], reverse=True)
-    feed = [{"t": e[0].strftime("%b %-d %H:%M") if e[0].time() < dt.time(23, 50) else e[0].strftime("%b %-d"), "kind": e[1], "text": e[2]} for e in feed]
+    feed = [{"t": _fmt(e[0], "%b %-d %H:%M") if e[0].time() < dt.time(23, 50) else _fmt(e[0], "%b %-d"), "kind": e[1], "text": e[2]} for e in feed]
 
     # versions: top 5 of the last 24 h + Other (NEW)
     unknown = {"-", "", "?"}
@@ -944,7 +950,7 @@ def build(pings, rep, setupf, licences, site, sources_by_day, releases, stars_ra
 
     model = {
         "ok": True, "schema": SCHEMA,
-        "generated": gen.strftime("%a %b %-d, %H:%M") + " BC", "generated_iso": gen.isoformat(timespec="seconds"),
+        "generated": _fmt(gen, "%a %b %-d, %H:%M") + " BC", "generated_iso": gen.isoformat(timespec="seconds"),
         "stale_after_s": STALE_AFTER_S, "need": len(kept), "tiles": tiles, "needs_attention": kept,
         "health": health, "health_same_age": same_age, "watch": watch,
         "prev": p1["tag"] if p1 else None, "prev2": p2["tag"] if p2 else None, "latest": ls["tag"] if ls else None,
