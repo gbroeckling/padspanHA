@@ -168,6 +168,7 @@ export const SURFACE_CLASS = Object.freeze({
   qa:          "presence",
   training:    "presence",
   calibration: "presence",
+  receivers:   "presence",    // Bluetooth receivers: the presence build's
   traceback:   "presence",
   forensics:   "presence",
   sandbox:     "presence",

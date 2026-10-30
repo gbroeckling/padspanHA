@@ -26,6 +26,34 @@ export const PERSIST = 2;
 // The panel's own "idle" line (panel.js scannerStatus): not heard for 10 minutes.
 export const SILENT_S = 600;
 
+// One receiver's two conditions, shared with the Receivers page
+// (views/receivers.js) so a row there says what the dot counts.
+// A radio with no last_heard_s yet is not silent: PadSpan can't tell
+// "not heard yet" from "gone" (just after a restart).
+export const isSilent = (r) => !!r && typeof r.last_heard_s === "number" && r.last_heard_s > SILENT_S;
+export const isHearingLess = (r) => !!r && r.adv_rate_low === true;
+
+/** One receiver's status for the Receivers page, by the dot's own rules:
+ *  {id, level: "ok"|"amber", label, title}. Silent wins over hearing less.
+ *  heardNow: devices it was heard reporting in the live snapshot just now
+ *  (a radio with no last_heard_s but with fresh advertisements is online). */
+export function receiverStatus(r, heardNow = 0) {
+  if (isSilent(r)) {
+    const min = Math.floor(r.last_heard_s / 60);
+    return { id: "silent", level: "amber", label: `Silent ${min} min`,
+      title: `Not heard from in ${min} minutes (over 10 minutes counts as silent)` };
+  }
+  if (isHearingLess(r)) {
+    return { id: "hearing_less", level: "amber", label: "Hearing less",
+      title: "Hearing far fewer devices than usual for over 10 minutes, while the others are normal" };
+  }
+  if (!r || (typeof r.last_heard_s !== "number" && !(heardNow > 0))) {
+    return { id: "not_heard", level: "ok", label: "Not heard yet",
+      title: "Nothing heard from it since PadSpan started" };
+  }
+  return { id: "online", level: "ok", label: "Online", title: "Reporting normally" };
+}
+
 const _n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 
 /** What is wrong right now, worst first: [{id, level: "red"|"amber", text}].
@@ -43,7 +71,7 @@ export function statusIssues({ live, failed, snapshot, maps } = {}) {
   if (radios) {
     // A radio with no last_heard_s yet is not counted as silent: PadSpan
     // can't tell "not heard yet" from "gone" (just after a restart).
-    const silent = radios.filter(r => typeof r.last_heard_s === "number" && r.last_heard_s > SILENT_S);
+    const silent = radios.filter(isSilent);
     if (!radios.length || silent.length === radios.length) {
       out.push({ id: "no_receivers", level: "red", text: "No Bluetooth receivers are reporting" });
     } else {
@@ -51,7 +79,7 @@ export function statusIssues({ live, failed, snapshot, maps } = {}) {
         out.push({ id: "receivers_silent", level: "amber",
           text: `${_n(silent.length, "receiver hasn't", "receivers haven't")} been heard from in over 10 minutes` });
       }
-      const deaf = radios.filter(r => r.adv_rate_low === true);
+      const deaf = radios.filter(isHearingLess);
       if (deaf.length) {
         out.push({ id: "hearing_less", level: "amber",
           text: `${_n(deaf.length, "receiver is", "receivers are")} hearing far fewer devices than usual` });

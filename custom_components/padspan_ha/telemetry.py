@@ -146,6 +146,9 @@ EVENTS: frozenset[str] = frozenset({
     # The top bar's status dot (views/status_dot.js) clicked through to
     # Health: whether a dot that says something is wrong gets looked at.
     "status_dot_open",
+    # The Receivers page (views/receivers.js): a height or signal adjustment
+    # saved from its table, once per save. Never which receiver or the value.
+    "receivers_page_edit",
     # 0.38.160: a device's room held through a short gap (once per hold, so
     # whether the setting ever does anything in a real house), and a robot
     # vacuum's map imported / a walker point accepted into calibration.
@@ -405,7 +408,7 @@ VIEWS: frozenset[str] = frozenset({
     "follow", "overview", "purelive", "objects", "devices", "bluetooth", "presence",
     "history", "monitor", "maps", "events", "health", "settings", "manage", "debug",
     "diagnostics", "qa", "training", "calibration", "traceback", "forensics",
-    "sandbox", "occupancy", "installbase", "guests",
+    "sandbox", "occupancy", "installbase", "guests", "receivers",
 })
 SUBTABS: dict[str, frozenset[str]] = {
     "bluetooth": frozenset({"visualization", "monitor", "scanners", "irk_panel", "esphome_configs"}),

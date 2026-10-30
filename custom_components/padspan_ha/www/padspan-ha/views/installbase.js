@@ -553,7 +553,7 @@ const W_TAB = {
   overview: "Overview", maps: "Maps", calibration: "Calibration", follow: "Follow", purelive: "Live Tracker",
   settings: "Settings", manage: "Manage", training: "Training", devices: "Devices", occupancy: "Occupancy",
   health: "Health", bluetooth: "Bluetooth", monitor: "Monitor", traceback: "Traceback", presence: "Presence",
-  qa: "QA", installbase: "Install Base (this page)", sandbox: "Sandbox", forensics: "Forensics", insights: "Insights",
+  qa: "QA", receivers: "Receivers", installbase: "Install Base (this page)", sandbox: "Sandbox", forensics: "Forensics", insights: "Insights",
   "maps/edit": "Maps › Edit", "maps/rooms": "Maps › Rooms", "maps/stack": "Maps › Floor stack",
   "maps/library": "Maps › Library", "maps/upload": "Maps › Upload a plan", "maps/lights": "Maps › Lights",
   "maps/export": "Maps › Export", "maps/help": "Maps › Help",
@@ -653,6 +653,7 @@ const W_SURFACE = {
 const W_EVENT = {
   stale_receivers_listed: "Opened the stale-receiver list (Mapping › 3D Stack)",
   status_dot_open: "Opened Health from the top bar's status dot",
+  receivers_page_edit: "Saved a height or signal adjustment on the Receivers page",
   backup_created: "Made a backup", beacon_tune_saved: "Saved a beacon position (Beacon Tune)",
   bermuda_history_purged: "Cleared Bermuda's old history", calibration_point_added: "Added a calibration point",
   client_screen_seen: "Screens seen", companion_tx_sent: "Phone app set to broadcast (setup wizard)",

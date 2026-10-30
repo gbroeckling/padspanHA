@@ -1635,3 +1635,41 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 /* A wall shows the overview only (control-room practice: the big screen is
    the house at a glance; the fixture key is for whoever edits the map). */
 .lv-mapcard.lv-display.lv-wall > .lv-legend.lv-shapes{display:none}
+/* ── Receivers page (views/receivers.js) ─────────────────────────────────
+   One table, every receiver. Palette: card #0f1a12, line #1b3526, text
+   #e2e8f0, muted #94a3b8, accent #52b788, amber #f59e0b. Below 760 px the
+   table becomes one card per receiver (each cell labelled from data-label). */
+#receivers{display:flex;flex-direction:column;gap:12px}
+#receivers .rx-note{font-size:12px;color:#a7f3d0;border-color:#2d4a38}
+#receivers .rx-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;margin-bottom:8px}
+#receivers .rx-filter{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#e2e8f0;cursor:pointer}
+#receivers .rx-table th{padding:0;vertical-align:bottom}
+#receivers .rx-sort{all:unset;box-sizing:border-box;display:block;width:100%;padding:8px;cursor:pointer;
+  font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;white-space:nowrap}
+#receivers .rx-sort:hover,#receivers .rx-sort.on{color:#a7f3d0}
+#receivers .rx-sort:focus-visible{outline:2px solid #52b788;outline-offset:-2px;border-radius:4px}
+#receivers .rx-table td{vertical-align:middle}
+#receivers .rx-table tbody tr:hover{background:rgba(82,183,136,.05)}
+#receivers .rx-name{font-weight:600;color:#e2e8f0}
+#receivers .rx-src{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;color:#64748b;word-break:break-all}
+#receivers .rx-num{font-variant-numeric:tabular-nums}
+#receivers .rx-edit{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
+#receivers .rx-save,#receivers .rx-place{font-size:11px;padding:4px 10px}
+#receivers .rx-status{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-weight:600}
+#receivers .rx-dot{width:8px;height:8px;border-radius:50%;background:#52b788;flex:0 0 auto}
+#receivers .rx-status.ok{color:#a7f3d0}
+#receivers .rx-status.warn{color:#f59e0b}
+#receivers .rx-status.warn .rx-dot{background:#f59e0b}
+#receivers tr.rx-problem td:first-child{box-shadow:inset 3px 0 0 #f59e0b}
+@media(max-width:760px){
+  #receivers .rx-table{min-width:0}
+  #receivers .rx-table thead{display:none}
+  #receivers .rx-table,#receivers .rx-table tbody,#receivers .rx-table tr,#receivers .rx-table td{display:block;width:100%;box-sizing:border-box}
+  #receivers .rx-table tr{box-sizing:border-box;border:1px solid #1b3526;border-radius:10px;padding:6px 10px;margin-bottom:10px;background:#0a150e}
+  #receivers tr.rx-problem{border-color:#7d5c2b}
+  #receivers tr.rx-problem td:first-child{box-shadow:none}
+  #receivers .rx-table td{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid rgba(120,190,155,.08)}
+  #receivers .rx-table td:last-child{border-bottom:none}
+  #receivers .rx-table td:first-child{display:block}
+  #receivers .rx-table td:not(:first-child)::before{content:attr(data-label);color:#94a3b8;font-size:11px;flex:0 0 auto}
+}
