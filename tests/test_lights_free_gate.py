@@ -165,7 +165,7 @@ function renderFor(tier) {
     hasFitBtn: buttons.some(t => t.includes("Fit room")),
     hasUntouchedBtn: buttons.some(t => t.includes("ntouched")),
     hasHideCodesBtn: buttons.some(t => t.includes("ide codes") || t.includes("odes hidden")),
-    hasIsoluxBtn: buttons.some(t => t.includes("Isolux")),
+    hasIsoluxBtn: buttons.some(t => t.includes("Light spread")),
     hasSceneBtn: buttons.some(t => t.includes("Scene")),
     hasRippleBtn: buttons.some(t => t.includes("Ripple")),
     svgLen: svg.length,

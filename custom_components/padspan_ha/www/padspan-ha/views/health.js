@@ -111,7 +111,7 @@ export function render(ctx){
 
   // ── Fabric Health (Phase 1-3 decoupling) ────────────────────────────────
   root.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:16px"},[
-    el("div",{style:"font-weight:700;font-size:14px;color:#52b788"},"Positioning Fabric"),
+    el("div",{style:"font-weight:700;font-size:14px;color:#52b788"},"Room and receiver layout"),
   ]));
   const fabricContainer = el("div",{id:"health-fabric",style:"margin-top:8px"});
   root.appendChild(fabricContainer);
@@ -119,7 +119,7 @@ export function render(ctx){
 
   // ── Phase 4: System Critics ─────────────────────────────────────────────
   root.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-top:16px"},[
-    el("div",{style:"font-weight:700;font-size:14px;color:#52b788"},"System Critics"),
+    el("div",{style:"font-weight:700;font-size:14px;color:#52b788"},"Problems found"),
     ctx.helpers.helpBtn("health_critics"),
   ]));
   const criticsContainer = el("div",{id:"health-critics",style:"margin-top:8px"});
@@ -201,7 +201,7 @@ async function _fetchAndRenderFabric(ctx, container) {
     return;
   }
   container.innerHTML = "";
-  container.appendChild(el("div",{class:"card",style:"text-align:center;color:#94a3b8;padding:16px"},"Loading fabric diagnostics\u2026"));
+  container.appendChild(el("div",{class:"card",style:"text-align:center;color:#94a3b8;padding:16px"},"Loading layout checks\u2026"));
   try {
     const res = await ctx.actions.callWS({ type: "padspan_ha/fabric_health" });
     _fabricCache = res;
@@ -225,7 +225,7 @@ function _renderFabric(ctx, container, data) {
   if (scanner_positions_m?.length || room_geometry_m?.length) {
     container.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 10px;background:rgba(82,183,136,.06);border:1px solid #52b78833;border-radius:8px"},[
       el("span",{style:"color:#52b788;font-size:13px"},"✅"),
-      el("span",{style:"font-size:12px;color:#52b788;font-weight:600"},"Fabric active"),
+      el("span",{style:"font-size:12px;color:#52b788;font-weight:600"},"Layout active"),
       el("span",{style:"font-size:11px;color:#94a3b8"},
         `${scanner_positions_m?.length || 0} scanners · ${room_geometry_m?.length || 0} rooms`),
     ]));
@@ -236,7 +236,7 @@ function _renderFabric(ctx, container, data) {
   if (Object.keys(_fabricFloors).length) {
     const _ffCard = el("div",{class:"card",style:"margin-bottom:8px;padding:12px"});
     _ffCard.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px"},
-      "Room Fabric by Floor"));
+      "Room layout by floor"));
     const _ffTbl = el("div",{style:"display:grid;grid-template-columns:1fr auto auto auto auto;gap:3px 10px;font-size:10px;align-items:center"});
     for (const h of ["Floor","Rooms","Footprint","Clusters","Status"]) {
       _ffTbl.appendChild(el("div",{style:"font-weight:600;color:#64748b;text-transform:uppercase"},h));
@@ -262,7 +262,7 @@ function _renderFabric(ctx, container, data) {
   const bg = summary.healthy ? "rgba(82,183,136,.08)" : "rgba(248,113,113,.08)";
   container.appendChild(el("div",{class:"card",style:`border:1px solid ${color}33;background:${bg};margin-bottom:12px`},[
     el("div",{style:`display:flex;align-items:center;gap:8px`},[
-      el("div",{style:`font-weight:800;font-size:14px;color:${color}`},"Fabric Status"),
+      el("div",{style:`font-weight:800;font-size:14px;color:${color}`},"Layout status"),
       el("div",{class:"pill",style:`background:${color}22;color:${color};font-size:10px;padding:2px 8px`},
         summary.healthy ? "ALL PASS" : `${summary.failed} ISSUE${summary.failed!==1?"S":""}`),
     ]),
@@ -272,7 +272,7 @@ function _renderFabric(ctx, container, data) {
 
   // ── Check results by group ─────────────────────────────────────────────
   const groups = [
-    { key: "fabric_sync", label: "Phase 1 \u2014 Scanner Fabric" },
+    { key: "fabric_sync", label: "Phase 1 \u2014 Receiver layout" },
     { key: "spatial", label: "Phase 2 \u2014 Spatial Model (metres)" },
     { key: "calibration", label: "Phase 3 \u2014 Calibration" },
     { key: "identity", label: "Device Identity Registry" },
@@ -386,14 +386,14 @@ function _renderFabric(ctx, container, data) {
     const rfCheck = checks.find(c => c.name === "RF Model");
     if (rfCheck) {
       const rfBtn = el("button",{class:"btn",style:"width:auto;padding:4px 14px;font-size:11px"},
-        `Retrain RF (${rfCheck.value})`);
+        `Retrain learned model (${rfCheck.value})`);
       rfBtn.addEventListener("click", async () => {
         rfBtn.disabled = true; rfBtn.textContent = "Retraining\u2026";
         try {
           const r = await ctx.actions.callWS({type:"padspan_ha/calibration_retrain_rf"});
-          ctx.toast(`RF retrained: ${r.use_metres ? "metres" : "fractions"}, ${r.point_count} pts`);
+          ctx.toast(`Learned model retrained: ${r.use_metres ? "metres" : "fractions"}, ${r.point_count} pts`);
           _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container);
-        } catch(e) { ctx.toast(`Failed: ${e.message||e}`); rfBtn.disabled = false; rfBtn.textContent = "Retrain RF"; }
+        } catch(e) { ctx.toast(`Failed: ${e.message||e}`); rfBtn.disabled = false; rfBtn.textContent = "Retrain learned model"; }
       });
       actCard.appendChild(rfBtn);
     }
@@ -497,7 +497,7 @@ function _renderFabric(ctx, container, data) {
   container.appendChild(auditBtn);
 
   // ── Refresh button ─────────────────────────────────────────────────────
-  const btn = el("button",{class:"btn",style:"margin-top:8px;margin-left:8px;width:auto;padding:6px 16px"},"Refresh Fabric");
+  const btn = el("button",{class:"btn",style:"margin-top:8px;margin-left:8px;width:auto;padding:6px 16px"},"Refresh layout");
   btn.addEventListener("click", () => { _fabricCache = null; _fabricFetchTs = 0; _fetchAndRenderFabric(ctx, container); });
   container.appendChild(btn);
 }
@@ -578,7 +578,7 @@ function _renderRadioAudit(ctx, container, data) {
     const f = r.fabric;
     if (f) {
       rCard.appendChild(el("div",{style:"font-size:10px;color:#64748b;margin-top:2px"},
-        `Fabric: ${f.room} (${f.floor_id}) [${f.source_type}]`));
+        `Layout: ${f.room} (${f.floor_id}) [${f.source_type}]`));
     }
 
     // Position
@@ -629,7 +629,7 @@ async function _fetchAndRenderCritics(ctx, container) {
   } catch (err) {
     container.innerHTML = "";
     container.appendChild(el("div",{class:"card",style:"color:#fca5a5"},
-      `Failed to load system critics: ${err.message || err}`
+      `Could not check for problems: ${err.message || err}`
     ));
   }
 }
@@ -661,7 +661,7 @@ function _renderCritics(ctx, container, data) {
     style:`border:1px solid ${bannerColor}33;background:${bannerBg};margin-bottom:12px`
   },[
     el("div",{style:`display:flex;align-items:center;gap:8px`},[
-      el("div",{style:`font-weight:800;font-size:15px;color:${bannerColor}`},"System Critics"),
+      el("div",{style:`font-weight:800;font-size:15px;color:${bannerColor}`},"Problems found"),
       el("div",{class:"pill",style:`background:${bannerColor}22;color:${bannerColor};font-size:10px;padding:2px 8px`},
         summary.healthy ? "HEALTHY" : `${summary.total} ISSUE${summary.total !== 1 ? "S" : ""}`
       ),
@@ -703,7 +703,7 @@ function _renderCritics(ctx, container, data) {
   // ── Room Confusion Matrix ───────────────────────────────────────────────
   if (confusion_matrix && confusion_matrix.length) {
     const cmCard = el("div",{class:"card",style:"margin-top:12px"});
-    cmCard.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px"},"Room Confusion Matrix"));
+    cmCard.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px"},"Room mix-ups"));
     cmCard.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-bottom:8px"},
       "Bidirectional transitions between room pairs. High counts suggest the system oscillates between these rooms."
     ));
@@ -758,7 +758,7 @@ function _renderCritics(ctx, container, data) {
   }
 
   // ── Refresh button ──────────────────────────────────────────────────────
-  const refreshBtn = el("button",{class:"btn",style:"margin-top:12px;width:auto;padding:6px 16px"}, "Refresh Critics");
+  const refreshBtn = el("button",{class:"btn",style:"margin-top:12px;width:auto;padding:6px 16px"}, "Check again");
   refreshBtn.addEventListener("click", () => {
     _criticsCache = null;
     _criticsFetchTs = 0;

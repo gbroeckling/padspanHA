@@ -1,6 +1,6 @@
 # Walls Guide: materials and signal loss
 
-Walls you draw in **Mapping → Edit → RF Barriers** tell PadSpan how much Bluetooth signal a wall
+Walls you draw in **Mapping → Edit → Signal walls** tell PadSpan how much Bluetooth signal a wall
 eats on its way from a phone or tag to a receiver. That's what keeps a phone in the kitchen from
 being counted in the room behind the kitchen wall.
 

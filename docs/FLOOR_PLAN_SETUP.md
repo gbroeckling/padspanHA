@@ -40,7 +40,7 @@ A single measurement gives the scale but can't detect if the image is stretched 
 5. Repeat for each room
 
 ### Why this matters
-PadSpan uses these boundaries to visualize which room a device is in on the floor plan. The boundaries also inform the 3D isometric multi-floor view and the positioning fabric's room geometry.
+PadSpan uses these boundaries to visualize which room a device is in on the floor plan. The boundaries also inform the 3D isometric multi-floor view and the room shapes in PadSpan's room and receiver layout.
 
 ## Placing Scanner Markers
 
@@ -59,13 +59,13 @@ PadSpan uses these boundaries to visualize which room a device is in on the floo
 If you have multiple floors:
 1. Upload one map per floor
 2. Assign rooms to the correct floor in HA's Area Registry
-3. Set one map as the **Master Map** — this establishes the coordinate origin for the positioning fabric
+3. Set one map as the **Master Map** — this establishes the coordinate origin for the room and receiver layout
 4. Align other maps to the master using the **alignment tool** (offsets and rotation)
 5. Use the **3D Stack** view (Maps → 3D tab) to see all floors stacked with live object positions
 
 ### Master Map
 
-The master map is the coordinate reference for all other floors. Choose your largest or most-used floor. All spatial calculations (scanner positions, room geometry, RF barriers) are stored in real-world metres relative to the master map's origin.
+The master map is the coordinate reference for all other floors. Choose your largest or most-used floor. All spatial calculations (scanner positions, room geometry, signal walls) are stored in real-world metres relative to the master map's origin.
 
 ### 2D Flat Map Mode
 

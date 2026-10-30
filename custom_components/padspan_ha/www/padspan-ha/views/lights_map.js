@@ -3919,10 +3919,10 @@ export function buildLightsMapCard(hostIn){
     if (host.showcase && host.onIsolux) {
       presTarget.appendChild(el("button", {
         class: "lv-tgl tone-green" + (host.isolux ? " on" : ""),
-        title: "Relative illuminance contours on a real-metre grid — three bands "
+        title: "Relative illuminance (isolux) contours on a real-metre grid — three bands "
           + "at fractions of this floor's own peak.",
         onclick: () => host.onIsolux(!host.isolux),
-      }, host.isolux ? "☼ Isolux ✓" : "☼ Isolux"));
+      }, host.isolux ? "☼ Light spread ✓" : "☼ Light spread"));
     }
 
     // Spatial scene — a colour field across the floor; each fixture PREVIEWS

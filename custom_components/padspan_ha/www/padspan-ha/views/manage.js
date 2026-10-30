@@ -1197,7 +1197,7 @@ function _haEntityAudit(ctx, el){
 
     if(insights.length){
       const insightWrap = el("div",{style:"margin-top:10px;display:flex;flex-direction:column;gap:6px"});
-      insightWrap.appendChild(el("div",{style:"font-weight:600;font-size:12px;margin-bottom:2px"},"Insights"));
+      insightWrap.appendChild(el("div",{style:"font-weight:600;font-size:12px;margin-bottom:2px"},"Tips"));
       for(const ins of insights){
         insightWrap.appendChild(el("div",{style:`font-size:11px;color:${ins.color};padding:4px 8px;background:#0a150e;border:1px solid #1b3526;border-radius:6px;line-height:1.4`},ins.text));
       }
@@ -1762,7 +1762,7 @@ function _haEspresenseSection(ctx, el, settings){
   ]));
   card.appendChild(el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-bottom:8px"},
     "Import floor layouts, room boundaries, and scanner/node positions from ESPresense Companion. " +
-    "Coordinates are in metres — PadSpan imports them directly into its positioning fabric. " +
+    "Coordinates are in metres — PadSpan imports them directly into its room and receiver layout. " +
     "This is a merge — existing PadSpan data is preserved."
   ));
 
