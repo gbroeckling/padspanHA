@@ -312,3 +312,79 @@ def test_the_options_box_offers_the_choice_and_drops_sunset_from_evening_lights(
     ib = (www / "views" / "installbase.js").read_text(encoding="utf-8")
     assert '"vacation.source:last_week"' in ib and '"vacation.source:month"' in ib
     assert vm.REPORT_WORDS["source"] == ("last_week", "month")
+
+
+# ═══ daylight saving, week edges, a purged recorder (review 2026-10-31) ══════
+
+def _vancouver_house(now, extra=()):
+    """On 20:00-23:00 local every evening for a month, in Vancouver's time."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("America/Vancouver")
+    ch = []
+    d = (now - timedelta(days=31)).date()
+    while d <= now.date():
+        for h, st in ((20, "on"), (23, "off")):
+            t = datetime(d.year, d.month, d.day, h, tzinfo=tz)
+            if t < now:
+                ch.append((t.timestamp(), st))
+        d += timedelta(days=1)
+    ch += [(datetime(*a, tzinfo=tz, fold=f).timestamp(), st) for a, f, st in extra]
+    return {"light.a": sorted(ch)}
+
+
+def test_last_week_replays_the_fall_back_sunday_by_the_clock():
+    """Sun Nov 1 2026 has 25 hours in North America. Its evening replays by the
+    wall clock on Sun Nov 8, not an hour off."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("America/Vancouver")
+    now = datetime(2026, 11, 2, 12, 0, tzinfo=tz)            # Monday after the change
+    hist = _vancouver_house(now, [((2026, 11, 1, 0, 30), 0, "on"), ((2026, 11, 1, 1, 15), 0, "off")])
+    pat = vm.build_routine(hist, now, "last_week", 30, [])["light.a"]
+    assert all(pat[f"6:{h:02d}{m:02d}"] == 1.0 for h in (20, 21, 22) for m in (0, 30))
+    assert pat["6:1930"] == 0.0 and pat["6:2300"] == 0.0 and pat["6:0030"] == 1.0
+    assert pat["evening"]["6"] == [20 * 60, 23 * 60]
+    sun = lambda h, m: datetime(2026, 11, 8, h, m, tzinfo=tz)  # noqa: E731
+    assert vm.decide_states({"light.a": pat}, sun(20, 15), 100) == {"light.a": True}
+    assert vm.decide_states({"light.a": pat}, sun(19, 15), 100) == {"light.a": False}
+    assert vm.anchor_open(pat, "light.a", sun(20, 15), "") and not vm.anchor_open(pat, "light.a", sun(23, 15), "")
+    assert not vm.anchor_open(pat, "light.a", sun(19, 45), "")
+    # And across the change itself: the Saturday-night evening runs into the
+    # repeated hour and still ends by the clock.
+    late = [((2026, 10, 31, 23, 30), 0, "on"), ((2026, 11, 1, 1, 30), 1, "off")]
+    pat = vm.build_routine(_vancouver_house(now, late), now, "last_week", 30, [])["light.a"]
+    assert pat["evening"]["5"] == [20 * 60, 23 * 60]              # the longest run: 20:00-23:00
+    assert pat["5:2330"] == 1.0
+
+
+def test_a_trip_begun_after_midnight_takes_the_unfinished_evening_from_the_week_before():
+    """Turned on Monday 00:30: Sunday's evening hadn't ended (it runs to 05:00),
+    so Sunday's evening light comes from the Sunday before."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("America/Vancouver")
+    now = datetime(2026, 10, 26, 0, 30, tzinfo=tz)
+    hist = _vancouver_house(now)
+    # The Sunday before (Oct 18): 18:00-21:00 instead.
+    hist["light.a"] = sorted([c for c in hist["light.a"]
+                              if not datetime(2026, 10, 18, tzinfo=tz).timestamp() <= c[0]
+                              < datetime(2026, 10, 19, tzinfo=tz).timestamp()]
+                             + [(datetime(2026, 10, 18, 18, tzinfo=tz).timestamp(), "on"),
+                                (datetime(2026, 10, 18, 21, tzinfo=tz).timestamp(), "off")])
+    pat = vm.build_routine(hist, now, "last_week", 30, [])["light.a"]
+    assert pat["evening"]["6"] == [18 * 60, 21 * 60]
+    assert pat["6:2000"] == 1.0 and pat["6:1800"] == 0.0          # the slots: yesterday's whole day
+
+
+async def test_a_resumed_trip_keeps_its_routine_when_the_recorder_has_purged_its_week(monkeypatch):
+    from tests.test_vacation_mode import _trip
+    start = NOW.timestamp()
+    data = _trip(start, start + 5 * 86400, {"light.a": {"*:1200": 1.0}}, vacation_mode_source="month")
+    data.update(vm.switch_fields(data, True, start + 7 * 86400), vacation_mode_enabled=True)
+    assert data["vacation_mode_pattern_end"] == start
+    # Only the last 3 days before the trip are still in the recorder.
+    thin = {"light.a": [(start - 3 * 86400, "off"), (start - 2 * 86400, "on"), (start - 2 * 86400 + 7200, "off")]}
+    monkeypatch.setattr(vm, "_async_fetch_history", AsyncMock(return_value=thin))
+    st = _settings(**data)
+    await vm._async_refresh_pattern_if_stale(_hass(st, _states(**{"light.a": "off"})), st)
+    assert st.data["vacation_mode_pattern"] == {"light.a": {"*:1200": 1.0}}
+    assert st.data["vacation_mode_pattern_end"] == 0 and vm.pattern_serves(st.data)
+    assert vm.history_reaches(_house(), start - vm.REDO_REACH_S) and not vm.history_reaches({}, 0)

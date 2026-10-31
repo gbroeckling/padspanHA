@@ -818,6 +818,18 @@ async def async_notify_turned_off(hass: HomeAssistant, who: dict, now_ts: float)
     return sent
 
 
+# A resumed trip is learned again with a new source only while the recorder
+# still holds at least the week before the trip began (last week's days).
+REDO_REACH_S = 7 * 86400
+
+
+def history_reaches(history: dict, ts: float) -> bool:
+    """Whether some entity's history goes back to `ts` (the recorder hands
+    each one's state at the window's start as its first entry)."""
+    firsts = [min(c[0] for c in changes) for changes in (history or {}).values() if changes]
+    return bool(firsts) and min(firsts) <= ts
+
+
 async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
     """Build the pattern once per vacation, from history that ends when this
     vacation began — never from anything Vacation Mode itself switched (see
@@ -859,6 +871,11 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
     # The source this trip was turned on with (one turned on before the
     # choice existed: the monthly average it was turned on under).
     source = built_source(st.data.get("vacation_mode_trip_source"))
+    if redo and not history_reaches(history, until - REDO_REACH_S):
+        # The recorder has purged most of the days before the trip (it keeps
+        # 10 days by default): learning again from what is left would swap
+        # the trip's full routine for a thinner one.
+        history = {}
     # Pure and CPU-bound over up to 30 days of every light: off the event loop.
     pattern = await hass.async_add_executor_job(
         build_routine, history, dt_util.as_local(end), source, HISTORY_DAYS,

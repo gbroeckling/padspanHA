@@ -162,6 +162,8 @@ def test_each_read_keeps_photo_timeout_s(monkeypatch, tmp_path, disk):
     """A slow quick look times out at PHOTO_TIMEOUT_S, plainly, and no full read
     makes the wait longer; a slow kind read the same."""
     monkeypatch.setattr(P, "PHOTO_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(P, "PHOTO_BUDGET_S", 10.0)
+    monkeypatch.setattr(P, "READ_MIN_S", 0.0)
     h, conn, ai, media, counted = _setup(monkeypatch, tmp_path, [dict(_FULL)], delays=[5])
     out = _photo(h, conn)
     assert out["ok"] is False and "no answer" in out["message"] and ai.reads == ["quick"]
@@ -175,9 +177,91 @@ def test_each_read_keeps_photo_timeout_s(monkeypatch, tmp_path, disk):
 
 def test_the_timeout_is_still_photo_timeout_s_and_unchanged():
     assert P.PHOTO_TIMEOUT_S == 240
+    # The whole photo: the old two-read flow's worst case (8 minutes), not 4 x 240 s.
+    assert P.PHOTO_BUDGET_S == 2 * P.PHOTO_TIMEOUT_S == 480
+    assert P.READ_MIN_S == P.BACKUP_MIN_S + P.PROBE_S
     assert P._full_read_helps(ValueError("x")) and P._full_read_helps(RuntimeError("x"))
     assert not P._full_read_helps(TimeoutError()) and not P._full_read_helps(P._NoMedia())
     assert not P._full_read_helps(ConnectionRefusedError(errno.ECONNREFUSED, "refused"))
+
+
+# ═══ one time budget for the whole photo ═════════════════════════════════════
+
+def _budget(monkeypatch, timeout=0.2, budget=0.3, read_min=0.05):
+    monkeypatch.setattr(P, "PHOTO_TIMEOUT_S", timeout)
+    monkeypatch.setattr(P, "PHOTO_BUDGET_S", budget)
+    monkeypatch.setattr(P, "READ_MIN_S", read_min)
+
+
+def test_a_later_read_gets_only_the_time_left(monkeypatch, tmp_path, disk):
+    """The kind's read would fit in PHOTO_TIMEOUT_S on its own, but not in
+    what the quick look left of the budget."""
+    _budget(monkeypatch)
+    h, conn, ai, media, counted = _setup(monkeypatch, tmp_path, [{"what_it_is": "sofa"}, dict(_SOFA)],
+                                         delays=[0.15, 0.18])
+    out = _photo(h, conn)
+    assert out["ok"] is False and out["reason"] == "error" and ai.reads == ["quick", "sofa"]
+    assert _leftovers(media) == []
+
+
+def test_too_little_left_skips_the_full_read_and_keeps_the_best_answer(monkeypatch, tmp_path, disk):
+    _budget(monkeypatch, timeout=1.0, budget=1.2, read_min=0.4)
+    # The kind's read came back unusable with too little left: that answer stands, no full read.
+    h, conn, ai, media, counted = _setup(monkeypatch, tmp_path, [{"what_it_is": "sofa"}, "no idea"],
+                                         delays=[0, 0.85])
+    out = _photo(h, conn)
+    assert out["ok"] is False and out["reason"] == "bad_answer" and ai.reads == ["quick", "sofa"]
+    assert _quick(counted) == [] and "photo_read:bad_answer" in counted
+    # A quick look that named nothing, with too little left: no full read, the plain failure.
+    h.services.async_call = ai = _Seq([{"what_it_is": "thing"}, dict(_FULL)], delays=[0.85])
+    out = _photo(h, conn)
+    assert out["ok"] is False and out["reason"] == "error" and ai.reads == ["quick"]
+    # The full read answered with too little left for its kind's read: the full read stands.
+    counted.clear()
+    h.services.async_call = ai = _Seq([{"what_it_is": "thing"}, dict(_FULL), dict(_SOFA)], delays=[0, 0.85])
+    out = _photo(h, conn)
+    assert out["ok"] and out["kind"] == "sofa" and ai.reads == ["quick", "full"]
+    assert _quick(counted) == ["photo_quick:fallback"] and _leftovers(media) == []
+
+
+def test_the_fallback_is_not_counted_when_the_full_read_fails(monkeypatch, tmp_path, disk):
+    h, conn, ai, media, counted = _setup(monkeypatch, tmp_path, [{"what_it_is": "thing"}, RuntimeError("down")])
+    out = _photo(h, conn)
+    assert out["ok"] is False and ai.reads == ["quick", "full"]
+    assert _quick(counted) == [] and "photo_read:error" in counted
+
+
+def test_the_backup_switch_works_inside_a_reads_time_left(monkeypatch):
+    """ask_ai's backup rule uses the read's own time, not a fresh PHOTO_TIMEOUT_S:
+    less than BACKUP_MIN_S of it left, no backup; else the backup gets what is left."""
+    seen = []
+
+    async def ask(hass, eid, instructions, structure, raw, mime, task_name="", timeout_s=None):
+        seen.append((eid, timeout_s))
+        if eid == _AI:
+            raise ConnectionRefusedError(errno.ECONNREFUSED, "refused")
+        return {"what_it_is": "sofa"}
+
+    async def probe(hass, eid):
+        return None
+    monkeypatch.setattr(P, "ask", ask)
+    monkeypatch.setattr(P, "_probe", probe)
+    monkeypatch.setattr(P, "_bump", lambda hass, e: None)
+    h = SimpleNamespace(data={DOMAIN: {}})
+    ai = {"ai_task": _AI, "backup": _BK}
+    with pytest.raises(ConnectionRefusedError):
+        asyncio.run(P.ask_ai(h, ai, "q", None, b"x", "image/jpeg", timeout_s=P.BACKUP_MIN_S - 1))
+    assert seen == [(_AI, P.BACKUP_MIN_S - 1)]
+    seen.clear()
+    h.data[DOMAIN].clear()
+    answer, by = asyncio.run(P.ask_ai(h, ai, "q", None, b"x", "image/jpeg", timeout_s=P.BACKUP_MIN_S + 20))
+    assert by == _BK and seen[0] == (_AI, P.BACKUP_MIN_S + 20)
+    assert seen[1][0] == _BK and P.BACKUP_MIN_S <= seen[1][1] <= P.BACKUP_MIN_S + 20
+    # With no backup the read's time is passed straight through.
+    seen.clear()
+    with pytest.raises(ConnectionRefusedError):
+        asyncio.run(P.ask_ai(h, {"ai_task": _AI}, "q", None, b"x", "image/jpeg", timeout_s=99))
+    assert seen == [(_AI, 99)]
 
 
 def test_no_media_folder_is_still_the_plain_no_media_answer(monkeypatch, tmp_path, disk):

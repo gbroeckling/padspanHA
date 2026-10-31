@@ -834,13 +834,17 @@ async def _probe(hass: HomeAssistant, eid: str) -> str | None:
 
 
 async def ask_ai(hass: HomeAssistant, ai: dict[str, Any], instructions: str, structure: dict | None, raw: bytes,
-                 mime: str, task_name: str = "PadSpan Live Aboard photo", *, count: bool = True) -> tuple[Any, str]:
+                 mime: str, task_name: str = "PadSpan Live Aboard photo", *, count: bool = True,
+                 timeout_s: float | None = None) -> tuple[Any, str]:
     """ask() on the main AI Task, or on the backup when the main one is away
     (the rule above): the answer and the entity that gave it. With no backup
-    set, ask() on the main one exactly as before."""
+    set, ask() on the main one exactly as before. `timeout_s`: this read's
+    time (PHOTO_TIMEOUT_S unless less is left of a photo's budget), shared by
+    the main one and the backup as PHOTO_TIMEOUT_S always was."""
     main, backup = ai["ai_task"], ai.get("backup")
+    limit = PHOTO_TIMEOUT_S if timeout_s is None else timeout_s
     if not backup:
-        return await ask(hass, main, instructions, structure, raw, mime, task_name), main
+        return await ask(hass, main, instructions, structure, raw, mime, task_name, timeout_s=timeout_s), main
     t0 = time.monotonic()
     if ai.get("main_away"):
         why = "unavailable"
@@ -852,12 +856,12 @@ async def ask_ai(hass: HomeAssistant, ai: dict[str, Any], instructions: str, str
             _away_until(hass)[main] = time.monotonic() + MAIN_AWAY_S
     if why is None:
         try:
-            answer = await ask(hass, main, instructions, structure, raw, mime, task_name)
+            answer = await ask(hass, main, instructions, structure, raw, mime, task_name, timeout_s=timeout_s)
         except Exception as err:  # noqa: BLE001 — only an unreachable server switches; anything else stands
             if not unreachable(err):
                 raise
             _away_until(hass)[main] = time.monotonic() + MAIN_AWAY_S
-            if PHOTO_TIMEOUT_S - (time.monotonic() - t0) < BACKUP_MIN_S:
+            if limit - (time.monotonic() - t0) < BACKUP_MIN_S:
                 raise
             why = _why(err)
         else:
@@ -871,7 +875,7 @@ async def ask_ai(hass: HomeAssistant, ai: dict[str, Any], instructions: str, str
         _bump(hass, "ai_backup_used")
     try:
         answer = await ask(hass, backup, instructions, structure, raw, mime, task_name,
-                           timeout_s=max(BACKUP_MIN_S, PHOTO_TIMEOUT_S - (time.monotonic() - t0)))
+                           timeout_s=max(BACKUP_MIN_S, limit - (time.monotonic() - t0)))
     except Exception:
         if count:
             _bump(hass, "ai_backup_failed")
@@ -906,38 +910,70 @@ def _full_read_helps(err: BaseException) -> bool:
     return not (isinstance(err, (TimeoutError, _NoMedia)) or unreachable(err))
 
 
+# One time budget for all of a photo's reads (2026-10-31). A furniture photo
+# with no kind picked can take up to four reads (quick, its kind's, the full
+# one, its kind's), which at PHOTO_TIMEOUT_S each was 16 minutes at worst. The
+# whole photo gets PHOTO_TIMEOUT_S and one more read's worth, the old two-read
+# flow's worst case; each read still at most PHOTO_TIMEOUT_S, and a later one
+# only the time left. Measured (PadspanResearch ai-photo-latency-2026-10): on
+# the Mac the quick look ~9-12 s, a full read ~13-15 s, a kind's read ~15-18
+# s, so the quick path is ~25 s and the whole fallback ~55 s; on the 5810
+# backup ~65 s a read, ~130 s and ~260 s. All of it fits with minutes to
+# spare: the budget only bites on a stalled or CPU-only model.
+PHOTO_BUDGET_S = 2 * PHOTO_TIMEOUT_S
+# A further read isn't started with less than this left: a backup read takes
+# ~65 s, and ask_ai may spend PROBE_S finding the main one away and still
+# needs BACKUP_MIN_S for the backup. Then the best answer so far stands.
+READ_MIN_S = BACKUP_MIN_S + PROBE_S
+
+
 async def _read_furniture(hass: HomeAssistant, ai: dict[str, Any], raw: bytes, mime: str) -> tuple[dict, str]:
     """A furniture photo with no kind picked: the quick look, then that kind's
     own read; when either isn't enough, the full first read and then, as
     before, its kind's own read. The answer and the AI Task that gave it.
-    Each read has PHOTO_TIMEOUT_S, as before; the backup is counted on the
+    All of it inside PHOTO_BUDGET_S (above): with too little left for the full
+    read, the kind's unusable answer stands (or the failure); with too little
+    for its kind's read, the full read's answer. The backup is counted on the
     first read only (count=False after), so once per photo."""
-    kind = None
+    t0 = time.monotonic()
+
+    def left() -> float:
+        return min(PHOTO_TIMEOUT_S, PHOTO_BUDGET_S - (time.monotonic() - t0))
+
+    kind, best, failed = None, None, None
     try:
-        a0, by = await ask_ai(hass, ai, QUICK_PROMPT, QUICK_STRUCTURE, raw, mime)
+        a0, by = await ask_ai(hass, ai, QUICK_PROMPT, QUICK_STRUCTURE, raw, mime, timeout_s=left())
         kind = quick_kind(a0)
-        if kind is not None:
+        if kind is not None and left() >= READ_MIN_S:
             i2, s2 = request("furniture", kind)
-            a2, by = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)
+            a2, by = await ask_ai(hass, ai, i2, s2, raw, mime, count=False, timeout_s=left())
             out = parse("furniture", kind, a2)
             if out["ok"]:
                 _bump(hass, "photo_quick:ok")
                 return out, by
+            best = (out, by)
     except Exception as err:  # noqa: BLE001 — a read that didn't answer usably: the full read below
         if not _full_read_helps(err):
             raise
+        failed = err
         _LOGGER.debug("PadSpan Live Aboard: the quick look at a photo failed (%s); the full read follows", _why(err))
-    _bump(hass, "photo_quick:fallback")
+    if left() < READ_MIN_S:
+        # No time for the full read: what there is stands.
+        if best is not None:
+            return best
+        raise failed if failed is not None else TimeoutError()
     i1, s1 = request("furniture", None)
-    a1, by = await ask_ai(hass, ai, i1, s1, raw, mime, count=False)
+    a1, by = await ask_ai(hass, ai, i1, s1, raw, mime, count=False, timeout_s=left())
+    _bump(hass, "photo_quick:fallback")
     out = parse("furniture", None, a1)
     # Its kind in its own words, then that kind's own settings, asked again as if
     # the person had said what it is (much the better answer in the real test);
-    # not again for the kind whose own read just came back unusable.
-    if out["ok"] and out.get("kind") not in (None, B.BOX_KIND, kind):
+    # not again for the kind whose own read just came back unusable, nor with
+    # too little time left.
+    if out["ok"] and out.get("kind") not in (None, B.BOX_KIND, kind) and left() >= READ_MIN_S:
         try:
             i2, s2 = request("furniture", out["kind"])
-            a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)
+            a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False, timeout_s=left())
             o2 = parse("furniture", out["kind"], a2)
             if o2["ok"]:
                 out, by = o2, by2

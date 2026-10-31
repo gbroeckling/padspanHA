@@ -828,6 +828,32 @@ async def test_a_resumed_vacation_switches_on_its_trips_pattern_without_a_rebuil
     hass.services.async_call.assert_any_call("light", "turn_on", {"entity_id": "light.a"})
 
 
+async def test_a_trip_running_when_the_update_lands_carries_on_untouched(monkeypatch):
+    """A house mid-trip on a routine built (and resumed) before the source
+    choice existed: no stored source at all, the new default last_week in the
+    settings. The update must not learn it again or change what it switches
+    (review 2026-10-31: Garry's own house, resumed Oct 26 on the Oct 6 routine)."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    fetch = AsyncMock(return_value={"light.a": [(1.0, "off")]})
+    monkeypatch.setattr(vm, "_async_fetch_history", fetch)
+    now = datetime(2026, 1, 15, 12, 0, 0).timestamp()   # conftest.py's _fake_utcnow
+    data = _trip(now - 20 * 86400, now - 86400, {"light.a": {"*:1200": 1.0}, "light.b": {"*:1200": 0.0}})
+    del data["vacation_mode_pattern_source"]
+    # What the old switch_fields stored when it was resumed.
+    data.update({"vacation_mode_enabled_at": now - 3600, "vacation_mode_pattern_for": now - 3600,
+                 "vacation_mode_enabled": True})
+    st = _settings(**data)
+    assert vm.chosen_source(st.data) == "last_week"
+    hass = _hass(st, _states(**{"light.a": "off", "light.b": "on"}))
+    await vm._async_tick(hass)
+    fetch.assert_not_called()
+    assert st.data["vacation_mode_pattern"] == {"light.a": {"*:1200": 1.0}, "light.b": {"*:1200": 0.0}}
+    assert not st.data.get("vacation_mode_pattern_end") and not st.data.get("vacation_mode_pattern_source")
+    hass.services.async_call.assert_any_call("light", "turn_on", {"entity_id": "light.a"})
+    hass.services.async_call.assert_any_call("light", "turn_off", {"entity_id": "light.b"})
+    assert vm.routine_word(st.data) == "resumed" and vm.running_source(st.data) == "month"
+
+
 def test_who_turned_it_off_is_read_from_the_connection():
     from types import SimpleNamespace
     from custom_components.padspan_ha.vacation_mode import off_message, who_from_connection

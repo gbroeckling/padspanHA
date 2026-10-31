@@ -464,7 +464,7 @@ def test_a_furniture_photos_second_look_doesnt_count_the_backup_again() -> None:
     (its second look is a second ask_ai call)."""
     src = (Path(__file__).resolve().parents[1] / "custom_components" / "padspan_ha"
            / "ws_house3d_photo.py").read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert "a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)" in src
+    assert "a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False, timeout_s=left())" in src
     assert 'if count:\n        _bump(hass, "ai_backup_used")' in src
 
 
