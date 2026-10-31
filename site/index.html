@@ -184,6 +184,26 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.213</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">31 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Manage → Events no longer shows a room log that never filled.</b> Its "Room Transitions" list read a session log nothing has written since Follow moved onto the saved movement history, so it always said "No events recorded yet". In its place is a line and an "Open History" button that opens History → Movement, where the saved room changes are. The help says so.</li>
+          <li><b>Health → Live Discovery counts the sample house's receivers.</b> In Sample mode "Radios" read 0. Live was already right.</li>
+          <li><b>Diagnostics lists your devices again.</b> It counted the sections of the live data as if they were devices, so the report said something like "0 devices" and listed none. It now lists your own devices seen in the last 24 hours: the ones you named, the ones linked to Home Assistant, and phones PadSpan knows by their key. Other devices nearby are left out. The screen and the help say the report names your rooms, floor plans and devices with their Bluetooth addresses, so look it over before you send it.</li>
+          <li><b>Support reports leave out phones' identity keys.</b> A phone PadSpan recognises by its identity key (IRK) was listed under that key in Monitor → Export for support. Whoever has the key can follow the phone, and these reports are meant to be sent, sometimes to a public GitHub issue. Export for support and Diagnostics now put "irk:hidden-1", "irk:hidden-2" and so on in its place, the same stand-in for the same phone throughout the report.</li>
+          <li><b>Bluetooth → Scanners' RSSI offset takes −20 to +20 dB, like Settings → Tracking → Receivers and the Receivers page.</b> It took −30 to +30. An offset you already saved outside that range is shown as it is and isn't changed unless you type a new one.</li>
+          <li><b>Settings → Tracking → Receivers and the Receivers page no longer cut a saved signal adjustment to ±20 dB.</b> 1 m Reference Calibration can save an adjustment past ±20 dB. Pressing Save on that receiver's row in either place cut it to ±20, even when you hadn't changed the number. Now an adjustment you haven't changed is saved as it is, and only a number you type is held to −20 to +20, as on Bluetooth → Scanners.</li>
+          <li><b>Compare Maps no longer stops when a shown plan has rooms but no placement.</b> It showed nothing at all. The placed plans are compared, and the others are named underneath as not placed yet.</li>
+          <li><b>Compare Maps gives its errors in metres.</b> It gave them as a percentage of an internal unit it never named. The ratings are the same as before, and a line under the result says, in metres, where Excellent, Good and Fair end for your house.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.212</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">31 October 2026</span>
