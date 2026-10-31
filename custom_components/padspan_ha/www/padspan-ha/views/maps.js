@@ -6103,6 +6103,12 @@ function _stack(ctx, maps, helpBtn){
           }
 
           // Per-point residuals using the RAW matrix (exact, no decomposition)
+          // `dist` is in fractions of the reference picture's width and height,
+          // which read as "%" of nothing anyone could see: each point's error
+          // is shown in the reference's metres (`m`; it is placed, or the
+          // modal would not have opened). The colours still go by `pct`.
+          const refPl = _placeOf(refMap.id);
+          const _atM = (fx, fy) => mapFracToMetres(refPl, fx, fy) || [0, 0];
           const perPoint = [];
           const n = Math.min(refPts.length, tgtPts.length);
           for (let i = 0; i < n; i++) {
@@ -6112,7 +6118,9 @@ function _stack(ctx, maps, helpBtn){
             const dx2 = predX - refPts[i].x;
             const dy2 = predY - refPts[i].y;
             const dist = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+            const pm = _atM(predX, predY), rm = _atM(refPts[i].x, refPts[i].y);
             perPoint.push({ idx: i + 1, dist, pct: Math.round(dist * 1000) / 10,
+              m: Math.hypot(pm[0] - rm[0], pm[1] - rm[1]),
               predX, predY, refX: refPts[i].x, refY: refPts[i].y });
             console.log("[PtAlign] Pt " + (i+1) + ": pred=(" +
               predX.toFixed(4) + "," + predY.toFixed(4) + ") ref=(" +
@@ -6638,8 +6646,8 @@ function _stack(ctx, maps, helpBtn){
           const chip = document.createElement("span");
           chip.style.cssText = "font-size:10px;padding:2px 6px;border-radius:3px;font-family:monospace;" +
             "background:" + ppColor + "18;color:" + ppColor + ";border:1px solid " + ppColor + "44";
-          chip.textContent = "Pt " + pp.idx + ": " + pp.pct.toFixed(1) + "%";
-          chip.title = "Point pair " + pp.idx + " — distance " + pp.dist.toFixed(4) + " (lower = better fit)";
+          chip.textContent = "Pt " + pp.idx + ": " + pp.m.toFixed(2) + " m";
+          chip.title = "Point pair " + pp.idx + " — " + pp.m.toFixed(2) + " m between the point and where the fit puts it (lower = better fit)";
           ppDiv.appendChild(chip);
         }
         previewPanel.appendChild(ppDiv);
@@ -6647,7 +6655,7 @@ function _stack(ctx, maps, helpBtn){
         if (worstPt.pct > 3) {
           const tip = document.createElement("div");
           tip.style.cssText = "margin-top:4px;font-size:10px;color:#f59e0b;text-align:center";
-          tip.textContent = "Point " + worstPt.idx + " has high error (" + worstPt.pct.toFixed(1) + "%). Consider going Back and re-placing it.";
+          tip.textContent = "Point " + worstPt.idx + " has high error (" + worstPt.m.toFixed(2) + " m). Consider going Back and re-placing it.";
           previewPanel.appendChild(tip);
         }
       }

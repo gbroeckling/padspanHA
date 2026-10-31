@@ -256,8 +256,11 @@ def test_the_panel_loads_the_help_language_and_keeps_english_as_imported() -> No
 
 def test_the_translated_help_is_fetched_on_first_need_not_at_startup() -> None:
     """help.json (~340 KB) is not fetched when the panel loads, only on the
-    first "?" (which waits up to 2 s, then opens the English) or the first
-    visit to Training; English fetches nothing (tests/js/help_lazy.mjs)."""
+    first "?" (its modal opens at once with a loading line, filled in when the
+    translation arrives or in English after 2 s; a late translation replaces
+    that English while the same help is open; a failed load is tried again by
+    a "?" a minute later) or the first visit to Training; English fetches
+    nothing (tests/js/help_lazy.mjs)."""
     if _NODE is None:
         pytest.skip("node is not installed")
     res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "help_lazy.mjs"), str(_WWW)],
@@ -265,7 +268,7 @@ def test_the_translated_help_is_fetched_on_first_need_not_at_startup() -> None:
     lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
     assert lines, res.stderr[-3000:]
     out = json.loads(lines[-1])
-    assert not out["failures"] and len(out["cases"]) == 10, out["failures"]
+    assert not out["failures"] and len(out["cases"]) == 16, out["failures"]
 
 
 def test_the_training_manual_opens_with_the_note_only_when_translated() -> None:

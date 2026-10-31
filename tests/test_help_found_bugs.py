@@ -22,6 +22,12 @@
   compare   Compare Maps threw on a visible plan with rooms but no placement;
             its error read "%" (of a world unit): now metres, same rating
 
+Two more from the same audit, in their own harness or here:
+  Point Align's preview read each point's error as "%" of the reference
+  picture's width and height: now metres (tests/js/point_align_metres.mjs).
+  The standalone Events view (?view=events, a session log) had its "?" on
+  manage_events, the room-change alerts: now its own session_log topic.
+
 tests/js/help_found_bugs.mjs renders each of them.
 """
 
@@ -83,3 +89,22 @@ def test_the_help_gives_compare_maps_in_metres() -> None:
     help_src = (WWW / "help_content.js").read_text(encoding="utf-8")
     line = next(ln for ln in help_src.splitlines() if "Compare Maps (Advanced, two or more plans)" in ln)
     assert "%" not in line and "in metres" in line
+
+
+def test_point_align_gives_each_points_error_in_metres() -> None:
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    r = subprocess.run([node, str(ROOT / "tests" / "js" / "point_align_metres.mjs"), str(ROOT).replace("\\", "/")],
+                       capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert r.returncode == 0, r.stderr[-2000:]
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    assert not out["failures"] and len(out["cases"]) == 5, out["failures"]
+
+
+def test_the_events_view_has_its_own_help() -> None:
+    src = (WWW / "views" / "events.js").read_text(encoding="utf-8")
+    assert 'helpBtn("session_log")' in src and "manage_events" not in src
+    help_src = (WWW / "help_content.js").read_text(encoding="utf-8")
+    block = help_src[help_src.index("  session_log: {"):help_src.index("  qa: {")]
+    assert "Navigation" in block and "Data" in block and "Tag" in block and "gone when you reload" in block

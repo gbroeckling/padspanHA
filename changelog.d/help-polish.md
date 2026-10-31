@@ -1,0 +1,9 @@
+# Help loads visibly in German, French and Dutch; Point Align errors in metres
+
+### Changed
+- **The first "?" in German, French or Dutch opens at once.** It used to wait up to 2 seconds with nothing on screen while the translated help downloaded. Now the help window opens straight away with "Loading help…" and fills in when the translation arrives (or in English after 2 seconds, as before). If the translation arrives after that, the open help switches to it.
+- **Point Align gives each point's error in metres.** The preview's chips ("Pt 1: …") and its "high error" tip read a percentage of the reference picture's width and height, which said nothing you could check. They now show how far, in metres, each point is from where the fit puts it. The colours are the same as before.
+
+### Fixed
+- **A translated help that failed to download is tried again.** When the download failed (offline, or the file was missing), the help stayed in English until the page was reloaded. Now a "?" a minute or more later tries again.
+- **The Events log page has its own help.** Its "?" opened the help for Manage → Events, the room-change alerts, which is a different page. It now explains the log: screens you opened, live data updates and tagging since the page opened, gone on reload. In German, French and Dutch too.

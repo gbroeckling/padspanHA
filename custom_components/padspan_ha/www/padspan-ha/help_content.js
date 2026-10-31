@@ -340,6 +340,16 @@ export function helpTexts() { return {
   },
 
   // ── Events ─────────────────────────────────────────────────────────────────
+  // views/events.js, opened only by ?view=events: the same session log as
+  // History → Session Events, without the server calls. Not Manage → Events.
+  session_log: {
+    title: t("Events — what you did in the panel since this page opened"),
+    body: [
+      t("A log of this visit to the panel, newest first: screens you opened (Navigation), each live data update with how many devices it held (Data), and devices you tagged or untagged (Tag). The badges at the top count each kind."),
+      t("Click a Navigation row to open that screen again. The log keeps the latest 500 entries, lives only in this browser and is gone when you reload. History → \"Session Events\" shows the same log, with calls to the server too, and can clear it."),
+      t("Room-change alerts are somewhere else: Manage → \"Events\" tab."),
+    ],
+  },
 
   // ── QA ─────────────────────────────────────────────────────────────────────
   qa: {

@@ -3544,30 +3544,40 @@ class PadSpanHaApp extends HTMLElement {
   /** HELP in hass's language, loaded on first need (the first "?" or the
    *  Training page), not at startup: a shipped one fetches
    *  i18n/<lang>/help.json (~340 KB) and rebuilds HELP through it; English
-   *  keeps the imported HELP untouched and fetches nothing. Once per language. */
+   *  keeps the imported HELP untouched and fetches nothing. Once per language;
+   *  one that failed to load (offline, a 404) is tried again by a "?" a
+   *  minute or more later. */
   _loadHelpLanguage(){
-    const lang = this._langSeen;
-    if(this._helpLoad && this._helpLoad.lang === lang) return this._helpLoad.p;
+    const lang = this._langSeen, was = this._helpLoad;
+    if(was && was.lang === lang && !(was.failedAt && Date.now() - was.failedAt >= 60000)) return was.p;
     const before = HELP;
-    const p = Promise.all([_i18nPromise, _criticalPromise]).then(([I18N]) => I18N ? I18N.useLanguage(this._hass, ["help"]) : "en").then(got => {
+    const load = this._helpLoad = { lang, p: null, done: false, failedAt: 0 };
+    let I18N = null;
+    const p = load.p = Promise.all([_i18nPromise, _criticalPromise]).then(([m]) => (I18N = m) ? I18N.useLanguage(this._hass, ["help"]) : "en").then(got => {
+      // A shipped language that came back English: its help.json didn't load.
+      if(got === "en" && I18N && I18N.LANGUAGES.includes(I18N.langOf(this._hass))) load.failedAt = Date.now();
       if(HELP_MOD && (got !== "en" || HELP !== HELP_MOD.HELP)) HELP = got === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();
       // Training draws from HELP: redraw it once the translation is in.
       if(HELP !== before && this.state && this.state.view === "training") this._scheduleRender();
-    }).catch(err => console.warn("PadSpan: help translation failed to load", err));
-    const load = this._helpLoad = { lang, p, done: false };
+    }).catch(err => { load.failedAt = Date.now(); console.warn("PadSpan: help translation failed to load", err); });
     p.then(() => { load.done = true; });
     return p;
   }
 
-  /** Open a help modal for the given key. The first one waits up to 2 s for
-   *  the translated help; if it hasn't arrived, the English opens. */
+  /** Open a help modal for the given key. While the translated help is still
+   *  loading, the modal opens at once with a loading line and fills in when
+   *  it arrives, or in English after 2 s; a translation arriving later still
+   *  replaces that English if the same help is open. */
   _showHelp(key){
-    const p = this._loadHelpLanguage();
-    if(this._helpLoad.done) return this._openHelp(key);
-    let opened = false;
-    const open = () => { if(!opened){ opened = true; this._openHelp(key); } };
-    p.then(open);
-    setTimeout(open, 2000);
+    const p = this._loadHelpLanguage(), load = this._helpLoad;
+    if(load.done || !HELP[key]) return this._openHelp(key);
+    this._openModal("", '<div style="color:#94a3b8;font-size:14px">Loading help…</div>');
+    const top = () => this.$modal && this.$modal.firstChild;
+    let shown = top();   // our modal, until it is closed or another replaces it
+    const fill = () => { if(shown && shown === top()){ this._openHelp(key); shown = top(); } };
+    let english = null;
+    p.then(() => { if(english !== HELP) fill(); });
+    setTimeout(() => { if(!load.done){ english = HELP; fill(); } }, 2000);
   }
 
   /** The help modal itself (content from help_content.js). */
