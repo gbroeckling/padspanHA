@@ -143,7 +143,7 @@ async def test_the_switch_decides_and_unreadable_settings_send_nothing(online, m
     session, _ = online
     called = []
 
-    async def _lookup(hass, mac, force_refresh=False, address_type=None):
+    async def _lookup(hass, mac, force_refresh=False, address_type=None, cached_only=False):
         called.append((mac, address_type))
         return {}
 
@@ -423,3 +423,136 @@ def test_random_is_never_downgraded_and_goes_with_the_address(monkeypatch) -> No
     bl.cache_age_s = 60.0
     bl.get_snapshot(max_ads=100, max_age_s=60)
     assert bl._seen_by_source == {} and bl._address_types == {}
+
+
+# ── Only devices heard right now (0.38.209) ──────────────────────────────────
+# The types radios report are kept in memory and only while the address is
+# cached (4 h by default), but the Objects list also shows rows from the object
+# history: 1-14 days, tagged ones for good, and across restarts. 0.38.208 asked
+# online for those with only the bits to go on, so C4:11:22 went out for a
+# random address it had stopped hearing. Now an address no radio heard in the
+# last 5 minutes gets the answer kept for its prefix, if there is one, and
+# nothing is sent.
+
+
+def _keep(cache, prefix="C4:11:22", maker="Kept, Inc."):
+    """An answer the 30-day cache already holds for the prefix."""
+    import datetime as dt
+
+    cache.set(prefix, {"fetched_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+                       "found": True, "sources": {"macvendors": maker, "maclookup": None}})
+
+
+async def _never_sent_but_kept_answer_shown(hass, session, cache, mac=RANDOM_STATIC):
+    out = await _ask(hass, mac)
+    assert out["not_heard"] is True and out["found"] is False and out["skipped"] is None, out
+    _keep(cache)
+    out = await _ask(hass, mac)
+    assert out["cached"] is True and out["sources"]["macvendors"] == "Kept, Inc.", out
+    assert out["not_heard"] is False
+    assert session.urls == []
+
+
+def _age(bl, addr, seconds):
+    import datetime as dt
+
+    for rec in bl._seen_by_source[addr].values():
+        rec.seen = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=seconds)
+
+
+@pytest.mark.asyncio
+async def test_an_address_pruned_from_the_live_cache_is_never_sent(online, monkeypatch) -> None:
+    session, cache = online
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source="proxy"))
+    _age(bl, RANDOM_STATIC, 5 * 3600)
+    bl.cache_age_s = 4 * 3600.0
+    bl.get_snapshot(max_ads=100, max_age_s=4 * 3600)
+    assert RANDOM_STATIC not in bl._seen_by_source and bl._address_types == {}  # the type went with it
+    await _never_sent_but_kept_answer_shown(hass, session, cache)
+
+
+@pytest.mark.asyncio
+async def test_after_a_restart_a_row_left_in_history_is_never_sent(online, monkeypatch) -> None:
+    import time
+
+    session, cache = online
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source="proxy"))
+    assert BL.known_address_type(hass, RANDOM_STATIC) == "random"
+    # Home Assistant restarts: a new, empty cache. The row is still in the
+    # object history; the device isn't heard again, though HA replays its last
+    # advert from 17 minutes ago, without a type.
+    from types import SimpleNamespace
+    fresh = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
+    hass.data[DOMAIN][BL.DATA_KEY] = fresh
+    replayed = _advert(RANDOM_STATIC, _bluez(RANDOM_STATIC))
+    replayed.time = time.monotonic() - 1020.0
+    fresh._on_adv(replayed)
+    assert BL.known_address_type(hass, RANDOM_STATIC) is None and not BL.heard_now(hass, RANDOM_STATIC)
+    await _never_sent_but_kept_answer_shown(hass, session, cache)
+
+
+@pytest.mark.asyncio
+async def test_a_tagged_row_older_than_4_hours_is_never_sent(online, monkeypatch) -> None:
+    """Tagged rows never leave the history. Here its last report is even still
+    in the live cache (no snapshot has pruned it yet), without a type."""
+    session, cache = online
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
+    _age(bl, RANDOM_STATIC, 4 * 3600 + 600)
+    assert RANDOM_STATIC in bl._seen_by_source and not BL.heard_now(hass, RANDOM_STATIC)
+    await _never_sent_but_kept_answer_shown(hass, session, cache)
+
+
+@pytest.mark.asyncio
+async def test_a_device_heard_in_the_last_5_minutes_is_looked_up(online, monkeypatch) -> None:
+    session, cache = online
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
+    _age(bl, RANDOM_STATIC, 290)
+    out = await _ask(hass, RANDOM_STATIC)
+    assert out["not_heard"] is False and out["skipped"] is None
+    assert session.urls and all(u.endswith("/C4:11:22") for u in session.urls)
+    _age(bl, RANDOM_STATIC, 310)
+    cache.entries.clear()
+    asked = len(session.urls)
+    out = await _ask(hass, RANDOM_STATIC)
+    assert out["not_heard"] is True and len(session.urls) == asked
+
+
+def test_heard_now_reads_every_radio_by_when_it_was_heard(monkeypatch) -> None:
+    import datetime as dt
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.const import DATA_ESPRESENSE_MQTT
+    from custom_components.padspan_ha.tasmota_ble import DATA_TASMOTA_BLE
+
+    BL, bl, hass = _stack(monkeypatch)
+    now = dt.datetime.now(dt.timezone.utc)
+    at = lambda s: SimpleNamespace(seen=now - dt.timedelta(seconds=s))  # noqa: E731
+    hass.data[DOMAIN][DATA_ESPRESENSE_MQTT] = SimpleNamespace(_seen={
+        "A4:C1:38:00:00:01": {"espresense_hall": at(30)}, "A4:C1:38:00:00:02": {"espresense_hall": at(900)}})
+    hass.data[DOMAIN][DATA_TASMOTA_BLE] = SimpleNamespace(_seen={"A4:C1:38:00:00:03": {"tasmota_k": at(60)}})
+    assert BL.heard_now(hass, "a4:c1:38:00:00:01") and BL.heard_now(hass, "A4C138000003")
+    assert not BL.heard_now(hass, "A4:C1:38:00:00:02") and not BL.heard_now(hass, "A4:C1:38:00:00:09")
+    bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
+    assert BL.heard_now(hass, RANDOM_STATIC)
+    _age(bl, RANDOM_STATIC, BL.HEARD_NOW_S + 1)
+    assert not BL.heard_now(hass, RANDOM_STATIC)
+
+
+@pytest.mark.asyncio
+async def test_cached_only_answers_from_the_cache_or_not_at_all(online) -> None:
+    session, cache = online
+    out = await VL.async_lookup_vendor(_hass(), RANDOM_STATIC, cached_only=True)
+    assert out["not_heard"] is True and session.urls == []
+    cache.set("C4:11:22", {"fetched_at": "2026-01-01T00:00:00Z", "found": True,
+                           "sources": {"macvendors": "Old, Inc.", "maclookup": None}})
+    out = await VL.async_lookup_vendor(_hass(), RANDOM_STATIC, cached_only=True)
+    assert out["not_heard"] is True and session.urls == []      # older than 30 days: not used
+    _keep(cache)
+    for force in (False, True):
+        out = await VL.async_lookup_vendor(_hass(), RANDOM_STATIC, force_refresh=force, cached_only=True)
+        assert out["cached"] is True and out["not_heard"] is False and session.urls == []
+    out = await VL.async_lookup_vendor(_hass(), "DA:11:22:33:44:55", cached_only=True)
+    assert out["skipped"] == "local" and out["not_heard"] is False

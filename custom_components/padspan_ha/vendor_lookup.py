@@ -12,7 +12,8 @@ Why this exists:
 - To make those usable, we do a best-effort *manufacturer/vendor* lookup using public OUI databases.
 
 Privacy (the rule, word for word everywhere it is described):
-first three bytes only; never addresses known to be random or locally administered.
+first three bytes only, for devices heard in the last 5 minutes; never addresses known to be
+random or locally administered.
 - On by default; only an administrator turns it off or on (ws_settings): Settings → Tracking →
   Privacy, updates and feedback → "Look up device makers online".
 - Only the first three bytes (AA:BB:CC) ever leave the house, never a whole address.
@@ -20,6 +21,11 @@ first three bytes only; never addresses known to be random or locally administer
   bluetooth_live.known_address_type), and, whatever the radio said, one whose first byte has
   bit 0x02 (locally administered) or 0x01 (multicast) set. When no radio reported the type,
   the bit rule is all there is to go on.
+- Only for an address a radio heard in the last 5 minutes (bluetooth_live.heard_now). The types
+  are kept in memory and only while the address is cached, but the Objects list also shows rows
+  from the object history (1-14 days, tagged ones for good, and across restarts): for those
+  ws_vendor_lookup passes cached_only, so they get the answer kept for their prefix, or none
+  ("not_heard"), and nothing is sent.
 - Answers are cached by prefix for 30 days (CACHE_TTL), so each prefix is asked once.
 
 We intentionally use TWO independent sources so we can cross-check results:
@@ -220,9 +226,12 @@ async def _fetch_maclookup(hass: HomeAssistant, prefix: str) -> Tuple[Optional[D
 
 
 async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool = False,
-                              address_type: Optional[str] = None) -> Dict[str, Any]:
+                              address_type: Optional[str] = None,
+                              cached_only: bool = False) -> Dict[str, Any]:
     """Lookup vendor/manufacturer for a MAC address (or prefix).
 
+    cached_only: answer from the cache or not at all (ws_vendor_lookup, for an
+    address no radio heard in the last few minutes); nothing is sent.
     Output schema is intentionally stable because the UI calls this directly.
     """
     mac_norm = _norm_mac(mac)
@@ -238,6 +247,8 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         "fetched_at": None,
         # Why nothing was sent ("random", "local", "multicast"), or None when it was looked up.
         "skipped": None,
+        # cached_only and no answer kept for the prefix: nothing was sent.
+        "not_heard": False,
     }
 
     if not prefix:
@@ -266,13 +277,17 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         except Exception:
             return False
 
-    if cached and _is_fresh(cached) and not force_refresh:
+    if cached and _is_fresh(cached) and (not force_refresh or cached_only):
         out.update({
             "found": bool(cached.get("found")),
             "sources": cached.get("sources", out["sources"]),
             "fetched_at": cached.get("fetched_at"),
             "cached": True,
         })
+        return out
+
+    if cached_only:
+        out["not_heard"] = True
         return out
 
     vendor1, err1 = await _fetch_macvendors(hass, prefix)

@@ -46,12 +46,18 @@ const ANSWERS = {
   "F0:18:98:12:34:56": { enabled: true, found: true, skipped: null, sources: { macvendors: "Apple, Inc.", maclookup: null } },
   "F0:18:98:AB:CD:EF": { enabled: true, found: false, skipped: "random", sources: { macvendors: null, maclookup: null } },
   "C4:11:22:33:44:55": { enabled: true, found: false, skipped: "random", sources: { macvendors: null, maclookup: null } },
+  // Rows from the object history, not heard in the last 5 minutes: nothing is
+  // sent; the answer kept for the prefix, or none.
+  "A4:C1:38:00:00:01": { enabled: true, found: false, skipped: null, not_heard: true, sources: { macvendors: null, maclookup: null } },
+  "A4:C1:38:00:00:02": { enabled: true, found: true, cached: true, skipped: null, not_heard: false, sources: { macvendors: "Kept, Inc.", maclookup: null } },
 };
 const OBJECTS = [
   { key: "ble:F0:18:98:12:34:56", kind: "ble", address: "F0:18:98:12:34:56", name: "Speaker", age_s: 2 },
   { key: "ble:F0:18:98:AB:CD:EF", kind: "ble", address: "F0:18:98:AB:CD:EF", name: "Watch", age_s: 2 },
   { key: "ble:C4:11:22:33:44:55", kind: "ble", address: "C4:11:22:33:44:55", name: "Tag", age_s: 2 },
   { key: "ble:DA:11:22:33:44:55", kind: "ble", address: "DA:11:22:33:44:55", name: "Phone", age_s: 2 },
+  { key: "ble:A4:C1:38:00:00:01", kind: "ble", address: "A4:C1:38:00:00:01", name: "Old sensor", age_s: 259200 },
+  { key: "ble:A4:C1:38:00:00:02", kind: "ble", address: "A4:C1:38:00:00:02", name: "Tagged sensor", age_s: 86400, user_label: "Freezer" },
   { key: "irk:abc", kind: "private_ble", address: "5E:11:22:33:44:55", canonical_id: "irk:abc", name: "Nicole's phone", age_s: 2 },
   { key: "ibeacon:fda50693:1:2", kind: "ibeacon", address: "ibeacon:fda50693:1:2", all_addresses: ["F4:11:22:33:44:55"], name: "Beacon", age_s: 2 },
   { key: "entity:device_tracker.car", kind: "entity", entity_id: "device_tracker.car", address: "00:1A:7D:DA:71:13", name: "Car", identified: true },
@@ -65,7 +71,7 @@ function openList({ settings, admin = true }) {
     model: { floors: [], areas: [] }, maps: [],
     live: { snapshot: {
       ble: { radios: [], advertisements: [], diag: { ok: true, errors: [] } },
-      objects: { list: OBJECTS, summary: { total: OBJECTS.length, identified: 1, unidentified: 6 } },
+      objects: { list: OBJECTS, summary: { total: OBJECTS.length, identified: 1, unidentified: OBJECTS.length - 1 } },
     } },
   };
   const helpers = new Proxy({ el, esc, helpBtn: () => el("button", {}, "?"), radioShortId: () => "", radioName: () => "",
@@ -109,11 +115,13 @@ function read(modal) {
     rows["F0:18:98:AB:CD:EF"] === "random address", JSON.stringify(rows));
   check("on: an address a radio reported as random says so", rows["C4:11:22:33:44:55"] === "random address", JSON.stringify(rows));
   check("on: a locally administered address says so", rows["DA:11:22:33:44:55"] === "random address", JSON.stringify(rows));
+  check("on: a row not heard recently, with no kept answer, says so", rows["A4:C1:38:00:00:01"] === "not heard recently", JSON.stringify(rows));
+  check("on: a row not heard recently shows the answer kept for its prefix", rows["A4:C1:38:00:00:02"] === "Kept, Inc.", JSON.stringify(rows));
   check("on: a private BLE row is a random address", rows.private_ble === "random address", JSON.stringify(rows));
   check("on: an iBeacon row has no one address to look up", rows.ibeacon === "n/a", JSON.stringify(rows));
   check("on: an entity row is not a Bluetooth row", rows.entity === "n/a", JSON.stringify(rows));
   check("on: only addresses whose bits are clear are asked about, each once",
-    JSON.stringify([...s.asked].sort()) === JSON.stringify(["C4:11:22:33:44:55", "F0:18:98:12:34:56", "F0:18:98:AB:CD:EF"]),
+    JSON.stringify([...s.asked].sort()) === JSON.stringify(["A4:C1:38:00:00:01", "A4:C1:38:00:00:02", "C4:11:22:33:44:55", "F0:18:98:12:34:56", "F0:18:98:AB:CD:EF"]),
     JSON.stringify(s.asked));
   check("on: the switch says On and an administrator can use it",
     toggle && toggle.textContent === "Look up makers online: On" && toggle.getAttribute("data-maker-lookup") === "on" && !toggle.disabled,
@@ -134,7 +142,8 @@ function read(modal) {
   check("off: the switch saves off", JSON.stringify(s.saved) === JSON.stringify([{ vendor_lookup_enabled: false }]), JSON.stringify(s.saved));
   check("off: the list reopened", s.modals.length === 3, String(s.modals.length));
   const off = read(s.modals[2]);
-  const bt = ["F0:18:98:12:34:56", "F0:18:98:AB:CD:EF", "C4:11:22:33:44:55", "DA:11:22:33:44:55", "private_ble", "ibeacon"];
+  const bt = ["F0:18:98:12:34:56", "F0:18:98:AB:CD:EF", "C4:11:22:33:44:55", "DA:11:22:33:44:55",
+    "A4:C1:38:00:00:01", "A4:C1:38:00:00:02", "private_ble", "ibeacon"];
   check("off: every Bluetooth row says Lookup off", bt.every(k => off.rows[k] === "Lookup off"), JSON.stringify(off.rows));
   check("off: an entity row stays n/a", off.rows.entity === "n/a", JSON.stringify(off.rows));
   check("off: nothing is asked", s.asked.length === before, JSON.stringify(s.asked.slice(before)));

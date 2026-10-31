@@ -517,6 +517,11 @@ export function renderClassic(ctx){
     if(res.skipped){
       return `<span class="badge warn">random address</span>`;
     }
+    // No radio heard it in the last 5 minutes (a row from the object history)
+    // and no answer is kept for its first three bytes: nothing was sent.
+    if(res.not_heard){
+      return `<span class="badge">not heard recently</span>`;
+    }
     const v1 = res.sources?.macvendors || null;
     const v2 = res.sources?.maclookup?.company || null;
     const rand = res.sources?.maclookup?.isRand;
@@ -632,11 +637,11 @@ export function renderClassic(ctx){
     controls.appendChild(stats);
 
     // Maker lookup switch, here where its answers show (admin-only, like the one
-    // in Settings): first three bytes only; never addresses known to be random
-    // or locally administered.
+    // in Settings): first three bytes only, for devices heard in the last 5
+    // minutes; never addresses known to be random or locally administered.
     const makerAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
     const makerToggle = el("button", { class: "btn inline", "data-maker-lookup": makerOn ? "on" : "off",
-      title: "Asks macvendors.com and maclookup.app which company made each device: the first three bytes of each address only, never an address known to be random or locally administered." },
+      title: "Asks macvendors.com and maclookup.app which company made each device heard in the last 5 minutes: the first three bytes of each address only, never an address known to be random or locally administered." },
       makerOn ? "Look up makers online: On" : "Look up makers online: Off");
     if (!makerAdmin) { makerToggle.disabled = true; makerToggle.title = "Only an administrator can change this"; }
     makerToggle.addEventListener("click", async () => {

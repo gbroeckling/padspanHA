@@ -77,8 +77,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # (update_check._keep_offers): {"tester": bool, "invite": bool}; {} = all on.
     "server_offers": {},
     # Opening the Objects list asks two public lookup services which company made
-    # each nearby device (vendor_lookup.py): first three bytes only; never
-    # addresses known to be random or locally administered. Admin-only switch.
+    # each nearby device (vendor_lookup.py): first three bytes only, for devices
+    # heard in the last 5 minutes; never addresses known to be random or locally
+    # administered. Admin-only switch.
     "vendor_lookup_enabled": True,
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)

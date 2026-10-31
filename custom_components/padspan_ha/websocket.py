@@ -689,7 +689,9 @@ async def ws_vendor_lookup(hass: HomeAssistant, connection, msg) -> None:
     Used by the Overview → Objects/Unidentified modal. On by default (only an
     administrator changes it); when the settings can't be read nothing is sent.
     vendor_lookup sends the first three bytes only, and never an address a radio
-    reported as random or whose bits mark it locally administered.
+    reported as random or whose bits mark it locally administered. An address no
+    radio heard in the last 5 minutes (a row from the object history) is never
+    sent: it gets the answer kept for its prefix, if there is one.
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     enabled = False
@@ -706,11 +708,13 @@ async def ws_vendor_lookup(hass: HomeAssistant, connection, msg) -> None:
     mac = msg.get("mac") or ""
     force = bool(msg.get("force_refresh", False))
     try:
-        from .bluetooth_live import known_address_type  # noqa: PLC0415
+        from .bluetooth_live import heard_now, known_address_type  # noqa: PLC0415
         atype = known_address_type(hass, mac)
+        live = heard_now(hass, mac)
     except Exception:
-        atype = None
-    res = await async_lookup_vendor(hass, mac, force_refresh=force, address_type=atype)
+        atype, live = None, False
+    res = await async_lookup_vendor(hass, mac, force_refresh=force, address_type=atype,
+                                    cached_only=not live)
     res["enabled"] = True
     connection.send_result(msg["id"], res)
 

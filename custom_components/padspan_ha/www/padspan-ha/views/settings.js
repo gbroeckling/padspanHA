@@ -1385,7 +1385,8 @@ function _settingsPresence(ctx, el){
       "When this is on, opening a device list (such as the Overview's All objects) asks two public services (macvendors.com and " +
       "maclookup.app) which company made each nearby Bluetooth device. It sends the first three bytes " +
       "of an address only (such as AA:BB:CC), never the whole address, and never an address known to " +
-      "be random or locally administered, the kind phones use. Each answer is kept for 30 days, so each " +
+      "be random or locally administered, the kind phones use. Only devices heard in the last 5 minutes " +
+      "are asked about. Each answer is kept for 30 days, so each " +
       "maker is asked about once. Like any web request, the services see your IP address. " +
       "Only an administrator can change this."
     ),

@@ -932,5 +932,41 @@ def known_address_type(hass: HomeAssistant, address: str) -> Optional[str]:
     return None
 
 
+# How recently a radio must have heard an address for the maker lookup to send
+# anything for it (heard_now). The types radios report are kept in memory, and
+# only while the address is cached (4 h by default), but the Objects list also
+# shows rows from the object history (1-14 days, tagged ones for good, and
+# across restarts): for those nothing is known, so nothing is sent.
+HEARD_NOW_S = 300.0
+
+
+def heard_now(hass: HomeAssistant, address: str) -> bool:
+    """True if a radio heard this address in the last HEARD_NOW_S: HA's
+    Bluetooth (bluetooth_live), ESPresense or Tasmota, by when it was heard."""
+    s = "".join(c for c in str(address or "").upper() if c in "0123456789ABCDEF")
+    key = ":".join(s[i:i + 2] for i in range(0, 12, 2)) if len(s) == 12 else str(address or "").upper()
+    now = _now()
+    caches: List[Any] = []
+    bl = get_bluetooth_live(hass)
+    if bl is not None:
+        caches.append(bl._seen_by_source)
+    try:
+        from .const import DATA_ESPRESENSE_MQTT  # noqa: PLC0415
+        from .tasmota_ble import DATA_TASMOTA_BLE  # noqa: PLC0415
+        dom = hass.data.get("padspan_ha", {})
+        for k in (DATA_ESPRESENSE_MQTT, DATA_TASMOTA_BLE):
+            caches.append(getattr(dom.get(k), "_seen", None) or {})
+    except Exception:
+        pass
+    for cache in caches:
+        try:
+            for r in (cache.get(key) or {}).values():
+                if (now - r.seen).total_seconds() <= HEARD_NOW_S:
+                    return True
+        except Exception:
+            continue
+    return False
+
+
 def get_bluetooth_live(hass: HomeAssistant) -> Optional[BluetoothLive]:
     return hass.data.get("padspan_ha", {}).get(DATA_KEY)
