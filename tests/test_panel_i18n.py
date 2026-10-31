@@ -42,7 +42,10 @@ _GROUP_BUDGET = 60 * 1024    # bytes per language group file
 # (~60 KB on their own) beside the translation, so one language is ~120-130 KB
 # (~45 KB gzipped). It loads once, lazily, only for a shipped language, never
 # for English; splitting it would only add fetches for the same bytes.
-_HELP_BUDGET = 160 * 1024
+# 2026-10-31: the help was rewritten and roughly doubled (89 topics, every
+# screen covered), so a fully translated help.json is ~340 KB (~110 KB
+# gzipped). Still fetched once, lazily, and only for a shipped language.
+_HELP_BUDGET = 400 * 1024
 _HELP = _WWW / "help_content.js"
 _SHIPPED = ("nl", "de", "fr")
 
