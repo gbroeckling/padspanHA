@@ -41,14 +41,14 @@ export function render(ctx){
     {
       name: "Adaptive Learning",
       enabled: settings.adaptive_learning_enabled === true,
-      location: "Settings \u2192 Presence",
+      location: "Settings \u2192 Tracking",
       tab: "settings",
       desc: "Passively learns room RSSI fingerprints from high-confidence assignments",
     },
     {
       name: "Floor Detection",
       enabled: settings.adaptive_floor_detection === true,
-      location: "Settings \u2192 Presence",
+      location: "Settings \u2192 Tracking",
       tab: "settings",
       desc: "Learns cross-floor signal attenuation for multi-story accuracy",
       sub: true,
@@ -56,14 +56,14 @@ export function render(ctx){
     {
       name: "MQTT Publishing",
       enabled: settings.mqtt_publish_enabled === true,
-      location: "Manage \u2192 Data",
+      location: "Manage \u2192 HA Entities",
       tab: "manage",
       desc: "Publishes device presence to MQTT topics for external systems",
     },
     {
       name: "Ignore Bermuda",
       enabled: settings.bermuda_ignore === true,
-      location: "Settings \u2192 Presence",
+      location: "Settings \u2192 Tracking",
       tab: "settings",
       desc: "Completely ignore all data from the Bermuda integration",
     },
