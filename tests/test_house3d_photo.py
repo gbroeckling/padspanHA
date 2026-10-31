@@ -502,7 +502,8 @@ def _no_ai(monkeypatch, tmp_path, change):
 
 def test_no_ai_task_chosen(monkeypatch, tmp_path, disk):
     msg = _no_ai(monkeypatch, tmp_path, lambda h: h.data[DOMAIN][DATA_SETTINGS].data.update(atlas_3d_ai_task_entity=""))
-    assert "2025.8" in msg and "Live Aboard" in msg
+    # The AI Task is chosen in Settings → AI (it said Settings → Atlas → Live Aboard until 0.38.207).
+    assert "2025.8" in msg and "Settings → AI" in msg
 
 
 def test_the_ai_task_is_gone(monkeypatch, tmp_path, disk):
