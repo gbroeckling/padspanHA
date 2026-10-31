@@ -832,19 +832,19 @@ function _svgCalibSetup() {
 @keyframes phonePulse{0%,100%{opacity:1}50%{opacity:0.5}}
 .phone{animation:phonePulse 1.5s ease-in-out infinite}
 </style>
-<text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Step 1: Choose a device and a floor plan</text>
+<text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Step 1: Choose a device and a floor</text>
 <rect x="20" y="28" width="360" height="80" rx="8" fill="#0d2318" stroke="#52b788" stroke-width="1.5"/>
-<text x="36" y="50" fill="#94a3b8" font-size="10" font-family="system-ui">Calibration Device</text>
+<text x="36" y="50" fill="#94a3b8" font-size="10" font-family="system-ui">Beacon Device</text>
 <rect x="36" y="56" width="160" height="22" rx="5" fill="#071008" stroke="#1b3526" stroke-width="1"/>
 <text x="48" y="72" fill="#cbd5e1" font-size="10" font-family="system-ui">Alice's Phone ▾</text>
 <g class="phone"><circle cx="330" cy="68" r="14" fill="#14b8a6" opacity="0.2" stroke="#14b8a6" stroke-width="1.5"/><circle cx="330" cy="68" r="6" fill="#14b8a6"/></g>
-<text x="36" y="96" fill="#94a3b8" font-size="10" font-family="system-ui">Floor Plan</text>
+<text x="36" y="96" fill="#94a3b8" font-size="10" font-family="system-ui">Floor</text>
 <rect x="136" y="86" width="160" height="22" rx="5" fill="#071008" stroke="#1b3526" stroke-width="1"/>
 <text x="148" y="102" fill="#cbd5e1" font-size="10" font-family="system-ui">Ground Floor ▾</text>
-<text x="200" y="140" text-anchor="middle" fill="#4a6052" font-size="10" font-family="system-ui">Open the Calibration tab (or standalone phone panel)</text>
-<text x="200" y="156" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Pick the BLE device you'll carry and the map to calibrate on</text>
-<text x="200" y="180" text-anchor="middle" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Tip: Use the standalone Calibration panel on your phone</text>
-<text x="200" y="196" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">It's optimised for one-handed use while walking around</text>
+<text x="200" y="140" text-anchor="middle" fill="#4a6052" font-size="10" font-family="system-ui">Calibration → Beacon and floor</text>
+<text x="200" y="156" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Pick the phone or tag you'll carry and the floor to calibrate</text>
+<text x="200" y="180" text-anchor="middle" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Tip: 60 s at each spot is recommended</text>
+<text x="200" y="196" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">The floor plan needs a scale before points can be saved</text>
 </svg>`;
 }
 
@@ -874,10 +874,10 @@ function _svgCalibPin() {
 <text x="272" y="46" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Pin &amp; Listen</text>
 <text x="272" y="66" fill="#4a6052" font-size="9" font-family="system-ui">1. Tap map where</text>
 <text x="272" y="79" fill="#4a6052" font-size="9" font-family="system-ui">   you're standing</text>
-<text x="272" y="99" fill="#4a6052" font-size="9" font-family="system-ui">2. Stand still 10s</text>
-<text x="272" y="119" fill="#4a6052" font-size="9" font-family="system-ui">3. PadSpan records</text>
-<text x="272" y="132" fill="#4a6052" font-size="9" font-family="system-ui">   RSSI from every</text>
-<text x="272" y="145" fill="#4a6052" font-size="9" font-family="system-ui">   scanner</text>
+<text x="272" y="99" fill="#4a6052" font-size="9" font-family="system-ui">2. Start Collecting</text>
+<text x="272" y="119" fill="#4a6052" font-size="9" font-family="system-ui">3. Stand still, then</text>
+<text x="272" y="132" fill="#4a6052" font-size="9" font-family="system-ui">   Save Point (or</text>
+<text x="272" y="145" fill="#4a6052" font-size="9" font-family="system-ui">   Discard)</text>
 <text x="272" y="172" fill="#14b8a6" font-size="9" font-weight="600" font-family="system-ui">3 points collected</text>
 <text x="272" y="192" fill="#4a6052" font-size="8" font-family="system-ui">More points = better</text>
 </svg>`;
@@ -930,23 +930,23 @@ function _svgCalibModel() {
 <text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Step 4: Compute model and check accuracy</text>
 <rect x="20" y="28" width="360" height="60" rx="8" fill="#0d2318" stroke="#52b788" stroke-width="1.5"/>
 <text x="36" y="48" fill="#52b788" font-size="11" font-weight="700" font-family="system-ui">Compute Model</text>
-<text x="36" y="64" fill="#4a6052" font-size="9" font-family="system-ui">Fits k-NN fingerprint + OLS path-loss model per scanner</text>
+<text x="36" y="64" fill="#4a6052" font-size="9" font-family="system-ui">Works out how accurately your points place people</text>
 <rect x="36" y="70" width="160" height="8" rx="4" fill="#1b3526"/>
 <rect class="bar" x="36" y="70" width="160" height="8" rx="4" fill="#52b788" style="width:140px"/>
 <g class="check"><text x="340" y="62" text-anchor="middle" fill="#52b788" font-size="20" font-family="system-ui">✓</text></g>
 <rect x="20" y="100" width="170" height="108" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1.5"/>
 <text x="36" y="120" fill="#94a3b8" font-size="10" font-weight="600" font-family="system-ui">Model Stats</text>
-<text x="36" y="140" fill="#4a6052" font-size="9" font-family="system-ui">Points collected: 24</text>
-<text x="36" y="156" fill="#4a6052" font-size="9" font-family="system-ui">Scanners used: 3</text>
-<text x="36" y="172" fill="#4a6052" font-size="9" font-family="system-ui">LOO accuracy: 87%</text>
-<text x="36" y="192" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Model quality: Good</text>
+<text x="36" y="140" fill="#4a6052" font-size="9" font-family="system-ui">Calibration Points: 24</text>
+<text x="36" y="156" fill="#4a6052" font-size="9" font-family="system-ui">Scanners Seen: 3</text>
+<text x="36" y="172" fill="#4a6052" font-size="9" font-family="system-ui">Est. Accuracy: ~1.4m</text>
+<text x="36" y="192" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Under 2 m shows green</text>
 <rect x="210" y="100" width="170" height="108" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1.5"/>
 <text x="226" y="120" fill="#94a3b8" font-size="10" font-weight="600" font-family="system-ui">What happens</text>
-<text x="226" y="140" fill="#4a6052" font-size="9" font-family="system-ui">k-NN matches new</text>
-<text x="226" y="154" fill="#4a6052" font-size="9" font-family="system-ui">signals to your</text>
-<text x="226" y="168" fill="#4a6052" font-size="9" font-family="system-ui">collected fingerprints</text>
-<text x="226" y="188" fill="#4a6052" font-size="9" font-family="system-ui">LOO = leave-one-out</text>
-<text x="226" y="202" fill="#4a6052" font-size="9" font-family="system-ui">cross-validation score</text>
+<text x="226" y="140" fill="#4a6052" font-size="9" font-family="system-ui">PadSpan compares live</text>
+<text x="226" y="154" fill="#4a6052" font-size="9" font-family="system-ui">signals with your</text>
+<text x="226" y="168" fill="#4a6052" font-size="9" font-family="system-ui">calibration points</text>
+<text x="226" y="188" fill="#4a6052" font-size="9" font-family="system-ui">Results: the stricter test</text>
+<text x="226" y="202" fill="#4a6052" font-size="9" font-family="system-ui">on spots it hasn't seen</text>
 </svg>`;
 }
 
@@ -1571,7 +1571,7 @@ const WALKTHROUGHS = [
     summary: "Real-world testing with 20+ ESP32 boards — what actually works for room-level tracking and what doesn't.",
     steps: [
       { title: "The Antenna Makes the Difference",            text: "I had about a dozen old ESP32 boards kicking around from a project three years ago, and ordered 10 more specifically for testing. The old boards made OK BLE scanners when they happened to have a decent antenna, but most were poor. The signal readings jumped around too much from scan to scan — a room that read −62 one moment would read −78 the next. Swapping to boards with a full-size external antenna was the single biggest improvement. The chip matters way less than the antenna.", svg: _svgAntennaComparison },
-      { title: "Three Boards That Worked",                    text: "Out of everything I tested, three setups stood out. First: an ESP32-S3 with a LAN (Ethernet) port and an external antenna — I'll be honest, this one didn't actually test better than the WiFi version, but the theory is sound (no WiFi radio competing with BLE) and it's the one I'd pick for a permanent install. Second: an ESP32-S3 with WiFi and a full-size antenna — this is probably the most practical choice for most people. Third: an ESP32-C3 with a full-size antenna — cheaper, and it still did the job well.", svg: _svgBoardRanking },
+      { title: "Three Boards That Worked",                    text: "Out of everything I tested, three setups stood out. First: an ESP32-S3 with a LAN (Ethernet) port and an external antenna — I'll be honest, this one didn't actually test better than the WiFi version, but the theory is sound (no WiFi radio competing with BLE) and it's the one I'd pick for a permanent install. Second: an ESP32-S3 with WiFi and a full-size antenna — this is probably the most practical choice for most people. Third: an ESP32-C3 with a full-size antenna — cheaper, and it still did the job well. What to avoid: older ESP32 boards (not S3 or C3) with only a tiny chip antenna on the board. They're fine for home/away or as a basic Bluetooth proxy, but too noisy to tell rooms apart. Whatever you buy, look for an IPEX (u.FL) antenna connector and use a 2.4 GHz antenna with it.", svg: _svgBoardRanking },
       { title: "Why Room Tracking Is Harder Than Home/Away",   text: "Getting a device's room right on a map is genuinely challenging. Home/away just needs to see any signal from any scanner — easy. Room-level tracking needs to reliably tell which scanner is closest, and sometimes the difference is only 7 dBm. A noisy chip antenna can flip that decision randomly. The whole point of PadSpan is placing devices in the correct room on a floor plan, and that only works when the signal readings are consistent enough to trust.", svg: _svgAntennaDetail },
     ],
   },
@@ -1648,12 +1648,12 @@ const WALKTHROUGHS = [
     id: "calibration",
     title: "Calibrate for Accuracy",
     icon: "🎯",
-    summary: "Walk around your home collecting signal fingerprints to build a calibration model for precise room detection.",
+    summary: "Walk your home with your phone so PadSpan learns what each spot sounds like, then see how accurate it is, room by room.",
     steps: [
-      { title: "Choose a Device and Floor Plan",           text: "Open the Calibration tab (visible in every mode) or use the standalone Calibration panel on your phone. Pick the BLE device you'll carry — usually your phone — and select which floor plan to calibrate. The standalone panel is optimised for one-handed phone use while walking around.", svg: _svgCalibSetup },
-      { title: "Pin & Listen — Collect Fingerprints",      text: "In the Pin & Listen tab, tap the floor plan where you're physically standing. Stand still for about 10 seconds while PadSpan records the RSSI signal strength from every scanner that can see your device. Each tap-and-wait creates one calibration point. Collect 15–30 points spread around your home for a good model.", svg: _svgCalibPin },
-      { title: "Roam — Check Coverage",                    text: "Switch to the Roam tab to see a coverage heatmap. Green cells have good fingerprint data, yellow have some, red need more. Walk to the red areas and collect more points there. The guided 'walk here next' target helps you fill gaps efficiently.", svg: _svgCalibHeatmap },
-      { title: "Compute Model & Validate",                 text: "Switch to the Model tab and click Compute Model. PadSpan fits a k-NN fingerprint model and per-scanner OLS path-loss model from your collected data. Leave-one-out cross-validation scores the accuracy. 80%+ is good, 90%+ is excellent. You can always collect more points and recompute to improve the score.", svg: _svgCalibModel },
+      { title: "Choose a Device and Floor",                text: "Open Calibration (in the main menu in every mode). It opens on Results; press \"🧭 Guided calibration\" to go step by step. On \"Beacon and floor\", pick the phone or tag you'll carry and the floor to calibrate, and a \"Collection Duration\": 15 s to start with, 60 s recommended. The floor plan needs a scale first: if it has none, \"Measure this floor →\" takes you to measure one distance you know.", svg: _svgCalibSetup },
+      { title: "Pin & Listen — Collect Points",            text: "On Pin & Listen, tap the map where you're standing, press \"Start Collecting\" and stand still until the time is up. Then press \"Save Point\" to keep it, or \"Discard\". Each saved spot is one calibration point: how strongly every receiver heard your phone there. Aim for 10–20 spots spread across each floor, including doorways and the walls between rooms.", svg: _svgCalibPin },
+      { title: "Roam — Let PadSpan Pick the Spot",          text: "Roam shows how well each part of the floor is covered (green covered, amber partly, red not yet) and a blue crosshair for the next target. Walk there, stand still and press \"I'm Here — Collect\". Once the accuracy has been worked out, a \"Priority:\" card names the room that needs points most.", svg: _svgCalibHeatmap },
+      { title: "Check the Accuracy",                       text: "On Model, press \"Compute Model\" (it needs 4 points or more). \"Est. Accuracy\" is how far off PadSpan's guess was on average, in metres; under 2 m shows green. Results then shows the stricter test on spots it hasn't seen, room by room, and the next best thing to do. Add points and compute again any time.", svg: _svgCalibModel },
     ],
   },
   {
@@ -1800,6 +1800,7 @@ const MANUAL_SECTIONS = [
       "5. Track phones: if you have the HA Companion App installed, open Overview — detected phones appear in a blue card. Click 'Track this phone' for one-click setup. PadSpan labels the phone, follows it, and enables BLE transmission automatically.",
       "6. Tag other devices in the Objects tab with friendly names. Then switch to Follow to track them in real time.",
       "7. For Apple devices (iPhones, Apple Watches), add their IRK via Settings → Private BLE Devices so PadSpan can resolve their rotating MAC addresses into a single stable identity.",
+      "8. Calibrate: open Calibration and press \"🧭 Guided calibration\" to walk the house once with your phone.",
       "Tip: If the Bluetooth tab shows 'No live data', make sure HA was fully restarted after install — not just reloaded. Use Quiet Mode (Overview top-right toggle) to hide unidentified clutter once your devices are tagged.",
     ],
   },
@@ -1893,6 +1894,12 @@ const MANUAL_SECTIONS = [
     helpKeys: ["zones"],
   },
   {
+    id: "help_traceback",
+    title: "Traceback",
+    icon: "⏪",
+    helpKeys: ["traceback_overview"],
+  },
+  {
     id: "help_insights",
     title: "Insights",
     icon: "📈",
@@ -1957,27 +1964,26 @@ const MANUAL_SECTIONS = [
     title: "Scanner Hardware",
     icon: "🔧",
     paragraphs: [
-      "PadSpan's goal isn't just home/away — it's putting devices in the right room on your floor plan. That's a harder problem, and the hardware you use matters more than you'd think.",
-      "I started with about a dozen old ESP32 boards left over from a project three years ago, and ordered 10 more for testing. Most of the old boards made poor BLE scanners — the signal readings were noisy and inconsistent, especially the ones with only a tiny chip antenna on the PCB. A few that had decent antennas worked OK, which is what clued me in: the antenna is the thing that matters.",
-      "Three setups worked well. First: an ESP32-S3 with an Ethernet (LAN) port and a full-size external antenna. Being honest, this didn't test noticeably better than WiFi — but the theory is that a wired connection means no WiFi radio competing with BLE scanning, and for a permanent always-on scanner that seems like the right call. Second: an ESP32-S3 with WiFi and a full-size antenna. This is probably the most practical option for most people — great BLE 5.0 support, no need to run Ethernet to every room. Third: an ESP32-C3 with a full-size antenna. Cheaper than the S3, and it still performed well for room-level tracking.",
-      "What to avoid: older ESP32 boards (not S3 or C3) with only an onboard chip antenna. They'll work fine for simple home/away detection or as basic Bluetooth proxies, but the RSSI readings are too inconsistent for reliable room assignment.",
-      "Whatever board you go with, look for an IPEX or u.FL antenna connector and use the included 2.4 GHz antenna. A C3 with a good antenna will outperform an S3 with a chip antenna every time — the antenna matters more than the chip.",
+      "The full story, with the boards that worked and what to avoid, is the \"Choosing Scanner Hardware\" walkthrough (Training → Walkthroughs). In short: the antenna matters more than the chip, and an ESP32-S3 or ESP32-C3 with a full-size external antenna works well.",
     ],
+  },
+  {
+    id: "help_setup",
+    title: "Setup",
+    icon: "🧩",
+    helpKeys: ["setup"],
+  },
+  {
+    id: "help_rooms",
+    title: "Rooms",
+    icon: "🚪",
+    helpKeys: ["rooms"],
   },
   {
     id: "calibration_section",
     title: "Calibration",
     icon: "🎯",
-    paragraphs: [
-      "Calibration improves room detection accuracy by collecting real signal fingerprints from your home. Instead of relying solely on 'strongest signal wins', PadSpan can match new signals against your calibration data using k-NN (k-Nearest Neighbours).",
-      "Beacon and floor tab — choose the BLE device you'll carry (usually your phone) and the floor plan to calibrate on.",
-      "Pin & Listen tab — tap the map where you're physically standing, then hold still for ~10 seconds. PadSpan records the RSSI from every scanner. Repeat at 15–30 locations spread around your home.",
-      "Roam tab — shows a coverage heatmap (10×10 grid). Green = well-covered, red = needs more data. A guided target marker suggests where to collect next.",
-      "Model tab — click Compute Model to fit the calibration data. Shows point count, scanner count, and LOO (leave-one-out) cross-validation accuracy. 80%+ is good, 90%+ is excellent. You can export or clear the model here.",
-      "Tune tab — 3D isometric view with draggable receiver markers for visual fine-tuning of scanner positions.",
-      "Standalone phone panel — a separate HA sidebar panel (PadSpan Calibration) optimised for one-handed phone use. Same calibration system, simpler shell — perfect for walk-around data collection.",
-      "Tips: collect points in doorways and room boundaries (that's where room detection is hardest). Collect at least 3 points per room. Hold the phone at a natural height (waist to chest). Recompute the model after adding new points.",
-    ],
+    helpKeys: ["calibration_overview", "calibration_results", "calibration_guided", "calibration_beacon", "calibration_matrix", "calibration_walk"],
   },
   {
     id: "ha_entities_section",
@@ -2256,10 +2262,10 @@ const QUICKSTART_SECTIONS = [
     title: "Calibration",
     icon: "📐",
     paragraphs: [
-      "Calibration improves room detection accuracy by collecting real signal fingerprints from your home. It is in the menu in every mode; the two tools most homes start with:",
-      "Tune — a 3D isometric view of your floor plans with draggable scanner markers. Drag each marker to match the scanner's real-world position so PadSpan's distance calculations start from the right place.",
-      "Beacon Tune — mark a beacon's physical position on the map, then let PadSpan auto-collect a 60-second RSSI fingerprint from every scanner. Repeat at several locations for best coverage.",
-      "Its other tabs (Beacon and floor, Pin & Listen, Roam, Model) are for collecting more fingerprints and checking the model.",
+      "Calibration teaches PadSpan what each spot in your house sounds like, so it puts people in the right room. It is in the main menu in every mode and opens on Results: how accurate it is now, room by room, and the next best thing to do.",
+      "To start, press \"🧭 Guided calibration\". It checks your receiver positions (Tune), asks which phone or tag you'll carry and which floor (Beacon and floor), walks you from spot to spot (Roam), then works out the accuracy (Model). The floor plan needs a scale first.",
+      "At each spot, stand still for the \"Collection Duration\" (15 s to start with, 60 s recommended). Aim for 10–20 spots spread across each floor.",
+      "Pin & Listen lets you pick the spots yourself, and Beacon Tune pins beacons that stay in one place so they keep calibrating on their own. Each tab's ? explains more.",
     ],
   },
   {

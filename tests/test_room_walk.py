@@ -360,7 +360,8 @@ ok(W.coversSave({seq: 3}, 3) && W.coversSave({seq: 4}, 3) && !W.coversSave({seq:
 ok(!W.walkLeft({state: {view: 'calibration'}}, {tab: 'walk'}) && W.walkLeft({state: {view: 'live'}}, {tab: 'walk'})
    && W.walkLeft({state: {view: 'calibration'}}, {tab: 'model'}), 'left');
 ok(W.changeWord({knn: {rooms_right_pc: 70}}, {knn: {rooms_right_pc: 80}}) === 'up' && W.changeWord(null, {}) === null, 'change');
-const ctx = { state: { maps: { list: [{ id: 'm', floor_id: 'f1' }] }, model: { room_geometry_m: geo } }, actions: {} };
+const ctx = { state: { maps: { list: [{ id: 'm', floor_id: 'f1' }] }, model: { room_geometry_m: geo } }, actions: {},
+              helpers: { helpBtn: () => el('button', {}, '?') } };
 const h = { heldoutLine: () => null };
 ok(text(W.renderWalk(ctx, el, {}, {points: []}, h)).includes('Setup required'), 'needs setup');
 const idle = text(W.renderWalk(ctx, el, {deviceId: 'p', mapId: 'm'}, {points: [{source: 'room_walk', room: 'Den'}]}, h));

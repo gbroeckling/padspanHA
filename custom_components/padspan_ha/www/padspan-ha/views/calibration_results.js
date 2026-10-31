@@ -268,7 +268,10 @@ export function renderResults(ctx, el, cs, calData, deps) {
   if (!pts.length) {
     if (action.kind !== "start") wrap.appendChild(actionCard());
     wrap.appendChild(el("div", { class: "card", "data-cal-results": "empty" }, [
-      el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0;margin-bottom:6px" }, "No calibration yet"),
+      el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
+        el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, "No calibration yet"),
+        ctx.helpers.helpBtn("calibration_results"),
+      ]),
       el("div", { class: "muted", style: "font-size:13px;line-height:1.6;margin-bottom:12px" },
         "Until you calibrate, PadSpan places people from the receivers alone. " +
         "Walk the house once with your phone and this page shows how accurate it is, room by room."),
@@ -282,6 +285,7 @@ export function renderResults(ctx, el, cs, calData, deps) {
   const accCard = el("div", { class: "card", "data-cal-results": "accuracy" });
   accCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px" }, [
     el("div", { style: "font-weight:700;font-size:14px;color:#e2e8f0" }, "How accurate it is now"),
+    ctx.helpers.helpBtn("calibration_results"),
     el("div", { style: "margin-left:auto" }, [guidedBtn(true)]),
   ]));
   const big = (value, label, color) => el("div", { style: "flex:1;min-width:120px;background:#0a150e;border:1px solid #1b3526;border-radius:8px;padding:10px;text-align:center" }, [

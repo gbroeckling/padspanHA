@@ -82,7 +82,7 @@ function makeCtx(settings) {
     },
     state: { complexity: "advanced", view: "rooms", settings: { lights_hidden: ["light.kitchen_hidden"], ...settings }, model, _modelLoaded: true,
       live: { snapshot: SNAP }, maps: { list: [{ id: "m_ground", name: "Ground", floor_id: "ground" }] } },
-    helpers: { el, esc: (s) => String(s ?? ""), roomColor: () => "hsl(200 70% 55%)", isAway: () => false, awayTimeoutS: () => 300, isScanner: () => false },
+    helpers: { el, helpBtn: () => el("button", {}, "?"), esc: (s) => String(s ?? ""), roomColor: () => "hsl(200 70% 55%)", isAway: () => false, awayTimeoutS: () => 300, isScanner: () => false },
     actions: {
       modelUpdate: async (p) => { calls.push({ type: "padspan_ha/model_update", ...p }); },
       wsCall: async (type, data) => { calls.push({ type, ...data }); return { ok: true }; },
