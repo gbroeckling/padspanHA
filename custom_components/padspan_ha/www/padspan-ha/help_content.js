@@ -177,28 +177,71 @@ export function helpTexts() { return {
 
   // ── Maps ─────────────────────────────────────────────────────────────────────
   maps: {
-    title: t("Mapping — Floor plans for your home"),
+    title: t("Mapping — Floor plans, rooms and receivers"),
     body: [
-      t("The Mapping section lets you upload photos or scans of your home's floor plans."),
-      t("Once uploaded, your floor plan shows the rooms alongside your Bluetooth scanner layout, helping you visualise coverage and plan where to add more scanners."),
-      t("You can upload one floor plan per floor — for example 'Ground Floor', 'Upper Floor', and 'Basement'."),
+      t("Mapping is where you give PadSpan a picture of each floor, its real size, the rooms on it and where your receivers (the Bluetooth listeners) hang. Positioning, the 3D views and the Atlas are all built from it."),
+      t("In Basic mode Mapping has two tabs, Library and Upload, and Open on a plan starts the Setup Wizard. Advanced and Development add Edit, 3D Stack, Layout, Atlas, Export and Help, plus Furnish while Live Aboard is on. Only an administrator gets Upload or can change a plan."),
+      t("New to it? Click Setup at the top (or Start Setup Wizard in an empty Library). It takes you through the plan, its scale, floor heights, rooms, receivers and calibration, one step at a time."),
+      t("Floors and rooms come from Home Assistant: create or rename them in Home Assistant's Settings → Areas & Zones. A floor can have more than one plan (a wing drawn on its own, say); only Outside is limited to one."),
+      t("Each tab has its own ? with the details."),
     ],
   },
   maps_library: {
-    title: t("Map library — Your uploaded floor plans"),
+    title: t("Map library — Your floor plans"),
     body: [
-      t("The library shows all the floor plans you've uploaded."),
-      t("In Sample mode, a sample house on three floors is shown so you can explore how the feature works without uploading anything."),
-      t("Switch to Live mode and go to the Upload tab to add your own floor plans."),
+      t("The Library lists every floor plan, grouped by floor, with its picture size, its floor and how many receivers are on it."),
+      t("\"not placed\" means the plan has no real-world size yet: measure it (Set the scale in the Setup Wizard, or Edit → Measure). \"gap detected\" means a room is far from every receiver, where one more receiver would help; Suggest Placement in Edit shows where."),
+      t("Open: in Basic mode it starts the Setup Wizard on that plan, at Set the scale; in Advanced it opens the plan in Edit. Delete removes a plan. If the plan holds data and another plan sits at the same stack level, you can move the data there first (Migrate & Delete); Revert migration undoes that for 10 minutes."),
+      t("+ Add a floor starts the Setup Wizard for a new plan. With no plans yet, Start Setup Wizard does the same."),
+      t("Compare Maps (Advanced, two or more plans) checks how well your floors line up. It compares where rooms with the same name sit on each plan shown in 3D Stack and rates the worst: Excellent under 2%, Good under 5%, Fair under 10%, otherwise Poor. Above 5%, line the floors up again in 3D Stack."),
+      t("In Sample mode the Library shows the sample house's plans, read-only. Switch to Live in the top bar to see and change your own."),
     ],
   },
   maps_upload: {
     title: t("Uploading a floor plan"),
     body: [
-      t("You can upload any floor plan image — PNG, JPG, or even a photo you took of a hand-drawn plan."),
-      t("Give the map a name (like 'Ground Floor'), then pick your image file and click Upload & Convert."),
-      t("PadSpan automatically resizes and stores the image in Home Assistant so it loads quickly."),
-      t("Tip: a photo of your architect's drawing or even a rough sketch works great."),
+      t("Upload adds a floor plan picture. Only an administrator sees this tab."),
+      t("1. Floor (from HA): the Home Assistant floor this plan belongs to, or Outside (Experimental) for a garden or yard. A house can have one Outside plan."),
+      t("2. Map name: optional. Left blank, it takes the file's name."),
+      t("3. Max size: the longest side, in pixels, after conversion. 1600 unless you change it."),
+      t("4. Choose the picture: PNG, JPG, GIF, BMP, WebP or SVG. A photo of a paper plan or a hand sketch works too. Drag on the preview to crop it if you like; Reset Crop starts over."),
+      t("5. Click Upload & Convert. PadSpan turns it into a PNG and keeps it in Home Assistant, where only people signed in can see it."),
+      t("In Advanced mode you land in Edit, ready to measure it. In Basic mode, Open on the plan in the Library starts the Setup Wizard on it."),
+      t("Tip: upload your most accurate, to-scale plan first. It makes the best Reference when you line up your other floors in 3D Stack."),
+    ],
+  },
+  maps_wizard: {
+    title: t("Setup Wizard — one floor plan, step by step"),
+    body: [
+      t("The Setup Wizard takes one floor plan from picture to working map in five steps: 1. Upload floor plan, 2. Set the scale, 3. Draw rooms, 4. Place scanners, 5. Finish. Once the plan exists, click any step's chip to jump to it."),
+      t("It starts from Start Setup Wizard or + Add a floor in the Library, and in Basic mode from Open on a plan. The guided Setup (Setup at the top of Mapping) sends you through the same steps, with floor heights and calibration added."),
+      t("Set the scale: click two points you know the real distance between, type it in metres and click Add 1st Measurement. Measure again at a different angle (Add 2nd Measurement), then click Save Scale. Two angles show whether the picture is stretched."),
+      t("Draw rooms: pick a room in Choose room…, click its corners on the plan, then double-click or click Finish (3 points or more). Click Save Layout to keep the rooms. The box above the map counts the rooms still to draw."),
+      t("Place scanners: in Live BLE Radios click Add next to a receiver, drag it to where it really is, pick its Room, then Save Layout. Its height (Height above floor, Save height) saves on its own."),
+      t("Steps 2 to 4 can be skipped and done later. Finish offers Put it on the map (adds the rooms and receivers your house layout doesn't have yet), Go to Calibration →, + Set up another floor and Done. Exit setup leaves at any time."),
+      t("In Basic mode each step shows only its own tool; Advanced keeps all of Edit's tools."),
+    ],
+  },
+  maps_layout: {
+    title: t("Layout — rooms and receivers in metres"),
+    body: [
+      t("Layout (Advanced) shows the house the way positioning sees it: each floor's rooms, receivers (green pins), beacons and walls, in real metres, with no floor plan behind them. Pick a floor with the Floor buttons."),
+      t("Move things: click a room to select it (Shift-click for more), drag it, or drag a corner to reshape it; drag a green pin to where that receiver really is. Then click Save corrections, or Discard changes."),
+      t("Rises to (m): select one room and give its height from floor to roof, for a room taller than its floor (a double-height living room, a hall under a gallery). Blank means the floor's height. It is used for drawing Live Aboard. Split level… sets a room's floor a little up or down."),
+      t("Layout: switches between the Saved layout and the layout your floor plans imply (Map placements), or a Blended one. Commit this layout writes the one you're looking at into the saved layout; Reset to computed layout throws away your edits to it first; Load into the layout editor brings it in for more changes."),
+      t("Also here: + Add room (a room in this layout only, no Home Assistant area needed), Import floorplan (.sh3d), What-if scanner (drag a pretend receiver to see whether it would tell rooms apart) and Show occupancy."),
+      t("Finalize floor locks the floor's room shapes against bulk rebuilds from the plans (Unlock… undoes it); single corrections still work."),
+    ],
+  },
+  maps_export: {
+    title: t("Export — copies of your maps"),
+    body: [
+      t("Export (Advanced) saves copies of your work. Pick a plan in Map:, then:"),
+      t("1 · Floor Plan Image — the plain picture (Download PNG, Open in new tab)."),
+      t("2 · Room Drawing (SVG) — the rooms and receivers as a line drawing."),
+      t("3 · Combined (Floor Plan + Rooms) — the picture with the rooms on it (Render & Download PNG)."),
+      t("4 · Full 3D Building — every floor stacked (Download SVG, Render PNG)."),
+      t("5 · Map Data Backup (JSON) — Backup All Maps saves every plan, its picture, its place in the stack and its real size in one file. Restore from Backup brings it back (Choose Backup File…, then Restore Maps); a plan whose name already exists is skipped."),
     ],
   },
   // ── Settings ─────────────────────────────────────────────────────────────────
@@ -482,23 +525,93 @@ export function helpTexts() { return {
 
   // ── Lights Build Controls ───────────────────────────────────────────────
   lights_build_controls: {
-    title: t("Lights Map — Build Controls"),
+    title: t("Atlas — Build controls"),
     body: [
-      t("The row above the map controls how it's drawn while you're arranging fixtures. Nothing here changes any device's real position or settings — it only changes what this view looks like."),
-      t("SHOWCASE — Switches to the same presentation rendering the Lights sidebar uses day to day (ambient dimming, glow), instead of the flatter working view most editing is easiest in."),
-      t("HIDE UNTOUCHED / UNTOUCHED (N) — Hides every fixture that has never been given a size, rotation, colour or shape of its own (only ever dropped at its default look). N is how many that currently is. Moving a fixture does not count as 'touching' it — nearly every fixture on a finished house has been moved, so that would hide almost nothing."),
-      t("HIDE CODES / CODES HIDDEN — Hides the A01/M08-style code label on every marker. The marker itself, and everything you can do with it, is unchanged — this is a decluttered view only."),
-      t("SHOW BEACONS / BEACONS SHOWN — Overlays working, identified beacons as read-only dots, same as the Overview map. Off by default. Their name text follows Hide Codes — turn codes off and beacon names hide too."),
-      t("AUTOMORPH — Grows a soft aura behind each placed fixture toward its own room's shape. Purely a visual aura; the fixture's own icon is never changed by it. Turning it on reveals four more controls:"),
-      t("  ROOM % — How far the aura reaches into the room, as a percentage of the room's own size. 0 keeps it tight to the fixture; higher lets it spread further before it fades out."),
-      t("  HARDNESS — The aura's edge shape. Centre (0) is unchanged; left sharpens the edge into a spikier outline, right softens it into a smoother, rounder one."),
-      t("  STYLE — Which of several distinct visual treatments (Glow / Blueprint / Nebula, …) paints the aura. Purely a look — switch freely, nothing else changes."),
-      t("  SUBTLETY — How much the aura fades toward the background. 0 keeps it fully visible; higher dials it down toward barely-there."),
-      t("FLOOR — Focuses the drawing on one storey (or an adjacent pair) instead of the whole stack, so a specific floor draws larger and is easier to work on."),
-      t("SPACING (Gap) — How far apart floors are drawn, vertically, in the isometric stack. Purely visual — it does not change any stored measurement."),
-      t("L / R — Shifts each floor sideways relative to the one below it, for a staggered building where an upper floor does not sit directly over the one below."),
-      t("SAVE VIEW / RESET VIEW — Save persists the current Gap, L/R and Floor focus as everyone's default for this map; Reset puts all three back to their defaults and saves that."),
-      t("ZOOM — Standard zoom in / reset to 100% / zoom out for the drawing itself. Mouse wheel and drag also work."),
+      t("The rows above the map in Mapping → Atlas change how the map is drawn while you place and style devices. None of them moves a device or changes its settings. Most need a PadSpan Bright Pro or PadSpan Pro key; Whole house, ▦ New layout and Live Aboard need PadSpan Pro."),
+      t("SHOWCASE — Draws each fixture in its real colour, with pools of light and shadows. It's only a picture: everything stays where it is and stays editable. While it's on (in the new layout, under Showcase options) you also get:"),
+      t("  Theme — one of 19 looks for the whole map: colours, room edges and the style of the light."),
+      t("  ⊞ Fit room — keeps each fixture's drawing inside its room, a little in from the walls. Saved sizes don't change."),
+      t("  ☼ Light spread — bands showing roughly how far each light reaches."),
+      t("  ✨ Scene — previews a colour layout across the house: Sunset, Dusk, Ember, Ocean, then off. ↻ turns it 45°. Your lights change only when you click Apply, and only the ones already on."),
+      t("  ◉ Ripple — tap the map and a pulse of brightness runs outward from there through the lights that are on."),
+      t("  Presets — Save current keeps the whole look under a name, and Apply brings it back: Showcase, Theme, Fit room, Light spread, Beacons, Codes, Untouched, Automorph and the Floor, Spacing, L / R and Zoom positions."),
+      t("◫ HIDE UNTOUCHED / UNTOUCHED (N) — Shows only lights that have been resized, rotated, recoloured or given a shape; N is how many are hidden. Moving a light doesn't count as touching it."),
+      t("▤ HIDE CODES / CODES HIDDEN — Hides the code label (A01, M08…) on every marker. The markers work as before."),
+      t("◉ SHOW BEACONS / BEACONS SHOWN — Adds your identified beacons as read-only dots. Off by default; their names hide along with the codes."),
+      t("◈ AUTOMORPH — A soft glow behind each placed fixture that grows toward its room's shape. It never moves a fixture. Its sliders (under Automorph tuning in the new layout):"),
+      t("  ROOM % — how far the glow reaches into the room."),
+      t("  HARDNESS — the edge: left is sharper and spikier, right is smoother; 0 in the middle leaves it as it is."),
+      t("  STYLE — one of 16 looks (Glow, Blueprint, Nebula, Halo and more)."),
+      t("  SUBTLETY — how faint it is; 0 is full strength."),
+      t("FLOOR — Draws one floor (or a pair) larger instead of the whole stack. Only shown with more than one floor."),
+      t("SPACING — How far apart the floors are drawn (60 to 340). L / R shifts each floor sideways, for an upper floor that doesn't sit straight over the one below. Both change only the drawing."),
+      t("SAVE VIEW / RESET VIEW — Save view keeps Spacing, L / R, Floor and Zoom as everyone's starting view. Reset view goes back to Spacing 150, L / R 0, all floors and 100%, and saves that. In the new layout these sit under Layout & view."),
+      t("ZOOM — − / 100% / +. The mouse wheel and dragging work too."),
+      t("MAP | LIVE ABOARD — With Live Aboard turned on, switches between this flat map and the 3D house. While the 3D house shows, Save view keeps the camera in Live Aboard's Views, Reset view goes back to the whole house, Zoom moves the 3D camera, and Spacing and L / R are hidden."),
+      t("▦ NEW LAYOUT / CLASSIC LAYOUT — Switches between the packed new layout (the default, and the one wall screens need) and the classic one."),
+      t("WHOLE HOUSE — Saves how every light and fan is right now as a named preset (type a name, then Set) and puts it all back with Apply. 🌴 Vacation Mode is the first entry; it has its own help."),
+      t("Placing devices is done on the map itself: drag a light to its spot, or click + Place on its row in the light index (or ◎ Queue all unplaced) and tap the map where it is."),
+    ],
+  },
+
+  // ── The Atlas (its own sidebar page) ────────────────────────────────────
+  atlas_page: {
+    title: t("The Atlas — everyday control"),
+    body: [
+      t("The Atlas is the map you use day to day: every floor, with your lights, strips, fans, sensors, locks, doors and windows where they really are. It has its own entry in Home Assistant's sidebar, on by default (Settings → Atlas → Show the Atlas in the Home Assistant sidebar; a change needs a restart of Home Assistant). Administrators get ✎ Edit map (not in Basic mode), which opens Mapping → Atlas, where the map is built."),
+      t("Tap a light to switch it. Tap its code, or press and hold, for brightness, colour, effects and fan speed; hold a dimmable light and slide up or down to dim it. Tap a room's name for everything in the room. Motion, temperature and air-quality tiles only show what's happening; tap a motion tile for its last 7 days."),
+      t("Above the map, the device chips (All, Lights, Strips, Fans, Motion, Temps and so on) bring one kind to the front, and the floor chips show one floor, with a dot for what's on up there. ◎ Find active jumps to whatever is on or tripped. Below the map, the light index lists every device, placed or not; click Code, Light, Room or State to sort it."),
+      t("Two taps on a room's empty floor zoom to that room. ⛶ at the bottom right fills the screen. Zoom in far enough and the bars step aside for the map; ☰ brings them back."),
+      t("Whole house (PadSpan Pro): save how every light and fan is right now as a named preset (type a name, then Set) and put it all back later with Apply. 🌴 Vacation Mode is in the same list."),
+      t("Settings → Atlas turns on the extras: ♨ Heatmap (PadSpan Pro; colours each room by temperature, then humidity, then CO₂), Alert pulse (a door left open, or a window or cover open while it rains, rings its room in amber), the Test emergency lighting button (shown only in a house with emergency lights) and 🌧️ Outdoor weather (rain and snow drawn around the house)."),
+      t("A leak sensor that reports wet rings its room in red, and a banner with its own Reset stays on every PadSpan screen until someone dismisses it, or for 2 days."),
+      t("With PadSpan Pro you can also show the Atlas as Overview (Settings → Atlas), put it on a wall screen, and switch it to Live Aboard, the 3D house. Each has its own help."),
+    ],
+  },
+
+  // ── Vacation Mode (Atlas → Whole house) ─────────────────────────────────
+  vacation_mode: {
+    title: t("Vacation Mode — lights that look lived-in"),
+    body: [
+      t("Vacation Mode (PadSpan Pro) switches your lights and fans while you're away, so the house looks lived in. It replays your own routine, learned from Home Assistant's history; it doesn't make one up. Only an administrator can turn it on or off."),
+      t("To turn it on: in the Atlas (the sidebar Atlas or Mapping → Atlas), pick 🌴 Vacation Mode in the Whole house list, click Apply, then Yes, turn on Vacation Mode. A banner then shows it's on, with an Energy saving slider (at 100% it plays the full routine; lower it and each light is less likely to come on), Options and Disable."),
+      t("Routine from: Last week plays each day like the same day last week. Monthly average plays each weekday from the last month's average. The choice is fixed when Vacation Mode is turned on, so a change applies the next time. A day missing from last week is taken from the week before, then from the monthly average."),
+      t("The other options are all off until you set them:"),
+      t("Only after dark — lights it would turn on in daylight stay off. Pick when dark starts, from 30 minutes before sunset to 2 hours after."),
+      t("Ends — a date and time when it turns itself off (No end clears it). You get the same notice as when someone turns it off."),
+      t("Pause while someone is home — while anyone in Home Assistant's People is home, nothing is switched. Nothing is forced off either."),
+      t("Bedtime — every light it runs goes off from about then until 5 am. The time moves up to 20 minutes either way each night."),
+      t("Longest on — a light it turned on goes off after this long, and stays off as long."),
+      t("Most lights on at once — the rest wait their turn. Evening lights and lights turned on by hand don't count."),
+      t("Evening lights — up to 10 lights, such as a porch or hall light. Each stays on for the part of the evening it was really on in that history (last week, or on average), and goes off at bedtime. Turned off in the evening, it comes back on within 5 minutes."),
+      t("Preview — Show the next 24 hours lists what it would switch with these options. Nothing is switched."),
+      t("Good to know: it learns only from Home Assistant's recorder, which keeps 10 days unless you've changed it, so a light left out of the recorder is never switched. It checks every 5 minutes, and a light someone switches by hand can be set back to what the routine says. When it ends or is turned off, Home Assistant gets a notification. Turned back on within 3 weeks, it carries on with the same routine."),
+      t("For experts: binary_sensor.padspan_vacation_mode shows it in Home Assistant, and the padspan_ha_vacation_mode event fires on every change."),
+    ],
+  },
+
+  // ── Wall screens (?kiosk=1) ─────────────────────────────────────────────
+  wall_screens: {
+    title: t("Wall screens — the Atlas on a wall"),
+    body: [
+      t("A wall screen is a tablet or TV that shows the Atlas all the time. Open the Atlas page with ?kiosk=1 on the end of its address (/padspan-lights?kiosk=1) and it becomes a wall: the whole house fits the screen, the header and the light list are left out, and the controls, room names and rain are sized for the room. It needs PadSpan Pro and the Atlas's new layout (Mapping → Atlas → ▦ New layout)."),
+      t("Set it up in Settings → Atlas → 📺 Wall screens. Size from the screen, or Size for my room: a preset (Desk monitor, Kitchen tablet, Hallway screen, Living-room TV, Big TV) or the Screen size and Viewing distance. Then Text size, Dim at night, burn-in protection, Show each floor (the floors take turns while nobody touches the wall) and the Fully Kiosk option. Changes save at once, and wall screens follow within half a minute."),
+      t("Just make a link (the house's walls stay as they are) builds a link for one screen with its own size and Screen orientation, without changing the others; Copy puts it on the clipboard."),
+      t("On the wall, the controls fade after 30 seconds with nobody there, and the first touch only wakes them. The screen is kept awake where the browser allows it (a secure https address, or the device itself). With Alert pulse on (Settings → Atlas), a banner across the top names the worst alert."),
+    ],
+  },
+
+  // ── Live Aboard (the 3D house) ──────────────────────────────────────────
+  aboard_3d: {
+    title: t("Live Aboard — the house in 3D"),
+    body: [
+      t("Live Aboard (PadSpan Pro, experimental) draws your house in 3D from the maps you already made: floors, rooms, walls, lights and furniture. Turn it on in Settings → Atlas → 🏠 Live Aboard (Show Live Aboard on the Atlas); ✨ Set it up step by step walks you through the rest. Then Map | Live Aboard switches the Atlas between the flat map and the 3D house (on the sidebar's new layout, the 🏠 button on the rail at the left)."),
+      t("Moving around: drag to turn the house; two fingers or the right mouse button move it; pinch or the wheel zooms. Double-tap a room to go there. Tap a light to switch it; hold it for brightness and colour. The bar underneath has Walls (Cut, Up, Down), Roof, Iso, Top, ⟳ 90° and Fit, and with two floors or more ▲ / ▼, All and ⇕ (pull the floors apart). Tap the compass for north up."),
+      t("Views ▾: All floors or one floor, Whole house, your saved views and Save this view (up to 8, kept for this screen in this browser; ✕ forgets one), Home view and Set as home, Show people and Show tags & scanners (administrators), Trails, last 30 min, and How it works, which brings back the first-time card. With the 3D house showing, the Atlas's Save view saves into Views too."),
+      t("Edit (Mapping → Atlas only): draw a Door, Window or Doorway (an opening with no door) along a wall, set a light's or sensor's height with Heights, or lay out an LED Strip. Undo, Redo, then Save or Discard; Done leaves Edit."),
+      t("Furnish (the Mapping → Furnish tab): Build ▾ adds a piece (Starter set, Furniture, Devices, House → Stairs, Other → Box); drag it into place. Floor ▲ / ▼ moves it to another floor and Height in room lifts it onto a table, a shelf or a wall. Stand on what's under it, Hang on wall, Duplicate, Delete, and This is a device… links it to a light, TV or fan. Nothing is kept until Save."),
+      t("Also in Furnish: From a photo (photograph a piece and an AI Task reads what it is and its size; needs Home Assistant 2025.8 or newer and an AI Task that reads pictures, chosen in Settings → AI), Library (the starter set and pieces other PadSpan houses have shared; Place, Fits here), Import (furniture from a Sweet Home 3D .sh3d file) and People & devices (give each person, beacon and receiver a look, by hand or from a photo)."),
+      t("Settings → Atlas → 🏠 Live Aboard also holds Quality, Look (Same as the Atlas, Live Aboard's own, or Studio — soft light and sky), Back to home view, North and Rain and snow. On the sidebar Atlas's flat map, Show furniture draws Live Aboard's furniture, doors and windows faintly."),
     ],
   },
 
@@ -664,16 +777,19 @@ export function helpTexts() { return {
 
   // ── Maps Edit Tools ────────────────────────────────────────────────────
   maps_edit: {
-    title: t("Map Editor — Drawing Rooms & Placing Scanners"),
+    title: t("Map Editor — Rooms, receivers, walls and scale"),
     body: [
-      t("The map editor has four modes, selectable with the buttons at the top:"),
-      t("RADIOS — Place Bluetooth scanner markers on the map. Double-click the map to add a scanner, then drag to position. Click a placed scanner to select it (shows delete button). Each scanner should be positioned where the physical device is mounted."),
-      t("ROOMS — Draw room boundary polygons. Click the map to add polygon points, double-click to finish the shape. Each polygon becomes a named room. Room names should match your Home Assistant Area names exactly."),
-      t("SIGNAL WALLS — Draw wall/barrier lines that block Bluetooth signal. Click to start, click to add points, double-click to finish. Choose material type: Open (Loft) for areas open to the floor above/below (0dB, no wall — only height-based attenuation applies), Brick (4dB), Concrete (8dB), Metal (12dB), or Custom for anything else (6dB unless you set your own number, 0-30dB). These are rough starting points, not measurements of your house: the Walls Guide (docs/WALLS_GUIDE.md) gives real-world ranges and what to do about old plaster-and-lath or thick stone walls. Open/Loft markers tell PadSpan that signal flows freely between floors at that boundary, reducing cross-floor stickiness. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to in Rooms) is drawn with a railing."),
-      t("MEASURE — Click two points you know the real distance between, to set or check the map's scale."),
-      t("SAVE LAYOUT — Saves all changes (receivers, rooms, barriers) to the server. Changes are not saved automatically."),
-      t("REVERT — Discards unsaved changes and reloads the last saved state."),
-      t("Important: Room names must match HA Area names for positioning to work. If a room boundary has a different name than the HA Area, objects won't be correctly positioned in that room."),
+      t("Edit (Advanced) is where a floor plan gets its rooms, receivers, walls and scale. Pick the plan in Map: and its floor in Floor:. The tool buttons are Radios, Rooms, Signal walls and 📏 Measure, plus Sub-zones when it's turned on. In Basic mode the Setup Wizard opens the same editor with one tool per step."),
+      t("WHAT SAVES WHEN — Rooms and receivers are drafts until you click Save Layout (it pulses when something is unsaved); Revert throws the draft away. Walls, sub-zones, the scale and a receiver's height save the moment you finish them."),
+      t("RADIOS — In Live BLE Radios, click Add next to a receiver Home Assistant hears: it lands mid-map, already in its Home Assistant room. Drag it to where it's really mounted. Click a placed receiver to give it a Room, a label, a Height above floor (Save height) or to Delete receiver. Double-clicking the map (or Add Receiver) adds a blank \"Receiver N\" that isn't tied to any real receiver."),
+      t("ROOMS — Pick the room in Choose room… (your Home Assistant areas), click its corners on the plan, then double-click or click Finish once you have 3 points or more. Undo point takes back a click; Clear boundary removes the room's shape so you can redraw it. A room already drawn on another plan is marked ⚠ with that plan's name: drawing it here makes a second copy. Enclose (3dB walls) puts a light wall along every edge of the room (the plan must be measured). A shape whose room is no longer in Home Assistant shows ⚠ orphan in Polygon layers, where Delete removes it. All rooms opens every room's settings on one page."),
+      t("SIGNAL WALLS — Walls tell PadSpan where signal is weakened. Pick a Material (Metal (12 dB) to start; Open (Loft), Brick, Concrete or Custom), click along the wall and double-click or click Finish (2 points or more). Which material? opens the Walls Guide. The plan must be measured first. In Walls on this floor, each wall can be deleted; Delete all walls on this floor clears them all."),
+      t("Doors and windows: click Door on a wall, click its two edges on the wall, choose the Linked sensor (a door or window sensor) and click Create door/window. Its open or closed state then shows on the map. If it reads backwards, click Invert on that wall."),
+      t("Open (Loft) marks an opening with no wall, such as a gallery over a hall. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to on Mapping → Layout) is drawn with a railing."),
+      t("📏 MEASURE — Click two points you know the real distance between, type it in metres and click Add 1st Measurement; do it again at a different angle, then click Save Scale. If the two disagree, the picture is stretched. Start Over clears them."),
+      t("SUB-ZONES — Draw an area inside a room (a bed, a couch, a desk) that gets its own occupied and who sensors in Home Assistant. Off until you tick its line (binary_sensor.padspan_…_occupied) under Manage → HA Entities."),
+      t("ROTATE IMAGE and TRIM IMAGE (administrators) — Rotate Image turns the picture: -90°, -15°, -5°, +5°, +15°, +90° or back to 0°, then Apply Rotation. Rooms and receivers turn with it; if PadSpan can't keep the scale, it asks you to measure again. Rotate before drawing rooms if you can: walls that run along the screen's edges stack best in 3D. Once a plan is tied to another in 3D Stack, Rotate Image is hidden. Trim Image crops the picture (drag, then Apply Trim)."),
+      t("Suggest Placement shows where one more receiver would help most; Clear Suggestion hides it."),
     ],
   },
 
@@ -723,14 +839,17 @@ export function helpTexts() { return {
 
   // ── Maps 3D Stack ──────────────────────────────────────────────────────
   maps_stack: {
-    title: t("3D Stack — Multi-Floor Alignment"),
+    title: t("3D Stack — Floor heights and lining up floors"),
     body: [
-      t("The 3D Stack tab lets you align multiple floor plan maps so they stack correctly in the isometric building view."),
-      t("FLOOR ASSIGNMENT TABLE — Set the z-level (floor number), ceiling height, and visibility for each map. Z-level 0 = ground floor, 1 = first floor, etc. Maps on the same z-level are shown as overlapping layers."),
-      t("ALIGNMENT OVERLAY — Position one map relative to another by dragging, rotating, and scaling. Choose a Reference map (fixed) and a Target map (movable). Align structural features like stairwells and exterior walls."),
-      t("POINT ALIGN SOLVER — For precise alignment, place matching point pairs on both maps (e.g., the same corner of a stairwell). The solver computes the optimal transform (rotation + scale + position) automatically."),
-      t("COMPARE ALL MAPS — Cross-checks room boundaries across all visible maps. Shows the worst-case alignment error as a percentage. Target: <5% for good accuracy."),
-      t("Accurate alignment is important because it affects how PadSpan handles cross-floor positioning and how the isometric view renders your building."),
+      t("3D Stack (Advanced) says how your floors sit on top of each other: how tall each one is, which plan belongs to which floor, and where each plan sits over the one below. It matters for telling floors apart and for every 3D view. With a single plan there is nothing to line up, but floor heights still count."),
+      t("FLOOR HEIGHTS — One row per floor. Floor↕ (m) is floor-to-floor height; blank means 2.8 m. Base elevation (m) is how high the floor starts; blank means it's worked out from the floors below. Click Save Floor Heights. For one tall room (a double-height living room), keep the floor's normal height here and give that room its own height with Rises to on Mapping → Layout."),
+      t("FLOOR ASSIGNMENT & CEILING HEIGHTS — One row per plan: Map, HA Floor, Stack Level (↓ / ↑; it fills in when you pick the floor), Ceiling (m) and Show. Click Save on a row to keep it. Show saves at once: untick it to hide a plan, which also leaves it out of Compare Maps."),
+      t("ALIGNMENT OVERLAY — Choose a Reference (fixed) and a Target (draggable). The Reference must be measured; ⚠ marks a plan that isn't placed yet, and Reset starts an unplaced Target on top of the Reference. Drag the Target until stairwells and outside walls line up. Scale + and Scale − resize it, X − and X + stretch it sideways with Lock AR turned off, −15°, ﹢15° and 0° turn it; Zoom and Opacity only change your view."),
+      t("Nothing is kept until you click Save Alignment. PadSpan refuses a position that would put more than half of the plan's calibration points off the map, and changes nothing. If the new position disagrees with a saved tie-in, it shows the conflict and offers Average & Save, Override & Save or Cancel."),
+      t("+ Tie-in remembers where the Target sits against this Reference, so a later move that disagrees is caught. 🚑 Emergency Recovery finds tie-ins that contradict each other and lets you remove the bad ones."),
+      t("POINT ALIGN — For a close fit, click the same real point on both plans (a stairwell corner, say); it switches between the plans for you. With 3 pairs or more, click Compute and check the preview (Excellent, Fair or Poor). Apply moves the Target on screen only, so click Save Alignment afterwards. With Bake ticked (administrators), Bake & Apply redraws the Target's picture to fit and saves it straight away."),
+      t("3D ISOMETRIC PREVIEW — The whole building stacked, to check by eye. Floor, Spacing and L/R change the drawing (Save keeps them, Reset restores them). ⊕ Persistent shows where away devices were last seen. \"N stale\" counts receivers on the plans that no live receiver matches; click it for the list. ☰ Room List lists the rooms."),
+      t("Compare Maps, in the Library, rates how well the floors line up once you're done."),
     ],
   },
 }; }

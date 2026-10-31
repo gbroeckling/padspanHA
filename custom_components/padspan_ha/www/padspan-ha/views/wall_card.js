@@ -38,7 +38,8 @@ export function wallCard(ctx, el, settings){
   const s = settings || {};
   const pro = String(s.tier || "").toLowerCase() === "pro";
   const card = el("div", { class: "card", style: "padding:16px;margin-top:20px" });
-  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px" }, "📺 Wall screens"));
+  card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px;display:flex;align-items:center;gap:8px" },
+    ["📺 Wall screens", ctx.helpers && ctx.helpers.helpBtn ? ctx.helpers.helpBtn("wall_screens") : null]));
   card.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:12px;line-height:1.55" },
     "A screen showing the Atlas page as /padspan-lights?kiosk=1 is a wall: the whole house fits on it, and its controls, room names " +
     "and rain are drawn for the room it hangs in. Tell PadSpan how big the screen is and how far away people usually are, and text is " +

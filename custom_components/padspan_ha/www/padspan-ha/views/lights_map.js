@@ -1819,6 +1819,7 @@ function _vacOptionsBox(host) {
   _vacOptsNode = el("div", { class: "lv-vacation lv-vacation-opts", role: "dialog", "aria-label": "Vacation Mode options" }, [
     el("div", { class: "lv-vac-opt-head" }, [
       el("span", { class: "lv-vacation-label" }, "🌴 Vacation Mode options"),
+      host.helpBtn ? host.helpBtn("vacation_mode") : null,
       status,
       el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => _vacOptsToggle(host, false) }, "Close"),
     ]),
@@ -4377,6 +4378,8 @@ export function buildLightsMapCard(hostIn){
     const mapB = el("button", { onclick: () => pick3d(false) }, "Map");
     const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); else la3dRetry(); } }, "Live Aboard");
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B, whyEl]));
+    // Its own help (Mapping only: the sidebar never sets host.helpBtn).
+    if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("aboard_3d"));
     la3dPaints.push(() => {
       const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e2e8f0";
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;

@@ -90,7 +90,7 @@ _CLOUD = frozenset({"openai_conversation", "google_generative_ai_conversation", 
 NO_AI_CODE = "no_ai_task"
 PHOTOS_OFF_CODE = "ai_photos_off"
 PHOTOS_OFF_MESSAGE = "Reading photos is off: turn on Furniture from a photo in Settings → AI."
-_SETTINGS_PATH = "Settings → Atlas → Live Aboard"
+_SETTINGS_PATH = "Settings → AI"
 NO_AI_CHOSEN = (f"No AI Task is chosen to read photos. It needs Home Assistant 2025.8 or newer with an AI "
                 f"Task (from an AI integration such as Ollama, OpenAI or Google), chosen in {_SETTINGS_PATH}.")
 NO_AI_OLD = "Reading photos needs Home Assistant 2025.8 or newer. Update Home Assistant to use it."

@@ -38,7 +38,7 @@ export const DIMS = [["width_m", "Width"], ["depth_m", "Depth"], ["height_m", "H
 // 1024 px (was 1280, 2026-10-31): the AI reads it in ~8 s instead of ~10.6 s, and nothing it is
 // asked needs finer detail (kind, colours, rough sizes, a figure; no text is read off a tag or receiver).
 export const PHOTO_MAX_PX = 1024;
-const SETTINGS_WHERE = "Settings → Atlas → Live Aboard";
+const SETTINGS_WHERE = "Settings → AI";
 const NEEDS = "Reading photos needs Home Assistant 2025.8 or newer, with an AI Task that can read pictures "
   + `(one with a vision model), chosen in ${SETTINGS_WHERE}.`;
 
