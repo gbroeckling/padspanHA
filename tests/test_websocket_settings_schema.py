@@ -51,6 +51,10 @@ _BACKEND_ONLY = {
     "vacation_mode_last_off",          # vacation_mode.py — who last turned it off, set by switch_fields
     "vacation_mode_pattern_prev",      # vacation_mode.py — the last learned pattern, kept across vacations
     "vacation_mode_tracked_since",     # settings_store.py — stamped once on upgrade
+    "vacation_mode_trip_source",       # vacation_mode.switch_fields — the source a trip was turned on with
+    "vacation_mode_pattern_source",    # vacation_mode.py — the source the stored pattern was built from
+    "vacation_mode_pattern_prev_source",  # ditto, for the pattern kept across vacations
+    "vacation_mode_pattern_end",       # vacation_mode.switch_fields — a resumed trip's window to learn again
     "atlas_default_v1_applied",        # settings_store.py — the one-time Atlas-on switch, stamped on load
     "first_seen_ts",                   # settings_store.py — stamped once on load (trial milestone card)
     "onboarding",                      # settings_store.py + onboarding.py — a new install's first steps, stamped by the backend

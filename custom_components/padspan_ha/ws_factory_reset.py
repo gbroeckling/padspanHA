@@ -118,7 +118,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         # PadSpan reset does not touch — a reset mid-vacation closes the span
         # so the next vacation's pattern still leaves it out.
         import time as _time
-        from .vacation_mode import learned_pattern, switch_fields
+        from .vacation_mode import learned_pattern, learned_source, switch_fields
         _live = _live_settings.data if _live_settings else {}
         _vac_now = _time.time()
         _vac_was_on = bool(_live.get("vacation_mode_enabled"))
@@ -131,6 +131,8 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
                 "vacation_mode_pattern_until": _live.get("vacation_mode_pattern_until") or 0,
                 "vacation_mode_pattern_built_at": _live.get("vacation_mode_pattern_built_at") or 0,
                 "vacation_mode_pattern_for": _live.get("vacation_mode_pattern_for") or 0,
+                "vacation_mode_pattern_source": _live.get("vacation_mode_pattern_source") or "",
+                "vacation_mode_pattern_prev_source": learned_source(_live),
                 "vacation_mode_last_off": _live.get("vacation_mode_last_off") or {},
                 **switch_fields(_live, False, _vac_now, {"how": "reset"})}
         _vac.pop("vacation_mode_enabled_at", None)

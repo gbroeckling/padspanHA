@@ -438,7 +438,7 @@ function renderUnlocked(ctx, root) {
         const bits = [];
         if (f.above_zero || f.sum) bits.push(`above zero in ${fmt(f.above_zero)} · sum ${fmt(Math.round(f.sum * 10) / 10)}`);
         const vals = Object.entries(f.values || {}), sums = Object.entries(f.sums || {});
-        if (vals.length) bits.push(vals.slice(0, 6).map(([v, c]) => `${v} ${fmt(c)}`).join(" · ") + (vals.length > 6 ? ` · +${vals.length - 6}` : ""));
+        if (vals.length) bits.push(vals.slice(0, 6).map(([v, c]) => `${W_FIELD_VALUE[`${k}.${v}`] || v} ${fmt(c)}`).join(" · ") + (vals.length > 6 ? ` · +${vals.length - 6}` : ""));
         if (sums.length) bits.push(sums.slice(0, 6).map(([v, c]) => `${v} Σ${fmt(Math.round(c * 10) / 10)}`).join(" · ") + (sums.length > 6 ? ` · +${sums.length - 6}` : ""));
         fieldRows.push([word("field", k), sec, fmt(f.installs), bits.join("  |  ") || "–", `${sec}.${k}`]);
       }
@@ -740,6 +740,10 @@ const W_FIELD = {
   cal_points_phantom_room_n: "Calibration points in a room that isn't there", entity_dup_n: "PadSpan entities duplicated (_2, _3…)",
   pinned_movers_n: "Followed devices pinned in place", usage_dropped: "Usage counts left out to fit the report",
   perf: "How hard PadSpan works the machine", runs: "PadSpan's background jobs",
+};
+// A field's value in words, where its own word is not plain ("field.value").
+const W_FIELD_VALUE = {
+  "vacation.source:last_week": "plays last week", "vacation.source:month": "monthly average",
 };
 function word(kind, k) {
   const key = String(k);

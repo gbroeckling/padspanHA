@@ -43,6 +43,14 @@
 .lv-vac-opt-lbl{font-weight:600}
 .lv-vac-opt-note{font-size:11px;line-height:1.35}
 .lv-vac-inline{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+/* Routine from: Last week | Monthly average — one choice, so one segmented control */
+.lv-vac-seg{display:inline-flex;border:1px solid rgba(181,138,31,.55);border-radius:9px;overflow:hidden}
+.lv-vac-seg button{all:unset;box-sizing:border-box;padding:4px 12px;font-size:12px;font-weight:600;
+  color:rgba(253,233,184,.7);cursor:pointer;border-right:1px solid rgba(181,138,31,.55)}
+.lv-vac-seg button:last-child{border-right:none}
+.lv-vac-seg button:hover{background:rgba(224,178,58,.14);color:#fde9b8}
+.lv-vac-seg button[aria-pressed="true"]{background:rgba(224,178,58,.3);color:#fde9b8}
+.lv-vac-seg button:focus-visible{outline:2px solid #e0b23a;outline-offset:-2px}
 .lv-vac-anchors{display:flex;flex-direction:column;gap:2px;max-height:140px;overflow:auto;min-width:180px}
 .lv-vac-preview{display:flex;flex-direction:column;gap:3px;font-size:12px}
 .lv-vac-preview-row{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}

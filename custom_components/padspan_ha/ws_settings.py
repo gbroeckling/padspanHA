@@ -589,6 +589,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("vacation_mode_max_on_min"): vol.Coerce(int),
         vol.Optional("vacation_mode_max_lights"): vol.Coerce(int),
         vol.Optional("vacation_mode_anchors"): list,
+        vol.Optional("vacation_mode_source"): str,
         vol.Optional("adaptive_learning_enabled"): bool,
         vol.Optional("adaptive_floor_detection"): bool,
         vol.Optional("signal_loss_linger_s"): vol.Coerce(int),
@@ -1026,6 +1027,20 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
         if "traceback_house_focus" in msg:
             payload["traceback_house_focus"] = max(0, min(64, int(msg["traceback_house_focus"])))
         _vac_event, _vac_who, _vac_now = "", {}, 0.0
+        # Where each weekday's routine comes from (Garry, 2026-10-31): read
+        # when Vacation Mode is turned on, never mid-trip. Admin-only like
+        # the other options; checked here so a turn-on in the same message
+        # uses it.
+        if "vacation_mode_source" in msg:
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized", "Only an administrator can change Vacation Mode")
+                return
+            from .vacation_mode import SOURCES as _VSRC  # noqa: PLC0415
+            if msg["vacation_mode_source"] not in _VSRC:
+                connection.send_error(msg["id"], "invalid_format", "Choose last_week or month")
+                return
+            payload["vacation_mode_source"] = msg["vacation_mode_source"]
         if "vacation_mode_enabled" in msg:
             # Admin-only: unlike a saved Whole House Preset (a one-shot,
             # user-initiated apply), this autonomously operates real lights
@@ -1053,7 +1068,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             elif _vac_was and not payload["vacation_mode_enabled"]:
                 _vac_event = "off"
                 _vac_who = who_from_connection(hass, connection)
-            payload.update(switch_fields(st.data, payload["vacation_mode_enabled"], _vac_now,
+            payload.update(switch_fields({**st.data, **{k: v for k, v in payload.items() if k == "vacation_mode_source"}},
+                                         payload["vacation_mode_enabled"], _vac_now,
                                          _vac_who if _vac_event == "off" else None))
         if "vacation_mode_intensity" in msg:
             payload["vacation_mode_intensity"] = max(5, min(100, int(msg["vacation_mode_intensity"])))
@@ -1387,7 +1403,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 hass.async_create_task(_vac_notice())
         elif any(k in payload for k in ("vacation_mode_end_at", "vacation_mode_pause_home", "vacation_mode_dark_only",
                                          "vacation_mode_bedtime", "vacation_mode_max_on_min",
-                                         "vacation_mode_max_lights", "vacation_mode_anchors")):
+                                         "vacation_mode_max_lights", "vacation_mode_anchors", "vacation_mode_source")):
             from .vacation_mode import refresh_status  # noqa: PLC0415
             refresh_status(hass)
 
