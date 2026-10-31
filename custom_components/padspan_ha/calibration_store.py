@@ -42,6 +42,7 @@ SIGMA_CELLS = 1.8     # Gaussian sigma in grid-cell units (~20% of map width)
 KNN_K = 3             # k for k-NN fingerprint matching
 MIN_SCANNER_SAMPLES = 3   # scanner readings below this are dropped from a stored point
 HIGH_STD_DBM = 8.0        # per-scanner std above this is flagged (not rejected)
+BEACON_TUNE_SOURCE = "beacon_tune"  # source on points Beacon Tune saved (hard relocation replaces only these)
 # Absolute squared-dB discrepancy assigned per scanner that hears the query
 # but is absent from a candidate fingerprint. Must stay absolute (not
 # mean-centered): a scanner hearing the query but not the point is still
@@ -320,6 +321,10 @@ class CalibrationStore:
         }
         if point_quality:
             clean["quality"] = point_quality
+        # Beacon Tune marks its own points, so a hard relocation can replace
+        # them without touching points collected by carrying the same device.
+        if point.get("source") == BEACON_TUNE_SOURCE:
+            clean["source"] = BEACON_TUNE_SOURCE
         # Phase 3: compute real-world metre coordinates
         if point.get("x_m") is not None and point.get("y_m") is not None:
             # Caller provided explicit metres (standalone/mapless calibration)

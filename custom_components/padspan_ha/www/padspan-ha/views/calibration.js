@@ -420,7 +420,10 @@ function _calibWizard(ctx, el, cs, calData) {
 
   const head = el("div", { class: "card", style: "margin-bottom:12px" });
   const hrow = el("div", { style: "display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px" });
-  hrow.appendChild(el("div", { style: "font-weight:700;font-size:16px" }, "Guided calibration"));
+  hrow.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+    el("div", { style: "font-weight:700;font-size:16px" }, "Guided calibration"),
+    ctx.helpers.helpBtn("calibration_guided"),
+  ]));
   // Label/title spell out what this does, not just its name: the wizard
   // fully replaces the ordinary tab bar while open (see render() above), so
   // this is the ONLY way back to Pin & Listen or any other non-wizard tab —
@@ -968,7 +971,7 @@ function _setup(ctx, el, cs, calData) {
     mapCard.appendChild(mapSel);
   } else {
     mapCard.appendChild(el("div", { style: "font-size:12px;color:#f59e0b" },
-      "No maps uploaded yet. Upload a floor plan in the Maps tab first."));
+      "No maps uploaded yet. Upload a floor plan in Mapping first."));
   }
   wrap.appendChild(mapCard);
   // Right under the floor it is about, not below the fold.
@@ -1100,7 +1103,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   const mapData = maps.find(m => m.id === cs.mapId);
   if (!mapData?.image?.filename) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "Selected map has no image. Upload a floor plan in the Maps tab."),
+      el("div", { class: "muted" }, "Selected map has no image. Upload a floor plan in Mapping."),
     ]));
     return wrap;
   }
@@ -2202,7 +2205,7 @@ function _matrixTab(ctx, el, cs, calData) {
   }));
 
   const infoCard = el("div", { class: "card" });
-  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Accuracy by spot"));
+  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, ["Accuracy by spot ", ctx.helpers.helpBtn("calibration_matrix")]));
   infoCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "Each cell compares a point's known distance to a scanner (from the room and receiver layout) against the distance that scanner's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that scanner never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk."));
 
@@ -2569,7 +2572,7 @@ function _tuneTab(ctx, el, cs, calData) {
     wrap.appendChild(el("div", { class: "card" }, [
       el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "No Maps Uploaded"),
       el("div", { style: "font-size:12px;color:#94a3b8" },
-        "Upload floor plan images in the Maps tab first, then return here to fine-tune receiver positions."),
+        "Upload floor plan images in Mapping first, then return here to fine-tune receiver positions."),
     ]));
     return wrap;
   }
@@ -3936,6 +3939,32 @@ function _resolveBeaconAddr(bkKey, snap) {
   return bkKey.replace(/^(ble:|entity:|ibeacon:)/, "");
 }
 
+// Ids a Beacon Tune hard relocation deletes: this beacon's own earlier
+// Beacon Tune points (source "beacon_tune") and its automatic "[auto]"
+// points, both taken where the beacon sat. Points collected by carrying the
+// same device (Pin & Listen, Roam, Walk a room) are never touched. Points
+// saved before Beacon Tune marked its points carry no source and are kept.
+// Two beacons can share a name, so a name alone never takes an [auto] point
+// (those always carry their beacon's key) or a point whose device is another
+// placed beacon (ids.others: their keys and addresses).
+function _beaconTunePurgeIds(points, ids, protectedIds) {
+  const want = new Set([ids.deviceId, ids.key].filter(Boolean).map(v => String(v).toUpperCase()));
+  const lbls = new Set([ids.label, ids.key].filter(Boolean).map(v => String(v).toUpperCase()));
+  const others = new Set((ids.others || []).filter(Boolean).map(v => String(v).toUpperCase()));
+  const out = [];
+  for (const pt of points || []) {
+    if (!pt || !pt.id || (protectedIds && protectedIds.has(pt.id))) continue;
+    const lbl = String(pt.label || "");
+    const auto = lbl.startsWith("[auto]");
+    if (pt.source !== "beacon_tune" && !auto) continue;
+    const dev = String(pt.device_id || "").toUpperCase();
+    if (dev && want.has(dev)) { out.push(pt.id); continue; }
+    if (auto || (dev && others.has(dev))) continue;
+    if (lbls.has(lbl.toUpperCase())) out.push(pt.id);
+  }
+  return out;
+}
+
 // ── Beacon Tune tab — 3D iso map with draggable beacon markers ───────────────
 function _beaconTuneTab(ctx, el, cs, calData) {
   const wrap = el("div", { style: "display:flex;flex-direction:column;gap:10px" });
@@ -3947,7 +3976,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     wrap.appendChild(el("div", { class: "card" }, [
       el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "No Maps Uploaded"),
       el("div", { style: "font-size:12px;color:#94a3b8" },
-        "Upload floor plan images in the Maps tab first, then return here to mark beacon reference positions."),
+        "Upload floor plan images in Mapping first, then return here to mark beacon reference positions."),
     ]));
     return wrap;
   }
@@ -3957,6 +3986,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
       el("span", { style: "background:#f59e0b;color:#000;font-weight:700;font-size:11px;padding:2px 8px;border-radius:4px" }, "EXPERIMENTAL"),
       el("span", { style: "font-weight:700;font-size:14px;color:#f59e0b" }, "Beacon Tune"),
+      ctx.helpers.helpBtn("calibration_beacon"),
     ]),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
       "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second radio capture starts automatically. After the timer finishes, calibration data is saved. A beacon you place from the list is pinned there as a fixed beacon, unless PadSpan knows it moves (a phone with its IRK, a Find My tag it has followed across an address change, anything you follow): that one goes back to live tracking after the capture, as does a labelled device shown at its room's centre. Moving a beacon that is already pinned moves its pin. Follow a tag that moves before placing it. Green circles show scanner positions for reference."),
@@ -5420,9 +5450,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         if (doRelocation) {
           const confirmPurge = confirm(
             `This is the 3rd consecutive calibration for "${entry.bk.label || bkKey}" within a few minutes.\n\n` +
-            `This will REPLACE all previous calibration data for this beacon with the new readings.\n\n` +
-            `Choose OK to replace old data (hard relocation).\n` +
-            `Choose Cancel to keep old data and just add this as another data point.`
+            `OK deletes this beacon's earlier Beacon Tune points (and its automatic [auto] points) and keeps the new readings. ` +
+            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) are kept.\n\n` +
+            `Choose OK to replace them (hard relocation).\n` +
+            `Choose Cancel to keep them and just add this as another data point.`
           );
           if (!confirmPurge) doRelocation = false;
         }
@@ -5432,23 +5463,18 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const _purgeOldPoints = async (protectedIds) => {
           try {
             const calData = await ctx.actions.calibrationGet();
-            const allPts = calData?.points || [];
-            const myDev = (deviceId || "").toUpperCase();
-            const myLbl = (entry.bk.label || "").toUpperCase();
-            const myKey = bkKey.toUpperCase();
+            const others = [];
+            for (const bks of Object.values(bs.draftBeacons || {})) {
+              for (const b of bks || []) {
+                if (b && b.key && b.key !== bkKey) others.push(b.key, _resolveBeaconAddr(b.key, snap3));
+              }
+            }
+            const ids = _beaconTunePurgeIds(calData?.points || [],
+              { deviceId, label: entry.bk.label, key: bkKey, others }, protectedIds);
             let purged = 0;
-            for (const pt of allPts) {
-              if (protectedIds.has(pt.id)) continue;
-              const ptDev = (pt.device_id || "").toUpperCase();
-              const ptLbl = (pt.label || "").toUpperCase();
-              const isMatch =
-                (ptDev && myDev && ptDev === myDev) ||
-                (ptDev && myKey && ptDev === myKey) ||
-                (ptLbl && myLbl && ptLbl === myLbl) ||
-                (ptLbl && myKey && ptLbl === myKey);
-              if (!isMatch) continue;
+            for (const id of ids) {
               try {
-                await ctx.actions.calibrationDeletePoint(pt.id);
+                await ctx.actions.calibrationDeletePoint(id);
                 purged++;
               } catch (_) { /**/ }
             }
@@ -5473,6 +5499,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           room: room,
           device_id: deviceId,
           label: entry.bk.label || entry.bk.key || "",
+          source: "beacon_tune",
           scanner_readings: scannerReadings,
           weight: doRelocation ? 5.0 : weight,
         };
@@ -5495,7 +5522,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           if (!room) _warns.push("no room detected");
           const _warnStr = _warns.length ? " | " + _warns.join(", ") : "";
           if (doRelocation) {
-            ctx.toast(`HARD RELOCATION: ${_bkName} — old data replaced. ${_scanInfo}${_roomInfo}${_warnStr}`);
+            ctx.toast(`HARD RELOCATION: ${_bkName} — earlier Beacon Tune points replaced. ${_scanInfo}${_roomInfo}${_warnStr}`);
           } else {
             const weightLabel = round > 1 ? ` (round ${round}, ${weight.toFixed(1)}x)` : "";
             ctx.toast(`Saved: ${_bkName}${weightLabel} — ${_scanInfo}${_roomInfo}${_warnStr}`);
@@ -5691,7 +5718,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const relocBanner = document.createElement("div");
         relocBanner.style.cssText = "margin-top:8px;background:#3b1219;border:2px solid #f87171;border-radius:8px;padding:8px 12px;font-size:12px;color:#fecaca";
         const ago = elapsed < 60000 ? "just now" : `${Math.floor(elapsed / 60000)}m ago`;
-        relocBanner.innerHTML = `<b style="color:#f87171">HARD RELOCATION</b> &mdash; All previous calibration data for <b style="color:#5eead4">${_esc(bs._lastRelocation.label)}</b> was purged (${ago}). The new position is locked at 5.0\u00d7 weight. If the beacon still appears in the wrong location, wait 10\u201315 seconds for the server to recalculate.`;
+        relocBanner.innerHTML = `<b style="color:#f87171">HARD RELOCATION</b> &mdash; The earlier Beacon Tune points for <b style="color:#5eead4">${_esc(bs._lastRelocation.label)}</b> were deleted (${ago}); points collected by carrying it were kept. The new position is locked at 5.0\u00d7 weight. If the beacon still appears in the wrong location, wait 10\u201315 seconds for the server to recalculate.`;
         infoCard.appendChild(relocBanner);
       }
     }
@@ -5832,7 +5859,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (!visibleObjs.length) {
       const msg = document.createElement("div");
       msg.style.cssText = "font-size:12px;color:#94a3b8";
-      msg.textContent = "No BLE objects available. Label objects in the Objects tab or follow them in the Follow tab.";
+      msg.textContent = "No BLE objects available. Name them in Devices → By Room or follow them on Follow.";
       availCard.appendChild(msg);
       return;
     }
@@ -6669,6 +6696,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           room: room,
           device_id: deviceId,
           label: bkLabel,
+          source: "beacon_tune",
           scanner_readings: scannerReadings,
           weight: weight,
         });

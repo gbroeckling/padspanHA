@@ -247,7 +247,10 @@ export function render(ctx) {
 
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap" }, [
-    el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, "Setup"),
+    el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+      el("div", { style: "font-weight:700;font-size:16px;color:#52b788" }, "Setup"),
+      ctx.helpers.helpBtn("setup"),
+    ]),
     el("div", { class: "muted", style: "font-size:12px", "data-setup": "count" }, d.known ? `${d.doneCount} of ${d.steps.length} done` : "Checking…"),
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:13px;line-height:1.5;margin-top:4px" },

@@ -17,7 +17,8 @@ export function render(ctx) {
     el("div", { style: "display:flex;align-items:center;gap:8px" }, [
       el("div", { style: "font-size:24px" }, "🏢"),
       el("div", { style: "font-weight:700;font-size:16px;color:#5eead4" }, "People in building"),
-    ]),
+      ctx.helpers.helpBtn ? ctx.helpers.helpBtn("occupancy") : null,
+    ].filter(Boolean)),
     el("div", { style: "font-size:12px;color:#94a3b8;margin-top:2px" },
       "Known people from HA person entities, unknown people from unclaimed phones and sensed rooms. Tagged things are listed, never counted."),
   ]));

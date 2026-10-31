@@ -1819,6 +1819,7 @@ function _vacOptionsBox(host) {
   _vacOptsNode = el("div", { class: "lv-vacation lv-vacation-opts", role: "dialog", "aria-label": "Vacation Mode options" }, [
     el("div", { class: "lv-vac-opt-head" }, [
       el("span", { class: "lv-vacation-label" }, "🌴 Vacation Mode options"),
+      host.helpBtn ? host.helpBtn("vacation_mode") : null,
       status,
       el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => _vacOptsToggle(host, false) }, "Close"),
     ]),
@@ -4377,6 +4378,8 @@ export function buildLightsMapCard(hostIn){
     const mapB = el("button", { onclick: () => pick3d(false) }, "Map");
     const d3B = el("button", { onclick: () => { if (!la3dWhyNot()) pick3d(true); else la3dRetry(); } }, "Live Aboard");
     ctrlRow.appendChild(el("span", { class: "lv-zoomseg", "data-la3d-switch": "" }, [mapB, d3B, whyEl]));
+    // Its own help (Mapping only: the sidebar never sets host.helpBtn).
+    if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("aboard_3d", "Help: Live Aboard"));
     la3dPaints.push(() => {
       const on = la3dOn(), why = la3dWhyNot(), lit = "background:rgba(82,183,136,.24);color:#e2e8f0";
       mapB.setAttribute("aria-pressed", String(!on)); mapB.style.cssText = h3.furnish === true ? "display:none" : on ? "" : lit;
@@ -4405,7 +4408,7 @@ export function buildLightsMapCard(hostIn){
   // (Overview's matching row does, via overview_3d_controls). Builder
   // only: the sidebar never sets host.helpBtn, since it never sets the
   // Automorph/Gap/Floor/L-R controls this card explains either.
-  if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("lights_build_controls"));
+  if (host.helpBtn) ctrlRow.appendChild(host.helpBtn("lights_build_controls", "Help: build controls"));
   // Layout v2 is a trial (Garry: "let's try it, make it reversable") — one
   // click back to the classic layout, and one click forward again.
   if (host.onLayoutV2) {

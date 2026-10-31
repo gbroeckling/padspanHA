@@ -20,7 +20,7 @@ It's **experimental** and still changing. If something looks wrong in your house
 
 Live Aboard comes with PadSpan Pro (and Bright Pro).
 
-1. Go to **Settings → UI Structure**, find **💡 Atlas — Mapped Light Control**.
+1. Go to **Settings → Atlas**, find **💡 Atlas — Mapped Light Control**.
 2. Under **🏠 Live Aboard**, turn on **Show Live Aboard on the Atlas**. It saves right away, no
    restart.
 3. Open the Atlas. In the sidebar, tap **🏠** on the left rail to switch between the flat map and

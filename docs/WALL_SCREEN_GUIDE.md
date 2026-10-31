@@ -8,7 +8,7 @@ PadSpan has two pages in the Home Assistant sidebar:
 
 - **PadSpan HA** (`/padspan-ha`): everything, with its menu.
 - **Atlas** (`/padspan-lights`): the device map alone, made for a screen. Turn it on in
-  **Settings → UI Structure → 💡 Atlas — Mapped Light Control → Show the Atlas in the Home
+  **Settings → Atlas → 💡 Atlas — Mapped Light Control → Show the Atlas in the Home
   Assistant sidebar** (restart Home Assistant once).
 
 For a wall screen the Atlas page is usually the one you want: the map fills the screen and the
@@ -49,7 +49,7 @@ Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Ma
 
 ### Sizing a wall for its room
 
-**Settings → UI Structure → Wall screens** sets how big a wall draws things.
+**Settings → Atlas → Wall screens** sets how big a wall draws things.
 
 - **Size from the screen** (the default): a 4K screen is twice a 1080p one.
 - **Size for my room**: give the screen's size and how far away people usually are (or tap a
@@ -70,7 +70,7 @@ for larger text. A screen opened with its own link ignores the house setting.
 On a wall, the controls over the map fade out 30 seconds after the last touch, mouse move or key,
 and come back with the next one.
 
-Two more options in **Settings → UI Structure → 📺 Wall screens**, both off until you set them:
+Two more options in **Settings → Atlas → 📺 Wall screens**, both off until you set them:
 
 - **Show each floor**: every 15 s to 5 min the wall shows the next floor (All, then each floor on
   its own), flat map and Live Aboard alike. It waits while someone is using the wall.
@@ -92,7 +92,7 @@ Two more options in **Settings → UI Structure → 📺 Wall screens**, both of
 With [Live Aboard](LIVE_ABOARD_GUIDE.md) on:
 
 - Get the view you want and pick **Views ▾ → Set as home**.
-- In **Settings → UI Structure → 🏠 Live Aboard**, set **Back to home view** (30 s, 1 min or 5 min).
+- In **Settings → Atlas → 🏠 Live Aboard**, set **Back to home view** (30 s, 1 min or 5 min).
   The screen flies back home after that long untouched. It waits while someone is editing, has a
   card open, or made it full screen by hand.
 - When nothing is moving, Live Aboard draws nothing, so an idle screen costs almost nothing.
@@ -102,7 +102,7 @@ With [Live Aboard](LIVE_ABOARD_GUIDE.md) on:
 A screen hung tall works as well as a wide one, and the text and controls are sized the same either way up. A 4K screen is 2× a 1080p one in portrait as in landscape.
 
 - If the TV or stick shows portrait by itself (the picture turns when the screen does), nothing needs setting.
-- Most TVs and streaming sticks can't turn their picture. For one of those, hang it on its side and give its link a turn: **Settings → UI Structure → Wall screens → Screen orientation → Portrait: turn the picture clockwise** (or anticlockwise). This adds `&wall_rotate=90` (or `270`) to that screen's link, and PadSpan lays itself out tall and turns onto the screen. If the map comes out upside down, use the other one.
+- Most TVs and streaming sticks can't turn their picture. For one of those, hang it on its side and give its link a turn: **Settings → Atlas → Wall screens → Screen orientation → Portrait: turn the picture clockwise** (or anticlockwise). This adds `&wall_rotate=90` (or `270`) to that screen's link, and PadSpan lays itself out tall and turns onto the screen. If the map comes out upside down, use the other one.
 - The turn belongs to that one screen's link, so the house's other walls are unchanged.
 
 ## Several screens at once: Optimize for scale

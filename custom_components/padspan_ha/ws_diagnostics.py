@@ -76,7 +76,7 @@ async def ws_auto_diagnostics(hass: HomeAssistant, connection, msg) -> None:
             checks.append({"name": "room_tag_map", "ok": True, "detail": f"{room_count} rooms loaded ({room_source})"})
         else:
             checks.append({"name": "room_tag_map", "ok": False, "detail": "No room/tag data loaded"})
-            recs.append("Draw room boundaries on a floor plan (Maps tab) or set a room_tag_map.")
+            recs.append("Draw your rooms in Mapping (Edit or Layout) so PadSpan has rooms to place devices in.")
             ok = False
         if coord.last_error:
             checks.append({"name": "last_error", "ok": False, "detail": coord.last_error})
@@ -331,9 +331,9 @@ async def ws_propagation_health(hass: HomeAssistant, connection, msg) -> None:
         if pl["quality"] == "poor":
             recs.append({"text": f"Scanner {pl['name']} has poor path-loss fit (R\u00b2={pl['r_sq']}) — consider repositioning or adding calibration points near it", "priority": "medium"})
     if not settings.get("adaptive_learning_enabled"):
-        recs.append({"text": "Enable adaptive learning in Settings \u2192 Presence to automatically improve accuracy over time", "priority": "low"})
+        recs.append({"text": "Enable adaptive learning in Settings \u2192 Tracking to automatically improve accuracy over time", "priority": "low"})
     if floor_sep["pairs"] == 0 and total_rooms > 3:
-        recs.append({"text": "No cross-floor data yet — enable floor detection enhancement in Settings \u2192 Presence", "priority": "low"})
+        recs.append({"text": "No cross-floor data yet — enable floor detection enhancement in Settings \u2192 Tracking", "priority": "low"})
     recs = recs[:10]  # cap at 10
 
     # ── Grade computation ──
@@ -466,7 +466,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 ),
                 "action": (
                     f"Add calibration points in both {room_a} and {room_b}, "
-                    "especially near the boundary. Consider adding an RF barrier "
+                    "especially near the boundary. Consider adding a signal wall "
                     "in the map editor if a wall separates them."
                 ),
             })
@@ -740,7 +740,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 "action": (
                     f"Check scanner \u201c{name}\u201d placement and antenna orientation. "
                     "Ensure it is in the correct HA area. Consider adjusting its "
-                    "RSSI offset in Settings \u2192 Scanner Map."
+                    "RSSI offset in Settings \u2192 Tracking \u2192 Receivers (or the Receivers page)."
                 ),
             })
 
@@ -781,7 +781,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 "severity": "critical",
                 "title": "No calibration data",
                 "message": "The system has zero calibration points. Positioning relies solely on adaptive learning and default models.",
-                "action": "Run the Calibration \u2192 Tune workflow to collect reference data.",
+                "action": "Start \U0001f9ed Guided calibration in Calibration to collect reference data.",
             })
 
     # ── 5. Adaptive Learning Health ───────────────────────────────────────────
@@ -814,7 +814,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 "severity": "info",
                 "title": "Adaptive learning is disabled",
                 "message": "The system is not passively learning from confirmed room assignments.",
-                "action": "Enable adaptive learning in Settings \u2192 Presence to improve accuracy over time.",
+                "action": "Enable adaptive learning in Settings \u2192 Tracking to improve accuracy over time.",
             })
 
     # ── Sort by severity ──────────────────────────────────────────────────────

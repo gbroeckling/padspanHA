@@ -200,7 +200,7 @@ async def ws_espresense_companion_import(hass: HomeAssistant, connection, msg) -
     url = (_st.data.get("espresense_companion_url") or "").strip().rstrip("/")
     if not url:
         connection.send_error(msg["id"], "no_url",
-                              "ESPresense Companion URL not configured. Set it in Manage → ESPresense MQTT.")
+                              "ESPresense Companion URL not configured. Set it in Manage → HA Entities → ESPresense MQTT.")
         return
 
     # ── Fetch config from Companion REST API ─────────────────────────────

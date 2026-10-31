@@ -551,8 +551,10 @@ export function render(ctx){
   root.appendChild(areasCard);
 
   // ── Uploaded Maps ────────────────────────────────────────────────────────────
-  // Permanently deletes floor plan images. Calibration data and room polygons
-  // referencing the map will become orphaned (see Orphan Polygons above).
+  // Permanently deletes floor plans. The room shapes go with the map. Its
+  // calibration points are kept, detached from any map, and still steer
+  // k-NN (ws_maps.py -> calibration_store.async_clear_map: only points
+  // without metres are deleted; delete=True, the per-map Clear, drops all).
   const maps = ctx.state.maps?.list || [];
   if(maps.length){
     const mapsCard = el("div",{class:"card"});
@@ -899,7 +901,7 @@ export function render(ctx){
 function _haEntities(ctx, el){
   const wrap = el("div",{style:"display:flex;flex-direction:column;gap:12px"});
   const settings = ctx.state.settings || {};
-  wrap.appendChild(_haEntitiesIntro(el));
+  wrap.appendChild(_haEntitiesIntro(el, ctx.helpers.helpBtn));
   wrap.appendChild(_haEntityControls(ctx, el, settings));
   wrap.appendChild(_haEntityAudit(ctx, el));
   wrap.appendChild(_haEntityLibrary(ctx, el));
@@ -957,9 +959,12 @@ function _haBleReseedSection(ctx, el, settings){
 }
 
 /** Static intro card explaining the four entity types PadSpan creates. */
-function _haEntitiesIntro(el){
+function _haEntitiesIntro(el, helpBtn){
   return el("div",{class:"card",style:"border-color:#1b4a2e"},[
-    el("div",{style:"font-weight:800;font-size:15px;color:#5eead4;margin-bottom:6px"},"PadSpan HA — Entity Reference"),
+    el("div",{style:"display:flex;align-items:center;gap:8px"},[
+      el("div",{style:"font-weight:800;font-size:15px;color:#5eead4;margin-bottom:6px"},"PadSpan HA — Entity Reference"),
+      helpBtn ? helpBtn("manage_entities") : null,
+    ]),
     el("div",{style:"font-size:13px;color:#94a3b8;line-height:1.6"},
       "PadSpan creates up to four HA entities for every labelled BLE device. This reference documents each entity type, its state values, attributes, and provides ready-to-paste automation examples."
     ),
@@ -982,10 +987,10 @@ function _haEntityControls(ctx, el, settings){
   ));
 
   const types = [
-    {key:"ha_entity_tracker_enabled", label:"device_tracker.padspan_{label}", desc:"Person-linkable tracker (home/room state)"},
-    {key:"ha_entity_area_enabled", label:"sensor.padspan_{label}_area", desc:"Primary room sensor with confidence attributes"},
-    {key:"ha_entity_distance_enabled", label:"sensor.padspan_{label}_distance", desc:"Distance to nearest scanner (metres)"},
-    {key:"ha_entity_scanner_distance_enabled", label:"sensor.padspan_{label}_distance_{scanner}", desc:"Per-scanner distance for hyper-local triggers"},
+    {key:"ha_entity_tracker_enabled", label:"device_tracker.{label}", desc:"Person-linkable tracker (home/room state)"},
+    {key:"ha_entity_area_enabled", label:"sensor.{label}_area", desc:"Primary room sensor with confidence attributes"},
+    {key:"ha_entity_distance_enabled", label:"sensor.{label}_distance", desc:"Distance to nearest scanner (metres)"},
+    {key:"ha_entity_scanner_distance_enabled", label:"sensor.{label}_distance_{scanner}", desc:"Per-scanner distance for hyper-local triggers"},
     {key:"ha_entity_occupancy_enabled", label:"sensor.padspan_occupancy", desc:"Building occupancy estimate (min/estimate/max) — requires integration reload"},
     {key:"subzones_enabled", label:"binary_sensor.padspan_{sub-zone}_occupied", desc:"Sub-zones: a bed, couch or desk drawn with Mapping → Sub-zones; each gets an occupied and a who sensor (off: they go unavailable)"},
   ];
@@ -1037,7 +1042,7 @@ function _haEntityAudit(ctx, el){
     body.innerHTML = "";
     if(!res || !res.entities || !res.entities.length){
       body.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px 0"},
-        "No PadSpan entities found. Label a BLE device in the Objects tab and switch to Live mode."
+        "No PadSpan entities found. Name a BLE device in Devices → By Room and switch to Live mode."
       ));
       return;
     }
@@ -1231,7 +1236,7 @@ function _haEntityLibrary(ctx, el){
 
   // ── 1. device_tracker — person-linkable room tracker ────────────────────
   wrap.appendChild(_entityCard(el, {
-    id: "device_tracker.padspan_{label}",
+    id: "device_tracker.{label}",
     badge: "Person-linkable",
     badgeColor: "#8b5cf6",
     state: "Room name when home (e.g. \"kitchen\"), \"not_home\" when away beyond timeout.",
@@ -1245,10 +1250,10 @@ function _haEntityLibrary(ctx, el){
     examples: [
       {
         title: "Link to a Person entity",
-        desc: "Go to HA Settings → People → select person → under \"Track devices\", add device_tracker.padspan_{label}. HA will use PadSpan's room assignment for that person's location.",
+        desc: "Go to HA Settings → People → select person → under \"Track devices\", add device_tracker.{label}. HA will use PadSpan's room assignment for that person's location.",
         yaml: `# No YAML needed — this is configured in the HA UI:
 # Settings → People → [person] → Track devices
-# Add: device_tracker.padspan_alice_phone
+# Add: device_tracker.alice_phone
 #
 # Once linked, person.alice will show the room name
 # reported by PadSpan (e.g. "kitchen", "bedroom").
@@ -1259,7 +1264,7 @@ function _haEntityLibrary(ctx, el){
 
   // ── 2. sensor._area — primary room sensor with confidence attributes ───
   wrap.appendChild(_entityCard(el, {
-    id: "sensor.padspan_{label}_area",
+    id: "sensor.{label}_area",
     badge: "Primary room sensor",
     badgeColor: "#10b981",
     state: "Current room name (e.g. \"living_room\"), \"unknown\" if no room assigned, \"not_home\" when away.",
@@ -1283,11 +1288,11 @@ function _haEntityLibrary(ctx, el){
   - alias: "Kitchen lights on — confidence gated"
     trigger:
       - platform: state
-        entity_id: sensor.padspan_alice_phone_area
+        entity_id: sensor.alice_phone_area
         to: "kitchen"
     condition:
       - condition: numeric_state
-        entity_id: sensor.padspan_alice_phone_area
+        entity_id: sensor.alice_phone_area
         attribute: room_confidence
         above: 0.75
     action:
@@ -1303,7 +1308,9 @@ function _haEntityLibrary(ctx, el){
       - name: "Kitchen occupied"
         state: >-
           {{ states.sensor
-             | selectattr('entity_id', 'search', 'padspan_.*_area')
+             | selectattr('entity_id', 'in', integration_entities('padspan_ha'))
+             | selectattr('entity_id', 'search', '_area$')
+             | rejectattr('entity_id', 'search', '_distance_')
              | map(attribute='state')
              | select('eq', 'kitchen')
              | list | length > 0 }}
@@ -1316,10 +1323,10 @@ function _haEntityLibrary(ctx, el){
   - alias: "Follow-me Sonos"
     trigger:
       - platform: state
-        entity_id: sensor.padspan_alice_phone_area
+        entity_id: sensor.alice_phone_area
     condition:
       - condition: numeric_state
-        entity_id: sensor.padspan_alice_phone_area
+        entity_id: sensor.alice_phone_area
         attribute: room_confidence
         above: 0.8
     action:
@@ -1345,10 +1352,10 @@ function _haEntityLibrary(ctx, el){
   - alias: "Heat occupied rooms only"
     trigger:
       - platform: state
-        entity_id: sensor.padspan_alice_phone_area
+        entity_id: sensor.alice_phone_area
     condition:
       - condition: numeric_state
-        entity_id: sensor.padspan_alice_phone_area
+        entity_id: sensor.alice_phone_area
         attribute: room_confidence
         above: 0.8
     action:
@@ -1372,7 +1379,9 @@ function _haEntityLibrary(ctx, el){
 title: PadSpan Presence
 content: >-
   {% set sensors = states.sensor
-     | selectattr('entity_id', 'search', 'padspan_.*_area')
+     | selectattr('entity_id', 'in', integration_entities('padspan_ha'))
+     | selectattr('entity_id', 'search', '_area$')
+     | rejectattr('entity_id', 'search', '_distance_')
      | list %}
   | Device | Room | Confidence |
   |--------|------|------------|
@@ -1385,7 +1394,7 @@ content: >-
 
   // ── 3. sensor._distance — nearest-scanner proximity in metres ───────────
   wrap.appendChild(_entityCard(el, {
-    id: "sensor.padspan_{label}_distance",
+    id: "sensor.{label}_distance",
     badge: "Proximity metre",
     badgeColor: "#f59e0b",
     state: "Distance in metres to nearest scanner (float, e.g. 2.3). Unavailable when away.",
@@ -1403,7 +1412,7 @@ content: >-
   - alias: "Wake desk PC on approach"
     trigger:
       - platform: numeric_state
-        entity_id: sensor.padspan_alice_phone_distance
+        entity_id: sensor.alice_phone_distance
         below: 1.5
     condition:
       - condition: state
@@ -1423,7 +1432,8 @@ content: >-
         unit_of_measurement: "people"
         state: >-
           {{ states.sensor
-             | selectattr('entity_id', 'search', 'padspan_.*_distance$')
+             | selectattr('entity_id', 'in', integration_entities('padspan_ha'))
+             | selectattr('entity_id', 'search', '_distance$')
              | selectattr('state', 'is_number')
              | map(attribute='state')
              | map('float')
@@ -1435,7 +1445,7 @@ content: >-
 
   // ── 4. sensor._distance_{scanner} — per-scanner micro-zone distance ────
   wrap.appendChild(_entityCard(el, {
-    id: "sensor.padspan_{label}_distance_{scanner}",
+    id: "sensor.{label}_distance_{scanner}",
     badge: "Per-scanner hyper-local",
     badgeColor: "#06b6d4",
     state: "Distance in metres from this specific scanner to the device. Unavailable when not heard.",
@@ -1453,7 +1463,7 @@ content: >-
   - alias: "Bedside lamp on approach"
     trigger:
       - platform: numeric_state
-        entity_id: sensor.padspan_alice_phone_distance_bedroom_proxy
+        entity_id: sensor.alice_phone_distance_bedroom_proxy
         below: 1.2
         for: "00:00:05"
     action:
@@ -1465,7 +1475,7 @@ content: >-
   - alias: "Bedside lamp off on leave"
     trigger:
       - platform: numeric_state
-        entity_id: sensor.padspan_alice_phone_distance_bedroom_proxy
+        entity_id: sensor.alice_phone_distance_bedroom_proxy
         above: 2.0
         for: "00:00:10"
     action:
@@ -1483,13 +1493,13 @@ content: >-
           {% set ns = namespace(best='unknown', dist=999) %}
           {% for s in states.sensor
              | selectattr('entity_id', 'search',
-                 'padspan_alice_phone_distance_')
+                 'alice_phone_distance_')
              | selectattr('state', 'is_number') %}
             {% if s.state | float < ns.dist %}
               {% set ns.dist = s.state | float %}
               {% set ns.best = s.attributes.scanner | default(
                  s.entity_id | replace(
-                   'sensor.padspan_alice_phone_distance_','')) %}
+                   'sensor.alice_phone_distance_','')) %}
             {% endif %}
           {% endfor %}
           {{ ns.best }}`,
@@ -2018,6 +2028,7 @@ function _buildNotifications(ctx, el){
   const activeCount = savedEntries.filter(([,c]) => c.on_room_change).length;
   savedCard.appendChild(el("div",{class:"row",style:"margin-bottom:6px"},[
     el("div",{style:"font-weight:700;font-size:14px"},"Saved Alerts"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("manage_events") : null,
     activeCount > 0
       ? el("span",{class:"badge",style:"margin-left:8px;border-color:#52b788;color:#52b788"},`${activeCount} active`)
       : el("span",{class:"badge",style:"margin-left:8px;border-color:#64748b;color:#64748b"},"none active"),
@@ -2355,6 +2366,7 @@ function _logs(ctx, el) {
     el("span", { style: "font-weight:600;font-size:13px" }, "Min level:"),
     levelSel,
     refreshBtn,
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("manage_logs") : null,
   ]);
   wrap.appendChild(toolbar);
 
@@ -2429,8 +2441,10 @@ function _beaconChars(ctx, el){
   const settings = ctx.state.settings || {};
 
   // Header
-  wrap.appendChild(el("div",{style:"font-weight:700;font-size:16px;color:#e2e8f0;margin-bottom:8px"},
-    "Beacon Signal Profiles"));
+  wrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
+    el("div",{style:"font-weight:700;font-size:16px;color:#e2e8f0;margin-bottom:8px"}, "Beacon Signal Profiles"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("manage_beacon_chars") : null,
+  ]));
   wrap.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:12px;line-height:1.5"},
     "Per-beacon signal characteristics computed from calibration data, grouped by model "
     + "(iBeacon UUID prefix, manufacturer, BLE name). A report: it shows how each beacon reads, "

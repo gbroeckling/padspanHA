@@ -137,7 +137,7 @@ export function render(ctx){
         ctx.state.view = "objects";
         ctx.actions.renderRooms();
       });
-      unidBadge.title = "Click to view in Objects tab";
+      unidBadge.title = "Click to view in Devices → By Room";
     }
 
     grid.appendChild(el("div",{class:"card"},[
@@ -312,7 +312,8 @@ function _zones(ctx, el){
     el("span",{class:"badge"}, `${occupied} occupied`),
     el("span",{class:"badge"}, `${empty} empty`),
     el("span",{class:"badge"}, `${objects.length} objects`),
-  ]));
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("zones") : null,
+  ].filter(Boolean)));
 
   if(rooms.length === 0){
     wrap.appendChild(el("div",{class:"card"},[
@@ -750,7 +751,7 @@ function _diagExport(ctx, el){
   diagCard.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
     el("div",{},[
       el("div",{style:"font-weight:700"},"Export for support"),
-      el("div",{class:"muted"},"Paste this back into chat when something breaks."),
+      el("div",{class:"muted"},"When something breaks, copy this and email it to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first)."),
     ]),
     el("div",{style:"display:flex;gap:8px;align-items:center"},[btnBuild,btnSelect,btnCopy]),
   ]));

@@ -97,8 +97,8 @@ export function render(ctx){
   // Tab definitions with help descriptions
   const _tabDefs = [
     ["appearance", "Appearance",
-      "Configure how PadSpan looks and behaves. Set room colours that carry across the Overview map, Follow tracker, and all visualisations. " +
-      "Manage floors and areas (sourced from HA). Assign scanners to rooms so the system knows where each Bluetooth radio is physically located."],
+      "How PadSpan looks: room colours that carry across the Overview map, the Follow tracker and every other drawing, " +
+      "Panel Style (Classic or 2025), Theme (with Follow the sun) and 2D Map Mode. Floors and rooms come from Home Assistant (HA Settings → Areas & Zones)."],
     ["scannermap", "Scanner Map",
       "Shows where PadSpan thinks each of your Bluetooth scanners is physically located on the floor plan. " +
       "The numbered dots are estimated positions based on your calibration data — when you collected fingerprints " +
@@ -109,21 +109,16 @@ export function render(ctx){
       "This tab also has Replace Scanner (swap calibration data when hardware is replaced) and " +
       "Relearn Radio (adjust readings after antenna upgrade/downgrade)."],
     ["presence", "Tracking",
-      "Controls how PadSpan determines which room a device is in and when it's considered 'away'. " +
-      "Room change delay prevents flicker when a device is near a boundary between rooms. " +
-      "Away timeout sets how long a device must be unseen before it's marked as gone. " +
-      "Quiet mode hides the flood of unidentified BLE advertisements so only your named/followed devices are shown. " +
-      "Path-loss and Kalman filter parameters fine-tune the distance estimation from raw RSSI values."],
+      "How PadSpan decides which room a device is in and when it's away, in eight sections: rooms and timing, phones and guest tags, " +
+      "what the panel shows, positioning and calibration, receivers, performance, Home Assistant and integrations, and privacy. " +
+      "Each section's heading has a ? that explains it."],
     ["features", "Features",
-      "Experimental capabilities under active development. Each toggle enables a specific feature: " +
-      "Trackability Rating scores how reliably each device can be tracked. " +
-      "Walk-to-Identify discovers unknown devices by correlating signal changes with your movement. " +
-      "Radio Map overlays signal heatmaps on the 3D iso view. " +
-      "Signal distortion map visualises where the RF model diverges from reality. " +
-      "Adaptive Learning lets the system continuously improve from live positioning data."],
+      "Your PadSpan licence (edition, tier and key), then the experimental switches: Walk-to-Identify, Radio Map, " +
+      "Signal distortion map, RoomPlan and robot vacuum import, the phone setup helpers, MAC Rotation Bridging, " +
+      "Apple Device Classification and RSSI Vector Capture. The Forensics card is at the bottom."],
     ["ai", "AI",
-      "AI power features: PadSpan can use an AI you have set up in Home Assistant (an AI Task) to read photos, " +
-      "and soon floor plans. Nothing here runs unless you switch it on and pick an AI Task. A cloud AI sends what it " +
+      "AI power features: PadSpan can use an AI you have set up in Home Assistant (an AI Task) to read furniture photos " +
+      "and the stairs on your floor plans, with an optional backup AI Task. Nothing here runs unless you pick an AI Task. A cloud AI sends what it " +
       "reads out of the house; a local one (like Ollama) keeps it home."],
     ["atlas", "Atlas",
       "The Atlas, PadSpan's house map for everyday light control, and Live Aboard, its 3D view: whether the Atlas is in the " +
@@ -131,7 +126,7 @@ export function render(ctx){
     ["ui", "UI Structure",
       "Every tab is in the sidebar in every mode; the ones not in the main list are under More tools. " +
       "Tick a tab here to move it into the main list in Advanced and Development mode (Basic keeps its short list). " +
-      "For example, tick Devices and Bluetooth for installers."],
+      "For example, tick Devices and Bluetooth for installers. The Edition & tier card shows which download this is and the tier its licence gives."],
   ];
 
   const tabBar = el("div",{class:"tabs", style:"margin-bottom:14px;flex-wrap:wrap;gap:4px;align-items:center"});
@@ -866,10 +861,15 @@ function _presenceSections(ctx, el, bins){
     if (reveal === key) _foldSave(key, true);
     const open = !_foldClosed(key);
     const chev = el("span", { style: "display:inline-block;width:14px;color:#52b788;font-size:16px;line-height:1" }, open ? "▾" : "▸");
+    // The section's own help (help_content.js settings_tracking_<key>). A
+    // click on it opens the help and must not fold the section as well.
+    const help = ctx.helpers.helpBtn ? ctx.helpers.helpBtn("settings_tracking_" + key) : null;
+    if (help) help.addEventListener("click", (e) => e.preventDefault());
     const det = el("details", { "data-presence-section": key }, [
       el("summary", { style: "cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #1b3526;user-select:none" }, [
         chev,
         el("span", { style: "font-weight:700;font-size:14px;color:#52b788" }, title),
+        help,
       ]),
       el("div", { style: "display:flex;flex-direction:column;gap:12px;margin-top:12px" }, cards),
     ]);
@@ -920,7 +920,7 @@ function _settingsPresence(ctx, el){
         quietGo,
       ]),
       el("div",{class:"muted",style:"font-size:12px"},
-        "Hides all unidentified BLE devices from the Objects list, overview counts, and dropdowns. " +
+        "Hides all unidentified BLE devices from Devices → By Room, overview counts, and dropdowns. " +
         "Scanning continues in the background so tracked objects still work. " +
         "It only changes what this panel shows, not how much work Home Assistant or PadSpan does. " +
         "Ideal for busy environments (condos, offices) where you only care about your own devices. " +
@@ -951,6 +951,7 @@ function _settingsPresence(ctx, el){
     put("phones", el("div",{class:"card","data-focus-part":"guest_tags",style:"border-color:" + (gOn ? "#fbbf24" : "#2d4a38")},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
         el("div",{class:"h2",style:"margin:0;color:#fbbf24"}, "Guest tags"),
+        helpBtn("guest_tags"),
       ]),
       el("div",{style:rowStyle},[ gToggle, el("span",{style:"font-size:13px;color:#e2e8f0"}, "Use tags as guest tags") ]),
       el("div",{class:"muted",style:"font-size:12px;margin:4px 0 8px;line-height:1.5"},
@@ -1733,7 +1734,10 @@ function _settingsPresence(ctx, el){
   // ── Private BLE / IRK Management ─────────────────────────────────────────
   {
     const irkCard = el("div", { class: "card" });
-    irkCard.appendChild(el("div", { class: "h2" }, "Phone Tracking (Private BLE)"));
+    irkCard.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" }, [
+      el("div", { class: "h2", style: "margin:0" }, "Phone Tracking (Private BLE)"),
+      helpBtn("private_ble"),
+    ]));
     irkCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "Track phones and watches with rotating MAC addresses using their IRK (Identity Resolving Key). " +
       "PadSpan scans system Bluetooth bonds automatically, or you can paste an IRK manually."
@@ -2230,7 +2234,7 @@ function _settingsPresence(ctx, el){
 
   <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Chipolo, Nutfind, and Other Tags</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li>Most use fixed MACs or iBeacon — check the Objects tab first.</li>
+    <li>Most use fixed MACs or iBeacon — check Devices → By Room first.</li>
     <li>If rotating: pair with ESP32 to extract IRK.</li>
   </ul>
 </div>
@@ -2239,10 +2243,10 @@ function _settingsPresence(ctx, el){
 <div style="margin-bottom:16px">
   <div style="font-weight:700;color:#f472b6;font-size:13px;margin-bottom:4px">Laptops, Headphones & Other BLE Devices</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li><b>Windows laptops</b>: Usually use a fixed public MAC for Bluetooth. Check the Objects tab — if it appears with a consistent address, no IRK needed.</li>
+    <li><b>Windows laptops</b>: Usually use a fixed public MAC for Bluetooth. Check Devices → By Room — if it appears with a consistent address, no IRK needed.</li>
     <li><b>Mac laptops</b>: Use BLE privacy with rotating MACs. Extract IRK from the macOS Bluetooth plist (same Terminal method as iPhone above, look for the Mac's own entry).</li>
     <li><b>Bluetooth headphones/earbuds</b>: Most use a <b>fixed MAC</b> when actively connected/broadcasting. No IRK needed — PadSpan tracks them directly.</li>
-    <li><b>Fitness bands</b>: Varies by manufacturer. Check Objects tab first. If rotating MAC, try ESP32 pairing method.</li>
+    <li><b>Fitness bands</b>: Varies by manufacturer. Check Devices → By Room first. If rotating MAC, try ESP32 pairing method.</li>
   </ul>
 </div>
 
@@ -3642,13 +3646,13 @@ function _settingsFeatures(ctx, el){
     {
       key: "roomplan_import_enabled",
       label: "RoomPlan Import",
-      desc: "Lets Maps → Layout import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), " +
+      desc: "Lets Mapping → Layout import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), " +
             "beside Sweet Home 3D files. Rooms come in as a candidate to review before anything is saved.",
     },
     {
       key: "vacuum_import_enabled",
       label: "Robot Vacuum Import",
-      desc: "Lets Maps → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms " +
+      desc: "Lets Mapping → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms " +
             "on a floor that has no plans yet. Admins only. A robot already linked keeps working while this is off.",
     },
     {
@@ -3718,6 +3722,7 @@ function _settingsFeatures(ctx, el){
     card.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:6px"},[
       el("div",{class:"h2",style:"margin:0;color:#f87171"},"Forensics"),
       el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(248,113,113,.15);color:#f87171;font-weight:600;text-transform:uppercase"}, "privacy-sensitive"),
+      helpBtn("forensics"),
     ]));
     card.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
       "Records presence sessions for every Bluetooth device your scanners hear, so you can later ask " +
@@ -3875,7 +3880,7 @@ function _settingsFeatures(ctx, el){
 
     const delBtn = el("button",{class:"btn",style:"background:#991b1b;border-color:#991b1b"},"Delete all recorded data");
     delBtn.addEventListener("click", async()=>{
-      if(!confirm("Delete ALL recorded forensics sessions? This cannot be undone.\n\nNote: the 'Possible' tier in the Forensics tab comes from the Objects first/last-seen history and is not affected by this delete.")) return;
+      if(!confirm("Delete ALL recorded forensics sessions? This cannot be undone.\n\nNote: the 'Possible' tier in the Forensics tab comes from the device first/last-seen history (Devices → By Room) and is not affected by this delete.")) return;
       if(!confirm("Are you sure? Every recorded presence session will be permanently deleted.")) return;
       delBtn.disabled = true; delBtn.textContent = "Deleting…";
       try {
@@ -4111,7 +4116,10 @@ function _settingsAI(ctx, el){
     }
   };
   const head = el("div",{class:"card",style:"border:1px solid #1a4228;background:#0f1a12;margin-bottom:14px"});
-  head.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"}, "AI power features"));
+  head.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
+    el("div",{style:"font-weight:700;font-size:14px;color:#52b788;margin-bottom:6px"}, "AI power features"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("settings_ai") : null,
+  ]));
   head.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;line-height:1.5"},
     "PadSpan can use an AI you have set up in Home Assistant (an AI Task) to fill things in for you. It only reads what you " +
     "give it, when you ask, and keeps nothing. A cloud AI (OpenAI, Google, Anthropic, Home Assistant Cloud) sends it out " +
@@ -4595,7 +4603,10 @@ function _settingsUI(ctx, el){
   // past the licence.
   const edCard = el("div",{class:"card",style:"padding:16px;margin-top:20px"});
   const _ed = String(settings.edition || "full"), _tier = String(settings.tier || "free");
-  edCard.appendChild(el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},"Edition & tier"));
+  edCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
+    el("div",{style:"font-weight:700;font-size:14px;color:#a7f3d0;margin-bottom:6px"},"Edition & tier"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("settings_ui") : null,
+  ]));
   edCard.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5"},
     `This build: ${_ed === "bright" ? "PadSpan Bright" : "PadSpan HA"} · running at tier "${_tier}"` +
     (settings.license_tier_override ? ` (override: ${settings.license_tier_override})` : "") + `.`));
@@ -4639,7 +4650,10 @@ function _settingsUI(ctx, el){
 function _settingsAtlas(ctx, el){
   const wrap = el("div",{});
   const settings = ctx.state.settings || {};
-  wrap.appendChild(el("h3",{style:"color:#52b788;margin-bottom:8px"},"Atlas"));
+  wrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
+    el("h3",{style:"color:#52b788;margin-bottom:8px"},"Atlas"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("settings_atlas") : null,
+  ]));
   wrap.appendChild(el("p",{style:"color:#94a3b8;font-size:13px;margin-bottom:0"},
     "The Atlas (the house map for everyday light control) and Live Aboard, its 3D view."));
 

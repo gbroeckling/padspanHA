@@ -150,8 +150,11 @@ export function render(ctx){
     el("div",{class:"card"},[
       el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
         el("div",{},[
-          el("div",{style:"font-weight:700"}, "Diagnostics"),
-          el("div",{class:"muted"}, `${includedDevices} devices · ${sizeKb} KB — paste into chat when something breaks`),
+          el("div",{style:"display:flex;align-items:center;gap:8px"},[
+            el("div",{style:"font-weight:700"}, "Diagnostics"),
+            ctx.helpers.helpBtn("diagnostics"),
+          ]),
+          el("div",{class:"muted"}, `${includedDevices} devices · ${sizeKb} KB — when something breaks, email it to hello@traks.ca or attach it to a GitHub issue (issues are public: remove personal details first)`),
         ]),
         el("div",{style:"display:flex;gap:8px;align-items:center"},[ btnSelect, btnCopy, btnDownload ])
       ]),

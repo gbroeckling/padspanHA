@@ -29,6 +29,12 @@ export function render(ctx){
   const tags = snap?.tags?.length ?? Object.values(ctx.state.roomTagMap||{}).reduce((a,b)=>a+(b?.length||0),0);
   const radios = snap?.radios?.length ?? 0;
 
+  // Header
+  root.appendChild(el("div",{class:"row",style:"align-items:center;gap:8px;margin-bottom:14px"},[
+    el("h2",{},"Health"),
+    ctx.helpers.helpBtn("health"),
+  ]));
+
   root.appendChild(el("div",{class:"grid"},[
     el("div",{class:"card"},[
       el("div",{style:"font-weight:700"},"System"),
@@ -41,7 +47,7 @@ export function render(ctx){
       el("div",{class:"mono"}, `Rooms: ${rooms}`),
       el("div",{class:"mono"}, `Radios: ${radios}`),
       el("div",{class:"mono"}, `Tags/Objects: ${tags}`),
-      el("div",{class:"muted", style:"margin-top:8px"},"For deeper validation, open Diagnostics and paste the JSON into chat."),
+      el("div",{class:"muted", style:"margin-top:8px"},"To send details to support, open Diagnostics (QA \u2192 Go to Diagnostics) and email its report to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first)."),
     ]),
   ]));
 

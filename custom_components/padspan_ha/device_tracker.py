@@ -13,8 +13,8 @@ Away timeout; default 5 minutes), the state is "not_home" explicitly.
 It must be named, not left as None: HA falls through None to latitude/longitude,
 which this tracker does not have, so the state came out "unknown" instead.
 
-Entity ID example:  device_tracker.padspan_car_keys
-Person link:        Settings → People → Alice → add device_tracker.padspan_alice_phone
+Entity ID example:  device_tracker.car_keys
+Person link:        Settings → People → Alice → add device_tracker.alice_phone
 """
 from __future__ import annotations
 

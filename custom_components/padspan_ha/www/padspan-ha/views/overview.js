@@ -92,7 +92,7 @@ function _renderAtlasHome(ctx){
     // check, so the Atlas skips its own (set before hass, which boots it).
     app._embedded = true;
     import(`../lights_panel.js${new URL(import.meta.url).search}`)
-      .catch(() => { if (ctx.toast) ctx.toast("The Atlas could not load. Turn \"Overview shows the Atlas\" off in Settings → Atlas.", true); });
+      .catch(() => { if (ctx.toast) ctx.toast("The Atlas could not load. Turn \"Show the Atlas as Overview\" off in Settings → Atlas.", true); });
   }
   if (ctx.hass) app.hass = ctx.hass;
   const wrap = document.createElement("div");
@@ -126,7 +126,8 @@ export function liveSwitch(ctx){
   return el("div", { class: "live-switch", style: "display:flex;gap:6px;align-items:center;margin:0 0 12px" }, [
     btn(!classic, "⚡ Live Tracker", "The live view", false),
     btn(classic, "▦ Overview", "The classic Overview (the Overview tab shows the Atlas)", true),
-  ]);
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("live_tracker", "Help: Live Tracker") : null,
+  ].filter(Boolean));
 }
 
 /**
@@ -222,6 +223,7 @@ export function renderClassic(ctx){
           b.addEventListener("click", () => ctx.actions.setDataMode("live"));
           return b;
         })(),
+        helpBtn("data_mode"),
       ])
     : null;
 
@@ -2385,7 +2387,7 @@ export function renderClassic(ctx){
     } else {
       const msg = document.createElement("div");
       msg.className = "muted"; msg.style.cssText = "font-size:12px;padding:8px";
-      msg.textContent = "No rooms drawn yet. Go to Maps → Edit to draw room boundaries.";
+      msg.textContent = "No rooms drawn yet. Go to Mapping → Edit to draw room boundaries.";
       roomListPanel.appendChild(msg);
     }
 
@@ -3214,7 +3216,7 @@ export function renderClassic(ctx){
     const mapCard = el("div",{class:"card"},[
       el("div",{class:"card-head"},[
         el("div",{class:"h2"}, "Your home"),
-        helpBtn("overview"),
+        helpBtn("overview_grid"),
       ]),
       el("div",{class:"muted",style:"font-size:12px;margin-bottom:10px"},
         dataMode === "live" ? "Live view · updates every 5s"
@@ -3232,6 +3234,7 @@ export function renderClassic(ctx){
       _phoneHdr.appendChild(_phoneArrow);
       _phoneHdr.appendChild(el("span",{style:"font-weight:600;font-size:13px;color:#60a5fa"}, "Track Your Phone"));
       _phoneHdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"}, "Tap to expand"));
+      _phoneHdr.appendChild(helpBtn("phone_tracking"));
       basicCompanionCard.appendChild(_phoneHdr);
       const _phoneBody = el("div",{style:"display:none;margin-top:8px"});
       basicCompanionCard.appendChild(_phoneBody);
@@ -3524,7 +3527,7 @@ export function renderClassic(ctx){
       el("div",{style:"display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"},[
         el("div",{class:"row",style:"align-items:center;gap:8px"},[
           el("h2",{style:"margin:0"}, "Overview"),
-          helpBtn("overview_grid"),
+          helpBtn("overview"),
         ]),
         bQuietRow,
       ]),
@@ -3663,6 +3666,7 @@ export function renderClassic(ctx){
     _aPhoneHdr.appendChild(_aPhoneArrow);
     _aPhoneHdr.appendChild(el("span",{style:"font-weight:700;font-size:14px;color:#60a5fa"}, "Track Your Phone"));
     _aPhoneHdr.appendChild(el("span",{class:"muted",style:"font-size:11px;flex:1"}, "Tap to expand"));
+    _aPhoneHdr.appendChild(helpBtn("phone_tracking"));
     companionCard.appendChild(_aPhoneHdr);
     const _aPhoneBody = el("div",{style:"display:none;margin-top:8px"});
     companionCard.appendChild(_aPhoneBody);
@@ -3985,7 +3989,10 @@ export function renderClassic(ctx){
   const section = el("section",{},[
     _buildSuspendBanner(),
     el("div",{style:"display:flex;align-items:center;justify-content:space-between"},[
-      el("h2",{style:"margin:0"}, "Overview"),
+      el("div",{class:"row",style:"align-items:center;gap:8px"},[
+        el("h2",{style:"margin:0"}, "Overview"),
+        helpBtn("overview"),
+      ]),
       quietRow,
     ]),
     el("div",{style:"color:#94a3b8;margin-top:2px;margin-bottom:10px"}, `Mode: ${dataMode.toUpperCase()} · ${ctx.state.versionInfo?.version || ""} (${ctx.state.versionInfo?.build_id || ""})`),

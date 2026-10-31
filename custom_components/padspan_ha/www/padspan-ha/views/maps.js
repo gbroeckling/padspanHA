@@ -1666,8 +1666,11 @@ function _wizard(ctx, maps, isBasic){
 
   const head = el("div",{class:"card", style:"margin-bottom:12px"});
   const hrow = el("div",{style:"display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"});
-  hrow.appendChild(el("div",{style:"font-weight:700;font-size:16px"},
-    map ? `Setting up: ${map.name || "this floor plan"}` : "Set up a floor plan"));
+  hrow.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
+    el("div",{style:"font-weight:700;font-size:16px"},
+      map ? `Setting up: ${map.name || "this floor plan"}` : "Set up a floor plan"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("maps_wizard") : null,
+  ]));
   const closeBtn = el("button",{class:"btn inline", style:"font-size:12px"}, "Exit setup");
   closeBtn.addEventListener("click", ()=>{
     // Reaching Finish already counts as the step-5 funnel entry above —
@@ -4121,7 +4124,10 @@ function _export(ctx, active, maps_list){
   const exportMap = maps_list.find(m=>m.id===ctx.state.maps._exportMapId) || maps_list[0];
 
   const card = el("div",{class:"card"});
-  card.appendChild(el("div",{style:"font-weight:700;font-size:15px;margin-bottom:10px"},"Export"));
+  card.appendChild(el("div",{class:"card-head",style:"margin-bottom:10px"},[
+    el("div",{style:"font-weight:700;font-size:15px"},"Export"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("maps_export") : null,
+  ]));
 
   // Map selector
   const mapSel = document.createElement("select");
@@ -4447,7 +4453,7 @@ const BRIGHT_PRO_MANUAL = [
         "heading": "Choose what to show and which floor",
         "body": "The buttons above the map are split into two groups: what to show, and, in a multi-floor home, which floor to show it on.",
         "steps": [
-          "Tap All, Lights, Strips, Fans, Motion, Temps or Air to bring just that kind of device to the front. Everything else dims and stops responding to taps until you tap the same button again, or tap All. Only buttons for devices your house actually has appear.",
+          "Tap a kind (All, Lights, Strips, Fans, Motion, Temps, Humidity, Air, Locks, Doors/Windows and Emergency) to bring just that kind of device to the front. Everything else dims and stops responding to taps until you tap the same button again, or tap All. Only buttons for devices your house actually has appear.",
           "On a home with more than one floor, tap a floor's name to jump straight to it, or All to see every floor again. Each floor button carries a small number showing how much is on up there.",
           "Tap Find active to jump straight to whatever's on or tripped right now."
         ],
@@ -4457,7 +4463,7 @@ const BRIGHT_PRO_MANUAL = [
         "heading": "The light index",
         "body": "Below the map is a table listing every light in the house, whether or not it's placed on the map.",
         "steps": [
-          "Pick a type from the dropdown above the table — All types, Lights, Strips, Fans, Motion, Temps or Air — to show only that kind.",
+          "Pick a type from the dropdown above the table (All types, or any kind your house has, from Lights to Emergency) to show only that kind.",
           "Click a column heading — Code, Light, Room or State — to sort by it. Click the same heading again to reverse the order, and a third click puts the list back in its normal order."
         ],
         "notes": [
@@ -4496,13 +4502,13 @@ const BRIGHT_PRO_MANUAL = [
           "Click Upload & Convert."
         ],
         "notes": [
-          "Upload one plan per floor. Mixing two levels into the same picture makes rooms harder to keep straight.",
-          "Once it uploads, you're taken straight into the Edit tab to start scaling and drawing rooms."
+          "One plan per floor is easiest: mixing two levels into the same picture makes rooms harder to keep straight. A floor can have more than one plan (a wing drawn on its own); only Outside is limited to one.",
+          "In Advanced mode you're then taken into the Edit tab to set the scale and draw rooms. In Basic mode, Open on the plan in the Library starts the Setup Wizard on it; Setup at the top of Mapping guides the whole job."
         ]
       },
       {
         "heading": "Find your plans in the Library",
-        "body": "Every plan you upload shows up in the Library tab, grouped by floor. Each one shows a thumbnail, its pixel size, and whether it's been scaled yet — \"not placed\" means the real-world size still isn't set. Tap Open to jump back into editing it (editing is in Advanced mode, so in Basic mode Open switches to Advanced for you), or Delete to remove it.",
+        "body": "Every plan you upload shows up in the Library tab, grouped by floor. Each one shows a thumbnail, its pixel size, and whether it's been scaled yet — \"not placed\" means the real-world size still isn't set. Tap Open to carry on with it (in Advanced mode it opens in the Edit tab; in Basic mode it starts the Setup Wizard at Set the scale), or Delete to remove it.",
         "steps": [],
         "notes": []
       },
@@ -4510,7 +4516,7 @@ const BRIGHT_PRO_MANUAL = [
         "heading": "Set the scale",
         "body": "Rooms can be drawn on the picture alone, but walls need real-world metres. Set the scale first so distances on the map match distances in your home.",
         "steps": [
-          "In the Edit tab, click Measure.",
+          "In the Edit tab, click 📏 Measure.",
           "Click two points on the map that you know the real distance between — opposite ends of a wall, a doorway, anything you can check with a tape measure.",
           "Type that distance in metres and click Add 1st Measurement.",
           "Click two more points at a different angle from the first pair, and click Add 2nd Measurement. Measuring twice at different angles checks that the photo itself isn't stretched.",
@@ -4530,7 +4536,7 @@ const BRIGHT_PRO_MANUAL = [
           "Click Start drawing, then click around the room's outline on the photo, one point per corner.",
           "Click Undo point if you misclick.",
           "Double-click, or click Finish, once you've placed at least three points, to close the shape.",
-          "Click Save Layout when you're done."
+          "Click Save Layout when you're done: until then the rooms are only a draft."
         ],
         "notes": [
           "Clear boundary removes the shape for whichever room is selected in the dropdown, so you can redraw it.",
@@ -4543,7 +4549,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
         "steps": [
           "In the Edit tab, click Signal walls.",
-          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to in Rooms) gets a railing; anywhere else it stays an open gap.",
+          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout) gets a railing; anywhere else it stays an open gap.",
           "Click along the wall on the photo, one point per corner or bend.",
           "Click Undo point to remove the last point.",
           "Double-click, or click Finish, once you have at least two points."
@@ -4615,7 +4621,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "",
         "steps": [
           "Click Undo (or press Ctrl+Z) to step back through your unsaved edits one at a time; click Redo (Ctrl+Y) to step forward again.",
-          "Use the filter dropdown above the light index to show only one kind of device at a time — lights, strips, fans, motion sensors, temperature sensors or air-quality sensors.",
+          "Use the filter dropdown above the light index to show only one kind of device at a time: lights, strips, fans, motion, temperature, humidity or air-quality sensors, locks, doors and windows, or emergency lights.",
           "Click a column heading — Code, Light, Room or State — to sort the index by it. Click again to reverse the order; a third click returns to the underlying order, sorted by room and then by name.",
           "Click \"Hide untouched\" to show only the fixtures you've actually resized, rotated, recoloured or given a shape — useful once most of the house is placed and you just want to see what's left to style. Moving a light on its own doesn't count as touching it.",
           "Click Hide on a light's row to drop it off the map entirely — it stays listed in the index. Click Show on a hidden row to bring it back."
@@ -4656,7 +4662,7 @@ const BRIGHT_PRO_MANUAL = [
         "heading": "Class chips and floor tabs",
         "body": "",
         "steps": [
-          "Above the map, tap a class chip — All, Lights, Strips, Fans, Motion, Temps or Air — to isolate that class. Its count shows how many of that class are on the map; everything else dims and stops responding to taps.",
+          "Above the map, tap a class chip (All, Lights, Strips, Fans, Motion, Temps, Humidity, Air, Locks, Doors/Windows and Emergency; only the kinds your house has) to isolate that class. Its count shows how many of that class are on the map; everything else dims and stops responding to taps.",
           "Tap the same chip again, or tap All, to bring everything back.",
           "On a house with more than one storey, floor tabs sit next to the chips: All, then one tab per floor. Each floor's tab carries a dot showing how many of its devices are on, and switches to a motion dot when something up there is tripped.",
           "Tap a floor's tab to work on just that storey — its own zoom and scroll position come back the way you left them.",
@@ -4793,11 +4799,11 @@ function _help(ctx){
     const card = el("div",{class:"card"});
     card.appendChild(el("div",{style:"font-weight:700"},"Presence & BLE mapping"));
     card.appendChild(el("div",{class:"muted", style:"margin-top:8px;line-height:1.5"},[
-      "• Upload any floorplan image; the UI converts it to optimized PNG and stores it under /config/padspan_ha/maps/, where only people logged in to Home Assistant can see it.",
+      "• Floor plans are kept in Home Assistant under /config/padspan_ha/maps/, where only people signed in to Home Assistant can see them.",
       el("br"),
-      "• Place receivers as normalized coordinates (0–1). This is the common industry approach (web GIS, indoor positioning) because it survives resizing.",
+      "• Walls are kept in real metres, so a plan needs its scale (Edit → 📏 Measure) before you draw them. Rotating or trimming a plan moves its receivers and rooms with it.",
       el("br"),
-      "• Next step after this: calibration layers (physical/distortion maps) + per-room fit, then drag-and-drop tag trajectories to validate.",
+      "• After Mapping comes Calibration: walking the house with a phone or beacon so PadSpan learns what each receiver hears from each room.",
     ]));
     wrap.appendChild(card);
   }
@@ -5022,7 +5028,7 @@ function _floorHeights(ctx){
     el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},
       "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
       "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine. "+
-      "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) in Rooms: select it, then Rises to. "+
+      "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height), or on the Layout tab: select it, then Rises to (the same value). "+
       "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing on its open edge, and a mezzanine gets its real base elevation here and sits under the room's roof."),
   ]);
   if(!floors.length){
@@ -7134,7 +7140,7 @@ function _stack(ctx, maps, helpBtn){
     tbl.appendChild(tbody2);
     roomListPanel.appendChild(tbl);
   } else {
-    roomListPanel.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px"},"No rooms drawn yet. Go to Maps → Edit to draw room boundaries."));
+    roomListPanel.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px"},"No rooms drawn yet. Go to Mapping → Edit to draw room boundaries."));
   }
   card.appendChild(roomListPanel);
 
@@ -8990,16 +8996,22 @@ export function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
 function _lightsTourSteps(paid){
   const steps = [
     { title: "Welcome to the Atlas builder",
-      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs — and, if you have a key, its shape, size, colour and effects too.",
+      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs a PadSpan Bright Pro or PadSpan Pro key.",
       find: null },
-    { title: "Place a light",
-      body: "Drag any light on the map to its real spot. Or click + Place next to its row in the list below the map, then tap the map where it is.",
-      find: (wrap) => wrap.querySelector(".lv-stage") },
-    { title: "Give it a shape",
+    paid
+      ? { title: "Place a light",
+          body: "Drag any light on the map to its real spot. Or click + Place next to its row in the list below the map, then tap the map where it is.",
+          find: (wrap) => wrap.querySelector(".lv-stage") }
+      : { title: "Your lights on the map",
+          body: "Without a key, each light stays at the centre of its room and you can still switch it from the map. Dragging it to its real spot (or + Place in the list) needs a PadSpan Bright Pro or PadSpan Pro key.",
+          find: (wrap) => wrap.querySelector(".lv-stage") },
+    ...(paid ? [{ title: "Give it a shape",
       body: "Click a light in the list below the map (or hold one still on the map itself) to select it. A panel opens underneath with Shape, size and rotation. Pick the glyph that matches the real fixture, or leave it on Auto for PadSpan's own guess.",
-      find: (wrap) => _lightsTourFindTable(wrap) },
+      find: (wrap) => _lightsTourFindTable(wrap) }] : []),
     { title: "Fans, motion, temperature — and WLED",
-      body: "The chips above the map isolate one kind of device at a time — Lights, Strips, Fans, Motion, Temps, Air. A strip with effects (WLED or similar) gets its own colour and effect controls: hold it, on the map or in the sidebar, to open them.",
+      body: "The chips above the map pick one kind of device at a time and dim the rest: All, Lights, Strips, Fans, Motion, Temps, Humidity, Air, Locks, Doors/Windows and Emergency. Only the kinds your house has appear, each with its count. "
+        + (paid ? "A strip with effects (WLED or similar) gets its own colour and effect controls: hold it, on the map or in the sidebar, to open them."
+          : "A strip with effects (WLED or similar) gets its own colour and effect controls with a key."),
       find: (wrap) => wrap.querySelector(".lv-layerbar") },
   ];
   if (paid) {
@@ -9008,11 +9020,11 @@ function _lightsTourSteps(paid){
       find: (wrap) => _lightsTourFindButton(wrap, "Showcase") });
   } else {
     steps.push({ title: "What a key adds",
-      body: "Placement — what you just did — is free. Fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need PadSpan Bright Pro or PadSpan Pro. " + _LIC_PATH + " is where a key goes once you have one.",
+      body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need PadSpan Bright Pro or PadSpan Pro. " + _LIC_PATH + " is where a key goes once you have one.",
       find: null });
   }
   steps.push({ title: "You're set",
-    body: "Undo (Ctrl+Z) and Redo (Ctrl+Y) cover every edit before you save. Save Layout when you're happy — the separate Atlas entry in your sidebar is what your household uses day to day, and it shows exactly what you just built here.",
+    body: "Undo (Ctrl+Z) and Redo (Ctrl+Y) cover every edit before you save. Click Save placements when you're happy — the separate Atlas entry in your sidebar is what your household uses day to day, and it shows exactly what you just built here.",
     find: null });
   return steps;
 }
@@ -10468,8 +10480,9 @@ function _lightsTab(ctx, maps, active) {
   // the light-placement tools are this tab's, not Furnish's.
   if (furnish) {
     return el("div", {}, [
-      el("div", { class: "card", style: "padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.5" },
-        "Furnish Live Aboard: Build adds a piece; drag it into place. Floor ▲ / ▼ moves it to another floor, and Height in room raises it onto a table, a shelf or a wall. Nothing is kept until Save."),
+      el("div", { class: "card", style: "padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.5" }, [
+        "Furnish Live Aboard: Build adds a piece; drag it into place. Floor ▲ / ▼ moves it to another floor, and Height in room raises it onto a table, a shelf or a wall. Nothing is kept until Save. ",
+        ctx.helpers.helpBtn ? ctx.helpers.helpBtn("aboard_3d") : null]),
       mapCardEl]);
   }
   // The drafting grid on the stage says "editing" without a word.
@@ -10916,7 +10929,10 @@ function _roomsTab(ctx, maps) {
   const fabricFloors = ctx.state.model?.fabric_floors || {};
 
   card.appendChild(el("div", { class: "card-head", style: "margin-bottom:4px" }, [
-    el("div", { style: "font-weight:700;font-size:15px" }, "Room and receiver layout, in metres"),
+    el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+      el("div", { style: "font-weight:700;font-size:15px" }, "Room and receiver layout, in metres"),
+      ctx.helpers.helpBtn ? ctx.helpers.helpBtn("maps_layout") : null,
+    ]),
     (!ctx.actions.canOpen || ctx.actions.canOpen("rooms")) ? el("button", {class:"btn inline", style:"font-size:11px;padding:2px 10px", "data-all-rooms":"rooms", title:"Every room's settings on one page", onclick:()=>ctx.actions.openRooms()}, "All rooms") : null,
   ]));
   card.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
@@ -12237,7 +12253,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
   } else {
     card.appendChild(el("div", { class: "muted", style: "padding:8px;margin:8px 0" },
       floorMapsAll.length
-        ? "No room shapes saved for this floor yet. Switch Layout above to preview the Stack alignment or System calibration, then Load into editor or Adopt."
+        ? "No room shapes saved for this floor yet. Switch Layout above to Map placements, then Commit this layout or Load into the layout editor."
         : "Nothing on this floor yet. Scanners appear here as soon as Home Assistant sees them — drag one to place it in metres. Room shapes are optional; trace them on a photo in the Edit tab if you want them."));
   }
 

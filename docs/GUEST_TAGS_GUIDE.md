@@ -14,7 +14,7 @@ A guest tag is a device PadSpan already knows by a name you gave it. Name a spar
 
 What works best is a tag with a steady identity: an iBeacon, a Find My tag, or a phone set up with Private BLE Device. A cheap tag whose address changes can still work once PadSpan has tied its addresses together.
 
-The tag keeps its own name. The guest's name belongs to the stay, so `device_tracker.padspan_guest_tag_1` stays the same entity from one guest to the next, and your automations keep working.
+The tag keeps its own name. The guest's name belongs to the stay, so `device_tracker.guest_tag_1` stays the same entity from one guest to the next, and your automations keep working.
 
 ## Lend it
 

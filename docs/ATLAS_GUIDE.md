@@ -86,7 +86,7 @@ What it shows:
 
 Weather warnings are found by themselves from Environment Canada, MeteoAlarm (most of Europe), DWD and NINA (Germany) and Météo-France. In the USA, Home Assistant's own weather service has no warnings; the **weatheralerts** or **nws_alerts** custom integrations add them. The UK and Australia have nothing standard, so there, *pouring* is the only heavy-rain signal. If a sensor stops reporting for a moment (Home Assistant restarting, say), the weather on the map stays as it was for up to 2 minutes instead of blinking off.
 
-Set it up in **Settings → UI Structure** (Advanced mode) **→ Atlas — Mapped Light Control → Outdoor weather**: the on/off switch (on by default), the rain sensor (optional; the list shows only actual rain sensors: an on/off rain sensor, a rain rate, or a rain gauge's latest reading), the weather entity (automatic picks your first one), the warnings sensor (automatic finds them) and **Strength** (0.5× to 1.5×). Each saves as soon as you change it, and Atlas picks it up at its next refresh. A water-leak detector saved as the warnings sensor before PadSpan left them out of that list is ignored (Atlas finds warnings itself), and Settings says so under the list.
+Set it up in **Settings → Atlas** (Advanced mode) **→ Atlas — Mapped Light Control → Outdoor weather**: the on/off switch (on by default), the rain sensor (optional; the list shows only actual rain sensors: an on/off rain sensor, a rain rate, or a rain gauge's latest reading), the weather entity (automatic picks your first one), the warnings sensor (automatic finds them) and **Strength** (0.5× to 1.5×). Each saves as soon as you change it, and Atlas picks it up at its next refresh. A water-leak detector saved as the warnings sensor before PadSpan left them out of that list is ignored (Atlas finds warnings itself), and Settings says so under the list.
 
 ## Heights
 
@@ -119,7 +119,7 @@ included), or else WLED lights named "emergency".
   second tap (**Tap again**).
 - If a Home Assistant automation with "emergency" in its name is running (a real emergency), the
   test won't switch those lights off under it.
-- To hide the button (a screen anyone can tap): **Settings → UI Structure → Atlas — Mapped Light
+- To hide the button (a screen anyone can tap): **Settings → Atlas → Atlas — Mapped Light
   Control → Show the Test emergency lighting button on the Atlas**. It saves straight away, no restart.
 
 ## WLED: Advanced and Exact look

@@ -1050,7 +1050,7 @@ async def ws_fabric_health(hass: HomeAssistant, connection, msg) -> None:
             "group": "spatial", "name": "Scale Calibration",
             "ok": _has_refs,
             "value": f"{_total_refs} measurement(s)" if _has_refs else "not calibrated",
-            "detail": f"{_total_refs} reference distance measurement(s) from the Measure tool" if _has_refs else "Use the Measure tool in Maps \u2192 Edit to set real-world scale from known distances",
+            "detail": f"{_total_refs} reference distance measurement(s) from the Measure tool" if _has_refs else "Use the Measure tool in Mapping \u2192 Edit to set real-world scale from known distances",
         })
 
         # Check if coordinator is using metre model

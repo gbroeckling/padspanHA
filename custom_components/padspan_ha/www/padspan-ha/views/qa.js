@@ -49,14 +49,14 @@ export function render(ctx){
       label: "Maps configured",
       pass: maps.length > 0,
       detail: maps.length > 0 ? `${maps.length} map${maps.length>1?"s":""}` : "No maps uploaded",
-      fix: "Upload a floor plan in the Maps tab.",
+      fix: "Upload a floor plan in Mapping \u2192 Upload.",
       fixView: "maps",
     },
     {
       label: "Receivers on maps",
       pass: maps.some(m => (m.receivers || []).length > 0),
       detail: maps.some(m => (m.receivers || []).length > 0) ? "At least one map has receivers" : "No receivers placed on maps",
-      fix: "Place scanners on your map in Maps \u2192 3D Stack.",
+      fix: "Place receivers on your floor plan in Mapping \u2192 Edit \u2192 Radios.",
       fixView: "maps",
     },
     {
@@ -83,7 +83,7 @@ export function render(ctx){
       label: "Objects tagged",
       pass: objects.some(o => o.user_label),
       detail: objects.filter(o => o.user_label).length + " tagged",
-      fix: "Tag devices in the Objects tab.",
+      fix: "Tag devices in Devices → By Room.",
       fixView: "objects",
     },
     {
@@ -402,7 +402,7 @@ export function render(ctx){
           `  R = <span style="color:#5eead4">${ctx.helpers.esc(s.kalman_r||"8.0")}</span> (measurement noise \u2014 higher = more smoothing)`,
           ``,
           `<b style="color:#e2e8f0">Adaptive Blending:</b>`,
-          `  ${s.adaptive_enabled ? `Enabled \u2014 maturity <span style="color:#5eead4">${Math.round((s.adaptive_maturity||0)*100)}%</span> \u2014 max influence ${Math.round(Math.min(40,((s.adaptive_maturity||0)*50)))}%` : "Disabled \u2014 enable in Settings \u2192 Presence"}`,
+          `  ${s.adaptive_enabled ? `Enabled \u2014 maturity <span style="color:#5eead4">${Math.round((s.adaptive_maturity||0)*100)}%</span> \u2014 max influence ${Math.round(Math.min(40,((s.adaptive_maturity||0)*50)))}%` : "Disabled \u2014 enable in Settings \u2192 Tracking"}`,
         ].join("<br>");
         detailDiv.appendChild(mathDiv);
       }

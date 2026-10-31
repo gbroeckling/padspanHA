@@ -39,6 +39,7 @@ export function render(ctx) {
     });
     tabBar.appendChild(btn);
   }
+  if (ctx.helpers.helpBtn) tabBar.appendChild(ctx.helpers.helpBtn("devices"));
   root.appendChild(tabBar);
 
   // ── Content ──────────────────────────────────────────────────────────────

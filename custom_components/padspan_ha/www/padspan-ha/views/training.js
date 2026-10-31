@@ -498,23 +498,23 @@ function _svgManageOverview() {
 <text x="16" y="95" fill="#94a3b8" font-size="9" font-family="system-ui">Training</text>
 <rect x="118" y="14" width="274" height="196" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
 <rect x="128" y="24" width="58" height="20" rx="4" fill="#0d2318" stroke="#78909c" stroke-width="1"/>
-<text x="157" y="38" text-anchor="middle" fill="#b0bec5" font-size="9" font-family="system-ui">BLE Tags</text>
+<text x="157" y="38" text-anchor="middle" fill="#b0bec5" font-size="9" font-family="system-ui">Data</text>
 <rect x="192" y="24" width="58" height="20" rx="4" fill="#071008" stroke="#1b3526" stroke-width="1"/>
-<text x="221" y="38" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Rooms</text>
+<text x="221" y="38" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Entities</text>
 <rect x="256" y="24" width="48" height="20" rx="4" fill="#071008" stroke="#1b3526" stroke-width="1"/>
-<text x="280" y="38" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Data</text>
+<text x="280" y="38" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Events</text>
 <rect x="128" y="52" width="256" height="26" rx="4" fill="#071008" stroke="#1b3526" stroke-width="0.5"/>
 <circle cx="146" cy="65" r="5" fill="#14b8a6" opacity="0.6"/>
 <text x="160" y="69" fill="#94a3b8" font-size="9" font-family="system-ui">Alice's AirTag</text>
 <rect x="336" y="58" width="40" height="14" rx="3" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
-<text x="356" y="69" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Delete</text>
+<text x="356" y="69" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Untag</text>
 <rect x="128" y="82" width="256" height="26" rx="4" fill="#071008" stroke="#1b3526" stroke-width="0.5"/>
 <circle cx="146" cy="95" r="5" fill="#14b8a6" opacity="0.6"/>
 <text x="160" y="99" fill="#94a3b8" font-size="9" font-family="system-ui">Car Keys</text>
 <rect x="336" y="88" width="40" height="14" rx="3" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
-<text x="356" y="99" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Delete</text>
-<text x="255" y="168" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Advanced mode only</text>
-<text x="255" y="184" text-anchor="middle" fill="#253e2e" font-size="9" font-family="system-ui">Toggle ⚡ Advanced in the top bar</text>
+<text x="356" y="99" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Untag</text>
+<text x="255" y="168" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Main menu in Advanced mode</text>
+<text x="255" y="184" text-anchor="middle" fill="#253e2e" font-size="9" font-family="system-ui">In Basic: under More tools</text>
 </svg>`;
 }
 
@@ -527,7 +527,7 @@ function _svgUntagDevice() {
 .confirm{animation:confirmPop 0.25s ease-out 1s both}
 </style>
 <rect x="8" y="14" width="384" height="22" rx="4" fill="#0d2318"/>
-<text x="28" y="29" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">BLE Tags</text>
+<text x="28" y="29" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">BLE Device Labels</text>
 <text x="200" y="29" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Last seen</text>
 <text x="336" y="29" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Action</text>
 <g class="fadeRow">
@@ -536,22 +536,22 @@ function _svgUntagDevice() {
   <text x="200" y="59" fill="#4a6052" font-size="9" font-family="system-ui">Sample data</text>
   <g class="confirm">
     <rect x="292" y="47" width="52" height="17" rx="4" fill="#7f1d1d" stroke="#dc2626" stroke-width="1"/>
-    <text x="318" y="59" text-anchor="middle" fill="#fca5a5" font-size="8" font-family="system-ui">Yes, delete</text>
+    <text x="318" y="59" text-anchor="middle" fill="#fca5a5" font-size="8" font-family="system-ui">Yes</text>
     <rect x="350" y="47" width="36" height="17" rx="4" fill="#071008" stroke="#1b3526" stroke-width="1"/>
-    <text x="368" y="59" text-anchor="middle" fill="#4a6052" font-size="8" font-family="system-ui">Cancel</text>
+    <text x="368" y="59" text-anchor="middle" fill="#4a6052" font-size="8" font-family="system-ui">No</text>
   </g>
 </g>
 <rect x="8" y="74" width="384" height="30" rx="4" fill="#071008" stroke="#1b3526" stroke-width="0.5"/>
 <text x="28" y="93" fill="#cbd5e1" font-size="10" font-family="system-ui">Alice's AirTag</text>
 <text x="200" y="93" fill="#4a6052" font-size="9" font-family="system-ui">2 min ago</text>
 <rect x="342" y="81" width="44" height="16" rx="4" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
-<text x="364" y="93" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Delete</text>
+<text x="364" y="93" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Untag</text>
 <rect x="8" y="108" width="384" height="30" rx="4" fill="#071008" stroke="#1b3526" stroke-width="0.5"/>
 <text x="28" y="127" fill="#cbd5e1" font-size="10" font-family="system-ui">Car Keys</text>
 <text x="200" y="127" fill="#4a6052" font-size="9" font-family="system-ui">18 min ago</text>
 <rect x="342" y="115" width="44" height="16" rx="4" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
-<text x="364" y="127" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Delete</text>
-<text x="200" y="180" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Two-click confirm prevents accidental deletes.</text>
+<text x="364" y="127" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Untag</text>
+<text x="200" y="180" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Untag, then Yes: two clicks prevent accidents.</text>
 <text x="200" y="196" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Device goes back to showing its hardware address.</text>
 </svg>`;
 }
@@ -622,7 +622,7 @@ function _svgAwayBadge() {
 @keyframes awayPulse{0%,100%{opacity:1}50%{opacity:0.4}}
 .awayBadge{animation:awayPulse 2s ease-in-out infinite}
 </style>
-<text x="200" y="14" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Objects tab — Away badge when device not seen</text>
+<text x="200" y="14" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Devices → By Room — Away badge when not heard</text>
 <rect x="8" y="22" width="384" height="20" rx="4" fill="#0d2318"/>
 <text x="22" y="36" fill="#6b9e7e" font-size="9" font-weight="600" font-family="system-ui">KIND</text>
 <text x="88" y="36" fill="#6b9e7e" font-size="9" font-weight="600" font-family="system-ui">NAME / ADDRESS</text>
@@ -694,7 +694,7 @@ function _svgCompanionTrack() {
 </style>
 <text x="200" y="16" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600" font-family="system-ui">One-click phone tracking from Overview</text>
 <rect x="40" y="30" width="320" height="60" rx="8" fill="#0f172a" stroke="#2563eb" stroke-width="1.5"/>
-<text x="60" y="52" fill="#e2e8f0" font-size="12" font-weight="600" font-family="system-ui">Garry's iPhone</text>
+<text x="60" y="52" fill="#e2e8f0" font-size="12" font-weight="600" font-family="system-ui">Alice's Android</text>
 <text x="60" y="68" fill="#64748b" font-size="9" font-family="system-ui">BLE active · visible to scanners</text>
 <rect class="pBtn" x="260" y="42" width="80" height="28" rx="6" fill="none" stroke="#2563eb" stroke-width="1.5"/>
 <text x="300" y="60" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600" font-family="system-ui">Track</text>
@@ -726,7 +726,7 @@ function _svgClearUnidentified() {
 <text class="cleanFade" x="40" y="150" fill="#f59e0b" font-size="10" font-family="system-ui">77:88:99:AA:BB:CC</text>
 <line class="sweepLine" x1="20" y1="30" x2="20" y2="165" stroke="#f87171" stroke-width="2" opacity="0.6"/>
 <text x="200" y="190" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Tagged and followed devices are preserved</text>
-<text x="200" y="208" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Available in Overview and Objects tabs</text>
+<text x="200" y="208" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Available in Overview and Devices → By Room</text>
 </svg>`;
 }
 
@@ -755,7 +755,7 @@ function _svgPrivateBle() {
 <text x="300" y="76" text-anchor="middle" fill="#60a5fa" font-size="10" font-family="system-ui">Garry's iPhone</text>
 <text x="300" y="100" text-anchor="middle" fill="#4ade80" font-size="9" font-family="system-ui">1 stable identity</text>
 <text x="300" y="130" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">Blue badge in all views</text>
-<text x="200" y="175" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Settings → Private BLE → Add IRK</text>
+<text x="200" y="175" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Settings → Tracking → Phone Tracking (Private BLE)</text>
 <text x="200" y="195" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Works with iPhones, Apple Watches, and Android phones</text>
 </svg>`;
 }
@@ -832,19 +832,19 @@ function _svgCalibSetup() {
 @keyframes phonePulse{0%,100%{opacity:1}50%{opacity:0.5}}
 .phone{animation:phonePulse 1.5s ease-in-out infinite}
 </style>
-<text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Step 1: Choose a device and a floor plan</text>
+<text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Step 1: Choose a device and a floor</text>
 <rect x="20" y="28" width="360" height="80" rx="8" fill="#0d2318" stroke="#52b788" stroke-width="1.5"/>
-<text x="36" y="50" fill="#94a3b8" font-size="10" font-family="system-ui">Calibration Device</text>
+<text x="36" y="50" fill="#94a3b8" font-size="10" font-family="system-ui">Beacon Device</text>
 <rect x="36" y="56" width="160" height="22" rx="5" fill="#071008" stroke="#1b3526" stroke-width="1"/>
 <text x="48" y="72" fill="#cbd5e1" font-size="10" font-family="system-ui">Alice's Phone ▾</text>
 <g class="phone"><circle cx="330" cy="68" r="14" fill="#14b8a6" opacity="0.2" stroke="#14b8a6" stroke-width="1.5"/><circle cx="330" cy="68" r="6" fill="#14b8a6"/></g>
-<text x="36" y="96" fill="#94a3b8" font-size="10" font-family="system-ui">Floor Plan</text>
+<text x="36" y="96" fill="#94a3b8" font-size="10" font-family="system-ui">Floor</text>
 <rect x="136" y="86" width="160" height="22" rx="5" fill="#071008" stroke="#1b3526" stroke-width="1"/>
 <text x="148" y="102" fill="#cbd5e1" font-size="10" font-family="system-ui">Ground Floor ▾</text>
-<text x="200" y="140" text-anchor="middle" fill="#4a6052" font-size="10" font-family="system-ui">Open the Calibration tab (or standalone phone panel)</text>
-<text x="200" y="156" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Pick the BLE device you'll carry and the map to calibrate on</text>
-<text x="200" y="180" text-anchor="middle" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Tip: Use the standalone Calibration panel on your phone</text>
-<text x="200" y="196" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">It's optimised for one-handed use while walking around</text>
+<text x="200" y="140" text-anchor="middle" fill="#4a6052" font-size="10" font-family="system-ui">Calibration → Beacon and floor</text>
+<text x="200" y="156" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Pick the phone or tag you'll carry and the floor to calibrate</text>
+<text x="200" y="180" text-anchor="middle" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Tip: 60 s at each spot is recommended</text>
+<text x="200" y="196" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">The floor plan needs a scale before points can be saved</text>
 </svg>`;
 }
 
@@ -874,10 +874,10 @@ function _svgCalibPin() {
 <text x="272" y="46" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Pin &amp; Listen</text>
 <text x="272" y="66" fill="#4a6052" font-size="9" font-family="system-ui">1. Tap map where</text>
 <text x="272" y="79" fill="#4a6052" font-size="9" font-family="system-ui">   you're standing</text>
-<text x="272" y="99" fill="#4a6052" font-size="9" font-family="system-ui">2. Stand still 10s</text>
-<text x="272" y="119" fill="#4a6052" font-size="9" font-family="system-ui">3. PadSpan records</text>
-<text x="272" y="132" fill="#4a6052" font-size="9" font-family="system-ui">   RSSI from every</text>
-<text x="272" y="145" fill="#4a6052" font-size="9" font-family="system-ui">   scanner</text>
+<text x="272" y="99" fill="#4a6052" font-size="9" font-family="system-ui">2. Start Collecting</text>
+<text x="272" y="119" fill="#4a6052" font-size="9" font-family="system-ui">3. Stand still, then</text>
+<text x="272" y="132" fill="#4a6052" font-size="9" font-family="system-ui">   Save Point (or</text>
+<text x="272" y="145" fill="#4a6052" font-size="9" font-family="system-ui">   Discard)</text>
 <text x="272" y="172" fill="#14b8a6" font-size="9" font-weight="600" font-family="system-ui">3 points collected</text>
 <text x="272" y="192" fill="#4a6052" font-size="8" font-family="system-ui">More points = better</text>
 </svg>`;
@@ -930,23 +930,23 @@ function _svgCalibModel() {
 <text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">Step 4: Compute model and check accuracy</text>
 <rect x="20" y="28" width="360" height="60" rx="8" fill="#0d2318" stroke="#52b788" stroke-width="1.5"/>
 <text x="36" y="48" fill="#52b788" font-size="11" font-weight="700" font-family="system-ui">Compute Model</text>
-<text x="36" y="64" fill="#4a6052" font-size="9" font-family="system-ui">Fits k-NN fingerprint + OLS path-loss model per scanner</text>
+<text x="36" y="64" fill="#4a6052" font-size="9" font-family="system-ui">Works out how accurately your points place people</text>
 <rect x="36" y="70" width="160" height="8" rx="4" fill="#1b3526"/>
 <rect class="bar" x="36" y="70" width="160" height="8" rx="4" fill="#52b788" style="width:140px"/>
 <g class="check"><text x="340" y="62" text-anchor="middle" fill="#52b788" font-size="20" font-family="system-ui">✓</text></g>
 <rect x="20" y="100" width="170" height="108" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1.5"/>
 <text x="36" y="120" fill="#94a3b8" font-size="10" font-weight="600" font-family="system-ui">Model Stats</text>
-<text x="36" y="140" fill="#4a6052" font-size="9" font-family="system-ui">Points collected: 24</text>
-<text x="36" y="156" fill="#4a6052" font-size="9" font-family="system-ui">Scanners used: 3</text>
-<text x="36" y="172" fill="#4a6052" font-size="9" font-family="system-ui">LOO accuracy: 87%</text>
-<text x="36" y="192" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Model quality: Good</text>
+<text x="36" y="140" fill="#4a6052" font-size="9" font-family="system-ui">Calibration Points: 24</text>
+<text x="36" y="156" fill="#4a6052" font-size="9" font-family="system-ui">Scanners Seen: 3</text>
+<text x="36" y="172" fill="#4a6052" font-size="9" font-family="system-ui">Est. Accuracy: ~1.4m</text>
+<text x="36" y="192" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Under 2 m shows green</text>
 <rect x="210" y="100" width="170" height="108" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1.5"/>
 <text x="226" y="120" fill="#94a3b8" font-size="10" font-weight="600" font-family="system-ui">What happens</text>
-<text x="226" y="140" fill="#4a6052" font-size="9" font-family="system-ui">k-NN matches new</text>
-<text x="226" y="154" fill="#4a6052" font-size="9" font-family="system-ui">signals to your</text>
-<text x="226" y="168" fill="#4a6052" font-size="9" font-family="system-ui">collected fingerprints</text>
-<text x="226" y="188" fill="#4a6052" font-size="9" font-family="system-ui">LOO = leave-one-out</text>
-<text x="226" y="202" fill="#4a6052" font-size="9" font-family="system-ui">cross-validation score</text>
+<text x="226" y="140" fill="#4a6052" font-size="9" font-family="system-ui">PadSpan compares live</text>
+<text x="226" y="154" fill="#4a6052" font-size="9" font-family="system-ui">signals with your</text>
+<text x="226" y="168" fill="#4a6052" font-size="9" font-family="system-ui">calibration points</text>
+<text x="226" y="188" fill="#4a6052" font-size="9" font-family="system-ui">Results: the stricter test</text>
+<text x="226" y="202" fill="#4a6052" font-size="9" font-family="system-ui">on spots it hasn't seen</text>
 </svg>`;
 }
 
@@ -1205,10 +1205,10 @@ function _svgFactoryReset() {
 <text x="200" y="86" text-anchor="middle" fill="#fca5a5" font-size="9" font-family="system-ui">alerts, movement, traceback, history, and backups</text>
 <text x="200" y="100" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="system-ui">BLE radios kept intact — only PadSpan data is erased</text>
 <rect x="30" y="120" width="340" height="68" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="200" y="140" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Found in Settings → Manage tab (Advanced mode).</text>
+<text x="200" y="140" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Found in Manage → Factory Reset (Live mode).</text>
 <text x="200" y="156" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Requires typing "FACTORY RESET" to confirm. Admin only.</text>
 <text x="200" y="172" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Use when starting over or troubleshooting persistent issues.</text>
-<text x="200" y="188" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">HA restart recommended after factory reset.</text>
+<text x="200" y="188" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Then press Reload Page. No HA restart needed.</text>
 </svg>`;
 }
 
@@ -1431,7 +1431,7 @@ function _svgAtlasDoor() {
 @keyframes doorSwing{0%,100%{opacity:1}50%{opacity:0.3}}
 .doorState{animation:doorSwing 2.5s ease-in-out infinite}
 </style>
-<text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">A wall becomes a real RF barrier</text>
+<text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">A door in a signal wall</text>
 <rect x="16" y="30" width="220" height="160" rx="6" fill="#0a1a0f" stroke="#1b3526" stroke-width="1"/>
 <line x1="30" y1="110" x2="110" y2="110" stroke="#94a3b8" stroke-width="4"/>
 <line x1="140" y1="110" x2="222" y2="110" stroke="#94a3b8" stroke-width="4"/>
@@ -1557,9 +1557,9 @@ const WALKTHROUGHS = [
     icon: "📡",
     summary: "Understand the technology behind PadSpan — BLE scanners, signal strength, and room detection.",
     steps: [
-      { title: "Bluetooth Scanners Detect Devices",       text: "PadSpan uses Bluetooth Low Energy (BLE) scanners placed around your home. Each scanner continuously listens for nearby Bluetooth signals from phones, tags, key fobs, and any other BLE device.", svg: _svgBleSignals },
-      { title: "Signal Strength Pinpoints the Room",      text: "Each scanner reports signal strength (RSSI) in dBm — more negative = weaker signal. The scanner with the strongest (least negative) reading is physically nearest to the device. That room is assigned as the device's location.", svg: _svgRssiComparison },
-      { title: "Room Assignment Updates Live",            text: "PadSpan maps the signal data to your Home Assistant Areas. The location is recalculated every 5 seconds automatically — no manual refresh needed. In Sample mode you can explore with demo data before going live.", svg: _svgRoomAssignment },
+      { title: "Receivers Hear Devices",                  text: "PadSpan listens through the Bluetooth receivers Home Assistant already has: ESPHome Bluetooth proxies (small ESP32 boards, ideally one per room), Shelly devices with Bluetooth, or the Home Assistant machine's own Bluetooth. Each receiver keeps hearing the short signals that phones, tags, key fobs and watches send out. The Receivers page lists them all.", svg: _svgBleSignals },
+      { title: "Signal Strength Points to the Room",      text: "Each receiver reports how strongly it hears a device, in dBm: −55 is stronger than −80. The receiver that hears a device best is usually the nearest one, so its Home Assistant area becomes the device's room. With a floor plan, three or more receivers placed on it and some calibration, PadSpan can also place devices between receivers.", svg: _svgRssiComparison },
+      { title: "Rooms Update Live",                       text: "Rooms are your Home Assistant areas. PadSpan works out every device's room again every 5 seconds (Settings → Tracking → Performance → Presence Poll Interval, 1–60 s), and the panel updates itself. A new install starts on the sample house, so you can see a finished setup before yours is done.", svg: _svgRoomAssignment },
       { title: "iBeacon Devices Survive MAC Rotation",    text: "The HA Companion App's iBeacon transmitter and other iBeacon devices may rotate their Bluetooth MAC address for privacy, but keep broadcasting the same iBeacon identity (UUID/Major/Minor). All rotating MACs sharing it are merged into one stable amber-badged object. Tag it once — the name sticks forever. (AirTags and other Apple Find My tags are not iBeacons: they have no lasting identity — see MAC Rotation Bridging in Settings → Features.)", svg: _svgIbeacon },
       { title: "Track Anything Bluetooth",                text: "Phones tracked by the HA companion app, AirTags, Tile trackers, key fobs, smartwatches, fitness bands — if it emits a BLE signal, PadSpan can see it. Tag devices with friendly names so you always know what's what.", svg: _svgDeviceTypes },
     ],
@@ -1571,7 +1571,7 @@ const WALKTHROUGHS = [
     summary: "Real-world testing with 20+ ESP32 boards — what actually works for room-level tracking and what doesn't.",
     steps: [
       { title: "The Antenna Makes the Difference",            text: "I had about a dozen old ESP32 boards kicking around from a project three years ago, and ordered 10 more specifically for testing. The old boards made OK BLE scanners when they happened to have a decent antenna, but most were poor. The signal readings jumped around too much from scan to scan — a room that read −62 one moment would read −78 the next. Swapping to boards with a full-size external antenna was the single biggest improvement. The chip matters way less than the antenna.", svg: _svgAntennaComparison },
-      { title: "Three Boards That Worked",                    text: "Out of everything I tested, three setups stood out. First: an ESP32-S3 with a LAN (Ethernet) port and an external antenna — I'll be honest, this one didn't actually test better than the WiFi version, but the theory is sound (no WiFi radio competing with BLE) and it's the one I'd pick for a permanent install. Second: an ESP32-S3 with WiFi and a full-size antenna — this is probably the most practical choice for most people. Third: an ESP32-C3 with a full-size antenna — cheaper, and it still did the job well.", svg: _svgBoardRanking },
+      { title: "Three Boards That Worked",                    text: "Out of everything I tested, three setups stood out. First: an ESP32-S3 with a LAN (Ethernet) port and an external antenna — it didn't actually test better than the WiFi version, but the theory is sound (no WiFi radio competing with BLE) and it's the one I'd pick for a permanent install. Second: an ESP32-S3 with WiFi and a full-size antenna — this is probably the most practical choice for most people. Third: an ESP32-C3 with a full-size antenna — cheaper, and it still did the job well. What to avoid: older ESP32 boards (not S3 or C3) with only a tiny chip antenna on the board. They're fine for home/away or as a basic Bluetooth proxy, but too noisy to tell rooms apart. Whatever you buy, look for an IPEX (u.FL) antenna connector and use a 2.4 GHz antenna with it.", svg: _svgBoardRanking },
       { title: "Why Room Tracking Is Harder Than Home/Away",   text: "Getting a device's room right on a map is genuinely challenging. Home/away just needs to see any signal from any scanner — easy. Room-level tracking needs to reliably tell which scanner is closest, and sometimes the difference is only 7 dBm. A noisy chip antenna can flip that decision randomly. The whole point of PadSpan is placing devices in the correct room on a floor plan, and that only works when the signal readings are consistent enough to trust.", svg: _svgAntennaDetail },
     ],
   },
@@ -1579,25 +1579,26 @@ const WALKTHROUGHS = [
     id: "tag_device",
     title: "Tag Your First Device",
     icon: "🏷️",
-    summary: "Name an unidentified BLE device so it shows up with a friendly label across all of PadSpan.",
+    summary: "Name an unnamed Bluetooth device so it shows up with a friendly name across all of PadSpan.",
     steps: [
-      { title: "Open the Objects Tab",                   text: "Click Objects in the sidebar. This lists every Bluetooth device currently visible to your scanners — including unidentified ones showing only a hardware address like AA:BB:CC:11:22:33.", svg: _svgObjectsList },
-      { title: "Find an Unidentified Device",            text: "Look for an orange Unidentified badge next to a hardware address. That's a real BLE device your scanners can see but hasn't been named yet. You can use the search box to filter by address if you have many devices.", svg: _svgObjectsList },
-      { title: "Click Tag and Enter a Name",             text: "Click the Tag button next to the device. A prompt appears — type a friendly name like 'Alice's AirTag', 'Car Keys', or 'Backpack Tracker'. Click Save. The name is stored permanently in Home Assistant.", svg: _svgTagModal },
-      { title: "Your Named Device Appears Everywhere",   text: "The name instantly appears in Follow, Overview, Objects, and all other panels. The badge turns teal to show it's identified. You can rename it at any time using the Relabel button.", svg: _svgTaggedDevice },
+      { title: "Open Devices → By Room",                 text: "Open Devices (under More tools at the bottom of the menu) and pick the By Room tab. It lists every Bluetooth device your receivers hear, including unnamed ones that show only an address like AA:BB:CC:11:22:33. (On Follow, Name this tag does the same for the tag you are following.)", svg: _svgObjectsList },
+      { title: "Find an Unnamed Device",                 text: "In Basic mode, unnamed devices are in the Unidentified card. In Advanced mode, set the status filter to Unidentified or click the unidentified count; the search box finds one by address. Their badge ends in a question mark (BLE?).", svg: _svgObjectsList },
+      { title: "Press Tag and Enter a Name",             text: "Press Tag next to the device. In the box that opens, type a name like 'Alice's AirTag' or 'Car Keys' and press Save label (or Enter). The name is kept in Home Assistant.", svg: _svgTagModal },
+      { title: "Your Named Device Appears Everywhere",   text: "The name appears on Follow, the Overview, Devices and every other page, and Home Assistant gets a tracker and a room sensor for it (see HA Entities & Automations in the Full Manual). Relabel changes the name; Untag removes it.", svg: _svgTaggedDevice },
     ],
   },
   {
     id: "floor_plan",
     title: "Set Up a Floor Plan",
     icon: "🗺️",
-    summary: "Upload a floor plan image, draw room boundaries, and place your Bluetooth scanners on the map.",
+    summary: "Upload a floor plan, set its scale, draw the rooms and place your receivers on it.",
     steps: [
-      { title: "Upload Your Floor Plan",                 text: "Go to Mapping → Upload tab. Give the map a name like 'Ground Floor', choose your image file (PNG, JPG, or even a photo of a hand-drawn plan), and click Upload & Convert. PadSpan automatically resizes and stores it.", svg: _svgUpload },
-      { title: "Rotate the Image First",                 text: "Before drawing rooms, check whether your floor plan needs rotating. Most plans from estate agents or architects are oriented with north at the top, but in PadSpan's 3D isometric stack view, walls should run parallel to the screen edges for clean alignment between floors. Open Edit, click Rotate Image, preview at 90°/180°/270°, then click Apply to bake the rotation into the actual image. This remaps any existing receivers and room boundaries automatically. Do this before drawing rooms — rotating after drawing means all your polygons shift perfectly, but it's easier to get the orientation right on a clean map.", svg: _svgRotateImage },
-      { title: "Draw Room Boundaries",                   text: "In the Edit tab, select Rooms mode then pick a room from the dropdown. Rooms with a ⚠ warning are already placed on another map — you can still place them here but be aware they'll exist on multiple maps. Click on the floor plan image to place polygon points around that room. Click the first point again to close the shape. Repeat for each room.", svg: _svgDrawRooms },
-      { title: "Place Your Bluetooth Scanners",          text: "Switch to Receivers mode in the Edit tab. Click anywhere on the floor plan to place a scanner icon where a physical Bluetooth radio is located. PadSpan uses these positions for distance calculations and visualisation.", svg: _svgPlaceScanners },
-      { title: "Assign Scanners to Rooms (Bluetooth)",   text: "Go to Bluetooth → Scanners tab to see all detected radios. Use the Area dropdown on each scanner row to assign it to the correct room. This links the scanner's RSSI readings to the right room in the system.", svg: _svgPlaceScanners },
+      { title: "Upload Your Floor Plan",                 text: "The easy way is guided: click Setup at the top of Mapping, or Start Setup Wizard in an empty Library, and it takes you through every step below (in Basic mode, Open on a plan starts it too). By hand: go to Mapping → Upload (an administrator's tab), pick the Floor (from HA) the plan belongs to, choose the picture (PNG, JPG, even a photo of a paper plan), crop it if you like and click Upload & Convert.", svg: _svgUpload },
+      { title: "Rotate the Image if Needed",             text: "If the plan sits at an angle, straighten it before you draw: walls that run along the screen's edges line up best between floors in 3D. In Edit, click Rotate Image, use -90°, -15°, -5°, +5°, +15° or +90° (0° starts again) and click Apply Rotation. Anything already drawn turns with it; if the scale can't be kept, PadSpan asks you to measure again. Once a plan is tied to another in 3D Stack, Rotate Image is hidden.", svg: _svgRotateImage },
+      { title: "Set the Scale",                          text: "In Edit, click 📏 Measure. Click two points you know the real distance between (a wall, a doorway), type it in metres and click Add 1st Measurement. Do the same with two points at a different angle and click Add 2nd Measurement, then Save Scale. The second angle shows whether the picture is stretched. Walls, heights and lining up floors all need the scale.", svg: _svgAlignReference },
+      { title: "Draw Room Boundaries",                   text: "Click Rooms and pick the room in Choose room… (these are your Home Assistant areas). Click its corners on the plan, then double-click or click Finish once you have 3 points or more; Undo point takes back a click. A room marked ⚠ is already drawn on another plan, so drawing it here makes a second copy. When the rooms are done, click Save Layout: until then they're only a draft.", svg: _svgDrawRooms },
+      { title: "Place Your Receivers",                   text: "Click Radios. In Live BLE Radios, click Add next to a receiver: it appears in the middle of the map, already in its Home Assistant room. Drag it to where it's really mounted. Double-clicking the map adds a blank \"Receiver N\" instead, one that isn't tied to any real receiver.", svg: _svgPlaceScanners },
+      { title: "Check Each Receiver's Room and Height",  text: "Click a placed receiver to check its Room and set its Height above floor (Save height keeps that straight away). Then click Save Layout to keep the receivers. The Receivers page lists every receiver with its room; its Place and Move buttons bring you back here.", svg: _svgPlaceScanners },
     ],
   },
   {
@@ -1607,16 +1608,16 @@ const WALKTHROUGHS = [
     summary: "Align your floor plans in Mapping → 3D Stack so each floor sits exactly over the one below it.",
     steps: [
       { title: "Why Your Floors Need Lining Up",
-        text: "When your home has multiple floor plans — ground floor, first floor, basement — PadSpan stacks them in a 3D isometric view. Each plan carries its own placement in real metres: where it sits, how big it is and which way it faces. Until you line the floors up against each other, the stairwell upstairs won't sit over the stairwell below. There's no master map to set: every map keeps its own placement, and aligning one map moves that map and nothing else.",
+        text: "When your home has several floor plans (ground floor, first floor, basement), PadSpan stacks them in 3D. Each plan carries its own placement in real metres: where it sits, how big it is and which way it faces. Until you line the floors up against each other, the stairwell upstairs won't sit over the stairwell below. There's no master map: aligning one plan moves that plan and nothing else. Set each floor's height first, in Floor Heights at the top of 3D Stack.",
         svg: _svgAlignWhy },
       { title: "Measure Your Reference First",
-        text: "You always align a Target map onto a Reference map, and the Reference must be measured — without a scale it has no size in metres to line anything up against. In the Edit tab, click Measure, take your two measurements and click Save Scale. The Library shows \"not placed\" for any map that hasn't been measured yet. Pick your most accurate plan as the Reference — usually the ground floor, since it covers the most of your home. It also needs to be easy to read with another floor on top: the Target is drawn see-through over it, and a plan with thin lines or low contrast disappears underneath.",
+        text: "You always align a Target plan onto a Reference plan, and the Reference must be measured: without a scale it has no size in metres to line anything up against. In Edit, click 📏 Measure, take your two measurements and click Save Scale. The Library shows \"not placed\" for a plan that hasn't been measured yet. Pick your most accurate plan as the Reference, usually the ground floor. It also needs to be easy to read with another floor on top: the Target is drawn see-through over it, and a plan with thin, faint lines disappears underneath.",
         svg: _svgAlignReference },
       { title: "Drag the Target Into Place",
-        text: "Open Mapping → 3D Stack and scroll to Alignment Overlay. Choose the Reference (fixed) and the Target (draggable) from the two dropdowns — a ⚠ marks a map that isn't placed yet. If the Target has never been placed, the readout under the dropdowns says Not placed: press Reset to start it on top of the Reference. Then drag the Target until shared features line up — stairwells, exterior walls, chimneys, load-bearing walls that run through every floor. Scale + and Scale − resize it, with Lock AR turned off, X − and X + stretch it left-right only, and −15°, +15° and 0° turn it. Zoom and Opacity change only your view.",
+        text: "Open Mapping → 3D Stack and scroll to Alignment Overlay. Choose the Reference (fixed) and the Target (draggable); ⚠ marks a plan that isn't placed yet. If the Target has never been placed, the readout says Not placed: press Reset to start it on top of the Reference. Then drag the Target until shared features line up: stairwells, outside walls, chimneys. Scale + and Scale − resize it, with Lock AR turned off, X − and X + stretch it left-right only, and −15°, ﹢15° and 0° turn it. Zoom and Opacity change only your view.",
         svg: _svgAlignDrag },
       { title: "Save It — or Use Point Align",
-        text: "Nothing is saved while you drag. Click Save Alignment to keep the Target's new position. If that position would leave more than half of the map's calibration points off the map, PadSpan refuses, changes nothing and tells you why. For a precise fit, click Point Align instead: click the same real-world point on both maps — it alternates between them for you — until you have 3 or more pairs, click Compute, check the preview and click Apply. Apply moves the Target on screen; click Save Alignment to keep it. Repeat for each floor, then check the 3D preview further down the tab.",
+        text: "Nothing is saved while you drag. Click Save Alignment to keep the Target's new position. If that position would put more than half of the plan's calibration points off the map, PadSpan refuses, changes nothing and tells you why. For a close fit, click Point Align instead: click the same real point on both plans (it switches between them for you) until you have 3 pairs or more, click Compute, check the preview and click Apply. Apply moves the Target on screen; click Save Alignment to keep it. Repeat for each floor, then check the 3D preview further down the tab, or Compare Maps in the Library.",
         svg: _svgAlignSave },
     ],
   },
@@ -1624,131 +1625,131 @@ const WALKTHROUGHS = [
     id: "dashboard",
     title: "Reading the Dashboard",
     icon: "📊",
-    summary: "Understand the Overview dashboard — KPI cards, room grid, and the Follow tracker.",
+    summary: "Understand the Overview: its counts, the 3D map, the overhead map, and Follow.",
     steps: [
-      { title: "Overview — Summary Counts",              text: "The Overview tab shows live counts of rooms, objects, and radios. In Advanced mode these appear as clickable KPI cards — tap any number to see a full list. Click any row in the list for detailed info on that item.", svg: _svgKpiCards },
-      { title: "Room Grid — What's in Each Room",        text: "Scroll down to see the room grid. Each coloured box is a room. Inside: green antenna rings are Bluetooth scanners, teal dots are identified (named) devices, orange dots are unidentified BLE signals. Counts shown in the corner.", svg: _svgRoomGrid },
-      { title: "2D Flat Map Mode",                        text: "If you prefer a simple flat view instead of the 3D isometric stack, enable 2D Flat Map Mode in Settings → Appearance. This replaces the tilted 3D floor stack with a flat overhead view of your floor plan that supports mouse-wheel zoom and click-drag panning. Device dots and scanner icons are rendered directly on the image. Useful on small screens or when you only have one floor.", svg: _svg2dMode },
-      { title: "Follow — Track a Specific Tag",          text: "Switch to the Follow tab and pick any tracked device from the dropdown. You'll see its current room, signal strength, age of last detection, and a room map with a pulsing location dot. Advanced mode adds a movement history log.", svg: _svgFollowTab },
+      { title: "Overview — Summary Counts",              text: "Basic mode shows counts of rooms, objects, scanners and calibration points above the map. Advanced mode shows People in building at the top and, under the map, cards for Rooms, Objects, Bluetooth radios and Calibration; their buttons (View rooms list, All objects, View radios list) open full lists. Click a row for its details.", svg: _svgKpiCards },
+      { title: "The Map — What's Where",                 text: "Once rooms are drawn, the map is a 3D stack of your floors. Green rings are receivers (a red blinking inner ring means that receiver uses active scanning). Devices you follow are amber markers with a percentage; turn Pins on to show your other named devices too. Before any rooms are drawn, Who's where now lists each room and who is in it instead.", svg: _svgRoomGrid },
+      { title: "2D Overhead Map",                        text: "Prefer a flat view? Press ▣ Overhead on the 3D map, or turn on Settings → Appearance → 2D Map Mode. The overhead map (marked experimental) zooms with the mouse wheel and pans by dragging; ◈ 3D view goes back.", svg: _svg2dMode },
+      { title: "Follow — Track a Specific Tag",          text: "Open Follow and pick a device in the search box. You'll see its room, its floor and when it was last heard, and a room map with a pulsing dot. Advanced mode adds which receivers hear it and a movement log.", svg: _svgFollowTab },
     ],
   },
   {
     id: "home_away",
     title: "Home/Away Detection",
     icon: "🏠",
-    summary: "How PadSpan marks devices as not_home, the Away badge in Objects, and configuring the timeout.",
+    summary: "How PadSpan marks devices as away (not_home), the Away badge, and changing the timeout.",
     steps: [
-      { title: "Devices Are Tracked Even When Away",      text: "PadSpan keeps every tagged device in its tracking list even after it disappears from your scanners. A growing age_s counter tracks how long it's been since the device was last seen — no information is lost while waiting for it to return.", svg: _svgHaEntities },
-      { title: "Away Badge Appears in Objects Tab",       text: "Once a device hasn't been seen for longer than the away timeout (default 5 minutes), a red Away badge replaces the signal bar in the Objects tab. 'Last: Kitchen' shows where it was before it went out of range. The normal teal/green badge returns the moment it reappears.", svg: _svgAwayBadge },
-      { title: "HA Entities Switch to not_home",         text: "PadSpan creates a device_tracker entity (e.g. device_tracker.car_keys) and an area sensor (sensor.car_keys_area) for every tagged BLE device. When the device goes away, both entities automatically change state to not_home — ready for use in HA automations, the logbook, and Person tracking.", svg: _svgHaEntities },
-      { title: "Configure the Timeout",                  text: "Go to Settings → Tracking → Home/Away Timeout to change how long before a device is marked away. Default is 5 minutes. Raise it if devices drop off briefly in thick-walled rooms or during normal use (10–30 min is common). Set it lower for fast away detection (minimum 1 minute).", svg: _svgPresenceSettings },
+      { title: "Devices Are Kept While Away",            text: "PadSpan keeps every named device on its list after it leaves range, and counts the time since a receiver last heard it. Nothing is lost while it is gone; it picks up where it left off when it comes back.", svg: _svgHaEntities },
+      { title: "The Away Badge",                         text: "Once a device hasn't been heard for longer than the away timeout (5 minutes unless changed), Devices → By Room shows a red Away badge with the last room PadSpan was sure of, and when — for example 📍 Kitchen · 2h 5m ago. The normal display returns the moment it is heard again.", svg: _svgAwayBadge },
+      { title: "Home Assistant Switches to not_home",    text: "Each named device has a tracker (like device_tracker.car_keys) and a room sensor (sensor.car_keys_area) in Home Assistant. When the device is away, both change to not_home, ready for automations, the logbook and Person tracking.", svg: _svgHaEntities },
+      { title: "Change the Timeout",                     text: "In Advanced or Development mode, open Settings → Tracking → Rooms and timing → Home/Away Timeout (Basic's Settings page doesn't have it: switch with the mode button at the top right). The default is 5 minutes; anything from 1 minute to 24 hours works. Raise it if devices drop out briefly in thick-walled rooms (10–30 minutes is common); lower it for faster away detection.", svg: _svgPresenceSettings },
     ],
   },
   {
     id: "calibration",
     title: "Calibrate for Accuracy",
     icon: "🎯",
-    summary: "Walk around your home collecting signal fingerprints to build a calibration model for precise room detection.",
+    summary: "Walk your home with your phone so PadSpan learns what each spot sounds like, then see how accurate it is, room by room.",
     steps: [
-      { title: "Choose a Device and Floor Plan",           text: "Open the Calibration tab (visible in every mode) or use the standalone Calibration panel on your phone. Pick the BLE device you'll carry — usually your phone — and select which floor plan to calibrate. The standalone panel is optimised for one-handed phone use while walking around.", svg: _svgCalibSetup },
-      { title: "Pin & Listen — Collect Fingerprints",      text: "In the Pin & Listen tab, tap the floor plan where you're physically standing. Stand still for about 10 seconds while PadSpan records the RSSI signal strength from every scanner that can see your device. Each tap-and-wait creates one calibration point. Collect 15–30 points spread around your home for a good model.", svg: _svgCalibPin },
-      { title: "Roam — Check Coverage",                    text: "Switch to the Roam tab to see a coverage heatmap. Green cells have good fingerprint data, yellow have some, red need more. Walk to the red areas and collect more points there. The guided 'walk here next' target helps you fill gaps efficiently.", svg: _svgCalibHeatmap },
-      { title: "Compute Model & Validate",                 text: "Switch to the Model tab and click Compute Model. PadSpan fits a k-NN fingerprint model and per-scanner OLS path-loss model from your collected data. Leave-one-out cross-validation scores the accuracy. 80%+ is good, 90%+ is excellent. You can always collect more points and recompute to improve the score.", svg: _svgCalibModel },
+      { title: "Choose a Device and Floor",                text: "Open Calibration (in the main menu in every mode). It opens on Results; press \"🧭 Guided calibration\" to go step by step. On \"Beacon and floor\", pick the phone or tag you'll carry and the floor to calibrate, and a \"Collection Duration\": 15 s to start with, 60 s recommended. The floor plan needs a scale first: if it has none, \"Measure this floor →\" takes you to measure one distance you know.", svg: _svgCalibSetup },
+      { title: "Pin & Listen — Collect Points",            text: "On Pin & Listen, tap the map where you're standing, press \"Start Collecting\" and stand still until the time is up. Then press \"Save Point\" to keep it, or \"Discard\". Each saved spot is one calibration point: how strongly every receiver heard your phone there. Aim for 10–20 spots spread across each floor, including doorways and the walls between rooms.", svg: _svgCalibPin },
+      { title: "Roam — Let PadSpan Pick the Spot",          text: "Roam shows how well each part of the floor is covered (green covered, amber partly, red not yet) and a blue crosshair for the next target. Walk there, stand still and press \"I'm Here — Collect\". Once the accuracy has been worked out, a \"Priority:\" card names the room that needs points most.", svg: _svgCalibHeatmap },
+      { title: "Check the Accuracy",                       text: "On Model, press \"Compute Model\" (it needs 4 points or more). \"Est. Accuracy\" is how far off PadSpan's guess was on average, in metres; under 2 m shows green. Results then shows the stricter test on spots it hasn't seen, room by room, and the next best thing to do. Add points and compute again any time.", svg: _svgCalibModel },
     ],
   },
   {
     id: "phone_tracking",
     title: "Track Your Phone",
     icon: "📱",
-    summary: "Use the HA Companion App to track phones via BLE iBeacon. One-click setup with automatic transmitter enablement.",
+    summary: "Track a phone from the Overview: an Android phone with the Companion app's BLE Transmitter, an iPhone with its IRK.",
     steps: [
-      { title: "Install the HA Companion App",            text: "Install the Home Assistant Companion App on any phone you want to track (Android or iOS). The app includes a BLE Transmitter feature that broadcasts an iBeacon signal — a stable identifier that PadSpan can track even as the phone's Bluetooth MAC address rotates for privacy.", svg: _svgCompanionTrack },
-      { title: "One-Click Track in Overview",              text: "Open Overview in PadSpan. If the Companion App is installed and registered with your HA instance, a blue 'Phones detected' card appears automatically. Click 'Track this phone' — PadSpan labels the phone, adds it to your followed list, and sends a command to enable the BLE Transmitter on the phone. All in one click.", svg: _svgCompanionTrack },
-      { title: "What Happens Behind the Scenes",           text: "When you click Track, PadSpan: (1) stores a label for the phone's iBeacon key in the object store, (2) adds the key to your followed devices list, (3) enables the BLE Transmitter entity in HA's entity registry, and (4) sends a notification command to the Companion App to turn on BLE transmission. The phone starts broadcasting and appears on your map once a scanner picks it up.", svg: _svgIbeacon },
-      { title: "Status Feedback",                         text: "After tracking, the button shows real status: green 'Tracked!' means the phone is visible to scanners. Yellow 'Waiting for signal' means the transmitter is on but no scanner has seen it yet — walk near a scanner. Amber 'Enable BLE Transmitter' means the command couldn't reach the app — open Companion App → Settings → Manage Sensors → BLE Transmitter and enable it manually.", svg: _svgCompanionTrack },
-      { title: "Untrack a Phone",                         text: "In Advanced mode, already-tracked phones show their current status (Tracked / Waiting / BLE off) with an Untrack button. Clicking Untrack removes the label and unfollows the phone — it will revert to an anonymous BLE signal.", svg: _svgAwayBadge },
+      { title: "Android: the Companion App",             text: "Install the Home Assistant Companion app on the phone. On Android it has a BLE Transmitter sensor that sends a steady beacon, which PadSpan can follow even though the phone changes its Bluetooth address for privacy. The iPhone app has no BLE Transmitter: see the last step.", svg: _svgCompanionTrack },
+      { title: "One Click on the Overview",              text: "Open the Overview in Live mode and open the Track Your Phone card (click its title if it's folded). Press Track (Basic) or Track this phone (Advanced). PadSpan names the phone, follows it, and asks the app to start sending.", svg: _svgCompanionTrack },
+      { title: "What Happens Behind the Scenes",         text: "PadSpan (1) names the phone's beacon, (2) adds it to your followed list, (3) switches the BLE Transmitter sensor on in Home Assistant if it was off, and (4) sends the app a command to start sending. The phone appears on your map once a receiver hears it.", svg: _svgIbeacon },
+      { title: "Status Feedback",                        text: "In Advanced mode the button then says how it went: Tracked! (a receiver hears it), Registered — waiting for signal (walk near a receiver), or Registered — enable BLE (in the Companion app, open Settings → Companion App → Manage Sensors → BLE Transmitter and turn it on). Later the card shows Tracked, Waiting for signal or BLE off, with Untrack; Basic shows Unfollow.", svg: _svgCompanionTrack },
+      { title: "iPhones: Use the IRK",                   text: "An iPhone is followed by its IRK, a key that recognises it through every address change. Add it in Settings → Tracking → Phones and guest tags → Phone Tracking (Private BLE) (Advanced mode) or in Bluetooth → IRK Manager. Turn on iPhone Setup Path in Settings → Features and an iPhone in the card gets a Setup button with the steps.", svg: _svgPrivateBle },
     ],
   },
   {
     id: "private_ble",
     title: "Private BLE (Apple Devices)",
     icon: "🔒",
-    summary: "Track iPhones and Apple Watches that rotate their MAC address using Identity Resolving Keys (IRK).",
+    summary: "Track iPhones, Apple Watches and other phones that keep changing their Bluetooth address, using their IRK (Identity Resolving Key).",
     steps: [
-      { title: "The MAC Rotation Problem",                text: "Modern phones — especially iPhones and Apple Watches — rotate their Bluetooth MAC address every 15 minutes for privacy. Without special handling, each rotation creates a new 'unknown device' in your scanner list. Your iPhone might show up as dozens of different unidentified entries.", svg: _svgPrivateBle },
-      { title: "IRK — Identity Resolving Key",            text: "Every Bluetooth device that uses private addressing has an IRK — a cryptographic key that can resolve the rotating addresses back to one stable identity. Home Assistant's Private BLE Device integration stores these IRKs and matches them to incoming advertisements. PadSpan reads the resolved identities and groups all the rotating MACs into a single blue-badged object.", svg: _svgPrivateBle },
-      { title: "Adding an IRK in PadSpan",                text: "Go to Settings → Private BLE Devices and click Add IRK. Enter the IRK in any format — plain hex, colon-separated, or base64. PadSpan tries all three formats automatically. Once added, the device appears with a blue badge in Objects, and its advertisements are matched across all scanners regardless of which MAC address happens to be active.", svg: _svgPrivateBle },
-      { title: "Calibration with Private BLE Devices",    text: "Private BLE devices work in calibration just like any other tracked device. The calibration system matches advertisements by canonical identity (not by MAC address), so fingerprints collected while the MAC was one value still match when it rotates to another. You can use your iPhone as the calibration device without worrying about address changes.", svg: _svgCalibSetup },
+      { title: "The Changing-Address Problem",            text: "iPhones, Apple Watches and many Android phones change their Bluetooth address every few minutes for privacy. Without help, each change looks like a new unknown device, so one phone can show up as dozens of unidentified entries.", svg: _svgPrivateBle },
+      { title: "IRK — Identity Resolving Key",            text: "An IRK is a key the phone shares with devices it is paired with. With it, PadSpan recognises every new address as the same phone. The key is kept in Home Assistant as a Private BLE Device, and PadSpan shows the phone as one device with a blue \"Private BLE\" badge (Devices → By Room).", svg: _svgPrivateBle },
+      { title: "Adding an IRK in PadSpan",                text: "In Advanced or Development mode, open Settings → Tracking → Phones and guest tags → \"Phone Tracking (Private BLE)\" (or Bluetooth → IRK Manager). Press \"Auto-Detect IRKs\" to find keys PadSpan can see on its own, or paste the IRK, give it a name and press \"Add IRK\". Keep the phone awake, with Bluetooth on, near a receiver: PadSpan checks for up to 30 seconds that the key matches the phone, then saves it. With no match it offers \"Save Anyway\", \"Retry\" or \"Cancel\". \"Delete from HA\" removes a phone's Private BLE Device from Home Assistant itself.", svg: _svgPrivateBle },
+      { title: "Calibration with Private BLE Devices",    text: "A phone tracked by its IRK works in calibration like any other device: it is matched by its identity, not its changing address, so you can calibrate with your iPhone without worrying about address changes.", svg: _svgCalibSetup },
     ],
   },
   {
     id: "quiet_clear",
     title: "Quiet Mode & Cleanup",
     icon: "🧹",
-    summary: "Reduce visual clutter with Quiet Mode and clean up unidentified devices while keeping your tagged items.",
+    summary: "Hide the clutter with Quiet and clear out unnamed devices, keeping the ones you named or follow.",
     steps: [
-      { title: "Quiet Mode",                             text: "Toggle Quiet Mode from the top-right corner of Overview (both Basic and Advanced modes). When enabled, the overview and room grid hide unidentified devices and show only your tagged and followed objects. The room dots switch from showing everything to showing just the devices you care about. Great for everyday use once your initial setup is done.", svg: _svgQuietMode },
-      { title: "Clear Unidentified",                     text: "The 'Clear unidentified' button removes all untagged, unfollowed BLE objects from PadSpan's history cache. Available in the Overview Objects card (Advanced mode) and the Objects tab. Tagged devices (those you've named) and followed devices (those you're tracking) are always preserved — only anonymous hardware addresses are cleared.", svg: _svgClearUnidentified },
-      { title: "When to Clear",                           text: "Clear unidentified after tagging your important devices, if you have dozens of unknown Bluetooth signals cluttering the list (neighbours' phones, passing cars, etc.). The devices will reappear on the next scan cycle if they're still in range, but old stale entries are gone. Use Quiet Mode to hide them without deleting — Clear to actually remove them.", svg: _svgClearUnidentified },
+      { title: "Quiet",                                  text: "Tick Quiet at the top right of the Overview (in every mode). Devices nobody has named or followed are then hidden on the Overview, in Devices, in Follow's list, in Zones and on the maps, so only the ones you care about remain. It changes only what is shown: untick it to see everything again.", svg: _svgQuietMode },
+      { title: "Clear Unidentified",                     text: "Clear unidentified removes every device nobody has named or followed from PadSpan's list. It is on the Overview's Objects card (Advanced mode) and in Devices → By Room. Named and followed devices are always kept.", svg: _svgClearUnidentified },
+      { title: "When to Clear",                          text: "Clear after naming your important devices, when the list is cluttered with neighbours' phones and passing devices. Anything still in range comes back on the next scan; old entries are gone. Quiet hides them without removing them; Clear removes them.", svg: _svgClearUnidentified },
     ],
   },
   {
     id: "manage",
     title: "Manage Your Setup",
     icon: "⚙️",
-    summary: "Clean up tags, delete HA areas, remove orphaned map data, and keep your system tidy.",
+    summary: "Remove device names, clean up old map data, back up, and start again if you need to.",
     steps: [
-      { title: "The Manage Tab",                         text: "The Manage tab gives you full control over your PadSpan data. It's in the main menu in Advanced and Development modes, and under More tools in Basic. Click Manage in the sidebar to find tabs for BLE Tags, Rooms (HA Areas), Maps, and Data.", svg: _svgManageOverview },
-      { title: "Untag or Remove BLE Devices",           text: "Under BLE Tags, every named BLE device is listed with its last-seen time. Click Delete to remove the name — the device reverts to showing its hardware address. A two-click confirm prevents accidental deletes.", svg: _svgUntagDevice },
-      { title: "Clean Up Orphan Polygons",              text: "The Data tab's Orphan Room Polygons scanner finds room boundaries in your maps that no longer match a real HA area — commonly leftover from sample mode or rooms that were deleted. Delete them individually or all at once.", svg: _svgOrphanClean },
-      { title: "Factory Reset",                         text: "When you need a completely fresh start, use Factory Reset in Settings → Manage tab. This erases all PadSpan persistent data — settings, calibration, objects, maps, model, alerts, movement history, and backups. BLE radio data is kept intact so scanners continue working. You must type 'FACTORY RESET' to confirm (admin only). Restart HA afterwards. Use this when troubleshooting persistent issues or starting a clean setup from scratch.", svg: _svgFactoryReset },
+      { title: "The Manage Screen",                      text: "Manage is in the main menu in Advanced and Development mode, and under More tools in Basic. Its tabs are Data, HA Entities, Beacon Characteristics, History, Events, Logs and Factory Reset. Anything that changes or deletes data needs Live mode.", svg: _svgManageOverview },
+      { title: "Untag a Device",                         text: "Manage → Data → BLE Device Labels lists every Bluetooth device you named, with its address and when it was last seen. Press \"Untag\", then \"Yes\": the name goes and the device shows its address again, but it is still tracked.", svg: _svgUntagDevice },
+      { title: "Clean Up Orphan Polygons",               text: "When a map has room shapes whose room no longer exists in Home Assistant (often left over from the sample house), Manage → Data shows an Orphan Room Polygons card. Delete them one at a time, or with \"Delete ALL orphans\" when there is more than one.", svg: _svgOrphanClean },
+      { title: "Factory Reset",                          text: "For a completely fresh start, use Manage → Factory Reset (Live mode, Home Assistant administrator). It erases all of PadSpan's data, backups included; your licence key is kept. Type FACTORY RESET, press \"Erase All Data & Reset\", confirm, then press \"Reload Page\" when it finishes. No Home Assistant restart is needed, and your receivers keep working.", svg: _svgFactoryReset },
     ],
   },
   {
     id: "atlas_intro",
     title: "Atlas: Your Device Map",
     icon: "🗺️",
-    summary: "Meet Atlas — the isometric map for lights, fans, sensors, locks and doors. What's free, what needs a key, and how to get there.",
+    summary: "Meet the Atlas: the map for lights, fans, sensors, locks and doors. What's free, what needs a key, and where to find it.",
     steps: [
-      { title: "What Atlas Is",                          text: "Atlas is one isometric map of every floor, drawn the way an electrician draws a lighting plan, for placing and controlling real devices — lights, fans, locks, motion/temperature/humidity/air-quality sensors, doors and windows — at their real position. It used to be called 'Lights'; it outgrew that name once everything beyond lighting joined it.", svg: _svgAtlasOverview },
-      { title: "Free vs. Pro",                           text: "A free install gets floors, rooms and one marker per light — tap the marker (or its sidebar row) to toggle it. A PadSpan Pro or PadSpan Bright Pro key unlocks the rest: real placement, shapes, every sensor class, doors/locks as signal walls, Automorph and Showcase.", svg: _svgAtlasEditions },
-      { title: "Getting There",                          text: "Open Mapping → Atlas for the full builder, or turn on the standalone Atlas sidebar panel in Settings for a lighter view without the rest of Mapping.", svg: _svgAtlasNav },
+      { title: "What Atlas Is",                          text: "The Atlas is one map of every floor, drawn the way an electrician draws a lighting plan, for seeing and switching real devices where they really are: lights, fans, locks, motion, temperature, humidity and air-quality sensors, doors and windows.", svg: _svgAtlasOverview },
+      { title: "Free vs. Pro",                           text: "Without a key, the Atlas shows your floors and rooms with every device gathered at the middle of its room; tap a light (or its row) to switch it. A PadSpan Bright Pro or PadSpan Pro key adds placing each device where it really is, its shape, size and angle, and the Showcase, Fit room, Light spread, Scene, Ripple, Automorph and Hide untouched tools. PadSpan Pro adds Whole house presets, Vacation Mode, Live Aboard, the heatmap and wall screens.", svg: _svgAtlasEditions },
+      { title: "Getting There",                          text: "The Atlas has its own entry in Home Assistant's sidebar, on by default: that's the everyday view. To hide or show it, use Settings → Atlas → Show the Atlas in the Home Assistant sidebar, then restart Home Assistant. Mapping → Atlas (Advanced mode) is the builder, where devices are placed and styled; administrators can jump there from the sidebar Atlas with ✎ Edit map.", svg: _svgAtlasNav },
     ],
   },
   {
     id: "atlas_placement",
     title: "Placing Fixtures on Atlas",
     icon: "📍",
-    summary: "Drag lights, fans, locks and sensors onto the map at their real position, shape and size.",
+    summary: "Put lights, fans, locks and sensors on the map at their real spot, shape and size.",
     steps: [
-      { title: "Drag or Queue-and-Tap",                  text: "Either drag the pulsing pin straight onto the floor plate, or tap + Place to queue the device and then tap the map where it belongs. Both land the device on whichever real floor plate you actually dropped it on.", svg: _svgAtlasPlace },
-      { title: "Real Shape, Size and Angle",             text: "Set shape from the inspector — pendant, sconce, strip, chandelier and more — plus size and rotation in real centimetres, not a generic dot. This works the same way for lights, fans, locks and every sensor class.", svg: _svgAtlasShape },
-      { title: "Live Sensor Readings",                   text: "A live temperature reading tints its marker and digits — blue under 20°, red at 20° and up, bright orange over 34°. Humidity shows as a live percentage. Motion normalizes across hardware: a PIR that self-clears in 5 seconds and a radar sensor that holds 'on' for 20 minutes both draw the same way — a short flash, then a graded fade the longer it's been quiet. A flood/water-leak sensor draws nothing at all while dry, but the moment it reports wet, a bright red ring radiates out from where it's placed and sweeps through the whole room — hard to miss, on purpose. That alarm then latches for 2 days, or until someone dismisses it, even if the sensor itself goes quiet again in the meantime — a short burst of wet is still a real leak. An always-visible emergency banner (with its own Reset button) shows a latched alarm on every tab, not just Atlas, since a leak nobody notices for hours is the actual risk.", svg: _svgAtlasSensors },
-      { title: "Outdoor Gear",                           text: "Anything whose HA area is on an Outside floor — a shed, the garden, the driveway — doesn't have its own floor to draw on. Drop its pin, or queue it and tap the map, on any real floor plate right where it sits outside the room it lives beside.", svg: _svgAtlasOutdoor },
-      { title: "Finding a Device Under Another",         text: "Hover the cursor (or hold a touch) over a crowded spot and the hover HUD, pinned at the top-left of the map, names everything stacked there as clickable rows. Alt+click cycles through the stack directly. A plain tap always switches a device; a genuine hold, or Shift/Alt, selects it for editing instead.", svg: _svgAtlasHoverHud },
+      { title: "Drag or Queue-and-Tap",                  text: "In Mapping → Atlas, a device that isn't placed yet waits in the middle of its room. Drag it to its real spot. Or click + Place on its row in the light index (it then reads ◎ Queued) and tap the map where it is; ◎ Queue all unplaced queues every one, and the bar names the next. With a light selected, you can also drag the pulsing pin from the map's bottom-right corner onto its spot. Click 💾 Save placements to keep them.", svg: _svgAtlasPlace },
+      { title: "Real Shape, Size and Angle",             text: "A plain tap switches a light, so to select one, hold it, Shift-click or Alt-click it, or click its row in the index. The panel under the map then sets its Shape (pendant, sconce, strip, chandelier and more), its Width and Length in centimetres, and Rotate. Fans, locks and sensors work the same way.", svg: _svgAtlasShape },
+      { title: "Live Sensor Readings",                   text: "Sensors show what they read. A temperature tints its marker and digits: blue under 20°, red from 20°, bright orange over 34°. Humidity shows as a percentage. Motion flashes, then fades the longer it has been quiet, whatever the sensor. A leak sensor that reports wet sends a red ring through its room and puts a banner with Reset on every PadSpan screen, until someone dismisses it or for 2 days.", svg: _svgAtlasSensors },
+      { title: "Outdoor Gear",                           text: "Anything whose Home Assistant area is on an Outside floor (a shed, the garden, the driveway) has no floor of its own to draw on. Drag it, or queue it and tap the map, onto any floor right where it sits outside the room it's next to.", svg: _svgAtlasOutdoor },
+      { title: "Finding a Device Under Another",         text: "Hover over a crowded spot (or hold a finger on it) and the box at the top-left of the map names everything stacked there, as rows you can click. Alt+click cycles through the stack, and right-click lists everything there.", svg: _svgAtlasHoverHud },
     ],
   },
   {
     id: "atlas_barriers",
     title: "Doors, Windows & Locks",
     icon: "🚪",
-    summary: "Mark real barriers on the map — doors and windows that block signal, locks you can tap from the plan.",
+    summary: "Mark real doors and windows in your walls, and put locks on the map to tap.",
     steps: [
-      { title: "Mark a Door or Window",                  text: "Mark a door or window on a wall from the Layout tab's wall list, or draw one directly from the Atlas map, and it becomes a real signal wall, not just a picture. Set its material — a steel door blocks harder than a hollow-core one — and its live open/closed state draws on the map from the linked sensor.", svg: _svgAtlasDoor },
-      { title: "Invert for a Backwards Sensor",          text: "Some door/vibration sensors report state:on as closed, not open. If a door on the map seems to show the wrong state, check the Invert toggle next to Delete in the wall list — it flips the reading without touching the sensor itself.", svg: _svgAtlasInvert },
-      { title: "Locks on the Map",                       text: "Locks placed on Atlas behave like any other fixture — tap to lock or unlock, with the held state shown live.", svg: _svgAtlasLock },
+      { title: "Mark a Door or Window",                  text: "A door or window sits in a wall, so draw the walls first (Mapping → Edit → Signal walls). Then either click Door on a wall in Walls on this floor, click the opening's two edges, choose its Linked sensor and click Create door/window; or, in Mapping → Atlas, click Place on the sensor's row in the light index, click the map over that bit of wall, drag the circle to fit and click 💾 Save opening. Its open or closed state then shows live on the map. Steel on that row marks a steel door, which blocks more signal.", svg: _svgAtlasDoor },
+      { title: "Invert for a Backwards Sensor",          text: "Some door sensors report 'on' when the door is closed. If a door shows the wrong state, click Invert on its row in the Atlas's light index, or on its wall in Edit → Signal walls. It only changes how PadSpan reads the sensor.", svg: _svgAtlasInvert },
+      { title: "Locks on the Map",                       text: "A lock is placed like any other device; tap it to lock or unlock (with a PadSpan Bright Pro or PadSpan Pro key). Link wall on its row ties it to the bit of wall it's in, which then flashes red while it's unlocked. A linked door's row can also take a + Lock and a + Opener.", svg: _svgAtlasLock },
     ],
   },
   {
     id: "atlas_style",
     title: "Automorph & Showcase",
     icon: "✨",
-    summary: "Give the map a look — a soft aura around each fixture, and 19 curated visual themes for the whole plan.",
+    summary: "Give the map a look: a soft glow around each fixture, and 19 Showcase themes for the whole plan.",
     steps: [
-      { title: "Automorph Grows an Aura",                text: "Automorph grows a soft aura from a fixture out into its room. It's a rendering layer on top of the fixture's real, already-placed position — turning it on or off never moves anything.", svg: _svgAutomorph },
-      { title: "Pick a Style",                           text: "Automorph's style list keeps growing, and gets pruned whenever two styles turn out to look the same at real marker size — ten near-duplicates were retired for six genuinely distinct ones as of a recent pass. Glow, Blueprint, Nebula, Halo and Bloom have stuck around; open the Automorph picker in-app for the current full list.", svg: _svgAutomorphStyles },
-      { title: "Showcase Themes",                        text: "Showcase is 19 curated visual themes for the whole map — colour, room edges, glow and light-pool style all change together, from a plain white-marble-and-brass 'real estate' look to an edgeless bioluminescent one with no room outlines at all. Pick one from the toolbar under Presentation.", svg: _svgShowcase },
-      { title: "Save a Look",                            text: "The presets bar saves a whole look — Showcase theme, Automorph style, and optionally floor/spacing/layout — under a name, and loads it back with Apply. A preset saved before layout was included never moves your camera when applied.", svg: _svgPresets },
+      { title: "Automorph Grows an Aura",                text: "◈ Automorph grows a soft glow from each placed fixture out into its room. It's drawn on top of the fixture's real position, so turning it on or off never moves anything. Room %, Hardness and Subtlety shape it.", svg: _svgAutomorph },
+      { title: "Pick a Style",                           text: "Automorph has 16 styles, from Glow, Blueprint and Nebula to Halo and Bloom. Pick one in Style (under Automorph tuning in the new layout). It only changes the look.", svg: _svgAutomorphStyles },
+      { title: "Showcase Themes",                        text: "Turn on ✦ Showcase and pick a Theme: 19 looks for the whole map, where colour, room edges, glow and the style of the light pools change together, from Classic and Luxury Real-Estate to Organic Bioluminescent. In the new layout, Theme is under Showcase options.", svg: _svgShowcase },
+      { title: "Save a Look",                            text: "With Showcase on, the Presets bar saves the whole look under a name (type it, then Save current), and Apply brings it back: Showcase, Theme, Fit room, Light spread, Beacons, Codes, Untouched, Automorph and the Floor, Spacing, L / R and Zoom positions. The sidebar Atlas can apply a preset too.", svg: _svgPresets },
     ],
   },
 ];
@@ -1763,9 +1764,9 @@ const MANUAL_SECTIONS = [
     title: "What is PadSpan™ HA?",
     icon: "🏠",
     paragraphs: [
-      "PadSpan™ HA is a custom Home Assistant integration that adds whole-home Bluetooth Low Energy (BLE) presence tracking. It turns your existing Bluetooth scanners (ESPresense, Bermuda, or similar) into a real-time people and object tracking system.",
-      "Unlike basic presence detection that only knows if someone is home or away, PadSpan tells you which room a person or device is in — and updates every 5 seconds.",
-      "PadSpan shows all tracked devices on a live room map, lets you follow a specific tag, draw floor plans with room boundaries, and build multi-floor 3D visualisations. Everything runs locally inside Home Assistant — no cloud required.",
+      "PadSpan™ HA is a Home Assistant integration that tells you which room each person or thing is in, using Bluetooth. It listens through the Bluetooth receivers Home Assistant already has: ESPHome Bluetooth proxies, Shelly devices with Bluetooth, or the Home Assistant machine's own Bluetooth.",
+      "Plain presence detection knows home or away. PadSpan knows the room, and checks again every 5 seconds by default.",
+      "It shows everyone on a live map of your floors, lets you follow one tag and be alerted when it moves, and gives Home Assistant a room sensor for every device you name. Everything runs inside Home Assistant: no cloud needed.",
     ],
   },
   {
@@ -1773,35 +1774,36 @@ const MANUAL_SECTIONS = [
     title: "Key Concepts",
     icon: "💡",
     paragraphs: [
-      "BLE (Bluetooth Low Energy) — a low-power radio standard used by phones, AirTags, Tile trackers, key fobs, smartwatches, and many other devices. BLE devices broadcast a signal that nearby scanners can detect.",
-      "RSSI (Received Signal Strength Indicator) — measured in dBm (e.g. −55 dBm). More negative = weaker signal = further away. PadSpan uses RSSI from multiple scanners to determine which room a device is in.",
-      "Scanner / Radio — a Bluetooth receiver placed in a room. ESPresense on an ESP32 or a Bermuda-tracked device are common choices. Multiple scanners per floor give better accuracy.",
-      "Area — a room defined in Home Assistant's Areas & Zones. PadSpan uses your HA areas as its room list. Create and rename rooms in HA Settings → Areas & Zones.",
-      "Object — anything PadSpan is tracking. Could be a phone (via HA Companion App), an AirTag, a Tile tracker, a key fob, or any unnamed BLE signal.",
-      "iBeacon — a BLE advertising format used by the HA Companion App's transmitter and by many beacons and key finders. Contains a stable UUID/Major/Minor identifier that doesn't change even as the MAC address rotates. PadSpan groups all rotating MACs for the same iBeacon into one amber-badged object. (AirTags and other Apple Find My tags are not iBeacons — they have no lasting identifier; see MAC Rotation Bridging in Settings → Features.)",
-      "Private BLE — phones (especially iPhones and Apple Watches) rotate their MAC address for privacy. PadSpan resolves these using IRK (Identity Resolving Key) so they appear as a single stable blue-badged object rather than many unknowns. Add IRKs via Settings → Private BLE Devices.",
-      "Companion Phone Tracking — one-click phone tracking from the Overview tab. PadSpan detects phones with the HA Companion App installed, labels them, follows them, and sends a command to enable BLE transmission automatically.",
-      "Tag — a friendly name you assign to an unidentified BLE device. Tagged devices show up with their name everywhere in PadSpan. PadSpan also creates HA entities (device_tracker and area sensor) for each tagged device.",
-      "Follow — mark a device to track it. Followed devices appear in the Follow tab with live location, are preserved when clearing unidentified objects, and create ghost placeholders if not yet visible to scanners.",
-      "Quiet Mode — toggle in Overview top-right. Hides unidentified devices from the overview and room grid, showing only tagged and followed objects. Default off.",
-      "Home/Away — if a device hasn't been seen for longer than the away timeout (configurable, default 5 min), its device_tracker state changes to not_home and a red Away badge appears in the Objects tab.",
-      "Sample Mode — a demo mode showing a sample house on three floors. Great for exploring PadSpan without live hardware. Toggle between Sample and Live in the top bar.",
+      "Bluetooth (BLE) — Bluetooth Low Energy, the low-power radio that phones, AirTags, Tile trackers, key fobs and watches use. They keep sending short signals that receivers nearby can hear.",
+      "Receiver (also called scanner or radio) — something that hears those signals and passes them to Home Assistant: an ESPHome Bluetooth proxy, a Shelly with Bluetooth, or the Home Assistant machine's own Bluetooth. Put one in each room you want told apart. The Receivers page lists them all. (Bermuda is a separate integration, not a receiver.)",
+      "Signal strength — how loudly a receiver hears a device, in dBm: −55 is louder, so nearer, than −80. Experts call it RSSI.",
+      "Room (area) — your rooms are your Home Assistant areas, and each receiver belongs to the area you give it. Add or rename rooms in HA Settings → Areas & Zones.",
+      "Device (object) — anything PadSpan hears: a phone, an AirTag, a tag, or an unnamed signal.",
+      "iBeacon — a beacon format with a fixed ID that stays the same when the device's address changes. The Android Companion app's BLE Transmitter and many key finders use it. PadSpan groups all of one beacon's addresses into one amber-badged device. (AirTags and other Apple Find My tags are not iBeacons — they have no lasting ID; see MAC Rotation Bridging in Settings → Features.)",
+      "Private BLE and IRK — phones and watches change their Bluetooth address for privacy. An IRK (Identity Resolving Key) is the key that recognises one device through every change, so PadSpan shows it as one blue-badged device. Add one in Bluetooth → IRK Manager or Settings → Tracking → Phones and guest tags.",
+      "Track Your Phone — the Overview card that tracks a phone in one click. See Phone Tracking below.",
+      "Tag (name) — a name you give a device. Named devices show by that name everywhere, and Home Assistant gets a tracker and a room sensor for each.",
+      "Follow — mark a device you care about. Followed devices are always drawn as amber markers on the Overview map, are kept when you clear unnamed devices, and are listed in the Live Tracker.",
+      "Quiet — the tick at the top of the Overview that hides devices nobody has named or followed. Off by default. See Quiet Mode & Cleanup below.",
+      "Home / Away — a device not heard for longer than the away timeout (5 minutes by default) is away: its Home Assistant tracker reads not_home and Devices shows a red Away badge.",
+      "Live and Sample, Basic / Advanced / Development — whether you see your own house or the sample house, and how much each screen shows. See the section on them below.",
     ],
   },
   {
     id: "getting_started",
     title: "Getting Started",
     icon: "🚀",
+    helpKeys: ["getting_started"],
     paragraphs: [
-      "1. Install PadSpan HA via HACS as a custom repository. After adding the repository, install the integration and restart Home Assistant completely (not just reload — a full restart is required).",
-      "2. Make sure your Bluetooth scanners are set up and reporting to Home Assistant. ESPresense and Bermuda are the most popular options and work out of the box with PadSpan.",
-      "3. Create your rooms in HA Settings → Areas & Zones. PadSpan reads your areas directly — no separate room setup needed.",
-      "4. Open PadSpan HA from the sidebar. Use Sample mode first to familiarise yourself with the interface, then switch to Live mode to see your real devices.",
-      "5. Track phones: if you have the HA Companion App installed, open Overview — detected phones appear in a blue card. Click 'Track this phone' for one-click setup. PadSpan labels the phone, follows it, and enables BLE transmission automatically.",
-      "6. Tag other devices in the Objects tab with friendly names. Then switch to Follow to track them in real time.",
-      "7. For Apple devices (iPhones, Apple Watches), add their IRK via Settings → Private BLE Devices so PadSpan can resolve their rotating MAC addresses into a single stable identity.",
-      "Tip: If the Bluetooth tab shows 'No live data', make sure HA was fully restarted after install — not just reloaded. Use Quiet Mode (Overview top-right toggle) to hide unidentified clutter once your devices are tagged.",
+      "Installing: add PadSpan HA through HACS, then restart Home Assistant fully (Settings → System → Restart; reloading the integration is not enough the first time).",
+      "If PadSpan says Bluetooth feed unavailable, Home Assistant needs that full restart.",
     ],
+  },
+  {
+    id: "help_modes",
+    title: "Live / Sample and Basic / Advanced / Development",
+    icon: "⚡",
+    helpKeys: ["data_mode", "complexity_mode"],
   },
   {
     id: "help_follow",
@@ -1813,59 +1815,63 @@ const MANUAL_SECTIONS = [
     id: "help_overview",
     title: "Overview Tab",
     icon: "📋",
-    helpKeys: ["overview", "overview_grid"],
+    helpKeys: ["overview", "overview_grid", "whos_where", "overview_3d_controls", "overview_2d_controls"],
+  },
+  {
+    id: "help_live_tracker",
+    title: "Live Tracker",
+    icon: "⚡",
+    helpKeys: ["live_tracker"],
   },
   {
     id: "help_objects",
-    title: "Objects Tab",
+    title: "Devices",
     icon: "🏷️",
-    helpKeys: ["objects", "objects_tag"],
+    helpKeys: ["devices", "objects", "objects_tag", "walk_to_identify"],
+  },
+  {
+    id: "help_occupancy",
+    title: "Occupancy and Guests",
+    icon: "👥",
+    helpKeys: ["occupancy", "unknown_phone", "guest_tags"],
   },
   {
     id: "phone_tracking_section",
-    title: "Phone Tracking (Companion App)",
+    title: "Phone Tracking (Companion App and iPhone)",
     icon: "📱",
-    paragraphs: [
-      "PadSpan can automatically detect and track phones running the HA Companion App. This works on both Android and iOS.",
-      "How it works: The Companion App includes a BLE Transmitter sensor that broadcasts an iBeacon signal. PadSpan reads the transmitter entity's UUID, Major, and Minor values and constructs a stable iBeacon key. This key survives MAC address rotation — the phone always shows as one object.",
-      "One-click setup: In Overview, detected Companion App phones appear in a blue card. Click 'Track this phone' to: (1) label the phone with its device name, (2) add it to your followed list, (3) enable the BLE Transmitter entity in HA, and (4) send a notification command to the Companion App to start BLE transmission.",
-      "Status indicators: After tracking, the system shows real status — green 'Tracked!' means visible to scanners, yellow 'Waiting for signal' means transmitting but not yet seen (walk near a scanner), amber 'Enable BLE Transmitter' means the enable command didn't reach the app (enable manually in Companion App → Settings → Manage Sensors → BLE Transmitter).",
-      "Ghost objects: If you track a phone but it's not yet visible to any scanner, PadSpan creates a placeholder (ghost) object so it appears in your Objects list immediately. The ghost disappears once a real BLE signal is received.",
-      "Untracking: In Advanced mode, tracked phones show an Untrack button. This removes the label and unfollows the phone.",
-    ],
+    helpKeys: ["phone_tracking"],
   },
   {
     id: "private_ble_section",
     title: "Private BLE & IRK",
     icon: "🔒",
-    paragraphs: [
-      "Modern phones (especially Apple devices) rotate their Bluetooth MAC address every 15 minutes for privacy. Without resolution, each rotation creates a new unknown device in your list.",
-      "IRK (Identity Resolving Key) is a cryptographic key that resolves rotating addresses back to one stable identity. Home Assistant's Private BLE Device integration stores IRKs and matches them to incoming BLE advertisements.",
-      "Adding an IRK: Go to Settings → Private BLE Devices → Add IRK. Enter the key in any format: plain hex (32 chars), colon-separated (AA:BB:CC:...), or base64 encoded. PadSpan tries all three formats automatically and handles multi-step config flows.",
-      "Once added, the device appears with a blue badge in Objects, Follow, Presence, and all other views. All rotating MAC addresses are merged into one stable entry.",
-      "Calibration: Private BLE devices work in calibration by matching on canonical identity rather than MAC address. Fingerprints collected with one MAC still match after rotation. You can use your iPhone as a calibration device without issues.",
-      "iBeacon vs Private BLE: These are complementary. iBeacon (amber badge) tracks devices by UUID/Major/Minor — used by the Companion App transmitter and many beacons. Private BLE (blue badge) resolves rotating MACs via IRK — used for iPhones and Apple Watches. Some devices can be tracked both ways. AirTags and other Apple Find My tags are neither: MAC Rotation Bridging carries one you've named across its address changes.",
-    ],
+    helpKeys: ["private_ble"],
   },
   {
     id: "help_maps",
     title: "Mapping",
     icon: "🗺️",
-    helpKeys: ["maps", "maps_library", "maps_upload", "maps_stack"],
+    helpKeys: ["maps", "maps_library", "maps_upload", "maps_wizard", "maps_edit", "maps_stack", "maps_layout", "maps_export", "lights_build_controls"],
+  },
+  {
+    id: "help_atlas",
+    title: "The Atlas, Vacation Mode, Wall Screens and Live Aboard",
+    icon: "💡",
+    helpKeys: ["atlas_page", "vacation_mode", "wall_screens", "aboard_3d"],
   },
   {
     id: "floor_alignment",
     title: "Lining Up Floors (3D Stack)",
     icon: "📐",
     paragraphs: [
-      "Each floor plan carries its own placement in real metres: where it sits in your home, how big it is, and which way it faces. When PadSpan stacks multiple maps in the 3D isometric view, it uses those placements — so floors only line up once you've aligned them against each other. With a single floor plan there's nothing to align.",
+      "Each floor plan carries its own placement in real metres: where it sits in your home, how big it is, and which way it faces. When PadSpan stacks multiple maps in the 3D isometric view, it uses those placements — so floors only line up once you've aligned them against each other. With a single floor plan there's nothing to align. Either way, set each floor's height in Floor Heights at the top of the tab.",
       "There's no master map. Every map owns its placement, and aligning a map moves that map only — nothing else shifts with it. You align a Target onto a Reference, one pair at a time, under Alignment Overlay in Mapping → 3D Stack.",
-      "Measure first: the Reference needs a scale, or there are no metres to line anything up against. In the Edit tab, click Measure, take two measurements and click Save Scale. The Library shows \"not placed\" for a map with no scale yet, and a ⚠ marks it in the dropdowns. Until the Reference is measured, Reset and Point Align tell you to measure it first.",
+      "Measure first: the Reference needs a scale, or there are no metres to line anything up against. In Edit, click 📏 Measure, take two measurements and click Save Scale. The Library shows \"not placed\" for a map with no scale yet, and a ⚠ marks it in the dropdowns. Until the Reference is measured, Reset and Point Align tell you to measure it first.",
       "Choosing the Reference: pick the floor plan that (1) covers the largest footprint of your home, (2) is the most dimensionally accurate, and (3) is easy to see with another map laid over it. The last point matters more than you'd expect — the Target is drawn see-through on top, and a Reference with thin lines or low contrast disappears underneath, so you can't check the fit by eye. That's almost always the ground floor.",
-      "Aligning: choose the Reference (fixed) and the Target (draggable). If the Target has never been placed, the readout says Not placed — press Reset to start it on top of the Reference. Drag the Target until shared structural features line up: stairwells, exterior walls, chimneys, load-bearing walls that pass through multiple floors. Scale + and Scale − resize it, with Lock AR turned off, X − and X + stretch it left-right only, −15°, +15° and 0° turn it, and Zoom and Opacity change only your view. Outside plans aren't in the dropdowns — they aren't aligned here.",
-      "Saving: nothing is written while you drag. Click Save Alignment to keep the Target's position. If it would leave more than half of that map's calibration points off the map, PadSpan refuses, changes nothing, and says so.",
-      "Point Align: for a precise fit, click Point Align next to the Alignment Overlay heading. Click the same real-world point on both maps — a stairwell corner, the corner of an exterior wall — and it alternates between the two for you. With 3 or more pairs, click Compute and check the preview: Apply accepts it, Back returns you to placing points, Discard throws it away. Apply moves the Target on screen only — click Save Alignment to keep it.",
-      "Afterward, check the 3D preview further down the same tab. It shows the whole building stacked together, so a floor that's off is easy to spot.",
+      "Aligning: choose the Reference (fixed) and the Target (draggable). If the Target has never been placed, the readout says Not placed — press Reset to start it on top of the Reference. Drag the Target until shared structural features line up: stairwells, exterior walls, chimneys, load-bearing walls that pass through multiple floors. Scale + and Scale − resize it, with Lock AR turned off, X − and X + stretch it left-right only, −15°, ﹢15° and 0° turn it, and Zoom and Opacity change only your view. Outside plans aren't in the dropdowns — they aren't aligned here.",
+      "Saving: nothing is written while you drag. Click Save Alignment to keep the Target's position. If it would leave more than half of that map's calibration points off the map, PadSpan refuses, changes nothing, and says so. If the new position disagrees with a tie-in saved earlier (+ Tie-in), it shows the conflict and offers Average & Save, Override & Save or Cancel.",
+      "Point Align: for a precise fit, click Point Align next to the Alignment Overlay heading. Click the same real-world point on both maps — a stairwell corner, the corner of an exterior wall — and it alternates between the two for you. With 3 or more pairs, click Compute and check the preview: Apply accepts it, Back returns you to placing points, Discard throws it away. Apply moves the Target on screen only — click Save Alignment to keep it. With Bake ticked (administrators), the button is Bake & Apply instead: it redraws the Target's picture to fit and saves it at once.",
+      "Afterward, check the 3D preview further down the same tab. It shows the whole building stacked together, so a floor that's off is easy to spot. Compare Maps in the Library gives the fit a rating.",
     ],
   },
   {
@@ -1873,24 +1879,33 @@ const MANUAL_SECTIONS = [
     title: "Quiet Mode & Cleanup",
     icon: "🧹",
     paragraphs: [
-      "Quiet Mode: Toggle from the top-right corner of Overview (both Basic and Advanced modes). When on, the overview and room grid hide unidentified BLE signals and show only tagged and followed devices. Default is off.",
-      "Quiet Mode affects: the Objects card count (shows only tracked objects), the room grid dots (only tracked devices shown), and the Objects button label (changes to 'Tracked objects'). The underlying data is unchanged — toggle off to see everything again.",
-      "Clear Unidentified: Removes all untagged, unfollowed BLE objects from PadSpan's history cache. Available in the Overview Objects card (Advanced mode) and the Objects tab.",
-      "What's preserved: Any device with a user-assigned label (tagged) or in your followed list is kept. Ghost objects (phone placeholders) are also preserved. Only anonymous hardware addresses are removed.",
-      "When to use: After initial setup when you've tagged your important devices and want to clean out the clutter. Cleared devices reappear if still in scanner range — this removes historical entries, not live data.",
+      "Quiet: the tick at the top right of the Overview, in every mode (with the Atlas as your Overview, it is on the Live Tracker's ▦ Overview side). When on, devices nobody has named or followed are hidden on the Overview, in Devices, in Follow's list, in Zones and on the maps. Off by default.",
+      "Quiet changes only what is shown. The Overview's Objects count then counts only named and followed devices, its All objects button becomes Tracked objects, and Devices → By Room says how many are hidden. Untick it to see everything again.",
+      "Clear unidentified: removes every device nobody has named or followed from PadSpan's list. It is on the Overview's Objects card (Advanced mode) and in Devices → By Room.",
+      "What's kept: every named or followed device, including a phone you set up to track that no receiver has heard yet.",
+      "When to use it: after naming your important devices, to clear out neighbours' phones and passing devices. Anything still in range comes back; old entries are gone.",
     ],
   },
   {
     id: "help_settings",
     title: "Settings",
     icon: "⚙️",
-    helpKeys: ["settings", "settings_colors", "settings_presence", "settings_manage"],
+    helpKeys: ["settings", "settings_colors", "settings_presence", "settings_tracking_rooms", "settings_tracking_phones",
+               "guest_tags", "settings_tracking_shown", "settings_tracking_positioning", "settings_tracking_receivers",
+               "settings_tracking_performance", "settings_tracking_integrations", "settings_tracking_privacy",
+               "settings_features", "settings_tiers", "settings_ai", "settings_atlas", "settings_ui", "settings_manage"],
   },
   {
     id: "help_zones",
     title: "Zones",
     icon: "📍",
     helpKeys: ["zones"],
+  },
+  {
+    id: "help_traceback",
+    title: "Traceback",
+    icon: "⏪",
+    helpKeys: ["traceback_overview"],
   },
   {
     id: "help_insights",
@@ -1923,16 +1938,16 @@ const MANUAL_SECTIONS = [
     helpKeys: ["history"],
   },
   {
-    id: "help_events",
-    title: "Events",
-    icon: "⚡",
-    helpKeys: ["events"],
-  },
-  {
     id: "help_qa",
     title: "QA",
     icon: "✅",
-    helpKeys: ["qa"],
+    helpKeys: ["qa", "qa_propagation", "qa_backup", "qa_radio_analysis"],
+  },
+  {
+    id: "help_health",
+    title: "Health",
+    icon: "🩺",
+    helpKeys: ["health", "status_dot", "health_critics", "diagnostics"],
   },
   {
     id: "help_sandbox",
@@ -1944,11 +1959,8 @@ const MANUAL_SECTIONS = [
     id: "bluetooth_section",
     title: "Bluetooth & Scanners",
     icon: "📡",
+    helpKeys: ["bluetooth_overview"],
     paragraphs: [
-      "The Bluetooth tab shows all BLE scanners detected by Home Assistant and the advertisements they're receiving.",
-      "Scanners tab — lists every radio with its name, area assignment, device count, average RSSI, and quality grade. Use the Area dropdown to assign each scanner to the correct HA room. Click any row for full scanner details including WiFi SSID, IP address, and connection type.",
-      "Monitor sub-tab — per-scanner breakdown of device counts, signal quality, and advertisement freshness. Useful for spotting connectivity problems (stale ads) or overloaded scanners.",
-      "Visualization sub-tab — SVG diagrams showing scanner coverage and signal strength across your rooms.",
       "Scanner placement matters — scanners in the centre of a room perform better than those in corners. Avoid placing scanners behind large metal objects, inside cabinets, or directly against exterior walls. One scanner per room is the minimum; two per room gives significantly better accuracy for larger rooms.",
     ],
   },
@@ -1957,67 +1969,58 @@ const MANUAL_SECTIONS = [
     title: "Scanner Hardware",
     icon: "🔧",
     paragraphs: [
-      "PadSpan's goal isn't just home/away — it's putting devices in the right room on your floor plan. That's a harder problem, and the hardware you use matters more than you'd think.",
-      "I started with about a dozen old ESP32 boards left over from a project three years ago, and ordered 10 more for testing. Most of the old boards made poor BLE scanners — the signal readings were noisy and inconsistent, especially the ones with only a tiny chip antenna on the PCB. A few that had decent antennas worked OK, which is what clued me in: the antenna is the thing that matters.",
-      "Three setups worked well. First: an ESP32-S3 with an Ethernet (LAN) port and a full-size external antenna. Being honest, this didn't test noticeably better than WiFi — but the theory is that a wired connection means no WiFi radio competing with BLE scanning, and for a permanent always-on scanner that seems like the right call. Second: an ESP32-S3 with WiFi and a full-size antenna. This is probably the most practical option for most people — great BLE 5.0 support, no need to run Ethernet to every room. Third: an ESP32-C3 with a full-size antenna. Cheaper than the S3, and it still performed well for room-level tracking.",
-      "What to avoid: older ESP32 boards (not S3 or C3) with only an onboard chip antenna. They'll work fine for simple home/away detection or as basic Bluetooth proxies, but the RSSI readings are too inconsistent for reliable room assignment.",
-      "Whatever board you go with, look for an IPEX or u.FL antenna connector and use the included 2.4 GHz antenna. A C3 with a good antenna will outperform an S3 with a chip antenna every time — the antenna matters more than the chip.",
+      "The full story, with the boards that worked and what to avoid, is the \"Choosing Scanner Hardware\" walkthrough (Training → Walkthroughs). In short: the antenna matters more than the chip, and an ESP32-S3 or ESP32-C3 with a full-size external antenna works well.",
     ],
+  },
+  {
+    id: "help_setup",
+    title: "Setup",
+    icon: "🧩",
+    helpKeys: ["setup"],
+  },
+  {
+    id: "help_rooms",
+    title: "Rooms",
+    icon: "🚪",
+    helpKeys: ["rooms"],
   },
   {
     id: "calibration_section",
     title: "Calibration",
     icon: "🎯",
-    paragraphs: [
-      "Calibration improves room detection accuracy by collecting real signal fingerprints from your home. Instead of relying solely on 'strongest signal wins', PadSpan can match new signals against your calibration data using k-NN (k-Nearest Neighbours).",
-      "Beacon and floor tab — choose the BLE device you'll carry (usually your phone) and the floor plan to calibrate on.",
-      "Pin & Listen tab — tap the map where you're physically standing, then hold still for ~10 seconds. PadSpan records the RSSI from every scanner. Repeat at 15–30 locations spread around your home.",
-      "Roam tab — shows a coverage heatmap (10×10 grid). Green = well-covered, red = needs more data. A guided target marker suggests where to collect next.",
-      "Model tab — click Compute Model to fit the calibration data. Shows point count, scanner count, and LOO (leave-one-out) cross-validation accuracy. 80%+ is good, 90%+ is excellent. You can export or clear the model here.",
-      "Tune tab — 3D isometric view with draggable receiver markers for visual fine-tuning of scanner positions.",
-      "Standalone phone panel — a separate HA sidebar panel (PadSpan Calibration) optimised for one-handed phone use. Same calibration system, simpler shell — perfect for walk-around data collection.",
-      "Tips: collect points in doorways and room boundaries (that's where room detection is hardest). Collect at least 3 points per room. Hold the phone at a natural height (waist to chest). Recompute the model after adding new points.",
-    ],
+    helpKeys: ["calibration_overview", "calibration_results", "calibration_guided", "calibration_beacon", "calibration_matrix", "calibration_walk"],
   },
   {
     id: "ha_entities_section",
     title: "HA Entities & Automations",
     icon: "🤖",
     paragraphs: [
-      "PadSpan creates two HA entities for every tagged BLE device:",
-      "device_tracker.{label} — location_name = current room while home, not_home when away. Link this to a Person in HA Settings → People to get a combined home/away status. This works for manually tagged devices, Companion App phones, iBeacon trackers, and Private BLE devices alike.",
-      "sensor.{label}_area — state = current room name, or not_home when the device has been away for longer than the configured timeout. Use this in automations: trigger when sensor.car_keys_area changes to 'Kitchen'.",
-      "Extra attributes on both entities: address (MAC or UUID key), rssi, age_s, kind, and for iBeacon devices: ibeacon_uuid, ibeacon_major, ibeacon_minor, all_addresses. For Private BLE devices: canonical_id.",
-      "Companion App phones: when tracked via the one-click button, PadSpan stores the phone's iBeacon key (ibeacon:{uuid}:{major}:{minor}). Both entities are created using the phone's device name as the label.",
-      "padspan_ha.dump_devices service — call this from HA Developer Tools → Services to get a full JSON snapshot of all tracked devices and their current state. Useful for debugging and building advanced templates. Returns response data compatible with scripts and automations.",
-      "Both entities persist across restarts — not_home is a permanent valid state, not an error. Entities never go 'unavailable' just because a device is away.",
+      "When you name a device, PadSpan adds it to Home Assistant as a device with up to four kinds of entity. Their IDs come from the name you gave it. For a tag called Car Keys:",
+      "device_tracker.car_keys — its state is the room it is in; not_home once it hasn't been heard for longer than the away timeout; unknown while it is home but has no room yet. Attributes: address, padspan_id (its fixed PadSpan ID), rssi (signal strength, while home), age_s (seconds since it was last heard), user_label and home (true or false).",
+      "sensor.car_keys_area — the same room as its state (unknown, or not_home when away). Attributes: kind, address, padspan_id, rssi, age_s, sources (the receivers that hear it), home, room_confidence and rssi_margin_confidence; for a beacon also ibeacon_uuid, ibeacon_major and ibeacon_minor; and num_addresses with the first 5 all_addresses when it uses several addresses.",
+      "sensor.car_keys_distance — metres to the nearest receiver.",
+      "sensor.car_keys_distance_kitchen_proxy — metres to one receiver: there is one for each receiver that hears it, named after that receiver and added the first time it hears the device. The distance sensors are empty while it is away. Use them for automations like within 1.5 m of the bedside receiver.",
+      "Use them in automations (for example: when sensor.car_keys_area changes to Kitchen), and link the tracker to a person in HA Settings → People for a combined home/away. Phones tracked with Track Your Phone get the same entities under the phone's name.",
+      "Manage → HA Entities → Entity Publishing Controls turns each kind of entity on or off.",
+      "padspan_ha.dump_devices — run it from HA Developer Tools → Actions (Home Assistant's name for services) for a full JSON list of every tracked device and its state. It returns its answer to scripts and automations too.",
+      "The entities stay available across restarts: not_home is a normal state, not an error.",
     ],
   },
   {
     id: "manage_section",
-    title: "Manage (Settings + Sidebar)",
+    title: "Manage",
     icon: "🔧",
-    paragraphs: [
-      "PadSpan has two 'Manage' areas, each for different tasks:",
-      "Settings → Manage tab (Advanced / Development mode) — quick access for everyday cleanup: untag BLE devices and delete HA areas.",
-      "Sidebar Manage tab (main menu in Advanced / Development mode, More tools in Basic) — deeper data management: BLE tag operations, HA entity deletion, map and integration controls, orphan room polygon cleanup.",
-      "Untag a BLE device — go to Settings → Manage → BLE Tags. Find the device and click Untag (two-click confirm). The device reverts to its hardware address but is still tracked.",
-      "Delete an HA Area — go to Settings → Manage → Rooms. Click Delete next to an area. This removes it from Home Assistant entirely and cannot be undone from within PadSpan. Re-add in HA Settings → Areas & Zones if needed.",
-      "Orphan Room Polygons — found in Manage sidebar → Data. These are room boundaries in your maps that no longer match a real HA area — usually leftover from sample mode or deleted rooms. Delete individually or all at once.",
-      "HA Entities — listed in Manage sidebar → Data. Note: entities created by PadSpan will be recreated on next restart. Entities from other integrations (like Bermuda) are managed by those integrations.",
-      "Factory Reset — found in Settings → Manage tab (Advanced mode). Erases all PadSpan persistent data: settings, calibration, objects, maps, model, alerts, movement, traceback, history, and backups. BLE radio data is intentionally left intact so scanners keep working. Requires typing 'FACTORY RESET' to confirm (admin only). Restart HA afterwards. Use when you want a completely clean start or are troubleshooting persistent data issues.",
-    ],
+    helpKeys: ["manage", "manage_data", "manage_entities", "manage_espresense_import", "manage_beacon_chars",
+               "manage_events", "manage_logs", "manage_factory_reset"],
   },
   {
     id: "view_modes_section",
     title: "2D Flat Map & View Modes",
     icon: "🗺️",
     paragraphs: [
-      "PadSpan offers two map view modes for the Overview and Maps tabs:",
-      "3D Isometric View (default) — stacks your floor plans in a tilted 3D perspective. Each floor is rendered as a slab with room polygons, device dots, and scanner icons. Floors are separated vertically and can be individually hidden or focused. Outside maps auto-fit inside the indoor bounding box.",
-      "2D Flat Map Mode — replaces the 3D stack with a simple flat overhead view of your floor plan. Supports mouse-wheel zoom and click-drag panning. Enable in Settings → Appearance → 2D Flat Map Mode. Best for single-floor setups or mobile screens where the 3D view is hard to navigate.",
-      "Image Rotation — before drawing room boundaries on a new map, check if the image needs rotating. Most architectural floor plans are oriented with north at the top, but PadSpan's 3D isometric view looks best when walls run parallel to screen edges. Go to Maps → Edit → Rotate Image. Preview at 90°, 180°, or 270°, then click Apply. The rotation is baked into the actual image file, and any existing receivers and room boundaries are automatically remapped to match. Always rotate before drawing rooms — it's easier to start with the right orientation than to fix it later.",
-      "Duplicate Room Warning — when editing a map and picking rooms from the dropdown, rooms that are already placed on another map show a ⚠ warning with the other map's name. You can still place them (useful for rooms spanning multiple floors), but the warning prevents accidental duplicates.",
+      "The Overview draws your house in two ways:",
+      "3D view (the default) — your floors stacked in a tilted 3D drawing, with rooms, receivers and devices. Its buttons focus one floor, space the floors apart and show outdoor areas: see 3D map controls under Overview Tab.",
+      "Overhead (2D) view, experimental — a flat top-down map that zooms with the mouse wheel and pans by dragging. Press ▣ Overhead on the 3D map or turn on Settings → Appearance → 2D Map Mode; ◈ 3D view goes back. Handy on small screens or with one floor: see 2D overhead map controls under Overview Tab.",
     ],
   },
   {
@@ -2026,8 +2029,10 @@ const MANUAL_SECTIONS = [
     icon: "🔍",
     paragraphs: [
       "No live Bluetooth data after install — HA needs a full restart (not just integration reload) after first install via HACS. Go to HA Settings → System → Restart.",
-      "Devices not appearing in Objects — the device must be in range of at least one scanner and actively transmitting BLE. Check your scanner's integration (ESPresense / Bermuda) is working first.",
-      "Location seems wrong (device in wrong room) — signal strength can be affected by walls, interference, or scanner placement. Adding more scanners improves accuracy. Make sure scanners are assigned to the correct HA area in Bluetooth → Scanners. Use the per-scanner RSSI offset (Bluetooth → Scanners → offset input) to compensate if one scanner reads consistently stronger or weaker.",
+      "The status dot in the top bar is amber or red — click it to open Health, which says what is wrong. Amber: a receiver is silent or hearing less than usual, or learning is suspended. Red: PadSpan isn't answering, positioning has stopped, or no receiver is reporting. Training → Full Manual → Health → The status dot explains when it shows.",
+      "A receiver shows Silent or Hearing less (Receivers page, Health) — restart it; on ESPHome, also check its version and Wi-Fi. Rooms near it can be wrong until it recovers.",
+      "Devices not appearing — the device must be in range of at least one receiver and sending Bluetooth. Check first that your receivers are reporting: the Receivers page shows each one's status, and Bluetooth → Scanners shows what each one hears.",
+      "Location seems wrong (device in wrong room) — signal strength can be affected by walls, interference, or receiver placement, and more receivers improve accuracy. Health → Problems found often names the cause. Make sure each receiver is in the right room: set it in Overview → View radios list → Assign or Change, or in Mapping → Edit → Radios → Room (Advanced and Development modes). If one receiver reads consistently stronger or weaker, give it a signal adjustment on the Receivers page (the same value as Settings → Tracking → Receivers and Bluetooth → Scanners → RSSI offset).",
       "Device keeps flickering between two rooms — raise the Room Change Delay in Settings → Tracking. 20–60 seconds is usually enough to stabilise a device on a room boundary.",
       "device_tracker shows not_home too quickly — raise the Home/Away Timeout in Settings → Tracking. If a device is briefly out of range in a thick-walled room, try 10–30 minutes.",
       "device_tracker shows not_home too slowly — lower the timeout. The minimum is 1 minute.",
@@ -2035,13 +2040,14 @@ const MANUAL_SECTIONS = [
       "iBeacon tag name disappeared after MAC rotation — this should not happen (the UUID key is stable). If it does, check that the UUID in the new advertisement matches the original — some third-party trackers change their UUID.",
       "Phone tracking says 'Waiting for signal' — the Companion App's BLE Transmitter may not be enabled. Open the Companion App → Settings → Manage Sensors → BLE Transmitter and ensure it's toggled on. Walk near a Bluetooth scanner to be detected. Check that the phone's Bluetooth is turned on.",
       "Phone tracked but shows 'BLE off' — the command to enable the transmitter didn't reach the app. Open the Companion App manually and enable BLE Transmitter in Settings → Manage Sensors. The phone must have an active connection to your HA instance for the notification command to work.",
-      "iPhone not appearing despite being added as Private BLE — check your IRK format. PadSpan accepts plain hex (32 chars), colon-separated, and base64. If the config flow returns 'form', the IRK format may need adjustment. Check HA logs for details.",
-      "iPhone shows as many unknown devices — add the device's IRK via Settings → Private BLE Devices. Without the IRK, each MAC rotation creates a new entry. With the IRK, all rotations merge into one blue-badged object.",
-      "UI changes not showing — hard refresh your browser (Ctrl+F5 or Cmd+Shift+R). Check the build stamp in Diagnostics to confirm the installed version.",
-      "Email alerts not sending — email is sent via HA's notify service. Confirm a notification integration (Gmail, SMTP, etc.) is configured in HA Settings → Integrations.",
-      "Too many unknown devices cluttering the view — use Quiet Mode (toggle in Overview top-right) to hide unidentified devices, or use 'Clear unidentified' to remove them from history. Tagged and followed devices are always kept.",
-      "Sample data lingering in Settings → Manage — use Untag in BLE Tags, or use the Orphan Polygons cleaner in Manage sidebar → Data to remove sample-mode leftovers.",
-      "3D floor alignment looks wrong — after setting alignment in Maps → 3D Stack, click Save Alignment. The 3D preview will then use the correct reference aspect ratio. Re-open and re-save if alignment was set in an older version.",
+      "iPhone not appearing despite being added as Private BLE — check your IRK format. PadSpan accepts plain hex (32 characters), colon-separated, and base64; Bluetooth → IRK Manager → Test only checks a key without saving it. Check the Home Assistant log for details.",
+      "iPhone shows as many unknown devices — add the phone's IRK in Bluetooth → IRK Manager → Add an IRK. Without the IRK, each address change creates a new entry. With the IRK, they all merge into one object.",
+      "UI changes not showing — hard refresh your browser (Ctrl+F5 or Cmd+Shift+R). Health → System shows the panel's version and build; Diagnostics → Install Verification compares it with the server's.",
+      "Email alerts not sending — email is sent through Home Assistant's notify service. Confirm a notification integration (Gmail, SMTP, etc.) is set up in Home Assistant (Settings → Devices & services), then press Test Notification in Manage → Events.",
+      "Too many unknown devices cluttering the view — turn on Quiet mode (the Quiet switch on Overview) to hide unidentified devices, or use 'Clear unidentified' on Overview to remove them. Tagged and followed devices are always kept.",
+      "Sample data lingering — in Manage → Data, use Untag on leftover names, or the Orphan Polygons cleaner, to remove sample-mode leftovers.",
+      "3D floor alignment looks wrong — after setting alignment in Mapping → 3D Stack, click Save Alignment. The 3D preview will then use the correct reference aspect ratio. Re-open and re-save if alignment was set in an older version.",
+      "Asking support for help — open Diagnostics (QA → Go to Diagnostics) or Monitor → Export for support, copy the report and email it to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first).",
     ],
   },
 ];
@@ -2188,23 +2194,17 @@ const QUICKSTART_SECTIONS = [
     title: "What is PadSpan™ HA?",
     icon: "🏠",
     paragraphs: [
-      "PadSpan™ HA is a custom Home Assistant integration that adds whole-home Bluetooth Low Energy (BLE) presence tracking. It turns your existing Bluetooth scanners into a real-time room-level tracking system.",
-      "Unlike basic presence detection that only knows home or away, PadSpan tells you which room a person or device is in — updated every 5 seconds, displayed on a live map, all running locally inside Home Assistant.",
+      "PadSpan™ HA tells you which room each person or thing is in, using the Bluetooth receivers Home Assistant already has (ESPHome Bluetooth proxies, Shelly devices, or the Home Assistant machine's own Bluetooth).",
+      "Plain presence detection knows home or away; PadSpan knows the room, checks again every 5 seconds by default, and shows it on a live map. Everything runs locally inside Home Assistant.",
     ],
   },
   {
     id: "qs_getting_started",
     title: "Getting Started",
     icon: "🚀",
+    helpKeys: ["getting_started"],
     paragraphs: [
-      "1. Install PadSpan HA via HACS (custom repository) and restart Home Assistant completely.",
-      "2. Open PadSpan HA from the sidebar. Use Sample mode first to explore the interface with demo data.",
-      "3. Switch to Live mode to see your real Bluetooth scanners and devices.",
-      "4. Create rooms in HA Settings → Areas & Zones — PadSpan reads your areas directly.",
-      "5. Track phones: if the HA Companion App is installed, detected phones appear in Overview. Click 'Track this phone' for automatic setup.",
-      "6. Tag other key devices in the Objects tab with friendly names.",
-      "7. For iPhones / Apple Watches: add their IRK in Settings → Private BLE Devices to resolve rotating MAC addresses.",
-      "Tip: Use Quiet Mode (Overview top-right) to hide unidentified devices once your setup is complete.",
+      "Not installed yet? Add PadSpan HA through HACS, then restart Home Assistant fully.",
     ],
   },
   {
@@ -2221,21 +2221,24 @@ const QUICKSTART_SECTIONS = [
   },
   {
     id: "qs_maps",
-    title: "Maps",
+    title: "Mapping",
     icon: "🗺️",
-    helpKeys: ["maps", "maps_library", "maps_upload", "maps_stack"],
+    helpKeys: ["maps", "maps_wizard", "maps_edit", "lights_build_controls"],
   },
   {
     id: "qs_settings",
     title: "Settings",
     icon: "⚙️",
     paragraphs: [
-      "Appearance — assign rooms to floors, pick room colours for the Follow map and Overview grid.",
-      "Scanner Map — view and manage calibration points per map. Clear calibration for a specific map if you need to start fresh.",
-      "Presence — adjust Room Change Delay (how long before PadSpan confirms a room switch) and Home/Away Timeout (how long before a missing device is marked away).",
-      "Private BLE Devices — add IRKs for iPhones and Apple Watches so PadSpan resolves their rotating MAC addresses into stable identities.",
-      "Quiet Mode — toggle in Overview top-right. Hides unidentified devices to reduce clutter. Only shows tagged and followed objects.",
+      "Settings is in the menu in every mode. Basic shows the Appearance settings, with buttons for the usage report and guest tags; Advanced and Development mode have these tabs:",
+      "Appearance — room colours, Panel Style, Theme and 2D Map Mode. Floors come from Home Assistant (shown as \"Floor (HA)\" beside each room): add or change them in HA Settings → Areas & Zones.",
+      "Scanner Map — where PadSpan estimates each scanner is, from your calibration points. Clear one map's calibration points here if you need to start that map again.",
+      "Tracking — Room Change Delay (how long before PadSpan confirms a room switch), Home/Away Timeout (how long before a missing device is marked away), guest tags, Phone Tracking (Private BLE) for an iPhone's or Apple Watch's IRK, positioning, receivers, performance and privacy.",
+      "Features — your PadSpan licence, the experimental switches and Forensics.",
+      "AI — the Home Assistant AI Task PadSpan can use to read photos and floor plans.",
+      "Atlas — the Atlas in the sidebar, Live Aboard, wall screens and the Atlas as Overview.",
       "UI Structure — choose which extra tabs appear in the main menu in Advanced and Development mode instead of under More tools.",
+      "Quiet Mode — switched with the Quiet tick at the top of Overview. Hides unidentified devices to reduce clutter, so only tagged and followed ones show.",
     ],
   },
   {
@@ -2243,12 +2246,14 @@ const QUICKSTART_SECTIONS = [
     title: "Manage",
     icon: "🔧",
     paragraphs: [
-      "Data — BLE tag operations (untag devices), HA entity deletion, orphan room polygon cleanup, and map/integration controls.",
-      "History — historical data browser with export and cleanup options.",
-      "Events — event log viewer for tracking system activity.",
-      "Health — system health metrics, scanner status, and BLE diagnostics.",
-      "Diagnostics — detailed error logs, performance stats, and build stamp verification.",
-      "Debug — low-level state inspection for troubleshooting.",
+      "Manage is in the main menu in Advanced and Development mode, and under More tools in Basic.",
+      "Data — remove device names (BLE Device Labels → \"Untag\"), clean up orphan room shapes and phantom entries, delete Home Assistant entities, areas or maps, Backup & Restore, and reload the integration. Live mode only.",
+      "HA Entities — which entities PadSpan creates, and the MQTT, ESPresense (with the ESPresense Companion import) and Tasmota connections.",
+      "Beacon Characteristics — a report of how each beacon reads.",
+      "History — opens History → Movement, the saved room changes.",
+      "Events — email and phone alerts for room changes, and this session's room log.",
+      "Logs — PadSpan's recent log messages, for troubleshooting.",
+      "Factory Reset — erase everything PadSpan stored and start again (your licence key is kept).",
     ],
   },
   {
@@ -2256,10 +2261,10 @@ const QUICKSTART_SECTIONS = [
     title: "Calibration",
     icon: "📐",
     paragraphs: [
-      "Calibration improves room detection accuracy by collecting real signal fingerprints from your home. It is in the menu in every mode; the two tools most homes start with:",
-      "Tune — a 3D isometric view of your floor plans with draggable scanner markers. Drag each marker to match the scanner's real-world position so PadSpan's distance calculations start from the right place.",
-      "Beacon Tune — mark a beacon's physical position on the map, then let PadSpan auto-collect a 60-second RSSI fingerprint from every scanner. Repeat at several locations for best coverage.",
-      "Its other tabs (Beacon and floor, Pin & Listen, Roam, Model) are for collecting more fingerprints and checking the model.",
+      "Calibration teaches PadSpan what each spot in your house sounds like, so it puts people in the right room. It is in the main menu in every mode and opens on Results: how accurate it is now, room by room, and the next best thing to do.",
+      "To start, press \"🧭 Guided calibration\". It checks your receiver positions (Tune), asks which phone or tag you'll carry and which floor (Beacon and floor), walks you from spot to spot (Roam), then works out the accuracy (Model). The floor plan needs a scale first.",
+      "At each spot, stand still for the \"Collection Duration\" (15 s to start with, 60 s recommended). Aim for 10–20 spots spread across each floor.",
+      "Pin & Listen lets you pick the spots yourself, and Beacon Tune pins beacons that stay in one place so they keep calibrating on their own. Each tab's ? explains more.",
     ],
   },
   {
@@ -2272,14 +2277,9 @@ const QUICKSTART_SECTIONS = [
   },
   {
     id: "qs_modes",
-    title: "Basic / Advanced / Development",
+    title: "Basic / Advanced / Development, Live / Sample",
     icon: "⚡",
-    paragraphs: [
-      "PadSpan has three UI modes, cycled by the toggle button in the top-right corner. Every tab is in the menu in every mode: the mode only changes how much detail each tab shows. Tabs outside the main list are under More tools at the bottom of the menu, closed until you open it (PadSpan remembers whether you left it open). Opening a tab from More tools never changes the mode.",
-      "Basic — 8 tabs (Follow, Overview, Maps, Rooms, Receivers, Calibration, Settings, Training) in the main list; everything else is under More tools. Best for everyday use after initial setup. Includes one-click phone tracking and Quiet Mode.",
-      "Advanced — the main list adds Live Tracker, Manage, Traceback, Occupancy and Health. Adds Clear Unidentified, detailed phone tracking status, and more diagnostic info. Devices, Bluetooth, Presence, Monitor, QA, Sandbox and Install Base are under More tools; Settings → UI Structure moves any of the first six into the main list.",
-      "Development — the same menu as Advanced, with the most detail inside each tab, for debugging and development.",
-    ],
+    helpKeys: ["complexity_mode", "data_mode"],
   },
 ];
 
