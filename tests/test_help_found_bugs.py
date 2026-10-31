@@ -19,7 +19,8 @@
             Settings → Tracking → Receivers and the Receivers page clamped
             even an unedited stored value to ±20 on Save (1 m Reference
             Calibration saves what it measures): now the same rule
-  compare   Compare Maps threw on a visible plan with rooms but no placement
+  compare   Compare Maps threw on a visible plan with rooms but no placement;
+            its error read "%" (of a world unit): now metres, same rating
 
 tests/js/help_found_bugs.mjs renders each of them.
 """
@@ -76,3 +77,9 @@ def test_the_help_says_what_the_diagnostics_report_holds() -> None:
     assert "a name or a room" not in block
     assert "your own devices seen in the last 24 hours" in block
     assert "with their Bluetooth addresses" in block and "IRKs, are left out" in block
+
+
+def test_the_help_gives_compare_maps_in_metres() -> None:
+    help_src = (WWW / "help_content.js").read_text(encoding="utf-8")
+    line = next(ln for ln in help_src.splitlines() if "Compare Maps (Advanced, two or more plans)" in ln)
+    assert "%" not in line and "in metres" in line

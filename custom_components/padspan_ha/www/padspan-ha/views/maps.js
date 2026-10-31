@@ -312,7 +312,7 @@ function _compareAllMaps(ctx, maps, resultDiv) {
         const a = entries[i], b = entries[j];
         const dx = a.wx - b.wx, dy = a.wy - b.wy;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const pct = Math.round(dist * 1000) / 10; // % of normalised space
+        const pct = Math.round(dist * 1000) / 10; // % of one world unit: the rating
         pairs.push({ room: rname, mapA: a.map.name || a.map.id, mapB: b.map.name || b.map.id, dist, pct });
         if (dist > worstErr) {
           worstErr = dist;
@@ -339,12 +339,17 @@ function _compareAllMaps(ctx, maps, resultDiv) {
   // Sort worst-first
   pairs.sort((a, b) => b.dist - a.dist);
   const avgErr = pairs.reduce((s, p) => s + p.dist, 0) / pairs.length;
-  const avgPct = Math.round(avgErr * 1000) / 10;
   const worstPct = Math.round(worstErr * 1000) / 10;
 
   // Rating
   const _rating = (pct) => pct < 2 ? ["Excellent", "#52b788"] : pct < 5 ? ["Good", "#7dd3fc"] : pct < 10 ? ["Fair", "#f59e0b"] : ["Poor", "#f87171"];
   const [overallLabel, overallColor] = _rating(worstPct);
+  // The distances are in world units (metres over the house's gauge), so they
+  // read "%" of nothing anyone could see: shown in metres. The rating is as it
+  // was, a share of one world unit, and its limits are shown in metres too.
+  // (Every pair went through mapXform, which needs the gauge.)
+  const mPerUnit = (worldGauge(ctx.state.model) || {}).m_per_unit || 0;
+  const _m = (worldDist) => (worldDist * mPerUnit).toFixed(2) + " m";
 
   // Build result card
   const card = el("div",{style:"margin-top:10px;padding:12px;border-radius:8px;background:#071210;border:1px solid " + overallColor + "44"});
@@ -353,17 +358,19 @@ function _compareAllMaps(ctx, maps, resultDiv) {
   const headline = el("div",{style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"});
   headline.appendChild(el("span",{style:"font-size:14px;font-weight:700;color:" + overallColor}, overallLabel));
   headline.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"},
-    "Worst error: " + worstPct + "% (" + worstRoom + ")"));
+    "Worst error: " + _m(worstErr) + " (" + worstRoom + ")"));
   headline.appendChild(el("span",{style:"font-size:11px;color:#64748b"},
-    "Avg: " + avgPct + "% across " + pairs.length + " room pair(s)"));
+    "Avg: " + _m(avgErr) + " across " + pairs.length + " room pair(s)"));
   card.appendChild(headline);
+  card.appendChild(el("div",{"data-compare-limits":"",style:"font-size:11px;color:#64748b;margin-top:2px"},
+    "For this house: Excellent under " + _m(0.02) + ", Good under " + _m(0.05) + ", Fair under " + _m(0.10) + "."));
 
   // Detail table
   const table = el("div",{style:"margin-top:8px;font-size:11px;font-family:monospace"});
   for (const p of pairs.slice(0, 20)) {
     const [lbl, col] = _rating(p.pct);
     const row = el("div",{style:"display:flex;gap:8px;padding:2px 0;border-bottom:1px solid #1a2a1a"});
-    row.appendChild(el("span",{style:"width:100px;color:" + col + ";font-weight:600"}, p.pct.toFixed(1) + "%"));
+    row.appendChild(el("span",{style:"width:100px;color:" + col + ";font-weight:600"}, _m(p.dist)));
     row.appendChild(el("span",{style:"flex:1;color:#e2e8f0"}, p.room));
     row.appendChild(el("span",{style:"color:#64748b"}, p.mapA + " vs " + p.mapB));
     table.appendChild(row);

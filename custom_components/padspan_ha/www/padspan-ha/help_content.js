@@ -193,7 +193,7 @@ export function helpTexts() { return {
       t("\"not placed\" means the plan has no real-world size yet: measure it (Set the scale in the Setup Wizard, or Edit → Measure). \"gap detected\" means a room is far from every receiver, where one more receiver would help; Suggest Placement in Edit shows where."),
       t("Open: in Basic mode it starts the Setup Wizard on that plan, at Set the scale; in Advanced it opens the plan in Edit. Delete removes a plan: its picture and the room outlines and receiver and beacon pins drawn on it. The saved layout in metres (Mapping → Layout) and calibration points with a position in metres are kept. If the plan holds data and another plan sits at the same stack level, you can move the data there first (Migrate & Delete); Revert migration undoes that for 10 minutes."),
       t("+ Add a floor starts the Setup Wizard for a new plan. With no plans yet, Start Setup Wizard does the same."),
-      t("Compare Maps (Advanced, two or more plans) checks how well your floors line up. It compares where rooms with the same name sit on each plan shown in 3D Stack and rates the worst: Excellent under 2%, Good under 5%, Fair under 10%, otherwise Poor. Above 5%, line the floors up again in 3D Stack."),
+      t("Compare Maps (Advanced, two or more plans) checks how well your floors line up. It measures how far apart, in metres, rooms with the same name sit on the plans shown in 3D Stack and rates the worst: Excellent, Good, Fair or Poor. The limits depend on the size of your floor plans; the result shows them in metres. At Fair or Poor, line the floors up again in 3D Stack."),
       t("In Sample mode the Library shows the sample house's plans, read-only. Switch to Live in the top bar to see and change your own."),
     ],
   },

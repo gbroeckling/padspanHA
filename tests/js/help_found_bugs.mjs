@@ -17,7 +17,8 @@
 //               Settings → Tracking → Receivers and the Receivers page clamped
 //               a stored value on Save even unedited: now the same rule
 //   compare     Mapping → Library "Compare Maps" threw on a visible plan with
-//               rooms but no placement
+//               rooms but no placement; its error read "%" of a world unit
+//               nobody sees: now metres, the rating's limits in metres too
 // The pytest wrapper is tests/test_help_found_bugs.py.
 //
 // Run:  node tests/js/help_found_bugs.mjs <repo-root>
@@ -258,6 +259,15 @@ function compare(transforms) {
     check("compare: the placed plans are compared", /Worst error/.test(t) && /Main floor vs Main copy/.test(t), t.slice(0, 400));
     const note = attr(r.root, "data-compare-not-placed");
     check("compare: the unplaced plan is named as not placed", !!note && /Basement sketch/.test(text(note)) && !/Main floor/.test(text(note)), note && text(note));
+    // Kitchen's centres are 0.02 of a 10 m-wide plan apart (0.2 m); the house's
+    // gauge is 10 m to the unit. It read "Worst error: 2%", a share of a unit
+    // nobody can see: now metres, and the rating (Good, as before) with its
+    // limits in metres.
+    check("compare: the error is in metres, not %", /Worst error: 0\.20 m \(Kitchen\)/.test(t) && /Avg: 0\.10 m across 2 room pair\(s\)/.test(t)
+      && /Good/.test(t) && !/\d%/.test(t), t.slice(0, 400));
+    const lim = attr(r.root, "data-compare-limits");
+    check("compare: the rating's limits are shown in metres for this house",
+      !!lim && text(lim) === "For this house: Excellent under 0.20 m, Good under 0.50 m, Fair under 1.00 m.", lim && text(lim));
   }
   const none = compare({});
   check("compare: nothing placed, no crash and every plan named", !none.err && /No shared rooms/.test(text(none.root))
