@@ -866,7 +866,9 @@ class PadSpanHaApp extends HTMLElement {
             <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
               <span class="muted" style="font-size:12px">Data</span>
               <button class="btn inline" id="dataModeToggle" title="Toggle sample vs live data">…</button>
+              <button class="btn-help" id="dataModeHelp" title="Help: Live and Sample">?</button>
               <button class="btn inline" id="complexityToggle" title="Cycle between Basic, Advanced, and Development modes">Advanced</button>
+              <button class="btn-help" id="complexityHelp" title="Help: Basic, Advanced and Development">?</button>
             </span>
           </div>
           <!-- ?kiosk=1 hides both top bars: there, red only, in the bottom corner (the top right is the Overview's Quiet tick). -->
@@ -991,6 +993,8 @@ class PadSpanHaApp extends HTMLElement {
     this.$content.addEventListener("scroll", _markInteraction, true);
 
     this.$("#dataModeToggle").addEventListener("click", () => this._onDataModeClick());
+    this.$("#dataModeHelp").addEventListener("click", () => this._showHelp("data_mode"));
+    this.$("#complexityHelp").addEventListener("click", () => this._showHelp("complexity_mode"));
     // A held Enter clicks a button once per key repeat: one press, one click
     // (see _onDataModeClick). Same on the mobile pill above.
     this.$("#dataModeToggle").addEventListener("keydown", (e) => { if(e.repeat && e.key === "Enter") e.preventDefault(); });
@@ -4946,7 +4950,9 @@ class PadSpanHaApp extends HTMLElement {
           if (!VIEWS.setup) _loadView("setup").then(() => this._scheduleRender());
           this._scheduleRender();
         });
-        hdr.appendChild(el("span",{style:"display:flex;align-items:baseline"},[setupBtn, skipBtn]));
+        const gsHelp = el("button",{class:"btn-help",title:"Help","data-getting-started":"help",style:"margin-left:10px"}, "?");
+        gsHelp.addEventListener("click", (e) => { e.stopPropagation(); this._showHelp("getting_started"); });
+        hdr.appendChild(el("span",{style:"display:flex;align-items:baseline"},[setupBtn, skipBtn, gsHelp]));
         bar.appendChild(hdr);
         if (_mapOptional) bar.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin:-4px 0 8px"},
           "Who's where already works below. A floor plan adds the map, and with three or more scanners placed on it, positions between them."));

@@ -128,7 +128,8 @@ export function whosWhereCard(ctx){
   card.appendChild(el("div", { style: "display:flex;align-items:baseline;gap:10px;flex-wrap:wrap" }, [
     el("div", { class: "h2", style: "margin:0" }, "Who's where now"),
     el("span", { class: "muted", style: "font-size:12px" }, "From your Bluetooth scanners and the Home Assistant area each one is in. No floor plan needed."),
-  ]));
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("whos_where") : null,
+  ].filter(Boolean)));
   const lineEl = el("div", { style: "font-size:12px;margin:8px 0" });
   const roomsEl = el("div", { style: "display:grid;gap:6px" });
   const awayEl = el("div", { style: "margin-top:8px" });

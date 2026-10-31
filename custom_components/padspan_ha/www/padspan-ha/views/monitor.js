@@ -312,7 +312,8 @@ function _zones(ctx, el){
     el("span",{class:"badge"}, `${occupied} occupied`),
     el("span",{class:"badge"}, `${empty} empty`),
     el("span",{class:"badge"}, `${objects.length} objects`),
-  ]));
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("zones") : null,
+  ].filter(Boolean)));
 
   if(rooms.length === 0){
     wrap.appendChild(el("div",{class:"card"},[

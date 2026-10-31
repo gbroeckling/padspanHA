@@ -64,4 +64,9 @@ def test_calibration_tabs_do_not_depend_on_the_mode() -> None:
 def test_training_no_longer_calls_calibration_advanced_only() -> None:
     src = _read("views/training.js")
     assert "Calibration tab (visible in Advanced and Development modes)" not in src
-    assert "Basic — 8 tabs (Follow, Overview, Maps, Rooms, Receivers, Calibration, Settings, Training)" in src
+    # The modes are told once, in help_content.js's complexity_mode, which
+    # Training's Quick Start shows through its helpKeys.
+    assert 'helpKeys: ["complexity_mode", "data_mode"]' in src
+    help_src = _read("help_content.js")
+    assert ("BASIC — A short main list: Follow, Overview, Mapping, Rooms, Receivers, Calibration, "
+            "Settings, and Training") in help_src

@@ -807,6 +807,7 @@ export function render(ctx){
   const inventorySection = el("div",{class:"card"},[
     el("div",{class:"row",style:"margin-bottom:8px"},[
       el("div",{class:"h2",style:"flex:1"}, _quietMode ? "Tracked Objects" : "BLE Scanner Detections"),
+      helpBtn("objects"),
       _quietMode
         ? el("span",{class:"badge",style:"background:#0a2a1a;color:#52b788;border-color:#166534;font-weight:700"}, "Quiet Mode")
         : null,
@@ -880,6 +881,7 @@ export function render(ctx){
     const wtiBar = el("div",{style:"display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:8px 12px;background:#0f0a1e;border:1px solid rgba(168,85,247,.3);border-radius:8px"},[
       el("span",{style:"font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,.15);color:#a855f7;font-weight:600;text-transform:uppercase"}, "walk-to-identify"),
       roomSel, wtiBtn, wtiClear, wtiResults,
+      helpBtn("walk_to_identify"),
     ].filter(Boolean));
 
     inventorySection.insertBefore(wtiBar, inventorySection.children[2] || null);
