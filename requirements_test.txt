@@ -3,8 +3,8 @@
 # The suite stubs the entire `homeassistant` package tree (tests/conftest.py),
 # so Home Assistant itself is NOT required.  Only pytest + the third-party
 # libraries the tested modules import directly are needed.
-pytest==9.1.1
-pytest-asyncio==1.4.0
+pytest==9.2.0
+pytest-asyncio==1.4.1
 # Runs the generated Bright tree's copy of the suite on every core
 # (scripts/bright_build.run_suite, which falls back to one process without it).
 pytest-xdist==3.8.0
