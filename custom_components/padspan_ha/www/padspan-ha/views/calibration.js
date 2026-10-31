@@ -3944,9 +3944,13 @@ function _resolveBeaconAddr(bkKey, snap) {
 // points, both taken where the beacon sat. Points collected by carrying the
 // same device (Pin & Listen, Roam, Walk a room) are never touched. Points
 // saved before Beacon Tune marked its points carry no source and are kept.
+// Two beacons can share a name, so a name alone never takes an [auto] point
+// (those always carry their beacon's key) or a point whose device is another
+// placed beacon (ids.others: their keys and addresses).
 function _beaconTunePurgeIds(points, ids, protectedIds) {
   const want = new Set([ids.deviceId, ids.key].filter(Boolean).map(v => String(v).toUpperCase()));
   const lbls = new Set([ids.label, ids.key].filter(Boolean).map(v => String(v).toUpperCase()));
+  const others = new Set((ids.others || []).filter(Boolean).map(v => String(v).toUpperCase()));
   const out = [];
   for (const pt of points || []) {
     if (!pt || !pt.id || (protectedIds && protectedIds.has(pt.id))) continue;
@@ -3954,8 +3958,9 @@ function _beaconTunePurgeIds(points, ids, protectedIds) {
     const auto = lbl.startsWith("[auto]");
     if (pt.source !== "beacon_tune" && !auto) continue;
     const dev = String(pt.device_id || "").toUpperCase();
-    const bare = (auto ? lbl.slice(6).trim() : lbl).toUpperCase();
-    if ((dev && want.has(dev)) || (bare && lbls.has(bare))) out.push(pt.id);
+    if (dev && want.has(dev)) { out.push(pt.id); continue; }
+    if (auto || (dev && others.has(dev))) continue;
+    if (lbls.has(lbl.toUpperCase())) out.push(pt.id);
   }
   return out;
 }
@@ -5458,8 +5463,14 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const _purgeOldPoints = async (protectedIds) => {
           try {
             const calData = await ctx.actions.calibrationGet();
+            const others = [];
+            for (const bks of Object.values(bs.draftBeacons || {})) {
+              for (const b of bks || []) {
+                if (b && b.key && b.key !== bkKey) others.push(b.key, _resolveBeaconAddr(b.key, snap3));
+              }
+            }
             const ids = _beaconTunePurgeIds(calData?.points || [],
-              { deviceId, label: entry.bk.label, key: bkKey }, protectedIds);
+              { deviceId, label: entry.bk.label, key: bkKey, others }, protectedIds);
             let purged = 0;
             for (const id of ids) {
               try {

@@ -59,6 +59,23 @@ def test_only_the_beacons_beacon_tune_points_go() -> None:
     assert sorted(got) == ["auto", "bt_old"]
 
 
+def test_a_beacon_with_the_same_name_keeps_its_points() -> None:
+    """Two beacons can share a name (an advertised one, or the same label):
+    a name alone never takes the other one's points."""
+    dev, key, label = "AA:BB:CC:DD:EE:01", "ble:aa:bb:cc:dd:ee:01", "Tile"
+    twin_dev, twin_key = "AA:BB:CC:DD:EE:02", "ble:aa:bb:cc:dd:ee:02"
+    pts = [
+        {"id": "mine_old_addr", "device_id": "11:11:11:11:11:11", "label": label, "source": "beacon_tune"},
+        {"id": "mine_no_dev", "device_id": "", "label": label, "source": "beacon_tune"},
+        {"id": "twin_bt", "device_id": twin_dev, "label": label, "source": "beacon_tune"},
+        {"id": "twin_bt_by_key", "device_id": twin_key, "label": label, "source": "beacon_tune"},
+        {"id": "twin_auto", "device_id": twin_key, "label": f"[auto] {label}"},
+        {"id": "unplaced_auto", "device_id": "ble:99", "label": f"[auto] {label}"},
+    ]
+    got = _run(pts, {"deviceId": dev, "key": key, "label": label, "others": [twin_key, twin_dev]}, [])
+    assert sorted(got) == ["mine_no_dev", "mine_old_addr"]
+
+
 def test_the_purge_uses_it_and_both_saves_mark_their_points() -> None:
     src = _CAL.read_text(encoding="utf-8")
     purge = src[src.index("const _purgeOldPoints = async"):][:900]
