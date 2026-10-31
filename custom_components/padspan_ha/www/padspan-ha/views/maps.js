@@ -6331,9 +6331,34 @@ function _stack(ctx, maps, helpBtn){
       title.textContent = "Preview";
       toolbar.appendChild(title);
 
+      // The residual in the reference's metres: the RMS of the per-point
+      // errors the chips below show, as `resPct` is the RMS of the fractions.
+      // The rating still goes by `resPct`, unchanged. It is a share of the
+      // reference picture's width AND depth, so in metres a limit depends on
+      // the direction: from the placement's least stretch to its greatest
+      // (the plan's depth and width, unless it leans). `ptLimits` says so.
+      const resM = perPoint.length ? Math.sqrt(perPoint.reduce((s, p) => s + p.m * p.m, 0) / perPoint.length) : 0;
+      const resText = resM.toFixed(2) + " m";
+      const [stretchLo, stretchHi] = (() => {
+        const pl = _placeOf(refMap.id);
+        const c = mapFracToMetres(pl, 0, 0), ex = mapFracToMetres(pl, 1, 0), ey = mapFracToMetres(pl, 0, 1);
+        if (!c || !ex || !ey) return [0, 0];
+        // The singular values of the fraction-to-metre map (its two columns).
+        const ux = ex[0] - c[0], uy = ex[1] - c[1], vx = ey[0] - c[0], vy = ey[1] - c[1];
+        const a = ux * ux + uy * uy, b = vx * vx + vy * vy, ab = ux * vx + uy * vy;
+        const r = Math.sqrt((a - b) * (a - b) + 4 * ab * ab);
+        return [Math.sqrt(Math.max(0, (a + b - r) / 2)), Math.sqrt((a + b + r) / 2)];
+      })();
+      const _limM = (f) => {
+        const lo = (f * stretchLo).toFixed(2), hi = (f * stretchHi).toFixed(2);
+        return (lo === hi ? lo : lo + "\u2013" + hi) + " m";
+      };
+      const ptLimits = "For this plan: Excellent under " + _limM(0.02) + ", Fair under " + _limM(0.05) +
+        (_limM(0.05).includes("\u2013") ? " (the limits are a share of its width and depth, so they depend on the direction)" : "") + ".";
+
       const stats = document.createElement("span");
       stats.style.cssText = "font-size:11px;color:#94a3b8";
-      stats.textContent = pairs + " pairs | residual " + resPct + "% | scale " +
+      stats.textContent = pairs + " pairs | residual " + resText + " | scale " +
         rScale.toFixed(3) + " | rot " + rRotation.toFixed(1) + "\u00b0" +
         (Math.abs(rStretch - 1.0) > 0.005 ? " | stretch " + Math.round(rStretch * 100) + "%" : "");
       toolbar.appendChild(stats);
@@ -6344,6 +6369,7 @@ function _stack(ctx, maps, helpBtn){
       const qLabel = resPct < 2 ? "Excellent" : resPct < 5 ? "Fair" : "Poor";
       qBadge.style.cssText = "font-size:10px;padding:2px 8px;border-radius:4px;background:" + qColor + "22;color:" + qColor + ";border:1px solid " + qColor + "44";
       qBadge.textContent = qLabel;
+      qBadge.title = ptLimits;
       toolbar.appendChild(qBadge);
 
       const spacer = document.createElement("div");
@@ -6405,7 +6431,7 @@ function _stack(ctx, maps, helpBtn){
                   if(res && res.scale_invalidated){
                     ctx.toast("Baked, but the map scale could not survive rotation + stretch — re-measure the map.", true);
                   } else {
-                    ctx.toast("Baked (" + pairs + " pairs, residual " + resPct + "%)");
+                    ctx.toast("Baked (" + pairs + " pairs, residual " + resText + ")");
                   }
                 })
                 .catch(e => ctx.toast("Bake upload failed: " + (e?.message || e?.code || String(e)), true));
@@ -6443,7 +6469,7 @@ function _stack(ctx, maps, helpBtn){
           if (ctx.actions.telemetryEvent) ctx.actions.telemetryEvent("point_align_applied");
           _close();
           buildStage();
-          ctx.toast("Aligned (" + pairs + " pairs, residual " + resPct + "%)");
+          ctx.toast("Aligned (" + pairs + " pairs, residual " + resText + ")");
         }
       };
       toolbar.appendChild(applyBtn);
@@ -6651,6 +6677,10 @@ function _stack(ctx, maps, helpBtn){
           ppDiv.appendChild(chip);
         }
         previewPanel.appendChild(ppDiv);
+        const lim = document.createElement("div");
+        lim.style.cssText = "margin-top:4px;font-size:10px;color:#64748b;text-align:center";
+        lim.textContent = ptLimits;
+        previewPanel.appendChild(lim);
         const worstPt = perPoint.reduce((a, b) => b.pct > a.pct ? b : a, perPoint[0]);
         if (worstPt.pct > 3) {
           const tip = document.createElement("div");

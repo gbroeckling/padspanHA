@@ -346,7 +346,7 @@ export function helpTexts() { return {
     title: t("Events — what you did in the panel since this page opened"),
     body: [
       t("A log of this visit to the panel, newest first: screens you opened (Navigation), each live data update with how many devices it held (Data), and devices you tagged or untagged (Tag). The badges at the top count each kind."),
-      t("Click a Navigation row to open that screen again. The log keeps the latest 500 entries, lives only in this browser and is gone when you reload. History → \"Session Events\" shows the same log, with calls to the server too, and can clear it."),
+      t("Click a Navigation row to open that screen again. The log keeps the latest 500 entries, counting the calls to the server that this page leaves out; it lives only in this browser and is gone when you reload. History → \"Session Events\" shows the same log with those calls, and can clear it."),
       t("Room-change alerts are somewhere else: Manage → \"Events\" tab."),
     ],
   },
@@ -1138,7 +1138,7 @@ export function helpTexts() { return {
       t("ALIGNMENT OVERLAY — Choose a Reference (fixed) and a Target (draggable). The Reference must be measured; ⚠ marks a plan that isn't placed yet, and Reset starts an unplaced Target on top of the Reference. Drag the Target until stairwells and outside walls line up. Scale + and Scale − resize it, X − and X + stretch it sideways with Lock AR turned off, −15°, ﹢15° and 0° turn it; Zoom and Opacity only change your view."),
       t("Nothing is kept until you click Save Alignment. PadSpan refuses a position that would put more than half of the plan's calibration points off the map, and changes nothing. If the new position disagrees with a saved tie-in, it shows the conflict and offers Average & Save, Override & Save or Cancel."),
       t("+ Tie-in remembers where the Target sits against this Reference, so a later move that disagrees is caught. 🚑 Emergency Recovery finds tie-ins that contradict each other and lets you remove the bad ones."),
-      t("POINT ALIGN — For a close fit, click the same real point on both plans (a stairwell corner, say); it switches between the plans for you. With 3 pairs or more, click Compute and check the preview (Excellent, Fair or Poor). Apply moves the Target on screen only, so click Save Alignment afterwards. With Bake ticked (administrators), Bake & Apply redraws the Target's picture to fit and saves it straight away."),
+      t("POINT ALIGN — For a close fit, click the same real point on both plans (a stairwell corner, say); it switches between the plans for you. With 3 pairs or more, click Compute and check the preview: it gives, in metres, how far the points sit from where the fit puts them (overall as the residual, and each point's own), and rates the fit Excellent, Fair or Poor, with the limits for your plan underneath. Apply moves the Target on screen only, so click Save Alignment afterwards. With Bake ticked (administrators), Bake & Apply redraws the Target's picture to fit and saves it straight away."),
       t("3D ISOMETRIC PREVIEW — The whole building stacked, to check by eye. Floor, Spacing and L/R change the drawing (Save keeps them, Reset restores them). ⊕ Persistent shows where away devices were last seen. \"N stale\" counts receivers on the plans that no live receiver matches; click it for the list. ☰ Room List lists the rooms."),
       t("Compare Maps, in the Library, rates how well the floors line up once you're done."),
     ],

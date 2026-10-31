@@ -46,27 +46,38 @@ check("lifted", hassLines && methods.includes("_showHelp(key){") && src.includes
 // A fresh i18n.js + help_content.js pair per stand-in panel (help_content.js
 // imports i18n.js with its own query, so one query = one shared instance).
 let n = 0;
-async function panel(language, view = "overview") {
+// `crit` stands for panel.js's _criticalPromise; with `late` help_content.js
+// is not in yet (HELP {}, HELP_MOD null): "loads" brings it in when `crit`
+// settles, "fails" never does (its import failed).
+async function panel(language, view = "overview", { crit = Promise.resolve(), late = false } = {}) {
   const q = `?b=L${n++}`;
   const I18N = await import(pathToFileURL(join(WWW, "views", "i18n.js")).href + q);
   const HELP_MOD = await import(pathToFileURL(join(WWW, "help_content.js")).href + q);
-  const make = new Function("_i18nPromise", "_criticalPromise", "HELP_MOD",
-    `let HELP = HELP_MOD.HELP; return { help: () => HELP, cls: class {
+  const make = new Function("_i18nPromise", "_criticalPromise", "MOD", "late",
+    `let HELP = late ? {} : MOD.HELP, HELP_MOD = late ? null : MOD;
+     if(late === "loads") _criticalPromise = _criticalPromise.then(() => { HELP = MOD.HELP; HELP_MOD = MOD; });
+     return { help: () => HELP, cls: class {
        setHass(hass){ this._hass = hass; ${hassLines} }
        renderView(){ ${trainingLine} }
        ${methods}
      } };`);
-  const { help, cls } = make(Promise.resolve(I18N), Promise.resolve(), HELP_MOD);
+  const { help, cls } = make(Promise.resolve(I18N), crit, HELP_MOD, late);
   const p = new cls();
   p.state = { view };
   p.renders = 0;
   p.opened = [];
   p.modals = [];
+  p.toasts = [];
   // The modal: its top child stands for the open one (null = closed).
   p.$modal = { firstChild: null };
   p._openModal = (title, body) => { p.modals.push(title || body); p.$modal.firstChild = { title }; };
+  p._closeModal = () => { p.$modal.firstChild = null; };
   p._scheduleRender = () => { p.renders++; };
-  p._openHelp = (key) => { p.opened.push(help()[key].title); p._openModal(help()[key].title, ""); };
+  // As panel.js's: an unknown key is a toast, not a modal.
+  p._openHelp = (key) => {
+    if (!help()[key]) { p.toasts.push(key); return; }
+    p.opened.push(help()[key].title); p._openModal(help()[key].title, "");
+  };
   p.setHass({ language });
   return { p, help, HELP_MOD };
 }
@@ -95,8 +106,8 @@ const de = JSON.parse(readFileSync(join(WWW, "i18n", "de", "help.json"), "utf-8"
   const f0 = fetched.length;
   const { p, HELP_MOD } = await panel("en");
   p._showHelp("follow");
-  await settle();
-  // (Its loading line is replaced within the same task: never painted.)
+  // Its loading line is replaced before the next task, so never painted.
+  await new Promise(r => setTimeout(r, 0));
   check("English: fetches nothing, opens the English",
     fetched.length === f0 && p.opened.length === 1 && p.opened[0] === HELP_MOD.HELP.follow.title
     && p.$modal.firstChild.title === p.opened[0],
@@ -174,6 +185,48 @@ const de = JSON.parse(readFileSync(join(WWW, "i18n", "de", "help.json"), "utf-8"
   } finally { Date.now = now; }
   check("a ? a minute later tries again and opens it translated",
     fetched.length === f0 + 2 && p.opened.length === 3 && p.opened[2] === fr[HELP_MOD.HELP.follow.title], { fetched: fetched.slice(f0), opened: p.opened });
+}
+{
+  // A "?" in the header before help_content.js is in (a slow tablet's first
+  // seconds): it waits for it, as it always did, not "No help entry".
+  let release; const crit = new Promise(r => { release = r; });
+  const { p, HELP_MOD } = await panel("en", "overview", { crit, late: "loads" });
+  p._showHelp("data_mode");
+  await settle();
+  check("a ? before help_content.js is in: the loading line, no 'No help entry'",
+    p.toasts.length === 0 && p.opened.length === 0 && p.modals.length === 1 && /Loading help/.test(p.modals[0]),
+    { toasts: p.toasts, modals: p.modals });
+  release();
+  await settle();
+  check("and that help opens once it is in",
+    p.toasts.length === 0 && p.opened.length === 1 && p.opened[0] === HELP_MOD.HELP.data_mode.title, { toasts: p.toasts, opened: p.opened });
+}
+{
+  const { p } = await panel("de", "overview", { late: "fails" });
+  p._showHelp("follow");
+  await settle();
+  check("help_content.js never loaded: the loading line closes, the toast says so",
+    p.toasts.length === 1 && p.opened.length === 0 && p.$modal.firstChild === null, { toasts: p.toasts, modals: p.modals });
+}
+{
+  // The HA language changes while the help is loading, and the old
+  // language's answer comes first: the open help ends in the new language.
+  const { p, HELP_MOD } = await panel("de");
+  const fr = JSON.parse(readFileSync(join(WWW, "i18n", "fr", "help.json"), "utf-8"));
+  let openDe; gate = new Promise(r => { openDe = r; });
+  p._showHelp("follow");
+  await settle();
+  let openFr; gate = new Promise(r => { openFr = r; });
+  p.setHass({ language: "fr" });
+  await settle();
+  gate = null;
+  openDe();
+  await settle();
+  openFr();
+  await settle();
+  check("the language changes mid-load: the open help ends in the new one",
+    p.opened.length >= 1 && p.opened[p.opened.length - 1] === fr[HELP_MOD.HELP.follow.title]
+    && p.$modal.firstChild.title === fr[HELP_MOD.HELP.follow.title], p.opened);
 }
 
 console.log(JSON.stringify({ cases, failures }));

@@ -3567,17 +3567,22 @@ class PadSpanHaApp extends HTMLElement {
   /** Open a help modal for the given key. While the translated help is still
    *  loading, the modal opens at once with a loading line and fills in when
    *  it arrives, or in English after 2 s; a translation arriving later still
-   *  replaces that English if the same help is open. */
+   *  replaces that English if the same help is open. An unknown key says so
+   *  at once, but only once help_content.js is in (HELP_MOD): a "?" before
+   *  that waits for it like the rest. */
   _showHelp(key){
-    const p = this._loadHelpLanguage(), load = this._helpLoad;
-    if(load.done || !HELP[key]) return this._openHelp(key);
+    this._loadHelpLanguage();
+    if(this._helpLoad.done || (HELP_MOD && !HELP[key])) return this._openHelp(key);
     this._openModal("", '<div style="color:#94a3b8;font-size:14px">Loading help…</div>');
     const top = () => this.$modal && this.$modal.firstChild;
     let shown = top();   // our modal, until it is closed or another replaces it
-    const fill = () => { if(shown && shown === top()){ this._openHelp(key); shown = top(); } };
-    let english = null;
-    p.then(() => { if(english !== HELP) fill(); });
-    setTimeout(() => { if(!load.done){ english = HELP; fill(); } }, 2000);
+    // No such help (help_content.js never loaded): close the loading line, toast.
+    const fill = () => { if(shown && shown === top()){ if(!HELP[key]) this._closeModal(); this._openHelp(key); shown = top(); } };
+    // The latest load: a language changed meanwhile is followed to its end.
+    const settled = (load) => load.p.then(() => this._helpLoad !== load ? settled(this._helpLoad) : null);
+    let english = null, waited = false;
+    settled(this._helpLoad).then(() => { waited = true; if(english !== HELP) fill(); });
+    setTimeout(() => { if(!waited){ english = HELP; fill(); } }, 2000);
   }
 
   /** The help modal itself (content from help_content.js). */
