@@ -1382,7 +1382,7 @@ function _settingsPresence(ctx, el){
   put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Look up device makers online"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "When this is on, opening the Objects list asks two public services (macvendors.com and " +
+      "When this is on, opening a device list (such as the Overview's All objects) asks two public services (macvendors.com and " +
       "maclookup.app) which company made each nearby Bluetooth device. It sends the first three bytes " +
       "of an address only (such as AA:BB:CC), never the whole address, and never an address known to " +
       "be random or locally administered, the kind phones use. Each answer is kept for 30 days, so each " +
