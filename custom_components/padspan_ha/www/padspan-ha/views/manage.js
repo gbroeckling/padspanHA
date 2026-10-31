@@ -14,7 +14,7 @@
 //                      automation YAML library, MQTT config
 //   Beacon Chars     — Per-beacon signal profiles from calibration, model grouping
 //   History          — A way to the History screen's Movement tab (the same log)
-//   Events           — Session event log (in-memory), email alert configuration
+//   Events           — Email/phone alert configuration, a way to History → Movement
 //   Logs             — Live integration log viewer with level filtering
 //   Factory Reset    — Nuclear option: wipes all PadSpan stores + browser caches
 //
@@ -1854,18 +1854,18 @@ function _history(ctx, el){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Events sub-tab — session event log + email alert configuration
+// Events sub-tab — email alert configuration + a way to History → Movement
 //
-// Two main sections:
 //   1. Email Notifications — saved alerts summary table + per-device editor
 //      with email, service selection, room filter checkboxes, test button
-//   2. Session event log — in-memory followHistory, newest first, clears on
-//      page reload (unlike the History tab which reads persisted data)
+//   2. A line and "Open History": the room changes are on the History
+//      screen's Movement tab. (A "session event log" stood here. It read
+//      ctx.state.followHistory, which nothing has written since Follow moved
+//      onto the server's movement history, so it was always empty.)
 //
 // Also shows system diagnostics JSON if ctx.state.diag is populated.
 // ══════════════════════════════════════════════════════════════════════════════
 function _events(ctx, el){
-  const { roomColor } = ctx.helpers;
   const wrap = el("div",{style:"display:flex;flex-direction:column;gap:12px"});
 
   // ── Email Notifications card ──────────────────────────────────────────────
@@ -1881,55 +1881,16 @@ function _events(ctx, el){
     ]));
   }
 
-  wrap.appendChild(el("div",{class:"muted",style:"font-size:12px"},
-    "Session event log — room transitions for all tracked tags, newest first. Clears on page reload."
-  ));
-
-  // Build a flat, time-sorted event list from per-device followHistory arrays.
-  // Each device's history is an array of {ts, room} entries; we merge them all
-  // and tag the last entry per device as "isCurrent" for a "now" badge.
-  const followHistory = ctx.state.followHistory || {};
-  const snap = (ctx.state.live && ctx.state.live.snapshot) || null;
-  const allObjects = (snap && snap.objects && Array.isArray(snap.objects.list)) ? snap.objects.list : [];
-  const events = [];
-  for(const [addr,history] of Object.entries(followHistory)){
-    if(!history||!history.length) continue;
-    const obj = allObjects.find(o=>(o.address||o.entity_id||"")===addr);
-    const label = (obj&&(obj.user_label||obj.name||obj.entity_id))||addr;
-    for(let i=history.length-1;i>=0;i--){
-      events.push({ts:history[i].ts,room:history[i].room,label,isCurrent:i===history.length-1});
-    }
-  }
-  events.sort((a,b)=>b.ts-a.ts);
-
-  if(!events.length){
-    wrap.appendChild(el("div",{class:"card"},[
-      el("div",{class:"muted"},"No events recorded yet. Track tags in the Follow tab to generate movement events."),
-    ]));
-  } else {
-    const card = el("div",{class:"card"});
-    card.appendChild(el("div",{class:"row",style:"margin-bottom:8px"},[
-      el("div",{style:"font-weight:700"},"Room Transitions"),
-      el("span",{class:"badge",style:"margin-left:8px"},`${events.length} events`),
-    ]));
-    const list = el("div",{style:"display:flex;flex-direction:column;gap:4px;max-height:400px;overflow-y:auto"});
-    for(const ev of events){
-      const timeStr = new Date(ev.ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-      const rc = roomColor(ev.room||"");
-      const row = el("div",{style:"display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;background:#0a150e;border:1px solid #1b3526"},[
-        el("span",{style:"color:#94a3b8;font-size:11px;font-family:monospace;white-space:nowrap"},timeStr),
-        el("span",{class:"dot",style:`background:${rc};flex-shrink:0`}),
-        el("span",{style:"flex:1;font-size:12px"},[
-          el("span",{style:"color:#94a3b8"},ev.label+" → "),
-          el("span",{style:"font-weight:600"},ev.room||"(unknown)"),
-        ]),
-        ev.isCurrent ? el("span",{class:"badge"},"now") : null,
-      ].filter(Boolean));
-      list.appendChild(row);
-    }
-    card.appendChild(list);
-    wrap.appendChild(card);
-  }
+  const openHistory = () => {
+    ctx.state._historyTab = "movement";
+    if (ctx.actions.showView) ctx.actions.showView("history");
+    else { ctx.state.view = "history"; ctx.actions.renderRooms(); }
+  };
+  wrap.appendChild(el("div",{class:"card","data-manage-events-history":"",style:"display:flex;align-items:center;gap:10px;flex-wrap:wrap"},[
+    el("span",{style:"font-size:13px;color:#cbd5e1"},
+      "The room changes of your devices (who moved from which room to which, and when) are on the History screen, under Movement."),
+    el("button",{class:"btn inline","data-goto":"history-movement",onclick:openHistory},"Open History"),
+  ]));
 
   const diag = ctx.state.diag;
   if(diag && Object.keys(diag).length){

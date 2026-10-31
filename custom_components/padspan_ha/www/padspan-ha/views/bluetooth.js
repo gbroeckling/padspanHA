@@ -679,9 +679,13 @@ function renderScanners(ctx, radios, sources, adsAll) {
       // Per-scanner RSSI offset control — compensates for hardware differences.
     // Positive offset = scanner reads weaker than reality; negative = reads stronger.
     // Persisted via padspan_ha/scanner_offset_set WS call, applied during model inference.
+    // The same -20..+20 dB as Settings → Tracking → Receivers and the
+    // Receivers page. A stored offset outside it (the server takes ±50, and
+    // 1 m Reference Calibration writes what it measures) is shown as it is and
+    // saved as it is if Set is pressed unchanged; only a new value is held in.
     const currentOffset = Number(scannerOffsets[src] || 0);
     const offsetInput = el("input", {
-      type: "number", min: "-30", max: "30", step: "1",
+      type: "number", min: "-20", max: "20", step: "1",
       value: String(currentOffset),
       title: "RSSI offset in dBm — positive = scanner reads weaker than reality; negative = reads stronger",
       "aria-label": "RSSI offset in dBm",
@@ -689,7 +693,8 @@ function renderScanners(ctx, radios, sources, adsAll) {
     const offsetSaveBtn = el("button", { class: "btn tiny" }, "Set");
     offsetSaveBtn.addEventListener("click", async (ev) => {
       ev.stopPropagation();
-      const v = Math.max(-30, Math.min(30, parseFloat(offsetInput.value) || 0));
+      const typed = parseFloat(offsetInput.value) || 0;
+      const v = typed === currentOffset ? typed : Math.max(-20, Math.min(20, typed));
       try {
         await ctx.actions.scannerOffsetSet(src, v);
         ctx.toast(`Offset for ${name || src}: ${v > 0 ? "+" : ""}${v} dBm`);

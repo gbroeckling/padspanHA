@@ -276,9 +276,16 @@ function _compareAllMaps(ctx, maps, resultDiv) {
     return xf ? xf.mapPt(cx, cy) : null;
   };
 
-  // Build {roomName: [{map, wx, wy}]} for all visible maps
+  // Build {roomName: [{map, wx, wy}]} for all visible maps. A plan with no
+  // placement is skipped and named under the result: destructuring its null
+  // centroid threw, and Compare Maps showed nothing at all.
   const roomEntries = {};
+  const notPlaced = [];
   for (const m of visMaps) {
+    if (!mapXform(ctx.state.model, m)) {
+      if (Object.keys(m.room_bounds || {}).length) notPlaced.push(m.name || m.id);
+      continue;
+    }
     for (const [rname, b] of Object.entries(m.room_bounds || {})) {
       let cx = 0.5, cy = 0.5;
       if (b.type === "circle") {
@@ -287,7 +294,9 @@ function _compareAllMaps(ctx, maps, resultDiv) {
         cx = b.points.reduce((s, p) => s + p[0], 0) / b.points.length;
         cy = b.points.reduce((s, p) => s + p[1], 0) / b.points.length;
       }
-      const [wx, wy] = _worldCentroid(m, cx, cy);
+      const w = _worldCentroid(m, cx, cy);
+      if (!w) continue;
+      const [wx, wy] = w;
       if (!roomEntries[rname]) roomEntries[rname] = [];
       roomEntries[rname].push({ map: m, wx, wy, cx, cy });
     }
@@ -314,9 +323,16 @@ function _compareAllMaps(ctx, maps, resultDiv) {
     }
   }
 
+  const notPlacedNote = () => notPlaced.length
+    ? el("div",{"data-compare-not-placed":"",style:"padding:4px 10px;font-size:11px;color:#f59e0b"},
+        "Not placed yet, so not compared: " + notPlaced.join(", ") + ".")
+    : null;
+
   if (!pairs.length) {
     resultDiv.appendChild(el("div",{style:"padding:10px;font-size:12px;color:#94a3b8"},
       "No shared rooms found between visible maps. Room names must match exactly."));
+    const n = notPlacedNote();
+    if (n) resultDiv.appendChild(n);
     return;
   }
 
@@ -356,6 +372,7 @@ function _compareAllMaps(ctx, maps, resultDiv) {
     table.appendChild(el("div",{style:"color:#64748b;padding:4px 0"}, "...and " + (pairs.length - 20) + " more"));
   }
   card.appendChild(table);
+  { const n = notPlacedNote(); if (n) card.appendChild(n); }
 
   // Tip
   if (worstPct > 5) {

@@ -27,7 +27,9 @@ export function render(ctx){
   const snap = ctx.state.live.snapshot;
   const rooms = snap?.rooms?.length ?? Object.keys(ctx.state.roomTagMap||{}).length;
   const tags = snap?.tags?.length ?? Object.values(ctx.state.roomTagMap||{}).reduce((a,b)=>a+(b?.length||0),0);
-  const radios = snap?.radios?.length ?? 0;
+  // The server copies ble.radios to the top level (snapshot_builder.py); the
+  // sample house's snapshot has only ble.radios, so Sample read 0 without this.
+  const radios = snap?.radios?.length ?? snap?.ble?.radios?.length ?? 0;
 
   // Header
   root.appendChild(el("div",{class:"row",style:"align-items:center;gap:8px;margin-bottom:14px"},[

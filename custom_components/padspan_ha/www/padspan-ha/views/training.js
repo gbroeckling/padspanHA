@@ -2251,7 +2251,7 @@ const QUICKSTART_SECTIONS = [
       "HA Entities — which entities PadSpan creates, and the MQTT, ESPresense (with the ESPresense Companion import) and Tasmota connections.",
       "Beacon Characteristics — a report of how each beacon reads.",
       "History — opens History → Movement, the saved room changes.",
-      "Events — email and phone alerts for room changes, and this session's room log.",
+      "Events — email and phone alerts for room changes, and a button that opens History → Movement.",
       "Logs — PadSpan's recent log messages, for troubleshooting.",
       "Factory Reset — erase everything PadSpan stored and start again (your licence key is kept).",
     ],

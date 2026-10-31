@@ -790,7 +790,7 @@ export function helpTexts() { return {
       t("HA Entities — the entities PadSpan creates in Home Assistant, which kinds it creates, and the MQTT, ESPresense and Tasmota connections."),
       t("Beacon Characteristics — a report of how each beacon reads in your calibration points."),
       t("History — a button that opens History → Movement, the saved list of room changes."),
-      t("Events — alerts by email or phone when a device changes room, and this session's room-change log."),
+      t("Events — alerts by email or phone when a device changes room, and a button that opens History → Movement, the saved list of room changes."),
       t("Logs — PadSpan's recent log messages."),
       t("Factory Reset — erase all of PadSpan's data and start again."),
       t("Actions that change or delete something need Live mode; in Sample mode their buttons are greyed out."),
@@ -844,13 +844,13 @@ export function helpTexts() { return {
     ],
   },
   manage_events: {
-    title: t("Manage → Events — Alerts and this session's room log"),
+    title: t("Manage → Events — Room-change alerts"),
     body: [
       t("To get here: Manage → \"Events\" tab. (Manage is in the main menu in Advanced and Development modes, and under \"More tools\" in Basic.)"),
       t("Saved Alerts lists every alert you set up, by an email address or a notify service: the device, where it goes, the rooms watched, and a button to delete it."),
       t("Configure Alerts sets one up: pick a device, type an email address or choose a notify service (\"Auto-detect\" finds one), tick \"Alert on room change\", tick only some rooms if you like (none ticked means every room), then press \"Save Alert\". \"Test Notification\" sends one now. Needs Live mode. The same alerts can be set on Follow."),
       t("PadSpan sends through Home Assistant's own notify services, so one has to be set up there first. \"No notification services found\" means Home Assistant has nothing to send through yet: set up the Companion app on a phone, or a mail integration such as SMTP, then press \"Refresh Services\"."),
-      t("Below that is this session's room-change log: every room change of your tracked tags since you opened the page, newest first. It clears when you reload the page; the saved history is in History → Movement."),
+      t("Below that, \"Open History\" opens History → Movement, the saved list of room changes."),
     ],
   },
   manage_logs: {
@@ -1059,8 +1059,8 @@ export function helpTexts() { return {
   diagnostics: {
     title: t("Diagnostics — a report to send to support"),
     body: [
-      t("Diagnostics isn't in the menu: open it from QA → \"Go to Diagnostics\". It puts a short report in a box: the panel's and the server's versions, PadSpan's status, your rooms and floor plans, and the automatic checks."),
-      t("\"Select All\" selects it, \"Copy\" copies it, and \"Download Report\" saves it as a file. Email it to hello@traks.ca, or attach it to a GitHub issue (GitHub issues are public, so remove personal details first). It names your rooms and floor plans, so look it over before you send it. Monitor → \"Export for support\" builds a fuller report the same way."),
+      t("Diagnostics isn't in the menu: open it from QA → \"Go to Diagnostics\". It puts a short report in a box: the panel's and the server's versions, PadSpan's status, your rooms and floor plans, the devices that have a name or a room (seen in the last 24 hours), and the automatic checks."),
+      t("\"Select All\" selects it, \"Copy\" copies it, and \"Download Report\" saves it as a file. Email it to hello@traks.ca, or attach it to a GitHub issue (GitHub issues are public, so remove personal details first). It names your rooms, floor plans and devices, so look it over before you send it. Monitor → \"Export for support\" builds a fuller report the same way."),
       t("\"Install Verification\" — if the panel's version and the server's differ, your browser is showing an old copy (press Ctrl+F5) or Home Assistant has two copies of PadSpan installed (for example one from HACS and one copied by hand): remove the extra one and restart Home Assistant."),
     ],
   },

@@ -22,20 +22,23 @@ export function render(ctx){
   let includedDevices = 0;
   if (snap && typeof snap === "object") {
     trimmedSnap = {};
-    const keys = Object.keys(snap);
-    totalDevices = keys.length;
-    for (const k of keys) {
-      const d = snap[k];
-      if (!d) continue;
+    // The devices are the snapshot's objects.list. (This loop went over the
+    // snapshot's own top-level keys, rooms, ble, objects and so on, so the
+    // report counted those as "devices" and listed almost none.)
+    const list = (snap.objects && Array.isArray(snap.objects.list)) ? snap.objects.list : [];
+    totalDevices = list.length;
+    for (const d of list) {
+      if (!d || typeof d !== "object") continue;
+      const k = d.key || d.address || d.entity_id;
+      if (!k) continue;
       const hasLabel = !!(d.user_label || d.name || d.identified);
       const hasRoom = !!(d.room);
       if (!hasLabel && !hasRoom) continue;
-      // Skip very stale entries (oldest source age > 24h)
-      const sources = d.sources || [];
-      const minAge = sources.length
-        ? Math.min(...sources.map(s => s.age_s || Infinity))
-        : Infinity;
-      if (minAge > MAX_AGE_S) continue;
+      // Skip very stale entries: the freshest age the object or its sources
+      // report is over 24 h. Nothing reported (an entity) is kept.
+      const ages = [d.age_s, ...(Array.isArray(d.sources) ? d.sources.map(s => s && s.age_s) : [])]
+        .filter(a => typeof a === "number" && Number.isFinite(a));
+      if (ages.length && Math.min(...ages) > MAX_AGE_S) continue;
       // Compact: strip all_addresses if huge (e.g. Pixel phone with 200+ MACs)
       const copy = Object.assign({}, d);
       if (copy.all_addresses && copy.all_addresses.length > 10) {

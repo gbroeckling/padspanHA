@@ -7,9 +7,9 @@
                            Health); the tab id stays, so old links land on it
   Manage → History         a line and Open History → Movement (the same
                            movement log); the tab id stays
-  Manage → Events          left as it is: it has the email/phone alerts editor
-                           and the session's room changes, which the Events
-                           screen doesn't
+  Manage → Events          keeps the email/phone alerts editor, which the
+                           Events screen doesn't; its room log, which nothing
+                           fed, is a line and Open History (2026-10-31)
   Live Aboard wizard       real switches on the first setup (a run that began
                            with Live Aboard never switched on), afterwards
                            each setting's value and a link to its Settings tab

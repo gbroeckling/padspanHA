@@ -5,7 +5,8 @@
 // The interface review's duplicate clean-up (2026-10-30), RUN rather than read:
 //   monitor   Monitor → Quick status: a line and Open Health (the tab id kept)
 //   manage    Manage → History: a line and Open History → Movement (id kept);
-//             Manage → Events is left as it was (it has what Events lacks)
+//             Manage → Events keeps its alerts editor (what Events lacks); its
+//             room log is a line and Open History too (tests/js/help_found_bugs.mjs)
 //   wizard    the Live Aboard wizard: real switches on the first setup, each
 //             setting's value and a link to its Settings tab afterwards
 //   Basic's own links into Settings and Mapping open just their part: see
@@ -101,8 +102,8 @@ function makeCtx(state, calls = []) {
   check("manage: Open History opens History → Movement", ctx.state.view === "history" && ctx.state._historyTab === "movement", [ctx.state.view, ctx.state._historyTab]);
   const ev = makeCtx({ view: "manage", complexity: "advanced", manageTab: "events" });
   const evRoot = MAN.render(ev);
-  check("manage: Events keeps its own content (alerts editor, session room changes)",
-    /Session event log/.test(text(evRoot)) && !attr(evRoot, "data-manage-events"), text(evRoot).slice(0, 200));
+  check("manage: Events keeps its own content (alerts editor, a way to History → Movement)",
+    /Saved Alerts/.test(text(evRoot)) && !!attr(evRoot, "data-manage-events-history") && !attr(evRoot, "data-manage-events"), text(evRoot).slice(0, 200));
 }
 
 // ── wizard ───────────────────────────────────────────────────────────────────
