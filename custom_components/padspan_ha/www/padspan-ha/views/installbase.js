@@ -786,6 +786,8 @@ function word(kind, k) {
                                         bad_answer: "AI's stair answer unreadable", error: "AI stair read failed",
                                         no_ai_task: "AI stair read refused: no AI Task" }[b] || tidy(key);
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
+      if (a === "photo_quick") return { ok: "AI photo read quickly (a quick look, then its kind)",
+                                         fallback: "AI photo needed the full read (the quick look wasn't sure)" }[b] || tidy(key);
       if (a === "photo_secs") return `AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to answer`;
       if (a === "stairs_outcome") return { all_ok: "Stairs: every flight lands in a room", some_landing: "Stairs: one lands in no room (check where)",
                                             some_nofloor: "Stairs: one has no floor above to reach" }[b] || tidy(key);

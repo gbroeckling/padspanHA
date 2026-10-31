@@ -75,7 +75,7 @@ TARGETS: tuple[str, ...] = ("furniture", "tag", "scanner", "person")
 # The builder groups each target reads into (contracts §3).
 _GROUPS = {"furniture": ("furniture", "device"), "tag": ("tag",), "scanner": ("scanner",)}
 MIN_HA = (2025, 8)
-MAX_PHOTO_BYTES = 2 * 1024 * 1024     # the screen sends a ≤1280 px JPEG, far under this
+MAX_PHOTO_BYTES = 2 * 1024 * 1024     # the screen sends a ≤1024 px JPEG, far under this
 PHOTO_TIMEOUT_S = 240                 # a local vision model on a CPU is slow
 _MIME = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 _FOLDER = ".padspan_ha_photo_"
@@ -336,6 +336,29 @@ def request(target: str, kind: str | None) -> tuple[str, dict[str, dict]]:
                              "a person), or none", {"text": {}})
     s.update(_details_fields(target, spec))
     return _PROMPT[target].format(kind=said), s
+
+
+# ── the quick first look (furniture with no kind picked, 2026-10-31) ─────────
+# Through Home Assistant every read sends the photo again (its AI Task puts the
+# time to the second ahead of it, so a local model's cache never matches), so
+# two full reads cost two image reads plus ~90 and ~140 words of answer. The
+# first read asks only what it is (~14 words): measured on 9 photos, 21-24 s
+# instead of 32-35 s, the same kind on all 9. When that isn't enough (no
+# answer it can use, or words that name no kind, "other" among them) the full
+# first read runs as before: never a weaker answer, only a slower one.
+QUICK_PROMPT = ("What is the main piece of furniture or appliance nearest the middle of the photo? Answer in two "
+                "or three plain words, such as \"corner sofa\", \"office chair\" or \"dining table\".")
+QUICK_STRUCTURE = {"what_it_is": _field("What the main piece is", {"text": {}}, required=True)}
+
+
+def quick_kind(answer: Any) -> str | None:
+    """The furniture kind the quick look named, or None (no usable answer, or
+    words that name no kind)."""
+    a = _as_dict(answer)
+    words = a.get("what_it_is") if a is not None else None
+    if not isinstance(words, str) or not words.strip():
+        return None
+    return _kind_from_words(words, B.kinds_of(_GROUPS["furniture"]))
 
 
 def _details_fields(target: str, spec: dict | None) -> dict[str, dict]:
@@ -875,6 +898,54 @@ def _bump(hass: HomeAssistant, event: str) -> None:
         pass
 
 
+def _full_read_helps(err: BaseException) -> bool:
+    """After a read that failed, is the full read worth trying? Not when the
+    AI Task ran out of time, couldn't be reached (nor the backup, where one is
+    set) or the photo had nowhere to go: the full read would fail the same way
+    and only make the wait longer."""
+    return not (isinstance(err, (TimeoutError, _NoMedia)) or unreachable(err))
+
+
+async def _read_furniture(hass: HomeAssistant, ai: dict[str, Any], raw: bytes, mime: str) -> tuple[dict, str]:
+    """A furniture photo with no kind picked: the quick look, then that kind's
+    own read; when either isn't enough, the full first read and then, as
+    before, its kind's own read. The answer and the AI Task that gave it.
+    Each read has PHOTO_TIMEOUT_S, as before; the backup is counted on the
+    first read only (count=False after), so once per photo."""
+    kind = None
+    try:
+        a0, by = await ask_ai(hass, ai, QUICK_PROMPT, QUICK_STRUCTURE, raw, mime)
+        kind = quick_kind(a0)
+        if kind is not None:
+            i2, s2 = request("furniture", kind)
+            a2, by = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)
+            out = parse("furniture", kind, a2)
+            if out["ok"]:
+                _bump(hass, "photo_quick:ok")
+                return out, by
+    except Exception as err:  # noqa: BLE001 — a read that didn't answer usably: the full read below
+        if not _full_read_helps(err):
+            raise
+        _LOGGER.debug("PadSpan Live Aboard: the quick look at a photo failed (%s); the full read follows", _why(err))
+    _bump(hass, "photo_quick:fallback")
+    i1, s1 = request("furniture", None)
+    a1, by = await ask_ai(hass, ai, i1, s1, raw, mime, count=False)
+    out = parse("furniture", None, a1)
+    # Its kind in its own words, then that kind's own settings, asked again as if
+    # the person had said what it is (much the better answer in the real test);
+    # not again for the kind whose own read just came back unusable.
+    if out["ok"] and out.get("kind") not in (None, B.BOX_KIND, kind):
+        try:
+            i2, s2 = request("furniture", out["kind"])
+            a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)
+            o2 = parse("furniture", out["kind"], a2)
+            if o2["ok"]:
+                out, by = o2, by2
+        except Exception as err:  # noqa: BLE001 — the first answer stands
+            _LOGGER.debug("PadSpan Live Aboard: the second read of a photo failed: %s", _why(err))
+    return out, by
+
+
 @websocket_api.websocket_command({
     "type": "padspan_ha/house3d_from_photo",
     vol.Required("target"): vol.In(TARGETS),
@@ -917,7 +988,11 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
     _bump(hass, _SUBJECT_EVENT[target])
     t0 = time.monotonic()
     try:
-        answer, by = await ask_ai(hass, ai, instructions, structure, raw, mime)
+        if target == "furniture" and kind not in B.kinds_of(_GROUPS[target]):
+            out, by = await _read_furniture(hass, ai, raw, mime)
+        else:
+            answer, by = await ask_ai(hass, ai, instructions, structure, raw, mime)
+            out = parse(target, kind, answer)
     except _NoMedia:
         _bump(hass, "photo_read:error")
         connection.send_result(msg["id"], {"ok": False, "target": target, "reason": "error", "message": NO_MEDIA,
@@ -931,19 +1006,6 @@ async def ws_house3d_from_photo(hass: HomeAssistant, connection, msg) -> None:
                                            "message": FAILED.format(why=_why(err)), "kind": kind,
                                            "ai_task": ai["ai_task"]})
         return
-    out = parse(target, kind, answer)
-    # Its kind in its own words, then that kind's own settings, asked again as if
-    # the person had said what it is (much the better answer in the real test).
-    if (out["ok"] and target == "furniture" and kind not in B.kinds_of(_GROUPS[target])
-            and out.get("kind") not in (None, B.BOX_KIND)):
-        try:
-            i2, s2 = request(target, out["kind"])
-            a2, by2 = await ask_ai(hass, ai, i2, s2, raw, mime, count=False)
-            o2 = parse(target, out["kind"], a2)
-            if o2["ok"]:
-                out, by = o2, by2
-        except Exception as err:  # noqa: BLE001 — the first answer stands
-            _LOGGER.debug("PadSpan Live Aboard: the second read of a photo failed: %s", _why(err))
     _bump(hass, _secs_event(time.monotonic() - t0))
     _bump(hass, "photo_read:ok" if out["ok"] else "photo_read:bad_answer")
     # Which AI Task answered; by_backup only where the backup did (Settings → AI).

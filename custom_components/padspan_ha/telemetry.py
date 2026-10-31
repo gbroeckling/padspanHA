@@ -620,13 +620,18 @@ PHOTO_READ_OUTCOMES: tuple[str, ...] = ("ok", "no_ai_task", "bad_answer", "error
 # (photo_secs:<band>, answered or failed). Never the photo or the answer.
 PHOTO_SUBJECTS: tuple[str, ...] = ("furniture", "tag", "scanner", "person")
 PHOTO_SECS: tuple[str, ...] = ("lt5", "5_15", "15_45", "gt45")
+# And (2026-10-31) how a furniture photo with no kind picked was read: the
+# quick look named its kind and that kind's own read answered (photo_quick:ok),
+# or the full first read had to run after all (photo_quick:fallback). Once per
+# such photo; neither when a read failed outright (photo_read:error says so).
+PHOTO_QUICK_OUTCOMES: tuple[str, ...] = ("ok", "fallback")
 # Stairs read off a floor plan (ws_house3d_stairs.py, 0.38.188), once per plan
 # sent: stair_read:found (one or more), :none, :bad_answer, :error or
 # :no_ai_task. Never the plan, the answer or where the stairs are.
 STAIR_READ_OUTCOMES: tuple[str, ...] = ("found", "none", "bad_answer", "error", "no_ai_task")
 PHOTO_EVENTS: frozenset[str] = frozenset(
     {f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES} | {f"photo_subject:{k}" for k in PHOTO_SUBJECTS}
-    | {f"photo_secs:{k}" for k in PHOTO_SECS})
+    | {f"photo_secs:{k}" for k in PHOTO_SECS} | {f"photo_quick:{k}" for k in PHOTO_QUICK_OUTCOMES})
 # And (0.38.193) how long the AI took over each plan, in the photo bands.
 STAIR_EVENTS: frozenset[str] = frozenset(
     {f"stair_read:{k}" for k in STAIR_READ_OUTCOMES} | {f"stair_secs:{k}" for k in PHOTO_SECS})
