@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home Assistant floor plans in 3D and 2D, compared | PadSpan HA</title>
+<meta name="description" content="Picture elements, ha-floorplan, floor3d-card, Floor3DX, NeonPlan 3D, NextFloor and PadSpan, side by side, from their own docs as of October 2026: how your house gets in, 2D or 3D, and which ones show who is in which room.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/floor-plans/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/floor-plans/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/floor-plans/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/floor-plans/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Which floor plan for Home Assistant?">
+<meta property="og:description" content="3D and 2D floor plans for Home Assistant, side by side: how your house gets in, what you see, and which ones show who is in which room.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/floor-plans/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/floor-plans/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1>Which floor plan for Home Assistant?</h1>
+<p class="lead">A floor plan turns Home Assistant into a picture of your house: the rooms where they are, the lights where they hang, and a tap to switch them. This autumn brought several new ways to build one, most of them in 3D. They differ most in how your house gets in: drawn inside Home Assistant, modelled in another program and imported, or a picture with icons placed on top. Two of them also show who is in which room. This is what each one does, from its own docs as of October 31, 2026. PadSpan's developer wrote it, so the sources are at the end.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">See PadSpan's 3D house in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+
+<figure>
+  <a href="/demo/media/estate-3d-three-floors-4k.jpg"><img src="/demo/media/estate-3d-three-floors.jpg" width="1920" height="1080" alt="PadSpan's demo house in 3D: three floors pulled apart, furnished, with people, keys and a guest's tag in their rooms" loading="lazy"></a>
+  <figcaption>PadSpan's demo house in Live Aboard, the 3D view that comes with PadSpan Pro (still experimental): three floors pulled apart, furnished, with two people, their keys and a guest's tag each in the room they're in. It's laid out like one of our developers' 5,000 sq ft test homes, with made-up names. Tap the picture for the 4K version.</figcaption>
+</figure>
+
+<h2>The short version</h2>
+<ul>
+  <li><b>Picture elements</b>, built into Home Assistant, if you want a floor plan today with nothing to install: icons and buttons placed on a picture of your plan. It's flat, and you place every icon yourself.</li>
+  <li><b>ha-floorplan</b> if you like drawing: an SVG you make yourself, usually in Inkscape, with your entities tied to its shapes. As much control as you have time for.</li>
+  <li><b>floor3d-card</b> or its fork <b>Floor3DX</b> if you have, or want to build, a real 3D model of your house, usually in Sweet Home 3D.</li>
+  <li><b>NeonPlan 3D</b> or <b>NextFloor</b> if you want a 3D house quickly, drawn inside Home Assistant. NeonPlan 3D draws down to dormers and balconies, and since version 2.0 it also shows who is in which room. Everything in NextFloor is free.</li>
+  <li><b>PadSpan</b> if room presence is the main thing. It's a room presence integration first, and that part is free: a calibration walk, positions between scanners and a movement history you can play back. PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, so every light and device sits where it really is, and Live Aboard, the house in 3D (still experimental).</li>
+</ul>
+
+<h2>Side by side</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th></th><th>How your house gets in</th><th>What you see</th><th>Who's in which room</th><th>Cost</th></tr>
+  <tr><td><b>Picture elements</b></td><td>A picture you pick; you position each icon</td><td>2D</td><td>Not in its docs</td><td>Built in, free</td></tr>
+  <tr><td><b>ha-floorplan</b></td><td>An SVG you draw, usually in Inkscape</td><td>2D, floors as layers</td><td>Not in its docs</td><td>Free (HACS)</td></tr>
+  <tr><td><b>floor3d-card, Floor3DX</b></td><td>A 3D model, usually made in Sweet Home 3D</td><td>3D, floors as levels</td><td>Not in their docs</td><td>Free (HACS; Floor3DX as a custom repository)</td></tr>
+  <tr><td><b>NeonPlan 3D</b></td><td>Drawn in Home Assistant, or imported: Sweet Home 3D, CAD, iPhone LiDAR scans, 3D models, Floorplanner, Valetudo</td><td>A 2D editor and a live 3D house</td><td>Yes, room by room (new in 2.0)</td><td>Free (HACS), with paid furniture packs and add-ons</td></tr>
+  <tr><td><b>NextFloor</b></td><td>Drawn in Home Assistant, or a Sweet Home 3D file</td><td>A 2D editor and a live 3D house</td><td>Not in its docs</td><td>Free (HACS custom repository)</td></tr>
+  <tr><td><b>PadSpan</b></td><td>Rooms traced on a photo of your plan, a Sweet Home 3D file, a robot vacuum's map (experimental), or rooms laid out in metres</td><td>Your floors with everyone in their room, and the Atlas touch map; exact placement and the 3D house are Pro</td><td>Yes, room by room, and between scanners with three or more on a measured plan</td><td>Free (HACS), with optional Pro; try all of Pro free for 90 days</td></tr>
+</table>
+</div>
+
+<h2>Picture elements, built in</h2>
+<p>Home Assistant's own <a href="https://www.home-assistant.io/dashboards/picture-elements/">Picture elements card</a> puts icons, labels and buttons on any picture by position: a drawing of your floor plan, a photo or a render from another program. A tap can switch a light, open a sensor or run any action. Every Home Assistant has it, so there's nothing to install. It's flat, though: a 3D render works only as a still picture, and you position every element yourself.</p>
+<p><b>Good fit:</b> you want a floor plan today, for a few rooms, without installing anything.</p>
+
+<h2>ha-floorplan</h2>
+<p><a href="https://experiencelovelace.github.io/ha-floorplan/">ha-floorplan</a> ties your entities to the shapes in an SVG drawing, so the drawing itself changes with them: a room lights up, a door changes colour. You draw the SVG yourself, usually in Inkscape on top of an image exported from Floorplanner or Sweet Home 3D, and give each shape the ID of its entity. It runs as a dashboard card or as a whole panel, shows several floors as layers you switch between, and its docs site has live examples. Those docs also warn that it "will require a good amount of your time".</p>
+<p><b>Good fit:</b> you like drawing and want every detail your way.</p>
+
+<h2>A 3D model: floor3d-card and Floor3DX</h2>
+<p><a href="https://github.com/adizanni/floor3d-card">floor3d-card</a> shows a 3D model of your house in a dashboard card, with lights, doors, covers and cameras tied to objects in the model: double-click a lamp to switch it. You build the model first, usually in Sweet Home 3D, and export it as OBJ (GLB after a conversion). Its last release was in April 2023. <a href="https://github.com/FortranFour/floor3dx-card">Floor3DX</a>, a 2026 fork, runs existing floor3d-card setups as they are and takes GLB and glTF models from Sweet Home 3D, Blender or SketchUp. Its lights follow their real colour and brightness, and it adds a full-page room controller and a flat, architect's-plan view. It installs as a HACS custom repository.</p>
+<p><b>Good fit:</b> you already have a Sweet Home 3D model, or you want the most realistic house and don't mind building it first.</p>
+
+<h2>Drawn in Home Assistant: NeonPlan 3D and NextFloor</h2>
+<p>Both let you draw the house inside Home Assistant, with the 3D view beside the plan as you go, so there's no other program to learn.</p>
+<p>In <a href="https://github.com/Mastershort/neonplan3d">NeonPlan 3D</a> you draw floors linked to Home Assistant's, rooms as rectangles or free shapes, automatic walls, doors, windows, garage doors, stairs, roofs with dormers, pools and balconies, with 80 built-in models plus furniture packs. You can trace over a photo of your plan, or import one from Sweet Home 3D, a CAD drawing, an iPhone LiDAR scan, a 3D model, Floorplanner or a Valetudo robot vacuum. In 3D, a tap switches a lamp, a swipe dims it, doors swing and windows tilt, with heatmaps, safety warnings and cameras besides. Since version 2.0 (October 23), it also locates people, phones and key tags room by room from the Bluetooth scanners Home Assistant already has, after a 90-second walk through each room, and shows each person as a glowing figure in their room. The integration is free and open source (MIT), with paid furniture packs and add-ons. It's in HACS, and there's an <a href="https://neonplan3d.mastershort.de/">online demo</a>.</p>
+<p><a href="https://github.com/therealMRBK/NextFloor">NextFloor</a> began as a fork of NeonPlan 3D and draws the same way: rooms, walls, doors and windows, stairs and a roof, with over 600 furniture models in packs, and it can open Sweet Home 3D files (without their furniture). It shows lights, blinds, locks, heatmaps, energy, weather and warnings. Everything in it is free, with no paid parts. It installs as a HACS custom repository and has an <a href="https://therealmrbk.github.io/NextFloor/">online demo</a>; its README calls it young and says to expect rough edges.</p>
+<p><b>Good fit:</b> you want a 3D house quickly, drawn in Home Assistant. NeonPlan 3D if you also want to see who is in which room, or want dormers, balconies and its paid add-ons; NextFloor if everything should be free.</p>
+
+<h2>PadSpan: the floor plan that knows who's where</h2>
+<p>PadSpan comes at it from the other side. It's a room presence integration first: from the ESPHome Bluetooth proxies and <a href="/guides/shelly-bluetooth-proxy/">Shelly scanners</a> Home Assistant already has, it works out which room each phone, watch and tag is in, and the floor plan is where you see it. To get your house in, take a photo of your plan (or use any picture of it), measure two distances on it at different angles to set the scale, and trace each room, named after its Home Assistant area; a setup wizard walks you through it. You can also import a Sweet Home 3D file, lay out rooms in metres with no picture at all, or, with the experimental Robot Vacuum Import, make your vacuum's map the floor plan, to scale and with its rooms (<a href="/guides/robot-vacuum-floor-plan/">how</a>). Floors are Home Assistant's own.</p>
+<p>Then you see the house three ways:</p>
+<ul>
+  <li><b>The Overview</b>, free: your floors stacked in 3D, with the phones, watches and tags you've set up in their rooms. Before you've drawn anything, its <b>Who's where now</b> card already lists who is in each room, from each scanner's Home Assistant area.</li>
+  <li><b>The Atlas</b>, a touchscreen map of the whole house, with its own place in the sidebar. Lights, fans and locks, motion, temperature, humidity and air-quality sensors, and leak, smoke, gas and CO alarms sit on the map; doors, windows, blinds and garage doors become part of its walls once linked. Tap a light, fan or lock to switch it, or a room's name for all its lights and up to six of its scenes and scripts. Leak, smoke, gas and CO alarms stay up for two days or until you reset them. On a free install, each room's devices sit together in the middle of the room, and temperature, humidity and air-quality readings show only on devices placed with Pro. With PadSpan Pro you place each one exactly where it is, and get Whole House Presets, Vacation Mode and the Atlas on a wall screen, 4K included.</li>
+  <li><b>Live Aboard</b>, the house in 3D, like looking into a house in The Sims (PadSpan Pro, still experimental). Floors stand at their real heights and walls rise from your room outlines, with split levels, a loft's glass railing, a roof, stairs in five shapes and four styles, and ten kinds of door. Lights glow in their own colour, doors and windows open and shut with their sensors, a window glows at night while a light behind it is on, rain and snow fall outside, and in the Studio look the sky follows the real sun. <b>Furnish</b> adds furniture, from a starter set, simple builders or a photo (read by your own Home Assistant AI Task), and pieces linked to a device come alive: the TV lights up, fans spin, the washer shakes, the robot vacuum leaves its dock.</li>
+</ul>
+<p>With <b>Show people</b> and <b>Show tags &amp; scanners</b> on (PadSpan Pro, both off to start), each person shows in Live Aboard where their phone or tag is, as their figure or a soft marker, and as a marker on the sidebar Atlas. A guest's tag shows the guest's name and a Guest badge (guest tags are new in 0.38.178).</p>
+
+<figure>
+  <a href="/demo/media/estate-wall-atlas-4k.jpg"><img src="/demo/media/estate-wall-atlas.jpg" width="1920" height="1080" alt="The Atlas as a wall screen: every floor of the demo house on one screen, with the lights, the people, a guest's tag and the keys" loading="lazy"></a>
+  <figcaption>The Atlas as a wall screen (PadSpan Pro): every floor of the demo house on one screen, each light where it hangs, and the people, their keys and a guest's tag in their rooms. <a href="/demo/?page=atlas">Open the Atlas in the demo</a> (it runs as Pro).</figcaption>
+</figure>
+
+<p>The room presence underneath is free. A walk around the house with your phone teaches PadSpan what each room's signals look like; it smooths readings and makes a new room win a vote before it moves anyone; and with three or more scanners placed on a measured plan, it can put a device between them, even in a room with no scanner of its own. It keeps a movement history you can play back, can alert you when a device changes room, and gives each device you name Home Assistant entities for its room. Already running Bermuda? Keep it: PadSpan runs next to it on the same proxies (<a href="/guides/bermuda/">how</a>).</p>
+<p><b>Good fit:</b> you want to know who is in which room, see it on your floor plan or a wall screen, and keep the Bluetooth proxies you have.</p>
+
+<h2>PadSpan: free, and what Pro adds</h2>
+<p>Room presence, the floor plans and imports, calibration, the movement history, the Overview's map and the Home Assistant entities are free and open source (GPL-3.0); on a free install, the Atlas groups each room's devices in the middle of the room. PadSpan Pro adds exact placement on the Atlas, so every light and device sits where it really is; Live Aboard and Furnish; the wall screen; Whole House Presets and Vacation Mode; and Locate, Busy Times and Forensics. You can try all of Pro free for 90 days in Settings → Features → PadSpan licence, no card (from 0.38.180, the trial needs the opt-in usage report on, and it stays on until the trial ends).</p>
+
+<p style="font-size:13px;color:var(--mut)">Sources: Home Assistant's <a href="https://www.home-assistant.io/dashboards/picture-elements/">Picture elements docs</a>; <a href="https://experiencelovelace.github.io/ha-floorplan/">ha-floorplan's docs</a>; the READMEs of <a href="https://github.com/adizanni/floor3d-card">floor3d-card</a> and <a href="https://github.com/FortranFour/floor3dx-card">Floor3DX</a>, and the Floor3DX author's <a href="https://community.home-assistant.io/t/floor3dx-card-the-3d-floor-plan-card-plus-two-optional-companions-a-2d-snapshot-card-and-a-learning-enabled-scheduler/1029922">forum post</a>; NeonPlan 3D's <a href="https://github.com/Mastershort/neonplan3d">README</a> and <a href="https://github.com/Mastershort/neonplan3d/blob/main/docs/manual.md">manual</a>; NextFloor's <a href="https://github.com/therealMRBK/NextFloor">README</a> and <a href="https://github.com/therealMRBK/NextFloor/blob/main/docs/manual.md">manual</a>; <a href="https://github.com/gbroeckling/padspanHA/tree/v0.38.199">PadSpan 0.38.199</a>, with its <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/docs/ATLAS_GUIDE.md">Atlas</a>, <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/docs/LIVE_ABOARD_GUIDE.md">Live Aboard</a> and <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/docs/FURNISH_GUIDE.md">Furnish</a> guides. Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+</div>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · NeonPlan 3D, NextFloor, floor3d-card, Floor3DX and ha-floorplan are independent open-source projects by their own authors.</p>
+</div></footer>
+</body>
+</html>

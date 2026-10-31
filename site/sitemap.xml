@@ -20,5 +20,7 @@
   <url><loc>https://padspan.traks.ca/guides/robot-vacuum-floor-plan/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://padspan.traks.ca/guides/phone-room-presence/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://padspan.traks.ca/guides/phone-room-presence/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://padspan.traks.ca/guides/floor-plans/</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://padspan.traks.ca/guides/floor-plans/de/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://padspan.traks.ca/creators/</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
 </urlset>
