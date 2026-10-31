@@ -498,6 +498,7 @@ const W_FEATURE = {
   beacon_profiling_enabled: "Beacon profiling (learns fixed beacons)",
   ha_entity_tracker_enabled: "Home Assistant: a tracker per device",
   update_check_enabled: "Checks for PadSpan updates",
+  vendor_lookup_enabled: "Looks up device makers online",
   ha_entity_area_enabled: "Home Assistant: a room sensor per device",
   ha_entity_distance_enabled: "Home Assistant: a distance sensor per device",
   beacon_auto_calibrate: "Calibrates itself from pinned beacons",

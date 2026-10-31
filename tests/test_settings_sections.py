@@ -37,7 +37,7 @@ EXPECTED = {
     "receivers": ["Bluetooth refresh interval", "Receiver signal adjustments"],
     "performance": ["Presence Poll Interval", "CPU Mode", "Low-memory mode", "Optimize for scale"],
     "integrations": ["Room and receiver layout source", "GPS Bridge", "Automations", "HA Tags Integration", "Ignore Bermuda"],
-    "privacy": ["Update Check", "Enhanced security", "💡 Suggest an idea", "Help improve PadSpan"],
+    "privacy": ["Update Check", "Look up device makers online", "Enhanced security", "💡 Suggest an idea", "Help improve PadSpan"],
 }
 
 

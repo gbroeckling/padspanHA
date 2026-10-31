@@ -470,6 +470,11 @@ export function renderClassic(ctx){
     ctx.state._vendorCache = ctx.state._vendorCache || {};
     const prefix = (mac||"").split(":").slice(0,3).join(":").toUpperCase();
     if(!prefix){ cell.textContent = ""; return; }
+    // Off unless switched on (Settings → Privacy, updates and feedback): ask nothing.
+    if(!(ctx.state.settings && ctx.state.settings.vendor_lookup_enabled === true)){
+      cell.innerHTML = renderVendorHTML({ enabled: false });
+      return;
+    }
 
     const cached = ctx.state._vendorCache[prefix];
     if(cached){
@@ -497,7 +502,14 @@ export function renderClassic(ctx){
   // shown.
   function renderVendorHTML(res){
     if(!res || res.enabled === false){
-      return `<span class="badge warn">Vendor lookup disabled</span>`;
+      return `<span class="badge">Lookup off</span>`;
+    }
+    // Answered at home: a random (locally administered) or group address has no maker.
+    if(res.skipped === "local"){
+      return `<span class="badge warn">random address</span>`;
+    }
+    if(res.skipped === "multicast"){
+      return `<span class="badge">group address</span>`;
     }
     const v1 = res.sources?.macvendors || null;
     const v2 = res.sources?.maclookup?.company || null;
@@ -612,6 +624,21 @@ export function renderClassic(ctx){
       [el("span",{class:"muted",style:"font-size:12px;white-space:nowrap"}, "History:"), ageSlider, ageLabel]));
     controls.appendChild(stats);
 
+    // Maker lookup switch, here where its answers show. Off by default; when on,
+    // only the maker prefix of each address is sent (see renderVendorHTML).
+    const makerOn = !!(ctx.state.settings && ctx.state.settings.vendor_lookup_enabled === true);
+    const makerToggle = el("button", { class: "btn inline", "data-maker-lookup": makerOn ? "on" : "off",
+      title: "Asks macvendors.com and maclookup.app which company made each device. Sends only the maker part of each address (AA:BB:CC), never random addresses." },
+      makerOn ? "Look up makers online: On" : "Look up makers online: Off");
+    makerToggle.addEventListener("click", async () => {
+      try {
+        await ctx.actions.settingsSet({ vendor_lookup_enabled: !makerOn });
+        ctx.state._vendorCache = {};
+        openObjectsList(initialFilter);
+      } catch (e) { ctx.toast("Failed to save setting", true); }
+    });
+    controls.appendChild(makerToggle);
+
     const table = el("table",{class:"table"});
     const thead = el("thead",{}, el("tr",{},[
       el("th",{}, "Kind"),
@@ -623,7 +650,7 @@ export function renderClassic(ctx){
       el("th",{}, "OUI freq"),
       el("th",{}, "Follow"),
       el("th",{}, "Tag"),
-      el("th",{}, "Vendor (online)"),
+      el("th",{}, "Maker"),
     ]));
     const tbody = el("tbody",{});
     table.appendChild(thead);
@@ -802,9 +829,10 @@ export function renderClassic(ctx){
     body.appendChild(controls);
     body.appendChild(table);
 
-    ctx.actions.openModal("Objects", body, "Filter + vendor lookup (best-effort)");
+    ctx.actions.openModal("Objects", body, makerOn ? "Filter + maker lookup (prefix only)" : "Filter");
 
     // After modal opens, do vendor lookups for visible BLE rows (limited concurrency).
+    // With the lookup off, each cell just says so and nothing is asked.
     const maxLookups = 40;
     const queue = rowEls
       .filter(tr=>tr.getAttribute("data-kind")==="ble")

@@ -684,17 +684,19 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
 )
 @websocket_api.async_response
 async def ws_vendor_lookup(hass: HomeAssistant, connection, msg) -> None:
-    """Vendor lookup for a MAC address.
+    """Maker (vendor) lookup for a MAC address, online, only when switched on.
 
-    Used by the Overview → Objects/Unidentified modal.
+    Used by the Overview → Objects/Unidentified modal. Off by default; when the
+    setting can't be read it stays off, so nothing is sent by accident. When on,
+    vendor_lookup sends the maker prefix only, never the full address.
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    enabled = True
+    enabled = False
     try:
         if st:
-            enabled = bool(st.get("vendor_lookup_enabled", True))
+            enabled = st.get("vendor_lookup_enabled", False) is True
     except Exception:
-        enabled = True
+        enabled = False
 
     if not enabled:
         connection.send_result(msg["id"], {"enabled": False})

@@ -777,7 +777,7 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "ha_entity_tracker_enabled", "ha_entity_area_enabled", "ha_entity_distance_enabled",
     "ha_entity_scanner_distance_enabled", "ha_entity_occupancy_enabled",
     "tags_room_events_enabled", "tags_nfc_identify_enabled", "tags_phone_autolink_enabled",
-    "update_check_enabled", "onboarding_completed",
+    "update_check_enabled", "vendor_lookup_enabled", "onboarding_completed",
     "atlas_3d_enabled", "low_memory_mode",
     # Pro: the Atlas as Overview (0.38.137) — whether anyone wants it as the front door.
     "overview_atlas",

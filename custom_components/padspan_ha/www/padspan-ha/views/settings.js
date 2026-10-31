@@ -1362,6 +1362,36 @@ function _settingsPresence(ctx, el){
     ]),
   ]));
 
+  // ── Device makers (online lookup) ──────────────────────────────────────────
+  // OFF by default. When on, the Objects list asks two public services which
+  // company made each nearby device: the maker prefix only (vendor_lookup.py).
+  const makerOn = settings.vendor_lookup_enabled === true;
+  const makerBtn = el("button", { class: "btn inline", "data-setting": "vendor_lookup_enabled", style: makerOn
+    ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
+    : "color:#94a3b8" }, makerOn ? "On" : "Off");
+  makerBtn.addEventListener("click", async () => {
+    try {
+      await ctx.actions.settingsSet({ vendor_lookup_enabled: !makerOn });
+      ctx.toast(`Device maker lookup ${!makerOn ? "on" : "off"}`);
+      ctx.actions.renderRooms();
+    } catch(e) { ctx.toast("Failed to save setting", true); }
+  });
+  put("privacy", el("div", { class: "card" }, [
+    el("div", { class: "h2" }, "Look up device makers online"),
+    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
+      "When this is on, opening the Objects list asks two public services (macvendors.com and " +
+      "maclookup.app) which company made each nearby Bluetooth device. Only the maker part of each " +
+      "address is sent (the first three pairs, such as AA:BB:CC), never the full address. Random " +
+      "addresses, the kind phones use, are never sent: they have no maker. Each answer is kept for " +
+      "30 days, so a maker is asked about once. Like any web request, the services see your IP address. " +
+      "Off unless you turn it on."
+    ),
+    el("div", { style: rowStyle }, [
+      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Device makers"),
+      makerBtn,
+    ]),
+  ]));
+
   // ── Enhanced security ──────────────────────────────────────────────────────
   // OFF by default; only an administrator turns it on or off (ws_settings).
   // While it is on, the backend's require_admin_if_enhanced (ws_common)

@@ -11,10 +11,16 @@ Why this exists:
 - In PadSpan, "unidentified" BLE objects are usually just MAC addresses from the advertisement monitor.
 - To make those usable, we do a best-effort *manufacturer/vendor* lookup using public OUI databases.
 
-Important privacy note:
-- A MAC address (or its OUI/prefix) may still be personal data in some contexts.
-- This feature is ON by default because the user requested it, but you can disable it in the UI Settings.
-- We cache aggressively and rate-limit so we don't spam 3rd-party services.
+Privacy:
+- OFF by default: Settings → Tracking → Privacy, updates and feedback → "Look up device makers
+  online". Installs from before were switched off once (settings_store, vendor_lookup_optin_v1).
+- Only the maker prefix (the first three bytes, AA:BB:CC) ever leaves the house, never a full
+  address. A full address identifies one device; the prefix is the same for every device that
+  maker sold, and it is all an OUI lookup needs.
+- A locally administered or multicast address (bit 0x02 or 0x01 of the first byte) is never
+  sent at all: its prefix belongs to no maker (phones' random addresses are like this), so a
+  lookup could only leak data and could never find anything.
+- Answers are cached by prefix for 30 days (CACHE_TTL), so each prefix is asked once.
 
 We intentionally use TWO independent sources so we can cross-check results:
 1) MACVendors API (simple GET, returns vendor string, 404 if unknown)
@@ -67,6 +73,24 @@ def _norm_mac(mac: str) -> str:
         hexs = hexs.ljust(12, "0")
     hexs = hexs[:12]
     return ":".join(hexs[i : i + 2] for i in range(0, 12, 2))
+
+
+def lookup_skip_reason(mac_norm: str) -> Optional[str]:
+    """Why this address is never sent to a lookup service, or None to look it up.
+
+    "local": bit 0x02 of the first byte is set, a locally administered address
+    (a phone's random address, for one). Its prefix belongs to no maker.
+    "multicast": bit 0x01 is set, a group address, never a device's own.
+    """
+    try:
+        first = int((mac_norm or "").split(":")[0], 16)
+    except (ValueError, IndexError):
+        return "bad_mac"
+    if first & 0x01:
+        return "multicast"
+    if first & 0x02:
+        return "local"
+    return None
 
 
 def _oui_prefix(mac_norm: str) -> str:
@@ -140,10 +164,10 @@ async def _throttle(hass: HomeAssistant, provider: str) -> None:
         last[provider] = _utcnow().timestamp()
 
 
-async def _fetch_macvendors(hass: HomeAssistant, mac_norm: str) -> Tuple[Optional[str], Optional[str]]:
-    """Return (vendor, error)."""
+async def _fetch_macvendors(hass: HomeAssistant, prefix: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return (vendor, error). Sends the maker prefix only (AA:BB:CC), never a full address."""
     await _throttle(hass, "macvendors")
-    url = f"https://api.macvendors.com/{mac_norm}"
+    url = f"https://api.macvendors.com/{prefix}"
     session = async_get_clientsession(hass)
     try:
         async with session.get(url, timeout=10) as resp:
@@ -154,14 +178,14 @@ async def _fetch_macvendors(hass: HomeAssistant, mac_norm: str) -> Tuple[Optiona
             txt = (await resp.text()).strip()
             return (txt or None), None
     except Exception as e:
-        _LOGGER.debug("MACVendors lookup failed for %s: %s", mac_norm, e)
+        _LOGGER.debug("MACVendors lookup failed for %s: %s", prefix, e)
         return None, "macvendors_exception"
 
 
-async def _fetch_maclookup(hass: HomeAssistant, mac_norm: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    """Return (info_dict, error)."""
+async def _fetch_maclookup(hass: HomeAssistant, prefix: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Return (info_dict, error). Sends the maker prefix only (AA:BB:CC), never a full address."""
     await _throttle(hass, "maclookup")
-    url = f"https://api.maclookup.app/v2/macs/{mac_norm}"
+    url = f"https://api.maclookup.app/v2/macs/{prefix}"
     session = async_get_clientsession(hass)
     try:
         async with session.get(url, timeout=10) as resp:
@@ -186,7 +210,7 @@ async def _fetch_maclookup(hass: HomeAssistant, mac_norm: str) -> Tuple[Optional
                 "success": js.get("success"),
             }, None
     except Exception as e:
-        _LOGGER.debug("MACLookup lookup failed for %s: %s", mac_norm, e)
+        _LOGGER.debug("MACLookup lookup failed for %s: %s", prefix, e)
         return None, "maclookup_exception"
 
 
@@ -206,10 +230,21 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         "errors": [],
         "cached": False,
         "fetched_at": None,
+        # Why nothing was sent ("local", "multicast"), or None when it was looked up.
+        "skipped": None,
     }
 
     if not prefix:
         out["errors"].append("bad_mac")
+        return out
+
+    reason = lookup_skip_reason(mac_norm)
+    if reason == "bad_mac":
+        out["errors"].append("bad_mac")
+        return out
+    if reason:
+        # Answered at home: no maker owns this prefix, so nothing is sent or cached.
+        out["skipped"] = reason
         return out
 
     cache = await _get_cache(hass)
@@ -234,8 +269,8 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         })
         return out
 
-    vendor1, err1 = await _fetch_macvendors(hass, mac_norm)
-    info2, err2 = await _fetch_maclookup(hass, mac_norm)
+    vendor1, err1 = await _fetch_macvendors(hass, prefix)
+    info2, err2 = await _fetch_maclookup(hass, prefix)
 
     if err1:
         out["errors"].append(err1)
