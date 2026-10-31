@@ -184,6 +184,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.207</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">31 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>The maker lookup no longer sends whole Bluetooth addresses.</b> Opening the Objects list asks macvendors.com and maclookup.app which company made each nearby device. It now sends the first three bytes of an address only (such as <code>AA:BB:CC</code>), never the whole address, and never an address known to be random or locally administered, the kind phones use. When a Bluetooth proxy reports an address as random (ESPHome proxies and BlueZ do), it is never sent; when the type isn't reported, the address's own bits decide. The list says "random address" for those.</li>
+          <li><b>Only an administrator can turn it off or on:</b> Settings → Tracking → Privacy, updates and feedback → Look up device makers online, or the switch at the top of the Objects list. It stays on by default, so nothing changes for anyone who uses it, except what is sent.</li>
+          <li>With the lookup off, every Bluetooth row in the Objects list says so.</li>
+          <li>The usage report (opt-in) says whether the lookup is on, as a yes or no only.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.206</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">31 October 2026</span>
