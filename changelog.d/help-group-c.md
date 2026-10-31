@@ -1,0 +1,5 @@
+# Help pages brought up to date (Settings and Manage)
+
+### Changed
+- **The help for Settings, Manage, Forensics and Private BLE now matches the screens.** Settings → Tracking's help follows its eight sections, and each section heading has its own "?"; the AI and Atlas tabs, the Edition & tier card, guest tags (and the Guests screen), and Manage's HA Entities, Beacon Characteristics, Events and Logs tabs have help for the first time. Settings removed from the help: Signal Loss Linger and Room Sigma, which no longer exist. The advice on reference power was the wrong way round, and the old default for the BLE Advertisement Timeout was wrong (it is 4 hours).
+- **The map-deletion help was wrong.** It said deleting a map in Manage → Data keeps that map's calibration points. It doesn't: they are deleted with the map. The ESPresense Companion import help also said it updates rooms you already have; it only adds new ones. The Factory Reset help now lists what a reset keeps (your licence key, Vacation Mode's learned routine) and says no Home Assistant restart is needed.

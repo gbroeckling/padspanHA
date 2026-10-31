@@ -899,7 +899,7 @@ export function render(ctx){
 function _haEntities(ctx, el){
   const wrap = el("div",{style:"display:flex;flex-direction:column;gap:12px"});
   const settings = ctx.state.settings || {};
-  wrap.appendChild(_haEntitiesIntro(el));
+  wrap.appendChild(_haEntitiesIntro(el, ctx.helpers.helpBtn));
   wrap.appendChild(_haEntityControls(ctx, el, settings));
   wrap.appendChild(_haEntityAudit(ctx, el));
   wrap.appendChild(_haEntityLibrary(ctx, el));
@@ -957,9 +957,12 @@ function _haBleReseedSection(ctx, el, settings){
 }
 
 /** Static intro card explaining the four entity types PadSpan creates. */
-function _haEntitiesIntro(el){
+function _haEntitiesIntro(el, helpBtn){
   return el("div",{class:"card",style:"border-color:#1b4a2e"},[
-    el("div",{style:"font-weight:800;font-size:15px;color:#5eead4;margin-bottom:6px"},"PadSpan HA — Entity Reference"),
+    el("div",{style:"display:flex;align-items:center;gap:8px"},[
+      el("div",{style:"font-weight:800;font-size:15px;color:#5eead4;margin-bottom:6px"},"PadSpan HA — Entity Reference"),
+      helpBtn ? helpBtn("manage_entities") : null,
+    ]),
     el("div",{style:"font-size:13px;color:#94a3b8;line-height:1.6"},
       "PadSpan creates up to four HA entities for every labelled BLE device. This reference documents each entity type, its state values, attributes, and provides ready-to-paste automation examples."
     ),
@@ -2018,6 +2021,7 @@ function _buildNotifications(ctx, el){
   const activeCount = savedEntries.filter(([,c]) => c.on_room_change).length;
   savedCard.appendChild(el("div",{class:"row",style:"margin-bottom:6px"},[
     el("div",{style:"font-weight:700;font-size:14px"},"Saved Alerts"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("manage_events") : null,
     activeCount > 0
       ? el("span",{class:"badge",style:"margin-left:8px;border-color:#52b788;color:#52b788"},`${activeCount} active`)
       : el("span",{class:"badge",style:"margin-left:8px;border-color:#64748b;color:#64748b"},"none active"),
@@ -2355,6 +2359,7 @@ function _logs(ctx, el) {
     el("span", { style: "font-weight:600;font-size:13px" }, "Min level:"),
     levelSel,
     refreshBtn,
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("manage_logs") : null,
   ]);
   wrap.appendChild(toolbar);
 
@@ -2429,8 +2434,10 @@ function _beaconChars(ctx, el){
   const settings = ctx.state.settings || {};
 
   // Header
-  wrap.appendChild(el("div",{style:"font-weight:700;font-size:16px;color:#e2e8f0;margin-bottom:8px"},
-    "Beacon Signal Profiles"));
+  wrap.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px"},[
+    el("div",{style:"font-weight:700;font-size:16px;color:#e2e8f0;margin-bottom:8px"}, "Beacon Signal Profiles"),
+    ctx.helpers.helpBtn ? ctx.helpers.helpBtn("manage_beacon_chars") : null,
+  ]));
   wrap.appendChild(el("div",{style:"font-size:12px;color:#94a3b8;margin-bottom:12px;line-height:1.5"},
     "Per-beacon signal characteristics computed from calibration data, grouped by model "
     + "(iBeacon UUID prefix, manufacturer, BLE name). A report: it shows how each beacon reads, "

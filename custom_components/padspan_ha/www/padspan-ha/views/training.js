@@ -498,23 +498,23 @@ function _svgManageOverview() {
 <text x="16" y="95" fill="#94a3b8" font-size="9" font-family="system-ui">Training</text>
 <rect x="118" y="14" width="274" height="196" rx="8" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
 <rect x="128" y="24" width="58" height="20" rx="4" fill="#0d2318" stroke="#78909c" stroke-width="1"/>
-<text x="157" y="38" text-anchor="middle" fill="#b0bec5" font-size="9" font-family="system-ui">BLE Tags</text>
+<text x="157" y="38" text-anchor="middle" fill="#b0bec5" font-size="9" font-family="system-ui">Data</text>
 <rect x="192" y="24" width="58" height="20" rx="4" fill="#071008" stroke="#1b3526" stroke-width="1"/>
-<text x="221" y="38" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Rooms</text>
+<text x="221" y="38" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Entities</text>
 <rect x="256" y="24" width="48" height="20" rx="4" fill="#071008" stroke="#1b3526" stroke-width="1"/>
-<text x="280" y="38" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Data</text>
+<text x="280" y="38" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Events</text>
 <rect x="128" y="52" width="256" height="26" rx="4" fill="#071008" stroke="#1b3526" stroke-width="0.5"/>
 <circle cx="146" cy="65" r="5" fill="#14b8a6" opacity="0.6"/>
 <text x="160" y="69" fill="#94a3b8" font-size="9" font-family="system-ui">Alice's AirTag</text>
 <rect x="336" y="58" width="40" height="14" rx="3" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
-<text x="356" y="69" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Delete</text>
+<text x="356" y="69" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Untag</text>
 <rect x="128" y="82" width="256" height="26" rx="4" fill="#071008" stroke="#1b3526" stroke-width="0.5"/>
 <circle cx="146" cy="95" r="5" fill="#14b8a6" opacity="0.6"/>
 <text x="160" y="99" fill="#94a3b8" font-size="9" font-family="system-ui">Car Keys</text>
 <rect x="336" y="88" width="40" height="14" rx="3" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
-<text x="356" y="99" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Delete</text>
-<text x="255" y="168" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Advanced mode only</text>
-<text x="255" y="184" text-anchor="middle" fill="#253e2e" font-size="9" font-family="system-ui">Toggle ⚡ Advanced in the top bar</text>
+<text x="356" y="99" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Untag</text>
+<text x="255" y="168" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Main menu in Advanced mode</text>
+<text x="255" y="184" text-anchor="middle" fill="#253e2e" font-size="9" font-family="system-ui">In Basic: under More tools</text>
 </svg>`;
 }
 
@@ -527,7 +527,7 @@ function _svgUntagDevice() {
 .confirm{animation:confirmPop 0.25s ease-out 1s both}
 </style>
 <rect x="8" y="14" width="384" height="22" rx="4" fill="#0d2318"/>
-<text x="28" y="29" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">BLE Tags</text>
+<text x="28" y="29" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">BLE Device Labels</text>
 <text x="200" y="29" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Last seen</text>
 <text x="336" y="29" fill="#52b788" font-size="10" font-weight="600" font-family="system-ui">Action</text>
 <g class="fadeRow">
@@ -536,22 +536,22 @@ function _svgUntagDevice() {
   <text x="200" y="59" fill="#4a6052" font-size="9" font-family="system-ui">Sample data</text>
   <g class="confirm">
     <rect x="292" y="47" width="52" height="17" rx="4" fill="#7f1d1d" stroke="#dc2626" stroke-width="1"/>
-    <text x="318" y="59" text-anchor="middle" fill="#fca5a5" font-size="8" font-family="system-ui">Yes, delete</text>
+    <text x="318" y="59" text-anchor="middle" fill="#fca5a5" font-size="8" font-family="system-ui">Yes</text>
     <rect x="350" y="47" width="36" height="17" rx="4" fill="#071008" stroke="#1b3526" stroke-width="1"/>
-    <text x="368" y="59" text-anchor="middle" fill="#4a6052" font-size="8" font-family="system-ui">Cancel</text>
+    <text x="368" y="59" text-anchor="middle" fill="#4a6052" font-size="8" font-family="system-ui">No</text>
   </g>
 </g>
 <rect x="8" y="74" width="384" height="30" rx="4" fill="#071008" stroke="#1b3526" stroke-width="0.5"/>
 <text x="28" y="93" fill="#cbd5e1" font-size="10" font-family="system-ui">Alice's AirTag</text>
 <text x="200" y="93" fill="#4a6052" font-size="9" font-family="system-ui">2 min ago</text>
 <rect x="342" y="81" width="44" height="16" rx="4" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
-<text x="364" y="93" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Delete</text>
+<text x="364" y="93" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Untag</text>
 <rect x="8" y="108" width="384" height="30" rx="4" fill="#071008" stroke="#1b3526" stroke-width="0.5"/>
 <text x="28" y="127" fill="#cbd5e1" font-size="10" font-family="system-ui">Car Keys</text>
 <text x="200" y="127" fill="#4a6052" font-size="9" font-family="system-ui">18 min ago</text>
 <rect x="342" y="115" width="44" height="16" rx="4" fill="#1b3526" stroke="#52b788" stroke-width="1"/>
-<text x="364" y="127" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Delete</text>
-<text x="200" y="180" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Two-click confirm prevents accidental deletes.</text>
+<text x="364" y="127" text-anchor="middle" fill="#52b788" font-size="8" font-family="system-ui">Untag</text>
+<text x="200" y="180" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Untag, then Yes: two clicks prevent accidents.</text>
 <text x="200" y="196" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Device goes back to showing its hardware address.</text>
 </svg>`;
 }
@@ -755,7 +755,7 @@ function _svgPrivateBle() {
 <text x="300" y="76" text-anchor="middle" fill="#60a5fa" font-size="10" font-family="system-ui">Garry's iPhone</text>
 <text x="300" y="100" text-anchor="middle" fill="#4ade80" font-size="9" font-family="system-ui">1 stable identity</text>
 <text x="300" y="130" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">Blue badge in all views</text>
-<text x="200" y="175" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Settings → Private BLE → Add IRK</text>
+<text x="200" y="175" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Settings → Tracking → Phone Tracking (Private BLE)</text>
 <text x="200" y="195" text-anchor="middle" fill="#4a6052" font-size="9" font-family="system-ui">Works with iPhones, Apple Watches, and Android phones</text>
 </svg>`;
 }
@@ -1205,10 +1205,10 @@ function _svgFactoryReset() {
 <text x="200" y="86" text-anchor="middle" fill="#fca5a5" font-size="9" font-family="system-ui">alerts, movement, traceback, history, and backups</text>
 <text x="200" y="100" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="600" font-family="system-ui">BLE radios kept intact — only PadSpan data is erased</text>
 <rect x="30" y="120" width="340" height="68" rx="6" fill="#0a150e" stroke="#1b3526" stroke-width="1"/>
-<text x="200" y="140" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Found in Settings → Manage tab (Advanced mode).</text>
+<text x="200" y="140" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Found in Manage → Factory Reset (Live mode).</text>
 <text x="200" y="156" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Requires typing "FACTORY RESET" to confirm. Admin only.</text>
 <text x="200" y="172" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="system-ui">Use when starting over or troubleshooting persistent issues.</text>
-<text x="200" y="188" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">HA restart recommended after factory reset.</text>
+<text x="200" y="188" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600" font-family="system-ui">Then press Reload Page. No HA restart needed.</text>
 </svg>`;
 }
 
@@ -1673,12 +1673,12 @@ const WALKTHROUGHS = [
     id: "private_ble",
     title: "Private BLE (Apple Devices)",
     icon: "🔒",
-    summary: "Track iPhones and Apple Watches that rotate their MAC address using Identity Resolving Keys (IRK).",
+    summary: "Track iPhones, Apple Watches and other phones that keep changing their Bluetooth address, using their IRK (Identity Resolving Key).",
     steps: [
-      { title: "The MAC Rotation Problem",                text: "Modern phones — especially iPhones and Apple Watches — rotate their Bluetooth MAC address every 15 minutes for privacy. Without special handling, each rotation creates a new 'unknown device' in your scanner list. Your iPhone might show up as dozens of different unidentified entries.", svg: _svgPrivateBle },
-      { title: "IRK — Identity Resolving Key",            text: "Every Bluetooth device that uses private addressing has an IRK — a cryptographic key that can resolve the rotating addresses back to one stable identity. Home Assistant's Private BLE Device integration stores these IRKs and matches them to incoming advertisements. PadSpan reads the resolved identities and groups all the rotating MACs into a single blue-badged object.", svg: _svgPrivateBle },
-      { title: "Adding an IRK in PadSpan",                text: "Go to Settings → Private BLE Devices and click Add IRK. Enter the IRK in any format — plain hex, colon-separated, or base64. PadSpan tries all three formats automatically. Once added, the device appears with a blue badge in Objects, and its advertisements are matched across all scanners regardless of which MAC address happens to be active.", svg: _svgPrivateBle },
-      { title: "Calibration with Private BLE Devices",    text: "Private BLE devices work in calibration just like any other tracked device. The calibration system matches advertisements by canonical identity (not by MAC address), so fingerprints collected while the MAC was one value still match when it rotates to another. You can use your iPhone as the calibration device without worrying about address changes.", svg: _svgCalibSetup },
+      { title: "The Changing-Address Problem",            text: "iPhones, Apple Watches and many Android phones change their Bluetooth address every few minutes for privacy. Without help, each change looks like a new unknown device, so one phone can show up as dozens of unidentified entries.", svg: _svgPrivateBle },
+      { title: "IRK — Identity Resolving Key",            text: "An IRK is a key the phone shares with devices it is paired with. With it, PadSpan recognises every new address as the same phone. The key is kept in Home Assistant as a Private BLE Device, and PadSpan shows the phone as one device with a blue \"Private BLE\" badge (Devices → By Room).", svg: _svgPrivateBle },
+      { title: "Adding an IRK in PadSpan",                text: "In Advanced or Development mode, open Settings → Tracking → Phones and guest tags → \"Phone Tracking (Private BLE)\" (or Bluetooth → IRK Manager). Press \"Auto-Detect IRKs\" to find keys PadSpan can see on its own, or paste the IRK, give it a name and press \"Add IRK\". Keep the phone awake, with Bluetooth on, near a receiver: PadSpan checks for up to 30 seconds that the key matches the phone, then saves it. With no match it offers \"Save Anyway\", \"Retry\" or \"Cancel\". \"Delete from HA\" removes a phone's Private BLE Device from Home Assistant itself.", svg: _svgPrivateBle },
+      { title: "Calibration with Private BLE Devices",    text: "A phone tracked by its IRK works in calibration like any other device: it is matched by its identity, not its changing address, so you can calibrate with your iPhone without worrying about address changes.", svg: _svgCalibSetup },
     ],
   },
   {
@@ -1696,12 +1696,12 @@ const WALKTHROUGHS = [
     id: "manage",
     title: "Manage Your Setup",
     icon: "⚙️",
-    summary: "Clean up tags, delete HA areas, remove orphaned map data, and keep your system tidy.",
+    summary: "Remove device names, clean up old map data, back up, and start again if you need to.",
     steps: [
-      { title: "The Manage Tab",                         text: "The Manage tab gives you full control over your PadSpan data. It's in the main menu in Advanced and Development modes, and under More tools in Basic. Click Manage in the sidebar to find tabs for BLE Tags, Rooms (HA Areas), Maps, and Data.", svg: _svgManageOverview },
-      { title: "Untag or Remove BLE Devices",           text: "Under BLE Tags, every named BLE device is listed with its last-seen time. Click Delete to remove the name — the device reverts to showing its hardware address. A two-click confirm prevents accidental deletes.", svg: _svgUntagDevice },
-      { title: "Clean Up Orphan Polygons",              text: "The Data tab's Orphan Room Polygons scanner finds room boundaries in your maps that no longer match a real HA area — commonly leftover from sample mode or rooms that were deleted. Delete them individually or all at once.", svg: _svgOrphanClean },
-      { title: "Factory Reset",                         text: "When you need a completely fresh start, use Factory Reset in Settings → Manage tab. This erases all PadSpan persistent data — settings, calibration, objects, maps, model, alerts, movement history, and backups. BLE radio data is kept intact so scanners continue working. You must type 'FACTORY RESET' to confirm (admin only). Restart HA afterwards. Use this when troubleshooting persistent issues or starting a clean setup from scratch.", svg: _svgFactoryReset },
+      { title: "The Manage Screen",                      text: "Manage is in the main menu in Advanced and Development mode, and under More tools in Basic. Its tabs are Data, HA Entities, Beacon Characteristics, History, Events, Logs and Factory Reset. Anything that changes or deletes data needs Live mode.", svg: _svgManageOverview },
+      { title: "Untag a Device",                         text: "Manage → Data → BLE Device Labels lists every Bluetooth device you named, with its address and when it was last seen. Press \"Untag\", then \"Yes\": the name goes and the device shows its address again, but it is still tracked.", svg: _svgUntagDevice },
+      { title: "Clean Up Orphan Polygons",               text: "When a map has room shapes whose room no longer exists in Home Assistant (often left over from the sample house), Manage → Data shows an Orphan Room Polygons card. Delete them one at a time, or with \"Delete ALL orphans\" when there is more than one.", svg: _svgOrphanClean },
+      { title: "Factory Reset",                          text: "For a completely fresh start, use Manage → Factory Reset (Live mode, Home Assistant administrator). It erases all of PadSpan's data, backups included; your licence key is kept. Type FACTORY RESET, press \"Erase All Data & Reset\", confirm, then press \"Reload Page\" when it finishes. No Home Assistant restart is needed, and your receivers keep working.", svg: _svgFactoryReset },
     ],
   },
   {
@@ -1838,14 +1838,7 @@ const MANUAL_SECTIONS = [
     id: "private_ble_section",
     title: "Private BLE & IRK",
     icon: "🔒",
-    paragraphs: [
-      "Modern phones (especially Apple devices) rotate their Bluetooth MAC address every 15 minutes for privacy. Without resolution, each rotation creates a new unknown device in your list.",
-      "IRK (Identity Resolving Key) is a cryptographic key that resolves rotating addresses back to one stable identity. Home Assistant's Private BLE Device integration stores IRKs and matches them to incoming BLE advertisements.",
-      "Adding an IRK: Go to Settings → Private BLE Devices → Add IRK. Enter the key in any format: plain hex (32 chars), colon-separated (AA:BB:CC:...), or base64 encoded. PadSpan tries all three formats automatically and handles multi-step config flows.",
-      "Once added, the device appears with a blue badge in Objects, Follow, Presence, and all other views. All rotating MAC addresses are merged into one stable entry.",
-      "Calibration: Private BLE devices work in calibration by matching on canonical identity rather than MAC address. Fingerprints collected with one MAC still match after rotation. You can use your iPhone as a calibration device without issues.",
-      "iBeacon vs Private BLE: These are complementary. iBeacon (amber badge) tracks devices by UUID/Major/Minor — used by the Companion App transmitter and many beacons. Private BLE (blue badge) resolves rotating MACs via IRK — used for iPhones and Apple Watches. Some devices can be tracked both ways. AirTags and other Apple Find My tags are neither: MAC Rotation Bridging carries one you've named across its address changes.",
-    ],
+    helpKeys: ["private_ble"],
   },
   {
     id: "help_maps",
@@ -1884,7 +1877,10 @@ const MANUAL_SECTIONS = [
     id: "help_settings",
     title: "Settings",
     icon: "⚙️",
-    helpKeys: ["settings", "settings_colors", "settings_presence", "settings_manage"],
+    helpKeys: ["settings", "settings_colors", "settings_presence", "settings_tracking_rooms", "settings_tracking_phones",
+               "guest_tags", "settings_tracking_shown", "settings_tracking_positioning", "settings_tracking_receivers",
+               "settings_tracking_performance", "settings_tracking_integrations", "settings_tracking_privacy",
+               "settings_features", "settings_tiers", "settings_ai", "settings_atlas", "settings_ui", "settings_manage"],
   },
   {
     id: "help_zones",
@@ -1995,18 +1991,10 @@ const MANUAL_SECTIONS = [
   },
   {
     id: "manage_section",
-    title: "Manage (Settings + Sidebar)",
+    title: "Manage",
     icon: "🔧",
-    paragraphs: [
-      "PadSpan has two 'Manage' areas, each for different tasks:",
-      "Settings → Manage tab (Advanced / Development mode) — quick access for everyday cleanup: untag BLE devices and delete HA areas.",
-      "Sidebar Manage tab (main menu in Advanced / Development mode, More tools in Basic) — deeper data management: BLE tag operations, HA entity deletion, map and integration controls, orphan room polygon cleanup.",
-      "Untag a BLE device — go to Settings → Manage → BLE Tags. Find the device and click Untag (two-click confirm). The device reverts to its hardware address but is still tracked.",
-      "Delete an HA Area — go to Settings → Manage → Rooms. Click Delete next to an area. This removes it from Home Assistant entirely and cannot be undone from within PadSpan. Re-add in HA Settings → Areas & Zones if needed.",
-      "Orphan Room Polygons — found in Manage sidebar → Data. These are room boundaries in your maps that no longer match a real HA area — usually leftover from sample mode or deleted rooms. Delete individually or all at once.",
-      "HA Entities — listed in Manage sidebar → Data. Note: entities created by PadSpan will be recreated on next restart. Entities from other integrations (like Bermuda) are managed by those integrations.",
-      "Factory Reset — found in Settings → Manage tab (Advanced mode). Erases all PadSpan persistent data: settings, calibration, objects, maps, model, alerts, movement, traceback, history, and backups. BLE radio data is intentionally left intact so scanners keep working. Requires typing 'FACTORY RESET' to confirm (admin only). Restart HA afterwards. Use when you want a completely clean start or are troubleshooting persistent data issues.",
-    ],
+    helpKeys: ["manage", "manage_data", "manage_entities", "manage_espresense_import", "manage_beacon_chars",
+               "manage_events", "manage_logs", "manage_factory_reset"],
   },
   {
     id: "view_modes_section",
@@ -2230,12 +2218,15 @@ const QUICKSTART_SECTIONS = [
     title: "Settings",
     icon: "⚙️",
     paragraphs: [
-      "Appearance — assign rooms to floors, pick room colours for the Follow map and Overview grid.",
-      "Scanner Map — view and manage calibration points per map. Clear calibration for a specific map if you need to start fresh.",
-      "Presence — adjust Room Change Delay (how long before PadSpan confirms a room switch) and Home/Away Timeout (how long before a missing device is marked away).",
-      "Private BLE Devices — add IRKs for iPhones and Apple Watches so PadSpan resolves their rotating MAC addresses into stable identities.",
-      "Quiet Mode — toggle in Overview top-right. Hides unidentified devices to reduce clutter. Only shows tagged and followed objects.",
+      "Settings is in the menu in every mode. Basic shows the Appearance settings, with buttons for the usage report and guest tags; Advanced and Development mode have these tabs:",
+      "Appearance — room colours, Panel Style, Theme and 2D Map Mode. Floors come from Home Assistant (shown as \"Floor (HA)\" beside each room): add or change them in HA Settings → Areas & Zones.",
+      "Scanner Map — where PadSpan estimates each scanner is, from your calibration points. Clear one map's calibration points here if you need to start that map again.",
+      "Tracking — Room Change Delay (how long before PadSpan confirms a room switch), Home/Away Timeout (how long before a missing device is marked away), guest tags, Phone Tracking (Private BLE) for an iPhone's or Apple Watch's IRK, positioning, receivers, performance and privacy.",
+      "Features — your PadSpan licence, the experimental switches and Forensics.",
+      "AI — the Home Assistant AI Task PadSpan can use to read photos and floor plans.",
+      "Atlas — the Atlas in the sidebar, Live Aboard, wall screens and the Atlas as Overview.",
       "UI Structure — choose which extra tabs appear in the main menu in Advanced and Development mode instead of under More tools.",
+      "Quiet Mode — switched with the Quiet tick at the top of Overview. Hides unidentified devices to reduce clutter, so only tagged and followed ones show.",
     ],
   },
   {
@@ -2243,12 +2234,14 @@ const QUICKSTART_SECTIONS = [
     title: "Manage",
     icon: "🔧",
     paragraphs: [
-      "Data — BLE tag operations (untag devices), HA entity deletion, orphan room polygon cleanup, and map/integration controls.",
-      "History — historical data browser with export and cleanup options.",
-      "Events — event log viewer for tracking system activity.",
-      "Health — system health metrics, scanner status, and BLE diagnostics.",
-      "Diagnostics — detailed error logs, performance stats, and build stamp verification.",
-      "Debug — low-level state inspection for troubleshooting.",
+      "Manage is in the main menu in Advanced and Development mode, and under More tools in Basic.",
+      "Data — remove device names (BLE Device Labels → \"Untag\"), clean up orphan room shapes and phantom entries, delete Home Assistant entities, areas or maps, Backup & Restore, and reload the integration. Live mode only.",
+      "HA Entities — which entities PadSpan creates, and the MQTT, ESPresense (with the ESPresense Companion import) and Tasmota connections.",
+      "Beacon Characteristics — a report of how each beacon reads.",
+      "History — opens History → Movement, the saved room changes.",
+      "Events — email and phone alerts for room changes, and this session's room log.",
+      "Logs — PadSpan's recent log messages, for troubleshooting.",
+      "Factory Reset — erase everything PadSpan stored and start again (your licence key is kept).",
     ],
   },
   {
