@@ -43,6 +43,18 @@ vacation, from history that ends when it was turned on
 it switches is kept in its own small log (VacationLog) so Traceback's Full
 house activity can mark those events as Vacation Mode's, not a person's.
 
+LAST WEEK OR THE MONTH (Garry, 2026-10-31: "Is a read of the previous week,
+not a 'is it dark outside'? Also add monthly average button too for the
+weekday choice."). vacation_mode_source picks how each weekday is learned:
+"last_week" (the default) replays the same weekday of the 7 days before the
+vacation began, window by window (the fraction of each 30 minutes the light
+was on); a day inside an earlier vacation, or with no data, falls back to that
+weekday a week earlier, then to the monthly average. "month" is the pattern
+above, unchanged. The source is fixed when Vacation Mode is turned on
+(vacation_mode_trip_source); a change mid-trip applies at the next turn-on.
+The evening lights (anchors) follow the same history: each is held on over
+the evening span it was really on that day, not from sunset.
+
 Everything here that touches history/state/services is a thin, largely
 unverifiable (this repo's test suite has no real recorder or clock to
 check it against) wrapper around two PURE functions — build_pattern and
@@ -50,7 +62,9 @@ decide_states — which carry the actual logic and are fully unit tested.
 """
 
 import logging
-from datetime import datetime, timedelta
+from bisect import bisect_right
+from datetime import date, datetime, time, timedelta
+from statistics import median
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -240,6 +254,238 @@ def entity_exclusions(changes: list[tuple[float, str]], periods: list, now_ts: f
     return out
 
 
+# ── Last week or the monthly average (Garry, 2026-10-31) ─────────────────────
+
+SOURCES = ("last_week", "month")
+DEFAULT_SOURCE = "last_week"
+# An evening: 16:00 to 05:00 the next morning, in minutes from the day's midnight.
+EVENING_FROM_MIN = 16 * 60
+EVENING_UNTIL_MIN = 24 * 60 + 5 * 60
+# Off and back on within this long is one evening, not two (a bulb swapped, an
+# "unavailable" blip).
+EVENING_GAP_MIN = 10
+# An evening light's span moves up to this much either way each night.
+ANCHOR_JITTER_MIN = 10
+
+
+def chosen_source(data: dict) -> str:
+    """The source the settings ask for (the next vacation's)."""
+    v = data.get("vacation_mode_source")
+    return v if v in SOURCES else DEFAULT_SOURCE
+
+
+def built_source(value: Any) -> str:
+    """The source a stored pattern was built from; one built before the choice
+    existed was the monthly average."""
+    return value if value in SOURCES else "month"
+
+
+def _day_start(d: date, like: datetime) -> datetime:
+    return datetime.combine(d, time(0), tzinfo=like.tzinfo)
+
+
+def _overlaps(a: float, b: float, spans: list) -> bool:
+    for s, e in spans:
+        if s < b and (e is None or e > a):
+            return True
+    return False
+
+
+def _pieces(ordered: list, times: list, a: float, b: float) -> list[tuple[float, float, Any]]:
+    """[(from, to, state)] covering [a, b): the state holding over each piece,
+    None before the first known change. `times` is `ordered`'s timestamps."""
+    i = bisect_right(times, a)
+    st = ordered[i - 1][1] if i else None
+    out, cur = [], a
+    while i < len(ordered) and ordered[i][0] < b:
+        ts, nxt = ordered[i]
+        if ts > cur:
+            out.append((cur, ts, st))
+            cur = ts
+        st = nxt
+        i += 1
+    out.append((cur, b, st))
+    return out
+
+
+def _day_fractions(ordered: list, times: list, day: datetime) -> dict[str, float]:
+    """{"HHMM": fraction of that 30 minutes the light was on} for one local
+    day; a window with no known on/off state is left out."""
+    step = timedelta(minutes=WINDOW_MINUTES)
+    out: dict[str, float] = {}
+    for pt in sample_points(day, day + timedelta(days=1)):
+        on = known = 0.0
+        for x, y, st in _pieces(ordered, times, pt.timestamp(), (pt + step).timestamp()):
+            if st in ("on", "off"):
+                known += y - x
+                if st == "on":
+                    on += y - x
+        if known > 0:
+            out[f"{pt.hour:02d}{pt.minute:02d}"] = on / known
+    return out
+
+
+def _evening_run(ordered: list, times: list, day: datetime) -> list[int] | None | bool:
+    """The light's longest on-run in `day`'s evening (16:00-05:00), as
+    [start, end] minutes from the day's midnight (end past 1440 is after
+    midnight); runs a short gap apart count as one. None: it was not on that
+    evening. False: nothing known about it that evening."""
+    a = (day + timedelta(minutes=EVENING_FROM_MIN)).timestamp()
+    b = (day + timedelta(minutes=EVENING_UNTIL_MIN)).timestamp()
+    pieces = _pieces(ordered, times, a, b)
+    if not any(st in ("on", "off") for _, _, st in pieces):
+        return False
+    runs: list[list[float]] = []
+    for x, y, st in pieces:
+        if st != "on":
+            continue
+        if runs and x - runs[-1][1] <= EVENING_GAP_MIN * 60:
+            runs[-1][1] = y
+        else:
+            runs.append([x, y])
+    if not runs:
+        return None
+    x, y = max(runs, key=lambda r: r[1] - r[0])
+
+    def minute(ts: float) -> int:
+        t = datetime.fromtimestamp(ts, tz=day.tzinfo) if day.tzinfo else datetime.fromtimestamp(ts)
+        return (t.date() - day.date()).days * 1440 + t.hour * 60 + t.minute
+    return [minute(x), minute(y)]
+
+
+def _last_week_days(now: datetime, weekday: int, history_days: int) -> list[date]:
+    """That weekday in the 7 days before `now`'s day, then each week before it
+    still inside the history."""
+    first = now.date() - timedelta(days=(now.weekday() - weekday) % 7 or 7)
+    oldest = (now - timedelta(days=history_days)).date()
+    out, d = [], first
+    while d >= oldest:
+        out.append(d)
+        d -= timedelta(days=7)
+    return out
+
+
+def _typical_evening(runs: list) -> list[int] | None:
+    """The monthly average evening from each usable day's run (None for a day
+    it was not on): held only if it was on at least half of them, from the
+    median start to the median end."""
+    on = [r for r in runs if r]
+    if not on or len(on) * 2 < len(runs):
+        return None
+    return [int(round(median(r[0] for r in on))), int(round(median(r[1] for r in on)))]
+
+
+def build_routine(
+    history: dict[str, list[tuple[float, str]]],
+    now: datetime,
+    source: str = "month",
+    history_days: int = HISTORY_DAYS,
+    exclude: list | None = None,
+) -> dict[str, dict]:
+    """The pattern Vacation Mode runs on. "month": build_pattern's, as it
+    always was. "last_week": each weekday's slots replayed from that weekday
+    in the week before `now` (the fraction of each window the light was on) —
+    an earlier vacation's day, or one with no data, falls back to the week
+    before, then to the monthly average (build_pattern's slots stay
+    underneath). Every light also gets "evening": {"0".."6" | "*": [start,
+    end] minutes, or None} — when it was really on in the evening, from the
+    same source; the evening lights are held on over it (anchor_open)."""
+    pattern: dict[str, dict] = build_pattern(history, now, history_days, exclude)
+    end_ts = now.timestamp()
+    oldest = (now - timedelta(days=history_days)).date()
+    for entity_id, changes in history.items():
+        if not changes:
+            continue
+        spans = [(s, e) for s, e in entity_exclusions(changes, exclude or [], end_ts)]
+        ordered = sorted(changes, key=lambda c: c[0])
+        times = [c[0] for c in ordered]
+        entry = dict(pattern.get(entity_id) or {})
+        if source == "last_week":
+            for wd in range(7):
+                for d in _last_week_days(now, wd, history_days):
+                    day = _day_start(d, now)
+                    if _overlaps(day.timestamp(), (day + timedelta(days=1)).timestamp(), spans):
+                        continue
+                    fr = _day_fractions(ordered, times, day)
+                    if fr:
+                        entry.update({f"{wd}:{k}": v for k, v in fr.items()})
+                        break
+        if entity_id.startswith("light."):
+            # Evenings that ended before `now`, outside every excluded span.
+            usable: dict[date, Any] = {}
+            d = now.date() - timedelta(days=1)
+            while d >= oldest:
+                day = _day_start(d, now)
+                a = (day + timedelta(minutes=EVENING_FROM_MIN)).timestamp()
+                b = (day + timedelta(minutes=EVENING_UNTIL_MIN)).timestamp()
+                if b <= end_ts and a >= (now - timedelta(days=history_days)).timestamp() \
+                        and not _overlaps(a, b, spans):
+                    run = _evening_run(ordered, times, day)
+                    if run is not False:
+                        usable[d] = run
+                d -= timedelta(days=1)
+            evening: dict[str, Any] = {}
+            if len(usable) >= MIN_SAMPLES:
+                evening["*"] = _typical_evening(list(usable.values()))
+            for wd in range(7):
+                runs = [r for dd, r in usable.items() if dd.weekday() == wd]
+                if len(runs) >= MIN_SAMPLES:
+                    evening[str(wd)] = _typical_evening(runs)
+                if source == "last_week":
+                    pick = next((dd for dd in _last_week_days(now, wd, history_days) if dd in usable), None)
+                    if pick is not None:
+                        evening[str(wd)] = usable[pick]
+            if any(v for v in evening.values()):
+                entry["evening"] = evening
+        if entry:
+            pattern[entity_id] = entry
+    return pattern
+
+
+def evening_span(entry: dict | None, weekday: int) -> list[int] | None:
+    """A light's evening span for that weekday's evening, else None — its
+    weekday's own, or every day's when the weekday has too little history."""
+    ev = (entry or {}).get("evening") if isinstance(entry, dict) else None
+    if not isinstance(ev, dict):
+        return None
+    span = ev[str(weekday)] if str(weekday) in ev else ev.get("*")
+    if (isinstance(span, (list, tuple)) and len(span) == 2
+            and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in span)):
+        return [span[0], span[1]]
+    return None
+
+
+def _anchor_jitter(entity_id: str, night: str) -> int:
+    import hashlib  # noqa: PLC0415
+    h = hashlib.blake2b(f"anchor|{entity_id}|{night}".encode(), digest_size=4).digest()
+    return int.from_bytes(h, "big") % (2 * ANCHOR_JITTER_MIN + 1) - ANCHOR_JITTER_MIN
+
+
+def anchor_open(entry: dict | None, entity_id: str, at_local: datetime, bedtime: str) -> bool:
+    """True while an evening light is held on: inside the span it was on that
+    evening (by the pattern's source), moved a few minutes each night, and
+    before the bedtime. The small hours belong to the evening before."""
+    t = at_local.hour * 60 + at_local.minute
+    if t < BEDTIME_UNTIL_MIN:
+        day, t = at_local - timedelta(days=1), t + 1440
+    elif t >= EVENING_FROM_MIN:
+        day = at_local
+    else:
+        return False
+    span = evening_span(entry, day.weekday())
+    if not span:
+        return False
+    j = _anchor_jitter(entity_id, day.date().isoformat())
+    if not span[0] + j <= t < span[1] + j:
+        return False
+    return not in_bedtime(at_local, bedtime)
+
+
+def anchors_open(pattern: dict, anchors: list[str], at_local: datetime, bedtime: str) -> set[str]:
+    """The evening lights held on right now."""
+    return {eid for eid in anchors if anchor_open((pattern or {}).get(eid), eid, at_local, bedtime)}
+
+
 def _window_draw(entity_id: str, at: datetime, key: str) -> float:
     """One number in [0, 1) per light per schedule window per day. A fresh
     draw on every 5-minute tick made a light below 100% intensity flip
@@ -380,11 +626,30 @@ def learned_pattern(data: dict) -> dict:
     spans were recorded has unrecorded ones in the recorder for up to
     HISTORY_DAYS (round 6); a pattern that could have learned from those,
     or one from before pattern_until existed, is never carried."""
-    since = data.get("vacation_mode_tracked_since") or 0
-    until = data.get("vacation_mode_pattern_until") or 0
-    if data.get("vacation_mode_pattern") and until and (not since or until - HISTORY_DAYS * 86400 >= since):
+    if _current_is_learned(data):
         return data["vacation_mode_pattern"]
     return data.get("vacation_mode_pattern_prev") or {}
+
+
+def _current_is_learned(data: dict) -> bool:
+    since = data.get("vacation_mode_tracked_since") or 0
+    until = data.get("vacation_mode_pattern_until") or 0
+    return bool(data.get("vacation_mode_pattern") and until and (not since or until - HISTORY_DAYS * 86400 >= since))
+
+
+def learned_source(data: dict) -> str:
+    """The source learned_pattern's pattern was built from."""
+    if _current_is_learned(data):
+        return built_source(data.get("vacation_mode_pattern_source"))
+    return built_source(data.get("vacation_mode_pattern_prev_source"))
+
+
+def running_source(data: dict) -> str:
+    """The source the routine a running vacation switches on was built from
+    (its own or a resumed trip's, else the stand-in's)."""
+    if pattern_serves(data):
+        return built_source(data.get("vacation_mode_pattern_source"))
+    return built_source(data.get("vacation_mode_pattern_prev_source"))
 
 
 # Turned back on within this long of a trip ending, Vacation Mode carries on
@@ -429,17 +694,29 @@ def switch_fields(data: dict, turn_on: bool, now_ts: float, who: dict | None = N
     No change, no fields."""
     was_on = bool(data.get("vacation_mode_enabled"))
     if turn_on and not was_on:
+        # The source is fixed for the trip here: a change while it runs
+        # applies the next time it is turned on (Garry, 2026-10-31).
+        source = chosen_source(data)
         if resumable(data, now_ts):
             # The same trip carrying on: its pattern stays. The span closed
             # when it was turned off stays closed — those days were not
             # Vacation Mode's switching.
-            return {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern_for": now_ts}
+            out = {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern_for": now_ts,
+                   "vacation_mode_trip_source": source, "vacation_mode_pattern_end": 0}
+            if source != built_source(data.get("vacation_mode_pattern_source")):
+                # The source changed: the trip's routine is learned again from
+                # the same days before the trip (not the empty house since),
+                # and the old one runs until that is done or if it finds nothing.
+                out["vacation_mode_pattern_end"] = data.get("vacation_mode_pattern_until") or 0
+            return out
         # A new vacation gets a new pattern. The last one learned is kept
         # aside: the recorder may already have purged the days before this
         # start (an off/on mid-trip, a trip right after another), and then
         # it stands in rather than leaving the house dark (round 5).
         return {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern": {}, "vacation_mode_pattern_until": 0,
-                "vacation_mode_pattern_prev": learned_pattern(data), "vacation_mode_pattern_for": 0}
+                "vacation_mode_pattern_prev": learned_pattern(data), "vacation_mode_pattern_for": 0,
+                "vacation_mode_pattern_prev_source": learned_source(data), "vacation_mode_trip_source": source,
+                "vacation_mode_pattern_end": 0}
     if was_on and not turn_on:
         return {
             "vacation_mode_periods": closed_periods(data.get("vacation_mode_periods") or [],
@@ -456,7 +733,8 @@ STATE_KEYS = {
     "vacation_mode_pattern_built_at": 0, "vacation_mode_pattern_until": 0, "vacation_mode_enabled_at": 0,
     "vacation_mode_periods": [], "vacation_mode_tracked_since": 0, "vacation_mode_pattern_prev": {},
     "vacation_mode_pattern_attempt": [0, 0], "vacation_mode_pattern_for": 0, "vacation_mode_last_off": {},
-    "vacation_mode_end_at": 0,
+    "vacation_mode_end_at": 0, "vacation_mode_pattern_source": "", "vacation_mode_pattern_prev_source": "",
+    "vacation_mode_trip_source": "", "vacation_mode_pattern_end": 0,
 }
 
 
@@ -555,8 +833,11 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
         enabled_at = built_at if (built_at and st.data.get("vacation_mode_pattern")) else now_ts
         await st.async_set(vacation_mode_enabled_at=enabled_at)
     # The history window a stored pattern covers ends at pattern_until; an
-    # older pattern without it covered up to when it was built.
-    if pattern_serves(st.data):
+    # older pattern without it covered up to when it was built. A resumed
+    # trip whose source was changed is learned again from its own window
+    # (pattern_end); until then it runs on the routine it had.
+    redo = st.data.get("vacation_mode_pattern_end") or 0
+    if pattern_serves(st.data) and not redo:
         return
     # Nothing usable last time for this same start: the window is fixed and
     # the recorder only purges it, so try again hourly, not every tick.
@@ -567,25 +848,35 @@ async def _async_refresh_pattern_if_stale(hass: HomeAssistant, st: Any) -> None:
     # each tick. A WLED strip offline right now still gets its main light
     # learned, and switched once it's back (round 5).
     entity_ids = [eid for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)]
-    end = dt_util.utc_from_timestamp(enabled_at)
+    until = redo or enabled_at
+    end = dt_util.utc_from_timestamp(until)
     history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=end)
     if history is None:
         # The query failed: retry in 15 minutes, not every tick and not after
         # the hour an empty answer waits.
         await st.async_set(vacation_mode_pattern_attempt=[enabled_at, now_ts - RETRY_EMPTY_S + RETRY_FAILED_S])
         return
+    # The source this trip was turned on with (one turned on before the
+    # choice existed: the monthly average it was turned on under).
+    source = built_source(st.data.get("vacation_mode_trip_source"))
     # Pure and CPU-bound over up to 30 days of every light: off the event loop.
     pattern = await hass.async_add_executor_job(
-        build_pattern, history, dt_util.as_local(end), HISTORY_DAYS,
+        build_routine, history, dt_util.as_local(end), source, HISTORY_DAYS,
         st.data.get("vacation_mode_periods") or []) if history else {}
     if not pattern:
+        if redo:
+            _LOGGER.warning("Vacation mode: the days before this trip are no longer in the history; "
+                            "carrying on with the routine it had")
+            await st.async_set(vacation_mode_pattern_end=0)
+            return
         _LOGGER.warning("Vacation mode: no usable light history before it was switched on; %s (next try in an hour)",
                         "using the pattern learned before the last vacation" if st.data.get("vacation_mode_pattern_prev")
                         else "it will not switch anything until there is")
         await st.async_set(vacation_mode_pattern_attempt=[enabled_at, now_ts])
         return
     await st.async_set(vacation_mode_pattern=pattern, vacation_mode_pattern_built_at=now_ts,
-                       vacation_mode_pattern_until=enabled_at)
+                       vacation_mode_pattern_until=until, vacation_mode_pattern_source=source,
+                       vacation_mode_pattern_end=0)
 
 
 # ── The opt-in report's view (telemetry.py env.vacation) ─────────────────────
@@ -609,6 +900,7 @@ REPORT_WORDS = {
     "max_on": ("yes", "no"),
     "max_lights": ("yes", "no"),
     "anchors": ("yes", "no"),
+    "source": SOURCES,
 }
 
 
@@ -669,6 +961,7 @@ def report_buckets(data: dict, log_entries: list, now_ts: float) -> dict | None:
     out["max_on"] = yes(data.get("vacation_mode_max_on_min"))
     out["max_lights"] = yes(data.get("vacation_mode_max_lights"))
     out["anchors"] = yes(data.get("vacation_mode_anchors"))
+    out["source"] = chosen_source(data)
     return out
 
 
@@ -687,14 +980,12 @@ OPTION_DEFAULTS = {
     "vacation_mode_bedtime": "",          # "HH:MM": every light it runs goes off from then (±20 min, a new draw each night) until 05:00
     "vacation_mode_max_on_min": 0,        # 0 = no limit; else a light it turned on goes off after this many minutes, and rests as long
     "vacation_mode_max_lights": 0,        # 0 = no limit; else at most this many of the pattern's lights on at once
-    "vacation_mode_anchors": [],          # light entity ids held on through the evening (anchor_window)
+    "vacation_mode_anchors": [],          # light entity ids held on over their evening span from history (anchor_open)
 }
 DARK_OFFSET_RANGE = (-60, 120)
 MAX_ON_RANGE = (15, 720)
 MAX_LIGHTS_RANGE = (1, 50)
 ANCHORS_MAX = 10
-# Anchor lights go off at the bedtime, or at about this time without one.
-ANCHOR_DEFAULT_OFF = "23:00"
 BEDTIME_JITTER_MIN = 20
 BEDTIME_UNTIL_MIN = 5 * 60
 END_AT_MAX_S = 366 * 86400
@@ -765,7 +1056,7 @@ def apply_options(decisions: dict[str, bool], *, data: dict, now_ts: float, at_l
     lights on right now that Vacation Mode turned on (the most-at-once cap
     keeps those); `on_by_hand`: lights on now that it did not turn on — the
     cap neither counts nor turns those off; `anchored`: anchor lights whose
-    evening window is open — apply_anchors holds them on, so no rule here
+    evening span is open — apply_anchors holds them on, so no rule here
     touches or counts them."""
     out = dict(decisions)
     used: set[str] = set()
@@ -822,39 +1113,26 @@ def anchor_ids(data: dict, eligible: set | None = None) -> list[str]:
     return out[:ANCHORS_MAX]
 
 
-def anchor_window(at_local: datetime, dark: bool | None, bedtime: str) -> bool:
-    """True while anchor lights are held on: dark (after sunset + the
-    after-dark offset), in the evening, until the bedtime — or about
-    ANCHOR_DEFAULT_OFF without one, with the same nightly jitter. Never in
-    the small hours past it, never with the sun unknown."""
-    if dark is not True:
-        return False
-    t = at_local.hour * 60 + at_local.minute
-    if not (t >= 12 * 60 or t < BEDTIME_UNTIL_MIN):
-        return False
-    bed = bedtime if bedtime_minutes(bedtime) is not None else ANCHOR_DEFAULT_OFF
-    return not in_bedtime(at_local, bed)
-
-
-def apply_anchors(decisions: dict[str, bool], anchors: list[str], window: bool, ours: set,
+def apply_anchors(decisions: dict[str, bool], anchors: list[str], held: set, ours: set,
                   on_now: set | None = None) -> tuple[dict, bool]:
-    """Anchor lights over the decisions — pure. In the window they are on,
-    whatever the pattern and the options said: one switched off by hand in
-    the evening comes back on at the next tick, as a routine light would.
-    Out of it the pattern decides them as any other light; one the pattern
+    """Anchor lights over the decisions — pure. Those in `held` (their evening
+    span is open, anchors_open) are on, whatever the pattern and the options
+    said: one switched off by hand in the evening comes back on at the next
+    tick, as a routine light would. Out of it the pattern decides them as any
+    other light; one the pattern
     says nothing about goes off only if Vacation Mode turned it on (`ours`),
     so a porch light a person put on after bedtime is left alone. Returns the
     decisions and whether this turned an anchor on that the pattern would
     not have and that is not on already (`on_now`)."""
     out = dict(decisions)
-    held = False
+    lit = False
     for eid in anchors:
-        if window:
-            held = held or (not out.get(eid) and eid not in (on_now or ()))
+        if eid in held:
+            lit = lit or (not out.get(eid) and eid not in (on_now or ()))
             out[eid] = True
         elif eid not in out and eid in ours:
             out[eid] = False
-    return out, held
+    return out, lit
 
 
 def someone_home(hass: HomeAssistant) -> bool:
@@ -932,6 +1210,7 @@ def status_attributes(hass: HomeAssistant, data: dict) -> dict:
     return {
         "since": iso(data.get("vacation_mode_enabled_at")) if on else None,
         "routine": routine_word(data) if on else None,
+        "source": running_source(data) if on else chosen_source(data),
         "paused_someone_home": bool(on and (hass.data.get(DOMAIN) or {}).get(_VM_PAUSED)),
         "ends": iso(data.get("vacation_mode_end_at")),
         "intensity": data.get("vacation_mode_intensity", 100),
@@ -1002,7 +1281,7 @@ PREVIEW_HOURS = 24
 # A routine the preview learned while Vacation Mode is off is kept this long,
 # so clicking again does not re-read 30 days of history.
 PREVIEW_CACHE_S = 300
-_VM_PREVIEW = "_vacation_mode_preview_pattern"   # (built_ts, periods, pattern)
+_VM_PREVIEW = "_vacation_mode_preview_pattern"   # (built_ts, [periods, source, until], pattern)
 
 
 def preview_spans(pattern: dict, data: dict, start_ts: float, to_local, dark_at, anchors: list[str] | None = None,
@@ -1010,9 +1289,9 @@ def preview_spans(pattern: dict, data: dict, start_ts: float, to_local, dark_at,
     """{entity_id: [[on_ts, off_ts], ...]} — pure. Steps in real time (epoch
     seconds) and turns each step into local time with `to_local(ts)`, so a
     daylight-saving change neither stretches nor shrinks the window.
-    `dark_at(ts, local)` says whether it is dark then (None when unknown). A
-    span still on at the end closes there. An end date inside the window ends
-    everything at it."""
+    `dark_at(ts, local)` says whether it is dark then (None when unknown), for
+    the after-dark option only. A span still on at the end closes there. An
+    end date inside the window ends everything at it."""
     step = int(CHECK_INTERVAL.total_seconds())
     ts = float(int(start_ts) - int(start_ts) % step)
     stop = ts + hours * 3600
@@ -1030,12 +1309,12 @@ def preview_spans(pattern: dict, data: dict, start_ts: float, to_local, dark_at,
     while ts < stop:
         at = to_local(ts)
         dark = dark_at(ts, at)
-        window = bool(anchors) and anchor_window(at, dark, bedtime)
+        held = anchors_open(pattern, anchors, at, bedtime) if anchors else set()
         dec = decide_states(pattern, at, intensity)
         dec, _ = apply_options(dec, data=data, now_ts=ts, at_local=at, dark=dark, on_since=dict(on),
-                               capped=capped, lit=set(on), anchored=set(anchors) if window else set())
+                               capped=capped, lit=set(on), anchored=held)
         if anchors:
-            dec, _ = apply_anchors(dec, anchors, window, set(on), set(on))
+            dec, _ = apply_anchors(dec, anchors, held, set(on), set(on))
         for eid, want in dec.items():
             if want and eid not in on:
                 on[eid] = ts
@@ -1061,11 +1340,38 @@ def eligible_lights(hass: HomeAssistant) -> list[list[str]]:
     return out
 
 
+async def _async_preview_build(hass: HomeAssistant, data: dict, now_ts: float, source: str,
+                               until_ts: float = 0) -> dict:
+    """A routine learned for the preview only (not stored): from history up
+    to now, or up to `until_ts` (a resumed trip's own window). Kept a few
+    minutes, so clicking again does not re-read 30 days of history."""
+    from homeassistant.util import dt as dt_util  # noqa: PLC0415
+
+    dom = hass.data.get(DOMAIN) or {}
+    periods = [list(p) for p in (data.get("vacation_mode_periods") or [])]
+    key = [periods, source, until_ts]
+    cached = dom.get(_VM_PREVIEW)
+    if cached and 0 <= now_ts - cached[0] < PREVIEW_CACHE_S and cached[1] == key:
+        return cached[2]
+    end = dt_util.utc_from_timestamp(until_ts or now_ts)
+    entity_ids = [eid for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)]
+    history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=end)
+    pattern: dict = {}
+    if history:
+        pattern = await hass.async_add_executor_job(
+            build_routine, history, dt_util.as_local(end), source, HISTORY_DAYS, periods)
+    if history is not None and DOMAIN in hass.data:
+        hass.data[DOMAIN][_VM_PREVIEW] = (now_ts, key, pattern or {})
+    return pattern or {}
+
+
 async def async_preview(hass: HomeAssistant) -> dict:
     """What Vacation Mode would switch over the next PREVIEW_HOURS. Running,
     it uses the routine the tick uses. Off, it uses the one turning it on now
-    would: the last trip's when it would carry on with it, else one learned
-    from history up to now (not stored), else the last one learned."""
+    would: the last trip's when it would carry on with it (learned again
+    from that trip's days if the source was changed), else one learned from
+    history up to now with the chosen source (not stored), else the last one
+    learned. `source` says which: "last_week" or "month"."""
     from homeassistant.util import dt as dt_util  # noqa: PLC0415
 
     dom = hass.data.get(DOMAIN) or {}
@@ -1073,27 +1379,23 @@ async def async_preview(hass: HomeAssistant) -> dict:
     data = dict(st.data) if st else {}
     now = dt_util.utcnow()
     now_ts = now.timestamp()
+    chosen = chosen_source(data)
     if data.get("vacation_mode_enabled"):
-        routine = routine_word(data)
+        routine, source = routine_word(data), running_source(data)
         pattern = data.get("vacation_mode_pattern") if pattern_serves(data) else data.get("vacation_mode_pattern_prev")
     elif resumable(data, now_ts):
         routine, pattern = "resumed", data.get("vacation_mode_pattern")
+        source = built_source(data.get("vacation_mode_pattern_source"))
+        if source != chosen and data.get("vacation_mode_pattern_until"):
+            again = await _async_preview_build(hass, data, now_ts, chosen, data["vacation_mode_pattern_until"])
+            if again:
+                pattern, source = again, chosen
     else:
-        routine, pattern = "own", {}
-        periods = [list(p) for p in (data.get("vacation_mode_periods") or [])]
-        cached = dom.get(_VM_PREVIEW)
-        if cached and 0 <= now_ts - cached[0] < PREVIEW_CACHE_S and cached[1] == periods:
-            pattern = cached[2]
-        else:
-            entity_ids = [eid for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)]
-            history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=now)
-            if history:
-                pattern = await hass.async_add_executor_job(
-                    build_pattern, history, dt_util.as_local(now), HISTORY_DAYS, periods)
-            if history is not None and DOMAIN in hass.data:
-                hass.data[DOMAIN][_VM_PREVIEW] = (now_ts, periods, pattern or {})
+        routine, source = "own", chosen
+        pattern = await _async_preview_build(hass, data, now_ts, chosen)
         if not pattern:
-            routine, pattern = ("standin" if learned_pattern(data) else "none"), learned_pattern(data)
+            routine = "standin" if learned_pattern(data) else "none"
+            pattern, source = learned_pattern(data), learned_source(data)
     eligible = set(_eligible_entity_ids(hass))
     pattern = {eid: b for eid, b in (pattern or {}).items() if eid in eligible}
     anchors = anchor_ids(data, eligible)
@@ -1124,7 +1426,7 @@ async def async_preview(hass: HomeAssistant) -> dict:
     end_at = data.get("vacation_mode_end_at") or 0
     if isinstance(end_at, (int, float)) and not isinstance(end_at, bool) and 0 < end_at < until:
         until = end_at
-    return {"from": now_ts, "until": until, "routine": routine, "lights": lights}
+    return {"from": now_ts, "until": until, "routine": routine, "source": source, "lights": lights}
 
 
 class VacationLog:
@@ -1217,7 +1519,7 @@ async def _async_tick(hass: HomeAssistant) -> None:
             await log.async_load()
             on_since = on_since_from_log(log.entries, set(decisions) | set(anchors))
         dark = (_dark_now(hass, now_ts, local_now, st.data.get("vacation_mode_dark_offset_min") or 0)
-                if st.data.get("vacation_mode_dark_only") or anchors else None)
+                if st.data.get("vacation_mode_dark_only") else None)
         # On right now: by Vacation Mode (its log's last word on it is "on"),
         # or by hand. The cap keeps the first and never touches the second.
         on_now: set[str] = set()
@@ -1225,14 +1527,16 @@ async def _async_tick(hass: HomeAssistant) -> None:
             cur = hass.states.get(eid)
             if cur is not None and cur.state == "on":
                 on_now.add(eid)
-        window = bool(anchors) and anchor_window(local_now, dark, st.data.get("vacation_mode_bedtime") or "")
+        # Evening lights: held over the span they were on that evening, from
+        # the same history as the pattern (no sun times).
+        open_now = anchors_open(pattern, anchors, local_now, st.data.get("vacation_mode_bedtime") or "")
         decisions, used = apply_options(decisions, data=st.data, now_ts=now_ts, at_local=local_now, dark=dark,
                                         on_since=on_since, capped=dom.setdefault(_VM_CAPPED, {}),
                                         lit=on_now & set(on_since), on_by_hand=on_now - set(on_since),
-                                        anchored=set(anchors) if window else set())
+                                        anchored=open_now)
         if anchors:
-            decisions, held = apply_anchors(decisions, anchors, window, set(on_since), on_now)
-            if held:
+            decisions, lit = apply_anchors(decisions, anchors, open_now, set(on_since), on_now)
+            if lit:
                 used.add("anchor")
         for rule in used:
             _count_rule_once_a_day(hass, rule, local_now.date().isoformat())

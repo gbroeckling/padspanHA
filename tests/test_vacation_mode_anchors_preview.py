@@ -51,53 +51,67 @@ def test_anchor_ids_are_lights_only_capped_and_deduplicated():
     assert vm.anchor_ids({}) == [] and vm.anchor_ids({"vacation_mode_anchors": "light.porch"}) == []
 
 
-def test_the_anchor_window_runs_from_dark_to_bedtime():
-    eve = datetime(2026, 10, 27, 19, 0)
-    assert vm.anchor_window(eve, True, "")
-    assert not vm.anchor_window(eve, False, "") and not vm.anchor_window(eve, None, "")
-    # No bedtime: about 23:00, with the bedtime's nightly jitter.
-    assert vm.anchor_window(eve.replace(hour=22, minute=30), True, "")
-    assert not vm.anchor_window(eve.replace(hour=23, minute=30), True, "")
-    # A bedtime past midnight carries it through.
-    assert vm.anchor_window(datetime(2026, 10, 28, 0, 15), True, "01:30")
-    assert not vm.anchor_window(datetime(2026, 10, 28, 2, 0), True, "01:30")
-    # Dark before sunrise is not the evening.
-    assert not vm.anchor_window(datetime(2026, 10, 28, 6, 0), True, "")
+def test_an_evening_light_is_held_over_the_span_it_was_on_until_bedtime():
+    # Tuesday evenings it was on 18:00-23:30; Wednesdays 21:00 to 01:30.
+    entry = {"evening": {"1": [18 * 60, 23 * 60 + 30], "2": [21 * 60, 25 * 60 + 30], "*": None}}
+    tue = datetime(2026, 10, 27, 0, 0)
+    J = vm.ANCHOR_JITTER_MIN
+    assert vm.anchor_open(entry, "light.porch", tue.replace(hour=20), "")
+    assert not vm.anchor_open(entry, "light.porch", tue.replace(hour=17, minute=60 - J - 1), "")
+    assert not vm.anchor_open(entry, "light.porch", tue.replace(hour=23, minute=30 + J), "")
+    # The bedtime still ends it.
+    assert not vm.anchor_open(entry, "light.porch", tue.replace(hour=22, minute=45), "22:00")
+    # Past midnight belongs to the evening before.
+    assert vm.anchor_open(entry, "light.porch", datetime(2026, 10, 29, 0, 30), "")
+    assert not vm.anchor_open(entry, "light.porch", datetime(2026, 10, 28, 0, 30), "")
+    # A weekday it was not on, a light with no evening history, the daytime.
+    assert not vm.anchor_open(entry, "light.porch", datetime(2026, 10, 30, 20, 0), "")
+    assert not vm.anchor_open({}, "light.porch", tue.replace(hour=20), "")
+    assert not vm.anchor_open(entry, "light.porch", tue.replace(hour=12), "")
+    assert vm.anchors_open({"light.porch": entry}, ["light.porch", "light.gone"], tue.replace(hour=20), "") == {"light.porch"}
 
 
 def test_anchors_go_on_in_the_window_and_off_only_if_vacation_mode_lit_them():
     dec = {"light.a": False}
-    out, held = vm.apply_anchors(dec, ["light.porch", "light.a"], True, set())
+    out, held = vm.apply_anchors(dec, ["light.porch", "light.a"], {"light.porch", "light.a"}, set())
     assert out == {"light.a": True, "light.porch": True} and held
-    out, held = vm.apply_anchors({"light.porch": True}, ["light.porch"], True, set())
+    out, held = vm.apply_anchors({"light.porch": True}, ["light.porch"], {"light.porch"}, set())
     assert not held                                   # the pattern had it on anyway
-    # Past the window: the pattern decides; one it says nothing about goes off
+    # Past its span: the pattern decides; one it says nothing about goes off
     # only if Vacation Mode turned it on.
-    out, _ = vm.apply_anchors({"light.a": True}, ["light.porch", "light.a"], False, {"light.porch"})
+    out, _ = vm.apply_anchors({"light.a": True}, ["light.porch", "light.a"], set(), {"light.porch"})
     assert out == {"light.a": True, "light.porch": False}
-    out, _ = vm.apply_anchors({}, ["light.porch"], False, set())
+    out, _ = vm.apply_anchors({}, ["light.porch"], set(), set())
     assert out == {}                                  # a person's porch light: left alone
 
 
-async def test_the_tick_holds_an_anchor_on_after_dark_even_with_no_pattern(monkeypatch):
-    now = datetime(2026, 1, 15, 12, 0, 0)            # conftest's clock (as_local: naive UTC)
+async def test_the_tick_holds_an_anchor_over_its_evening_with_no_sun_at_all(monkeypatch):
+    from datetime import timezone
+    from homeassistant.util import dt as dt_util
+    now = datetime(2026, 1, 15, 12, 0, 0)            # conftest's clock (as_local: naive UTC); a Thursday
+    # Its only history: Thursday evenings 19:00-22:00. No routine slots.
     st = _settings(vacation_mode_enabled=True, vacation_mode_enabled_at=now.timestamp(),
-                   vacation_mode_pattern={}, vacation_mode_pattern_until=now.timestamp(),
-                   vacation_mode_anchors=["light.porch"])
-    hass = _hass(st, _states(**{"light.porch": "off"}))
+                   vacation_mode_pattern={"light.porch": {"evening": {"3": [19 * 60, 22 * 60]}}},
+                   vacation_mode_pattern_until=now.timestamp(), vacation_mode_anchors=["light.porch"])
+    hass = _hass(st, _states(**{"light.porch": "off"}))       # no sun.sun
     log = vm.VacationLog.__new__(vm.VacationLog)
     log.entries, log._loaded = [], True
     log._store = SimpleNamespace(async_delay_save=lambda *a: None)
     hass.data[DOMAIN][vm._VM_LOG] = log
-    monkeypatch.setattr(vm, "_dark_now", lambda *a: True)
+
+    def no_sun(*a):
+        raise AssertionError("evening lights must not read the sun")
+    monkeypatch.setattr(vm, "_dark_now", no_sun)
+    monkeypatch.setattr(vm, "_sun_times", no_sun)
     monkeypatch.setattr(vm, "_async_refresh_pattern_if_stale", AsyncMock())
+    monkeypatch.setattr(dt_util, "utcnow", lambda: datetime(2026, 1, 15, 20, 30, tzinfo=timezone.utc))
     await vm._async_tick(hass)
     hass.services.async_call.assert_called_once_with("light", "turn_on", {"entity_id": "light.porch"})
     assert log.entries[-1][1:] == ["light.porch", 1]
-    # Not dark: no anchor; what it lit goes off again.
+    # Past its evening: what it lit goes off again.
     hass.states.get("light.porch").state = "on"
     hass.services.async_call.reset_mock()
-    monkeypatch.setattr(vm, "_dark_now", lambda *a: False)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: datetime(2026, 1, 15, 23, 0, tzinfo=timezone.utc))
     await vm._async_tick(hass)
     hass.services.async_call.assert_called_once_with("light", "turn_off", {"entity_id": "light.porch"})
 
@@ -124,13 +138,17 @@ def test_the_preview_steps_the_tick_and_matches_its_draws():
     spans = vm.preview_spans(pat, {}, start.timestamp(), datetime.fromtimestamp, lambda ts, at: True)
     t18 = datetime(2026, 10, 27, 18, 0).timestamp()
     assert spans == {"light.a": [[t18, t18 + 3600]]}
-    # With the options and an anchor: capped, held, and bedtime-ended.
+    # With the options and an anchor (on Tuesdays 17:30-23:00 in its
+    # history): capped, held from its evening, and bedtime-ended.
     data = {"vacation_mode_max_on_min": 30, "vacation_mode_bedtime": "22:00"}
-    spans = vm.preview_spans(pat, data, start.timestamp(), datetime.fromtimestamp, lambda ts, at: at.hour >= 17, ["light.porch"])
+    pat = {**pat, "light.porch": {"evening": {"1": [17 * 60 + 30, 23 * 60]}}}
+    spans = vm.preview_spans(pat, data, start.timestamp(), datetime.fromtimestamp, lambda ts, at: None, ["light.porch"])
     assert spans["light.a"][0] == [t18, t18 + 1800]
     porch = spans["light.porch"]
-    assert porch[0][0] == datetime(2026, 10, 27, 17, 0).timestamp()
-    assert 21 * 3600 + 40 * 60 <= porch[0][1] - datetime(2026, 10, 27).timestamp() <= 22 * 3600 + 20 * 60
+    midnight = datetime(2026, 10, 27).timestamp()
+    J = vm.ANCHOR_JITTER_MIN
+    assert (17 * 60 + 30 - J) * 60 <= porch[0][0] - midnight <= (17 * 60 + 30 + J + 5) * 60
+    assert 21 * 3600 + 40 * 60 <= porch[0][1] - midnight <= 22 * 3600 + 20 * 60
     # An end date inside the window: nothing after it.
     end = datetime(2026, 10, 27, 18, 15).timestamp()
     spans = vm.preview_spans(pat, {"vacation_mode_end_at": end}, start.timestamp(), datetime.fromtimestamp, lambda ts, at: True)
@@ -246,9 +264,9 @@ def test_longest_on_leaves_an_anchor_in_its_window_alone_and_uncounted():
 
 
 def test_an_anchor_already_on_is_not_counted_as_held():
-    _, held = vm.apply_anchors({}, ["light.porch"], True, {"light.porch"}, {"light.porch"})
+    _, held = vm.apply_anchors({}, ["light.porch"], {"light.porch"}, {"light.porch"}, {"light.porch"})
     assert not held
-    _, held = vm.apply_anchors({}, ["light.porch"], True, set(), set())
+    _, held = vm.apply_anchors({}, ["light.porch"], {"light.porch"}, set(), set())
     assert held
 
 

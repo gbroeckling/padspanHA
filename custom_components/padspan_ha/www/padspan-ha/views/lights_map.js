@@ -1670,7 +1670,10 @@ export function vacationOptionsOf(s) {
            end_at: s.vacation_mode_end_at || 0, pause_home: !!s.vacation_mode_pause_home,
            bedtime: s.vacation_mode_bedtime || "", max_on_min: s.vacation_mode_max_on_min || 0,
            max_lights: s.vacation_mode_max_lights || 0,
-           anchors: Array.isArray(s.vacation_mode_anchors) ? s.vacation_mode_anchors.slice() : [] };
+           anchors: Array.isArray(s.vacation_mode_anchors) ? s.vacation_mode_anchors.slice() : [],
+           source: s.vacation_mode_source === "month" ? "month" : "last_week",
+           running: !!s.vacation_mode_enabled,
+           trip_source: s.vacation_mode_trip_source === "last_week" ? "last_week" : "month" };
 }
 export function vacationEndsText(s) {
   const ts = s && s.vacation_mode_end_at;
@@ -1708,6 +1711,29 @@ function _vacOptionsBox(host) {
     sel.addEventListener("change", () => save({ [key]: parseInt(sel.value, 10) }));
     return sel;
   };
+  // Where each weekday's routine comes from (Garry, 2026-10-31): last week
+  // or the monthly average. Fixed for a trip when it is turned on.
+  const SRC = { last_week: "Last week", month: "Monthly average" };
+  const srcNote = el("div", { class: "muted lv-vac-opt-note" }, "");
+  const paintSrcNote = () => {
+    srcNote.textContent = "Last week: each day plays like the same day last week. "
+      + "Monthly average: each weekday from the last month's average."
+      + (o.running ? ` This trip plays from ${o.trip_source === "last_week" ? "last week" : "the monthly average"}; `
+        + "a change applies the next time Vacation Mode is turned on." : "");
+  };
+  const srcBtns = Object.entries(SRC).map(([v, t]) => {
+    const b = el("button", { type: "button", "aria-pressed": String((o.source || "last_week") === v) }, t);
+    b.addEventListener("click", async () => {
+      if ((o.source || "last_week") === v) return;
+      const was = o.source || "last_week";
+      const paint = (cur) => srcBtns.forEach((x, i) => x.setAttribute("aria-pressed", String(Object.keys(SRC)[i] === cur)));
+      paint(v);
+      if (await save({ vacation_mode_source: v })) o.source = v; else paint(was);
+    });
+    return b;
+  });
+  const srcSeg = el("span", { class: "lv-vac-seg", role: "group", "aria-label": "Routine from" }, srcBtns);
+  paintSrcNote();
   // After dark, with how long after sunset.
   const dark = el("span", { class: "lv-vac-inline" }, [
     check("vacation_mode_dark_only", o.dark_only),
@@ -1767,6 +1793,8 @@ function _vacOptionsBox(host) {
   const showPreview = (r) => {
     previewOut.textContent = "";
     const lights = (r && r.lights) || [];
+    if (r && r.source) previewOut.appendChild(el("div", { class: "lv-vac-opt-lbl" },
+      r.source === "month" ? "From the monthly average" : "From last week"));
     if (!lights.length) {
       previewOut.appendChild(el("div", { class: "muted" },
         r && r.routine === "none" ? "Nothing yet: there is no light history to learn a routine from." : "Nothing would be switched in the next 24 hours."));
@@ -1794,6 +1822,10 @@ function _vacOptionsBox(host) {
       status,
       el("button", { class: "btn inline", style: "margin-left:auto", onclick: () => _vacOptsToggle(host, false) }, "Close"),
     ]),
+    el("div", { class: "lv-vac-opt" }, [
+      el("div", { class: "lv-vac-opt-main" }, [el("span", { class: "lv-vac-opt-lbl" }, "Routine from"), srcSeg]),
+      srcNote,
+    ]),
     row("Only after dark", dark, "Lights it would turn on during the day stay off."),
     row("Ends", el("span", { class: "lv-vac-inline" }, [end, endClear]),
       "It turns itself off then, and you get the same notice as when it's turned off."),
@@ -1808,10 +1840,8 @@ function _vacOptionsBox(host) {
       [0, "no limit"], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [6, "6"], [8, "8"], [12, "12"]]),
       "Lights it already has on keep their place; the rest wait. Evening lights and lights turned on by hand don't count."),
     host.onVacationLights ? row("Evening lights", anchorList,
-      "On from dark until bedtime (about 11 pm if none is set), like a porch or hall light; turned off in the evening, "
-      + "one comes back on within 5 minutes. Up to 10.") : null,
-    host.onVacationLights ? el("div", { class: "muted lv-vac-opt-note" },
-      "Dark follows the after-dark offset above and needs Home Assistant's sun times (sun.sun).") : null,
+      "On when they were on in the evening last week (or on average), like a porch or hall light, and off at bedtime; "
+      + "turned off in the evening, one comes back on within 5 minutes. Up to 10.") : null,
     host.onVacationPreview ? row("Preview", previewBtn,
       "What it would switch over the next 24 hours, with these options. Nothing is switched.") : null,
     previewOut,
