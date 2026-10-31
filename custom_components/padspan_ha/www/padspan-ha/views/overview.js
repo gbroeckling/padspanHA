@@ -2338,7 +2338,7 @@ export function renderClassic(ctx){
     } else {
       const msg = document.createElement("div");
       msg.className = "muted"; msg.style.cssText = "font-size:12px;padding:8px";
-      msg.textContent = "No rooms drawn yet. Go to Maps → Edit to draw room boundaries.";
+      msg.textContent = "No rooms drawn yet. Go to Mapping → Edit to draw room boundaries.";
       roomListPanel.appendChild(msg);
     }
 

@@ -812,7 +812,7 @@ export function helpTexts() { return {
       t("Phantom Room Entries — shown only when there are some: entity IDs in PadSpan's room map that no longer exist in Home Assistant (left over from the sample house or an earlier install). \"Clear phantom room data\" removes them from PadSpan only; no Home Assistant entity is changed."),
       t("HA Entities — permanently deletes an entity from Home Assistant's entity registry, to tidy up old or duplicate trackers. Automations that use it will break. An entity that belongs to an integration that is still running (Bermuda, for example) comes back at that integration's next update; to stop that, disable the device or the integration in Home Assistant."),
       t("HA Areas (Rooms) — deletes an area from Home Assistant itself, not just from PadSpan: every device and entity in it becomes unassigned, for every integration, and its room colour is lost. Add it again in HA Settings → Areas & Zones if you need to."),
-      t("Uploaded Maps — deletes a floor plan, together with that map's calibration points. Traceback recordings stop pointing at it, and it is taken off the list of hidden maps. Make a backup first if you might want them back."),
+      t("Uploaded Maps — deletes a floor plan and the room shapes drawn on it. Its calibration points are kept, no longer on any map, and still used for positioning; only an old point saved without a real-world position is deleted. To remove the points too, first use that map's Clear in Settings → Scanner Map. Traceback recordings stop pointing at the map, and it is taken off the list of hidden maps. Make a backup first if you might want it back."),
       t("Backup & Restore — \"Create Backup\" saves PadSpan's data: settings, calibration, maps and their images, labels, alerts, history, Live Aboard and more. \"Restore…\" lets you tick what to bring back; maps and the room model are restored together, so positions can't point at a missing map. Backups are kept inside PadSpan, so a Factory Reset deletes them too."),
       t("Integration Controls — \"Reload integration\" restarts PadSpan without restarting Home Assistant (useful when things seem stuck). \"Reset room colors\" clears every room colour you picked; colours are then made from the room names again."),
     ],
@@ -820,7 +820,7 @@ export function helpTexts() { return {
   manage_entities: {
     title: t("Manage → HA Entities"),
     body: [
-      t("The entities PadSpan creates in Home Assistant for each Bluetooth device you named, and the other ways it can take in or send out data."),
+      t("The entities PadSpan creates in Home Assistant for each Bluetooth device you named, and the other ways it can take in or send out data. A named device has up to four kinds, their IDs taken from its name: for Car Keys, device_tracker.car_keys, sensor.car_keys_area, sensor.car_keys_distance, and a sensor.car_keys_distance_… for each receiver that hears it."),
       t("Entity Reference and Entity Type Library — what each kind of entity is for, its states and attributes, with automation examples ready to paste."),
       t("Entity Publishing Controls — untick a kind you don't need: the device tracker, the area sensor, the distance sensors, the occupancy sensor or the sub-zone sensors. Existing ones are disabled in Home Assistant, and ticking it again brings them back. Reload the integration (Manage → Data → Integration Controls) for new devices to follow the change."),
       t("Live Entity Inventory — every PadSpan entity in Home Assistant, with its state, its health and the automations that use it, and tips such as sensors nothing uses."),
@@ -1022,7 +1022,7 @@ export function helpTexts() { return {
     ],
   },
 
-  // ── Health & System Critics ────────────────────────────────────────────
+  // ── Health ────────────────────────────────────────────────────────────
   health: {
     title: t("Health — is PadSpan working?"),
     body: [

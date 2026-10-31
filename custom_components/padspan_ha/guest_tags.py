@@ -13,7 +13,7 @@ THE TAG is a device PadSpan already tracks under a label the owner gave it
 ("Guest tag 1"), so its identity across address changes, its tracker entity
 and its history are the ones every labelled device has. The label stays the
 tag's: the guest's name belongs to the stay, never to the tag, so
-device_tracker.padspan_guest_tag_1 is the same entity for every guest.
+device_tracker.guest_tag_1 is the same entity for every guest.
 
 A STAY (session) is one guest with that tag, from start to end: who, until
 when, the rooms they should not go into, the notices wanted, quiet hours,

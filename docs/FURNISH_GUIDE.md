@@ -101,5 +101,5 @@ email, phone number, address or link is refused. You can withdraw a share later.
 
 ## Clearing it out
 
-**Settings → UI Structure → 🏠 Live Aboard** has **Remove all furniture…** (administrators). A
+**Settings → Atlas → 🏠 Live Aboard** has **Remove all furniture…** (administrators). A
 backup is taken first; to bring the furniture back, restore that backup from Backup & Restore.

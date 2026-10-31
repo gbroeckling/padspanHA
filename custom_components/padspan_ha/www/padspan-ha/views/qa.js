@@ -83,7 +83,7 @@ export function render(ctx){
       label: "Objects tagged",
       pass: objects.some(o => o.user_label),
       detail: objects.filter(o => o.user_label).length + " tagged",
-      fix: "Tag devices in the Objects tab.",
+      fix: "Tag devices in Devices → By Room.",
       fixView: "objects",
     },
     {

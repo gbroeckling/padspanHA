@@ -16,11 +16,11 @@ registered the first time a scanner reports an advertisement from the device.
 State returns None (unavailable) while the device is away.
 
 Entity ID examples:
-  sensor.padspan_car_keys_area
-  sensor.padspan_car_keys_distance
-  sensor.padspan_car_keys_distance_kitchen_proxy
+  sensor.car_keys_area
+  sensor.car_keys_distance
+  sensor.car_keys_distance_kitchen_proxy
 Automation example:
-  trigger when sensor.padspan_wallet_distance_bedroom_proxy < 1.5
+  trigger when sensor.wallet_distance_bedroom_proxy < 1.5
 """
 from __future__ import annotations
 

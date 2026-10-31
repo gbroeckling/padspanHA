@@ -137,7 +137,7 @@ export function render(ctx){
         ctx.state.view = "objects";
         ctx.actions.renderRooms();
       });
-      unidBadge.title = "Click to view in Objects tab";
+      unidBadge.title = "Click to view in Devices → By Room";
     }
 
     grid.appendChild(el("div",{class:"card"},[

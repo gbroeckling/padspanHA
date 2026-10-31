@@ -30,7 +30,7 @@
 const BACK_LABELS = {
   overview: "Overview", follow: "Follow", rooms: "Rooms", receivers: "Receivers",
   calibration: "Calibration", settings: "Settings", maps: "Mapping", setup: "Setup",
-  guests: "Guests", training: "Training", purelive: "Pure Live",
+  guests: "Guests", training: "Training", purelive: "Live Tracker",
 };
 
 // The parts a link can open. Settings cards carry data-focus-part="<part>"

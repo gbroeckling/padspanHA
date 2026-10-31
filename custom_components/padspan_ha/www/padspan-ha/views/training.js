@@ -1431,7 +1431,7 @@ function _svgAtlasDoor() {
 @keyframes doorSwing{0%,100%{opacity:1}50%{opacity:0.3}}
 .doorState{animation:doorSwing 2.5s ease-in-out infinite}
 </style>
-<text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">A wall becomes a real RF barrier</text>
+<text x="200" y="16" text-anchor="middle" fill="#52b788" font-size="11" font-weight="600" font-family="system-ui">A door in a signal wall</text>
 <rect x="16" y="30" width="220" height="160" rx="6" fill="#0a1a0f" stroke="#1b3526" stroke-width="1"/>
 <line x1="30" y1="110" x2="110" y2="110" stroke="#94a3b8" stroke-width="4"/>
 <line x1="140" y1="110" x2="222" y2="110" stroke="#94a3b8" stroke-width="4"/>
@@ -2001,10 +2001,11 @@ const MANUAL_SECTIONS = [
     title: "HA Entities & Automations",
     icon: "🤖",
     paragraphs: [
-      "When you name a device, PadSpan adds it to Home Assistant as a device with these entities, named after it. For a tag called Car Keys:",
+      "When you name a device, PadSpan adds it to Home Assistant as a device with up to four kinds of entity. Their IDs come from the name you gave it. For a tag called Car Keys:",
       "device_tracker.car_keys — its state is the room it is in; not_home once it hasn't been heard for longer than the away timeout; unknown while it is home but has no room yet. Attributes: address, padspan_id (its fixed PadSpan ID), rssi (signal strength, while home), age_s (seconds since it was last heard), user_label and home (true or false).",
       "sensor.car_keys_area — the same room as its state (unknown, or not_home when away). Attributes: kind, address, padspan_id, rssi, age_s, sources (the receivers that hear it), home, room_confidence and rssi_margin_confidence; for a beacon also ibeacon_uuid, ibeacon_major and ibeacon_minor; and num_addresses with the first 5 all_addresses when it uses several addresses.",
-      "sensor.car_keys_distance — metres to the nearest receiver; and a distance sensor for each receiver that hears it, named after that receiver and added the first time it hears the device. Both are empty while it is away. Use them for automations like within 1.5 m of the bedside receiver.",
+      "sensor.car_keys_distance — metres to the nearest receiver.",
+      "sensor.car_keys_distance_kitchen_proxy — metres to one receiver: there is one for each receiver that hears it, named after that receiver and added the first time it hears the device. The distance sensors are empty while it is away. Use them for automations like within 1.5 m of the bedside receiver.",
       "Use them in automations (for example: when sensor.car_keys_area changes to Kitchen), and link the tracker to a person in HA Settings → People for a combined home/away. Phones tracked with Track Your Phone get the same entities under the phone's name.",
       "Manage → HA Entities → Entity Publishing Controls turns each kind of entity on or off.",
       "padspan_ha.dump_devices — run it from HA Developer Tools → Actions (Home Assistant's name for services) for a full JSON list of every tracked device and its state. It returns its answer to scripts and automations too.",

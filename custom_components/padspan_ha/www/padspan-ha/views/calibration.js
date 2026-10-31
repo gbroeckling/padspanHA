@@ -5836,7 +5836,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     if (!visibleObjs.length) {
       const msg = document.createElement("div");
       msg.style.cssText = "font-size:12px;color:#94a3b8";
-      msg.textContent = "No BLE objects available. Label objects in the Objects tab or follow them in the Follow tab.";
+      msg.textContent = "No BLE objects available. Name them in Devices → By Room or follow them on Follow.";
       availCard.appendChild(msg);
       return;
     }

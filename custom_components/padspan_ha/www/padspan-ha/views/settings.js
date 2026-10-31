@@ -2202,7 +2202,7 @@ function _settingsPresence(ctx, el){
 
   <div style="font-weight:600;color:#a7f3d0;margin-bottom:4px">Chipolo, Nutfind, and Other Tags</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li>Most use fixed MACs or iBeacon — check the Objects tab first.</li>
+    <li>Most use fixed MACs or iBeacon — check Devices → By Room first.</li>
     <li>If rotating: pair with ESP32 to extract IRK.</li>
   </ul>
 </div>
@@ -2211,10 +2211,10 @@ function _settingsPresence(ctx, el){
 <div style="margin-bottom:16px">
   <div style="font-weight:700;color:#f472b6;font-size:13px;margin-bottom:4px">Laptops, Headphones & Other BLE Devices</div>
   <ul style="margin:0 0 8px;padding-left:20px">
-    <li><b>Windows laptops</b>: Usually use a fixed public MAC for Bluetooth. Check the Objects tab — if it appears with a consistent address, no IRK needed.</li>
+    <li><b>Windows laptops</b>: Usually use a fixed public MAC for Bluetooth. Check Devices → By Room — if it appears with a consistent address, no IRK needed.</li>
     <li><b>Mac laptops</b>: Use BLE privacy with rotating MACs. Extract IRK from the macOS Bluetooth plist (same Terminal method as iPhone above, look for the Mac's own entry).</li>
     <li><b>Bluetooth headphones/earbuds</b>: Most use a <b>fixed MAC</b> when actively connected/broadcasting. No IRK needed — PadSpan tracks them directly.</li>
-    <li><b>Fitness bands</b>: Varies by manufacturer. Check Objects tab first. If rotating MAC, try ESP32 pairing method.</li>
+    <li><b>Fitness bands</b>: Varies by manufacturer. Check Devices → By Room first. If rotating MAC, try ESP32 pairing method.</li>
   </ul>
 </div>
 
@@ -3614,13 +3614,13 @@ function _settingsFeatures(ctx, el){
     {
       key: "roomplan_import_enabled",
       label: "RoomPlan Import",
-      desc: "Lets Maps → Layout import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), " +
+      desc: "Lets Mapping → Layout import an Apple RoomPlan scan exported as JSON (CapturedRoom or CapturedStructure), " +
             "beside Sweet Home 3D files. Rooms come in as a candidate to review before anything is saved.",
     },
     {
       key: "vacuum_import_enabled",
       label: "Robot Vacuum Import",
-      desc: "Lets Maps → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms " +
+      desc: "Lets Mapping → Layout import a robot vacuum's map (Valetudo, Dreame or Xiaomi) as a new floor plan, with its rooms " +
             "on a floor that has no plans yet. Admins only. A robot already linked keeps working while this is off.",
     },
     {

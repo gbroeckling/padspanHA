@@ -7140,7 +7140,7 @@ function _stack(ctx, maps, helpBtn){
     tbl.appendChild(tbody2);
     roomListPanel.appendChild(tbl);
   } else {
-    roomListPanel.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px"},"No rooms drawn yet. Go to Maps → Edit to draw room boundaries."));
+    roomListPanel.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px"},"No rooms drawn yet. Go to Mapping → Edit to draw room boundaries."));
   }
   card.appendChild(roomListPanel);
 
@@ -8996,7 +8996,7 @@ export function _wireTransformHandles(ctx, svg, g, eid, frame, o, toVB) {
 function _lightsTourSteps(paid){
   const steps = [
     { title: "Welcome to the Atlas builder",
-      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs — and, if you have a key, its shape, size, colour and effects too.",
+      body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs a PadSpan Bright Pro or PadSpan Pro key.",
       find: null },
     { title: "Place a light",
       body: "Drag any light on the map to its real spot. Or click + Place next to its row in the list below the map, then tap the map where it is.",
@@ -9014,7 +9014,7 @@ function _lightsTourSteps(paid){
       find: (wrap) => _lightsTourFindButton(wrap, "Showcase") });
   } else {
     steps.push({ title: "What a key adds",
-      body: "Placement — what you just did — is free. Fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need PadSpan Bright Pro or PadSpan Pro. " + _LIC_PATH + " is where a key goes once you have one.",
+      body: "Without a key, each light stays at the centre of its room, and you can still switch it from the map. Placing it where it really hangs, fixture shapes, sizes and angles, WLED strips, Showcase and Fit room need PadSpan Bright Pro or PadSpan Pro. " + _LIC_PATH + " is where a key goes once you have one.",
       find: null });
   }
   steps.push({ title: "You're set",
