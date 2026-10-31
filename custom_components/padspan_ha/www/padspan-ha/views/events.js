@@ -17,7 +17,7 @@ export function render(ctx){
   // Header
   root.appendChild(el("div",{class:"row",style:"align-items:center;gap:8px;margin-bottom:14px"},[
     el("h2",{},"Events"),
-    helpBtn("events"),
+    helpBtn("manage_events"),
   ]));
 
   // Filter to actionable events

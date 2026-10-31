@@ -920,7 +920,7 @@ function _settingsPresence(ctx, el){
         quietGo,
       ]),
       el("div",{class:"muted",style:"font-size:12px"},
-        "Hides all unidentified BLE devices from the Objects list, overview counts, and dropdowns. " +
+        "Hides all unidentified BLE devices from Devices → By Room, overview counts, and dropdowns. " +
         "Scanning continues in the background so tracked objects still work. " +
         "It only changes what this panel shows, not how much work Home Assistant or PadSpan does. " +
         "Ideal for busy environments (condos, offices) where you only care about your own devices. " +
@@ -3848,7 +3848,7 @@ function _settingsFeatures(ctx, el){
 
     const delBtn = el("button",{class:"btn",style:"background:#991b1b;border-color:#991b1b"},"Delete all recorded data");
     delBtn.addEventListener("click", async()=>{
-      if(!confirm("Delete ALL recorded forensics sessions? This cannot be undone.\n\nNote: the 'Possible' tier in the Forensics tab comes from the Objects first/last-seen history and is not affected by this delete.")) return;
+      if(!confirm("Delete ALL recorded forensics sessions? This cannot be undone.\n\nNote: the 'Possible' tier in the Forensics tab comes from the device first/last-seen history (Devices → By Room) and is not affected by this delete.")) return;
       if(!confirm("Are you sure? Every recorded presence session will be permanently deleted.")) return;
       delBtn.disabled = true; delBtn.textContent = "Deleting…";
       try {

@@ -1571,7 +1571,7 @@ const WALKTHROUGHS = [
     summary: "Real-world testing with 20+ ESP32 boards — what actually works for room-level tracking and what doesn't.",
     steps: [
       { title: "The Antenna Makes the Difference",            text: "I had about a dozen old ESP32 boards kicking around from a project three years ago, and ordered 10 more specifically for testing. The old boards made OK BLE scanners when they happened to have a decent antenna, but most were poor. The signal readings jumped around too much from scan to scan — a room that read −62 one moment would read −78 the next. Swapping to boards with a full-size external antenna was the single biggest improvement. The chip matters way less than the antenna.", svg: _svgAntennaComparison },
-      { title: "Three Boards That Worked",                    text: "Out of everything I tested, three setups stood out. First: an ESP32-S3 with a LAN (Ethernet) port and an external antenna — I'll be honest, this one didn't actually test better than the WiFi version, but the theory is sound (no WiFi radio competing with BLE) and it's the one I'd pick for a permanent install. Second: an ESP32-S3 with WiFi and a full-size antenna — this is probably the most practical choice for most people. Third: an ESP32-C3 with a full-size antenna — cheaper, and it still did the job well. What to avoid: older ESP32 boards (not S3 or C3) with only a tiny chip antenna on the board. They're fine for home/away or as a basic Bluetooth proxy, but too noisy to tell rooms apart. Whatever you buy, look for an IPEX (u.FL) antenna connector and use a 2.4 GHz antenna with it.", svg: _svgBoardRanking },
+      { title: "Three Boards That Worked",                    text: "Out of everything I tested, three setups stood out. First: an ESP32-S3 with a LAN (Ethernet) port and an external antenna — it didn't actually test better than the WiFi version, but the theory is sound (no WiFi radio competing with BLE) and it's the one I'd pick for a permanent install. Second: an ESP32-S3 with WiFi and a full-size antenna — this is probably the most practical choice for most people. Third: an ESP32-C3 with a full-size antenna — cheaper, and it still did the job well. What to avoid: older ESP32 boards (not S3 or C3) with only a tiny chip antenna on the board. They're fine for home/away or as a basic Bluetooth proxy, but too noisy to tell rooms apart. Whatever you buy, look for an IPEX (u.FL) antenna connector and use a 2.4 GHz antenna with it.", svg: _svgBoardRanking },
       { title: "Why Room Tracking Is Harder Than Home/Away",   text: "Getting a device's room right on a map is genuinely challenging. Home/away just needs to see any signal from any scanner — easy. Room-level tracking needs to reliably tell which scanner is closest, and sometimes the difference is only 7 dBm. A noisy chip antenna can flip that decision randomly. The whole point of PadSpan is placing devices in the correct room on a floor plan, and that only works when the signal readings are consistent enough to trust.", svg: _svgAntennaDetail },
     ],
   },
@@ -1938,12 +1938,6 @@ const MANUAL_SECTIONS = [
     helpKeys: ["history"],
   },
   {
-    id: "help_events",
-    title: "Events",
-    icon: "⚡",
-    helpKeys: ["events"],
-  },
-  {
     id: "help_qa",
     title: "QA",
     icon: "✅",
@@ -2053,7 +2047,7 @@ const MANUAL_SECTIONS = [
       "Too many unknown devices cluttering the view — turn on Quiet mode (the Quiet switch on Overview) to hide unidentified devices, or use 'Clear unidentified' on Overview to remove them. Tagged and followed devices are always kept.",
       "Sample data lingering — in Manage → Data, use Untag on leftover names, or the Orphan Polygons cleaner, to remove sample-mode leftovers.",
       "3D floor alignment looks wrong — after setting alignment in Mapping → 3D Stack, click Save Alignment. The 3D preview will then use the correct reference aspect ratio. Re-open and re-save if alignment was set in an older version.",
-      "Asking support for help — open Diagnostics (QA → Go to Diagnostics) or Monitor → Export for support, copy the report and attach it to a GitHub issue or an email to support.",
+      "Asking support for help — open Diagnostics (QA → Go to Diagnostics) or Monitor → Export for support, copy the report and email it to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first).",
     ],
   },
 ];

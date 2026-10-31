@@ -1310,6 +1310,7 @@ function _haEntityLibrary(ctx, el){
           {{ states.sensor
              | selectattr('entity_id', 'in', integration_entities('padspan_ha'))
              | selectattr('entity_id', 'search', '_area$')
+             | rejectattr('entity_id', 'search', '_distance_')
              | map(attribute='state')
              | select('eq', 'kitchen')
              | list | length > 0 }}
@@ -1380,6 +1381,7 @@ content: >-
   {% set sensors = states.sensor
      | selectattr('entity_id', 'in', integration_entities('padspan_ha'))
      | selectattr('entity_id', 'search', '_area$')
+     | rejectattr('entity_id', 'search', '_distance_')
      | list %}
   | Device | Room | Confidence |
   |--------|------|------------|

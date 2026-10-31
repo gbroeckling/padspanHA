@@ -751,7 +751,7 @@ function _diagExport(ctx, el){
   diagCard.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
     el("div",{},[
       el("div",{style:"font-weight:700"},"Export for support"),
-      el("div",{class:"muted"},"When something breaks, copy this and attach it to a GitHub issue or an email to support."),
+      el("div",{class:"muted"},"When something breaks, copy this and email it to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first)."),
     ]),
     el("div",{style:"display:flex;gap:8px;align-items:center"},[btnBuild,btnSelect,btnCopy]),
   ]));

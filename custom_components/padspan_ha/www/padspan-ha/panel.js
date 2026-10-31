@@ -726,9 +726,10 @@ class PadSpanHaApp extends HTMLElement {
     // which reads states off its own hass: hand it each new one.
     if(this.state && this.state._overviewAtlas) this.state._overviewAtlas.hass = this._hass;
     // Follow the sun (_sunLook): the look changes at sunrise and sunset.
-    // The help in the HA profile's language, asked again only when it changes.
+    // The help in the HA profile's language: fetched on first need (a "?" or
+    // Training, see _loadHelpLanguage), asked again only when it changes.
     const langSeen = hass ? ((hass.locale && hass.locale.language) || hass.language || "") : "";
-    if(hass && langSeen !== this._langSeen){ this._langSeen = langSeen; this._loadHelpLanguage(); }
+    if(hass && langSeen !== this._langSeen){ this._langSeen = langSeen; if(this._helpLoad) this._loadHelpLanguage(); }
     if(this.state?.settings?.theme_follow_sun === true && (hass?.states?.["sun.sun"]?.state || null) !== (this._sunSeen ?? null)) this._applyTheme();
     // Motion sensors back from an offline blip (motion_reconnects.py), pushed
     // on every change — one subscription per connection (a new connection,
@@ -3540,16 +3541,37 @@ class PadSpanHaApp extends HTMLElement {
     this._renderSidebarTrial();
   }
 
-  /** HELP in hass's language: a shipped one loads i18n/<lang>/help.json and
-   *  rebuilds HELP through it; English keeps the imported HELP untouched. */
+  /** HELP in hass's language, loaded on first need (the first "?" or the
+   *  Training page), not at startup: a shipped one fetches
+   *  i18n/<lang>/help.json (~340 KB) and rebuilds HELP through it; English
+   *  keeps the imported HELP untouched and fetches nothing. Once per language. */
   _loadHelpLanguage(){
-    Promise.all([_i18nPromise, _criticalPromise]).then(([I18N]) => I18N ? I18N.useLanguage(this._hass, ["help"]) : "en").then(lang => {
-      if(HELP_MOD && (lang !== "en" || HELP !== HELP_MOD.HELP)) HELP = lang === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();
+    const lang = this._langSeen;
+    if(this._helpLoad && this._helpLoad.lang === lang) return this._helpLoad.p;
+    const before = HELP;
+    const p = Promise.all([_i18nPromise, _criticalPromise]).then(([I18N]) => I18N ? I18N.useLanguage(this._hass, ["help"]) : "en").then(got => {
+      if(HELP_MOD && (got !== "en" || HELP !== HELP_MOD.HELP)) HELP = got === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();
+      // Training draws from HELP: redraw it once the translation is in.
+      if(HELP !== before && this.state && this.state.view === "training") this._scheduleRender();
     }).catch(err => console.warn("PadSpan: help translation failed to load", err));
+    const load = this._helpLoad = { lang, p, done: false };
+    p.then(() => { load.done = true; });
+    return p;
   }
 
-  /** Open a help modal for the given key (content loaded from help_content.js). */
+  /** Open a help modal for the given key. The first one waits up to 2 s for
+   *  the translated help; if it hasn't arrived, the English opens. */
   _showHelp(key){
+    const p = this._loadHelpLanguage();
+    if(this._helpLoad.done) return this._openHelp(key);
+    let opened = false;
+    const open = () => { if(!opened){ opened = true; this._openHelp(key); } };
+    p.then(open);
+    setTimeout(open, 2000);
+  }
+
+  /** The help modal itself (content from help_content.js). */
+  _openHelp(key){
     const h = HELP[key];
     if(!h){ this._toast("No help entry for: " + key, false); return; }
     const body = document.createElement("div");
@@ -3618,10 +3640,10 @@ class PadSpanHaApp extends HTMLElement {
         },
         scannerStatus,
         roomColor: (n)=>roomColor(n, this.state.model),
-        helpBtn: (key)=>{
+        helpBtn: (key, title)=>{
           const b = document.createElement("button");
           b.className = "btn-help";
-          b.title = "Help";
+          b.title = title || "Help";
           b.textContent = "?";
           b.addEventListener("click", (e)=>{ e.stopPropagation(); self._showHelp(key); });
           return b;
@@ -4679,6 +4701,8 @@ class PadSpanHaApp extends HTMLElement {
   // but user interactions are sacred (never destroy mid-action).
   _renderCurrentView(fromPoll){
     if(this.state._factoryResetInProgress) return;
+    // Training is the manual: its translated help is fetched on first open.
+    if(this.state.view === "training" && !this._helpLoad) this._loadHelpLanguage();
     // Left the Overview holding a slim snapshot (Optimize for scale): fetch
     // the whole one now, not at the next poll, so no view draws from it.
     if(this.state.view !== "overview" && this.state.live && this.state.live.snapshot && this.state.live.snapshot.slim && !this._slimRefetch){
@@ -4881,10 +4905,10 @@ class PadSpanHaApp extends HTMLElement {
         && !o._stale && !o._ghost && (o.user_label || o.identified || o.kind === "private_ble")
         && typeof o.x_m === "number" && Number.isFinite(o.x_m) && typeof o.y_m === "number" && Number.isFinite(o.y_m));
       const _steps = [
-        { id: "upload",   label: "Upload Floor Plan",  done: _hasMaps,      wizardStep: 1, view: "maps",        mapsTab: "upload", hint: "Maps \u2192 Upload a floor plan image" },
-        { id: "scale",    label: "Set Scale",           done: _hasScale,     wizardStep: 2, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 Measure tool" },
-        { id: "rooms",    label: "Draw Rooms",          done: _hasRooms,     wizardStep: 3, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 draw room boundaries" },
-        { id: "scanners", label: "Place Scanners",      done: _hasReceivers, wizardStep: 4, view: "maps",        mapsTab: "edit",   hint: "Maps \u2192 Edit \u2192 drag scanners onto the plan" },
+        { id: "upload",   label: "Upload Floor Plan",  done: _hasMaps,      wizardStep: 1, view: "maps",        mapsTab: "upload", hint: "Mapping \u2192 Upload a floor plan image" },
+        { id: "scale",    label: "Set Scale",           done: _hasScale,     wizardStep: 2, view: "maps",        mapsTab: "edit",   hint: "Mapping \u2192 Edit \u2192 Measure tool" },
+        { id: "rooms",    label: "Draw Rooms",          done: _hasRooms,     wizardStep: 3, view: "maps",        mapsTab: "edit",   hint: "Mapping \u2192 Edit \u2192 draw room boundaries" },
+        { id: "scanners", label: "Place Scanners",      done: _hasReceivers, wizardStep: 4, view: "maps",        mapsTab: "edit",   hint: "Mapping \u2192 Edit \u2192 drag scanners onto the plan" },
         { id: "calibrate",label: "Calibrate",           done: _hasCal,       calibWizard: true,   view: "calibration", calibTab: "beacon", hint: "Calibration \u2192 guided walk-through" },
         { id: "positioned", label: "See someone on the map", done: _hasPositioned, view: "follow",
           hint: this.state.dataMode === "live" ? "Follow \u2192 pick your phone or a tag" : "Switch the top bar to Live first" },

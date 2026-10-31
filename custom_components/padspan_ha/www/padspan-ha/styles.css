@@ -417,6 +417,11 @@
 /* Small ? help button — appears in card headers */
 .btn-help{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:22px;border-radius:999px;border:1px solid rgba(82,183,136,.45);background:rgba(82,183,136,.1);color:rgba(82,183,136,.9);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;margin:0;padding:0;line-height:1}
 .btn-help:hover{background:rgba(82,183,136,.22);border-color:rgba(82,183,136,.8)}
+/* The top bar's two "?" (Live/Sample, Basic/Advanced/Development) give way
+   at 1101-1279 px, where PadSpan's own nav is back and, with Home Assistant's
+   sidebar docked, they would wrap the bar onto a second row (both skins).
+   Both topics stay in Training. */
+@media (min-width:1101px) and (max-width:1279px){#dataModeHelp,#complexityHelp{display:none}}
 
 /* Shared card-header row: title on left, ? button on right */
 .card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
@@ -575,6 +580,9 @@
 
 /* ── Desktop top bar (hidden on mobile) ─────────────────────────── */
 .desktop-topbar{display:flex}
+/* One row, always: where the bar is short of room a badge shortens (…) rather than wrap. */
+.desktop-topbar{flex-wrap:nowrap}
+.desktop-topbar>.pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── Mobile bottom navigation bar ──────────────────────────────── */
 .mobile-bottom-nav{

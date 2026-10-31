@@ -971,7 +971,7 @@ function _setup(ctx, el, cs, calData) {
     mapCard.appendChild(mapSel);
   } else {
     mapCard.appendChild(el("div", { style: "font-size:12px;color:#f59e0b" },
-      "No maps uploaded yet. Upload a floor plan in the Maps tab first."));
+      "No maps uploaded yet. Upload a floor plan in Mapping first."));
   }
   wrap.appendChild(mapCard);
   // Right under the floor it is about, not below the fold.
@@ -1103,7 +1103,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   const mapData = maps.find(m => m.id === cs.mapId);
   if (!mapData?.image?.filename) {
     wrap.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "muted" }, "Selected map has no image. Upload a floor plan in the Maps tab."),
+      el("div", { class: "muted" }, "Selected map has no image. Upload a floor plan in Mapping."),
     ]));
     return wrap;
   }
@@ -2572,7 +2572,7 @@ function _tuneTab(ctx, el, cs, calData) {
     wrap.appendChild(el("div", { class: "card" }, [
       el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "No Maps Uploaded"),
       el("div", { style: "font-size:12px;color:#94a3b8" },
-        "Upload floor plan images in the Maps tab first, then return here to fine-tune receiver positions."),
+        "Upload floor plan images in Mapping first, then return here to fine-tune receiver positions."),
     ]));
     return wrap;
   }
@@ -3939,6 +3939,27 @@ function _resolveBeaconAddr(bkKey, snap) {
   return bkKey.replace(/^(ble:|entity:|ibeacon:)/, "");
 }
 
+// Ids a Beacon Tune hard relocation deletes: this beacon's own earlier
+// Beacon Tune points (source "beacon_tune") and its automatic "[auto]"
+// points, both taken where the beacon sat. Points collected by carrying the
+// same device (Pin & Listen, Roam, Walk a room) are never touched. Points
+// saved before Beacon Tune marked its points carry no source and are kept.
+function _beaconTunePurgeIds(points, ids, protectedIds) {
+  const want = new Set([ids.deviceId, ids.key].filter(Boolean).map(v => String(v).toUpperCase()));
+  const lbls = new Set([ids.label, ids.key].filter(Boolean).map(v => String(v).toUpperCase()));
+  const out = [];
+  for (const pt of points || []) {
+    if (!pt || !pt.id || (protectedIds && protectedIds.has(pt.id))) continue;
+    const lbl = String(pt.label || "");
+    const auto = lbl.startsWith("[auto]");
+    if (pt.source !== "beacon_tune" && !auto) continue;
+    const dev = String(pt.device_id || "").toUpperCase();
+    const bare = (auto ? lbl.slice(6).trim() : lbl).toUpperCase();
+    if ((dev && want.has(dev)) || (bare && lbls.has(bare))) out.push(pt.id);
+  }
+  return out;
+}
+
 // ── Beacon Tune tab — 3D iso map with draggable beacon markers ───────────────
 function _beaconTuneTab(ctx, el, cs, calData) {
   const wrap = el("div", { style: "display:flex;flex-direction:column;gap:10px" });
@@ -3950,7 +3971,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     wrap.appendChild(el("div", { class: "card" }, [
       el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px;color:#52b788" }, "No Maps Uploaded"),
       el("div", { style: "font-size:12px;color:#94a3b8" },
-        "Upload floor plan images in the Maps tab first, then return here to mark beacon reference positions."),
+        "Upload floor plan images in Mapping first, then return here to mark beacon reference positions."),
     ]));
     return wrap;
   }
@@ -5424,9 +5445,10 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         if (doRelocation) {
           const confirmPurge = confirm(
             `This is the 3rd consecutive calibration for "${entry.bk.label || bkKey}" within a few minutes.\n\n` +
-            `This will REPLACE all previous calibration data for this beacon with the new readings.\n\n` +
-            `Choose OK to replace old data (hard relocation).\n` +
-            `Choose Cancel to keep old data and just add this as another data point.`
+            `OK deletes this beacon's earlier Beacon Tune points (and its automatic [auto] points) and keeps the new readings. ` +
+            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) are kept.\n\n` +
+            `Choose OK to replace them (hard relocation).\n` +
+            `Choose Cancel to keep them and just add this as another data point.`
           );
           if (!confirmPurge) doRelocation = false;
         }
@@ -5436,23 +5458,12 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const _purgeOldPoints = async (protectedIds) => {
           try {
             const calData = await ctx.actions.calibrationGet();
-            const allPts = calData?.points || [];
-            const myDev = (deviceId || "").toUpperCase();
-            const myLbl = (entry.bk.label || "").toUpperCase();
-            const myKey = bkKey.toUpperCase();
+            const ids = _beaconTunePurgeIds(calData?.points || [],
+              { deviceId, label: entry.bk.label, key: bkKey }, protectedIds);
             let purged = 0;
-            for (const pt of allPts) {
-              if (protectedIds.has(pt.id)) continue;
-              const ptDev = (pt.device_id || "").toUpperCase();
-              const ptLbl = (pt.label || "").toUpperCase();
-              const isMatch =
-                (ptDev && myDev && ptDev === myDev) ||
-                (ptDev && myKey && ptDev === myKey) ||
-                (ptLbl && myLbl && ptLbl === myLbl) ||
-                (ptLbl && myKey && ptLbl === myKey);
-              if (!isMatch) continue;
+            for (const id of ids) {
               try {
-                await ctx.actions.calibrationDeletePoint(pt.id);
+                await ctx.actions.calibrationDeletePoint(id);
                 purged++;
               } catch (_) { /**/ }
             }
@@ -5477,6 +5488,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           room: room,
           device_id: deviceId,
           label: entry.bk.label || entry.bk.key || "",
+          source: "beacon_tune",
           scanner_readings: scannerReadings,
           weight: doRelocation ? 5.0 : weight,
         };
@@ -5499,7 +5511,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           if (!room) _warns.push("no room detected");
           const _warnStr = _warns.length ? " | " + _warns.join(", ") : "";
           if (doRelocation) {
-            ctx.toast(`HARD RELOCATION: ${_bkName} — old data replaced. ${_scanInfo}${_roomInfo}${_warnStr}`);
+            ctx.toast(`HARD RELOCATION: ${_bkName} — earlier Beacon Tune points replaced. ${_scanInfo}${_roomInfo}${_warnStr}`);
           } else {
             const weightLabel = round > 1 ? ` (round ${round}, ${weight.toFixed(1)}x)` : "";
             ctx.toast(`Saved: ${_bkName}${weightLabel} — ${_scanInfo}${_roomInfo}${_warnStr}`);
@@ -5695,7 +5707,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         const relocBanner = document.createElement("div");
         relocBanner.style.cssText = "margin-top:8px;background:#3b1219;border:2px solid #f87171;border-radius:8px;padding:8px 12px;font-size:12px;color:#fecaca";
         const ago = elapsed < 60000 ? "just now" : `${Math.floor(elapsed / 60000)}m ago`;
-        relocBanner.innerHTML = `<b style="color:#f87171">HARD RELOCATION</b> &mdash; All previous calibration data for <b style="color:#5eead4">${_esc(bs._lastRelocation.label)}</b> was purged (${ago}). The new position is locked at 5.0\u00d7 weight. If the beacon still appears in the wrong location, wait 10\u201315 seconds for the server to recalculate.`;
+        relocBanner.innerHTML = `<b style="color:#f87171">HARD RELOCATION</b> &mdash; The earlier Beacon Tune points for <b style="color:#5eead4">${_esc(bs._lastRelocation.label)}</b> were deleted (${ago}); points collected by carrying it were kept. The new position is locked at 5.0\u00d7 weight. If the beacon still appears in the wrong location, wait 10\u201315 seconds for the server to recalculate.`;
         infoCard.appendChild(relocBanner);
       }
     }
@@ -6673,6 +6685,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           room: room,
           device_id: deviceId,
           label: bkLabel,
+          source: "beacon_tune",
           scanner_readings: scannerReadings,
           weight: weight,
         });

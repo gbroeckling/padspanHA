@@ -47,7 +47,7 @@ export function render(ctx){
       el("div",{class:"mono"}, `Rooms: ${rooms}`),
       el("div",{class:"mono"}, `Radios: ${radios}`),
       el("div",{class:"mono"}, `Tags/Objects: ${tags}`),
-      el("div",{class:"muted", style:"margin-top:8px"},"To send details to support, open Diagnostics (QA \u2192 Go to Diagnostics) and attach its report to a GitHub issue or an email."),
+      el("div",{class:"muted", style:"margin-top:8px"},"To send details to support, open Diagnostics (QA \u2192 Go to Diagnostics) and email its report to hello@traks.ca, or attach it to a GitHub issue (issues are public: remove personal details first)."),
     ]),
   ]));
 

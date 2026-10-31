@@ -44,7 +44,9 @@ _GROUP_BUDGET = 60 * 1024    # bytes per language group file
 # for English; splitting it would only add fetches for the same bytes.
 # 2026-10-31: the help was rewritten and roughly doubled (89 topics, every
 # screen covered), so a fully translated help.json is ~340 KB (~110 KB
-# gzipped). Still fetched once, lazily, and only for a shipped language.
+# gzipped). Fetched once, lazily: not at startup but on the first "?" or the
+# first visit to Training (panel.js _loadHelpLanguage; tests/js/help_lazy.mjs),
+# and only for a shipped language.
 _HELP_BUDGET = 400 * 1024
 _HELP = _WWW / "help_content.js"
 _SHIPPED = ("nl", "de", "fr")
@@ -247,9 +249,23 @@ def test_the_panel_loads_the_help_language_and_keeps_english_as_imported() -> No
     assert '.catch(() => ({ t: (s) => s, currentLanguage: () => "en" }));' in help_src
     assert "export const HELP = helpTexts();" in help_src
     assert 'I18N.useLanguage(this._hass, ["help"])' in src
-    assert 'HELP = lang === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();' in src
+    assert 'HELP = got === "en" ? HELP_MOD.HELP : HELP_MOD.helpTexts();' in src
     # English: helpNote() is "", so the modal gets nothing new.
     assert "if(note){" in src and 'return currentLanguage() === "en" ? ""' in help_src
+
+
+def test_the_translated_help_is_fetched_on_first_need_not_at_startup() -> None:
+    """help.json (~340 KB) is not fetched when the panel loads, only on the
+    first "?" (which waits up to 2 s, then opens the English) or the first
+    visit to Training; English fetches nothing (tests/js/help_lazy.mjs)."""
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    res = subprocess.run([_NODE, str(Path(__file__).parent / "js" / "help_lazy.mjs"), str(_WWW)],
+                         capture_output=True, text=True, encoding="utf-8", timeout=120)
+    lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
+    assert lines, res.stderr[-3000:]
+    out = json.loads(lines[-1])
+    assert not out["failures"] and len(out["cases"]) == 10, out["failures"]
 
 
 def test_the_training_manual_opens_with_the_note_only_when_translated() -> None:

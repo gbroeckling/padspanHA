@@ -154,7 +154,7 @@ export function render(ctx){
             el("div",{style:"font-weight:700"}, "Diagnostics"),
             ctx.helpers.helpBtn("diagnostics"),
           ]),
-          el("div",{class:"muted"}, `${includedDevices} devices · ${sizeKb} KB — when something breaks, attach it to a GitHub issue or an email to support`),
+          el("div",{class:"muted"}, `${includedDevices} devices · ${sizeKb} KB — when something breaks, email it to hello@traks.ca or attach it to a GitHub issue (issues are public: remove personal details first)`),
         ]),
         el("div",{style:"display:flex;gap:8px;align-items:center"},[ btnSelect, btnCopy, btnDownload ])
       ]),

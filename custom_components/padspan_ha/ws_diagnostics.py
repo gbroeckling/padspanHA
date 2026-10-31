@@ -76,7 +76,7 @@ async def ws_auto_diagnostics(hass: HomeAssistant, connection, msg) -> None:
             checks.append({"name": "room_tag_map", "ok": True, "detail": f"{room_count} rooms loaded ({room_source})"})
         else:
             checks.append({"name": "room_tag_map", "ok": False, "detail": "No room/tag data loaded"})
-            recs.append("Draw room boundaries on a floor plan (Maps tab) or set a room_tag_map.")
+            recs.append("Draw your rooms in Mapping (Edit or Layout) so PadSpan has rooms to place devices in.")
             ok = False
         if coord.last_error:
             checks.append({"name": "last_error", "ok": False, "detail": coord.last_error})
@@ -781,7 +781,7 @@ async def ws_system_critics(hass: HomeAssistant, connection, msg) -> None:
                 "severity": "critical",
                 "title": "No calibration data",
                 "message": "The system has zero calibration points. Positioning relies solely on adaptive learning and default models.",
-                "action": "Run the Calibration \u2192 Tune workflow to collect reference data.",
+                "action": "Start \U0001f9ed Guided calibration in Calibration to collect reference data.",
             })
 
     # ── 5. Adaptive Learning Health ───────────────────────────────────────────

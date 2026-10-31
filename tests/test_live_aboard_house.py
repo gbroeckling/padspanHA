@@ -172,13 +172,15 @@ def test_the_view_draws_each_wall_by_the_one_corner_rule() -> None:
 
 def test_the_open_edge_help_gives_the_rises_to_setup() -> None:
     """0.38.164: the Open (Loft) help says what Floor Heights says: keep the
-    floor's normal height and give the tall room Rises to on Mapping → Layout
-    (the tab is called Layout; it said "in Rooms" until 0.38.207) (a hall
-    floor made tall makes every room on it tall)."""
+    floor's normal height and give the tall room its full height: Ceiling
+    height on the Rooms page (Basic has it) or Rises to on Mapping → Layout,
+    the same value (the tab is called Layout; it said "in Rooms" until
+    0.38.207) (a hall floor made tall makes every room on it tall)."""
     for path in (_VIEWS / "maps.js", _WWW / "help_content.js"):
         src = path.read_text(encoding="utf-8")
         assert "given its full height in Floor Heights" not in src, path.name
-        assert "with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to on Mapping → Layout" in src, path.name
+        assert ("with the floor kept at its normal height in Floor Heights and the hall given its full height "
+                "on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout") in src, path.name
 
 
 def test_hidden_floors_cut_a_tall_rooms_walls() -> None:

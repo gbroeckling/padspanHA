@@ -4549,7 +4549,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
         "steps": [
           "In the Edit tab, click Signal walls.",
-          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height with Rises to on Mapping → Layout) gets a railing; anywhere else it stays an open gap.",
+          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout) gets a railing; anywhere else it stays an open gap.",
           "Click along the wall on the photo, one point per corner or bend.",
           "Click Undo point to remove the last point.",
           "Double-click, or click Finish, once you have at least two points."
@@ -5028,7 +5028,7 @@ function _floorHeights(ctx){
     el("div",{class:"muted",style:"font-size:12px;margin-top:2px"},
       "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
       "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine. "+
-      "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Layout tab: select it, then Rises to. "+
+      "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height), or on the Layout tab: select it, then Rises to (the same value). "+
       "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing on its open edge, and a mezzanine gets its real base elevation here and sits under the room's roof."),
   ]);
   if(!floors.length){
@@ -8998,14 +8998,20 @@ function _lightsTourSteps(paid){
     { title: "Welcome to the Atlas builder",
       body: "Every light starts out clustered at the centre of its room. This is where you tell PadSpan exactly where each one really hangs, and its shape, size, colour and effects too. That editing needs a PadSpan Bright Pro or PadSpan Pro key.",
       find: null },
-    { title: "Place a light",
-      body: "Drag any light on the map to its real spot. Or click + Place next to its row in the list below the map, then tap the map where it is.",
-      find: (wrap) => wrap.querySelector(".lv-stage") },
-    { title: "Give it a shape",
+    paid
+      ? { title: "Place a light",
+          body: "Drag any light on the map to its real spot. Or click + Place next to its row in the list below the map, then tap the map where it is.",
+          find: (wrap) => wrap.querySelector(".lv-stage") }
+      : { title: "Your lights on the map",
+          body: "Without a key, each light stays at the centre of its room and you can still switch it from the map. Dragging it to its real spot (or + Place in the list) needs a PadSpan Bright Pro or PadSpan Pro key.",
+          find: (wrap) => wrap.querySelector(".lv-stage") },
+    ...(paid ? [{ title: "Give it a shape",
       body: "Click a light in the list below the map (or hold one still on the map itself) to select it. A panel opens underneath with Shape, size and rotation. Pick the glyph that matches the real fixture, or leave it on Auto for PadSpan's own guess.",
-      find: (wrap) => _lightsTourFindTable(wrap) },
+      find: (wrap) => _lightsTourFindTable(wrap) }] : []),
     { title: "Fans, motion, temperature — and WLED",
-      body: "The chips above the map isolate one kind of device at a time — Lights, Strips, Fans, Motion, Temps, Air. A strip with effects (WLED or similar) gets its own colour and effect controls: hold it, on the map or in the sidebar, to open them.",
+      body: "The chips above the map pick one kind of device at a time and dim the rest: All, Lights, Strips, Fans, Motion, Temps, Humidity, Air, Locks, Doors/Windows and Emergency. Only the kinds your house has appear, each with its count. "
+        + (paid ? "A strip with effects (WLED or similar) gets its own colour and effect controls: hold it, on the map or in the sidebar, to open them."
+          : "A strip with effects (WLED or similar) gets its own colour and effect controls with a key."),
       find: (wrap) => wrap.querySelector(".lv-layerbar") },
   ];
   if (paid) {
