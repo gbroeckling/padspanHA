@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.208",
+  "title": "The maker lookup never sends a known random address",
+  "date": "2026-10-31",
+  "body_markdown": "### Fixed\n- **0.38.207 could still send the first three bytes of some random addresses** to macvendors.com and maclookup.app, for up to 30 seconds after an advert from Home Assistant's own Bluetooth adapter (up to 60 if the Bluetooth refresh interval was raised). Those adverts don't say whether an address is random, and each one wiped what BlueZ had said until PadSpan read it again. This version fixes it: once a radio has said an address is random, PadSpan keeps that for as long as it keeps the address, and for an address it has no type for yet, it asks the radios before anything is sent. Whole addresses were never sent.\n- **The Objects list shows each address's own maker.** It kept answers by their first three bytes, so a random address could show the maker of another device with the same first three bytes (nothing was sent for it). A random address now always says \"random address\", and so does a private BLE row.\n- **With the lookup off, every Bluetooth row says \"Lookup off\"**, iBeacon and private BLE rows included."
+ },
+ {
   "version": "0.38.207",
   "title": "The device maker lookup sends the first three bytes only",
   "date": "2026-10-31",
@@ -76,11 +82,5 @@
   "title": "The usage report's day counts are saved again",
   "date": "2026-10-29",
   "body_markdown": "### Fixed\n- **The usage report's day counts are saved, and Home Assistant no longer warns about PadSpan.** Since 0.38.177 the counts were meant to be saved every two minutes so a restart doesn't lose them. The save ran in a background thread, where Home Assistant refuses it, so nothing was saved and the log said \"padspan_ha calls hass.async_create_task from a thread other than the event loop\". It now runs where Home Assistant expects. A count made from a background thread is handed over the same way, and a test checks that everything PadSpan schedules runs there."
- },
- {
-  "version": "0.38.194",
-  "title": "Fixes from the stable review; Stairs in the usage report, and split levels that stay put",
-  "date": "2026-10-29",
-  "body_markdown": "### Changed\n- **Usage report (if you share it): how stairs are used, and whether they work.** Each time Live Aboard draws a house with stairs: whether every flight lands in a room on the level it reaches, or one lands in no room, or one has no floor above to reach (the same check as Furnish's warnings); whether one reaches a raised or sunken room or is a few steps within a floor; and which shapes and styles are used. The daily report also says how many stairs were imported or came from a stair room's guess, and their shapes and styles. Never where they are or which.\n\n### Fixed\n- **A device takes the room of the device it belongs to only if it is a Bluetooth scanner.** Since 0.38.176, any device with no area took its parent device's area. Now only the scanner devices Home Assistant's Bluetooth integration makes for each proxy do (as Home Assistant itself does when it sets them up). A plug behind a hub keeps having no room.\n- **Calibration no longer says a floor has no scale while the house is still loading.** For a moment after the panel opened, a floor could be blocked for capture before PadSpan had read the floor plans.\n- **A raised or sunken room no longer moves again when Live Aboard redraws.** Since 0.38.190, any redraw (after an edit in Furnish, for example) applied the raise a second time, so a room raised 0.75 m was drawn 1.5 m up until the page was reloaded."
  }
 ]

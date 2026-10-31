@@ -184,6 +184,21 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.208</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">31 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>0.38.207 could still send the first three bytes of some random addresses</b> to macvendors.com and maclookup.app, for up to 30 seconds after an advert from Home Assistant's own Bluetooth adapter (up to 60 if the Bluetooth refresh interval was raised). Those adverts don't say whether an address is random, and each one wiped what BlueZ had said until PadSpan read it again. This version fixes it: once a radio has said an address is random, PadSpan keeps that for as long as it keeps the address, and for an address it has no type for yet, it asks the radios before anything is sent. Whole addresses were never sent.</li>
+          <li><b>The Objects list shows each address's own maker.</b> It kept answers by their first three bytes, so a random address could show the maker of another device with the same first three bytes (nothing was sent for it). A random address now always says "random address", and so does a private BLE row.</li>
+          <li><b>With the lookup off, every Bluetooth row says "Lookup off"</b>, iBeacon and private BLE rows included.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.207</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">31 October 2026</span>
