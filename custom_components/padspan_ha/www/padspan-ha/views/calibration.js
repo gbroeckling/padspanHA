@@ -420,7 +420,10 @@ function _calibWizard(ctx, el, cs, calData) {
 
   const head = el("div", { class: "card", style: "margin-bottom:12px" });
   const hrow = el("div", { style: "display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px" });
-  hrow.appendChild(el("div", { style: "font-weight:700;font-size:16px" }, "Guided calibration"));
+  hrow.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+    el("div", { style: "font-weight:700;font-size:16px" }, "Guided calibration"),
+    ctx.helpers.helpBtn("calibration_guided"),
+  ]));
   // Label/title spell out what this does, not just its name: the wizard
   // fully replaces the ordinary tab bar while open (see render() above), so
   // this is the ONLY way back to Pin & Listen or any other non-wizard tab —
@@ -2202,7 +2205,7 @@ function _matrixTab(ctx, el, cs, calData) {
   }));
 
   const infoCard = el("div", { class: "card" });
-  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, "Accuracy by spot"));
+  infoCard.appendChild(el("div", { style: "font-weight:700;font-size:14px;margin-bottom:6px" }, ["Accuracy by spot ", ctx.helpers.helpBtn("calibration_matrix")]));
   infoCard.appendChild(el("div", { class: "muted", style: "font-size:12px;margin-bottom:10px" },
     "Each cell compares a point's known distance to a scanner (from the room and receiver layout) against the distance that scanner's path-loss fit derives from the point's own measured RSSI. Blue = the fit reports the point farther than it really is · green = accurate · red = closer than it really is. Grey = that scanner never heard this point. 📍 rows are anchored beacons — pinned to a known position, refreshed live every poll instead of a one-off walk."));
 
@@ -3957,6 +3960,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     el("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" }, [
       el("span", { style: "background:#f59e0b;color:#000;font-weight:700;font-size:11px;padding:2px 8px;border-radius:4px" }, "EXPERIMENTAL"),
       el("span", { style: "font-weight:700;font-size:14px;color:#f59e0b" }, "Beacon Tune"),
+      ctx.helpers.helpBtn("calibration_beacon"),
     ]),
     el("div", { style: "font-size:12px;color:#94a3b8;line-height:1.5" },
       "Mark where beacons (AirTags, Tiles, key fobs) are right now on the 3D floor stack. Drag a beacon to reposition it — a 60-second radio capture starts automatically. After the timer finishes, calibration data is saved. A beacon you place from the list is pinned there as a fixed beacon, unless PadSpan knows it moves (a phone with its IRK, a Find My tag it has followed across an address change, anything you follow): that one goes back to live tracking after the capture, as does a labelled device shown at its room's centre. Moving a beacon that is already pinned moves its pin. Follow a tag that moves before placing it. Green circles show scanner positions for reference."),

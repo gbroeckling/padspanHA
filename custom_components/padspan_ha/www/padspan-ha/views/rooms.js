@@ -353,7 +353,10 @@ export function render(ctx) {
 
   const head = el("div", { class: "card" });
   head.appendChild(el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap" }, [
-    el("div", { style: "font-weight:700;font-size:16px" }, "Rooms"),
+    el("div", { style: "display:flex;align-items:center;gap:8px" }, [
+      el("div", { style: "font-weight:700;font-size:16px" }, "Rooms"),
+      ctx.helpers.helpBtn("rooms"),
+    ]),
     el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, [
       _haLink(el, "/config/areas/dashboard", "Add a room in Home Assistant"),
       el("button", { class: "btn inline", style: "white-space:nowrap", onclick: async () => { await ctx.actions.modelRefresh(); } }, "Refresh"),

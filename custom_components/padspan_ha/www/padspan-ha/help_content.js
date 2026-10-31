@@ -300,21 +300,22 @@ export function helpTexts() { return {
     ],
   },
   insights: {
-    title: t("Insights — Room-dwell analytics"),
+    title: t("Insights — Time spent in each room"),
     body: [
-      t("Insights is a mode of Traceback (Traceback → Insights). It aggregates your traceback history into two tables. Time in Room shows, per tracked object per day, how long it spent in each room and how many times it entered — pick a 1/3/7-day range with the buttons at the top."),
-      t("Peak Concurrent Occupancy shows the most tracked objects seen in any one room at the same time, per day, with the hour it happened."),
-      t("Both tables can be exported as CSV or JSON from the buttons on the Time in Room card. Data comes from the same 7-day traceback history Traceback plays back — nothing older is available."),
-      t("For a visual, room-by-room version of the same underlying data — which rooms are busiest overall and by hour of day — see Traceback → Busy Times."),
+      t("Insights is a mode of Traceback (Traceback → Insights). It turns the history Traceback records into two tables, for the last 1, 3 or 7 days (the 1d, 3d and 7d buttons at the top)."),
+      t("Time in Room: for each tracked device and each day, how long it spent in each room and how many times it went in."),
+      t("Peak Concurrent Occupancy: for each day, the most tracked devices seen in one room at the same time, and the hour it happened."),
+      t("\"Export CSV\" on the Time in Room card saves that table; \"Export JSON\" saves everything Insights read. Refresh reads the history again."),
+      t("It reads the same 7 days of history Traceback keeps, so it covers only the devices you have named or follow, and nothing older. It works without a floor plan. For the same history as one picture per room, see Busy Times."),
     ],
   },
   busytimes: {
     title: t("Busy Times — Which rooms are busiest, and when"),
     body: [
-      t("Busy Times is a mode of Traceback (Traceback → Busy Times). It aggregates every tracked object's dwell time into one room-by-room picture: how much total time each room was occupied over the last 1/3/7 days, and a 24-hour bar showing when in the day that room tends to get busy."),
-      t("Each room's box is tinted by its total occupied time relative to the busiest room in the selected range — darker means quieter, brighter orange/red means busier. The red bar in each room's 24-hour strip marks its single busiest hour."),
-      t("This is a different view of the same data Insights shows as tables: Insights is per-object, day-by-day detail; Busy Times is the room-level summary at a glance. Neither is the live RSSI signal-quality heatmap on the Overview map — that's about scanner coverage, not room activity."),
-      t("Busy Times is a PadSpan Pro feature."),
+      t("Busy Times is a mode of Traceback (Traceback → Busy Times). It adds up the time every tracked device spent in each room over the last 1, 3 or 7 days and shows one box per room, busiest first."),
+      t("Each box shows the room's total occupied time, coloured by how busy it was compared with the busiest room in that range, and a 24-hour bar chart of when in the day it gets busy. The red bar, and \"busiest\" with an hour, mark its busiest hour."),
+      t("It reads the same history as Insights, which has the day-by-day tables for each device. It works without a floor plan. It is not a signal map: it shows where people spent time, not where your receivers hear well."),
+      t("Busy Times is a PadSpan Pro feature. Without a key it shows how to unlock it (Settings → Features → PadSpan licence) and, where the free trial is offered, a \"Start 90-day free trial\" button. The trial needs the usage report on for as long as it lasts."),
     ],
   },
   locate: {
@@ -395,14 +396,15 @@ export function helpTexts() { return {
 
   // ── Calibration — Beacon Tune ────────────────────────────────────────────
   calibration_beacon: {
-    title: t("Beacon Tune — Pin stationary beacons on floor plans"),
+    title: t("Beacon Tune — Pin beacons that stay in one place"),
     body: [
-      t("Beacon Tune lets you place stationary BLE beacons (Tiles, key fobs, fixed-location iBeacons) at their exact physical positions on your floor plans. Note: AirTags and other Find My tags change their address (every 15 min near their owner, once a day away), so pinning one only persists as long as MAC Rotation Bridging keeps the chain alive — Tile/iBeacon devices with stable UUIDs are the reliable choice for fixed pins."),
-      t("Pick a map, then add beacons from the dropdown. Each pinned beacon appears as a teal diamond on the floor plan — drag it to match the real-world position."),
-      t("Once pinned, PadSpan uses the known position to override the beacon's room assignment — no more flickering between adjacent rooms."),
-      t("With Auto-Calibrate enabled, PadSpan automatically builds calibration fingerprints from the beacon's RSSI readings at its pinned location. This improves location accuracy for ALL tracked devices over time."),
-      t("Auto-generated calibration points are labelled [auto] in the Model tab and are capped at 50 per beacon to prevent data bloat."),
-      t("This is an experimental feature — it works best with stationary beacons that don't move. If you relocate a beacon, update its position on the map and the old auto-calibration data will naturally age out."),
+      t("Beacon Tune (marked EXPERIMENTAL) is for Bluetooth beacons that stay put: a Tile on a shelf, a key finder by the door, a fixed iBeacon. You mark where each one really is, and PadSpan keeps learning from it while it sits there. It needs a floor plan."),
+      t("To add one: pick the floor, choose the beacon in \"select beacon to add\" (the list holds devices you have named or follow) and press \"Add to map\". It appears in the middle of the floor; drag it to where the beacon really is. Or click a beacon marked \"Not placed\" in the list under the map, then double-click the map where it is. Press Save to keep the beacons' places."),
+      t("Placing or dragging a beacon starts a 60-second capture: leave the beacon where it is until the timer ends, and the readings are saved as a calibration point."),
+      t("A beacon you place is pinned as a fixed beacon: PadSpan shows it in its pinned room instead of working the room out from signals. A device PadSpan knows moves is never pinned: a phone with its IRK, a Find My tag (such as an AirTag) it has followed across an address change, or anything you follow. That one gets the single 60-second capture, then goes back to live tracking. Follow a tag that moves before placing it."),
+      t("\"Auto-Cal: ON/OFF\" (on unless you turn it off): while a pinned beacon sits still, PadSpan adds a fresh calibration point from it, at most once every 10 minutes per beacon and only when at least two receivers hear it well. Each beacon keeps at most 50 of these points; past that the oldest are removed. They are labelled [auto] on the Model tab. Adaptive Learning (Settings → Features) adds them too, even with Auto-Cal off."),
+      t("Moving a beacon: drag it to its new spot (or use \"Relocate\"), and another 60-second capture follows. If you move the same beacon three times within about 6 minutes, PadSpan asks about a \"hard relocation\". OK DELETES all of that beacon's earlier calibration points and keeps only the new one (once the new one has saved); this can't be undone. Cancel keeps the old points and adds the new one. Choose OK only if the old spots were wrong."),
+      t("The small ? beside a beacon's position opens \"Position Percentages\": what its x% and y% mean (how far across and down the floor plan image it sits) and how signal strength is read."),
     ],
   },
 
@@ -878,18 +880,96 @@ export function helpTexts() { return {
     ],
   },
 
-  // ── Calibration Overview ───────────────────────────────────────────────
-  calibration_overview: {
-    title: t("Calibration — Teaching PadSpan Your Home"),
+  // ── Rooms page and guided Setup ────────────────────────────────────────
+  rooms: {
+    title: t("Rooms — Each room's settings in one place"),
     body: [
-      t("Calibration captures real Bluetooth signal readings at known positions in your home. PadSpan uses this data to build a fingerprint model that maps signal patterns to physical locations."),
-      t("SETUP — Choose which device to calibrate with (usually your phone) and verify scanner connectivity."),
-      t("TUNE — Receiver position tuning: drag your scanner markers on the 3D map to match where they really are mounted. This doesn't collect signal samples — it's about getting scanner positions right before you calibrate."),
-      t("BEACON TUNE — For stationary Bluetooth beacons (iBeacons, Tiles in fixed locations). Pin them on the map so PadSpan knows exactly where they are. AirTags work too but only while MAC Rotation Bridging keeps the address chain intact."),
-      t("PIN & LISTEN — Classic calibration: click a spot on the map, stand there physically, and collect signal samples for 15–90 seconds (90s recommended for best accuracy). Repeat across the home."),
-      t("ROAM — PadSpan shows a coverage map and marks the weakest-covered spot with a 'next target' crosshair. Walk there and press 'I'm Here — Collect.' It records one point at a time, like Pin & Listen, but chooses where you should go next."),
-      t("MODEL — View calibration statistics, LOO accuracy, and per-scanner signal vs distance fits. Export or clear calibration data."),
-      t("More calibration points = better accuracy. Focus on room boundaries, doorways, and areas near walls where signal transitions are sharpest."),
+      t("Rooms lists every room, grouped by floor. It is in the main menu in every mode, Basic included."),
+      t("Rooms and floors are your Home Assistant Areas and floors, so their names can't be changed here. \"Rename in Home Assistant\" opens that area, and \"Add a room in Home Assistant\" opens Areas; press Refresh when you come back. A room drawn in PadSpan that is not an area is marked \"PadSpan only, not a Home Assistant area\"."),
+      t("Colour: the square next to the room's name. A new colour saves at once and is used on every map."),
+      t("Outline: whether the room is drawn on its floor plan, and its size in m². \"Edit outline\" (or \"Draw outline\") opens Mapping's room tool on that room; in Basic you get just that tool, with a way back. With no floor plan yet, \"Add a floor plan\" takes you to Mapping."),
+      t("Ceiling height (m): only for a room taller than the rest of its floor, such as a double-height living room. Type the height and press \"Save height\"; leave it blank for the floor's height. It changes the 3D view, never positioning."),
+      t("Split level (m up or down): for a room whose floor sits higher or lower than the rest of its floor, such as a step-down living room. Press \"Change\", type how far up (or down, with a minus: up to 3 m up or 1.5 m down) and press Save. Ceiling height and split level need the room's outline first."),
+      t("Receivers: how many Bluetooth receivers are in the room, with \"See receivers\". In it now: who is in the room at the moment, and how many other devices."),
+      t("In Sample mode the demo house's rooms are shown and nothing can be changed. In PadSpan Bright each room also shows its lights (how many, and how many are on); its receivers and who is in it show only when Bright's presence screens are switched on."),
+    ],
+  },
+  setup: {
+    title: t("Setup — Your house, one step at a time"),
+    body: [
+      t("Setup puts setting up the house in order, as six steps: 1. \"Upload a floor plan\", 2. \"Set the scale\", 3. \"Floors and their heights\", 4. \"Draw the rooms\", 5. \"Place receivers and set their heights\", 6. \"Calibrate\". Each step opens the tool that already does that job; come back here when it's done."),
+      t("Each step is marked Done, Next, To do or Skipped. Done is read from the house itself, so a step you finished somewhere else counts too. A house with one floor has no floor heights to set, and Calibrate is done at 5 calibration points."),
+      t("Each step's button says \"Start →\", \"Continue →\" (where you left off), \"Open\", or \"Change\" once it's done (\"Add a floor\" on the floor plan step). \"Skip for now\" moves on and marks the step Skipped; open it again any time. The floor plan step can't be skipped, because every later step uses a plan."),
+      t("Where the steps go: the floor plan, scale, rooms and receivers steps open Mapping's set-up wizard at that step; floors opens the Floor Heights card (just that card, in Basic); Calibrate opens Guided calibration. While you work in a step's tool, a bar at the top says which step it is, with \"← Back to Setup\". Setup remembers where you were."),
+      t("To open Setup: \"Open Setup\" on the Overview's Getting started card, \"Make it a map\" on the Overview's Who's where card, the Setup button at the top of Mapping, or \"Start Setup Wizard\" in Mapping when there are no floor plans yet."),
+      t("Setup works on your own house: while the demo house is showing, its buttons can't be used until you press \"Back to my house\". Only an administrator can add or change floor plans."),
+    ],
+  },
+
+  // ── Calibration ────────────────────────────────────────────────────────
+  calibration_overview: {
+    title: t("Calibration — Teaching PadSpan your home"),
+    body: [
+      t("Calibration teaches PadSpan what your house sounds like. You carry your phone or a tag to spots around the house, and at each spot PadSpan records how strongly every Bluetooth receiver hears it. These calibration points are what it later compares live signals with, to put people in the right room."),
+      t("Calibration is in the main menu in every mode, with the same tabs in Basic and Advanced. It opens on Results: how accurate PadSpan is now, room by room, and the next best thing to do. The easiest way to start is \"🧭 Guided calibration\" (on Results, and at the top of every other tab), which takes you through the steps in order."),
+      t("The floor plan needs a scale first. A calibration point is a spot measured in metres, so on a floor with no scale it can't be saved: the card \"This floor needs a measurement first\" and its \"Measure this floor →\" button take you to measure one distance you know."),
+      t("RESULTS — how accurate it is now, and what to do next. Its ? explains the numbers."),
+      t("TUNE — drag each receiver marker on the 3D map to where the receiver is really mounted, then press Save. Click a marker to set its \"Height above floor (m)\" and press \"Save height\" (2.4 m until you change it). It is the same height as on the Receivers page and, in Advanced, in Mapping → Edit → Radios: change it in one place and the others follow. Tune records no signals."),
+      t("BEACON TUNE — pin beacons that stay in one place, so they keep calibrating on their own. Its ? has the details."),
+      t("BEACON AND FLOOR — pick the phone or tag you will carry (\"Beacon Device\"), the \"Floor\" you are calibrating, and the \"Collection Duration\": 15, 30, 60 or 90 seconds at each spot. It starts at 15 s; the screen recommends 60 s, about one reading a second from each receiver. Plan on 10–20 spots spread across each floor."),
+      t("PIN & LISTEN — tap the map where you are standing, press \"Start Collecting\" and stand still until the time is up (\"Stop & Discard\" cancels). Then press \"Save Point\" to keep it, or \"Discard\"."),
+      t("ROAM — the same collecting, but PadSpan picks the spot. The coverage map shows which parts of the floor are covered, partly covered or not yet covered, and a blue crosshair marks the \"Next Target\". Walk there, stand still and press \"I'm Here — Collect\". Once the accuracy has been worked out, a \"Priority:\" card names the room PadSpan gets wrong most often and how many more points it needs."),
+      t("MODEL — press \"Compute Model\" after adding points (it needs 4 or more). The Summary shows your calibration points, receivers and floors, and \"Est. Accuracy ~X m\": how far off PadSpan's guess was on average when each point was tested, green under 2 m. It is a distance, not a percentage, and it reads better than real life. The line under it, \"Tested on spots it hasn't seen\", is the stricter test Results leads with."),
+      t("Model also shows \"Per-Room Accuracy\", with the room each one is most often \"Confused With\"; a \"Scanner Coverage\" table of how strongly each receiver hears your points; and every calibration point, each with its own Delete."),
+      t("Model's Actions: \"Export JSON\" saves all your calibration points to a file, and \"Import\" reads one back, skipping points you already have (press Compute Model afterwards). \"Clear All\" deletes every calibration point in the house after one more confirmation. That can't be undone, so export first."),
+      t("ACCURACY BY SPOT shows, point by point and receiver by receiver, where the readings disagree. WALK A ROOM calibrates a whole room in one 90-second walk, and is off until you turn it on. Each has its own ?."),
+      t("Tips: more points make it more accurate, especially in doorways and near the walls between rooms, where rooms are hardest to tell apart. Hold the phone the way you usually carry it. Press Compute Model again after adding points."),
+      t("For experts: in Advanced, Settings → Tracking → Positioning and calibration → \"Positioning Algorithm\" chooses how the points are used. \"Matched to calibration points\" (the default) compares live signals with the nearest points; \"Learned model (experimental)\" trains a model on them. Both use the same points. Model's \"Signal vs distance\" table is each receiver's fit of signal strength against distance."),
+    ],
+  },
+  calibration_results: {
+    title: t("Results — How accurate it is, and what to do next"),
+    body: [
+      t("Results is the tab Calibration opens on. It only reads your calibration: nothing here saves or deletes anything, and each button takes you to the tab or tool that does the work."),
+      t("How accurate it is now: \"rooms right\" is the share of test spots PadSpan put in the right room, and \"typical distance off\" is how far off it usually was, in metres. Both come from a strict test on spots it hasn't seen: PadSpan hides a spot, and every calibration point within 1.5 m of it, then checks where it would have placed someone standing there."),
+      t("The line under the numbers gives that test for both ways PadSpan can place someone: from your calibration points (fingerprints) and from where the receivers are (spatial), and says which did better. Before the test has run you see an estimate instead (\"estimated distance off\"), which reads better than real life. Below 4 points there is nothing to work out yet."),
+      t("The next best thing to do: one suggestion, the first that applies. Measure a floor plan that has no scale (points on it can't be saved); start calibrating; say how high the receivers are mounted; give the floors their real heights; work the accuracy out again after new points; add points in a room that has none, or in the room PadSpan gets wrong most often; or walk the house again once the newest point is over 90 days old. When nothing stands out, it suggests Accuracy by spot."),
+      t("Room by room: rooms that need work come first: no points yet, fewer than 3 points, or under 70% right. \"mixed up with\" names the room it is most often confused with. Rooms that look fine fold away under one line."),
+      t("Why a room can read higher than the headline: each room's % comes from the older, more generous score, which keeps nearby points in when it tests a spot. The headline uses the strict test on spots it hasn't seen. So a room can show 90% while the house shows 75%; trust the headline."),
+      t("In Basic, \"Floor heights →\" opens just the Floor Heights card, and \"Measure →\" opens Mapping's set-up wizard at its scale step. In Sample mode Results shows made-up numbers for the demo house."),
+    ],
+  },
+  calibration_guided: {
+    title: t("Guided calibration — The steps in order"),
+    body: [
+      t("\"🧭 Guided calibration\" takes you through calibration one step at a time, using the ordinary tabs. Open it from Results, from the button at the top of any other Calibration tab, or from Setup's Calibrate step."),
+      t("1. Check scanner positions (Tune): optional. Drag any receiver marker that isn't where the real receiver is mounted, or press \"Skip — positions look fine\"."),
+      t("2. Choose your device (Beacon and floor): pick the phone or tag you will carry, and the floor. The floor plan needs a scale; if it has none, \"Measure this floor →\" takes you to measure one distance. Steps 3 to 5 stay locked until this is done."),
+      t("3. Walk your home (Roam): walk to the blue crosshair, stand still and press \"I'm Here — Collect\"; the map then picks the next spot. There is no fixed number, but 10–20 spots spread across the floor is a good aim. To pick the spots yourself, leave the guide and use Pin & Listen."),
+      t("4. Compute your model (Model): press \"Compute Model\". \"Est. Accuracy\" shows how far off PadSpan's guess was, on average."),
+      t("5. Finish: how many points this floor and the whole house have. \"+ Calibrate another floor\" goes back to step 2 for the next floor, and \"Done\" closes the guide. Outside Basic, \"See detailed quality report →\" opens QA."),
+      t("\"✕ Exit guide → full tabs\" leaves at any time and keeps every point you saved. Opened from Results, it takes you back there."),
+    ],
+  },
+  calibration_matrix: {
+    title: t("Accuracy by spot — Where the readings disagree"),
+    body: [
+      t("Accuracy by spot is a table with one row per calibration point and one column per receiver. Each cell compares how far the point really is from that receiver (from your room and receiver layout) with how far the receiver's signal says it is. Hover over a cell to see the numbers."),
+      t("Green means they agree. Blue means the signal makes the point seem farther away than it is; red, closer. Grey means that receiver never heard the point."),
+      t("A column that is blue or red all the way down usually means that receiver's position or height is off (fix it on Tune), or something is in its way. A row that is off everywhere is usually a point saved in the wrong place: delete it on the Model tab and collect it again."),
+      t("Rows marked 📍 are beacons pinned in Beacon Tune, refreshed live. \"📍 Anchored Beacon Drift\" lists how far each pinned beacon's live position is from its pin, as OK, WARN or BAD."),
+      t("\"Relearn (recompute model)\" works the model out again from your current points, the same as Compute Model on the Model tab. It deletes nothing."),
+      t("The table needs each receiver's signal-vs-distance fit, so collect some points and press Compute Model first. Rooms PadSpan keeps flipping between in live tracking are a different thing: see Health → \"Room mix-ups\"."),
+    ],
+  },
+  calibration_walk: {
+    title: t("Walk a room — Calibrate a whole room in 90 seconds"),
+    body: [
+      t("Walk a room is off by default. Turn it on in Settings → Tracking → Positioning and calibration → \"Walk a Room (Calibration)\" (Advanced mode); a \"Walk a room\" tab then appears in Calibration. It needs Live mode."),
+      t("First pick the phone or tag and the floor on the Beacon and floor tab. Then choose a room, press \"Start walking\" and walk slowly for 90 seconds: along the walls, into each corner, then through the middle, holding the phone the way you usually carry it. Stay in the room until the ring is full. \"Cancel & discard\" stops early."),
+      t("Nothing is saved until you say so. The summary shows what was heard and how different the room sounds from the closest other room. Press \"Save this walk?\" to keep it, or \"Discard\". After saving, PadSpan tests itself again and shows the result before and after."),
+      t("Each room keeps one walk: saving a new walk replaces that room's earlier walk only, and \"Remove the walk of\" a room takes out just its walk points. Your other calibration points are never touched. Turning the setting off hides the tab, but saved walks stay in use."),
+      t("The rooms are the ones drawn on that floor; if none are drawn yet, draw them in Mapping first."),
     ],
   },
 
@@ -909,19 +989,19 @@ export function helpTexts() { return {
 
   // ── Traceback ──────────────────────────────────────────────────────────
   traceback_overview: {
-    title: t("Traceback — Movement Replay"),
+    title: t("Traceback — Replay where devices went"),
     body: [
-      t("Traceback records a snapshot of all tracked objects every ~10 seconds and lets you play back their movement over time."),
-      t("TIMELINE SLIDER — Drag to scrub through recorded frames. Each frame shows where every tracked object was at that moment."),
-      t("PLAY / PAUSE — Automatically advances through frames at the selected speed."),
-      t("PLAYBACK SPEED — Controls how fast playback runs. '1 min' compresses all frames into 1 minute of playback; '1 hr' plays at near-real-time speed."),
-      t("OBJECT FILTER — Focus on a specific device to see only its movement trail. 'All' shows every tracked object."),
-      t("Objects that never changed rooms during the recording period are hidden automatically once there are enough moving objects to make that useful — you don't need to turn this on yourself."),
-      t("NEW OBJECTS HEARD — A separate search, not part of playback: shows which BLE devices were first seen within a chosen time window (e.g. \"from 30 min ago to 10 min ago\"), for spotting something new that showed up."),
-      t("Object positions use matches to your calibration points (k-NN) when available (precise sub-room placement) or fall back to room centroids. Older recordings before v0.14.71 only have room-level data."),
-      t("INSIGHTS and BUSY TIMES — two more modes on the same row: time-in-room tables, and which rooms are busiest and when. Both read the same history playback does."),
-      t("FULL HOUSE ACTIVITY (PadSpan Pro) — an option of Playback. Turn it on and the map becomes your Atlas map, with the tracked beacons playing back on it. The same play, scrub, speed and range controls drive it."),
-      t("💡 DEVICES — shown when Full house activity is on. Turn it on and the whole house plays back too: every device your Atlas draws, as it was at each moment of the chosen period — lights, locks and motion where they are drawn, doors and windows linked to a wall, and the temperature, humidity and air-quality readings of sensors placed on the map (a reading counts when it has moved a clear whole degree or percent, or its air-quality level changes). Every tracked object plays along. Each device that changed at the moment on screen is ringed on the map (a door or window along its wall) and named above it, and the list under the map shows every change — tap one to jump there. House history comes from Home Assistant's own recorder, so it reaches back as far as your recorder keeps (10 days by default); beacon history keeps 7 days."),
+      t("Traceback replays where your tracked devices went. About every 10 seconds PadSpan records where each device you have named or follow is. Unnamed devices are not recorded, and neither are beacons pinned in Beacon Tune, since they don't move. It keeps 7 days."),
+      t("Traceback is in the main menu in Advanced mode, and under More tools in Basic. The row at the top switches between Playback, New Objects, Insights and Busy Times."),
+      t("PERIOD — the \"Time range\" buttons (5 min up to 7 days), a number of minutes typed in the small box with Go, or \"Custom range\" with a start and an end and Load."),
+      t("OBJECT — \"All objects\", or one device to follow its trail alone. Devices are grouped by kind, and receivers are left out. Devices that never changed rooms are hidden automatically once at least two others moved."),
+      t("PLAY — ▶ plays the whole period. \"Run time\" (1 to 60 minutes, 5 to start with) is how long the whole replay takes. Step one frame back or forward, jump to the start or end, or drag the timeline. \"Export CSV\" and \"Export JSON\" save the recorded frames."),
+      t("WHERE THE DOTS ARE — each device is drawn where live tracking placed it at that moment, in metres; when there was no position, at the centre of its room."),
+      t("NEW OBJECTS — a search, not a replay: which of the devices PadSpan knows now were first heard in a window, \"From\" so many minutes ago \"to\" so many minutes ago (up to 7 days back), or a Quick button from \"Last 5 min\" to \"2-4 hr ago\". Click a result to see that device."),
+      t("INSIGHTS and BUSY TIMES — time spent in each room, and which rooms are busiest when. Each has its own ?. Both work without a floor plan."),
+      t("FULL HOUSE ACTIVITY (PadSpan Pro) — an option of Playback. Turn it on and the map becomes your Atlas, with the tracked devices playing back on it. The same period, play and Run time controls drive it."),
+      t("💡 DEVICES — appears once Full house activity is on. Turn it on to replay the house as well: lights, locks and motion drawn on the Atlas, doors and windows linked to a wall, and the temperature, humidity and air-quality readings of sensors placed on the map. A reading counts when it moves a whole degree or percent, or its air-quality level changes."),
+      t("Each device that changed at the moment on screen is ringed on the map (a door or window along its wall) and named above it. The list under the map shows every change; tap one to jump there. House history comes from Home Assistant's recorder, so it reaches back as far as your recorder keeps (10 days by default); tracked devices keep 7 days."),
     ],
   },
 

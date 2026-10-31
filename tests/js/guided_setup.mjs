@@ -130,7 +130,7 @@ function house(stage, extra = {}) {
 function mkCtx(st) {
   const calls = [], events = [];
   const ctx = {
-    state: st, hass: { user: { is_admin: true } }, helpers: { el },
+    state: st, hass: { user: { is_admin: true } }, helpers: { el, helpBtn: () => el("button", {}, "?") },
     toast: (m) => calls.push(["toast", m]),
     actions: {
       renderRooms: () => calls.push(["renderRooms"]),

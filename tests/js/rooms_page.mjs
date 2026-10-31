@@ -74,7 +74,7 @@ function makeCtx({ mode = "advanced", model = MODEL(), snap = SNAP, maps = MAPS 
     hass: { user: { is_admin: true } },
     state: { complexity: mode, view: "rooms", settings: {}, model, live: { snapshot: snap }, maps: { list: maps }, _settingsDraft: { stale: true } },
     helpers: {
-      el, esc: (s) => String(s ?? ""),
+      el, helpBtn: () => el("button", {}, "?"), esc: (s) => String(s ?? ""),
       roomColor: (n) => (model.room_meta && model.room_meta[n] && model.room_meta[n].color) || "hsl(200 70% 55%)",
       isAway: (o, t) => (o.age_s || 0) > t, awayTimeoutS: () => 300, isScanner: () => false,
     },

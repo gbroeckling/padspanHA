@@ -87,7 +87,7 @@ export function renderWalk(ctx, el, cs, calData, h) {
   const walked = (room) => pts.filter(p => p.source === "room_walk" && p.room === room).length;
   const card = el("div", { class: "card" });
   wrap.appendChild(card);
-  card.appendChild(el("div", { class: "h2" }, "Walk a room"));
+  card.appendChild(el("div", { class: "h2" }, ["Walk a room ", ctx.helpers.helpBtn("calibration_walk")]));
 
   if (w.phase === "walking") {
     card.appendChild(el("div", { style: "font-size:13px;color:#e2e8f0;text-align:center;font-weight:600" }, `Walking ${w.room}`));
