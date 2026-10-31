@@ -4,6 +4,24 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.206 — Quicker photo reads; Vacation Mode replays last week (2026-10-31)
+
+### Changed
+- **Photo reads are quicker.** A furniture photo with no kind picked now gets a quick look first (only "what is it?"), then that kind's own questions. When the quick look isn't sure (no answer, "other", or words that name no kind), or that kind's answer can't be used, the full read runs as before. In testing with a local vision model, a furniture photo took about 21-24 s instead of 32-35 s, and the quick look named the same kind as the full read on all 9 test photos.
+- **A photo read has one time limit as a whole: 8 minutes,** the most two reads could take before. Each read still gets at most 4 minutes. A later read gets only the time that's left, and with too little left the answer so far stands. A normal read takes well under a minute.
+- **Photos are sent at 1024 px instead of 1280.** The AI reads them faster, and nothing it is asked (what it is, colours, rough sizes, a figure for a person) needs the finer detail.
+- **Vacation Mode now replays last week by default.** Each day plays like the same day last week: a Tuesday turns lights on and off the way they went last Tuesday, half hour by half hour. A half hour a light was on for only part of becomes that chance each night. If that day falls inside an earlier vacation or has no history, it uses the same weekday a week earlier, then the monthly average. The intensity slider still scales it.
+- **A "Monthly average" choice.** In Vacation Mode's Options, "Routine from" has two buttons: Last week, or Monthly average (each weekday from the last month's average, the way Vacation Mode worked before). The choice is used when Vacation Mode is turned on. A trip that's already running keeps its routine, and a change applies the next time you turn it on. Turned back on within 3 weeks with the other choice, a trip is learned again from the days before it began, if Home Assistant's history still holds the week before; if not, it keeps the routine it had.
+- **Evening lights follow when they were really on, not sunset.** Each evening light stays on over the stretch it was actually on that evening (between 4 pm and 5 am): last week's same day, or the usual start and end time for that weekday on the monthly average. The times move up to 10 minutes each night. A light that wasn't on that evening isn't held. Bedtime still turns them off, and they no longer need Home Assistant's sun times. "Only after dark" is unchanged.
+- A trip that was already running when you update keeps its routine exactly as it was. Its evening lights follow that routine like the other lights until Vacation Mode is next turned on.
+- The preview says which routine it plays ("From last week" or "From the monthly average"). `binary_sensor.padspan_vacation_mode` has a new `source` attribute.
+
+### Opt-in report
+- `photo_quick:ok` and `photo_quick:fallback`: whether the quick look was enough or the full read had to run, once per furniture photo with no kind picked. Neither is counted when the read fails. Never the photo or the answer.
+- The Vacation Mode section says which choice is set: `last_week` or `month`. Nothing else changed.
+
+---
+
 ## 0.38.205 — A backup AI Task; The Atlas keeps its map card between updates (2026-10-30)
 
 ### New
