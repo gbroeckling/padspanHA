@@ -263,7 +263,11 @@ def test_the_address_type_is_read_from_esphome_and_bluez() -> None:
     from custom_components.padspan_ha.bluetooth_live import address_type_of
 
     assert address_type_of(SimpleNamespace(details={"source": "x", "address_type": 1})) == "random"
-    assert address_type_of(SimpleNamespace(details={"source": "x", "address_type": 0})) == "public"
+    # ESPHome's 0 is protobuf's empty value too: public only from firmware that sends the type.
+    zero = SimpleNamespace(details={"source": "x", "address_type": 0})
+    assert address_type_of(zero) is None
+    assert address_type_of(zero, lambda source: source == "x") == "public"
+    assert address_type_of(zero, lambda source: False) is None
     # ESP-IDF's resolvable private kinds: random on the air.
     assert address_type_of(SimpleNamespace(details={"address_type": 2})) == "random"
     assert address_type_of(SimpleNamespace(details={"address_type": 3})) == "random"
@@ -350,6 +354,15 @@ class _Store:
     def async_delay_save(self, func, delay) -> None:
         self.data = func()
         self.saves += 1
+        self.delays = getattr(self, "delays", []) + [delay]
+
+    async def async_save(self, data) -> None:
+        self.data = data
+        self.saved_at_once = getattr(self, "saved_at_once", 0) + 1
+
+    async def async_remove(self) -> None:
+        self.data = None
+        self.removed = True
 
 
 def _bluez(addr, address_type=None):
@@ -364,10 +377,13 @@ def _bluez(addr, address_type=None):
                            details={"path": "/org/bluez/hci0/dev_" + addr.replace(":", "_"), "props": props})
 
 
-def _esphome(addr, address_type):
+PROXY = "AA:BB:CC:00:00:01"  # an ESPHome proxy's scanner source: its Bluetooth MAC
+
+
+def _esphome(addr, address_type, source=PROXY):
     from types import SimpleNamespace
 
-    return SimpleNamespace(address=addr, name=None, details={"source": "proxy", "address_type": address_type})
+    return SimpleNamespace(address=addr, name=None, details={"source": source, "address_type": address_type})
 
 
 def _shelly(addr):
@@ -384,11 +400,13 @@ def _advert(addr, device, source="hci0"):
                            connectable=True)
 
 
-def _stack(monkeypatch, cached=None, by_address=None):
+def _stack(monkeypatch, cached=None, by_address=None, esphome_version="2024.6.0"):
     """A BluetoothLive behind the real handler. `cached`: what the reseed reads
     from scanner hci0 ({addr: BLEDevice}). `by_address`: what the scanners' own
     caches answer when asked for one address; None leaves that out, so only
-    PadSpan's own record can decide."""
+    PadSpan's own record can decide. `esphome_version`: the firmware of the
+    ESPHome proxy PROXY, kept as bleak-esphome keeps it (None: not known)."""
+    import functools
     import sys
     import time
     from types import SimpleNamespace
@@ -401,7 +419,11 @@ def _stack(monkeypatch, cached=None, by_address=None):
         source="hci0",
         discovered_devices_and_advertisement_data={a: (d, adv) for a, d in cached.items()},
         discovered_device_timestamps={a: time.monotonic() for a in cached})
-    manager = SimpleNamespace(async_current_scanners=lambda: [scanner])
+    client_data = SimpleNamespace(device_info=SimpleNamespace(esphome_version=esphome_version))
+    proxy = SimpleNamespace(
+        source=PROXY, discovered_devices_and_advertisement_data={}, discovered_device_timestamps={},
+        connector=SimpleNamespace(client=functools.partial(object, client_data=client_data)))
+    manager = SimpleNamespace(async_current_scanners=lambda: [scanner, proxy])
     if by_address is not None:
         manager.async_scanner_devices_by_address = lambda addr, connectable: [
             SimpleNamespace(ble_device=d) for d in by_address.get(addr, [])]
@@ -448,7 +470,7 @@ def _prune(bl, addr):
 async def test_a_confirmed_public_address_sends_its_prefix(online, monkeypatch) -> None:
     session, _ = online
     BL, bl, hass = _stack(monkeypatch, by_address={})
-    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source="proxy"))   # ESPHome: 0, public
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source=PROXY))   # ESPHome: 0, public
     assert BL.known_address_type(hass, PUBLIC) == "public"
     out = await _ask(hass, PUBLIC)
     assert out["skipped"] is None and out["found"] is True
@@ -492,7 +514,7 @@ async def test_random_then_pruned_then_heard_by_espresense_is_never_sent(online,
 
     session, cache = online
     BL, bl, hass = _stack(monkeypatch, by_address={})
-    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source="proxy"))
+    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source=PROXY))
     _prune(bl, RANDOM_STATIC)
     hass.data[DOMAIN][DATA_ESPRESENSE_MQTT] = SimpleNamespace(
         _seen={RANDOM_STATIC: {"espresense_hall": SimpleNamespace(seen=dt.datetime.now(dt.timezone.utc))}})
@@ -507,7 +529,7 @@ async def test_confirmed_public_is_kept_across_a_restart(online, monkeypatch) ->
     store = _Store()
     BL, bl, hass = _stack(monkeypatch, by_address={})
     await bl.async_load_public(store)
-    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source="proxy"))
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source=PROXY))
     assert PUBLIC in (store.data or {}).get("addresses", {})
     # Restart: a new, empty BluetoothLive reads the store; the device isn't heard again.
     fresh = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
@@ -518,7 +540,7 @@ async def test_confirmed_public_is_kept_across_a_restart(online, monkeypatch) ->
     assert out["skipped"] is None and session.urls and all(u.endswith("/F0:18:98") for u in session.urls)
     # A radio saying random takes it out of the store.
     fresh._public_store = store
-    fresh._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 1), source="proxy2"))
+    fresh._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 1, source="AA:BB:CC:00:00:02"), source="AA:BB:CC:00:00:02"))
     assert PUBLIC not in store.data["addresses"] and BL.known_address_type(hass, PUBLIC) == "random"
 
 
@@ -534,7 +556,7 @@ async def test_setup_reads_the_kept_public_addresses(monkeypatch) -> None:
 
     def _store(hass, version, key):
         opened.append(key)
-        return _Store({"addresses": {PUBLIC: 1761900000}})
+        return _Store({"rule": BL.PUBLIC_STORE_RULE, "addresses": {PUBLIC: 1761900000}})
 
     monkeypatch.setattr(hs, "Store", _store)
     hass = SimpleNamespace(data={DOMAIN: {}})
@@ -546,7 +568,7 @@ async def test_setup_reads_the_kept_public_addresses(monkeypatch) -> None:
 async def test_a_confirmed_public_address_is_looked_up_however_long_ago_it_was_heard(online, monkeypatch) -> None:
     session, _ = online
     BL, bl, hass = _stack(monkeypatch, by_address={})
-    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source="proxy"))
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source=PROXY))
     _prune(bl, PUBLIC)                       # a tagged row from the history, 5 h on
     out = await _ask(hass, PUBLIC)
     assert out["skipped"] is None and session.urls and all(u.endswith("/F0:18:98") for u in session.urls)
@@ -607,23 +629,23 @@ def test_random_is_never_downgraded_and_goes_with_the_address(monkeypatch) -> No
 
     BL, bl, hass = _stack(monkeypatch)
     a, b = RANDOM_STATIC, "C8:11:22:33:44:55"
-    bl._on_adv(_advert(a, _esphome(a, 1), source="proxy"))
-    bl._on_adv(_advert(a, _esphome(a, 0), source="proxy"))  # a later "public" doesn't undo it
+    bl._on_adv(_advert(a, _esphome(a, 1), source=PROXY))
+    bl._on_adv(_advert(a, _esphome(a, 0), source=PROXY))  # a later "public" doesn't undo it
     bl._on_adv(_advert(a, _bluez(a)))
-    bl._on_adv(_advert(b, _esphome(b, 0), source="proxy"))
+    bl._on_adv(_advert(b, _esphome(b, 0), source=PROXY))
     bl._on_adv(_advert(b, _bluez(b)))                        # no type: public stays
     assert bl._address_types == {a: "random", b: "public"} and set(bl._public) == {b}
     assert BL.known_address_type(hass, a.lower()) == "random"
     assert BL.known_address_type(hass, a.replace(":", "-")) == "random"
     assert BL.known_address_type(hass, b) == "public"
     # One radio's records going doesn't forget it; the address leaving the cache does.
-    bl.clear_scanner("proxy")
+    bl.clear_scanner(PROXY)
     assert BL.known_address_type(hass, a) == "random"
     bl.clear_scanner("hci0")
     assert a not in bl._address_types and BL.known_address_type(hass, a) is None
     assert BL.known_address_type(hass, b) == "public"        # kept: public never changes
     # The age prune too.
-    bl._on_adv(_advert(a, _esphome(a, 1), source="proxy"))
+    bl._on_adv(_advert(a, _esphome(a, 1), source=PROXY))
     old = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=5)
     for src_map in bl._seen_by_source.values():
         for rec in src_map.values():
@@ -637,7 +659,7 @@ def test_random_is_never_downgraded_and_goes_with_the_address(monkeypatch) -> No
 async def test_an_address_pruned_from_the_live_cache_is_never_sent(online, monkeypatch) -> None:
     session, cache = online
     BL, bl, hass = _stack(monkeypatch, by_address={})
-    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source="proxy"))
+    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source=PROXY))
     _prune(bl, RANDOM_STATIC)
     assert bl._address_types == {}                       # "random" went with it
     await _never_sent_but_kept_answer_shown(hass, session, cache)
@@ -650,7 +672,7 @@ async def test_after_a_restart_a_row_left_in_history_is_never_sent(online, monke
 
     session, cache = online
     BL, bl, hass = _stack(monkeypatch, by_address={})
-    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source="proxy"))
+    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source=PROXY))
     # Restart: a new, empty cache; the row is still in the object history, and
     # HA replays its last advert from 17 minutes ago, without a type.
     fresh = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
@@ -671,3 +693,121 @@ async def test_a_tagged_row_older_than_4_hours_is_never_sent(online, monkeypatch
     bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
     _age(bl, RANDOM_STATIC, 4 * 3600 + 600)
     await _never_sent_but_kept_answer_shown(hass, session, cache)
+
+
+
+# ── ESPHome's 0 only from firmware that sends the type (0.38.212) ────────────
+# 0 is also protobuf's empty value: ESPHome before 2022.12.0 (esphome#4115)
+# sends no address type, HA still takes its adverts, and 0.38.211 stored every
+# address such a proxy heard, random ones too, as confirmed public.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("version", ["2022.11.5", "2022.12.0-dev", "1.15.0", None])
+async def test_an_old_esphome_proxy_is_not_stored_or_sent(online, monkeypatch, version) -> None:
+    session, _ = online
+    BL, bl, hass = _stack(monkeypatch, by_address={RANDOM_STATIC: [_esphome(RANDOM_STATIC, 0)]},
+                          esphome_version=version)
+    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 0), source=PROXY))
+    bl._seed_from_discovered()
+    assert bl._public == {} and bl._address_types == {}
+    assert BL.known_address_type(hass, RANDOM_STATIC) is None      # the scanner's own cache too
+    out = await _ask(hass, RANDOM_STATIC)
+    assert out["skipped"] == "unconfirmed" and session.urls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("version", ["2022.12.0", "2022.12.0b1", "2023.1.0-dev", "2025.10.2"])
+async def test_an_esphome_proxy_from_2022_12_is_trusted(online, monkeypatch, version) -> None:
+    session, _ = online
+    BL, bl, hass = _stack(monkeypatch, by_address={}, esphome_version=version)
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source=PROXY))
+    assert set(bl._public) == {PUBLIC}
+    out = await _ask(hass, PUBLIC)
+    assert out["skipped"] is None and session.urls and all(u.endswith("/F0:18:98") for u in session.urls)
+
+
+def test_the_proxy_version_is_read_from_its_scanner_or_its_config_entry(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    BL, bl, hass = _stack(monkeypatch, esphome_version="2024.6.0")
+    assert BL.esphome_version(SimpleNamespace(), PROXY.lower()) == "2024.6.0"
+    # No scanner holds it: HA's ESPHome config entry (runtime_data.device_info).
+    BL, bl, hass = _stack(monkeypatch, esphome_version=None)
+    di = SimpleNamespace(mac_address="AA:BB:CC:00:00:00", bluetooth_mac_address=PROXY, esphome_version="2022.11.5")
+    entries = [SimpleNamespace(runtime_data=None), SimpleNamespace(runtime_data=SimpleNamespace(device_info=di))]
+    ha = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda domain: entries if domain == "esphome" else []))
+    assert BL.esphome_version(ha, PROXY) == "2022.11.5"
+    assert BL.esphome_version(ha, "AA:BB:CC:00:00:00") == "2022.11.5"   # the network MAC as the source
+    assert BL.esphome_version(ha, "AA:BB:CC:00:00:09") is None
+    assert BL.esphome_version(SimpleNamespace(), PROXY) is None
+    for v, ok in (("2022.11.5", False), ("2022.12.0", True), ("2022.12.0-dev", False), ("2024.6.0", True),
+                  ("", False), (None, False), ("garbage", False)):
+        assert BL.esphome_sends_address_type(v) is ok, v
+
+
+def test_the_proxy_version_is_asked_again_soon(monkeypatch) -> None:
+    import time
+
+    BL, bl, hass = _stack(monkeypatch, esphome_version=None)
+    t0 = time.monotonic()
+    monkeypatch.setattr(time, "monotonic", lambda: t0)
+    assert bl._esphome_public_ok(PROXY) is False
+    BL2, bl2, _ = _stack(monkeypatch, esphome_version="2024.6.0")   # the proxy connects
+    bl2._esphome_ok_cache = bl._esphome_ok_cache
+    assert bl2._esphome_public_ok(PROXY) is False                     # cached for a minute
+    monkeypatch.setattr(time, "monotonic", lambda: t0 + 61)
+    assert bl2._esphome_public_ok(PROXY) is True
+
+
+@pytest.mark.asyncio
+async def test_a_file_from_0_38_211_is_not_read() -> None:
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import bluetooth_live as BL
+
+    bl = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
+    await bl.async_load_public(_Store({"addresses": {RANDOM_STATIC: 1761900000}}))   # no "rule"
+    assert bl._public == {}
+    await bl.async_load_public(_Store({"rule": BL.PUBLIC_STORE_RULE, "addresses": {PUBLIC: 1761900000}}))
+    assert bl._public == {PUBLIC: 1761900000}
+
+
+@pytest.mark.asyncio
+async def test_a_random_report_takes_it_out_of_memory_and_the_file(online, monkeypatch) -> None:
+    """Both, not one: left in memory, it would be sent again once "random"
+    left with the address; left in the file, after the next restart."""
+    from types import SimpleNamespace
+
+    session, _ = online
+    store = _Store()
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    await bl.async_load_public(store)
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source=PROXY))
+    assert PUBLIC in bl._public and PUBLIC in store.data["addresses"]
+    bl._on_adv(_advert(PUBLIC, _bluez(PUBLIC, "random")))
+    assert PUBLIC not in bl._public, "left in memory"
+    assert PUBLIC not in store.data["addresses"], "left in the file"
+    _prune(bl, PUBLIC)                                  # "random" leaves with the address
+    assert BL.known_address_type(hass, PUBLIC) is None
+    out = await _ask(hass, PUBLIC)
+    assert out["skipped"] == "unconfirmed" and session.urls == []
+    fresh = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))   # and after a restart
+    await fresh.async_load_public(_Store(store.data))
+    assert fresh._public == {}
+
+
+@pytest.mark.asyncio
+async def test_a_removal_is_saved_at_once_and_an_addition_within_a_minute(monkeypatch) -> None:
+    import asyncio
+    from types import SimpleNamespace
+
+    store = _Store()
+    BL, bl, hass = _stack(monkeypatch)
+    tasks = []
+    bl.hass = SimpleNamespace(data={DOMAIN: {}}, async_create_task=lambda coro: tasks.append(asyncio.ensure_future(coro)))
+    await bl.async_load_public(store)
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source=PROXY))
+    assert store.delays == [60] and not getattr(store, "saved_at_once", 0)
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 1, source="AA:BB:CC:00:00:02"), source="AA:BB:CC:00:00:02"))
+    await asyncio.gather(*tasks)
+    assert store.saved_at_once == 1 and store.data["addresses"] == {} and store.delays == [60]

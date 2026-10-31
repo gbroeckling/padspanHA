@@ -688,12 +688,13 @@ async def ws_vendor_lookup(hass: HomeAssistant, connection, msg) -> None:
 
     Used by the Overview → Objects/Unidentified modal. On by default (only an
     administrator changes it); when the settings can't be read nothing is sent.
-    It sends only the first three bytes of an address, and only for devices a
-    Bluetooth receiver confirms have a fixed, maker-assigned address (ESPHome
-    proxies and Home Assistant's own Bluetooth say so; Shelly, ESPresense and
-    Tasmota don't, so devices only they hear aren't looked up). Any other
-    address gets the answer kept for its prefix, if there is one; so does every
-    address when the type can't be read.
+    It sends only the first three bytes of an address, and only after a
+    Bluetooth receiver has confirmed that the device has a fixed,
+    maker-assigned address (ESPHome proxies on version 2022.12 or newer and
+    Home Assistant's own Bluetooth say so, and PadSpan remembers it; Shelly,
+    ESPresense and Tasmota don't, so a device only they have heard isn't looked
+    up). Any other address gets the answer kept for its prefix, if there is
+    one; so does every address when the type can't be read.
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     enabled = False

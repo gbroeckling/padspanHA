@@ -640,7 +640,7 @@ export function renderClassic(ctx){
     // in Settings). The server decides what is sent (vendor_lookup.py).
     const makerAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
     const makerToggle = el("button", { class: "btn inline", "data-maker-lookup": makerOn ? "on" : "off",
-      title: "Asks macvendors.com and maclookup.app which company made each device. It sends only the first three bytes of an address, and only for devices a Bluetooth receiver confirms have a fixed, maker-assigned address (ESPHome proxies and Home Assistant's own Bluetooth say so; Shelly, ESPresense and Tasmota don't, so devices only they hear aren't looked up)." },
+      title: "Asks macvendors.com and maclookup.app which company made each device. It sends only the first three bytes of an address, and only after a Bluetooth receiver has confirmed that the device has a fixed, maker-assigned address (ESPHome proxies on version 2022.12 or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it; Shelly, ESPresense and Tasmota don't, so a device only they have heard isn't looked up)." },
       makerOn ? "Look up makers online: On" : "Look up makers online: Off");
     if (!makerAdmin) { makerToggle.disabled = true; makerToggle.title = "Only an administrator can change this"; }
     makerToggle.addEventListener("click", async () => {

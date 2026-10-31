@@ -12,12 +12,14 @@ Why this exists:
 - To make those usable, we do a best-effort *manufacturer/vendor* lookup using public OUI databases.
 
 Privacy (the rule, word for word everywhere it is described):
-It sends only the first three bytes of an address, and only for devices a Bluetooth receiver
-confirms have a fixed, maker-assigned address (ESPHome proxies and Home Assistant's own Bluetooth
-say so; Shelly, ESPresense and Tasmota don't, so devices only they hear aren't looked up).
+It sends only the first three bytes of an address, and only after a Bluetooth receiver has
+confirmed that the device has a fixed, maker-assigned address (ESPHome proxies on version 2022.12
+or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it; Shelly, ESPresense
+and Tasmota don't, so a device only they have heard isn't looked up).
 - An allowlist: only an address a radio CONFIRMED as public is sent (ESPHome
-  details["address_type"] 0, BlueZ props["AddressType"] "public"; bluetooth_live.known_address_type,
-  which keeps confirmed public addresses in .storage: a public address never changes type).
+  details["address_type"] 0 from firmware 2022.12 or newer, since 0 is also protobuf's empty
+  value; BlueZ props["AddressType"] "public"; bluetooth_live.known_address_type, which keeps
+  confirmed public addresses in .storage: a public address never changes type).
   Random or unknown is never sent, whatever the bits; the bit rule (0x02 locally administered,
   0x01 multicast) only holds back more.
 - Not confirmed ("unconfirmed"): the answer already kept for the prefix, if there is one, and

@@ -43,6 +43,8 @@ from .const import (
     MOVEMENT_STORE_KEY,
     DATA_TRACEBACK,
     TRACEBACK_STORE_KEY,
+    PUBLIC_ADDRESSES_STORE_KEY,
+    VENDOR_CACHE_STORE_KEY,
 )
 from .bluetooth_live import get_bluetooth_live
 
@@ -525,6 +527,30 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
             _bl._address_types.clear()
     except Exception:
         pass
+
+    # The maker lookup's own files: the addresses a radio confirmed as public
+    # (bluetooth_live) and the makers kept for 30 days (vendor_lookup). Both
+    # outlived a reset, though the help says it erases all of PadSpan's data.
+    # Each is removed through the store the live object writes with, so a
+    # save still pending can't write it back.
+    try:
+        _bl = get_bluetooth_live(hass)
+        if _bl is not None:
+            _bl._public.clear()
+        await (getattr(_bl, "_public_store", None) or _St(hass, 1, PUBLIC_ADDRESSES_STORE_KEY)).async_remove()
+        cleared += 1
+    except Exception as e:
+        _LOGGER.warning("Factory reset: public addresses — %s", e)
+        errors.append(PUBLIC_ADDRESSES_STORE_KEY)
+    try:
+        _vc = domain.get("_vendor_cache")
+        if _vc is not None:
+            _vc.data = {"entries": {}}
+        await (getattr(_vc, "store", None) or _St(hass, 1, VENDOR_CACHE_STORE_KEY)).async_remove()
+        cleared += 1
+    except Exception as e:
+        _LOGGER.warning("Factory reset: vendor cache — %s", e)
+        errors.append(VENDOR_CACHE_STORE_KEY)
 
     _LOGGER.warning(
         "FACTORY RESET executed by %s — cleared %d stores",
