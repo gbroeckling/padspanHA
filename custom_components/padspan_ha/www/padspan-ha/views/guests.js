@@ -42,7 +42,7 @@ export function render(ctx) {
     el("div", { style: "display:flex;align-items:center;gap:8px" }, [
       el("div", { style: "font-size:24px" }, "🧳"),
       el("div", { style: `font-weight:700;font-size:16px;color:${AMBER}` }, "Guests"),
-      ctx.helpers.helpBtn ? ctx.helpers.helpBtn("guests") : null,
+      ctx.helpers.helpBtn ? ctx.helpers.helpBtn("guest_tags") : null,
     ].filter(Boolean)),
     el("div", { style: "font-size:12px;color:#94a3b8;margin-top:2px" },
       "Lend a tag to a guest: see where they are, when they came and went, and be told when they go somewhere they shouldn't."),
