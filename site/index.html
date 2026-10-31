@@ -184,6 +184,22 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.214</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">31 October 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>The first "?" in German, French or Dutch opens at once.</b> It used to wait up to 2 seconds with nothing on screen while the translated help downloaded. Now the help window opens straight away with "Loading help…" and fills in when the translation arrives (or in English after 2 seconds, as before). If the translation arrives after that, the open help switches to it.</li>
+          <li><b>Point Align gives its errors in metres.</b> The preview's residual, each point's chip ("Pt 1: …"), the "high error" tip and the "Aligned" and "Baked" messages read a percentage of the reference picture's width and height, which said nothing you could check. They now say how far, in metres, the points are from where the fit puts them. The rating (Excellent, Fair or Poor) and the colours are the same as before, and a line under the points says, in metres, where Excellent and Fair end for that plan.</li>
+          <li><b>A translated help that failed to download is tried again.</b> When the download failed (offline, or the file was missing), the help stayed in English until the page was reloaded. Now a "?" a minute or more later tries again.</li>
+          <li><b>The Events log page has its own help.</b> Its "?" opened the help for Manage → Events, the room-change alerts, which is a different page. It now explains the log: screens you opened, live data updates and tagging since the page opened, gone on reload. In German, French and Dutch too.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.213</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">31 October 2026</span>
