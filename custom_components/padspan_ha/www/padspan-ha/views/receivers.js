@@ -214,7 +214,9 @@ function _heightCell(ctx, el, row, editable) {
 }
 
 // Signal adjustment: Settings → Tracking → Receivers' manual offset, the
-// same key, action and range.
+// same key, action and range. Only a newly typed value is held to the range:
+// a stored one outside it (1 m Reference Calibration saves what it measures)
+// is shown as it is and saved unchanged when Save is pressed on it.
 function _offsetCell(ctx, el, row, editable) {
   const txt = `${row.offset > 0 ? "+" : ""}${row.offset} dB`;
   if (!editable) return el("span", { class: "rx-num" }, txt);
@@ -222,7 +224,8 @@ function _offsetCell(ctx, el, row, editable) {
   inp.value = String(row.offset);
   const btn = el("button", { class: "btn inline rx-save", title: "Added to every reading from this receiver: positive if it reads weaker than it should. Same value as Settings → Tracking → Receivers." }, "Save");
   btn.addEventListener("click", async () => {
-    const v = Math.max(OFFSET_MIN, Math.min(OFFSET_MAX, parseFloat(inp.value) || 0));
+    const typed = parseFloat(inp.value) || 0;
+    const v = typed === row.offset ? typed : Math.max(OFFSET_MIN, Math.min(OFFSET_MAX, typed));
     btn.disabled = true;
     try {
       await ctx.actions.scannerOffsetSet(row.source, v);

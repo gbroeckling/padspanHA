@@ -9,7 +9,9 @@
 //               has only ble.radios, so Sample read 0
 //   diag        Diagnostics counted the snapshot's top-level keys as devices
 //   offset      Bluetooth → Scanners "RSSI offset": ±20 like the rest; a stored
-//               value outside it is shown and kept, only new edits are held in
+//               value outside it is shown and kept, only new edits are held in.
+//               Settings → Tracking → Receivers and the Receivers page clamped
+//               a stored value on Save even unedited: now the same rule
 //   compare     Mapping → Library "Compare Maps" threw on a visible plan with
 //               rooms but no placement
 // The pytest wrapper is tests/test_help_found_bugs.py.
@@ -23,6 +25,7 @@ const V = ROOT + "/custom_components/padspan_ha/www/padspan-ha/";
 const imp = (n) => import(pathToFileURL(V + n).href);
 const MAN = await imp("views/manage.js"), HEALTH = await imp("views/health.js"), DIAG = await imp("views/diagnostics.js");
 const BT = await imp("views/bluetooth.js"), MAPS = await imp("views/maps.js");
+const SET = await imp("views/settings.js"), RX = await imp("views/receivers.js");
 const { SAMPLE_SNAPSHOT } = await imp("sample_data.js");
 
 const results = {};
@@ -146,6 +149,50 @@ async function scannerSet(stored, typed) {
   check("offset: a stored +25 is shown as it is and Set unchanged keeps it", c.shown === "25" && JSON.stringify(c.saved) === JSON.stringify([["kit", 25]]), c);
   const d = await scannerSet(25, 30);
   check("offset: changing a stored +25 is held at +20", JSON.stringify(d.saved) === JSON.stringify([["kit", 20]]), d.saved);
+  const e = await scannerSet(-27.5, null);
+  check("offset: a stored -27.5 is shown as it is and Set unchanged keeps it", e.shown === "-27.5" && JSON.stringify(e.saved) === JSON.stringify([["kit", -27.5]]), e);
+}
+
+// ── 4b. The same rule on Settings → Tracking → Receivers and the Receivers page
+// Both clamped to ±20 on Save even when nothing was typed, so an offset 1 m
+// Reference Calibration saved past ±20 was cut the first time anyone pressed
+// Save on that row.
+async function offsetVia(screen, stored, typed) {
+  const saved = [];
+  const state = { settings: { tier: "pro", edition: "full", scanner_offsets: stored == null ? {} : { kit: stored } },
+    live: { snapshot: { source: "live", ble: { radios: [{ source: "kit", name: "Kitchen", area_name: "Kitchen" }], advertisements: [] }, objects: { list: [] } } } };
+  const extra = { scannerOffsetSet: async (src, v) => { saved.push([src, v]); } };
+  let inp = null;
+  if (screen === "settings") {
+    const root = SET.render(makeCtx(Object.assign(state, { view: "settings", _settingsTab: "presence" }), [], extra));
+    const card = all(root).find(n => (n.className || "") === "card" && /Receiver signal adjustments/.test(text(n)));
+    inp = card ? tagged(card, "INPUT").find(n => n.getAttribute("type") === "number") : null;
+  } else {
+    const root = RX.render(makeCtx(Object.assign(state, { view: "receivers" }), [], extra));
+    inp = tagged(root, "INPUT").find(n => /^Signal adjustment \(dB\) for/.test(n.getAttribute("aria-label") || "")) || null;
+  }
+  const shown = inp && inp.value;
+  if (inp && typed != null) inp.value = String(typed);
+  const save = inp && tagged(inp.parentNode, "BUTTON").find(b => text(b) === "Save");
+  if (save) save.dispatchEvent(new Event("click"));
+  await flush();
+  return { found: !!inp && !!save, min: inp && inp.getAttribute("min"), max: inp && inp.getAttribute("max"), shown, saved };
+}
+for (const screen of ["settings", "receivers"]) {
+  const same = (r, v) => JSON.stringify(r.saved) === JSON.stringify([["kit", v]]);
+  const a = await offsetVia(screen, 25, null);
+  check(`offset: ${screen} has the box, -20..+20`, a.found && a.min === "-20" && a.max === "20", a);
+  check(`offset: ${screen} shows a stored +25 as it is and Save unchanged keeps it`, a.shown === "25" && same(a, 25), a);
+  const b = await offsetVia(screen, -27.5, null);
+  check(`offset: ${screen} keeps a stored -27.5 on Save unchanged`, b.shown === "-27.5" && same(b, -27.5), b);
+  const c = await offsetVia(screen, 25, 30);
+  check(`offset: ${screen} holds a new value typed over a stored +25 at +20`, same(c, 20), c.saved);
+  const d = await offsetVia(screen, 25, 12.5);
+  check(`offset: ${screen} saves a new in-range value as typed`, same(d, 12.5), d.saved);
+  const e = await offsetVia(screen, null, -26);
+  check(`offset: ${screen} holds a new value past -20 at -20`, same(e, -20), e.saved);
+  const f = await offsetVia(screen, 4.5, null);
+  check(`offset: ${screen} saves an in-range stored value unchanged`, same(f, 4.5), f.saved);
 }
 
 // ── 5. Mapping → Library, Compare Maps ───────────────────────────────────────

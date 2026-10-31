@@ -10,7 +10,10 @@
             which the sample house's snapshot lacks: Sample showed 0
   diag      Diagnostics counted the snapshot's top-level keys as devices
   offset    Bluetooth → Scanners' RSSI offset took ±30 where every other
-            screen takes ±20; a stored value outside ±20 is kept as it is
+            screen takes ±20; a stored value outside ±20 is kept as it is.
+            Settings → Tracking → Receivers and the Receivers page clamped
+            even an unedited stored value to ±20 on Save (1 m Reference
+            Calibration saves what it measures): now the same rule
   compare   Compare Maps threw on a visible plan with rooms but no placement
 
 tests/js/help_found_bugs.mjs renders each of them.

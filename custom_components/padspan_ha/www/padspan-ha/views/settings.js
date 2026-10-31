@@ -2548,7 +2548,12 @@ function _settingsPresence(ctx, el){
       const offInp = el("input",{type:"number",min:"-20",max:"20",step:"0.5",value:String(manualOffset),style:inpStyle});
       const offSaveBtn = el("button",{class:"btn inline"},"Save");
       offSaveBtn.addEventListener("click", async()=>{
-        const v = Math.max(-20, Math.min(20, parseFloat(offInp.value)||0));
+        // Only a newly typed value is held to ±20. A stored offset outside it
+        // (1 m Reference Calibration saves what it measures; the server takes
+        // ±50) is shown as it is and saved unchanged when Save is pressed on
+        // it: clamping it here cut it to ±20 without a word.
+        const typed = parseFloat(offInp.value)||0;
+        const v = typed === manualOffset ? typed : Math.max(-20, Math.min(20, typed));
         try {
           await ctx.actions.scannerOffsetSet(src, v);
           ctx.toast(`${friendlyName || src}: manual offset set to ${v>0?"+":""}${v} dB`);
