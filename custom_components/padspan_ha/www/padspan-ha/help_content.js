@@ -37,30 +37,30 @@ export function helpTexts() { return {
 
   // ── Follow ──────────────────────────────────────────────────────────────────
   follow: {
-    title: t("Follow — Track a tag in real time"),
+    title: t("Follow — Watch one tag in real time"),
     body: [
-      t("The Follow page lets you watch exactly where a specific person or object is right now."),
-      t("Pick any tracked tag from the dropdown — a phone, key fob, AirTag, Tile tracker, or anything Bluetooth. PadSpan™ shows you which room it's currently in, how strong the signal is, and which of your scanners can see it."),
-      t("The location updates automatically every few seconds. You don't need to refresh the page."),
-      t("Click Details → in the status card to open the full device detail view — per-scanner RSSI, signal history, and quick access to Tag/Relabel."),
+      t("Follow shows where one person or thing is right now: a phone, a key fob, a Tile, an AirTag or anything else Bluetooth that PadSpan™ hears."),
+      t("Pick it under \"Choose a tag to follow\". The card below then shows the room it is in, its floor and when a receiver last heard it. In Advanced and Development mode the card also lists the receivers that hear it (\"Detected by\") and its address, and a \"Movement log\" card lists its recent room changes."),
+      t("\"Name this tag\" (or \"Rename\") gives it a friendly name. \"Details →\" opens everything PadSpan knows about it."),
+      t("Under the card, \"📍 Locate\" (PadSpan Pro) guides you to the tag, and \"Movement Alerts\" tells you when it moves. Each has its own ? help."),
+      t("In Live mode the page updates itself every 5 seconds. In Sample mode it shows the sample house."),
     ],
   },
   follow_selector: {
     title: t("Choosing which tag to follow"),
     body: [
-      t("The dropdown is sorted by signal strength, strongest first — so whatever's closest right now tends to be near the top, not whatever has a name."),
-      t("Give an unnamed device a friendly name (like 'Alice's Phone' or 'Car Keys') using the Tag button in the Objects section, so it's easier to pick out of the list."),
-      t("In Quiet Mode, unidentified and unfollowed devices are left out of the dropdown entirely — turn Quiet Mode off if you're looking for one that isn't there."),
-      t("If a device shows 'not_home' or is missing from the list, it hasn't been detected recently. It may have left range or gone away. Check the Objects tab for the red Away badge and its last known location."),
+      t("Click the search box (\"Search tags...\") to open the list, or type part of a name, room or address to narrow it. The list is sorted by signal strength, strongest first, so whatever is closest tends to be near the top. Each entry starts with [Tagged], [Unidentified] or [Entity], then its name, room and signal."),
+      t("Picking a tag shows it here and also adds it to your followed list, so the Overview map draws it as a followed (amber) marker. The × clears the choice; the tag stays followed."),
+      t("Name unnamed devices first so they are easy to find: \"Name this tag\" on the card here, or Tag in Devices → By Room."),
+      t("With Quiet on (the tick at the top of the Overview), unnamed devices you don't follow are left out of the list. Turn Quiet off if the one you want isn't there. A device that hasn't been heard for a while may have left range: Devices → By Room shows its Away badge and the last room it was seen in."),
     ],
   },
   follow_map: {
-    title: t("Location map — Where is the tag right now?"),
+    title: t("Where the tag is now — the card and the room map"),
     body: [
-      t("The map shows every room in your home and highlights the tracked tag's current location with a bright pulsing dot."),
-      t("Green antenna rings inside rooms show where your Bluetooth scanners (radios) are placed."),
-      t("The more scanners that can detect the tag, the more accurately PadSpan can pinpoint the location."),
-      t("The map refreshes automatically every few seconds — no manual refresh needed."),
+      t("The card under the search box says which room the tag is in now (\"Currently in\" in Basic mode, \"Current room\" in Advanced), its floor, and when a receiver last heard it. A \"Calibrated\" badge with a percentage appears when its place comes from your calibration points: the number is how sure that match is."),
+      t("The \"Location map\" draws every room as a box, with your receivers as small green rings in the room they belong to. The tag's room has a stronger outline and the tag is a pulsing teal dot in it. It is a room diagram, not your floor plan: the Overview has the drawn house."),
+      t("Both update every 5 seconds in Live mode, with no need to refresh."),
     ],
   },
   follow_alerts: {
@@ -78,42 +78,100 @@ export function helpTexts() { return {
   overview: {
     title: t("Overview — Your home at a glance"),
     body: [
-      t("Overview shows a live diagram of all your rooms with your Bluetooth scanners and tracked objects displayed inside them."),
-      t("Think of it as your home's control tower — a quick snapshot of where everything is right now."),
-      t("Each box is a room from your Home Assistant Areas & Zones. Green antenna icons are your Bluetooth radios. Coloured dots are tracked people or objects."),
-      t("In Advanced or Development mode, use the buttons below the KPI row — View rooms list, All objects / Unidentified, View radios list — to see a full list. Click any row in that list for detailed info on that item."),
+      t("Overview is the first page: where everyone and everything is right now, on a drawing of your house. In Live mode it updates every 5 seconds."),
+      t("What you see depends on how far setup has got. A house with no rooms drawn yet starts with \"Who's where now\" (each room and who is in it) and a \"Getting started\" card with the steps to a map. Once rooms are drawn, the map is a 3D stack of your floors. Most cards have their own ? help."),
+      t("Basic mode keeps it short: the Quiet tick, counts of rooms, objects, scanners and calibration points, the \"Track Your Phone\" card, and the map in \"Your home\"."),
+      t("Advanced and Development mode add \"People in building\" (how many people are home; click it to see how the number was reached) and, under the map, cards for Rooms, Objects, Bluetooth radios and Calibration. Their buttons open full lists: \"View rooms list\", \"All objects\" and \"Unidentified\", \"View radios list\". Click a row for its details. \"Clear unidentified\" removes devices nobody has named or followed."),
+      t("The Quiet tick (top right) hides devices nobody has named or followed, here and on the other pages, so only the ones you care about remain. It changes what is shown, not what is tracked."),
+      t("Other cards come and go: a yellow banner on the sample house (\"Back to my house\" returns to yours; see the Live and Sample help), \"Improve accuracy\" with a last setup tip or two once setup is done, and \"Positioning Diagnostics\" (folded) for support."),
+      t("With PadSpan Pro you can make the Atlas your Overview (Settings → Atlas, \"Overview shows the Atlas\"). This page is then the \"▦ Overview\" side of the Live Tracker."),
     ],
   },
   overview_grid: {
     title: t("The map — What you're seeing"),
     body: [
-      t("Once you have traced your rooms in Mapping, Overview draws the floors as a 3D stack. Each room uses its own colour, and rooms sharing a wall join into one clean shape."),
-      t("Bluetooth scanners appear as fixed-size rings — colour, not size, tells you their state: green for online and reporting, dim grey for offline. A pulsing red ring means the scanner is actively mid-scan."),
-      t("Coloured dots are tracked objects. Followed (starred) devices always draw as an amber marker, even when away (it just dims). Teal dots are identified/tagged devices; orange dots are unrecognised Bluetooth signals."),
-      t("Before any floor plan has real room geometry, Overview falls back to a flat grid of coloured boxes instead — one per room, with a count badge in the corner showing scanners and objects in it. That's the fallback view, not the everyday one."),
-      t("The map refreshes every 5 seconds in Live mode."),
+      t("Once your rooms are drawn in Mapping, the map is a 3D stack of your floors. Each room has its own colour, and rooms that share a wall join into one shape. A numbered dot marks each floor, with the floor names along the bottom."),
+      t("Receivers (your Bluetooth scanners) are fixed-size rings with a short name: green when reporting, dim grey when offline. A red blinking inner ring means that receiver is set to active scanning (it asks each device for a little more information), not that it is busy right now. Point at a ring to see its name, room and mode."),
+      t("Devices you follow are always drawn, as amber markers with their name and a percentage: how sure PadSpan is of the spot (\"Room only\" when it knows the room but not the spot). They dim and say \"(Away)\" when away."),
+      t("Other named devices are hidden until you turn \"Pins\" on: then each is a teal dot, or a red crosshair when away. Devices PadSpan recognises but nobody has named are small dim amber dots. Devices it doesn't recognise at all are not drawn here; Devices → By Room lists them. A blue ring means the device is outside the building and is drawn at its edge."),
+      t("Before any rooms are drawn, Overview shows \"Who's where now\" (in Live mode) or a simple box per room instead."),
+      t("The row of buttons with the map changes what is drawn: see its ? help. The map updates every 5 seconds in Live mode."),
+    ],
+  },
+  whos_where: {
+    title: t("Who's where now"),
+    body: [
+      t("A house with no rooms drawn yet sees this card first on the Overview, in Live mode. Each room comes from a receiver and the Home Assistant area you gave it: a device belongs to the room whose receiver hears it best. No floor plan needed."),
+      t("The line at the top says what your receivers give you so far: none found yet, receivers with no area (home or away only), one room, or several rooms. Give each receiver the area it is in, in Home Assistant."),
+      t("Each row is a room and who is in it: named and followed devices by name, then a count of the other devices heard there. \"Heard, no room yet\" collects devices heard only by a receiver with no area."),
+      t("Phones Home Assistant already knows through its Private BLE Device integration have a \"Track\" button: one click names and follows the phone, which gives it room and home/away sensors in Home Assistant. \"Not heard right now\" lists the ones out of range. With Enhanced security on, only an administrator can track them."),
+      t("\"Make it a map\" opens the guided Setup (floor plan, scale, floors, rooms, receivers, calibration). \"Preview a finished house\" shows the sample house; \"Back to my house\" returns."),
+    ],
+  },
+  getting_started: {
+    title: t("Getting started — from receivers to a map"),
+    body: [
+      t("1. Receivers. PadSpan™ listens through the Bluetooth receivers Home Assistant already has: ESPHome Bluetooth proxies (an ESP32 board in each room is the usual choice), Shelly devices with Bluetooth, or the Home Assistant machine's own Bluetooth. Each one shows up on the Receivers page within a minute. A new install starts on the sample house and switches to your own by itself once PadSpan finds your first receiver."),
+      t("2. Rooms. Your rooms are your Home Assistant areas (HA Settings → Areas & Zones). Give each receiver the area it is in. That is already enough for \"Who's where now\" on the Overview."),
+      t("3. Your phone and tags. Track your phone with the Overview's \"Track Your Phone\" card, and name your other devices (Tag in Devices → By Room, or \"Name this tag\" on Follow). Then watch any of them on Follow."),
+      t("4. A map. Optional, but it gives the 3D view and, with three or more receivers placed, positions between receivers. The \"Getting started\" card on the Overview lists the steps: Upload Floor Plan, Set Scale, Draw Rooms, Place Scanners, Calibrate, and See someone on the map. Click a step to go straight to it, or press \"Open Setup\" for the guided Setup: the same steps in order, with floor heights and receiver heights too, each opening its tool and leading back. \"Skip setup\" hides the card. A Live house with no rooms drawn sees it as \"Make it a map (optional)\"."),
+      t("5. Calibration. Calibration (in the menu in every mode) teaches PadSpan your house by recording the signals at known spots. The Calibrate step opens its guided walk-through."),
+      t("The Rooms page has each room's settings in one place, and the Receivers page every receiver with its room, height and health. Once setup is done, an \"Improve accuracy\" card on the Overview may suggest a last step or two."),
+    ],
+  },
+  phone_tracking: {
+    title: t("Track Your Phone"),
+    body: [
+      t("The \"Track Your Phone\" card on the Overview (Live mode only) lists the phones that have the Home Assistant Companion app. Once your house has rooms drawn it is folded: click its title to open it."),
+      t("Android: the Companion app has a BLE Transmitter sensor that sends a steady beacon, which PadSpan can follow even though the phone keeps changing its Bluetooth address for privacy. Press \"Track\" (Basic mode) or \"Track this phone\" (Advanced and Development). PadSpan names the phone, follows it, switches its BLE Transmitter sensor on in Home Assistant and asks the app to start sending."),
+      t("iPhone: the iPhone app has no BLE Transmitter. An iPhone is followed by its IRK, a key that recognises the phone through every address change. Add it in Settings → Tracking → Phones and guest tags → \"Phone Tracking (Private BLE)\" (Advanced and Development mode) or in Bluetooth → IRK Manager (under More tools). A phone without a key also has \"Add IRK\" in this card. Turn on \"iPhone Setup Path\" in Settings → Features and an iPhone here gets a \"Setup\" button with the steps."),
+      t("Other buttons: \"Setup\" on an Android phone means its BLE Transmitter sensor isn't on in the app yet; it shows the steps. \"Enable & Track\" means the sensor is switched off in Home Assistant; it switches it on and tracks the phone (restart Home Assistant afterwards)."),
+      t("In Advanced mode the button then says how it went: \"Tracked!\" (a receiver hears it), \"Registered — waiting for signal\" (it is sending but no receiver has heard it yet: walk near one), or \"Registered — enable BLE\" (the app didn't switch the transmitter on: in the Companion app open Settings → Companion App → Manage Sensors → BLE Transmitter and turn it on). Later visits show Tracked, Waiting for signal or BLE off."),
+      t("To stop, press \"Unfollow\" (Basic) or \"Untrack\" (Advanced): the phone's name is removed and it is no longer followed. A phone tracked before any receiver has heard it waits in Devices → By Room as \"Waiting for signal\"."),
+    ],
+  },
+  live_tracker: {
+    title: t("Live Tracker — the live map, full screen"),
+    body: [
+      t("Live Tracker is the live map on its own, as large as the screen allows: good for a wall tablet or a second screen. It is in the main list in Advanced and Development mode, and under More tools in Basic."),
+      t("Drag to move the map and use the mouse wheel or pinch to zoom; the +, − and ⌂ buttons in the corner do the same, and ⌂ resets the view. \"Search objects, rooms, scanners…\" finds a device, room or receiver and moves the map to it."),
+      t("Top left: counts of rooms, named devices (Tracked) and receivers (Radios). Top right: your receivers, each with how many devices it hears; red means it isn't scanning. Click one for its details. When a device changes room, it shows briefly on the map and in a short list of recent moves."),
+      t("Below the map, \"Tracked Devices\" lists the devices you follow and their rooms (the target icon centres the map on one), a strip lists every receiver, and the bottom line shows Live or Sample, the counts and the version. ℹ hides or shows these panels."),
+      t("\"Controls\" opens the drawing controls: Floor with ◀ ▶, Gap, L/R, Walls, Trails, Pins, Heat and Warp (when those features are on), Save and Collapse. They work as on the Overview's 3D map: see its controls help."),
+      t("For a wall screen, open it with ?view=purelive&kiosk=1 in the address: the panel's menus are hidden. If the Atlas is your Overview, a switch above the map (\"⚡ Live Tracker\" or \"▦ Overview\") brings up the classic Overview here."),
     ],
   },
 
   // ── Objects ───────────────────────────────────────────────────────────────────
-  objects: {
-    title: t("Objects — Everything being tracked"),
+  devices: {
+    title: t("Devices — four lists of what PadSpan tracks"),
     body: [
-      t("Objects lists Bluetooth devices your scanners have detected — phones tracked by Home Assistant, Tile trackers, key fobs, AirTags, and anything else broadcasting BLE. By default only devices seen in the last 4 hours are shown; widen the History filter to go further back."),
-      t("Badge colours tell you the device type: green BLE = standard Bluetooth device, orange BLE? = unidentified, blue Private BLE = phone using rotating MAC address (resolved automatically via IRK), amber iBeacon = Tile / HA Companion App iBeacon grouped by stable UUID. AirTags and other Apple Find My tags (purple Find My badge) change both their MAC and their advertised key — every 15 min near their owner's iPhone, once a day away from it — and do NOT have a stable identifier; see the Naming help below for what works."),
-      t("A red Away badge appears when a BLE device hasn't been seen for longer than the configured away timeout (default 5 min). The corresponding device_tracker entity in HA also shows not_home."),
-      t("Lost & Found: '📍 Kitchen · 2 h ago' under a device is the last room PadSpan was sure it was in, and when. It's kept across Home Assistant restarts, so you can still see where your keys were last seen after a reboot."),
-      t("Basic mode shows one card per device; click its Details button to open the full detail panel. Advanced/Development mode instead shows a sortable table with a search box (find a device by name, address, company, or device type — try 'apple' or 'tile') and the extra company/device-type/service badges decoded from its BLE advertisement; click anywhere on a row to open the same detail panel."),
+      t("Devices is under More tools in every mode (in Advanced and Development mode, Settings → UI Structure can move it into the main list). It has four tabs."),
+      t("All Devices: your Home Assistant trackers and the Bluetooth devices PadSpan hears, in one list without duplicates. The counts at the top and the buttons All, Named, Untagged and Missing filter it; the search box finds a name, address or room. Each row has Details, Tag (or Rename) and, for a named device, Untag."),
+      t("By Room: every device with its room, signal and history, where you name devices and use Walk-to-Identify. It has its own ? help."),
+      t("Registry: PadSpan gives every device a fixed ID (padspan_id) that stays the same when its Bluetooth address, beacon ID or firmware changes. Tick two entries and press \"Merge Selected\" when one device shows up twice, delete an entry, or add an identity link by hand."),
+      t("Door Openers (PadSpan Bright or Pro): tick a cover, switch, button or script that opens a door, gate or garage, so Mapping → Atlas can link it to that door or window beside its sensor and lock."),
+    ],
+  },
+  objects: {
+    title: t("Devices → By Room — every device PadSpan hears"),
+    body: [
+      t("This list is the By Room tab of Devices (under More tools). It shows the Bluetooth devices your receivers hear (phones, Tiles, key fobs, AirTags, watches) and Home Assistant trackers with a room."),
+      t("Basic mode shows a card per device, in two groups: \"Tracked Objects\" (named or recognised) and \"Unidentified\". Each card has Follow, Tag (or Relabel) and Details. Advanced and Development mode show one table, \"BLE Scanner Detections\", with a search box (try a name, an address, or a maker such as apple), kind and status filters, and counts you can click to filter. Click a row for its details."),
+      t("The History slider limits the list to devices heard within the last 1 minute up to 1 week (the default)."),
+      t("Badges say what a device is. BLE: an ordinary Bluetooth device. Private BLE (blue): a phone or watch recognised through its IRK, a key that sees through its changing address. iBeacon (amber): a beacon with a fixed ID, such as the Android Companion app's BLE Transmitter or many key finders. Entity: a Home Assistant tracker. A ? after the badge (BLE?) means nobody has named it yet. In Advanced mode more badges show the maker and the kind of device, read from its signal."),
+      t("AirTags and other Apple Find My tags change their address (every 15 minutes near their owner's iPhone, once a day away from it) and have no fixed ID; see the Naming help for what keeps their name."),
+      t("\"Away\" (red) means the device hasn't been heard for longer than the away timeout (5 minutes unless changed). A line like \"📍 Kitchen · 2h 5m ago\" says the last room PadSpan was sure of, and when; it is kept across Home Assistant restarts. \"Waiting for signal\" marks a phone you set up to track that no receiver has heard yet."),
+      t("\"Clear unidentified\" removes the devices nobody has named or followed. Named and followed devices are kept, and a cleared device comes back if it is heard again. With Quiet on (the tick at the top of the Overview), unnamed devices are hidden here too, and the heading says how many."),
     ],
   },
   objects_tag: {
     title: t("Naming (tagging) a device"),
     body: [
-      t("When PadSpan detects a Bluetooth device it doesn't recognise, it shows a hardware address like AA:BB:CC:11:22:33."),
-      t("Click the 'Tag' button next to any device to give it a friendly name — for example 'Backpack Tile', 'Car Keys', or 'Cat Collar'. Click Save. The name is stored permanently in Home Assistant."),
-      t("Once tagged, the name appears everywhere in PadSpan — on the Overview map, the Follow tracker, and all other pages. PadSpan also creates a device_tracker entity (e.g. device_tracker.car_keys) and an area sensor (e.g. sensor.car_keys_area) in Home Assistant for use in automations."),
+      t("A device nobody has named shows its Bluetooth address, like AA:BB:CC:11:22:33. To name it, press Tag (in Devices → By Room or Devices → All Devices) or \"Name this tag\" on Follow. Type a name such as \"Car Keys\" and press \"Save label\". The name is kept in Home Assistant."),
+      t("To change a name, press Relabel or Rename: the box then says \"Update label\". To remove a name, press Untag, in that same box, in the device's Details or in Devices → All Devices. The device goes back to its address and is still tracked."),
+      t("A named device appears by name everywhere in PadSpan, and Home Assistant gets a device for it with a tracker (device_tracker.car_keys, its state is the room), a room sensor (sensor.car_keys_area), a distance sensor (metres to the nearest receiver) and a distance sensor for each receiver that hears it. See \"HA Entities & Automations\" in Training → Full Manual."),
       t("What sticks across rotations: Tile/Chipolo and HA Companion-App iBeacons broadcast a stable UUID, so the tag follows them forever. Phones use IRK resolution (Bluetooth → IRK Manager) to bind a friendly name to the rotating address. AirTags, other Apple Find My tags and Samsung SmartTags are the hard case — they rotate both MAC and advertised key with no stable identifier. For Find My tags, enable Settings → Features → MAC Rotation Bridging: a tag you've named or followed carries on to its next address when it's clear which one it is (same kind of tag, the old address stopped, heard in the same place). It won't guess — two tags lying together that change at once, or a tag out of range when it changed, need naming again."),
-      t("You can rename a device at any time by clicking 'Relabel'. To remove a tag entirely, go to the sidebar Manage view → BLE Tags."),
     ],
   },
 
@@ -188,10 +246,10 @@ export function helpTexts() { return {
   zones: {
     title: t("Zones — Every room, at a glance"),
     body: [
-      t("Zones shows one card per room, sorted so the busiest rooms come first. A coloured left border means the room currently has something in it; an empty room's card is dimmed grey."),
+      t("Zones is a tab of Monitor (under More tools). It shows one card per room, sorted so the busiest rooms come first. A coloured left border means the room currently has something in it; an empty room's card is dimmed grey."),
       t("Each card lists what's in that room — up to 8 objects by name, with signal strength in dBm and a small dot for anything you're following. Click a card, or an object inside it, to open its full detail view."),
       t("The badge row at the top counts rooms, occupied rooms, empty rooms, and total tracked objects."),
-      t("If your Home Assistant floors are set up, rooms are grouped under their floor's name. Quiet Mode (top of Overview) hides unidentified devices here too, showing only tagged and followed objects."),
+      t("If your Home Assistant floors are set up, rooms are grouped under their floor's name. Quiet (the tick at the top of the Overview) hides unnamed devices here too, showing only named and followed ones."),
     ],
   },
   insights: {
@@ -215,10 +273,11 @@ export function helpTexts() { return {
   locate: {
     title: t("Locate — Which way to walk to find something"),
     body: [
-      t("Locate is an option on Follow: pick a tag to follow, then tap 📍 Locate. It answers \"which way do I walk from here to that\" without a compass or a camera. Pick which tracked device is yours — the same one your Phone Setup Wizard or IRK setup already tracks — and it guides you to the tag you are following."),
-      t("If you're in the same room already, Locate shows the live distance in metres between you, with \"getting closer\" or \"getting further\" as you move."),
-      t("If you're in a different room, Locate walks a path over your drawn room-adjacency map (Mapping → Layout) and tells you which room to head to next, with the full route shown as a trail. If a floor change is needed it says so up front. If no route is drawn between the two rooms yet, it tells you the target's room and floor so you can head there directly."),
-      t("This deliberately does not use your phone's compass — indoors, near BLE scanners and building wiring, a magnetic compass is not reliable enough to trust. Locate is a PadSpan Pro feature, and needs \"you\" set to a tracked device to work at all."),
+      t("Locate is on Follow: pick a tag, then press \"📍 Locate\". It tells you which way to walk to find that tag, using the same receivers that track everything else: no compass, no camera. It is a PadSpan Pro feature."),
+      t("Under \"You are carrying:\", pick the tracked device that is yours, usually your phone. If your phone isn't tracked yet, see the Track Your Phone help (Overview → \"Track Your Phone\"); the Phone Setup Wizard, switched on in Settings → Features, can help too."),
+      t("In the same room, Locate shows the straight-line distance in metres, with \"getting closer\" or \"getting further\" as you move."),
+      t("In another room, it says which room to head to next, and whether to go up or down a floor. The route follows the room connections drawn in Mapping → Layout (Advanced and Development mode). If no route is drawn between the two rooms yet, it names the room the tag is in so you can go there directly."),
+      t("It deliberately doesn't use your phone's compass: indoors, near receivers and wiring, a compass is not reliable enough to trust."),
     ],
   },
 
@@ -358,59 +417,65 @@ export function helpTexts() { return {
 
   // ── Data Mode (Live / Sample) ──────────────────────────────────────────
   data_mode: {
-    title: t("Data Mode — Live vs Sample"),
+    title: t("Live and Sample — your house or the sample house"),
     body: [
-      t("PadSpan has two data modes that control where the UI gets its information:"),
-      t("LIVE mode connects to your actual Bluetooth scanners and shows real device positions, signal strengths, and room assignments from your physical home. All changes you make (tagging devices, calibrating, editing maps) are saved and affect your live system."),
-      t("SAMPLE mode uses built-in demo data so you can explore every feature without needing hardware. It's safe to experiment — nothing you do in Sample mode changes your real configuration."),
-      t("Switch modes using the button in the top-right corner. The current mode is shown as a badge. If you see 'SAMPLE' but expected live data, click it to switch to Live."),
-      t("Important: Some management actions (deleting rooms, clearing calibration) are disabled in Sample mode to prevent accidents. Switch to Live to enable them."),
+      t("Live shows your own house: your receivers, your devices, your rooms. Sample (\"Preview a finished house\") shows a sample house on three floors with every feature set up, so you can see what PadSpan does before your own setup is finished."),
+      t("The sample house is read-only. Anything that would change it is refused with a message; only how the panel itself looks (its theme and style) can be changed there. Nothing you do on the sample house touches your own."),
+      t("Live or Sample is this browser's own choice: one person previewing the sample house doesn't switch a wall screen or anyone else. A new install starts on the sample house and switches to Live by itself once PadSpan finds your first receiver."),
+      t("To switch, use the Data button at the top right (on a phone, the button at the top), which shows the current mode. From Live, the first click turns it into \"Show demo data?\": click again within 3 seconds to open the sample house; otherwise it goes back to Live. From Sample, one click returns to Live. On the Overview, the yellow sample-house banner has \"Back to my house\", and \"Who's where now\" has \"Preview a finished house\"."),
+      t("If the house itself is still set to Sample and Enhanced security is on, only an administrator can switch it back to Live."),
     ],
   },
 
   // ── Complexity Mode ────────────────────────────────────────────────────
   complexity_mode: {
-    title: t("Complexity Mode — Basic / Advanced / Development"),
+    title: t("Basic, Advanced and Development"),
     body: [
-      t("Every screen is in the sidebar in every mode. PadSpan's complexity mode decides which screens are in the main list (the rest are under More tools) and how much detail the screens show:"),
+      t("The mode button at the top right (it reads Basic, Advanced or Dev; on a phone, the button at the top) cycles through the three modes, and this browser remembers your choice. Every screen is in the menu in every mode: the mode decides which screens are in the main list (the rest are in \"More tools\" at the bottom of the menu, closed until you open it) and how much detail each screen shows."),
       t("BASIC — A short main list: Follow, Overview, Mapping, Rooms, Receivers, Calibration, Settings, and Training; everything else is under More tools. The screens keep to the essentials. Designed for non-technical household members who just want to see where things are."),
+      t("In Basic, a link to part of an expert screen (a room's outline, a receiver's place, the floor heights, the usage report) opens just that part, with \"← Back\" to where you were. The mode stays Basic."),
       t("ADVANCED — The default for power users. The main list adds Live Tracker, Manage, Traceback, Occupancy, and Health; the rest (Devices, Bluetooth, Presence, Monitor, QA, Sandbox and more) are under More tools. Tick a tab in Settings → UI Structure to move it into the main list."),
-      t("DEVELOPMENT — The same menu as Advanced, with more diagnostic detail inside the screens. Use this when troubleshooting issues or when Claude asks you to check diagnostic data."),
+      t("DEVELOPMENT — The same menu as Advanced, with more diagnostic detail inside the screens. Use it when troubleshooting, or when support asks you to check diagnostic data."),
+      t("Forensics and Guests, while switched on, are in the main list in every mode."),
       t("Changing complexity mode doesn't delete any data — it only changes the sidebar's main list and the detail inside screens. Your settings, calibration, and device data are always preserved."),
     ],
   },
 
   // ── Overview 3D Controls ───────────────────────────────────────────────
   overview_3d_controls: {
-    title: t("3D Overview Controls"),
+    title: t("3D map controls"),
     body: [
-      t("The buttons below the 3D floor stack control what's visible on the isometric map:"),
-      t("Followed (starred) devices always appear as amber beacon markers. They dim when they are away."),
-      t("PINS ON shows every other identified or labelled device: a red crosshair when away, or a teal dot when present."),
-      t("PINS OFF hides those markers but leaves unlabelled identified devices visible and dimmed."),
-      t("WALLS — Toggles signal wall lines on the 3D map. Walls affect how PadSpan calculates signal propagation between rooms. If walls are drawn on your maps, turning this ON helps you see where signal blockage occurs."),
-      t("HEAT — Shows a radio signal coverage overlay on each floor (requires Radio Map enabled in Settings → Features). Green = strong signal, red = weak. This uses your calibration data to visualize where scanners have good coverage and where dead zones exist."),
-      t("WARP (labelled Signal distortion until you first turn it on) — Shows positioning error vectors (requires Signal distortion map enabled in Settings → Features). Arrows point from where a device actually is to where PadSpan thinks it is, based on leave-one-out cross-validation of calibration data. Heat and Warp are mutually exclusive — turning one on switches the other off."),
-      t("FLOOR SLIDER — Focuses on a specific floor or pair of adjacent floors. 'All floors' shows the full building. Focusing on a single floor makes it larger and easier to see detail."),
+      t("The row of small buttons with the 3D map changes only how the map is drawn. Nothing here moves a device or changes tracking."),
+      t("FLOOR — The slider and ◀ ▶ pick which floor (or pair of floors) is shown large. \"All floors\" shows the whole building."),
+      t("OUTDOOR — Also draws sheds, driveways and other areas that are not a storey. They are fitted inside the building's footprint, not drawn at their true distance."),
       t("GAP — How far apart floors are drawn, vertically, in the isometric stack. Purely visual — it does not change any stored measurement, only how tall the drawing looks."),
       t("L / R — Shifts each floor sideways relative to the one below it, so a staggered building (an upper floor that does not sit directly over the main floor) can be drawn the way it actually looks, instead of every storey stacking straight up."),
+      t("SAVE keeps Gap, L/R and the floor choice as this map's default for everyone; RESET puts all three back to the defaults."),
+      t("ROOMS — Opens a list of the rooms on the map; click one for its details."),
+      t("▣ OVERHEAD — Switches to the flat top-down map (the 2D view). Its \"◈ 3D view\" button comes back here."),
+      t("PINS — Off by default: only devices you follow are drawn as markers. With Pins on, every named or recognised device is drawn too, as a teal dot, or a red crosshair when away."),
+      t("WALLS — Shows the signal walls drawn in Mapping → Edit: the walls PadSpan allows for when a signal passes between rooms."),
+      t("TRAILS — Off by default. Draws a fading line behind each moving device."),
+      t("HEAT — Needs Radio Map switched on in Settings → Features. Colours each floor by how well your receivers hear it, from your calibration data: green strong, red weak."),
+      t("WARP — Needs Signal distortion map switched on in Settings → Features (the button reads \"→ Signal distortion\" until first used). Arrows show where PadSpan's guess of a spot misses where your calibration points say it really is: long arrows mean that area needs work. Heat and Warp take turns: turning one on turns the other off."),
+      t("With Heat or Warp on, a second row appears: Gain (brighter or dimmer overall), Contrast (how sharply strong and weak differ), Warp % (how long the arrows are drawn) and Source (from the calibration model alone towards what PadSpan has learned over time). Save keeps them."),
     ],
   },
 
   // ── Overview 2D Controls ───────────────────────────────────────────────
   overview_2d_controls: {
-    title: t("2D Map Controls"),
+    title: t("2D overhead map controls"),
     body: [
-      t("The toggle buttons above the 2D map control which layers are visible:"),
-      t("MAP — Shows/hides the floor plan image. Turn OFF for a cleaner view with just rooms and devices. Turn ON to see the actual floor plan underneath."),
-      t("ROOMS — Shows/hides room boundary polygons and labels. These are drawn from the room boundaries you defined in the Maps → Edit tab."),
-      t("SCANNERS — Shows/hides Bluetooth scanner (receiver) positions. Green = online, gray = offline. Scanners are the anchor points for all positioning."),
-      t("TAGGED — Shows/hides devices that have been given a name (tagged). These are your known devices like phones, keys, and wearables."),
-      t("UNKNOWN — Shows/hides unidentified Bluetooth devices. These are anonymous BLE signals — usually other people's phones, fitness trackers, or IoT devices passing nearby."),
-      t("RADIO MAP — Signal strength heatmap overlay (requires Radio Map enabled in Settings → Features). Shows where Bluetooth coverage is strong (green) vs weak (red) based on your calibration data."),
-      t("SIGNAL DISTORTION — Positioning error analysis overlay (requires Signal distortion map enabled in Settings → Features). Shows where the system's predictions disagree with actual positions."),
+      t("The flat overhead map is marked EXPERIMENTAL. Turn it on with \"▣ Overhead\" on the 3D map, or with Settings → Appearance → 2D Map Mode; \"◈ 3D view\" goes back."),
+      t("The buttons above it show or hide layers (◉ on, ○ off):"),
+      t("MAP — The floor plan picture. The Overview keeps it off, because floor plan pictures are a setup tool in Mapping: the map shows rooms and devices only."),
+      t("ROOMS — Room outlines and names, as drawn in Mapping → Edit."),
+      t("SCANNERS — Your receivers: green when online, grey when offline."),
+      t("TAGGED — Named or recognised devices, as teal dots. Devices you follow are always shown, in amber."),
+      t("UNKNOWN — Devices nobody has named, as small dim amber dots. Off by default."),
+      t("Devices sit near their room's centre here, fanned out, not at their exact spot."),
+      t("RADIO MAP and SIGNAL DISTORTION — Shown when those features are switched on in Settings → Features: a signal-strength overlay (green strong, red weak) and the places where PadSpan's guesses miss. With Radio Map on, pick \"Combined\" for all receivers or one receiver to see its reach."),
       t("FLOOR SELECTOR — When you have multiple floors, click a floor name to switch. If a floor has multiple maps, they are stitched together into one unified view using their alignment transforms."),
-      t("SCANNER SELECTOR — When Radio Map is active, choose 'Combined' to see overall coverage or click a specific scanner name to see that scanner's individual reach."),
       t("Zoom with mouse wheel. Pan by clicking and dragging. Click 'Reset zoom' to return to the default view."),
     ],
   },
@@ -612,14 +677,35 @@ export function helpTexts() { return {
     ],
   },
 
+  // ── Occupancy and Guests ────────────────────────────────────────────────
+  occupancy: {
+    title: t("Occupancy — how many people are home"),
+    body: [
+      t("Occupancy counts people, not devices. It is in the main list in Advanced and Development mode and under More tools in Basic; the same number is the \"People in building\" card on the Overview (Advanced and Development)."),
+      t("Known people come from your Home Assistant person entities. Unknown people come from phones nobody has claimed, and from rooms whose occupancy or motion sensors say someone is there when no known person is. Named things (keys, tags) are listed under \"Seen, not people\" but never counted."),
+      t("At the top: the count, a possible range when it isn't sure, how confident it is, and counts of known and unknown people, phones heard, sensed rooms and things. \"Counted\" lists each person and how they were found, and \"Rooms with evidence\" and \"How the number was reached\" show the working. An \"Unknown phone\" has its own ? help."),
+      t("\"Hybrid counting\" also uses person entities and occupancy and motion sensors; untick it to count phones only. \"Phone clustering\": phones heard at nearly the same strength by every receiver count as one person (a phone and its watch). A lower threshold groups more strictly; \"Save & Refresh\" applies it."),
+      t("\"Record the real count\": type how many people are really in the building and press Save. It is kept beside what the estimate said, and the \"Accuracy\" card shows how often the two agree."),
+    ],
+  },
+  guests: {
+    title: t("Guests — lend a tag to a visitor"),
+    body: [
+      t("Guests is in the menu only while guest tags are on: Settings → Tracking → Phones and guest tags → Guest tags (in Basic, Settings → \"Guest tags →\"). While on, it is in the main list in every mode."),
+      t("A guest tag is a device you have already named, such as a spare tag called \"Guest tag 1\". Add it under \"Use as a guest tag:\". A tag with a steady identity works best: a beacon, a Find My tag, or a phone PadSpan recognises by its key."),
+      t("\"Lend to a guest\" (administrators) starts a stay: the guest's name, an optional end time, rooms they shouldn't go into, whether to be told when they arrive or leave, quiet hours, and where notices go. \"Staying here (a house-sitter)\" makes them count as someone home for Vacation Mode. Tell your guest the tag is tracked while they have it."),
+      t("\"Staying now\" shows each stay in progress: where the guest is, since when, and time in each room. \"Tag returned\" ends it, \"Change\" edits it and \"Traceback\" replays it. \"Past stays\" keeps finished reports, including any off-limits visits, for the days set in Settings; \"Forget\" deletes one. On the maps, a lent tag shows the guest's name with an amber \"Guest\" label."),
+    ],
+  },
+
   // ── Unknown phone (Occupancy's Counted list) ────────────────────────────
   unknown_phone: {
     title: t("Unknown phone — what it is and what to do"),
     body: [
       t("An Unknown phone is a phone or watch PadSpan can hear in that room but can't tie to anyone. Phones change their Bluetooth address every few minutes for privacy (iPhones and most Androids do), so on its own the signal says \"a phone is here\" but not whose."),
-      t("IF IT'S YOURS (or someone who lives with you): link the phone so PadSpan knows it. The Home Assistant Companion app with its Bluetooth sensor, or the phone's IRK under Private BLE Device in Home Assistant, both work. After that it's counted as that person."),
+      t("IF IT'S YOURS (or someone who lives with you): let PadSpan know the phone. An Android phone: track it with the Overview's \"Track Your Phone\" card (the Companion app's BLE Transmitter). An iPhone: add its IRK with Home Assistant's Private BLE Device integration or in Bluetooth → IRK Manager. After that it's counted as that person."),
       t("IF IT'S A VISITOR: nothing to do. It goes when they do."),
-      t("IF IT'S A NEIGHBOUR through the wall: it has to be heard by two or more of your receivers, fairly strongly, to be counted. A receiver on a shared wall makes that easy. Move that receiver away from the wall, draw the wall as a stronger material on the map (see the Walls Guide), or give that receiver a minimum signal in Bluetooth → Scanners (Ignore < -85, say): it then ignores anything weaker for positioning and this count, while every list still shows everything."),
+      t("IF IT'S A NEIGHBOUR through the wall: it has to be heard by two or more of your receivers, fairly strongly, to be counted. A receiver on a shared wall makes that easy. Move that receiver away from the wall, draw that wall as a stronger material in Mapping → Edit → Signal walls, or give that receiver a minimum signal in Bluetooth → Scanners (\"Ignore < -85\", say): it then ignores anything weaker for positioning and this count, while every list still shows everything."),
     ],
   },
 
@@ -627,11 +713,11 @@ export function helpTexts() { return {
   walk_to_identify: {
     title: t("Walk-to-Identify \u2014 Who's in which room?"),
     body: [
-      t("Walk-to-Identify helps you figure out which unknown Bluetooth device belongs to which person \u2014 without needing MAC addresses."),
-      t("HOW IT WORKS: Select a room from the dropdown and press 'Who's here?'. PadSpan checks which unidentified devices have the strongest signal from scanners in that room, and ranks them by likelihood of being physically present there."),
-      t("The score is based on signal correlation: devices heard strongly by the room's scanners but weakly by scanners in other rooms get high scores. Devices heard equally everywhere score low."),
-      t("TOP CANDIDATES appear with a purple 'Likely in [Room]' badge and a match percentage. Click 'Tag' on a candidate to give it a friendly name."),
-      t("TIPS: Make sure the person is actually in the room when you press the button. Works best with 4+ scanners spread across different rooms."),
+      t("Walk-to-Identify helps you work out which unnamed Bluetooth device belongs to whom, without reading addresses. It is off until you turn it on in Settings → Features → Walk-to-Identify, and it works in Live mode only."),
+      t("It is in Devices → By Room, as a purple walk-to-identify bar: in the \"Unidentified\" card in Basic mode, above the table in Advanced and Development."),
+      t("Have the person stand in a room with their phone, pick that room and press \"Who's here?\". PadSpan ranks the unnamed devices by how much more strongly that room's receivers hear them than the other receivers do, from the last 30 seconds of signals."),
+      t("The best matches get a purple \"Likely in [room]\" badge with a match percentage. Press Tag on one to name it. \"Clear\" ends the search."),
+      t("It needs a receiver in that room (one whose Home Assistant area is that room), and works best with receivers spread over several rooms."),
     ],
   },
 
