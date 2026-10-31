@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.211",
+  "title": "The maker lookup asks only about addresses a receiver confirms are fixed",
+  "date": "2026-10-31",
+  "body_markdown": "### Fixed\n- **0.38.207 to 0.38.210 could still send the first three bytes of some random addresses** to macvendors.com and maclookup.app in edge cases, never a whole address. They let an address's own bits decide when no receiver had said what kind of address it was: for a device heard only by Shelly, ESPresense or Tasmota, or one PadSpan had stopped hearing for a while, or after a restart. 0.38.210 said it sent nothing for rows no longer heard live; it still could when one of those receivers heard them again.\n- **This version sends nothing unless the address is confirmed public.** It sends only the first three bytes of an address, and only for devices a Bluetooth receiver confirms have a fixed, maker-assigned address (ESPHome proxies and Home Assistant's own Bluetooth say so; Shelly, ESPresense and Tasmota don't, so devices only they hear aren't looked up). A confirmed address is remembered, across restarts too. Any other device shows the answer already kept for its first three bytes, if there is one, or says \"random address\" or \"maker unknown (receiver doesn't say)\". The 5-minute rule from 0.38.210 is gone: a confirmed address is looked up however long ago it was heard."
+ },
+ {
   "version": "0.38.210",
   "title": "The maker lookup asks only about devices heard right now",
   "date": "2026-10-31",
@@ -76,11 +82,5 @@
   "title": "Raised rooms' doorways as high as the door",
   "date": "2026-10-29",
   "body_markdown": "### Fixed\n- **A raised room's doorway from the rest of its floor is as high as the door.** In 0.38.196 the gap in the raised room's wall ran a door's height up from the raised floor, so a room raised well above the rest of its floor showed a hole above the floor's roof. The gap now runs from the door's sill to its top, measured from the floor the door stands on, through the wall the raised room stands on. If a room is raised past the top of the door, there's no gap above its floor at all.\n- **A gallery that runs along both the rest of its floor and a raised room** stays an open edge along the floor, with the rail it had, and opens the raised room's wall too. In 0.38.196 the whole edge went with the raised room, and the stretch along the floor turned into a solid wall.\n- **A door at an outside corner of a raised or sunken room** goes, whole, with the room whose wall it's in. In 0.38.196 a door that started just before the room's corner (a sunken garage's side door) became a sliver of door in the house's wall beside a doorless hole in the room's.\n- **A window with a contact sensor** on the wall between a raised room and the rest of its floor stays a window. No doorway is cut beside it.\n- **A door or window you rename, or give another material,** is placed again straight away, even if the new word is as long as the old one.\n- **Correction to 0.38.196's notes:** going back after using Floating, 0.38.183 to 0.38.195 (not just to 0.38.194) keep a floating stair and draw it Closed, but refuse a save that moves or changes it."
- },
- {
-  "version": "0.38.197",
-  "title": "Same as 0.38.196, with its checks passing",
-  "date": "2026-10-29",
-  "body_markdown": "### Changed\n- **Nothing changes in PadSpan itself.** This is 0.38.196 again: Floating stairs, and doors, windows, rails and names put right on split levels (see 0.38.196 below). One of 0.38.196's own tests had a time limit too tight for GitHub's slower machines, so its checks failed. This release passes them. If you're already on 0.38.196, you don't need it."
  }
 ]

@@ -4,6 +4,14 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.211 — The maker lookup asks only about addresses a receiver confirms are fixed (2026-10-31)
+
+### Fixed
+- **0.38.207 to 0.38.210 could still send the first three bytes of some random addresses** to macvendors.com and maclookup.app in edge cases, never a whole address. They let an address's own bits decide when no receiver had said what kind of address it was: for a device heard only by Shelly, ESPresense or Tasmota, or one PadSpan had stopped hearing for a while, or after a restart. 0.38.210 said it sent nothing for rows no longer heard live; it still could when one of those receivers heard them again.
+- **This version sends nothing unless the address is confirmed public.** It sends only the first three bytes of an address, and only for devices a Bluetooth receiver confirms have a fixed, maker-assigned address (ESPHome proxies and Home Assistant's own Bluetooth say so; Shelly, ESPresense and Tasmota don't, so devices only they hear aren't looked up). A confirmed address is remembered, across restarts too. Any other device shows the answer already kept for its first three bytes, if there is one, or says "random address" or "maker unknown (receiver doesn't say)". The 5-minute rule from 0.38.210 is gone: a confirmed address is looked up however long ago it was heard.
+
+---
+
 ## 0.38.210 — The maker lookup asks only about devices heard right now (2026-10-31)
 
 ### Fixed
