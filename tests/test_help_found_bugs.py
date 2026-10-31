@@ -8,7 +8,12 @@
             was always empty: now a line and Open History → Movement
   health    Health → Live Discovery "Radios" read only the top-level radios,
             which the sample house's snapshot lacks: Sample showed 0
-  diag      Diagnostics counted the snapshot's top-level keys as devices
+  diag      Diagnostics counted the snapshot's top-level keys as devices.
+            Listing objects.list by "a name or a room" let every passing
+            device in (the server names each by its address and rooms each
+            heard one), so it lists your own devices (Monitor's _isMine);
+            phones' IRKs are hidden in it and in Monitor → Export for
+            support; the screen says what the report names
   offset    Bluetooth → Scanners' RSSI offset took ±30 where every other
             screen takes ±20; a stored value outside ±20 is kept as it is.
             Settings → Tracking → Receivers and the Receivers page clamped
@@ -63,3 +68,11 @@ def test_the_help_says_what_manage_events_has() -> None:
     assert "this session" not in block and "clears when you reload" not in block
     assert "Open History" in block and "History → Movement" in block
     assert "this session's room" not in help_src
+
+
+def test_the_help_says_what_the_diagnostics_report_holds() -> None:
+    help_src = (WWW / "help_content.js").read_text(encoding="utf-8")
+    block = help_src[help_src.index("  diagnostics: {"):help_src.index("  maps_edit: {")]
+    assert "a name or a room" not in block
+    assert "your own devices seen in the last 24 hours" in block
+    assert "with their Bluetooth addresses" in block and "IRKs, are left out" in block

@@ -7,7 +7,11 @@
 //               nothing writes; now a line and Open History → Movement
 //   health      Health → Live Discovery "Radios": the sample house's snapshot
 //               has only ble.radios, so Sample read 0
-//   diag        Diagnostics counted the snapshot's top-level keys as devices
+//   diag        Diagnostics counted the snapshot's top-level keys as devices;
+//               now your own devices (Monitor's _isMine: "a name or a room"
+//               let every passing device in), phones' IRKs hidden there and
+//               in Monitor → Export for support, and the screen says what the
+//               report names
 //   offset      Bluetooth → Scanners "RSSI offset": ±20 like the rest; a stored
 //               value outside it is shown and kept, only new edits are held in.
 //               Settings → Tracking → Receivers and the Receivers page clamped
@@ -25,7 +29,7 @@ const V = ROOT + "/custom_components/padspan_ha/www/padspan-ha/";
 const imp = (n) => import(pathToFileURL(V + n).href);
 const MAN = await imp("views/manage.js"), HEALTH = await imp("views/health.js"), DIAG = await imp("views/diagnostics.js");
 const BT = await imp("views/bluetooth.js"), MAPS = await imp("views/maps.js");
-const SET = await imp("views/settings.js"), RX = await imp("views/receivers.js");
+const SET = await imp("views/settings.js"), RX = await imp("views/receivers.js"), MON = await imp("views/monitor.js");
 const { SAMPLE_SNAPSHOT } = await imp("sample_data.js");
 
 const results = {};
@@ -110,7 +114,15 @@ function makeCtx(state, calls = [], actionsExtra = {}) {
 {
   const stale = { key: "ble:00:00:00:00:00:01", kind: "ble", address: "00:00:00:00:00:01", user_label: "Old tag", identified: true, age_s: 90000,
     sources: [{ source: "kit", rssi: -70, age_s: 90000 }] };
-  const snapshot = Object.assign({}, SAMPLE_SNAPSHOT, { objects: Object.assign({}, SAMPLE_SNAPSHOT.objects, { list: [...SAMPLE_SNAPSHOT.objects.list, stale] }) });
+  // Shaped as the server sends a device that isn't yours: named by its address
+  // when it advertises no name (snapshot_builder.py), and given the room of its
+  // loudest receiver like every device heard.
+  const passing = { key: "ble:11:22:33:44:55:66", kind: "ble", address: "11:22:33:44:55:66", name: "11:22:33:44:55:66", room: "Kitchen",
+    identified: false, age_s: 4, sources: [{ source: "kit", rssi: -88, age_s: 4 }] };
+  const neighbour = { key: "ble:22:33:44:55:66:77", kind: "ble", address: "22:33:44:55:66:77", name: "Neighbour TV", room: "Garage",
+    identified: false, age_s: 9, sources: [{ source: "kit", rssi: -91, age_s: 9 }] };
+  const snapshot = Object.assign({}, SAMPLE_SNAPSHOT, { objects: Object.assign({}, SAMPLE_SNAPSHOT.objects,
+    { list: [...SAMPLE_SNAPSHOT.objects.list, stale, passing, neighbour] }) });
   const root = DIAG.render(makeCtx({ view: "diagnostics", live: { snapshot }, maps: { list: [] } }));
   const ta = tagged(root, "TEXTAREA")[0];
   const report = JSON.parse(ta.value);
@@ -118,10 +130,36 @@ function makeCtx(state, calls = [], actionsExtra = {}) {
   check("diag: devices come from objects.list", "ble:CC:DD:EE:33:44:55" in devs && "entity:device_tracker.alice_phone" in devs
     && devs["ble:CC:DD:EE:33:44:55"].user_label === "Car Keys", Object.keys(devs));
   check("diag: no snapshot section counted as a device", !("ble" in devs) && !("objects" in devs) && !("floor_plan" in devs), Object.keys(devs));
-  check("diag: unnamed roomless and >24 h devices left out", !("ble:D2:5A:7F:0B:93:4E" in devs) && !(stale.key in devs), Object.keys(devs));
+  check("diag: devices that aren't yours, even named and in a room, and >24 h devices left out",
+    !("ble:D2:5A:7F:0B:93:4E" in devs) && !(stale.key in devs) && !(passing.key in devs) && !(neighbour.key in devs), Object.keys(devs));
   const total = snapshot.objects.list.length, kept = Object.keys(devs).length;
   check("diag: the counts are devices", report.snapshot._summary.startsWith(`${kept} of ${total} devices`) && kept >= 8
     && all(root).some(n => text(n).startsWith(`${kept} devices ·`)), [report.snapshot._summary, kept, total]);
+  // A phone's IRK lets whoever has it follow the phone: never in the report.
+  check("diag: no phone's IRK in the report", !/irk:[0-9a-f]{32}/i.test(ta.value), (ta.value.match(/irk:[0-9a-f]{32}/i) || [])[0]);
+  const byName = (n) => Object.entries(devs).find(([, d]) => d.name === n) || [];
+  const [ak, alice] = byName("Alice's iPhone"), [bk, bob] = byName("Bob's Pixel");
+  check("diag: each phone stays in, under its own stand-in for the IRK", /^irk:hidden-\d+$/.test(ak || "") && alice.canonical_id === ak
+    && /^irk:hidden-\d+$/.test(bk || "") && bob.canonical_id === bk && ak !== bk, [ak, alice && alice.canonical_id, bk, bob && bob.canonical_id]);
+  const note = attr(root, "data-diag-privacy");
+  check("diag: the screen says what the report names before it is sent",
+    !!note && /names your rooms, floor plans and devices, with their Bluetooth addresses/.test(text(note)) && /look it over before you send it/.test(text(note)),
+    note && text(note));
+}
+
+// ── 3b. Monitor → Export for support: the IRKs left out too ─────────────────
+{
+  check("diag: the same IRK, any case, is one stand-in",
+    MON.hideIrks("irk:AABBCCDDEEFF00112233445566778899 irk:aabbccddeeff00112233445566778899 irk:ffeeddccbbaa99887766554433221100 irk:short")
+      === "irk:hidden-1 irk:hidden-1 irk:hidden-2 irk:short", null);
+  const ctx = makeCtx({ view: "monitor", _monitorTab: "diag_export", live: { snapshot: SAMPLE_SNAPSHOT } });
+  const root = attempt("diag: Monitor's export renders", () => MON.render(ctx));
+  const b = root && button(root, "Build export");
+  if (b) b.dispatchEvent(new Event("click"));
+  const ta = root && tagged(root, "TEXTAREA")[0];
+  const v = (ta && ta.value) || "";
+  check("diag: Monitor → Export for support leaves the IRKs out", v.length > 1000 && /Alice's iPhone/.test(v)
+    && !/irk:[0-9a-f]{32}/i.test(v) && /irk:hidden-1/.test(v), [!!b, v.length, (v.match(/irk:[0-9a-f]{32}/i) || [])[0]]);
 }
 
 // ── 4. Bluetooth → Scanners, RSSI offset ─────────────────────────────────────

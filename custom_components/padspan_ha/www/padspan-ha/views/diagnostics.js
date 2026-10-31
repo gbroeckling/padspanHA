@@ -8,6 +8,10 @@
  * the output small enough to paste into a chat or AI conversation.
  */
 
+// Monitor → Export for support's rules: whose devices are "mine", and phones'
+// identity keys (IRKs) left out of anything meant to be sent.
+const { _isMine, hideIrks } = await import(`./monitor.js${new URL(import.meta.url).search}`);
+
 export function render(ctx){
   const { el } = ctx.helpers;
   const root = el("section",{id:"diagnostics"});
@@ -31,9 +35,13 @@ export function render(ctx){
       if (!d || typeof d !== "object") continue;
       const k = d.key || d.address || d.entity_id;
       if (!k) continue;
-      const hasLabel = !!(d.user_label || d.name || d.identified);
-      const hasRoom = !!(d.room);
-      if (!hasLabel && !hasRoom) continue;
+      // The person's own devices only: named by them, linked to Home
+      // Assistant, or a phone known by its key (monitor.js _isMine). "A name
+      // or a room" let everything in: the server names every Bluetooth object
+      // (its address when nothing else) and gives every heard one the room of
+      // its loudest receiver, so the report held every passing device
+      // (thousands on a busy street, built again on every 5 s update).
+      if (!_isMine(d)) continue;
       // Skip very stale entries: the freshest age the object or its sources
       // report is over 24 h. Nothing reported (an entity) is kept.
       const ages = [d.age_s, ...(Array.isArray(d.sources) ? d.sources.map(s => s && s.age_s) : [])]
@@ -74,13 +82,13 @@ export function render(ctx){
       maps: ctx.state.maps.list,
     },
     snapshot: {
-      _summary: `${includedDevices} of ${totalDevices} devices (labelled/confirmed, seen <24h)`,
+      _summary: `${includedDevices} of ${totalDevices} devices (labelled/confirmed/known phones, seen <24h)`,
       devices: trimmedSnap,
     },
     autoDiagnostics: ctx.state.diag,
   };
 
-  const text = JSON.stringify(payload, null, 2);
+  const text = hideIrks(JSON.stringify(payload, null, 2));
 
   // Use a textarea so manual select/copy always works (even on http:// where
   // navigator.clipboard is often blocked).
@@ -158,6 +166,8 @@ export function render(ctx){
             ctx.helpers.helpBtn("diagnostics"),
           ]),
           el("div",{class:"muted"}, `${includedDevices} devices · ${sizeKb} KB — when something breaks, email it to hello@traks.ca or attach it to a GitHub issue (issues are public: remove personal details first)`),
+          el("div",{class:"muted","data-diag-privacy":"",style:"margin-top:4px"},
+            "It names your rooms, floor plans and devices, with their Bluetooth addresses, so look it over before you send it. Phones' identity keys (IRKs) are left out."),
         ]),
         el("div",{style:"display:flex;gap:8px;align-items:center"},[ btnSelect, btnCopy, btnDownload ])
       ]),

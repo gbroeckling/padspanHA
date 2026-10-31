@@ -1059,8 +1059,8 @@ export function helpTexts() { return {
   diagnostics: {
     title: t("Diagnostics — a report to send to support"),
     body: [
-      t("Diagnostics isn't in the menu: open it from QA → \"Go to Diagnostics\". It puts a short report in a box: the panel's and the server's versions, PadSpan's status, your rooms and floor plans, the devices that have a name or a room (seen in the last 24 hours), and the automatic checks."),
-      t("\"Select All\" selects it, \"Copy\" copies it, and \"Download Report\" saves it as a file. Email it to hello@traks.ca, or attach it to a GitHub issue (GitHub issues are public, so remove personal details first). It names your rooms, floor plans and devices, so look it over before you send it. Monitor → \"Export for support\" builds a fuller report the same way."),
+      t("Diagnostics isn't in the menu: open it from QA → \"Go to Diagnostics\". It puts a short report in a box: the panel's and the server's versions, PadSpan's status, your rooms and floor plans, your own devices seen in the last 24 hours (the ones you named, the ones linked to Home Assistant, and phones PadSpan knows by their key), and the automatic checks."),
+      t("\"Select All\" selects it, \"Copy\" copies it, and \"Download Report\" saves it as a file. Email it to hello@traks.ca, or attach it to a GitHub issue (GitHub issues are public, so remove personal details first). It names your rooms, floor plans and devices, with their Bluetooth addresses, so look it over before you send it (phones' identity keys, their IRKs, are left out). Monitor → \"Export for support\" builds a fuller report the same way."),
       t("\"Install Verification\" — if the panel's version and the server's differ, your browser is showing an old copy (press Ctrl+F5) or Home Assistant has two copies of PadSpan installed (for example one from HACS and one copied by hand): remove the extra one and restart Home Assistant."),
     ],
   },
