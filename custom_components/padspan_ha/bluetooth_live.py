@@ -102,16 +102,17 @@ def _coerce_source(src: Any) -> str:
 def address_type_of(device: Any) -> Optional[str]:
     """"public" or "random" when the radio says which, else None.
 
-    ESPHome proxies put it in BLEDevice.details["address_type"] (0 public,
-    1 random; bleak-esphome / habluetooth), and BlueZ in the D-Bus props
-    ("AddressType"). HA's mgmt channel and Shelly scanners don't report it.
+    ESPHome proxies put it in BLEDevice.details["address_type"] (bleak-esphome
+    passes ESP-IDF's value on: 0 public, 1 random, 2 and 3 a resolvable private
+    address, random on the air), and BlueZ in the D-Bus props ("AddressType").
+    HA's mgmt channel and Shelly scanners don't report it.
     """
     details = getattr(device, "details", None)
     if not isinstance(details, dict):
         return None
     at = details.get("address_type")
-    if at in (0, 1) and not isinstance(at, bool):
-        return "random" if at == 1 else "public"
+    if at in (0, 1, 2, 3) and not isinstance(at, bool):
+        return "public" if at == 0 else "random"
     props = details.get("props")
     if isinstance(props, dict):
         t = props.get("AddressType")
@@ -272,6 +273,15 @@ class BluetoothLive:
         # {addr: {source: deque[(seen_dt, rssi)]}} — recent raw samples from
         # REAL callbacks (never the reseed path) for median-of-N filtering.
         self._rssi_samples: Dict[str, Dict[str, Any]] = {}
+        # {addr: "random" | "public"}: what any radio reported for the address,
+        # kept per address while it is cached (the maker lookup reads it,
+        # known_address_type). Not per report: HA's own adapter reports no type
+        # on its live adverts (habluetooth's mgmt side channel) while the reseed
+        # reads BlueZ's for the same address, so in 0.38.207 each live advert
+        # wiped the reseed's "random" until the next reseed. A report with no
+        # type keeps the earlier one, "random" is never downgraded, and the entry
+        # goes only when the address leaves the cache.
+        self._address_types: Dict[str, str] = {}
         # How long the cache keeps an address, and how many it keeps at most
         # (0: no cap). Set by snapshot_builder from Settings → Presence: the
         # BLE Advertisement Timeout, and the low-memory switch's cap. Until
@@ -363,6 +373,14 @@ class BluetoothLive:
         self._unsubs.clear()
         self._seen_by_source.clear()
         self._rssi_samples.clear()
+        self._address_types.clear()
+
+    def _note_address_type(self, addr: str, address_type: Optional[str]) -> None:
+        """Keep what a report says about the address's type (see _address_types)."""
+        if address_type == "random":
+            self._address_types[addr] = "random"
+        elif address_type == "public":
+            self._address_types.setdefault(addr, "public")
 
     @callback
     def _on_adv(self, service_info: Any, change: Any = None) -> None:
@@ -398,6 +416,8 @@ class BluetoothLive:
             if addr not in self._seen_by_source:
                 self._seen_by_source[addr] = {}
                 self.new_addresses += 1
+            # Before the replay check: an old report's type is still true.
+            self._note_address_type(addr, rec.get("address_type"))
             # A REPLAYED (old) report never replaces a newer one. A live advert
             # (age ~0) always lands: comparing wall-clock stamps alone froze
             # live readings for as long as a backward clock step (round 12).
@@ -511,6 +531,7 @@ class BluetoothLive:
                             if addr not in self._seen_by_source:
                                 self._seen_by_source[addr] = {}
                                 self.new_addresses += 1
+                            self._note_address_type(addr, rec.get("address_type"))
                             self._seen_by_source[addr][str(src)] = _Adv(record=rec, seen=dev_seen)
                             if str(src) != "_unknown":
                                 self._radio_last_heard[str(src)] = seen
@@ -569,6 +590,7 @@ class BluetoothLive:
                 cleared += 1
                 if not self._seen_by_source[addr]:
                     del self._seen_by_source[addr]
+                    self._address_types.pop(addr, None)
         return cleared
 
     def _cap_addresses(self, now: dt.datetime) -> None:
@@ -583,6 +605,7 @@ class BluetoothLive:
         for addr in sorted(self._seen_by_source, key=_last)[:len(self._seen_by_source) - keep]:
             del self._seen_by_source[addr]
             self._rssi_samples.pop(addr, None)
+            self._address_types.pop(addr, None)
 
     def get_snapshot(self, max_ads: int = 1000, max_age_s: int = 900) -> Dict[str, Any]:
         """Return a lightweight BLE snapshot for the UI.
@@ -727,6 +750,7 @@ class BluetoothLive:
             for addr in _prune_addrs:
                 del self._seen_by_source[addr]
                 self._rssi_samples.pop(addr, None)
+                self._address_types.pop(addr, None)
             self._cap_addresses(now)
 
             # Collect per-address records, keeping ALL per-source readings for
@@ -876,15 +900,31 @@ async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
 
 
 def known_address_type(hass: HomeAssistant, address: str) -> Optional[str]:
-    """What any radio reported for this address: "random" wins, then "public", else None."""
+    """What any radio reported for this address: "random" wins, then "public", else None.
+
+    PadSpan's cache first (_address_types, kept until the address is pruned).
+    Until it has "random", the scanners' own caches too: an address first heard
+    on HA's own adapter has no type here until the next reseed reads BlueZ's,
+    up to 30 s later, and the maker lookup must not fall back to the bits then.
+    """
+    s = "".join(c for c in str(address or "").upper() if c in "0123456789ABCDEF")
+    key = ":".join(s[i:i + 2] for i in range(0, 12, 2)) if len(s) == 12 else str(address or "").upper()
+    kinds: set = set()
     bl = get_bluetooth_live(hass)
-    if bl is None:
-        return None
-    try:
-        per = bl._seen_by_source.get(address) or bl._seen_by_source.get((address or "").upper()) or {}
-        kinds = {a.record.get("address_type") for a in per.values()}
-    except Exception:
-        return None
+    if bl is not None:
+        try:
+            kinds.add(getattr(bl, "_address_types", {}).get(key))
+            for a in (bl._seen_by_source.get(key) or {}).values():
+                kinds.add(a.record.get("address_type"))
+        except Exception:
+            pass
+    if "random" not in kinds:
+        try:
+            from habluetooth import get_manager as _get_bt_manager  # type: ignore
+            for dev in _get_bt_manager().async_scanner_devices_by_address(key, False):
+                kinds.add(address_type_of(getattr(dev, "ble_device", None)))
+        except Exception:
+            pass
     if "random" in kinds:
         return "random"
     if "public" in kinds:

@@ -463,43 +463,28 @@ export function renderClassic(ctx){
   // be wasted work and wasted rate-limit budget on whatever the lookup
   // service imposes.
   async function fillVendorCell(mac, cell){
-    // Cache by prefix (AA:BB:CC): the OUI (vendor-assigned) portion of a
-    // MAC is shared by every device from that vendor, so once one address
-    // with a given prefix has been looked up, every other row sharing it
-    // is filled from ctx.state._vendorCache instead of re-querying.
-    ctx.state._vendorCache = ctx.state._vendorCache || {};
-    const prefix = (mac||"").split(":").slice(0,3).join(":").toUpperCase();
-    if(!prefix){ cell.textContent = ""; return; }
+    if(!mac){ cell.textContent = ""; return; }
     // Switched off (Settings → Tracking → Privacy, updates and feedback): ask nothing.
     if(!makerLookupOn()){
       cell.innerHTML = renderVendorHTML({ enabled: false });
       return;
     }
-
-    const cached = ctx.state._vendorCache[prefix];
-    if(cached){
-      cell.innerHTML = renderVendorHTML(cached);
+    if(isRandomAddress(mac)){
+      cell.innerHTML = renderVendorHTML({ skipped: "local" });
       return;
     }
-
-    // Placeholder while fetching
+    // Every row asks the server, which answers from its own 30-day cache by
+    // prefix (nothing sent) and knows which addresses a radio reported as
+    // random. Answers were kept here by prefix too, so a random address showed
+    // the maker of another device that shares its first three bytes.
     cell.innerHTML = `<span class="badge">Looking up…</span>`;
     try{
-      const res = await ctx.actions.vendorLookup(mac, false);
-      ctx.state._vendorCache[prefix] = res;
-      cell.innerHTML = renderVendorHTML(res);
+      cell.innerHTML = renderVendorHTML(await ctx.actions.vendorLookup(mac, false));
     }catch(e){
       cell.innerHTML = `<span class="badge err">Lookup failed</span>`;
     }
   }
 
-  // Formats one vendor-lookup response (macvendors.com + maclookup.app,
-  // called server-side — see fillVendorCell) into the Vendor cell's badge
-  // markup. Two independent sources can each have an opinion on the same
-  // MAC; maclookup's is preferred when both answered because it is also
-  // the one source able to flag "randomized"/"private" addresses, which
-  // matters more to a viewer than which of the two vendor-name strings is
-  // shown.
   // The maker lookup's switch: on unless an administrator turned it off. Until
   // settings have loaded nothing is asked.
   function makerLookupOn(){
@@ -507,6 +492,20 @@ export function renderClassic(ctx){
     return !!s && s.vendor_lookup_enabled !== false;
   }
 
+  // The server's bit rule (vendor_lookup.lookup_skip_reason): a first byte with
+  // bit 0x02 (locally administered) or 0x01 (multicast) set is never sent.
+  function isRandomAddress(mac){
+    const first = parseInt(String(mac || "").split(":")[0], 16);
+    return Number.isFinite(first) && (first & 0x03) !== 0;
+  }
+
+  // Formats one vendor-lookup response (macvendors.com + maclookup.app,
+  // called server-side — see fillVendorCell) into the Maker cell's badge
+  // markup. Two independent sources can each have an opinion on the same
+  // MAC; maclookup's is preferred when both answered because it is also
+  // the one source able to flag "randomized"/"private" addresses, which
+  // matters more to a viewer than which of the two vendor-name strings is
+  // shown.
   function renderVendorHTML(res){
     if(!res || res.enabled === false){
       return `<span class="badge">Lookup off</span>`;
@@ -641,7 +640,6 @@ export function renderClassic(ctx){
     makerToggle.addEventListener("click", async () => {
       try {
         await ctx.actions.settingsSet({ vendor_lookup_enabled: !makerOn });
-        ctx.state._vendorCache = {};
         openObjectsList(initialFilter);
       } catch (e) { ctx.toast("Failed to save setting", true); }
     });
@@ -681,11 +679,20 @@ export function renderClassic(ctx){
       const pfx = (o.prefix || "").toUpperCase();
       const isCommon = pfx && (commonPrefixes[pfx] || 0) >= 3;
 
-      // Every BLE row says the same thing when the lookup is off, not just the
-      // first rows the lookup queue would have reached.
-      const vendorCell = el("td",{}, kind==="ble"
-        ? el("span",{class:"badge"}, makerOn ? "—" : "Lookup off")
-        : el("span",{class:"badge"}, "n/a"));
+      // The Maker cell. With the lookup off every Bluetooth row (BLE, private
+      // BLE, iBeacon) says so, not just the first rows the queue would reach.
+      // On: a private BLE row is a resolvable private address, random by
+      // definition; an iBeacon row is one beacon heard from changing
+      // addresses, so there is no one address to look up; a BLE row says
+      // "random address" at once when its bits mark it so, and otherwise
+      // waits for the server's answer. Entities aren't Bluetooth rows: n/a.
+      const btRow = kind === "ble" || kind === "private_ble" || kind === "ibeacon";
+      const askMaker = makerOn && kind === "ble" && !!addr && !isRandomAddress(addr);
+      const vendorCell = el("td",{}, !btRow ? el("span",{class:"badge"}, "n/a")
+        : !makerOn ? el("span",{class:"badge"}, "Lookup off")
+        : (kind === "private_ble" || (kind === "ble" && isRandomAddress(addr))) ? el("span",{class:"badge warn"}, "random address")
+        : kind === "ibeacon" ? el("span",{class:"badge", title:"An iBeacon is heard from changing addresses, so there is no one address to look up"}, "n/a")
+        : el("span",{class:"badge"}, "—"));
 
       // Follow button
       const followKey = addr || o.entity_id || "";
@@ -792,6 +799,7 @@ export function renderClassic(ctx){
       });
       // kick vendor lookup for BLE rows (best-effort, after render)
       tr._vendorCell = vendorCell;
+      tr._askMaker = askMaker;
       return tr;
     }).filter(Boolean);
 
@@ -844,10 +852,11 @@ export function renderClassic(ctx){
     ctx.actions.openModal("Objects", body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
 
     // After modal opens, do vendor lookups for visible BLE rows (limited concurrency).
-    // With the lookup off every BLE cell already says so and nothing is asked.
+    // With the lookup off every Bluetooth cell already says so and nothing is
+    // asked; rows already labelled "random address" aren't asked either.
     const maxLookups = makerOn ? 40 : 0;
     const queue = rowEls
-      .filter(tr=>tr.getAttribute("data-kind")==="ble")
+      .filter(tr=>tr._askMaker)
       .slice(0, maxLookups);
 
     // lightweight concurrency limiter

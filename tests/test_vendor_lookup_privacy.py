@@ -204,6 +204,10 @@ def test_the_address_type_is_read_from_esphome_and_bluez() -> None:
 
     assert address_type_of(SimpleNamespace(details={"source": "x", "address_type": 1})) == "random"
     assert address_type_of(SimpleNamespace(details={"source": "x", "address_type": 0})) == "public"
+    # ESP-IDF's resolvable private kinds: random on the air.
+    assert address_type_of(SimpleNamespace(details={"address_type": 2})) == "random"
+    assert address_type_of(SimpleNamespace(details={"address_type": 3})) == "random"
+    assert address_type_of(SimpleNamespace(details={"address_type": 4})) is None
     assert address_type_of(SimpleNamespace(details={"path": "/org/bluez", "props": {"AddressType": "random"}})) == "random"
     assert address_type_of(SimpleNamespace(details={"props": {"AddressType": "public"}})) == "public"
     assert address_type_of(SimpleNamespace(details={"address_type": True})) is None
@@ -261,3 +265,161 @@ def test_the_switch_is_reported_as_on_or_off_only() -> None:
     from custom_components.padspan_ha import telemetry as T
 
     assert "vendor_lookup_enabled" in T._FEATURE_FLAGS
+
+
+# ── The type is kept per address (0.38.208) ──────────────────────────────────
+# On HA OS, live adverts from HA's own adapter come through habluetooth's mgmt
+# side channel with the BlueZ path only, no AddressType, while the 30 s reseed
+# reads the scanner's BlueZ cache, which has it. 0.38.207 stored each report's
+# type as it came, so one live advert wiped the reseed's "random" and the lookup
+# asked both services for C4:11:22. These go through the real recording
+# (_on_adv, the reseed), the real known_address_type and the real handler.
+
+RANDOM_STATIC = "C4:11:22:33:44:55"  # 0xC4: bits 0x01 and 0x02 clear, so only the type holds it back
+
+
+def _bluez(addr, address_type=None):
+    """HA's own adapter's BLEDevice: from BlueZ's cache (with AddressType) or
+    from the mgmt side channel (the path only)."""
+    from types import SimpleNamespace
+
+    props = {"Adapter": "/org/bluez/hci0"}
+    if address_type:
+        props["AddressType"] = address_type
+    return SimpleNamespace(address=addr, name=None,
+                           details={"path": "/org/bluez/hci0/dev_" + addr.replace(":", "_"), "props": props})
+
+
+def _esphome(addr, address_type):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(address=addr, name=None, details={"source": "proxy", "address_type": address_type})
+
+
+def _advert(addr, device, source="hci0"):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(address=addr, name=None, source=source, rssi=-60, time=0, device=device,
+                           manufacturer_data={}, service_data={}, service_uuids=[], tx_power=None,
+                           connectable=True)
+
+
+def _stack(monkeypatch, cached=None, by_address=None):
+    """A BluetoothLive behind the real handler. `cached`: what the reseed reads
+    from scanner hci0 ({addr: BLEDevice}). `by_address`: what the scanners' own
+    caches answer when asked for one address; None leaves that out, so only
+    PadSpan's own record can hold an address back."""
+    import sys
+    import time
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import bluetooth_live as BL
+
+    adv = SimpleNamespace(rssi=-60, local_name=None, manufacturer_data={}, service_data={},
+                          service_uuids=[], tx_power=None)
+    cached = cached or {}
+    scanner = SimpleNamespace(
+        source="hci0",
+        discovered_devices_and_advertisement_data={a: (d, adv) for a, d in cached.items()},
+        discovered_device_timestamps={a: time.monotonic() for a in cached})
+    manager = SimpleNamespace(async_current_scanners=lambda: [scanner])
+    if by_address is not None:
+        manager.async_scanner_devices_by_address = lambda addr, connectable: [
+            SimpleNamespace(ble_device=d) for d in by_address.get(addr, [])]
+    monkeypatch.setitem(sys.modules, "habluetooth", SimpleNamespace(get_manager=lambda: manager))
+    hass = _hass({"vendor_lookup_enabled": True})
+    bl = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
+    hass.data[DOMAIN][BL.DATA_KEY] = bl
+    return BL, bl, hass
+
+
+async def _ask(hass, mac):
+    from custom_components.padspan_ha import websocket as W
+
+    conn = MagicMock()
+    await W.ws_vendor_lookup(hass, conn, {"id": 1, "mac": mac})
+    return conn.send_result.call_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_a_live_advert_without_a_type_keeps_the_reseeds_random(online, monkeypatch) -> None:
+    session, _ = online
+    BL, bl, hass = _stack(monkeypatch, cached={RANDOM_STATIC: _bluez(RANDOM_STATIC, "random")})
+    bl._seed_from_discovered()                                # BlueZ: random
+    bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))  # the mgmt side channel: no type
+    assert BL.known_address_type(hass, RANDOM_STATIC) == "random"
+    out = await _ask(hass, RANDOM_STATIC)
+    assert out["skipped"] == "random" and session.urls == []
+
+
+@pytest.mark.asyncio
+async def test_a_reseed_without_a_type_keeps_a_live_adverts_random(online, monkeypatch) -> None:
+    session, _ = online
+    BL, bl, hass = _stack(monkeypatch, cached={RANDOM_STATIC: _bluez(RANDOM_STATIC)})
+    bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC, "random")))  # live, with BlueZ's type
+    bl._seed_from_discovered()                                          # the same radio, no type
+    assert bl._seen_by_source[RANDOM_STATIC]["hci0"].record["address_type"] is None
+    assert BL.known_address_type(hass, RANDOM_STATIC) == "random"
+    out = await _ask(hass, RANDOM_STATIC)
+    assert out["skipped"] == "random" and session.urls == []
+
+
+@pytest.mark.asyncio
+async def test_a_random_address_padspan_has_no_type_for_yet_is_never_sent(online, monkeypatch) -> None:
+    """First heard on HA's own adapter (no type) and asked about before any
+    reseed: the scanner's own BlueZ cache already says random."""
+    session, _ = online
+    BL, bl, hass = _stack(monkeypatch, by_address={RANDOM_STATIC: [_bluez(RANDOM_STATIC, "random")]})
+    bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
+    assert bl._address_types == {}
+    out = await _ask(hass, RANDOM_STATIC)
+    assert out["skipped"] == "random" and session.urls == []
+    # Never heard by PadSpan at all, and an ESPHome proxy's cache says random.
+    other = "C8:11:22:33:44:55"
+    _, _, hass2 = _stack(monkeypatch, by_address={other: [_esphome(other, 1)]})
+    out = await _ask(hass2, other)
+    assert out["skipped"] == "random" and session.urls == []
+
+
+@pytest.mark.asyncio
+async def test_with_no_type_reported_anywhere_the_bits_decide(online, monkeypatch) -> None:
+    session, _ = online
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    for addr in (RANDOM_STATIC, "DA:11:22:33:44:55"):
+        bl._on_adv(_advert(addr, _bluez(addr)))
+    assert BL.known_address_type(hass, RANDOM_STATIC) is None
+    out = await _ask(hass, RANDOM_STATIC)
+    assert out["skipped"] is None and session.urls
+    assert all(u.endswith("/C4:11:22") for u in session.urls), session.urls
+    asked = len(session.urls)
+    out = await _ask(hass, "DA:11:22:33:44:55")
+    assert out["skipped"] == "local" and len(session.urls) == asked
+
+
+def test_random_is_never_downgraded_and_goes_with_the_address(monkeypatch) -> None:
+    import datetime as dt
+
+    BL, bl, hass = _stack(monkeypatch)
+    a, b = RANDOM_STATIC, "C8:11:22:33:44:55"
+    bl._on_adv(_advert(a, _esphome(a, 1), source="proxy"))
+    bl._on_adv(_advert(a, _esphome(a, 0), source="proxy"))  # a later "public" doesn't undo it
+    bl._on_adv(_advert(a, _bluez(a)))
+    bl._on_adv(_advert(b, _esphome(b, 0), source="proxy"))
+    bl._on_adv(_advert(b, _bluez(b)))                        # no type: public stays
+    assert bl._address_types == {a: "random", b: "public"}
+    assert BL.known_address_type(hass, a.lower()) == "random"
+    assert BL.known_address_type(hass, a.replace(":", "-")) == "random"
+    assert BL.known_address_type(hass, b) == "public"
+    # One radio's records going doesn't forget it; the address leaving the cache does.
+    bl.clear_scanner("proxy")
+    assert BL.known_address_type(hass, a) == "random"
+    bl.clear_scanner("hci0")
+    assert a not in bl._address_types and BL.known_address_type(hass, a) is None
+    # The age prune too.
+    bl._on_adv(_advert(a, _esphome(a, 1), source="proxy"))
+    old = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=5)
+    for src_map in bl._seen_by_source.values():
+        for rec in src_map.values():
+            rec.seen = old
+    bl.cache_age_s = 60.0
+    bl.get_snapshot(max_ads=100, max_age_s=60)
+    assert bl._seen_by_source == {} and bl._address_types == {}

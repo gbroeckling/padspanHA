@@ -46,12 +46,15 @@ Cache:
 - rate-limited to avoid API spam
 
 Settings:
-- `vendor_lookup_enabled` is stored in `settings_store.py` (default: True). Only an administrator can change it (`ws_settings.py`).
+- `vendor_lookup_enabled` is stored in `settings_store.py` (default: True). Only an administrator can change it (`ws_settings.py`): Settings → Tracking → Privacy, updates and feedback → "Look up device makers online", or the switch at the top of the Objects list.
 
 What is sent: first three bytes only; never addresses known to be random or locally administered.
 - The provider URLs carry the prefix (`AA:BB:CC`), never the whole address.
-- `bluetooth_live.address_type_of()` records "public"/"random" when the radio reports it (ESPHome proxies: `BLEDevice.details["address_type"]`, 0/1; BlueZ: `props["AddressType"]`). `known_address_type()` gives `ws_vendor_lookup` the answer; "random" is never sent.
+- `bluetooth_live.address_type_of()` reads "public"/"random" when the radio reports it (ESPHome proxies: `BLEDevice.details["address_type"]`, 0 public, 1-3 random; BlueZ: `props["AddressType"]`). HA's mgmt channel and Shelly scanners don't report it.
+- The type is kept per address (`BluetoothLive._address_types`), not per report: HA's own adapter's live adverts carry none (habluetooth's mgmt side channel) while the reseed reads BlueZ's, and in 0.38.207 each live advert wiped the reseed's "random". A report with no type keeps the earlier one, "random" is never downgraded, and the entry goes only when the address leaves the cache (age prune, cap, `clear_scanner`, factory reset).
+- `known_address_type()` gives `ws_vendor_lookup` the answer: that record, and, until it says "random", the scanners' own caches (`async_scanner_devices_by_address`), for an address first heard on HA's adapter before the next reseed. "random" is never sent.
 - When no radio reported the type, `lookup_skip_reason()` falls back to the first byte's bits: 0x02 (locally administered) or 0x01 (multicast) are never sent.
+- The panel (overview.js) asks about each address itself and keeps no answers: kept by prefix, a random address showed the maker of another device sharing its first three bytes. Rows whose bits mark them random, and private BLE rows, say "random address" without asking.
 
 ## Where to debug
 

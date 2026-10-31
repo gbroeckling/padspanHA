@@ -522,6 +522,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
             _bl._seen_by_source.clear()
             _bl._radio_last_heard.clear()
             _bl._last_reseed = None
+            _bl._address_types.clear()
     except Exception:
         pass
 
