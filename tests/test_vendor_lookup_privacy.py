@@ -1,9 +1,15 @@
-"""The device maker (vendor) lookup's privacy rules.
+"""The device maker (vendor) lookup's privacy rules: an allowlist.
 
-First three bytes only; never addresses known to be random or locally
-administered. A radio's reported type wins (ESPHome, BlueZ); with no type, the
-first byte's bits decide. On by default, admin-only, cached by prefix, and the
-switch is reported as on/off only.
+It sends only the first three bytes of an address, and only for devices a
+Bluetooth receiver confirms have a fixed, maker-assigned address (ESPHome
+proxies and Home Assistant's own Bluetooth say so; Shelly, ESPresense and
+Tasmota don't, so devices only they hear aren't looked up).
+
+Random or unknown is never sent, whatever the bits; the bits only hold back
+more. A confirmed public address is kept in .storage, through prunes and
+restarts. Anything else gets the answer kept for its prefix, if there is one.
+On by default, admin-only, cached by prefix, and the switch is reported as
+on/off only.
 """
 
 from __future__ import annotations
@@ -91,10 +97,26 @@ def _hass(settings: dict | None = None):
     return hass
 
 
+
+RANDOM_STATIC = "C4:11:22:33:44:55"  # 0xC4: bits 0x01 and 0x02 clear, so the bits would let it through
+PUBLIC = "F0:18:98:12:34:56"
+
+
+def _keep(cache, prefix="C4:11:22", maker="Kept, Inc."):
+    """An answer the 30-day cache already holds for the prefix."""
+    import datetime as dt
+
+    cache.set(prefix, {"fetched_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+                       "found": True, "sources": {"macvendors": maker, "maclookup": None}})
+
+
+# ── The lookup itself ────────────────────────────────────────────────────────
+
+
 @pytest.mark.asyncio
-async def test_only_the_maker_prefix_is_sent(online) -> None:
+async def test_a_confirmed_public_address_sends_only_its_first_three_bytes(online) -> None:
     session, _ = online
-    out = await VL.async_lookup_vendor(_hass(), "f0:18:98:12:34:56")
+    out = await VL.async_lookup_vendor(_hass(), "f0:18:98:12:34:56", address_type="public")
     assert out["found"] is True and out["skipped"] is None
     assert len(session.urls) == 2
     for url in session.urls:
@@ -103,79 +125,12 @@ async def test_only_the_maker_prefix_is_sent(online) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mac,reason", [
-    ("DA:A1:19:11:22:33", "local"),      # 0xDA has bit 0x02 set: a random address
-    ("4E:12:34:56:78:9A", "local"),
-    ("01:00:5E:00:00:FB", "multicast"),  # group address
-    ("33:33:00:00:00:01", "multicast"),
-])
-async def test_random_and_group_addresses_are_never_sent(online, mac, reason) -> None:
+@pytest.mark.parametrize("first", ["40", "7C", "C0", "C4", "F0", "00"])
+async def test_an_unconfirmed_address_is_never_sent_whatever_its_bits(online, first) -> None:
     session, cache = online
-    out = await VL.async_lookup_vendor(_hass(), mac)
-    assert out["skipped"] == reason and out["found"] is False
-    assert session.urls == []
-    assert cache.entries == {}
-
-
-def test_skip_reason_reads_the_first_byte_only() -> None:
-    assert VL.lookup_skip_reason("F0:18:98:12:34:56") is None
-    assert VL.lookup_skip_reason("00:1A:7D:DA:71:13") is None
-    assert VL.lookup_skip_reason("02:00:00:00:00:00") == "local"
-    assert VL.lookup_skip_reason("03:00:00:00:00:00") == "multicast"
-    assert VL.lookup_skip_reason("ZZ:00:00:00:00:00") == "bad_mac"
-
-
-@pytest.mark.asyncio
-async def test_a_known_prefix_is_answered_from_the_cache(online) -> None:
-    session, _ = online
-    await VL.async_lookup_vendor(_hass(), "F0:18:98:12:34:56")
-    asked = len(session.urls)
-    out = await VL.async_lookup_vendor(_hass(), "F0:18:98:AB:CD:EF")
-    assert out["cached"] is True and out["found"] is True
-    assert len(session.urls) == asked
-
-
-@pytest.mark.asyncio
-async def test_the_switch_decides_and_unreadable_settings_send_nothing(online, monkeypatch) -> None:
-    from custom_components.padspan_ha import websocket as W
-    from custom_components.padspan_ha import bluetooth_live as BL
-
-    session, _ = online
-    called = []
-
-    async def _lookup(hass, mac, force_refresh=False, address_type=None, cached_only=False):
-        called.append((mac, address_type))
-        return {}
-
-    monkeypatch.setattr(W, "async_lookup_vendor", _lookup)
-    monkeypatch.setattr(BL, "known_address_type", lambda hass, mac: None)
-    for settings in ({"vendor_lookup_enabled": False}, None):
-        conn = MagicMock()
-        await W.ws_vendor_lookup(_hass(settings), conn, {"id": 1, "mac": "F0:18:98:12:34:56"})
-        assert conn.send_result.call_args.args[1] == {"enabled": False}
-    assert called == [] and session.urls == []
-
-    # On by default: a store without the key looks it up.
-    for settings in ({}, {"vendor_lookup_enabled": True}):
-        conn = MagicMock()
-        await W.ws_vendor_lookup(_hass(settings), conn, {"id": 2, "mac": "F0:18:98:12:34:56"})
-        assert conn.send_result.call_args.args[1]["enabled"] is True
-    assert called == [("F0:18:98:12:34:56", None)] * 2
-
-
-@pytest.mark.asyncio
-async def test_the_handler_passes_the_type_a_radio_reported(online, monkeypatch) -> None:
-    from custom_components.padspan_ha import websocket as W
-    from custom_components.padspan_ha import bluetooth_live as BL
-
-    session, _ = online
-    monkeypatch.setattr(BL, "known_address_type", lambda hass, mac: "random")
-    conn = MagicMock()
-    # 0x40: bits 0x01 and 0x02 clear, so only the reported type can hold it back.
-    await W.ws_vendor_lookup(_hass({"vendor_lookup_enabled": True}), conn,
-                             {"id": 1, "mac": "40:11:22:33:44:55"})
-    out = conn.send_result.call_args.args[1]
-    assert out["skipped"] == "random" and session.urls == []
+    out = await VL.async_lookup_vendor(_hass(), f"{first}:11:22:33:44:55")
+    assert out["skipped"] == "unconfirmed" and out["found"] is False
+    assert session.urls == [] and cache.entries == {}
 
 
 @pytest.mark.asyncio
@@ -188,14 +143,119 @@ async def test_a_known_random_address_is_never_sent_whatever_its_bits(online, fi
 
 
 @pytest.mark.asyncio
-async def test_an_unknown_type_falls_back_to_the_bits(online) -> None:
+@pytest.mark.parametrize("mac,reason", [
+    ("DA:A1:19:11:22:33", "local"),      # 0xDA has bit 0x02 set
+    ("4E:12:34:56:78:9A", "local"),
+    ("01:00:5E:00:00:FB", "multicast"),
+    ("33:33:00:00:00:01", "multicast"),
+])
+@pytest.mark.parametrize("address_type", [None, "public"])
+async def test_the_bits_only_hold_back_more(online, mac, reason, address_type) -> None:
+    session, cache = online
+    out = await VL.async_lookup_vendor(_hass(), mac, address_type=address_type)
+    assert out["skipped"] == reason and session.urls == [] and cache.entries == {}
+
+
+def test_skip_reason_allows_a_confirmed_public_address_only() -> None:
+    assert VL.lookup_skip_reason("F0:18:98:12:34:56", "public") is None
+    assert VL.lookup_skip_reason("F0:18:98:12:34:56") == "unconfirmed"
+    assert VL.lookup_skip_reason("F0:18:98:12:34:56", "random") == "random"
+    assert VL.lookup_skip_reason("02:00:00:00:00:00", "public") == "local"
+    assert VL.lookup_skip_reason("03:00:00:00:00:00", "public") == "multicast"
+    assert VL.lookup_skip_reason("ZZ:00:00:00:00:00", "public") == "bad_mac"
+
+
+@pytest.mark.asyncio
+async def test_a_known_prefix_is_answered_from_the_cache(online) -> None:
     session, _ = online
-    out = await VL.async_lookup_vendor(_hass(), "40:11:22:33:44:55", address_type=None)
-    assert out["skipped"] is None and session.urls and all(u.endswith("/40:11:22") for u in session.urls)
-    out = await VL.async_lookup_vendor(_hass(), "DA:11:22:33:44:55", address_type=None)
-    assert out["skipped"] == "local"
-    out = await VL.async_lookup_vendor(_hass(), "DA:11:22:33:44:55", address_type="public")
-    assert out["skipped"] == "local"
+    await VL.async_lookup_vendor(_hass(), "F0:18:98:12:34:56", address_type="public")
+    asked = len(session.urls)
+    out = await VL.async_lookup_vendor(_hass(), "F0:18:98:AB:CD:EF", address_type="public")
+    assert out["cached"] is True and out["found"] is True
+    assert len(session.urls) == asked
+
+
+@pytest.mark.asyncio
+async def test_an_unconfirmed_address_gets_only_the_answer_kept_for_its_prefix(online) -> None:
+    session, cache = online
+    cache.set("C4:11:22", {"fetched_at": "2026-01-01T00:00:00Z", "found": True,
+                           "sources": {"macvendors": "Old, Inc.", "maclookup": None}})
+    out = await VL.async_lookup_vendor(_hass(), RANDOM_STATIC)
+    assert out["skipped"] == "unconfirmed" and session.urls == []   # older than 30 days: not used
+    _keep(cache)
+    for force in (False, True):
+        out = await VL.async_lookup_vendor(_hass(), RANDOM_STATIC, force_refresh=force)
+        assert out["cached"] is True and out["skipped"] is None
+        assert out["sources"]["macvendors"] == "Kept, Inc." and session.urls == []
+
+
+# ── The handler ──────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_the_switch_decides_and_unreadable_settings_send_nothing(online, monkeypatch) -> None:
+    from custom_components.padspan_ha import websocket as W
+    from custom_components.padspan_ha import bluetooth_live as BL
+
+    session, _ = online
+    called = []
+
+    async def _lookup(hass, mac, force_refresh=False, address_type=None):
+        called.append((mac, address_type))
+        return {}
+
+    monkeypatch.setattr(W, "async_lookup_vendor", _lookup)
+    monkeypatch.setattr(BL, "known_address_type", lambda hass, mac: "public")
+    for settings in ({"vendor_lookup_enabled": False}, None):
+        conn = MagicMock()
+        await W.ws_vendor_lookup(_hass(settings), conn, {"id": 1, "mac": PUBLIC})
+        assert conn.send_result.call_args.args[1] == {"enabled": False}
+    assert called == [] and session.urls == []
+
+    # On by default: a store without the key looks it up.
+    for settings in ({}, {"vendor_lookup_enabled": True}):
+        conn = MagicMock()
+        await W.ws_vendor_lookup(_hass(settings), conn, {"id": 2, "mac": PUBLIC})
+        assert conn.send_result.call_args.args[1]["enabled"] is True
+    assert called == [(PUBLIC, "public")] * 2
+
+
+@pytest.mark.asyncio
+async def test_the_handler_passes_the_type_a_radio_reported(online, monkeypatch) -> None:
+    from custom_components.padspan_ha import websocket as W
+    from custom_components.padspan_ha import bluetooth_live as BL
+
+    session, _ = online
+    for atype, skipped, sent in (("random", "random", False), (None, "unconfirmed", False), ("public", None, True)):
+        monkeypatch.setattr(BL, "known_address_type", lambda hass, mac, _t=atype: _t)
+        conn = MagicMock()
+        await W.ws_vendor_lookup(_hass({"vendor_lookup_enabled": True}), conn, {"id": 1, "mac": "40:11:22:33:44:55"})
+        out = conn.send_result.call_args.args[1]
+        assert out["skipped"] == skipped and bool(session.urls) is sent, atype
+
+
+@pytest.mark.asyncio
+async def test_when_the_type_cant_be_read_nothing_is_sent(online, monkeypatch) -> None:
+    from custom_components.padspan_ha import websocket as W
+    from custom_components.padspan_ha import bluetooth_live as BL
+
+    session, cache = online
+
+    def _broken(hass, mac):
+        raise RuntimeError("no Bluetooth")
+
+    monkeypatch.setattr(BL, "known_address_type", _broken)
+    conn = MagicMock()
+    await W.ws_vendor_lookup(_hass({"vendor_lookup_enabled": True}), conn, {"id": 1, "mac": PUBLIC})
+    out = conn.send_result.call_args.args[1]
+    assert out["skipped"] == "unconfirmed" and out["enabled"] is True and session.urls == []
+    _keep(cache, prefix="F0:18:98", maker="Apple, Inc.")
+    await W.ws_vendor_lookup(_hass({"vendor_lookup_enabled": True}), conn, {"id": 2, "mac": PUBLIC})
+    out = conn.send_result.call_args.args[1]
+    assert out["cached"] is True and out["sources"]["macvendors"] == "Apple, Inc." and session.urls == []
+
+
+# ── What a radio says ────────────────────────────────────────────────────────
 
 
 def test_the_address_type_is_read_from_esphome_and_bluez() -> None:
@@ -211,6 +271,7 @@ def test_the_address_type_is_read_from_esphome_and_bluez() -> None:
     assert address_type_of(SimpleNamespace(details={"path": "/org/bluez", "props": {"AddressType": "random"}})) == "random"
     assert address_type_of(SimpleNamespace(details={"props": {"AddressType": "public"}})) == "public"
     assert address_type_of(SimpleNamespace(details={"address_type": True})) is None
+    assert address_type_of(SimpleNamespace(details={"source": "shelly"})) is None
     assert address_type_of(SimpleNamespace(details={})) is None
     assert address_type_of(SimpleNamespace(details=None)) is None
     assert address_type_of(None) is None
@@ -230,6 +291,9 @@ def test_known_address_type_random_wins_across_radios(monkeypatch) -> None:
     assert BL.known_address_type(None, "aa:bb:cc:dd:ee:ff") == "random"
     assert BL.known_address_type(None, "11:22:33:44:55:66") is None
     assert BL.known_address_type(None, "99:99:99:99:99:99") is None
+
+
+# ── The switch ───────────────────────────────────────────────────────────────
 
 
 def test_on_by_default() -> None:
@@ -267,15 +331,25 @@ def test_the_switch_is_reported_as_on_or_off_only() -> None:
     assert "vendor_lookup_enabled" in T._FEATURE_FLAGS
 
 
-# ── The type is kept per address (0.38.208) ──────────────────────────────────
+# ── Through the real recording: _on_adv, the reseed, the handler ─────────────
 # On HA OS, live adverts from HA's own adapter come through habluetooth's mgmt
-# side channel with the BlueZ path only, no AddressType, while the 30 s reseed
-# reads the scanner's BlueZ cache, which has it. 0.38.207 stored each report's
-# type as it came, so one live advert wiped the reseed's "random" and the lookup
-# asked both services for C4:11:22. These go through the real recording
-# (_on_adv, the reseed), the real known_address_type and the real handler.
+# side channel with the BlueZ path only, no AddressType, while the reseed and
+# the scanner's cache have BlueZ's. Shelly, ESPresense and Tasmota never say.
 
-RANDOM_STATIC = "C4:11:22:33:44:55"  # 0xC4: bits 0x01 and 0x02 clear, so only the type holds it back
+
+class _Store:
+    """Stand-in for HA's Store: what was saved is what loads."""
+
+    def __init__(self, data=None) -> None:
+        self.data = data
+        self.saves = 0
+
+    async def async_load(self):
+        return self.data
+
+    def async_delay_save(self, func, delay) -> None:
+        self.data = func()
+        self.saves += 1
 
 
 def _bluez(addr, address_type=None):
@@ -296,6 +370,12 @@ def _esphome(addr, address_type):
     return SimpleNamespace(address=addr, name=None, details={"source": "proxy", "address_type": address_type})
 
 
+def _shelly(addr):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(address=addr, name=None, details={"source": "shelly"})
+
+
 def _advert(addr, device, source="hci0"):
     from types import SimpleNamespace
 
@@ -308,7 +388,7 @@ def _stack(monkeypatch, cached=None, by_address=None):
     """A BluetoothLive behind the real handler. `cached`: what the reseed reads
     from scanner hci0 ({addr: BLEDevice}). `by_address`: what the scanners' own
     caches answer when asked for one address; None leaves that out, so only
-    PadSpan's own record can hold an address back."""
+    PadSpan's own record can decide."""
     import sys
     import time
     from types import SimpleNamespace
@@ -340,6 +420,150 @@ async def _ask(hass, mac):
     return conn.send_result.call_args.args[1]
 
 
+async def _never_sent_but_kept_answer_shown(hass, session, cache, mac=RANDOM_STATIC):
+    out = await _ask(hass, mac)
+    assert out["skipped"] in ("unconfirmed", "random") and out["found"] is False, out
+    if out["skipped"] == "unconfirmed":
+        _keep(cache, prefix=mac[:8])
+        out = await _ask(hass, mac)
+        assert out["cached"] is True and out["sources"]["macvendors"] == "Kept, Inc.", out
+    assert session.urls == []
+
+
+def _age(bl, addr, seconds):
+    import datetime as dt
+
+    for rec in bl._seen_by_source[addr].values():
+        rec.seen = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=seconds)
+
+
+def _prune(bl, addr):
+    _age(bl, addr, 5 * 3600)
+    bl.cache_age_s = 4 * 3600.0
+    bl.get_snapshot(max_ads=100, max_age_s=4 * 3600)
+    assert addr not in bl._seen_by_source
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_public_address_sends_its_prefix(online, monkeypatch) -> None:
+    session, _ = online
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source="proxy"))   # ESPHome: 0, public
+    assert BL.known_address_type(hass, PUBLIC) == "public"
+    out = await _ask(hass, PUBLIC)
+    assert out["skipped"] is None and out["found"] is True
+    assert session.urls and all(u.endswith("/F0:18:98") for u in session.urls)
+    # HA's own adapter: BlueZ says public in the reseed's cache.
+    other = "00:1A:7D:DA:71:13"
+    BL, bl, hass = _stack(monkeypatch, cached={other: _bluez(other, "public")}, by_address={})
+    bl._seed_from_discovered()
+    bl._on_adv(_advert(other, _bluez(other)))                          # live, no type: still public
+    out = await _ask(hass, other)
+    assert out["skipped"] is None and session.urls[-1].endswith("/00:1A:7D")
+
+
+@pytest.mark.asyncio
+async def test_an_address_heard_only_by_shelly_espresense_or_tasmota_is_never_sent(online, monkeypatch) -> None:
+    import datetime as dt
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.const import DATA_ESPRESENSE_MQTT
+    from custom_components.padspan_ha.tasmota_ble import DATA_TASMOTA_BLE
+
+    session, cache = online
+    BL, bl, hass = _stack(monkeypatch, by_address={RANDOM_STATIC: [_shelly(RANDOM_STATIC)]})
+    bl._on_adv(_advert(RANDOM_STATIC, _shelly(RANDOM_STATIC), source="shelly"))
+    assert BL.known_address_type(hass, RANDOM_STATIC) is None
+    await _never_sent_but_kept_answer_shown(hass, session, cache)
+
+    now = dt.datetime.now(dt.timezone.utc)
+    for data_key, mac in ((DATA_ESPRESENSE_MQTT, "C8:11:22:33:44:55"), (DATA_TASMOTA_BLE, "CC:11:22:33:44:55")):
+        BL, bl, hass = _stack(monkeypatch, by_address={})
+        hass.data[DOMAIN][data_key] = SimpleNamespace(_seen={mac: {"node": SimpleNamespace(seen=now)}})
+        await _never_sent_but_kept_answer_shown(hass, session, cache, mac=mac)
+
+
+@pytest.mark.asyncio
+async def test_random_then_pruned_then_heard_by_espresense_is_never_sent(online, monkeypatch) -> None:
+    """The 0.38.210 review's probe: ESPHome said random, the address was
+    pruned, ESPresense heard it, and C4:11:22 went to both services."""
+    import datetime as dt
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.const import DATA_ESPRESENSE_MQTT
+
+    session, cache = online
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source="proxy"))
+    _prune(bl, RANDOM_STATIC)
+    hass.data[DOMAIN][DATA_ESPRESENSE_MQTT] = SimpleNamespace(
+        _seen={RANDOM_STATIC: {"espresense_hall": SimpleNamespace(seen=dt.datetime.now(dt.timezone.utc))}})
+    await _never_sent_but_kept_answer_shown(hass, session, cache)
+
+
+@pytest.mark.asyncio
+async def test_confirmed_public_is_kept_across_a_restart(online, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    session, _ = online
+    store = _Store()
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    await bl.async_load_public(store)
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source="proxy"))
+    assert PUBLIC in (store.data or {}).get("addresses", {})
+    # Restart: a new, empty BluetoothLive reads the store; the device isn't heard again.
+    fresh = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
+    await fresh.async_load_public(_Store(store.data))
+    hass.data[DOMAIN][BL.DATA_KEY] = fresh
+    assert fresh._seen_by_source == {} and BL.known_address_type(hass, PUBLIC) == "public"
+    out = await _ask(hass, PUBLIC)
+    assert out["skipped"] is None and session.urls and all(u.endswith("/F0:18:98") for u in session.urls)
+    # A radio saying random takes it out of the store.
+    fresh._public_store = store
+    fresh._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 1), source="proxy2"))
+    assert PUBLIC not in store.data["addresses"] and BL.known_address_type(hass, PUBLIC) == "random"
+
+
+@pytest.mark.asyncio
+async def test_setup_reads_the_kept_public_addresses(monkeypatch) -> None:
+    """async_setup_bluetooth_live loads the store (PUBLIC_ADDRESSES_STORE_KEY)."""
+    import homeassistant.helpers.storage as hs
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import bluetooth_live as BL
+    from custom_components.padspan_ha.const import PUBLIC_ADDRESSES_STORE_KEY
+
+    opened = []
+
+    def _store(hass, version, key):
+        opened.append(key)
+        return _Store({"addresses": {PUBLIC: 1761900000}})
+
+    monkeypatch.setattr(hs, "Store", _store)
+    hass = SimpleNamespace(data={DOMAIN: {}})
+    bl = await BL.async_setup_bluetooth_live(hass)
+    assert opened == [PUBLIC_ADDRESSES_STORE_KEY] and bl._public == {PUBLIC: 1761900000}
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_public_address_is_looked_up_however_long_ago_it_was_heard(online, monkeypatch) -> None:
+    session, _ = online
+    BL, bl, hass = _stack(monkeypatch, by_address={})
+    bl._on_adv(_advert(PUBLIC, _esphome(PUBLIC, 0), source="proxy"))
+    _prune(bl, PUBLIC)                       # a tagged row from the history, 5 h on
+    out = await _ask(hass, PUBLIC)
+    assert out["skipped"] is None and session.urls and all(u.endswith("/F0:18:98") for u in session.urls)
+
+
+def test_the_kept_public_addresses_are_capped_oldest_first(monkeypatch) -> None:
+    import time
+
+    BL, bl, hass = _stack(monkeypatch)
+    monkeypatch.setattr(BL, "PUBLIC_MAX", 10)
+    base = int(time.time()) - 1000
+    for n in range(12):
+        bl._public[f"00:1A:7D:00:00:{n:02X}"] = base + n
+    bl._save_public()
+    assert len(bl._public) == 9 and "00:1A:7D:00:00:00" not in bl._public and "00:1A:7D:00:00:0B" in bl._public
+
+
 @pytest.mark.asyncio
 async def test_a_live_advert_without_a_type_keeps_the_reseeds_random(online, monkeypatch) -> None:
     session, _ = online
@@ -364,35 +588,18 @@ async def test_a_reseed_without_a_type_keeps_a_live_adverts_random(online, monke
 
 
 @pytest.mark.asyncio
-async def test_a_random_address_padspan_has_no_type_for_yet_is_never_sent(online, monkeypatch) -> None:
-    """First heard on HA's own adapter (no type) and asked about before any
-    reseed: the scanner's own BlueZ cache already says random."""
+async def test_the_scanners_own_caches_are_read_too(online, monkeypatch) -> None:
+    """First heard on HA's own adapter (no type), asked about before any
+    reseed: the scanner's BlueZ cache already says which kind it is."""
     session, _ = online
-    BL, bl, hass = _stack(monkeypatch, by_address={RANDOM_STATIC: [_bluez(RANDOM_STATIC, "random")]})
+    BL, bl, hass = _stack(monkeypatch, by_address={RANDOM_STATIC: [_bluez(RANDOM_STATIC, "random")],
+                                                   PUBLIC: [_bluez(PUBLIC, "public")]})
     bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
     assert bl._address_types == {}
     out = await _ask(hass, RANDOM_STATIC)
     assert out["skipped"] == "random" and session.urls == []
-    # Never heard by PadSpan at all, and an ESPHome proxy's cache says random.
-    other = "C8:11:22:33:44:55"
-    _, _, hass2 = _stack(monkeypatch, by_address={other: [_esphome(other, 1)]})
-    out = await _ask(hass2, other)
-    assert out["skipped"] == "random" and session.urls == []
-
-
-@pytest.mark.asyncio
-async def test_with_no_type_reported_anywhere_the_bits_decide(online, monkeypatch) -> None:
-    session, _ = online
-    BL, bl, hass = _stack(monkeypatch, by_address={})
-    for addr in (RANDOM_STATIC, "DA:11:22:33:44:55"):
-        bl._on_adv(_advert(addr, _bluez(addr)))
-    assert BL.known_address_type(hass, RANDOM_STATIC) is None
-    out = await _ask(hass, RANDOM_STATIC)
+    out = await _ask(hass, PUBLIC)                      # never heard by PadSpan; BlueZ says public
     assert out["skipped"] is None and session.urls
-    assert all(u.endswith("/C4:11:22") for u in session.urls), session.urls
-    asked = len(session.urls)
-    out = await _ask(hass, "DA:11:22:33:44:55")
-    assert out["skipped"] == "local" and len(session.urls) == asked
 
 
 def test_random_is_never_downgraded_and_goes_with_the_address(monkeypatch) -> None:
@@ -405,7 +612,7 @@ def test_random_is_never_downgraded_and_goes_with_the_address(monkeypatch) -> No
     bl._on_adv(_advert(a, _bluez(a)))
     bl._on_adv(_advert(b, _esphome(b, 0), source="proxy"))
     bl._on_adv(_advert(b, _bluez(b)))                        # no type: public stays
-    assert bl._address_types == {a: "random", b: "public"}
+    assert bl._address_types == {a: "random", b: "public"} and set(bl._public) == {b}
     assert BL.known_address_type(hass, a.lower()) == "random"
     assert BL.known_address_type(hass, a.replace(":", "-")) == "random"
     assert BL.known_address_type(hass, b) == "public"
@@ -414,6 +621,7 @@ def test_random_is_never_downgraded_and_goes_with_the_address(monkeypatch) -> No
     assert BL.known_address_type(hass, a) == "random"
     bl.clear_scanner("hci0")
     assert a not in bl._address_types and BL.known_address_type(hass, a) is None
+    assert BL.known_address_type(hass, b) == "public"        # kept: public never changes
     # The age prune too.
     bl._on_adv(_advert(a, _esphome(a, 1), source="proxy"))
     old = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=5)
@@ -422,42 +630,7 @@ def test_random_is_never_downgraded_and_goes_with_the_address(monkeypatch) -> No
             rec.seen = old
     bl.cache_age_s = 60.0
     bl.get_snapshot(max_ads=100, max_age_s=60)
-    assert bl._seen_by_source == {} and bl._address_types == {}
-
-
-# ── Only devices heard right now (0.38.209) ──────────────────────────────────
-# The types radios report are kept in memory and only while the address is
-# cached (4 h by default), but the Objects list also shows rows from the object
-# history: 1-14 days, tagged ones for good, and across restarts. 0.38.208 asked
-# online for those with only the bits to go on, so C4:11:22 went out for a
-# random address it had stopped hearing. Now an address no radio heard in the
-# last 5 minutes gets the answer kept for its prefix, if there is one, and
-# nothing is sent.
-
-
-def _keep(cache, prefix="C4:11:22", maker="Kept, Inc."):
-    """An answer the 30-day cache already holds for the prefix."""
-    import datetime as dt
-
-    cache.set(prefix, {"fetched_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
-                       "found": True, "sources": {"macvendors": maker, "maclookup": None}})
-
-
-async def _never_sent_but_kept_answer_shown(hass, session, cache, mac=RANDOM_STATIC):
-    out = await _ask(hass, mac)
-    assert out["not_heard"] is True and out["found"] is False and out["skipped"] is None, out
-    _keep(cache)
-    out = await _ask(hass, mac)
-    assert out["cached"] is True and out["sources"]["macvendors"] == "Kept, Inc.", out
-    assert out["not_heard"] is False
-    assert session.urls == []
-
-
-def _age(bl, addr, seconds):
-    import datetime as dt
-
-    for rec in bl._seen_by_source[addr].values():
-        rec.seen = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=seconds)
+    assert bl._seen_by_source == {} and bl._address_types == {} and set(bl._public) == {b}
 
 
 @pytest.mark.asyncio
@@ -465,94 +638,36 @@ async def test_an_address_pruned_from_the_live_cache_is_never_sent(online, monke
     session, cache = online
     BL, bl, hass = _stack(monkeypatch, by_address={})
     bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source="proxy"))
-    _age(bl, RANDOM_STATIC, 5 * 3600)
-    bl.cache_age_s = 4 * 3600.0
-    bl.get_snapshot(max_ads=100, max_age_s=4 * 3600)
-    assert RANDOM_STATIC not in bl._seen_by_source and bl._address_types == {}  # the type went with it
+    _prune(bl, RANDOM_STATIC)
+    assert bl._address_types == {}                       # "random" went with it
     await _never_sent_but_kept_answer_shown(hass, session, cache)
 
 
 @pytest.mark.asyncio
 async def test_after_a_restart_a_row_left_in_history_is_never_sent(online, monkeypatch) -> None:
     import time
+    from types import SimpleNamespace
 
     session, cache = online
     BL, bl, hass = _stack(monkeypatch, by_address={})
     bl._on_adv(_advert(RANDOM_STATIC, _esphome(RANDOM_STATIC, 1), source="proxy"))
-    assert BL.known_address_type(hass, RANDOM_STATIC) == "random"
-    # Home Assistant restarts: a new, empty cache. The row is still in the
-    # object history; the device isn't heard again, though HA replays its last
-    # advert from 17 minutes ago, without a type.
-    from types import SimpleNamespace
+    # Restart: a new, empty cache; the row is still in the object history, and
+    # HA replays its last advert from 17 minutes ago, without a type.
     fresh = BL.BluetoothLive(SimpleNamespace(data={DOMAIN: {}}))
     hass.data[DOMAIN][BL.DATA_KEY] = fresh
     replayed = _advert(RANDOM_STATIC, _bluez(RANDOM_STATIC))
     replayed.time = time.monotonic() - 1020.0
     fresh._on_adv(replayed)
-    assert BL.known_address_type(hass, RANDOM_STATIC) is None and not BL.heard_now(hass, RANDOM_STATIC)
+    assert BL.known_address_type(hass, RANDOM_STATIC) is None
     await _never_sent_but_kept_answer_shown(hass, session, cache)
 
 
 @pytest.mark.asyncio
 async def test_a_tagged_row_older_than_4_hours_is_never_sent(online, monkeypatch) -> None:
-    """Tagged rows never leave the history. Here its last report is even still
-    in the live cache (no snapshot has pruned it yet), without a type."""
+    """Tagged rows never leave the history. Here its last report, without a
+    type, is even still in the live cache (no snapshot has pruned it yet)."""
     session, cache = online
     BL, bl, hass = _stack(monkeypatch, by_address={})
     bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
     _age(bl, RANDOM_STATIC, 4 * 3600 + 600)
-    assert RANDOM_STATIC in bl._seen_by_source and not BL.heard_now(hass, RANDOM_STATIC)
     await _never_sent_but_kept_answer_shown(hass, session, cache)
-
-
-@pytest.mark.asyncio
-async def test_a_device_heard_in_the_last_5_minutes_is_looked_up(online, monkeypatch) -> None:
-    session, cache = online
-    BL, bl, hass = _stack(monkeypatch, by_address={})
-    bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
-    _age(bl, RANDOM_STATIC, 290)
-    out = await _ask(hass, RANDOM_STATIC)
-    assert out["not_heard"] is False and out["skipped"] is None
-    assert session.urls and all(u.endswith("/C4:11:22") for u in session.urls)
-    _age(bl, RANDOM_STATIC, 310)
-    cache.entries.clear()
-    asked = len(session.urls)
-    out = await _ask(hass, RANDOM_STATIC)
-    assert out["not_heard"] is True and len(session.urls) == asked
-
-
-def test_heard_now_reads_every_radio_by_when_it_was_heard(monkeypatch) -> None:
-    import datetime as dt
-    from types import SimpleNamespace
-    from custom_components.padspan_ha.const import DATA_ESPRESENSE_MQTT
-    from custom_components.padspan_ha.tasmota_ble import DATA_TASMOTA_BLE
-
-    BL, bl, hass = _stack(monkeypatch)
-    now = dt.datetime.now(dt.timezone.utc)
-    at = lambda s: SimpleNamespace(seen=now - dt.timedelta(seconds=s))  # noqa: E731
-    hass.data[DOMAIN][DATA_ESPRESENSE_MQTT] = SimpleNamespace(_seen={
-        "A4:C1:38:00:00:01": {"espresense_hall": at(30)}, "A4:C1:38:00:00:02": {"espresense_hall": at(900)}})
-    hass.data[DOMAIN][DATA_TASMOTA_BLE] = SimpleNamespace(_seen={"A4:C1:38:00:00:03": {"tasmota_k": at(60)}})
-    assert BL.heard_now(hass, "a4:c1:38:00:00:01") and BL.heard_now(hass, "A4C138000003")
-    assert not BL.heard_now(hass, "A4:C1:38:00:00:02") and not BL.heard_now(hass, "A4:C1:38:00:00:09")
-    bl._on_adv(_advert(RANDOM_STATIC, _bluez(RANDOM_STATIC)))
-    assert BL.heard_now(hass, RANDOM_STATIC)
-    _age(bl, RANDOM_STATIC, BL.HEARD_NOW_S + 1)
-    assert not BL.heard_now(hass, RANDOM_STATIC)
-
-
-@pytest.mark.asyncio
-async def test_cached_only_answers_from_the_cache_or_not_at_all(online) -> None:
-    session, cache = online
-    out = await VL.async_lookup_vendor(_hass(), RANDOM_STATIC, cached_only=True)
-    assert out["not_heard"] is True and session.urls == []
-    cache.set("C4:11:22", {"fetched_at": "2026-01-01T00:00:00Z", "found": True,
-                           "sources": {"macvendors": "Old, Inc.", "maclookup": None}})
-    out = await VL.async_lookup_vendor(_hass(), RANDOM_STATIC, cached_only=True)
-    assert out["not_heard"] is True and session.urls == []      # older than 30 days: not used
-    _keep(cache)
-    for force in (False, True):
-        out = await VL.async_lookup_vendor(_hass(), RANDOM_STATIC, force_refresh=force, cached_only=True)
-        assert out["cached"] is True and out["not_heard"] is False and session.urls == []
-    out = await VL.async_lookup_vendor(_hass(), "DA:11:22:33:44:55", cached_only=True)
-    assert out["skipped"] == "local" and out["not_heard"] is False

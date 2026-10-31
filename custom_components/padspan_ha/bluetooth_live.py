@@ -282,6 +282,13 @@ class BluetoothLive:
         # type keeps the earlier one, "random" is never downgraded, and the entry
         # goes only when the address leaves the cache.
         self._address_types: Dict[str, str] = {}
+        # {addr: unix time}: addresses a radio confirmed as public (ESPHome
+        # address_type 0, BlueZ AddressType "public"), kept in .storage
+        # (PUBLIC_ADDRESSES_STORE_KEY) through prunes and restarts: a public
+        # address never changes type. The maker lookup asks online about these
+        # only (known_address_type). A "random" report removes one.
+        self._public: Dict[str, int] = {}
+        self._public_store: Any = None
         # How long the cache keeps an address, and how many it keeps at most
         # (0: no cap). Set by snapshot_builder from Settings → Presence: the
         # BLE Advertisement Timeout, and the low-memory switch's cap. Until
@@ -376,11 +383,47 @@ class BluetoothLive:
         self._address_types.clear()
 
     def _note_address_type(self, addr: str, address_type: Optional[str]) -> None:
-        """Keep what a report says about the address's type (see _address_types)."""
+        """Keep what a report says about the address's type (_address_types,
+        and _public for a confirmed public one)."""
         if address_type == "random":
             self._address_types[addr] = "random"
+            if self._public.pop(addr, None) is not None:
+                self._save_public()
         elif address_type == "public":
             self._address_types.setdefault(addr, "public")
+            if self._address_types[addr] == "public":
+                now = int(time.time())
+                prev = self._public.get(addr)
+                # Saved when new, and its time refreshed once a day: the oldest
+                # go first when there are more than PUBLIC_MAX.
+                if prev is None or now - prev > 86400:
+                    self._public[addr] = now
+                    self._save_public()
+
+    def _save_public(self) -> None:
+        if len(self._public) > PUBLIC_MAX:
+            keep = sorted(self._public, key=self._public.__getitem__, reverse=True)[:int(PUBLIC_MAX * 0.9)]
+            self._public = {a: self._public[a] for a in keep}
+        if self._public_store is not None:
+            try:
+                self._public_store.async_delay_save(lambda: {"addresses": dict(self._public)}, 60)
+            except Exception as e:  # noqa: BLE001
+                _LOGGER.debug("public address save failed: %s", e)
+
+    async def async_load_public(self, store: Any) -> None:
+        """Read the confirmed public addresses kept from earlier runs."""
+        self._public_store = store
+        try:
+            data = await store.async_load()
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.debug("public address load failed: %s", e)
+            data = None
+        addrs = data.get("addresses") if isinstance(data, dict) else None
+        if isinstance(addrs, dict):
+            for a, t in addrs.items():
+                if (isinstance(a, str) and len(a) == 17 and isinstance(t, (int, float))
+                        and self._address_types.get(a.upper()) != "random"):
+                    self._public.setdefault(a.upper(), int(t))
 
     @callback
     def _on_adv(self, service_info: Any, change: Any = None) -> None:
@@ -847,10 +890,19 @@ class BluetoothLive:
             return {"radios": [], "advertisements": [], "diag": {"ok": False, "errors": [str(e)]}}
 DATA_KEY = "bluetooth_live"
 
+# At most this many confirmed public addresses are kept (the oldest confirmed go first).
+PUBLIC_MAX = 2000
+
 
 async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
     """Create + register BLE callbacks."""
     bl = BluetoothLive(hass)
+    try:
+        from homeassistant.helpers.storage import Store  # noqa: PLC0415
+        from .const import PUBLIC_ADDRESSES_STORE_KEY  # noqa: PLC0415
+        await bl.async_load_public(Store(hass, 1, PUBLIC_ADDRESSES_STORE_KEY))
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.debug("public address store unavailable: %s", e)
 
     try:
         from homeassistant.components import bluetooth  # type: ignore
@@ -900,12 +952,12 @@ async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
 
 
 def known_address_type(hass: HomeAssistant, address: str) -> Optional[str]:
-    """What any radio reported for this address: "random" wins, then "public", else None.
+    """"random" if any radio reported it so, else "public" if one confirmed it
+    (ESPHome address_type 0, BlueZ AddressType "public"; now, or before: kept
+    in .storage), else None. The maker lookup asks online about "public" only.
 
-    PadSpan's cache first (_address_types, kept until the address is pruned).
-    Until it has "random", the scanners' own caches too: an address first heard
-    on HA's own adapter has no type here until the next reseed reads BlueZ's,
-    up to 30 s later, and the maker lookup must not fall back to the bits then.
+    From PadSpan's cache (_address_types, _public) and the scanners' own caches:
+    HA's own adapter's live adverts carry no type, BlueZ's cache has it.
     """
     s = "".join(c for c in str(address or "").upper() if c in "0123456789ABCDEF")
     key = ":".join(s[i:i + 2] for i in range(0, 12, 2)) if len(s) == 12 else str(address or "").upper()
@@ -916,6 +968,8 @@ def known_address_type(hass: HomeAssistant, address: str) -> Optional[str]:
             kinds.add(getattr(bl, "_address_types", {}).get(key))
             for a in (bl._seen_by_source.get(key) or {}).values():
                 kinds.add(a.record.get("address_type"))
+            if key in getattr(bl, "_public", {}):
+                kinds.add("public")
         except Exception:
             pass
     if "random" not in kinds:
@@ -930,42 +984,6 @@ def known_address_type(hass: HomeAssistant, address: str) -> Optional[str]:
     if "public" in kinds:
         return "public"
     return None
-
-
-# How recently a radio must have heard an address for the maker lookup to send
-# anything for it (heard_now). The types radios report are kept in memory, and
-# only while the address is cached (4 h by default), but the Objects list also
-# shows rows from the object history (1-14 days, tagged ones for good, and
-# across restarts): for those nothing is known, so nothing is sent.
-HEARD_NOW_S = 300.0
-
-
-def heard_now(hass: HomeAssistant, address: str) -> bool:
-    """True if a radio heard this address in the last HEARD_NOW_S: HA's
-    Bluetooth (bluetooth_live), ESPresense or Tasmota, by when it was heard."""
-    s = "".join(c for c in str(address or "").upper() if c in "0123456789ABCDEF")
-    key = ":".join(s[i:i + 2] for i in range(0, 12, 2)) if len(s) == 12 else str(address or "").upper()
-    now = _now()
-    caches: List[Any] = []
-    bl = get_bluetooth_live(hass)
-    if bl is not None:
-        caches.append(bl._seen_by_source)
-    try:
-        from .const import DATA_ESPRESENSE_MQTT  # noqa: PLC0415
-        from .tasmota_ble import DATA_TASMOTA_BLE  # noqa: PLC0415
-        dom = hass.data.get("padspan_ha", {})
-        for k in (DATA_ESPRESENSE_MQTT, DATA_TASMOTA_BLE):
-            caches.append(getattr(dom.get(k), "_seen", None) or {})
-    except Exception:
-        pass
-    for cache in caches:
-        try:
-            for r in (cache.get(key) or {}).values():
-                if (now - r.seen).total_seconds() <= HEARD_NOW_S:
-                    return True
-        except Exception:
-            continue
-    return False
 
 
 def get_bluetooth_live(hass: HomeAssistant) -> Optional[BluetoothLive]:

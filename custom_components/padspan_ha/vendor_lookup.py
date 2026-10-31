@@ -12,20 +12,18 @@ Why this exists:
 - To make those usable, we do a best-effort *manufacturer/vendor* lookup using public OUI databases.
 
 Privacy (the rule, word for word everywhere it is described):
-first three bytes only, for devices heard in the last 5 minutes; never addresses known to be
-random or locally administered.
+It sends only the first three bytes of an address, and only for devices a Bluetooth receiver
+confirms have a fixed, maker-assigned address (ESPHome proxies and Home Assistant's own Bluetooth
+say so; Shelly, ESPresense and Tasmota don't, so devices only they hear aren't looked up).
+- An allowlist: only an address a radio CONFIRMED as public is sent (ESPHome
+  details["address_type"] 0, BlueZ props["AddressType"] "public"; bluetooth_live.known_address_type,
+  which keeps confirmed public addresses in .storage: a public address never changes type).
+  Random or unknown is never sent, whatever the bits; the bit rule (0x02 locally administered,
+  0x01 multicast) only holds back more.
+- Not confirmed ("unconfirmed"): the answer already kept for the prefix, if there is one, and
+  nothing is sent. The panel says "maker unknown (receiver doesn't say)" otherwise.
 - On by default; only an administrator turns it off or on (ws_settings): Settings → Tracking →
   Privacy, updates and feedback → "Look up device makers online".
-- Only the first three bytes (AA:BB:CC) ever leave the house, never a whole address.
-- Never sent at all: an address a radio reported as random (ESPHome proxies and BlueZ say so;
-  bluetooth_live.known_address_type), and, whatever the radio said, one whose first byte has
-  bit 0x02 (locally administered) or 0x01 (multicast) set. When no radio reported the type,
-  the bit rule is all there is to go on.
-- Only for an address a radio heard in the last 5 minutes (bluetooth_live.heard_now). The types
-  are kept in memory and only while the address is cached, but the Objects list also shows rows
-  from the object history (1-14 days, tagged ones for good, and across restarts): for those
-  ws_vendor_lookup passes cached_only, so they get the answer kept for their prefix, or none
-  ("not_heard"), and nothing is sent.
 - Answers are cached by prefix for 30 days (CACHE_TTL), so each prefix is asked once.
 
 We intentionally use TWO independent sources so we can cross-check results:
@@ -84,12 +82,14 @@ def _norm_mac(mac: str) -> str:
 def lookup_skip_reason(mac_norm: str, address_type: Optional[str] = None) -> Optional[str]:
     """Why this address is never sent to a lookup service, or None to look it up.
 
-    "random": a radio reported the address as random (BLE random static or
-    private). Its first three bytes may be fixed to that one device, so they
-    are never sent, whatever their bits say.
-    "local": bit 0x02 of the first byte is set, a locally administered address.
-    "multicast": bit 0x01 is set, never a device's own address.
-    With the type unknown, the two bits are all there is to go on.
+    Only an address a radio confirmed as public (address_type "public") is
+    ever looked up; the bits can only hold back more.
+    "random": a radio reported it as random. Its first three bytes may be fixed
+    to that one device, so they are never sent, whatever their bits say.
+    "multicast": bit 0x01 of the first byte is set, never a device's own address.
+    "local": bit 0x02 is set, a locally administered address.
+    "unconfirmed": no radio said it is public (Shelly, ESPresense and Tasmota
+    never say). Answered from the cache only.
     """
     try:
         first = int((mac_norm or "").split(":")[0], 16)
@@ -101,6 +101,8 @@ def lookup_skip_reason(mac_norm: str, address_type: Optional[str] = None) -> Opt
         return "multicast"
     if first & 0x02:
         return "local"
+    if address_type != "public":
+        return "unconfirmed"
     return None
 
 
@@ -226,12 +228,11 @@ async def _fetch_maclookup(hass: HomeAssistant, prefix: str) -> Tuple[Optional[D
 
 
 async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool = False,
-                              address_type: Optional[str] = None,
-                              cached_only: bool = False) -> Dict[str, Any]:
+                              address_type: Optional[str] = None) -> Dict[str, Any]:
     """Lookup vendor/manufacturer for a MAC address (or prefix).
 
-    cached_only: answer from the cache or not at all (ws_vendor_lookup, for an
-    address no radio heard in the last few minutes); nothing is sent.
+    address_type: what a radio confirmed (bluetooth_live.known_address_type);
+    anything but "public" is never sent (lookup_skip_reason).
     Output schema is intentionally stable because the UI calls this directly.
     """
     mac_norm = _norm_mac(mac)
@@ -245,10 +246,9 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         "errors": [],
         "cached": False,
         "fetched_at": None,
-        # Why nothing was sent ("random", "local", "multicast"), or None when it was looked up.
+        # Why nothing was sent ("random", "local", "multicast", "unconfirmed"), or
+        # None when it was looked up or answered from the cache.
         "skipped": None,
-        # cached_only and no answer kept for the prefix: nothing was sent.
-        "not_heard": False,
     }
 
     if not prefix:
@@ -259,7 +259,7 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
     if reason == "bad_mac":
         out["errors"].append("bad_mac")
         return out
-    if reason:
+    if reason and reason != "unconfirmed":
         # Answered at home: no maker owns this prefix, so nothing is sent or cached.
         out["skipped"] = reason
         return out
@@ -277,7 +277,7 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         except Exception:
             return False
 
-    if cached and _is_fresh(cached) and (not force_refresh or cached_only):
+    if cached and _is_fresh(cached) and (not force_refresh or reason):
         out.update({
             "found": bool(cached.get("found")),
             "sources": cached.get("sources", out["sources"]),
@@ -286,8 +286,9 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         })
         return out
 
-    if cached_only:
-        out["not_heard"] = True
+    if reason:
+        # Unconfirmed, and no answer kept for the prefix: nothing is sent.
+        out["skipped"] = reason
         return out
 
     vendor1, err1 = await _fetch_macvendors(hass, prefix)

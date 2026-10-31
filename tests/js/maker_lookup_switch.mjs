@@ -46,10 +46,10 @@ const ANSWERS = {
   "F0:18:98:12:34:56": { enabled: true, found: true, skipped: null, sources: { macvendors: "Apple, Inc.", maclookup: null } },
   "F0:18:98:AB:CD:EF": { enabled: true, found: false, skipped: "random", sources: { macvendors: null, maclookup: null } },
   "C4:11:22:33:44:55": { enabled: true, found: false, skipped: "random", sources: { macvendors: null, maclookup: null } },
-  // Rows from the object history, not heard in the last 5 minutes: nothing is
-  // sent; the answer kept for the prefix, or none.
-  "A4:C1:38:00:00:01": { enabled: true, found: false, skipped: null, not_heard: true, sources: { macvendors: null, maclookup: null } },
-  "A4:C1:38:00:00:02": { enabled: true, found: true, cached: true, skipped: null, not_heard: false, sources: { macvendors: "Kept, Inc.", maclookup: null } },
+  // No receiver confirmed a fixed, maker-assigned address (Shelly, ESPresense,
+  // Tasmota): nothing is sent; the answer kept for the prefix, or none.
+  "A4:C1:38:00:00:01": { enabled: true, found: false, skipped: "unconfirmed", sources: { macvendors: null, maclookup: null } },
+  "A4:C1:38:00:00:02": { enabled: true, found: true, cached: true, skipped: null, sources: { macvendors: "Kept, Inc.", maclookup: null } },
 };
 const OBJECTS = [
   { key: "ble:F0:18:98:12:34:56", kind: "ble", address: "F0:18:98:12:34:56", name: "Speaker", age_s: 2 },
@@ -115,8 +115,9 @@ function read(modal) {
     rows["F0:18:98:AB:CD:EF"] === "random address", JSON.stringify(rows));
   check("on: an address a radio reported as random says so", rows["C4:11:22:33:44:55"] === "random address", JSON.stringify(rows));
   check("on: a locally administered address says so", rows["DA:11:22:33:44:55"] === "random address", JSON.stringify(rows));
-  check("on: a row not heard recently, with no kept answer, says so", rows["A4:C1:38:00:00:01"] === "not heard recently", JSON.stringify(rows));
-  check("on: a row not heard recently shows the answer kept for its prefix", rows["A4:C1:38:00:00:02"] === "Kept, Inc.", JSON.stringify(rows));
+  check("on: an unconfirmed address with no kept answer says the receiver doesn't say",
+    rows["A4:C1:38:00:00:01"] === "maker unknown (receiver doesn't say)", JSON.stringify(rows));
+  check("on: an unconfirmed address shows the answer kept for its prefix", rows["A4:C1:38:00:00:02"] === "Kept, Inc.", JSON.stringify(rows));
   check("on: a private BLE row is a random address", rows.private_ble === "random address", JSON.stringify(rows));
   check("on: an iBeacon row has no one address to look up", rows.ibeacon === "n/a", JSON.stringify(rows));
   check("on: an entity row is not a Bluetooth row", rows.entity === "n/a", JSON.stringify(rows));

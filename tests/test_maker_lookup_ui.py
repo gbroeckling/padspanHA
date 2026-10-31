@@ -8,8 +8,9 @@ row's Maker cell and what the panel asked the server, and flips the switch:
 - on (the default): each address shows its own answer, never one kept for its
   first three bytes; a random address (the server says so, or its bits do), a
   private BLE row and nothing else say "random address"; an iBeacon row is n/a;
-  only rows whose bits are clear are asked about; a row the server says wasn't
-  heard recently shows the answer kept for its prefix, or "not heard recently";
+  only rows whose bits are clear are asked about; an address no receiver
+  confirmed shows the answer kept for its prefix, or "maker unknown (receiver
+  doesn't say)";
 - off: the switch saves it, the list reopens, every Bluetooth row says
   "Lookup off" and nothing is asked;
 - only an administrator can use the switch.

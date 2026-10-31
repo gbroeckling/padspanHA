@@ -512,15 +512,15 @@ export function renderClassic(ctx){
     if(!res || res.enabled === false){
       return `<span class="badge">Lookup off</span>`;
     }
-    // Answered at home, nothing sent: an address known to be random, or one
-    // whose bits mark it locally administered. It belongs to no maker.
+    // Answered at home, nothing sent. "unconfirmed": no receiver confirmed a
+    // fixed, maker-assigned address (Shelly, ESPresense and Tasmota never say)
+    // and no answer is kept for its first three bytes. Otherwise a radio said
+    // random, or the bits mark it locally administered: it belongs to no maker.
+    if(res.skipped === "unconfirmed"){
+      return `<span class="badge">maker unknown (receiver doesn't say)</span>`;
+    }
     if(res.skipped){
       return `<span class="badge warn">random address</span>`;
-    }
-    // No radio heard it in the last 5 minutes (a row from the object history)
-    // and no answer is kept for its first three bytes: nothing was sent.
-    if(res.not_heard){
-      return `<span class="badge">not heard recently</span>`;
     }
     const v1 = res.sources?.macvendors || null;
     const v2 = res.sources?.maclookup?.company || null;
@@ -637,11 +637,10 @@ export function renderClassic(ctx){
     controls.appendChild(stats);
 
     // Maker lookup switch, here where its answers show (admin-only, like the one
-    // in Settings): first three bytes only, for devices heard in the last 5
-    // minutes; never addresses known to be random or locally administered.
+    // in Settings). The server decides what is sent (vendor_lookup.py).
     const makerAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
     const makerToggle = el("button", { class: "btn inline", "data-maker-lookup": makerOn ? "on" : "off",
-      title: "Asks macvendors.com and maclookup.app which company made each device heard in the last 5 minutes: the first three bytes of each address only, never an address known to be random or locally administered." },
+      title: "Asks macvendors.com and maclookup.app which company made each device. It sends only the first three bytes of an address, and only for devices a Bluetooth receiver confirms have a fixed, maker-assigned address (ESPHome proxies and Home Assistant's own Bluetooth say so; Shelly, ESPresense and Tasmota don't, so devices only they hear aren't looked up)." },
       makerOn ? "Look up makers online: On" : "Look up makers online: Off");
     if (!makerAdmin) { makerToggle.disabled = true; makerToggle.title = "Only an administrator can change this"; }
     makerToggle.addEventListener("click", async () => {

@@ -1364,8 +1364,8 @@ function _settingsPresence(ctx, el){
   ]));
 
   // ── Device makers (online lookup) ──────────────────────────────────────────
-  // On by default; only an administrator changes it (ws_settings). First three
-  // bytes only; never addresses known to be random or locally administered.
+  // On by default; only an administrator changes it (ws_settings). What is sent
+  // is decided by vendor_lookup.py; the card says it in the rule's own words.
   const makerOn = settings.vendor_lookup_enabled !== false;
   const makerAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
   const makerBtn = el("button", { class: "btn inline", "data-setting": "vendor_lookup_enabled", style: makerOn
@@ -1383,11 +1383,10 @@ function _settingsPresence(ctx, el){
     el("div", { class: "h2" }, "Look up device makers online"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
       "When this is on, opening a device list (such as the Overview's All objects) asks two public services (macvendors.com and " +
-      "maclookup.app) which company made each nearby Bluetooth device. It sends the first three bytes " +
-      "of an address only (such as AA:BB:CC), never the whole address, and never an address known to " +
-      "be random or locally administered, the kind phones use. Only devices heard in the last 5 minutes " +
-      "are asked about. Each answer is kept for 30 days, so each " +
-      "maker is asked about once. Like any web request, the services see your IP address. " +
+      "maclookup.app) which company made each nearby Bluetooth device. " +
+      "It sends only the first three bytes of an address, and only for devices a Bluetooth receiver confirms have a fixed, maker-assigned address (ESPHome proxies and Home Assistant's own Bluetooth say so; Shelly, ESPresense and Tasmota don't, so devices only they hear aren't looked up). " +
+      "Each answer is kept for 30 days, so each maker is asked about once. " +
+      "Like any web request, the services see your IP address. " +
       "Only an administrator can change this."
     ),
     el("div", { style: rowStyle }, [
