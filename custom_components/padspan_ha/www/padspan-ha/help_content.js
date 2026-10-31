@@ -176,13 +176,15 @@ export function helpTexts() { return {
 
   // ── Monitor ────────────────────────────────────────────────────────────────
   monitor: {
-    title: t("Monitor — System health & analytics hub"),
+    title: t("Monitor — what PadSpan is hearing, in numbers"),
     body: [
-      t("Monitor has six sub-tabs: Calls and timing, Zones, Signal and coverage, Quick status, Export for support, and Debug."),
-      t("Calls and timing — websocket call counts, timing, scanner performance, advertisement freshness, and session info. The Per-Scanner Breakdown table shows each scanner's device count, average RSSI, and quality grade."),
-      t("Zones — every room as a card sorted by occupancy. Occupied rooms have a coloured border; empty rooms are dimmed. Click a room card to see its detail. Rooms are grouped by floor when configured in HA."),
-      t("Signal and coverage — charts for room occupancy, scanner signal quality, devices moving between rooms, coverage gaps, and devices by type."),
-      t("Quick status — a way to the Health page, which has the system checks and the Problems found list. Export for support — press Build export to collect the current diagnostics as JSON, then copy it (to attach to a support request or a GitHub issue). Long lists are cut to 200 entries, but every device you tagged or follow is always kept. Debug — show the values the panel is currently using for troubleshooting."),
+      t("Monitor has six tabs: \"Calls and timing\", \"Zones\", \"Signal and coverage\", \"Quick status\", \"Export for support\" and \"Debug\". It is in the menu under \"More tools\" in every mode."),
+      t("Calls and timing — a red \"BLE Feed Unhealthy\" banner at the top means Home Assistant's Bluetooth side reported a problem; restarting Home Assistant (Settings → System → Restart) usually clears it. Below it: how many requests the panel has made and how long they took; \"BLE Objects\" (how many devices PadSpan knows and how many Bluetooth messages it has; click the unidentified count to see those devices); \"Per-Scanner Breakdown\"; \"Advertisement Freshness\" (how recent the latest messages are); \"Snapshot Summary\" (how many objects, rooms, receivers and tags the live data holds, and when it was made); and \"Session Info\"."),
+      t("Per-Scanner Breakdown — one row per receiver: how many devices it hears, its \"Best-RSSI\" and a grade. Best-RSSI is the average signal strength of only the devices this receiver hears louder than any other receiver does, so a device that is nearer another receiver doesn't pull its number down. The grade is Excellent from −60 dBm, Good from −70, Fair from −80, and Poor below that. Click a row for that receiver's details."),
+      t("Zones — one card per room, busiest first (see the Zones help)."),
+      t("Signal and coverage — \"Room Occupancy\" (how many devices are in each room), \"Signal Quality\" (the same Best-RSSI figures), \"Object Mobility\" (devices seen in more than one room), \"Coverage Gaps\" (rooms with nothing in them right now, and receivers that aren't on any floor plan), \"Device Breakdown\" (Total, Identified, Unidentified and Tagged, meaning the ones you have named) and \"Dashboard Card Preview\" (a sketch of what a Home Assistant dashboard card could show with your current data)."),
+      t("Quick status — just a link: press \"Open Health\" for the system checks and the Problems found list."),
+      t("Export for support — press \"Build export\" to collect the panel's state, the server's state, the live data and the automatic checks into one report, then \"Copy\" it and attach it to a GitHub issue or an email to support. Long lists are cut to 200 entries, but every device you named or follow is always kept. \"Install Verification\" below it compares the panel's version with the server's (see the Diagnostics help). Debug shows the panel's own state, for support."),
     ],
   },
   zones: {
@@ -224,81 +226,66 @@ export function helpTexts() { return {
 
   // ── History ────────────────────────────────────────────────────────────────
   history: {
-    title: t("History — Session event timeline"),
+    title: t("History — what happened, and where things moved"),
     body: [
-      t("History has two sub-tabs: Session Events and Movement."),
-      t("Session Events shows every action taken during this browser session — view changes, data refreshes, tagging, and websocket calls. Use the type filter buttons to show or hide specific event types; the timeline is newest-first. This data is session-scoped and resets when you reload the page — it is not stored on the server. Click Clear History to reset it."),
-      t("Movement is different: it's your saved room-transition history, fetched from the server, and survives a page reload. Use it to see when tracked objects actually changed rooms, not just what happened in this browser session."),
+      t("To get here: Manage → \"History\" tab → \"Open History\". It opens on the Movement tab. (Manage is in the main menu in Advanced and Development modes, and under \"More tools\" in Basic.)"),
+      t("Movement — the saved list of room changes, kept on the server, so it is still there after a reload. It shows the latest 200, newest first: \"from → to\" for a room change, and \"First seen in\" when a device first turned up. The \"Room change\" and \"First seen\" buttons show or hide each kind, \"Refresh\" fetches the latest, and \"▶ Traceback\" on a row plays back that moment in Traceback (two minutes either side)."),
+      t("Session Events — what you did in the panel since this page opened: screens opened (View), data refreshes (Data), tagging (Tag) and calls to the server (WS). Use the buttons to show or hide each kind. It keeps the latest 500, lives only in this browser and is gone when you reload; \"Clear History\" empties it now."),
     ],
   },
 
   // ── Events ─────────────────────────────────────────────────────────────────
   events: {
-    title: t("Events — Notable activity stream"),
+    title: t("Events — email alerts and room changes"),
     body: [
-      t("Events shows only the actionable events from your session — tagging, navigation, and data refreshes."),
-      t("Click a navigation event to jump back to that view."),
-      t("Unlike History (which logs everything), Events filters to the activity that matters most for understanding what's happened."),
+      t("To get here: Manage → \"Events\" tab. (Manage is in the main menu in Advanced and Development modes, and under \"More tools\" in Basic.)"),
+      t("Email Notifications — \"Saved Alerts\" lists every alert you have set up. In \"Configure Alerts\" pick a tracked device, enter an email address and a Home Assistant notify service, tick \"Alert on room change\", and optionally tick only the rooms you care about (none ticked means all rooms). \"Save Alert\" stores it and \"Test Notification\" sends a test. PadSpan sends through Home Assistant's own notify service, so one has to be set up there first; this needs Live mode. You can also set alerts per device in Follow."),
+      t("Under it, \"Room Transitions\" is a list for this page only that clears when you reload. For the saved room changes, use History → Movement."),
     ],
   },
 
   // ── QA ─────────────────────────────────────────────────────────────────────
   qa: {
-    title: t("QA — Configuration quality checks"),
+    title: t("QA — checks on your setup"),
     body: [
-      t("QA runs automated health checks on your PadSpan setup and highlights anything that needs attention."),
-      t("Config Health — pass/warn/fail checks covering maps, rooms, scanners, BLE feed, tagging, and snapshot availability. A warning gets an amber ⚠️ rather than a hard fail. Failed and warned checks include a fix suggestion."),
-      t("Data Consistency — detects orphaned objects, unmapped scanners, and rooms without scanner coverage. Click any item to see its detail."),
-      t("Propagation Health — grades your radio propagation model (A through F) based on room coverage, distance accuracy, fingerprint stability, and floor separation. Click 'More Detail' for per-room and per-scanner breakdowns with improvement recommendations. 'How It Works' shows the underlying math."),
-      t("Radio Analysis — grades each scanner's hardware, coverage and reliability, and explains why it received that grade."),
-      t("Data Backup & Recovery — create snapshots of all PadSpan data before enabling experimental features. Restore to roll back if needed. Up to 3 backups you create are kept, plus the last 3 automatic ones."),
-      t("Quick Actions — refresh the snapshot, export the full panel state as JSON for debugging, or jump to diagnostics."),
+      t("QA checks your setup and shows what needs attention. It is in the menu under \"More tools\" in every mode. Only the backup buttons and the two reset buttons (under Propagation Health → \"More Detail\") change anything, and the resets ask first."),
+      t("Config Health — seven checks: \"Maps configured\", \"Receivers on maps\", \"Rooms defined\", \"BLE scanners active\", \"BLE feed healthy\", \"Objects tagged\" and \"Snapshot available\". ✅ passed, ⚠️ works but worth a look, ❌ failed. A failed or amber check says how to fix it, and some failed ones have a \"Go →\" link to the right screen."),
+      t("Data Consistency — devices in rooms PadSpan doesn't know, receivers not placed on any floor plan, and rooms with no receiver. Click a name for its details. Under it, \"Quick Actions\": \"Refresh Snapshot\" fetches the live data again, \"Export State\" downloads the panel's current data as a file, and \"Go to Diagnostics\" opens the report for support."),
+      t("Propagation Health — a grade from A to F for how well PadSpan's signal model fits your home. Its own ? explains it."),
+      t("Data Backup & Recovery — back up your PadSpan data before you try something new, and restore it if needed. Its own ? explains it. Manage → Data → \"Backup & Restore\" works on the same backups and also lets you choose which parts to restore."),
+      t("Radio Analysis — every receiver ranked, with a health verdict and the reason. Its own ? explains the scores."),
     ],
   },
 
   qa_propagation: {
-    title: t("Propagation Health — Model quality analysis"),
+    title: t("Propagation Health — how well the signal model fits your home"),
     body: [
-      t("Propagation Health analyses the quality of PadSpan's underlying radio model \u2014 the math that converts signal strength (RSSI) into room assignments."),
-      t("The overall grade (A\u2013F) combines four sub-indicators: Model Coverage (% of rooms with learned fingerprints), Distance Accuracy (cross-validation error from calibration data), Fingerprint Stability (variance in adaptive room models), and Floor Separation (signal attenuation between floors)."),
-      t("Click 'More Detail' to see per-room fingerprint quality (how many observations each room has, variance, and stability status) and per-scanner path-loss models (exponent, RSSI@1m, R\u00b2 fit quality)."),
-      t("Improvement recommendations are generated automatically: rooms that need more data, scanners with poor path-loss fits, suggestions to enable adaptive learning or add calibration points."),
-      t("'How It Works' shows the actual formulas and current parameter values: path-loss distance calculation, Kalman filter settings, and adaptive blending weight."),
-      t("Reset buttons at the bottom let you clear adaptive learning data (keeps manual calibration) or clear all calibration data (requires typing RESET to confirm)."),
+      t("QA → \"Propagation Health\" grades, from A (excellent) to F, how well PadSpan turns signal strength into rooms in your home. It improves as you add calibration points and as adaptive learning (PadSpan learning each room's signal pattern by itself, switched on in Settings → Tracking in Advanced and Development modes) gathers data."),
+      t("Four bars make up the grade. \"Model Coverage\": how many rooms have a learned signal pattern. \"Distance Accuracy\": on average, how many metres off PadSpan is at your calibration spots; the bar is full at 0 m and empty at 3 m. When it can, a line under it says how it did on spots it was not trained on (\"Tested on spots it hasn't seen\": the share of rooms it got right). \"Fingerprint Stability\": how steady each room's signal pattern is. \"Floor Separation\": how clearly the signal drops between floors (\"N/A\" with one floor or no data yet)."),
+      t("\"Recommendations\" lists up to five things to do next, such as rooms that need more readings or turning on adaptive learning."),
+      t("\"More Detail\" adds a table per room (its receivers, how many readings it has and how steady they are) and per receiver (how well its signal fits distance). \"How It Works\" shows the formulas and the values in use now. At the bottom, under \"Data Management\": \"Reset Adaptive Learning\" clears what PadSpan learned by itself and keeps your calibration points; \"Reset All Calibration\" clears every calibration point too, asks you to type RESET, and cannot be undone."),
+      t("For experts: Distance Accuracy is the mean leave-one-out error in metres; Fingerprint Stability is the average per-room RSSI variance (dBm²); the per-receiver table is a path-loss fit (RSSI at 1 m, R²); \"How It Works\" shows the path-loss formula, the Kalman filter's Q and R, and the adaptive blending weight."),
     ],
   },
 
   qa_backup: {
     title: t("Data Backup & Recovery"),
     body: [
-      t("The backup system lets you create a full snapshot of all PadSpan configuration and learned data before making changes."),
-      t("Each backup captures: settings, calibration points, adaptive learning fingerprints, object tags, model data, map metadata, movement history, and follow alert configs."),
-      t("Up to 3 backups you create are stored. Creating a 4th automatically removes the oldest of them. The automatic backups PadSpan takes before a reset, an import or a conversion are kept apart (the last 3) and never remove one of yours. Each backup shows its timestamp, version, and optional note."),
-      t("Click 'Restore' to overwrite all current data with a backup. The page reloads automatically after restore. Click 'Delete' to remove a backup you no longer need."),
-      t("Recommended workflow: create a backup before enabling adaptive learning, before major calibration changes, or before upgrading PadSpan."),
+      t("QA → \"Data Backup & Recovery\" keeps copies of your PadSpan data so you can go back. Type an optional note and press \"Create Backup\"."),
+      t("A backup holds your settings; calibration points; what adaptive learning has learned; your device names; your floor plans, their placement and the plan images; the room and receiver layout and the model built from it; email alerts; movement history; Traceback history; device history; Forensics sessions; the list of known devices; each WLED light's saved look; Lost & Found's last-known rooms; and, once you have used them, Live Aboard's furniture, sub-zones and the robot vacuum link."),
+      t("Up to 3 backups you make are kept; a 4th removes your oldest. PadSpan also backs up by itself before a reset, an import or a conversion: those automatic backups copy only the data that step is about to change (no plan images), are kept apart (the last 3) and never remove one of yours. Each backup shows its time, version and note."),
+      t("\"Restore\" puts everything in that backup back over your current data, after asking, and reloads the page. \"Delete\" removes a backup. To restore only some parts, or the plan images, use Manage → Data → \"Backup & Restore\"."),
+      t("Good times to make one: before turning on adaptive learning, before big calibration changes, and before upgrading PadSpan."),
     ],
   },
 
   qa_radio_analysis: {
-    title: t("Radio Analysis — Per-scanner ranking & health"),
+    title: t("Radio Analysis — which receivers work best"),
     body: [
-      t("Radio Analysis ranks every Bluetooth scanner by overall quality, combining three scores: Hardware (40%), Coverage (30%), and Reliability (30%)."),
-      t("Hardware Score isolates radio hardware quality from placement. It compares per-device RSSI across scanners that share the same devices \u2014 a radio that consistently reads higher RSSI for shared devices has a better antenna or Bluetooth chipset."),
-      t("Coverage Score measures how many devices the scanner sees and how many other scanners it overlaps with. High coverage means the scanner reaches broadly across your home."),
-      t("Reliability Score combines advertisement freshness, RSSI consistency (spread), WiFi signal strength (or wired bonus), and scanning status."),
-      t("Scanners are sorted by overall score (best first) with medal badges for the top 3. Click any row to expand and see the full score breakdown with comparison notes."),
-      t("Click a scanner's name to open its details, including per-device signal bars and room controls."),
-    ],
-  },
-
-  qa_radio_ranking: {
-    title: t("Understanding radio ranking scores"),
-    body: [
-      t("The ranking system helps you identify which radios have the best hardware versus which are just well-placed."),
-      t("Hardware Score (0\u2013100): For each pair of radios that share devices, PadSpan compares the RSSI each radio reads for those same devices. A radio that consistently reads stronger signals has better hardware. Score 50 = average; higher = better antenna/chipset."),
-      t("Coverage Score (0\u2013100): Combines device count (how many devices seen), overlap breadth (how many other scanners share devices), and unique reach (devices only seen by this scanner)."),
-      t("Reliability Score (0\u2013100): Freshness of latest advertisement (up to 35 pts), RSSI spread consistency (up to 25 pts), WiFi signal or wired connection (up to 20 pts), and scanning status (up to 20 pts)."),
-      t("The comparison note in expanded detail tells you exactly how much stronger or weaker a radio reads compared to the top-ranked radio, in dBm. A 3\u20135 dBm difference is noticeable; 6+ dBm suggests meaningfully different hardware."),
+      t("QA → \"Radio Analysis\" lists every receiver, best first, with a score out of 100, a health verdict (Healthy, Fair, Unhealthy or Unknown) and the reason for it. The top three get medals. Unhealthy and Unknown receivers always go to the bottom, with their score capped at 10."),
+      t("The score is Hardware 40%, Coverage 30% and Reliability 30%. Hardware: how loudly this receiver hears the devices it shares with other receivers, compared with them, so it tells a better antenna or chip apart from simply good placement; 50 is halfway between your best and your worst receiver. Coverage: how many devices it hears (half), how many other receivers share some of them (about a third), and devices only it hears. Reliability: how recent its latest message is (up to 35 points), how steady its readings are (up to 25), its Wi-Fi signal, or full marks if wired (up to 20), and whether it is scanning (up to 20)."),
+      t("Click a row to open it: the three scores and the overall, \"Identity & Network\", \"Activity Metrics\", \"Cross-Scanner Comparison\" (how many devices it shares with each other receiver) and \"Health Verdict\". When its hardware differs from the top-ranked receiver's by 2 dBm or more, a note says by how much: 3–5 dBm is noticeable, 6 dBm or more suggests different hardware."),
+      t("Click a receiver's name for its details window: its room (shown, not changed there), network details, the devices it hears, and \"Mark as Lost\" / \"Mark as Disabled\". To change its room, use Overview → \"View radios list\" → \"Assign\" or \"Change\", or Mapping → Edit → Radios → \"Room\" (Advanced and Development modes)."),
     ],
   },
 
@@ -317,15 +304,13 @@ export function helpTexts() { return {
 
   // ── Sandbox ────────────────────────────────────────────────────────────────
   sandbox: {
-    title: t("Sandbox — Experimental data playground"),
+    title: t("Sandbox — a look under the hood"),
     body: [
-      t("Sandbox is your data playground — explore live data, check experimental feature status, and poke around under the hood. Nothing here changes your config."),
-      t("Experimental Features — status dashboard for all experimental features across PadSpan (Adaptive Learning, Floor Detection, MQTT Publishing, Ignore Bermuda, Beacon Tune). Click any row to jump to its settings."),
-      t("State Inspector — current data mode, the snapshot's own timestamp, object/room/radio/advertisement counts, session uptime, and a signal-strength (RSSI) distribution histogram, all in one card."),
-      t("Floor Towers — rooms grouped into a column per floor, each room a stacked colour band. Click a band for that room's details."),
-      t("Live Signal Bars — per-scanner bar chart showing device count. Click any bar for scanner details."),
-      t("Signal Pulse — animated room activity bubbles. Ring size reflects device count, pulsing rings indicate fresh signal activity."),
-      t("Raw Snapshot Explorer — browse the live data snapshot as a collapsible JSON tree. Copy the full snapshot to clipboard for debugging."),
+      t("Sandbox shows live data in different ways; nothing here changes your setup. It is in the menu under \"More tools\" in every mode."),
+      t("Experimental Features — whether each one is on: Adaptive Learning, Floor Detection, MQTT Publishing, Ignore Bermuda, and Beacon Tune (always available). Each row says where its switch is; click a row to open that screen."),
+      t("State Inspector — the data mode, how long this page has been open, how many objects, receivers, rooms and Bluetooth messages there are, when the live data was made, and an \"RSSI Distribution\" chart of how strong the signals are."),
+      t("Floor Towers — each floor as a column of rooms; click a room for its details. Live Signal Bars — how many devices each receiver hears; click a row for that receiver. Signal Pulse — one bubble per room, bigger for more devices and pulsing while signals are fresh; click one for the room."),
+      t("Raw Snapshot Explorer — the live data as a list you can expand; \"Copy snapshot JSON\" copies all of it, for support."),
     ],
   },
 
@@ -333,26 +318,20 @@ export function helpTexts() { return {
     title: t("Receivers — every Bluetooth receiver in one table"),
     body: [
       t("One row for each Bluetooth receiver (an ESPHome proxy, a Shelly, Home Assistant's own adapter) PadSpan hears from: its room, its floor, whether it is on a floor plan, its height, its signal adjustment, how it is doing, how many devices it hears right now, and when it was last heard."),
-      t("Height and signal adjustment can be changed right in the table. They are the same values as Calibration → Tune, Mapping → Edit → Radios and Settings → Tracking → Receivers: saving in one place changes them everywhere."),
-      t("Status uses the same rules as the dot in the top bar: Silent means not heard for over 10 minutes, Hearing less means it hears far fewer devices than usual while the others are normal."),
-      t("Place (or Move) opens Mapping with that receiver selected, to put it where it is mounted. Positions and calibration are never changed from this page."),
+      t("Height and signal adjustment can be changed right in the table. They are the same values as Calibration → Tune, Mapping → Edit → Radios, Settings → Tracking → Receivers and Bluetooth → Scanners (\"RSSI offset\"): saving in one place changes them everywhere. \"No position yet\" in the Height column means PadSpan has no position for it: place it on a floor plan, then Calibration → Tune → Save, and its height can be set after that."),
+      t("Status uses the same rules as the dot in the top bar: \"Silent\" means not heard for over 10 minutes; \"Hearing less\" means it hears far fewer devices than usual while the others are normal; \"Not in use\" means you marked it lost, disabled or excluded, so the dot leaves it out; \"Not heard yet\" means nothing from it since PadSpan started; \"Online\" means it is reporting normally."),
+      t("Place (or Move) opens Mapping with that receiver selected, to put it where it is mounted. Positions, rooms and calibration are never changed from this page: a receiver's room is set in Overview → \"View radios list\" or Mapping → Edit → Radios."),
       t("Click a column heading to sort by it; tick Problems only to see just the receivers that need attention. In Sample mode the demo house's receivers are shown and nothing can be edited."),
     ],
   },
 
   installbase: {
-    title: t("Install Base — what the opt-in reports add up to"),
+    title: t("Install Base — what the opt-in usage reports add up to"),
     body: [
-      t("Developer view, PadSpan Pro, and the server admits only a key on its developer list — a Pro customer sees a clean refusal, not other people's houses."),
-      t("Installs — lifetime (from the server's ledger, which outlives the 90-day spool), active in the last 7 days, new in the window, lapsed (silent 14+ days). Pinging = distinct update-check callers, which is the whole install base including everyone who did not opt in; Reporting = the opted-in slice."),
-      t("Per day — two charts: pinging installs per day, and reporting installs per day."),
-      t("Distributions — every install's latest report bucketed: version, HA version, tier, scanners, floors, rooms, maps, calibration points, IRKs, walls, lights, objects — plus which integrations are present and pinging-by-version."),
-      t("BLE scan mode — which scan mode installs have chosen versus what they're actually running right now, and how many have pinned a mode versus left it on auto."),
-      t("Geometry — how many installs are multi-floor, and counts of geometry issues: faulted map geometry, a faulted anchor, no metre anchor, all-default floor heights, uniform scanner Z, and calibration points with no floor assigned."),
-      t("Flags — installs whose latest report carries a bad health flag. A flag is only counted where the report has the field, so zero means none bad among those that can say."),
-      t("Identity — installs with IRKs registered, how many of those resolved anything in their window, how many are silent, and how many have Private BLE Device configured."),
-      t("Usage, tabs, errors — summed across the window, with how many installs contributed to each."),
-      t("Table — one row per install by the first 8 characters of its random id. Nothing here can name a house."),
+      t("This is the developer's screen. It is in the menu under \"More tools\", asks for a PIN, and needs a PadSpan Pro licence; the reports server only answers licence keys on its developer list, so anyone else sees a refusal, never other people's homes. Installs are listed by the start of a random id that says nothing about who or where."),
+      t("The figures at the top: \"Installs sharing a report\" (turned the usage report on and sent one in the report window), \"Homes running\" (different homes that checked for an update yesterday, whether they share a report or not, with today's count so far), \"Active\", \"Ever reported\", \"New\" (first report in the window), \"Gone quiet\" (no report for a while) and \"Pro\"."),
+      t("Sections: \"Reach\" and \"Needs attention\" start open; click any other to open it: \"New installs\", \"Versions\" (PadSpan and Home Assistant versions, licence, country and language), \"Homes\", \"Receivers\", \"Health\", \"Usage\", \"Everything else in the reports\" and \"Installs\". The chips at the top jump to a section, \"Open all\" and \"Close all\" do what they say, and \"Refresh\" fetches fresh numbers."),
+      t("Counting by internet address overcounts homes: a home's address changes, so over a month one home can show up many times. That is why \"Homes running\" counts a single day, and why \"Versions running (by address)\" is for the mix of versions, not for how many homes."),
     ],
   },
 
@@ -571,29 +550,66 @@ export function helpTexts() { return {
 
   // ── Bluetooth View ─────────────────────────────────────────────────────
   bluetooth_overview: {
-    title: t("Bluetooth — Scanner & Signal Analysis"),
+    title: t("Bluetooth — what each receiver hears"),
     body: [
-      t("Bluetooth shows exactly what each scanner is hearing."),
-      t("VISUALISATION — A graph showing how scanners and devices are connected. Line and node colours show signal strength (green/amber/red); node size does not change. Click a scanner to open its details and assign it to a room."),
-      t("ADVERTISEMENTS — Live feed of Bluetooth advertisements. Filter by source scanner or search by MAC address. Shows RSSI, age, and device type."),
-      t("SCANNERS — Lists all Bluetooth receivers/scanners with their room, online status and other details. Click a scanner row to see the devices it is currently hearing in the panel beside it. To change its room, open the scanner details from Visualisation."),
-      t("IRK MANAGER — Manages Identity Resolving Keys (IRKs) for tracking Apple/Android devices that rotate their MAC addresses. Without IRKs, these devices appear as constantly-changing random addresses. To capture IRKs from phones and watches, see the ESPHome IRK Capture tool: https://github.com/DerekSeaman/irk-capture — flash a spare ESP32, pair briefly with each device, copy the IRK, and paste it here. PadSpan resolves all rotating MACs back to a stable identity automatically."),
-      t("ESPHOME CONFIGS — A library of ready-made ESPHome YAML configs for building your own scanners."),
+      t("Bluetooth shows what each receiver (scanner) is hearing. It is in the menu under \"More tools\" in every mode. The figures at the top count receivers, recent Bluetooth messages, device addresses, phone keys and more (click \"Private BLE IRKs\" for the IRK Manager). It has five tabs: \"Visualisation\" (opens first), \"Advertisements\", \"Scanners\", \"IRK Manager\" and \"ESPHome Configs\"."),
+      t("The first three tabs share a filter bar: \"Search\" finds a name, address or receiver (and also a device's company, type, room or label), \"Source\" shows one receiver only, and \"Max rows\" sets how many to list (200 to start with)."),
+      t("VISUALISATION (\"Who hears what\") — receivers on the left, devices on the right. Each line is one receiver hearing one device, coloured by how strongly: green −70 dBm or better, amber down to −82, red weaker. Click a receiver for its details window, or a device for its details."),
+      t("ADVERTISEMENTS — the live list of Bluetooth messages (advertisements), each with its signal strength, age and what kind of device sent it. \"Tag\" or \"Relabel\" names a device; click a row for everything in the message. With Quiet mode on, only your tracked devices are listed."),
+      t("SCANNERS — one row per receiver with its room, IP address and Wi-Fi signal. Click a row to see, beside it, everything that receiver hears, strongest first (\"All receivers\" there opens the Receivers page). After 6 checks a bar shows how often the receiver agrees with the room the others point to (\"Reliable\", \"Fair\" or \"Unreliable\"); low agreement means its placement, antenna or offset needs a look."),
+      t("Each Scanners row also has: \"RSSI offset\" and \"Set\" (a correction in dB added to everything it hears, positive if it reads weaker than it should; the same value as the Receivers page and Settings → Tracking → Receivers); \"Relearn\" (after an antenna change, shifts its saved calibration readings by the gain you enter, + for better, − for worse); \"Reset\" (erases everything stored for it: calibration, placement, offsets and learned patterns; asks first); \"Exclude\" / \"Include\" (leave it out of positioning without deleting anything); and \"Min signal\" (ignore anything it hears weaker than the level you pick, for positioning and the occupancy count only; handy for a receiver on an outside or shared wall; the lists still show everything)."),
+      t("\"Find the one in your hand.\" (beside a selected receiver) finds which device is yours: pick \"Louder\" and hold the device against the receiver for about 20 seconds, or \"Quieter\" and hide it in a metal bin or saucepan, then press \"Start\". The devices that changed are listed so you can tag yours."),
+      t("Rooms: a receiver's room is set in Overview → \"View radios list\" → \"Assign\" or \"Change\", or in Mapping → Edit → Radios → \"Room\" (Advanced and Development modes). Bluetooth, the Rooms page and the Receivers page show it but don't change it. The receiver details window (from Visualisation, QA → Radio Analysis or Monitor) shows its room, network, the devices it hears, and \"Mark as Lost\" / \"Mark as Disabled\"."),
+      t("IRK MANAGER — phones and watches change their Bluetooth address every few minutes. An IRK (the phone's identity key) lets PadSpan recognise all those addresses as one phone. Paste a key under \"Add an IRK\" (\"Add & validate\", or \"Test only\" to check it first), or press \"Auto-detect IRKs\" to pick up keys from devices already paired with your Home Assistant computer. With Settings → Features → \"Phone Setup Wizard\" (or \"iPhone Setup Path\") on, in Advanced and Development modes, \"Track your phone\" offers three guided ways in: \"I have an IRK Capture ESP32\" (\"Scan for IRK Capture devices\" collects the keys such a board captured; the tool is at https://github.com/DerekSeaman/irk-capture), \"I have an Android phone\" (use the Companion app's BLE Transmitter; no key needed) and \"I have an iPhone\"."),
+      t("ESPHOME CONFIGS — ready-made ESPHome settings (YAML) for building your own receiver from an ESP32 board, with copy buttons, plus antenna and board suggestions."),
     ],
   },
 
   // ── Health & System Critics ────────────────────────────────────────────
-  health_critics: {
-    title: t("Problems found — Automated Health Diagnosis"),
+  health: {
+    title: t("Health — is PadSpan working?"),
     body: [
-      t("The Problems found check automatically analyses your PadSpan setup and flags issues that may affect positioning accuracy."),
-      t("Each critic has a severity level: CRITICAL (red, major impact), WARNING (amber, should address), INFO (gray, minor or informational)."),
-      t("ROOM CONFUSION — Detects room pairs where objects frequently bounce back and forth. High confusion means the system can't reliably distinguish between those rooms. Fix: add calibration points near the boundary, or add a signal wall in the map editor."),
-      t("MAP QUALITY — Checks leave-one-out cross-validation error per map. High error means the calibration data doesn't accurately predict positions. Fix: add more calibration points, especially in areas with poor coverage."),
-      t("SCANNER DISAGREEMENT — Flags scanners that consistently disagree with the consensus room assignment. Fix: check scanner placement, antenna orientation, or RSSI offset in Settings → Scanner Map."),
-      t("CALIBRATION STALENESS — Warns when calibration data is old. The RF environment changes over time (furniture moves, new devices added). Fix: run a fresh calibration walk-around periodically."),
-      t("PROPAGATION HEALTH — Checks adaptive learning fingerprint stability. High variance means the signal environment is noisy or changing. Fix: check for interference sources (WiFi APs, microwaves, USB3 devices)."),
-      t("Each critic includes a concrete 'Action' step telling you exactly what to do to fix the issue."),
+      t("Health gathers PadSpan's own checks in one page, from a quick summary at the top to the detail below. It is in the main menu in Advanced and Development modes and under \"More tools\" in Basic, and clicking the status dot in the top bar opens it in any mode (what the dot means: Training → Full Manual → Health → The status dot)."),
+      t("\"System\" — the panel's version and build, Live or Sample data, and how long the last refresh took. \"Live Discovery (best-effort)\" — rough counts of the rooms, receivers and tags PadSpan has found. To send details to support, use Diagnostics (QA → \"Go to Diagnostics\") or Monitor → \"Export for support\"."),
+      t("\"Hearing less than usual\" — shows only when a receiver has heard far fewer Bluetooth messages than normal for over 10 minutes while the others are fine. Rooms near it can be wrong; restarting it often helps."),
+      t("\"Scanner Health\" — for each receiver, \"Agreement\": how often it agrees with the room the other receivers point to, and \"Weight\": how much PadSpan trusts it, from 0 to 1 (its dot is green from 0.9, amber from 0.7, red below). Once a receiver has had 12 checks, a warning lists any with a weight below 0.7. \"All receivers\" opens the Receivers page."),
+      t("\"Room and receiver layout\" — PadSpan's model of your home in metres: rooms per floor, a list of layout checks that pass or fail, receiver positions, room shapes, which rooms touch, which receiver is in which room, and your floor plans. Its buttons: \"Retrain learned model\" (when shown) rebuilds the learned model from your calibration points; \"Resync Scanners\" rebuilds the receivers' rooms and floors from Home Assistant, keeping ones you set by hand; \"Reset Spatial Model\" clears every receiver position, beacon position and signal wall after taking a backup (it asks first; room shapes, lights, plan placements and calibration points are kept); \"Run Radio Audit\" compares each receiver's room and floor in Home Assistant with PadSpan's and lists any that differ; \"Refresh layout\" reloads this section. \"🔑 Migrate Device Identity\" appears only when an upgrade step is needed."),
+      t("\"RSSI Vector Capture\" — only with Settings → Features → \"RSSI Vector Capture\" on (Advanced and Development modes). Press \"⏺ Record\", walk the house pressing \"Mark room\" in each room, then \"⏹ Stop\". Each recording can be exported, deleted, or replayed with \"Replay & Score\" to see how other settings would have done on the same walk. Nothing is recorded until you press Record, and a recording stops by itself after 60 minutes or 25 MB."),
+      t("\"Problems found\" — automatic checks of the whole setup, with \"Room mix-ups\", \"Map Calibration Quality\" and \"Check again\" under it. Its own ? explains each check."),
+    ],
+  },
+  status_dot: {
+    title: t("The status dot — when something needs a look"),
+    body: [
+      t("A small round mark in the top bar shows only when something is wrong: amber means something needs attention, red means something is broken. No dot means all is well. It shows how many issues there are, hovering over it names them, and clicking it opens Health."),
+      t("Red: PadSpan isn't answering, so the live data has stopped updating; positioning's last update failed; or no Bluetooth receivers are reporting (not checked for the first two minutes after the page opens or PadSpan answers again). Amber: a receiver hasn't been heard from in over 10 minutes; a receiver is hearing far fewer devices than usual; or learning is suspended, so rooms come from the raw signal only."),
+      t("It waits before it shows, so one slow moment doesn't make it blink: amber after two checks in a row (about 10 seconds), red after three (about 15 seconds). It goes once the problem has been gone for two checks. Receivers you marked lost, disabled or excluded don't count, and it only watches live data, not Sample mode."),
+      t("On a wall screen (kiosk mode, or a full-screen window nobody has touched for two minutes) only red shows; in kiosk mode it sits in a corner and says how many problems there are. The Receivers page's Status column uses the same rules."),
+    ],
+  },
+  health_critics: {
+    title: t("Problems found — what each check means"),
+    body: [
+      t("Health → \"Problems found\" checks your whole setup for things that can put devices in the wrong room. The banner says \"HEALTHY\" or how many issues it found. Each card shows its kind and how serious it is (critical: fix this; warning: worth fixing; info: good to know), what is wrong, and an \"Action:\" line saying what to do. Critical ones come first. The list refreshes about every 30 seconds while the page is open; \"Check again\" refreshes it now."),
+      t("ROOM CONFUSION — two rooms PadSpan keeps moving a device between (at least 4 moves back and forth; critical when they are 15% or more of all room changes, a warning from 8% or 20 moves). Fix: add calibration points in both rooms near where they meet, and draw a signal wall between them in the map editor if there is a real wall."),
+      t("MAP QUALITY — how far off PadSpan is when it tests a floor plan's calibration points against each other: a warning from 1.2 m average error, critical from 2.25 m; just info when a plan has fewer than 5 points. Fix: add calibration points, especially where coverage is weak."),
+      t("MAP GEOMETRY — a floor plan problem. No plan has been measured, so the house has no metre scale and nothing can be drawn (critical); a plan's placement can't be read (critical); or a plan isn't placed yet (a warning, and normal just after uploading). Fix: measure a plan in Mapping → Edit → Measure, or line it up over a measured plan in Mapping → 3D Stack and press \"Save Alignment\"."),
+      t("ROOM FOOTPRINT — the rooms on a floor are bigger than the floor plan they were drawn on (critical) or don't match its size (warning), usually because the plan's scale changed after the rooms were drawn. Don't redraw them by hand: in Mapping → Layout, preview \"Map placements\" and save it if it looks right."),
+      t("ROOM DIVERGENCE — a floor plan's traced rooms and the saved rooms all differ by the same amount, so one of the two is out of date (warning). In Mapping → Layout, compare \"Saved layout\" and \"Map placements\" over the photo and keep the one that matches."),
+      t("SCANNER — a receiver that often disagrees with the room the other receivers point to (judged after 12 checks: a warning when its weight, how much PadSpan trusts it, is below 0.7; critical below 0.6). Fix: check where it is and which way its antenna points, check it is in the right room, or adjust its signal offset in Settings → Tracking → Receivers (or the Receivers page)."),
+      t("CALIBRATION — no calibration points at all (critical: run Calibration → Tune), or calibration getting old: info after 60 days, a warning after 90. Furniture and devices change over time, so walk the house again now and then."),
+      t("PROPAGATION — a room whose learned signal pattern is unsteady (warning: look for things nearby that interfere, such as Wi-Fi access points, microwaves and USB 3 devices, and add calibration points), or \"Adaptive learning is disabled\" (info: turn it on in Settings → Tracking, in Advanced and Development modes, so PadSpan keeps improving by itself)."),
+      t("Under the list: \"Room mix-ups\" shows up to 15 room pairs with the most moves back and forth (\"Transitions\") and their share of all room changes (\"Rate\"). \"Map Calibration Quality\" shows each floor plan's calibration points with the average and the worst error, amber from 1.2 m and red from 2.25 m."),
+      t("For experts: MAP QUALITY and Map Calibration Quality use leave-one-out cross-validation (each calibration point predicted from the others); PROPAGATION flags a room whose average RSSI variance is over 25."),
+    ],
+  },
+
+  diagnostics: {
+    title: t("Diagnostics — a report to send to support"),
+    body: [
+      t("Diagnostics isn't in the menu: open it from QA → \"Go to Diagnostics\". It puts a short report in a box: the panel's and the server's versions, PadSpan's status, your rooms and floor plans, and the automatic checks."),
+      t("\"Select All\" selects it, \"Copy\" copies it, and \"Download Report\" saves it as a file. Attach it to a GitHub issue or an email to support. It names your rooms and floor plans, so look it over before you send it. Monitor → \"Export for support\" builds a fuller report the same way."),
+      t("\"Install Verification\" — if the panel's version and the server's differ, your browser is showing an old copy (press Ctrl+F5) or Home Assistant has two copies of PadSpan installed (for example one from HACS and one copied by hand): remove the extra one and restart Home Assistant."),
     ],
   },
 
