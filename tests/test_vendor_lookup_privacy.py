@@ -1,9 +1,9 @@
 """The device maker (vendor) lookup's privacy rules.
 
-Off unless switched on; when on, only the maker prefix (AA:BB:CC) leaves the
-house, never a full address; random (locally administered) and group addresses
-are never sent; answers are cached by prefix; the switch is reported as on/off
-only; installs from before are switched off once.
+First three bytes only; never addresses known to be random or locally
+administered. A radio's reported type wins (ESPHome, BlueZ); with no type, the
+first byte's bits decide. On by default, admin-only, cached by prefix, and the
+switch is reported as on/off only.
 """
 
 from __future__ import annotations
@@ -136,55 +136,124 @@ async def test_a_known_prefix_is_answered_from_the_cache(online) -> None:
 
 
 @pytest.mark.asyncio
-async def test_nothing_is_asked_with_the_switch_off(online, monkeypatch) -> None:
+async def test_the_switch_decides_and_unreadable_settings_send_nothing(online, monkeypatch) -> None:
     from custom_components.padspan_ha import websocket as W
+    from custom_components.padspan_ha import bluetooth_live as BL
 
     session, _ = online
     called = []
 
-    async def _lookup(hass, mac, force_refresh=False):
-        called.append(mac)
+    async def _lookup(hass, mac, force_refresh=False, address_type=None):
+        called.append((mac, address_type))
         return {}
 
     monkeypatch.setattr(W, "async_lookup_vendor", _lookup)
-    for settings in ({"vendor_lookup_enabled": False}, {}, None):
+    monkeypatch.setattr(BL, "known_address_type", lambda hass, mac: None)
+    for settings in ({"vendor_lookup_enabled": False}, None):
         conn = MagicMock()
         await W.ws_vendor_lookup(_hass(settings), conn, {"id": 1, "mac": "F0:18:98:12:34:56"})
         assert conn.send_result.call_args.args[1] == {"enabled": False}
     assert called == [] and session.urls == []
 
+    # On by default: a store without the key looks it up.
+    for settings in ({}, {"vendor_lookup_enabled": True}):
+        conn = MagicMock()
+        await W.ws_vendor_lookup(_hass(settings), conn, {"id": 2, "mac": "F0:18:98:12:34:56"})
+        assert conn.send_result.call_args.args[1]["enabled"] is True
+    assert called == [("F0:18:98:12:34:56", None)] * 2
+
+
+@pytest.mark.asyncio
+async def test_the_handler_passes_the_type_a_radio_reported(online, monkeypatch) -> None:
+    from custom_components.padspan_ha import websocket as W
+    from custom_components.padspan_ha import bluetooth_live as BL
+
+    session, _ = online
+    monkeypatch.setattr(BL, "known_address_type", lambda hass, mac: "random")
     conn = MagicMock()
+    # 0x40: bits 0x01 and 0x02 clear, so only the reported type can hold it back.
     await W.ws_vendor_lookup(_hass({"vendor_lookup_enabled": True}), conn,
-                             {"id": 2, "mac": "F0:18:98:12:34:56"})
-    assert called == ["F0:18:98:12:34:56"]
-    assert conn.send_result.call_args.args[1]["enabled"] is True
+                             {"id": 1, "mac": "40:11:22:33:44:55"})
+    out = conn.send_result.call_args.args[1]
+    assert out["skipped"] == "random" and session.urls == []
 
 
-def test_off_by_default() -> None:
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first", ["40", "7C", "C0", "F4"])
+async def test_a_known_random_address_is_never_sent_whatever_its_bits(online, first) -> None:
+    session, cache = online
+    out = await VL.async_lookup_vendor(_hass(), f"{first}:11:22:33:44:55", address_type="random")
+    assert out["skipped"] == "random" and out["found"] is False
+    assert session.urls == [] and cache.entries == {}
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_type_falls_back_to_the_bits(online) -> None:
+    session, _ = online
+    out = await VL.async_lookup_vendor(_hass(), "40:11:22:33:44:55", address_type=None)
+    assert out["skipped"] is None and session.urls and all(u.endswith("/40:11:22") for u in session.urls)
+    out = await VL.async_lookup_vendor(_hass(), "DA:11:22:33:44:55", address_type=None)
+    assert out["skipped"] == "local"
+    out = await VL.async_lookup_vendor(_hass(), "DA:11:22:33:44:55", address_type="public")
+    assert out["skipped"] == "local"
+
+
+def test_the_address_type_is_read_from_esphome_and_bluez() -> None:
+    from types import SimpleNamespace
+    from custom_components.padspan_ha.bluetooth_live import address_type_of
+
+    assert address_type_of(SimpleNamespace(details={"source": "x", "address_type": 1})) == "random"
+    assert address_type_of(SimpleNamespace(details={"source": "x", "address_type": 0})) == "public"
+    assert address_type_of(SimpleNamespace(details={"path": "/org/bluez", "props": {"AddressType": "random"}})) == "random"
+    assert address_type_of(SimpleNamespace(details={"props": {"AddressType": "public"}})) == "public"
+    assert address_type_of(SimpleNamespace(details={"address_type": True})) is None
+    assert address_type_of(SimpleNamespace(details={})) is None
+    assert address_type_of(SimpleNamespace(details=None)) is None
+    assert address_type_of(None) is None
+
+
+def test_known_address_type_random_wins_across_radios(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from custom_components.padspan_ha import bluetooth_live as BL
+
+    bl = SimpleNamespace(_seen_by_source={
+        "AA:BB:CC:DD:EE:FF": {"p1": SimpleNamespace(record={"address_type": "public"}),
+                              "p2": SimpleNamespace(record={"address_type": "random"})},
+        "11:22:33:44:55:66": {"p1": SimpleNamespace(record={"address_type": None})},
+    })
+    monkeypatch.setattr(BL, "get_bluetooth_live", lambda hass: bl)
+    assert BL.known_address_type(None, "AA:BB:CC:DD:EE:FF") == "random"
+    assert BL.known_address_type(None, "aa:bb:cc:dd:ee:ff") == "random"
+    assert BL.known_address_type(None, "11:22:33:44:55:66") is None
+    assert BL.known_address_type(None, "99:99:99:99:99:99") is None
+
+
+def test_on_by_default() -> None:
     from custom_components.padspan_ha.settings_store import DEFAULT_SETTINGS
 
-    assert DEFAULT_SETTINGS["vendor_lookup_enabled"] is False
+    assert DEFAULT_SETTINGS["vendor_lookup_enabled"] is True
 
 
 @pytest.mark.asyncio
-async def test_installs_from_before_are_switched_off_once() -> None:
-    # An install from before: the old default (on) saved, no flag yet.
-    ss, ms = _make_settings(store_data={"vendor_lookup_enabled": True, "data_mode": "live"})
+@pytest.mark.parametrize("stored", [True, False])
+async def test_a_saved_choice_is_kept(stored) -> None:
+    ss, _ = _make_settings(store_data={"vendor_lookup_enabled": stored, "data_mode": "live"})
     data = await ss.async_load()
-    assert data["vendor_lookup_enabled"] is False
-    assert data["vendor_lookup_optin_v1"] is True
-    assert ms._data["vendor_lookup_enabled"] is False
-
-    # Turned back on after that: it stays on.
-    ss2, _ = _make_settings(store_data=dict(ms._data, vendor_lookup_enabled=True))
-    data2 = await ss2.async_load()
-    assert data2["vendor_lookup_enabled"] is True
+    assert data["vendor_lookup_enabled"] is stored
+    assert "vendor_lookup_optin_v1" not in data
 
 
-@pytest.mark.asyncio
-async def test_a_new_install_starts_off() -> None:
-    ss, _ = _make_settings(store_data=None)
-    data = await ss.async_load()
+def test_only_an_admin_can_change_the_switch() -> None:
+    from tests.test_enhanced_security import _set
+
+    for security_on in (False, True):
+        data, conn = _set(security_on, False, vendor_lookup_enabled=False)
+        conn.send_error.assert_called_once()
+        # Refused either way: by this switch's own check, or first by Enhanced security's gate.
+        assert conn.send_error.call_args.args[1] in ("unauthorized", "admin_only")
+        assert data.get("vendor_lookup_enabled", True) is True  # nothing was saved
+    data, conn = _set(False, True, vendor_lookup_enabled=False)
+    conn.send_error.assert_not_called()
     assert data["vendor_lookup_enabled"] is False
 
 

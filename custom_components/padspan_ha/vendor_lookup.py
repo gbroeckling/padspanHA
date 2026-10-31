@@ -11,15 +11,15 @@ Why this exists:
 - In PadSpan, "unidentified" BLE objects are usually just MAC addresses from the advertisement monitor.
 - To make those usable, we do a best-effort *manufacturer/vendor* lookup using public OUI databases.
 
-Privacy:
-- OFF by default: Settings → Tracking → Privacy, updates and feedback → "Look up device makers
-  online". Installs from before were switched off once (settings_store, vendor_lookup_optin_v1).
-- Only the maker prefix (the first three bytes, AA:BB:CC) ever leaves the house, never a full
-  address. A full address identifies one device; the prefix is the same for every device that
-  maker sold, and it is all an OUI lookup needs.
-- A locally administered or multicast address (bit 0x02 or 0x01 of the first byte) is never
-  sent at all: its prefix belongs to no maker (phones' random addresses are like this), so a
-  lookup could only leak data and could never find anything.
+Privacy (the rule, word for word everywhere it is described):
+first three bytes only; never addresses known to be random or locally administered.
+- On by default; only an administrator turns it off or on (ws_settings): Settings → Tracking →
+  Privacy, updates and feedback → "Look up device makers online".
+- Only the first three bytes (AA:BB:CC) ever leave the house, never a whole address.
+- Never sent at all: an address a radio reported as random (ESPHome proxies and BlueZ say so;
+  bluetooth_live.known_address_type), and, whatever the radio said, one whose first byte has
+  bit 0x02 (locally administered) or 0x01 (multicast) set. When no radio reported the type,
+  the bit rule is all there is to go on.
 - Answers are cached by prefix for 30 days (CACHE_TTL), so each prefix is asked once.
 
 We intentionally use TWO independent sources so we can cross-check results:
@@ -75,17 +75,22 @@ def _norm_mac(mac: str) -> str:
     return ":".join(hexs[i : i + 2] for i in range(0, 12, 2))
 
 
-def lookup_skip_reason(mac_norm: str) -> Optional[str]:
+def lookup_skip_reason(mac_norm: str, address_type: Optional[str] = None) -> Optional[str]:
     """Why this address is never sent to a lookup service, or None to look it up.
 
-    "local": bit 0x02 of the first byte is set, a locally administered address
-    (a phone's random address, for one). Its prefix belongs to no maker.
-    "multicast": bit 0x01 is set, a group address, never a device's own.
+    "random": a radio reported the address as random (BLE random static or
+    private). Its first three bytes may be fixed to that one device, so they
+    are never sent, whatever their bits say.
+    "local": bit 0x02 of the first byte is set, a locally administered address.
+    "multicast": bit 0x01 is set, never a device's own address.
+    With the type unknown, the two bits are all there is to go on.
     """
     try:
         first = int((mac_norm or "").split(":")[0], 16)
     except (ValueError, IndexError):
         return "bad_mac"
+    if address_type == "random":
+        return "random"
     if first & 0x01:
         return "multicast"
     if first & 0x02:
@@ -214,7 +219,8 @@ async def _fetch_maclookup(hass: HomeAssistant, prefix: str) -> Tuple[Optional[D
         return None, "maclookup_exception"
 
 
-async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool = False) -> Dict[str, Any]:
+async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool = False,
+                              address_type: Optional[str] = None) -> Dict[str, Any]:
     """Lookup vendor/manufacturer for a MAC address (or prefix).
 
     Output schema is intentionally stable because the UI calls this directly.
@@ -230,7 +236,7 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         "errors": [],
         "cached": False,
         "fetched_at": None,
-        # Why nothing was sent ("local", "multicast"), or None when it was looked up.
+        # Why nothing was sent ("random", "local", "multicast"), or None when it was looked up.
         "skipped": None,
     }
 
@@ -238,7 +244,7 @@ async def async_lookup_vendor(hass: HomeAssistant, mac: str, force_refresh: bool
         out["errors"].append("bad_mac")
         return out
 
-    reason = lookup_skip_reason(mac_norm)
+    reason = lookup_skip_reason(mac_norm, address_type)
     if reason == "bad_mac":
         out["errors"].append("bad_mac")
         return out

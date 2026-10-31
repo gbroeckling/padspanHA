@@ -76,11 +76,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # The free-Pro offers' on/off switches from the update check's answer
     # (update_check._keep_offers): {"tester": bool, "invite": bool}; {} = all on.
     "server_offers": {},
-    # Off by default: when on, opening the Objects list asks two public lookup
-    # services which company made each nearby device, sending the maker prefix
-    # (AA:BB:CC) only, never a full address (vendor_lookup.py). Installs from
-    # before were switched off once (vendor_lookup_optin_v1 below).
-    "vendor_lookup_enabled": False,
+    # Opening the Objects list asks two public lookup services which company made
+    # each nearby device (vendor_lookup.py): first three bytes only; never
+    # addresses known to be random or locally administered. Admin-only switch.
+    "vendor_lookup_enabled": True,
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)
     "hidden_map_ids":  [],     # map IDs hidden from 3D stack view
@@ -524,13 +523,6 @@ class SettingsStore:
         if not self.data.get("atlas_default_v1_applied"):
             self.data["lights_panel_enabled"] = True
             self.data["atlas_default_v1_applied"] = True
-            _normalized = True
-        # Maker lookup off, once. It used to be on by default
-        # and send full addresses; now it is opt-in and sends the prefix only, so
-        # every install starts from off and turns it on in Settings if wanted.
-        if not self.data.get("vendor_lookup_optin_v1"):
-            self.data["vendor_lookup_enabled"] = False
-            self.data["vendor_lookup_optin_v1"] = True
             _normalized = True
         # Only re-save if new defaults were added (loaded was missing keys)
         if _normalized or not isinstance(loaded, dict) or set(self.data.keys()) != set(loaded.keys()):

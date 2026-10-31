@@ -99,6 +99,27 @@ def _coerce_source(src: Any) -> str:
         return str(src)
 
 
+def address_type_of(device: Any) -> Optional[str]:
+    """"public" or "random" when the radio says which, else None.
+
+    ESPHome proxies put it in BLEDevice.details["address_type"] (0 public,
+    1 random; bleak-esphome / habluetooth), and BlueZ in the D-Bus props
+    ("AddressType"). HA's mgmt channel and Shelly scanners don't report it.
+    """
+    details = getattr(device, "details", None)
+    if not isinstance(details, dict):
+        return None
+    at = details.get("address_type")
+    if at in (0, 1) and not isinstance(at, bool):
+        return "random" if at == 1 else "public"
+    props = details.get("props")
+    if isinstance(props, dict):
+        t = props.get("AddressType")
+        if t in ("public", "random"):
+            return t
+    return None
+
+
 def _service_info_to_record(si: Any, seen: Optional[dt.datetime] = None) -> Dict[str, Any]:
     """Flatten a BluetoothServiceInfo(Bleak)-like object into a plain dict.
 
@@ -179,6 +200,7 @@ def _service_info_to_record(si: Any, seen: Optional[dt.datetime] = None) -> Dict
         "rssi": rssi,
         "tx_power": int(tx_power) if tx_power is not None else None,
         "connectable": bool(connectable) if connectable is not None else None,
+        "address_type": address_type_of(getattr(si, "device", None)),
         "last_seen": seen_dt.isoformat(),
         # age_s is filled in get_snapshot so it's relative to snapshot time
         "manufacturer_data": manuf_out,
@@ -226,6 +248,7 @@ def _service_info_to_record_from_adv(
         "rssi": int(rssi) if rssi is not None else None,
         "tx_power": int(tx_power) if tx_power is not None else None,
         "connectable": None,
+        "address_type": address_type_of(ble_device),
         "last_seen": seen.isoformat(),
         "manufacturer_data": manuf_out,
         "service_data": svc_out,
@@ -850,6 +873,23 @@ async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
 
     hass.data.setdefault("padspan_ha", {})[DATA_KEY] = bl
     return bl
+
+
+def known_address_type(hass: HomeAssistant, address: str) -> Optional[str]:
+    """What any radio reported for this address: "random" wins, then "public", else None."""
+    bl = get_bluetooth_live(hass)
+    if bl is None:
+        return None
+    try:
+        per = bl._seen_by_source.get(address) or bl._seen_by_source.get((address or "").upper()) or {}
+        kinds = {a.record.get("address_type") for a in per.values()}
+    except Exception:
+        return None
+    if "random" in kinds:
+        return "random"
+    if "public" in kinds:
+        return "public"
+    return None
 
 
 def get_bluetooth_live(hass: HomeAssistant) -> Optional[BluetoothLive]:

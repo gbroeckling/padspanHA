@@ -46,7 +46,12 @@ Cache:
 - rate-limited to avoid API spam
 
 Settings:
-- `vendor_lookup_enabled` is stored in `settings_store.py` (default: True).
+- `vendor_lookup_enabled` is stored in `settings_store.py` (default: True). Only an administrator can change it (`ws_settings.py`).
+
+What is sent: first three bytes only; never addresses known to be random or locally administered.
+- The provider URLs carry the prefix (`AA:BB:CC`), never the whole address.
+- `bluetooth_live.address_type_of()` records "public"/"random" when the radio reports it (ESPHome proxies: `BLEDevice.details["address_type"]`, 0/1; BlueZ: `props["AddressType"]`). `known_address_type()` gives `ws_vendor_lookup` the answer; "random" is never sent.
+- When no radio reported the type, `lookup_skip_reason()` falls back to the first byte's bits: 0x02 (locally administered) or 0x01 (multicast) are never sent.
 
 ## Where to debug
 

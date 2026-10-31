@@ -215,7 +215,7 @@ def _set(on, admin, **keys):
     return h.data[DOMAIN][DATA_SETTINGS].data, conn
 
 
-@pytest.mark.parametrize("key,value", [("update_check_enabled", False), ("vendor_lookup_enabled", False),
+@pytest.mark.parametrize("key,value", [("update_check_enabled", False),
                                        ("room_change_delay_s", 12.0), ("data_mode", "sample")])
 def test_settings_off_a_non_admin_saves_as_before(key, value):
     data, conn = _set(False, False, **{key: value})

@@ -684,17 +684,18 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
 )
 @websocket_api.async_response
 async def ws_vendor_lookup(hass: HomeAssistant, connection, msg) -> None:
-    """Maker (vendor) lookup for a MAC address, online, only when switched on.
+    """Maker (vendor) lookup for a MAC address, online.
 
-    Used by the Overview → Objects/Unidentified modal. Off by default; when the
-    setting can't be read it stays off, so nothing is sent by accident. When on,
-    vendor_lookup sends the maker prefix only, never the full address.
+    Used by the Overview → Objects/Unidentified modal. On by default (only an
+    administrator changes it); when the settings can't be read nothing is sent.
+    vendor_lookup sends the first three bytes only, and never an address a radio
+    reported as random or whose bits mark it locally administered.
     """
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
     enabled = False
     try:
         if st:
-            enabled = st.get("vendor_lookup_enabled", False) is True
+            enabled = st.get("vendor_lookup_enabled", True) is True
     except Exception:
         enabled = False
 
@@ -704,7 +705,12 @@ async def ws_vendor_lookup(hass: HomeAssistant, connection, msg) -> None:
 
     mac = msg.get("mac") or ""
     force = bool(msg.get("force_refresh", False))
-    res = await async_lookup_vendor(hass, mac, force_refresh=force)
+    try:
+        from .bluetooth_live import known_address_type  # noqa: PLC0415
+        atype = known_address_type(hass, mac)
+    except Exception:
+        atype = None
+    res = await async_lookup_vendor(hass, mac, force_refresh=force, address_type=atype)
     res["enabled"] = True
     connection.send_result(msg["id"], res)
 

@@ -784,6 +784,13 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             _wn = str(msg.get("whatsnew_seen_version") or "").strip()
             payload["whatsnew_seen_version"] = _wn if re.fullmatch(r"\d+\.\d+\.\d+", _wn) else ""
         if "vendor_lookup_enabled" in msg:
+            # It decides what leaves the house, so it is an admin's call
+            # (README: Security), like the usage report's switch above.
+            _user = getattr(connection, "user", None)
+            if _user is not None and getattr(_user, "is_admin", True) is False:
+                connection.send_error(msg["id"], "unauthorized",
+                                      "Only an administrator can change the device maker lookup")
+                return
             payload["vendor_lookup_enabled"] = bool(msg.get("vendor_lookup_enabled"))
         if "room_change_delay_s" in msg:
             payload["room_change_delay_s"] = max(0.0, min(300.0, float(msg["room_change_delay_s"])))

@@ -470,8 +470,8 @@ export function renderClassic(ctx){
     ctx.state._vendorCache = ctx.state._vendorCache || {};
     const prefix = (mac||"").split(":").slice(0,3).join(":").toUpperCase();
     if(!prefix){ cell.textContent = ""; return; }
-    // Off unless switched on (Settings → Privacy, updates and feedback): ask nothing.
-    if(!(ctx.state.settings && ctx.state.settings.vendor_lookup_enabled === true)){
+    // Switched off (Settings → Tracking → Privacy, updates and feedback): ask nothing.
+    if(!makerLookupOn()){
       cell.innerHTML = renderVendorHTML({ enabled: false });
       return;
     }
@@ -500,16 +500,21 @@ export function renderClassic(ctx){
   // the one source able to flag "randomized"/"private" addresses, which
   // matters more to a viewer than which of the two vendor-name strings is
   // shown.
+  // The maker lookup's switch: on unless an administrator turned it off. Until
+  // settings have loaded nothing is asked.
+  function makerLookupOn(){
+    const s = ctx.state.settings;
+    return !!s && s.vendor_lookup_enabled !== false;
+  }
+
   function renderVendorHTML(res){
     if(!res || res.enabled === false){
       return `<span class="badge">Lookup off</span>`;
     }
-    // Answered at home: a random (locally administered) or group address has no maker.
-    if(res.skipped === "local"){
+    // Answered at home, nothing sent: an address known to be random, or one
+    // whose bits mark it locally administered. It belongs to no maker.
+    if(res.skipped){
       return `<span class="badge warn">random address</span>`;
-    }
-    if(res.skipped === "multicast"){
-      return `<span class="badge">group address</span>`;
     }
     const v1 = res.sources?.macvendors || null;
     const v2 = res.sources?.maclookup?.company || null;
@@ -548,6 +553,7 @@ export function renderClassic(ctx){
 
     const list = liveSnap.objects.list || [];
     const summary = liveSnap.objects.summary || {};
+    const makerOn = makerLookupOn();
     const commonPrefixes = summary.common_prefixes || {};
 
     // Dedup: suppress entity rows whose device already has a BLE/iBeacon/private_ble row
@@ -624,12 +630,14 @@ export function renderClassic(ctx){
       [el("span",{class:"muted",style:"font-size:12px;white-space:nowrap"}, "History:"), ageSlider, ageLabel]));
     controls.appendChild(stats);
 
-    // Maker lookup switch, here where its answers show. Off by default; when on,
-    // only the maker prefix of each address is sent (see renderVendorHTML).
-    const makerOn = !!(ctx.state.settings && ctx.state.settings.vendor_lookup_enabled === true);
+    // Maker lookup switch, here where its answers show (admin-only, like the one
+    // in Settings): first three bytes only; never addresses known to be random
+    // or locally administered.
+    const makerAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
     const makerToggle = el("button", { class: "btn inline", "data-maker-lookup": makerOn ? "on" : "off",
-      title: "Asks macvendors.com and maclookup.app which company made each device. Sends only the maker part of each address (AA:BB:CC), never random addresses." },
+      title: "Asks macvendors.com and maclookup.app which company made each device: the first three bytes of each address only, never an address known to be random or locally administered." },
       makerOn ? "Look up makers online: On" : "Look up makers online: Off");
+    if (!makerAdmin) { makerToggle.disabled = true; makerToggle.title = "Only an administrator can change this"; }
     makerToggle.addEventListener("click", async () => {
       try {
         await ctx.actions.settingsSet({ vendor_lookup_enabled: !makerOn });
@@ -673,7 +681,11 @@ export function renderClassic(ctx){
       const pfx = (o.prefix || "").toUpperCase();
       const isCommon = pfx && (commonPrefixes[pfx] || 0) >= 3;
 
-      const vendorCell = el("td",{}, kind==="ble" ? el("span",{class:"badge"}, "—") : el("span",{class:"badge"}, "n/a"));
+      // Every BLE row says the same thing when the lookup is off, not just the
+      // first rows the lookup queue would have reached.
+      const vendorCell = el("td",{}, kind==="ble"
+        ? el("span",{class:"badge"}, makerOn ? "—" : "Lookup off")
+        : el("span",{class:"badge"}, "n/a"));
 
       // Follow button
       const followKey = addr || o.entity_id || "";
@@ -829,11 +841,11 @@ export function renderClassic(ctx){
     body.appendChild(controls);
     body.appendChild(table);
 
-    ctx.actions.openModal("Objects", body, makerOn ? "Filter + maker lookup (prefix only)" : "Filter");
+    ctx.actions.openModal("Objects", body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
 
     // After modal opens, do vendor lookups for visible BLE rows (limited concurrency).
-    // With the lookup off, each cell just says so and nothing is asked.
-    const maxLookups = 40;
+    // With the lookup off every BLE cell already says so and nothing is asked.
+    const maxLookups = makerOn ? 40 : 0;
     const queue = rowEls
       .filter(tr=>tr.getAttribute("data-kind")==="ble")
       .slice(0, maxLookups);
