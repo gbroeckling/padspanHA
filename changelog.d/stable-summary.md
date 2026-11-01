@@ -1,6 +1,6 @@
 # The stable after 0.38.199: guided Setup, Receivers and Rooms pages, Calibration results, Vacation Mode replays last week, and fixes
 
-If you're on the stable channel, this is everything from 0.38.200 to 0.38.214 in one go.
+If you're on the stable channel, this is everything from 0.38.200 to 0.38.215 in one go. Coming from 0.38.166 or older? The changes before these are in 0.38.199's notes, under Full history on padspan.traks.ca.
 
 ### Things you'll notice
 - **Setup, one step after another.** Upload a plan, set its scale, give the floors their heights, draw the rooms, place the receivers and their heights, then calibrate. Each step says whether it's done, and you can skip one and come back. Open it from the Overview's Getting started card or the Setup button on Mapping.
@@ -11,7 +11,7 @@ If you're on the stable channel, this is everything from 0.38.200 to 0.38.214 in
 - **Calibration is in Basic mode**, with the same tabs as in Advanced.
 - **A backup AI Task** in Settings → AI. Photo and stair reads use it only when the main one can't be reached. There's no backup until you pick one.
 - **The help was rewritten for every screen**, with "?" buttons where there were none, in English, German, French and Dutch.
-- **Preview a finished house** shows a three-storey sample house on every screen of the panel. Nothing in it can be changed or saved.
+- **Preview a finished house** shows a three-storey sample house on every screen of the panel. Nothing in it can be changed or saved. If you see a house you don't recognise, you're in Sample mode: press **Live** in the top bar.
 
 ### Where things moved
 - **More tools.** Every screen is in the menu in every mode now. Devices, Bluetooth, Presence, Monitor, QA, Sandbox and Install Base are in a **More tools** group at the bottom of the menu. In Basic, Live Tracker, Occupancy, Manage, Traceback and Health are there too. Opening one never changes your mode.
@@ -25,18 +25,18 @@ If you're on the stable channel, this is everything from 0.38.200 to 0.38.214 in
 - **Monitor → Quick status and Manage → History** now point to Health and History, which have all of it. Manage → Events' room log, which never filled, is now a button to History → Movement.
 
 ### What works differently
-- **Vacation Mode replays last week.** Turned on after this update, each day plays like the same day last week, half hour by half hour. For the old way, pick **Monthly average** under Options → Routine from. A trip already running when you update keeps its routine; the choice applies the next time you turn it on.
+- **Vacation Mode replays last week.** Turned on after this update, each day plays like the same day last week, half hour by half hour. For the old way, pick **Monthly average** under Options → Routine from. A trip already running when you update keeps its routine, and so does one you turn back on within 3 weeks. The choice applies to the next new trip.
 - **Vacation Mode has new options,** all off until you set them: evening lights (up to 10 lights kept on over the stretch they were really on in the evening), a limit on lights on at once, and a preview of the next 24 hours.
-- **Beacon Tune's hard relocation keeps the points you collected by carrying the device.** Replacing a moved beacon's data now deletes only its earlier Beacon Tune and [auto] points, not those from Pin & Listen, Roam or Walk a room.
+- **Beacon Tune's hard relocation keeps the points you collected by carrying the device.** Replacing a moved beacon's data now deletes only its earlier Beacon Tune and [auto] points, not those from Pin & Listen, Roam or Walk a room. Beacon Tune points saved before this update are kept too, so if a moved beacon keeps showing at its old spot, delete those points by hand.
 - **Photo reads are quicker.** A quick look names the kind first, and photos are sent at 1024 px instead of 1280.
-- **Sample mode is per browser.** Turning on the preview on one screen no longer switches every screen in the house. A house left in Sample mode before the update stays in it until someone presses "Back to my house".
+- **Sample mode is per browser.** Turning on the preview on one screen no longer switches every screen in the house. A house left in Sample mode before the update stays in it, showing the sample house, until someone presses Live.
 - **In Basic, a link opens just the part it's about,** with a "← Back", and you stay in Basic.
 - **Getting started's Calibrate tick needs real calibration** (five points or a computed model). A card you already finished or skipped stays away.
 - **Point Align and Compare Maps give their errors in metres,** not percentages. The ratings are the same.
 
 ### Privacy
-- **The device maker lookup sends only the maker part of an address** (the first three bytes, such as AA:BB:CC), and only for devices a receiver confirms have a fixed, maker-assigned address. Random addresses, the kind phones use, are never sent. 0.38.199 sent whole addresses.
-- **It has a switch:** Settings → Tracking → Privacy, updates and feedback → Look up device makers online, or the top of the Objects list. Only an administrator can change it. It's still on by default. Factory Reset now erases what it learned.
+- **The device maker lookup sends only the maker part of an address** (the first three bytes, such as AA:BB:CC), and only for devices a receiver confirms have a fixed, maker-assigned address. Random addresses, the kind phones use, are never sent. 0.38.199 sent whole addresses. Shelly, ESPresense and Tasmota receivers can't confirm that, so in a house with only those, new makers show as unknown.
+- **It has a switch:** Settings → Tracking → Privacy, updates and feedback → Look up device makers online, or the top of the Overview's All objects list. Only an administrator can change it. It's still on by default. Factory Reset now erases what it learned.
 - **Support reports hide phones' identity keys,** with "irk:hidden-1" and so on in their place. Diagnostics lists only your own devices, not everything nearby. Reports still name your rooms, plans and devices' Bluetooth addresses, so look them over before you send one.
 
 ### Fixes
