@@ -40,6 +40,12 @@ If you're on the stable channel, this is everything from 0.38.200 to 0.38.215 in
 - **Support reports hide phones' identity keys,** with "irk:hidden-1" and so on in their place. Diagnostics lists only your own devices, not everything nearby. Reports still name your rooms, plans and devices' Bluetooth addresses, so look them over before you send one.
 
 ### Fixes
+- A mouse click on a light's ⋯, Hide or Show in the Atlas's list no longer switches the light.
+- Hiding the Atlas's controls can be undone without a reload, on wall screens too.
+- There's a menu at window widths from 901 to 1100 px.
+- Vacation Mode's Options box scrolls instead of hiding Evening lights and the preview in side columns.
+- Rooms no longer draw solid black in the Library and 3D Stack, the support report's text can be read, and the 3D map's floors no longer hang dark shafts over the floors below.
+- Day and Light themes: dark-on-dark boxes, pale Bluetooth colours and solid black checkboxes are fixed. Phone layouts on Devices, Presence, Bluetooth, Health and Manage are fixed.
 - Stop & Discard during a calibration capture no longer leaves the capture running.
 - A receiver signal adjustment past ±20 dB (from 1 m Reference Calibration) is no longer cut to ±20 when you press Save without changing it.
 - Holding a light on the map to dim it is no longer cut short by an update.
