@@ -41,7 +41,7 @@ export function render(ctx){
     el("div",{class:"card"},[
       el("div",{style:"font-weight:700"},"System"),
       el("div",{class:"mono"}, `UI v${ctx.state.version} • build ${ctx.state.buildId}`),
-      el("div",{class:"mono"}, `Data mode: ${ctx.state.dataMode.toUpperCase()}`),
+      el("div",{class:"mono"}, `Data mode: ${ctx.state._dataModeKnown ? ctx.state.dataMode.toUpperCase() : "…"}`),
       el("div",{class:"mono"}, `Refresh: ${ctx.state.timing.lastRefreshMs ?? "\u2014"}ms`),
     ]),
     el("div",{class:"card"},[

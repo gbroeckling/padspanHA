@@ -6,6 +6,15 @@ import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
 import { buildCalibrationMatrix, errorColor } from "./calibration_matrix.js";
 import { attachPanZoom } from "./pan_zoom.js";
 
+// A tall plan fits the window instead of filling the card. Only the box's size
+// changes: its shape stays the plan's, and a point is a fraction of the plan's
+// on-screen box, so where a point is, or lands, does not depend on this.
+// border: the box's own border in px (its content is what has the plan's shape).
+function _fitPlanToWindow(box, vbH, border) {
+  box.style.width = `min(100% - ${border * 2}px, max(100vh - 140px, 320px) * ${100 / vbH})`;
+  box.style.marginInline = "auto";
+}
+
 // PadSpan HA — BLE Fingerprint Calibration
 // Phone-based signal collection for precise indoor location modelling.
 //
@@ -1137,6 +1146,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   // overflow:hidden. Tying mapWrap's own box to the SAME aspect ratio the
   // SVG's own viewBox already uses gives it real height with no measurement.
   mapWrap.style.aspectRatio = `100 / ${vbH}`;
+  _fitPlanToWindow(mapWrap, vbH, 2);
 
   // Existing calibration points as dots
   let dotsSvg = mapPts.map(p => {
@@ -1615,6 +1625,7 @@ function _roam(ctx, el, cs, calData) {
   // propagates up through position:absolute, so mapWrap needs its own
   // aspect-ratio tie or it collapses to ~0px under overflow:hidden.
   mapWrap.style.aspectRatio = `100 / ${vbH}`;
+  _fitPlanToWindow(mapWrap, vbH, 2);
   mapInner.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}"
       preserveAspectRatio="none" style="width:100%;display:block">
     <image href="${imgUrl}" x="0" y="0" width="100" height="${vbH}" preserveAspectRatio="none"/>
@@ -1969,6 +1980,7 @@ function _modelTab(ctx, el, cs, calData) {
         const confSvg = _confusionLinksSvg(mapLoo?.room_confusion, mapData, vbH);
 
         const miniDiv = el("div", { style: "border-radius:6px;overflow:hidden;border:1px solid #1b3526;margin-bottom:6px" });
+        _fitPlanToWindow(miniDiv, vbH, 1);
         miniDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}" preserveAspectRatio="none" style="width:100%;display:block">
           <image href="${imgUrl}" x="0" y="0" width="100" height="${vbH}" preserveAspectRatio="none"/>
           ${gSvg}${confSvg}${dotsSvg}

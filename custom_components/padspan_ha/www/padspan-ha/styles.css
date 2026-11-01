@@ -107,6 +107,8 @@ textarea.mono{color:var(--text)}
 
 .marker{position:absolute;transform:translate(-50%,-50%);min-width:28px;height:28px;padding:0 4px;border-radius:999px;border:2px solid #52b788;background:#0d1f12;color:#dce7ff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;letter-spacing:.03em;cursor:grab;user-select:none;white-space:nowrap}
 .marker:active{cursor:grabbing}
+/* A name on a map stage (maps.js _stageLabelStyle): the stage's box, a fixed size. */
+.maplabel{position:absolute;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;border:1px solid #52b788;border-radius:6px;background:rgba(7,16,8,.78);color:#e2e8f0;font-size:11.5px;line-height:1.35;font-weight:600;pointer-events:none;user-select:none}
 
 /* Sidebar scroll polish */
 .left::-webkit-scrollbar{width:10px}

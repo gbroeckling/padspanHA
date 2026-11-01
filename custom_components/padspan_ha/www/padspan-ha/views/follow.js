@@ -95,7 +95,8 @@ export function render(ctx) {
         ? "Track exactly where a person or object is right now."
         : "Track a tag's real-time location. Position updates every ~5 s in Live mode."),
     ]),
-    dataMode !== "live"
+    !ctx.state._dataModeKnown ? null
+      : dataMode !== "live"
       ? el("span", { class: "badge warn" }, "Sample mode — switch to Live for real data")
       : el("span", { class: "badge" }, "Live · auto-refresh 5 s"),
   ]);

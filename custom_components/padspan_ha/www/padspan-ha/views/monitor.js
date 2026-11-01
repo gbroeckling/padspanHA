@@ -259,7 +259,7 @@ export function render(ctx){
   grid.appendChild(el("div",{class:"card"},[
     el("div",{style:"font-weight:700;margin-bottom:8px"},"Session Info"),
     el("div",{style:"display:flex;flex-direction:column;gap:4px;font-size:12px"},[
-      el("div",{}, [el("span",{class:"muted"},"Data mode: "), el("span",{style:"font-weight:600"}, ctx.state.dataMode.toUpperCase())]),
+      el("div",{}, [el("span",{class:"muted"},"Data mode: "), el("span",{style:"font-weight:600"}, ctx.state._dataModeKnown ? ctx.state.dataMode.toUpperCase() : "…")]),
       el("div",{}, [el("span",{class:"muted"},"Panel uptime: "), el("span",{style:"font-weight:600"}, `${uptimeMin}m ${uptimeSec}s`)]),
       el("div",{}, [el("span",{class:"muted"},"Events logged: "), el("span",{style:"font-weight:600"}, String((ctx.state._sessionEvents||[]).length))]),
     ]),

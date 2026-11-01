@@ -1715,7 +1715,11 @@ class PadSpanHaApp extends HTMLElement {
           // Skip for non-live views (calibration, maps, etc.) — they don't poll-render,
           // so _lastGoodRender goes stale naturally. Forcing a render mid-drag breaks things.
           const _liveSet = new Set(["overview","follow","monitor"]);
-          const _isLiveView = _liveSet.has(this.state?.view);
+          // Sample mode has no poll that stamps a render, so the time since one
+          // says nothing there: a forced render would only close what is open.
+          // One that failed still gets the recovery below.
+          const _noPollToWatch = !!this.state?._dataModeKnown && this.state?.dataMode !== "live" && !this._renderFailCount;
+          const _isLiveView = _liveSet.has(this.state?.view) && !_noPollToWatch;
           const sinceGoodRender = this._lastGoodRender ? performance.now() - this._lastGoodRender : 0;
           // Follow/Monitor re-render from the poll every 20 s (_SLOW_INTERVAL),
           // through its focus guard. The watchdog stays above that, so it only
@@ -2115,23 +2119,36 @@ class PadSpanHaApp extends HTMLElement {
   /** The sample house, loaded the first time Sample mode needs it (never in Live mode). null if it could not load. */
   _ensureSampleHouse(){
     if (this._sampleHouse) return Promise.resolve(this._sampleHouse);
-    if (this._sampleHouseFailed) return Promise.resolve(null);
+    // Failed a moment ago: not asked again yet (every read comes through here).
+    if (Date.now() < (this._sampleHouseRetryAt || 0)) return Promise.resolve(null);
     if (!this._sampleHouseP) {
-      this._sampleHouseP = import(`./sample_house.js?b=${BUILD_ID}`)
+      // A browser remembers a module that failed to load as failed, so another
+      // try has to ask for it under a new address.
+      const fails = this._sampleHouseFails || 0;
+      this._sampleHouseP = import(`./sample_house.js?b=${BUILD_ID}${fails ? "&retry=" + fails : ""}`)
         .then(m => {
           if (this._sampleGateOn() && !this._sampleHouse) {
             this._sampleHouse = m.createSampleHouse();
+            this._houseGen = (this._houseGen || 0) + 1;
             // The settings already read are the real house's: its Vacation
             // Mode, flood latches and so on are not the sample house's.
             if (this.state.settings) { this._realSettings = this.state.settings; this.state.settings = this._sampleHouse.settingsFor(this.state.settings); }
             this._syncSampleHass();
+            // It loaded on a later try: what is on screen came without it.
+            if (this._sampleHouseMissed) {
+              this._sampleHouseMissed = false;
+              this._dropHouseCaches();
+              this._refreshAll(false).finally(() => this._scheduleRender());
+            }
           }
           return this._sampleHouse;
         })
         .catch(err => {
-          // Sample mode then shows the small demo house (sample_data.js) as before.
+          // Sample mode shows the small demo house (sample_data.js) until a later try loads it.
           console.warn("PadSpan: the sample house failed to load", err);
-          this._sampleHouseFailed = true;
+          this._sampleHouseFails = fails + 1;
+          this._sampleHouseMissed = true;
+          this._sampleHouseRetryAt = Date.now() + 10000;
           return null;
         })
         .finally(() => { this._sampleHouseP = null; });
@@ -2152,9 +2169,37 @@ class PadSpanHaApp extends HTMLElement {
     return err;
   }
 
-  /** Every message sent while Sample mode is on (_sampleKind). */
+  /** No settings answer yet, so nobody knows which house this screen is on
+   *  ("sample" in state.dataMode is only the default until then). */
+  _modeUnknown(){
+    return !this.state._dataModeKnown && !(this._realHass && this._realHass.padspan_demo === true);
+  }
+
+  /** Resolves when the mode is known (the watchdog's _retryDataMode keeps
+   *  asking); a change kept waiting too long is refused, not sent blind. */
+  _modeAnswered(){
+    const t0 = Date.now();
+    return new Promise((resolve, reject) => {
+      const tick = () => {
+        if (!this._modeUnknown()) resolve();
+        else if (Date.now() - t0 > 20000) reject(new Error("Home Assistant hasn't answered yet, so nothing was changed. Try again in a moment."));
+        else setTimeout(tick, 200);
+      };
+      tick();
+    });
+  }
+
+  /** Every message sent while Sample mode is on (_sampleKind), or while the
+   *  mode is unknown: reads as ever, but a change waits to hear which house
+   *  this is, and then goes where that house sends it. */
   async _sampleCall(payload){
     const real = this._realHass;
+    if (this._modeUnknown()) {
+      const unknownKind = _sampleKind(payload);
+      if (unknownKind === "read" || unknownKind === "pass") return real.callWS(payload);
+      await this._modeAnswered();
+      return this._sampleCall(payload);
+    }
     // Switched back to Live while a view still held the sample hass.
     if (!this._sampleGateOn()) return real.callWS(payload);
     const kind = _sampleKind(payload);
@@ -2177,28 +2222,31 @@ class PadSpanHaApp extends HTMLElement {
 
   /** What the views talk to: real, or in Sample mode the sample house in
    *  front of it. The same object until either changes, and one connection
-   *  object for the whole Sample session (set hass's reconnect test). */
+   *  object for the whole Sample session (set hass's reconnect test). While
+   *  the mode is unknown the same copy holds changes back (_sampleCall). */
   _viewHass(real){
-    if (!real || !this._sampleGateOn()) return real;
+    if (!real || !(this._sampleGateOn() || this._modeUnknown())) return real;
     const house = this._sampleHouse;
     const w0 = this._sampleWrap;
     if (w0 && w0._real === real && w0._house === house) return w0;
     const self = this;
+    // Nothing is pushed from a sample house; with the mode unknown it may be the real one.
+    const push = (how) => async (...a) => self._modeUnknown() ? self._realHass.connection[how](...a) : () => {};
     const conn = this._sampleConn || (this._sampleConn = {
       connected: true, addEventListener(){}, removeEventListener(){},
       sendMessagePromise: (m) => self._sampleCall(m),
-      // Nothing is pushed from a sample house.
-      subscribeMessage: async () => () => {}, subscribeEvents: async () => () => {},
+      subscribeMessage: push("subscribeMessage"), subscribeEvents: push("subscribeEvents"),
     });
+    const held = (fn) => (...a) => self._modeUnknown() ? self._modeAnswered().then(() => fn(...a)) : fn(...a);
     const w = Object.assign({}, real, {
       callWS: (m) => self._sampleCall(m),
       sendWS: (m) => { self._sampleCall(m).catch(() => {}); },
       // Refused only while Sample mode is on: a view still holding this copy
       // after the switch back to Live is talking to the real house again.
-      callService: (...a) => self._sampleGateOn() ? Promise.reject(self._sampleBlocked()) : self._realHass.callService(...a),
+      callService: held((...a) => self._sampleGateOn() ? Promise.reject(self._sampleBlocked()) : self._realHass.callService(...a)),
       // A history read gets nothing; anything else is a change.
-      callApi: (method, ...a) => !self._sampleGateOn() ? self._realHass.callApi(method, ...a)
-        : String(method).toUpperCase() === "GET" ? Promise.resolve([]) : Promise.reject(self._sampleBlocked()),
+      callApi: held((method, ...a) => !self._sampleGateOn() ? self._realHass.callApi(method, ...a)
+        : String(method).toUpperCase() === "GET" ? Promise.resolve([]) : Promise.reject(self._sampleBlocked())),
       connection: conn,
       padspan_sample: true,
     });
@@ -2228,6 +2276,7 @@ class PadSpanHaApp extends HTMLElement {
     const on = this._sampleGateOn();
     if (on !== !!this._sampleOn) {
       this._sampleOn = on;
+      this._houseGen = (this._houseGen || 0) + 1;
       this._dropHouseCaches();
       if (!on) {
         this._sampleHouse = null; this._sampleWrap = null;
@@ -2284,6 +2333,7 @@ class PadSpanHaApp extends HTMLElement {
    * its own follows another screen's "Back to my house" (_applyDataMode).
    */
   _sampleSettingsTick(){
+    if (this._sampleGateOn() && !this._sampleHouse) this._ensureSampleHouse();
     if (this.state.dataMode === "live" || !this.state._dataModeKnown || this._sampleTickBusy) return;
     if (Date.now() - (this._settingsPollTs || 0) < 30000) return;
     this._settingsPollTs = Date.now();
@@ -2966,8 +3016,12 @@ class PadSpanHaApp extends HTMLElement {
     // The floor plan is invisible without this list, so unlike other fetches
     // a failure here gets one retry, and a failed/malformed response never
     // clobbers a previously-good list (blank-map prevention).
+    // Which house it is for: _houseGen, not this._hass (a new one on every
+    // state change). An answer about the other house is dropped and asked again.
+    const gen = this._houseGen;
     try {
       const res = await this._callWS({ type: "padspan_ha/maps_list" });
+      if(gen !== this._houseGen) return this._getMapsList(retry);
       if(Array.isArray(res?.maps)){
         _mapImageUrls = res.image_urls || {};
         this._mapUrlsAt = Date.now();
@@ -2989,8 +3043,10 @@ class PadSpanHaApp extends HTMLElement {
 
 
   async _getModel(){
+    const gen = this._houseGen;  // as in _getMapsList
     try {
       const res = await this._callWS({ type: "padspan_ha/model_get" });
+      if(gen !== this._houseGen) return this._getModel();
       // Copy EVERYTHING the backend sends. This used to be a hand-written
       // whitelist, and it dropped keys three separate times in one session —
       // origin forwarding, the migration marker, then light_positions_m and
@@ -3009,6 +3065,7 @@ class PadSpanHaApp extends HTMLElement {
       this.state.model = { ...defaults, ...(res && typeof res === "object" ? res : {}) };
       this.state._modelLoaded = true;
     } catch (e) {
+      if(gen !== this._houseGen) return this._getModel();
       // non-fatal
       console.warn("model_get failed", e);
     }

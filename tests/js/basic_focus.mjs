@@ -208,6 +208,7 @@ async function editFocus(partKey, extra, setup) {
   check("edit: no Mapping tabs, map or floor switch, Trim, Rotate, Signal walls, Enclose, Suggest Placement or All rooms",
     tabsOf(root).length === 0 && !/Map:|Floor:|Trim Image|Rotate Image|Signal walls|Enclose|Suggest Placement/.test(body)
     && !attr(root, "data-all-rooms") && focusedOnly(root, "rooms"), body.slice(0, 400));
+  check("edit: no layout printed as text under the one tool", !/Room bounds:|Receivers:/.test(body), body.slice(-300));
   check("edit: the bar says which room and goes back to Rooms", /Outline: Kitchen/.test(text(attr(root, "data-focus-bar"))) && !!attr(root, "data-focus-back", "rooms"), null);
   click(attr(root, "data-focus-back", "rooms"));
   check("edit: ← Back returns to the Rooms page, still Basic", ctx.state.view === "rooms" && !ctx.state._focus && ctx.state.complexity === "basic" && noSwitch(calls), ctx.state.view);

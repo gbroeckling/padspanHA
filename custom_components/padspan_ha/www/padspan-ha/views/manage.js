@@ -2109,7 +2109,7 @@ function _buildNotifications(ctx, el){
         "3. Configure it with your email/credentials\n" +
         "4. Restart HA, then click Refresh Services above"
       ),
-      el("div",{style:"font-size:10px;color:#64748b;margin-top:8px;font-family:monospace;word-break:break-all"}, "Debug: " + _dbg + " | UI: v" + (ctx.state.version||"?") + " | Backend: v" + (ctx.state.versionInfo?.version||"?") + " | Mode: " + (ctx.state.dataMode||"?")),
+      el("div",{style:"font-size:10px;color:#64748b;margin-top:8px;font-family:monospace;word-break:break-all"}, "Debug: " + _dbg + " | UI: v" + (ctx.state.version||"?") + " | Backend: v" + (ctx.state.versionInfo?.version||"?") + " | Mode: " + (ctx.state._dataModeKnown ? ctx.state.dataMode : "?")),
     ]));
   } else {
     editCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"},[
