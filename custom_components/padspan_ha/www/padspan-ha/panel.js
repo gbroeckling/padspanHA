@@ -353,6 +353,9 @@ const MENU = [
   ["installbase","Install Base","mdi:chart-box-outline"],
 ];
 
+// Screens reached by a link, never listed in MENU: what the phone's top bar calls them.
+const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "Events", debug: "Debug", diagnostics: "Diagnostics" };
+
 // ── Complexity Mode Tab Sets ─────────────────────────────────────────────────
 // Modes no longer hide screens (2026-10-30): every screen is in the menu in
 // every mode. These sets only decide which screens sit in the main groups;
@@ -3531,7 +3534,7 @@ class PadSpanHaApp extends HTMLElement {
     const mobileTitle = this.shadowRoot.querySelector("#mobileTitle");
     if (mobileTitle) {
       const mi = MENU.find(x => x[0] === this.state.view);
-      mobileTitle.textContent = mi ? mi[1] : this.state.view === "setup" ? "Setup" : this.state.view;
+      mobileTitle.textContent = mi ? mi[1] : this.state.view === "setup" ? "Setup" : UNLISTED_VIEW_TITLES[this.state.view] || "PadSpan";
     }
     this._paintDataModeLabel();
     const mobileModePill = this.shadowRoot.querySelector("#mobileModePill");

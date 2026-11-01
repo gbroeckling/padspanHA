@@ -492,7 +492,7 @@ export function render(ctx){
     entCard.appendChild(entSearch);
     entCard.appendChild(entList);
   } else {
-    entCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No HA entities found in snapshot. Switch to Live mode to see real entities."));
+    entCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},ctx.state.dataMode === "sample" ? "No HA entities found in snapshot. Switch to Live mode to see real entities." : "No HA entities found in snapshot."));
   }
   root.appendChild(entCard);
 
@@ -1042,7 +1042,9 @@ function _haEntityAudit(ctx, el){
     body.innerHTML = "";
     if(!res || !res.entities || !res.entities.length){
       body.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px 0"},
-        "No PadSpan entities found. Name a BLE device in Devices → By Room and switch to Live mode."
+        ctx.state.dataMode === "sample"
+          ? "No PadSpan entities found. Name a BLE device in Devices → By Room and switch to Live mode."
+          : "No PadSpan entities found. Name a BLE device in Devices → By Room."
       ));
       return;
     }
@@ -2065,13 +2067,12 @@ function _buildNotifications(ctx, el){
   if(!ctx.state._notifyServices) ctx.state._notifyServices = [];
   ctx.actions.wsCall("padspan_ha/notify_services_list", {}).then(r => {
     ctx.state._notifyServices = (r && r.services) || [];
-    ctx.state._notifySvcDebug = r ? JSON.stringify(r) : "null response";
     // Re-render if list changed (new service added, or still empty on first load)
     if(JSON.stringify(ctx.state._notifyServices) !== _prevServices){
       ctx.actions.renderRooms();
     }
   }).catch(e => {
-    ctx.state._notifySvcDebug = "WS error: " + (e?.message || String(e));
+    console.warn("PadSpan: notify services list failed", e);
   });
 
   const editCard = el("div",{class:"card"});
@@ -2094,7 +2095,6 @@ function _buildNotifications(ctx, el){
     ctx.actions.renderRooms();
   });
   if(_svcList.length === 0){
-    const _dbg = ctx.state._notifySvcDebug || "loading…";
     editCard.appendChild(el("div",{style:"background:#1a0a0a;border:1px solid #7f1d1d;border-radius:8px;padding:12px 14px;margin-bottom:12px"},[
       el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:4px"},[
         el("div",{style:"font-weight:700;font-size:13px;color:#fca5a5"},"No notification services found"),
@@ -2109,7 +2109,6 @@ function _buildNotifications(ctx, el){
         "3. Configure it with your email/credentials\n" +
         "4. Restart HA, then click Refresh Services above"
       ),
-      el("div",{style:"font-size:10px;color:#64748b;margin-top:8px;font-family:monospace;word-break:break-all"}, "Debug: " + _dbg + " | UI: v" + (ctx.state.version||"?") + " | Backend: v" + (ctx.state.versionInfo?.version||"?") + " | Mode: " + (ctx.state.dataMode||"?")),
     ]));
   } else {
     editCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"},[

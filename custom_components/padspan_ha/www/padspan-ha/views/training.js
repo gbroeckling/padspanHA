@@ -752,7 +752,7 @@ function _svgPrivateBle() {
 <rect x="220" y="30" width="160" height="120" rx="8" fill="#0a150e" stroke="#60a5fa" stroke-width="2"/>
 <text x="300" y="50" text-anchor="middle" fill="#60a5fa" font-size="10" font-weight="600" font-family="system-ui">With IRK</text>
 <rect x="250" y="60" width="100" height="24" rx="6" fill="#1a2744" stroke="#60a5fa" stroke-width="1"/>
-<text x="300" y="76" text-anchor="middle" fill="#60a5fa" font-size="10" font-family="system-ui">Garry's iPhone</text>
+<text x="300" y="76" text-anchor="middle" fill="#60a5fa" font-size="10" font-family="system-ui">Alice's iPhone</text>
 <text x="300" y="100" text-anchor="middle" fill="#4ade80" font-size="9" font-family="system-ui">1 stable identity</text>
 <text x="300" y="130" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">Blue badge in all views</text>
 <text x="200" y="175" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Settings → Tracking → Phone Tracking (Private BLE)</text>

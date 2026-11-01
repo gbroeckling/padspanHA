@@ -326,7 +326,7 @@ function _zones(ctx, el){
   const floorRooms = {};
   let hasFloors = false;
   if(floors.length > 0 && areas.length > 0){
-    for(const f of floors) floorRooms[f.floor_id] = { name: f.name || f.floor_id, rooms: [] };
+    for(const f of floors) floorRooms[f.id] = { name: f.name || f.id, rooms: [] };
     floorRooms["_none"] = { name: "Unassigned", rooms: [] };
     for(const a of areas){
       const fid = a.floor_id || "_none";
