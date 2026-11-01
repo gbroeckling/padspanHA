@@ -80,7 +80,12 @@ def test_the_purge_uses_it_and_both_saves_mark_their_points() -> None:
     src = _CAL.read_text(encoding="utf-8")
     purge = src[src.index("const _purgeOldPoints = async"):][:900]
     assert "_beaconTunePurgeIds(" in purge and "calibrationDeletePoint(id)" in purge
-    assert len(re.findall(r'source: "beacon_tune",', src)) == 2
+    # Beacon Tune's own save only: Calibration Guide points stay when a beacon moves.
+    assert len(re.findall(r'source: "beacon_tune",', src)) == 1
+    assert 'label: bkLabel,
+          scanner_readings: scannerReadings,' in src.replace("
+", "
+")
     assert "points you collected by carrying it" in src.lower()
 
 

@@ -2104,6 +2104,7 @@ function _renderWalkthroughs(ctx, el, ts) {
     // ── Walkthrough selector grid ────────────────────────────────────────────
     wrap.appendChild(el("div", { class: "muted", style: "font-size:13px;margin-bottom:14px" },
       "Choose a topic to get started. Each walkthrough is step-by-step with animated diagrams."));
+    _helpNote(ctx, el, wrap);
     const grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px" });
     for (const wt of WALKTHROUGHS) {
       const card = el("div", {
@@ -2286,7 +2287,7 @@ const QUICKSTART_SECTIONS = [
 // A translated help is read here inside English section names and intros:
 // the same note the help modal opens with, once at the top. English: nothing.
 function _helpNote(ctx, el, wrap) {
-  const note = ctx.helpers.helpNote ? ctx.helpers.helpNote() : "";
+  const note = [ctx.helpers.helpNote, ctx.helpers.trainingNote].map(f => (f ? f() : "")).filter(Boolean).join(" ");
   if (note) wrap.appendChild(el("div", { style: "font-size:13px;margin-bottom:12px;color:#94a3b8;font-style:italic;line-height:1.6" }, note));
 }
 

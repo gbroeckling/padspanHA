@@ -6710,7 +6710,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           room: room,
           device_id: deviceId,
           label: bkLabel,
-          source: "beacon_tune",
           scanner_readings: scannerReadings,
           weight: weight,
         });
