@@ -198,7 +198,7 @@ export async function startDemo(page){
       case "config/device_registry/list": return [];
       case "config/area_registry/list": return model.areas.map(a => ({ area_id: a.id, name: a.name, floor_id: a.floor_id }));
       case "config/floor_registry/list": return model.floors.map(f => ({ floor_id: f.id, name: f.name, level: f.level }));
-      default: { const r = finished && finished.route(m); return r === undefined ? {} : r; }
+      default: { const r = finished ? finished.route(m) : undefined; return r === undefined ? {} : r; }
     }
   };
 
