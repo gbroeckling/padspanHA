@@ -12,7 +12,7 @@ _CSS = (_WWW / "styles.css").read_text(encoding="utf-8").replace("\r\n", "\n")
 
 
 def test_a_row_does_not_capture_a_pointer_meant_for_its_own_controls():
-    guard = _JS.index('if (ev.target.closest && ev.target.closest("button,select,input,a,label")) return;')
+    guard = _JS.index('if (ev.target?.closest?.("button,select,input,a,label")) return;')
     capture = _JS.index("row.setPointerCapture(ev.pointerId)")
     assert guard < capture and capture - guard < 200
 

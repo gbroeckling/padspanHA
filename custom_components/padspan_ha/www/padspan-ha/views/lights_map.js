@@ -5475,7 +5475,7 @@ export function buildLightsTable(hostIn, lights){
         row._lpFired = false;
         // The row's own controls keep their clicks: with the pointer captured,
         // a mouse click lands on the row, which switches the light.
-        if (ev.target.closest && ev.target.closest("button,select,input,a,label")) return;
+        if (ev.target?.closest?.("button,select,input,a,label")) return;
         try { row.setPointerCapture(ev.pointerId); capturedId = ev.pointerId; } catch (_) {}
         if (codeSwatchSvg) ringT = setTimeout(() => { ring = pressRing(codeSwatchSvg, 7.5, 7.5, 5.6); }, PRESS_RING_MS);
         lpTimer = setTimeout(() => {
