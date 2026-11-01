@@ -2,9 +2,9 @@
 
 ### See which room every phone, watch and tag is in, live, on a plan of your home
 
-[![PadSpan HA — room-level Bluetooth presence on a 3D multi-floor plan](./images/demo-montage.gif)](https://padspan.traks.ca/demo/)
+[![PadSpan on a sample house: the whole house in 3D, lit rooms after dark with a guest's tag, tapping lights on the Atlas, then a new install's free Who's where now screen](./images/padspan-tour.webp)](https://padspan.traks.ca/demo/)
 
-PadSpan is a Home Assistant integration for Bluetooth room presence. It listens to the Bluetooth proxies you already have, works out which room each phone, watch, tag and beacon is in, every 5 seconds, and shows it on a plan of your home: one floor at a time or all floors stacked. Your automations get room, distance and home/away sensors. Everything runs locally.
+PadSpan is a Home Assistant integration for Bluetooth room presence. It listens to the Bluetooth proxies you already have, works out which room each phone, watch, tag and beacon is in, every 5 seconds, and shows it on a plan of your home: one floor at a time or all floors stacked. Your automations get room, distance and home/away sensors. The tracking runs locally.
 
 ▶️ **Try it in your browser: [padspan.traks.ca/demo](https://padspan.traks.ca/demo/)**, the real panel on a sample house. Nothing to install.
 
@@ -12,13 +12,13 @@ PadSpan is a Home Assistant integration for Bluetooth room presence. It listens 
 
 **What you need:** Home Assistant 2024.1 or newer and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set as a Bluetooth scanner ([one setting](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/)), your Home Assistant machine's own Bluetooth, or an ESPresense node. One tells you home or away; one in each room you want told apart gives you rooms. [How many proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) Already running Bermuda? Keep it: [PadSpan runs next to it](https://padspan.traks.ca/guides/bermuda/).
 
-**Free and open source (GPL-3.0).** An optional PadSpan Pro key adds the 3D house (Live Aboard) and a few extra tools ([Editions](#editions)).
+**Free and open source (GPL-3.0).** PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, plus Live Aboard (your house in 3D, like looking into a house in The Sims) and Furnish. **Try all of Pro free for 90 days, no card.** The anonymous usage report stays on during the trial ([how it works](./docs/PADSPAN_PRO.md#try-it-free-for-90-days)).
 
-🎁 **PadSpan Pro free:** testers get two years of Pro while the anonymous usage report stays on ([how](#become-a-tester-separate-from-the-usage-report)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
+🎁 **PadSpan Pro free:** testers get two years of Pro while the anonymous usage report stays on ([how](./docs/PADSPAN_PRO.md#get-pro-free-by-testing-it)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
 
-🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)** · 📖 **Guides:** [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Your Shellys can be Bluetooth proxies](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/) · [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/) · [Every floor of a big house on one wall](https://padspan.traks.ca/guides/large-homes/) · [Which touch screen for a PadSpan wall?](https://padspan.traks.ca/guides/wall-screens/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/) · 🎬 **Making a video or article?** [The creators kit](https://padspan.traks.ca/creators/)
+🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)** · 📖 **Guides:** [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) · [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Your Shellys can be Bluetooth proxies](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/) · [Which floor plan for Home Assistant?](https://padspan.traks.ca/guides/floor-plans/) · [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/) · [Every floor of a big house on one wall](https://padspan.traks.ca/guides/large-homes/) · [Which touch screen for a PadSpan wall?](https://padspan.traks.ca/guides/wall-screens/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/) · 🎬 **Making a video or article?** [The creators kit](https://padspan.traks.ca/creators/)
 
-<sub>The GIF is a 20-second tour. The same shots at full size are in the table below, and the full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
+<sub>The tour is the real panel on the demo's sample house, at real speed, with captions added. The full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
 
 ---
 
@@ -117,7 +117,7 @@ Tracking phones is the hardest problem in BLE presence — they rotate their Blu
 | **SmartTag** (Samsung) | Probabilistic | Same as AirTag — no stable identifier in the air, relies on MAC Rotation Bridging |
 | **AirPods** | Apple auto-classification | Detected and labeled automatically when feature enabled (display only — does not solve identity) |
 
-The **Phone Setup Wizard** (experimental) guides you through each path with step-by-step instructions. If you have an irk-capture ESP32 on your network, PadSpan auto-detects captured IRKs — no manual hex pasting.
+The **Phone Setup Wizard** (experimental) shows the three ways in for a phone. A key captured with irk-capture is pasted in by hand; [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) walks through it.
 
 For devices where you can't get an IRK, the experimental **MAC Rotation Bridging** feature matches advertisement patterns across address rotations to maintain tracking continuity.
 
@@ -157,7 +157,7 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 ### UI & Experience
 - **Live Tracker mode** — immersive full-screen 3D dashboard with pan/zoom, floating glass overlays, and collapsible info panels
 - **22 dedicated views** with Basic and Advanced modes
-- **5-step onboarding wizard** with auto-detection and progress tracking
+- **Guided setup** with progress tracking
 - Dark forest-green theme designed for always-on displays
 - Built-in **Training Hub** with 16 animated walkthroughs + full manual
 - **Sample mode** — fully functional demo with synthetic data, no hardware needed
@@ -165,7 +165,7 @@ See the [Atlas Guide](./docs/ATLAS_GUIDE.md) for a full walkthrough, and the [Li
 - **NVR-style movement playback** — replay tracked device movement on the 3D map
 
 ### Experimental Features (Settings → Features)
-- **Phone Setup Wizard** — guided flow for tracking phones and watches. Auto-detects [irk-capture](https://github.com/DerekSeaman/irk-capture) ESP32 devices on your network and walks through IRK extraction step by step. Also shows the easy Android path (HA Companion App iBeacon) and Apple IRK options. Credit to [Derek Seaman](https://github.com/DerekSeaman) for the excellent irk-capture tool that makes IRK extraction practical for everyone.
+- **Phone Setup Wizard** — guided flow for tracking phones and watches. Points to [irk-capture](https://github.com/DerekSeaman/irk-capture) for IRK extraction. Also shows the easy Android path (HA Companion App iBeacon) and Apple IRK options. Credit to [Derek Seaman](https://github.com/DerekSeaman) for the excellent irk-capture tool that makes IRK extraction practical for everyone.
 - **MAC Rotation Bridging** — when a phone's Bluetooth address rotates (every ~15 min), PadSpan matches advertisement characteristics (company ID, services, signal pattern) to tentatively link old and new addresses. Bridges the tracking gap without requiring an IRK. Probabilistic — may occasionally link wrong devices.
 - **Apple Device Classification** — shows what sent an Apple Find My signal (AirTag, another brand's Find My tag, AirPods, or an Apple device such as an iPhone, iPad or Mac) instead of just "Find My", in Devices, Bluetooth → Advertisements and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says which. Display-only — does not affect tracking or identity.
 - **Radio Map** — RSSI heatmap overlay using inverse distance weighting
@@ -207,14 +207,14 @@ Already running Bermuda? Keep it: PadSpan runs next to it on the same proxies an
 
 ## Editions
 
-Everything on this page is **PadSpan HA** — free, GPL v3, no key required.
+The presence tracking on this page is **PadSpan HA**: free, GPL v3, no key required.
 A licence key unlocks the rest on the *same install*: nothing to reinstall,
 nothing to reconfigure.
 
 | Edition | Key | What it is |
 |---------|:---:|------------|
-| **PadSpan HA** | none | Everything above, free forever. |
-| **PadSpan Pro** | `pro` | Every gated feature in PadSpan HA — Atlas device placement (shape, size, angle, WLED, Automorph, Showcase), Forensics, Busy Times, Locate, and anything gated later. |
+| **PadSpan HA** | none | Room presence, plans, calibration, movement history and the sensors for your automations. Free forever. |
+| **PadSpan Pro** | `pro` | Every gated feature in PadSpan HA — Atlas device placement (shape, size, angle, WLED, Automorph, Showcase), Live Aboard (the 3D house, experimental) with Furnish, wall mode, Whole House Presets and Vacation Mode, Forensics, Busy Times, Locate, and anything gated later. |
 | [**PadSpan Bright**](https://github.com/gbroeckling/padspanBright) | none | A separate, lighter HACS listing generated from this same source — just the Atlas device map, for anyone who wants light control without the BLE presence tracking. |
 | **PadSpan Bright Pro** | `bright` | Bright's full Atlas toolset (placement, shapes, WLED, Automorph, Showcase), priced separately from PadSpan Pro. |
 
@@ -266,11 +266,10 @@ Setting up HACS for the first time? A GitHub change can make HACS's sign-in step
 
 1. Install from the Marketplace (or with HACS, then restart HA)
 2. Add the PadSpan HA integration
-3. Open the **PadSpan HA** panel in the sidebar
-4. The **onboarding wizard** guides you through 5 steps: upload a map, set scale, draw rooms, place scanners, calibrate
-5. Try **Sample mode** (top-right toggle) to explore every feature with demo data
-6. Switch to **Live mode** when ready — your BLE scanners are auto-discovered
-7. Tag your devices, upload a floor plan, and start tracking
+3. Open the **PadSpan HA** panel in the sidebar. **Who's where now** puts each device in the room of the scanner that hears it best, from each scanner's Home Assistant area. No floor plan needed
+4. Name your phones and tags: [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) shows how for iPhone, Apple Watch and Android
+5. **Preview a finished house** shows a sample house with every feature set up. **Back to my house** returns to yours
+6. Want the map? **Make it a map** walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, calibrate
 
 ---
 
