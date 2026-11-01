@@ -285,4 +285,4 @@ def test_the_training_manual_opens_with_the_note_only_when_translated() -> None:
     lines = [ln for ln in res.stdout.strip().splitlines() if ln.startswith("{")]
     assert lines, res.stderr[-3000:]
     out = json.loads(lines[-1])
-    assert not out["failures"] and len(out["cases"]) == 5, out["failures"]
+    assert not out["failures"] and len(out["cases"]) == 7, out["failures"]

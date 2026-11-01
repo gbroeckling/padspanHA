@@ -82,10 +82,7 @@ def test_the_purge_uses_it_and_both_saves_mark_their_points() -> None:
     assert "_beaconTunePurgeIds(" in purge and "calibrationDeletePoint(id)" in purge
     # Beacon Tune's own save only: Calibration Guide points stay when a beacon moves.
     assert len(re.findall(r'source: "beacon_tune",', src)) == 1
-    assert 'label: bkLabel,
-          scanner_readings: scannerReadings,' in src.replace("
-", "
-")
+    assert re.search(r"label: bkLabel,\s+scanner_readings: scannerReadings,", src)
     assert "points you collected by carrying it" in src.lower()
 
 
