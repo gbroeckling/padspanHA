@@ -157,7 +157,7 @@ export function render(ctx){
   });
 
   const sizeKb = Math.round(text.length / 1024);
-  root.appendChild(el("div",{class:"grid"},[
+  root.appendChild(el("div",{class:"grid grid-wide"},[
     el("div",{class:"card"},[
       el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
         el("div",{},[

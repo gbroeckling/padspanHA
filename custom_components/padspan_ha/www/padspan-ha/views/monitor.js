@@ -84,7 +84,7 @@ export function render(ctx){
   // DIAGNOSTICS TAB (default)
   // ═══════════════════════════════════════════════════════════════════════════
   const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── BLE Diag Errors (top-level warning) ──
   const bleDiag = snap && snap.ble && snap.ble.diag;
@@ -430,7 +430,7 @@ function _insights(ctx, el, _sid){
   const roomTagMap = ctx.state.roomTagMap || {};
   const maps = (ctx.state.maps && ctx.state.maps.list) || [];
 
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── Room Occupancy bar chart ──
   const roomCounts = {};
@@ -762,7 +762,7 @@ function _diagExport(ctx, el){
     selectAll(); ctx.toast("Copy blocked by browser. Press Ctrl/Cmd+C.", true);
   });
 
-  const wrap = el("div",{class:"grid"});
+  const wrap = el("div",{class:"grid grid-wide"});
   const diagCard = el("div",{class:"card"});
   diagCard.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
     el("div",{},[
