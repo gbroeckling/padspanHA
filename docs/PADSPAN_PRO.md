@@ -13,7 +13,7 @@ a trial, entering a key and signing up as a tester all need a Home Assistant adm
 The **Start 90-day free trial** button (on the licence card, and on the trial card PadSpan shows
 on Overview once it's working in your house) gives you the full Pro product for 90 days. No card,
 one trial per home, and your email is only used to send your key. The trial needs the
-**usage report** on (anonymous counts of what is used and what breaks; Settings → Presence shows
+**usage report** on (anonymous counts of what is used and what breaks; Settings → Tracking shows
 exactly what is sent): with it off, the trial card asks you to turn it on in the same step.
 **The usage report stays on for the whole trial and can't be turned off until the trial ends**
 (or until you enter a bought key).
@@ -37,7 +37,7 @@ One key covers up to five Home Assistants (a cabin, a parent's house, a test ins
 
 - **Homes 1 and 2** always count.
 - **With more than two homes**, every home on the key must keep its opt-in usage report on
-  (**Settings → Presence → Help improve PadSpan**), the first two included. A third home can join
+  (**Settings → Tracking → Help improve PadSpan**), the first two included. A third home can join
   only when every home, the new one too, has the report on.
 - If one of them turns the report off, the key drops back to its first two homes after 14 days:
   the first two keep Pro, and the others pick up again at their next check once the report is back
@@ -54,7 +54,7 @@ no longer use. If a home isn't counted, the licence card says why.
 
 ## Get Pro free by testing it
 
-**Become a tester** (on the licence card, or under **Settings → Presence → Help improve PadSpan**)
+**Become a tester** (on the licence card, or under **Settings → Tracking → Help improve PadSpan**)
 gives you two years of PadSpan Pro free. The anonymous usage report stays on for those two years:
 it can't be turned off while the key runs (the key needs it on when you enter it). You're
 asked for an email and can add what you'd like to test. Before anything is sent you can see exactly

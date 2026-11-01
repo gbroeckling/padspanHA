@@ -154,11 +154,13 @@ textarea.mono{color:var(--text)}
 /* Native checkboxes too: inverted, an empty white box is a solid black square
    that reads as ticked. */
 :host([data-invert]) input[type="checkbox"]{filter:invert(1) hue-rotate(180deg)}
+:host([data-invert]) input[type="checkbox"]{color-scheme:light}
 
 /* Day theme (day_theme.js): native controls (slider tracks, scrollbars,
    dropdown lists) drawn light too. */
 :host([data-theme="day"]){color-scheme:light}
 /* Everywhere else the date fields are dark and the native calendar icon black. */
+:host(:not([data-theme="day"])) input[type^="date"]{color-scheme:light}
 :host(:not([data-theme="day"])) ::-webkit-calendar-picker-indicator{filter:invert(1)}
 
 .marker.selected{
@@ -382,7 +384,7 @@ textarea.mono{color:var(--text)}
   color: #cbd5e1;
   font-weight: 700;
   position: sticky;
-  top: 0;
+  top: var(--sticky-top,0);
   background: var(--panel);
 }
 .badge {
@@ -647,7 +649,12 @@ textarea.mono{color:var(--text)}
 /* The sidebar is a drawer from 1100px down, so the bar with its menu button
    comes with it. The bottom nav stays phone-only: Home Assistant's own sidebar
    is still docked up here and the nav runs the full width of the window. */
+@media(min-width:901px) and (max-width:1100px){
+  .main{--sticky-top:61px}
+  .main [style*="overflow"],.main .list-scroll,.main .rooms,.main .tags,.main .lv-stage,.main .lv-sheet{--sticky-top:0px}
+}
 @media(max-width:1100px){
+  #toggleSide{display:none}
   .mobile-topbar{display:flex;margin:0 -16px 10px}
   .desktop-topbar{display:none !important}
   .sidebar-mobile-header{display:flex}
@@ -1134,7 +1141,7 @@ textarea.mono{color:var(--text)}
    the top of the scrolling map card, with an opaque backdrop matching
    lv-mapcard's own so the map/table scrolling underneath never shows
    through — a translucent sticky bar would look broken, not docked. */
-.lv-toolbar-sticky{position:sticky;top:0;z-index:20;
+.lv-toolbar-sticky{position:sticky;top:var(--sticky-top,0);z-index:20;
   background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
   box-shadow:0 6px 14px -6px rgba(0,0,0,.5)}
 /* Presets — Garry, 2026-09-10: "thousands of combinations in the mapping,

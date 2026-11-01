@@ -14,8 +14,8 @@ What PadSpan HA needs from the machine running Home Assistant and from the scree
 
 PadSpan keeps three things in memory that grow with every device it hears, not only the ones you track:
 
-- **The object history.** Every device it hears that is not a rotating phone address is kept for a day by default, so it shows in the device list (Settings → Presence → object history: 1, 2, 7 or 14 days). Tagged and identified devices are always kept. Since 0.38.106 it keeps at most 10,000 devices nobody has identified; past that, the ones heard longest ago go first.
-- **The Bluetooth cache.** The last reading from every scanner for every address, kept for the BLE Advertisement Timeout (Settings → Presence; 4 hours unless you change it).
+- **The object history.** Every device it hears that is not a rotating phone address is kept for a day by default, so it shows in the device list (Settings → Tracking → object history: 1, 2, 7 or 14 days). Tagged and identified devices are always kept. Since 0.38.106 it keeps at most 10,000 devices nobody has identified; past that, the ones heard longest ago go first.
+- **The Bluetooth cache.** The last reading from every scanner for every address, kept for the BLE Advertisement Timeout (Settings → Tracking; 4 hours unless you change it).
 - **The live snapshot.** Everything above, built into one list that is sent to every open PadSpan panel every 5 seconds.
 
 In a quiet house these hold a few hundred devices. Next to a busy street they can hold tens of thousands. One opted-in install reported over 80,000.
@@ -37,7 +37,7 @@ A 2 GB Raspberry Pi has an estimated 0.4 to 0.8 GB left for PadSpan once Home As
 
 ### Low-memory mode
 
-**Settings → Presence → Low-memory mode**, off by default, since 0.38.106. For a 2 GB machine: it caps how many passing devices PadSpan holds.
+**Settings → Tracking → Low-memory mode**, off by default, since 0.38.106. For a 2 GB machine: it caps how many passing devices PadSpan holds.
 
 | | Normally | With low-memory mode |
 |---|---|---|
@@ -68,4 +68,4 @@ At least one: a Home Assistant Bluetooth proxy (ESPHome), a Bermuda proxy, or ES
 
 ## How these numbers are gathered
 
-Only from installs that turned on **Settings → Presence → Help improve PadSpan**. Since 0.38.103 that report includes what PadSpan holds in memory, how fast new devices arrive, how often Home Assistant restarted or crashed, and how hard Home Assistant and each screen work while the Atlas or Live Aboard is showing. These are counts and buckets only. The full list of what is sent is in the [README](../README.md#help-improve-padspan-opt-in-usage-report).
+Only from installs that turned on **Settings → Tracking → Help improve PadSpan**. Since 0.38.103 that report includes what PadSpan holds in memory, how fast new devices arrive, how often Home Assistant restarted or crashed, and how hard Home Assistant and each screen work while the Atlas or Live Aboard is showing. These are counts and buckets only. The full list of what is sent is in the [README](../README.md#help-improve-padspan-opt-in-usage-report).

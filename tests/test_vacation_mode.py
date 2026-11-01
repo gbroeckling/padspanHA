@@ -874,6 +874,36 @@ def test_a_trip_from_before_the_choice_keeps_its_routine_when_turned_back_on(mon
     data["vacation_mode_pattern_source"] = "last_week"
     fields = vm.switch_fields(data, True, now)
     assert fields["vacation_mode_pattern_end"] == now - 20 * 86400
+    # Pressing a choice on a routine from before it (ws_settings) names the
+    # routine: Last week is then a change, Monthly average isn't.
+    data = _trip(now - 20 * 86400, now - 86400, {"light.a": {"*:1200": 1.0}}, vacation_mode_pattern_source="month")
+    assert vm.resume_relearns(data, "last_week") and not vm.resume_relearns(data, "month")
+    fields = vm.switch_fields({**data, "vacation_mode_source": "last_week"}, True, now)
+    assert fields["vacation_mode_pattern_end"] == now - 20 * 86400 and fields["vacation_mode_trip_source"] == "last_week"
+
+
+def test_the_settings_handler_names_a_pre_choice_routine_when_someone_chooses():
+    from pathlib import Path
+    base = Path(__file__).parents[1] / "custom_components" / "padspan_ha"
+    src = (base / "ws_settings.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert ('if st.data.get("vacation_mode_pattern") and st.data.get("vacation_mode_pattern_source") not in _VSRC:\n'
+            '                payload["vacation_mode_pattern_source"] = "month"') in src
+    panel = (base / "www" / "padspan-ha" / "views" / "lights_map.js").read_text(encoding="utf-8")
+    assert "=== v) return;" not in panel        # pressing the lit choice counts as choosing it
+
+
+async def test_the_preview_of_a_pre_choice_trip_says_the_routine_it_will_play(monkeypatch):
+    import custom_components.padspan_ha.vacation_mode as vm
+    built = AsyncMock(return_value={"light.b": {"*:1200": 1.0}})
+    monkeypatch.setattr(vm, "_async_preview_build", built)
+    now = datetime(2026, 1, 15, 12, 0, 0).timestamp()
+    data = _trip(now - 20 * 86400, now - 86400, {"light.a": {"*:1200": 1.0}})
+    del data["vacation_mode_pattern_source"]
+    st = _settings(**data)
+    hass = _hass(st, _states(**{"light.a": "off", "light.b": "off"}))
+    out = await vm.async_preview(hass)
+    built.assert_not_called()
+    assert out["source"] == "month" and out["routine"] == "resumed"
 
 
 def test_who_turned_it_off_is_read_from_the_connection():

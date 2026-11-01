@@ -1724,7 +1724,6 @@ function _vacOptionsBox(host) {
   const srcBtns = Object.entries(SRC).map(([v, t]) => {
     const b = el("button", { type: "button", "aria-pressed": String((o.source || "last_week") === v) }, t);
     b.addEventListener("click", async () => {
-      if ((o.source || "last_week") === v) return;
       const was = o.source || "last_week";
       const paint = (cur) => srcBtns.forEach((x, i) => x.setAttribute("aria-pressed", String(Object.keys(SRC)[i] === cur)));
       paint(v);

@@ -855,7 +855,7 @@ export function renderClassic(ctx){
     body.appendChild(controls);
     body.appendChild(table);
 
-    ctx.actions.openModal("All objects", body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
+    ctx.actions.openModal(initialFilter === "unidentified" ? "Unidentified" : (_quietMode ? "Tracked objects" : "All objects"), body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
 
     // After modal opens, do vendor lookups for visible BLE rows (limited concurrency).
     // With the lookup off every Bluetooth cell already says so and nothing is

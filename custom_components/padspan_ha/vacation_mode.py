@@ -676,6 +676,15 @@ def resumable(data: dict, now_ts: float) -> bool:
     return abs(until - start) < 1 or abs(served - start) < 1
 
 
+def resume_relearns(data: dict, source: str) -> bool:
+    """Turning a resumable trip back on with `source` learns it again: someone
+    chose against the source its routine was built from. A routine from before
+    the choice existed has none stored until someone presses a choice
+    (ws_settings); the settings alone only hold the new default."""
+    stored = data.get("vacation_mode_pattern_source")
+    return stored in SOURCES and source != stored
+
+
 def pattern_serves(data: dict) -> bool:
     """The stored pattern is this vacation's own: learned from history that
     ends at its start, or carried over from the trip it resumes."""
@@ -703,17 +712,15 @@ def switch_fields(data: dict, turn_on: bool, now_ts: float, who: dict | None = N
             # Vacation Mode's switching.
             out = {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern_for": now_ts,
                    "vacation_mode_trip_source": source, "vacation_mode_pattern_end": 0}
-            stored = data.get("vacation_mode_pattern_source")
-            if stored not in SOURCES:
-                # A routine from before the choice existed: nobody chose against
-                # it, the settings only hold the new default. It carries on as
-                # what it is, the monthly average.
-                out["vacation_mode_trip_source"] = ""
-            elif source != stored:
+            if resume_relearns(data, source):
                 # The source changed: the trip's routine is learned again from
                 # the same days before the trip (not the empty house since),
                 # and the old one runs until that is done or if it finds nothing.
                 out["vacation_mode_pattern_end"] = data.get("vacation_mode_pattern_until") or 0
+            elif data.get("vacation_mode_pattern_source") not in SOURCES:
+                # A routine from before the choice existed carries on as what
+                # it is, the monthly average.
+                out["vacation_mode_trip_source"] = ""
             return out
         # A new vacation gets a new pattern. The last one learned is kept
         # aside: the recorder may already have purged the days before this
@@ -1409,7 +1416,7 @@ async def async_preview(hass: HomeAssistant) -> dict:
     elif resumable(data, now_ts):
         routine, pattern = "resumed", data.get("vacation_mode_pattern")
         source = built_source(data.get("vacation_mode_pattern_source"))
-        if source != chosen and data.get("vacation_mode_pattern_until"):
+        if resume_relearns(data, chosen) and data.get("vacation_mode_pattern_until"):
             again = await _async_preview_build(hass, data, now_ts, chosen, data["vacation_mode_pattern_until"])
             if again:
                 pattern, source = again, chosen

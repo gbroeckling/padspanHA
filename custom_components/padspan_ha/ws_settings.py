@@ -1048,6 +1048,11 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 connection.send_error(msg["id"], "invalid_format", "Choose last_week or month")
                 return
             payload["vacation_mode_source"] = msg["vacation_mode_source"]
+            # Someone chose. A routine from before the choice existed gets its
+            # name (the monthly average), so a different choice is learned at
+            # the next turn-on (vacation_mode.resume_relearns).
+            if st.data.get("vacation_mode_pattern") and st.data.get("vacation_mode_pattern_source") not in _VSRC:
+                payload["vacation_mode_pattern_source"] = "month"
         if "vacation_mode_enabled" in msg:
             # Admin-only: unlike a saved Whole House Preset (a one-shot,
             # user-initiated apply), this autonomously operates real lights
@@ -1075,7 +1080,8 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             elif _vac_was and not payload["vacation_mode_enabled"]:
                 _vac_event = "off"
                 _vac_who = who_from_connection(hass, connection)
-            payload.update(switch_fields({**st.data, **{k: v for k, v in payload.items() if k == "vacation_mode_source"}},
+            payload.update(switch_fields({**st.data, **{k: v for k, v in payload.items()
+                                                         if k in ("vacation_mode_source", "vacation_mode_pattern_source")}},
                                          payload["vacation_mode_enabled"], _vac_now,
                                          _vac_who if _vac_event == "off" else None))
         if "vacation_mode_intensity" in msg:
