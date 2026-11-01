@@ -5086,7 +5086,7 @@ function _floorHeights(ctx){
     el("td",{style:"padding:6px 8px"}, r.base),
     el("td",{style:"padding:6px 8px;color:#94a3b8"}, derived[r.id] != null ? String(derived[r.id]) : "—"),
   ]))));
-  wrap.appendChild(el("div",{style:"overflow-x:auto"}, table));
+  wrap.appendChild(el("div",{class:"table-scroll",style:"overflow-x:auto"}, table));
 
   const _val = (inp) => { const v = parseFloat(inp.value); return isFinite(v) ? v : null; };
   wrap.appendChild(el("div",{style:"margin-top:8px"}, el("button",{class:"btn inline", onclick: async ()=>{
@@ -5257,7 +5257,7 @@ function _stack(ctx, maps, helpBtn){
   }
   const hiddenIds = ctx.state.maps._hiddenMapIds;
 
-  const tableWrap = el("div",{style:"overflow-x:auto;margin-top:8px"});
+  const tableWrap = el("div",{class:"table-scroll",style:"overflow-x:auto;margin-top:8px"});
   const table = document.createElement("table");
   table.style.cssText = "width:100%;border-collapse:collapse;font-size:13px";
   const thead = document.createElement("thead");
@@ -6483,7 +6483,7 @@ function _stack(ctx, maps, helpBtn){
 
       // -- Preview panel: both maps overlaid with the computed transform --
       const previewPanel = document.createElement("div");
-      previewPanel.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;" +
+      previewPanel.style.cssText = "flex:1;align-self:stretch;display:flex;flex-direction:column;align-items:center;" +
         "padding:16px;overflow:auto;min-height:0";
 
       const previewStage = document.createElement("div");
@@ -6690,6 +6690,7 @@ function _stack(ctx, maps, helpBtn){
         }
       }
 
+      for (const c of previewPanel.children) c.style.flexShrink = "0";
       panelsRow.appendChild(previewPanel);
     };
 

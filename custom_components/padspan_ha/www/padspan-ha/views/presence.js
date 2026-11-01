@@ -93,7 +93,7 @@ export function render(ctx){
     const scanners = Object.keys(scannerDevices).sort();
 
     if(scanners.length){
-      const scannerCards = el("div",{style:"columns:3;column-gap:10px"});
+      const scannerCards = el("div",{class:"presence-scanners"});
 
       for(const src of scanners){
         const sid = _sid(src);
