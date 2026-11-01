@@ -588,7 +588,7 @@ function scannerStatus(radio, ads){
 
 // Room colour lives in views/room_color.js — ONE implementation, shared with
 // the lights renderer. panel.js hands it to every view as ctx.helpers.roomColor.
-const { roomColor } =
+const { roomColor, roomColorAlpha } =
   await import(`./views/room_color.js${new URL(import.meta.url).search}`);
 // The object detail modal's "why is it here" evidence diagram (gap #2,
 // best-in-class roadmap) — a pure string builder, see its own header.
@@ -3656,6 +3656,7 @@ class PadSpanHaApp extends HTMLElement {
         },
         scannerStatus,
         roomColor: (n)=>roomColor(n, this.state.model),
+        roomColorAlpha,
         helpBtn: (key, title)=>{
           const b = document.createElement("button");
           b.className = "btn-help";

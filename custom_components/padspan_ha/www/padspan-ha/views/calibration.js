@@ -6182,7 +6182,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       if (roomName) {
         const roomBadge = document.createElement("span");
         const rc = roomColorFn(roomName);
-        roomBadge.style.cssText = `font-size:10px;padding:1px 6px;border-radius:3px;background:${rc}18;color:${rc};border:1px solid ${rc}40`;
+        roomBadge.style.cssText = `font-size:10px;padding:1px 6px;border-radius:3px;background:${ctx.helpers.roomColorAlpha(rc, "18")};color:${rc};border:1px solid ${ctx.helpers.roomColorAlpha(rc, "40")}`;
         roomBadge.textContent = roomName;
         badgeRow.appendChild(roomBadge);
       }

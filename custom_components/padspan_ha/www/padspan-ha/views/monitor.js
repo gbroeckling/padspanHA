@@ -634,7 +634,7 @@ function _insights(ctx, el, _sid){
     const miniGrid = el("div",{style:`display:grid;grid-template-columns:repeat(${cols},1fr);gap:6px;max-width:100%`});
     for(const [room, count] of roomCells){
       const rc = ctx.helpers.roomColor ? ctx.helpers.roomColor(room) : "#52b788";
-      const cell = el("div",{style:`background:${rc}18;border:1px solid ${rc}44;border-radius:6px;padding:8px;text-align:center;overflow:hidden;min-width:0`},[
+      const cell = el("div",{style:`background:${ctx.helpers.roomColorAlpha(rc, "18")};border:1px solid ${ctx.helpers.roomColorAlpha(rc, "44")};border-radius:6px;padding:8px;text-align:center;overflow:hidden;min-width:0`},[
         el("div",{style:"font-size:11px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, room),
         el("div",{style:`font-size:20px;font-weight:800;color:${rc}`}, String(count)),
         el("div",{style:"display:flex;justify-content:center;gap:2px;margin-top:4px"},

@@ -45,3 +45,14 @@ export function roomColor(roomName, model){
   // 70/55 keeps every hue legible on the dark ground the maps are drawn on.
   return `hsl(${h} 70% 55%)`;
 }
+
+/**
+ * A room colour at a two-digit hex alpha, as `${color}22` means it. A hex colour
+ * takes the suffix; roomColor's hsl() does not (invalid CSS, which an SVG fill
+ * draws solid black), so there the same alpha goes inside the brackets.
+ */
+export function roomColorAlpha(color, alpha){
+  const c = String(color);
+  if(!c.startsWith("hsl(")) return c + alpha;
+  return `${c.slice(0, -1)} / ${+(parseInt(alpha, 16) / 255).toFixed(3)})`;
+}
