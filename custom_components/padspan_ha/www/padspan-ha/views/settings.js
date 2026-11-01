@@ -324,7 +324,9 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         "anyone who can't use a dark screen; photos and map images are turned back so they still " +
         "look normal. Day is the panel redrawn in light colours. Every one keeps the green accent " +
         "and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D " +
-        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser."),
+        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser. " +
+        "The sidebar Atlas page is the exception: it stays dark with every theme, and Light doesn't change " +
+        "it either, so Light won't help there if you can't use a dark screen."),
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night","Night"), mkTheme("graphite","Graphite"), mkTheme("ocean","Ocean"),
         mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},

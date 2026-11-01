@@ -2647,6 +2647,11 @@ function beaconLookSVG(bx, by, look){
 // Each plate's colour in the stack, bottom up: its number badge and its
 // outline. Live Aboard colours and numbers its floors from this same list.
 export const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
+// How much of a floor shows while another is chosen ("Only this floor"): a
+// backdrop you can still recognise, under the chosen floor. Under 0.5, or
+// Mapping's _floorZAtVb (maps.js) would count its plate as chosen.
+const GHOST_FLOOR_OPACITY = 0.25;
+
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
   // A wall screen sized for its room (lights_map, wall mode): room names grow
@@ -3619,12 +3624,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // viewBox itself needs them, see the content-extent pass above.
   for(const z of levels){
     const isFocused=focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
-    const go=isFocused?1.0:0.1;
-    // A ghosted floor is a backdrop, not a target: at 0.1 opacity its hexes are
-    // invisible but would still swallow clicks and drags meant for the focused
-    // floor (they overlap in iso space), so you'd toggle or move a light you
-    // cannot see.
+    const go=isFocused?1.0:GHOST_FLOOR_OPACITY;
+    // A ghosted floor is a backdrop, not a target: its rooms, names and markers
+    // fade together in one group (data-role="floorghost") and would otherwise
+    // still swallow clicks and drags meant for the focused floor (they overlap
+    // in iso space). Its slab stays outside that group, at the same fade: the
+    // people layer, the rain mask and the poll's patch look for it at the top
+    // of the drawing. So does its badge, full strength, because it still works.
     const gpe=isFocused?"":` pointer-events="none"`;
+    // What this floor draws above the fade: a leak or open-window ring, the
+    // ring that flashes a light's spot, the door circle. Each still has to be
+    // seen, and none takes a tap but the circle, a tool in your hand.
+    let overGhost="";
     const lyrColor=levelColor(z);
     const lidx=levels.indexOf(z);
 
@@ -3789,6 +3800,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // inert by being added here without its own explicit override, the way
     // the floor badge did.
     s+=`</g>`;
+    if(!isFocused) s+=`<g data-role="floorghost" data-z="${z}" opacity="${go}"${gpe}>`;
 
     // `extra` carries data-* attributes (floor z, whether it is placed) so the
     // Mapping → Lights tab's build tools can act on any hex directly; the
@@ -4100,7 +4112,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const labelHit=(cx,cy,fs)=>{
         const w=String(l.code||"").length*fs*0.64+fs*0.9, h=fs*1.5;
         return `<rect data-hit="1" x="${(cx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" `+
-          `width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="transparent" stroke="none" pointer-events="all"/>`;
+          `width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="transparent" stroke="none" pointer-events="${l._ghostedFloor?"none":"all"}"/>`;
       };
       const lbl=tempLbl!==null ? tempLbl : humidityLbl!==null ? humidityLbl : (HIDECODES ? (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap,true) : "") : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap) : (SHOW
         ? labelHit(hx,lblY,CODE_PX*0.92)+
@@ -4142,7 +4154,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const w=label.length*fs*0.58+fs*2.4, h=fs*2.1;
       const col=anyOn?"#fbbf24":"#94a3b8";
       return `<g class="lstack" data-role="stack" data-room="${escSVG(room)}" data-z="${z}" `+
-        `data-eids="${escSVG(eids.join(","))}" style="cursor:pointer" pointer-events="all">`+
+        `data-eids="${escSVG(eids.join(","))}" style="cursor:pointer" pointer-events="${isFocused?"all":"none"}">`+
         `<rect x="${(cx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" `+
         `rx="${(h/2).toFixed(1)}" fill="#0b1810" fill-opacity="0.88" stroke="${col}" stroke-opacity="0.6" `+
         `stroke-width="0.8" stroke-dasharray="3,2"/>`+
@@ -5735,7 +5747,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         {
           s+=`<g class="lroom" data-role="room" data-room="${escSVG(r.room)}" data-z="${z}" style="cursor:pointer">`+
             `<rect x="${(lix-rw/2).toFixed(1)}" y="${(liy-rh/2).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" `+
-            `rx="3" fill="transparent" stroke="none" pointer-events="all"/>`;
+            `rx="3" fill="transparent" stroke="none" pointer-events="${isFocused?"all":"none"}"/>`;
         }
         // Lighter and smaller than before (Garry, 2026-09-07: "takes up too
         // much space" and needs to stay "somewhat transparent" over whatever
@@ -6045,7 +6057,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             `data-invert="${bar.invert_state?1:0}" data-name="${escSVG(bar.name||"")}" `+
             `data-opener="${escSVG(bar.linked_opener_entity_id||"")}" data-lock="${escSVG(bar.linked_lock_entity_id||"")}" `+
             `points="${ppx}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="16" stroke-linecap="round" `+
-            `pointer-events="stroke" style="cursor:pointer"/>`;
+            `pointer-events="${isFocused?"stroke":"none"}" style="cursor:pointer"/>`;
         }
       }
       // The wall the circle currently straddles, drawn WITH A GAP over the
@@ -6076,13 +6088,15 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const N=48, ring=[];
         for(let i=0;i<N;i++){ const t=(i/N)*Math.PI*2; ring.push(pt(iso(ccx+cr*Math.cos(t), ccy+cr*Math.sin(t), z))); }
         const [hx,hy]=iso(ccx+cr, ccy, z);
-        s+=`<g class="ldoorcircle" data-role="doorcircle" data-cx="${scx.toFixed(1)}" data-cy="${scy.toFixed(1)}" `+
+        // The nearest wall can be on a floor that isn't chosen.
+        const doorCircle=`<g class="ldoorcircle" data-role="doorcircle" data-cx="${scx.toFixed(1)}" data-cy="${scy.toFixed(1)}" `+
           `data-z="${z}" style="cursor:move">`+
           `<polygon points="${ring.join(" ")}" fill="#22d3ee" fill-opacity="0.14" stroke="#22d3ee" `+
           `stroke-width="2" stroke-dasharray="2,3"/>`+
           `<circle data-role="doorcircle-resize" cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="7" `+
           `fill="#22d3ee" stroke="#083344" stroke-width="1.5" style="cursor:ew-resize"/>`+
           `</g>`;
+        if(isFocused) s+=doorCircle; else overGhost+=doorCircle;
       }
     }
     if(UNDERLAY) for(const u of UNDERLAY){
@@ -6091,7 +6105,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(P.length<2) continue;
       const pp=P.map(q=>iso(q[0],q[1],z).map(v=>v.toFixed(1)).join(",")).join(" ");
       const col=escSVG(String(u.color||"#cbd5e1")), w=Number(u.width)>0?Number(u.width):1;
-      const op=((Number.isFinite(Number(u.opacity))?Number(u.opacity):0.6)*go).toFixed(2);
+      const op=(Number.isFinite(Number(u.opacity))?Number(u.opacity):0.6).toFixed(2);
       s+=u.closed
         ? `<polygon points="${pp}" fill="${col}" fill-opacity="${(Number(u.fill)||0).toFixed(2)}" stroke="${col}" stroke-width="${w}" stroke-linejoin="round" opacity="${op}" pointer-events="none"/>`
         : `<polyline points="${pp}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" opacity="${op}" pointer-events="none"/>`;
@@ -6239,7 +6253,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       s+=auraGlow+auraEdge;
     }
     // The heatmap, under the air bars, the labels and the markers.
-    if(heatByZ.has(z)) s+=HEATMAP.heatFloorSvg(HEAT, heatByZ.get(z), hereRooms, floorBox.get(z), iso, z, (r)=>roomClip.get(r), (0.45*go).toFixed(2));
+    if(heatByZ.has(z)) s+=HEATMAP.heatFloorSvg(HEAT, heatByZ.get(z), hereRooms, floorBox.get(z), iso, z, (r)=>roomClip.get(r), "0.45");
     // Poor-air rooms on this floor: the rising bars, under the labels and
     // the markers (see airFx, computed before the defs).
     for(const fx of airFx){
@@ -6250,12 +6264,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // bars (see floodFx, computed before the defs alongside airFx).
     for(const fx of floodFx){
       if(fx.room.z!==z) continue;
-      s+=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.liveWet);
+      const ring=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.liveWet);
+      if(isFocused) s+=ring; else overGhost+=ring;
     }
     // Flagged openings on this floor (Alert pulse): the amber ring.
     for(const fx of alertFx){
       if(fx.room.z!==z) continue;
-      s+=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.kind==="rain_open", fx.kind);
+      const ring=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.kind==="rain_open", fx.kind);
+      if(isFocused) s+=ring; else overGhost+=ring;
     }
     for(const fn of labelJobs) fn();
 
@@ -6397,7 +6413,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // six hours of continuous fresh motion.
     if(LOCATE_EID){
       const found=jobs.find(j=>j[0].entity_id===LOCATE_EID);
-      if(found) s+=locateSvg(found[1],found[2]);
+      if(found){
+        if(isFocused) s+=locateSvg(found[1],found[2]); else overGhost+=locateSvg(found[1],found[2]);
+      }
     }
     if(CHANGED.size) for(const [l2,hx,hy] of jobs){
       if(!CHANGED.has(String(l2.entity_id))) continue;
@@ -6497,6 +6515,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // chip's matching clamp inside markerSvg.
     jobs.forEach((j,i)=>{ s+=markerSvg(j[0], j[1], j[2], j[3], j[4], !!j[7], nearestDist[i], j[8]); });
     for(const st of stacks) s+=stackChipSvg(...st);
+    if(!isFocused) s+=`</g>`+overGhost;
 
     // Floor level badge
     // The badge marks the storey, so it has to stay on the canvas. Slabs are

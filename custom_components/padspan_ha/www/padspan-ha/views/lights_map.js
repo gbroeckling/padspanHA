@@ -4670,6 +4670,16 @@ export function buildLightsMapCard(hostIn){
         resetFocusCtl(view.focusIdx);
         rebuildISO();
         if (cam) { isoDiv.scrollLeft = cam.sl; isoDiv.scrollTop = cam.st; }
+        // At 100% a tall house runs below the fold, and with the other floors
+        // faded a chosen floor off screen would leave only backdrop to look at.
+        // Zoomed in, the camera above is what you left, so it stays. The sidebar
+        // only: Mapping's map sits under its tools, and they should stay in reach.
+        if (scr && idx && view.zoom <= 1) {
+          const plate = isoDiv.querySelector(`g[data-role="floorslab"][data-z="${isoPos[idx]}"] [data-role="slabtop"]`);
+          const r = plate && plate.getBoundingClientRect();
+          const mid = r ? r.top + r.height / 2 : 0;
+          if (r && (mid < 0 || mid > window.innerHeight)) plate.scrollIntoView({ block: "center", inline: "nearest" });
+        }
         for (const b of bar.querySelectorAll("button")) if (b._floorIdx !== undefined) b.classList.toggle("on", b._floorIdx === idx);
       };
       const mk = (label, idx, act) => {
