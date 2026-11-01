@@ -78,7 +78,8 @@ function makeCtx(state, ws = {}) {
 {
   const root = MAPS.render(makeCtx({ mapsTab: "library" })); await flush();
   const t = text(root);
-  check("library: with an HA floor called Outside, the outside plan's heading is Outside (Exp.)", /Outside \(Exp\.\) \(1\)/.test(t) && !/__outside__ \(/i.test(t), t.slice(0, 300));
+  // That HA floor has no plan here, so it has no heading to tell apart.
+  check("library: an HA floor called Outside with no plan leaves the outside plan's heading as Outside", /Outside \(1\)/.test(t) && !/Exp\.\) \(1\)/.test(t) && !/__outside__ \(/i.test(t), t.slice(0, 300));
 
   const both = makeCtx({ mapsTab: "library", maps: { list: MAP_LIST.concat(plan("h", "HA yard", "outside", 4)) } });
   const t2 = text(MAPS.render(both)); await flush();

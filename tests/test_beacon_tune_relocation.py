@@ -86,6 +86,21 @@ def test_the_purge_uses_it_and_both_saves_mark_their_points() -> None:
     assert "points you collected by carrying it" in src.lower()
 
 
+def test_the_dialog_and_the_help_say_what_happens_to_guide_points() -> None:
+    src = _CAL.read_text(encoding="utf-8")
+    dialog = src[src.index("const confirmPurge = confirm("):src.index("if (!confirmPurge)")]
+    for words in ("Calibration Guide points are kept", "0.38.209 to 0.38.215", "by hand on the Model tab"):
+        assert words in dialog, words
+    www = _CAL.parents[1]
+    help_src = (www / "help_content.js").read_text(encoding="utf-8")
+    line = next(x for x in help_src.splitlines() if "t(\"Moving a beacon:" in x)
+    key = line[line.index('t("') + 3:line.rindex('"),')].replace('\\"', '"')
+    assert "Calibration Guide points stay too" in key and "by hand on the Model tab" in key
+    for lang in ("de", "fr", "nl"):
+        value = json.loads((www / "i18n" / lang / "help.json").read_text(encoding="utf-8"))[key]
+        assert "Calibration Guide" in value and "0.38.209" in value and "Model" in value, lang
+
+
 def test_the_store_keeps_the_beacon_tune_mark_and_nothing_else() -> None:
     store = CalibrationStore.__new__(CalibrationStore)
     store.data = {"points": [], "excluded_sources": []}

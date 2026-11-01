@@ -10,7 +10,8 @@ import { attachPanZoom } from "./pan_zoom.js";
 // changes: its shape stays the plan's, and a point is a fraction of the plan's
 // on-screen box, so where a point is, or lands, does not depend on this.
 // Never under 360 px wide (or the card's width), so a tap stays precise on a
-// short window, such as a phone on its side: the page scrolls instead.
+// short window, such as a phone on its side, or with a very long plan: the page
+// scrolls instead.
 // border: the box's own border in px (its content is what has the plan's shape).
 function _fitPlanToWindow(box, vbH, border) {
   box.style.width = `min(100% - ${border * 2}px, max(max(100vh - 140px, 320px) * ${100 / vbH}, 360px))`;
@@ -5465,7 +5466,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const confirmPurge = confirm(
             `This is the 3rd consecutive calibration for "${entry.bk.label || bkKey}" within a few minutes.\n\n` +
             `OK deletes this beacon's earlier Beacon Tune points (and its automatic [auto] points) and keeps the new readings. ` +
-            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) are kept.\n\n` +
+            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) and Calibration Guide points are kept, ` +
+            `except Guide points saved by 0.38.209 to 0.38.215, which count as Beacon Tune points. ` +
+            `If it keeps showing at the old spot, delete the kept points by hand on the Model tab.\n\n` +
             `Choose OK to replace them (hard relocation).\n` +
             `Choose Cancel to keep them and just add this as another data point.`
           );

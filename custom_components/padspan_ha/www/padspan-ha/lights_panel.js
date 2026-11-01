@@ -373,6 +373,7 @@ class PadSpanLightsApp extends HTMLElement {
         // panel is set up once and left running unattended; an in-memory
         // zoom reset to 1.0 on every reboot/reload.
         this._view.zoom     = s.overview_iso_zoom      ?? 1.0;
+        this._view.scrollToChosen = true;
       }
       // Per-light shape overrides — set in the Mapping → Lights tab, read here
       // so both views draw the same fixture outlines.

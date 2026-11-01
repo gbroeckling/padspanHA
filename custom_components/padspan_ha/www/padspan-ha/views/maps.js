@@ -238,7 +238,8 @@ const OUTSIDE_FLOOR_ID = "__outside__";
 const WALLS_GUIDE_URL = "https://github.com/gbroeckling/padspanHA/blob/main/docs/WALLS_GUIDE.md";
 function _isOutsideMap(m) { return (m.floor_id || "") === OUTSIDE_FLOOR_ID; }
 
-// An HA floor may be called Outside too: two headings mustn't read the same.
+// An HA floor may be called Outside too: two headings or buttons mustn't read
+// the same. Pass only the floors that get one on this screen.
 function _outsideLabel(floors) {
   return floors.some(f => String(f.name || "").trim().toLowerCase() === "outside") ? "Outside (Exp.)" : "Outside";
 }
@@ -585,7 +586,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     const floorMaps = _floorMap.get(fid) || [];
     floorMaps.sort((a, b) => String(a.created || "").localeCompare(String(b.created || "")));
     const floorObj = _floors.find(f => f.id === fid);
-    const floorName = fid === OUTSIDE_FLOOR_ID ? _outsideLabel(_floors) : floorObj ? (floorObj.name || fid) : fid;
+    const floorName = fid === OUTSIDE_FLOOR_ID ? _outsideLabel(_floors.filter(f => _floorMap.has(f.id))) : floorObj ? (floorObj.name || fid) : fid;
     list.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788;margin-top:8px;margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px"},
       `${floorName} (${floorMaps.length})`));
 
@@ -7787,6 +7788,11 @@ function _floorZAtVb(svg, x, y) {
   return null;
 }
 
+// A floor is chosen, so the others are drawn faded (iso_lights.js).
+function _aFloorIsFaded(svg) {
+  return !!svg.querySelector('g[data-role="floorghost"]');
+}
+
 // A light belongs to a ROOM, and a room belongs to a floor. That is the floor
 // the light keeps — dragging it around the map never re-assigns the storey.
 //
@@ -8166,7 +8172,11 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
         // the storey it was dropped on instead of always the lowest one. By
         // geometry (_floorZAtVb) — the plate covers the WHOLE floor, empty
         // ground just outside a room included.
-        o.onDropPlace(v.x, v.y, _floorZAtVb(svg, v.x, v.y));
+        const dropZ = _floorZAtVb(svg, v.x, v.y);
+        // A floor chosen: off its plate, the pin goes home and nothing moves
+        // (as the queue's tap, below). No render follows, so it has to go now.
+        if (dropZ === null && _aFloorIsFaded(svg)) { dropG.removeAttribute("transform"); return; }
+        o.onDropPlace(v.x, v.y, dropZ);
       };
       dropG.addEventListener("pointermove", mm);
       dropG.addEventListener("pointerup", up);
@@ -8371,13 +8381,16 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
     let fid = geo && geo.floor_id && !isOutdoorFloorId(geo.floor_id) ? String(geo.floor_id) : null;
     if (!fid) { const prev = ((ctx.state.model || {}).light_positions_m || {})[eid]; fid = prev && prev.floor_id && !isOutdoorFloorId(prev.floor_id) ? String(prev.floor_id) : null; }
     const v = toVB(ev);
+    const hitZ = _floorZAtVb(svg, v.x, v.y);
+    // A floor chosen: a faded floor ignores taps (its names and markers take
+    // none, so the tap lands here), and only a chosen plate takes the light.
+    if (hitZ === null && _aFloorIsFaded(svg)) return;
     if (!fid) {
       // Nothing to anchor a storey from (no room / outdoor room, never
       // placed) — the plate actually tapped, by geometry (_floorZAtVb: the
       // plate covers the whole floor, empty ground included), matching this
       // handler's own comment above. Used to always fall through to the
       // lowest floor regardless of where the tap landed.
-      const hitZ = _floorZAtVb(svg, v.x, v.y);
       fid = _floorIdForZ(ctx, Number.isFinite(hitZ) ? hitZ : (frame.levels[0] || 0), frame);
     }
     const z = _levelForFloorId(frame, ctx.state.model, floors, fid);

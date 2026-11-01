@@ -1,7 +1,7 @@
 # Floor names instead of ids, and a few wrong words on screen
 
 ### Fixed
-- **Floors go by their names.** Mapping's Library and Layout showed the outside floor's internal id; it now reads Outside. If Home Assistant also has a floor called Outside, the outside plan's own heading or button reads Outside (Exp.), so the two can be told apart. Monitor → Zones and the layout tables in Health showed floor ids too; they now show Home Assistant's floor names.
+- **Floors go by their names.** Mapping's Library and Layout showed the outside floor's internal id; it now reads Outside. If a floor called Outside from Home Assistant shows there too, the outside plan's own heading or button reads Outside (Exp.), so the two can be told apart. Library lists only floors with plans, so without a plan on that floor its heading stays Outside. Monitor → Zones and the layout tables in Health showed floor ids too; they now show Home Assistant's floor names.
 - **The 3D Isometric Preview names the right floors.** On homes with no floor levels set in Home Assistant, the legend could swap floors (Upper called Outside, Outside called Upper), and so could the floor slider's label. Both now take the name from each plan's own floor. A long plan name stops short of the floor name, with the whole name when you hover over it.
 - **The phone's top bar says History, Events and Diagnostics** rather than the screens' internal ids.
 - **Settings → Tracking says "saved layout".** A leftover old word for it is gone from the device height and GPS Bridge text and from the layout source list. Nothing changes in how they work.

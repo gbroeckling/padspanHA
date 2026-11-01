@@ -209,9 +209,158 @@ def test_a_chosen_floor_off_screen_comes_into_view_at_100_percent() -> None:
     src = (_VIEWS / "lights_map.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     i = src.index("const switchTo = (idx) => {")
     body = src[i:src.index("\n      };\n", i)]
-    assert "if (scr && idx && view.zoom <= 1) {" in body
-    assert body.index("rebuildISO();") < body.index("plate.scrollIntoView(")
-    assert "mid < 0 || mid > window.innerHeight" in body
+    assert body.index("rebuildISO();") < body.index("chosenIntoView(idx);")
+    i = src.index("function chosenIntoView(idx) {")
+    helper = src[i:src.index("\n  }\n", i)]
+    assert "if (!scr || !idx || view.zoom > 1) return;" in helper
+    assert "mid < 0 || mid > window.innerHeight" in helper
+    assert "plates.every(off)" in helper and ".scrollIntoView(" in helper
+
+
+def test_only_reading_the_saved_view_asks_for_the_scroll() -> None:
+    src = (_WWW / "lights_panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    i = src.index("if(applyView){")
+    assert "this._view.scrollToChosen = true;" in src[i:src.index("\n      }\n", i)]
+    assert src.count("scrollToChosen") == 1
+    # A kept card (the poll's update) returns before this; a new one asks once.
+    lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "if (view.scrollToChosen && sortedLevels.length) {\n    view.scrollToChosen = false;" in lm
+
+
+def _place(tmp_path: Path, script: str) -> dict:
+    """The real _wireLightsBuild over a stage of two plates: Main at viewBox y
+    200-300, Up at y 0-100, and nothing anywhere else. place(tap) answers what
+    the tap did to the queue's light; pin(drop) what the drop pin was handed."""
+    if _NODE is None:
+        pytest.skip("node is not installed")
+    root = json.dumps(str(_ROOT / "tests" / "js" / "dom_shim.mjs"))
+    maps = json.dumps(str(_VIEWS / "maps.js"))
+    il = json.dumps(str(_VIEWS / "iso_lights.js"))
+    js = tmp_path / "place.mjs"
+    js.write_text(f"""
+import {{ pathToFileURL }} from "node:url";
+const {{ install }} = await import(pathToFileURL({root}).href);
+install(globalThis);
+const M = await import(pathToFileURL({maps}).href);
+const IL = await import(pathToFileURL({il}).href);
+const MODEL = {json.dumps({
+    "floors": _FLOORS,
+    "room_geometry_m": {"Kitchen": _rect("main", 0, 0, 6, 4), "Loft": _rect("up", 0, 0, 6, 4)},
+    "light_positions_m": {"light.placed": {"x_m": 2, "y_m": 2, "floor_id": "up"}},
+})};
+const frame = IL.fabricFrame(MODEL, MODEL.floors, 150, 0);
+const [LOW, HIGH] = frame.levels;
+const NS = "http://www.w3.org/2000/svg";
+const LBE = {{ "light.loose": {{ entity_id: "light.loose", code: "L1" }}, "light.placed": {{ entity_id: "light.placed", code: "P1" }} }};
+function stage(chosen) {{
+  const isoDiv = document.createElement("div"), svg = document.createElementNS(NS, "svg");
+  isoDiv.appendChild(svg);
+  svg.createSVGPoint = () => {{ const p = {{ x: 0, y: 0 }}; p.matrixTransform = () => ({{ x: p.x, y: p.y }}); return p; }};
+  svg.getScreenCTM = () => ({{ inverse: () => ({{}}) }});
+  for (const [z, y0] of [[LOW, 200], [HIGH, 0]]) {{
+    const faded = chosen !== null && chosen !== z;
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("data-role", "floorslab"); g.setAttribute("data-z", String(z));
+    g.setAttribute("opacity", faded ? "0.25" : "1");
+    const top = document.createElementNS(NS, "polygon");
+    top.setAttribute("data-role", "slabtop");
+    top.setAttribute("points", `0,${{y0}} 100,${{y0}} 100,${{y0 + 100}} 0,${{y0 + 100}}`);
+    g.appendChild(top); svg.appendChild(g);
+    if (faded) {{
+      const ghost = document.createElementNS(NS, "g");
+      ghost.setAttribute("data-role", "floorghost"); ghost.setAttribute("data-z", String(z));
+      svg.appendChild(ghost);
+    }}
+  }}
+  const pinG = document.createElementNS(NS, "g");
+  pinG.setAttribute("data-role", "dropmarker");
+  svg.appendChild(pinG);
+  return {{ isoDiv, svg, pinG }};
+}}
+function wire(chosen, queue, dropped) {{
+  const s = stage(chosen);
+  const ctx = {{ state: {{ model: MODEL }}, hass: {{}}, toast: () => {{}}, helpers: {{}}, actions: {{ renderRooms: () => {{}} }} }};
+  const o = {{ mapState: {{ _placeQueue: queue }}, view: {{ floorGap: 150, horizGap: 0 }}, lightsByEid: LBE, model: MODEL,
+    onDropPlace: (x, y, z) => dropped.push([x, y, z]), toggle: () => {{}} }};
+  M._wireLightsBuild(ctx, s.isoDiv, o);
+  return {{ ...s, o }};
+}}
+function place(chosen, eid, x, y) {{
+  const s = wire(chosen, [eid], []);
+  s.svg.dispatchEvent({{ type: "click", target: s.svg, clientX: x, clientY: y }});
+  const d = (s.o.mapState._lightsDraftM || {{}})[eid];
+  return {{ floor: d ? d.floor_id : null, left: s.o.mapState._placeQueue.length }};
+}}
+function pin(chosen, x, y) {{
+  const dropped = [], s = wire(chosen, [], dropped);
+  const ev = {{ button: 0, pointerType: "mouse", pointerId: 1, preventDefault() {{}}, stopPropagation() {{}} }};
+  s.pinG.dispatchEvent({{ ...ev, type: "pointerdown", clientX: 500, clientY: 500 }});
+  s.pinG.dispatchEvent({{ ...ev, type: "pointermove", clientX: x, clientY: y }});
+  const during = s.pinG.getAttribute("transform");
+  s.pinG.dispatchEvent({{ ...ev, type: "pointerup", clientX: x, clientY: y }});
+  return {{ dropped, z: dropped.length ? dropped[0][2] : "none", moved: !!during, transform: s.pinG.getAttribute("transform") }};
+}}
+const out = {{ LOW, HIGH }};
+{script}
+console.log(JSON.stringify(out));
+""", encoding="utf-8")
+    res = subprocess.run([_NODE, str(js)], capture_output=True, text=True, encoding="utf-8", timeout=60, cwd=str(_VIEWS))
+    assert res.returncode == 0, res.stderr
+    return json.loads(res.stdout.strip().splitlines()[-1])
+
+
+def test_with_a_floor_chosen_only_its_plate_takes_a_queued_light(tmp_path) -> None:
+    out = _place(tmp_path, """
+out.loose_on_chosen = place(LOW, "light.loose", 50, 250);
+out.loose_on_faded = place(LOW, "light.loose", 50, 50);
+out.loose_off_plates = place(LOW, "light.loose", 300, 150);
+out.placed_on_faded_own_floor = place(LOW, "light.placed", 50, 50);
+out.placed_off_plates = place(LOW, "light.placed", 300, 150);
+out.upper_chosen = place(HIGH, "light.loose", 50, 50);
+out.lower_faded = place(HIGH, "light.loose", 50, 250);
+""")
+    assert out["loose_on_chosen"] == {"floor": "main", "left": 0}
+    assert out["upper_chosen"] == {"floor": "up", "left": 0}
+    for ignored in ("loose_on_faded", "loose_off_plates", "placed_on_faded_own_floor", "placed_off_plates", "lower_faded"):
+        assert out[ignored] == {"floor": None, "left": 1}, ignored
+
+
+def test_with_all_a_queued_light_lands_as_it_always_did(tmp_path) -> None:
+    out = _place(tmp_path, """
+out.on_low = place(null, "light.loose", 50, 250);
+out.on_high = place(null, "light.loose", 50, 50);
+out.off_plates = place(null, "light.loose", 300, 150);
+out.placed_on_low = place(null, "light.placed", 50, 250);
+""")
+    assert out["on_low"] == {"floor": "main", "left": 0}
+    assert out["on_high"] == {"floor": "up", "left": 0}
+    assert out["off_plates"] == {"floor": "main", "left": 0}   # the lowest floor
+    assert out["placed_on_low"] == {"floor": "up", "left": 0}  # its own floor
+
+
+def test_the_drop_pin_follows_the_same_rule(tmp_path) -> None:
+    out = _place(tmp_path, """
+out.chosen = pin(LOW, 50, 250);
+out.faded = pin(LOW, 50, 50);
+out.off = pin(LOW, 300, 150);
+out.all_on_high = pin(null, 50, 50);
+out.all_off = pin(null, 300, 150);
+""")
+    assert out["chosen"]["z"] == out["LOW"]
+    for name in ("faded", "off"):
+        assert out[name]["moved"] and out[name]["dropped"] == [] and out[name]["transform"] is None, name
+    assert out["all_on_high"]["z"] == out["HIGH"]
+    assert out["all_off"]["z"] is None and len(out["all_off"]["dropped"]) == 1
+
+
+def test_a_changed_ring_stays_with_its_floor_in_traceback(tmp_path) -> None:
+    """Not an alarm: a mark on a past moment that the status line names, so it
+    fades with its floor. The leak and open-window rings stay above the fade."""
+    out = _draw(tmp_path, {"faded": [0, {**_OPTS, "changedEids": ["light.up"]}], "chosen": [1, {**_OPTS, "changedEids": ["light.up"]}]})
+    faded = [e for g in _ghosts(ET.fromstring(out["faded"])) for e in g.iter() if e.get("class") == "lchanged"]
+    assert len(faded) == 1 and faded[0].get("data-eid") == "light.up"
+    assert not _ghosts(ET.fromstring(out["chosen"])) or not [
+        e for g in _ghosts(ET.fromstring(out["chosen"])) for e in g.iter() if e.get("class") == "lchanged"]
 
 
 # ── The sidebar Atlas page stays dark, and the words say so ──────────────────
