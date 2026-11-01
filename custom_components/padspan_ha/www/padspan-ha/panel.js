@@ -3144,6 +3144,7 @@ class PadSpanHaApp extends HTMLElement {
       live: this.state.dataMode === "live", failed,
       snapshot: this.state.live && this.state.live.snapshot,
       excluded, warmup: now < this._statusDotWarmUntil,
+      receivers: !(EDITIONS && EDITIONS.surfacesForEdition) || EDITIONS.surfacesForEdition(["receivers"], s).length > 0,
     });
     this._statusDotTrack = this._statusDotTrack || new Map();
     this._statusDotActive = STATUS_DOT.trackIssues(this._statusDotTrack, issues);

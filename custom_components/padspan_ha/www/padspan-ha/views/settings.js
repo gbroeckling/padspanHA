@@ -2206,7 +2206,7 @@ function _settingsPresence(ctx, el){
     <div style="font-weight:600;color:#fbbf24;font-size:11px;margin-bottom:2px">Do you actually need an IRK for tags?</div>
     <div style="font-size:11px;color:#d4d4aa">
       Many BLE tags use <b>iBeacon</b> or fixed MAC addresses — PadSpan already tracks these natively without
-      needing an IRK. Check the <b>Objects</b> tab: if your tag shows up as an "iBeacon" or "BLE" object with a
+      needing an IRK. Check the <b>Devices</b> screen: if your tag shows up as an "iBeacon" or "BLE" object with a
       consistent address, you're already set. IRKs are only needed for tags that use <b>rotating random MACs</b>.
     </div>
   </div>
@@ -2300,7 +2300,7 @@ function _settingsPresence(ctx, el){
     <div style="font-weight:600;color:#f87171;font-size:12px">"Multiple entries for the same phone"</div>
     <ul style="margin:4px 0 0;padding-left:20px;font-size:11px">
       <li>If you see both a Private BLE entry AND regular BLE entries for the same phone, PadSpan's dedup engine should merge them automatically.</li>
-      <li>Check the <b>Objects</b> tab — look for objects with a "N MACs merged" badge.</li>
+      <li>Check the <b>Devices</b> screen — look for objects with a "N MACs merged" badge.</li>
       <li>If duplicates persist, the phone may be advertising on <b>multiple protocols simultaneously</b> (e.g., iBeacon + regular BLE). PadSpan handles this.</li>
     </ul>
   </div>
@@ -3681,7 +3681,7 @@ function _settingsFeatures(ctx, el){
       key: "apple_auto_classify",
       label: "Apple Device Classification",
       desc: "Shows what sent an Apple Find My signal — an AirTag, another brand's Find My tag (\"Find My accessory\"), AirPods, " +
-            "or an Apple device such as an iPhone, iPad or Mac — instead of just \"Find My\", in Objects, Bluetooth → Advertisements " +
+            "or an Apple device such as an iPhone, iPad or Mac — instead of just \"Find My\", in Devices, Bluetooth → Advertisements " +
             "and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says " +
             "which. Display-only — does not affect tracking or identity.",
     },

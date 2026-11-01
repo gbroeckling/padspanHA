@@ -703,7 +703,13 @@ def switch_fields(data: dict, turn_on: bool, now_ts: float, who: dict | None = N
             # Vacation Mode's switching.
             out = {"vacation_mode_enabled_at": now_ts, "vacation_mode_pattern_for": now_ts,
                    "vacation_mode_trip_source": source, "vacation_mode_pattern_end": 0}
-            if source != built_source(data.get("vacation_mode_pattern_source")):
+            stored = data.get("vacation_mode_pattern_source")
+            if stored not in SOURCES:
+                # A routine from before the choice existed: nobody chose against
+                # it, the settings only hold the new default. It carries on as
+                # what it is, the monthly average.
+                out["vacation_mode_trip_source"] = ""
+            elif source != stored:
                 # The source changed: the trip's routine is learned again from
                 # the same days before the trip (not the empty house since),
                 # and the old one runs until that is done or if it finds nothing.

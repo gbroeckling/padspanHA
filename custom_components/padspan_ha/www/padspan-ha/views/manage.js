@@ -2000,7 +2000,7 @@ function _buildNotifications(ctx, el){
 
   if(!savedEntries.length){
     savedCard.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px 0"},
-      "No alerts configured yet. Tag a device in Objects, then set up alerts below or in the Follow tab."
+      "No alerts configured yet. Tag a device on the Devices screen, then set up alerts below or in the Follow tab."
     ));
   } else {
     const thead = el("thead",{},el("tr",{},[
@@ -2121,7 +2121,7 @@ function _buildNotifications(ctx, el){
 
   if(!trackable.length){
     editCard.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px 0"},
-      "No tracked devices found. Tag BLE devices in Objects or add device trackers to set up notifications."
+      "No tracked devices found. Tag BLE devices on the Devices screen or add device trackers to set up notifications."
     ));
     wrap.appendChild(editCard);
     return wrap;

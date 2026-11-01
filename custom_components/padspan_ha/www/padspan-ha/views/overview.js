@@ -550,10 +550,10 @@ export function renderClassic(ctx){
   function openObjectsList(initialFilter="all"){
     if(!liveSnap || !liveSnap.objects){
       const body = el("div",{},[
-        el("p",{}, "Objects list is only available in Live mode (it includes BLE advertisement monitor data)."),
+        el("p",{}, "This list is only available in Live mode (it includes BLE advertisement monitor data)."),
         el("p",{}, "Switch to Live in Settings, then reopen this list.")
       ]);
-      ctx.actions.openModal("Objects", body, "Live snapshot required");
+      ctx.actions.openModal("All objects", body, "Live snapshot required");
       return;
     }
 
@@ -855,7 +855,7 @@ export function renderClassic(ctx){
     body.appendChild(controls);
     body.appendChild(table);
 
-    ctx.actions.openModal("Objects", body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
+    ctx.actions.openModal("All objects", body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
 
     // After modal opens, do vendor lookups for visible BLE rows (limited concurrency).
     // With the lookup off every Bluetooth cell already says so and nothing is

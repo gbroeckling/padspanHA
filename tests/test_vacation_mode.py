@@ -854,6 +854,28 @@ async def test_a_trip_running_when_the_update_lands_carries_on_untouched(monkeyp
     assert vm.routine_word(st.data) == "resumed" and vm.running_source(st.data) == "month"
 
 
+def test_a_trip_from_before_the_choice_keeps_its_routine_when_turned_back_on(monkeypatch):
+    """Turned back on within 3 weeks with no stored source and the new default
+    in the settings: nobody chose against the routine, so nothing is learned
+    again. It carries on as the monthly average it is."""
+    import custom_components.padspan_ha.vacation_mode as vm
+    now = datetime(2026, 1, 15, 12, 0, 0).timestamp()
+    data = _trip(now - 20 * 86400, now - 86400, {"light.a": {"*:1200": 1.0}})
+    del data["vacation_mode_pattern_source"]
+    assert vm.chosen_source(data) == "last_week"
+    fields = vm.switch_fields(data, True, now)
+    assert fields["vacation_mode_pattern_end"] == 0 and fields["vacation_mode_trip_source"] == ""
+    data.update(fields, vacation_mode_enabled=True)
+    assert vm.pattern_serves(data) and vm.running_source(data) == "month"
+    assert vm.built_source(data["vacation_mode_trip_source"]) == "month"
+    # A choice made since the routine was stored still learns it again
+    # (test_vacation_mode_last_week.py).
+    data = _trip(now - 20 * 86400, now - 86400, {"light.a": {"*:1200": 1.0}}, vacation_mode_source="month")
+    data["vacation_mode_pattern_source"] = "last_week"
+    fields = vm.switch_fields(data, True, now)
+    assert fields["vacation_mode_pattern_end"] == now - 20 * 86400
+
+
 def test_who_turned_it_off_is_read_from_the_connection():
     from types import SimpleNamespace
     from custom_components.padspan_ha.vacation_mode import off_message, who_from_connection

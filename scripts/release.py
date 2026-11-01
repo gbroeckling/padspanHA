@@ -726,7 +726,7 @@ def push_release(tag, attempts=3, run_=None, sleep=time.sleep):
 RELEASE_NOTES_FOOTER = (
     "\n\n### PadSpan Pro free\n"
     "Testers get two years of PadSpan Pro while the anonymous usage report stays on: "
-    "Settings → Presence → Help improve PadSpan. More ways: https://padspan.traks.ca/#pro-free"
+    "Settings → Tracking → Help improve PadSpan. More ways: https://padspan.traks.ca/#pro-free"
 )
 
 def create_github_release(tag, channel, message=None):

@@ -107,7 +107,7 @@ function read(modal) {
 {
   const s = openList({ settings: {} });
   await settle();
-  check("on: one list opened", s.modals.length === 1 && s.modals[0].title === "Objects");
+  check("on: one list opened", s.modals.length === 1 && s.modals[0].title === "All objects");
   check("on: the subtitle says what is sent", s.modals[0].subtitle === "Filter + maker lookup (first three bytes only)", s.modals[0].subtitle);
   const { rows, toggle } = read(s.modals[0]);
   check("on: a public address shows its maker", rows["F0:18:98:12:34:56"] === "Apple, Inc.", JSON.stringify(rows));
