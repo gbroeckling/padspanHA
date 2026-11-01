@@ -63,12 +63,20 @@ function fmt({ r, g, b }, a, hex) {
   return `rgba(${r},${g},${b},${+a.toFixed(3)})`;
 }
 
+// Bluetooth's accents are mostly words (KPI numbers, links, chips), though
+// their names don't say so: as surfaces they stayed pale on the day's pale cards.
+const BT_WORDS_RE = /^--bt-(good|ok|bad|info|violet)$/;
+
 /** One colour by its job: "text" (a word on a surface) or "surface" (a
  *  background, a border, a shadow). Unknown shapes come back unchanged. */
-export function dayColor(css, role) {
+export function dayColor(css, role, prop = "") {
   const c = parseColor(css);
   if (!c) return css;
   const hsl = toHsl(c);
+  if (BT_WORDS_RE.test(prop.trim().toLowerCase())) {     // small type on a tint of itself: a step darker
+    hsl.l = Math.min(hsl.l, 0.3);
+    return fmt(fromHsl(hsl), c.a, c.hex);
+  }
   if (role === "text") {
     if (hsl.s > 0.35 && hsl.l >= 0.4) hsl.l = Math.min(hsl.l, 0.38);  // a coloured word, darkened to read
     else if (hsl.l > 0.6) hsl.l = 1 - hsl.l;                    // light grey text → dark grey
@@ -201,6 +209,8 @@ const KEEP_SELECTOR_RE = /\.(lv|la|la3d|pl)[-_]/;
 // only on the Atlas's own card (lv-atlascard), in a kept drawing's box or in the
 // 3D house.
 const LV_ONLY_RE = /\.lv[-_]/, NOT_LV_RE = /\.(la3d|la|pl)(?![A-Za-z0-9])/;
+// A drawing's box. The Atlas's card is one too, but it has its own night rules.
+const KEPT = "[data-keep-night]:not(.lv-atlascard)";
 const NIGHT_BOXES = ".lv-atlascard,.la3d,[data-keep-night]";
 const OFF_MAP = ":not(.lv-atlascard):not(.lv-atlascard *):not([data-keep-night]):not([data-keep-night] *):not(.la3d *)";
 const offMap = (sels) => sels.split(",").map(s => {
@@ -228,8 +238,25 @@ function dayColorsOnly(body, color) {
   return out.join(";");
 }
 
-/** A stylesheet in day colours, rule by rule. */
-export function dayCss(css, color = dayColor) {
+/** A rule's night colours again for inside a kept box, as a rule to follow its
+ *  day copy. Restoring a box's inline styles leaves what its classes colour at
+ *  the day's (a dark .h2 on the dark box), and a variable's day value inherited
+ *  from outside the box. */
+function keptCopy(sel, body) {
+  const own = sel.slice(sel.lastIndexOf("{") + 1).trim();
+  if (!own || own.includes("@") || /^(from|to|[\d.]+%)/.test(own)) return "";
+  const night = dayColorsOnly(body, c => c).split(";").filter(Boolean);
+  const vars = night.filter(d => d.startsWith("--")).join(";");
+  if (own === ":host") return "}" + KEPT + "{" + night.filter(d => d.startsWith("--") || d.startsWith("color:")).join(";");
+  if (!night.length || own.includes(":host")) return "";
+  const parts = own.split(",").map(s => s.trim());
+  return "}" + parts.map(s => `${KEPT} :is(${s})`).join(",") + "{" + night.join(";")
+    + (vars ? "}" + parts.map(s => `${s} ${KEPT}`).join(",") + "{" + vars : "");
+}
+
+/** A stylesheet in day colours, rule by rule. `kept`: with the rules for what
+ *  stays night in a kept box (Day's; a palette's boxes are dark throughout). */
+export function dayCss(css, color = dayColor, kept = false) {
   // Comments first: one holding a { or } would split a rule in two.
   return css.replace(/\/\*[\s\S]*?\*\//g, "").split("}").map(chunk => {
     const i = chunk.lastIndexOf("{");
@@ -239,7 +266,7 @@ export function dayCss(css, color = dayColor) {
       // The host's colour variables, back at night inside what stays night
       // (the 2025 skin's inputs read --ps-s2: white fields on the dark map).
       const vars = sel.trim() === ":host" ? body.match(/--[\w-]+\s*:[^;]+/g) : null;
-      return sel + "{" + dayDecls(body, color) + (vars ? "}" + NIGHT_BOXES + "{" + vars.join(";") : "");
+      return sel + "{" + dayDecls(body, color) + (vars ? "}" + NIGHT_BOXES + "{" + vars.join(";") : "") + (kept ? keptCopy(sel, body) : "");
     }
     const own = sel.slice(sel.lastIndexOf("{") + 1);          // inside an @media, the rule's own selector
     if (!LV_ONLY_RE.test(own) || NOT_LV_RE.test(own) || own.includes("@")) return chunk;
@@ -282,7 +309,7 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [], colo
   const paintSheet = (st) => {
     if (styleOrig.has(st) || frozen(st) || KEEP_SELECTOR_RE.test(st.textContent.slice(0, 400))) return;
     styleOrig.set(st, st.textContent);
-    st.textContent = dayCss(st.textContent, color);
+    st.textContent = dayCss(st.textContent, color, color === dayColor);
   };
   const restore = (el) => {
     if (!el.hasAttribute(NIGHT)) return;
@@ -300,7 +327,7 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [], colo
       let box = null;
       for (let p = d.parentElement, i = 0; p && i < 4; i++, p = p.parentElement) {
         const night = p.getAttribute(NIGHT) || p.getAttribute("style") || "";
-        if (/background/.test(night) || p.classList.contains("card")) { box = p; break; }
+        if (/background/.test(night) || p.classList.contains("card") || (color === dayColor && p.classList.contains("mapstage"))) { box = p; break; }
       }
       box = box || d.parentElement;
       if (!box) return;
@@ -327,7 +354,7 @@ export function attachDayTheme(root, { frozen = () => false, extraCss = [], colo
   const extra = extraCss.map(css => {
     const st = document.createElement("style");
     st.setAttribute("data-day-css", "");
-    st.textContent = dayCss(css, color);
+    st.textContent = dayCss(css, color, color === dayColor);
     root.appendChild(st);
     return st;
   });

@@ -241,3 +241,25 @@ def test_the_frame_is_honest_about_an_empty_fabric(tmp_path):
     ))
     assert out["empty"] is True
     assert out["rooms"] == 0 and out["outdoor"] == 0
+
+
+def test_a_slabs_depth_is_measured_from_the_floors_rank(tmp_path):
+    """iso() only ranks exact levels: z - slabWZ went unranked, so with a lowest
+    floor that isn't 0 every slab hung about a whole storey deep (278 px, as dark
+    shafts over the floors below, on the sample house and on homes like it)."""
+    out = _run(tmp_path, (
+        "const w = 18 / 260;\n"
+        "const depths = (lv) => { const fl = FLOORS.map(f => ({...f, level: lv[f.id] ?? null}));\n"
+        "  const fr = M.fabricFrame({...MODEL, floors: fl}, fl, 260, 0);\n"
+        "  return { levels: fr.levels, ranked: fr.levels.map(z => Math.round(fr.iso(0, 0, fr.rankOf(z) - w)[1] - fr.iso(0, 0, z)[1])),\n"
+        "           raw: fr.levels.map(z => Math.round(fr.iso(0, 0, z - w)[1] - fr.iso(0, 0, z)[1])) }; };\n"
+        "out.low = depths({basement: -1, main: 0, upper: 1, outside: 2});\n"
+        "out.zero = depths({basement: 0, main: 1, upper: 2, outside: 3});\n"
+    ))
+    assert out["low"]["levels"] == [-1, 0, 1]
+    assert out["low"]["ranked"] == [18, 18, 18]
+    assert out["low"]["raw"] != [18, 18, 18], "the shape that drew the shafts"
+    assert out["zero"]["ranked"] == out["zero"]["raw"] == [18, 18, 18], "a lowest floor at 0 never changed"
+    src = (_VIEWS / "overview.js").read_text(encoding="utf-8")
+    assert "z-slabWZ" not in src
+    assert src.count("_fabF.rankOf(z)-slabWZ") == 2

@@ -3741,7 +3741,7 @@ function _libraryThumb(m, ctx, reco){
       const pts = g.points_m.map(p => metresToMapFrac(tf, Number(p[0]), Number(p[1]))).filter(Boolean);
       if (pts.length < 3) continue;
       const c = roomColor ? roomColor(room) : "#52b788";
-      s += `<polygon points="${pts.map(p=>`${p[0]},${p[1]}`).join(" ")}" fill="${c}22" stroke="${c}" stroke-width="0.005"/>`;
+      s += `<polygon points="${pts.map(p=>`${p[0]},${p[1]}`).join(" ")}" fill="${ctx.helpers.roomColorAlpha(c, "22")}" stroke="${c}" stroke-width="0.005"/>`;
     }
     for (const p of Object.values(ctx.state.model?.scanner_positions_m || {})) {
       if (!p || String(p.floor_id || "main") !== fid || typeof p.x_m !== "number") continue;
@@ -3753,7 +3753,7 @@ function _libraryThumb(m, ctx, reco){
       if(!b || b.type!=="poly" || !b.points?.length) continue;
       const pts = b.points.map(p=>`${p[0]},${p[1]}`).join(" ");
       const c = roomColor ? roomColor(room) : "#52b788";
-      s += `<polygon points="${pts}" fill="${c}22" stroke="${c}" stroke-width="0.005"/>`;
+      s += `<polygon points="${pts}" fill="${ctx.helpers.roomColorAlpha(c, "22")}" stroke="${c}" stroke-width="0.005"/>`;
     }
     for(const rx of (m.receivers||[])){
       s += `<circle cx="${rx.x||0}" cy="${rx.y||0}" r="0.022" fill="#52b788" opacity="0.9"/>`;
@@ -7234,13 +7234,13 @@ function _stackMapSVGStr(map, ctx, isTarget, showBg=true){
       const alpha = isTarget ? "99" : "33";
       if(b.type==="poly" && Array.isArray(b.points) && b.points.length >= 3){
         const pts = b.points.map(p=>`${p[0]},${p[1]}`).join(" ");
-        s += `<polygon points="${pts}" fill="${color}${alpha}" stroke="${color}" stroke-width="0.006"/>`;
+        s += `<polygon points="${pts}" fill="${ctx.helpers.roomColorAlpha(color, alpha)}" stroke="${color}" stroke-width="0.006"/>`;
         const cx = b.points.reduce((a,p)=>a+p[0],0)/b.points.length;
         const cy = b.points.reduce((a,p)=>a+p[1],0)/b.points.length;
         s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="0.05" font-family="system-ui,sans-serif">${_escSVG(room)}</text>`;
       } else if(b.type==="circle"){
         const cx=b.cx||0.5, cy=b.cy||0.5, r=b.r||0.12;
-        s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}${alpha}" stroke="${color}" stroke-width="0.006"/>`;
+        s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${ctx.helpers.roomColorAlpha(color, alpha)}" stroke="${color}" stroke-width="0.006"/>`;
         s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="0.05" font-family="system-ui,sans-serif">${_escSVG(room)}</text>`;
       }
     }
@@ -7557,7 +7557,7 @@ function _buildRoomBoundsSVG(map, ctx, transparent=false){
     if(!b || b.type!=="poly" || !Array.isArray(b.points) || b.points.length<3) continue;
     const color = roomColor(room);
     const pts = b.points.map(p=>`${p[0]*iw},${p[1]*ih}`).join(" ");
-    s += `<polygon points="${pts}" fill="${color}44" stroke="${color}" stroke-width="2"/>`;
+    s += `<polygon points="${pts}" fill="${ctx.helpers.roomColorAlpha(color, "44")}" stroke="${color}" stroke-width="2"/>`;
     const cx = b.points.reduce((a,p)=>a+p[0],0)/b.points.length*iw;
     const cy = b.points.reduce((a,p)=>a+p[1],0)/b.points.length*ih;
     const fs = Math.max(12, Math.round(iw*0.024));

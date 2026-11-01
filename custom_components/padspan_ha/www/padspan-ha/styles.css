@@ -16,6 +16,7 @@
 .card{background:#0f1a12;border:1px solid var(--line);border-radius:12px;padding:12px}
 .kpi{font-size:24px;font-weight:700;margin-top:4px}
 .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#0c1a0e;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto}
+textarea.mono{color:var(--text)}
 .hidden{display:none}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 /* Flood alarm latches, sidebar (panel.js #emergencyBanner) — always visible
@@ -150,10 +151,15 @@
 :host([data-invert]) video {
   filter: invert(1) hue-rotate(180deg);
 }
+/* Native checkboxes too: inverted, an empty white box is a solid black square
+   that reads as ticked. */
+:host([data-invert]) input[type="checkbox"]{filter:invert(1) hue-rotate(180deg)}
 
 /* Day theme (day_theme.js): native controls (slider tracks, scrollbars,
    dropdown lists) drawn light too. */
 :host([data-theme="day"]){color-scheme:light}
+/* Everywhere else the date fields are dark and the native calendar icon black. */
+:host(:not([data-theme="day"])) ::-webkit-calendar-picker-indicator{filter:invert(1)}
 
 .marker.selected{
   outline: 2px solid rgba(255,255,255,0.85);

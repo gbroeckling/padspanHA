@@ -1,0 +1,10 @@
+# Room colours, the support report's text, Day's dark boxes and Bluetooth colours, Light's checkboxes, and the 3D map's floor slabs
+
+### Fixed
+- **Rooms are no longer filled solid black.** Library thumbnails and the 3D Stack alignment overlay drew every room with an automatic colour as a black shape that hid the plan under it (white in Light). They now show the see-through room colour that was intended. Sandbox's Signal Pulse rings and Floor Towers, Monitor's Dashboard Card Preview tiles and the room badges in Beacon Tune had lost their tint and outline the same way. A room whose colour you picked yourself looks as it always did.
+- **The support report can be read.** The text box in Diagnostics and in Monitor → Export for support was black on near-black in Night and pale on pale in Light, just when the screen asks you to look the report over before sending it.
+- **Day theme: dark text on dark boxes.** Mapping's Edit card now follows the Day theme, with only the map itself staying dark, so "Edit: <map>", receiver names and the tools can all be read, from Setup too. Boxes that stay dark around a drawing, such as the floor titles in Calibration → Model and "Room Activity" in Busy Times, now keep light text.
+- **Day theme: Bluetooth's coloured words can be read.** KPI numbers, signal values, chips, links and buttons on every Bluetooth tab were pale on pale. They keep their colours, darkened.
+- **Light theme: an empty checkbox no longer looks ticked.** Unticked boxes were solid black squares. They are now white boxes, and ticked ones green, as in Night.
+- **The 3D map's floors no longer hang dark shafts over the floors below.** With a lowest floor level other than 0, which includes the sample house, each floor was drawn about a storey deep and hid the rooms underneath, on the Overview and in the Live Tracker. Homes with a lowest floor at 0 draw exactly as before.
+- **The date pickers' calendar icon shows on dark fields.** It was black on near-black in Forensics, Traceback's custom range and everywhere else a date is picked, in Night and in Light.
