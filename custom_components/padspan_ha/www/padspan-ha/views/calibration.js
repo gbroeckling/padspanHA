@@ -985,7 +985,7 @@ function _setup(ctx, el, cs, calData) {
   const durRow = el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" });
   for (const d of [15, 30, 60, 90]) {
     const btn = el("button", {
-      class: "btn" + (cs.duration === d ? "" : " inline"),
+      class: "btn inline" + (cs.duration === d ? " on" : ""),
       style: "min-width:60px",
       onclick: () => { cs.duration = d; ctx.actions.renderRooms(); },
     }, `${d}s`);

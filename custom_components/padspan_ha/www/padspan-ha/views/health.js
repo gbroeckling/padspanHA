@@ -37,7 +37,7 @@ export function render(ctx){
     ctx.helpers.helpBtn("health"),
   ]));
 
-  root.appendChild(el("div",{class:"grid"},[
+  root.appendChild(el("div",{class:"grid grid-wide"},[
     el("div",{class:"card"},[
       el("div",{style:"font-weight:700"},"System"),
       el("div",{class:"mono"}, `UI v${ctx.state.version} • build ${ctx.state.buildId}`),
@@ -835,9 +835,9 @@ function _renderCapture(ctx, container) {
   // gauge, which a click-on-image picker would depend on. Left blank, the
   // mark behaves exactly as before (room label only).
   const markX = el("input", {class:"input", type:"number", step:"0.1", placeholder:"x (m)",
-    style:"width:64px;padding:3px 6px;font-size:11px"});
+    style:"width:64px;box-sizing:content-box;padding:3px 6px;font-size:11px"});
   const markY = el("input", {class:"input", type:"number", step:"0.1", placeholder:"y (m)",
-    style:"width:64px;padding:3px 6px;font-size:11px"});
+    style:"width:64px;box-sizing:content-box;padding:3px 6px;font-size:11px"});
   row.appendChild(recBtn); row.appendChild(markSel); row.appendChild(markX); row.appendChild(markY);
   row.appendChild(markBtn);
 
@@ -1011,11 +1011,11 @@ async function _renderReplayPanel(ctx, panel, sessionId) {
 
   const abRow = el("div", {style:"display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap"});
   const qIn = el("input", {class:"input", type:"number", step:"0.01", placeholder:"kalman_q",
-    style:"width:80px;padding:2px 6px;font-size:10px"});
+    style:"width:80px;box-sizing:content-box;padding:2px 6px;font-size:10px"});
   const rIn = el("input", {class:"input", type:"number", step:"0.5", placeholder:"kalman_r",
-    style:"width:80px;padding:2px 6px;font-size:10px"});
+    style:"width:80px;box-sizing:content-box;padding:2px 6px;font-size:10px"});
   const dIn = el("input", {class:"input", type:"number", step:"1", placeholder:"room_change_delay_s",
-    style:"width:120px;padding:2px 6px;font-size:10px"});
+    style:"width:120px;box-sizing:content-box;padding:2px 6px;font-size:10px"});
   const abBtn = el("button", {class:"btn", style:"width:auto;padding:2px 10px;font-size:10px"}, "Run A/B");
   abRow.appendChild(qIn); abRow.appendChild(rIn); abRow.appendChild(dIn); abRow.appendChild(abBtn);
   panel.appendChild(abRow);

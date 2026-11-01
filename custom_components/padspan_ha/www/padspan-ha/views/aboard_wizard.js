@@ -269,7 +269,7 @@ export async function openLiveAboardWizard(ctx, step) {
       if (!s.floors.length) { out.push(tip("Floors come from Home Assistant (Settings → Areas, labels & zones → Floors). Add them there first.")); return out; }
       const inputs = [];
       for (const f of s.floors) {
-        const inp = el("input", { type: "number", class: "input", min: "1.5", max: "10", step: "0.05", value: f.f2f != null ? String(f.f2f) : "", placeholder: "2.8", style: "width:80px" });
+        const inp = el("input", { type: "number", class: "input", min: "1.5", max: "10", step: "0.05", value: f.f2f != null ? String(f.f2f) : "", placeholder: "2.8", style: "width:80px;box-sizing:content-box" });
         inputs.push([f.id, inp]);
         out.push(el("div", { style: "display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px;color:#e2e8f0" },
           [el("span", { style: "min-width:150px" }, f.name), inp, el("span", { style: "color:#94a3b8;font-size:12px" }, `m · ${f.rooms} room${f.rooms === 1 ? "" : "s"}`)]));

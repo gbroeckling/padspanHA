@@ -369,9 +369,9 @@ function _compareAllMaps(ctx, maps, resultDiv) {
   const table = el("div",{style:"margin-top:8px;font-size:11px;font-family:monospace"});
   for (const p of pairs.slice(0, 20)) {
     const [lbl, col] = _rating(p.pct);
-    const row = el("div",{style:"display:flex;gap:8px;padding:2px 0;border-bottom:1px solid #1a2a1a"});
+    const row = el("div",{style:"display:flex;flex-wrap:wrap;gap:0 8px;padding:2px 0;border-bottom:1px solid #1a2a1a"});
     row.appendChild(el("span",{style:"width:100px;color:" + col + ";font-weight:600"}, _m(p.dist)));
-    row.appendChild(el("span",{style:"flex:1;color:#e2e8f0"}, p.room));
+    row.appendChild(el("span",{style:"flex:1 1 120px;color:#e2e8f0"}, p.room));
     row.appendChild(el("span",{style:"color:#64748b"}, p.mapA + " vs " + p.mapB));
     table.appendChild(row);
   }
@@ -2696,7 +2696,7 @@ function _edit(ctx, map, allMaps, opts){
       ]));
       if (matSel.value === "custom") {
         const dbIn = el("input",{type:"number", class:"input", min:"0", max:"30", step:"1",
-          value:String(_customDb()), style:"width:70px"});
+          value:String(_customDb()), style:"width:70px;box-sizing:content-box"});
         dbIn.addEventListener("change", ()=>{ ctx.state.maps._barrierCustomDb = dbIn.value; dbIn.value = String(_customDb()); });
         right.appendChild(el("div",{style:"margin-top:6px;display:flex;align-items:center;gap:6px;font-size:12px"},
           [el("span",{class:"muted"},"Loss through it"), dbIn, el("span",{class:"muted"},"dB")]));
@@ -11035,7 +11035,7 @@ function _roomsTab(ctx, maps) {
     const addRow = el("div", { style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px" });
     const nameIn = el("input", {
       type: "text", placeholder: "New room name",
-      style: "width:150px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 8px;font-size:12px",
+      style: "width:150px;box-sizing:content-box;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:4px;padding:3px 8px;font-size:12px",
     });
     addRow.appendChild(nameIn);
     addRow.appendChild(el("button", {

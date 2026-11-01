@@ -3310,7 +3310,7 @@ export function renderClassic(ctx){
               irkInput.placeholder = "Paste IRK (hex or base64)";
               // "Save unverified" is for the key it was offered for: an edited key is checked again.
               irkInput.addEventListener("input", () => { if (irkSaveBtn._force) { irkSaveBtn._force = false; irkSaveBtn.textContent = "Save"; irkSaveBtn.style.color = "#4ade80"; irkSaveBtn.style.borderColor = "#16a34a"; } });
-              irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:3px;width:220px;display:none;font-family:monospace";
+              irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:3px;width:220px;box-sizing:content-box;display:none;font-family:monospace";
 
               const irkSaveBtn = document.createElement("button");
               irkSaveBtn.style.cssText = "font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #16a34a;background:#052e16;color:#4ade80;display:none";
@@ -3743,7 +3743,7 @@ export function renderClassic(ctx){
             irkInput.placeholder = "Paste IRK (hex or base64)";
             // "Save unverified" is for the key it was offered for: an edited key is checked again.
             irkInput.addEventListener("input", () => { if (irkSaveBtn._force) { irkSaveBtn._force = false; irkSaveBtn.textContent = "Save"; irkSaveBtn.style.color = "#4ade80"; irkSaveBtn.style.borderColor = "#16a34a"; } });
-            irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:3px;width:220px;display:none;font-family:monospace";
+            irkInput.style.cssText = "font-size:10px;padding:2px 6px;background:#071008;color:#e2e8f0;border:1px solid #2d4a38;border-radius:3px;width:220px;box-sizing:content-box;display:none;font-family:monospace";
             const irkSaveBtn = document.createElement("button");
             irkSaveBtn.style.cssText = "font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #16a34a;background:#052e16;color:#4ade80;display:none";
             irkSaveBtn.textContent = "Save";

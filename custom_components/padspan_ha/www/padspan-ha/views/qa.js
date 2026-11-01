@@ -21,7 +21,7 @@ export function render(ctx){
     helpBtn("qa"),
   ]));
 
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── Config Health ──
   const healthCard = el("div",{class:"card"});

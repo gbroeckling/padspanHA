@@ -2075,8 +2075,8 @@ export function render(ctx) {
   for (const [id, label, icon] of [["walkthroughs","Walkthroughs","📡"],["quickstart","Quick Start","🗒️"],["manual","Full Manual","📖"]]) {
     const active = ts.tab === id;
     const btn = el("button", {
-      class: "btn" + (active ? "" : " inline"),
-      style: active ? "border-color:#52b788;font-weight:600" : "",
+      class: "btn inline" + (active ? " on" : ""),
+      style: active ? "border-color:#52b788" : "",
       onclick: () => { ts.tab = id; ctx.actions.renderRooms(); },
     }, icon + "  " + label);
     tabBar.appendChild(btn);

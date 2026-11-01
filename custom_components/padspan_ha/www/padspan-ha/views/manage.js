@@ -1743,7 +1743,7 @@ function _haEspresenseSection(ctx, el, settings){
     const prefixRow = el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:10px"});
     prefixRow.appendChild(el("span",{style:"font-size:12px;color:#94a3b8;white-space:nowrap"},"Topic prefix:"));
     const prefixInput = el("input",{type:"text",value:settings.espresense_topic_prefix||"espresense",placeholder:"espresense"});
-    prefixInput.style.cssText = "background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:12px;width:180px";
+    prefixInput.style.cssText = "background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:12px;width:180px;box-sizing:content-box";
     const prefixSave = el("button",{class:"btn inline",style:"font-size:11px;padding:3px 10px"});
     prefixSave.textContent = "Save";
     prefixSave.addEventListener("click", async()=>{
@@ -1784,7 +1784,7 @@ function _haEspresenseSection(ctx, el, settings){
   const urlRow = el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"});
   urlRow.appendChild(el("span",{style:"font-size:12px;color:#94a3b8;white-space:nowrap"}, "Companion URL:"));
   const urlInput = el("input",{type:"text",value:settings.espresense_companion_url||"",placeholder:"http://espresense:8267"});
-  urlInput.style.cssText = "background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:12px;width:240px";
+  urlInput.style.cssText = "background:#0a150e;border:1px solid #2d5a3d;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:12px;width:240px;box-sizing:content-box";
   const urlSave = el("button",{class:"btn inline",style:"font-size:11px;padding:3px 10px"});
   urlSave.textContent = "Save URL";
   urlSave.addEventListener("click", async()=>{
