@@ -31,13 +31,14 @@ textarea.mono{color:var(--text)}
    panel.js's global chrome. Built into the DOM only while on, so there is
    no .hidden toggle here to fight a same-specificity display rule. */
 .lv-vacation{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:min(90vw,520px);
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:max-content;max-width:min(90vw,520px);
   padding:10px 14px;border-radius:12px;background:rgba(30,22,6,.92);border:1px solid #b58a1f;
   box-shadow:0 6px 24px rgba(0,0,0,.45);font-size:12.5px;color:#fde9b8}
 .lv-vacation-label{font-weight:700}
 .lv-vacation-slider-wrap{display:flex;align-items:center;gap:6px}
 .lv-vacation-slider{width:100px;accent-color:#e0b23a}
-.lv-vacation-opts{z-index:41;background:rgba(30,22,6,.98);flex-direction:column;align-items:stretch;gap:8px;max-width:min(94vw,560px);max-height:80vh;overflow:auto}
+.lv-vacation-opts{z-index:41;background:rgba(30,22,6,.98);flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:8px;max-width:min(94vw,560px);max-height:80vh;overflow:auto}
+.lv-vacation-opts > *{flex-shrink:0}
 .lv-vac-opt-head{display:flex;align-items:center;gap:10px}
 .lv-vac-opt{display:flex;flex-direction:column;gap:2px;padding-top:6px;border-top:1px solid rgba(181,138,31,.35)}
 .lv-vac-opt-main{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -1366,7 +1367,8 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-rail{position:absolute;left:0;top:0;bottom:0;width:44px;display:flex;flex-direction:column;
   align-items:center;gap:4px;padding:8px 0;background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
   border-right:1px solid rgba(120,190,155,.18);z-index:5;transition:transform .18s ease}
-.lv-rail.hidden{transform:translateX(-100%)}
+.lv-rail.hidden{width:0;padding:8px 0 0 6px;align-items:flex-start;background:none;border:none}
+.lv-rail.hidden > :not(:last-child){display:none}
 .lv-rail.hidden ~ .lv-stage{width:100%;margin-left:0}
 /* The legend clears the rail like the stage does; the card has no padding
    here, so it brings its own. */

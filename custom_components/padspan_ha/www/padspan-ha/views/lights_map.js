@@ -4793,11 +4793,14 @@ export function buildLightsMapCard(hostIn){
       });
       la3dCloseDrawer = () => { if (view.drawer) setDrawer(view.drawer); };
     }
-    rail.appendChild(railBtn(view.railHidden ? "›" : "‹", view.railHidden ? "Show the controls" : "Hide the controls", () => {
+    const railToggle = railBtn(view.railHidden ? "›" : "‹", view.railHidden ? "Show the controls" : "Hide the controls", () => {
       view.railHidden = !view.railHidden;
       if (view.railHidden && view.drawer) setDrawer(view.drawer);
       rail.classList.toggle("hidden", !!view.railHidden);
-    }));
+      railToggle.textContent = view.railHidden ? "›" : "‹";
+      railToggle.title = view.railHidden ? "Show the controls" : "Hide the controls";
+    });
+    rail.appendChild(railToggle);
     mapCard.appendChild(rail);
     isoDiv.addEventListener("pointerdown", () => { if (view.drawer) setDrawer(view.drawer); });
   }
@@ -5444,7 +5447,6 @@ export function buildLightsTable(hostIn, lights){
         }, "Revert")] : []),
         el("button", {
           class: "lv-act",
-          style: isHidden ? "opacity:0.5" : "",
           onclick: (e) => {
             e.stopPropagation();
             host.onToggleHidden(l.entity_id);
@@ -5471,6 +5473,9 @@ export function buildLightsTable(hostIn, lights){
       let lpTimer = null, ringT = null, ring = null, capturedId = null;
       row.addEventListener("pointerdown", (ev) => {
         row._lpFired = false;
+        // The row's own controls keep their clicks: with the pointer captured,
+        // a mouse click lands on the row, which switches the light.
+        if (ev.target.closest && ev.target.closest("button,select,input,a,label")) return;
         try { row.setPointerCapture(ev.pointerId); capturedId = ev.pointerId; } catch (_) {}
         if (codeSwatchSvg) ringT = setTimeout(() => { ring = pressRing(codeSwatchSvg, 7.5, 7.5, 5.6); }, PRESS_RING_MS);
         lpTimer = setTimeout(() => {
