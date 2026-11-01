@@ -93,6 +93,8 @@ def test_masked_receivers_and_the_warm_up_are_passed_in() -> None:
     body = js.split("  _updateStatusDot(failed){", 1)[1].split("\n  }\n", 1)[0]
     assert "s.excluded_scanners" in body and "s.lost_radios" in body and "s.disabled_radios" in body
     assert "excluded, warmup: now < this._statusDotWarmUntil," in body
+    # A build with no Receivers screen (PadSpan Bright) leaves receivers out.
+    assert 'EDITIONS.surfacesForEdition(["receivers"], s).length > 0' in body
     assert "(!failed && this._statusDotLastFailed)" in body
     assert "maps:" not in body
 
