@@ -9,9 +9,11 @@ import { attachPanZoom } from "./pan_zoom.js";
 // A tall plan fits the window instead of filling the card. Only the box's size
 // changes: its shape stays the plan's, and a point is a fraction of the plan's
 // on-screen box, so where a point is, or lands, does not depend on this.
+// Never under 360 px wide (or the card's width), so a tap stays precise on a
+// short window, such as a phone on its side: the page scrolls instead.
 // border: the box's own border in px (its content is what has the plan's shape).
 function _fitPlanToWindow(box, vbH, border) {
-  box.style.width = `min(100% - ${border * 2}px, max(100vh - 140px, 320px) * ${100 / vbH})`;
+  box.style.width = `min(100% - ${border * 2}px, max(max(100vh - 140px, 320px) * ${100 / vbH}, 360px))`;
   box.style.marginInline = "auto";
 }
 

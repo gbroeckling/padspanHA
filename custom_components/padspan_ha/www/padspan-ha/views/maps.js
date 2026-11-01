@@ -238,6 +238,11 @@ const OUTSIDE_FLOOR_ID = "__outside__";
 const WALLS_GUIDE_URL = "https://github.com/gbroeckling/padspanHA/blob/main/docs/WALLS_GUIDE.md";
 function _isOutsideMap(m) { return (m.floor_id || "") === OUTSIDE_FLOOR_ID; }
 
+// An HA floor may be called Outside too: two headings mustn't read the same.
+function _outsideLabel(floors) {
+  return floors.some(f => String(f.name || "").trim().toLowerCase() === "outside") ? "Outside (Exp.)" : "Outside";
+}
+
 // Resolve a floor_id to a human-readable name from the HA floor registry.
 function _floorName(ctx, floor_id){
   const floors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
@@ -580,7 +585,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     const floorMaps = _floorMap.get(fid) || [];
     floorMaps.sort((a, b) => String(a.created || "").localeCompare(String(b.created || "")));
     const floorObj = _floors.find(f => f.id === fid);
-    const floorName = fid === OUTSIDE_FLOOR_ID ? "Outside" : floorObj ? (floorObj.name || fid) : fid;
+    const floorName = fid === OUTSIDE_FLOOR_ID ? _outsideLabel(_floors) : floorObj ? (floorObj.name || fid) : fid;
     list.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788;margin-top:8px;margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px"},
       `${floorName} (${floorMaps.length})`));
 
@@ -2298,8 +2303,9 @@ function _edit(ctx, map, allMaps, opts){
         bLine.addEventListener("click", (ev)=>{ ev.stopPropagation(); ctx.state.maps._selectedBarrierId = bar.id; renderAll(); renderTools(); });
       }
       svg.appendChild(bLine);
-      // Label at midpoint
-      if(bar.points.length >= 2){
+      // Label at midpoint, in the tool that works on walls: on a phone these
+      // names would otherwise hide a third of the plan in every other tool.
+      if(ctx.state.maps._mode === "barriers" && bar.points.length >= 2){
         const loI = Math.floor((bar.points.length - 1) / 2);
         const hiI = Math.ceil((bar.points.length - 1) / 2);
         const midX = (bar.points[loI][0] + bar.points[hiI][0]) / 2;
@@ -11017,8 +11023,7 @@ function _roomsTab(ctx, maps) {
   const haFloors = ctx.state.model?.floors || [];
   const floorIds = [];
   const seenF = new Set();
-  // An HA floor may be called Outside too: two buttons mustn't read the same.
-  const outsideLabel = haFloors.some(f => String(f.name || "").trim().toLowerCase() === "outside") ? "Outside (Exp.)" : "Outside";
+  const outsideLabel = _outsideLabel(haFloors);
   const addF = (id, label) => { if (id && !seenF.has(id)) { seenF.add(id); floorIds.push([id, label || (id === OUTSIDE_FLOOR_ID ? outsideLabel : id)]); } };
   for (const f of haFloors) addF(String(f.id), f.name || f.id);
   for (const g of Object.values(allGeo)) addF(String(g.floor_id || "main"));

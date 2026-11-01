@@ -2178,18 +2178,23 @@ class PadSpanHaApp extends HTMLElement {
     return !this.state._dataModeKnown && !(this._realHass && this._realHass.padspan_demo === true);
   }
 
-  /** Resolves when the mode is known (the watchdog's _retryDataMode keeps
-   *  asking); a change kept waiting too long is refused, not sent blind. */
+  /** Resolves when the mode is known (_applyDataMode; the watchdog's
+   *  _retryDataMode keeps asking). One promise for every change held, so they
+   *  leave in the order they were made. No answer within 20 s of the first
+   *  one held: they are refused together, not sent blind (_sampleCall has the
+   *  one exception). */
   _modeAnswered(){
-    const t0 = Date.now();
-    return new Promise((resolve, reject) => {
-      const tick = () => {
-        if (!this._modeUnknown()) resolve();
-        else if (Date.now() - t0 > 20000) reject(new Error("Home Assistant hasn't answered yet, so nothing was changed. Try again in a moment."));
-        else setTimeout(tick, 200);
-      };
-      tick();
-    });
+    if (!this._modeGate) {
+      const gate = this._modeGate = {};
+      gate.promise = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          this._modeGate = null;
+          reject(new Error("Home Assistant hasn't answered yet, so nothing was changed. Try again in a moment."));
+        }, 20000);
+        gate.release = () => { clearTimeout(timer); this._modeGate = null; resolve(); };
+      });
+    }
+    return this._modeGate.promise;
   }
 
   /** Every message sent while Sample mode is on (_sampleKind), or while the
@@ -2200,7 +2205,15 @@ class PadSpanHaApp extends HTMLElement {
     if (this._modeUnknown()) {
       const unknownKind = _sampleKind(payload);
       if (unknownKind === "read" || unknownKind === "pass") return real.callWS(payload);
-      await this._modeAnswered();
+      try {
+        await this._modeAnswered();
+      } catch (err) {
+        // The way out when the settings never answer: the repair tools still
+        // reach the server, as they always have before the mode is known.
+        // An answer in time decides as for any change: Sample refuses them.
+        if (!["padspan_ha/factory_reset", "padspan_ha/store_backup_restore"].includes(payload.type)) throw err;
+        return this._realHass.callWS(payload);
+      }
       return this._sampleCall(payload);
     }
     // Switched back to Live while a view still held the sample hass.
@@ -2685,21 +2698,25 @@ class PadSpanHaApp extends HTMLElement {
    * poll runs only in Live mode, and the watchdog's own refresh only when
    * #content is empty, so a wall kiosk that booted during an HA restart sat
    * on an empty screen for good. Called from the 5 s watchdog; one attempt
-   * in flight at a time. Once the mode is known, a full refresh brings the
-   * data and, in Live mode, the poll starts.
+   * in flight at a time, or a new one after 20 s if that one never answers
+   * (it still counts if it does). Once the mode is known, one full refresh
+   * brings the data and, in Live mode, the poll starts.
    */
   _retryDataMode(){
-    if(this.state._dataModeKnown || this._modeRetry) return;
-    this._modeRetry = true;
+    if(this.state._dataModeKnown) return;
+    const now = Date.now();
+    if(this._modeRetry && now - this._modeRetry < 20000) return;
+    this._modeRetry = now;
     this._fetchSettings()
       .then(() => {
-        if(!this.state._dataModeKnown) return;
+        if(!this.state._dataModeKnown || this._modeRetryRefreshed) return;
+        this._modeRetryRefreshed = true;
         return this._refreshAll(false).then(() => {
           if(this.state.dataMode === "live" && !this._pollTimer) this._startDataPoll();
         });
       })
       .catch(() => {})
-      .finally(() => { this._modeRetry = false; });
+      .finally(() => { if(this._modeRetry === now) this._modeRetry = 0; });
   }
 
   /**
@@ -2731,6 +2748,7 @@ class PadSpanHaApp extends HTMLElement {
     const mode = own || (!this.state._dataModeKnown || server === "live" ? server : this.state.dataMode);
     this.state.dataMode = mode;
     this.state._dataModeKnown = true;
+    if(this._modeGate) this._modeGate.release();
     if(mode === "live" && (this.state.live.snapshot === SAMPLE_SNAPSHOT || this.state.live.fromSample)){
       this.state.live.snapshot = null;
       this.state.live.fromSample = false;

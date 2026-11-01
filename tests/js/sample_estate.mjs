@@ -79,7 +79,7 @@ const method = (n) => extractBlock(new RegExp(`^\\s{2}(?:async\\s+)?${n}\\s*\\(`
 const METHODS = ["_wsCount", "_logEvent", "_callWS", "_fetchSettings", "_loadSettings", "_applyDataMode", "_setDataMode",
   "_recomputeDerived", "_getRoomTags", "_getLiveSnapshot", "_refreshAll", "_getMapsList", "_getModel", "_getStatus",
   "_getVersionInfo", "_runAutoDiag", "_loadAlertConfigs",
-  "_sampleGateOn", "_modeUnknown", "_modeAnswered", "_ensureSampleHouse", "_sampleBlocked", "_sampleCall", "_viewHass", "_syncSampleHass", "_dropHouseCaches",
+  "_retryDataMode", "_sampleGateOn", "_modeUnknown", "_modeAnswered", "_ensureSampleHouse", "_sampleBlocked", "_sampleCall", "_viewHass", "_syncSampleHass", "_dropHouseCaches",
   "_keepLiveFollow", "_restoreLiveFollow", "_telemetryEvent", "_telemetryFlush", "_sampleSettingsTick", "_updateEmergencyBanner"];
 let bodies = METHODS.map(method).join("\n\n");
 // The one import of the sample house: counted, and pointed at the file.
@@ -509,6 +509,21 @@ function realHassSettingsDown(server) {
 }
 const CHANGES = /model_update|maps_update|^light\.turn_on|^POST /;
 
+// The shim runs every queued timer at the next flush. The wait for the mode's
+// answer (20 s) runs out only when a case says so.
+const shimSetTimeout = globalThis.setTimeout, shimClearTimeout = globalThis.clearTimeout;
+let modeDeadlines = [];
+globalThis.setTimeout = (fn, ms, ...a) => {
+  if (ms !== 20000) return shimSetTimeout(fn, ms, ...a);
+  modeDeadlines.push(fn);
+  return { modeDeadline: fn };
+};
+globalThis.clearTimeout = (id) => {
+  if (id && id.modeDeadline) modeDeadlines = modeDeadlines.filter(f => f !== id.modeDeadline);
+  else shimClearTimeout(id);
+};
+const twentySecondsLater = () => { const due = modeDeadlines; modeDeadlines = []; due.forEach(f => f()); };
+
 for (const [saved, ends] of [["sample", "refused"], ["live", "sent"]]) {
   await run(`the mode is unknown, on a house in ${saved}: a change waits, and is then ${ends}`, async () => {
     globalThis.localStorage.clear();
@@ -543,6 +558,147 @@ for (const [saved, ends] of [["sample", "refused"], ["live", "sent"]]) {
     }
   });
 }
+
+/** A real pause: what is held must wait out a pause, as a person's next click would. */
+const pause = (ms) => new Promise(r => globalThis._realSetTimeout(r, ms));
+
+/** A panel with its first settings answer still out (the settings fail until told otherwise). */
+function unknownPanel(saved) {
+  globalThis.localStorage.clear();
+  const hass = realHassSettingsDown({ data_mode: saved });
+  const p = new (browser(globalThis.localStorage))();
+  p.setHass(hass);
+  return { p, hass };
+}
+const WRITES = /^padspan_ha\/(model_update|maps_update|factory_reset|store_backup_restore)$|^light\.|^POST /;
+const sentOrder = (hass) => hass.log.filter(e => WRITES.test(e.type || "")).map(e => (e.msg && e.msg.probe) || e.type);
+
+await run("held changes leave in the order they were made, through every door, whatever the gaps", async () => {
+  const { p, hass } = unknownPanel("live");
+  const made = [];
+  const steps = [
+    () => { made.push("A"); return p._hass.callWS({ type: "padspan_ha/model_update", probe: "A" }); },
+    () => { made.push("light.turn_on"); return p._hass.callService("light", "turn_on", { entity_id: "light.real_den" }); },
+    () => { made.push("B"); return p._callWS({ type: "padspan_ha/maps_update", probe: "B" }); },
+    () => { made.push("POST services/x"); return p._hass.callApi("POST", "services/x"); },
+    () => { made.push("C"); return p._hass.connection.sendMessagePromise({ type: "padspan_ha/model_update", probe: "C" }); },
+    () => { made.push("light.turn_off"); return p._hass.callService("light", "turn_off", { entity_id: "light.real_den" }); },
+  ];
+  const going = [];
+  for (const [i, step] of steps.entries()) { going.push(step()); await pause([0, 60, 130, 210, 7, 260][i]); }
+  expect(!sentOrder(hass).length, "sent before the answer: " + sentOrder(hass));
+  expect(modeDeadlines.length === 1, "one wait for all of them, not one each: " + modeDeadlines.length);
+  hass.settingsDown = false;
+  await along(p._fetchSettings());
+  await Promise.all(going);
+  expect(JSON.stringify(sentOrder(hass)) === JSON.stringify(made), "order: " + sentOrder(hass) + " made: " + made);
+  expect(!modeDeadlines.length, "the answer left the wait running");
+});
+
+await run("a change made right after the answer leaves after the ones held", async () => {
+  const { p, hass } = unknownPanel("live");
+  const a = p._hass.callWS({ type: "padspan_ha/model_update", probe: "A" });
+  hass.settingsDown = false;
+  await along(p._fetchSettings());
+  const b = p._hass.callWS({ type: "padspan_ha/model_update", probe: "B" });
+  await Promise.all([a, b]);
+  expect(JSON.stringify(sentOrder(hass)) === '["A","B"]', "order: " + sentOrder(hass));
+});
+
+await run("no answer in 20 s: changes are refused and nothing is sent, the repair tools still reach the server, in order", async () => {
+  const { p, hass } = unknownPanel("live");
+  const settled = {};
+  const note = (k, pr) => pr.then(() => { settled[k] = "sent"; }, (e) => { settled[k] = e.message; });
+  note("model", p._hass.callWS({ type: "padspan_ha/model_update" }));
+  note("restore", p._callWS({ type: "padspan_ha/store_backup_restore", backup_id: "b1" }));
+  note("service", p._hass.callService("light", "turn_on", {}));
+  note("reset", p._callWS({ type: "padspan_ha/factory_reset", confirm: "FACTORY RESET" }));
+  await flush(5);
+  expect(!Object.keys(settled).length, "answered before the wait ran out: " + JSON.stringify(settled));
+  twentySecondsLater();
+  await flush(5);
+  const REFUSED = /hasn't answered yet, so nothing was changed/;
+  expect(REFUSED.test(settled.model) && REFUSED.test(settled.service), "not refused: " + JSON.stringify(settled));
+  expect(settled.restore === "sent" && settled.reset === "sent", "a repair tool did not go: " + JSON.stringify(settled));
+  expect(JSON.stringify(sentOrder(hass)) === '["padspan_ha/store_backup_restore","padspan_ha/factory_reset"]', "reached: " + sentOrder(hass));
+  // Still no answer: the next change waits its own 20 s, not refused at once.
+  const later = p._hass.callWS({ type: "padspan_ha/model_update" }).then(() => "sent", () => "refused");
+  expect(modeDeadlines.length === 1, "no new wait");
+  hass.settingsDown = false;
+  await along(p._fetchSettings());
+  expect(await later === "sent", "the answer did not release the later change");
+});
+
+await run("a home really in Sample: the repair tools are refused like any change", async () => {
+  // The answer arrives during the wait.
+  const held = unknownPanel("sample");
+  const during = held.p._callWS({ type: "padspan_ha/factory_reset", confirm: "FACTORY RESET" }).then(() => "sent", (e) => e.code);
+  held.hass.settingsDown = false;
+  await along(held.p._fetchSettings());
+  expect(await during === "sample_mode", "held until Sample was known: " + await during);
+  // Known before the call.
+  for (const type of ["padspan_ha/factory_reset", "padspan_ha/store_backup_restore"]) {
+    let err = null;
+    try { await held.p._callWS({ type, backup_id: "b1" }); } catch (e) { err = e; }
+    expect(err && err.code === "sample_mode", type + " went through");
+  }
+  expect(!sentOrder(held.hass).length, "reached: " + sentOrder(held.hass));
+  // This browser's own Sample, a Live server: the same once the answer is in.
+  globalThis.localStorage.clear();
+  globalThis.localStorage.setItem("padspan_data_mode", "sample");
+  const hass = realHassSettingsDown({ data_mode: "live" });
+  const own = new (browser(globalThis.localStorage))();
+  own.setHass(hass);
+  const r = own._callWS({ type: "padspan_ha/store_backup_restore", backup_id: "b1" }).then(() => "sent", (e) => e.code);
+  hass.settingsDown = false;
+  await along(own._fetchSettings());
+  expect(await r === "sample_mode", "own Sample: " + await r);
+  expect(!sentOrder(hass).length, "reached: " + sentOrder(hass));
+});
+
+await run("the watchdog keeps asking when an ask never answers, at a modest rate, and one answer brings one refresh", async () => {
+  globalThis.localStorage.clear();
+  const hass = realHass({ data_mode: "live" });
+  const answer = hass.callWS;
+  const hung = [];
+  let asks = 0;
+  hass.callWS = (m) => {
+    if (m.type !== "padspan_ha/settings_get" || !hass.hanging) return answer(m);
+    asks++;
+    return new Promise((resolve) => hung.push(() => resolve(answer(m))));
+  };
+  hass.hanging = true;
+  const p = new (browser(globalThis.localStorage))();
+  p.setHass(hass);
+  let refreshes = 0;
+  const refreshAll = p._refreshAll.bind(p);
+  p._refreshAll = (...a) => { refreshes++; return refreshAll(...a); };
+  const realNow = Date.now;
+  let now = realNow();
+  Date.now = () => now;
+  try {
+    p._retryDataMode();
+    expect(asks === 1, "first ask: " + asks);
+    for (let i = 0; i < 3; i++) { now += 5000; p._retryDataMode(); }
+    expect(asks === 1, "asked again within 20 s: " + asks);
+    now += 5000; p._retryDataMode();
+    expect(asks === 2, "stopped asking after one that never answered: " + asks);
+    now += 5000; p._retryDataMode();
+    expect(asks === 2, "a tick after the new ask asked again: " + asks);
+    for (let i = 0; i < 15; i++) { now += 5000; p._retryDataMode(); }
+    expect(asks === 6, "not about three asks a minute: " + asks);
+    expect(!p.state._dataModeKnown, "known with no answer");
+    // Every hung ask answers at once, as after a stall.
+    hass.hanging = false;
+    hung.forEach(f => f());
+    await flush(40);
+    expect(p.state._dataModeKnown && p.state.dataMode === "live", "not on Live");
+    expect(refreshes === 1, "refreshes: " + refreshes);
+    const before = asks;
+    now += 60000; p._retryDataMode();
+    expect(asks === before, "kept asking once known");
+  } finally { Date.now = realNow; }
+});
 
 await run("with the mode unknown no screen prints Sample", async () => {
   globalThis.localStorage.clear();

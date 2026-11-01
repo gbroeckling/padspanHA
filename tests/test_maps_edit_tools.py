@@ -53,7 +53,7 @@ def test_a_plan_on_calibrations_screens_fits_the_window_and_keeps_its_shape() ->
     cal = _text(_WWW / "views" / "calibration.js")
     fit = cal[cal.index("function _fitPlanToWindow("):]
     fit = fit[:fit.index("\n}")]
-    assert "box.style.width = `min(100% - ${border * 2}px, max(100vh - 140px, 320px) * ${100 / vbH})`;" in fit
+    assert "box.style.width = `min(100% - ${border * 2}px, max(max(100vh - 140px, 320px) * ${100 / vbH}, 360px))`;" in fit
     assert not re.search(r"(x_frac|y_frac|pinX|pinY|viewBox)", fit)
     assert cal.count("_fitPlanToWindow(mapWrap, vbH, 2);") == 2
     assert cal.count("_fitPlanToWindow(miniDiv, vbH, 1);") == 1

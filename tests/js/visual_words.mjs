@@ -78,7 +78,17 @@ function makeCtx(state, ws = {}) {
 {
   const root = MAPS.render(makeCtx({ mapsTab: "library" })); await flush();
   const t = text(root);
-  check("library: the outside floor's heading is Outside", /Outside \(1\)/.test(t) && !/__outside__ \(/i.test(t), t.slice(0, 300));
+  check("library: with an HA floor called Outside, the outside plan's heading is Outside (Exp.)", /Outside \(Exp\.\) \(1\)/.test(t) && !/__outside__ \(/i.test(t), t.slice(0, 300));
+
+  const both = makeCtx({ mapsTab: "library", maps: { list: MAP_LIST.concat(plan("h", "HA yard", "outside", 4)) } });
+  const t2 = text(MAPS.render(both)); await flush();
+  check("library: an HA floor called Outside and the outside plan's floor read differently",
+    /Outside \(1\)/.test(t2) && /Outside \(Exp\.\) \(1\)/.test(t2), t2.slice(0, 400));
+
+  const none = makeCtx({ mapsTab: "library" });
+  none.state.model = Object.assign({}, none.state.model, { floors: FLOORS.filter(f => f.id !== "outside") });
+  const t3 = text(MAPS.render(none)); await flush();
+  check("library: with no HA floor called that, it is just Outside", /Outside \(1\)/.test(t3) && !/Exp\.\) \(1\)/.test(t3), t3.slice(0, 300));
 
   const layout = MAPS.render(makeCtx({ mapsTab: "rooms" })); await flush();
   const buttons = all(layout).filter(n => (n.tagName || "").toUpperCase() === "BUTTON").map(text);

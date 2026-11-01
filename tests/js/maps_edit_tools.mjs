@@ -125,4 +125,20 @@ for (const [complexity, step, want] of [["advanced", 2, "measure"], ["advanced",
   check("a redraw does not leave a second copy", labels(root).filter((n) => textOf(n) === "Kitchen").length === 1, labels(root).length);
 }
 
+// ── a wall's name: only in the tool that works on walls ──────────────────────
+{
+  const ctx = makeCtx("advanced");
+  ctx.state.model.map_transforms = { m1: { origin_x_m: 0, origin_y_m: 0, scale_x_m: 10, scale_y_m: 10 } };
+  ctx.state.model.rf_barriers_m = [{ id: "w1", floor_id: "main", material: "metal", attenuation_dbm: 12, points_m: [[2, 2], [6, 2]] }];
+  const root = maps.render(ctx); await flush();
+  const wallNames = () => labels(root).filter((n) => textOf(n) === "metal (12dB)").length;
+  const wallLines = () => all(root, (n) => n.localName === "polyline").length;
+  check("Radios: the wall is drawn, with no name", wallLines() === 1 && wallNames() === 0, [wallLines(), wallNames()]);
+  for (const [t, names] of [["barriers", 1], ["rooms", 0], ["measure", 0], ["barriers", 1], ["receivers", 0]]) {
+    tool(root, t).click(); await flush();
+    check(`${t}: wall name ${names ? "shown" : "hidden"}, wall still drawn, room name kept`,
+      wallNames() === names && wallLines() === 1 && labels(root).some((n) => textOf(n) === "Kitchen"), [wallNames(), wallLines(), labels(root).map(textOf)]);
+  }
+}
+
 console.log(JSON.stringify(results));
