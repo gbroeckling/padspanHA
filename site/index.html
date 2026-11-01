@@ -184,6 +184,42 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.215</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">1 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>A mouse click on a light's ⋯, Hide or Show in the Atlas's list no longer switches the light.</b> The click landed on the row, so the control did nothing and the real light turned on or off. Touch wasn't affected.</li>
+          <li><b>Hiding the Atlas's controls can be undone.</b> The › button that brings them back was hidden with them, so only a reload worked, on a wall screen too. It now stays at the map's corner.</li>
+          <li><b>Vacation Mode's Options box scrolls.</b> On screens up to about 900 px high, it wrapped into side columns and hid Evening lights and the preview. On a phone it no longer squeezes into half the screen.</li>
+          <li><b>The Show button on a hidden light is easier to see.</b></li>
+          <li><b>PadSpan Bright no longer shows a permanent red "Something is broken" with no Bluetooth.</b> Bright has no Receivers screen and works without Bluetooth, so the top bar's status dot leaves receivers out there. It still says when PadSpan isn't answering.</li>
+          <li><b>Turning a trip from before the Routine from choice back on keeps its routine.</b> The new default counted as a change, so it tried to learn the trip again. Nobody chose against that routine, so it carries on as the monthly average it is. A choice you make yourself still applies.</li>
+          <li><b>One name for the device list.</b> The Overview's list is titled All objects, like its button, and pointers to the old Objects screen now say Devices.</li>
+          <li><b>The release notes point to Settings → Tracking → Help improve PadSpan</b> (the tab was renamed in 0.38.202).</li>
+          <li><b>Rooms are no longer filled solid black.</b> Library thumbnails and the 3D Stack alignment overlay drew every room with an automatic colour as a black shape that hid the plan under it (white in Light). They now show the see-through room colour that was intended. Sandbox's Signal Pulse rings and Floor Towers, Monitor's Dashboard Card Preview tiles and the room badges in Beacon Tune had lost their tint and outline the same way. A room whose colour you picked yourself looks as it always did.</li>
+          <li><b>The support report can be read.</b> The text box in Diagnostics and in Monitor → Export for support was black on near-black in Night and pale on pale in Light, just when the screen asks you to look the report over before sending it.</li>
+          <li><b>Day theme: dark text on dark boxes.</b> Mapping's Edit card now follows the Day theme, with only the map itself staying dark, so "Edit: &lt;map&gt;", receiver names and the tools can all be read, from Setup too. Boxes that stay dark around a drawing, such as the floor titles in Calibration → Model and "Room Activity" in Busy Times, now keep light text.</li>
+          <li><b>Day theme: Bluetooth's coloured words can be read.</b> KPI numbers, signal values, chips, links and buttons on every Bluetooth tab were pale on pale. They keep their colours, darkened.</li>
+          <li><b>Light theme: an empty checkbox no longer looks ticked.</b> Unticked boxes were solid black squares. They are now white boxes, and ticked ones green, as in Night.</li>
+          <li><b>The 3D map's floors no longer hang dark shafts over the floors below.</b> With floor levels that aren't simply 0, 1, 2 and so on, which includes the sample house, each floor was drawn about a storey deep and hid the rooms underneath, on the Overview and in the Live Tracker. Homes with a lowest floor at 0 draw exactly as before.</li>
+          <li><b>The date pickers' calendar icon shows on dark fields.</b> It was black on near-black in Forensics, Traceback's custom range and everywhere else a date is picked, in Night and in Light.</li>
+          <li><b>No menu in a window 901 to 1100 px wide.</b> On an iPad in landscape, or a browser at half a screen, the sidebar was hidden and nothing on screen could open it, so you stayed on the screen you were on. These windows now get the top bar with its menu button. In both looks.</li>
+          <li><b>Devices → By Room on a phone.</b> Words ran one letter per line and the two filters shrank to bare arrows. The table now keeps whole words and scrolls sideways, and the filters show their text.</li>
+          <li><b>Mapping's floor tables and Manage → Data on a phone.</b> The same letter-by-letter breaking ("Delet/e"). Those tables now scroll sideways too, and a button no longer breaks in the middle of a word anywhere in a card.</li>
+          <li><b>Presence → BLE Objects by Scanner on a phone.</b> Three squeezed columns are now one, with readable names and buttons.</li>
+          <li><b>Bluetooth → Advertisements and Scanners on a phone.</b> The panels ran off the screen with no way to reach the rest. They now fit, and everything in a row can be read.</li>
+          <li><b>Health check rows on a phone.</b> The value box squeezed the name to a sliver. The value now sits under the name.</li>
+          <li><b>Point Align's preview.</b> On a tall floor plan the bottom of the preview could not be reached. It now scrolls.</li>
+          <li><b>Sidebar labels in the 2025 look.</b> The tails of g, p and y were cut off.</li>
+          <li><b>The strip above the top bar on a phone.</b> In the 2025 look, page content showed through a narrow gap above the bar as you scrolled. The bar now sits at the very top.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.214</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">31 October 2026</span>
