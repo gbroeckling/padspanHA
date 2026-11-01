@@ -1386,6 +1386,9 @@ async def _async_preview_build(hass: HomeAssistant, data: dict, now_ts: float, s
     end = dt_util.utc_from_timestamp(until_ts or now_ts)
     entity_ids = [eid for eid in hass.states.async_entity_ids() if eid.startswith(VM_DOMAINS)]
     history = await _async_fetch_history(hass, entity_ids, HISTORY_DAYS, end=end)
+    if until_ts and history and not history_reaches(history, until_ts - REDO_REACH_S):
+        # The same rule as the turn-on's: too little left to learn the trip again.
+        history = {}
     pattern: dict = {}
     if history:
         pattern = await hass.async_add_executor_job(

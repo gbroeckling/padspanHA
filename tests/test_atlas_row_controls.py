@@ -25,6 +25,12 @@ def test_the_rail_keeps_its_way_back_when_hidden():
     assert tail.rstrip().endswith("rail.appendChild(railToggle);")   # it is the rail's last child
 
 
+def test_sticky_headers_in_their_own_scrollers_stay_at_the_top():
+    assert ".main .modal{--sticky-top:0px}" in _CSS
+    assert "-webkit-overflow-scrolling:touch;--sticky-top:0px}" in _CSS
+    assert 'input[type="time"]{color-scheme:light}' in _CSS
+
+
 def test_the_vacation_options_box_scrolls_rather_than_wraps():
     opts = _CSS[_CSS.index(".lv-vacation-opts{"):]
     assert "flex-wrap:nowrap" in opts[:opts.index("}")] and "overflow:auto" in opts[:opts.index("}")]

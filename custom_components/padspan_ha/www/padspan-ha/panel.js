@@ -901,7 +901,7 @@ class PadSpanHaApp extends HTMLElement {
         style.textContent = `
           .left, .desktop-topbar, .mobile-topbar, .mobile-bottom-nav { display: none !important; }
           .app { grid-template-columns: 1fr !important; }
-          .main { padding: 0 !important; }
+          .main { padding: 0 !important; --sticky-top: 0px !important; }
         `;
         this.shadowRoot.appendChild(style);
       } catch(e) { /* ignore */ }

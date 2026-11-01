@@ -161,7 +161,7 @@ textarea.mono{color:var(--text)}
    dropdown lists) drawn light too. */
 :host([data-theme="day"]){color-scheme:light}
 /* Everywhere else the date fields are dark and the native calendar icon black. */
-:host(:not([data-theme="day"])) input[type^="date"]{color-scheme:light}
+:host(:not([data-theme="day"])) input[type^="date"],:host(:not([data-theme="day"])) input[type="time"]{color-scheme:light}
 :host(:not([data-theme="day"])) ::-webkit-calendar-picker-indicator{filter:invert(1)}
 
 .marker.selected{
@@ -652,7 +652,7 @@ textarea.mono{color:var(--text)}
    is still docked up here and the nav runs the full width of the window. */
 @media(min-width:901px) and (max-width:1100px){
   .main{--sticky-top:61px}
-  .main [style*="overflow"],.main .list-scroll,.main .rooms,.main .tags,.main .lv-stage,.main .lv-sheet{--sticky-top:0px}
+  .main [style*="overflow"],.main .list-scroll,.main .rooms,.main .tags,.main .lv-stage,.main .lv-sheet,.main .modal{--sticky-top:0px}
 }
 @media(max-width:1100px){
   #toggleSide{display:none}
@@ -1522,7 +1522,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-table th,.lv-table td.lv-map,.lv-table td.lv-map .lv-act{white-space:nowrap}
 .lv-table td svg{max-width:none}
 @container lv-index (max-width:900px){
-  .lv-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .lv-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;--sticky-top:0px}
   .lv-table{min-width:0}
 }
 @container lv-index (max-width:480px){
