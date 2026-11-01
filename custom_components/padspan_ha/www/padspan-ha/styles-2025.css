@@ -170,7 +170,7 @@ svg text, svg tspan { letter-spacing: normal; }
 .nav button.navmore{margin-top:10px;color:var(--ps-tx3)}
 .nav button.navmore .navchev{width:14px;height:14px;flex:0 0 16px;stroke-width:2}
 
-.navlabel{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.navlabel{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.25}
 
 .navcount{
   margin-left:auto;
@@ -347,12 +347,15 @@ svg text, svg tspan { letter-spacing: normal; }
 
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media(max-width:1100px){
-  .app{grid-template-columns:1fr}
+  .app,.app.mini{grid-template-columns:1fr}
   .left{width:248px}
+  .main{padding-top:0}
+  .mobile-topbar{margin:0 -20px 10px}
 }
 @media(max-width:900px){
   .left{width:272px}
-  .main{padding:14px 12px 80px}
+  .main{padding:0 12px 80px}
+  .mobile-topbar{margin:0 -12px 10px}
   .desktop-topbar{display:none}
 }
 .mobile-bottom-nav-btn.active{color:var(--ps-ac)}

@@ -299,7 +299,7 @@ function _renderFabric(ctx, container, data) {
     if (!gc.length) continue;
     const card = el("div",{class:"card",style:"margin-bottom:8px;padding:12px"});
     card.appendChild(el("div",{style:"font-weight:700;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px"},g.label));
-    const tbl = el("div",{style:"display:grid;grid-template-columns:18px 1fr auto;gap:4px 8px;font-size:11px;align-items:center"});
+    const tbl = el("div",{class:"health-checks"});
     for (const c of gc) {
       const dot = c.ok ? "\u2705" : "\u274c";
       tbl.appendChild(el("div",{style:"font-size:13px;line-height:1"},dot));
@@ -307,7 +307,7 @@ function _renderFabric(ctx, container, data) {
         el("span",{style:"font-weight:600;color:#e2e8f0"},c.name),
         el("span",{style:"color:#64748b;margin-left:6px"},c.detail),
       ]));
-      tbl.appendChild(el("div",{class:"mono",style:`color:${c.ok?"#52b788":"#fca5a5"};font-weight:600;white-space:nowrap`},String(c.value)));
+      tbl.appendChild(el("div",{class:"mono",style:`color:${c.ok?"#52b788":"#fca5a5"};font-weight:600`},String(c.value)));
     }
     card.appendChild(tbl);
     container.appendChild(card);

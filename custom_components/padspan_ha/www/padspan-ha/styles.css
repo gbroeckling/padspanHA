@@ -79,7 +79,7 @@
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .btn.inline{width:auto;margin-top:0}
 .btn.tiny{width:auto;margin-top:0;padding:3px 8px;font-size:11px}
-@media(max-width:1100px){.app{grid-template-columns:1fr}.left{position:fixed;z-index:12;left:0;top:0;bottom:0;width:300px;transform:translateX(-100%);transition:transform .2s ease}.app.mobile-open .left{transform:translateX(0)}}
+@media(max-width:1100px){.app,.app.mini{grid-template-columns:1fr}.left{position:fixed;z-index:60;left:0;top:0;bottom:0;width:300px;transform:translateX(-100%);transition:transform .2s ease}.app.mobile-open .left{transform:translateX(0)}}
 
 /* Mapping tabs + editor */
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -175,6 +175,10 @@
 
 /* --- Added for Bluetooth view --- */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.presence-scanners{columns:3;column-gap:10px}
+.health-checks{display:grid;grid-template-columns:18px 1fr auto;gap:4px 8px;font-size:11px;align-items:center}
+.health-checks .mono{white-space:nowrap}
+@media(max-width:768px){.health-checks{grid-template-columns:18px minmax(0,1fr)}.health-checks .mono{grid-column:2;justify-self:start;max-width:100%;box-sizing:border-box;white-space:normal}}
 @media (max-width:900px){.grid-2{grid-template-columns:1fr}}
 
 .input,.select{
@@ -466,7 +470,8 @@
      - .sidebar-mobile-header (hidden on desktop) shows ✕ close button
 
    BREAKPOINTS:
-     > 900px  = desktop layout  (left sidebar always visible, no top/bottom bar)
+     > 1100px = desktop layout  (left sidebar always visible, no top/bottom bar)
+     ≤ 1100px = narrow window   (drawer + top bar)
      ≤ 900px  = mobile layout   (drawer + top bar + bottom nav)
      ≤ 480px  = small phone     (reduced padding, smaller pills)
 
@@ -633,12 +638,20 @@
 /* ═══════════════════════════════════════════════════════════════════
    RESPONSIVE BREAKPOINTS
    ═══════════════════════════════════════════════════════════════════ */
+/* The sidebar is a drawer from 1100px down, so the bar with its menu button
+   comes with it. The bottom nav stays phone-only: Home Assistant's own sidebar
+   is still docked up here and the nav runs the full width of the window. */
+@media(max-width:1100px){
+  .mobile-topbar{display:flex;margin:0 -16px 10px}
+  .desktop-topbar{display:none !important}
+  .sidebar-mobile-header{display:flex}
+  .app.mobile-open .brand{display:none}
+  .main{padding-top:0}
+}
 @media(max-width:900px){
   /* Show/hide mobile vs desktop chrome */
-  .mobile-topbar{display:flex}
-  .desktop-topbar{display:none !important}
+  .mobile-topbar{margin:0 -10px 10px}
   .mobile-bottom-nav{display:flex}
-  .sidebar-mobile-header{display:flex}
 
   /* Sidebar becomes a drawer */
   .app{grid-template-columns:1fr}
@@ -653,8 +666,6 @@
     overflow-x:hidden;
   }
   .app.mobile-open .left{transform:translateX(0)}
-  /* Hide desktop brand block when mobile header is showing */
-  .app.mobile-open .brand{display:none}
 
   /* Content area: padding for bottom nav + scroll */
   .main{
@@ -677,11 +688,16 @@
   /* Tables scroll horizontally rather than overflow */
   .table-wrap,.list-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .table{min-width:360px}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .table-scroll table{word-break:normal;overflow-wrap:break-word}
+  .obj-scanner{min-width:150px}
 
   /* Cards full-width, no wrapping issues */
   .card{word-break:break-word}
+  .card .btn{word-break:normal;overflow-wrap:break-word;max-width:100%}
   .grid{grid-template-columns:1fr}
-  .grid-2{grid-template-columns:1fr}
+  .grid-2{grid-template-columns:minmax(0,1fr)}
+  .presence-scanners{columns:3 240px}
   .controls input[type="text"]{min-width:unset;width:100%}
 
   /* Row wrapping on narrow screens */
@@ -708,7 +724,7 @@
   .kpi-num,.kpi{font-size:20px}
   .controls input[type="text"]{min-width:unset;width:100%}
   .toolbar{flex-wrap:wrap;gap:6px}
-  .toolbar select{min-width:0;flex:1;max-width:100%}
+  .toolbar select{min-width:0;flex:1 1 120px;max-width:100%}
   .h2{font-size:15px}
 }
 
@@ -1059,6 +1075,12 @@
   #bluetooth .bt-kv dt{margin-top:6px}
   #bluetooth .bt-seg{width:100%}
   #bluetooth .bt-seg .tab{flex:1 1 auto;text-align:center;min-height:38px}
+}
+@media(max-width:480px){
+  #bluetooth .bt-adv-row{flex-wrap:wrap}
+  #bluetooth .bt-adv-main{flex-basis:100% !important}
+  #bluetooth .bt-adv-sub,#bluetooth .bt-scanner-src{white-space:normal}
+  #bluetooth .bt-mini select{width:auto;max-width:100% !important}
 }
 
 /* ══ Lights view — the surface, refreshed ═══════════════════════════════════

@@ -181,10 +181,10 @@ export function render(ctx){
           el("td",{},bw),
         ]));
       }
-      orphCard.appendChild(el("table",{class:"table"},[
+      orphCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
         el("thead",{},el("tr",{},[el("th",{},"Orphan room"),el("th",{},"Map"),el("th",{},"Points"),el("th",{},"")])),
         tbody,
-      ]));
+      ])));
 
       // Bulk delete: only shown when >1 orphan. Groups orphans by map to
     // minimise API calls — one mapsUpdate per affected map.
@@ -325,10 +325,10 @@ export function render(ctx){
       return b;
     };
     clearAllWrap.appendChild(makeClearAllBtn());
-    tagsCard.appendChild(el("table",{class:"table"},[
+    tagsCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
       el("thead",{},el("tr",{},[el("th",{},"Address"),el("th",{},"Label"),el("th",{},"Last seen"),el("th",{},"")])),
       tbody,
-    ]));
+    ])));
     tagsCard.appendChild(clearAllWrap);
   } else {
     tagsCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No BLE devices have been tagged yet."));
@@ -541,10 +541,10 @@ export function render(ctx){
         el("td",{},areaBtnWrap),
       ]));
     }
-    areasCard.appendChild(el("table",{class:"table"},[
+    areasCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
       el("thead",{},el("tr",{},[el("th",{},"Name"),el("th",{},"Floor"),el("th",{},"ID"),el("th",{},"")])),
       tbody,
-    ]));
+    ])));
   } else {
     areasCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No areas found."));
   }
@@ -591,10 +591,10 @@ export function render(ctx){
         el("td",{},mapBtnWrap),
       ]));
     }
-    mapsCard.appendChild(el("table",{class:"table"},[
+    mapsCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
       el("thead",{},el("tr",{},[el("th",{},"Name"),el("th",{},"File"),el("th",{},"")])),
       tbody,
-    ]));
+    ])));
     root.appendChild(mapsCard);
   }
 
