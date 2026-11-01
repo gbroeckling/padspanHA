@@ -442,6 +442,11 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
   // read-only (panel.js refuses every save); the small demo house's drawing
   // when that house could not load.
   if(ctx.state.dataMode !== "live"){
+    // "sample" before any settings answer is only the default (#88).
+    if(!ctx.state._dataModeKnown){
+      wrap.appendChild(el("div",{class:"muted",style:"margin-top:8px;font-size:12px"}, "Connecting to Home Assistant…"));
+      return wrap;
+    }
     if(!maps.some(m => /^estate_/.test(String(m.id || "")))) return _sampleDemo(ctx);
     wrap.appendChild(el("div",{class:"muted","data-maps-note":"sample",style:"margin-top:8px;font-size:12px"},
       "Sample mode: these are the sample house's floor plans, shown read-only. Switch to Live mode to see and edit yours."));
@@ -1422,7 +1427,7 @@ function _wizardForceEditMode(ctx, w, mode){
 // In Basic a wizard step's editor has only that step's tool (no Signal walls
 // or Sub-zones beside it); Advanced and Development keep every tool there.
 function _wizardTools(ctx, mode){
-  return ctx.state.complexity === "basic" ? { tools: [mode] } : undefined;
+  return ctx.state.complexity === "basic" ? { tools: [mode], openTool: mode } : { openTool: mode };
 }
 
 // The Back / Skip / Next bar every wizard step ends with. `opts.skip` gates
@@ -1818,7 +1823,8 @@ function _rxHeightRow(ctx, sel, rerender){
 //
 // opts.tools: the only tools offered (Basic's wizard steps and focused views:
 // one of receivers, rooms, measure); the Signal walls tool's Enclose goes
-// with them. opts.focused (Basic, a link's part, views/focus.js): no map or
+// with them. opts.openTool: the tool a plan opens on (a wizard step's), not
+// Radios. opts.focused (Basic, a link's part, views/focus.js): no map or
 // floor switch, Trim, Rotate, Suggest Placement or "All rooms / receivers"
 // either, so the one task is all there is.
 function _edit(ctx, map, allMaps, opts){
@@ -1880,7 +1886,7 @@ function _edit(ctx, map, allMaps, opts){
     // receivers | rooms | barriers | measure. _openMode: a one-shot tool to
     // open in, set by the Rooms page's "Edit outline" (rooms.js), so loading
     // the plan does not put it back on Radios.
-    ctx.state.maps._mode = ctx.state.maps._openMode || "receivers";
+    ctx.state.maps._mode = (opts && opts.openTool) || ctx.state.maps._openMode || "receivers";
     ctx.state.maps._openMode = null;
     // _openRoom: the room the Rooms page's "Edit outline" opened it on.
     ctx.state.maps._selectedRoom = ctx.state.maps._openRoom || "";
@@ -2148,11 +2154,14 @@ function _edit(ctx, map, allMaps, opts){
   // --- Right panel (tools) ---
   const right = el("div",{class:"card", style:"margin-top:10px"},[]);
   const _modeHelp = {"receivers":"Double-click map to place radio; drag to reposition","rooms":"Click map to add points; double-click to finish","barriers":"Click to draw wall segments; double-click to finish","measure":"Click two points you know the real distance between","subzones":"Click points around the bed, couch or desk; double-click to finish"};
-  const modeRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[
+  // Built each time renderTools draws, so the lit tool and the hint follow the
+  // tool in use. A tool's own tint goes while it is lit: as an inline style it
+  // would hide .primary.
+  const modeRow = () => el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[
     _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios") : null,
     _toolOk("rooms") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), "data-edit-tool":"rooms", onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms") : null,
-    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Signal walls") : null,
-    _toolOk("measure") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), "data-edit-tool":"measure", style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure") : null,
+    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:ctx.state.maps._mode==="barriers"?"":"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Signal walls") : null,
+    _toolOk("measure") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), "data-edit-tool":"measure", style:ctx.state.maps._mode==="measure"?"":"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure") : null,
     ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), "data-edit-tool":"subzones", onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []).filter(() => _toolOk("subzones")),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
     helpBtn("maps_edit"),
@@ -2220,10 +2229,16 @@ function _edit(ctx, map, allMaps, opts){
     list.textContent = _layoutText(ctx.state.maps._draftReceivers, ctx.state.maps._draftRoomBounds);
   };
 
+  // A name on the stage: over the SVG, not in it (_stageLabelStyle).
+  const _stageLabel = (x, y, text, color)=>{
+    overlay.appendChild(el("div",{class:"maplabel", style:_stageLabelStyle(x, y, color)}, text));
+  };
+
   // --- Rendering helpers ---
   const renderAll = ()=>{
     // SVG rooms
     while(svg.firstChild) svg.removeChild(svg.firstChild);
+    overlay.querySelectorAll(".maplabel").forEach(n=>n.remove());
 
     // Draw saved polys first, then fallback circles (if receiver assigned but no poly yet)
     const rb = ctx.state.maps._draftRoomBounds || {};
@@ -2241,16 +2256,8 @@ function _edit(ctx, map, allMaps, opts){
       poly.setAttribute("stroke-width","0.004");
       svg.appendChild(poly);
 
-      const lab = document.createElementNS("http://www.w3.org/2000/svg","text");
       const centroid = _centroid(b.points);
-      lab.setAttribute("x", centroid[0]);
-      lab.setAttribute("y", centroid[1]);
-      lab.setAttribute("font-size","0.04");
-      lab.setAttribute("text-anchor","middle");
-      lab.setAttribute("dominant-baseline","middle");
-      lab.setAttribute("fill", c);
-      lab.textContent = room;
-      svg.appendChild(lab);
+      _stageLabel(centroid[0], centroid[1], room, c);
     }
 
     // Fallback circles
@@ -2297,14 +2304,7 @@ function _edit(ctx, map, allMaps, opts){
         const hiI = Math.ceil((bar.points.length - 1) / 2);
         const midX = (bar.points[loI][0] + bar.points[hiI][0]) / 2;
         const midY = (bar.points[loI][1] + bar.points[hiI][1]) / 2;
-        const blab = document.createElementNS("http://www.w3.org/2000/svg","text");
-        blab.setAttribute("x", clamp01(midX));
-        blab.setAttribute("y", clamp01(midY - 0.02));
-        blab.setAttribute("font-size","0.025");
-        blab.setAttribute("text-anchor","middle");
-        blab.setAttribute("fill", bc);
-        blab.textContent = bar.material === "open" ? "Open (Loft)" : (bar.material||"metal") + " (" + (bar.attenuation_dbm||12) + "dB)";
-        svg.appendChild(blab);
+        _stageLabel(clamp01(midX), clamp01(midY - 0.02), bar.material === "open" ? "Open (Loft)" : (bar.material||"metal") + " (" + (bar.attenuation_dbm||12) + "dB)", bc);
       }
     }
 
@@ -2336,19 +2336,7 @@ function _edit(ctx, map, allMaps, opts){
       svg.appendChild(rpoly);
       const rcx = recoPoly.polygon.reduce((s,p)=>s+p[0],0)/recoPoly.polygon.length;
       const rcy = recoPoly.polygon.reduce((s,p)=>s+p[1],0)/recoPoly.polygon.length;
-      const rlab = document.createElementNS("http://www.w3.org/2000/svg","text");
-      rlab.setAttribute("x", clamp01(rcx));
-      rlab.setAttribute("y", clamp01(rcy));
-      rlab.setAttribute("font-size","0.045");
-      rlab.setAttribute("text-anchor","middle");
-      rlab.setAttribute("dominant-baseline","middle");
-      rlab.setAttribute("fill","#fbbf24");
-      rlab.setAttribute("stroke","#1a0f00");
-      rlab.setAttribute("stroke-width","0.008");
-      rlab.setAttribute("paint-order","stroke fill");
-      rlab.setAttribute("font-family","system-ui,sans-serif");
-      rlab.textContent = "Recommended zone";
-      svg.appendChild(rlab);
+      _stageLabel(clamp01(rcx), clamp01(rcy), "Recommended zone", "#fbbf24");
     }
 
     // Draft drawing polyline
@@ -2382,19 +2370,7 @@ function _edit(ctx, map, allMaps, opts){
         pg.setAttribute("stroke-dasharray","0.010 0.006");
         pg.style.pointerEvents = "none";
         svg.appendChild(pg);
-        const lab = document.createElementNS("http://www.w3.org/2000/svg","text");
-        lab.setAttribute("x", pts.reduce((a,p)=>a+p[0],0)/pts.length);
-        lab.setAttribute("y", pts.reduce((a,p)=>a+p[1],0)/pts.length);
-        lab.setAttribute("font-size","0.025");
-        lab.setAttribute("text-anchor","middle");
-        lab.setAttribute("dominant-baseline","middle");
-        lab.setAttribute("fill","#5eead4");
-        lab.setAttribute("stroke","#0b1a12");
-        lab.setAttribute("stroke-width","0.006");
-        lab.setAttribute("paint-order","stroke fill");
-        lab.style.pointerEvents = "none";
-        lab.textContent = z.name;
-        svg.appendChild(lab);
+        _stageLabel(clamp01(pts.reduce((a,p)=>a+p[0],0)/pts.length), clamp01(pts.reduce((a,p)=>a+p[1],0)/pts.length), z.name, "#5eead4");
       }
       const dpts = ctx.state.maps._szDrawing || [];
       if(dpts.length){
@@ -2461,12 +2437,7 @@ function _edit(ctx, map, allMaps, opts){
         }
         // Label
         const mx = (sm.p1[0] + sm.p2[0]) / 2, my = (sm.p1[1] + sm.p2[1]) / 2;
-        const lab = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        lab.setAttribute("x", mx); lab.setAttribute("y", my - 0.015);
-        lab.setAttribute("text-anchor", "middle"); lab.setAttribute("font-size", "0.025");
-        lab.setAttribute("fill", col); lab.setAttribute("opacity", "0.8");
-        lab.textContent = `${sm.distance_m}m @ ${sm.angle_deg}\u00b0`;
-        svg.appendChild(lab);
+        _stageLabel(clamp01(mx), clamp01(my - 0.015), `${sm.distance_m}m @ ${sm.angle_deg}\u00b0`, col);
       }
       // Current points being placed (pointer-events:none so clicks pass through)
       const mPts = ctx.state.maps._measurePts || [];
@@ -2491,11 +2462,15 @@ function _edit(ctx, map, allMaps, opts){
   };
 
   const renderTools = ()=>{
+    // A tool button pressed from the keyboard keeps the focus over the redraw.
+    const _toolFocused = right.querySelector("[data-edit-tool]:focus")?.getAttribute("data-edit-tool");
     right.innerHTML = "";
-    right.appendChild(modeRow);
+    right.appendChild(modeRow());
+    if(_toolFocused) right.querySelector(`[data-edit-tool="${_toolFocused}"]`)?.focus({preventScroll:true});
+    stage.title = _modeHelp[ctx.state.maps._mode] || "";
 
     // ── Suggest Placement button ──────────────────────────────────────────────
-    if(!_focused){
+    if(!_focused && ctx.state.maps._mode!=="measure"){
       const polyRooms = Object.values(ctx.state.maps._draftRoomBounds||{})
         .filter(b=>b?.type==="poly" && Array.isArray(b.points) && b.points.length>=3);
       const hasData = polyRooms.length >= 1;
@@ -2903,7 +2878,7 @@ function _edit(ctx, map, allMaps, opts){
         right.appendChild(layersDiv);
       }
 
-    } else {
+    } else if(ctx.state.maps._mode!=="measure"){
       right.appendChild(el("div",{class:"muted", style:"margin-top:10px;font-size:12px"}, "Room boundary tools"));
 
       // Build lookup: rooms already placed on OTHER maps (for warning in dropdown)
@@ -3261,7 +3236,6 @@ function _edit(ctx, map, allMaps, opts){
   };
 
   // --- Interactions on the stage ---
-  stage.title = (ctx.state.maps._mode==="receivers") ? "Double-click to add receiver; drag to reposition" : "Click to add room points; double-click to finish";
   stage.addEventListener("dblclick", (ev)=>{
     if(ctx.state.maps._mode==="receivers"){
       const rect = overlay.getBoundingClientRect();
@@ -3641,7 +3615,8 @@ function _edit(ctx, map, allMaps, opts){
   card.appendChild(stage);
   card.appendChild(info);
   card.appendChild(right);
-  card.appendChild(list);
+  // The layout as text is for the full editor, not a view with one tool.
+  if(!_tools) card.appendChild(list);
 
   return card;
 }
@@ -7209,7 +7184,19 @@ function _stack(ctx, maps, helpBtn){
   return card;
 }
 
-// Render a single map's room bounds + receivers as an SVG string.
+// Where a name sits on a map stage. A stage's SVG stretches its 0-1 viewBox to
+// the plan's shape, so text inside it comes out stretched and grows with the
+// plan; a name is a fixed-size box over the SVG instead (.maplabel), at the
+// same fractions. The box shifts by as much of itself as the point is across
+// the stage (none at 0, half in the middle, all of it at 1), so the whole name
+// stays on the stage.
+function _stageLabelStyle(x, y, color){
+  const pct = (v) => Math.round(Math.min(1, Math.max(0, Number(v) || 0)) * 10000) / 100;
+  return `left:${pct(x)}%;top:${pct(y)}%;transform:translate(-${pct(x)}%,-${pct(y)}%);border-color:${color}`;
+}
+
+// Render a single map's room bounds + receivers as an SVG string, its names
+// after it (_stageLabelStyle); the caller's box is the stage's size.
 // Used in the Alignment Overlay (both ref and tgt layers) and in Point Align
 // panels. viewBox="0 0 1 1" with preserveAspectRatio="none" matches the
 // normalized coordinate system used by room bounds and receivers.
@@ -7219,6 +7206,8 @@ function _stackMapSVGStr(map, ctx, isTarget, showBg=true){
   const hasRooms = Object.keys(rb).length > 0;
   const borderCol = isTarget ? "#52b78888" : "#1b3526";
 
+  let labels = "";
+  const label = (x, y, text, color) => { labels += `<div class="maplabel" style="${_stageLabelStyle(x, y, color)}">${_escSVG(text)}</div>`; };
   let s = `<svg viewBox="0 0 1 1" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">`;
   if(showBg){
     s += `<rect x="0.005" y="0.005" width="0.99" height="0.99" fill="${isTarget?"#071008aa":"#071008"}" stroke="${borderCol}" stroke-width="0.012"/>`;
@@ -7237,24 +7226,25 @@ function _stackMapSVGStr(map, ctx, isTarget, showBg=true){
         s += `<polygon points="${pts}" fill="${ctx.helpers.roomColorAlpha(color, alpha)}" stroke="${color}" stroke-width="0.006"/>`;
         const cx = b.points.reduce((a,p)=>a+p[0],0)/b.points.length;
         const cy = b.points.reduce((a,p)=>a+p[1],0)/b.points.length;
-        s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="0.05" font-family="system-ui,sans-serif">${_escSVG(room)}</text>`;
+        label(cx, cy, room, color);
       } else if(b.type==="circle"){
         const cx=b.cx||0.5, cy=b.cy||0.5, r=b.r||0.12;
         s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${ctx.helpers.roomColorAlpha(color, alpha)}" stroke="${color}" stroke-width="0.006"/>`;
-        s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="${color}" font-size="0.05" font-family="system-ui,sans-serif">${_escSVG(room)}</text>`;
+        label(cx, cy, room, color);
       }
     }
     for(const r of (map.receivers||[])){
       s += `<circle cx="${r.x||0}" cy="${r.y||0}" r="0.022" fill="#52b788" opacity="0.9"/>`;
     }
   } else {
-    s += `<text x="0.5" y="0.43" text-anchor="middle" dominant-baseline="middle" fill="#94a3b8" font-size="0.07" font-family="system-ui,sans-serif">${_escSVG(map.name||map.id)}</text>`;
-    s += `<text x="0.5" y="0.58" text-anchor="middle" dominant-baseline="middle" fill="#4a6052" font-size="0.045" font-family="system-ui,sans-serif">no room bounds yet</text>`;
+    label(0.5, 0.48, map.name||map.id, "#94a3b8");
+    label(0.5, 0.53, "no room bounds yet", "#4a6052");
   }
 
-  s += `<text x="0.97" y="0.97" text-anchor="end" dominant-baseline="auto" fill="${isTarget?"#52b788":"#94a3b8"}" font-size="0.04" font-family="system-ui,sans-serif">${_escSVG(map.name||map.id)}</text>`;
+  // Bottom right; the target's above the reference's, which sits in the same corner.
+  label(0.98, isTarget ? 0.94 : 0.98, map.name||map.id, isTarget?"#52b788":"#94a3b8");
   s += `</svg>`;
-  return s;
+  return s + labels;
 }
 
 // Persistent-pins SVG overlay for the 2D alignment view: shows red target
@@ -7264,6 +7254,7 @@ function _stackMapSVGStr(map, ctx, isTarget, showBg=true){
 function _persistent2dPinsSVGStr(roomBounds, awayObjs){
   if(!awayObjs.length) return "";
   const rb = roomBounds || {};
+  let labels = "";
   let s = `<svg viewBox="0 0 1 1" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:0;left:0;width:100%;height:100%">`;
   for(const obj of awayObjs){
     const b = rb[obj.room];
@@ -7288,11 +7279,11 @@ function _persistent2dPinsSVGStr(roomBounds, awayObjs){
     s += `<line x1="${cx+gap}" y1="${cy}" x2="${cx+arm}" y2="${cy}" stroke="#ef4444" stroke-width="0.007"/>`;
     s += `<line x1="${cx}" y1="${cy-arm}" x2="${cx}" y2="${cy-gap}" stroke="#ef4444" stroke-width="0.007"/>`;
     s += `<line x1="${cx}" y1="${cy+gap}" x2="${cx}" y2="${cy+arm}" stroke="#ef4444" stroke-width="0.007"/>`;
-    s += `<text x="${cx}" y="${cy+R+0.030}" text-anchor="middle" fill="#fca5a5" font-size="0.038" font-family="system-ui,sans-serif" font-weight="600">${_escSVG(obj.user_label)}</text>`;
+    labels += `<div class="maplabel" style="${_stageLabelStyle(cx, Math.min(1, cy+R+0.030), "#fca5a5")}">${_escSVG(obj.user_label)}</div>`;
     s += `</g>`;
   }
   s += `</svg>`;
-  return s;
+  return s + labels;
 }
 
 // ── 3D Isometric SVG Renderer ─────────────────────────────────────────────────

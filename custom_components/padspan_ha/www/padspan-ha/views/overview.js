@@ -4000,7 +4000,7 @@ export function renderClassic(ctx){
       ]),
       quietRow,
     ]),
-    el("div",{style:"color:#94a3b8;margin-top:2px;margin-bottom:10px"}, `Mode: ${dataMode.toUpperCase()} · ${ctx.state.versionInfo?.version || ""} (${ctx.state.versionInfo?.build_id || ""})`),
+    el("div",{style:"color:#94a3b8;margin-top:2px;margin-bottom:10px"}, `Mode: ${modeKnown ? dataMode.toUpperCase() : "…"} · ${ctx.state.versionInfo?.version || ""} (${ctx.state.versionInfo?.build_id || ""})`),
     sampleBanner,
     whosWhere,
     _buildDiagPanel(),

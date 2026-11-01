@@ -110,7 +110,7 @@ export function render(ctx){
   const inspectorCard = el("div",{class:"card"});
   inspectorCard.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px"},"State Inspector"));
   inspectorCard.appendChild(el("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px"},[
-    el("div",{}, [el("span",{class:"muted"},"Mode: "), el("span",{style:"font-weight:600"}, ctx.state.dataMode.toUpperCase())]),
+    el("div",{}, [el("span",{class:"muted"},"Mode: "), el("span",{style:"font-weight:600"}, ctx.state._dataModeKnown ? ctx.state.dataMode.toUpperCase() : "…")]),
     el("div",{}, [el("span",{class:"muted"},"Session: "), el("span",{style:"font-weight:600"}, `${uptimeMin}m`)]),
     el("div",{}, [el("span",{class:"muted"},"Objects: "), el("span",{style:"font-weight:600"}, String(objects.length))]),
     el("div",{}, [el("span",{class:"muted"},"Radios: "), el("span",{style:"font-weight:600"}, String(radios.length))]),
