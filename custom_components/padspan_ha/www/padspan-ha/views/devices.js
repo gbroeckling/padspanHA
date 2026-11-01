@@ -1077,7 +1077,7 @@ function _renderRelayWizard(ctx) {
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Build an Opener, Lock, or Light from Relays"));
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
-    "For a door, window, or light with no ready-made entity — just a bare relay (a ProDino channel, a Pakedge PoE port, anything switch./light.*). Builds the same kind of script, automation, and template entity Garry's own garage doors, Bedroom1 window, and PoE-switched lights already use, then offers the result the same way any other opener, lock, or light is offered."));
+    "For a door, window, or light with no ready-made entity — just a bare relay (a ProDino channel, a Pakedge PoE port, anything switch./light.*). Builds the script, automation, and template entity it needs, then offers the result the same way any other opener, lock, or light is offered."));
 
   const composites = (ctx.state.settings && ctx.state.settings.door_composites) || [];
   if (composites.length) {

@@ -575,7 +575,7 @@ function _library(ctx, maps, activeId, helpBtn, isBasic){
     const floorMaps = _floorMap.get(fid) || [];
     floorMaps.sort((a, b) => String(a.created || "").localeCompare(String(b.created || "")));
     const floorObj = _floors.find(f => f.id === fid);
-    const floorName = floorObj ? (floorObj.name || fid) : fid;
+    const floorName = fid === OUTSIDE_FLOOR_ID ? "Outside" : floorObj ? (floorObj.name || fid) : fid;
     list.appendChild(el("div",{style:"font-weight:700;font-size:13px;color:#52b788;margin-top:8px;margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px"},
       `${floorName} (${floorMaps.length})`));
 
@@ -7019,8 +7019,7 @@ function _stack(ctx, maps, helpBtn){
     else {
       const z = sortedIsoLevels[idx-1];
       ctx.state.maps._stackIsoFocus = z;
-      const opt = levelOptions.find(o=>o.value===z);
-      focusLbl.textContent = opt ? opt.label : `L${z}`;
+      focusLbl.textContent = _stackLevelName(ctx, maps.filter(m=>(m.stack?.z_level||0)===z), levelOptions, z);
     }
     rebuildIso();
   });
@@ -7315,7 +7314,6 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
   const TILE=260, FLOOR_GAP=floorGap, CX=390, CY=740, W=780, BASE_H=1060;
   const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
   const roomColor = ctx.helpers.roomColor;
-  const lvlLabel = (z)=>{ const opt=(levelOptions||[]).find(o=>o.value===z); return opt ? opt.label : `L${z}`; };
 
   // Persistent last-seen pins: collect away objects (labeled + have room + stale)
   const showPins = !!(ctx.state.maps && ctx.state.maps._persistentPins);
@@ -7517,8 +7515,12 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
     const ceil0 = byLevel.get(z)[0].stack?.ceiling_height_m || 2.4;
     s += `<circle cx="18" cy="${ly+11}" r="11" fill="${color}" opacity="0.9"/>`;
     s += `<text x="18" y="${ly+15}" text-anchor="middle" fill="#071008" font-size="12" font-weight="700">${i+1}</text>`;
-    s += `<text x="36" y="${ly+15}" fill="${color}" font-size="18" font-weight="500">${_escSVG(groupLabel)}</text>`;
-    s += `<text x="${W-10}" y="${ly+15}" text-anchor="end" fill="#94a3b8" font-size="15">${_escSVG(lvlLabel(z))} · ${ceil0}m</text>`;
+    const rightLabel = `${_stackLevelName(ctx, byLevel.get(z), levelOptions, z)} · ${ceil0}m`;
+    // SVG text doesn't wrap: a long plan name stops short of the floor name (about 0.6 em a letter).
+    const maxChars = Math.max(8, Math.floor((W - 10 - rightLabel.length*15*0.6 - 12 - 36) / (18*0.6)));
+    const shownLabel = groupLabel.length > maxChars ? groupLabel.slice(0, maxChars-1).trimEnd() + "…" : groupLabel;
+    s += `<text x="36" y="${ly+15}" fill="${color}" font-size="18" font-weight="500"><title>${_escSVG(groupLabel)}</title>${_escSVG(shownLabel)}</text>`;
+    s += `<text x="${W-10}" y="${ly+15}" text-anchor="end" fill="#94a3b8" font-size="15">${_escSVG(rightLabel)}</text>`;
   });
 
   // Outside overlay label
@@ -7528,6 +7530,21 @@ function _stackIsoSVG(maps, ctx, levelOptions, focusLevel=null, floorGap=200, ho
 
   s += `</svg>`;
   return s;
+}
+
+// What the plans at one stack level are called: each plan's own floor. The
+// level number can't say: with no levels set in HA the options are numbered in
+// name order, while plans keep the stack order the user gave them.
+function _stackLevelName(ctx, levelMaps, levelOptions, z){
+  const floors = (ctx.state.model && Array.isArray(ctx.state.model.floors)) ? ctx.state.model.floors : [];
+  const names = levelMaps.map(m => {
+    if(_isOutsideMap(m)) return "Outside";
+    const f = floors.find(x=>String(x.id)===String(m.floor_id));
+    return f ? (f.name || f.id) : null;
+  }).filter(Boolean);
+  if(names.length) return [...new Set(names)].join(" + ");
+  const opt = (levelOptions||[]).find(o=>o.value===z);
+  return opt ? opt.label : `L${z}`;
 }
 
 // Escape a string for safe inclusion in SVG text content.
@@ -11009,13 +11026,16 @@ function _roomsTab(ctx, maps) {
   const haFloors = ctx.state.model?.floors || [];
   const floorIds = [];
   const seenF = new Set();
-  const addF = (id, label) => { if (id && !seenF.has(id)) { seenF.add(id); floorIds.push([id, label || id]); } };
+  // An HA floor may be called Outside too: two buttons mustn't read the same.
+  const outsideLabel = haFloors.some(f => String(f.name || "").trim().toLowerCase() === "outside") ? "Outside (Exp.)" : "Outside";
+  const addF = (id, label) => { if (id && !seenF.has(id)) { seenF.add(id); floorIds.push([id, label || (id === OUTSIDE_FLOOR_ID ? outsideLabel : id)]); } };
   for (const f of haFloors) addF(String(f.id), f.name || f.id);
   for (const g of Object.values(allGeo)) addF(String(g.floor_id || "main"));
   for (const m of maps) addF(String(m.floor_id || "main"));
   if (!floorIds.length) addF("main", "Main");
   if (!mapState._roomsFloorId || !seenF.has(mapState._roomsFloorId)) mapState._roomsFloorId = floorIds[0][0];
   const floorId = mapState._roomsFloorId;
+  const floorLabel = floorIds.find(([id]) => id === floorId)[1];
 
   const bar = el("div", { style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px" });
   bar.appendChild(el("span", { class: "muted", style: "font-size:12px" }, "Floor:"));
@@ -12259,7 +12279,7 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
           const rooms = Object.keys(draft);
           const fabricCount = Object.keys(fabricDraft).length;
           const edited = changedRooms.length ? ` (incl. your ${changedRooms.length} edit${changedRooms.length !== 1 ? "s" : ""})` : "";
-          if (!confirm(`Commit this ${cand.label} layout${edited} to the saved layout for "${floorId}"? ${rooms.length} rooms will be written; ${fabricCount > rooms.length ? (fabricCount - rooms.length) + " layout-only room(s) stay untouched." : "existing shapes with the same names are replaced."}`)) return;
+          if (!confirm(`Commit this ${cand.label} layout${edited} to the saved layout for "${floorLabel}"? ${rooms.length} rooms will be written; ${fabricCount > rooms.length ? (fabricCount - rooms.length) + " layout-only room(s) stay untouched." : "existing shapes with the same names are replaced."}`)) return;
           const btn = e.currentTarget;
           btn.disabled = true; btn.textContent = "Committing…";
           let ok = 0, fail = 0;
@@ -12334,10 +12354,10 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
         class: "btn inline",
         style: "border-color:#52b788;color:#52b788",
         onclick: async () => {
-          if (!confirm(`Finalize "${floorId}"? The floor's room shapes become locked ground truth: bulk rebuilds from maps are refused (individual corrections stay possible).`)) return;
+          if (!confirm(`Finalize "${floorLabel}"? The floor's room shapes become locked ground truth: bulk rebuilds from maps are refused (individual corrections stay possible).`)) return;
           try {
             await ctx.actions.wsCall("padspan_ha/fabric_floor_finalize", { floor_id: floorId, committed: true });
-            ctx.toast(`🔒 Floor "${floorId}" finalized`);
+            ctx.toast(`🔒 Floor "${floorLabel}" finalized`);
             await refreshAfter();
           } catch (err) { ctx.toast("Finalize failed: " + (err.message || err), true); }
         },
@@ -12350,10 +12370,10 @@ ${p.x_m.toFixed(2)}, ${p.y_m.toFixed(2)} m — drag to pin`,
       class: "btn inline",
       style: "font-size:11px",
       onclick: async () => {
-        if (!confirm(`Unlock "${floorId}"? This re-allows bulk rebuilds from maps. Only needed if you intend to rebuild the whole floor.`)) return;
+        if (!confirm(`Unlock "${floorLabel}"? This re-allows bulk rebuilds from maps. Only needed if you intend to rebuild the whole floor.`)) return;
         try {
           await ctx.actions.wsCall("padspan_ha/fabric_floor_finalize", { floor_id: floorId, committed: false });
-          ctx.toast(`Floor "${floorId}" unlocked`);
+          ctx.toast(`Floor "${floorLabel}" unlocked`);
           await refreshAfter();
         } catch (err) { ctx.toast("Unlock failed: " + (err.message || err), true); }
       },

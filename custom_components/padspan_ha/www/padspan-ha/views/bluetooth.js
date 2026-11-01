@@ -412,7 +412,7 @@ export function render(ctx) {
 
       const irkInputRow = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap" });
       const irkNameInput = el("input", {
-        class: "input", type: "text", placeholder: "Device name \u2014 e.g. Garry's Pixel",
+        class: "input", type: "text", placeholder: "Device name \u2014 e.g. Alice's Pixel",
         style: "width:190px",
       });
       const irkValueInput = el("input", {
@@ -2472,7 +2472,7 @@ function renderIrkPanel(ctx, snap) {
     "Capturing an IRK from a phone or watch needs the ESPHome IRK Capture tool \u2014 github.com/DerekSeaman/irk-capture"));
 
   const nameInp = el("input", {
-    class: "input", type: "text", placeholder: "Device name \u2014 e.g. Garry's Pixel",
+    class: "input", type: "text", placeholder: "Device name \u2014 e.g. Alice's Pixel",
     style: "width:100%;box-sizing:border-box",
   });
   const irkInp = el("input", {

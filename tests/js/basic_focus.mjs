@@ -119,6 +119,7 @@ for (const [btn, part, mustNot] of [
   check(`settings: ${btn} draws the bar and the one card; no tabs, sections or other cards`,
     focusedOnly(root, part) && tabsOf(root).length === 0 && attrs(root, "data-presence-section").length === 0
     && mustNot.every(w => !body.includes(w)), { kids: (root.children || []).length, found: mustNot.filter(w => body.includes(w)), body: body.slice(0, 300) });
+  check(`settings: ${btn} says its title once`, body.split(f.title).length - 1 === 1 && text(root.children[1]).startsWith(f.title), body.slice(0, 120));
   click(attr(root, "data-focus-back"));
   const again = SET.render(ctx);
   check(`settings: ${btn} ← Back returns to Appearance, still Basic`,

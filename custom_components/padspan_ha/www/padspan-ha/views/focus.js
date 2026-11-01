@@ -36,8 +36,8 @@ const BACK_LABELS = {
 // The parts a link can open. Settings cards carry data-focus-part="<part>"
 // where they are built (settings.js); Mapping's are drawn by maps.js.
 export const PARTS = {
-  usageReport: { view: "settings", tab: "presence", part: "usage_report", title: "Help improve PadSpan" },
-  guestTags:   { view: "settings", tab: "presence", part: "guest_tags", title: "Guest tags" },
+  usageReport: { view: "settings", tab: "presence", part: "usage_report", title: "Help improve PadSpan", cardSaysTitle: true },
+  guestTags:   { view: "settings", tab: "presence", part: "guest_tags", title: "Guest tags", cardSaysTitle: true },
   liveAboard:  { view: "settings", tab: "atlas", part: "la3d", title: "Live Aboard" },
   atlasHome:   { view: "settings", tab: "atlas", part: "atlas_overview", title: "The Atlas as Overview" },
   atlasWeather: { view: "settings", tab: "atlas", part: "atlas_weather", title: "Outdoor weather on the Atlas" },
@@ -76,7 +76,7 @@ export function openFocus(ctx, f) {
   // drawn without it would go back to Library and drop the link's room.
   st._focus = basic ? {
     view: f.view, tab: f.tab, part: f.part, item: f.item == null ? null : f.item,
-    title: f.title || "",
+    title: f.title || "", cardSaysTitle: !!f.cardSaysTitle,
     back: f.back || { view: from, label: BACK_LABELS[from] || "Back", focus: prev },
   } : null;
   if (from !== f.view && ctx.actions.showView) ctx.actions.showView(f.view, { keepFocus: true });
@@ -112,7 +112,8 @@ export function focusBar(ctx, f) {
   return el("div", { class: "card", "data-focus-bar": f.view + "/" + f.tab + "/" + f.part,
     style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px" }, [
     back,
-    el("div", { style: "font-weight:700;min-width:0" }, f.title || ""),
+    // Right above a card headed the same, the title would only say it twice.
+    back && f.cardSaysTitle ? null : el("div", { style: "font-weight:700;min-width:0" }, f.title || ""),
   ]);
 }
 
