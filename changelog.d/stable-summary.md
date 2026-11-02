@@ -1,6 +1,6 @@
 # The stable after 0.38.199: guided Setup, Receivers and Rooms pages, Calibration results, Vacation Mode replays last week, and fixes
 
-If you're on the stable channel, this is everything from 0.38.200 to 0.38.215 in one go. Coming from 0.38.166 or older? The changes before these are in 0.38.199's notes, under Full history on padspan.traks.ca.
+If you're on the stable channel, this is everything from 0.38.200 to 0.38.216 in one go. Coming from 0.38.166 or older? The changes before these are in 0.38.199's notes, under Full history on padspan.traks.ca.
 
 ### Things you'll notice
 - **Setup, one step after another.** Upload a plan, set its scale, give the floors their heights, draw the rooms, place the receivers and their heights, then calibrate. Each step says whether it's done, and you can skip one and come back. Open it from the Overview's Getting started card or the Setup button on Mapping.
@@ -12,6 +12,8 @@ If you're on the stable channel, this is everything from 0.38.200 to 0.38.215 in
 - **A backup AI Task** in Settings → AI. Photo and stair reads use it only when the main one can't be reached. There's no backup until you pick one.
 - **The help was rewritten for every screen**, with "?" buttons where there were none, in English, German, French and Dutch.
 - **Preview a finished house** shows a three-storey sample house on every screen of the panel. Nothing in it can be changed or saved. If you see a house you don't recognise, you're in Sample mode: press **Live** in the top bar.
+
+- **Live Aboard on a wall screen (`?kiosk=1`) is sharp and fills the screen.** On Auto or High it draws every pixel the screen has. If the graphics chip can't turn the house smoothly at that size, the picture is softer only while the camera moves, and sharp again when it stops; a slower chip draws about 1440p's worth, or on Auto goes to Low. **Low** chosen in Settings stays Low. The whole house is framed as large as the screen allows, so turning or tilting it by hand can run part of it past the edge: **Fit** or going home brings it back. Home Assistant's sidebar is hidden on that browser too; **Show HA** on the Atlas page (without `?kiosk=1`) brings it back.
 
 ### Where things moved
 - **More tools.** Every screen is in the menu in every mode now. Devices, Bluetooth, Presence, Monitor, QA, Sandbox and Install Base are in a **More tools** group at the bottom of the menu. In Basic, Live Tracker, Occupancy, Manage, Traceback and Health are there too. Opening one never changes your mode.
@@ -51,6 +53,8 @@ If you're on the stable channel, this is everything from 0.38.200 to 0.38.215 in
 - Holding a light on the map to dim it is no longer cut short by an update.
 - Compare Maps no longer shows nothing when a plan has rooms but isn't placed yet.
 - Diagnostics lists your devices again.
+- A wall turned by its link (`&wall_rotate=90` or `270`) uses the whole screen.
+- Manage → HA Entities names the occupancy sensor correctly: `sensor.padspan_occupancy_occupancy`.
 - Track Your Phone's search no longer fails because of one phone.
 - Fewer warnings in the Home Assistant log.
 
@@ -72,3 +76,4 @@ New counts, never names, places or values:
 - Vacation Mode's routine choice and which options are set (yes or no)
 - photo quick looks and backup AI Task use
 - whether the maker lookup is on
+- how a wall screen ended up drawing (every pixel, every pixel but less while moving, about 1440p's worth, or Low)
