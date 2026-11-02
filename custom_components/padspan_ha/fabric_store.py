@@ -607,6 +607,11 @@ class FabricStore:
         out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
         out["id"] = str(out.get("id") or "").strip()[:40] or f"bar_{os.urandom(4).hex()}"
         out.pop("map_id", None)   # a wall is not "on" a photograph
+        # Open (Loft) is no wall: 0 dB whatever an old path saved it at (the
+        # legacy per-map list once wrote open at 6), so an open edge reads
+        # as open for positioning and coverage alike.
+        if str(out.get("material") or "").strip().lower() == "open":
+            out["attenuation_dbm"] = 0.0
         # A linked door/window/lock's open/closed reading assumes normal
         # binary_sensor semantics (state=="on" == open). At least one real
         # sensor (Upper Garage Car Door Contact) reports backwards — flip

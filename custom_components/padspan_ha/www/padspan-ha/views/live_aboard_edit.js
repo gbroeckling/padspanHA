@@ -56,7 +56,7 @@ const PICK_OPENING = 8;                           // px round an opening's own o
 const COL = { window: "#60a5fa", door: "#f59e0b", doorway: "#c084fc", stop: "#ef4444", map: "#a3e635", arc: "#fbbf24" };
 // What each kind drawn on a wall is called, and the words for drawing one.
 const NAME = { door: "Door", window: "Window", doorway: "Doorway" };
-const DRAW_HINT = "Door, Window or Doorway: draw along a wall. Heights: tap a device. Tap a door or window to change it.";
+const DRAW_HINT = "Door, Window or Doorway: draw along a wall. Heights: tap a device. Tap a door or window to change it. No wall between two rooms? Mark that edge open in Mapping → Edit → Signal walls.";
 const FEW = (n) => `${n} change${n === 1 ? "" : "s"}`;
 // The server's refusals (ws_house3d.py), said plainly. The house still draws
 // from the map, and a refused Save keeps the draft, to be saved again.

@@ -202,3 +202,46 @@ export function roomEdgeForCircle(roomGeometry, floorId, cx, cy, r) {
   }
   return best;
 }
+
+// ── Open edges (an open-plan room, a loft) ───────────────────────────────────
+// A room edge with no wall on it: the tool in Mapping → Edit → Signal walls
+// marks it with an Open (0 dB) barrier whose two points are EXACTLY that
+// edge's vertices from model.room_geometry_m, so the 3D house's openAt finds
+// it on the derived wall and nothing is re-traced by hand. Both helpers are
+// pure: metres in, metres out.
+
+// The room edge nearest (px, py) among the polygon rooms of one floor.
+// Returns {room, points: [a, b], segIdx, x, y, distSq} or null; the caller
+// decides how near is near enough. Circle rooms have no edges.
+export function nearestRoomEdge(roomGeometry, floorId, px, py) {
+  let best = null;
+  for (const [room, g] of Object.entries(roomGeometry || {})) {
+    if (!g || g.type !== "poly" || String(g.floor_id || "main") !== String(floorId)) continue;
+    const closed = closedOutline(g.points_m);
+    if (!closed) continue;
+    const near = nearestPointOnPolyline(closed, px, py);
+    if (!near) continue;
+    if (!best || near.distSq < best.distSq) {
+      const segIdx = Math.min(near.segIdx, closed.length - 2);
+      best = { room, points: [closed[segIdx], closed[segIdx + 1]], segIdx, x: near.x, y: near.y, distSq: near.distSq };
+    }
+  }
+  return best;
+}
+
+// A room outline closed back to its first vertex (each vertex [x, y] in
+// metres), or null when it has fewer than three.
+export function closedOutline(points_m) {
+  const pts = (points_m || []).map(p => [Number(p[0]), Number(p[1])]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  if (pts.length < 3) return null;
+  const first = pts[0], last = pts[pts.length - 1];
+  return (first[0] === last[0] && first[1] === last[1]) ? pts : [...pts, first];
+}
+
+// Two 2-point segments are the same edge when their ends meet within `tol`
+// metres, in either order: the edge two hand-drawn rooms share, and the open
+// barrier already written on it, so a shared edge is marked once.
+export function sameEdge(p, q, a, b, tol) {
+  const d = (u, v) => Math.hypot(Number(u[0]) - Number(v[0]), Number(u[1]) - Number(v[1]));
+  return (d(p, a) <= tol && d(q, b) <= tol) || (d(p, b) <= tol && d(q, a) <= tol);
+}
