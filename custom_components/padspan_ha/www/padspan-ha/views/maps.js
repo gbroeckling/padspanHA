@@ -15,7 +15,8 @@ const { attachPanZoom } =
 const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
         metresToMapFrac, placementFromColumns, placementStageAffine, worldGauge,
         nearestPointOnPolyline, splitPolylineAtTwoPositions,
-        circlePolylineIntersections, bestCircleWall, roomEdgeForCircle } =
+        circlePolylineIntersections, bestCircleWall, roomEdgeForCircle,
+        nearestRoomEdge, closedOutline, sameEdge } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
@@ -2050,6 +2051,63 @@ function _edit(ctx, map, allMaps, opts){
     } catch (e) { ctx.toast("Could not remove wall: " + (e.message || e), true); }
   };
 
+  // ── Open edges: a room edge with no wall on it (a loft, an open plan) ──────
+  // Signal already passes where no wall is drawn: the solver and the coverage
+  // map add up the walls a ray crosses and nothing else. Marking the edge
+  // Open (0 dB) records that on the map, and the 3D house leaves out the
+  // wall it would otherwise derive there (live_aboard_house.js openAt). The
+  // barrier's two points are the edge's OWN vertices from room_geometry_m,
+  // the same metres the 3D house reads, so nothing is re-traced by hand; a
+  // shared edge is written once (sameEdge against the open walls already on
+  // this floor). `rail: "none"`: a new open edge has no railing until one is
+  // chosen (the per-edge rail key; the store keeps it).
+  const OPEN_EDGE_TOL_M = 0.25;
+  const _openEdgeGeom = () => {
+    const fid = _wallFloor(), rb = ctx.state.maps._draftRoomBounds || {};
+    return Object.fromEntries(Object.entries(ctx.state.model?.room_geometry_m || {})
+      .filter(([r, g]) => g && g.type === "poly" && String(g.floor_id || "main") === fid && rb[r]));
+  };
+  const _openEdgeOn = (a, b) => (ctx.state.model?.rf_barriers_m || []).find(x => x.material === "open"
+    && String(x.floor_id || "main") === _wallFloor() && (x.points_m || []).length === 2
+    && sameEdge(x.points_m[0], x.points_m[1], a, b, OPEN_EDGE_TOL_M));
+  const _placeOpenEdge = async (room, a, b) => {
+    try {
+      const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier: {
+        name: `Open edge — ${room}`, material: "open", attenuation_dbm: 0, rail: "none",
+        floor_id: _wallFloor(), points_m: [[a[0], a[1]], [b[0], b[1]]] } });
+      return r && r.barrier ? r.barrier.id : null;
+    } catch (e) { ctx.toast("Could not mark the edge open: " + (e.message || e), true); return null; }
+  };
+  const _openEdgeTap = async (fx, fy) => {
+    const tf = _wallTx();
+    if (!tf) { ctx.toast("Measure this map first (Measure tool) — walls are stored in metres.", true); return; }
+    const [mx, my] = mapFracToMetres(tf, fx, fy);
+    const hit = nearestRoomEdge(_openEdgeGeom(), _wallFloor(), mx, my);
+    const snap = hit && metresToMapFrac(tf, hit.x, hit.y);
+    if (!hit || !snap || Math.hypot(snap[0] - fx, snap[1] - fy) > 0.03) {
+      ctx.toast("Tap closer to a room's edge (a room needs Save Layout before its edges can be marked).", true); return;
+    }
+    const [a, b] = hit.points;
+    if (_openEdgeOn(a, b)) { ctx.toast(`That edge of ${hit.room} is already open.`); return; }
+    const id = await _placeOpenEdge(hit.room, a, b);
+    if (!id) return;
+    await ctx.actions.modelRefresh();
+    ctx.state.maps._selectedBarrierId = id;
+    ctx.toast(`Open edge — ${hit.room}`);
+  };
+  const _openAllEdges = async (room) => {
+    const closed = closedOutline(((ctx.state.model?.room_geometry_m || {})[room] || {}).points_m);
+    if (!closed) { ctx.toast("Save Layout first: that room has no saved outline yet.", true); return; }
+    let added = 0, had = 0;
+    for (let i = 0; i < closed.length - 1; i++) {
+      const a = closed[i], b = closed[i + 1];
+      if (_openEdgeOn(a, b)) { had++; continue; }
+      if (await _placeOpenEdge(room, a, b)) added++; else break;
+    }
+    await ctx.actions.modelRefresh();
+    ctx.toast(`${room}: ${added} edge${added !== 1 ? "s" : ""} marked open${had ? ` (${had} already open)` : ""}`);
+  };
+
   // ── Sub-zones (subzones.py): named areas inside a room, in metres ──────────
   // Only with settings.subzones_enabled (off: no button, nothing drawn). Drawn
   // here like a wall, through this map's metre transform, and kept in their
@@ -2151,7 +2209,7 @@ function _edit(ctx, map, allMaps, opts){
   const modeRow = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"},[
     _toolOk("receivers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="receivers"?" primary":""), "data-edit-tool":"receivers", onclick:()=>{ ctx.state.maps._mode="receivers"; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Radios") : null,
     _toolOk("rooms") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="rooms"?" primary":""), "data-edit-tool":"rooms", onclick:()=>{ ctx.state.maps._mode="rooms"; ctx.state.maps._selectedRxId=null; renderAll(); renderTools(); }}, "Rooms") : null,
-    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; renderAll(); renderTools(); }}, "Signal walls") : null,
+    _toolOk("barriers") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="barriers"?" primary":""), "data-edit-tool":"barriers", style:"background:#1a0a0a;border-color:#7f1d1d;color:#fca5a5", onclick:()=>{ ctx.state.maps._mode="barriers"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._openEdgeTap=false; renderAll(); renderTools(); }}, "Signal walls") : null,
     _toolOk("measure") ? el("button",{class:"btn inline"+(ctx.state.maps._mode==="measure"?" primary":""), "data-edit-tool":"measure", style:"background:#0a1a2a;border-color:#1e4976;color:#7dd3fc", onclick:()=>{ ctx.state.maps._mode="measure"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._measurePts=[]; renderAll(); renderTools(); }}, "\ud83d\udccf Measure") : null,
     ...(_szOn() ? [el("button",{class:"btn inline"+(ctx.state.maps._mode==="subzones"?" primary":""), "data-edit-tool":"subzones", onclick:()=>{ ctx.state.maps._mode="subzones"; ctx.state.maps._selectedRxId=null; ctx.state.maps._drawing=null; ctx.state.maps._szDrawing=null; _szLoad(); }}, "Sub-zones")] : []).filter(() => _toolOk("subzones")),
     el("span",{class:"muted", style:"font-size:12px"}, _modeHelp[ctx.state.maps._mode] || ""),
@@ -2736,6 +2794,34 @@ function _edit(ctx, map, allMaps, opts){
         : (_wallTx()
             ? "Click on the map to start drawing a wall. It is stored in metres in the room and receiver layout the moment you finish."
             : "Measure this map first (Measure tool): walls are stored in metres, and this map has no scale yet.")));
+
+      // Open edges: rooms not divided by a wall (a loft, one big open space).
+      const oeRooms = Object.keys(_openEdgeGeom());
+      const oeArmed = !!ctx.state.maps._openEdgeTap;
+      const oeTapBtn = el("button",{class:"btn inline"+(oeArmed?" primary":""), "data-open-edge":"tap",
+        title:"Tap a room's edge on the map: an Open (0 dB) wall goes exactly along that edge",
+        onclick:()=>{ ctx.state.maps._openEdgeTap = !oeArmed; ctx.state.maps._drawing = null; renderAll(); renderTools(); }}, "Open edge: tap a room edge");
+      const oeSel = document.createElement("select");
+      oeSel.className = "select"; oeSel.setAttribute("data-open-edge", "room");
+      for (const r of oeRooms) { const o = document.createElement("option"); o.value = r; o.textContent = r; oeSel.appendChild(o); }
+      if (oeRooms.includes(ctx.state.maps._openEdgeRoom)) oeSel.value = ctx.state.maps._openEdgeRoom;
+      oeSel.addEventListener("change", ()=>{ ctx.state.maps._openEdgeRoom = oeSel.value; });
+      const oeAllBtn = el("button",{class:"btn inline", "data-open-edge":"all",
+        title:"Every edge of this room gets an Open (0 dB) wall: a loft, or one big open space",
+        onclick: async ()=>{
+          const room = oeSel.value;
+          if(!room){ ctx.toast("Choose a room first.", true); return; }
+          await _openAllEdges(room); renderAll(); renderTools();
+        }}, "Open all edges");
+      right.appendChild(el("div",{style:"margin-top:12px;padding-top:8px;border-top:1px solid #1b3526"},[
+        el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:4px"}, "Open edges"),
+        el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"}, oeRooms.length ? [oeTapBtn, oeSel, oeAllBtn] : [oeTapBtn]),
+        el("div",{class:"muted",style:"font-size:11px;margin-top:6px;line-height:1.4"}, oeArmed
+          ? "Tap a room edge on the map. An edge two rooms share is marked once."
+          : (oeRooms.length
+            ? "Rooms not divided by a wall (a loft, one big open space): signal already passes where no wall is drawn. Marking the edge open records that on the map, and the 3D house leaves the wall out there."
+            : "Save Layout first: a room's edges can be marked once its outline is saved.")),
+      ]));
 
       // Door/window marking (docs/IDEA_DOOR_WINDOW_BARRIERS.md, step 3):
       // active only while ctx.state.maps._doorMarkBarrierId is set (a
@@ -3323,6 +3409,13 @@ function _edit(ctx, map, allMaps, opts){
       if(!ctx.state.maps._doorMarkPts) ctx.state.maps._doorMarkPts = [];
       if(ctx.state.maps._doorMarkPts.length < 2) ctx.state.maps._doorMarkPts.push(snapped);
       renderAll(); renderTools();
+      return;
+    }
+    // Open edge: the tap snaps to the nearest saved room edge and marks it open.
+    if(ctx.state.maps._mode==="barriers" && ctx.state.maps._openEdgeTap){
+      const rect = overlay.getBoundingClientRect();
+      _openEdgeTap(clamp01((ev.clientX - rect.left) / rect.width), clamp01((ev.clientY - rect.top) / rect.height))
+        .then(()=>{ renderAll(); renderTools(); });
       return;
     }
     // Measure mode: collect 2 points (minimal DOM update, no full re-render)
@@ -4573,7 +4666,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
         "steps": [
           "In the Edit tab, click Signal walls.",
-          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout) gets a railing; anywhere else it stays an open gap.",
+          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. An open edge, or no wall drawn at all, already lets signal through for positioning and coverage; what marking it adds is the record on the map, and the 3D house leaves out the wall it would otherwise draw there. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout) gets a railing; anywhere else it stays an open gap.",
           "Click along the wall on the photo, one point per corner or bend.",
           "Click Undo point to remove the last point.",
           "Double-click, or click Finish, once you have at least two points."
@@ -4581,6 +4674,7 @@ const BRIGHT_PRO_MANUAL = [
         "notes": [
           "Cancel discards a wall you're still drawing.",
           "A wall saves the moment you finish it — there's no separate Save Layout step for walls.",
+          "Open edges, under the drawing buttons: Open edge: tap a room edge snaps to the nearest saved room edge and marks just that edge open, exactly along it; Open all edges does a whole room, for a loft or one big open space. An edge two rooms share is marked once.",
           "Click a wall on the map, or in the \"Walls on this floor\" list, to select it. Delete removes just that one; Delete all walls on this floor clears every wall on the current floor."
         ]
       }
