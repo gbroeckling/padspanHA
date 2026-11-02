@@ -707,16 +707,16 @@
    "de": "Wie beim iPhone: die Uhr mit dem irk-capture-ESP32 koppeln"
   },
   {
-   "en": "<b>Tile / Chipolo</b>",
-   "de": "<b>Tile / Chipolo</b>"
+   "en": "<b>Beacon or key tag</b>",
+   "de": "<b>Beacon oder Schlüssel-Tracker</b>"
   },
   {
-   "en": "Automatic (iBeacon)",
-   "de": "Automatisch (iBeacon)"
+   "en": "Automatic",
+   "de": "Automatisch"
   },
   {
-   "en": "Stable UUID — just works, tag once",
-   "de": "Feste UUID: funktioniert einfach, einmal zuordnen"
+   "en": "A fixed ID or address: <a href=\"/guides/bluetooth-tags/\">name it once</a>",
+   "de": "Feste Kennung oder Adresse: <a href=\"/guides/bluetooth-tags/de/\">einmal benennen</a>"
   },
   {
    "en": "<b>AirTag</b>",
@@ -727,20 +727,20 @@
    "de": "Wahrscheinlichkeitsbasiert (experimentell)"
   },
   {
-   "en": "Apple Classification + MAC Rotation Bridging",
-   "de": "Apple-Erkennung + MAC Rotation Bridging"
+   "en": "MAC Rotation Bridging",
+   "de": "MAC Rotation Bridging"
   },
   {
    "en": "<b>SmartTag</b>",
    "de": "<b>SmartTag</b>"
   },
   {
-   "en": "Probabilistic",
-   "de": "Wahrscheinlichkeitsbasiert"
+   "en": "Not reliably",
+   "de": "Nicht zuverlässig"
   },
   {
-   "en": "Same as AirTag — MAC Rotation Bridging",
-   "de": "Wie beim AirTag: MAC Rotation Bridging"
+   "en": "No stable identifier in the air",
+   "de": "Keine feste Kennung im Funk"
   },
   {
    "en": "<b>AirPods</b>",

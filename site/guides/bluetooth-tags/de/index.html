@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcher Bluetooth-Tracker funktioniert mit Home Assistant? AirTag, Tile und Beacons für Schlüssel, Haustiere und Gäste | PadSpan HA</title>
+<meta name="description" content="AirTags und SmartTags wechseln ständig ihre Bluetooth-Adresse, deshalb erkennt Home Assistant sie von Raum zu Raum nicht wieder. Ein Beacon mit fester Kennung schon. Was du für Schlüssel, Haustiere und Gäste kaufen solltest, wie du einen Tracker testest und wie du ihn einrichtest.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/bluetooth-tags/de/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/bluetooth-tags/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/bluetooth-tags/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/bluetooth-tags/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="Welcher Bluetooth-Tracker funktioniert mit Home Assistant?">
+<meta property="og:description" content="AirTags wechseln ihre Adresse absichtlich, Beacons nicht. Was du für Schlüssel, Haustiere und Gäste kaufen solltest und wie du einen Tracker testest, bevor du dich auf ihn verlässt.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/bluetooth-tags/de/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/de/">PadSpan™ HA</a>
+  <a href="/guides/">Anleitungen</a>
+  <a href="/demo/?hl=de">Live-Demo</a>
+  <a href="/de/#install">Installieren</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/bluetooth-tags/" hreflang="en" lang="en">English</a>
+</div></nav>
+<main>
+<h1>Welcher Bluetooth-Tracker funktioniert mit Home Assistant?</h1>
+<p class="lead">Damit Home Assistant weiß, in welchem Raum gerade deine Schlüssel, dein Hund oder ein Gast sind, muss es den Tracker jedes Mal wiedererkennen, wenn ein Bluetooth-Proxy ihn hört. Genau das verhindern die bekanntesten Tracker absichtlich: Ein AirTag wechselt ständig seine Bluetooth-Adresse, damit ihm niemand folgen kann. Ein einfaches Beacon mit fester Kennung hat dieses Problem nicht und funktioniert in Bermuda, PadSpan, ESPresense und NeonPlan gleichermaßen.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/?hl=de">Schlüssel und den Tracker eines Gastes im Demo-Haus ansehen</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan installieren</a>
+</div>
+<figure>
+  <a href="/demo/media/estate-3d-guest-tag.jpg"><img src="/demo/media/estate-3d-guest-tag.jpg" width="1920" height="1080" alt="Nahansicht von PadSpans Demo-Haus in 3D: ein Tracker mit der Aufschrift Keys und ein weiterer mit Jordan, Guest, zwischen den möblierten Räumen des Erdgeschosses" loading="lazy"></a>
+  <figcaption>Tracker mit ihren Namen im Demo-Haus, in Live Aboard (PadSpan Pro): die Schlüssel und ein Tracker, den ein Gast geliehen hat. Die Namen sind ausgedacht. <a href="/demo/?hl=de">Selbst ansehen</a> (die Demo läuft als Pro).</figcaption>
+</figure>
+
+<h2>Kurz gesagt</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Tracker</th><th>Was er sendet</th><th>Raum für Raum?</th></tr>
+  <tr><td><b>Ein Beacon mit fester iBeacon-Kennung</b><br>Feasycom, Blue Charm, Minew, Pawscout und andere</td><td>Jedes Mal dieselbe Kennung, und bei vielen stellst du ein, wie oft</td><td><b>Ja</b>, in Bermuda, PadSpan, ESPresense und NeonPlan. Kauf so eins.</td></tr>
+  <tr><td><b>Alles mit einer festen Adresse</b><br>Günstige Schlüsselfinder, Shelly BLU und andere BTHome-Geräte, Xiaomi-Thermometer, RuuviTag, einfache Uhren</td><td>Jedes Mal dieselbe Bluetooth-Adresse</td><td><b>Ja</b>, wenn es alle paar Sekunden sendet. Sensoren, die nur bei einem Ereignis senden, bleiben keinem Raum zugeordnet, und viele Geräte verstummen, während sie mit einem Handy verbunden sind, also teste es.</td></tr>
+  <tr><td><b>Tile</b></td><td>Ältere behalten ihre Adresse. Life360, der Eigentümer von Tile, stellt laut eigener Aussage auf wechselnde Adressen um, und Besitzer berichten das von neueren Modellen</td><td><b>Vielleicht.</b> Teste deinen, und kauf keinen dafür.</td></tr>
+  <tr><td><b>AirTag und andere „Wo ist?“-Tracker</b><br>Chipolo ONE Spot, eufy und andere</td><td>Alle 15 Minuten eine neue Adresse in der Nähe des iPhones ihres Besitzers, einmal am Tag fern davon</td><td><b>Nicht in Bermuda, ESPresense oder NeonPlan.</b> PadSpan kann einen benannten Tracker weiter erkennen, solange er in Reichweite bleibt (experimentell, <a href="#airtags">siehe unten</a>).</td></tr>
+  <tr><td><b>Samsung SmartTag</b></td><td>Etwa alle 15 Minuten eine neue Kennung in der Nähe des Besitzers</td><td><b>Nicht zuverlässig.</b></td></tr>
+  <tr><td><b>Tracker für Googles „Mein Gerät finden“ (englisch Find Hub)</b><br>Moto Tag, Chipolo POP, Pebblebee, Pixel Tag</td><td>Etwa alle 17 Minuten eine neue Kennung</td><td><b>Nein</b>, außer mit experimentellen Erweiterungen.</td></tr>
+  <tr><td><b>Ein Handy oder eine Smartwatch</b></td><td>Eine wechselnde Adresse, aber sein IRK-Schlüssel oder sein eigenes Beacon verrät, wer es ist</td><td><b>Ja</b>, nach einem Schritt pro Gerät: <a href="/guides/phone-room-presence/de/">In welchem Raum ist mein Handy?</a></td></tr>
+</table>
+</div>
+<p>Außerdem brauchst du mindestens einen Bluetooth-Scanner: einen ESPHome-Proxy, einen Shelly ab Gen2, <a href="/guides/shelly-bluetooth-proxy/de/">als Scanner eingerichtet</a>, oder den eigenen Adapter von Home Assistant. Einer reicht, um zu Hause von abwesend zu unterscheiden. Für Räume stellst du einen in jeden Raum, den du unterscheiden willst: <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a></p>
+
+<h2>Warum die bekannten Tracker ihre Adresse wechseln</h2>
+<p>Ein Proxy weiß nur, was ein Tracker sendet. Die Tracker von Apple, Samsung und Google wechseln ihre Adresse und ihre Kennung nach festem Plan, damit Fremde mit ihnen niemanden verfolgen können. Der Entwurf eines Standards für solche Tracker, <a href="https://datatracker.ietf.org/doc/draft-ietf-dult-accessory-protocol/">DULT</a>, verlangt genau das: alle 15 Minuten eine neue Adresse in der Nähe des Besitzers und alle 24 Stunden fern von ihm. Auch Apples AirTag der zweiten Generation vom Januar 2026 hat laut Apple „unique Bluetooth identifiers that change frequently“. Ohne die kryptografischen Schlüssel des Besitzers verbindet nichts in dem, was der Tracker sendet, eine Adresse mit der nächsten, also sieht Home Assistant nur eine Reihe neuer Geräte.</p>
+<p>Ein Beacon macht das Gegenteil. Es sendet jedes Mal dieselbe Kennung (UUID, Major und Minor) und lässt sich deshalb auch dann erkennen, wenn seine Adresse wechselt. Der Preis dafür: Jeder mit einem Bluetooth-Scanner kann diese Kennung ebenfalls erkennen. Beim Hund ist das egal, bei etwas, das du durch die Stadt trägst, solltest du kurz darüber nachdenken.</p>
+
+<h2>Was du kaufen solltest</h2>
+<p>Das sind Beispiele von den Seiten der Hersteller und aus der <a href="https://www.home-assistant.io/integrations/ibeacon/#known-working-devices">Liste funktionierender iBeacons von Home Assistant</a>. Selbst getestet haben wir sie nicht, die technischen Daten stammen von den Herstellern.</p>
+<ul>
+  <li><b>Für Schlüssel:</b> ein kleines Beacon mit Loch für den Schlüsselring. Das <a href="https://www.feasystore.com/product/fsc-bp103c/">Feasycom FSC-BP103C</a> hat IP66, und seine Batterie hält laut Hersteller bis zu 3 Jahre bei einem Advertisement alle 1,3 Sekunden; einstellbar sind 0,1 bis 10 Sekunden. Das <a href="https://www.minewstore.com/product/e8-asset-tracking-tag">Minew E8</a> hat ein Loch für den Schlüsselring, und seine Batterie hält laut Hersteller ein Jahr. Die <a href="https://bluecharmbeacons.com/product/bluetooth-ble-multi-beacon-bc011">BC011</a> und <a href="https://bluecharmbeacons.com/product/bluetooth-ble-ibeacon-bc021-multibeacon-with-button-trigger-and-motion-sensor">BC021</a> von Blue Charm stehen auf der Liste von Home Assistant.</li>
+  <li><b>Fürs Halsband:</b> Der <a href="https://pawscout.com/shop/pawscout-tag/">Pawscout Tag</a> ist für Katzen und Hunde gemacht (IPX7) und steht ebenfalls auf der Liste von Home Assistant. Ein größerer Hund kann ein wasserdichtes Beacon tragen, etwa das <a href="https://www.feasystore.com/product/fsc-bp108b/">Feasycom FSC-BP108B</a> (IP67, 48 × 37 mm). GPS-Halsbänder verhalten sich unterschiedlich: Jemand <a href="https://github.com/agittins/bermuda/pull/863">berichtet, dass ein Tractive in Bermuda gut funktioniert</a> (Oktober 2026), jemand anderes <a href="https://github.com/agittins/bermuda/issues/419">sah bei einem Fi 90 Minuten lang kein Advertisement</a>, solange es gekoppelt war (Januar 2025). Achte darauf, wie die Knopfzelle im Tracker gesichert ist, denn eine <a href="https://www.petpoisonhelpline.com/poison/batteries/">verschluckte Knopfzelle kann ein Tier verletzen</a>.</li>
+  <li><b>Für Gäste:</b> ein paar der Beacons für den Schlüsselring, griffbereit in einer Schublade. In Mehrfachpacks können alle Beacons ab Werk dieselbe Kennung haben, also gib jedem Beacon in der App des Herstellers sein eigenes Minor. Ein altes Handy geht auch.</li>
+</ul>
+<p>Wie oft ein Tracker sendet, ist eine Abwägung. Die <a href="https://www.feasycom.com/datasheet/fsc-bp108b.pdf">Laborwerte von Feasycom</a> für ein Beacon bei 0 dBm reichen von 271 Tagen bei 0,1 Sekunden bis zu 2.091 Tagen bei einer Sekunde. Mit etwa einer Sekunde liegst du für den Anfang richtig. In der Voreinstellung prüft PadSpan alle 5 Sekunden und nutzt zum Platzieren keine Messwerte, die älter als 15 Sekunden sind. Ein Tracker, der nur ab und zu sendet, bleibt also nicht zuverlässig seinem Raum zugeordnet.</p>
+
+<h2>Teste einen Tracker, bevor du dich auf ihn verlässt</h2>
+<p>Die Hersteller schreiben selten, was ein Tracker sendet, also sieh selbst nach. Das dauert jetzt ein paar Minuten, und morgen schaust du noch einmal.</p>
+<ol>
+  <li>Falls der Tracker zu einem Handy gehört, lass es in der Nähe und richte den Tracker in seiner App ein. Ein „Wo ist?“-Tracker fern von seinem Besitzer kann einen ganzen Tag lang dieselbe Adresse behalten und dich täuschen.</li>
+  <li>Öffne den <a href="https://my.home-assistant.io/redirect/bluetooth_advertisement_monitor">Advertisement-Monitor für Bluetooth</a> in Home Assistant oder <a href="https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-mobile">nRF Connect</a> auf einem Android-Handy. iPhones zeigen Apps die Bluetooth-Adresse eines Geräts nicht.</li>
+  <li>Halte den Tracker direkt an einen Proxy oder an das Android-Handy, um ihn an seinem Signal zu erkennen. Schreib seine Adresse auf. nRF Connect zeigt bei einem iBeacon auch UUID, Major und Minor.</li>
+  <li>Schau nach einer Stunde noch einmal hin und nach einem Tag ein weiteres Mal.</li>
+</ol>
+<ul>
+  <li><b>Dieselbe Adresse oder dieselbe iBeacon-Kennung:</b> Er lässt sich erkennen und bleibt einem Raum zugeordnet, wenn er alle paar Sekunden sendet.</li>
+  <li><b>Weg, solange sein Handy verbunden ist:</b> Er sendet während einer Verbindung nicht. <a href="https://github.com/agittins/bermuda/wiki/Supported-devices">Die Doku von Bermuda warnt davor</a>. Trenne ihn von seiner App oder nimm einen anderen.</li>
+  <li><b>Jedes Mal eine neue Adresse und keine feste Kennung:</b> Ohne seine kryptografischen Schlüssel kann ihn nichts wiedererkennen.</li>
+</ul>
+
+<h2>In PadSpan einrichten</h2>
+<p>Dieser Teil ist kostenlos. PadSpan liest die Bluetooth-Daten von Home Assistant selbst, und jeder Raum ergibt sich aus dem Home-Assistant-Bereich seines Scanners.</p>
+<ol>
+  <li>Halte den Tracker direkt an einen Proxy.</li>
+  <li>Öffne in PadSpan <b>Follow</b> und <b>Choose a tag to follow</b>. Die Liste beginnt mit dem stärksten Signal, dein Tracker sollte also weit oben stehen, markiert mit <b>[Unidentified]</b>.</li>
+  <li>Wähl ihn aus und dann <b>Name this tag</b>. Nimm einen kurzen Namen, etwa „Keys“ oder „Schlüssel“. (<b>Overview → Objects → All objects → Tag → Save label</b> macht dasselbe.)</li>
+</ol>
+<p>Erst der Name gibt dem Tracker seine Entitäten in Home Assistant. Auch die Entitäts-ID kommt vom Namen: Aus „Schlüssel“ wird <code>device_tracker.schlussel</code>. Die Beispiele hier gehen von einem Tracker namens Keys aus:</p>
+<ul>
+  <li><code>device_tracker.keys</code>: Sein Zustand ist der Raum, <code>not_home</code>, wenn er fünf Minuten lang nicht gehört wurde, oder <code>unknown</code>, solange er keinen Raum hat. Die fünf Minuten änderst du unter <b>Settings → Presence → Home/Away Timeout → Away timeout</b>. (Ab der Beta 0.38.202 heißt Presence Tracking.)</li>
+  <li><code>sensor.keys_area</code>: der Raum, mit <code>room_confidence</code> als Attribut, dazu Sensoren <b>Distance</b>.</li>
+</ul>
+<p>Derselbe Bildschirm <b>Follow</b> hat <b>Movement Alerts</b>, für den Fall, dass der Tracker den Raum wechselt, nach Hause kommt oder das Haus verlässt. <b>Traceback</b> behält seine letzten 7 Tage. Ein benannter Tracker zählt nie als Person: PadSpans Personenzählung lässt Schlüssel, Beacons, Kisten und Fahrzeuge aus, die Schlüssel auf der Kommode täuschen in einem leeren Haus also nicht vor, dass jemand da ist. Zwei Dinge kann PadSpan nicht: einen Tracker klingeln lassen und seine Batterie auslesen. Ein Tracker mit leerer Batterie sieht also genauso aus wie einer, der das Haus verlassen hat.</p>
+<p>Hier eine Automation für den Anfang, für den Fall, dass du gehst und deine Schlüssel nicht. Die Person braucht einen Tracker, der weiß, wann sie weg ist, etwa die Companion-App:</p>
+<pre><code>alias: Schlüssel vergessen
+triggers:
+  - trigger: state
+    entity_id: person.alex
+    to: not_home
+    for: "00:06:00"
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: device_tracker.keys
+        state: not_home
+actions:
+  - action: notify.mobile_app_alex_phone
+    data:
+      message: "Deine Schlüssel sind noch zu Hause: {{ states('device_tracker.keys') }}"</code></pre>
+<p>Die sechs Minuten sind länger als PadSpans fünf Minuten bis „abwesend“, also stehen Schlüssel in deiner Tasche auf <code>not_home</code>, bevor die Automation prüft. Hast du die Zeit erhöht, erhöh auch diesen Wert. Ein Raum funktioniert genauso: <code>entity_id: device_tracker.dog</code> mit <code>to: Garage</code> meldet dir, dass der Hund in die Garage gegangen ist. Schreib den Raum so, wie er unter <a href="https://my.home-assistant.io/redirect/developer_states/">Einstellungen → Werkzeuge → Zustände</a> steht. Für Fragen per Sprache hat PadSpan einen Assist-Intent, der zum Namen eines Trackers den Raum nennt, sobald du die Sätze aus <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/docs/GETTING_STARTED.md">Getting Started</a> (englisch) hinzufügst.</p>
+
+<h2>Einem Gast einen Tracker leihen</h2>
+<p>Gib jedem Gast für seinen Besuch einen kleinen Bluetooth-Tracker, und PadSpan zeigt, in welchem Raum er gerade ist, sofern deine Proxys diesen Raum abdecken. <b>Guest tags</b> sind neu in 0.38.178 und damit in der aktuellen stabilen Version. Sie sind kostenlos und bleiben aus, bis du sie einschaltest.</p>
+<ol>
+  <li>Schalte <b>Settings → Presence → Guest tags → Use tags as guest tags</b> ein. Das kann nur ein Home-Assistant-Administrator. Hier legst du auch fest, wie lange der Bericht eines beendeten Besuchs aufbewahrt wird: gar nicht, 7, 30 (Voreinstellung) oder 90 Tage.</li>
+  <li>Benenne einen freien Tracker wie oben, etwa „Guest tag 1“. Wähl ihn im neuen Tab <b>Guests</b> unter <b>Use as a guest tag</b> aus und dann <b>Add</b>.</li>
+  <li>Wähl beim Tracker <b>Lend to a guest</b>. Trag ein, wer ihn hat, und wenn du willst, bis wann, welche Räume tabu sind, ob du bei Ankunft und Abschied benachrichtigt werden willst und wann Ruhezeiten gelten.</li>
+  <li><b>Guests → Staying now</b> zeigt, wo die Person ist, seit wann und wie lange sie in jedem Raum war. Kommt der Tracker zurück, wählst du <b>Tag returned</b>, und der Bericht wandert zu <b>Past stays</b>.</li>
+</ol>
+<p>Sag deinem Gast, dass der Tracker geortet wird, und verleih ihn nur, wenn er einverstanden ist. Ein Beacon warnt niemanden so, wie es ein AirTag tut. Deinem Gast musst du es also selbst sagen, und <a href="https://support.apple.com/de-de/119874">Personen ohne ihre Einwilligung zu orten, ist in vielen Ländern strafbar</a>. Der Name des Gastes bleibt in deinem Home Assistant: Er steht weder im Nutzungsbericht noch in einem PadSpan-Backup. Die Overview markiert den Tracker mit einem <b>Guest</b>-Badge, und auf dem Atlas und in Live Aboard erscheint er ebenfalls, wenn PadSpan einen Platz für ihn hat, sobald <b>Show tags &amp; scanners</b> eingeschaltet ist (Pro). Am besten zeigt sich das in einem <a href="/guides/large-homes/">großen Haus mit Wanddisplay</a> (Pro, englisch).</p>
+
+<h2 id="airtags">Du hast schon AirTags?</h2>
+<ul>
+  <li><b>Zu Hause oder abwesend:</b> „Wo ist?“ weiß, wo sie sind, und manche bringen das auf anderen Wegen nach Home Assistant. <a href="https://www.howtogeek.com/airtags-are-the-best-home-assistant-accessory-youve-overlooked/">Der Artikel von How-To Geek</a> (Juli 2026) nutzt einen Apple-Kurzbefehl, HomeKit Bridge und einen Mac zu Hause, der den Cache von „Wo ist?“ ausliest. Das ergibt Zonen und zu Hause oder abwesend, aber keinen Raum.</li>
+  <li><b>In PadSpan (kostenlos, experimentell):</b> Schalte <b>Settings → Features → MAC Rotation Bridging</b> ein, das ab Werk aus ist, und benenne den Tracker. Wechselt er seine Adresse, übernimmt PadSpan Namen, Raum und Verlauf, wenn klar ist, welcher es ist: dieselbe Art von Tracker, die alte Adresse ist verstummt, die neue tauchte genau dann auf, und deine Scanner hören sie am selben Ort. Bei einem „Wo ist?“-Tracker rät PadSpan nicht. Zwei Tracker, die zusammen liegen und im selben Moment wechseln, bleiben unverknüpft, und ein Tracker, der beim Wechsel außer Reichweite war, kommt als neues Gerät zurück. Dann benennst du ihn neu. Derselbe Schalter verknüpft andere Geräte mit wechselnder Adresse anhand dessen, was sie senden, und das kann gelegentlich das falsche treffen.</li>
+  <li><b>Das passt also zu einem Tracker, der zu Hause bleibt,</b> in einer Tasche oder an einer Fernbedienung. Zu den Schlüsseln, die du mitnimmst, passt es nicht: Waren sie lange genug für einen Adresswechsel weg, kommen sie namenlos zurück.</li>
+  <li><b>Mit den kryptografischen Schlüsseln des Trackers:</b> <a href="https://github.com/malmeloo/hass-FindMy">hass-FindMy</a>, eine experimentelle Integration, erkennt AirTags über ESPHome-Proxys, wenn du jeden Tracker importiert und dich mit einem Apple-Konto angemeldet hast. Das zeigt dir einen Tracker in der Nähe eines Proxys, keinen Raum; <a href="https://github.com/agittins/bermuda/pull/844">ein Pull Request, der Räume über Bermuda ergänzt</a>, ist noch offen.</li>
+  <li><b>Nichts für Gäste oder Haustiere.</b> Apple hat den AirTag laut eigener Aussage <a href="https://www.apple.com/newsroom/2022/02/an-update-on-airtag-and-unwanted-tracking/">„not to track people or another person’s property“</a> gebaut. Ein Gast mit deinem AirTag bekäme auf seinem iPhone Apples Warnung vor unerwünschtem Tracking, <a href="https://support.apple.com/de-de/119874">„Ein AirTag bewegt sich mit dir“</a>, und ein AirTag, der längere Zeit von seinem Besitzer getrennt ist, gibt einen Ton aus, wenn er bewegt wird. Nimm für einen Gast ein Beacon, sag ihm, dass es geortet wird, und verleih es nur, wenn er einverstanden ist.</li>
+</ul>
+
+<h2>Kostenlos, und was Pro dazubringt</h2>
+<p>Tracker benennen, die Entitäten in Home Assistant, Movement Alerts, Traceback, Guest tags, MAC Rotation Bridging und die benannten Tracker auf der Karte in der Overview sind kostenlos. PadSpan Pro bringt dazu: jedes Licht und Gerät genau an seinem Platz auf dem Atlas, der Touchscreen-Karte des ganzen Hauses. <b>Show tags &amp; scanners</b> (ab Werk aus) setzt jeden Tracker, den PadSpan platzieren kann, mit seinem Namen darauf. Dasselbe gilt für Live Aboard, das Haus in 3D (noch experimentell), in das du hineinschaust wie in ein Haus bei den Sims. <b>Locate</b> sagt dir Raum für Raum, wie du von dem Handy, das du bei dir trägst, zum Tracker kommst, und zeigt im selben Raum die Entfernung in Metern an, wenn es für beide einen Platz hat. Du kannst Pro unter <b>Settings → Features → PadSpan licence</b> 90 Tage lang komplett kostenlos testen, ohne Kreditkarte, nur mit einer E-Mail-Adresse für den Lizenzschlüssel. Starten muss den Test ein Administrator. Dafür muss der freiwillige Nutzungsbericht eingeschaltet sein, und er bleibt es bis zum Ende der Testphase.</p>
+
+<h2>Dieselben Tracker in anderen Projekten</h2>
+<ul>
+  <li><b><a href="https://github.com/agittins/bermuda/wiki/Supported-devices">Bermuda</a></b> erkennt feste Adressen, iBeacons und Handys per IRK und führt AirTags und Tracker für „Mein Gerät finden“ unter „Currently NOT Supported“. Geräte wählst du in seinen Optionen aus (<b>Einstellungen → Geräte &amp; Dienste → Bermuda → Konfigurieren → Select Devices</b>). PadSpan <a href="/guides/bermuda/de/">läuft daneben</a> auf denselben Proxys.</li>
+  <li><b><a href="https://espresense.com/devices/">ESPresense</a></b> nimmt „anything that follows the iBeacon or Eddystone standards“. Zu AirTags schreibt es: „we can only count how many are currently not connected to a phone“.</li>
+  <li><b><a href="https://github.com/Mastershort/neonplan3d/blob/main/docs/anleitung.md">NeonPlan 3D</a></b> ortet „Schlüsselanhänger mit fester Adresse oder als iBeacon“ und schreibt: „AirTags gehen nicht“.</li>
+  <li><b><a href="https://www.home-assistant.io/integrations/ibeacon/">Der iBeacon-Tracker von Home Assistant</a></b> ist eingebaut. Er liefert eine geschätzte Entfernung und Anwesenheit, aber keinen Raum, und er unterstützt keine Beacons, deren Major und Minor ständig wechseln.</li>
+</ul>
+
+<h2>Wenn ein Tracker nicht auftaucht</h2>
+<ul>
+  <li><b>Er steht gar nicht in der Liste.</b> Manche Tracker schlafen, bis sie einmal gekoppelt wurden oder jemand einen Knopf drückt. <a href="https://community.home-assistant.io/t/presence-detection-with-bluetooth-key-tags/682515">Bei einem Nutzer schalteten sich die Tracker selbst ab</a>, bis sie mit der App des Herstellers gekoppelt, aktualisiert und wieder entkoppelt waren. Andere verstummen, solange sie mit ihrer App verbunden sind.</li>
+  <li><b>Sein Name verschwindet immer wieder.</b> Er wechselt seine Adresse. Mach den Test von oben.</li>
+  <li><b>Er wird gehört, bekommt aber nie einen Raum.</b> Prüf, ob seine Scanner in Home Assistant einen Bereich haben: <b>Health → Scanner → Room Mappings</b> listet den Raum jedes Scanners.</li>
+  <li><b>Er springt zwischen den Räumen.</b> Das ist Signalrauschen, und <a href="/guides/room-flapping/de/">Warum springt mein Handy zwischen den Räumen?</a> erklärt, was hilft. Tief am Halsband hat es ein Tracker schwerer: <a href="https://github.com/agittins/bermuda/issues/343">Das Bermuda-Projekt weist darauf hin</a>, dass ein Tier, das auf seinem Tracker liegt, das Signal blockieren kann.</li>
+</ul>
+
+<h2>Quellen</h2>
+<ul>
+  <li>Adresswechsel: der <a href="https://datatracker.ietf.org/doc/draft-ietf-dult-accessory-protocol/">IETF-Entwurf DULT</a>, Apples <a href="https://www.apple.com/newsroom/2026/01/apple-introduces-new-airtag-with-expanded-range-and-improved-findability/">Ankündigung des AirTags der zweiten Generation</a>, Googles <a href="https://developers.google.com/nearby/fast-pair/specifications/extensions/fmdn">Spezifikation für „Mein Gerät finden“-Tracker</a> und <a href="https://www.android.com/intl/de_de/learn-find-hub/compatible-devices/">Liste der Tracker</a>, sein <a href="https://blog.google/products-and-platforms/devices/pixel/google-pixel-tag/">Beitrag zum Pixel Tag</a>, <a href="https://www.eufy.com/products/t87b0011">eufys „Wo ist?“-Tracker</a>, ein <a href="https://www.usenix.org/system/files/usenixsecurity24_slides-yu-tingfeng.pdf">USENIX-Vortrag von 2024 zu SmartTags</a> und eine <a href="https://petsymposium.org/popets/2024/popets-2024-0082.pdf">Studie zu Trackern (PoPETs 2024)</a>.</li>
+  <li>Tile: <a href="https://arxiv.org/html/2510.00350">die Studie der Georgia Tech zu einem Tile Mate von 2022</a>, <a href="https://www.theregister.com/security/2025/09/30/tile-trackers-leak-unencrypted-bluetooth-data-say-boffins/854165">The Register zur Antwort von Life360</a> und Berichte von Besitzern in den Bermuda-Issues <a href="https://github.com/agittins/bermuda/issues/412">#412</a> und <a href="https://github.com/agittins/bermuda/issues/779">#779</a>.</li>
+  <li>Andere Tracker: <a href="https://github.com/agittins/bermuda/wiki/Supported-devices">die unterstützten Geräte von Bermuda</a>, <a href="https://docs.ruuvi.com/communication/bluetooth-advertisements/data-format-5-rawv2">das Datenformat von Ruuvi</a> und <a href="https://community.home-assistant.io/t/best-ble-beacon-tag-for-keys/839321">ein Forumsthread zu Trackern für Schlüssel</a>.</li>
+  <li>Die Doku von Home Assistant zu <a href="https://www.home-assistant.io/integrations/bluetooth/">Bluetooth</a> und zum <a href="https://www.home-assistant.io/integrations/ibeacon/">iBeacon-Tracker</a>.</li>
+  <li>PadSpans <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/docs/GUEST_TAGS_GUIDE.md">Anleitung zu Guest tags</a> (englisch) und sein Code in der stabilen Version 0.38.199.</li>
+</ul>
+<p style="font-size:13px;color:var(--mut)">Steht hier etwas Veraltetes? <a href="https://github.com/gbroeckling/padspanHA/issues">Öffne ein Issue</a>, dann wird es korrigiert.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/?hl=de">Demo im Browser ausprobieren</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan installieren</a>
+</div>
+<p style="font-size:13px;color:var(--mut)">Der Knopf zum Installieren öffnet PadSpan in HACS, ab Home Assistant 2026.11 unter <b>Einstellungen → Marketplace</b>.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA wird von <a href="https://github.com/gbroeckling">Garry Broeckling</a> entwickelt. Architektur, Tests und Releases liegen in menschlicher Hand; die Umsetzung ist KI-gestützt, mit Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">Wie PadSpan gebaut wird</a> (englisch).</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan ist eine Marke der Devcon Computer Services Limited · AirTag, iBeacon, iPhone und „Wo ist?“ sind Marken der Apple Inc.; Tile von Life360; SmartTag von Samsung; Android, Find Hub und Pixel der Google LLC; Die Sims von Electronic Arts. PadSpan ist mit keinem dieser Unternehmen und keinem der genannten Hersteller verbunden.</p>
+</div></footer>
+</body>
+</html>
