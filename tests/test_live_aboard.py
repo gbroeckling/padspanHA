@@ -277,7 +277,11 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     # The editor's heights go on the placement records (2026-10-05: the Atlas's
     # own fabric_light_height_set, on the same gate as edit, _laHeightsPut).
     # The seventh is Trails' read of Traceback's history, with live data only.
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 7
+    # The eighth (2026-11-02) writes an Open edge's railing word to its barrier
+    # (barrierRail, on the same gate as edit): the view's one-time stamp of a
+    # file from before, so its railings become choices.
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 8
+    assert 'barrierRail: paid && !preview ? (barrier) => ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_set", { barrier }) : null,' in mblock
     assert 'ctx.actions.wsCall("padspan_ha/settings_set", { [key]: v })' in mblock
     assert "heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null," in mblock
     put = maps[maps.index("export function _laHeightsPut("):][:400]

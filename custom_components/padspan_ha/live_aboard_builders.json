@@ -1712,8 +1712,7 @@
       "outer",
       "none"
      ],
-     "def": "none",
-     "missing": "auto"
+     "def": "none"
     },
     {
      "key": "rail_style",

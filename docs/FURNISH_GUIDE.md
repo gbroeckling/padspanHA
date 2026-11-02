@@ -47,12 +47,11 @@ The other ways in:
     them) or **Floating** (the treads alone on one steel spine down the middle, fixed to the
     floor at the bottom and to the floor or landing at the top, touching no wall).
   - **Rail:** **None** until you pick **Both**, **Inside** (the well side of a turn; Left on a
-    straight flight) or **Outside** (Right on a straight flight). A stair from before 2026-11-02
-    keeps its **Auto** rail until you change it (shown only on such a stair): the plain rods closed
-    straight, L and U stairs always had, and a handrail on spindles on the open side for the other
-    styles and shapes (both sides of a Floating stair, which has no wall beside it). A rail stands
-    its full height, so over the top flights it rises into the opening in the floor above, as a
-    real one does.
+    straight flight) or **Outside** (Right on a straight flight). Stairs from before 2026-11-02 were
+    given the rail they showed as their setting (the plain rods closed straight, L and U stairs
+    always had, as a Single bar; a balustrade on the open side for the other styles and shapes,
+    both sides of a Floating stair). A rail stands its full height, so over the top flights it
+    rises into the opening in the floor above, as a real one does.
   - **Rail style:** **Balustrade** (a handrail on spindles, a post at each end), **Topless** (the
     spindles and posts with no top rail) or **Single bar** (one bar and nothing under it, on a post
     at each end).

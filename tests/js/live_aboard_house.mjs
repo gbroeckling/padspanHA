@@ -954,5 +954,27 @@ tryCase("open edges: the barrier's own Railing decides; without one, the rule as
   check(name, old.length && old.every(q => q.loftRail), "no word over the hall: the rule's railing, as before");
 });
 
+// Railings became choices (2026-11-02): the first screen that may edit gives
+// each word-less Open edge the word for what the rule drew (edgeRailsToStamp),
+// once, so nothing changes to look at; a file from before says so until then.
+tryCase("open edges: the stamp gives each word-less edge the word for what the rule drew, and leaves a mixed one to the rule", () => {
+  const name = "open edges: the stamp gives each word-less edge the word for what the rule drew, and leaves a mixed one to the rule";
+  const h = H.readHouse(GYM, GYM.floors, {}, null);
+  const st = H.edgeRailsToStamp(h, GYM.rf_barriers_m);
+  check(name, JSON.stringify(st) === JSON.stringify([{ id: "edge", rail: "glass" }, { id: "between", rail: "none" }, { id: "hallside", rail: "none" }, { id: "pastit", rail: "none" }]), st);
+  // Stamped, the house draws exactly as the rule drew it.
+  const stamped = gymWith({ rf_barriers_m: GYM.rf_barriers_m.map(b => ({ ...b, rail: st.find(x => x.id === b.id).rail })) });
+  const h2 = H.readHouse(stamped, stamped.floors, {}, null);
+  const flags = (hh) => ["edge", "between", "pastit"].map(id => railOf(hh, "mezz", id).map(p => !!p.loftRail).join(",")).join("|") + "|" + railOf(hh, "hall", "hallside").map(p => !!p.loftRail).join(",");
+  check(name, flags(h2) === flags(h) && H.edgeRailsToStamp(h2, stamped.rf_barriers_m).length === 0, { before: flags(h), after: flags(h2) });
+  // One barrier round a corner, railed on one leg and a gap on the other: left to the rule; a barrier drawn nowhere too.
+  const multi = gymWith({ rf_barriers_m: [{ id: "edge", material: "open", floor_id: "mezz", points_m: [[0, 4], [12, 4], [12, 0.5]] },
+                                          { id: "ghost", material: "open", floor_id: "attic", points_m: [[0, 0], [1, 0]] },
+                                          { id: "wall", material: "brick", floor_id: "mezz", points_m: [[1, 1], [2, 1]] }] });
+  const h3 = H.readHouse(multi, multi.floors, {}, null), ps = railOf(h3, "mezz", "edge");
+  check(name, ps.some(p => p.loftRail) && ps.some(p => !p.loftRail) && H.edgeRailsToStamp(h3, multi.rf_barriers_m).length === 0, H.edgeRailsToStamp(h3, multi.rf_barriers_m));
+  check(name, DR.ownedOf({}).rails_chosen === false && DR.ownedOf(null).rails_chosen === true && DR.ownedOf({ rails_chosen: true }).rails_chosen === true, "the marker as the editor owns it");
+});
+
 console.log(JSON.stringify({ cases, failures, lists: { fallbacks: H.HOUSE3D_FALLBACK_KINDS, events: H.HOUSE3D_EVENTS } }));
 process.exit(failures.length ? 1 : 0);

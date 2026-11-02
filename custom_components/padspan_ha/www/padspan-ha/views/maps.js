@@ -10213,6 +10213,10 @@ function _lightsTab(ctx, maps, active) {
         .then((r) => { mapState._heightsFile = undefined; _laFileHeights(ctx, mapState, changes && changes.heights_set, r); return r; }) : null,
       // Its heights, on the placement records (_laHeightsPut).
       heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null,
+      // An Open (Loft) edge's railing word written to its barrier (live_aboard.js
+      // stampEdgeRails: a file from before 2026-11-02 gets its railings as
+      // choices, once), on the same gate as Save.
+      barrierRail: paid && !preview ? (barrier) => ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_set", { barrier }) : null,
       // The placement records as saved: a height lives on its record; a
       // device dropped here and not yet saved has none (its height is the 3D
       // file's), and this tab's unsaved Height-row values are not saved ones.

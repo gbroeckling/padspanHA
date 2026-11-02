@@ -262,13 +262,12 @@ export const FURNITURE = {
       // and drawn closed (stairFlights), never turned closed by an edit here.
       choice("style", "Style", ["closed", "open", "treads", "floating"], "closed", { keepWord: true }),
       // A new stair has no rail until one is chosen (2026-11-02). auto, what
-      // every stair had before, stays what it draws: the plain rods closed
-      // straight, L and U stairs always had (both sides of a straight
-      // flight, the outside of a turn; both sides of a floating stair, which
-      // has no wall), a handrail on spindles with a post at each end for the
-      // rest; a stair with no rail word at all (from before the choice) is
-      // still auto (missing), never turned into none by an edit here.
-      choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"], "none", { missing: "auto" }),
+      // every stair had before, is stamped on read with the rail it drew
+      // (house3d_store.stamp_stair_rail), so the file never hands one here;
+      // it still draws as it always did (the plain rods closed straight, L
+      // and U stairs had, a balustrade on the open side for the rest) for a
+      // piece that has not been through the server yet.
+      choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"], "none"),
       // Its style: a balustrade (a handrail on spindles, a post at each
       // end), topless (the spindles and posts, no top rail) or a single bar
       // (one bar and nothing under it). A newer version's word is kept and
@@ -289,7 +288,6 @@ export const STAIR_STYLE_WORD = /^[a-z][a-z_]{0,23}$/;
 function clampParam(s, v){
   if (s.type === "choice") {
     if (s.choices.includes(v)) return v;
-    if (v === undefined && s.missing !== undefined) return s.missing;     // not set at all: as it always drew
     if (s.keepWord && typeof v === "string" && STAIR_STYLE_WORD.test(v)) return v;
     const t = typeof v === "string" ? v.trim().toLowerCase() : null;
     return t !== null && s.choices.includes(t) ? t : s.def;

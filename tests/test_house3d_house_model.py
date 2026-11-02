@@ -147,10 +147,13 @@ def test_stairs_are_kept_as_a_piece(shape, turn) -> None:
 @pytest.mark.parametrize("style", list(H.STAIR_STYLES))
 @pytest.mark.parametrize("rail", list(H.STAIR_RAILS))
 def test_stairs_keep_their_style_and_rail(style, rail) -> None:
-    """Closed, open, treads only or floating; a rail on both sides, the inside, the outside, none, or as drawn."""
+    """Closed, open, treads only or floating; a rail on both sides, the inside, the outside or none;
+    "auto" (every stair before 2026-11-02) is stamped with the rail it drew (an l3: the inside, a balustrade)."""
     out = H.apply_edit(H.empty(), _stairs(shape="l3", style=style, rail=rail))
-    assert out["pieces"]["fur_5a6b7c8d"]["recipe"]["params"] == {"shape": "l3", "turn": "left", "to_floor": "upper",
-                                                                  "style": style, "rail": rail}
+    want = {"shape": "l3", "turn": "left", "to_floor": "upper", "style": style, "rail": rail}
+    if rail == "auto":
+        want["rail"], want["rail_style"] = ("both", "balustrade") if style == "floating" else ("inner", "balustrade")
+    assert out["pieces"]["fur_5a6b7c8d"]["recipe"]["params"] == want
 
 
 @pytest.mark.parametrize("style", ["glass", "spiral_cast", "x"])

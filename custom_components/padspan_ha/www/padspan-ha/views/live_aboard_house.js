@@ -873,6 +873,26 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
   return pieces;
 }
 
+/** The Open (Loft) barriers with no rail word, and the word for what the
+ *  drop rule drew for each (2026-11-02, live_aboard.js stampEdgeRails: a
+ *  file from before gets its railings as choices, once): [{id, rail}],
+ *  "glass" where every piece of the barrier is railed, "none" where none
+ *  is. A barrier drawn part railed, part gap (one polyline round a corner,
+ *  dropping on one leg) or drawn nowhere is left out: it keeps the rule. */
+export function edgeRailsToStamp(h, barriers){
+  const out = [];
+  for (const b of barriers || []) {
+    if (!b || typeof b !== "object" || !b.id || b.split_of || barrierKind(b) !== "open" || b.rail === "glass" || b.rail === "none") continue;
+    const pcs = [];
+    for (const per of h.perFloor.values()) for (const pc of per.pieces) if (pc.kind === "open" && pc.barrier && pc.barrier.id === b.id) pcs.push(pc);
+    if (!pcs.length) continue;
+    const railed = pcs.filter(pc => pc.loftRail).length;
+    if (railed === pcs.length) out.push({ id: String(b.id), rail: "glass" });
+    else if (railed === 0) out.push({ id: String(b.id), rail: "none" });
+  }
+  return out;
+}
+
 /** What a wall piece is drawn as, bottom to top, in metres above its floor
  *  (from under the slab to under the slab of the floor above, or of its
  *  room's own height, pc.wallH). A window is

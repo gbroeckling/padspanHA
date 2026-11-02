@@ -678,11 +678,19 @@ tryCase("build: a new stair has no rail until chosen, auto draws as before, and 
   check(name, auto.plain && auto.rails.length === 2 && auto.balusters.length === 0 && JSON.stringify(bare) === JSON.stringify(auto), { auto: [auto.rails.length, auto.balusters.length] });
   const autoOpen = L({ shape: "l", style: "open", rail: "auto" });
   check(name, !autoOpen.plain && autoOpen.rails.length > 0 && autoOpen.balusters.length > 0, "auto on an open L: a balustrade on the well side, as before");
-  // An edit keeps a missing rail word auto (as it drew), makes nonsense none, and keeps a newer rail_style word.
+  // An edit makes a missing or nonsense rail word none (the server stamps a file's auto before it gets here) and keeps a newer rail_style word.
   const kept = F.clampRecipe({ kind: "stairs", params: { shape: "l" } }).params, junk = F.clampRecipe({ kind: "stairs", params: { rail: "Glass!", rail_style: "Rope!" } }).params;
   const newer = F.clampRecipe({ kind: "stairs", params: { rail: "both", rail_style: "rope" } }).params;
-  check(name, kept.rail === "auto" && kept.rail_style === "balustrade" && junk.rail === "none" && junk.rail_style === "balustrade" && newer.rail_style === "rope"
+  check(name, kept.rail === "none" && kept.rail_style === "balustrade" && junk.rail === "none" && junk.rail_style === "balustrade" && newer.rail_style === "rope"
     && L(newer).look === "balustrade", { kept, junk, newer });
+  // What the server stamps auto with draws exactly what auto drew (house3d_store.stamp_stair_rail).
+  const same = (a, b) => { const A = L(a), B = L(b); delete A.look; delete B.look; return JSON.stringify(A) === JSON.stringify(B); };   // the same steps, rails and posts
+  check(name, same({ shape: "straight", style: "closed", rail: "auto" }, { shape: "straight", style: "closed", rail: "both", rail_style: "single_bar" })
+    && same({ shape: "u", style: "closed", rail: "auto" }, { shape: "u", style: "closed", rail: "outer", rail_style: "single_bar" })
+    && same({ shape: "l", style: "open", rail: "auto" }, { shape: "l", style: "open", rail: "inner", rail_style: "balustrade" })
+    && same({ shape: "l2", style: "closed", rail: "auto" }, { shape: "l2", style: "closed", rail: "inner", rail_style: "balustrade" })
+    && same({ shape: "l", style: "floating", rail: "auto" }, { shape: "l", style: "floating", rail: "both", rail_style: "balustrade" })
+    && same({ shape: "straight", style: "treads", rail: "auto" }, { shape: "straight", style: "treads", rail: "both", rail_style: "balustrade" }), "the stamp draws as auto did");
   // The styles.
   const base = { shape: "l", style: "open", rail: "both" };
   const bal = L(base), top = L({ ...base, rail_style: "topless" }), bar = L({ ...base, rail_style: "single_bar" });

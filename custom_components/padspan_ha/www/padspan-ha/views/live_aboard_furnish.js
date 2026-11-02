@@ -791,11 +791,12 @@ export function createFurnish(ctx){
       ["closed", "open", "treads", "floating"].includes(params.style) ? params.style : "closed");
     // The rail: none until one is chosen (2026-11-02); for a straight flight
     // its sides are left and right as you go up (inner = left); for a turn,
-    // the inside is the well. Auto, what every stair had before, is offered
-    // only on a stair that still has it (a rail word it never had is auto
-    // too), so it can be kept or left. Then its style: a balustrade, topless
-    // (the spindles and posts, no top rail) or a single bar (nothing under it).
-    const railNow = ["both", "inner", "outer", "none"].includes(params.rail) ? params.rail : "auto";
+    // the inside is the well. Auto, what every stair had before, is stamped
+    // away on read with the rail it drew; a piece that has not been through
+    // the server yet (a library item, say) still shows it, to be kept or
+    // changed. Then its style: a balustrade, topless (the spindles and
+    // posts, no top rail) or a single bar (nothing under it).
+    const railNow = ["both", "inner", "outer", "none"].includes(params.rail) ? params.rail : params.rail === "auto" ? "auto" : "none";
     const legacy = railNow === "auto" ? [["auto", "Auto (as before)"]] : [];
     pick("Rail", "rail", shape === "straight"
       ? [["none", "None"], ["both", "Both"], ["inner", "Left"], ["outer", "Right"], ...legacy]

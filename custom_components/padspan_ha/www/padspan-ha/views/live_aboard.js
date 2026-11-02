@@ -509,6 +509,11 @@ function createSlot(slotKey){
   // each has ({entity id: {over, gone}}: what the map said of it then; see
   // recordsNow and goneNow).
   let fileRaw = null, recZ = {}, fileZ = {}, shownMemo = null, shownSig = "";
+  // Railings became choices (2026-11-02): a file from before (rails_chosen
+  // false) is brought over once, by the first screen that may edit (the host
+  // gives edit and barrierRail): due until the file is read, then running,
+  // done or failed (left as it was; another page load tries again).
+  let railsStamp = "due";
   // Why the file cannot be edited: read but refused ({code: "read_failed"}),
   // or a newer PadSpan's ({code: "house3d_newer"}: read so, or a Save refused
   // so); null when it can. The next read that works says again.
@@ -4195,6 +4200,27 @@ function createSlot(slotKey){
     });
   }
   const redraw = guard(() => { if (lastP && renderer && !failed) update(lastP); });
+  /** A file from before 2026-11-02: each Open (Loft) edge with no rail word
+   *  gets the word for what the drop rule drew (HOUSE.edgeRailsToStamp:
+   *  glass or none, so nothing changes to look at), written to its barrier
+   *  through the host (barrierRail: the view calls nothing itself); then the
+   *  file says its railings are chosen. Once. A failure (a screen that may
+   *  not write barriers) leaves everything as it was. */
+  async function stampEdgeRails(h, p){
+    try {
+      const bars = (p.model && p.model.rf_barriers_m) || [];
+      for (const { id, rail } of HOUSE.edgeRailsToStamp(h, bars)) {
+        const raw = bars.find(b => b && b.id === id);
+        if (raw) await p.barrierRail({ ...raw, rail });
+      }
+      const r = await p.edit({ rails_chosen: true });
+      if (r && r.data) { fileRaw = r.data; file = DRAFT.ownedOf(r.data); }
+      railsStamp = "done";
+    } catch (err) {
+      railsStamp = "failed";
+      console.warn("PadSpan Live Aboard: the railings could not be made choices on this screen:", why(err));
+    }
+  }
   // Why the file cannot be edited, changed: Edit says so.
   function setFileErr(code){
     if (((fileErr && fileErr.code) || null) === (code || null)) return;
@@ -4670,6 +4696,8 @@ function createSlot(slotKey){
       const shell = sSig !== shellSig;
       rebuilt = shell;
       if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); shellSig = sSig; }
+      if (railsStamp === "due" && fileRaw && fileRaw.rails_chosen !== true && !fileErr
+          && typeof p.edit === "function" && typeof p.barrierRail === "function") { railsStamp = "running"; stampEdgeRails(reading, p); }
       else house = { ...house, lights: reading.lights, sensors: reading.sensors };
       if (shell || lSig !== lightsSig) {
         buildLights(house);

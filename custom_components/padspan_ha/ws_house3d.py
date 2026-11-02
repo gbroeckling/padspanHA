@@ -104,7 +104,7 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
             # Never written, or no furniture to remove: nothing to remove. No
             # backup (an empty one would push a real safety backup out of the
             # three kept) and no new file.
-            store.data = {**store.data, "pieces": {}} if furniture else {}
+            store.data = {**store.data, "pieces": {}} if furniture else empty()   # a cleared house is a new one (its rails chosen)
             connection.send_result(msg["id"], {"cleared": True, "backup_id": None})
             return
         from .ws_backup import _auto_backup  # noqa: PLC0415
@@ -134,6 +134,8 @@ async def ws_house3d_clear(hass: HomeAssistant, connection, msg) -> None:
     vol.Optional("figures"): dict,
     # The devices with no placement record whose height this Save writes here.
     vol.Optional("heights_set"): [str],
+    # The railings a file from before 2026-11-02 showed are choices now (house3d_store.apply_edit).
+    vol.Optional("rails_chosen"): bool,
 })
 @websocket_api.async_response
 @admin_if_enhanced_security
@@ -155,7 +157,7 @@ async def ws_house3d_edit(hass: HomeAssistant, connection, msg) -> None:
         await async_data(hass)
     async with store.lock:
         try:
-            new = apply_edit(store.data, {k: msg[k] for k in EDIT_SECTIONS if k in msg})
+            new = apply_edit(store.data, {k: msg[k] for k in (*EDIT_SECTIONS, "rails_chosen") if k in msg})
         except NewerFile as err:
             connection.send_error(msg["id"], NEWER_CODE, str(err))
             return

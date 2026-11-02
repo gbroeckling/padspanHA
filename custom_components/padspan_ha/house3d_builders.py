@@ -128,18 +128,9 @@ def is_choice(p: dict, v: Any) -> bool:
     return any(_same(c, v) for c in choices_of(p))
 
 
-_ABSENT = object()                  # a setting not given at all (clampParam's undefined), not a null
-
-
-def clamp_param(p: dict, v: Any = _ABSENT) -> Any:
-    """One builder setting read the builders' way; unreadable = its default
-    (a choice with "missing", a stair's rail: that word when not given at
-    all, as it always drew)."""
+def clamp_param(p: dict, v: Any) -> Any:
+    """One builder setting read the builders' way; unreadable = its default."""
     t, d = p.get("type"), p.get("def")
-    if v is _ABSENT:
-        if t == "choice" and "missing" in p:
-            return p["missing"]
-        v = None
     if t == "choice":
         ch = choices_of(p)
         if is_choice(p, v):
@@ -195,7 +186,7 @@ def clamp_recipe(recipe: Any) -> dict[str, Any]:
     given = src.get("params") if isinstance(src.get("params"), dict) else {}
     params = copy.deepcopy(given)
     for p in (spec or {}).get("params") or []:
-        params[p["key"]] = clamp_param(p, given.get(p["key"], _ABSENT))
+        params[p["key"]] = clamp_param(p, given.get(p["key"]))
     out["params"] = params
     out["colors"] = _clamp_colours(list((spec or {}).get("colors") or []), src.get("colors"))
     size = (spec or {}).get("size") or (fur.get(BOX_KIND) or {}).get("size") or _BOX_SIZE
@@ -219,7 +210,7 @@ def clamp_figure(params: Any) -> dict[str, Any]:
     settings only, and a colour for each of its parts."""
     src = params if isinstance(params, dict) else {}
     fig = data()["figure"]
-    out: dict[str, Any] = {p["key"]: clamp_param(p, src.get(p["key"], _ABSENT)) for p in fig.get("params") or []}
+    out: dict[str, Any] = {p["key"]: clamp_param(p, src.get(p["key"])) for p in fig.get("params") or []}
     cols = src.get("colors") if isinstance(src.get("colors"), dict) else {}
     out["colors"] = {k: hex_colour(cols.get(k)) or c for k, c in (fig.get("colors") or {}).items()}
     return out
