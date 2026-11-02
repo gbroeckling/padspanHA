@@ -221,7 +221,7 @@ def test_only_reading_the_saved_view_asks_for_the_scroll() -> None:
     src = (_WWW / "lights_panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     i = src.index("if(applyView){")
     assert "this._view.scrollToChosen = true;" in src[i:src.index("\n      }\n", i)]
-    assert src.count("scrollToChosen") == 1
+    assert src.count("scrollToChosen = true") == 1
     # A kept card (the poll's update) returns before this; a new one asks once.
     lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     assert "if (view.scrollToChosen && sortedLevels.length) {\n    view.scrollToChosen = false;" in lm

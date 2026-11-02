@@ -5467,7 +5467,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
             `This is the 3rd consecutive calibration for "${entry.bk.label || bkKey}" within a few minutes.\n\n` +
             `OK deletes this beacon's earlier Beacon Tune points (and its automatic [auto] points) and keeps the new readings. ` +
             `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) and Calibration Guide points are kept, ` +
-            `except Guide points saved by 0.38.209 to 0.38.215, which count as Beacon Tune points. ` +
+            `except Guide points saved by 0.38.209 to 0.38.216, which count as Beacon Tune points. ` +
             `If it keeps showing at the old spot, delete the kept points by hand on the Model tab.\n\n` +
             `Choose OK to replace them (hard relocation).\n` +
             `Choose Cancel to keep them and just add this as another data point.`

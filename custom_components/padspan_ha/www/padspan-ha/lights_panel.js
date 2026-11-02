@@ -235,7 +235,10 @@ class PadSpanLightsApp extends HTMLElement {
     this._settingsTs = Date.now();
     this._render();
     this._loadEmergency().then(()=>this._render());
-    this._loadModel().then(()=>this._render());
+    // The saved view's floor comes into view on the card the new model makes
+    // (lights_map.js). A failed read makes none: the request goes with it, or
+    // some later card would move the page.
+    this._loadModel().then(()=>{ this._render(); this._view.scrollToChosen = false; });
     // Clear again AFTER the awaits: two overlapping boots (a second Refresh
     // click while the first is still loading) both pass the clear above before
     // either assigns, and the first timer would be orphaned beyond reach.

@@ -571,5 +571,38 @@ if (Cls) {
   } catch (e) { fail("emergency button hidden in settings", "lifecycle", e); }
 }
 
-console.log(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3 }));
+// Refresh reads the saved view, and its floor comes into view on the card the
+// new model makes (lights_map.js). A failed model read makes no such card: the
+// request goes with that read, or some later card would move the page.
+const savedAsk = { usedByNewCard: null, leftAfterGoodRead: null, leftAfterFailedRead: null };
+if (Cls) {
+  try {
+    // On screen, so a card built from the same is kept (as in the browser).
+    const proto = Object.getPrototypeOf(document.createElement("div"));
+    Object.defineProperty(proto, "isConnected", { configurable: true, get: () => true });
+    let modelDown = false;
+    const hass = makeHass({ settings: { ...BASE, overview_iso_focus: 1 } });
+    const real = hass.callWS;
+    hass.callWS = async (m) => {
+      if (m.type === "padspan_ha/model_get" && modelDown) throw new Error("ws down");
+      return real(m);
+    };
+    const el = new Cls();
+    el.connectedCallback();
+    el.hass = hass;
+    await el._boot(); await flush(); await flush();
+    const draw = el._render, used = [];
+    el._render = function () { const before = el._view.scrollToChosen; draw.call(el); used.push(!!before && !el._view.scrollToChosen); };
+    await el._boot(); await flush(); await flush();
+    savedAsk.usedByNewCard = used.includes(true);
+    savedAsk.leftAfterGoodRead = !!el._view.scrollToChosen;
+    modelDown = true;
+    await el._boot(); await flush(); await flush();
+    savedAsk.leftAfterFailedRead = !!el._view.scrollToChosen;
+    el.disconnectedCallback();
+    delete proto.isConnected;
+  } catch (e) { fail("a Refresh's request to bring the saved floor into view", "lifecycle", e); }
+}
+
+console.log(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedAsk }));
 process.exit(failures.length ? 1 : 0);
