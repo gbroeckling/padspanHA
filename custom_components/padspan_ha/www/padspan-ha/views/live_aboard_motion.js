@@ -318,13 +318,12 @@ void main(){
       side = abs(side);
     }
     if (inside <= 0.0) continue;
-    // A pale fan, outlined dark with a light halo: it reads on a glowing
-    // floor and on a bright one.
+    // A soft pool of pale light, strongest at the sensor and fading out to
+    // nothing at its reach and along its sides: where it sees, with no hard
+    // edge to cut across a room or stand out on the ground.
     float e = min(reach - r, side);
-    float fill = fa * (0.3 + 0.35 * (1.0 - r / reach));
-    c = over(vec4(1.0, 1.0, 1.0, fill), c);
-    c = over(vec4(1.0, 1.0, 1.0, (1.0 - smoothstep(0.05, 0.09, e)) * min(1.0, fa * 2.6)), c);
-    c = over(vec4(0.06, 0.09, 0.16, (1.0 - smoothstep(0.018, 0.04, e)) * min(0.9, fa * 2.4)), c);
+    float fill = fa * (0.28 + 0.72 * pow(1.0 - r / reach, 1.4)) * smoothstep(0.0, 0.9, e);
+    c = over(vec4(0.80, 0.90, 1.0, fill), c);
   }
   for (int i = 0; i < ${MAX_S}; i++) {
     float ra = uRing[i].w;
