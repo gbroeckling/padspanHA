@@ -57,7 +57,7 @@ export const HOUSE3D_FALLBACK_KINDS = ["no_webgl", "slow_gpu", "context_lost", "
 // the house has (telemetry.HOUSE_SIZE_BANDS).
 // house3d_wall_draw:<kind>: how a wall screen ended up drawing, once per page
 // load: high (every pixel, always), high_still (every pixel, less while the
-// camera moves) or low.
+// camera moves), high_capped (about 1440p's worth, always) or low.
 export const HOUSE_SIZE_BANDS = ["lt20", "20_60", "60_150", "gt150"];
 // Stairs (0.38.194, live_aboard.js countStairs): drawn, how they come out,
 // what they reach, their shapes and styles (telemetry.STAIR_USE_EVENTS).
@@ -65,7 +65,7 @@ export const STAIR_SHAPES = ["straight", "l", "u", "l2", "l3"];
 export const STAIR_STYLES = ["closed", "open", "treads", "floating"];
 export const STAIR_USE_EVENTS = ["stairs_drawn", ...["all_ok", "some_landing", "some_nofloor"].map(k => `stairs_outcome:${k}`),
   "stairs_reach:split_level", "stairs_reach:within", ...STAIR_SHAPES.map(k => `stairs_shape:${k}`), ...STAIR_STYLES.map(k => `stairs_style:${k}`)];
-export const WALL_DRAW_KINDS = ["high", "high_still", "low"];
+export const WALL_DRAW_KINDS = ["high", "high_still", "high_capped", "low"];
 export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), ...WALL_DRAW_KINDS.map(k => `house3d_wall_draw:${k}`), "house3d_wet_window",
   "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
   ...STAIR_USE_EVENTS];
@@ -985,14 +985,16 @@ export function qualityStep(setting, webgl, ms){
   if (m.low === undefined) return { measure: "low" };
   return ok(m.low) ? { use: "low" } : { fallback: "slow_gpu" };
 }
-/** A wall (High or Auto) that timed High at every pixel: too slow to turn the
- *  house smoothly, yet quick enough to draw it when something changes? Then it
- *  moves at less and stays sharp when still (live_aboard.js ratioFor); past
- *  WALL_STILL_MS it takes the normal steps. Low asked for stays Low. */
+/** A wall (High or Auto) that timed High at every pixel and can't turn the
+ *  house smoothly: what to time next, before the normal steps. Quick enough to
+ *  draw it when something changes: "moves", less while the camera moves and
+ *  sharp when still (live_aboard.js ratioFor). Slower than that: "budget",
+ *  fewer pixels all the time. null: nothing more to try (Low asked for stays Low). */
 export const WALL_STILL_MS = 110;         // about 10 frames a second
-export function wallMovesAtLess(setting, ms){
+export function wallNextTry(setting, ms){
   const v = ms ? ms.high : undefined;
-  return qualitySetting(setting) !== "low" && Number.isFinite(v) && v > HIGH_MS && v <= WALL_STILL_MS;
+  if (qualitySetting(setting) === "low" || v === undefined || v <= HIGH_MS) return null;
+  return v <= WALL_STILL_MS ? "moves" : "budget";
 }
 /** The median of frame intervals, the first few (shaders compiling) dropped. */
 export function frameMs(intervals, skip = 3){
@@ -1004,26 +1006,31 @@ export function frameMs(intervals, skip = 3){
 /**
  * Fill a band of the screen with a shape, as the perspective really draws it.
  * pts: [right, up, toward the camera] about the view's middle; tanH, tanV: the
- * lens's half-width and half-height at distance 1; r: a radius to start from;
- * top, bottom, side: the band's edges (-1 to 1 of the screen).
- * Returns {x, y, r}: how far to move the camera's middle along right and up,
- * and how far back to stand. Sizing and centring change each other, so it settles.
+ * lens's half-width and half-height at distance 1; top, bottom, side: the
+ * band's edges (-1 to 1 of the screen; top > 0 > bottom). Returns {x, y, r}:
+ * how far to move the camera's middle along right and up, and how far back to
+ * stand: the nearest r at which a middle exists that keeps every point inside,
+ * and the middle of those that do.
  */
-export function fillBand(pts, tanH, tanV, r, top, bottom, side){
-  const nearest = Math.max(...pts.map(p => p[2])) + 0.5;     // the camera stays in front of it
-  let x = 0, y = 0;
-  r = Math.max(nearest, r);
-  for (let i = 0; i < 12; i++) {
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+export function fillBand(pts, tanH, tanV, top, bottom, side){
+  const spans = (r) => {
+    let x0 = -Infinity, x1 = Infinity, y0 = -Infinity, y1 = Infinity;
     for (const p of pts) {
-      const d = r - p[2], nx = (p[0] - x) / (d * tanH), ny = (p[1] - y) / (d * tanV);
-      x0 = Math.min(x0, nx); x1 = Math.max(x1, nx); y0 = Math.min(y0, ny); y1 = Math.max(y1, ny);
+      const d = r - p[2];
+      x0 = Math.max(x0, p[0] - side * tanH * d); x1 = Math.min(x1, p[0] + side * tanH * d);
+      y0 = Math.max(y0, p[1] - top * tanV * d); y1 = Math.min(y1, p[1] - bottom * tanV * d);
     }
-    x += (x0 + x1) / 2 * r * tanH;
-    y += ((y0 + y1) / 2 - (top + bottom) / 2) * r * tanV;
-    r = Math.max(nearest, r * Math.max((x1 - x0) / (2 * side), (y1 - y0) / (top - bottom)));
+    return { x0, x1, y0, y1 };
+  };
+  const fits = (s) => s.x0 <= s.x1 && s.y0 <= s.y1;
+  let lo = Math.max(0.5, Math.max(...pts.map(p => p[2])) + 0.5), hi = lo;    // the camera stays in front of it
+  while (!fits(spans(hi))) { lo = hi; hi *= 2; }
+  for (let i = 0; i < 40; i++) {
+    const m = (lo + hi) / 2;
+    if (fits(spans(m))) hi = m; else lo = m;
   }
-  return { x, y, r };
+  const s = spans(hi);
+  return { x: (s.x0 + s.x1) / 2, y: (s.y0 + s.y1) / 2, r: hi };
 }
 
 // ── Lights: what each one is ─────────────────────────────────────────────────

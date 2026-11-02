@@ -1726,10 +1726,6 @@ class PadSpanLightsApp extends HTMLElement {
     this.style.removeProperty("--wall-px");
     this.removeAttribute("data-wall-active");
     this._wallUi = 1;
-    if(this._wallHidHa){
-      this._wallHidHa = false;
-      if(HA_SIDEBAR && HA_SIDEBAR.haHidden(this._hass)) HA_SIDEBAR.toggleHaSidebar(this, this._hass);
-    }
   }
 
   disconnectedCallback(){

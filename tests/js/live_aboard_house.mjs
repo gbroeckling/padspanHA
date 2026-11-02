@@ -246,36 +246,50 @@ tryCase("quality: Auto measures High, steps to Low, then gives up to the flat At
   const bad = rows.filter(([g, w]) => g !== JSON.stringify(w));
   check("quality: Auto measures High, steps to Low, then gives up to the flat Atlas", !bad.length, bad);
 });
-tryCase("quality: a wall moves at less only when High is too slow to turn, yet quick enough to draw", () => {
+tryCase("quality: what a wall times next when High at every pixel can't keep up", () => {
   const rows = [
-    ["auto", { high: 16.7 }, false],    // keeps up at every pixel: no need
-    ["auto", { high: 34 }, false],
-    ["auto", { high: 66.7 }, true],     // the Wall PC's UHD 630 at 1080p
-    ["high", { high: 66.7 }, true],
-    ["auto", { high: 110 }, true],
-    ["auto", { high: 111 }, false],     // too slow even to draw: the normal steps
-    ["auto", { high: Infinity }, false],
-    ["low", { high: 66.7 }, false],     // Low asked for stays Low
-    ["auto", {}, false],
-    ["auto", null, false],
+    ["auto", { high: 16.7 }, null],       // keeps up at every pixel: nothing to try
+    ["auto", { high: 34 }, null],
+    ["auto", { high: 66.7 }, "moves"],    // the Wall PC's UHD 630 at 1080p
+    ["high", { high: 66.7 }, "moves"],
+    ["auto", { high: 110 }, "moves"],
+    ["auto", { high: 111 }, "budget"],    // the same PC on a 4K screen
+    ["high", { high: 133 }, "budget"],    // chosen High doesn't go straight to the flat Atlas
+    ["auto", { high: Infinity }, "budget"],
+    ["low", { high: 66.7 }, null],        // Low asked for stays Low
+    ["auto", {}, null],
+    ["auto", null, null],
   ];
-  const bad = rows.filter(([s, ms, want]) => H.wallMovesAtLess(s, ms) !== want);
-  check("quality: a wall moves at less only when High is too slow to turn, yet quick enough to draw", !bad.length, bad);
+  const bad = rows.filter(([s, ms, want]) => H.wallNextTry(s, ms) !== want);
+  check("quality: what a wall times next when High at every pixel can't keep up", !bad.length, bad);
 });
-tryCase("fillBand: the shape ends up filling the band, through the perspective", () => {
+tryCase("fillBand: the house ends up filling the band, from any angle", () => {
   const tanV = Math.tan(20 * Math.PI / 180), tanH = tanV * 16 / 9;
-  // A house seen from above: its near corners (up < 0, toward the camera) draw larger than its far ones.
-  const pts = [[-12, -6, 5], [12, -6, 5], [-12, 8, -6], [12, 8, -6], [-5, 2, 8]];
-  const top = 0.7, bottom = -0.95, side = 0.95;
-  for (const start of [8, 40, 200]) {
-    const f = H.fillBand(pts, tanH, tanV, start, top, bottom, side);
-    const nx = pts.map(p => (p[0] - f.x) / ((f.r - p[2]) * tanH)), ny = pts.map(p => (p[1] - f.y) / ((f.r - p[2]) * tanV));
-    const near = (a, b) => Math.abs(a - b) < 0.01;
-    const inBand = Math.max(...nx) <= side + 0.01 && Math.min(...nx) >= -side - 0.01 && Math.max(...ny) <= top + 0.01 && Math.min(...ny) >= bottom - 0.01;
-    const touches = near(Math.max(...ny), top) && near(Math.min(...ny), bottom) || near(Math.max(...nx), side) && near(Math.min(...nx), -side);
-    check(`fillBand: from r=${start} it fits the band and touches its edges`, inBand && touches, { f, nx, ny });
+  const top = 0.72, bottom = -0.95, side = 0.95, eps = 1e-6;
+  const bad = [];
+  // The review's boxes: low angles (phi 1.2) overran the screen with an iterated fit.
+  for (const [w, l, h] of [[16, 10, 3], [20, 8, 3], [25, 10, 3], [12, 12, 8], [40, 6, 3]]) {
+    for (const phi of [0.0015, 0.5, 0.98, 1.15, 1.2, 1.4]) {
+      for (let az = 0; az < 360; az += 15) {
+        const th = az * Math.PI / 180;
+        const dir = [Math.sin(phi) * Math.sin(th), Math.cos(phi), Math.sin(phi) * Math.cos(th)];
+        const right = [Math.cos(th), 0, -Math.sin(th)];
+        const up = [dir[1] * right[2] - dir[2] * right[1], dir[2] * right[0] - dir[0] * right[2], dir[0] * right[1] - dir[1] * right[0]];
+        const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        const pts = [];
+        for (const x of [-w / 2, w / 2]) for (const y of [0, h]) for (const z of [-l / 2, l / 2]) pts.push([dot([x, y, z], right), dot([x, y, z], up), dot([x, y, z], dir)]);
+        const f = H.fillBand(pts, tanH, tanV, top, bottom, side);
+        const nx = pts.map(p => (p[0] - f.x) / ((f.r - p[2]) * tanH)), ny = pts.map(p => (p[1] - f.y) / ((f.r - p[2]) * tanV));
+        const inBand = Math.max(...nx.map(Math.abs)) <= side + eps && Math.max(...ny) <= top + eps && Math.min(...ny) >= bottom - eps;
+        const touches = Math.abs(Math.max(...nx) - side) < 0.01 || Math.abs(Math.max(...ny) - top) < 0.01 || Math.abs(Math.min(...ny) - bottom) < 0.01 || f.r <= Math.max(...pts.map(p => p[2])) + 0.5 + eps;
+        if (!inBand || !touches) bad.push({ w, l, h, phi, az, r: f.r, nx: Math.max(...nx.map(Math.abs)), hi: Math.max(...ny), lo: Math.min(...ny) });
+      }
+    }
   }
-  const close = H.fillBand([[0, 0, 5], [1, 1, 5]], tanH, tanV, 6, 0.9, -0.9, 0.9);
+  check("fillBand: every box at every angle fits the band and reaches its edge", !bad.length, bad.slice(0, 5));
+  const one = H.fillBand([[1, 2, 3]], tanH, tanV, top, bottom, side);
+  check("fillBand: one point: no NaN, the camera in front of it", Number.isFinite(one.x + one.y) && one.r >= 3.5, one);
+  const close = H.fillBand([[0, 0, 5], [1, 1, 5]], tanH, tanV, 0.9, -0.9, 0.9);
   check("fillBand: the camera stays in front of the shape", close.r >= 5.5, close);
 });
 tryCase("quality: the profiles are the plan's table", () => {

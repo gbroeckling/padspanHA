@@ -101,7 +101,7 @@ def test_the_report_words_are_the_frontends(house) -> None:
                                      *(f"house3d_fallback_size:{b}" for b in T.HOUSE_SIZE_BANDS),
                                      *T.STAIR_USE_EVENTS,   # 0.38.194: stairs drawn, how they come out, shapes and styles
                                      # How a wall screen ended up drawing
-                                     *(f"house3d_wall_draw:{k}" for k in ("high", "high_still", "low"))}
+                                     *(f"house3d_wall_draw:{k}" for k in ("high", "high_still", "high_capped", "low"))}
 
 
 def _hass(on: bool = True):
