@@ -21,6 +21,15 @@ The model's shape and its idea of which way is up were weak in the test, so
 the shape is mostly the box's own (a big, nearly square box is a U), and the
 direction comes from the arrow only when the AI read one; the floor is the
 Furnish tab's to pick (an upper plan's stairs belong to the floor below).
+
+The plan is sent at the size the model looks at it (frame_of). Ollama feeds
+Qwen2.5-VL at least 1024 patches of 28 px, scaling a smaller picture up, and
+the model answers in that enlarged frame whatever size the prompt names; read
+as named and clipped, a tall plan's stairs landed 22-34 % of the plan away
+(2026-11-02, 16 plans and 11 probes with marks at known places). Sent at
+exactly that frame, the named size is the frame for Ollama and Qwen, and
+nothing changes for a model that answers in the picture's own pixels. Home
+Assistant's Ollama integration passes the picture's bytes through untouched.
 """
 
 from __future__ import annotations
@@ -49,9 +58,14 @@ MAX_FOUND = 6                       # stairs on one plan, at most
 MIN_SIDE_FRAC = 0.015               # a box narrower than this share of the image is a mark, not stairs
 SIZE_M = (0.6, 8.0)                 # a stair's footprint, each way (house3d_store's range)
 # What a staircase can be, in metres: a straight flight at most this wide and
-# long, a turning one at most this each way. A box past these is not a
-# staircase (the test's 5 × 5 m "stairs" and 7 m runs), and is left out.
-STRAIGHT_MAX_M, TURNING_MAX_M = (2.4, 6.0), 4.2
+# long, a turning one at most this each way. The model boxes a U or landing
+# stair together with its landings and calls it straight (2026-11-02: 4 of
+# the 15 real finds on 16 plans were 2.8-4.6 m across and up to 6.0 m long;
+# the one junk box past the old 2.4 m / 4.2 m limits was 4.0 × 9.1 m), so the
+# limits take a landing in. A box past these is not a staircase, and is left
+# out.
+STRAIGHT_MAX_M, TURNING_MAX_M = (3.5, 6.0), 6.5
+PAST_EDGE_FRAC = 0.02               # a box further out past the picture than this is answered in another frame, not rounding
 STRAIGHT_WIDTH_M = 1.3              # a plan's box takes in the wall or rail too: a straight flight is drawn no wider
 MAX_AREA_FRAC = 0.6                 # nor is a box over most of the plan (a zoomed-in plan's stairs can fill a third of it)
 
@@ -105,14 +119,23 @@ def _rot_facing(fx: float, fy: float) -> float:
     return round(r, 1) % 360.0
 
 
-def stairs_from_answer(answer: Any, w: int, h: int, to_metres) -> list[dict[str, Any]] | None:
+def stairs_from_answer(answer: Any, w: int, h: int, to_metres,
+                       counts: dict[str, int] | None = None) -> list[dict[str, Any]] | None:
     """The stairs in an AI Task's answer: [{x_m, y_m, rotation, width_m,
     depth_m, shape, says, sure_up}], or None when the answer is not a list of
-    boxes. `to_metres(fx, fy)` is the plan's placement (fractions → metres)."""
+    boxes. `to_metres(fx, fy)` is the plan's placement (fractions → metres).
+    `counts`, when given, gets how the boxes fared (telemetry
+    STAIR_BOX_OUTCOMES): kept, dropped (not a staircase's size or shape) and
+    past_edge (out past the picture by more than PAST_EDGE_FRAC of a side:
+    the model answered in another frame than the one sent)."""
     boxes = _list_of(answer)
     if boxes is None:
         return None
     out: list[dict[str, Any]] = []
+
+    def tally(k: str) -> None:
+        if counts is not None:
+            counts[k] = counts.get(k, 0) + 1
     for b in boxes[:MAX_FOUND * 2]:
         if not isinstance(b, dict):
             continue
@@ -123,9 +146,12 @@ def stairs_from_answer(answer: Any, w: int, h: int, to_metres) -> list[dict[str,
         if any(v is None for v in xs):
             continue
         x1, y1, x2, y2 = (min(xs[0], xs[2]), min(xs[1], xs[3]), max(xs[0], xs[2]), max(xs[1], xs[3]))
+        if x1 < -PAST_EDGE_FRAC * w or y1 < -PAST_EDGE_FRAC * h or x2 > (1 + PAST_EDGE_FRAC) * w or y2 > (1 + PAST_EDGE_FRAC) * h:
+            tally("past_edge")
         x1, x2 = max(0.0, x1) / w, min(float(w), x2) / w
         y1, y2 = max(0.0, y1) / h, min(float(h), y2) / h
         if x2 - x1 < MIN_SIDE_FRAC or y2 - y1 < MIN_SIDE_FRAC or (x2 - x1) * (y2 - y1) > MAX_AREA_FRAC:
+            tally("dropped")
             continue
         p00, p10, p01 = to_metres(x1, y1), to_metres(x2, y1), to_metres(x1, y2)
         mid = to_metres((x1 + x2) / 2, (y1 + y2) / 2)
@@ -135,6 +161,7 @@ def stairs_from_answer(answer: Any, w: int, h: int, to_metres) -> list[dict[str,
         ey = (p01[0] - p00[0], p01[1] - p00[1])        # its image-y side
         lx, ly = math.hypot(*ex), math.hypot(*ey)
         if min(lx, ly) < SIZE_M[0] * 0.8 or max(lx, ly) > SIZE_M[1] * 1.5:
+            tally("dropped")
             continue                                     # not a staircase's size on this plan
         run, across = (ex, ey) if lx >= ly else (ey, ex)
         L_run, L_across = max(lx, ly), min(lx, ly)
@@ -159,7 +186,9 @@ def stairs_from_answer(answer: Any, w: int, h: int, to_metres) -> list[dict[str,
         else:
             shape = "straight"
         if (L_across > TURNING_MAX_M or L_run > TURNING_MAX_M) if shape != "straight"                 else (L_across > STRAIGHT_MAX_M[0] or L_run > STRAIGHT_MAX_M[1]):
+            tally("dropped")
             continue
+        tally("kept")
         says = str(b.get("says") or "").strip().upper()
         says = "DOWN" if says in ("DN", "DOWN", "DWN") else "UP" if says == "UP" else ""
         out.append({
@@ -175,17 +204,35 @@ def stairs_from_answer(answer: Any, w: int, h: int, to_metres) -> list[dict[str,
     return out
 
 
-SHRINK_PX = 1024                    # the plan is sent at most this big on its long side
+SHRINK_PX = 1024                    # the plan is made at most this big on its long side, then fitted to the frame
+PATCH_PX = 28                       # Qwen2.5-VL's patch: Ollama makes each side a multiple of it
+MIN_PATCHES = 1024                  # and scales a smaller picture up to at least this many (Ollama 0.32, measured)
+
+
+def frame_of(w: int, h: int) -> tuple[int, int]:
+    """The size Ollama feeds Qwen2.5-VL a w × h picture at, and so the frame
+    its boxes come back in: under MIN_PATCHES patches the picture is scaled
+    up and each side rounded up to a multiple of PATCH_PX, otherwise each
+    side is rounded to the nearest multiple. Measured on 11 sizes with 9
+    marks each (2026-11-02): read this way the marks were within 1.5 % of
+    the long side, read as named up to 28 % off. Other servers and models
+    resize their own way; this size is harmless to them."""
+    if w * h < MIN_PATCHES * PATCH_PX * PATCH_PX:
+        b = math.sqrt(MIN_PATCHES * PATCH_PX * PATCH_PX / (w * h))
+        return math.ceil(w * b / PATCH_PX) * PATCH_PX, math.ceil(h * b / PATCH_PX) * PATCH_PX
+    return max(PATCH_PX, round(w / PATCH_PX) * PATCH_PX), max(PATCH_PX, round(h / PATCH_PX) * PATCH_PX)
 
 
 def shrink(path) -> tuple[bytes, int, int]:
-    """A plan's image as a JPEG at most SHRINK_PX on its long side, and its
+    """A plan's image as a JPEG at the frame the model looks at it in
+    (frame_of, after making it at most SHRINK_PX on its long side), and that
     size. Pillow ships with Home Assistant. Runs in the executor."""
     from PIL import Image  # noqa: PLC0415
     import io  # noqa: PLC0415
     with Image.open(path) as im:
         im = im.convert("RGB")
         im.thumbnail((SHRINK_PX, SHRINK_PX))
+        im = im.resize(frame_of(*im.size), Image.LANCZOS)
         buf = io.BytesIO()
         im.save(buf, "JPEG", quality=88)
         return buf.getvalue(), im.size[0], im.size[1]
@@ -223,10 +270,10 @@ def _refused(hass: HomeAssistant, connection, msg) -> dict | None:
     return P.ai_task(hass, with_backup=True)
 
 
-def _bump(hass: HomeAssistant, event: str) -> None:
+def _bump(hass: HomeAssistant, event: str, n: int = 1) -> None:
     try:
         from .telemetry import bump  # noqa: PLC0415
-        bump(hass, event)
+        bump(hass, event, n)
     except Exception:  # noqa: BLE001
         pass
 
@@ -294,13 +341,18 @@ async def ws_house3d_stairs_read(hass: HomeAssistant, connection, msg) -> None:
     took = round(time.monotonic() - t0, 1)
     # How long the AI took (telemetry.STAIR_EVENTS): local and cloud told apart by env.ai.
     _bump(hass, P._secs_event(took).replace("photo_secs:", "stair_secs:"))  # noqa: SLF001
-    found = stairs_from_answer(answer, w, h, lambda fx, fy: model.map_frac_to_metres(fx, fy, map_id))
+    counts: dict[str, int] = {}
+    found = stairs_from_answer(answer, w, h, lambda fx, fy: model.map_frac_to_metres(fx, fy, map_id), counts)
     if found is None:
         _bump(hass, "stair_read:bad_answer")
         connection.send_result(msg["id"], {"ok": False, "reason": "bad_answer", "took_s": took,
                                            "message": "The AI's answer had no stairs in it that PadSpan could read."})
         return
     _bump(hass, "stair_read:found" if found else "stair_read:none")
+    # How the boxes fared (telemetry.STAIR_BOX_OUTCOMES), each as often as it happened.
+    for k, event in (("kept", "stair_box:kept"), ("dropped", "stair_box:dropped"), ("past_edge", "stair_box:past_edge")):
+        if counts.get(k):
+            _bump(hass, event, counts[k])
     # Which AI Task answered; by_backup only where the backup did (Settings → AI).
     connection.send_result(msg["id"], {"ok": True, "map_id": map_id, "stairs": found, "took_s": took,
                                        "ai_task": by, **({"by_backup": True} if by != ai["ai_task"] else {})})

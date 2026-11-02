@@ -1,0 +1,5 @@
+# Stairs read off a floor plan land where they are drawn
+
+### Fixed
+- **Stairs read off a tall floor plan landed metres away, or went missing.** A local AI (Ollama with Qwen2.5-VL) looks at a small picture scaled up, and gives its answers in that larger size, not the size PadSpan named. On a tall plan sent at 1024 px high that put the stairs 22-34 % of the plan away, and anything in the far third was cut short and then thrown out as too small. PadSpan now sends each plan at exactly the size that AI looks at it, so its answers line up; a cloud AI that answers in the picture's own pixels sees no change. Measured on 16 plans with 20 staircases: 5 right of 9 suggestions before, 15 right of 19 after.
+- **A staircase with a landing was thrown away.** The AI boxes a U or landing stair together with its landings and calls it straight, which ran past the size limits; those now allow for a landing. The usage report (when on) counts how the AI's boxes fared: kept, dropped, or out past the picture (an AI answering in another frame).
