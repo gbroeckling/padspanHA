@@ -10,6 +10,7 @@ released), **watching** (fixed; confirming from the field).
 
 | # | Area | What people saw | Cause | Fix | Release | Field signal | Status |
 |---|---|---|---|---|---|---|---|
+| 161 | Live Aboard | Stairs read off a tall floor plan by the AI landed metres away, or a stair with a landing went missing | Ollama feeds Qwen2.5-VL a small picture scaled up (at least 1024 patches of 28 px) and the model answers in that frame; the reader took the boxes as the size it named and clipped them, and the size limits had no room for a landing | cf4c48fe | — | `stair_box:past_edge` (should stay near 0), `stair_box:kept` against `stair_box:dropped`, `stair_read:found` against `stair_read:none` | fixed |
 | 160 | Live Aboard | A mezzanine inside a tall hall got its own roof halfway up the hall, and the hall was roofed over only part of it | The roof rule only knew floors stacked on top of each other, not one inside a taller one | d572c70a | 0.38.147 | `house3d_mezzanine` | fixed |
 | 159 | Atlas weather | A smoke, gas or CO alarm named like a warning could be picked as the weather warnings sensor | The leak-detector check looked only at moisture; Emergency had since added smoke, gas and CO | 9f19f95f | 0.38.146 | `weather_note:warning_ignored` | fixed |
 | 158 | Atlas weather | Rain on the Atlas on a sunny morning | An on/off rain sensor wet from dew decided on its own; the weather entity (partly cloudy) had no say | 218dc8a6, 33e5a262, 26e65289 | 0.38.142 | `weather_note:sensor_overruled` | fixed |
