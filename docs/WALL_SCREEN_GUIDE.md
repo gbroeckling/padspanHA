@@ -102,10 +102,12 @@ With [Live Aboard](LIVE_ABOARD_GUIDE.md) on:
 - On **Auto** or **High** quality, a wall draws High at every pixel the screen has. If its graphics
   chip can't turn the house smoothly at that size, the picture is softer only while the camera
   moves, and sharp again as soon as it stops. A chip too slow for that (a 4K screen on a small PC)
-  draws about 1440p's worth instead, and on Auto goes to Low if that is still too slow. **Low**
-  chosen in Settings stays Low on every screen.
+  draws about 1440p's worth instead. If that is still too slow, Auto goes to Low and High goes to the
+  flat Atlas. **Low** chosen in Settings stays Low on every screen.
 - The whole house is framed to fill the screen, leaving room only for the chips along the top. The
-  bars fade when nobody is there, so they can sit over its edge while you use them.
+  bars fade when nobody is there, so they can sit over its edge while you use them. Framed that
+  closely, turning or tilting the house by hand can run part of it past the edge; **Fit** or going
+  home brings it back.
 
 ## Portrait walls
 

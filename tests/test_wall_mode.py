@@ -316,6 +316,8 @@ def test_a_wall_draws_every_pixel_and_fills_its_screen():
     assert "if (wall && !narrow) out.top = Math.max(out.top, WALL_CHIPS_PX * wallUiOf(root));" in src, "the framing doesn't depend on the moment"
     assert 'rot === "90" ? r0.right - r.right : rot === "270" ? r.left - r0.left : r.top - r0.top' in src, "a turned wall's chips measured along the page"
     assert "turnBy(-2 * Math.PI * dx / h);" in src and "turnBy(Math.PI / 2);" in src, "a wall framed whole turns about the house's middle"
+    assert src.count("turnBy(HOUSE.northUpTheta(bearingNow()) - cam.theta);") == 2, "the compass too"
+    assert "wallPivot.top !== topElev" in src, "worked out when it turns: a saved home never ran a fit"
     assert "if (pad.H && onWallPage(root)) {" in src, "every other screen frames the house as before"
 
 

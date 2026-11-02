@@ -1024,7 +1024,7 @@ export function fillBand(pts, tanH, tanV, top, bottom, side){
   };
   const fits = (s) => s.x0 <= s.x1 && s.y0 <= s.y1;
   let lo = Math.max(0.5, Math.max(...pts.map(p => p[2])) + 0.5), hi = lo;    // the camera stays in front of it
-  while (!fits(spans(hi))) { lo = hi; hi *= 2; }
+  for (let i = 0; i < 40 && !fits(spans(hi)); i++) { lo = hi; hi *= 2; }   // bounded: bad numbers must never hang a wall
   for (let i = 0; i < 40; i++) {
     const m = (lo + hi) / 2;
     if (fits(spans(m))) hi = m; else lo = m;

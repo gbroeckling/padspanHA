@@ -287,6 +287,8 @@ tryCase("fillBand: the house ends up filling the band, from any angle", () => {
     }
   }
   check("fillBand: every box at every angle fits the band and reaches its edge", !bad.length, bad.slice(0, 5));
+  const nan = H.fillBand([[NaN, 0, 0], [1, 1, 1]], tanH, tanV, top, bottom, side);
+  check("fillBand: bad numbers come back, never hang", typeof nan.r === "number", nan);
   const one = H.fillBand([[1, 2, 3]], tanH, tanV, top, bottom, side);
   check("fillBand: one point: no NaN, the camera in front of it", Number.isFinite(one.x + one.y) && one.r >= 3.5, one);
   const close = H.fillBand([[0, 0, 5], [1, 1, 5]], tanH, tanV, 0.9, -0.9, 0.9);

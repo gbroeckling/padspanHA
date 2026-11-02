@@ -803,6 +803,7 @@ function createSlot(slotKey){
       e.stopPropagation();
       if (e.detail !== 0) return;
       cam.moved = true; cam.needsFit = false;
+      turnBy(HOUSE.northUpTheta(bearingNow()) - cam.theta);
       cam.theta = HOUSE.northUpTheta(bearingNow());
       applyCam();
     }));
@@ -1701,6 +1702,7 @@ function createSlot(slotKey){
     placeSun();
     applyTop();
     paintNight();
+    wallPivot = null;
     if (!cam.moved) cam.needsFit = true;
   }
   /** The storeys' floor and roof in the look's colours, muted (the Atlas's
@@ -1942,6 +1944,7 @@ function createSlot(slotKey){
     if (moved) showPill();
     else {                                                     // a tap: north up
       cam.moved = true; cam.needsFit = false;
+      turnBy(HOUSE.northUpTheta(bearingNow()) - cam.theta);
       cam.theta = HOUSE.northUpTheta(bearingNow());
       applyCam();
     }
@@ -3240,11 +3243,16 @@ function createSlot(slotKey){
   // two fingers, pans along the ground; the wheel, or a pinch, zooms about the
   // point under the cursor or between the fingers.
   /** Turn the camera. A wall framed whole fills its band with the camera's
-   *  middle off the house's (frameFor), so it turns about the house's middle,
-   *  or the house would swing off the screen. */
+   *  middle off the house's (frameFor), so unless it is zoomed in it turns
+   *  about the middle of what shows, however it got there (a saved home, a
+   *  floor, Whole house), or the house would swing off the screen. */
   function turnBy(d){
+    if (onWallPage(root) && (!wallPivot || wallPivot.top !== topElev)) {
+      const pts = visiblePoints(), m = new THREE.Box3().setFromPoints(pts).getCenter(new THREE.Vector3());
+      wallPivot = { top: topElev, x: m.x, z: m.z, r: frameFor(cam.theta, cam.phi, pts).radius };
+    }
     cam.theta += d;
-    if (!wallPivot || !fitR || cam.radius < fitR * 0.9) return;
+    if (!onWallPage(root) || cam.radius < wallPivot.r * 0.9) return;
     const c = Math.cos(d), s = Math.sin(d), x = cam.target.x - wallPivot.x, z = cam.target.z - wallPivot.z;
     cam.target.x = wallPivot.x + x * c + z * s;
     cam.target.z = wallPivot.z - x * s + z * c;
@@ -3486,7 +3494,7 @@ function createSlot(slotKey){
   function fit(theta = cam.theta, phi = cam.phi, pts = null){
     const g = frameFor(theta, phi, pts || visiblePoints());
     cam.target.copy(g.target); cam.theta = g.theta; cam.phi = g.phi; cam.radius = g.radius;
-    if (!pts) { fitR = g.radius; wallPivot = g.pivot; }
+    if (!pts) fitR = g.radius;
     applyCam();
   }
   /** Where the camera frames `pts` from (theta, phi): {target, radius, theta, phi}. */
@@ -3514,7 +3522,7 @@ function createSlot(slotKey){
   }
   const WALL_CLEAR = 0.05;                                   // a wall's house keeps this clear of the screen's edge (of half the screen)
   const WALL_CHIPS_PX = 82;                                  // the chip row's room at the top of a wall, before --wall-ui
-  let wallPivot = null;                                      // a wall's house: its middle, when framed whole (turnBy)
+  let wallPivot = null;                                      // a wall: the middle of what shows, and its whole-house radius (turnBy)
   function frameFor(theta, phi, pts){
     const keep = { p: camera.position.clone(), q: camera.quaternion.clone() };
     const dir = new THREE.Vector3(Math.sin(phi) * Math.sin(theta), Math.cos(phi), Math.sin(phi) * Math.cos(theta));
@@ -3538,17 +3546,17 @@ function createSlot(slotKey){
       need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.08, z + Math.abs(o.dot(up)) / (tv * fr) * vk);   // sides: 8% clear (4% ran a narrow screen's house to its edge)
     }
     // A wall: the house as large as the screen lets it be, in the band what stays on show leaves.
-    let pivot = null;
     if (pad.H && onWallPage(root)) {
-      pivot = c.clone();
       const f = HOUSE.fillBand(pts.map((q) => { const o = q.clone().sub(c); return [o.dot(right), o.dot(up), o.dot(dir)]; }), th, tv,
                                1 - 2 * pad.top / pad.H - WALL_CLEAR, -1 + 2 * pad.bottom / pad.H + WALL_CLEAR, 1 - WALL_CLEAR);
-      c.addScaledVector(right, f.x).addScaledVector(up, f.y);
-      need = Math.max(2, f.r);
+      if (Number.isFinite(f.x + f.y + f.r)) {
+        c.addScaledVector(right, f.x).addScaledVector(up, f.y);
+        need = Math.max(2, f.r);
+      }
     }
     camera.position.copy(keep.p); camera.quaternion.copy(keep.q);
     camera.updateMatrixWorld();
-    return { target: c, theta, phi: Math.max(MIN_PHI, Math.min(MAX_PHI, phi)), radius: Math.max(MIN_R, Math.min(MAX_R, need)), pivot };
+    return { target: c, theta, phi: Math.max(MIN_PHI, Math.min(MAX_PHI, phi)), radius: Math.max(MIN_R, Math.min(MAX_R, need)) };
   }
   /** The Atlas's angle (plan x down-right, plan y down-left). A portrait
    *  screen turns it so the long side of the house runs up the screen. */
@@ -4517,7 +4525,7 @@ function createSlot(slotKey){
   /** The whole house from the Atlas's angle on the floor showing, as the view opens. */
   function homeGoal(){
     const a = isoAngle(), g = frameFor(a.theta, a.phi, visiblePoints());
-    fitR = g.radius; wallPivot = g.pivot;
+    fitR = g.radius;
     if (camera.aspect < 0.8 && !onWallPage(root)) g.radius = Math.max(MIN_R, Math.min(g.radius, ROOM_SPAN / (2 * Math.tan(FOV / 2 * D2R) * camera.aspect)));
     return { theta: g.theta, phi: g.phi, radius: g.radius, target: g.target.toArray() };
   }
