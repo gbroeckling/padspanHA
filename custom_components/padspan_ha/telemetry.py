@@ -630,12 +630,18 @@ PHOTO_QUICK_OUTCOMES: tuple[str, ...] = ("ok", "fallback")
 # sent: stair_read:found (one or more), :none, :bad_answer, :error or
 # :no_ai_task. Never the plan, the answer or where the stairs are.
 STAIR_READ_OUTCOMES: tuple[str, ...] = ("found", "none", "bad_answer", "error", "no_ai_task")
+# And (2026-11-02, the plan sent at the model's own frame) how each box in an
+# answer fared: stair_box:kept (became a stair), :dropped (not a staircase's
+# size or shape) or :past_edge (out past the picture: the AI answered in
+# another frame than the one sent, as Ollama's Qwen did before the fix).
+STAIR_BOX_OUTCOMES: tuple[str, ...] = ("kept", "dropped", "past_edge")
 PHOTO_EVENTS: frozenset[str] = frozenset(
     {f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES} | {f"photo_subject:{k}" for k in PHOTO_SUBJECTS}
     | {f"photo_secs:{k}" for k in PHOTO_SECS} | {f"photo_quick:{k}" for k in PHOTO_QUICK_OUTCOMES})
 # And (0.38.193) how long the AI took over each plan, in the photo bands.
 STAIR_EVENTS: frozenset[str] = frozenset(
-    {f"stair_read:{k}" for k in STAIR_READ_OUTCOMES} | {f"stair_secs:{k}" for k in PHOTO_SECS})
+    {f"stair_read:{k}" for k in STAIR_READ_OUTCOMES} | {f"stair_secs:{k}" for k in PHOTO_SECS}
+    | {f"stair_box:{k}" for k in STAIR_BOX_OUTCOMES})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.

@@ -794,6 +794,8 @@ function word(kind, k) {
       if (a === "stair_read") return { found: "AI found stairs on a floor plan", none: "AI found no stairs on a plan",
                                         bad_answer: "AI's stair answer unreadable", error: "AI stair read failed",
                                         no_ai_task: "AI stair read refused: no AI Task" }[b] || tidy(key);
+      if (a === "stair_box") return { kept: "AI stair box kept as a staircase", dropped: "AI stair box dropped (not a staircase's size)",
+                                       past_edge: "AI stair box ran past the picture (answered in another frame)" }[b] || tidy(key);
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
       if (a === "photo_quick") return { ok: "AI photo read quickly (a quick look, then its kind)",
                                          fallback: "AI photo needed the full read (the quick look wasn't sure)" }[b] || tidy(key);
