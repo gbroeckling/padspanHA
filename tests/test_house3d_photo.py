@@ -82,6 +82,9 @@ class _AiTask:
         return {"conversation_id": "c1", "data": self.answer}
 
 
+_HOST_AT_HOME = P._host_at_home
+
+
 def _ready(monkeypatch, tmp_path, *, answer=None, tier="pro", features=3, delay=0.0, platform="ollama"):
     h, conn = _on(tmp_path, tier=tier)
     h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = _AI
@@ -95,6 +98,8 @@ def _ready(monkeypatch, tmp_path, *, answer=None, tier="pro", features=3, delay=
     h.services.async_call = ai
     monkeypatch.setattr(P, "_ha_version", lambda: (2026, 7))
     monkeypatch.setattr(P, "_platform", lambda hass, eid: platform)
+    # This fake Home Assistant has no config entry to read a URL from (a real Ollama entry always has one): at home.
+    monkeypatch.setattr(P, "_host_at_home", lambda url: True if url is None else _HOST_AT_HOME(url))
     return h, conn, ai, media
 
 
@@ -651,3 +656,35 @@ def test_a_kind_from_its_words_is_read_again_for_that_kinds_settings(monkeypatch
     out = _photo(h, conn, kind=...)
     assert out["ok"] and out["kind"] == "sofa" and len(ai.calls) == 2
     assert "It is a sofa." in ai.calls[1][2]["instructions"] and _leftovers(media) == []
+
+
+# ═══ an Ollama is only as local as its server (review 2026-11-02) ════════════
+
+@pytest.mark.parametrize("url,home", [
+    ("http://192.168.1.60:11434", True), ("http://10.0.0.5:11434/", True), ("172.16.3.4:11434", True), ("https://127.0.0.1", True),
+    ("http://localhost:11434", True), ("http://[::1]:11434", True), ("http://[fd12:3456::1]:11434", True), ("http://169.254.1.1", True),
+    ("http://mac.local:11434", True), ("http://OLLAMA.LAN:11434", True), ("http://nas.home.arpa", True), ("mac.local.", True),
+    ("http://ollama:11434", True), ("http://76e18fb5-ollama:11434", True),
+    ("https://ollama.com", False), ("http://8.8.8.8:11434", False), ("http://[2001:4860:4860::8888]", False), ("http://[::ffff:8.8.8.8]", False),
+    ("http://100.64.1.2:11434", False), ("https://my.ddns.net:11434", False), ("http://192.168.1.2.nip.io", False), ("http://mac.local.evil.com", False),
+    ("http://134744072:11434", False), ("http://0x8080808", False), ("http://192.168.1.60@ollama.com", False),
+    (None, None), ("", None), ("http://", None), ("http://[bad", None),
+])
+def test_an_ai_servers_url_says_whether_it_is_at_home(url, home):
+    assert P._host_at_home(url) is home
+
+
+@pytest.mark.parametrize("url,local,word", [("http://192.168.1.60:11434", True, "local"), ("https://ollama.com", False, "cloud"), (None, None, "unknown")])
+def test_the_photo_note_and_the_report_follow_an_ollamas_url(monkeypatch, tmp_path, url, local, word):
+    """The same classification the furniture and person photo notes read
+    (live_aboard_photo.aiNote), the stair finder's sentence and env.ai."""
+    h, conn, ai, media = _ready(monkeypatch, tmp_path)
+    monkeypatch.setattr(P, "_server_url", lambda hass, eid: url)
+    monkeypatch.setattr(P, "_host_at_home", _HOST_AT_HOME)
+    assert P.ai_task(h)["local"] is local
+    assert T.ai_task_word(h) == word
+    # A cloud-named integration stays cloud whatever it keeps as a URL, and an unknown one unknown: only Ollama's own is read.
+    monkeypatch.setattr(P, "_platform", lambda hass, eid: "openai_conversation")
+    assert P.ai_task(h)["local"] is False
+    monkeypatch.setattr(P, "_platform", lambda hass, eid: "some_other")
+    assert P.ai_task(h)["local"] is None

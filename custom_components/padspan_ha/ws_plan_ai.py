@@ -15,8 +15,9 @@ map-building research) is off, while Live Aboard is off, and below Pro.
 - plan_ai_status: the session (the latest, or one by id) with its
   suggestions, after the target and signature checks.
 - plan_ai_cancel: the job stops between reads (the read in flight runs on).
-- plan_ai_verdict: failure (with a reason; a reject is remembered), later,
-  or back (take that back). Written the moment it is clicked.
+- plan_ai_verdict: right (it looks right), failure (with a reason; a reject
+  is remembered), later, or back (take that back). Written the moment it is
+  clicked, to this store only.
 - plan_ai_rejects_get / plan_ai_reject_forget: the remembered rejects.
 - plan_ai_sessions_get: the sessions kept, in short.
 
@@ -59,15 +60,16 @@ async def _refused(hass: HomeAssistant, connection, msg) -> A.PlanAiStore | None
     return await A.async_get_store(hass)
 
 
-def _ai_info(ai: dict[str, Any]) -> dict[str, Any]:
+def _ai_info(hass: HomeAssistant, ai: dict[str, Any]) -> dict[str, Any]:
     """What the sheet says about where the plans go (live_aboard_photo.aiNote):
-    the main AI Task's name and whether it is local, the backup's too."""
+    the main AI Task's name and whether it is local, the backup's too, and
+    whether the main one is away (ai_task says so only with a backup set)."""
     if not ai.get("ready"):
         return {"ready": False, "message": ai.get("message", "")}
-    out = {"ready": True, "name": ai.get("name"), "local": ai.get("local")}
+    out = {"ready": True, "name": ai.get("name"), "local": ai.get("local"),
+           "main_away": bool(ai.get("main_away")) or P._state_of(hass, ai["ai_task"]) == "unavailable"}  # noqa: SLF001
     if ai.get("backup"):
-        out.update(backup=ai["backup"], backup_name=ai.get("backup_name"), backup_local=ai.get("backup_local"),
-                   main_away=bool(ai.get("main_away")))
+        out.update(backup=ai["backup"], backup_name=ai.get("backup_name"), backup_local=ai.get("backup_local"))
     return out
 
 
@@ -90,7 +92,7 @@ async def ws_plan_ai_plans(hass: HomeAssistant, connection, msg) -> None:
     job = A.running(hass)
     latest = store.session(None)
     connection.send_result(msg["id"], {
-        "plans": pls, "ai": _ai_info(ai), "kinds": list(A.KINDS),
+        "plans": pls, "ai": _ai_info(hass, ai), "kinds": list(A.KINDS),
         "running": job.sid if job else None,
         "latest": next((sid for sid, s in (store.data.get("sessions") or {}).items() if s is latest), None),
         "budget_s": A.PLAN_BUDGET_S, "start_blocked": A.start_allowed(hass)})
@@ -191,16 +193,18 @@ async def ws_plan_ai_cancel(hass: HomeAssistant, connection, msg) -> None:
     vol.Required("session"): str,
     vol.Required("rev"): int,
     vol.Required("sug_id"): str,
-    vol.Required("v"): vol.In(("failure", "later", "back")),
+    vol.Required("v"): vol.In((*A.VERDICTS, "back")),
     vol.Optional("why"): vol.Any(vol.In(A.FAILURE_WHY), None),
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_ai_verdict(hass: HomeAssistant, connection, msg) -> None:
-    """Failure (one reason; a reject is remembered with it), later, or back
-    to the queue (a failure's reject goes with it). Written at once: these
-    describe the AI, not the house, and survive a lost page. New and
-    correction come with the next stage's commit."""
+    """Right (it looks right: stored and counted, nothing else), failure (one
+    reason; a reject is remembered with it, and a stair's railing hint leaves
+    the queue with it), later, or back to the queue (a failure's reject goes
+    with it, and its hint comes back). Written at once: these describe the AI,
+    not the house, and survive a lost page. New and correction come with the
+    next stage's commit."""
     store = await _refused(hass, connection, msg)
     if store is None:
         return
@@ -213,14 +217,19 @@ async def ws_plan_ai_verdict(hass: HomeAssistant, connection, msg) -> None:
             connection.send_error(msg["id"], REV_CODE, "The session changed since you looked: it is reloaded.")
             return
         sug = sess["suggestions"][msg["sug_id"]]
-        if sug.get("state") not in ("queued", "failure", "later", "stale"):
+        if sug.get("state") not in ("queued", "failure", "later", "right", "stale"):
             connection.send_error(msg["id"], "not_open", "That item isn't open for a verdict.")
             return
-        v, kind = msg["v"], str(sug.get("kind") or "stairs")
+        v, kind, was = msg["v"], str(sug.get("kind") or "stairs"), sug.get("state")
+        if v == "right" and was == "stale":
+            connection.send_error(msg["id"], "not_open", "The plan or its stair changed since the read: read it again.")
+            return
         rejects = store.data.setdefault("rejects", {})
         old = (sug.get("verdict") or {}).get("reject")
         if old:
             rejects.pop(old, None)
+        if was in A.VERDICTS and was != v and not (sug.get("verdict") or {}).get("remembered"):
+            A._bump(hass, f"plan_ai_taken_back:{kind}_{was}")  # noqa: SLF001
         if v == "back":
             sug["state"], sug["verdict"] = "queued", None
         else:
@@ -229,7 +238,7 @@ async def ws_plan_ai_verdict(hass: HomeAssistant, connection, msg) -> None:
             sug["verdict"] = {"v": v, "at": time.time(), "why": why if v == "failure" else None}
             A._bump(hass, f"plan_ai_verdict:{kind}_{v}")  # noqa: SLF001
             if v == "failure":
-                A._bump(hass, f"plan_ai_failure_why:{why}")  # noqa: SLF001
+                A._bump(hass, f"plan_ai_failure_why:{kind}_{why}")  # noqa: SLF001
                 pl = next((p for p in sess.get("plans") or [] if p["map_id"] == sug.get("map_id")), {})
                 geom = sug.get("geom") or {}
                 x, y = float(geom.get("x_m") or 0.0), float(geom.get("y_m") or 0.0)
@@ -238,10 +247,13 @@ async def ws_plan_ai_verdict(hass: HomeAssistant, connection, msg) -> None:
                                 "place_sig": pl.get("place_sig"), "floor_id": sug.get("floor_id"), "x_m": round(x, 2),
                                 "y_m": round(y, 2), "why": why, "at": time.time()}
                 sug["verdict"]["reject"] = key
+        changed = []
+        if kind == "stairs":
+            changed = A.settle_rails(hass, sess, msg["sug_id"]) if v == "failure" else A.unsettle_rails(hass, sess, msg["sug_id"])
         sess["rev"] = int(sess.get("rev") or 0) + 1
         store.trim()
         await store.async_save()
-    connection.send_result(msg["id"], {"rev": sess["rev"], "suggestion": sug})
+    connection.send_result(msg["id"], {"rev": sess["rev"], "suggestion": sug, "changed": changed})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_ai_rejects_get"})
@@ -262,19 +274,24 @@ async def ws_plan_ai_rejects_get(hass: HomeAssistant, connection, msg) -> None:
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_ai_reject_forget(hass: HomeAssistant, connection, msg) -> None:
-    """Un-ignore: the reject goes, and a suggestion it had marked wrong, in
-    any kept session, is queued again."""
+    """Un-ignore: the reject goes (a failure taken back, counted apart), and a
+    suggestion it had marked wrong, in any kept session, is queued again, with
+    its railing hint."""
     store = await _refused(hass, connection, msg)
     if store is None:
         return
     async with store.lock:
-        gone = (store.data.get("rejects") or {}).pop(msg["key"], None) is not None
+        reject = (store.data.get("rejects") or {}).pop(msg["key"], None)
+        gone = reject is not None
         changed = gone
+        if gone:
+            A._bump(hass, f"plan_ai_taken_back:{(reject or {}).get('kind') or 'stairs'}_failure")  # noqa: SLF001
         for sess in (store.data.get("sessions") or {}).values():
             touched = False
             for sug in ((sess.get("suggestions") or {}) if isinstance(sess, dict) else {}).values():
                 if isinstance(sug, dict) and (sug.get("verdict") or {}).get("reject") == msg["key"] and sug.get("state") == "failure":
                     sug["state"], sug["verdict"] = "queued", None
+                    A.unsettle_rails(hass, sess, sug.get("id"))
                     touched = True
             if touched:
                 sess["rev"] = int(sess.get("rev") or 0) + 1

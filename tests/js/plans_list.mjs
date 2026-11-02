@@ -6,8 +6,9 @@
 // rather than read: what the consent sheet asks before a plan is sent (a cloud
 // AI needs the tick; a backup only reads with its own), progress and cancel,
 // and the list: Failure with a reason chip written at click, Later, take that
-// back, New and Correction greyed, no accept-all, Manage ignored, how a
-// session that was cut short says so. The pytest wrapper is tests/test_plan_ai.py.
+// back, Looks right, a stair's railing hint going with it, New and Correction
+// greyed, no accept-all, Manage ignored, how a session that was cut short or
+// read nothing says so. The pytest wrapper is tests/test_plan_ai.py.
 //
 // Run:  node tests/js/plans_list.mjs <repo-root>
 import { pathToFileURL } from "node:url";
@@ -37,12 +38,13 @@ const tick = async (sheet, words) => {
 
 const PLANS = [{ map_id: "m1", name: "Main floor", floor_id: "main", refs: 2 }, { map_id: "m2", name: "Electrical", floor_id: "main", refs: 0 },
   { map_id: "m3", name: "Deck", floor_id: "__outside__", refs: 1 }];
-const FLOORS = [{ fl: { id: "main", name: "Main" } }, { fl: { id: "__outside__", name: "Outside", outdoor: true } }];
+// As on a real house: the floor's id is "outside", the plan's "__outside__" (only floorCanon maps one to the other).
+const FLOORS = [{ fl: { id: "main", name: "Main" } }, { fl: { id: "outside", name: "Outside", outdoor: true } }];
 const LOCAL = { ready: true, name: "Mac vision", local: true };
 const stair = (id, extra = {}) => ({ id, kind: "stairs", map_id: "m1", floor_id: "main", state: "queued", verdict: null, box_px: [10, 10, 40, 60], frame: [1036, 812],
   seen_on: [{ map_id: "m1" }], geom: { x_m: 1, y_m: 2, width_m: 1.1, depth_m: 3.2 }, match: { relation: "new", near: [], near_names: [], held: null }, ...extra });
 const SESSION = (over = {}) => ({ id: "ps_1", rev: 3, status: "done", error: null, spent_s: 250, budget_s: 480, reads: 9, skipped: 0, frame: "probed",
-  plans: [{ map_id: "m1", name: "Main floor" }, { map_id: "m2", name: "Electrical" }], suggestions: {
+  plans: [{ map_id: "m1", name: "Main floor", read: true, answered: true }, { map_id: "m2", name: "Electrical", read: true, answered: true }], suggestions: {
     a: stair("a"),
     b: stair("b", { match: { relation: "correction", distance_m: 1.4, hand: true, target: "p", target_snap: { label: "Stairs" }, near: [], held: null } }),
     c: stair("c", { match: { relation: "stacked", target: "p", near: [], held: null } }),
@@ -84,10 +86,12 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   check("consent: thumbnails from the signed link", all(M.sheet).filter(n => tag(n) === "IMG").length === 2, "no thumbs");
   check("consent: what to expect", t().includes("For your 2 plans: roughly 3-8 items, 2-6 minutes to vet."), t());
   check("consent: lights say later, doors not offered as a kind", t().includes("Lights — comes in a later beta"), t());
-  check("consent: a local AI stays in the house, the button reads", t().includes("Mac vision will read the plans. It runs in your home") && !!button(M.sheet, "Read 2 plans"), t());
+  check("consent: an AI on the home network stays in the house, the button reads", t().includes("Mac vision will read the plans. It is on your own network, so the plans stay in the house.") && !!button(M.sheet, "Read 2 plans"), t());
+  check("consent: reads can hold a shared AI box, said once", t().includes("Reading can keep this AI busy for up to 8 minutes: if it also answers your voice assistant, voice may be slow until it ends."), t());
   check("consent: the cloud backup isn't named as reading, no cloud tick", !t().includes("reads them instead") && !t().includes("I understand these plans leave the house"), t());
   await tick(M.sheet, "let the backup");
   check("consent: the backup's own tick brings the cloud words", t().includes("reads them instead") && t().includes("I understand these plans leave the house") && !!button(M.sheet, "Send 2 plans to the cloud"), t());
+  check("consent: with the backup ticked, the shared box note names it", t().includes("Reading can keep this AI or the backup busy for up to 8 minutes: if either also answers your voice assistant"), t());
   await click(button(M.sheet, "Send 2 plans to the cloud"));
   check("consent: no tick, nothing sent", M.sent("plan_ai_start").length === 0 && t().includes("Tick that you understand"), t());
   await tick(M.sheet, "I understand");
@@ -105,7 +109,19 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   const M = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: { ready: true, name: "OpenAI", local: false }, running: null, latest: null, start_blocked: null } });
   M.tool.show(true); await settle();
   check("cloud: says it leaves, the address line, the tick, the button", text(M.sheet).includes("runs in the cloud") && text(M.sheet).includes("A plan with your address on it goes with it") && !!button(M.sheet, "Send 2 plans to the cloud"), text(M.sheet));
+  check("cloud: no shared-box note on a cloud AI", !text(M.sheet).includes("voice assistant"), text(M.sheet));
+  await tick(M.sheet, "I understand");
+  M.tool.show(false); M.tool.show(true); await settle();
+  check("cloud: the tick doesn't persist across opens", all(all(M.sheet).find(n => tag(n) === "LABEL" && text(n).includes("I understand"))).find(n => tag(n) === "INPUT").checked === false, text(M.sheet));
   M.tool.dispose();
+  const U = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: { ready: true, name: "Mystery", local: null }, running: null, latest: null, start_blocked: null } });
+  U.tool.show(true); await settle();
+  check("unknown: an Ollama with no URL to go by needs the tick", text(U.sheet).includes("If it runs in the cloud, the plans leave the house") && text(U.sheet).includes("I understand these plans leave the house") && text(U.sheet).includes("voice assistant"), text(U.sheet));
+  U.tool.dispose();
+  const NB = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: { ...LOCAL, main_away: true }, running: null, latest: null, start_blocked: null } });
+  NB.tool.show(true); await settle();
+  check("away, no backup: said, and no go", text(NB.sheet).includes("Mac vision is away right now") && button(NB.sheet, "Read 2 plans").disabled === true, text(NB.sheet));
+  NB.tool.dispose();
   const A = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: { ...LOCAL, backup: "ai_task.b", backup_name: "Spare", backup_local: true, main_away: true }, running: null, latest: null } });
   A.tool.show(true); await settle();
   check("away: no go until the backup is agreed", button(A.sheet, "Read 2 plans").disabled === true && text(A.sheet).includes("if you tick it below"), text(A.sheet));
@@ -128,7 +144,9 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
     plan_ai_status: () => ({ session: sess }), plan_ai_verdict: (m) => {
       const old = sess.suggestions[m.sug_id];
       const s = m.v === "back" ? { ...old, state: "queued", verdict: null } : { ...old, state: m.v, verdict: { v: m.v, why: m.why || null } };
-      return { rev: m.rev + 1, suggestion: s };
+      const hint = sess.suggestions.r;
+      const changed = m.sug_id === "a" && m.v === "failure" ? [{ ...hint, state: "settled", verdict: { v: "settled", stair: "a" } }] : m.sug_id === "a" && m.v === "back" ? [{ ...hint, state: "queued", verdict: null }] : [];
+      return { rev: m.rev + 1, suggestion: s, changed };
     },
     plan_ai_rejects_get: { rejects: [{ key: "rk1", kind: "stairs", plan: "Main floor", floor_id: "main", x_m: 8.5, y_m: 6.5, why: "nothing_there" }] },
     plan_ai_reject_forget: { ok: true } });
@@ -138,24 +156,33 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   const news = buttons(M.sheet).filter(b => text(b) === "New"), corr = buttons(M.sheet).filter(b => text(b) === "Correction");
   check("list: New and Correction greyed, saying the next beta", news.length === 4 && news.every(b => b.disabled && b.title.includes("next beta")) && corr.length === 1 && corr[0].disabled, `${news.length}/${corr.length}`);
   check("list: no accept-all of any kind", !buttons(M.sheet).some(b => /all|keep \d|accept/i.test(text(b))), buttons(M.sheet).map(text).join("|"));
+  check("list: Looks right beside Failure and Later, on every queued item", buttons(M.sheet).filter(b => text(b) === "Looks right").length === 4 && buttons(M.sheet).filter(b => text(b) === "Failure").length === 4, buttons(M.sheet).map(text).join("|"));
+  check("list: a 0-1000 frame isn't said on the list any more", !t().includes("0-1000"), t());
   check("list: a correction on a hand-placed stair says keep yours", t().includes("You placed this one. The AI puts it 1.4 m away. Keep yours unless the plan says otherwise."), t());
   check("list: stacked asked", t().includes("a second staircase here, stacked?"), t());
   check("list: a railing with no side asks which", t().includes("a rail on one side: which?") && t().includes("The AI can't tell the side for sure"), t());
   check("list: duplicates and ignored apart", t().includes("Already in your house (1)") && t().includes("Ignored before (1)") && !!button(M.sheet, "Un-ignore"), t());
   M.sheet.scrollTop = 120;
+  await click(buttons(M.sheet).filter(b => text(b) === "Looks right")[0]);
+  const lr = M.sent("plan_ai_verdict")[0];
+  check("right: written at click, listed apart, says nothing is written", lr && lr.v === "right" && !lr.why && lr.rev === 3 && t().includes("Looks right (1)") && M.hints.some(h => /Nothing is written to your house/.test(h[0])), JSON.stringify(lr) + t());
+  await click(button(M.sheet, "Take that back"));
+  check("right: taken back, in the queue again", M.sent("plan_ai_verdict")[1]?.v === "back" && !t().includes("Looks right (1)"), t());
   await click(buttons(M.sheet).filter(b => text(b) === "Failure")[0]);
   const chips = ["Wrong place", "Nothing there", "Already here", "Wrong kind", "Can't tell"];
-  check("failure: the five chips, nothing sent yet", chips.every(c => !!button(M.sheet, c)) && M.sent("plan_ai_verdict").length === 0, t());
+  check("failure: the five chips, nothing sent yet", chips.every(c => !!button(M.sheet, c)) && M.sent("plan_ai_verdict").length === 2, t());
   await click(button(M.sheet, "Wrong place"));
-  const v = M.sent("plan_ai_verdict")[0];
-  check("failure: written at click with the reason and the rev", v && v.v === "failure" && v.why === "wrong_place" && v.rev === 3 && v.session === "ps_1", JSON.stringify(v));
+  const v = M.sent("plan_ai_verdict")[2];
+  check("failure: written at click with the reason and the rev", v && v.v === "failure" && v.why === "wrong_place" && v.rev === 5 && v.session === "ps_1", JSON.stringify(v));
+  check("failure: the stair's railing hint leaves the queue, listed apart", t().includes("Gone with its stair (1)") && t().includes("To check (2)") && M.hints.some(h => /railing hint goes with it/.test(h[0])), t());
   check("failure: listed apart, can be taken back, the next rev used", t().includes("Marked wrong (1)") && !!button(M.sheet, "Take that back"), t());
   check("failure: the list stayed where it was", M.sheet.scrollTop === 120, String(M.sheet.scrollTop));
   await click(buttons(M.sheet).filter(b => text(b) === "Later")[0]);
-  const w = M.sent("plan_ai_verdict")[1];
-  check("later: written at click, the rev moved on", w && w.v === "later" && w.rev === 4 && t().includes("Later (1)"), JSON.stringify(w));
-  await click(button(M.sheet, "Take that back"));
-  check("back: a server call", M.sent("plan_ai_verdict")[2]?.v === "back", JSON.stringify(M.sent("plan_ai_verdict")));
+  const w = M.sent("plan_ai_verdict")[3];
+  check("later: written at click, the rev moved on", w && w.v === "later" && w.rev === 6 && t().includes("Later (1)"), JSON.stringify(w));
+  await click(buttons(M.sheet).filter(b => text(b) === "Take that back").at(-1));
+  const back = M.sent("plan_ai_verdict")[4];
+  check("back: a server call, and the hint comes back with its stair", back?.v === "back" && !t().includes("Gone with its stair") && t().includes("Later (1)"), JSON.stringify(back) + t());
   await click(button(M.sheet, "Manage ignored"));
   check("ignored: listed with its plan and reason", text(M.sheet).includes("Stairs · Main floor · Main") && text(M.sheet).includes("Marked wrong: Nothing there"), text(M.sheet));
   await click(button(M.sheet, "Forget"));
@@ -169,7 +196,7 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
 {
   const moved = stair("m", { state: "stale", map_id: "m2" });
   const tgt = stair("t", { state: "stale", match: { relation: "correction", distance_m: 1.2, target: "p", target_snap: { label: "Hall stairs" }, near: [], held: null } });
-  const S = SESSION({ status: "cancelled", error: "plan_changed", skipped: 1, crop_dropped: 2, no_floor: 1, frame: "named", plans: [{ map_id: "m1", name: "Main floor" }, { map_id: "m2", name: "Electrical", changed: true }], suggestions: { m: moved, t: tgt } });
+  const S = SESSION({ status: "cancelled", error: "plan_changed", skipped: 1, crop_dropped: 2, no_floor: 1, frame: "named", plans: [{ map_id: "m1", name: "Main floor", read: true, answered: true }, { map_id: "m2", name: "Electrical", changed: true }], suggestions: { m: moved, t: tgt } });
   const err = Object.assign(new Error("changed"), { code: "rev_mismatch" });
   const M = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1" }, plan_ai_status: { session: S }, plan_ai_verdict: err });
   M.tool.show(true); await settle();
@@ -177,7 +204,7 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   check("cut short: why it stopped, what was left out", t.includes("stopped: a plan was moved or replaced") && t.includes("1 plan skipped (out of time)") && t.includes("2 left out: a closer look") && t.includes("1 left out: no floor below"), t);
   check("named frame: positions may be coarse", t.includes("This AI's picture size isn't known"), t);
   check("stale: the plan moved, read it again", t.includes("the plan moved: read it again") && t.includes("changed since you looked"), t);
-  check("stale: New and Failure only", !button(M.sheet, "Correction") && !button(M.sheet, "Later") && !!button(M.sheet, "Failure"), buttons(M.sheet).map(text).join("|"));
+  check("stale: New and Failure only", !button(M.sheet, "Correction") && !button(M.sheet, "Later") && !button(M.sheet, "Looks right") && !!button(M.sheet, "Failure"), buttons(M.sheet).map(text).join("|"));
   await click(buttons(M.sheet).filter(b => text(b) === "Failure")[0]);
   await click(button(M.sheet, "Can't tell"));
   check("a rev that moved: says so and reloads", M.hints.some(h => /had changed/.test(h[0])) && M.sent("plan_ai_status").length === 2, JSON.stringify(M.hints));
@@ -190,6 +217,35 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   D.tool.show(true); await settle();
   check("nothing left to vet: back at the plans", !!button(D.sheet, "Read 2 plans"), text(D.sheet));
   D.tool.dispose();
+}
+// ── a session that read nothing, and one that read some ──────────────────────
+{
+  const unread = [{ map_id: "m1", name: "Main floor", read: true, answered: false }, { map_id: "m2", name: "Electrical", read: true, answered: false }];
+  for (const [error, words] of [["unreachable", "the AI couldn't be reached"], ["timeout", "the AI didn't answer in time"], ["no_media", "media folder couldn't take the plans"],
+    ["no_picture", "pictures wouldn't open"], ["bad_answer", "no answer that could be used"]]) {
+    const M = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1" }, plan_ai_status: { session: SESSION({ status: "failed", error, errors: { [error]: 2 }, plans: unread, suggestions: {} }) } });
+    M.tool.show(true); await settle();
+    const t = text(M.sheet);
+    check(`nothing read, ${error}: says what happened, never that the AI found nothing`, t.includes(`Nothing was read: `) && t.includes(words) && !t.includes("The AI found nothing") && !t.includes("Found 0") && !t.includes("The read failed") && !!button(M.sheet, "Read again"), t);
+    M.tool.dispose();
+  }
+  const P = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1" }, plan_ai_status: { session: SESSION({ errors: { unreachable: 1 }, suggestions: { a: stair("a") },
+    plans: [{ map_id: "m1", name: "Main floor", read: true, answered: true }, { map_id: "m2", name: "Electrical", read: true, answered: false }] }) } });
+  P.tool.show(true); await settle();
+  check("some read: found on the one, the other said", text(P.sheet).includes("Found 1 stair, 0 railing hints on 1 plan") && text(P.sheet).includes("1 plan couldn't be read.") && text(P.sheet).includes("1 read failed: the AI couldn't be reached"), text(P.sheet));
+  P.tool.dispose();
+  const O = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1" }, plan_ai_status: { session: SESSION({ status: "out_of_time", errors: { timeout: 2 }, suggestions: { a: stair("a") } }) } });
+  O.tool.show(true); await settle();
+  check("two timeouts after a plan read: not said to be out of time", text(O.sheet).includes("It stopped after two reads in a row got no answer.") && !text(O.sheet).includes("ran out of time"), text(O.sheet));
+  O.tool.dispose();
+  const C = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1" }, plan_ai_status: { session: SESSION({ status: "out_of_time", cut_short: "crop", errors: {}, suggestions: { a: stair("a") } }) } });
+  C.tool.show(true); await settle();
+  check("the budget cut short: out of time", text(C.sheet).includes("The session ran out of time."), text(C.sheet));
+  C.tool.dispose();
+  const X = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1" }, plan_ai_status: { session: SESSION({ status: "cancelled", error: "user", suggestions: {}, plans: [{ map_id: "m1", name: "Main floor" }, { map_id: "m2", name: "Electrical" }] }) } });
+  X.tool.show(true); await settle();
+  check("cancelled with nothing: never that the AI found nothing", !text(X.sheet).includes("The AI found nothing") && text(X.sheet).includes("The session was cancelled."), text(X.sheet));
+  X.tool.dispose();
 }
 console.log(JSON.stringify(results));
 process.exit(0);

@@ -12,9 +12,11 @@ time budget. Every find is matched against the stairs already in the 3D house
 (already there, a correction of one, new, or a second staircase stacked over
 one) and kept as a SUGGESTION in this store, padspan_ha.plan_ai, with the
 plan's picture and placement signatures of the moment it was read. What the person says of
-a suggestion in Live Aboard's Plans tool (wrong, with a reason; later) comes
-back here the moment it is clicked, and a "wrong" is remembered as a reject
-so the same find on the same plan is not queued again.
+a suggestion in Live Aboard's Plans tool (it looks right; wrong, with a reason;
+later) comes back here the moment it is clicked, and a "wrong" is remembered as
+a reject so the same find on the same plan is not queued again. A session in
+which no plan's whole read answered ends failed, saying why: it read nothing,
+which is not the same as finding nothing.
 
 Nothing here writes the 3D house, the map (fabric, model, maps), calibration
 or any other store: keeping a suggestion (new, correction) is the next
@@ -64,9 +66,13 @@ DUP_M, CORR_M = 1.0, 2.5              # within DUP_M of one existing stair: a du
 REJECT_M = 0.5                        # a find this close to a remembered reject on the same plan version is not queued
 CROP_M = (3.0, 8.0)                   # the crop round a find, its side: 2.5 × the find's long side, within these (experiment run_crops.py)
 CROP_PX = 768                         # sent no bigger than this on its long side, then fitted to the frame
+CROP_MIN_FRAC = 0.05                  # a crop's box narrower or lower than this share of it is a mark, not stairs (the smallest of 21 recorded answers: 0.14)
 STATUS: tuple[str, ...] = ("running", "done", "cancelled", "failed", "out_of_time")
 CANCEL_WHY: tuple[str, ...] = ("user", "switch_off", "house3d_off", "licence", "plan_gone", "plan_changed", "restart")
 FAILURE_WHY: tuple[str, ...] = ("wrong_place", "nothing_there", "already_here", "wrong_kind", "cant_tell")
+VERDICTS: tuple[str, ...] = ("failure", "later", "right")   # what a person can say of a suggestion in this stage; each is stored and counted
+# Why a session read nothing: the reason most of its failed reads gave, the earlier here on a tie.
+NO_READ_WHY: tuple[str, ...] = ("no_media", "no_picture", "unreachable", "timeout", "bad_answer")
 # A stair the AI placed (the stair finder's labels, and the Plans tool's; setup_checks.py counts them the same way).
 AI_LABELS = ("Stairs (AI first guess", "Stairs (from the plan")
 
@@ -81,7 +87,8 @@ CROP_PROMPT = (
     "{{\"present\": true or false, \"bbox_2d\": [x1, y1, x2, y2]}} with pixel coordinates of it, or {{\"present\": false}}.")
 RAIL_PROMPT = (
     "This picture is {w} by {h} pixels: a crop from a floor plan with a staircase at its centre. Is a handrail or "
-    "balustrade drawn beside the staircase (a thin line or a row of small marks along its side)? Output JSON only: "
+    "balustrade drawn beside the staircase (a thin line or a row of small marks along its side)? Say left or right "
+    "as someone climbing the stairs would, facing the way up. Output JSON only: "
     "{{\"rail\": \"yes|no\", \"side\": \"left|right|both|none\"}}.")
 
 
@@ -237,11 +244,15 @@ def place_sig(t: Any) -> str:
 def plans(hass: HomeAssistant) -> list[dict[str, Any]]:
     """The placed plans there are to read (ws_house3d_stairs._plans), each
     with its four corners in metres, how many reference measurements placed
-    it (0: placed by eye) and its two signatures. No view reads a placement."""
+    it (0: placed by eye) and its two signatures. No view reads a placement.
+    A plan of the outside (a site plan) is left out: it has no stairs to
+    read, and it is the sheet most likely to carry the address."""
     model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
     maps = hass.data.get(DOMAIN, {}).get(DATA_MAPS)
     out = []
     for pl in S._plans(hass):  # noqa: SLF001
+        if str(pl["floor_id"] or "").lower() in (OUTSIDE_FLOOR_ID, "outside"):
+            continue
         mid = pl["map_id"]
         m = maps.get_map(mid) if maps is not None else None
         t = model.map_transform(mid) if model is not None else None
@@ -301,7 +312,10 @@ def frame_kind(hass: HomeAssistant, eid: str) -> str:
 def suspect_frame(boxes: Any, w: int, h: int) -> bool:
     """A model that answers 0-1000 by design (Qwen3-VL, Gemini) on a frame
     over 1000 px on an axis: every coordinate at most 1000 and the largest
-    at least 900. Its finds are held as "position unsure"."""
+    at least 900. Asked of a named frame only (read_plan): a probed one is
+    measured, and on a tall plan its real answers land there too (8 of 21
+    recorded). A named frame holds its finds anyway, so this is the counter
+    that shows such a model."""
     if max(w, h) <= 1000 or not isinstance(boxes, list):
         return False
     coords: list[float] = []
@@ -535,10 +549,11 @@ def crop(path, cx: float, cy: float, hx: float, hy: float) -> tuple[bytes, int, 
         return buf.getvalue(), part.size[0], part.size[1], (box[0] / W, box[1] / H, box[2] / W, box[3] / H)
 
 
-def crop_answer(answer: Any, w: int, h: int) -> tuple[bool, tuple[float, float] | None] | None:
-    """The second look's answer, reduced to (present, centre as fractions of
-    the crop, or None without a usable box); None when it says neither. A box
-    out past the crop is another frame's: its centre is not used."""
+def crop_answer(answer: Any, w: int, h: int) -> tuple[bool, tuple[float, float, float, float] | None] | None:
+    """The second look's answer, reduced to (present, its box as fractions of
+    the crop, x1, y1, x2, y2, or None without a usable box); None when it says
+    neither. A box out past the crop is another frame's, and one under
+    CROP_MIN_FRAC a side (a point, a mark) is no staircase: neither is used."""
     present: Any = None
     bb: Any = None
     if isinstance(answer, dict):
@@ -559,7 +574,10 @@ def crop_answer(answer: Any, w: int, h: int) -> tuple[bool, tuple[float, float] 
     edge = S.PAST_EDGE_FRAC
     if x1 < -edge * w or y1 < -edge * h or x2 > (1 + edge) * w or y2 > (1 + edge) * h:
         return True, None
-    return True, ((x1 + x2) / 2 / w, (y1 + y2) / 2 / h)
+    x1, y1, x2, y2 = max(0.0, x1) / w, max(0.0, y1) / h, min(float(w), x2) / w, min(float(h), y2) / h
+    if x2 - x1 < CROP_MIN_FRAC or y2 - y1 < CROP_MIN_FRAC:
+        return True, None
+    return True, (x1, y1, x2, y2)
 
 
 def rail_of(answer: Any) -> tuple[bool, str | None]:
@@ -629,7 +647,7 @@ def new_session(ai: dict, plans_: list[dict], kinds: list[str], backup_ok: bool,
             "plans": [{"map_id": p["map_id"], "name": p.get("name") or "", "floor_id": p["floor_id"],
                        "kinds": list(kinds), "fixtures_drawn": None, "refs": int(p.get("refs") or 0),
                        "image_sig": p["image_sig"], "place_sig": p["place_sig"], "frame": None, "suspect": False,
-                       "read": False, "changed": False} for p in plans_],
+                       "read": False, "answered": False, "changed": False} for p in plans_],
             "finds": [], "suggestions": {}, "batch": None, "backup_id": None}
 
 
@@ -640,7 +658,8 @@ class Runner:
         self.hass, self.store, self.job, self.ai = hass, store, job, ai
         self.t0 = time.monotonic()
         self.consecutive_timeouts = 0
-        self.cut_short = False              # the budget ran out during the second looks
+        self.cut_short = False              # the budget ran out before a read this session wanted
+        self.phase = "whole"                # which reads are under way: whole, crop, railing
         self.files: dict[str, Any] = {}     # map id → the plan's picture on disk, for its crops
         self.crops: dict[int, tuple[bytes, int, int]] = {}   # a find (by id) → its crop, for the railing question; never stored
 
@@ -689,7 +708,10 @@ class Runner:
         if self.guard() or self.consecutive_timeouts >= 2:
             return True
         if self.left() < P.READ_MIN_S:
-            self.cut_short = True
+            if not self.cut_short:
+                self.cut_short = True
+                self.sess["cut_short"] = self.phase
+                _bump(self.hass, f"plan_ai_budget_cut:{self.phase}")
             return True
         return False
 
@@ -701,8 +723,8 @@ class Runner:
         t0 = time.monotonic()
         sess["reads"] = int(sess.get("reads") or 0) + 1
         try:
-            answer, by = await P.ask_ai(self.hass, self.ai, prompt, None, raw, "image/jpeg",
-                                        task_name="PadSpan plans", timeout_s=max(1.0, min(cap, self.left())))
+            answer, by = await P.ask_ai(self.hass, self.ai, prompt, None, raw, "image/jpeg", task_name="PadSpan plans",
+                                        count=False, timeout_s=max(1.0, min(cap, self.left())))
         except TimeoutError:
             sess["timeouts"] = int(sess.get("timeouts") or 0) + 1
             self.consecutive_timeouts += 1
@@ -719,6 +741,8 @@ class Runner:
             _bump(self.hass, P._secs_event(time.monotonic() - t0).replace("photo_secs:", "plan_ai_read_secs:"))  # noqa: SLF001
         self.consecutive_timeouts = 0
         if by != self.ai.get("ai_task"):
+            if not sess.get("backup_used"):              # counted per session, not per read (count=False above)
+                _bump(self.hass, "ai_backup_used")
             sess["backup_used"] = True
             if frame_kind(self.hass, by) == "named":   # another model's frame: its positions hold corrections too
                 sess["frame"] = "named"
@@ -755,8 +779,8 @@ class Runner:
             if fp is None:
                 raise OSError("no image")
             raw, w, h = await self.hass.async_add_executor_job(S.shrink, fp)
-        except Exception:  # noqa: BLE001 — a missing or unreadable picture is one answer
-            self._err("bad_answer")
+        except Exception:  # noqa: BLE001 — a missing or unreadable picture: the AI was never asked
+            self._err("no_picture")
             return []
         self.files[mid] = fp
         pl["frame"] = [w, h]
@@ -766,7 +790,8 @@ class Runner:
         boxes = await self.read(S.PROMPT.format(w=w, h=h), raw, S._list_of)  # noqa: SLF001
         if boxes is None:
             return []
-        if suspect_frame(boxes, w, h):
+        pl["answered"] = True
+        if sess.get("frame") != "probed" and suspect_frame(boxes, w, h):
             pl["suspect"] = True
             self._err("suspect_frame")
         counts: dict[str, int] = {}
@@ -794,7 +819,9 @@ class Runner:
     async def look_again(self, f: dict) -> bool:
         """The second look at one find, a crop round it, its side 2.5 × the
         find's, within CROP_M. False: it says nothing is there, and the find
-        goes. A box places the find; any other answer leaves it as it was."""
+        goes. A box places the find and is the box kept for the list, in the
+        whole read's frame, so what is drawn is what the metres came from; any
+        other answer leaves it as it was."""
         model = self.hass.data.get(DOMAIN, {}).get(DATA_MODEL)
         mid = f["map_id"]
         to_m = lambda fx, fy: model.map_frac_to_metres(fx, fy, mid)  # noqa: E731
@@ -819,9 +846,12 @@ class Runner:
             self.sess["crop_dropped"] = int(self.sess.get("crop_dropped") or 0) + 1
             _bump(self.hass, "plan_ai_crop:dropped")
             return False
-        spot = to_m(bx0 + at[0] * (bx1 - bx0), by0 + at[1] * (by1 - by0)) if at else None
+        spot = None
+        if at:
+            fx0, fy0, fx1, fy1 = bx0 + at[0] * (bx1 - bx0), by0 + at[1] * (by1 - by0), bx0 + at[2] * (bx1 - bx0), by0 + at[3] * (by1 - by0)
+            spot = to_m((fx0 + fx1) / 2, (fy0 + fy1) / 2)
         if spot:
-            f.update(x_m=round(spot[0], 3), y_m=round(spot[1], 3))
+            f.update(x_m=round(spot[0], 3), y_m=round(spot[1], 3), box_px=[round(fx0 * w, 1), round(fy0 * h, 1), round(fx1 * w, 1), round(fy1 * h, 1)])
         _bump(self.hass, "plan_ai_crop:placed" if spot else "plan_ai_crop:kept")
         return True
 
@@ -831,6 +861,7 @@ class Runner:
         find's railing question. Cut short, the finds not looked at again stay
         as the whole read had them."""
         kept: list[dict] = []
+        self.phase = "crop"
         for n, f in enumerate(finds):
             if self.stop_here():
                 kept.extend(finds[n:])
@@ -839,6 +870,7 @@ class Runner:
                 kept.append(f)
             await self._save()
         kinds = {pl["map_id"]: pl.get("kinds") or [] for pl in self.sess.get("plans") or []}
+        self.phase = "railing"
         for f in kept:
             got = self.crops.get(id(f))
             if not got or "railing" not in kinds.get(f["map_id"], []):
@@ -871,6 +903,7 @@ class Runner:
             fid = floor_of_find(floors, f["plan_floor"], f.get("says") or "")
             if fid is None:                                # no floor for it to climb from (a house of one storey)
                 sess["no_floor"] = int(sess.get("no_floor") or 0) + 1
+                _bump(self.hass, "plan_ai_no_floor")
                 continue
             placed.append({**f, "floor_id": fid})
         merged = merge_across_plans(placed)
@@ -889,11 +922,9 @@ class Runner:
                                 if g is not f and g["floor_id"] == f["floor_id"] and g["map_id"] != f["map_id"]) if DUP_M < d <= CORR_M]
             if sess.get("frame") == "named":
                 match["held"] = "frame"
-            elif pl.get("suspect"):
-                match["held"] = "suspect"
             elif match["relation"] == "correction" and int(pl.get("refs") or 0) == 0:
                 match["held"] = "eye"
-            if match["held"] in ("frame", "suspect") and match["relation"] == "correction":
+            if match["held"] == "frame" and match["relation"] == "correction":
                 match["relation"] = "new"                 # a coarse frame never advises a move
             if match["held"]:
                 _bump(self.hass, f"plan_ai_held:{match['held']}")
@@ -927,7 +958,7 @@ class Runner:
             side = rail.get("side")
             rid = "sug_" + secrets.token_hex(4)
             rel = rail_relation(on["rail"], side, on["shape"]) if on else "new"
-            hint = {"id": rid, "kind": "railing", "map_id": f["map_id"], "floor_id": f["floor_id"], "box_px": f["box_px"],
+            hint = {"id": rid, "kind": "railing", "of_stair": sid, "map_id": f["map_id"], "floor_id": f["floor_id"], "box_px": f["box_px"],
                     "frame": f["frame"], "seen_on": f["seen_on"], "reads": ["crop"],
                     "geom": {"stair": on["id"] if on else sid, "side": side, "x_m": geom["x_m"], "y_m": geom["y_m"]},
                     "match": {"target": on["id"] if on else None, "distance_m": None, "relation": rel, "near": [], "held": match["held"],
@@ -944,6 +975,15 @@ class Runner:
                 _bump(self.hass, "plan_ai_suggested:railing")
             sugs[rid] = hint
         sess["suggestions"] = sugs
+
+    def no_read(self) -> str | None:
+        """Why no plan's whole read answered, in the failed reads' own word,
+        or None: one answered, or no read failed (nothing was tried)."""
+        sess = self.sess
+        if any(pl.get("answered") for pl in sess.get("plans") or []):
+            return None
+        errors = sess.get("errors") or {}
+        return max((k for k in NO_READ_WHY if errors.get(k)), key=lambda k: errors[k], default=None)
 
     async def run(self) -> None:
         sess = self.sess
@@ -989,10 +1029,15 @@ class Runner:
             _LOGGER.warning("PadSpan plans: the finds couldn't be matched: %s", P._why(err))  # noqa: SLF001
             status = "failed"
         sess = self.sess
+        no_read = self.no_read() if status in ("done", "out_of_time") else None
+        if no_read:                                    # it read nothing, which is not the same as finding nothing
+            status = "failed"
         sess.pop("finds", None)                        # matched: the suggestions hold what is kept
-        sess.update(status=status, error=why if status == "cancelled" else None, finished_at=time.time())
+        sess.update(status=status, error=why if status == "cancelled" else no_read, finished_at=time.time())
         sess["progress"] = {"plan": n, "of": n, "name": "", "step": "done"}
-        _bump(self.hass, f"plan_ai_session:{status}")
+        _bump(self.hass, f"plan_ai_session:{'no_read' if no_read else status}")
+        if no_read:
+            _bump(self.hass, f"plan_ai_no_read:{no_read}")
         if why:
             _bump(self.hass, f"plan_ai_cancel_why:{why}")
         reads = int(sess.get("reads") or 0)
@@ -1017,6 +1062,33 @@ def start(hass: HomeAssistant, store: PlanAiStore, ai: dict[str, Any], plans_: l
     # A background task: a read of a minute must not hold up Home Assistant's own shutdown or start.
     job.task = hass.async_create_background_task(Runner(hass, store, job, ai).run(), "padspan_ha plan_ai")
     return sid
+
+
+def settle_rails(hass: HomeAssistant, sess: dict[str, Any], stair_id: str) -> list[dict]:
+    """A stair marked wrong takes its railing hint out of the queue: there is
+    nothing to check beside a stair that isn't there. The hint keeps where it
+    stood, for a take-back. No reject of its own: the stair's stops the hint
+    coming back on the next read. The hints it changed."""
+    out = []
+    for hint in (sess.get("suggestions") or {}).values():
+        if isinstance(hint, dict) and hint.get("of_stair") == stair_id and hint.get("state") in ("queued", "later", "stale"):
+            hint["verdict"] = {"v": "settled", "at": time.time(), "stair": stair_id, "was": {"state": hint["state"], "verdict": hint.get("verdict")}}
+            hint["state"] = "settled"
+            _bump(hass, "plan_ai_verdict:railing_settled")
+            out.append(hint)
+    return out
+
+
+def unsettle_rails(hass: HomeAssistant, sess: dict[str, Any], stair_id: str) -> list[dict]:
+    """The stair's verdict taken back: its hint goes back where it stood."""
+    out = []
+    for hint in (sess.get("suggestions") or {}).values():
+        if isinstance(hint, dict) and hint.get("of_stair") == stair_id and hint.get("state") == "settled":
+            was = (hint.get("verdict") or {}).get("was") or {}
+            hint["state"], hint["verdict"] = was.get("state") or "queued", was.get("verdict")
+            _bump(hass, "plan_ai_taken_back:railing_settled")
+            out.append(hint)
+    return out
 
 
 def check_session(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any], house: dict | None) -> bool:

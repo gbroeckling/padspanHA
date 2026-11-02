@@ -646,25 +646,31 @@ STAIR_EVENTS: frozenset[str] = frozenset(
 # Add data via plans (plan_ai.py, experimental, 2026-11), counts only: how a
 # session ended and why one was cut short; whether the AI was local and in
 # which frame it answers; how many plans and reads, and how long each read
-# took (the photo bands); each AI failure by reason; what the second look did
-# to a find (kept it, placed it, dropped it); what was suggested and what was
-# already in the house, per kind; each verdict given and why an item
-# was marked wrong; positions held as coarse; corrections aimed at a
-# hand-placed or an AI-placed stair; a stacked stairwell offered; an item
-# whose target changed since. Never a plan, an answer, a name or a position.
+# took (the photo bands); each AI failure by reason; a session in which no
+# plan's whole read answered, apart from one that found nothing, and why; a
+# time budget that ran out inside the reads, and in which; what the second look
+# did to a find (kept it, placed it, dropped it); what was suggested and what was
+# already in the house, per kind; a find with no floor to climb from; each
+# verdict given (it looks right, wrong, later; a railing hint that went with its
+# stair), each one taken back, and why an item was marked wrong, per kind;
+# positions held as coarse; corrections aimed at a hand-placed or an AI-placed
+# stair; a stacked stairwell offered; an item whose target changed since. Never
+# a plan, an answer, a name or a position.
 # Names for what the next stages add (new and correction verdicts, commits,
 # undo, lights) join the family when they have a call site.
-PLAN_AI_SESSION: tuple[str, ...] = ("started", "done", "cancelled", "failed", "out_of_time")
+PLAN_AI_SESSION: tuple[str, ...] = ("started", "done", "no_read", "cancelled", "failed", "out_of_time")
+PLAN_AI_NO_READ: tuple[str, ...] = ("no_media", "no_picture", "unreachable", "timeout", "bad_answer")
+PLAN_AI_BUDGET_CUT: tuple[str, ...] = ("whole", "crop", "railing")
 PLAN_AI_CANCEL_WHY: tuple[str, ...] = ("user", "switch_off", "house3d_off", "licence", "plan_gone", "plan_changed", "restart")
 PLAN_AI_MODEL: tuple[str, ...] = ("local", "cloud", "unknown")
 PLAN_AI_FRAME: tuple[str, ...] = ("probed", "named")
 PLAN_AI_PLAN_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "gt6")
 PLAN_AI_READ_BANDS: tuple[str, ...] = ("1_5", "6_15", "16_40", "gt40")
-PLAN_AI_ERRORS: tuple[str, ...] = ("no_ai_task", "bad_answer", "timeout", "unreachable", "no_media", "budget", "suspect_frame")
+PLAN_AI_ERRORS: tuple[str, ...] = ("no_ai_task", "bad_answer", "timeout", "unreachable", "no_media", "no_picture", "budget", "suspect_frame")
 PLAN_AI_KINDS: tuple[str, ...] = ("stairs", "railing")
-PLAN_AI_VERDICTS: tuple[str, ...] = ("failure", "later")
+PLAN_AI_VERDICTS: tuple[str, ...] = ("failure", "later", "right")
 PLAN_AI_FAILURE_WHY: tuple[str, ...] = ("wrong_place", "nothing_there", "already_here", "wrong_kind", "cant_tell")
-PLAN_AI_HELD: tuple[str, ...] = ("frame", "suspect", "eye")
+PLAN_AI_HELD: tuple[str, ...] = ("frame", "eye")
 PLAN_AI_CROP: tuple[str, ...] = ("kept", "placed", "dropped")
 PLAN_AI_EVENTS: frozenset[str] = frozenset(
     {f"plan_ai_session:{k}" for k in PLAN_AI_SESSION} | {f"plan_ai_cancel_why:{k}" for k in PLAN_AI_CANCEL_WHY}
@@ -673,9 +679,12 @@ PLAN_AI_EVENTS: frozenset[str] = frozenset(
     | {f"plan_ai_read_secs:{k}" for k in PHOTO_SECS} | {f"plan_ai_error:{k}" for k in PLAN_AI_ERRORS}
     | {f"plan_ai_suggested:{k}" for k in PLAN_AI_KINDS} | {f"plan_ai_duplicate:{k}" for k in PLAN_AI_KINDS}
     | {f"plan_ai_verdict:{k}_{v}" for k in PLAN_AI_KINDS for v in PLAN_AI_VERDICTS}
-    | {f"plan_ai_failure_why:{k}" for k in PLAN_AI_FAILURE_WHY} | {f"plan_ai_held:{k}" for k in PLAN_AI_HELD}
-    | {f"plan_ai_crop:{k}" for k in PLAN_AI_CROP}
-    | {"plan_ai_correction_target:hand", "plan_ai_correction_target:ai", "plan_ai_stacked:offered", "plan_ai_stale"})
+    | {f"plan_ai_taken_back:{k}_{v}" for k in PLAN_AI_KINDS for v in PLAN_AI_VERDICTS}
+    | {f"plan_ai_failure_why:{k}_{w}" for k in PLAN_AI_KINDS for w in PLAN_AI_FAILURE_WHY} | {f"plan_ai_held:{k}" for k in PLAN_AI_HELD}
+    | {f"plan_ai_crop:{k}" for k in PLAN_AI_CROP} | {f"plan_ai_no_read:{k}" for k in PLAN_AI_NO_READ}
+    | {f"plan_ai_budget_cut:{k}" for k in PLAN_AI_BUDGET_CUT}
+    | {"plan_ai_verdict:railing_settled", "plan_ai_taken_back:railing_settled", "plan_ai_no_floor",
+       "plan_ai_correction_target:hand", "plan_ai_correction_target:ai", "plan_ai_stacked:offered", "plan_ai_stale"})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
@@ -698,7 +707,8 @@ from .setup_checks import SETUP_STEPS  # noqa: E402
 SETUP_EVENTS: frozenset[str] = frozenset(
     {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"})
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
-# local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
+# local (Ollama on the home's own network), cloud (OpenAI, Google, Anthropic,
+# Home Assistant Cloud, an Ollama at an outside address…),
 # unknown (another integration) or unready (chosen, but gone, blind to
 # pictures, or Home Assistant too old). Never its name or entity.
 AI_TASK_WORDS: tuple[str, ...] = ("local", "cloud", "unknown", "unready")

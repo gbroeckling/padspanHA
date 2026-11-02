@@ -3598,8 +3598,9 @@ export function buildLightsMapCard(hostIn){
           furnish: h3.furnish === true ? { callWS: typeof h3.callWS === "function" ? h3.callWS : null,
             toast: typeof h3.toast === "function" ? h3.toast : null, settings: h3.settings, entities: h3.entities || null } : null,
           // Add data via plans (experimental, 2026-11): the Plans tool in Edit, only with Settings → AI's
-          // master switch on, an AI Task chosen, where Edit itself is offered, and never on Sample mode's house.
-          plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")
+          // master switch on, an AI Task chosen, where Edit itself is offered, never on Sample mode's house, and
+          // only for an administrator (every plan_ai_ command is one's).
+          plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && h3.admin !== false && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")
             && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
           // The view's floor stepper (▲ Main ▼ · All): the floor chips'

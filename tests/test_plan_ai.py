@@ -30,7 +30,7 @@ from custom_components.padspan_ha.const import (CALIBRATION_STORE_KEY, DATA_MAPS
                                                 DOMAIN, FABRIC_STORE_KEY, HOUSE3D_STORE_KEY, MAPS_STORE_KEY,
                                                 MODEL_STORE_KEY, PLAN_AI_STORE_KEY, SETTINGS_STORE_KEY)
 from tests.test_house3d_edit import _file, _seed, disk  # noqa: F401  (the on-disk store fixture)
-from tests.test_house3d_photo import _AiTask, _leftovers, _ready
+from tests.test_house3d_photo import _AI as P_AI, _AiTask, _leftovers, _ready
 from tests.test_house3d_store import _run
 
 _MODEL_TEXT = A._model_text
@@ -223,9 +223,9 @@ def test_the_stair_finders_loop_stops_on_the_master_code_and_its_menu_item_follo
     assert 'hs.ai_plans_enabled === true && hs.ai_stairs_enabled === true' in src
     # The Plans tool: the host hands it only with the switch on, an AI Task chosen, Edit on offer, and not on the sample house.
     card = (_WWW / "views" / "lights_map.js").read_text(encoding="utf-8")
-    assert 'plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")' in card
+    assert 'plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && h3.admin !== false && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")' in card
     assert 'typeof h3.edit === "function"' in card[card.index("plans: h3.settings.ai_plans_enabled"):card.index("setTopFloor:")]
-    assert 'sample: ctx.state.dataMode !== "live"' in (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
+    assert 'sample: ctx.state.dataMode !== "live", admin: ctx.hass?.user?.is_admin !== false,' in (_WWW / "views" / "maps.js").read_text(encoding="utf-8")
     # The module loads only when the editor asks, and nothing imports it statically.
     for path in (_WWW / "views").glob("*.js"):
         assert not re.search(r"^\s*import\b[^\n]*live_aboard_plans", path.read_text(encoding="utf-8"), re.M), path.name
@@ -345,8 +345,12 @@ def test_a_session_reads_each_plan_places_each_find_and_keeps_nothing_but_the_st
     # its own frame) boxed it further in, and its centre, through the crop's bounds, re-placed the find.
     assert st["reads"] == ["whole", "crop"] and abs(st["geom"]["x_m"] - 3.4) < 0.5 and abs(st["geom"]["y_m"] - 3.4) < 0.5
     assert st["geom"]["sure_up"] is True and st["match"]["relation"] == "new" and st["state"] == "queued"
-    assert st["box_px"] == [100.0, 200.0, 200.0, 600.0] and st["frame"] == [1008, 812]
+    # The list's box is the crop's box, in the whole read's frame: its centre is where the metres say.
+    assert st["frame"] == [1008, 812] and st["box_px"] != [100.0, 200.0, 200.0, 600.0]
+    (bx1, by1, bx2, by2), (fw, fh) = st["box_px"], st["frame"]
+    assert abs((bx1 + bx2) / 2 / fw * 10 - st["geom"]["x_m"]) < 0.01 and abs((by1 + by2) / 2 / fh * 8 - st["geom"]["y_m"]) < 0.01
     assert rails[0]["geom"] == {"stair": st["id"], "side": "left", "x_m": st["geom"]["x_m"], "y_m": st["geom"]["y_m"]} and rails[0]["state"] == "queued"
+    assert rails[0]["of_stair"] == st["id"]
     # Every call carried a JPEG made here and named its size; the plan itself never went anywhere else.
     for (_d, _s, data), (f, seen) in zip(ai.calls, ai.seen):
         assert "structure" not in data and data["task_name"] == "PadSpan plans" and seen[:3] == bytes.fromhex("ffd8ff")
@@ -388,13 +392,16 @@ def test_the_local_cap_the_two_timeouts_rule_and_the_budget(monkeypatch, tmp_pat
     monkeypatch.setattr(P, "ask_ai", spy)
     store, sess, sid = _run(_session(h, ("m1",), ("stairs",)))
     assert sess["status"] == "done" and seen and all(t == A.PLAN_READ_LOCAL_S for t in seen)
-    # Two timeouts in a row: out_of_time, the first plan's whole read lost, the second plan never asked.
-    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": TimeoutError(), "crop": TimeoutError(), "rail": TimeoutError()})
+    # Two timeouts in a row after a plan that answered: out_of_time, the fourth plan never asked, what was read kept.
+    answers = iter([_WHOLE, TimeoutError(), TimeoutError()])
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": lambda: next(answers), "crop": {"present": True}, "rail": {"rail": "no"}},
+                                plans=(("m1", "Main", "main", _T1), ("m2", "Upper", "upper", _T1), ("m3", "Roof", "upper", _T1), ("m4", "Attic", "upper", _T1)))
     counted = []
     monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
-    store, sess, sid = _run(_session(h))
-    assert sess["status"] == "out_of_time" and sess["timeouts"] == 2 and sess["errors"] == {"timeout": 2}
-    assert len(ai.calls) == 2 and counted.count("plan_ai_error:timeout") == 2 and "plan_ai_session:out_of_time" in counted
+    store, sess, sid = _run(_session(h, ("m1", "m2", "m3", "m4"), ("stairs",)))
+    assert sess["status"] == "out_of_time" and sess["error"] is None and sess["timeouts"] == 2 and sess["errors"] == {"timeout": 2}
+    assert len(ai.calls) == 3 and counted.count("plan_ai_error:timeout") == 2 and "plan_ai_session:out_of_time" in counted
+    assert [(p["read"], p["answered"]) for p in sess["plans"]] == [(True, True), (True, False), (True, False), (False, False)] and len(sess["suggestions"]) == 1
     # The budget spent before the second plan: it is skipped, counted, and the session is out_of_time.
     h, conn, ai, media = _house(monkeypatch, tmp_path)
 
@@ -447,19 +454,32 @@ def test_a_failed_check_between_reads_ends_the_session_cancelled_with_its_reason
     assert f"plan_ai_cancel_why:{why}" in counted and "plan_ai_session:cancelled" in counted
 
 
-def test_a_model_answering_0_to_1000_on_a_bigger_frame_is_held_as_suspect(monkeypatch, tmp_path, disk):
+def test_a_model_answering_0_to_1000_on_a_bigger_frame_is_counted_on_a_named_frame_only(monkeypatch, tmp_path, disk):
+    """8 of 21 real Qwen2.5 answers, in their measured frame, had their largest
+    coordinate at 900-1000: on a probed frame the test isn't asked. On a named
+    one it is the counter that shows such a model; the frame holds the finds."""
     assert A.suspect_frame([{"bbox_2d": [100, 200, 950, 600]}], 1008, 812)
     assert not A.suspect_frame([{"bbox_2d": [100, 200, 950, 600]}], 1000, 800)      # the frame is not over 1000
     assert not A.suspect_frame([{"bbox_2d": [100, 200, 1004, 600]}], 1008, 812)     # past 1000: the real frame
     assert not A.suspect_frame([{"bbox_2d": [100, 200, 300, 600]}], 1008, 812)      # nothing near the edge
-    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": [{"bbox_2d": [100, 300, 200, 920]}], "crop": {"present": True}, "rail": {"rail": "no"}},
-                                plans=(("m1", "Main", "main", _T1),))
+    answers = {"whole": [{"bbox_2d": [100, 300, 200, 920]}], "crop": {"present": True}, "rail": {"rail": "no"}}
     counted = []
     monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    # A measured frame: not asked, nothing held, not counted.
+    h, conn, ai, media = _house(monkeypatch, tmp_path, answers, plans=(("m1", "Main", "main", _T1),))
     store, sess, sid = _run(_session(h, ("m1",), ("stairs",)))
-    assert sess["plans"][0]["suspect"] is True and sess["errors"].get("suspect_frame") == 1
     [sug] = sess["suggestions"].values()
-    assert sug["match"]["held"] == "suspect" and "plan_ai_held:suspect" in counted
+    assert sess["frame"] == "probed" and not sess["plans"][0]["suspect"] and "suspect_frame" not in sess["errors"]
+    assert sug["match"]["held"] is None and sess["status"] == "done" and not any("suspect" in e for e in counted)
+    # A named frame (Qwen3 answers 0-1000): counted, and held by the frame.
+    h, conn, ai, media = _house(monkeypatch, tmp_path, answers, plans=(("m1", "Main", "main", _T1),))
+    monkeypatch.setattr(A, "_model_text", lambda hass, eid: "qwen3-vl")
+    store, sess, sid = _run(_session(h, ("m1",), ("stairs",)))
+    [sug] = sess["suggestions"].values()
+    assert sess["frame"] == "named" and sess["plans"][0]["suspect"] is True and sess["errors"].get("suspect_frame") == 1
+    assert sug["match"]["held"] == "frame" and "plan_ai_error:suspect_frame" in counted and "plan_ai_held:frame" in counted
+    # A counted suspect frame is an answer: it doesn't make the session one that read nothing.
+    assert sess["status"] == "done"
 
 
 def test_a_named_frame_holds_corrections_and_a_cloud_task_gets_the_photo_cap(monkeypatch, tmp_path, disk):
@@ -547,11 +567,45 @@ def test_the_second_look_drops_a_find_it_says_isnt_there_and_retries_an_answer_i
 
 def test_the_crop_answer_is_reduced_to_a_yes_and_a_centre():
     assert A.crop_answer({"present": False}, 100, 100) == (False, None)
-    assert A.crop_answer('```json\n{"present": true, "bbox_2d": [10, 20, 30, 40]}\n```', 100, 100) == (True, (0.2, 0.3))
-    assert A.crop_answer({"present": True, "bbox_2d": [30, 40, 10, 20]}, 100, 100) == (True, (0.2, 0.3))
+    assert A.crop_answer('```json\n{"present": true, "bbox_2d": [10, 20, 30, 40]}\n```', 100, 100) == (True, (0.1, 0.2, 0.3, 0.4))
+    assert A.crop_answer({"present": True, "bbox_2d": [30, 40, 10, 20]}, 100, 100) == (True, (0.1, 0.2, 0.3, 0.4))
+    assert A.crop_answer({"present": True, "bbox_2d": [-1, 20, 30, 101]}, 100, 100) == (True, (0.0, 0.2, 0.3, 1.0))   # a rounding past the edge, clipped
+    # A point, or a mark too small to be stairs: it said yes, but the box is not used.
+    assert A.crop_answer({"present": True, "bbox_2d": [10, 10, 10, 10]}, 100, 100) == (True, None)
+    assert A.crop_answer({"present": True, "bbox_2d": [10, 10, 13, 60]}, 100, 100) == (True, None)
+    assert A.crop_answer('{"present": true, "bbox_2d": [10, 10, 60, 12]}', 100, 100) == (True, None)
     assert A.crop_answer({"present": True}, 100, 100) == (True, None)
     assert A.crop_answer({"present": True, "bbox_2d": [10, 20, 500, 40]}, 100, 100) == (True, None)   # another frame's box
     assert A.crop_answer("a staircase, I think", 100, 100) is None and A.crop_answer([1], 100, 100) is None
+
+
+def test_the_lists_box_and_the_metres_agree_after_a_second_look(monkeypatch, tmp_path, disk):
+    """Review 2026-11-02: [10, 10, 10, 10] moved a find 1.4 m, and the list went on drawing the whole read's box."""
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    # A zero-size box: the find stays where the whole read put it, with the whole read's box.
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": _WHOLE, "crop": {"present": True, "bbox_2d": [10, 10, 10, 10]}, "rail": {"rail": "no"}},
+                                plans=(("m1", "Main", "main", _T1),))
+    store, sess, sid = _run(_session(h, ("m1",), ("stairs",)))
+    [sug] = sess["suggestions"].values()
+    assert sug["box_px"] == [100.0, 200.0, 200.0, 600.0] and sug["reads"] == ["whole", "crop"]
+    assert abs(sug["geom"]["x_m"] - 150 / 1008 * 10) < 0.01 and abs(sug["geom"]["y_m"] - 400 / 812 * 8) < 0.01
+    assert "plan_ai_crop:kept" in counted and "plan_ai_crop:placed" not in counted
+    # A real box near the crop's corner: both move, together, and the box drawn is the crop's, scaled to the frame the list reads it in.
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": _WHOLE, "crop": {"present": True, "bbox_2d": [20, 20, 200, 300]}, "rail": {"rail": "no"}},
+                                plans=(("m1", "Main", "main", _T1),))
+    store, sess, sid = _run(_session(h, ("m1",), ("stairs",)))
+    [sug] = sess["suggestions"].values()
+    (x1, y1, x2, y2), (fw, fh) = sug["box_px"], sug["frame"]
+    assert sug["box_px"] != [100.0, 200.0, 200.0, 600.0]
+    assert abs((x1 + x2) / 2 / fw * 10 - sug["geom"]["x_m"]) < 0.01 and abs((y1 + y2) / 2 / fh * 8 - sug["geom"]["y_m"]) < 0.01
+
+
+def test_the_railing_prompt_says_left_and_right_as_you_climb():
+    prompt = A.RAIL_PROMPT.format(w=100, h=100)
+    assert "climbing" in prompt and "facing the way up" in prompt
+    # As it is read: a straight flight's left, climbing, is its inner side (live_aboard_furniture.js).
+    assert A.rail_relation("inner", "left", "straight") == "duplicate" and A.rail_relation("outer", "left", "straight") == "correction"
 
 
 def test_the_crop_round_a_find_is_the_measured_one(monkeypatch, tmp_path, disk):
@@ -607,6 +661,111 @@ def test_a_read_by_the_backup_holds_the_session_as_a_named_frame(monkeypatch, tm
     assert sess["backup_used"] is True and sess["frame"] == "named"
     [sug] = sess["suggestions"].values()
     assert sug["match"]["held"] == "frame" and sug["match"]["relation"] == "new"
+
+
+@pytest.mark.parametrize("how,why", [("refused", "unreachable"), ("generic", "bad_answer"), ("timeout", "timeout"), ("unreadable", "bad_answer"),
+                                     ("media", "no_media"), ("picture", "no_picture")])
+def test_a_session_that_read_nothing_says_why_and_is_counted_apart(monkeypatch, tmp_path, disk, how, why):
+    """The AI away, no media folder, every read failed: not "done" and not
+    "the AI found nothing". Failed, with the reason, and its own counter."""
+    exc = {"refused": ConnectionRefusedError("refused"), "generic": RuntimeError("Error talking to Ollama"), "timeout": TimeoutError(),
+           "unreadable": "{not json"}.get(how, _WHOLE)
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": exc, "crop": exc, "rail": exc}, plans=(("m1", "Main", "main", _T1),))
+    if how == "media":
+        h.config.media_dirs = {}
+    if how == "picture":
+        h.data[DOMAIN][DATA_MAPS].image_file = lambda fn, must_exist: None
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    store, sess, sid = _run(_session(h, ("m1",)))
+    assert sess["status"] == "failed" and sess["error"] == why and sess["suggestions"] == {}
+    assert sess["plans"][0]["answered"] is False and sess["errors"][why] >= 1
+    assert counted.count("plan_ai_session:no_read") == 1 and counted.count(f"plan_ai_no_read:{why}") == 1
+    assert "plan_ai_session:done" not in counted and "plan_ai_session:failed" not in counted
+    assert all(T.event_allowed(e) for e in counted if e.startswith("plan_ai_")), counted
+    assert _leftovers(media) == []
+
+
+def test_two_timeouts_with_nothing_read_is_no_read_not_out_of_time(monkeypatch, tmp_path, disk):
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": TimeoutError(), "crop": TimeoutError(), "rail": TimeoutError()})
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    store, sess, sid = _run(_session(h))
+    assert sess["status"] == "failed" and sess["error"] == "timeout" and sess["timeouts"] == 2 and len(ai.calls) == 2
+    assert "plan_ai_session:no_read" in counted and "plan_ai_session:out_of_time" not in counted
+
+
+def test_one_plan_answered_is_a_done_session_saying_the_other_failed(monkeypatch, tmp_path, disk):
+    answers = iter(["[]", ConnectionRefusedError("refused")])
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": lambda: next(answers), "crop": {"present": True}, "rail": {"rail": "no"}})
+    store, sess, sid = _run(_session(h))
+    assert sess["status"] == "done" and sess["error"] is None and sess["errors"] == {"unreachable": 1}
+    assert [(p["read"], p["answered"]) for p in sess["plans"]] == [(True, True), (True, False)]
+
+
+def test_an_answer_of_no_stairs_is_a_session_that_found_nothing(monkeypatch, tmp_path, disk):
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": "[]", "crop": {"present": True}, "rail": {"rail": "no"}})
+    store, sess, sid = _run(_session(h))
+    assert sess["status"] == "done" and sess["suggestions"] == {} and sess["errors"] == {} and all(p["answered"] for p in sess["plans"])
+
+
+def test_a_cancel_with_nothing_read_stays_a_cancel(monkeypatch, tmp_path, disk):
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": ConnectionRefusedError("refused")})
+
+    def cancel_after_first(runner, job):
+        orig = runner.read_plan
+
+        async def once(pl, i):
+            out = await orig(pl, i)
+            job.cancel = True
+            return out
+        runner.read_plan = once
+    store, sess, sid = _run(_session(h, before=cancel_after_first))
+    assert sess["status"] == "cancelled" and sess["error"] == "user"
+
+
+def test_the_sheet_is_told_an_ai_task_is_away_with_no_backup_set(monkeypatch, tmp_path, disk):
+    h, conn, ai, media = _house(monkeypatch, tmp_path)
+    assert _call(W.ws_plan_ai_plans, h, conn)["ai"]["main_away"] is False
+    attrs = h.states.get(P_AI).attributes
+    h.states.get = lambda eid: SimpleNamespace(state="unavailable", attributes=attrs)
+    assert _call(W.ws_plan_ai_plans, h, conn)["ai"]["main_away"] is True
+
+
+def test_the_budget_running_out_in_the_reads_says_where_and_counts_it(monkeypatch, tmp_path, disk):
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),))
+
+    def spend_at(which):
+        def before(runner, job):
+            real = runner.ask
+
+            async def ask(prompt, raw):
+                out = await real(prompt, raw)
+                if ("crop of a floor plan" in prompt) == (which == "railing"):
+                    runner.t0 -= A.PLAN_BUDGET_S
+                return out
+            runner.ask = ask
+        return before
+    store, sess, sid = _run(_session(h, ("m1",), before=spend_at("crop")))         # spent by the whole read: no crop asked
+    assert sess["status"] == "out_of_time" and sess["cut_short"] == "crop" and counted.count("plan_ai_budget_cut:crop") == 1
+    counted.clear()
+    store, sess, sid = _run(_session(h, ("m1",), before=spend_at("railing")))      # spent by the crop: no railing asked
+    assert sess["status"] == "out_of_time" and sess["cut_short"] == "railing" and counted.count("plan_ai_budget_cut:railing") == 1
+    assert "plan_ai_budget_cut:crop" not in counted
+
+
+def test_the_backup_is_counted_per_session_not_per_read(monkeypatch, tmp_path, disk):
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    monkeypatch.setattr(P, "_bump", lambda hass, e: counted.append(e))
+    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),))
+    real = P.ai_task
+    monkeypatch.setattr(P, "ai_task", lambda hass, *, with_backup=False: {**real(hass), "backup": "ai_task.spare", "backup_name": "Spare", "backup_local": True, "main_away": True})
+    store, sess, sid = _run(_session(h, ("m1",)))
+    assert sess["reads"] == 3 and sess["backup_used"] is True and all(d["entity_id"] == "ai_task.spare" for _d, _s, d in ai.calls)
+    assert counted.count("ai_backup_used") == 1
 
 
 def test_home_assistant_stopping_leaves_the_session_for_the_restart_sweep(monkeypatch, tmp_path, disk):
@@ -791,9 +950,23 @@ def test_two_plans_a_little_apart_both_stay_named_and_a_plan_with_no_floor_is_ma
 
 
 def test_a_find_with_no_floor_to_climb_from_is_said_not_dropped_silently(monkeypatch, tmp_path, disk):
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
     h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),), floors=({"id": "main", "name": "Main"},))
     store, sess, sid = _run(_session(h, ("m1",), ("stairs",)))
-    assert sess["suggestions"] == {} and sess["no_floor"] == 1
+    assert sess["suggestions"] == {} and sess["no_floor"] == 1 and counted.count("plan_ai_no_floor") == 1
+
+
+@pytest.mark.parametrize("floor", ["__outside__", "outside", "Outside"])
+def test_a_plan_of_the_outside_is_not_offered_read_or_accepted(monkeypatch, tmp_path, disk, floor):
+    """Review 2026-11-02: his site plan, Position1 on __outside__, was ticked
+    by default and read. The design leaves outdoor floors out."""
+    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1), ("site", "Site plan", floor, _T1)),
+                                floors=({"id": "main", "name": "Main"}, {"id": "upper", "name": "Upper"}, {"id": "outside", "name": "Outside"}))
+    assert [p["map_id"] for p in _call(W.ws_plan_ai_plans, h, conn)["plans"]] == ["m1"]
+    assert A.plan_now(h, "site") is None
+    assert _call(W.ws_plan_ai_start, h, conn, map_ids=["m1", "site"], kinds=["stairs"], backup_ok=False)["error"] == S.NOT_PLACED_CODE
+    assert ai.calls == []
 
 
 # ═══ verdicts and rejects ════════════════════════════════════════════════════
@@ -814,7 +987,7 @@ def test_failure_and_later_are_written_at_click_counted_and_taken_back(monkeypat
     assert on_disk["sessions"][sid]["suggestions"][sug_id]["state"] == "failure"
     [key] = on_disk["rejects"]
     assert key.startswith("stairs|m1|") and on_disk["rejects"][key]["why"] == "wrong_place"
-    assert counted == ["plan_ai_verdict:stairs_failure", "plan_ai_failure_why:wrong_place"]
+    assert counted == ["plan_ai_verdict:stairs_failure", "plan_ai_failure_why:stairs_wrong_place"]
     # A stale rev reloads; nothing changes.
     assert _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev, sug_id=sug_id, v="later")["error"] == W.REV_CODE
     # Take that back: queued again, the reject gone.
@@ -876,6 +1049,114 @@ def test_status_marks_a_changed_plan_or_target_stale(monkeypatch, tmp_path, disk
     h.data[DOMAIN][DATA_MODEL].map_transform = lambda mid: {**_T1, "origin_x_m": 5.0}
     out = _call(W.ws_plan_ai_status, h, conn, session=sid)
     assert all(p["changed"] for p in out["session"]["plans"]) and all(s["state"] == "stale" for s in out["session"]["suggestions"].values())
+
+
+def test_looks_right_is_stored_counted_and_taken_back_and_writes_nothing_else(monkeypatch, tmp_path, disk):
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": _WHOLE, "crop": {"present": True}, "rail": {"rail": "yes"}},
+                                plans=(("m1", "Main", "main", _T1),))
+    store, sess, sid = _run(_session(h, ("m1",)))
+    stair = next(s for s in sess["suggestions"].values() if s["kind"] == "stairs")
+    hint = next(s for s in sess["suggestions"].values() if s["kind"] == "railing")
+    rev = sess["rev"]
+    counted.clear()
+    disk.writes.clear()
+    out = _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev, sug_id=stair["id"], v="right")
+    assert out["suggestion"]["state"] == "right" and out["suggestion"]["verdict"]["v"] == "right" and out["suggestion"]["verdict"]["why"] is None
+    assert disk.writes == [PLAN_AI_STORE_KEY] and store.data["rejects"] == {}          # the session store and nothing else; no reject
+    assert json.loads(_file(tmp_path, PLAN_AI_STORE_KEY).read_text(encoding="utf-8"))["data"]["sessions"][sid]["suggestions"][stair["id"]]["state"] == "right"
+    assert counted == ["plan_ai_verdict:stairs_right"]
+    assert hint["state"] == "queued" and out["changed"] == []                          # its hint stays open: a right stair may have a wrong rail
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 1, sug_id=hint["id"], v="right")
+    assert counted[-1] == "plan_ai_verdict:railing_right"
+    # Taken back: queued again, and counted apart (a report counter only goes up).
+    out = _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 2, sug_id=stair["id"], v="back")
+    assert out["suggestion"]["state"] == "queued" and out["suggestion"]["verdict"] is None and counted[-1] == "plan_ai_taken_back:stairs_right"
+    # Not on a stale item: the plan or its stair changed since the read.
+    stair["state"] = "stale"
+    assert _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 3, sug_id=stair["id"], v="right")["error"] == "not_open"
+    assert all(T.event_allowed(e) for e in counted), counted
+
+
+def test_a_verdict_changed_or_taken_back_is_counted_apart_and_failure_why_is_split_by_kind(monkeypatch, tmp_path, disk):
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": _WHOLE, "crop": {"present": True}, "rail": {"rail": "yes"}},
+                                plans=(("m1", "Main", "main", _T1),))
+    store, sess, sid = _run(_session(h, ("m1",)))
+    stair = next(s for s in sess["suggestions"].values() if s["kind"] == "stairs")
+    hint = next(s for s in sess["suggestions"].values() if s["kind"] == "railing")
+    rev = sess["rev"]
+    counted.clear()
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev, sug_id=hint["id"], v="failure", why="wrong_kind")
+    assert counted == ["plan_ai_verdict:railing_failure", "plan_ai_failure_why:railing_wrong_kind"]
+    counted.clear()
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 1, sug_id=hint["id"], v="back")
+    assert counted == ["plan_ai_taken_back:railing_failure"]
+    counted.clear()
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 2, sug_id=stair["id"], v="later")
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 3, sug_id=stair["id"], v="failure", why="nothing_there")
+    assert "plan_ai_taken_back:stairs_later" in counted and "plan_ai_failure_why:stairs_nothing_there" in counted
+    # Un-ignoring a reject takes a failure back too; the suggestions it marks on a later read were never verdicts of their own.
+    counted.clear()
+    [key] = store.data["rejects"]
+    assert _call(W.ws_plan_ai_reject_forget, h, conn, key=key) == {"ok": True}
+    assert "plan_ai_taken_back:stairs_failure" in counted
+    assert all(T.event_allowed(e) for e in counted), counted
+
+
+def test_marking_a_stair_wrong_settles_its_railing_hint_and_a_take_back_restores_it(monkeypatch, tmp_path, disk):
+    counted = []
+    monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": _WHOLE, "crop": {"present": True}, "rail": {"rail": "yes", "side": "left"}},
+                                plans=(("m1", "Main", "main", _T1),))
+    store, sess, sid = _run(_session(h, ("m1",)))
+    stair = next(s for s in sess["suggestions"].values() if s["kind"] == "stairs")
+    hint = next(s for s in sess["suggestions"].values() if s["kind"] == "railing")
+    rev = sess["rev"]
+    counted.clear()
+    out = _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev, sug_id=stair["id"], v="failure", why="nothing_there")
+    assert [c["id"] for c in out["changed"]] == [hint["id"]] and hint["state"] == "settled" and hint["verdict"]["stair"] == stair["id"]
+    assert "plan_ai_verdict:railing_settled" in counted and "plan_ai_verdict:railing_failure" not in counted   # not the AI's railing being wrong
+    assert len(store.data["rejects"]) == 1                                                                     # the stair's own, no second one
+    # Saved, and not open for a verdict of its own.
+    assert json.loads(_file(tmp_path, PLAN_AI_STORE_KEY).read_text(encoding="utf-8"))["data"]["sessions"][sid]["suggestions"][hint["id"]]["state"] == "settled"
+    assert _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 1, sug_id=hint["id"], v="later")["error"] == "not_open"
+    # Take the stair's failure back: the hint is queued again.
+    out = _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 1, sug_id=stair["id"], v="back")
+    assert [c["id"] for c in out["changed"]] == [hint["id"]] and hint["state"] == "queued" and hint["verdict"] is None
+    assert "plan_ai_taken_back:railing_settled" in counted
+    # A hint set Later keeps that through a failure and back; one the person marked right or wrong themselves is theirs.
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 2, sug_id=hint["id"], v="later")
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 3, sug_id=stair["id"], v="failure", why="wrong_place")
+    assert hint["state"] == "settled" and hint["verdict"]["was"]["state"] == "later"
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 4, sug_id=stair["id"], v="right")               # changed its mind: not a failure any more
+    assert stair["state"] == "right" and hint["state"] == "later" and hint["verdict"]["v"] == "later"
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 5, sug_id=hint["id"], v="right")
+    out = _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 6, sug_id=stair["id"], v="failure", why="wrong_place")
+    assert out["changed"] == [] and hint["state"] == "right"
+    # Un-ignoring the stair's reject brings the hint back with it.
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 7, sug_id=hint["id"], v="back")
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 8, sug_id=stair["id"], v="later")
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=rev + 9, sug_id=stair["id"], v="failure", why="wrong_place")
+    assert hint["state"] == "settled"
+    [key] = store.data["rejects"]
+    _call(W.ws_plan_ai_reject_forget, h, conn, key=key)
+    assert stair["state"] == "queued" and hint["state"] == "queued"
+    assert all(T.event_allowed(e) for e in counted), counted
+
+
+def test_a_hint_beside_an_existing_stair_goes_with_the_suggestion_it_came_from(monkeypatch, tmp_path, disk):
+    """Its geom names the piece; the link to the suggestion it came with is of_stair (a correction, 1.5 m off)."""
+    h, conn, ai, media = _house(monkeypatch, tmp_path, {"whole": _WHOLE, "crop": {"present": True}, "rail": {"rail": "yes"}},
+                                plans=(("m1", "Main", "main", _T1),), pieces={"fur_00000001": _stair("fur_00000001", "main", 3.0, 4.0)})
+    store, sess, sid = _run(_session(h, ("m1",)))
+    stair = next(s for s in sess["suggestions"].values() if s["kind"] == "stairs")
+    hint = next(s for s in sess["suggestions"].values() if s["kind"] == "railing")
+    assert stair["match"]["relation"] == "correction" and hint["geom"]["stair"] == "fur_00000001" and hint["of_stair"] == stair["id"]
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=sess["rev"], sug_id=stair["id"], v="failure", why="wrong_place")
+    assert hint["state"] == "settled"
 
 
 # ═══ the commands' caps ══════════════════════════════════════════════════════
@@ -965,6 +1246,53 @@ def test_a_plan_leaves_the_house_only_with_the_tick_asked_on_the_server_too(monk
     assert _call(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=True)["error"] == "cloud_not_agreed" and seen == [True]
 
 
+@pytest.mark.parametrize("url,local", [("https://ollama.com", False), ("http://8.8.8.8:11434", False), (None, None)])
+def test_an_ollama_outside_the_house_needs_the_tick_and_says_so(monkeypatch, tmp_path, disk, url, local):
+    """Review 2026-11-02: HA's Ollama takes any URL. Outside the house (or
+    with no URL to go by) it is not local: no plan goes without the tick, on
+    the server, whatever the sheet said, and a local read's short cap isn't its."""
+    from tests.test_house3d_photo import _HOST_AT_HOME
+    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),))
+    monkeypatch.setattr(P, "_server_url", lambda hass, eid: url)
+    monkeypatch.setattr(P, "_host_at_home", _HOST_AT_HOME)
+    info = _call(W.ws_plan_ai_plans, h, conn)["ai"]
+    assert info["local"] is local
+    tasks = []
+    h.async_create_background_task = lambda coro, name: tasks.append(asyncio.get_event_loop().create_task(coro)) or tasks[-1]
+    seen = []
+    real = P.ask_ai
+
+    async def spy(hass, ai_, instructions, structure, raw, mime, task_name="x", *, count=True, timeout_s=None):
+        seen.append(timeout_s)
+        return await real(hass, ai_, instructions, structure, raw, mime, task_name, count=count, timeout_s=timeout_s)
+    monkeypatch.setattr(P, "ask_ai", spy)
+
+    async def go():
+        out = await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False)
+        assert out["error"] == "cloud_not_agreed" and ai.calls == []
+        out = await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False, cloud_ok=True)
+        assert "session" in out
+        await asyncio.gather(*tasks)
+    asyncio.new_event_loop().run_until_complete(go())
+    assert ai.calls and all(t == P.PHOTO_TIMEOUT_S for t in seen)
+
+
+def test_an_ollama_on_the_home_network_needs_no_tick(monkeypatch, tmp_path, disk):
+    from tests.test_house3d_photo import _HOST_AT_HOME
+    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),))
+    monkeypatch.setattr(P, "_server_url", lambda hass, eid: "http://192.168.1.60:11434")
+    monkeypatch.setattr(P, "_host_at_home", _HOST_AT_HOME)
+    assert _call(W.ws_plan_ai_plans, h, conn)["ai"]["local"] is True
+    tasks = []
+    h.async_create_background_task = lambda coro, name: tasks.append(asyncio.get_event_loop().create_task(coro)) or tasks[-1]
+
+    async def go():
+        assert "session" in await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False)
+        await asyncio.gather(*tasks)
+    asyncio.new_event_loop().run_until_complete(go())
+    assert ai.calls
+
+
 def test_without_an_ai_task_start_refuses_and_counts_it(monkeypatch, tmp_path, disk):
     counted = []
     monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
@@ -1000,6 +1328,8 @@ def test_a_session_and_its_verdicts_leave_every_other_store_byte_identical(monke
     [sug_id] = [k for k, s in sess["suggestions"].items() if s["kind"] == "stairs"]
     _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=sess["rev"], sug_id=sug_id, v="failure", why="cant_tell")
     _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=sess["rev"], sug_id=sug_id, v="later")
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=sess["rev"], sug_id=sug_id, v="right")
+    _call(W.ws_plan_ai_verdict, h, conn, session=sid, rev=sess["rev"], sug_id=sug_id, v="back")
     _call(W.ws_plan_ai_status, h, conn)
     for key in store.data["rejects"]:
         _call(W.ws_plan_ai_reject_forget, h, conn, key=key)
@@ -1029,10 +1359,12 @@ def test_the_family_is_closed_every_name_has_a_call_site_and_nothing_names_a_pla
         assert f"plan_ai_plans:{band}" in T.PLAN_AI_EVENTS and A._band(n, ((1, "1"), (3, "2_3"), (6, "4_6")), "gt6") == band
     for why in A.CANCEL_WHY:
         assert f"plan_ai_cancel_why:{why}" in T.PLAN_AI_EVENTS
-    for why in A.FAILURE_WHY:
-        assert f"plan_ai_failure_why:{why}" in T.PLAN_AI_EVENTS
     for k in A.KINDS:
-        assert {f"plan_ai_suggested:{k}", f"plan_ai_duplicate:{k}", f"plan_ai_verdict:{k}_failure", f"plan_ai_verdict:{k}_later"} <= T.PLAN_AI_EVENTS
+        assert {f"plan_ai_suggested:{k}", f"plan_ai_duplicate:{k}"} <= T.PLAN_AI_EVENTS
+        assert {f"plan_ai_failure_why:{k}_{why}" for why in A.FAILURE_WHY} <= T.PLAN_AI_EVENTS
+        assert {f"plan_ai_verdict:{k}_{v}" for v in A.VERDICTS} | {f"plan_ai_taken_back:{k}_{v}" for v in A.VERDICTS} <= T.PLAN_AI_EVENTS
+    assert set(A.NO_READ_WHY) == set(T.PLAN_AI_NO_READ) and set(A.NO_READ_WHY) <= set(T.PLAN_AI_ERRORS)
+    assert "plan_ai_held:suspect" not in T.PLAN_AI_EVENTS                              # a frame's coarseness is held by the frame; suspect is an error's count
     # The report names (views/installbase.js) cover the family's prefixes.
     ib = (_WWW / "views" / "installbase.js").read_text(encoding="utf-8")
     for prefix in sorted({e.partition(":")[0] for e in T.PLAN_AI_EVENTS}):
@@ -1047,6 +1379,16 @@ def test_the_report_carries_the_switch_only_when_on(monkeypatch, tmp_path, disk)
     assert "ai_plans" not in payload["features"]
     h.data[DOMAIN][DATA_SETTINGS].data["ai_plans_enabled"] = True
     assert T.build_payload(h)["features"].get("ai_plans") is True
+
+
+@pytest.mark.parametrize("path,words", [
+    ("docs/FURNISH_GUIDE.md", "with **Settings → AI → AI map-building research (experimental)** on, **Stairs from your floor plans** on under it"),
+    ("site/index.html", "With <b>Settings → AI → AI map-building research</b> on, <b>Stairs from your floor plans</b> on under it")])
+def test_the_guide_and_the_site_say_the_master_switch_comes_first(path, words):
+    p = _ROOT.parents[1] / path
+    if not p.exists():
+        pytest.skip(f"{path} is not in this tree")
+    assert words in " ".join(p.read_text(encoding="utf-8").split())
 
 
 # ═══ the list view, run ══════════════════════════════════════════════════════
@@ -1064,6 +1406,6 @@ def sheet() -> dict:
 
 
 def test_the_plans_sheet_runs(sheet):
-    assert len(sheet) >= 20, sorted(sheet)
+    assert len(sheet) >= 30, sorted(sheet)
     bad = {k: v for k, v in sheet.items() if not v["ok"]}
     assert not bad, json.dumps(bad, indent=2, ensure_ascii=False)

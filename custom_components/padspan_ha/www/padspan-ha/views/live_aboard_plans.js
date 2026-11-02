@@ -10,16 +10,19 @@
 //
 //   The sheet   which placed plans to read (grouped by floor, all ticked),
 //               which kinds (stairs; railings beside them; lights come
-//               later), what to expect, where the plans go (a local AI keeps
-//               them in the house; a cloud one needs a tick), and one button.
+//               later), what to expect, where the plans go (an AI on the home's
+//               own network keeps them in the house; anything else needs a
+//               tick), how long the AI may be busy, and one button. A session
+//               that read nothing says why, not that the AI found nothing.
 //   The job     runs on the server (ws_plan_ai.py); the sheet asks for its
 //               status every 3 s and can cancel it between reads.
 //   The list    one row per suggestion, with a crop of the plan drawn from
 //               the Library's signed picture link and the box the AI gave:
-//               mark it wrong (one reason chip, written at once), later, or
-//               take that back; "already in your house" and "ignored before"
-//               listed apart; Manage ignored. New and Correction are shown
-//               but come in the next beta: nothing here writes the house.
+//               say it looks right, mark it wrong (one reason chip), later, all
+//               written at once, or take that back; "already in your house"
+//               and "ignored before" listed apart; Manage ignored. New and
+//               Correction are shown but come in the next beta: nothing here
+//               writes the house.
 //
 // Imports nothing; the editor hands in the sheet, the host's callWS and the
 // floors. No placement, picture size or map record is read here: the server
@@ -64,6 +67,11 @@ const NEXT_BETA = "Comes in the next beta: this version writes nothing to your h
 const POLL_MS = 3000;
 const CANCEL_WORDS = { user: "cancelled", switch_off: "stopped: the switch was turned off", house3d_off: "stopped: Live Aboard was turned off",
   licence: "stopped: the licence lapsed", plan_gone: "stopped: a plan was removed", plan_changed: "stopped: a plan was moved or replaced", restart: "" };
+// Why reads failed (the session's `errors`), and so why a session read nothing at all (its `error`).
+const NO_READ = { no_media: "Home Assistant's media folder couldn't take the plans for the AI", no_picture: "the plans' pictures wouldn't open",
+  unreachable: "the AI couldn't be reached (is the computer it runs on switched on?)", timeout: "the AI didn't answer in time", bad_answer: "the AI gave no answer that could be used" };
+/** A shared AI box: the session's budget (plan_ai.PLAN_BUDGET_S) is how long reads can hold it. */
+const sharedNote = (withBackup) => `Reading can keep ${withBackup ? "this AI or the backup" : "this AI"} busy for up to 8 minutes: if ${withBackup ? "either" : "it"} also answers your voice assistant, voice may be slow until it ends.`;
 
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const m1 = (v) => (num(v) === null ? "?" : (Math.round(v * 10) / 10).toFixed(1));
@@ -74,10 +82,11 @@ const mins = (s) => { s = Math.max(0, Math.round(num(s) || 0)); return s >= 60 ?
 function planNote(ai, n, backupOk){
   const name = (ai && ai.name) || "The AI Task";
   const them = n === 1 ? "the plan" : "the plans";
-  const whereOf = (local, it = "it") => (local === true ? `${it[0].toUpperCase()}${it.slice(1)} runs in your home, so ${them} stay in the house.`
+  const whereOf = (local, it = "it") => (local === true ? `${it[0].toUpperCase()}${it.slice(1)} is on your own network, so ${them} stay in the house.`
     : local === false ? `${it[0].toUpperCase()}${it.slice(1)} runs in the cloud: ${them} leave the house for that service.`
     : `If ${it} runs in the cloud, ${them} leave the house for that service.`);
   const bk = ai && ai.backup ? (ai.backup_name || ai.backup) : null;
+  if (!bk && ai && ai.main_away) return `${name} is away right now, so nothing can read ${them}. Start it, or set a backup in Settings → AI, then open this again.`;
   if (bk && ai.main_away) return backupOk ? `The main AI Task is away, so the backup, ${bk}, will read ${them}. ${whereOf(ai.backup_local)} PadSpan keeps no copy.`
     : `The main AI Task is away. The backup, ${bk}, can read ${them} if you tick it below. ${whereOf(ai.backup_local, "that one")}`;
   const also = bk && backupOk ? ` If it's away, the backup, ${bk}, reads them instead. ${whereOf(ai.backup_local, "that one")}` : "";
@@ -116,10 +125,12 @@ export function createPlans(ctx){
   };
   const fail = (e) => { err = String((e && (e.message || e.code)) || e || "failed"); busy = false; redraw(); };
   const floorName = (fid) => { const G = (ctx.floors() || []).find(g => g && g.fl && String(g.fl.id) === String(fid)); return G ? (G.fl.name || String(fid)) : String(fid); };
-  const outdoor = (fid) => { const G = (ctx.floors() || []).find(g => g && g.fl && String(g.fl.id) === String(fid)); return !!(G && G.fl.outdoor); };
+  const outdoor = (fid) => { const s = String(fid).toLowerCase(); if (s === "__outside__" || s === "outside") return true;   // the server leaves these out too (plan_ai.plans)
+    const G = (ctx.floors() || []).find(g => g && g.fl && String(g.fl.id) === String(fid)); return !!(G && G.fl.outdoor); };
   const planName = (mid) => { const p = ((info && info.plans) || []).find(x => x.map_id === mid) || ((sess && sess.plans) || []).find(x => x.map_id === mid); return p ? (p.name || "a plan") : "a plan"; };
   const sugs = () => Object.values((sess && sess.suggestions) || {});
   const movedPlan = (mid) => !!((sess && sess.plans) || []).find(x => x.map_id === mid && x.changed);
+  const unread = () => ((sess && sess.plans) || []).filter(p => p.read && !p.answered).length;   // its whole read was tried, and no answer came of it
 
   // ── opening: what is there to read, and what the last session left ───────
   async function open(){
@@ -197,7 +208,9 @@ export function createPlans(ctx){
     try {
       const r = await call("plan_ai_verdict", { session: sess.id, rev: sess.rev, sug_id: sug.id, v, ...(why ? { why } : {}) });
       sess.rev = r.rev; sess.suggestions[sug.id] = r.suggestion; failing = null;
-      ctx.hint(v === "failure" ? "Noted." : v === "later" ? "Later, then." : "Taken back.");
+      for (const h of r.changed || []) sess.suggestions[h.id] = h;     // a stair's railing hint goes and comes back with it
+      ctx.hint(v === "failure" ? ((r.changed || []).length ? "Noted. Its railing hint goes with it." : "Noted.") : v === "later" ? "Later, then."
+        : v === "right" ? "Noted: it looks right. Nothing is written to your house." : "Taken back.");
     } catch (e) {
       if (e && e.code === "rev_mismatch") { ctx.hint("That list had changed: here it is again."); try { const r = await call("plan_ai_status", { session: sess.id }); sess = r.session || sess; } catch (_) { /* kept */ } }
       else err = String((e && e.message) || e);
@@ -307,6 +320,8 @@ export function createPlans(ctx){
     if (!ai || ai.ready === false) sheet.appendChild(d("div", "pl-note pl-bad", (ai && ai.message) || "Pick an AI Task in Settings → AI first."));
     else {
       sheet.appendChild(d("div", "pl-note", planNote(ai, n, backupOk)));
+      const withBackup = !!(backupOk && ai.backup);
+      if (ai.local !== false || withBackup) sheet.appendChild(d("div", "pl-note", sharedNote(withBackup)));
       if (mayLeave(ai, backupOk)) {
         sheet.appendChild(d("div", "pl-note", "A plan with your address on it goes with it; crop it in Mapping → Upload first if you'd rather not."));
         const l = d("label", "pl-tick");
@@ -351,15 +366,20 @@ export function createPlans(ctx){
   }
 
   function summary(){
+    if (sess.status === "failed" && NO_READ[sess.error]) return `Nothing was read: ${NO_READ[sess.error]}. That isn't the AI finding nothing: read again once it's sorted.`;
     const ss = sugs();
     const stairs = ss.filter(s => s.kind === "stairs" && s.state !== "duplicate").length;
     const rails = ss.filter(s => s.kind === "railing").length;
-    const n = (sess.plans || []).length, skipped = sess.skipped || 0;
-    let line = `Found ${stairs} stair${stairs === 1 ? "" : "s"}, ${rails} railing hint${rails === 1 ? "" : "s"} on ${n - skipped} plan${n - skipped === 1 ? "" : "s"} in ${mins(sess.spent_s)}.`;
+    const skipped = sess.skipped || 0, read = (sess.plans || []).filter(p => p.answered).length, notRead = unread();
+    const errs = sess.errors || {}, failedReads = Object.keys(NO_READ).reduce((t, k) => t + (errs[k] || 0), 0);
+    const worst = Object.keys(NO_READ).reduce((a, k) => ((errs[k] || 0) > (errs[a] || 0) ? k : a));
+    let line = `Found ${stairs} stair${stairs === 1 ? "" : "s"}, ${rails} railing hint${rails === 1 ? "" : "s"} on ${read} plan${read === 1 ? "" : "s"} in ${mins(sess.spent_s)}.`;
     if (skipped) line += ` ${skipped} plan${skipped === 1 ? "" : "s"} skipped (out of time).`;
+    if (notRead) line += ` ${notRead} plan${notRead === 1 ? "" : "s"} couldn't be read.`;
+    if (failedReads) line += ` ${failedReads} read${failedReads === 1 ? "" : "s"} failed: ${NO_READ[worst]}.`;
     if (sess.crop_dropped) line += ` ${sess.crop_dropped} left out: a closer look found no staircase there.`;
     if (sess.no_floor) line += ` ${sess.no_floor} left out: no floor below for a staircase to climb from.`;
-    if (sess.status === "out_of_time") line += " The session ran out of time.";
+    if (sess.status === "out_of_time") line += skipped || sess.cut_short ? " The session ran out of time." : " It stopped after two reads in a row got no answer.";
     if (sess.status === "cancelled") line += ` The session was ${CANCEL_WORDS[sess.error] || "cancelled"}.`;
     if (sess.status === "failed") line += sess.error === "restart" ? " Home Assistant restarted during the read; run it again." : " The read failed; run it again.";
     if (sess.backup_used) line += " Read by the backup AI task.";
@@ -390,7 +410,7 @@ export function createPlans(ctx){
     t.appendChild(rel);
     if (sug.kind === "stairs" && m.relation === "correction" && m.hand === true) t.appendChild(d("div", "pl-sub", `You placed this one. The AI puts it ${m1(m.distance_m)} m away. Keep yours unless the plan says otherwise.`));
     for (const o of m.others || []) t.appendChild(d("div", "pl-sub", `${planName(o.map_id)} puts one ${m1(o.distance_m)} m from here: both are listed, nothing wins by itself.`));
-    if (m.held === "frame" || m.held === "suspect") t.appendChild(d("div", "pl-sub", m.held === "suspect" ? "Position unsure: the AI answered in a 0-1000 frame." : "Position may be coarse: this AI's picture size isn't known."));
+    if (m.held === "frame") t.appendChild(d("div", "pl-sub", "Position may be coarse: this AI's picture size isn't known."));
     else if (m.held === "eye") t.appendChild(d("div", "pl-sub", "The plan was placed by eye, so the offset may be the plan's."));
     if (sug.verdict && sug.verdict.why) t.appendChild(d("div", "pl-sub", `Marked wrong: ${WHY_WORD[sug.verdict.why] || sug.verdict.why}${sug.verdict.remembered ? " (ignored before)" : ""}`));
     if (acts) t.appendChild(acts);
@@ -406,6 +426,7 @@ export function createPlans(ctx){
       for (const [k, word] of WHY) a.appendChild(btn(word, `Mark it wrong: ${word.toLowerCase()}`, () => verdict(sug, "failure", k), "why"));
       a.appendChild(btn("Never mind", "Keep it in the queue", () => { failing = null; redraw(); }));
     } else {
+      if (sug.state !== "stale") a.appendChild(btn("Looks right", "The AI got this one right (noted at once; nothing is written to your house)", () => verdict(sug, "right")));
       a.appendChild(btn("Failure", "Mark it wrong, with a reason (noted at once)", () => { failing = sug.id; redraw(); }));
       if (sug.state !== "stale") a.appendChild(btn("Later", "Come back to it (noted at once)", () => verdict(sug, "later")));
     }
@@ -433,12 +454,14 @@ export function createPlans(ctx){
     };
     group("To check", ss.filter(s => s.state === "queued"), queuedActs);
     group("Changed since you looked", ss.filter(s => s.state === "stale"), queuedActs);
+    group("Looks right", ss.filter(s => s.state === "right"), backActs);
     group("Later", ss.filter(s => s.state === "later"), backActs);
     group("Marked wrong", ss.filter(s => s.state === "failure" && !(s.verdict && s.verdict.remembered)), backActs);
+    group("Gone with its stair", ss.filter(s => s.state === "settled"), null);
     group("Already in your house", ss.filter(s => s.state === "duplicate"), null);
     group("Ignored before", ss.filter(s => s.state === "failure" && s.verdict && s.verdict.remembered),
       (s) => { const a = d("div", "pl-acts"); const b = btn("Un-ignore", "Forget that reject and queue it again", () => forget(s.verdict.reject)); b.disabled = busy; a.appendChild(b); return a; });
-    if (!ss.length) sheet.appendChild(d("div", "pl-note", "The AI found nothing on these plans."));
+    if (!ss.length && sess.status === "done") sheet.appendChild(d("div", "pl-note", unread() ? "The AI found nothing on the plans it could read." : "The AI found nothing on these plans."));
     const foot = d("div", "pl-foot");
     foot.appendChild(btn("Manage ignored", "The finds you marked wrong, remembered per plan", () => openIgnored()));
     foot.appendChild(btn("Read again", "Back to the plans and the button", () => readAgain()));
@@ -484,7 +507,7 @@ export function createPlans(ctx){
       on = !!on;
       if (on === shownNow) return;
       shownNow = on;
-      if (on) { view = "list"; failing = null; open(); }
+      if (on) { view = "list"; failing = null; cloudOk = false; backupOk = false; open(); }     // each opening asks again
       else { stopPoll(); sheet.classList.remove("plans"); }
     },
     /** The sheet's content for the step we are at; true: there is one. */
