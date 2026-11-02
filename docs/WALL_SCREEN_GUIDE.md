@@ -92,10 +92,17 @@ Two more options in **Settings → Atlas → 📺 Wall screens**, both off until
 With [Live Aboard](LIVE_ABOARD_GUIDE.md) on:
 
 - Get the view you want and pick **Views ▾ → Set as home**.
-- In **Settings → Atlas → 🏠 Live Aboard**, set **Back to home view** (30 s, 1 min or 5 min).
-  The screen flies back home after that long untouched. It waits while someone is editing, has a
-  card open, or made it full screen by hand.
+- In **Settings → Atlas → 🏠 Live Aboard**, set **Back to home view** (30 s, 1 min, 5 min, or off).
+  The screen flies back home after that long untouched, which also undoes any zooming. It waits
+  while someone is editing, has a card open, or made it full screen by hand. Turn it off if the
+  screen should stay where you left it.
 - When nothing is moving, Live Aboard draws nothing, so an idle screen costs almost nothing.
+- On **Auto** or **High** quality, a wall draws High at every pixel the screen has. If its graphics
+  chip can't turn the house smoothly at that size, the picture is softer only while the camera
+  moves, and sharp again as soon as it stops. A chip too slow for that (a 4K screen on a small PC)
+  goes to Low. **Low** chosen in Settings stays Low on every screen.
+- The whole house is framed to fill the screen, leaving room only for what stays on show (the
+  Motion chip). The bars fade when nobody is there, so they can sit over its edge while you use them.
 
 ## Portrait walls
 

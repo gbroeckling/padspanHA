@@ -302,6 +302,18 @@ def test_the_atlas_page_runs_without_the_wall_module():
     assert "if(!kiosk || this._embedded || !v2 || !WALLS){" in lp, "no module: no wall mode, and every other use of it sits behind data-wall"
 
 
+def test_a_wall_draws_every_pixel_and_fills_its_screen():
+    """A wall on High draws the screen's own pixels, less only while the camera
+    moves on a chip that needs it; Low keeps the budget. Its house is framed
+    clear of what stays on show, not of the bars that fade."""
+    src = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8")
+    assert 'const px = profileOf().dpr !== "device" ? WALL_PX : wallMoves && wallMoving() ? WALL_MOVE_PX : 0;' in src
+    assert "if (wallMoves) wallFrame();" in src, "the frame picks its resolution and the sharp frame follows"
+    assert "HOUSE.wallMovesAtLess(quality.setting, quality.measured)" in src
+    assert 'onWallPage(root) ? ".la3d-tip, .la3d-mchip, .la3d-wet" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar"' in src
+    assert "if (pad.H && onWallPage(root)) {" in src, "every other screen frames the house as before"
+
+
 def test_a_portrait_wall_is_sized_like_a_landscape_one_and_can_be_turned():
     """A portrait 4K wall (2160 x 3840) drew its text at about half size:
     min(w/1920, h/1080) is 1.13 there. Long side against 1920, short against
@@ -315,5 +327,7 @@ def test_a_portrait_wall_is_sized_like_a_landscape_one_and_can_be_turned():
     lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     assert "const W = rot ? window.innerHeight : window.innerWidth, H = rot ? window.innerWidth : window.innerHeight;" in lp
     assert ':host([data-wall][data-wall-rotate="90"]){transform:rotate(90deg) translateY(-100%)}' in lp
+    # Its card is as tall as the turned page, not the screen before turning (a band stayed empty).
+    assert ":host([data-wall][data-wall-rotate]) .lv-mapcard.lv-display.lv-wall{height:100vw}" in lp
     card = (_WWW / "views" / "wall_card.js").read_text(encoding="utf-8")
     assert "Screen orientation" in card and "WALLS.ROTATIONS" in card

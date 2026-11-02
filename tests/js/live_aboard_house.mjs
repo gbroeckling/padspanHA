@@ -246,6 +246,38 @@ tryCase("quality: Auto measures High, steps to Low, then gives up to the flat At
   const bad = rows.filter(([g, w]) => g !== JSON.stringify(w));
   check("quality: Auto measures High, steps to Low, then gives up to the flat Atlas", !bad.length, bad);
 });
+tryCase("quality: a wall moves at less only when High is too slow to turn, yet quick enough to draw", () => {
+  const rows = [
+    ["auto", { high: 16.7 }, false],    // keeps up at every pixel: no need
+    ["auto", { high: 34 }, false],
+    ["auto", { high: 66.7 }, true],     // the Wall PC's UHD 630 at 1080p
+    ["high", { high: 66.7 }, true],
+    ["auto", { high: 110 }, true],
+    ["auto", { high: 111 }, false],     // too slow even to draw: the normal steps
+    ["auto", { high: Infinity }, false],
+    ["low", { high: 66.7 }, false],     // Low asked for stays Low
+    ["auto", {}, false],
+    ["auto", null, false],
+  ];
+  const bad = rows.filter(([s, ms, want]) => H.wallMovesAtLess(s, ms) !== want);
+  check("quality: a wall moves at less only when High is too slow to turn, yet quick enough to draw", !bad.length, bad);
+});
+tryCase("fillBand: the shape ends up filling the band, through the perspective", () => {
+  const tanV = Math.tan(20 * Math.PI / 180), tanH = tanV * 16 / 9;
+  // A house seen from above: its near corners (up < 0, toward the camera) draw larger than its far ones.
+  const pts = [[-12, -6, 5], [12, -6, 5], [-12, 8, -6], [12, 8, -6], [-5, 2, 8]];
+  const top = 0.7, bottom = -0.95, side = 0.95;
+  for (const start of [8, 40, 200]) {
+    const f = H.fillBand(pts, tanH, tanV, start, top, bottom, side);
+    const nx = pts.map(p => (p[0] - f.x) / ((f.r - p[2]) * tanH)), ny = pts.map(p => (p[1] - f.y) / ((f.r - p[2]) * tanV));
+    const near = (a, b) => Math.abs(a - b) < 0.01;
+    const inBand = Math.max(...nx) <= side + 0.01 && Math.min(...nx) >= -side - 0.01 && Math.max(...ny) <= top + 0.01 && Math.min(...ny) >= bottom - 0.01;
+    const touches = near(Math.max(...ny), top) && near(Math.min(...ny), bottom) || near(Math.max(...nx), side) && near(Math.min(...nx), -side);
+    check(`fillBand: from r=${start} it fits the band and touches its edges`, inBand && touches, { f, nx, ny });
+  }
+  const close = H.fillBand([[0, 0, 5], [1, 1, 5]], tanH, tanV, 6, 0.9, -0.9, 0.9);
+  check("fillBand: the camera stays in front of the shape", close.r >= 5.5, close);
+});
 tryCase("quality: the profiles are the plan's table", () => {
   const { low, high } = H.QUALITY_PROFILES;
   check("quality: the profiles are the plan's table", low.lamps === 4 && high.lamps === 8 && !low.shadows && high.shadows

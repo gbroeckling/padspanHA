@@ -55,6 +55,9 @@ export const HOUSE3D_FALLBACK_KINDS = ["no_webgl", "slow_gpu", "context_lost", "
 // (settleWalls), once per page load.
 // house3d_fallback_size:<band> (0.38.193): beside each fallback, how many rooms
 // the house has (telemetry.HOUSE_SIZE_BANDS).
+// house3d_wall_draw:<kind>: how a wall screen ended up drawing, once per page
+// load: high (every pixel, always), high_still (every pixel, less while the
+// camera moves) or low.
 export const HOUSE_SIZE_BANDS = ["lt20", "20_60", "60_150", "gt150"];
 // Stairs (0.38.194, live_aboard.js countStairs): drawn, how they come out,
 // what they reach, their shapes and styles (telemetry.STAIR_USE_EVENTS).
@@ -62,7 +65,8 @@ export const STAIR_SHAPES = ["straight", "l", "u", "l2", "l3"];
 export const STAIR_STYLES = ["closed", "open", "treads", "floating"];
 export const STAIR_USE_EVENTS = ["stairs_drawn", ...["all_ok", "some_landing", "some_nofloor"].map(k => `stairs_outcome:${k}`),
   "stairs_reach:split_level", "stairs_reach:within", ...STAIR_SHAPES.map(k => `stairs_shape:${k}`), ...STAIR_STYLES.map(k => `stairs_style:${k}`)];
-export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window",
+export const WALL_DRAW_KINDS = ["high", "high_still", "low"];
+export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), ...WALL_DRAW_KINDS.map(k => `house3d_wall_draw:${k}`), "house3d_wet_window",
   "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
   ...STAIR_USE_EVENTS];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
@@ -981,11 +985,45 @@ export function qualityStep(setting, webgl, ms){
   if (m.low === undefined) return { measure: "low" };
   return ok(m.low) ? { use: "low" } : { fallback: "slow_gpu" };
 }
+/** A wall (High or Auto) that timed High at every pixel: too slow to turn the
+ *  house smoothly, yet quick enough to draw it when something changes? Then it
+ *  moves at less and stays sharp when still (live_aboard.js ratioFor); past
+ *  WALL_STILL_MS it takes the normal steps. Low asked for stays Low. */
+export const WALL_STILL_MS = 110;         // about 10 frames a second
+export function wallMovesAtLess(setting, ms){
+  const v = ms ? ms.high : undefined;
+  return qualitySetting(setting) !== "low" && Number.isFinite(v) && v > HIGH_MS && v <= WALL_STILL_MS;
+}
 /** The median of frame intervals, the first few (shaders compiling) dropped. */
 export function frameMs(intervals, skip = 3){
   const s = (intervals || []).slice(skip).filter(Number.isFinite).sort((a, b) => a - b);
   if (!s.length) return Infinity;
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+}
+
+/**
+ * Fill a band of the screen with a shape, as the perspective really draws it.
+ * pts: [right, up, toward the camera] about the view's middle; tanH, tanV: the
+ * lens's half-width and half-height at distance 1; r: a radius to start from;
+ * top, bottom, side: the band's edges (-1 to 1 of the screen).
+ * Returns {x, y, r}: how far to move the camera's middle along right and up,
+ * and how far back to stand. Sizing and centring change each other, so it settles.
+ */
+export function fillBand(pts, tanH, tanV, r, top, bottom, side){
+  const nearest = Math.max(...pts.map(p => p[2])) + 0.5;     // the camera stays in front of it
+  let x = 0, y = 0;
+  r = Math.max(nearest, r);
+  for (let i = 0; i < 12; i++) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of pts) {
+      const d = r - p[2], nx = (p[0] - x) / (d * tanH), ny = (p[1] - y) / (d * tanV);
+      x0 = Math.min(x0, nx); x1 = Math.max(x1, nx); y0 = Math.min(y0, ny); y1 = Math.max(y1, ny);
+    }
+    x += (x0 + x1) / 2 * r * tanH;
+    y += ((y0 + y1) / 2 - (top + bottom) / 2) * r * tanV;
+    r = Math.max(nearest, r * Math.max((x1 - x0) / (2 * side), (y1 - y0) / (top - bottom)));
+  }
+  return { x, y, r };
 }
 
 // ── Lights: what each one is ─────────────────────────────────────────────────

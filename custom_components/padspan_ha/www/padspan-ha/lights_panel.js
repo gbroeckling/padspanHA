@@ -1473,6 +1473,7 @@ class PadSpanLightsApp extends HTMLElement {
         :host([data-wall][data-wall-rotate]){position:fixed;top:0;left:0;width:100vh;height:100vw;transform-origin:top left}
         :host([data-wall][data-wall-rotate="90"]){transform:rotate(90deg) translateY(-100%)}
         :host([data-wall][data-wall-rotate="270"]){transform:rotate(-90deg) translateX(-100%)}
+        :host([data-wall][data-wall-rotate]) .lv-mapcard.lv-display.lv-wall{height:100vw}
         :host([data-wall]) #content{padding:0}
         :host([data-wall]) .lv-hero, :host([data-wall]) .lv-coach{display:none}
         /* The wall is the map: the lights' table under it stays on the desk's

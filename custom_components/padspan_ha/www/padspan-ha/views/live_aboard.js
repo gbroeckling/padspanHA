@@ -606,6 +606,7 @@ function createSlot(slotKey){
     try { if (root && root.parentNode) root.parentNode.removeChild(root); } catch (_) { /* already out */ }
   }
   function teardown(){
+    clearTimeout(wallSettle); wallSettle = null;
     try { endSpin(false); hidePill(); dropPointers(); endScreen(); } catch (_) { /* nothing to undo */ }
     try { if (use) use.dispose(); } catch (_) { /* gone with the view */ }
     use = null;
@@ -3170,15 +3171,27 @@ function createSlot(slotKey){
     paintWallButtons();
     requestRender();
   }
-  // A wall's pixel budget: a 4K wall drawn at every pixel is 8.3 million a
-  // frame, and the frame rate pays for it. On a wall the 3D view draws at most
-  // about 1440p's worth and the browser scales it up; from across the room it
-  // reads the same. Anywhere else, the quality profile's ratio as before.
-  const WALL_PX = 2560 * 1440;
-  let profileDpr = 1;
+  // A wall on High draws every pixel its screen has. What a modest GPU can't
+  // do at that size is turn the house smoothly, so decideQuality times it, and
+  // one that falls short (wallMoves) draws about 720p's worth only while the
+  // camera moves: every pixel again as soon as it stops. A wall that ends up
+  // on Low keeps a budget of about 1440p (the browser scales it up). Anywhere
+  // else, the quality profile's ratio as before.
+  const WALL_PX = 2560 * 1440, WALL_MOVE_PX = 1280 * 720, WALL_SETTLE_MS = 200;
+  let profileDpr = 1, wallMoves = false, camMovedAt = -Infinity, wallSettle = null;
+  const wallMoving = () => !!quality.measuring || !!cam.fly || performance.now() - camMovedAt < WALL_SETTLE_MS;
   function ratioFor(w, h){
     if (!onWallPage(root) || !w || !h) return profileDpr;
-    return Math.max(0.5, Math.min(profileDpr, Math.sqrt(WALL_PX / (w * h))));
+    const px = profileOf().dpr !== "device" ? WALL_PX : wallMoves && wallMoving() ? WALL_MOVE_PX : 0;
+    return px ? Math.max(0.5, Math.min(profileDpr, Math.sqrt(px / (w * h)))) : profileDpr;
+  }
+  /** Before a frame on a wall that moves at less: this frame's resolution, and the sharp frame once it stops. */
+  function wallFrame(){
+    const pr = ratioFor(drawnW, drawnH);
+    if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr);
+    if (wallSettle === null && !quality.measuring && wallMoving()) {
+      wallSettle = setTimeout(guard(() => { wallSettle = null; requestRender(); }), WALL_SETTLE_MS);
+    }
   }
   function applyProfile(name){
     const Q = HOUSE.QUALITY_PROFILES[name];
@@ -3201,6 +3214,11 @@ function createSlot(slotKey){
   }
   /** One step of the Auto / Low / High pick (live_aboard_house.js qualityStep). */
   function decideQuality(){
+    // A wall too slow to turn the house at every pixel, not to draw it: timed again at what it would move at.
+    if (!wallMoves && onWallPage(root) && HOUSE.wallMovesAtLess(quality.setting, quality.measured)) {
+      wallMoves = true;
+      delete quality.measured.high;
+    }
     const step = HOUSE.qualityStep(quality.setting, true, quality.measured);
     if (step.fallback) { fail(step.fallback); return; }
     if (step.measure) {
@@ -3215,6 +3233,7 @@ function createSlot(slotKey){
     quality.profile = step.use;
     applyProfile(step.use);
     HOUSE.countHouse3dOnce("house3d_opened", send);
+    if (onWallPage(root)) HOUSE.countHouse3dOnce(`house3d_wall_draw:${step.use !== "high" ? "low" : wallMoves ? "high_still" : "high"}`, send);
     requestRender();
   }
 
@@ -3230,6 +3249,7 @@ function createSlot(slotKey){
     camera.lookAt(cam.target);
     camera.updateMatrixWorld();
     if (lampTarget.distanceToSquared(cam.target) > 1) lampsDirty = true;
+    camMovedAt = performance.now();
     tellZoom();
     requestRender();
   }
@@ -3469,7 +3489,8 @@ function createSlot(slotKey){
     const out = { top: 0, bottom: 0, H: (canvas && canvas.clientHeight) || 0 };
     if (!root || !out.H || typeof root.getBoundingClientRect !== "function") return out;
     const r0 = root.getBoundingClientRect();
-    for (const el of root.querySelectorAll(".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
+    // A wall's bars fade when nobody is there: they don't get to shrink the house.
+    for (const el of root.querySelectorAll(onWallPage(root) ? ".la3d-tip, .la3d-mchip, .la3d-wet" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
       const r = el.getBoundingClientRect && el.getBoundingClientRect();
       if (!r || !(r.height > 0) || !(r.width > 0) || getComputedStyle(el).visibility === "hidden") continue;
       const t = r.top - r0.top, b = r.bottom - r0.top;
@@ -3480,6 +3501,7 @@ function createSlot(slotKey){
     out.top *= k; out.bottom *= k;
     return out;
   }
+  const WALL_CLEAR = 0.05;                                   // a wall's house keeps this clear of the screen's edge (of half the screen)
   function frameFor(theta, phi, pts){
     const keep = { p: camera.position.clone(), q: camera.quaternion.clone() };
     const dir = new THREE.Vector3(Math.sin(phi) * Math.sin(theta), Math.cos(phi), Math.sin(phi) * Math.cos(theta));
@@ -3501,6 +3523,13 @@ function createSlot(slotKey){
     for (const q of pts) {
       const o = q.clone().sub(c), z = o.dot(dir);
       need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.08, z + Math.abs(o.dot(up)) / (tv * fr) * vk);   // sides: 8% clear (4% ran a narrow screen's house to its edge)
+    }
+    // A wall: the house as large as the screen lets it be, in the band what stays on show leaves.
+    if (pad.H && onWallPage(root)) {
+      const f = HOUSE.fillBand(pts.map((q) => { const o = q.clone().sub(c); return [o.dot(right), o.dot(up), o.dot(dir)]; }), th, tv, need,
+                               1 - 2 * pad.top / pad.H - WALL_CLEAR, -1 + 2 * pad.bottom / pad.H + WALL_CLEAR, 1 - WALL_CLEAR);
+      c.addScaledVector(right, f.x).addScaledVector(up, f.y);
+      need = Math.max(2, f.r);
     }
     camera.position.copy(keep.p); camera.quaternion.copy(keep.q);
     camera.updateMatrixWorld();
@@ -3826,6 +3855,7 @@ function createSlot(slotKey){
     const due = dirty || !!quality.measuring || (liveMs > 0 && t - lastAmbient >= liveMs - 4);
     if (due) {
       if (cam.needsFit && (canvas.clientWidth || 0) > 0) { openView(); if (studio) arrive(); }
+      if (wallMoves) wallFrame();
       updateCutaway();
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
@@ -4640,7 +4670,7 @@ function createSlot(slotKey){
     if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
     applySun(p);
     if (setting !== quality.setting || (!quality.profile && !quality.measuring)) {
-      quality.setting = setting; quality.measured = {}; quality.profile = null;
+      quality.setting = setting; quality.measured = {}; quality.profile = null; wallMoves = false;
       decideQuality();
     }
     applyWeather(p);
@@ -4758,7 +4788,7 @@ function createSlot(slotKey){
     release(){ try { cancelNorth(); endScreen(); showFlat(); teardown(); } catch (_) { /* best effort */ } },
     // A window on it, for the harness and for poking at it from the console.
     _state(){
-      return { failed, profile: quality.profile, measuring: quality.measuring, measured: { ...quality.measured }, frames, wallMode, topElev,
+      return { failed, profile: quality.profile, measuring: quality.measuring, measured: { ...quality.measured }, wallMoves, frames, wallMode, topElev,
                cam: { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray(), moved: cam.moved },
                sun: sunNow ? { ...sunNow, intensity: sun.intensity, sky: hemi.intensity, dir: sunDir.toArray() } : null, bearing, rose: roseDeg,
                north: { stored: storedBearing, preview: northPreview, hold: northHold ? northHold.b : null,
