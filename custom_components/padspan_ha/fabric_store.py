@@ -620,6 +620,29 @@ class FabricStore:
         out["invert_state"] = bool(out.get("invert_state"))
         return out
 
+    async def async_stamp_barrier_rails(self, rails: dict[str, str]) -> dict[str, int]:
+        """A railing word ("glass" or "none") onto each Open barrier named in
+        `rails` that has none yet: that one key, on the record as it is stored
+        now, where it stands. No other field is read from the caller or
+        rewritten, so a tab holding an older model can't put old corners back,
+        and an open wall an old path saved at 6 dB stays at 6 dB (its attenuation
+        changes on its next real save, _norm_barrier). A word already there
+        stays. Returns how many of each word went on.
+        """
+        counts = {"glass": 0, "none": 0}
+        for bar in self.data.get("rf_barriers_m") or []:
+            word = rails.get(str(bar.get("id")))
+            if (word not in counts or bar.get("rail") in counts
+                    or str(bar.get("material") or "").strip().lower() != "open"):
+                continue
+            bar["rail"] = word
+            counts[word] += 1
+        total = sum(counts.values())
+        if total:
+            self._log_history("", "", "barrier_rails_stamp", total)
+            await self.store.async_save(self.data)
+        return counts
+
     async def async_spatial_update(
         self, *,
         set_scanners: dict[str, dict] | None = None,
@@ -712,8 +735,14 @@ class FabricStore:
                 norm = self._norm_barrier(bar)
                 if norm is None:
                     continue
-                barriers = [b for b in barriers if b.get("id") != norm["id"]]
-                barriers.append(norm)
+                # Where it stands: in the 3D house the first barrier wins an
+                # overlap (applyBarriers), so a rewrite must not move one. A
+                # new one goes last.
+                at = next((i for i, b in enumerate(barriers) if b.get("id") == norm["id"]), None)
+                if at is None:
+                    barriers = [*barriers, norm]
+                else:
+                    barriers = [*barriers[:at], norm, *(b for b in barriers[at + 1:] if b.get("id") != norm["id"])]
                 counts["barriers"] += 1
             self.data["rf_barriers_m"] = barriers
         if remove_barrier_ids:

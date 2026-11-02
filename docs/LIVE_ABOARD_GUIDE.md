@@ -123,9 +123,12 @@ warm from outside.
 **Mezzanines and open edges:** draw a mezzanine, gallery or loft as its own floor in Home Assistant.
 In Mapping → Floor Heights, give the hall underneath its full height (floor to roof) and the
 mezzanine its real **base elevation**. Live Aboard then draws the mezzanine inside the hall, under
-the hall's roof. Where its edge has a railing in real life, draw that edge in Mapping as a wall
-with the **Open (Loft)** material: over the hall it gets a glass railing. Anywhere else (between
-two rooms on one floor, or over an ordinary storey below) it stays an open gap.
+the hall's roof. Where its edge is open in real life, mark it in Mapping → Edit → Signal walls
+(**Open edge: tap a room edge**, or draw it with the **Open (Loft)** material), and where it has a
+railing, press **Railing** on its row: a new open edge has none until you choose. An edge from
+before keeps what it shows (a glass railing over the hall, an open gap anywhere else: between two
+rooms on one floor, or over an ordinary storey below), and that becomes its setting the first time
+you Save in Live Aboard.
 
 **Doors and windows** linked to sensors open and shut as they do. A lock linked to a door glows red
 while it's unlocked.

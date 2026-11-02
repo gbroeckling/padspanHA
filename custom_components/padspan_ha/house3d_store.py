@@ -79,11 +79,11 @@ def normalise(raw: Any) -> dict[str, Any]:
             if not isinstance(out.get(k), dict):
                 out[k] = {}
         # Railings are choices (2026-11-02). A file from before says its are
-        # not yet (rails_chosen false: the first screen that may edit gives
-        # each Open edge the word for what it showed, live_aboard.js
-        # stampEdgeRails, then sets it), and each of its stairs on "auto" (or
-        # with no rail word) is stamped with the rail it drew, every read,
-        # until a save writes it. `raw` itself is left as it is.
+        # not yet (rails_chosen false: the person's first Save gives each
+        # Open edge the word for what it shows, live_aboard.js stampEdgeRails,
+        # then sets it), and each of its stairs on "auto" (or with no rail
+        # word) is stamped with the rail it drew, every read, until a save
+        # writes it. `raw` itself is left as it is.
         out.setdefault("rails_chosen", False)
         pieces = {}
         for pid, p in out["pieces"].items():

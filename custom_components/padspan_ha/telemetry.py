@@ -644,6 +644,16 @@ PHOTO_EVENTS: frozenset[str] = frozenset(
 STAIR_EVENTS: frozenset[str] = frozenset(
     {f"stair_read:{k}" for k in STAIR_READ_OUTCOMES} | {f"stair_secs:{k}" for k in PHOTO_SECS}
     | {f"stair_box:{k}" for k in STAIR_BOX_OUTCOMES})
+# The Open edges tool (2026-11-02, Mapping → Edit → Signal walls, ws_fabric.py
+# ws_fabric_open_edges_apply), once per use: open_edge:tap (a stretch tapped
+# open), :all (Open all edges on a room), :replaced (a signal wall gave way to
+# an open edge, the one use that changes positioning) or :removed (Remove open
+# edges). And how many Open edges from before had the railing they showed
+# made their own word, after a Save: rail_stamped:glass or :none (ws_fabric.py
+# ws_fabric_rf_barrier_rails_stamp). Never which room, wall or where.
+OPEN_EDGE_ACTIONS: tuple[str, ...] = ("tap", "all", "replaced", "removed")
+OPEN_EDGE_EVENTS: frozenset[str] = frozenset(
+    {f"open_edge:{k}" for k in OPEN_EDGE_ACTIONS} | {"rail_stamped:glass", "rail_stamped:none"})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
@@ -1099,7 +1109,7 @@ def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
-            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS)
+            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:

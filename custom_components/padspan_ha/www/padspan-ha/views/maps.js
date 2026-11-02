@@ -16,7 +16,7 @@ const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
         metresToMapFrac, placementFromColumns, placementStageAffine, worldGauge,
         nearestPointOnPolyline, splitPolylineAtTwoPositions,
         circlePolylineIntersections, bestCircleWall, roomEdgeForCircle,
-        nearestRoomEdge, closedOutline, sameEdge } =
+        closedOutline, stretchAt, roomStretches, openGaps, wallsAlong, cutWallAlong, runsAlongOutline } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
@@ -2028,7 +2028,7 @@ function _edit(ctx, map, allMaps, opts){
       out.push({ id: b.id, name: b.name || "", material: b.material || "custom",
                  attenuation_dbm: b.attenuation_dbm ?? 6, points: pts,
                  linked_entity_id: b.linked_entity_id || null,
-                 invert_state: !!b.invert_state });
+                 invert_state: !!b.invert_state, rail: b.rail });
     }
     return out;
   };
@@ -2057,58 +2057,135 @@ function _edit(ctx, map, allMaps, opts){
   // Signal already passes where no wall is drawn: the solver and the coverage
   // map add up the walls a ray crosses and nothing else. Marking the edge
   // Open (0 dB) records that on the map, and the 3D house leaves out the
-  // wall it would otherwise derive there (live_aboard_house.js openAt). The
-  // barrier's two points are the edge's OWN vertices from room_geometry_m,
-  // the same metres the 3D house reads, so nothing is re-traced by hand; a
-  // shared edge is written once (sameEdge against the open walls already on
-  // this floor). `rail: "none"`: a new open edge has no railing until one is
-  // chosen (the per-edge rail key; the store keeps it).
-  const OPEN_EDGE_TOL_M = 0.25;
+  // wall it would otherwise derive there (live_aboard_house.js openAt). A tap
+  // opens only the stretch the edge shares with the room next door, and an
+  // edge with no neighbour whole (Garry, 2026-11-02), in the same metres the 3D
+  // house reads, so nothing is re-traced by hand; what an open wall already
+  // runs along is written once (openGaps). `rail: "none"`: a new open edge has
+  // no railing until one is chosen (the per-edge rail key; the store keeps it).
+  // A signal wall already on the stretch is replaced only on a confirm naming
+  // what changes (positioning does), and only that stretch of it goes: its
+  // first surviving piece keeps its id, as a door cut does. All one save, all
+  // or nothing (fabric_open_edges_apply).
   const _openEdgeGeom = () => {
     const fid = _wallFloor(), rb = ctx.state.maps._draftRoomBounds || {};
     return Object.fromEntries(Object.entries(ctx.state.model?.room_geometry_m || {})
       .filter(([r, g]) => g && g.type === "poly" && String(g.floor_id || "main") === fid && rb[r]));
   };
-  const _openEdgeOn = (a, b) => (ctx.state.model?.rf_barriers_m || []).find(x => x.material === "open"
-    && String(x.floor_id || "main") === _wallFloor() && (x.points_m || []).length === 2
-    && sameEdge(x.points_m[0], x.points_m[1], a, b, OPEN_EDGE_TOL_M));
-  const _placeOpenEdge = async (room, a, b) => {
+  const _barriersHere = () => (ctx.state.model?.rf_barriers_m || []).filter(x => String(x.floor_id || "main") === _wallFloor());
+  const _openBarriersHere = () => _barriersHere().filter(x => String(x.material || "").trim().toLowerCase() === "open");
+  const _openEdgeRecord = (room, [a, b]) => ({ name: `Open edge — ${room}`, material: "open", attenuation_dbm: 0, rail: "none",
+    floor_id: _wallFloor(), points_m: [[a[0], a[1]], [b[0], b[1]]] });
+  // The tool's one write. null when refused: the refusal is on screen, and stays.
+  const _openEdgesApply = async (action, set_barriers, remove_barrier_ids = []) => {
     try {
-      const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier: {
-        name: `Open edge — ${room}`, material: "open", attenuation_dbm: 0, rail: "none",
-        floor_id: _wallFloor(), points_m: [[a[0], a[1]], [b[0], b[1]]] } });
-      return r && r.barrier ? r.barrier.id : null;
-    } catch (e) { ctx.toast("Could not mark the edge open: " + (e.message || e), true); return null; }
+      const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_open_edges_apply", action, set_barriers, remove_barrier_ids });
+      await ctx.actions.modelRefresh();
+      return r || {};
+    } catch (e) { ctx.toast("Could not change the open edges: " + (e.message || e), true); return null; }
   };
-  const _openEdgeTap = async (fx, fy) => {
+  // One write at a time: a double tap writes once, and no second confirm opens.
+  const _oneOpenEdgeWrite = async (work) => {
+    if (ctx.state.maps._openEdgeBusy) return;
+    ctx.state.maps._openEdgeBusy = true;
+    try { await work(); } finally { ctx.state.maps._openEdgeBusy = false; }
+  };
+  const _metres = (m) => `${m.toFixed(2)} m`;
+  // What replacing the walls along a stretch writes, and what the confirm says of it.
+  const _replaceWalls = (walls, [p, q], room, neighbour) => {
+    const set = [], remove = [], lines = [];
+    for (const { bar, along_m } of walls) {
+      const { kept, kept_m } = cutWallAlong(bar.points_m, p, q);
+      kept.forEach((points_m, i) => {
+        const piece = { ...bar, name: bar.name || "Wall", points_m };
+        if (i) { delete piece.id; piece.name = `${piece.name} (${i + 1})`; }
+        set.push(piece);
+      });
+      if (!kept.length) remove.push(bar.id);
+      const kind = `${bar.material || "custom"}, ${bar.attenuation_dbm ?? 6} dB`;
+      lines.push(`"${bar.name || "Wall"}" (${kind}) runs along ${_metres(along_m)} of it. That part of the wall goes.`
+        + (kept.length ? ` The wall continues past it: the other ${_metres(kept_m)} stay as they are.` : " Nothing of the wall is left."));
+    }
+    return { set, remove, text: `Replace ${walls.length === 1 ? "a signal wall" : `${walls.length} signal walls`} with an open edge?\n\n`
+      + `This edge of ${room}${neighbour ? `, shared with ${neighbour},` : ""} is ${_metres(Math.hypot(q[0] - p[0], q[1] - p[1]))} long.\n`
+      + lines.join("\n")
+      + `\n\nSignal changes: positioning and the coverage map stop counting ${walls.length === 1 ? "that wall" : "those walls"} here, so where people and devices show near it can shift.`
+      + `\nRemove open edges won't bring a wall back; it would have to be drawn again.` };
+  };
+  const _openEdgeTap = (fx, fy) => _oneOpenEdgeWrite(async () => {
     const tf = _wallTx();
     if (!tf) { ctx.toast("Measure this map first (Measure tool) — walls are stored in metres.", true); return; }
     const [mx, my] = mapFracToMetres(tf, fx, fy);
-    const hit = nearestRoomEdge(_openEdgeGeom(), _wallFloor(), mx, my);
+    const hit = stretchAt(_openEdgeGeom(), _wallFloor(), mx, my);
     const snap = hit && metresToMapFrac(tf, hit.x, hit.y);
     if (!hit || !snap || Math.hypot(snap[0] - fx, snap[1] - fy) > 0.03) {
       ctx.toast("Tap closer to a room's edge (a room needs Save Layout before its edges can be marked).", true); return;
     }
-    const [a, b] = hit.points;
-    if (_openEdgeOn(a, b)) { ctx.toast(`That edge of ${hit.room} is already open.`); return; }
-    const id = await _placeOpenEdge(hit.room, a, b);
-    if (!id) return;
-    await ctx.actions.modelRefresh();
-    ctx.state.maps._selectedBarrierId = id;
-    ctx.toast(`Open edge — ${hit.room}`);
-  };
-  const _openAllEdges = async (room) => {
-    const closed = closedOutline(((ctx.state.model?.room_geometry_m || {})[room] || {}).points_m);
-    if (!closed) { ctx.toast("Save Layout first: that room has no saved outline yet.", true); return; }
-    let added = 0, had = 0;
-    for (let i = 0; i < closed.length - 1; i++) {
-      const a = closed[i], b = closed[i + 1];
-      if (_openEdgeOn(a, b)) { had++; continue; }
-      if (await _placeOpenEdge(room, a, b)) added++; else break;
+    const [sp, sq] = hit.points;
+    const gaps = openGaps(sp, sq, _openBarriersHere().map(x => x.points_m));
+    if (!gaps.length) { ctx.toast(`That edge of ${hit.room} is already open.`); return; }
+    // Part of the stretch open already: the part not open that the tap is nearest.
+    const off = ([u, v]) => { const L = Math.hypot(v[0] - u[0], v[1] - u[1]) || 1, t = Math.max(0, Math.min(1, ((hit.x - u[0]) * (v[0] - u[0]) + (hit.y - u[1]) * (v[1] - u[1])) / (L * L)));
+      return Math.hypot(u[0] + (v[0] - u[0]) * t - hit.x, u[1] + (v[1] - u[1]) * t - hit.y); };
+    const part = gaps.reduce((b, g) => (off(g) < off(b) ? g : b));
+    let walls = wallsAlong(part[0], part[1], _barriersHere());
+    // Cut from the wall as the server has it now: another tab may have moved its corners.
+    if (walls.length) { await ctx.actions.modelRefresh(); walls = wallsAlong(part[0], part[1], _barriersHere()); }
+    const open = _openEdgeRecord(hit.room, part);
+    let r;
+    if (walls.length) {
+      const plan = _replaceWalls(walls, part, hit.room, hit.with);
+      if (!confirm(plan.text)) { ctx.state.maps._selectedBarrierId = walls[0].bar.id; return; }
+      r = await _openEdgesApply("replaced", [...plan.set, open], plan.remove);
+    } else {
+      r = await _openEdgesApply("tap", [open]);
     }
-    await ctx.actions.modelRefresh();
-    ctx.toast(`${room}: ${added} edge${added !== 1 ? "s" : ""} marked open${had ? ` (${had} already open)` : ""}`);
+    if (!r) return;
+    const made = (r.barriers || []).filter(b => b.material === "open");
+    if (made.length) ctx.state.maps._selectedBarrierId = made[made.length - 1].id;
+    ctx.toast(walls.length ? `Open edge — ${hit.room}. Signal changes here: the wall's loss no longer counts.` : `Open edge — ${hit.room}`);
+  });
+  const _openAllEdges = (room) => _oneOpenEdgeWrite(async () => {
+    const stretches = roomStretches(_openEdgeGeom(), _wallFloor(), room);
+    if (!stretches) { ctx.toast("Save Layout first: that room has no saved outline yet.", true); return; }
+    const todo = [];
+    let had = 0, walled = 0;
+    const opens = _openBarriersHere().map(x => x.points_m), bars = _barriersHere();
+    for (const s of stretches) {
+      const gaps = openGaps(s.points[0], s.points[1], opens);
+      if (!gaps.length) had++;
+      for (const g of gaps) { if (wallsAlong(g[0], g[1], bars).length) walled++; else todo.push(g); }
+    }
+    const left = walled ? `${walled} with a signal wall on ${walled === 1 ? "it" : "them"} left as ${walled === 1 ? "it is" : "they are"}: tap ${walled === 1 ? "it" : "one"} to replace the wall` : "";
+    const edges = (n) => `${n} edge${n !== 1 ? "s" : ""}`;
+    if (!todo.length) {
+      ctx.toast(`${room}: no edges to mark${had ? ` (${had} already open)` : ""}${left ? `; ${left}` : ""}`, !!walled);
+      return;
+    }
+    if (!confirm(`Mark ${edges(todo.length)} of ${room} open?\n\nThe 3D house leaves its walls out there. Signal doesn't change: nothing counted a wall there.`
+      + `${left ? `\n\n${left[0].toUpperCase()}${left.slice(1)}.` : ""}\n\nRemove open edges takes them back.`)) return;
+    const r = await _openEdgesApply("all", todo.map(g => _openEdgeRecord(room, g)));
+    if (!r) return;
+    ctx.toast(`${room}: ${edges(todo.length)} marked open${had ? ` (${had} already open)` : ""}${left ? `; ${left}` : ""}`, !!walled);
+  });
+  // The open edges the tool wrote along a room: named for it, or running along
+  // its outline (a shared edge, tapped from the other side). Hand-drawn Open
+  // walls aren't the tool's and stay.
+  const _openEdgesOf = (room) => {
+    const closed = closedOutline(((ctx.state.model?.room_geometry_m || {})[room] || {}).points_m);
+    return _openBarriersHere().filter(x => x.name === `Open edge — ${room}`
+      || (String(x.name || "").startsWith("Open edge — ") && runsAlongOutline(x.points_m, closed)));
   };
+  const _removeOpenEdges = (room) => _oneOpenEdgeWrite(async () => {
+    const mine = _openEdgesOf(room);
+    if (!mine.length) { ctx.toast(`${room} has no open edges to remove.`); return; }
+    const edges = `${mine.length} open edge${mine.length !== 1 ? "s" : ""}`;
+    if (!confirm(`Remove ${edges} of ${room}?\n\nThe 3D house draws its walls there again. Signal doesn't change: an open edge counts for nothing. A signal wall one replaced doesn't come back; it would have to be drawn again.`)) return;
+    const ids = mine.map(x => x.id);
+    if (!(await _openEdgesApply("removed", [], ids))) return;
+    if (ids.includes(ctx.state.maps._selectedBarrierId)) ctx.state.maps._selectedBarrierId = null;
+    ctx.toast(`${room}: ${edges} removed`);
+  });
 
   // ── Sub-zones (subzones.py): named areas inside a room, in metres ──────────
   // Only with settings.subzones_enabled (off: no button, nothing drawn). Drawn
@@ -2333,6 +2410,7 @@ function _edit(ctx, map, allMaps, opts){
     // Walls — the fabric's, projected onto this photo; dashed by material
     const barriers = _fabricWallsHere();
     const _matColors = _MAT_COLORS;
+    const _oeLabelled = new Set();
     for(let bi = 0; bi < barriers.length; bi++){
       const bar = barriers[bi];
       if(!bar.points || bar.points.length < 2) continue;
@@ -2351,8 +2429,10 @@ function _edit(ctx, map, allMaps, opts){
         bLine.addEventListener("click", (ev)=>{ ev.stopPropagation(); ctx.state.maps._selectedBarrierId = bar.id; renderAll(); renderTools(); });
       }
       svg.appendChild(bLine);
-      // Label at midpoint
-      if(bar.points.length >= 2){
+      // Label at midpoint (a room's open edges share one, unless one is selected)
+      const _oeName = bar.material === "open" && String(bar.name).startsWith("Open edge — ") ? bar.name : null;
+      if(bar.points.length >= 2 && !(_oeName && _oeLabelled.has(_oeName) && ctx.state.maps._selectedBarrierId !== bar.id)){
+        if(_oeName) _oeLabelled.add(_oeName);
         const loI = Math.floor((bar.points.length - 1) / 2);
         const hiI = Math.ceil((bar.points.length - 1) / 2);
         const midX = (bar.points[loI][0] + bar.points[hiI][0]) / 2;
@@ -2801,7 +2881,7 @@ function _edit(ctx, map, allMaps, opts){
       const oeRooms = Object.keys(_openEdgeGeom());
       const oeArmed = !!ctx.state.maps._openEdgeTap;
       const oeTapBtn = el("button",{class:"btn inline"+(oeArmed?" primary":""), "data-open-edge":"tap",
-        title:"Tap a room's edge on the map: an Open (0 dB) wall goes exactly along that edge",
+        title:"Tap a room's edge on the map: an Open (0 dB) wall goes along the stretch it shares with the room next door, or the whole edge if nothing shares it",
         onclick:()=>{ ctx.state.maps._openEdgeTap = !oeArmed; ctx.state.maps._drawing = null; renderAll(); renderTools(); }}, "Open edge: tap a room edge");
       const oeSel = document.createElement("select");
       oeSel.className = "select"; oeSel.setAttribute("data-open-edge", "room");
@@ -2809,17 +2889,24 @@ function _edit(ctx, map, allMaps, opts){
       if (oeRooms.includes(ctx.state.maps._openEdgeRoom)) oeSel.value = ctx.state.maps._openEdgeRoom;
       oeSel.addEventListener("change", ()=>{ ctx.state.maps._openEdgeRoom = oeSel.value; });
       const oeAllBtn = el("button",{class:"btn inline", "data-open-edge":"all",
-        title:"Every edge of this room gets an Open (0 dB) wall: a loft, or one big open space",
+        title:"Every edge of this room gets an Open (0 dB) wall: a loft, or one big open space. It asks first.",
         onclick: async ()=>{
           const room = oeSel.value;
           if(!room){ ctx.toast("Choose a room first.", true); return; }
           await _openAllEdges(room); renderAll(); renderTools();
         }}, "Open all edges");
+      const oeRemoveBtn = el("button",{class:"btn inline", "data-open-edge":"remove",
+        title:"Takes back the open edges this tool marked along this room. It asks first.",
+        onclick: async ()=>{
+          const room = oeSel.value;
+          if(!room){ ctx.toast("Choose a room first.", true); return; }
+          await _removeOpenEdges(room); renderAll(); renderTools();
+        }}, "Remove open edges");
       right.appendChild(el("div",{style:"margin-top:12px;padding-top:8px;border-top:1px solid #1b3526"},[
         el("div",{class:"muted",style:"font-size:12px;font-weight:600;margin-bottom:4px"}, "Open edges"),
-        el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"}, oeRooms.length ? [oeTapBtn, oeSel, oeAllBtn] : [oeTapBtn]),
+        el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center"}, oeRooms.length ? [oeTapBtn, oeSel, oeAllBtn, oeRemoveBtn] : [oeTapBtn]),
         el("div",{class:"muted",style:"font-size:11px;margin-top:6px;line-height:1.4"}, oeArmed
-          ? "Tap a room edge on the map. An edge two rooms share is marked once."
+          ? "Tap a room edge on the map. Only the stretch it shares with the room next door opens; an edge with no neighbour opens whole. An edge two rooms share is marked once."
           : (oeRooms.length
             ? "Rooms not divided by a wall (a loft, one big open space): signal already passes where no wall is drawn. Marking the edge open records that on the map, and the 3D house leaves the wall out there."
             : "Save Layout first: a room's edges can be marked once its outline is saved.")),
@@ -2948,7 +3035,7 @@ function _edit(ctx, map, allMaps, opts){
           // this choice has no rail word and is railed only where it looks
           // down into a hall that rises past it (live_aboard_house.js
           // applyBarriers), as before.
-          if(bar.material === "open"){
+          if(bar.material === "open" && _heightsOn(ctx)){
             const rawRail = ((ctx.state.model?.rf_barriers_m || []).find(b => b.id === bar.id) || {}).rail;
             const railNow = rawRail === "glass" ? "glass" : rawRail === "none" ? "none" : null;
             const railBtn = el("button",{class:"btn tiny" + (railNow === "glass" ? " primary" : "")},
@@ -4693,7 +4780,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
         "steps": [
           "In the Edit tab, click Signal walls.",
-          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. An open edge, or no wall drawn at all, already lets signal through for positioning and coverage; what marking it adds is the record on the map, and the 3D house leaves out the wall it would otherwise draw there. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout) gets a railing; anywhere else it stays an open gap. The Railing button on the edge's row sets it outright: a railing, or none; an edge drawn from now on starts with none.",
+          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. An open edge, or no wall drawn at all, already lets signal through for positioning and coverage; what marking it adds is the record on the map, and the 3D house leaves out the wall it would otherwise draw there. In Live Aboard the Railing button on the edge's row gives it a railing, or none; an edge drawn from now on starts with none. One from before keeps what it shows: a railing over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout), an open gap anywhere else.",
           "Click along the wall on the photo, one point per corner or bend.",
           "Click Undo point to remove the last point.",
           "Double-click, or click Finish, once you have at least two points."
@@ -5174,7 +5261,7 @@ function _floorHeights(ctx){
       "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
       "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine. "+
       "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height), or on the Layout tab: select it, then Rises to (the same value). "+
-      "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing on its open edge (or the Railing you set on that edge in Signal walls), and a mezzanine gets its real base elevation here and sits under the room's roof."),
+      "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing where you set one (Railing, on its open edge in Signal walls), and a mezzanine gets its real base elevation here and sits under the room's roof."),
   ]);
   if(!floors.length){
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"No floors defined in Home Assistant yet."));
@@ -10307,10 +10394,11 @@ function _lightsTab(ctx, maps, active) {
         .then((r) => { mapState._heightsFile = undefined; _laFileHeights(ctx, mapState, changes && changes.heights_set, r); return r; }) : null,
       // Its heights, on the placement records (_laHeightsPut).
       heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null,
-      // An Open (Loft) edge's railing word written to its barrier (live_aboard.js
-      // stampEdgeRails: a file from before 2026-11-02 gets its railings as
-      // choices, once), on the same gate as Save.
-      barrierRail: paid && !preview ? (barrier) => ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_set", { barrier }) : null,
+      // Open (Loft) edges' railing words, {barrier id: word}, each put on its
+      // stored record by the server (live_aboard.js stampEdgeRails: the railings
+      // from before become choices after a Save), on the same gate as Save.
+      barrierRail: paid && !preview ? (rails) => ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_rails_stamp", { rails })
+        .then(async (r) => { await ctx.actions.modelRefresh(); return r; }) : null,
       // The placement records as saved: a height lives on its record; a
       // device dropped here and not yet saved has none (its height is the 3D
       // file's), and this tab's unsaved Height-row values are not saved ones.

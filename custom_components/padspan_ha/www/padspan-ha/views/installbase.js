@@ -797,6 +797,11 @@ function word(kind, k) {
                                         no_ai_task: "AI stair read refused: no AI Task" }[b] || tidy(key);
       if (a === "stair_box") return { kept: "AI stair box kept as a staircase", dropped: "AI stair box dropped (not a staircase's size)",
                                        past_edge: "AI stair box ran past the picture (answered in another frame)" }[b] || tidy(key);
+      if (a === "open_edge") return { tap: "Open edges: a stretch tapped open", all: "Open edges: a whole room opened",
+                                       replaced: "Open edges: a signal wall replaced by an open edge",
+                                       removed: "Open edges: a room's open edges taken back" }[b] || tidy(key);
+      if (a === "rail_stamped") return { glass: "Open edge from before: its railing made its own setting",
+                                          none: "Open edge from before: no railing made its own setting" }[b] || tidy(key);
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
       if (a === "photo_quick") return { ok: "AI photo read quickly (a quick look, then its kind)",
                                          fallback: "AI photo needed the full read (the quick look wasn't sure)" }[b] || tidy(key);

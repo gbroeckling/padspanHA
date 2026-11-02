@@ -874,17 +874,20 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
 }
 
 /** The Open (Loft) barriers with no rail word, and the word for what the
- *  drop rule drew for each (2026-11-02, live_aboard.js stampEdgeRails: a
- *  file from before gets its railings as choices, once): [{id, rail}],
- *  "glass" where every piece of the barrier is railed, "none" where none
- *  is. A barrier drawn part railed, part gap (one polyline round a corner,
- *  dropping on one leg) or drawn nowhere is left out: it keeps the rule. */
+ *  drop rule draws for each (2026-11-02, live_aboard.js stampEdgeRails:
+ *  railings from before become choices after a Save): [{id, rail}], "glass"
+ *  where every piece of the barrier is railed, "none" where none is. Its
+ *  pieces include its gap copies on split levels (splitBarriers, id
+ *  "<id>@<level>"), which take the same word. A barrier drawn part railed,
+ *  part gap (one polyline round a corner dropping on one leg, one edge along
+ *  a floor room and a raised room) or drawn nowhere is left out: one word
+ *  can't reproduce it, so it keeps the rule. */
 export function edgeRailsToStamp(h, barriers){
   const out = [];
   for (const b of barriers || []) {
     if (!b || typeof b !== "object" || !b.id || b.split_of || barrierKind(b) !== "open" || b.rail === "glass" || b.rail === "none") continue;
     const pcs = [];
-    for (const per of h.perFloor.values()) for (const pc of per.pieces) if (pc.kind === "open" && pc.barrier && pc.barrier.id === b.id) pcs.push(pc);
+    for (const per of h.perFloor.values()) for (const pc of per.pieces) if (pc.kind === "open" && pc.barrier && (pc.barrier.id === b.id || pc.barrier.split_of === b.id)) pcs.push(pc);
     if (!pcs.length) continue;
     const railed = pcs.filter(pc => pc.loftRail).length;
     if (railed === pcs.length) out.push({ id: String(b.id), rail: "glass" });

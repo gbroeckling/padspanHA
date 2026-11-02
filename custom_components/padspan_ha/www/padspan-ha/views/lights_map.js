@@ -3573,6 +3573,9 @@ export function buildLightsMapCard(hostIn){
           // Save, house3d_edit) only where the host lets lights be placed.
           load: typeof h3.load === "function" ? h3.load : null,
           edit: typeof h3.edit === "function" ? h3.edit : null,
+          // Open edges from before get the railing they showed as their own
+          // word, after a Save (live_aboard.js stampEdgeRails).
+          barrierRail: typeof h3.barrierRail === "function" ? h3.barrierRail : null,
           // The setup wizard's way in (aboard_wizard.js): a tool to open Edit at, taken once.
           openTool: h3.openTool && typeof h3.openTool.take === "function" ? h3.openTool : null,
           // Its heights go on the placement records (fabric_light_height_set),

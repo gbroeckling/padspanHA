@@ -509,11 +509,10 @@ function createSlot(slotKey){
   // each has ({entity id: {over, gone}}: what the map said of it then; see
   // recordsNow and goneNow).
   let fileRaw = null, recZ = {}, fileZ = {}, shownMemo = null, shownSig = "";
-  // Railings became choices (2026-11-02): a file from before (rails_chosen
-  // false) is brought over once, by the first screen that may edit (the host
-  // gives edit and barrierRail): due until the file is read, then running,
-  // done or failed (left as it was; another page load tries again).
-  let railsStamp = "due";
+  // Railings became choices (2026-11-02): after a Save of the person's own, the
+  // Open edges from before get the word for what they show (stampEdgeRails).
+  // True while that runs.
+  let railsStamping = false;
   // Why the file cannot be edited: read but refused ({code: "read_failed"}),
   // or a newer PadSpan's ({code: "house3d_newer"}: read so, or a Save refused
   // so); null when it can. The next read that works says again.
@@ -4148,8 +4147,14 @@ function createSlot(slotKey){
    *  heights went in says so, and hands the editor the heights saved (it
    *  starts from them: live_aboard_edit.js). A height written to the file
    *  for a device with no record is the newest it has from then on (fileZ).
-   *  A host with no height command: all to the file, as before. */
+   *  A host with no height command: all to the file, as before. A Save that
+   *  went through brings the railings from before over (stampEdgeRails). */
   async function editSave(ch0, base){
+    const r = await saveEdit(ch0, base);
+    stampEdgeRails();
+    return r;
+  }
+  async function saveEdit(ch0, base){
     // A split level (HOUSE.splitLevels) is drawn, never stored: its floor's id goes to the file.
     const ch = HOUSE.wholeFloors ? HOUSE.wholeFloors(ch0) : ch0;
     const p = lastP || {}, edit = p.edit, put = typeof p.heights === "function" ? p.heights : null;
@@ -4200,26 +4205,29 @@ function createSlot(slotKey){
     });
   }
   const redraw = guard(() => { if (lastP && renderer && !failed) update(lastP); });
-  /** A file from before 2026-11-02: each Open (Loft) edge with no rail word
-   *  gets the word for what the drop rule drew (HOUSE.edgeRailsToStamp:
-   *  glass or none, so nothing changes to look at), written to its barrier
-   *  through the host (barrierRail: the view calls nothing itself); then the
-   *  file says its railings are chosen. Once. A failure (a screen that may
-   *  not write barriers) leaves everything as it was. */
-  async function stampEdgeRails(h, p){
+  /** After a Save of the person's own, never on opening: each Open (Loft)
+   *  edge with no rail word gets the word for what the drop rule draws
+   *  (HOUSE.edgeRailsToStamp: glass or none, so nothing changes to look at).
+   *  Only the words go to the host (barrierRail: the view calls nothing
+   *  itself); the server puts each on the record it holds. Then a file from
+   *  before says its railings are chosen. Quiet: a failure leaves everything
+   *  as it was and the next Save tries again. A home with no 3D file, whose
+   *  file says "chosen" from its first Save, has its edges brought over the
+   *  same way. */
+  async function stampEdgeRails(){
+    const p = lastP;
+    if (railsStamping || !p || !reading || fileErr || typeof p.edit !== "function" || typeof p.barrierRail !== "function") return;
+    railsStamping = true;
     try {
-      const bars = (p.model && p.model.rf_barriers_m) || [];
-      for (const { id, rail } of HOUSE.edgeRailsToStamp(h, bars)) {
-        const raw = bars.find(b => b && b.id === id);
-        if (raw) await p.barrierRail({ ...raw, rail });
+      const todo = HOUSE.edgeRailsToStamp(reading, (p.model && p.model.rf_barriers_m) || []);
+      if (todo.length) await p.barrierRail(Object.fromEntries(todo.map(({ id, rail }) => [id, rail])));
+      if (fileRaw && fileRaw.rails_chosen !== true) {
+        const r = await p.edit({ rails_chosen: true });
+        if (r && r.data) { fileRaw = r.data; file = DRAFT.ownedOf(r.data); }
       }
-      const r = await p.edit({ rails_chosen: true });
-      if (r && r.data) { fileRaw = r.data; file = DRAFT.ownedOf(r.data); }
-      railsStamp = "done";
     } catch (err) {
-      railsStamp = "failed";
       console.warn("PadSpan Live Aboard: the railings could not be made choices on this screen:", why(err));
-    }
+    } finally { railsStamping = false; }
   }
   // Why the file cannot be edited, changed: Edit says so.
   function setFileErr(code){
@@ -4696,8 +4704,6 @@ function createSlot(slotKey){
       const shell = sSig !== shellSig;
       rebuilt = shell;
       if (shell) { buildShell(DRAFT.applyOpenings(HOUSE.readingCopy(reading), vd.openings)); shellSig = sSig; }
-      if (railsStamp === "due" && fileRaw && fileRaw.rails_chosen !== true && !fileErr
-          && typeof p.edit === "function" && typeof p.barrierRail === "function") { railsStamp = "running"; stampEdgeRails(reading, p); }
       else house = { ...house, lights: reading.lights, sensors: reading.sensors };
       if (shell || lSig !== lightsSig) {
         buildLights(house);

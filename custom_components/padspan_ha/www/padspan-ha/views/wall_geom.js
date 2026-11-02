@@ -205,10 +205,18 @@ export function roomEdgeForCircle(roomGeometry, floorId, cx, cy, r) {
 
 // ── Open edges (an open-plan room, a loft) ───────────────────────────────────
 // A room edge with no wall on it: the tool in Mapping → Edit → Signal walls
-// marks it with an Open (0 dB) barrier whose two points are EXACTLY that
-// edge's vertices from model.room_geometry_m, so the 3D house's openAt finds
-// it on the derived wall and nothing is re-traced by hand. Both helpers are
-// pure: metres in, metres out.
+// marks the stretch it shares with the room next door (the whole edge, its own
+// vertices from model.room_geometry_m, where it has no neighbour) with an Open
+// (0 dB) barrier, so the 3D house's openAt finds it on the derived wall and
+// nothing is re-traced by hand. All of it pure: metres in, metres out.
+//
+// The 3D house's own numbers (live_aboard_house.js), so the tool and the walls
+// it opens agree on what an edge shares; tests/test_open_edges.py holds them.
+const SHARE_M = 0.65;                            // SHARE_TOL: two facing room edges this close are one wall...
+const SHARE_COS = Math.cos(6 * Math.PI / 180);   // SHARE_COS: ...and no more than this far apart
+const ALONG_COS = Math.cos(8 * Math.PI / 180);   // BAR_COS: a barrier this parallel to a wall...
+const WALL_M = 0.47;                             // EXT_T / 2 + BAR_TOL: ...and this close replaces that stretch
+const STUB_M = 0.3;                              // STUB_M: shorter than this is a needle, not a stretch
 
 // The room edge nearest (px, py) among the polygon rooms of one floor.
 // Returns {room, points: [a, b], segIdx, x, y, distSq} or null; the caller
@@ -231,17 +239,222 @@ export function nearestRoomEdge(roomGeometry, floorId, px, py) {
 
 // A room outline closed back to its first vertex (each vertex [x, y] in
 // metres), or null when it has fewer than three.
+// The corners are the 3D house's (cleanPoly): no doubled point, and a last corner
+// beside the first is the first, so a hand-drawn room has no edge of a centimetre.
 export function closedOutline(points_m) {
-  const pts = (points_m || []).map(p => [Number(p[0]), Number(p[1])]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  const pts = [];
+  for (const p of points_m || []) {
+    const q = [Number(p[0]), Number(p[1])];
+    if (!Number.isFinite(q[0]) || !Number.isFinite(q[1])) continue;
+    if (!pts.length || _gap(pts[pts.length - 1], q) > 0.02) pts.push(q);
+  }
+  while (pts.length > 3 && _gap(pts[0], pts[pts.length - 1]) < 0.2) pts.pop();
   if (pts.length < 3) return null;
-  const first = pts[0], last = pts[pts.length - 1];
-  return (first[0] === last[0] && first[1] === last[1]) ? pts : [...pts, first];
+  return [...pts, pts[0]];
+}
+const _gap = (u, v) => Math.hypot(u[0] - v[0], u[1] - v[1]);
+const _mm = (v) => Math.round(v * 1000) / 1000;
+
+// 1 where a closed outline runs counter-clockwise, else -1: an edge's outward
+// normal is (dy, -dx) times this.
+function _turn(closed) {
+  let s = 0;
+  for (let i = 0; i + 1 < closed.length; i++) s += closed[i][0] * closed[i + 1][1] - closed[i + 1][0] * closed[i][1];
+  return s >= 0 ? 1 : -1;
 }
 
-// Two 2-point segments are the same edge when their ends meet within `tol`
-// metres, in either order: the edge two hand-drawn rooms share, and the open
-// barrier already written on it, so a shared edge is marked once.
-export function sameEdge(p, q, a, b, tol) {
-  const d = (u, v) => Math.hypot(Number(u[0]) - Number(v[0]), Number(u[1]) - Number(v[1]));
-  return (d(p, a) <= tol && d(q, b) <= tol) || (d(p, b) <= tol && d(q, a) <= tol);
+// Edge a-b of a room cut where its neighbours start and stop: [{p, q, with}],
+// p and q in metres along it, `with` the room next door or null (nothing shares
+// that stretch). What shares is what the 3D house builds as one wall
+// (deriveWalls): another room's edge facing it, within SHARE_M. A stretch under
+// STUB_M joins the longer one beside it, and a neighbour's edges in a row count
+// as one stretch.
+function _stretches(a, b, turn, others) {
+  const L = _gap(a, b);
+  const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L, nx = uy * turn, ny = -ux * turn;
+  const ivs = [];
+  for (const o of others) {
+    for (let i = 0; i + 1 < o.closed.length; i++) {
+      const c = o.closed[i], d = o.closed[i + 1], LB = _gap(c, d);
+      if (LB < 0.03) continue;
+      const bnx = (d[1] - c[1]) / LB * o.turn, bny = -(d[0] - c[0]) / LB * o.turn;
+      if (nx * bnx + ny * bny > -SHARE_COS) continue;
+      const rel = (P) => [(P[0] - a[0]) * ux + (P[1] - a[1]) * uy, (P[0] - a[0]) * nx + (P[1] - a[1]) * ny];
+      const [tc, sc] = rel(c), [td, sd] = rel(d);
+      const lo = Math.max(0, Math.min(tc, td)), hi = Math.min(L, Math.max(tc, td));
+      if (hi - lo < 0.05) continue;
+      const sAt = (t) => sc + (sd - sc) * (t - tc) / (td - tc), s0 = sAt(lo), s1 = sAt(hi);
+      if (Math.abs(s0) > SHARE_M || Math.abs(s1) > SHARE_M) continue;
+      ivs.push({ lo, hi, room: o.room, d: Math.abs(s0) + Math.abs(s1) });
+    }
+  }
+  const cuts = [0, L, ...ivs.flatMap(v => [v.lo, v.hi])].sort((x, y) => x - y);
+  let segs = [];
+  const join = () => { segs = segs.reduce((out, g) => {
+    const last = out[out.length - 1];
+    if (last && last.with === g.with) last.q = g.q; else out.push({ ...g });
+    return out;
+  }, []); };
+  for (let k = 0; k + 1 < cuts.length; k++) {
+    const p = cuts[k], q = cuts[k + 1], m = (p + q) / 2;
+    if (q - p < 1e-4) continue;
+    let best = null;
+    for (const v of ivs) if (v.lo <= m && m <= v.hi && (!best || v.d < best.d)) best = v;
+    segs.push({ p, q, with: best ? best.room : null });
+  }
+  join();
+  for (;;) {
+    let k = -1;
+    segs.forEach((g, i) => { if (segs.length > 1 && g.q - g.p < STUB_M && (k < 0 || g.q - g.p < segs[k].q - segs[k].p)) k = i; });
+    if (k < 0) break;
+    const before = segs[k - 1], after = segs[k + 1];
+    if (before && (!after || before.q - before.p >= after.q - after.p)) before.q = segs[k].q; else after.p = segs[k].p;
+    segs.splice(k, 1);
+    join();
+  }
+  return segs;
+}
+
+function _floorOutlines(roomGeometry, floorId) {
+  const out = [];
+  for (const [room, g] of Object.entries(roomGeometry || {})) {
+    if (!g || g.type !== "poly" || String(g.floor_id || "main") !== String(floorId)) continue;
+    const closed = closedOutline(g.points_m);
+    if (closed) out.push({ room, closed, turn: _turn(closed) });
+  }
+  return out;
+}
+
+// A stretch's two ends: the edge's own vertices where it reaches them, else to
+// the millimetre.
+function _ends(a, b, g) {
+  const L = _gap(a, b), at = (t) => [_mm(a[0] + (b[0] - a[0]) * t / L), _mm(a[1] + (b[1] - a[1]) * t / L)];
+  return [g.p <= 0 ? a : at(g.p), g.q >= L ? b : at(g.q)];
+}
+
+// The stretch a tap at (px, py) means: on the room edge nearest it, the part
+// shared with one neighbouring room (or with none: the whole edge, if nothing
+// shares it). {room, with, points: [p, q], x, y, distSq}, or null.
+export function stretchAt(roomGeometry, floorId, px, py) {
+  const hit = nearestRoomEdge(roomGeometry, floorId, px, py);
+  if (!hit) return null;
+  const all = _floorOutlines(roomGeometry, floorId), me = all.find(o => o.room === hit.room);
+  const [a, b] = hit.points;
+  if (_gap(a, b) < 0.03) return { ...hit, with: null };
+  const segs = _stretches(a, b, me.turn, all.filter(o => o.room !== hit.room));
+  const t = _gap(a, [hit.x, hit.y]);
+  const g = segs.find(s => t <= s.q) || segs[segs.length - 1];
+  return { room: hit.room, with: g.with, points: _ends(a, b, g), x: hit.x, y: hit.y, distSq: hit.distSq };
+}
+
+// Every such stretch round one room: [{room, with, points: [p, q]}], or null
+// when it has no outline.
+export function roomStretches(roomGeometry, floorId, room) {
+  const all = _floorOutlines(roomGeometry, floorId), me = all.find(o => o.room === room);
+  if (!me) return null;
+  const others = all.filter(o => o.room !== room), out = [];
+  for (let i = 0; i + 1 < me.closed.length; i++) {
+    const a = me.closed[i], b = me.closed[i + 1];
+    if (_gap(a, b) < 0.03) continue;
+    for (const g of _stretches(a, b, me.turn, others)) out.push({ room, with: g.with, points: _ends(a, b, g) });
+  }
+  return out;
+}
+
+// Where a polyline runs along the segment p-q: each leg parallel within BAR_COS
+// and within `tol` of its line over the part they share. [{leg, lo, hi, u0, u1}]:
+// lo..hi in metres along p-q, u0..u1 the same part as 0..1 along the leg, in the
+// leg's own direction.
+function _legsAlong(points, p, q, tol) {
+  const L = _gap(p, q), out = [];
+  if (L < 0.03) return out;
+  const ux = (q[0] - p[0]) / L, uy = (q[1] - p[1]) / L, pts = points || [];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const c = [Number(pts[i][0]), Number(pts[i][1])], d = [Number(pts[i + 1][0]), Number(pts[i + 1][1])], LB = _gap(c, d);
+    if (!(LB >= 0.03) || Math.abs((d[0] - c[0]) * ux + (d[1] - c[1]) * uy) / LB < ALONG_COS) continue;
+    const tc = (c[0] - p[0]) * ux + (c[1] - p[1]) * uy, td = (d[0] - p[0]) * ux + (d[1] - p[1]) * uy;
+    const lo = Math.max(0, Math.min(tc, td)), hi = Math.min(L, Math.max(tc, td));
+    if (hi - lo < 0.05) continue;
+    const sOf = (P) => (P[0] - p[0]) * -uy + (P[1] - p[1]) * ux, sc = sOf(c), sd = sOf(d);
+    const sAt = (t) => sc + (sd - sc) * (t - tc) / (td - tc);
+    if (Math.abs(sAt(lo)) > tol || Math.abs(sAt(hi)) > tol) continue;
+    const u = (t) => (t - tc) / (td - tc), a0 = u(lo), a1 = u(hi);
+    out.push({ leg: i, lo, hi, u0: Math.min(a0, a1), u1: Math.max(a0, a1) });
+  }
+  return out;
+}
+
+// The parts of stretch p-q no open barrier runs along yet, longest gaps only
+// (STUB_M and up): [[p', q'], ...], or [[p, q]] with its own ends when none does.
+// An open barrier within SHARE_M is on the same wall, drawn from the other room,
+// so a shared edge is marked once even when the two outlines don't quite match.
+export function openGaps(p, q, openPolylines) {
+  const L = _gap(p, q);
+  const ivs = (openPolylines || []).flatMap(pl => _legsAlong(pl, p, q, SHARE_M)).sort((x, y) => x.lo - y.lo);
+  const at = (t) => (t <= 0 ? p : t >= L ? q : [_mm(p[0] + (q[0] - p[0]) * t / L), _mm(p[1] + (q[1] - p[1]) * t / L)]);
+  const out = [];
+  let from = 0;
+  for (const v of ivs) {
+    if (v.lo - from >= STUB_M) out.push([at(from), at(v.lo)]);
+    from = Math.max(from, v.hi);
+  }
+  if (L - from >= STUB_M || (!ivs.length && L > 0)) out.push([at(from), at(L)]);
+  return out;
+}
+
+// A signal wall: not an opening. The same words as the 3D house's barrierKind,
+// plus anything tied to a sensor or a lock (it reads open and shut). Such a door
+// or window stays as it is, an opening in the open edge.
+export function isPlainWall(b) {
+  const m = String((b && b.material) || "").trim().toLowerCase(), n = String((b && b.name) || "");
+  return !!b && m !== "open" && m !== "glass" && !/window/i.test(n) && !/\b(door|gate)\b/i.test(n)
+    && !b.linked_entity_id && !b.linked_lock_entity_id;
+}
+
+// The signal walls along stretch p-q, STUB_M of it or more:
+// [{bar, along_m}], where along_m is how much of the stretch the wall covers.
+export function wallsAlong(p, q, barriers) {
+  const out = [];
+  for (const bar of barriers || []) {
+    if (!isPlainWall(bar)) continue;
+    const along_m = _legsAlong(bar.points_m, p, q, WALL_M).reduce((s, v) => s + v.hi - v.lo, 0);
+    if (along_m >= STUB_M) out.push({ bar, along_m });
+  }
+  return out;
+}
+
+// An open barrier running along a room's outline (Remove open edges takes it
+// back with the room, whichever side it was tapped from).
+export function runsAlongOutline(points, closed) {
+  for (let i = 0; i + 1 < (closed || []).length; i++) {
+    const along = _legsAlong(points, closed[i], closed[i + 1], SHARE_M).reduce((s, v) => s + v.hi - v.lo, 0);
+    if (along >= STUB_M) return true;
+  }
+  return false;
+}
+
+const _lengthOf = (pts) => pts.reduce((s, P, i) => (i ? s + _gap(pts[i - 1], P) : 0), 0);
+
+// A wall with stretch p-q taken out, through the door tool's own cut
+// (splitPolylineAtTwoPositions): {kept: [polyline, ...], kept_m, cut_m}. Every
+// corner outside the stretch stays as it was. A piece left over under STUB_M is
+// a needle and goes with the cut.
+export function cutWallAlong(points, p, q) {
+  const kept = [];
+  let rest = (points || []).map(P => [Number(P[0]), Number(P[1])]), cut_m = 0;
+  while (rest) {
+    const legs = _legsAlong(rest, p, q, WALL_M);
+    if (!legs.length) { kept.push(rest); break; }
+    let j = 0;
+    while (j + 1 < legs.length && legs[j + 1].leg === legs[j].leg + 1 && legs[j].u1 > 1 - 1e-6 && legs[j + 1].u0 < 1e-6) j++;
+    const pos = (v, t) => { const c = rest[v.leg], d = rest[v.leg + 1];
+      return { segIdx: v.leg, t, x: _mm(c[0] + (d[0] - c[0]) * t), y: _mm(c[1] + (d[1] - c[1]) * t) }; };
+    const s = splitPolylineAtTwoPositions(rest, pos(legs[0], legs[0].u0), pos(legs[j], legs[j].u1));
+    cut_m += s.middle ? _lengthOf(s.middle) : 0;
+    if (s.before) kept.push(s.before);
+    rest = s.after;
+  }
+  const stay = kept.filter(pl => _lengthOf(pl) >= STUB_M);
+  cut_m += kept.filter(pl => !stay.includes(pl)).reduce((sum, pl) => sum + _lengthOf(pl), 0);
+  return { kept: stay, kept_m: stay.reduce((sum, pl) => sum + _lengthOf(pl), 0), cut_m };
 }

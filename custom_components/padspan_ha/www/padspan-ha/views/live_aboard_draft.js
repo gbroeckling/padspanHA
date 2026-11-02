@@ -173,7 +173,7 @@ export function ownedOf(data){
   const fg = obj(d.figures) ? d.figures : {};
   for (const k of Object.keys(fg)) if (obj(fg[k])) out.figures[k] = copy(fg[k]);
   // Railings are choices (2026-11-02): a file from before says its are not
-  // yet (rails_chosen false, until live_aboard.js stampEdgeRails has given
+  // yet (rails_chosen false, until live_aboard.js stampEdgeRails, after a Save, has given
   // each Open edge its word). Nothing read yet, or a new house: chosen.
   out.rails_chosen = !data || d.rails_chosen === true;
   return out;

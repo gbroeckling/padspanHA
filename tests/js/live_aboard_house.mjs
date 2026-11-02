@@ -954,9 +954,9 @@ tryCase("open edges: the barrier's own Railing decides; without one, the rule as
   check(name, old.length && old.every(q => q.loftRail), "no word over the hall: the rule's railing, as before");
 });
 
-// Railings became choices (2026-11-02): the first screen that may edit gives
-// each word-less Open edge the word for what the rule drew (edgeRailsToStamp),
-// once, so nothing changes to look at; a file from before says so until then.
+// Railings became choices (2026-11-02): the person's first Save gives each
+// word-less Open edge the word for what the rule drew (edgeRailsToStamp), so
+// nothing changes to look at; a file from before says so until then.
 tryCase("open edges: the stamp gives each word-less edge the word for what the rule drew, and leaves a mixed one to the rule", () => {
   const name = "open edges: the stamp gives each word-less edge the word for what the rule drew, and leaves a mixed one to the rule";
   const h = H.readHouse(GYM, GYM.floors, {}, null);
@@ -974,6 +974,45 @@ tryCase("open edges: the stamp gives each word-less edge the word for what the r
   const h3 = H.readHouse(multi, multi.floors, {}, null), ps = railOf(h3, "mezz", "edge");
   check(name, ps.some(p => p.loftRail) && ps.some(p => !p.loftRail) && H.edgeRailsToStamp(h3, multi.rf_barriers_m).length === 0, H.edgeRailsToStamp(h3, multi.rf_barriers_m));
   check(name, DR.ownedOf({}).rails_chosen === false && DR.ownedOf(null).rails_chosen === true && DR.ownedOf({ rails_chosen: true }).rails_chosen === true, "the marker as the editor owns it");
+});
+
+// A split level (splitBarriers): an Open edge along a raised room is moved onto the level with
+// a made-up floor id, and one along a floor room and a raised room gets a gap copy there. The
+// stamp reads what those draw and names only the stored id; one word goes on the stored record.
+tryCase("open edges: the stamp reads a split level's copies, and one word that can't reproduce them leaves the edge on the rule", () => {
+  const name = "open edges: the stamp reads a split level's copies, and one word that can't reproduce them leaves the edge on the rule";
+  const rect = (floor_id, x0, y0, x1, y1) => ({ type: "poly", floor_id, points_m: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] });
+  const base = { floors: [{ id: "main", name: "Main", level: 0, floor_to_floor_m: 3 }, { id: "upper", name: "Upper", level: 1, floor_to_floor_m: 3 }],
+                 floor_elevations: { main: 0, upper: 3 }, light_positions_m: {}, scanner_positions_m: {}, scanners: {} };
+  const read = (m) => { const sm = H.splitLevels(m); return { sm, h: H.readHouse(sm, sm.floors, {}, null, null, 0) }; };
+  const rails = (h) => { const out = []; for (const fl of h.floors) for (const pc of h.perFloor.get(fl).pieces) if (pc.kind === "open") out.push(`${fl.id}|${pc.x0.toFixed(2)},${pc.y0.toFixed(2)}|${pc.x1.toFixed(2)},${pc.y1.toFixed(2)}|${!!pc.loftRail}`); return out.sort().join(";"); };
+  // Along a raised room only: on the level, over a hall. The word, with the stored floor unchanged.
+  const lone = { ...base, room_geometry_m: { Hall: rect("main", 0, 0, 12, 12), Sit: rect("upper", 0, 0, 12, 4), Far: rect("upper", 12, 0, 20, 12) },
+    room_meta: { Hall: { height_m: 8 }, Sit: { floor_raise_m: 0.75 } },
+    rf_barriers_m: [{ id: "lvl", name: "Level edge", material: "open", floor_id: "upper", points_m: [[0, 4], [12, 4]] }] };
+  const a = read(lone), st = H.edgeRailsToStamp(a.h, a.sm.rf_barriers_m);
+  check(name, JSON.stringify(st) === JSON.stringify([{ id: "lvl", rail: "glass" }]), st);
+  const a2 = read({ ...lone, rf_barriers_m: [{ ...lone.rf_barriers_m[0], rail: "glass" }] });
+  check(name, rails(a2.h) === rails(a.h), { before: rails(a.h), after: rails(a2.h) });
+  // Along a floor room (hall under it) and a raised room: railed on one, not the other. Left on the rule.
+  const both = (hallUnderRaised) => ({ ...base,
+    room_geometry_m: { [hallUnderRaised ? "Low" : "Hall"]: rect("main", 0, 0, 10, 12), [hallUnderRaised ? "Hall" : "Low"]: rect("main", 10, 0, 20, 12), Gal: rect("upper", 0, 0, 10, 4), Sit: rect("upper", 10, 0, 20, 4) },
+    room_meta: { Hall: { height_m: 8 }, Sit: { floor_raise_m: 0.75 } },
+    rf_barriers_m: [{ id: "both", name: "Long edge", material: "open", floor_id: "upper", points_m: [[0, 4], [20, 4]] }] });
+  for (const flip of [false, true]) {
+    const m = both(flip), b = read(m), ps = rails(b.h);
+    check(name, /true/.test(ps) && /false/.test(ps), ps);
+    check(name, H.edgeRailsToStamp(b.h, b.sm.rf_barriers_m).length === 0, H.edgeRailsToStamp(b.h, b.sm.rf_barriers_m));
+  }
+  // Over a hall all the way: glass, on the floor piece and its copy alike.
+  const allOver = { ...base,
+    room_geometry_m: { Hall: rect("main", 0, 0, 20, 12), Gal: rect("upper", 0, 0, 10, 4), Sit: rect("upper", 10, 0, 20, 4) },
+    room_meta: { Hall: { height_m: 8 }, Sit: { floor_raise_m: 0.75 } },
+    rf_barriers_m: [{ id: "both", name: "Long edge", material: "open", floor_id: "upper", points_m: [[0, 4], [20, 4]] }] };
+  const c = read(allOver), stc = H.edgeRailsToStamp(c.h, c.sm.rf_barriers_m);
+  check(name, stc.length === 1 && stc[0].id === "both", stc);
+  const c2 = read({ ...allOver, rf_barriers_m: [{ ...allOver.rf_barriers_m[0], rail: stc[0].rail }] });
+  check(name, rails(c2.h) === rails(c.h), { before: rails(c.h), after: rails(c2.h) });
 });
 
 console.log(JSON.stringify({ cases, failures, lists: { fallbacks: H.HOUSE3D_FALLBACK_KINDS, events: H.HOUSE3D_EVENTS } }));
