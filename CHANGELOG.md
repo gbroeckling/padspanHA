@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.217 — A motion sensor's reach in Live Aboard is soft light (2026-11-02)
+
+### Changed
+- **A motion sensor's reach is drawn as soft light.** With Motion picked, on a trigger, or on hover, Live Aboard used to draw it as a pale plate with a bright outline. That outline cut across rooms, and a sensor outside the house showed a large disc on the ground. It's now a soft pool of light, strongest near the sensor and fading out at its reach. Everything shows where it did.
+
+---
+
 ## 0.38.216 — The occupancy sensor's real name; Live Aboard on a wall: sharp, and as large as the screen lets it be (2026-11-02)
 
 ### Changed
