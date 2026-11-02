@@ -332,11 +332,12 @@ function _ends(a, b, g) {
   return [g.p <= 0 ? a : at(g.p), g.q >= L ? b : at(g.q)];
 }
 
-// The stretch a tap at (px, py) means: on the room edge nearest it, the part
-// shared with one neighbouring room (or with none: the whole edge, if nothing
-// shares it). {room, with, points: [p, q], x, y, distSq}, or null.
-export function stretchAt(roomGeometry, floorId, px, py) {
-  const hit = nearestRoomEdge(roomGeometry, floorId, px, py);
+// The stretch a tap at (px, py) means: on the nearest edge of a room in
+// `tappable`, the part shared with one neighbouring room of `roomGeometry`, on
+// this plan or not (or with none: the whole edge, if nothing shares it).
+// {room, with, points: [p, q], x, y, distSq}, or null.
+export function stretchAt(tappable, roomGeometry, floorId, px, py) {
+  const hit = nearestRoomEdge(tappable, floorId, px, py);
   if (!hit) return null;
   const all = _floorOutlines(roomGeometry, floorId), me = all.find(o => o.room === hit.room);
   const [a, b] = hit.points;

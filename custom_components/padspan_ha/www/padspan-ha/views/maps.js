@@ -2081,7 +2081,7 @@ function _edit(ctx, map, allMaps, opts){
     try {
       const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_open_edges_apply", action, set_barriers, remove_barrier_ids });
       await ctx.actions.modelRefresh();
-      return r || {};
+      return r && r.ok ? r : null;
     } catch (e) { ctx.toast("Could not change the open edges: " + (e.message || e), true); return null; }
   };
   // One write at a time: a double tap writes once, and no second confirm opens.
@@ -2116,7 +2116,7 @@ function _edit(ctx, map, allMaps, opts){
     const tf = _wallTx();
     if (!tf) { ctx.toast("Measure this map first (Measure tool) — walls are stored in metres.", true); return; }
     const [mx, my] = mapFracToMetres(tf, fx, fy);
-    const hit = stretchAt(_openEdgeGeom(), _wallFloor(), mx, my);
+    const hit = stretchAt(_openEdgeGeom(), ctx.state.model?.room_geometry_m, _wallFloor(), mx, my);
     const snap = hit && metresToMapFrac(tf, hit.x, hit.y);
     if (!hit || !snap || Math.hypot(snap[0] - fx, snap[1] - fy) > 0.03) {
       ctx.toast("Tap closer to a room's edge (a room needs Save Layout before its edges can be marked).", true); return;
@@ -2146,7 +2146,7 @@ function _edit(ctx, map, allMaps, opts){
     ctx.toast(walls.length ? `Open edge — ${hit.room}. Signal changes here: the wall's loss no longer counts.` : `Open edge — ${hit.room}`);
   });
   const _openAllEdges = (room) => _oneOpenEdgeWrite(async () => {
-    const stretches = roomStretches(_openEdgeGeom(), _wallFloor(), room);
+    const stretches = roomStretches(ctx.state.model?.room_geometry_m, _wallFloor(), room);
     if (!stretches) { ctx.toast("Save Layout first: that room has no saved outline yet.", true); return; }
     const todo = [];
     let had = 0, walled = 0;

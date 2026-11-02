@@ -607,9 +607,10 @@ class FabricStore:
         out["floor_id"] = str(out.get("floor_id") or DEFAULT_FLOOR_ID)
         out["id"] = str(out.get("id") or "").strip()[:40] or f"bar_{os.urandom(4).hex()}"
         out.pop("map_id", None)   # a wall is not "on" a photograph
-        # Open (Loft) is no wall: 0 dB whatever an old path saved it at (the
-        # legacy per-map list once wrote open at 6), so an open edge reads
-        # as open for positioning and coverage alike.
+        # Open (Loft) is no wall: saved from now on it is 0 dB, whatever an old
+        # path sent (the legacy per-map list once wrote open at 6). One already
+        # stored at 6 stays until it is saved again (Garry, 2026-11-02: no heal
+        # at startup; async_stamp_barrier_rails doesn't save it either).
         if str(out.get("material") or "").strip().lower() == "open":
             out["attenuation_dbm"] = 0.0
         # A linked door/window/lock's open/closed reading assumes normal

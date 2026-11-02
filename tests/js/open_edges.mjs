@@ -219,6 +219,15 @@ check("stretch: an outside edge with no neighbour opens whole",
 await tapAt(8.02, 2);
 check("stretch: the same stretch from the other room is already open", writes.length === 3 && /already open/.test(toasts[toasts.length - 1][0]), toasts.slice(-1));
 {
+  // A neighbour on another plan of this floor still bounds the stretch.
+  await useRooms(long);
+  delete state.maps._draftRoomBounds.Study;
+  state.maps._openEdgeTap = true;
+  await tapAt(7.98, 7);
+  check("stretch: a neighbour not on this plan still bounds the stretch",
+    writes.length === 1 && JSON.stringify(writes[0].points_m) === JSON.stringify([[8, 5], [8, 9]]), writes);
+}
+{
   // Outlines that don't quite match: 30 cm apart, ends 40 cm off. Still one wall, still marked once.
   await useRooms({ Hall: sq(4, 0, 8, 5), Den: sq(8.3, 0.4, 10, 5.4) });
   state.maps._openEdgeTap = true;
