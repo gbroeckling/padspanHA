@@ -162,6 +162,24 @@ const bare = () => {
 };
 const HOUSE_P = (shown = () => true) => ({ key: "k1", rooms: H.rooms, ground: GROUND, shown, walls: () => [] });
 const objs = (scene) => scene.children.filter(o => String(o.name || "").startsWith("weather:")).map(o => o.name).sort();
+await tryCase("decision: a rain sensor that stopped reporting does not rain here either", async () => {
+  const { host } = bare();
+  const w = W.createWeather(THREE, host);
+  const now = Date.parse("2026-11-02T21:00:00Z");
+  const reg = { "binary_sensor.rain": { platform: "mqtt", device_id: "d1", name: "Rain" }, "sensor.rain_last_seen": { platform: "mqtt", device_id: "d1", name: "Last seen" } };
+  const states = (seen, cond) => ({ ...wxState(cond), "binary_sensor.rain": { state: "on", attributes: {} },
+    "sensor.rain_last_seen": { state: seen, attributes: { device_class: "timestamp" } } });
+  const sent = [];
+  AW._resetWeatherCountsForTests();
+  const step = (seen, cond) => { w.update({ settings: SET({ atlas_weather_rain_entity: "binary_sensor.rain" }), states: states(seen, cond), entities: reg,
+    profile: "low", house: HOUSE_P(), nowMs: now, colour: "#ffffff", telemetry: (n) => sent.push(n) }); return w.shown.kind; };
+  const fresh = step("2026-11-02T20:59:00+00:00", "cloudy");
+  const stale = step("2026-10-31T01:05:15+00:00", "cloudy");
+  const fromForecast = step("2026-10-31T01:05:15+00:00", "rainy");
+  check("decision: a rain sensor that stopped reporting does not rain here either",
+    fresh === "rain" && stale === "off" && fromForecast === "rain" && sent.includes("weather_note:sensor_stale"), { fresh, stale, fromForecast, sent });
+  w.dispose();
+});
 await tryCase("decision: the flat Atlas's own, through holdVisual", async () => {
   const { scene, host } = bare();
   const w = W.createWeather(THREE, host);

@@ -20,6 +20,7 @@
 //   setting off                                   -> nothing at all
 //   rain sensor set, reading dry                  -> off
 //   on/off rain sensor wet under a clear sky      -> off (dew or frost)
+//   rain sensor stopped reporting (last seen > 3 h) -> no reading from it (Garry, 2026-11-02: "it's showing its raining, and it's not")
 //   no rain sensor (or no reading from it)        -> wet = weather condition
 //   wet, alone                                    -> light rain
 //   wet + rainfall warning, or condition pouring  -> heavy rain
@@ -33,6 +34,10 @@
 // gauge (a number) catches rain that falls and is never overruled, nor is an
 // on/off sensor a helper makes from one (a template, a threshold). The cost:
 // a shower the weather entity's hourly forecast missed shows no rain.
+// A rain sensor that has stopped reporting is no reading, not rain: one that
+// went silent while wet stays "on", and Zigbee2MQTT's retained state replays
+// that after every restart, so it never goes unavailable and its last_changed
+// looks recent. Only its device's last-seen sensor tells.
 
 // ── Vocabulary ───────────────────────────────────────────────────────────────
 export const WET_CONDITIONS = ["rainy", "pouring", "snowy", "snowy-rainy", "hail", "lightning-rainy"];
@@ -57,8 +62,9 @@ export const WEATHER_SHOWN_STATES = ["light_rain", "heavy_rain", "light_snow", "
 export const WEATHER_SOURCES = ["rain_sensor", "condition", "none",
   ...WARNING_PLATFORMS.map(p => `warning:${p}`), "warning:other"];
 // What the decision set aside on purpose: a wet rain sensor overruled by a
-// clear sky; a chosen warning entity that is a leak detector, ignored.
-export const WEATHER_NOTE_KINDS = ["sensor_overruled", "warning_ignored"];
+// clear sky; a chosen warning entity that is a leak detector, ignored; a rain
+// sensor that has stopped reporting.
+export const WEATHER_NOTE_KINDS = ["sensor_overruled", "warning_ignored", "sensor_stale"];
 export const WEATHER_EVENTS = [
   ...WEATHER_ERROR_KINDS.map(k => `weather_error:${k}`),
   ...WEATHER_SHOWN_STATES.map(k => `weather_shown:${k}`),
@@ -110,6 +116,31 @@ export function rainReading(st){
   if (lv === "off") return false;
   const n = Number(v);
   return Number.isFinite(n) ? n > 0 : null;
+}
+
+// A rain sensor whose device has not been heard from for this long is no reading.
+export const RAIN_STALE_MS = 3 * 60 * 60 * 1000;
+const LAST_SEEN = /last[ _-]?seen$/i;
+/** When the rain sensor's device last reported (ms), if that is too long ago
+ *  (RAIN_STALE_MS before nowMs), else null. The device's last-seen sensor: the
+ *  registry's same device_id, device class timestamp (hass.entities carries no
+ *  device class: the state does), its id or name ending "last seen". None, or
+ *  none with a time in it, is null: nothing says the sensor stopped. */
+export function rainSensorStaleSince(eid, states, entities, nowMs){
+  const reg = entities && typeof entities === "object" ? entities : null;
+  const device = reg && reg[eid] && reg[eid].device_id;
+  if (!device || !Number.isFinite(nowMs)) return null;
+  let seen = null;
+  for (const [sib, r] of Object.entries(reg)) {
+    if (!r || r.device_id !== device) continue;
+    const st = states && states[sib];
+    const a = (st && st.attributes) || {};
+    if (a.device_class !== "timestamp" || reading(st) === null) continue;
+    if (![sib, r.name, a.friendly_name].some(n => LAST_SEEN.test(String(n || "")))) continue;
+    const t = Date.parse(st.state);
+    if (Number.isFinite(t) && (seen === null || t > seen)) seen = t;
+  }
+  return seen !== null && nowMs - seen > RAIN_STALE_MS ? seen : null;
 }
 
 /** The rain-sensor setting's list: only entities that say whether it is
@@ -306,16 +337,17 @@ export const CLEAR_SKY = ["sunny", "clear-night", "partlycloudy"];
 // rule): its rain fell, so a clear sky never overrules it.
 export const MADE_BY = ["template", "threshold", "bayesian"];
 
-// ── THE decision (pure: settings + hass.states [+ hass.entities]) ────────────
+// ── THE decision (pure: settings + hass.states [+ hass.entities] + the time) ─
 // {kind:"off"|"rain"|"snow", heavy, rim, source, warning, why, missing[], notes[]}
 //   source   what made it wet (rain_sensor | condition), or none; when a
 //            clear sky overruled the rain sensor, condition
 //   warning  "warning:<platform>" when a warning made it heavy, else null
 //   why      disabled | dry | overruled | no_source | wet
-//   missing  configured entities that are missing or unavailable (the
-//            warning one only while wet: warnings are read only then)
+//   missing  configured entities that are missing or unavailable, or a rain
+//            sensor that has stopped reporting (the warning one only while
+//            wet: warnings are read only then)
 //   notes    what was set aside on purpose (WEATHER_NOTE_KINDS)
-export function decideAtlasWeather(cfg, states, entities){
+export function decideAtlasWeather(cfg, states, entities, nowMs){
   const s = cfg || {};
   const st = states || {};
   const missing = [], notes = [];
@@ -326,6 +358,7 @@ export function decideAtlasWeather(cfg, states, entities){
   if (s.rainEntity) {
     const r = rainReading(st[s.rainEntity]);
     if (r === null) missing.push("rain");
+    else if (rainSensorStaleSince(s.rainEntity, st, entities, nowMs) !== null) { missing.push("rain"); notes.push("sensor_stale"); }
     else { wet = r; source = "rain_sensor"; }
   }
   const condEid = s.conditionEntity || firstWeatherEntity(st);
@@ -798,7 +831,7 @@ function createSlot(slotKey){
         if (!cfg || !cfg.enabled) { shown = prev = OFF; since = -Infinity; detach(); return false; }
         const now = Number.isFinite(p.nowMs) ? p.nowMs : Date.now();
         let d;
-        try { d = decideAtlasWeather(cfg, p.states || {}, p.entities); }
+        try { d = decideAtlasWeather(cfg, p.states || {}, p.entities, now); }
         catch (_) { err("decision"); detach(); return false; }
         // A chosen entity that no longer exists: deleted or renamed, so the
         // setting points at nothing. Unavailable is a sensor dropping off

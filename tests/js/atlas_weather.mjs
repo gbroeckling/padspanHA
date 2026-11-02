@@ -8,8 +8,8 @@
 //              fallbacks, warning auto-detect for every listed integration,
 //              the alert-text words, the temperature rule, numeric sensors,
 //              unavailable = no signal, a wet rain sensor under a clear sky
-//              (dew), a leak detector chosen as the warning, and inputs that
-//              must never crash
+//              (dew), a rain sensor that has stopped reporting, a leak detector
+//              chosen as the warning, and inputs that must never crash
 //   mask       from a real buildIsoSVG drawing: the plates it drew, an ALPHA
 //              mask that is transparent exactly over them, outdoor plates left
 //              out, stacked floors joined into one shape
@@ -128,6 +128,98 @@ tryCase("table: a snowfall warning without wet is still off", () => {
   const a = decide({}, { ...wx("cloudy", -5), ...ecSnow }, EC_ENT);
   const b = decide({ atlas_weather_rain_entity: RAIN }, { [RAIN]: S("off"), ...wx("snowy"), ...ecSnow }, EC_ENT);
   check("table: a snowfall warning without wet is still off", a.kind === "off" && b.kind === "off", { a, b });
+});
+// Garry's house, 2026-11-02: the shape hass.entities and hass.states really
+// have (config/entity_registry/list_for_display, get_states), silent since
+// 2026-10-31 01:05 UTC and stuck on "on".
+const NOW = Date.parse("2026-11-02T21:00:00Z"), OLD = "2026-10-31T01:05:15+00:00", FRESH = "2026-11-02T20:59:00+00:00";
+const SEEN = "sensor.0xa4c1_last_seen", GAUGE = "sensor.rain_rate";
+const seen = (iso, attrs = {}) => ({ [SEEN]: S(iso, { device_class: "timestamp", friendly_name: "Rain- Last seen", ...attrs }) });
+const DEV = { [RAIN]: { platform: "mqtt", device_id: "d1", name: "Rain" }, [GAUGE]: { platform: "mqtt", device_id: "d1", name: "Rain rate" },
+  [SEEN]: { platform: "mqtt", device_id: "d1", name: "Last seen", entity_category: "diagnostic" } };
+const decideAt = (rain, states, entities = DEV, now = NOW) => WX.decideAtlasWeather(cfg({ atlas_weather_rain_entity: rain }), states, entities, now);
+tryCase("stale: on under a cloudy sky is off, and says why", () => {
+  const d = decideAt(RAIN, { [RAIN]: S("on"), ...wx("cloudy"), ...seen(OLD) });
+  check("stale: on under a cloudy sky is off, and says why", d.kind === "off" && d.why === "dry" && d.source === "condition"
+    && JSON.stringify(d.notes) === '["sensor_stale"]' && JSON.stringify(d.missing) === '["rain"]', d);
+});
+tryCase("stale: the weather condition decides, as with no reading", () => {
+  const onRainy = decideAt(RAIN, { [RAIN]: S("on"), ...wx("rainy"), ...seen(OLD) });
+  const offRainy = decideAt(RAIN, { [RAIN]: S("off"), ...wx("rainy"), ...seen(OLD) });
+  const onSunny = decideAt(RAIN, { [RAIN]: S("on"), ...wx("sunny"), ...seen(OLD) });
+  const noWx = decideAt(RAIN, { [RAIN]: S("on"), ...seen(OLD) });
+  // A sensor with no reading goes the same way, row for row.
+  const same = ["cloudy", "rainy", "pouring", "snowy", "sunny"].every(c => {
+    const a = decideAt(RAIN, { [RAIN]: S("on"), ...wx(c), ...seen(OLD) }), b = decideAt(RAIN, { [RAIN]: S("unavailable"), ...wx(c), ...seen(OLD) });
+    return a.kind === b.kind && a.heavy === b.heavy && a.source === b.source && a.why === b.why;
+  });
+  check("stale: the weather condition decides, as with no reading",
+    is(onRainy, "rain", false) && onRainy.source === "condition" && onRainy.why === "wet" && onRainy.notes.includes("sensor_stale")
+    && is(offRainy, "rain", false) && offRainy.source === "condition"
+    && onSunny.kind === "off" && onSunny.why === "dry" && JSON.stringify(onSunny.notes) === '["sensor_stale"]'
+    && noWx.kind === "off" && noWx.why === "no_source" && same, { onRainy, offRainy, onSunny, noWx, same });
+});
+tryCase("stale: a sensor still reporting is read as today", () => {
+  const cloudy = decideAt(RAIN, { [RAIN]: S("on"), ...wx("cloudy"), ...seen(FRESH) });
+  const sunny = decideAt(RAIN, { [RAIN]: S("on"), ...wx("sunny"), ...seen(FRESH) });
+  const dry = decideAt(RAIN, { [RAIN]: S("off"), ...wx("rainy"), ...seen(FRESH) });
+  // Right on the line it still counts; a moment past it does not.
+  const at = (ms) => decideAt(RAIN, { [RAIN]: S("on"), ...wx("cloudy"), ...seen(new Date(NOW - ms).toISOString()) });
+  check("stale: a sensor still reporting is read as today",
+    is(cloudy, "rain", false) && cloudy.source === "rain_sensor" && !cloudy.notes.length && !cloudy.missing.length
+    && sunny.why === "overruled" && JSON.stringify(sunny.notes) === '["sensor_overruled"]'
+    && dry.kind === "off" && dry.source === "rain_sensor"
+    && WX.RAIN_STALE_MS === 3 * 60 * 60 * 1000 && at(WX.RAIN_STALE_MS).kind === "rain" && at(WX.RAIN_STALE_MS + 1).kind === "off", { cloudy, sunny, dry });
+});
+tryCase("stale: nothing that says so, read as today", () => {
+  const st = { [RAIN]: S("on"), ...wx("cloudy") };
+  const today = (d) => is(d, "rain", false) && d.source === "rain_sensor" && !d.notes.length && !d.missing.length;
+  const got = {
+    noSibling: decideAt(RAIN, st, { [RAIN]: DEV[RAIN] }),
+    noRegistry: decideAt(RAIN, { ...st, ...seen(OLD) }, null),
+    notInRegistry: decideAt(RAIN, { ...st, ...seen(OLD) }, { [SEEN]: DEV[SEEN] }),
+    noDevice: decideAt(RAIN, { ...st, ...seen(OLD) }, { [RAIN]: { platform: "mqtt" }, [SEEN]: { platform: "mqtt" } }),
+    otherDevice: decideAt(RAIN, { ...st, ...seen(OLD) }, { ...DEV, [SEEN]: { ...DEV[SEEN], device_id: "d2" } }),
+    noState: decideAt(RAIN, st),
+    unknown: decideAt(RAIN, { ...st, ...seen("unknown") }),
+    unavailable: decideAt(RAIN, { ...st, ...seen("unavailable") }),
+    notATime: decideAt(RAIN, { ...st, ...seen("soon") }),
+    // Bermuda's "last seen" sensors have their own device class, and a device's
+    // other times (a reboot, a reminder) say nothing about its last report.
+    notTimestamp: decideAt(RAIN, { ...st, ...seen(OLD, { device_class: "bermuda__custom_device_class" }) }),
+    otherTime: decideAt(RAIN, { ...st, "sensor.x_last_boot": S(OLD, { device_class: "timestamp", friendly_name: "Rain- Last boot" }) },
+      { ...DEV, "sensor.x_last_boot": { platform: "mqtt", device_id: "d1", name: "Last boot" } }),
+    noClock: WX.decideAtlasWeather(cfg({ atlas_weather_rain_entity: RAIN }), { ...st, ...seen(OLD) }, DEV),
+  };
+  const bad = Object.keys(got).filter(k => !today(got[k]));
+  check("stale: nothing that says so, read as today", !bad.length, { bad, got });
+});
+tryCase("stale: the last-seen sensor is known by its id or its name", () => {
+  const st = { [RAIN]: S("on"), ...wx("cloudy") };
+  const T = { device_class: "timestamp" };
+  const byId = decideAt(RAIN, { ...st, "sensor.rain_last_seen": S(OLD, T) }, { ...DEV, "sensor.rain_last_seen": { device_id: "d1" } });
+  const byReg = decideAt(RAIN, { ...st, "sensor.gesehen": S(OLD, T) }, { ...DEV, "sensor.gesehen": { device_id: "d1", name: "Last seen" } });
+  const byFriendly = decideAt(RAIN, { ...st, "sensor.gesehen": S(OLD, { ...T, friendly_name: "Rain Last Seen" }) }, { ...DEV, "sensor.gesehen": { device_id: "d1" } });
+  // Two of them on a device: the newer one is the last it was heard from.
+  const two = decideAt(RAIN, { ...st, ...seen(OLD), "sensor.b_last_seen": S(FRESH, T) }, { ...DEV, "sensor.b_last_seen": { device_id: "d1" } });
+  check("stale: the last-seen sensor is known by its id or its name",
+    [byId, byReg, byFriendly].every(d => d.kind === "off" && d.notes.includes("sensor_stale")) && two.kind === "rain", { byId, byReg, byFriendly, two });
+});
+tryCase("stale: a gauge that has stopped reporting too", () => {
+  const dryDay = decideAt(GAUGE, { [GAUGE]: S("0.4", { unit_of_measurement: "mm/h" }), ...wx("cloudy"), ...seen(OLD) });
+  const wetDay = decideAt(GAUGE, { [GAUGE]: S("0.4", { unit_of_measurement: "mm/h" }), ...wx("rainy"), ...seen(OLD) });
+  const live = decideAt(GAUGE, { [GAUGE]: S("0.4", { unit_of_measurement: "mm/h" }), ...wx("sunny"), ...seen(FRESH) });
+  check("stale: a gauge that has stopped reporting too",
+    dryDay.kind === "off" && dryDay.source === "condition" && JSON.stringify(dryDay.notes) === '["sensor_stale"]'
+    && is(wetDay, "rain", false) && wetDay.source === "condition"
+    && is(live, "rain", false) && live.source === "rain_sensor" && !live.notes.length, { dryDay, wetDay, live });
+});
+tryCase("stale: the date Settings names", () => {
+  const st = { [RAIN]: S("on"), ...seen(OLD) };
+  check("stale: the date Settings names", WX.rainSensorStaleSince(RAIN, st, DEV, NOW) === Date.parse(OLD)
+    && WX.rainSensorStaleSince(RAIN, { [RAIN]: S("on"), ...seen(FRESH) }, DEV, NOW) === null
+    && WX.rainSensorStaleSince("", st, DEV, NOW) === null && WX.rainSensorStaleSince(RAIN, st, DEV) === null
+    && WX.rainSensorStaleSince(RAIN, st, null, NOW) === null && WX.rainSensorStaleSince(RAIN, null, DEV, NOW) === null);
 });
 tryCase("table: a wet rain sensor under a clear sky is dew, not rain", () => {
   // Garry's house, 2026-10-06: the solar rain sensor on all morning at 3029 mV
@@ -924,6 +1016,23 @@ tryCase("telemetry: what was set aside is counted, once", () => {
   const notes = sent.filter(n => n.startsWith("weather_note:")).sort();
   check("telemetry: what was set aside is counted, once", !overlayIn(stage) && sent.every(n => WX.WEATHER_EVENTS.includes(n))
     && JSON.stringify(notes) === JSON.stringify(["weather_note:sensor_overruled", "weather_note:warning_ignored"]), { sent });
+});
+
+tryCase("telemetry: a rain sensor that stopped reporting is counted, once, and no rain drawn", () => {
+  WX._resetWeatherSlotsForTests(); WX._resetWeatherCountsForTests(); sent.length = 0;
+  const slot = WX.atlasWeatherSlot("stale");
+  const stage = document.createElement("div");
+  const p = { settings: cfg({ atlas_weather_rain_entity: RAIN }), states: { [RAIN]: S("on"), ...wx("cloudy"), ...seen(OLD) }, entities: DEV,
+    svg: svgStr, animate: true, colour: "#fff", zoom: 1, telemetry, nowMs: NOW };
+  const drew = [slot.attach(stage, p), slot.attach(stage, p), slot.attach(stage, p)];
+  const notes = sent.filter(n => n.startsWith("weather_note:")), shownNone = !sent.some(n => n.startsWith("weather_shown:")), clear = !overlayIn(stage);
+  // It starts reporting again: the sensor is back in charge.
+  const back = slot.attach(stage, { ...p, states: { ...p.states, ...seen(FRESH) } });
+  check("telemetry: a rain sensor that stopped reporting is counted, once, and no rain drawn",
+    drew.every(d => d === false) && clear && shownNone && JSON.stringify(notes) === '["weather_note:sensor_stale"]'
+    && sent.includes("weather_source:condition")
+    && back === true && !!overlayIn(stage) && slot.shown.kind === "rain", { sent, drew, back });
+  slot.detach();
 });
 
 console.log(JSON.stringify({

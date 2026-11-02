@@ -619,7 +619,7 @@ export function createWeather(THREE, host){
       try {
         const cfg = AW.weatherSettingsFrom(p.settings);
         let d = null;
-        try { d = AW.decideAtlasWeather(cfg, p.states || {}, p.entities); }
+        try { d = AW.decideAtlasWeather(cfg, p.states || {}, p.entities, now); }
         catch (_) { AW.countWeatherOnce("weather_error:decision", send); }
         if (d) for (const n of d.notes || []) AW.countWeatherOnce(`weather_note:${n}`, send);
         if (d && d.why !== "no_source") lastLive = now;

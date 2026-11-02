@@ -3332,7 +3332,7 @@ function _cardAlerts(host){
   let wet = null;
   try {
     const w = host.weather;
-    const d = WX && w && w.settings ? WX.decideAtlasWeather(WX.weatherSettingsFrom(w.settings), w.states, w.entities) : null;
+    const d = WX && w && w.settings ? WX.decideAtlasWeather(WX.weatherSettingsFrom(w.settings), w.states, w.entities, Date.now()) : null;
     wet = d && (d.kind === "rain" || d.kind === "snow") ? d.kind : null;
   } catch (_) { wet = null; }
   const alerts = safetyAlerts(Object.values(host.lightsByEid || {}),

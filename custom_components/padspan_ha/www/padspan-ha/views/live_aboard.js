@@ -1089,7 +1089,7 @@ function createSlot(slotKey){
   function wetNow(p){
     const w = p && p.weather && p.weather.settings ? p.weather : null;
     if (!w || !AW) return false;
-    try { return AW.decideAtlasWeather(AW.weatherSettingsFrom(w.settings), w.states || {}, w.entities).kind !== "off"; }
+    try { return AW.decideAtlasWeather(AW.weatherSettingsFrom(w.settings), w.states || {}, w.entities, Date.now()).kind !== "off"; }
     catch (_) { return false; }
   }
   function paintWet(p){

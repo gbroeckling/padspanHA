@@ -696,6 +696,7 @@ const W_EVENT = {
   "ha_sidebar:hidden": "Hid Home Assistant's sidebar", "ha_sidebar:shown": "Brought the sidebar back",
   "weather_note:warning_ignored": "Weather: a leak sensor chosen as the warning, ignored",
   "weather_note:sensor_overruled": "Weather: a wet rain sensor under clear sky, ignored",
+  "weather_note:sensor_stale": "Weather: a rain sensor that stopped reporting, ignored",
   wizard_calib_step_setup: "Calibration wizard: setup", wizard_calib_step_model: "Calibration wizard: house model",
   wizard_calib_step_roam: "Calibration wizard: walk around", wizard_calib_step_tune: "Calibration wizard: tune",
   wizard_calib_step_finish: "Calibration wizard: finished", wizard_calib_exited_early: "Calibration wizard: left early",
