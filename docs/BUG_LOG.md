@@ -172,6 +172,10 @@ released), **watching** (fixed; confirming from the field).
 
 ## Open leads
 
+- **Guest tags recommend Find My tags** (2026-11-02, Garry OK'd passing this on for the next stable): guests.js:144, settings.js:958, GUEST_TAGS_GUIDE.md:15 and the guest-tags help call a Find My tag a "steady identity" that "works best". It changes address every 15 minutes near its owner and daily away (findmy.py), the guest code never checks that MAC Rotation Bridging is on, so with it off the next address reads as "left", and a guest's iPhone would show Apple's "AirTag Found Moving With You". Suggested: "a tag with a steady identity (a beacon, or a phone with Private BLE) works best", plus "Tell your guest the tag is tracked, and lend it only if they agree". /guides/bluetooth-tags/ already says so.
+- **"Tile and Chipolo tags ... always send the same ID"** (help_content.js:174 and its de/fr/nl help.json): PadSpan has no Tile or Chipolo code, no source says Tile sends iBeacon, and Life360 told The Register (Sep 2025) it's moving to rotating MACs. Fixed in the README and the home page on 2026-11-02; the help still says it. Suggested: "a beacon with a fixed iBeacon ID, or a tag that keeps one address, keeps its name; test a new Tile, since newer ones may change address".
+- **manifest.json has no `categories`** (optional): the Marketplace catalog publishes them and `sensors.motion_presence` fits, with only one integration in it so far. The HACS action warns when the key is missing. The Marketplace frontend doesn't filter on them yet.
+
 - **Traceback replays a floor with no photo at ground level**: its storey comes from the photos' stack levels; Overview's floor frame numbers storeys differently (HA levels or slab indices), so mixing them could put a floor on the wrong storey. Left until it can be done in one number space.
 - **Insights on a full week** takes ~3 s on a desktop (streamed in the executor now); a Pi will be slower. Per-day caching would fix it if reports show it.
 

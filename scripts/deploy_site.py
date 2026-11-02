@@ -30,6 +30,7 @@ kept the first time each day.
 """
 from __future__ import annotations
 
+import datetime
 import json
 import pathlib
 import re
@@ -331,6 +332,36 @@ def upload_guides() -> bool:
     return ok
 
 
+def sitemap_with_dates() -> bytes:
+    """sitemap.xml with each guide's <lastmod>, the day of the last commit to its page.
+
+    Google only trusts lastmod while it stays accurate, so it comes from git and
+    is never typed by hand. A page with uncommitted changes counts as changed
+    today, and a page git can't date gets no date rather than a wrong one. A
+    date is a bonus: if git can't answer, the plain sitemap goes up."""
+    plain = (SRC.parent / "sitemap.xml").read_bytes()
+    root = SRC.parent.parent
+
+    def git(args: str) -> str:
+        r = subprocess.run(f'git -C "{root}" {args}', shell=True, capture_output=True, text=True)
+        return r.stdout if r.returncode == 0 else ""
+
+    try:
+        xml = plain.decode("utf-8")
+        changed = {line[3:].strip() for line in
+                   git("status --porcelain --untracked-files=all -- site/guides site/creators").splitlines()}
+        for name in GUIDES:
+            path = f"site/{name}"
+            day = datetime.date.today().isoformat() if path in changed else git(f"log -1 --format=%cs -- {path}").strip()
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+                loc = f"<loc>{URL}{name.rsplit('/', 1)[0]}/</loc>"
+                xml = xml.replace(loc, f"{loc}<lastmod>{day}</lastmod>")
+        return xml.encode("utf-8")
+    except Exception as e:  # noqa: BLE001
+        print(f"  WARN sitemap dates skipped: {e}")
+        return plain
+
+
 def guides_only() -> None:
     """Put the guides, the sitemap that lists them and the IndexNow key live, and
     nothing else, then tell the IndexNow engines about the guides.
@@ -341,8 +372,9 @@ def guides_only() -> None:
     print(f"\n=== deploy_site --guides-only: {len(GUIDES)} guide(s), sitemap.xml and the IndexNow key ===\n")
     ok = upload_guides()
     for name in ("sitemap.xml",) + INDEXNOW_KEYS:
+        body = sitemap_with_dates() if name == "sitemap.xml" else (SRC.parent / name).read_bytes()
         r = subprocess.run(f'{SSH} {HOST} "sudo -n tee {REMOTE_DIR}/{name} > /dev/null"',
-                           shell=True, input=(SRC.parent / name).read_bytes(), capture_output=True)
+                           shell=True, input=body, capture_output=True)
         if r.returncode != 0:
             print(f"  WARN {name} not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
             ok = False
@@ -434,8 +466,9 @@ def main() -> None:
         side = SRC.parent / name
         if not side.exists():
             continue
+        body = sitemap_with_dates() if name == "sitemap.xml" else side.read_bytes()
         r = subprocess.run(f'{SSH} {HOST} "sudo -n tee {REMOTE_DIR}/{name} > /dev/null"',
-                           shell=True, input=side.read_bytes(), capture_output=True)
+                           shell=True, input=body, capture_output=True)
         if r.returncode != 0:
             print(f"  WARN {name} not uploaded: {r.stderr.decode('utf-8', 'replace').strip()}")
         else:
