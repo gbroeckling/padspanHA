@@ -934,5 +934,25 @@ tryCase("telemetry: closed words, once per page load", () => {
     && JSON.stringify(sent) === JSON.stringify(["house3d_opened", "house3d_fallback:no_webgl"]), { r, sent });
 });
 
+// An Open barrier's own railing word (2026-11-02): glass or none decides;
+// no word keeps the drop rule, as every edge from before.
+tryCase("open edges: the barrier's own Railing decides; without one, the rule as before", () => {
+  const name = "open edges: the barrier's own Railing decides; without one, the rule as before";
+  const chosen = gymWith({ rf_barriers_m: [
+    { id: "edge", material: "open", floor_id: "mezz", points_m: [[0, 4], [12, 4]], rail: "none" },
+    { id: "between", material: "open", floor_id: "mezz", points_m: [[12.06, 0.5], [12.06, 3.5]], rail: "glass" },
+    { id: "pastit", material: "open", floor_id: "mezz", points_m: [[23, 0.5], [23, 3.5]] },
+    { id: "hallside", material: "open", floor_id: "hall", points_m: [[20, 2], [20, 8]], rail: "glass" },
+  ] });
+  const h = H.readHouse(chosen, chosen.floors, {}, null);
+  const e = railOf(h, "mezz", "edge"), b = railOf(h, "mezz", "between"), p = railOf(h, "mezz", "pastit"), s = railOf(h, "hall", "hallside");
+  check(name, e.length && e.every(q => !q.loftRail), "none chosen over the hall: a gap");
+  check(name, b.length && b.every(q => q.loftRail && H.wallElements(q, 3).some(x => x.glass)), "glass chosen between two rooms: a railing");
+  check(name, s.length && s.every(q => q.loftRail), "glass chosen on the ground floor's own edge: a railing");
+  check(name, p.length && p.every(q => !q.loftRail), "no word, nothing under it: a gap, as before");
+  const old = railOf(H.readHouse(GYM, GYM.floors, {}, null), "mezz", "edge");
+  check(name, old.length && old.every(q => q.loftRail), "no word over the hall: the rule's railing, as before");
+});
+
 console.log(JSON.stringify({ cases, failures, lists: { fallbacks: H.HOUSE3D_FALLBACK_KINDS, events: H.HOUSE3D_EVENTS } }));
 process.exit(failures.length ? 1 : 0);

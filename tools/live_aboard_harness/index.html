@@ -31,6 +31,14 @@ function el(tag, attrs = {}, children = []) {
   return n;
 }
 localStorage.setItem("padspan_lv_3d_atlas", q.get("la") === "0" ? "0" : "1");
+// The 3D file the house loads. stairs=<rail>:<style>[:<shape>:<stair style>]: a staircase in the Living Room with
+// that rail (auto|none|both|inner|outer; balustrade|topless|single_bar), e.g. stairs=both:topless:l:open.
+const FILE = {};
+if (q.get("stairs")) {
+  const [rail, rail_style, shape, style] = q.get("stairs").split(":");
+  FILE.pieces = { fur_0000aa01: { id: "fur_0000aa01", recipe: { kind: "stairs", params: { shape: shape || "l", turn: "left", style: style || "open", rail, rail_style: rail_style || "balustrade", to_floor: "upper" },
+    colors: [], width_m: 2.4, depth_m: 3, height_m: 2.8 }, origin: "build", label: "", library_id: null, submission_id: null, floor_id: "main", x_m: 8, y_m: 3, z_m: 0, rotation: 0, entity_id: null, entity_reg_id: null } };
+}
 const view = { floorGap: Number(q.get("gap") || 260), horizGap: 0, focusIdx: Number(q.get("focus") || 0), zoom: Number(q.get("zoom") || 1) };
 let host;
 const render = () => { const m = document.getElementById("mount"); m.innerHTML = ""; m.appendChild(LM.buildLightsMapCard(host)); };
@@ -42,7 +50,7 @@ host = { el, view, floors: MODEL.floors, model: MODEL, byRoom: {}, hiddenEids: n
     edit: q.get("edit") ? (ch) => Promise.resolve({ data: {} }) : undefined,
     // tool=heights|door|window|doorway|strip[&teid=light.x]: the setup wizard's way in (taken once).
     openTool: q.get("tool") ? { take: (() => { let t = { tool: q.get("tool"), eid: q.get("teid") || null }; return () => { const r = t; t = null; return r; }; })() } : undefined,
-    states: STATES, people: { read: () => Promise.resolve({ objects: { list: [] } }), everyMs: 5000 }, load: () => Promise.resolve({ data: {} }) },
+    states: STATES, people: { read: () => Promise.resolve({ objects: { list: [] } }), everyMs: 5000 }, load: () => Promise.resolve({ data: FILE }) },
   classFilter: q.get("cls") || "all", onClassFilter: () => {},
   weather: { settings: { atlas_weather_enabled: true }, states: STATES, entities: {} },
   saveView: async () => {}, onHexesBuilt() {}, render, rerender: render, states: STATES };

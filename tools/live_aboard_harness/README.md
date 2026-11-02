@@ -48,6 +48,8 @@ the only 404s in a check's console are real.) Then open `http://127.0.0.1:8765/t
 | `cls=temp` | Pick a device-type chip (heat map with `temp`) |
 | `smoke=0`, `wopen=0` | The smoke alarm quiet; the living-room window shut |
 | `gym=1` | A hall 7.5 m to the roof with a mezzanine at 3.2 m (gallery, walkway, toilets); its open edges over the hall get railings |
+| `rails=glass\|none` | With `gym=1`: the two edges over the hall with that railing chosen on the barrier (`rail`); without it, railed by the rule as an edge from before |
+| `stairs=<rail>:<style>[:<shape>:<stair style>]` | A staircase in the Living Room with that rail (`auto\|none\|both\|inner\|outer`; `balustrade\|topless\|single_bar`), e.g. `stairs=both:topless:l:open` |
 | `loft=1` | Open (Loft) edges that stay gaps: upstairs over the Laundry (an ordinary storey below, so no railing), between two upstairs rooms and on the main floor's street side |
 | `w=380` | Card width in px (a phone; desktop browsers won't go narrower than ~500 px) |
 | `click=A,B` | Press buttons by their text after load |

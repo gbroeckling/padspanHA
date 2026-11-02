@@ -459,3 +459,30 @@ def test_editing_and_saving_leaves_the_map_bytes_unchanged(disk, tmp_path):
         assert _file(tmp_path, k).read_bytes() == raw[k], k
     for k, v in live.items():
         assert h.data[DOMAIN][k] == v, k
+
+
+# ═══ railings are chosen (2026-11-02) ═══════════════════════════════════════
+
+def test_a_stairs_rail_style_is_kept_like_its_style_and_auto_still_saves():
+    """A new stair saves with rail none (the Furnish tab's default) and a
+    rail_style of balustrade, topless or single_bar; a newer version's word
+    is kept, as a style is, so a save is never refused for it; a stair from
+    before keeps its auto. An Open barrier's railing (rail) is the
+    barrier's own key and comes through the fabric's read untouched."""
+    st = {"recipe": {"kind": "stairs", "params": {"shape": "u", "style": "open", "rail": "none", "rail_style": "topless"},
+                     "width_m": 2, "depth_m": 3, "height_m": 2.8}, "floor_id": "main", "x_m": 1, "y_m": 2}
+    out = H.apply_edit(H.empty(), {"pieces": {"fur_1a2b3c4d": st}})
+    assert out["pieces"]["fur_1a2b3c4d"]["recipe"]["params"] == {"shape": "u", "style": "open", "rail": "none", "rail_style": "topless"}
+    for word in ("single_bar", "balustrade", "rope"):
+        p = {**st["recipe"]["params"], "rail": "auto", "rail_style": word}
+        got = H.apply_edit(H.empty(), {"pieces": {"fur_1a2b3c4d": {**st, "recipe": {**st["recipe"], "params": p}}}})
+        assert got["pieces"]["fur_1a2b3c4d"]["recipe"]["params"]["rail_style"] == word
+    for bad in ("Rope!", 3, ""):
+        with pytest.raises(H.EditError, match="rail_style"):
+            H.apply_edit(H.empty(), {"pieces": {"fur_1a2b3c4d": {**st, "recipe": {**st["recipe"], "params": {**st["recipe"]["params"], "rail_style": bad}}}}})
+    with pytest.raises(H.EditError, match="rail"):
+        H.apply_edit(H.empty(), {"pieces": {"fur_1a2b3c4d": {**st, "recipe": {**st["recipe"], "params": {**st["recipe"]["params"], "rail": "glass"}}}}})
+    from custom_components.padspan_ha import fabric_store as FS  # noqa: PLC0415
+    bar = FS.FabricStore._norm_barrier({"id": "gal", "name": "Gallery edge", "material": "open", "floor_id": "mezz",
+                                        "points_m": [[0, 4], [14, 4]], "rail": "glass"})
+    assert bar["rail"] == "glass" and "rail" not in FS.FabricStore._norm_barrier({"name": "Edge", "points_m": [[0, 0], [1, 0]]})

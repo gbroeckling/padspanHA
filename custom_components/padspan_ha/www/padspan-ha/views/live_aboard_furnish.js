@@ -789,12 +789,19 @@ export function createFurnish(ctx){
     if (shape !== "straight") pick("Turns", "turn", [["left", "Left"], ["right", "Right"]], params.turn === "right" ? "right" : "left");
     pick("Style", "style", [["closed", "Closed"], ["open", "Open"], ["treads", "Treads only"], ["floating", "Floating"]],
       ["closed", "open", "treads", "floating"].includes(params.style) ? params.style : "closed");
-    // The rail: for a straight flight its sides are left and right as you go
-    // up (inner = left); for a turn, the inside is the well.
-    const railNow = ["auto", "both", "inner", "outer", "none"].includes(params.rail) ? params.rail : "auto";
+    // The rail: none until one is chosen (2026-11-02); for a straight flight
+    // its sides are left and right as you go up (inner = left); for a turn,
+    // the inside is the well. Auto, what every stair had before, is offered
+    // only on a stair that still has it (a rail word it never had is auto
+    // too), so it can be kept or left. Then its style: a balustrade, topless
+    // (the spindles and posts, no top rail) or a single bar (nothing under it).
+    const railNow = ["both", "inner", "outer", "none"].includes(params.rail) ? params.rail : "auto";
+    const legacy = railNow === "auto" ? [["auto", "Auto (as before)"]] : [];
     pick("Rail", "rail", shape === "straight"
-      ? [["auto", "Auto"], ["both", "Both"], ["inner", "Left"], ["outer", "Right"], ["none", "None"]]
-      : [["auto", "Auto"], ["both", "Both"], ["inner", "Inside"], ["outer", "Outside"], ["none", "None"]], railNow);
+      ? [["none", "None"], ["both", "Both"], ["inner", "Left"], ["outer", "Right"], ...legacy]
+      : [["none", "None"], ["both", "Both"], ["inner", "Inside"], ["outer", "Outside"], ...legacy], railNow);
+    if (railNow !== "none") pick("Rail style", "rail_style", [["balustrade", "Balustrade"], ["topless", "Topless"], ["single_bar", "Single bar"]],
+      ["balustrade", "topless", "single_bar"].includes(params.rail_style) ? params.rail_style : "balustrade");
     // Whole floors above, and with a split level on its own floor, a few
     // steps within that floor (up out of a sunken room, or up to a raised one).
     const from = r.from ? r.from.elev : null, fl = floorList(), whole = r.from ? (r.from.parent || r.from.id) : null;
@@ -900,7 +907,7 @@ export function createFurnish(ctx){
       }
       const base = recipeFor("stairs");
       add(placed.map(({ fid, st }) => {
-        const recipe = { ...base, params: { ...(base.params || {}), shape: st.shape, style: "closed", rail: "auto" },
+        const recipe = { ...base, params: { ...(base.params || {}), shape: st.shape, style: "closed", rail: "none" },
                          width_m: st.width_m, depth_m: st.depth_m };
         const piece = PIECES.makePiece(recipe, fid, { x: st.x_m, y: st.y_m, rotation: st.rotation }, "build");
         piece.label = st.sure_up ? "Stairs (AI first guess)" : "Stairs (AI first guess, check which way is up)";

@@ -46,16 +46,21 @@ The other ways in:
     gaps between them), **Treads only** (nothing under them, as if fixed into the wall beside
     them) or **Floating** (the treads alone on one steel spine down the middle, fixed to the
     floor at the bottom and to the floor or landing at the top, touching no wall).
-  - **Rail:** **Auto**, **Both**, **Inside** (the well side of a turn; Left on a straight flight),
-    **Outside** (Right on a straight flight) or **None**. Auto keeps the plain rods closed
-    straight, L and U stairs have always had, and gives the other styles and shapes a handrail on
-    spindles on the open side (both sides of a Floating stair, which has no wall beside it). A rail stands its full height, so over the top flights it rises
-    into the opening in the floor above, as a real one does.
+  - **Rail:** **None** until you pick **Both**, **Inside** (the well side of a turn; Left on a
+    straight flight) or **Outside** (Right on a straight flight). A stair from before 2026-11-02
+    keeps its **Auto** rail until you change it (shown only on such a stair): the plain rods closed
+    straight, L and U stairs always had, and a handrail on spindles on the open side for the other
+    styles and shapes (both sides of a Floating stair, which has no wall beside it). A rail stands
+    its full height, so over the top flights it rises into the opening in the floor above, as a
+    real one does.
+  - **Rail style:** **Balustrade** (a handrail on spindles, a post at each end), **Topless** (the
+    spindles and posts with no top rail) or **Single bar** (one bar and nothing under it, on a post
+    at each end).
   - **Stairs in stair rooms** (Build ▾ → House, shown when there are some): a first guess for each
     room called Stairs, Stairwell or Staircase (Escalier, Treppenhaus, Trap…) that has none yet and
     a floor above. It's squared to the room's longest wall and sized to the room: a straight flight
-    against a long wall with the rail on the open side when the room is long enough, else a U or a
-    flight round two landings filling it. Drag it, turn it or change it like any other; nothing is
+    against a long wall when the room is long enough, else a U or a flight round two landings
+    filling it, with no rail until you pick one. Drag it, turn it or change it like any other; nothing is
     kept until Save.
   - **Read stairs off the plans (AI)** (Build ▾ → House, with **Settings → AI → Stairs from your floor
     plans** on and an AI Task picked): your AI looks for the stairs on each floor plan you placed and adds

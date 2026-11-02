@@ -362,15 +362,14 @@ tryCase("stairs: a piece a few degrees off its room's walls is squared to them; 
   check("stairs: a piece a few degrees off its room's walls is squared to them; far off, left alone",
     r[0] === 0 && r[1] === 0 && r[2] === 90 && r[3] === 30 && Math.abs(r[4] - 30) < 1e-6 && Math.abs(r[5] - 30) > 1, r);
 });
-tryCase("stairs: a long stair room holds a straight flight against its long wall, the rail on the open side", () => {
+tryCase("stairs: a long stair room holds a straight flight against its long wall, no rail until chosen", () => {
   const hall = { name: "Stairs", pts: [[0, 0], [5, 0], [5, 1.6], [0, 1.6]] };
   const g = P.stairForRoom(hall, 2.8);
   // Squared to the room, inside it, the run along the 5 m side, up to 1 m wide against y = 0.
   const inside = g.x_m - g.depth_m / 2 >= -1e-6 && g.x_m + g.depth_m / 2 <= 5 + 1e-6 && g.y_m - g.width_m / 2 >= -1e-6 && g.y_m + g.width_m / 2 <= 1.6 + 1e-6;
-  const right = P.acrossOf(g.rotation), wallRight = right[1] < 0;        // the wall is at y = 0
-  check("stairs: a long stair room holds a straight flight against its long wall, the rail on the open side",
+  check("stairs: a long stair room holds a straight flight against its long wall, no rail until chosen",
     g.params.shape === "straight" && g.rotation % 90 === 0 && inside && g.width_m === 1 && Math.abs(g.y_m - 0.53) < 1e-6
-      && g.params.rail === (wallRight ? "inner" : "outer"), g);
+      && g.params.rail === "none", g);
 });
 tryCase("stairs: a square stair room holds a U (or round two landings when the U is too short)", () => {
   const g = P.stairForRoom({ name: "Stairwell", pts: [[0, 0], [2.4, 0], [2.4, 3.0], [0, 3.0]] }, 2.8);

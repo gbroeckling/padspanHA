@@ -133,7 +133,11 @@ def test_the_limits_are_the_servers() -> None:
     assert T.STAIR_STYLES == HS.STAIR_STYLES and 'export const STAIR_STYLES = ["closed", "open", "treads", "floating"];' in house
     summary = SC.stairs_summary({f"fur_{i}": {"recipe": {"kind": "stairs", "params": {"style": s}}} for i, s in enumerate(HS.STAIR_STYLES)})
     assert all(summary.get(f"style_{s}") == 1 for s in HS.STAIR_STYLES)
-    assert 'choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"]' in fur and HS.STAIR_RAILS == ("auto", "both", "inner", "outer", "none")
+    # Rails (2026-11-02): a new stair starts with none, a stair with no rail word stays auto (as it drew), in one of three styles.
+    assert 'choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"], "none", { missing: "auto" })' in fur
+    assert HS.STAIR_RAILS == ("auto", "both", "inner", "outer", "none")
+    assert 'choice("rail_style", "Rail style", ["balustrade", "topless", "single_bar"], "balustrade", { keepWord: true })' in fur
+    assert HS.STAIR_RAIL_STYLES == ("balustrade", "topless", "single_bar")
     assert 'choice("turn", "Turns", ["left", "right"]' in fur and HS.STAIR_TURNS == ("left", "right")
 
 

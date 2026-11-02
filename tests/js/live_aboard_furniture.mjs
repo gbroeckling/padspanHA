@@ -79,7 +79,7 @@ const paramOk = (s) => {
       && (s.type === "num" || (Number.isInteger(s.min) && Number.isInteger(s.max) && Number.isInteger(s.def) && s.step === 1));
   }
   if (s.type === "choice") return base && Array.isArray(s.choices) && s.choices.length >= 2 && s.choices.includes(s.def)
-    && s.choices.every((c) => typeof c === "string" && /^[a-z][a-z0-9 -]*$/.test(c));
+    && s.choices.every((c) => typeof c === "string" && /^[a-z][a-z0-9_ -]*$/.test(c));       // a word like a key (single_bar)
   if (s.type === "bool") return base && typeof s.def === "boolean";
   return false;
 };
@@ -659,6 +659,42 @@ tryCase("starters: every starter recipe is kept as it is and builds inside its b
   }
   check("starters: every starter recipe is kept as it is and builds inside its box",
     (F.STARTER_SET || []).length >= 10 && bad.length === 0, bad);
+});
+
+// Rails (2026-11-02): a new stair has none until one is chosen; auto, and a
+// stair with no rail word, draw exactly as before; the three rail styles draw
+// what they say.
+tryCase("build: a new stair has no rail until chosen, auto draws as before, and the rail styles draw what they say", () => {
+  const name = "build: a new stair has no rail until chosen, auto draws as before, and the rail styles draw what they say";
+  const S = { w: 2, d: 3, h: 2.8 }, L = (p) => F.stairFlights(S, p);
+  const def = F.defaultRecipe("stairs").params;
+  check(name, def.rail === "none" && def.rail_style === "balustrade", { def });
+  for (const shape of F.STAIR_SHAPES) for (const style of F.STAIR_STYLES) {
+    const L0 = L({ shape, style, rail: "none" });
+    check(name, L0.rails.length === 0 && L0.balusters.length === 0, { shape, style, rails: L0.rails.length, bal: L0.balusters.length });
+  }
+  // Auto, and no rail word at all: the plain rods a closed straight flight always had, both sides.
+  const auto = L({ shape: "straight", style: "closed", rail: "auto" }), bare = L({ shape: "straight", style: "closed" });
+  check(name, auto.plain && auto.rails.length === 2 && auto.balusters.length === 0 && JSON.stringify(bare) === JSON.stringify(auto), { auto: [auto.rails.length, auto.balusters.length] });
+  const autoOpen = L({ shape: "l", style: "open", rail: "auto" });
+  check(name, !autoOpen.plain && autoOpen.rails.length > 0 && autoOpen.balusters.length > 0, "auto on an open L: a balustrade on the well side, as before");
+  // An edit keeps a missing rail word auto (as it drew), makes nonsense none, and keeps a newer rail_style word.
+  const kept = F.clampRecipe({ kind: "stairs", params: { shape: "l" } }).params, junk = F.clampRecipe({ kind: "stairs", params: { rail: "Glass!", rail_style: "Rope!" } }).params;
+  const newer = F.clampRecipe({ kind: "stairs", params: { rail: "both", rail_style: "rope" } }).params;
+  check(name, kept.rail === "auto" && kept.rail_style === "balustrade" && junk.rail === "none" && junk.rail_style === "balustrade" && newer.rail_style === "rope"
+    && L(newer).look === "balustrade", { kept, junk, newer });
+  // The styles.
+  const base = { shape: "l", style: "open", rail: "both" };
+  const bal = L(base), top = L({ ...base, rail_style: "topless" }), bar = L({ ...base, rail_style: "single_bar" });
+  check(name, bal.look === "balustrade" && bal.rails.length > 0 && bal.balusters.length > 0 && !bal.plain, { bal: [bal.rails.length, bal.balusters.length] });
+  check(name, top.look === "topless" && top.rails.length === 0 && top.balusters.length === bal.balusters.length && !top.plain, { top: [top.rails.length, top.balusters.length] });
+  check(name, bar.look === "single_bar" && bar.rails.length > 0 && bar.balusters.length === 0 && bar.plain, { bar: [bar.rails.length, bar.balusters.length] });
+  check(name, L({ shape: "straight", rail: "inner" }).rails.length === 1 && L({ shape: "straight", rail: "both" }).rails.length === 2, "sides");
+  for (const rail_style of F.STAIR_RAIL_STYLES) for (const quality of ["low", "high"]) {
+    const g = F.buildPiece(THREE, { kind: "stairs", params: { ...base, rail_style }, colors: [], width_m: 2, depth_m: 3, height_m: 2.8 }, { quality });
+    check(name, g && g.isGroup && g.children.length > 0, { rail_style, quality });
+    F.disposePiece(g);
+  }
 });
 
 console.log(JSON.stringify({ cases, failures, stats }));

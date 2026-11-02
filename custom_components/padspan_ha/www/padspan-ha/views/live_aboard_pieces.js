@@ -448,8 +448,8 @@ export function squareRot(rot, pts, tol = SQUARE_TOL_DEG){
 }
 /** The flight a stair room would hold, going up `rise` metres: squared to
  *  its longest wall, a straight one against a long wall when the room is
- *  long enough (the rail on the open side), else a U or a flight round two
- *  landings filling it. {params, width_m, depth_m, x_m, y_m, rotation}. */
+ *  long enough, else a U or a flight round two landings filling it; no rail
+ *  until one is chosen. {params, width_m, depth_m, x_m, y_m, rotation}. */
 export function stairForRoom(room, rise){
   const pts = room && Array.isArray(room.pts) ? room.pts : [];
   if (pts.length < 3) return null;
@@ -471,14 +471,13 @@ export function stairForRoom(room, rise){
   let params, W, D, c;
   if (Lu - 2 * gap >= need * 0.85 || Lv < 1.8) {
     D = clamp(Math.min(need, Lu - 2 * gap), 0.6, 8); W = w;
-    // Against the room's wall on its −nx side, the rail on the open side.
+    // Against the room's wall on its −nx side.
     c = at(a0 + gap + D / 2, b0 + gap + W / 2);
-    const right = acrossOf(rotation), wallRight = right[0] * -nx[0] + right[1] * -nx[1] > 0;
-    params = { shape: "straight", style: "closed", rail: Lv - W > 0.3 ? (wallRight ? "inner" : "outer") : "both" };
+    params = { shape: "straight", style: "closed", rail: "none" };
   } else {
     W = clamp(Lv - 2 * gap, 1.8, 4); D = clamp(Lu - 2 * gap, 1.8, 8);
     const f = Math.min(W / 2, D / 2), uFits = 2 * (D - f) >= need * 0.85;
-    params = { shape: uFits ? "u" : "l2", style: "closed", rail: "inner", turn: "left" };
+    params = { shape: uFits ? "u" : "l2", style: "closed", rail: "none", turn: "left" };
     c = at(a0 + gap + D / 2, b0 + gap + W / 2);
   }
   return { params, width_m: mm(W), depth_m: mm(D), x_m: mm(c[0]), y_m: mm(c[1]), rotation };

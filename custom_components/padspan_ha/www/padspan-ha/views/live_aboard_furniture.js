@@ -261,11 +261,19 @@ export const FURNITURE = {
       // A style a newer version made (a short lowercase word) is kept as it is
       // and drawn closed (stairFlights), never turned closed by an edit here.
       choice("style", "Style", ["closed", "open", "treads", "floating"], "closed", { keepWord: true }),
-      // auto: the plain rods closed straight, L and U stairs always had (both
-      // sides of a straight flight, the outside of a turn; both sides of a
-      // floating stair, which has no wall); anything else draws a handrail on
-      // spindles with a post at each end.
-      choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"], "auto"),
+      // A new stair has no rail until one is chosen (2026-11-02). auto, what
+      // every stair had before, stays what it draws: the plain rods closed
+      // straight, L and U stairs always had (both sides of a straight
+      // flight, the outside of a turn; both sides of a floating stair, which
+      // has no wall), a handrail on spindles with a post at each end for the
+      // rest; a stair with no rail word at all (from before the choice) is
+      // still auto (missing), never turned into none by an edit here.
+      choice("rail", "Rail", ["auto", "both", "inner", "outer", "none"], "none", { missing: "auto" }),
+      // Its style: a balustrade (a handrail on spindles, a post at each
+      // end), topless (the spindles and posts, no top rail) or a single bar
+      // (one bar and nothing under it). A newer version's word is kept and
+      // drawn as a balustrade.
+      choice("rail_style", "Rail style", ["balustrade", "topless", "single_bar"], "balustrade", { keepWord: true }),
     ]),
 };
 
@@ -281,6 +289,7 @@ export const STAIR_STYLE_WORD = /^[a-z][a-z_]{0,23}$/;
 function clampParam(s, v){
   if (s.type === "choice") {
     if (s.choices.includes(v)) return v;
+    if (v === undefined && s.missing !== undefined) return s.missing;     // not set at all: as it always drew
     if (s.keepWord && typeof v === "string" && STAIR_STYLE_WORD.test(v)) return v;
     const t = typeof v === "string" ? v.trim().toLowerCase() : null;
     return t !== null && s.choices.includes(t) ? t : s.def;
@@ -709,14 +718,16 @@ export const STAIR_RISER_M = 0.19, STAIR_RAIL_M = 0.9;
 export const STAIR_SHAPES = ["straight", "l", "u", "l2", "l3"];
 export const STAIR_STYLES = ["closed", "open", "treads", "floating"];
 export const STAIR_RAILS = ["auto", "both", "inner", "outer", "none"];
+export const STAIR_RAIL_STYLES = ["balustrade", "topless", "single_bar"];
 /** The steps, as numbers, in the piece's own frame (x across, z to the
  *  front, y up; metres): {risers, riser, steps: [{x0, z0, x1, z1, h, y0}]
  *  (each a block from y0, the floor unless a flight below runs under it, up
  *  to h), landings (the same), flights: [{s, d, L, w, b, top, n}] (each run's
  *  middle at the bottom, its direction, length, width, its first and last
- *  tread's heights, its risers), rails: [[a, b]] ([x, y, z] each), balusters
- *  ([[a, b]], spindles and posts, with rails a proper balustrade, or [] for
- *  the plain rods closed stairs have always had), exit: {x, z, dx, dz} (where
+ *  tread's heights, its risers), rails: [[a, b]] ([x, y, z] each; none for
+ *  a topless rail), balusters ([[a, b]], spindles and posts, with rails a
+ *  proper balustrade, or [] for the plain rods closed stairs have always had
+ *  and a single bar), look (the rail_style drawn), exit: {x, z, dx, dz} (where
  *  you step off at the top, and which way), path: [[x, y, z]] (up the
  *  middle, bottom to top)}. */
 export function stairFlights(S, p){
@@ -724,12 +735,15 @@ export function stairFlights(S, p){
   const shape = p && STAIR_SHAPES.includes(p.shape) ? p.shape : "straight", sx = p && p.turn === "right" ? -1 : 1;
   const style = p && STAIR_STYLES.includes(p.style) ? p.style : "closed";
   const railP = p && STAIR_RAILS.includes(p.rail) ? p.rail : "auto";
+  const look = p && STAIR_RAIL_STYLES.includes(p.rail_style) ? p.rail_style : "balustrade";
   const many = shape === "l2" || shape === "l3";
   const nFl = shape === "straight" ? 1 : shape === "l2" ? 3 : shape === "l3" ? 4 : 2;
   const N = Math.max(2 * nFl, Math.ceil(R / STAIR_RISER_M - 1e-9)), r = R / N;
   // The plain rods (one rod each side, a post at each end) stay what closed
-  // straight, L and U stairs have always drawn, until a rail is chosen.
-  const plain = style === "closed" && !many && railP === "auto";
+  // straight, L and U stairs have always drawn on auto, and are what a
+  // single bar is (2026-11-02); a balustrade or a topless rail stands its
+  // full height on spindles.
+  const plain = look === "single_bar" || (look === "balustrade" && style === "closed" && !many && railP === "auto");
   // Which sides get a rail, +1 right of the way up, −1 left. The inside of a
   // turn (the well) is the side it turns to: −sx. Auto on a floating stair:
   // both sides, as on a straight flight (it stands clear of any wall).
@@ -873,7 +887,8 @@ export function stairFlights(S, p){
     }
   }
   const wallSide = sides.includes(rs) && !sides.includes(-rs) ? -rs : rs;
-  return { risers: N, riser: r, rise: R, shape, style, wallSide, plain, steps, landings, flights: flights.map(({ at, ...F }) => F), rails, balusters, exit, path };
+  if (look === "topless") rails.length = 0;                 // the spindles and posts stand with no top rail
+  return { risers: N, riser: r, rise: R, shape, style, look, wallSide, plain, steps, landings, flights: flights.map(({ at, ...F }) => F), rails, balusters, exit, path };
 }
 function buildStairs(K, S, p, C){
   const L0 = stairFlights(S, p), tread = L(C[0], "wood"), side = L(C[1]), rail = L(C[2] || "#3d3a36", "metal");

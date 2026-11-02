@@ -2037,8 +2037,10 @@ function _edit(ctx, map, allMaps, opts){
     const points_m = fracPts.map(p => mapFracToMetres(tf, clamp01(p[0]), clamp01(p[1])))
       .map(q => [Math.round(q[0] * 1000) / 1000, Math.round(q[1] * 1000) / 1000]);
     try {
+      // An Open (Loft) edge drawn from now on starts with no railing in Live
+      // Aboard (rail "none"; the Railing button on its row changes it).
       const r = await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier: {
-        name, material, attenuation_dbm: atten, floor_id: _wallFloor(), points_m } });
+        name, material, attenuation_dbm: atten, floor_id: _wallFloor(), points_m, ...(material === "open" ? { rail: "none" } : {}) } });
       await ctx.actions.modelRefresh();
       return r && r.barrier ? r.barrier.id : null;
     } catch (e) { ctx.toast("Could not place wall: " + (e.message || e), true); return null; }
@@ -2109,17 +2111,17 @@ function _edit(ctx, map, allMaps, opts){
     try {
       let doorId = null;
       if (split.before) {
-        await setBarrier({ id: barId, name: bar.name, material: bar.material,
+        await setBarrier({ id: barId, name: bar.name, material: bar.material, rail: bar.rail,
           attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: toMetres(split.before) });
         const r = await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
           floor_id: fid, points_m: toMetres(split.middle), linked_entity_id: entityId });
         doorId = r && r.barrier ? r.barrier.id : null;
         if (split.after) {
-          await setBarrier({ name: `${bar.name || "Wall"} (2)`, material: bar.material,
+          await setBarrier({ name: `${bar.name || "Wall"} (2)`, material: bar.material, rail: bar.rail,
             attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: toMetres(split.after) });
         }
       } else if (split.after) {
-        await setBarrier({ id: barId, name: bar.name, material: bar.material,
+        await setBarrier({ id: barId, name: bar.name, material: bar.material, rail: bar.rail,
           attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: toMetres(split.after) });
         const r = await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
           floor_id: fid, points_m: toMetres(split.middle), linked_entity_id: entityId });
@@ -2855,6 +2857,31 @@ function _edit(ctx, map, allMaps, opts){
             el("div",{class:"muted",style:"font-size:10px"}, bar.material === "open" ? `Open (Loft) · ${(bar.points||[]).length} pts` : `${bar.material} · ${bar.attenuation_dbm}dB · ${(bar.points||[]).length} pts`),
             linkedName ? el("div",{style:"font-size:10px;color:#c4b5fd;margin-top:2px"}, `🚪 ${linkedName}`) : null,
           ]));
+          // An Open (Loft) edge's railing in Live Aboard (2026-11-02): the
+          // barrier's own choice (rail "glass" or "none"). One drawn before
+          // this choice has no rail word and is railed only where it looks
+          // down into a hall that rises past it (live_aboard_house.js
+          // applyBarriers), as before.
+          if(bar.material === "open"){
+            const rawRail = ((ctx.state.model?.rf_barriers_m || []).find(b => b.id === bar.id) || {}).rail;
+            const railNow = rawRail === "glass" ? "glass" : rawRail === "none" ? "none" : null;
+            const railBtn = el("button",{class:"btn tiny" + (railNow === "glass" ? " primary" : "")},
+              railNow === "glass" ? "Railing" : railNow === "none" ? "No railing" : "Railing: as before");
+            railBtn.title = railNow ? "In Live Aboard: a glass railing on this edge, or none. Click to change."
+              : "In Live Aboard this edge is railed only where it looks down into a hall that rises past it (as before this choice). Click for a railing; click again for none.";
+            railBtn.addEventListener("click", async (ev)=>{
+              ev.stopPropagation();
+              const raw = (ctx.state.model?.rf_barriers_m || []).find(b => b.id === bar.id);
+              if(!raw){ ctx.toast("That edge no longer exists.", true); return; }
+              try {
+                await ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set",
+                  barrier: { ...raw, rail: railNow === "glass" ? "none" : "glass" } });
+                await ctx.actions.modelRefresh();
+                renderAll(); renderTools();
+              } catch (e) { ctx.toast("Could not update: " + (e.message || e), true); }
+            });
+            row.appendChild(railBtn);
+          }
           if(!bar.linked_entity_id){
             const doorBtn = el("button",{class:"btn tiny"},"Door");
             doorBtn.title = "Mark a door/window on this wall";
@@ -4573,7 +4600,7 @@ const BRIGHT_PRO_MANUAL = [
         "body": "Marking your real interior walls keeps the map an accurate record of your home. This needs the scale set first — without it, there's nowhere to store a wall's real position.",
         "steps": [
           "In the Edit tab, click Signal walls.",
-          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout) gets a railing; anywhere else it stays an open gap.",
+          "Pick the material that matches the real wall: Open (Loft), Brick, Concrete, Metal, or Custom. Open marks a spot with no real wall — a loft railing or open doorway you still want on the map. In Live Aboard an open edge over a hall that rises past it (a mezzanine or gallery, with the floor kept at its normal height in Floor Heights and the hall given its full height on the Rooms page (Ceiling height) or with Rises to on Mapping → Layout) gets a railing; anywhere else it stays an open gap. The Railing button on the edge's row sets it outright: a railing, or none; an edge drawn from now on starts with none.",
           "Click along the wall on the photo, one point per corner or bend.",
           "Click Undo point to remove the last point.",
           "Double-click, or click Finish, once you have at least two points."
@@ -5053,7 +5080,7 @@ function _floorHeights(ctx){
       "Floor-to-floor is finished floor to the next finished floor — ceiling plus slab. It sets the vertical gap 3D positioning uses between floors. "+
       "Base elevation is derived by stacking those heights, so leave it blank unless stacking is wrong: a split level or a mezzanine. "+
       "For a room taller than its floor (a double-height living room, a hall under a mezzanine or a gallery), keep the floor's normal height here and give that room its full height (floor to roof) on the Rooms page (Ceiling height), or on the Layout tab: select it, then Rises to (the same value). "+
-      "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing on its open edge, and a mezzanine gets its real base elevation here and sits under the room's roof."),
+      "Live Aboard draws only that room's walls up to it; a gallery or mezzanine above it gets a railing on its open edge (or the Railing you set on that edge in Signal walls), and a mezzanine gets its real base elevation here and sits under the room's roof."),
   ]);
   if(!floors.length){
     wrap.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},"No floors defined in Home Assistant yet."));
@@ -8054,16 +8081,16 @@ export async function _commitDoorCircle(ctx, mapState) {
   const setBarrier = (barrier) => ctx.actions.callWS({ type: "padspan_ha/fabric_rf_barrier_set", barrier });
   try {
     if (split.before) {
-      await setBarrier({ id: bar.id, name: bar.name, material: bar.material,
+      await setBarrier({ id: bar.id, name: bar.name, material: bar.material, rail: bar.rail,
         attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.before });
       await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
         floor_id: fid, points_m: split.middle, linked_entity_id: eid });
       if (split.after) {
-        await setBarrier({ name: `${bar.name || "Wall"} (2)`, material: bar.material,
+        await setBarrier({ name: `${bar.name || "Wall"} (2)`, material: bar.material, rail: bar.rail,
           attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.after });
       }
     } else if (split.after) {
-      await setBarrier({ id: bar.id, name: bar.name, material: bar.material,
+      await setBarrier({ id: bar.id, name: bar.name, material: bar.material, rail: bar.rail,
         attenuation_dbm: bar.attenuation_dbm, floor_id: fid, points_m: split.after });
       await setBarrier({ name: `Door — ${bar.name || "Wall"}`, material, attenuation_dbm: atten,
         floor_id: fid, points_m: split.middle, linked_entity_id: eid });

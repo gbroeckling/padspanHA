@@ -214,12 +214,17 @@ REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 # two or three landings (l2, l3), turning left or right; closed, open,
 # treads only (fixed into a wall) or floating (on a spine, fixed at the bottom
 # and the top), with a rail on both sides, the inside, the outside or none
-# (auto: as closed stairs always had); from their floor up to the floor they reach (to_floor, a
-# floor's id; none: the next floor up). Width and depth are their footprint,
-# height their rise (the gap between the two floors, kept by the editor; the
-# view always draws the gap).
+# (auto: as closed stairs always had, kept for the stairs that have it; a new
+# stair starts with none, 2026-11-02) in a rail_style: balustrade (a handrail
+# on spindles), topless (the spindles and posts, no top rail) or single_bar
+# (one bar, nothing under it), a short word kept like a style so a newer
+# version's save is never refused; from their floor up to the floor they
+# reach (to_floor, a floor's id; none: the next floor up). Width and depth
+# are their footprint, height their rise (the gap between the two floors,
+# kept by the editor; the view always draws the gap).
 STAIR_SHAPES, STAIR_TURNS = ("straight", "l", "u", "l2", "l3"), ("left", "right")
 STAIR_STYLES, STAIR_RAILS = ("closed", "open", "treads", "floating"), ("auto", "both", "inner", "outer", "none")
+STAIR_RAIL_STYLES = ("balustrade", "topless", "single_bar")
 # A style this version does not know (a newer one's) is kept, if it is a short
 # lowercase word, and drawn as closed: a save is never refused for it, as
 # 0.38.183 to 0.38.195 refuse a whole save holding a floating stair.
@@ -395,6 +400,9 @@ def _stairs(pid: str, r: dict) -> None:
     if style not in STAIR_STYLES and not (isinstance(style, str) and STAIR_STYLE_WORD.fullmatch(style)):
         raise EditError(f"{pid} stairs style must be a short lowercase word ({', '.join(STAIR_STYLES)})")
     _pick(p.get("rail", "auto"), STAIR_RAILS, f"{pid} stairs rail")
+    rs = p.get("rail_style", "balustrade")
+    if rs not in STAIR_RAIL_STYLES and not (isinstance(rs, str) and STAIR_STYLE_WORD.fullmatch(rs)):
+        raise EditError(f"{pid} stairs rail_style must be a short lowercase word ({', '.join(STAIR_RAIL_STYLES)})")
     to = p.get("to_floor")
     if to is not None and not _plain(to, 64):
         raise EditError(f"{pid}: the floor stairs reach (to_floor) must be a floor's id")

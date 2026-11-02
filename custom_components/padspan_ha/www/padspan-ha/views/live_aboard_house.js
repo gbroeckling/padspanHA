@@ -858,12 +858,17 @@ export function applyBarriers(floor, pieces, barriers, canon, kindOf = barrierKi
   // opening to the edit tools); only how it is drawn changes. Between two
   // rooms on one floor, or on an edge with nothing under it (the street from
   // the main floor), it stays a plain gap.
-  if (looksDown && !floor.outdoor) {
-    for (const pc of pieces) {
-      if (pc.kind !== "open" || pc.cls !== "ext" || pc.shared || pc.free) continue;
-      pc.loftRail = [0.25, 0.5, 0.75].some(t => looksDown(pc.x0 + (pc.x1 - pc.x0) * t + pc.nx * 0.4,
-                                                           pc.y0 + (pc.y1 - pc.y0) * t + pc.ny * 0.4));
-    }
+  // The barrier's own choice comes first (2026-11-02, Mapping → Signal walls,
+  // Railing: rail "glass" or "none" on the Open barrier): an edge drawn from
+  // then on starts with none; one from before has no rail word and keeps the
+  // rule above.
+  for (const pc of pieces) {
+    if (pc.kind !== "open") continue;
+    const chosen = pc.barrier ? pc.barrier.rail : undefined;
+    if (chosen === "glass" || chosen === "none") { pc.loftRail = chosen === "glass"; continue; }
+    if (!looksDown || floor.outdoor || pc.cls !== "ext" || pc.shared || pc.free) continue;
+    pc.loftRail = [0.25, 0.5, 0.75].some(t => looksDown(pc.x0 + (pc.x1 - pc.x0) * t + pc.nx * 0.4,
+                                                         pc.y0 + (pc.y1 - pc.y0) * t + pc.ny * 0.4));
   }
   return pieces;
 }
