@@ -3494,7 +3494,7 @@ function createSlot(slotKey){
   function fit(theta = cam.theta, phi = cam.phi, pts = null){
     const g = frameFor(theta, phi, pts || visiblePoints());
     cam.target.copy(g.target); cam.theta = g.theta; cam.phi = g.phi; cam.radius = g.radius;
-    if (!pts) fitR = g.radius;
+    if (!pts) { fitR = g.radius; wallPivot = null; }
     applyCam();
   }
   /** Where the camera frames `pts` from (theta, phi): {target, radius, theta, phi}. */
