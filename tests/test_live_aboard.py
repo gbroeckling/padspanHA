@@ -294,6 +294,9 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     # The view only gets what lights_map.js hands it, field by field: with this
     # line gone the stamp can't run at all, whatever maps.js gives.
     assert 'barrierRail: typeof h3.barrierRail === "function" ? h3.barrierRail : null,' in lm
+    # It runs after a Save of the person's own, never on opening: editSave is its one caller.
+    la_src = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert la_src.count("stampEdgeRails(") == 2 and "await saveEdit(ch0, base);\n    stampEdgeRails();" in la_src
     la = _js(_VIEWS / "live_aboard.js")
     assert "callWS" not in la and "wsCall" not in la and "settings_set" not in la
     # Save, Cancel, Escape, a tap elsewhere; the preview drives the sun only.
