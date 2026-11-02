@@ -606,7 +606,6 @@ function createSlot(slotKey){
     try { if (root && root.parentNode) root.parentNode.removeChild(root); } catch (_) { /* already out */ }
   }
   function teardown(){
-    clearTimeout(wallSettle); wallSettle = null;
     try { endSpin(false); hidePill(); dropPointers(); endScreen(); } catch (_) { /* nothing to undo */ }
     try { if (use) use.dispose(); } catch (_) { /* gone with the view */ }
     use = null;
@@ -3178,20 +3177,14 @@ function createSlot(slotKey){
   // on Low keeps a budget of about 1440p (the browser scales it up). Anywhere
   // else, the quality profile's ratio as before.
   const WALL_PX = 2560 * 1440, WALL_MOVE_PX = 1280 * 720, WALL_SETTLE_MS = 200;
-  let profileDpr = 1, wallMoves = false, camMovedAt = -Infinity, wallSettle = null;
+  let profileDpr = 1, wallMoves = false, camMovedAt = -Infinity;
   const wallMoving = () => !!quality.measuring || !!cam.fly || performance.now() - camMovedAt < WALL_SETTLE_MS;
+  /** Drawn at less just now: the frame clock keeps looking until it can go sharp again. */
+  const wallSoft = () => wallMoves && !quality.measuring && renderer.getPixelRatio() !== profileDpr;
   function ratioFor(w, h){
     if (!onWallPage(root) || !w || !h) return profileDpr;
     const px = profileOf().dpr !== "device" ? WALL_PX : wallMoves && wallMoving() ? WALL_MOVE_PX : 0;
     return px ? Math.max(0.5, Math.min(profileDpr, Math.sqrt(px / (w * h)))) : profileDpr;
-  }
-  /** Before a frame on a wall that moves at less: this frame's resolution, and the sharp frame once it stops. */
-  function wallFrame(){
-    const pr = ratioFor(drawnW, drawnH);
-    if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr);
-    if (wallSettle === null && !quality.measuring && wallMoving()) {
-      wallSettle = setTimeout(guard(() => { wallSettle = null; requestRender(); }), WALL_SETTLE_MS);
-    }
   }
   function applyProfile(name){
     const Q = HOUSE.QUALITY_PROFILES[name];
@@ -3231,6 +3224,7 @@ function createSlot(slotKey){
     }
     quality.measuring = null;
     quality.profile = step.use;
+    if (step.use !== "high") wallMoves = false;              // it went to Low after all: that has its own budget
     applyProfile(step.use);
     HOUSE.countHouse3dOnce("house3d_opened", send);
     if (onWallPage(root)) HOUSE.countHouse3dOnce(`house3d_wall_draw:${step.use !== "high" ? "low" : wallMoves ? "high_still" : "high"}`, send);
@@ -3844,18 +3838,19 @@ function createSlot(slotKey){
     if (!shouldDraw()) {                                     // drawn again when it shows
       // A check cut short by hiding starts again: the gap is not a frame.
       quality.last = 0; quality.t0 = 0; quality.intervals = [];
-      if (liveMs) dirty = true;                              // what moves carries on when it shows
+      if (liveMs || wallSoft()) dirty = true;                // what moves carries on when it shows
       return;
     }
     // A camera flight moves on every frame until it lands.
     if (cam.fly) { stepFly(performance.now()); dirty = true; }
     // A press's ring and hold, the hover box's grace: timed on frames.
     const more = use ? use.tick(performance.now()) : false;
+    if (wallSoft() && !wallMoving()) dirty = true;           // a wall that moved at less: every pixel again
     // Something moving by itself draws on its own clock (liveRate).
     const due = dirty || !!quality.measuring || (liveMs > 0 && t - lastAmbient >= liveMs - 4);
     if (due) {
       if (cam.needsFit && (canvas.clientWidth || 0) > 0) { openView(); if (studio) arrive(); }
-      if (wallMoves) wallFrame();
+      if (wallMoves) { const pr = ratioFor(drawnW, drawnH); if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr); }
       updateCutaway();
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
@@ -3895,7 +3890,7 @@ function createSlot(slotKey){
         } else requestRender();
       }
     }
-    if ((liveMs || more) && !pending) { pending = true; requestAnimationFrame(frame); }
+    if ((liveMs || more || wallSoft()) && !pending) { pending = true; requestAnimationFrame(frame); }
   });
   // ── Furnish: the plan beside the 3D view (P2) ─────────────────────────────
   // Wide enough, the canvas is two views from the one renderer: the house in

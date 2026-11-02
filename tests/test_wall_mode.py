@@ -308,10 +308,22 @@ def test_a_wall_draws_every_pixel_and_fills_its_screen():
     clear of what stays on show, not of the bars that fade."""
     src = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8")
     assert 'const px = profileOf().dpr !== "device" ? WALL_PX : wallMoves && wallMoving() ? WALL_MOVE_PX : 0;' in src
-    assert "if (wallMoves) wallFrame();" in src, "the frame picks its resolution and the sharp frame follows"
+    assert "if (wallSoft() && !wallMoving()) dirty = true;" in src, "every pixel again once it stops, on the frame clock"
+    assert "if ((liveMs || more || wallSoft()) && !pending)" in src, "and only while it is soft: no frames at rest"
+    assert 'if (step.use !== "high") wallMoves = false;' in src, "on Low nothing waits to go sharp"
     assert "HOUSE.wallMovesAtLess(quality.setting, quality.measured)" in src
     assert 'onWallPage(root) ? ".la3d-tip, .la3d-mchip, .la3d-wet" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar"' in src
     assert "if (pad.H && onWallPage(root)) {" in src, "every other screen frames the house as before"
+
+
+def test_a_wall_hides_home_assistants_sidebar_once_and_puts_it_back_if_it_stops():
+    """On a real wall Home Assistant's sidebar kept its strip of the screen. Only
+    what the wall itself hid goes back; a sidebar hidden by hand stays hidden."""
+    lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert "if(HA_SIDEBAR && this._hass && this.isConnected && !this._wallHidHa && !HA_SIDEBAR.haHidden(this._hass)){" in lp
+    assert "if(HA_SIDEBAR && HA_SIDEBAR.haHidden(this._hass)) HA_SIDEBAR.toggleHaSidebar(this, this._hass);" in lp
+    off = lp[lp.index("  _wallOff(){"):]
+    assert off.index("if(this._wallHidHa){") < off.index("\n  }\n") or off.index("if(this._wallHidHa){") < off.index("\r\n  }\r\n")
 
 
 def test_a_portrait_wall_is_sized_like_a_landscape_one_and_can_be_turned():

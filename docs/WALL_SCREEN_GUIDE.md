@@ -42,7 +42,9 @@ room names, and the rain grow with the screen. On a 1080p screen everything is i
 a 4K screen it is twice the size, so it reads from across the room. The screen is also kept awake
 while the page is open, if Home Assistant is reached over HTTPS (or on the screen's own
 `localhost`); otherwise set the screen's own sleep setting. The first-time Live Aboard card isn't
-shown on a wall, since nobody is there to tap it.
+shown on a wall, since nobody is there to tap it. Home Assistant's own sidebar is hidden too, on that
+browser only, so the map has the whole screen; **Show HA** on the Atlas page (without `?kiosk=1`)
+brings it back.
 
 Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Mapping → Atlas →
 ▦ New layout**). With the classic layout, `?kiosk=1` only drops the header.

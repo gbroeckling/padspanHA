@@ -1519,6 +1519,12 @@ class PadSpanLightsApp extends HTMLElement {
       return;
     }
     this.setAttribute("data-wall", "");
+    // The wall is the whole screen: Home Assistant's own sidebar goes too, on
+    // this browser (Hide HA's switch; Show HA on the Atlas brings it back).
+    if(HA_SIDEBAR && this._hass && this.isConnected && !this._wallHidHa && !HA_SIDEBAR.haHidden(this._hass)){
+      this._wallHidHa = true;
+      HA_SIDEBAR.toggleHaSidebar(this, this._hass);
+    }
     const size = ()=>{
       const p = WALLS.wallParams(location.search, this.state?._wall);
       // A screen hung on its side whose TV can't turn its picture
@@ -1720,6 +1726,10 @@ class PadSpanLightsApp extends HTMLElement {
     this.style.removeProperty("--wall-px");
     this.removeAttribute("data-wall-active");
     this._wallUi = 1;
+    if(this._wallHidHa){
+      this._wallHidHa = false;
+      if(HA_SIDEBAR && HA_SIDEBAR.haHidden(this._hass)) HA_SIDEBAR.toggleHaSidebar(this, this._hass);
+    }
   }
 
   disconnectedCallback(){
