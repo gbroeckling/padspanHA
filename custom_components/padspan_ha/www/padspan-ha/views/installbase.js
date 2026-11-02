@@ -378,7 +378,7 @@ function renderUnlocked(ctx, root) {
     const ovScreens = Object.fromEntries(Object.entries(ovMap).filter(([k]) => /^screens?(_listed)?:/.test(k)));
     // Things people did, things PadSpan did by itself, and what the panel saw of its screen.
     const _auto = /^(irk_resolved|irk_unresolved_rpa|irk_cache_cleared|scan_mode_flip|lost_and_found|tagged_(arrived|departed)|findmy_|mqtt_publish_failed|proxy_rate_drops|vacation_resumed|bermuda_history_purged|house3d_fallback|map_placement_refused|weather_note|weather_source|weather_shown|wall_reload|view_link|ui_error_while)/;
-    const _screen = /^(client_|wall_screen:|overview_shown:)/;
+    const _screen = /^(client_|wall_screen:|overview_shown:|house3d_wall_draw:)/;
     const usePeople = {}, useAuto = {}, useScreen = {};
     for (const [k, v] of Object.entries(s.usage || {})) (_screen.test(k) ? useScreen : _auto.test(k) ? useAuto : usePeople)[k] = v;
     section("Usage", `What people actually use, over the last ${W} days. The first number is how many times; the person icon is how many installs.`, [
@@ -672,6 +672,10 @@ const W_EVENT = {
   findmy_moved_back_addrs: "Links undone when a Find My tag went back",
   forensics_query: "Ran a Forensics search", free_pro_card_shown: "Saw the free-Pro card",
   getting_started_shown: "Saw the Getting Started card", house3d_opened: "Opened the 3D house",
+  "house3d_wall_draw:high": "Wall: every pixel, always",
+  "house3d_wall_draw:high_still": "Wall: every pixel, less while moving",
+  "house3d_wall_draw:high_capped": "Wall: about 1440p, always",
+  "house3d_wall_draw:low": "Wall: Low quality",
   "house3d_fallback:context_lost": "3D house fell back: the browser dropped 3D graphics",
   irk_added: "Added a phone key (IRK)", irk_cache_cleared: "Phone keys reloaded after a change",
   irk_resolved: "A phone's changing address recognised", irk_unresolved_rpa: "A changing address no key recognised",

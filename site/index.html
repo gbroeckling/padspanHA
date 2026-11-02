@@ -184,6 +184,24 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.216</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">2 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>A wall draws Live Aboard at every pixel of its screen.</b> On Auto or High, a wall (<code>?kiosk=1</code>) used to stop at about 1440p's worth, and on Auto fell to Low if its graphics chip couldn't turn the house at 30 frames a second. Now it draws High at the screen's full resolution. If the chip can't turn the house smoothly at that size, the picture is softer only while the camera moves, and sharp again as soon as it stops. A 1080p wall on a small Intel PC used to fall to Low on Auto; it now stays on High, sharp when still and turning at 30 frames a second. A chip too slow for that (a 4K screen on the same PC) draws about 1440p's worth, as it did, and on Auto goes to Low if that is still too slow. <b>Low</b> chosen in Settings stays Low.</li>
+          <li><b>Live Aboard fills a wall's screen.</b> The whole house used to be framed clear of the bars along the top and bottom, even though they fade when nobody is there, and with a margin for a perspective it never quite filled. It now fills the screen, keeping clear only of the chips along the top, and turns about the house's middle. Framed that closely, turning or tilting it by hand can run part of the house past the edge; <b>Fit</b> or going home brings it back. A real house on a 16:9 wall came out about a third larger. Only walls change; every other screen frames the house as before.</li>
+          <li><b>A wall hides Home Assistant's sidebar.</b> With <code>?kiosk=1</code> the map now has the whole screen. Home Assistant's own sidebar is hidden on that browser only, the same switch as <b>Hide HA</b>. <b>Show HA</b> on the Atlas page (without <code>?kiosk=1</code>) brings it back.</li>
+          <li>Counts how a wall screen ended up drawing (<code>house3d_wall_draw</code>: every pixel, every pixel but less while moving, about 1440p's worth, or Low), once per page load, only with the usage report on.</li>
+          <li><b>Manage → HA Entities gave the wrong ID for the occupancy sensor.</b> It said <code>sensor.padspan_occupancy</code>. Home Assistant names it <code>sensor.padspan_occupancy_occupancy</code>, so use that in your automations unless you've renamed it. The sensor itself hasn't changed.</li>
+          <li><b>A wall turned by its link (<code>&amp;wall_rotate=90</code> or <code>270</code>) used the whole screen.</b> The map was only as tall as the screen was before turning, leaving a large empty band beside it.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.215</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">1 November 2026</span>

@@ -99,7 +99,9 @@ def test_the_report_words_are_the_frontends(house) -> None:
                                      "house3d_wall_capped",   # 0.38.164: a wall stopped under a floor above
                                      # 0.38.193: the house's size beside each fallback
                                      *(f"house3d_fallback_size:{b}" for b in T.HOUSE_SIZE_BANDS),
-                                     *T.STAIR_USE_EVENTS}   # 0.38.194: stairs drawn, how they come out, shapes and styles
+                                     *T.STAIR_USE_EVENTS,   # 0.38.194: stairs drawn, how they come out, shapes and styles
+                                     # How a wall screen ended up drawing
+                                     *(f"house3d_wall_draw:{k}" for k in ("high", "high_still", "high_capped", "low"))}
 
 
 def _hass(on: bool = True):

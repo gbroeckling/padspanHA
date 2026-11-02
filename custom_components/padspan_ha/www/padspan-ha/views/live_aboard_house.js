@@ -55,6 +55,9 @@ export const HOUSE3D_FALLBACK_KINDS = ["no_webgl", "slow_gpu", "context_lost", "
 // (settleWalls), once per page load.
 // house3d_fallback_size:<band> (0.38.193): beside each fallback, how many rooms
 // the house has (telemetry.HOUSE_SIZE_BANDS).
+// house3d_wall_draw:<kind>: how a wall screen ended up drawing, once per page
+// load: high (every pixel, always), high_still (every pixel, less while the
+// camera moves), high_capped (about 1440p's worth, always) or low.
 export const HOUSE_SIZE_BANDS = ["lt20", "20_60", "60_150", "gt150"];
 // Stairs (0.38.194, live_aboard.js countStairs): drawn, how they come out,
 // what they reach, their shapes and styles (telemetry.STAIR_USE_EVENTS).
@@ -62,7 +65,8 @@ export const STAIR_SHAPES = ["straight", "l", "u", "l2", "l3"];
 export const STAIR_STYLES = ["closed", "open", "treads", "floating"];
 export const STAIR_USE_EVENTS = ["stairs_drawn", ...["all_ok", "some_landing", "some_nofloor"].map(k => `stairs_outcome:${k}`),
   "stairs_reach:split_level", "stairs_reach:within", ...STAIR_SHAPES.map(k => `stairs_shape:${k}`), ...STAIR_STYLES.map(k => `stairs_style:${k}`)];
-export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), "house3d_wet_window",
+export const WALL_DRAW_KINDS = ["high", "high_still", "high_capped", "low"];
+export const HOUSE3D_EVENTS = ["house3d_opened", ...HOUSE3D_FALLBACK_KINDS.map(k => `house3d_fallback:${k}`), ...WALL_DRAW_KINDS.map(k => `house3d_wall_draw:${k}`), "house3d_wet_window",
   "house3d_loft_rail", "house3d_mezzanine", "house3d_wall_capped", ...HOUSE_SIZE_BANDS.map(b => `house3d_fallback_size:${b}`),
   ...STAIR_USE_EVENTS];
 const _ALLOWED = new Set(HOUSE3D_EVENTS);
@@ -981,11 +985,52 @@ export function qualityStep(setting, webgl, ms){
   if (m.low === undefined) return { measure: "low" };
   return ok(m.low) ? { use: "low" } : { fallback: "slow_gpu" };
 }
+/** A wall (High or Auto) that timed High at every pixel and can't turn the
+ *  house smoothly: what to time next, before the normal steps. Quick enough to
+ *  draw it when something changes: "moves", less while the camera moves and
+ *  sharp when still (live_aboard.js ratioFor). Slower than that: "budget",
+ *  fewer pixels all the time. null: nothing more to try (Low asked for stays Low). */
+export const WALL_STILL_MS = 110;         // about 10 frames a second
+export function wallNextTry(setting, ms){
+  const v = ms ? ms.high : undefined;
+  if (qualitySetting(setting) === "low" || v === undefined || v <= HIGH_MS) return null;
+  return v <= WALL_STILL_MS ? "moves" : "budget";
+}
 /** The median of frame intervals, the first few (shaders compiling) dropped. */
 export function frameMs(intervals, skip = 3){
   const s = (intervals || []).slice(skip).filter(Number.isFinite).sort((a, b) => a - b);
   if (!s.length) return Infinity;
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+}
+
+/**
+ * Fill a band of the screen with a shape, as the perspective really draws it.
+ * pts: [right, up, toward the camera] about the view's middle; tanH, tanV: the
+ * lens's half-width and half-height at distance 1; top, bottom, side: the
+ * band's edges (-1 to 1 of the screen; top > 0 > bottom). Returns {x, y, r}:
+ * how far to move the camera's middle along right and up, and how far back to
+ * stand: the nearest r at which a middle exists that keeps every point inside,
+ * and the middle of those that do.
+ */
+export function fillBand(pts, tanH, tanV, top, bottom, side){
+  const spans = (r) => {
+    let x0 = -Infinity, x1 = Infinity, y0 = -Infinity, y1 = Infinity;
+    for (const p of pts) {
+      const d = r - p[2];
+      x0 = Math.max(x0, p[0] - side * tanH * d); x1 = Math.min(x1, p[0] + side * tanH * d);
+      y0 = Math.max(y0, p[1] - top * tanV * d); y1 = Math.min(y1, p[1] - bottom * tanV * d);
+    }
+    return { x0, x1, y0, y1 };
+  };
+  const fits = (s) => s.x0 <= s.x1 && s.y0 <= s.y1;
+  let lo = Math.max(0.5, Math.max(...pts.map(p => p[2])) + 0.5), hi = lo;    // the camera stays in front of it
+  for (let i = 0; i < 40 && !fits(spans(hi)); i++) { lo = hi; hi *= 2; }   // bounded: bad numbers must never hang a wall
+  for (let i = 0; i < 40; i++) {
+    const m = (lo + hi) / 2;
+    if (fits(spans(m))) hi = m; else lo = m;
+  }
+  const s = spans(hi);
+  return { x: (s.x0 + s.x1) / 2, y: (s.y0 + s.y1) / 2, r: hi };
 }
 
 // ── Lights: what each one is ─────────────────────────────────────────────────
