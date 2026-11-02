@@ -96,8 +96,10 @@ const _n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 
 /** What is wrong right now, worst first: [{id, level: "red"|"amber", text}].
  *  input: { live: bool, failed: bool, snapshot, excluded: sources (iterable),
- *  warmup: bool } */
-export function statusIssues({ live, failed, snapshot, excluded, warmup = false } = {}) {
+ *  warmup: bool, receivers: bool (false: this build has no Receivers screen,
+ *  as PadSpan Bright, which runs fine with no Bluetooth at all, so receivers
+ *  are not its faults) } */
+export function statusIssues({ live, failed, snapshot, excluded, warmup = false, receivers = true } = {}) {
   if (!live) return [];
   if (failed) return [{ id: "no_answer", level: "red", text: "PadSpan isn't answering, so the live data has stopped updating" }];
   const snap = snapshot && typeof snapshot === "object" ? snapshot : null;
@@ -107,7 +109,7 @@ export function statusIssues({ live, failed, snapshot, excluded, warmup = false 
     out.push({ id: "positioning_failed", level: "red", text: "Positioning has stopped: its last update failed" });
   }
   const masked = new Set([...(excluded || [])].map(String));
-  const radios = Array.isArray(snap.ble && snap.ble.radios)
+  const radios = receivers && Array.isArray(snap.ble && snap.ble.radios)
     ? snap.ble.radios.filter(r => inUse(r, masked))
     : null;
   if (radios) {

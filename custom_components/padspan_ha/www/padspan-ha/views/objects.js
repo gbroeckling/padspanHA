@@ -467,7 +467,7 @@ export function render(ctx){
                 ? el("div",{class:"muted",style:"font-size:10px;margin-top:2px;color:#c4b5fd"}, t) : null; })(),
             ].filter(Boolean)
           : (age || "—"))),
-      el("td",{class:"muted",style:"font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis"},
+      el("td",{class:"muted obj-scanner",style:"font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis"},
         o.knn_confidence > 0
           ? [scanner || "—", el("div",{style:"font-size:10px;color:#52b788;margin-top:1px"}, `Calibrated ${Math.round(o.knn_confidence*100)}%`)]
           : (scanner || "—")),
@@ -843,7 +843,7 @@ export function render(ctx){
         return clrBtn;
       })()]),
     allObjects.length
-      ? objTable
+      ? el("div",{class:"table-scroll"}, objTable)
       : el("div",{class:"muted"}, isLive ? "Waiting for scanner data…" : "Switch to Live mode to see real BLE detections."),
   ]);
 

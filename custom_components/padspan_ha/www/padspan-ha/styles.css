@@ -16,6 +16,7 @@
 .card{background:#0f1a12;border:1px solid var(--line);border-radius:12px;padding:12px}
 .kpi{font-size:24px;font-weight:700;margin-top:4px}
 .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#0c1a0e;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto}
+textarea.mono{color:var(--text)}
 .hidden{display:none}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 /* Flood alarm latches, sidebar (panel.js #emergencyBanner) — always visible
@@ -30,13 +31,14 @@
    panel.js's global chrome. Built into the DOM only while on, so there is
    no .hidden toggle here to fight a same-specificity display rule. */
 .lv-vacation{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:min(90vw,520px);
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:max-content;max-width:min(90vw,520px);
   padding:10px 14px;border-radius:12px;background:rgba(30,22,6,.92);border:1px solid #b58a1f;
   box-shadow:0 6px 24px rgba(0,0,0,.45);font-size:12.5px;color:#fde9b8}
 .lv-vacation-label{font-weight:700}
 .lv-vacation-slider-wrap{display:flex;align-items:center;gap:6px}
 .lv-vacation-slider{width:100px;accent-color:#e0b23a}
-.lv-vacation-opts{z-index:41;background:rgba(30,22,6,.98);flex-direction:column;align-items:stretch;gap:8px;max-width:min(94vw,560px);max-height:80vh;overflow:auto}
+.lv-vacation-opts{z-index:41;background:rgba(30,22,6,.98);flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:8px;max-width:min(94vw,560px);max-height:80vh;overflow:auto}
+.lv-vacation-opts > *{flex-shrink:0}
 .lv-vac-opt-head{display:flex;align-items:center;gap:10px}
 .lv-vac-opt{display:flex;flex-direction:column;gap:2px;padding-top:6px;border-top:1px solid rgba(181,138,31,.35)}
 .lv-vac-opt-main{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -79,7 +81,7 @@
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .btn.inline{width:auto;margin-top:0}
 .btn.tiny{width:auto;margin-top:0;padding:3px 8px;font-size:11px}
-@media(max-width:1100px){.app{grid-template-columns:1fr}.left{position:fixed;z-index:12;left:0;top:0;bottom:0;width:300px;transform:translateX(-100%);transition:transform .2s ease}.app.mobile-open .left{transform:translateX(0)}}
+@media(max-width:1100px){.app,.app.mini{grid-template-columns:1fr}.left{position:fixed;z-index:60;left:0;top:0;bottom:0;width:300px;transform:translateX(-100%);transition:transform .2s ease}.app.mobile-open .left{transform:translateX(0)}}
 
 /* Mapping tabs + editor */
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -150,10 +152,17 @@
 :host([data-invert]) video {
   filter: invert(1) hue-rotate(180deg);
 }
+/* Native checkboxes too: inverted, an empty white box is a solid black square
+   that reads as ticked. */
+:host([data-invert]) input[type="checkbox"]{filter:invert(1) hue-rotate(180deg)}
+:host([data-invert]) input[type="checkbox"]{color-scheme:light}
 
 /* Day theme (day_theme.js): native controls (slider tracks, scrollbars,
    dropdown lists) drawn light too. */
 :host([data-theme="day"]){color-scheme:light}
+/* Everywhere else the date fields are dark and the native calendar icon black. */
+:host(:not([data-theme="day"])) input[type^="date"],:host(:not([data-theme="day"])) input[type="time"]{color-scheme:light}
+:host(:not([data-theme="day"])) ::-webkit-calendar-picker-indicator{filter:invert(1)}
 
 .marker.selected{
   outline: 2px solid rgba(255,255,255,0.85);
@@ -175,6 +184,10 @@
 
 /* --- Added for Bluetooth view --- */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.presence-scanners{columns:3;column-gap:10px}
+.health-checks{display:grid;grid-template-columns:18px 1fr auto;gap:4px 8px;font-size:11px;align-items:center}
+.health-checks .mono{white-space:nowrap}
+@media(max-width:768px){.health-checks{grid-template-columns:18px minmax(0,1fr)}.health-checks .mono{grid-column:2;justify-self:start;max-width:100%;box-sizing:border-box;white-space:normal}}
 @media (max-width:900px){.grid-2{grid-template-columns:1fr}}
 
 .input,.select{
@@ -372,7 +385,7 @@
   color: #cbd5e1;
   font-weight: 700;
   position: sticky;
-  top: 0;
+  top: var(--sticky-top,0);
   background: var(--panel);
 }
 .badge {
@@ -466,7 +479,8 @@
      - .sidebar-mobile-header (hidden on desktop) shows ✕ close button
 
    BREAKPOINTS:
-     > 900px  = desktop layout  (left sidebar always visible, no top/bottom bar)
+     > 1100px = desktop layout  (left sidebar always visible, no top/bottom bar)
+     ≤ 1100px = narrow window   (drawer + top bar)
      ≤ 900px  = mobile layout   (drawer + top bar + bottom nav)
      ≤ 480px  = small phone     (reduced padding, smaller pills)
 
@@ -633,12 +647,25 @@
 /* ═══════════════════════════════════════════════════════════════════
    RESPONSIVE BREAKPOINTS
    ═══════════════════════════════════════════════════════════════════ */
+/* The sidebar is a drawer from 1100px down, so the bar with its menu button
+   comes with it. The bottom nav stays phone-only: Home Assistant's own sidebar
+   is still docked up here and the nav runs the full width of the window. */
+@media(min-width:901px) and (max-width:1100px){
+  .main{--sticky-top:61px}
+  .main [style*="overflow"],.main .list-scroll,.main .rooms,.main .tags,.main .lv-stage,.main .lv-sheet,.main .modal{--sticky-top:0px}
+}
+@media(max-width:1100px){
+  #toggleSide{display:none}
+  .mobile-topbar{display:flex;margin:0 -16px 10px}
+  .desktop-topbar{display:none !important}
+  .sidebar-mobile-header{display:flex}
+  .app.mobile-open .brand{display:none}
+  .main{padding-top:0}
+}
 @media(max-width:900px){
   /* Show/hide mobile vs desktop chrome */
-  .mobile-topbar{display:flex}
-  .desktop-topbar{display:none !important}
+  .mobile-topbar{margin:0 -10px 10px}
   .mobile-bottom-nav{display:flex}
-  .sidebar-mobile-header{display:flex}
 
   /* Sidebar becomes a drawer */
   .app{grid-template-columns:1fr}
@@ -653,8 +680,6 @@
     overflow-x:hidden;
   }
   .app.mobile-open .left{transform:translateX(0)}
-  /* Hide desktop brand block when mobile header is showing */
-  .app.mobile-open .brand{display:none}
 
   /* Content area: padding for bottom nav + scroll */
   .main{
@@ -677,11 +702,16 @@
   /* Tables scroll horizontally rather than overflow */
   .table-wrap,.list-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .table{min-width:360px}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .table-scroll table{word-break:normal;overflow-wrap:break-word}
+  .obj-scanner{min-width:150px}
 
   /* Cards full-width, no wrapping issues */
   .card{word-break:break-word}
+  .card .btn{word-break:normal;overflow-wrap:break-word;max-width:100%}
   .grid{grid-template-columns:1fr}
-  .grid-2{grid-template-columns:1fr}
+  .grid-2{grid-template-columns:minmax(0,1fr)}
+  .presence-scanners{columns:3 240px}
   .controls input[type="text"]{min-width:unset;width:100%}
 
   /* Row wrapping on narrow screens */
@@ -708,7 +738,7 @@
   .kpi-num,.kpi{font-size:20px}
   .controls input[type="text"]{min-width:unset;width:100%}
   .toolbar{flex-wrap:wrap;gap:6px}
-  .toolbar select{min-width:0;flex:1;max-width:100%}
+  .toolbar select{min-width:0;flex:1 1 120px;max-width:100%}
   .h2{font-size:15px}
 }
 
@@ -1060,6 +1090,12 @@
   #bluetooth .bt-seg{width:100%}
   #bluetooth .bt-seg .tab{flex:1 1 auto;text-align:center;min-height:38px}
 }
+@media(max-width:480px){
+  #bluetooth .bt-adv-row{flex-wrap:wrap}
+  #bluetooth .bt-adv-main{flex-basis:100% !important}
+  #bluetooth .bt-adv-sub,#bluetooth .bt-scanner-src{white-space:normal}
+  #bluetooth .bt-mini select{width:auto;max-width:100% !important}
+}
 
 /* ══ Lights view — the surface, refreshed ═══════════════════════════════════
    Shared by the Lights sidebar panel AND the Mapping → Lights tab (both load
@@ -1106,7 +1142,7 @@
    the top of the scrolling map card, with an opaque backdrop matching
    lv-mapcard's own so the map/table scrolling underneath never shows
    through — a translucent sticky bar would look broken, not docked. */
-.lv-toolbar-sticky{position:sticky;top:0;z-index:20;
+.lv-toolbar-sticky{position:sticky;top:var(--sticky-top,0);z-index:20;
   background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
   box-shadow:0 6px 14px -6px rgba(0,0,0,.5)}
 /* Presets — Garry, 2026-09-10: "thousands of combinations in the mapping,
@@ -1331,7 +1367,8 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-rail{position:absolute;left:0;top:0;bottom:0;width:44px;display:flex;flex-direction:column;
   align-items:center;gap:4px;padding:8px 0;background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
   border-right:1px solid rgba(120,190,155,.18);z-index:5;transition:transform .18s ease}
-.lv-rail.hidden{transform:translateX(-100%)}
+.lv-rail.hidden{width:0;padding:8px 0 0 6px;align-items:flex-start;background:none;border:none}
+.lv-rail.hidden > :not(:last-child){display:none}
 .lv-rail.hidden ~ .lv-stage{width:100%;margin-left:0}
 /* The legend clears the rail like the stage does; the card has no padding
    here, so it brings its own. */
@@ -1485,7 +1522,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-table th,.lv-table td.lv-map,.lv-table td.lv-map .lv-act{white-space:nowrap}
 .lv-table td svg{max-width:none}
 @container lv-index (max-width:900px){
-  .lv-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .lv-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;--sticky-top:0px}
   .lv-table{min-width:0}
 }
 @container lv-index (max-width:480px){

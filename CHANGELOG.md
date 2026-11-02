@@ -4,6 +4,50 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.216 — The occupancy sensor's real name; Live Aboard on a wall: sharp, and as large as the screen lets it be (2026-11-02)
+
+### Changed
+- **A wall draws Live Aboard at every pixel of its screen.** On Auto or High, a wall (`?kiosk=1`) used to stop at about 1440p's worth, and on Auto fell to Low if its graphics chip couldn't turn the house at 30 frames a second. Now it draws High at the screen's full resolution. If the chip can't turn the house smoothly at that size, the picture is softer only while the camera moves, and sharp again as soon as it stops. A 1080p wall on a small Intel PC used to fall to Low on Auto; it now stays on High, sharp when still and turning at 30 frames a second. A chip too slow for that (a 4K screen on the same PC) draws about 1440p's worth, as it did, and on Auto goes to Low if that is still too slow. **Low** chosen in Settings stays Low.
+- **Live Aboard fills a wall's screen.** The whole house used to be framed clear of the bars along the top and bottom, even though they fade when nobody is there, and with a margin for a perspective it never quite filled. It now fills the screen, keeping clear only of the chips along the top, and turns about the house's middle. Framed that closely, turning or tilting it by hand can run part of the house past the edge; **Fit** or going home brings it back. A real house on a 16:9 wall came out about a third larger. Only walls change; every other screen frames the house as before.
+- **A wall hides Home Assistant's sidebar.** With `?kiosk=1` the map now has the whole screen. Home Assistant's own sidebar is hidden on that browser only, the same switch as **Hide HA**. **Show HA** on the Atlas page (without `?kiosk=1`) brings it back.
+- Counts how a wall screen ended up drawing (`house3d_wall_draw`: every pixel, every pixel but less while moving, about 1440p's worth, or Low), once per page load, only with the usage report on.
+
+### Fixed
+- **Manage → HA Entities gave the wrong ID for the occupancy sensor.** It said `sensor.padspan_occupancy`. Home Assistant names it `sensor.padspan_occupancy_occupancy`, so use that in your automations unless you've renamed it. The sensor itself hasn't changed.
+- **A wall turned by its link (`&wall_rotate=90` or `270`) used the whole screen.** The map was only as tall as the screen was before turning, leaving a large empty band beside it.
+
+---
+
+## 0.38.215 — The Atlas's lights list with a mouse, its hidden controls, and Vacation Mode's Options; Bright's status dot, a resumed Vacation Mode trip, and one name for the device list; Room colours, the support report's text, Day's dark boxes and Bluetooth colours, Light's checkboxes, and the 3D map's floor slabs; The menu at every window size; phone screens that fit (2026-11-01)
+
+### Fixed
+- **A mouse click on a light's ⋯, Hide or Show in the Atlas's list no longer switches the light.** The click landed on the row, so the control did nothing and the real light turned on or off. Touch wasn't affected.
+- **Hiding the Atlas's controls can be undone.** The › button that brings them back was hidden with them, so only a reload worked, on a wall screen too. It now stays at the map's corner.
+- **Vacation Mode's Options box scrolls.** On screens up to about 900 px high, it wrapped into side columns and hid Evening lights and the preview. On a phone it no longer squeezes into half the screen.
+- **The Show button on a hidden light is easier to see.**
+- **PadSpan Bright no longer shows a permanent red "Something is broken" with no Bluetooth.** Bright has no Receivers screen and works without Bluetooth, so the top bar's status dot leaves receivers out there. It still says when PadSpan isn't answering.
+- **Turning a trip from before the Routine from choice back on keeps its routine.** The new default counted as a change, so it tried to learn the trip again. Nobody chose against that routine, so it carries on as the monthly average it is. A choice you make yourself still applies.
+- **One name for the device list.** The Overview's list is titled All objects, like its button, and pointers to the old Objects screen now say Devices.
+- **The release notes point to Settings → Tracking → Help improve PadSpan** (the tab was renamed in 0.38.202).
+- **Rooms are no longer filled solid black.** Library thumbnails and the 3D Stack alignment overlay drew every room with an automatic colour as a black shape that hid the plan under it (white in Light). They now show the see-through room colour that was intended. Sandbox's Signal Pulse rings and Floor Towers, Monitor's Dashboard Card Preview tiles and the room badges in Beacon Tune had lost their tint and outline the same way. A room whose colour you picked yourself looks as it always did.
+- **The support report can be read.** The text box in Diagnostics and in Monitor → Export for support was black on near-black in Night and pale on pale in Light, just when the screen asks you to look the report over before sending it.
+- **Day theme: dark text on dark boxes.** Mapping's Edit card now follows the Day theme, with only the map itself staying dark, so "Edit: <map>", receiver names and the tools can all be read, from Setup too. Boxes that stay dark around a drawing, such as the floor titles in Calibration → Model and "Room Activity" in Busy Times, now keep light text.
+- **Day theme: Bluetooth's coloured words can be read.** KPI numbers, signal values, chips, links and buttons on every Bluetooth tab were pale on pale. They keep their colours, darkened.
+- **Light theme: an empty checkbox no longer looks ticked.** Unticked boxes were solid black squares. They are now white boxes, and ticked ones green, as in Night.
+- **The 3D map's floors no longer hang dark shafts over the floors below.** With floor levels that aren't simply 0, 1, 2 and so on, which includes the sample house, each floor was drawn about a storey deep and hid the rooms underneath, on the Overview and in the Live Tracker. Homes with a lowest floor at 0 draw exactly as before.
+- **The date pickers' calendar icon shows on dark fields.** It was black on near-black in Forensics, Traceback's custom range and everywhere else a date is picked, in Night and in Light.
+- **No menu in a window 901 to 1100 px wide.** On an iPad in landscape, or a browser at half a screen, the sidebar was hidden and nothing on screen could open it, so you stayed on the screen you were on. These windows now get the top bar with its menu button. In both looks.
+- **Devices → By Room on a phone.** Words ran one letter per line and the two filters shrank to bare arrows. The table now keeps whole words and scrolls sideways, and the filters show their text.
+- **Mapping's floor tables and Manage → Data on a phone.** The same letter-by-letter breaking ("Delet/e"). Those tables now scroll sideways too, and a button no longer breaks in the middle of a word anywhere in a card.
+- **Presence → BLE Objects by Scanner on a phone.** Three squeezed columns are now one, with readable names and buttons.
+- **Bluetooth → Advertisements and Scanners on a phone.** The panels ran off the screen with no way to reach the rest. They now fit, and everything in a row can be read.
+- **Health check rows on a phone.** The value box squeezed the name to a sliver. The value now sits under the name.
+- **Point Align's preview.** On a tall floor plan the bottom of the preview could not be reached. It now scrolls.
+- **Sidebar labels in the 2025 look.** The tails of g, p and y were cut off.
+- **The strip above the top bar on a phone.** In the 2025 look, page content showed through a narrow gap above the bar as you scrolled. The bar now sits at the very top.
+
+---
+
 ## 0.38.214 — Help loads visibly in German, French and Dutch; Point Align errors in metres (2026-10-31)
 
 ### Changed

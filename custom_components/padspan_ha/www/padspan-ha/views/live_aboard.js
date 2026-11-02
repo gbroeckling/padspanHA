@@ -803,6 +803,7 @@ function createSlot(slotKey){
       e.stopPropagation();
       if (e.detail !== 0) return;
       cam.moved = true; cam.needsFit = false;
+      turnBy(HOUSE.northUpTheta(bearingNow()) - cam.theta);
       cam.theta = HOUSE.northUpTheta(bearingNow());
       applyCam();
     }));
@@ -1701,6 +1702,7 @@ function createSlot(slotKey){
     placeSun();
     applyTop();
     paintNight();
+    wallPivot = null;
     if (!cam.moved) cam.needsFit = true;
   }
   /** The storeys' floor and roof in the look's colours, muted (the Atlas's
@@ -1942,6 +1944,7 @@ function createSlot(slotKey){
     if (moved) showPill();
     else {                                                     // a tap: north up
       cam.moved = true; cam.needsFit = false;
+      turnBy(HOUSE.northUpTheta(bearingNow()) - cam.theta);
       cam.theta = HOUSE.northUpTheta(bearingNow());
       applyCam();
     }
@@ -3170,15 +3173,22 @@ function createSlot(slotKey){
     paintWallButtons();
     requestRender();
   }
-  // A wall's pixel budget: a 4K wall drawn at every pixel is 8.3 million a
-  // frame, and the frame rate pays for it. On a wall the 3D view draws at most
-  // about 1440p's worth and the browser scales it up; from across the room it
-  // reads the same. Anywhere else, the quality profile's ratio as before.
-  const WALL_PX = 2560 * 1440;
-  let profileDpr = 1;
+  // A wall on High draws every pixel its screen has. What a modest GPU can't
+  // do at that size is turn the house smoothly, so decideQuality times it, and
+  // one that falls short (wallMoves) draws about 720p's worth only while the
+  // camera moves: every pixel again as soon as it stops. One too slow even to
+  // draw every pixel (wallCapped) stays at about 1440p's worth, the browser
+  // scaling it up, and so does a wall that ends up on Low. Anywhere else, the
+  // quality profile's ratio as before.
+  const WALL_PX = 2560 * 1440, WALL_MOVE_PX = 1280 * 720, WALL_SETTLE_MS = 200;
+  let profileDpr = 1, wallMoves = false, wallCapped = false, camMovedAt = -Infinity;
+  const wallMoving = () => !!quality.measuring || !!cam.fly || performance.now() - camMovedAt < WALL_SETTLE_MS;
+  /** Drawn at less just now: the frame clock keeps looking until it can go sharp again. */
+  const wallSoft = () => wallMoves && !quality.measuring && renderer.getPixelRatio() !== profileDpr;
   function ratioFor(w, h){
     if (!onWallPage(root) || !w || !h) return profileDpr;
-    return Math.max(0.5, Math.min(profileDpr, Math.sqrt(WALL_PX / (w * h))));
+    const px = profileOf().dpr !== "device" || wallCapped ? WALL_PX : wallMoves && wallMoving() ? WALL_MOVE_PX : 0;
+    return px ? Math.max(0.5, Math.min(profileDpr, Math.sqrt(px / (w * h)))) : profileDpr;
   }
   function applyProfile(name){
     const Q = HOUSE.QUALITY_PROFILES[name];
@@ -3201,6 +3211,13 @@ function createSlot(slotKey){
   }
   /** One step of the Auto / Low / High pick (live_aboard_house.js qualityStep). */
   function decideQuality(){
+    // A wall that can't keep up at every pixel: High timed once more at what it would draw (HOUSE.wallNextTry).
+    if (!wallMoves && !wallCapped && onWallPage(root)) {
+      const next = HOUSE.wallNextTry(quality.setting, quality.measured);
+      if (next === "moves") wallMoves = true;
+      else if (next === "budget" && drawnW * drawnH * profileDpr * profileDpr > WALL_PX) wallCapped = true;
+      if (wallMoves || wallCapped) delete quality.measured.high;
+    }
     const step = HOUSE.qualityStep(quality.setting, true, quality.measured);
     if (step.fallback) { fail(step.fallback); return; }
     if (step.measure) {
@@ -3213,8 +3230,10 @@ function createSlot(slotKey){
     }
     quality.measuring = null;
     quality.profile = step.use;
+    if (step.use !== "high") wallMoves = wallCapped = false; // it went to Low after all: that has its own budget
     applyProfile(step.use);
     HOUSE.countHouse3dOnce("house3d_opened", send);
+    if (onWallPage(root)) HOUSE.countHouse3dOnce(`house3d_wall_draw:${step.use !== "high" ? "low" : wallMoves ? "high_still" : wallCapped ? "high_capped" : "high"}`, send);
     requestRender();
   }
 
@@ -3223,6 +3242,21 @@ function createSlot(slotKey){
   // +y), phi tilts down from straight above. Drag turns it; right-drag, or
   // two fingers, pans along the ground; the wheel, or a pinch, zooms about the
   // point under the cursor or between the fingers.
+  /** Turn the camera. A wall framed whole fills its band with the camera's
+   *  middle off the house's (frameFor), so unless it is zoomed in it turns
+   *  about the middle of what shows, however it got there (a saved home, a
+   *  floor, Whole house), or the house would swing off the screen. */
+  function turnBy(d){
+    if (onWallPage(root) && (!wallPivot || wallPivot.top !== topElev)) {
+      const pts = visiblePoints(), m = new THREE.Box3().setFromPoints(pts).getCenter(new THREE.Vector3());
+      wallPivot = { top: topElev, x: m.x, z: m.z, r: frameFor(cam.theta, cam.phi, pts).radius };
+    }
+    cam.theta += d;
+    if (!onWallPage(root) || cam.radius < wallPivot.r * 0.9) return;
+    const c = Math.cos(d), s = Math.sin(d), x = cam.target.x - wallPivot.x, z = cam.target.z - wallPivot.z;
+    cam.target.x = wallPivot.x + x * c + z * s;
+    cam.target.z = wallPivot.z - x * s + z * c;
+  }
   function applyCam(){
     const s = Math.sin(cam.phi);
     camera.position.set(cam.target.x + cam.radius * s * Math.sin(cam.theta), cam.target.y + cam.radius * Math.cos(cam.phi),
@@ -3230,6 +3264,7 @@ function createSlot(slotKey){
     camera.lookAt(cam.target);
     camera.updateMatrixWorld();
     if (lampTarget.distanceToSquared(cam.target) > 1) lampsDirty = true;
+    camMovedAt = performance.now();
     tellZoom();
     requestRender();
   }
@@ -3251,7 +3286,7 @@ function createSlot(slotKey){
   function orbitBy(dx, dy){
     moved();
     const h = canvas.clientHeight || 600;
-    cam.theta -= 2 * Math.PI * dx / h;
+    turnBy(-2 * Math.PI * dx / h);
     cam.phi = Math.max(MIN_PHI, Math.min(MAX_PHI, cam.phi - 2 * Math.PI * dy / h));
     applyCam();
   }
@@ -3459,7 +3494,7 @@ function createSlot(slotKey){
   function fit(theta = cam.theta, phi = cam.phi, pts = null){
     const g = frameFor(theta, phi, pts || visiblePoints());
     cam.target.copy(g.target); cam.theta = g.theta; cam.phi = g.phi; cam.radius = g.radius;
-    if (!pts) fitR = g.radius;
+    if (!pts) { fitR = g.radius; wallPivot = null; }
     applyCam();
   }
   /** Where the camera frames `pts` from (theta, phi): {target, radius, theta, phi}. */
@@ -3469,17 +3504,25 @@ function createSlot(slotKey){
     const out = { top: 0, bottom: 0, H: (canvas && canvas.clientHeight) || 0 };
     if (!root || !out.H || typeof root.getBoundingClientRect !== "function") return out;
     const r0 = root.getBoundingClientRect();
-    for (const el of root.querySelectorAll(".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
+    // A wall's bars fade when nobody is there: they don't get to shrink the house.
+    const wall = onWallPage(root), rot = wall ? root.getRootNode().host.getAttribute("data-wall-rotate") : null;
+    for (const el of root.querySelectorAll(wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar")) {
       const r = el.getBoundingClientRect && el.getBoundingClientRect();
       if (!r || !(r.height > 0) || !(r.width > 0) || getComputedStyle(el).visibility === "hidden") continue;
-      const t = r.top - r0.top, b = r.bottom - r0.top;
+      // A wall turned by its link: these are the turned boxes, the page's top along a side of the screen.
+      const t = rot === "90" ? r0.right - r.right : rot === "270" ? r.left - r0.left : r.top - r0.top, b = t + (rot ? r.width : r.height);
       if ((t + b) / 2 < out.H / 2) out.top = Math.max(out.top, b + 6); else out.bottom = Math.max(out.bottom, out.H - t + 6);
     }
+    // The chips come and go with motion: a wall keeps their room either way, so its framing doesn't depend on the moment.
+    if (wall && !narrow) out.top = Math.max(out.top, WALL_CHIPS_PX * wallUiOf(root));
     // Never more than 40% of the view between them (a very short screen).
     const k = Math.min(1, (out.H * 0.4) / Math.max(1, out.top + out.bottom));
     out.top *= k; out.bottom *= k;
     return out;
   }
+  const WALL_CLEAR = 0.05;                                   // a wall's house keeps this clear of the screen's edge (of half the screen)
+  const WALL_CHIPS_PX = 82;                                  // the chip row's room at the top of a wall, before --wall-ui
+  let wallPivot = null;                                      // a wall: the middle of what shows, and its whole-house radius (turnBy)
   function frameFor(theta, phi, pts){
     const keep = { p: camera.position.clone(), q: camera.quaternion.clone() };
     const dir = new THREE.Vector3(Math.sin(phi) * Math.sin(theta), Math.cos(phi), Math.sin(phi) * Math.cos(theta));
@@ -3501,6 +3544,15 @@ function createSlot(slotKey){
     for (const q of pts) {
       const o = q.clone().sub(c), z = o.dot(dir);
       need = Math.max(need, z + Math.abs(o.dot(right)) / th * 1.08, z + Math.abs(o.dot(up)) / (tv * fr) * vk);   // sides: 8% clear (4% ran a narrow screen's house to its edge)
+    }
+    // A wall: the house as large as the screen lets it be, in the band what stays on show leaves.
+    if (pad.H && onWallPage(root)) {
+      const f = HOUSE.fillBand(pts.map((q) => { const o = q.clone().sub(c); return [o.dot(right), o.dot(up), o.dot(dir)]; }), th, tv,
+                               1 - 2 * pad.top / pad.H - WALL_CLEAR, -1 + 2 * pad.bottom / pad.H + WALL_CLEAR, 1 - WALL_CLEAR);
+      if (Number.isFinite(f.x + f.y + f.r)) {
+        c.addScaledVector(right, f.x).addScaledVector(up, f.y);
+        need = Math.max(2, f.r);
+      }
     }
     camera.position.copy(keep.p); camera.quaternion.copy(keep.q);
     camera.updateMatrixWorld();
@@ -3535,7 +3587,7 @@ function createSlot(slotKey){
     cam.fly = null;
     if (name === "iso") { const a = isoAngle(); fit(a.theta, a.phi); }
     else if (name === "top") fit(0, MIN_PHI);
-    else if (name === "turn") { cam.theta += Math.PI / 2; applyCam(); }
+    else if (name === "turn") { turnBy(Math.PI / 2); applyCam(); }
     else fit();
     if (byHand && bare) setBare(false, false);
   }
@@ -3815,17 +3867,19 @@ function createSlot(slotKey){
     if (!shouldDraw()) {                                     // drawn again when it shows
       // A check cut short by hiding starts again: the gap is not a frame.
       quality.last = 0; quality.t0 = 0; quality.intervals = [];
-      if (liveMs) dirty = true;                              // what moves carries on when it shows
+      if (liveMs || wallSoft()) dirty = true;                // what moves carries on when it shows
       return;
     }
     // A camera flight moves on every frame until it lands.
     if (cam.fly) { stepFly(performance.now()); dirty = true; }
     // A press's ring and hold, the hover box's grace: timed on frames.
     const more = use ? use.tick(performance.now()) : false;
+    if (wallSoft() && !wallMoving()) dirty = true;           // a wall that moved at less: every pixel again
     // Something moving by itself draws on its own clock (liveRate).
     const due = dirty || !!quality.measuring || (liveMs > 0 && t - lastAmbient >= liveMs - 4);
     if (due) {
       if (cam.needsFit && (canvas.clientWidth || 0) > 0) { openView(); if (studio) arrive(); }
+      if (wallMoves) { const pr = ratioFor(drawnW, drawnH); if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr); }
       updateCutaway();
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
@@ -3865,7 +3919,7 @@ function createSlot(slotKey){
         } else requestRender();
       }
     }
-    if ((liveMs || more) && !pending) { pending = true; requestAnimationFrame(frame); }
+    if ((liveMs || more || wallSoft()) && !pending) { pending = true; requestAnimationFrame(frame); }
   });
   // ── Furnish: the plan beside the 3D view (P2) ─────────────────────────────
   // Wide enough, the canvas is two views from the one renderer: the house in
@@ -4640,7 +4694,7 @@ function createSlot(slotKey){
     if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
     applySun(p);
     if (setting !== quality.setting || (!quality.profile && !quality.measuring)) {
-      quality.setting = setting; quality.measured = {}; quality.profile = null;
+      quality.setting = setting; quality.measured = {}; quality.profile = null; wallMoves = wallCapped = false;
       decideQuality();
     }
     applyWeather(p);
@@ -4758,7 +4812,7 @@ function createSlot(slotKey){
     release(){ try { cancelNorth(); endScreen(); showFlat(); teardown(); } catch (_) { /* best effort */ } },
     // A window on it, for the harness and for poking at it from the console.
     _state(){
-      return { failed, profile: quality.profile, measuring: quality.measuring, measured: { ...quality.measured }, frames, wallMode, topElev,
+      return { failed, profile: quality.profile, measuring: quality.measuring, measured: { ...quality.measured }, wallMoves, wallCapped, frames, wallMode, topElev,
                cam: { theta: cam.theta, phi: cam.phi, radius: cam.radius, target: cam.target.toArray(), moved: cam.moved },
                sun: sunNow ? { ...sunNow, intensity: sun.intensity, sky: hemi.intensity, dir: sunDir.toArray() } : null, bearing, rose: roseDeg,
                north: { stored: storedBearing, preview: northPreview, hold: northHold ? northHold.b : null,

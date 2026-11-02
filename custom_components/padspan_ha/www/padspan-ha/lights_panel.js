@@ -12,8 +12,8 @@
   BUILD_ID / APP_VERSION updated automatically by scripts/release.py.
 */
 
-const APP_VERSION = "0.38.214";
-const BUILD_ID = "20261031T210315Z";
+const APP_VERSION = "0.38.216";
+const BUILD_ID = "20261102T112614Z";
 
 // Query inherited from our own module URL so the ?b= cache-buster propagates
 // (see docs/06_UI_CACHE_BUSTING.md).
@@ -1473,6 +1473,7 @@ class PadSpanLightsApp extends HTMLElement {
         :host([data-wall][data-wall-rotate]){position:fixed;top:0;left:0;width:100vh;height:100vw;transform-origin:top left}
         :host([data-wall][data-wall-rotate="90"]){transform:rotate(90deg) translateY(-100%)}
         :host([data-wall][data-wall-rotate="270"]){transform:rotate(-90deg) translateX(-100%)}
+        :host([data-wall][data-wall-rotate]) .lv-mapcard.lv-display.lv-wall{height:100vw}
         :host([data-wall]) #content{padding:0}
         :host([data-wall]) .lv-hero, :host([data-wall]) .lv-coach{display:none}
         /* The wall is the map: the lights' table under it stays on the desk's
@@ -1518,6 +1519,12 @@ class PadSpanLightsApp extends HTMLElement {
       return;
     }
     this.setAttribute("data-wall", "");
+    // The wall is the whole screen: Home Assistant's own sidebar goes too, on
+    // this browser (Hide HA's switch; Show HA on the Atlas brings it back).
+    if(HA_SIDEBAR && this._hass && this.isConnected && !this._wallHidHa && !HA_SIDEBAR.haHidden(this._hass)){
+      this._wallHidHa = true;
+      HA_SIDEBAR.toggleHaSidebar(this, this._hass);
+    }
     const size = ()=>{
       const p = WALLS.wallParams(location.search, this.state?._wall);
       // A screen hung on its side whose TV can't turn its picture

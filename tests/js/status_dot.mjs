@@ -32,6 +32,14 @@ check("no snapshot yet: nothing", issues({ snapshot: null }).length === 0);
   check("no answer: red, and only that (the snapshot is stale)", ids(got) === "red:no_answer", ids(got));
 }
 check("no radios: red", ids(issues({ snapshot: snap([]) })) === "red:no_receivers");
+{
+  // A build with no Receivers screen (PadSpan Bright): receivers are not its faults.
+  const b = (s) => ids(issues({ snapshot: s, receivers: false }));
+  check("no receivers screen, no radios: nothing", b(snap([])) === "", b(snap([])));
+  check("no receivers screen, a silent radio: nothing", b(snap([R("aa", 700), R("bb", 2, { adv_rate_low: true })])) === "");
+  check("no receivers screen: the rest still counts", b(snap([], { positioning_failed: true })) === "red:positioning_failed");
+  check("no receivers screen: no answer still counts", ids(D.statusIssues({ live: true, failed: true, snapshot: snap([]), receivers: false })) === "red:no_answer");
+}
 check("every radio silent over 10 min: red", ids(issues({ snapshot: snap([R("aa", 601), R("bb", 4000)]) })) === "red:no_receivers");
 check("exactly 10 min is not silent", issues({ snapshot: snap([R("aa", 600)]) }).length === 0);
 check("not heard yet (null) is not silent", issues({ snapshot: snap([R("aa", null), R("bb", null)]) }).length === 0);

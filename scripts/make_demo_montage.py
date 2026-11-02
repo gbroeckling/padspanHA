@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 """Build a 20s silent looping montage from the product screenshots.
 
+Retired as the README's lead on 2026-11-01: images/padspan-tour.webp and
+images/demo-montage.gif/.mp4 are now a tour recorded from the demo at real speed.
+This still builds the old montage if it's ever wanted, under its own name, so
+running it can't overwrite the tour.
+
     python scripts/make_demo_montage.py            # frames + MP4 + GIF
     python scripts/make_demo_montage.py --frames   # frames only (fast iteration)
     python scripts/make_demo_montage.py --encode   # re-encode existing frames only
@@ -20,9 +25,8 @@ It is stills, not live tracking. The clip that would actually sell the product i
 30 seconds of Traceback playback (devices moving through the house over time).
 When that recording exists, use it and retire this.
 
-Output: images/demo-montage.mp4 (Reddit / YouTube) and images/demo-montage.gif
-(README, forum — Discourse and GitHub both take a GIF where they will not take a
-video).
+Output: images/stills-montage.mp4 (Reddit / YouTube) and images/stills-montage.gif
+(forum — Discourse and GitHub both take a GIF where they will not take a video).
 """
 from __future__ import annotations
 
@@ -36,8 +40,8 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 IMG = ROOT / "images"
 WORK = ROOT / "build" / "montage"
-OUT_MP4 = IMG / "demo-montage.mp4"
-OUT_GIF = IMG / "demo-montage.gif"
+OUT_MP4 = IMG / "stills-montage.mp4"
+OUT_GIF = IMG / "stills-montage.gif"
 
 W, H = 1920, 1080
 FPS = 30

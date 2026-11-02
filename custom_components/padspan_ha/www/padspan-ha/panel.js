@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.38.214";
-const RELEASE_BUILD_ID = "20261031T210315Z";
+const APP_VERSION = "0.38.216";
+const RELEASE_BUILD_ID = "20261102T112614Z";
 // The stamp the views are actually loaded with.
 //
 // This was the release literal above, so every view URL stayed frozen between
@@ -588,7 +588,7 @@ function scannerStatus(radio, ads){
 
 // Room colour lives in views/room_color.js — ONE implementation, shared with
 // the lights renderer. panel.js hands it to every view as ctx.helpers.roomColor.
-const { roomColor } =
+const { roomColor, roomColorAlpha } =
   await import(`./views/room_color.js${new URL(import.meta.url).search}`);
 // The object detail modal's "why is it here" evidence diagram (gap #2,
 // best-in-class roadmap) — a pure string builder, see its own header.
@@ -901,7 +901,7 @@ class PadSpanHaApp extends HTMLElement {
         style.textContent = `
           .left, .desktop-topbar, .mobile-topbar, .mobile-bottom-nav { display: none !important; }
           .app { grid-template-columns: 1fr !important; }
-          .main { padding: 0 !important; }
+          .main { padding: 0 !important; --sticky-top: 0px !important; }
         `;
         this.shadowRoot.appendChild(style);
       } catch(e) { /* ignore */ }
@@ -3144,6 +3144,7 @@ class PadSpanHaApp extends HTMLElement {
       live: this.state.dataMode === "live", failed,
       snapshot: this.state.live && this.state.live.snapshot,
       excluded, warmup: now < this._statusDotWarmUntil,
+      receivers: !(EDITIONS && EDITIONS.surfacesForEdition) || EDITIONS.surfacesForEdition(["receivers"], s).length > 0,
     });
     this._statusDotTrack = this._statusDotTrack || new Map();
     this._statusDotActive = STATUS_DOT.trackIssues(this._statusDotTrack, issues);
@@ -3655,6 +3656,7 @@ class PadSpanHaApp extends HTMLElement {
         },
         scannerStatus,
         roomColor: (n)=>roomColor(n, this.state.model),
+        roomColorAlpha,
         helpBtn: (key, title)=>{
           const b = document.createElement("button");
           b.className = "btn-help";

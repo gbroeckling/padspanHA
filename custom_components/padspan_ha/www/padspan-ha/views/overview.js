@@ -550,10 +550,10 @@ export function renderClassic(ctx){
   function openObjectsList(initialFilter="all"){
     if(!liveSnap || !liveSnap.objects){
       const body = el("div",{},[
-        el("p",{}, "Objects list is only available in Live mode (it includes BLE advertisement monitor data)."),
+        el("p",{}, "This list is only available in Live mode (it includes BLE advertisement monitor data)."),
         el("p",{}, "Switch to Live in Settings, then reopen this list.")
       ]);
-      ctx.actions.openModal("Objects", body, "Live snapshot required");
+      ctx.actions.openModal("All objects", body, "Live snapshot required");
       return;
     }
 
@@ -855,7 +855,7 @@ export function renderClassic(ctx){
     body.appendChild(controls);
     body.appendChild(table);
 
-    ctx.actions.openModal("Objects", body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
+    ctx.actions.openModal(initialFilter === "unidentified" ? "Unidentified" : (_quietMode ? "Tracked objects" : "All objects"), body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
 
     // After modal opens, do vendor lookups for visible BLE rows (limited concurrency).
     // With the lookup off every Bluetooth cell already says so and nothing is
@@ -1478,7 +1478,7 @@ export function renderClassic(ctx){
           // by its neighbour's own slab, leaving the outline of the floor.
           for(const r of zRooms){
             const top = r.pts.map(p=>iso(p[0],p[1],z));
-            const bot = r.pts.map(p=>iso(p[0],p[1],z-slabWZ));
+            const bot = r.pts.map(p=>iso(p[0],p[1],_fabF.rankOf(z)-slabWZ));
             for(let i=0;i<top.length;i++){
               const j=(i+1)%top.length;
               s += `<polygon points="${pts([top[i],top[j],bot[j],bot[i]])}" `
@@ -1506,7 +1506,8 @@ export function renderClassic(ctx){
           s += `<polygon points="${pts([TL,TR,BR,BL])}" fill="none" `
              + `stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.22"/>`;
         } else {
-          const TR_b=iso(x1,y0_,z-slabWZ), BR_b=iso(x1,y1_,z-slabWZ), BL_b=iso(x0,y1_,z-slabWZ);
+          const zb=_fabF.rankOf(z)-slabWZ;
+          const TR_b=iso(x1,y0_,zb), BR_b=iso(x1,y1_,zb), BL_b=iso(x0,y1_,zb);
           s += `<polygon points="${pts([TR,BR,BR_b,TR_b])}" fill="#0d2318" fill-opacity="0.35" stroke="#253e2e" stroke-width="0.8"/>`;
           s += `<polygon points="${pts([BL,BR,BR_b,BL_b])}" fill="#0a1a12" fill-opacity="0.3" stroke="#253e2e" stroke-width="0.8"/>`;
           s += `<polygon points="${pts([TL,TR,BR,BL])}" fill="#0f2017" fill-opacity="0.06" stroke="${lyrColor}" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.5"/>`;

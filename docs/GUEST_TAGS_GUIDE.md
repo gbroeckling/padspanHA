@@ -6,7 +6,7 @@ Guest tags are off until you turn them on. Off, nothing is tracked or kept and t
 
 ## Turn it on
 
-**Settings → Presence → Guest tags → Use tags as guest tags.** Here you also choose how long a finished stay's report is kept: not at all, 7, 30 (the default) or 90 days. Only an administrator can turn guest tags on, lend a tag or end a stay.
+**Settings → Tracking → Guest tags → Use tags as guest tags.** Here you also choose how long a finished stay's report is kept: not at all, 7, 30 (the default) or 90 days. Only an administrator can turn guest tags on, lend a tag or end a stay.
 
 ## Make a tag a guest tag
 

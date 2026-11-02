@@ -144,7 +144,7 @@ Apple devices use rotating MAC addresses for privacy. To track them:
 
 1. Set up the **Private BLE Device** integration in HA (registers the device's IRK)
 2. PadSpan auto-detects registered Private BLE devices
-3. Tag them in the Objects view — they appear with their friendly name (e.g., "Adam's iPhone")
+3. Tag them on the Devices screen — they appear with their friendly name (e.g., "Adam's iPhone")
 4. The IRK lets PadSpan follow the device through MAC rotations
 
 The Training Hub has a dedicated walkthrough: **Private BLE (Apple Devices)**.
@@ -206,7 +206,7 @@ PadSpan sits next to your other integrations. It doesn't manage them. Enabling, 
 
 **What it never changes on its own.** Other integrations' devices, entities, config entries, or the areas and floors themselves. Setup, the background loop, timers, unload and removal make no registry or config-entry changes outside PadSpan's own. The only places PadSpan acts on someone else's object are buttons you press, one object at a time, in admin screens:
 
-- **Settings → Presence → Phone Tracking (Private BLE): Add / Delete from HA** adds or removes a Private BLE Device entry. That entry belongs to Private BLE Device, so deleting it there deletes it from HA (two-step confirm).
+- **Settings → Tracking → Phone Tracking (Private BLE): Add / Delete from HA** adds or removes a Private BLE Device entry. That entry belongs to Private BLE Device, so deleting it there deletes it from HA (two-step confirm).
 - **Manage → HA Entities → Delete** and **Manage → Areas → Delete** remove the entity or area you picked from Home Assistant.
 - **Assigning a radio or a light to a room** sets that device's or entity's HA area.
 - **Enable & Track** on a phone re-enables the Companion App's BLE Transmitter sensor if it was disabled. It never disables anything.
@@ -219,7 +219,7 @@ One shared-device note: before Home Assistant 2026.8, a PadSpan sensor that gave
 
 Every Home Assistant user can open PadSpan. Some things always need a Home Assistant administrator: backups and restores, factory reset, adding or removing IRKs, uploading or deleting floor plans, the usage report, and the Live Aboard switches that let data leave the house.
 
-Everything else is open to every user unless you turn on **Settings → Presence → Enhanced security**. It is off by default, and only an administrator can turn it on or off. While it is on, only an administrator can change PadSpan's shared setup for the home:
+Everything else is open to every user unless you turn on **Settings → Tracking → Enhanced security**. It is off by default, and only an administrator can turn it on or off. While it is on, only an administrator can change PadSpan's shared setup for the home:
 
 - devices: merging, deleting, renaming and labelling them
 - calibration points and the calibration model

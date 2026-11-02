@@ -302,6 +302,34 @@ def test_the_atlas_page_runs_without_the_wall_module():
     assert "if(!kiosk || this._embedded || !v2 || !WALLS){" in lp, "no module: no wall mode, and every other use of it sits behind data-wall"
 
 
+def test_a_wall_draws_every_pixel_and_fills_its_screen():
+    """A wall on High draws the screen's own pixels, less only while the camera
+    moves on a chip that needs it; Low keeps the budget. Its house is framed
+    clear of what stays on show, not of the bars that fade."""
+    src = (_WWW / "views" / "live_aboard.js").read_text(encoding="utf-8")
+    assert 'const px = profileOf().dpr !== "device" || wallCapped ? WALL_PX : wallMoves && wallMoving() ? WALL_MOVE_PX : 0;' in src
+    assert "if (wallSoft() && !wallMoving()) dirty = true;" in src, "every pixel again once it stops, on the frame clock"
+    assert "if ((liveMs || more || wallSoft()) && !pending)" in src, "and only while it is soft: no frames at rest"
+    assert 'if (step.use !== "high") wallMoves = wallCapped = false;' in src, "on Low nothing waits to go sharp"
+    assert "HOUSE.wallNextTry(quality.setting, quality.measured)" in src
+    assert 'wall ? ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-pchip" : ".la3d-tip, .la3d-mchip, .la3d-wet, .la3d-bar"' in src
+    assert "if (wall && !narrow) out.top = Math.max(out.top, WALL_CHIPS_PX * wallUiOf(root));" in src, "the framing doesn't depend on the moment"
+    assert 'rot === "90" ? r0.right - r.right : rot === "270" ? r.left - r0.left : r.top - r0.top' in src, "a turned wall's chips measured along the page"
+    assert "turnBy(-2 * Math.PI * dx / h);" in src and "turnBy(Math.PI / 2);" in src, "a wall framed whole turns about the house's middle"
+    assert src.count("turnBy(HOUSE.northUpTheta(bearingNow()) - cam.theta);") == 2, "the compass too"
+    assert "wallPivot.top !== topElev" in src, "worked out when it turns: a saved home never ran a fit"
+    assert "if (pad.H && onWallPage(root)) {" in src, "every other screen frames the house as before"
+
+
+def test_a_wall_hides_home_assistants_sidebar_once():
+    """On a real wall Home Assistant's sidebar kept its strip of the screen. Once
+    per page load, and it stays hidden if the wall stops (a failed settings read
+    during a restart would otherwise flap it); Show HA brings it back."""
+    lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    assert "if(HA_SIDEBAR && this._hass && this.isConnected && !this._wallHidHa && !HA_SIDEBAR.haHidden(this._hass)){" in lp
+    assert lp.count("this._wallHidHa = ") == 1
+
+
 def test_a_portrait_wall_is_sized_like_a_landscape_one_and_can_be_turned():
     """A portrait 4K wall (2160 x 3840) drew its text at about half size:
     min(w/1920, h/1080) is 1.13 there. Long side against 1920, short against
@@ -315,5 +343,7 @@ def test_a_portrait_wall_is_sized_like_a_landscape_one_and_can_be_turned():
     lp = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
     assert "const W = rot ? window.innerHeight : window.innerWidth, H = rot ? window.innerWidth : window.innerHeight;" in lp
     assert ':host([data-wall][data-wall-rotate="90"]){transform:rotate(90deg) translateY(-100%)}' in lp
+    # Its card is as tall as the turned page, not the screen before turning (a band stayed empty).
+    assert ":host([data-wall][data-wall-rotate]) .lv-mapcard.lv-display.lv-wall{height:100vw}" in lp
     card = (_WWW / "views" / "wall_card.js").read_text(encoding="utf-8")
     assert "Screen orientation" in card and "WALLS.ROTATIONS" in card

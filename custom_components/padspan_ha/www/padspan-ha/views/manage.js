@@ -181,10 +181,10 @@ export function render(ctx){
           el("td",{},bw),
         ]));
       }
-      orphCard.appendChild(el("table",{class:"table"},[
+      orphCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
         el("thead",{},el("tr",{},[el("th",{},"Orphan room"),el("th",{},"Map"),el("th",{},"Points"),el("th",{},"")])),
         tbody,
-      ]));
+      ])));
 
       // Bulk delete: only shown when >1 orphan. Groups orphans by map to
     // minimise API calls — one mapsUpdate per affected map.
@@ -325,10 +325,10 @@ export function render(ctx){
       return b;
     };
     clearAllWrap.appendChild(makeClearAllBtn());
-    tagsCard.appendChild(el("table",{class:"table"},[
+    tagsCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
       el("thead",{},el("tr",{},[el("th",{},"Address"),el("th",{},"Label"),el("th",{},"Last seen"),el("th",{},"")])),
       tbody,
-    ]));
+    ])));
     tagsCard.appendChild(clearAllWrap);
   } else {
     tagsCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No BLE devices have been tagged yet."));
@@ -541,10 +541,10 @@ export function render(ctx){
         el("td",{},areaBtnWrap),
       ]));
     }
-    areasCard.appendChild(el("table",{class:"table"},[
+    areasCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
       el("thead",{},el("tr",{},[el("th",{},"Name"),el("th",{},"Floor"),el("th",{},"ID"),el("th",{},"")])),
       tbody,
-    ]));
+    ])));
   } else {
     areasCard.appendChild(el("div",{class:"muted",style:"font-size:12px"},"No areas found."));
   }
@@ -591,10 +591,10 @@ export function render(ctx){
         el("td",{},mapBtnWrap),
       ]));
     }
-    mapsCard.appendChild(el("table",{class:"table"},[
+    mapsCard.appendChild(el("div",{class:"table-scroll"},el("table",{class:"table"},[
       el("thead",{},el("tr",{},[el("th",{},"Name"),el("th",{},"File"),el("th",{},"")])),
       tbody,
-    ]));
+    ])));
     root.appendChild(mapsCard);
   }
 
@@ -991,7 +991,7 @@ function _haEntityControls(ctx, el, settings){
     {key:"ha_entity_area_enabled", label:"sensor.{label}_area", desc:"Primary room sensor with confidence attributes"},
     {key:"ha_entity_distance_enabled", label:"sensor.{label}_distance", desc:"Distance to nearest scanner (metres)"},
     {key:"ha_entity_scanner_distance_enabled", label:"sensor.{label}_distance_{scanner}", desc:"Per-scanner distance for hyper-local triggers"},
-    {key:"ha_entity_occupancy_enabled", label:"sensor.padspan_occupancy", desc:"Building occupancy estimate (min/estimate/max) — requires integration reload"},
+    {key:"ha_entity_occupancy_enabled", label:"sensor.padspan_occupancy_occupancy", desc:"Building occupancy estimate (min/estimate/max) — requires integration reload"},
     {key:"subzones_enabled", label:"binary_sensor.padspan_{sub-zone}_occupied", desc:"Sub-zones: a bed, couch or desk drawn with Mapping → Sub-zones; each gets an occupied and a who sensor (off: they go unavailable)"},
   ];
 
@@ -2000,7 +2000,7 @@ function _buildNotifications(ctx, el){
 
   if(!savedEntries.length){
     savedCard.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px 0"},
-      "No alerts configured yet. Tag a device in Objects, then set up alerts below or in the Follow tab."
+      "No alerts configured yet. Tag a device on the Devices screen, then set up alerts below or in the Follow tab."
     ));
   } else {
     const thead = el("thead",{},el("tr",{},[
@@ -2121,7 +2121,7 @@ function _buildNotifications(ctx, el){
 
   if(!trackable.length){
     editCard.appendChild(el("div",{class:"muted",style:"font-size:12px;padding:8px 0"},
-      "No tracked devices found. Tag BLE devices in Objects or add device trackers to set up notifications."
+      "No tracked devices found. Tag BLE devices on the Devices screen or add device trackers to set up notifications."
     ));
     wrap.appendChild(editCard);
     return wrap;

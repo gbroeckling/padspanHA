@@ -42,7 +42,9 @@ room names, and the rain grow with the screen. On a 1080p screen everything is i
 a 4K screen it is twice the size, so it reads from across the room. The screen is also kept awake
 while the page is open, if Home Assistant is reached over HTTPS (or on the screen's own
 `localhost`); otherwise set the screen's own sleep setting. The first-time Live Aboard card isn't
-shown on a wall, since nobody is there to tap it.
+shown on a wall, since nobody is there to tap it. Home Assistant's own sidebar is hidden too, on that
+browser only, so the map has the whole screen; **Show HA** on the Atlas page (without `?kiosk=1`)
+brings it back.
 
 Wall mode needs the Atlas's new layout, the one with the rail (PadSpan Pro: **Mapping → Atlas →
 ▦ New layout**). With the classic layout, `?kiosk=1` only drops the header.
@@ -92,10 +94,20 @@ Two more options in **Settings → Atlas → 📺 Wall screens**, both off until
 With [Live Aboard](LIVE_ABOARD_GUIDE.md) on:
 
 - Get the view you want and pick **Views ▾ → Set as home**.
-- In **Settings → Atlas → 🏠 Live Aboard**, set **Back to home view** (30 s, 1 min or 5 min).
-  The screen flies back home after that long untouched. It waits while someone is editing, has a
-  card open, or made it full screen by hand.
+- In **Settings → Atlas → 🏠 Live Aboard**, set **Back to home view** (30 s, 1 min, 5 min, or off).
+  The screen flies back home after that long untouched, which also undoes any zooming. It waits
+  while someone is editing, has a card open, or made it full screen by hand. Turn it off if the
+  screen should stay where you left it.
 - When nothing is moving, Live Aboard draws nothing, so an idle screen costs almost nothing.
+- On **Auto** or **High** quality, a wall draws High at every pixel the screen has. If its graphics
+  chip can't turn the house smoothly at that size, the picture is softer only while the camera
+  moves, and sharp again as soon as it stops. A chip too slow for that (a 4K screen on a small PC)
+  draws about 1440p's worth instead. If that is still too slow, Auto goes to Low and High goes to the
+  flat Atlas. **Low** chosen in Settings stays Low on every screen.
+- The whole house is framed to fill the screen, leaving room only for the chips along the top. The
+  bars fade when nobody is there, so they can sit over its edge while you use them. Framed that
+  closely, turning or tilting the house by hand can run part of it past the edge; **Fit** or going
+  home brings it back.
 
 ## Portrait walls
 

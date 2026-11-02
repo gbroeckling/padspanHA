@@ -239,7 +239,7 @@ export function render(ctx){
           const glowAnim = hasDevices ? "animation:padspan-glow 3s ease-in-out infinite;" : "";
           const dimStyle = hasDevices ? "" : "opacity:0.5;";
 
-          const band = el("div",{style:`min-height:26px;padding:3px 6px;cursor:pointer;position:relative;background:linear-gradient(135deg, ${r.color}18 0%, ${r.color}35 100%);border-bottom:${i < floorRooms.length-1 ? `1px solid ${r.color}20` : "none"};display:flex;align-items:center;gap:4px;transition:all 0.2s ease;${glowAnim}${dimStyle}`.replace(/\s+/g," ")});
+          const band = el("div",{style:`min-height:26px;padding:3px 6px;cursor:pointer;position:relative;background:linear-gradient(135deg, ${ctx.helpers.roomColorAlpha(r.color, "18")} 0%, ${ctx.helpers.roomColorAlpha(r.color, "35")} 100%);border-bottom:${i < floorRooms.length-1 ? `1px solid ${ctx.helpers.roomColorAlpha(r.color, "20")}` : "none"};display:flex;align-items:center;gap:4px;transition:all 0.2s ease;${glowAnim}${dimStyle}`.replace(/\s+/g," ")});
 
           // Left color accent bar
           band.appendChild(el("div",{style:`width:3px;align-self:stretch;background:${r.color};border-radius:2px;flex-shrink:0;opacity:0.7`}));
@@ -260,12 +260,12 @@ export function render(ctx){
 
           // Hover glow effect
           band.addEventListener("mouseenter", ()=>{
-            band.style.background = `linear-gradient(135deg, ${r.color}30 0%, ${r.color}50 100%)`;
-            band.style.boxShadow = `inset 0 0 12px ${r.color}25, 0 0 8px ${r.color}15`;
+            band.style.background = `linear-gradient(135deg, ${ctx.helpers.roomColorAlpha(r.color, "30")} 0%, ${ctx.helpers.roomColorAlpha(r.color, "50")} 100%)`;
+            band.style.boxShadow = `inset 0 0 12px ${ctx.helpers.roomColorAlpha(r.color, "25")}, 0 0 8px ${ctx.helpers.roomColorAlpha(r.color, "15")}`;
             band.style.opacity = "1";
           });
           band.addEventListener("mouseleave", ()=>{
-            band.style.background = `linear-gradient(135deg, ${r.color}18 0%, ${r.color}35 100%)`;
+            band.style.background = `linear-gradient(135deg, ${ctx.helpers.roomColorAlpha(r.color, "18")} 0%, ${ctx.helpers.roomColorAlpha(r.color, "35")} 100%)`;
             band.style.boxShadow = "";
             band.style.opacity = hasDevices ? "1" : "0.5";
           });
@@ -295,7 +295,7 @@ export function render(ctx){
       const tower = el("div",{style:"border-radius:6px;overflow:hidden;border:1px solid #1e3a2a;background:#0a1a0f"});
       for(let i = 0; i < allRooms.length; i++){
         const r = allRooms[i];
-        const band = el("div",{style:`min-height:26px;padding:3px 6px;cursor:pointer;background:linear-gradient(135deg, ${r.color}18 0%, ${r.color}35 100%);border-bottom:${i < allRooms.length-1 ? `1px solid ${r.color}20` : "none"};display:flex;align-items:center;gap:4px`});
+        const band = el("div",{style:`min-height:26px;padding:3px 6px;cursor:pointer;background:linear-gradient(135deg, ${ctx.helpers.roomColorAlpha(r.color, "18")} 0%, ${ctx.helpers.roomColorAlpha(r.color, "35")} 100%);border-bottom:${i < allRooms.length-1 ? `1px solid ${ctx.helpers.roomColorAlpha(r.color, "20")}` : "none"};display:flex;align-items:center;gap:4px`});
         band.appendChild(el("div",{style:`width:3px;align-self:stretch;background:${r.color};border-radius:2px;flex-shrink:0;opacity:0.7`}));
         band.appendChild(el("div",{style:`flex:1;min-width:0;font-size:10px;font-weight:600;color:${r.color};word-break:break-word`}, r.room));
         if(r.count > 0) band.appendChild(el("div",{style:`font-size:10px;font-weight:800;color:${r.color};flex-shrink:0`}, String(r.count)));
@@ -384,7 +384,7 @@ export function render(ctx){
       const dot = el("div",{style:`
         display:flex;align-items:center;justify-content:center;flex-direction:column;
         width:${size}px;height:${size}px;border-radius:50%;
-        background:${rc}22;border:2px solid ${rc}66;
+        background:${ctx.helpers.roomColorAlpha(rc, "22")};border:2px solid ${ctx.helpers.roomColorAlpha(rc, "66")};
         cursor:pointer;position:relative;${pulseAnim}
       `.replace(/\s+/g," ")});
       if(rs.count > 0){
