@@ -161,6 +161,9 @@ export function createEditor(ctx){
   let resheet = false;                       // a light's kind changed: its sheet again once it is drawn as it
   let furnishOn = false;                     // Mapping → Furnish: Edit opens at the furniture tool (P2)
   let runsGen = null, arcsGen = null;
+  // Add data via plans (live_aboard_plans.js, experimental): its tool and button, only while the host hands
+  // `plans` (the master switch on and an AI Task chosen); the module loads on first use (setPlans).
+  let plans = null, bPlans = null, plansHost = null, plansLoading = false;
   const runsByFloor = new Map();
   const active = () => editing && !!editFn && !!draft;
 
@@ -264,6 +267,7 @@ export function createEditor(ctx){
     device: (eid) => ctx.device(eid), camera: () => ctx.camera(), scene: () => ctx.scene(), rect: () => viewRect(), shellGen: () => ctx.shellGen(),
   }) : null;
   const stripping = () => !!strip && active() && tool === "strip";
+  const planning = () => !!plans && active() && tool === "plans";
 
   // ── 3D marks: the line, the doors' swings ─────────────────────────────────
   const box = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
@@ -669,10 +673,12 @@ export function createEditor(ctx){
     pending = null; gesture = null; line.visible = false;
     const drawing = (x) => x === "door" || x === "window" || x === "doorway";
     if (drawing(tool) && !drawing(was)) { const F = currentFloor(); if (F) ctx.topDown(F); }
+    if (tool === "plans" && was !== "plans") { const F = currentFloor(); if (F) ctx.topDown(F); }   // the list under the plan, straight down
     if (tool === "heights" && sel && sel.opening) sel = null;
     hint(drawing(tool) ? "Press on a wall and drag along it, or tap its two ends."
       : tool === "heights" ? "Tap a light, a sensor or a readout."
       : tool === "strip" ? "Tap a light, or pick one from the list."
+      : tool === "plans" ? "Add data via plans (AI, experimental): what the AI found on your floor plans, one item at a time."
       : DRAW_HINT);
     paint();
     sheetFor();
@@ -699,7 +705,8 @@ export function createEditor(ctx){
     toolSeg.style.display = furnishOn ? "none" : "";        // Furnish: furniture only
     if (fur) fur.show(on && tool === "furnish");
     if (strip) strip.show(on && tool === "strip");
-    for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"], [bStrip, "strip"]]) if (b) b.setAttribute("aria-pressed", String(tool === t));
+    if (plans) plans.show(on && tool === "plans");
+    for (const [b, t] of [[bDoor, "door"], [bWin, "window"], [bHts, "heights"], [bStrip, "strip"], [bPlans, "plans"]]) if (b) b.setAttribute("aria-pressed", String(tool === t));
     bWay.setAttribute("aria-pressed", String(tool === "doorway"));
     bUndo.disabled = !on || saving || !draft.canUndo;
     bRedo.disabled = !on || saving || !draft.canRedo;
@@ -721,8 +728,10 @@ export function createEditor(ctx){
     sheetRefresh = null;
     sheet.classList.remove("fur");
     sheet.classList.remove("strip");
+    sheet.classList.remove("plans");
     if (furnishing()) { sheet.classList.toggle("on", fur.sheet()); placeSheet(); return; }   // the picked piece's panel
     if (stripping()) { sheet.classList.toggle("on", strip.sheet()); placeSheet(); return; }   // the light picked, or the list
+    if (planning()) { sheet.classList.toggle("on", plans.sheet()); placeSheet(); return; }    // the AI's finds, one by one
     if (!active() || !sel) { sheet.classList.remove("on"); return; }
     if (sel.opening) (sel.opening.added ? sheetAdded : sheetMapOpening)(sel.opening);
     else if (sel.eid) sheetDevice(sel.eid);
@@ -1242,6 +1251,31 @@ export function createEditor(ctx){
       if (t === "strip" && strip && eid) strip.select(eid);
       return tool === t;
     },
+    /** Add data via plans (experimental): the Plans tool and its button while
+     *  the host hands `plans` ({callWS, settings}: the master switch on and an
+     *  AI Task chosen), gone when it hands null. The module loads on first use. */
+    setPlans(p){
+      plansHost = p && typeof p === "object" ? p : null;
+      if (!plansHost && !plans && !bPlans && !plansLoading) return;      // nothing to take away: nothing drawn
+      if (!plansHost) {
+        if (tool === "plans") { tool = null; sheetFor(); }
+        if (plans) { try { plans.dispose(); } catch (_) { /* gone */ } plans = null; }
+        if (bPlans) { bPlans.remove(); bPlans = null; }
+        paint();
+        return;
+      }
+      if (plans || plansLoading || typeof ctx.loadPlans !== "function") return;
+      plansLoading = true;
+      Promise.resolve(ctx.loadPlans()).then((mod) => {
+        plansLoading = false;
+        if (!mod || typeof mod.createPlans !== "function" || !plansHost || plans) return;
+        plans = mod.createPlans({ root, sheet, guard, host: () => plansHost, floors: () => ctx.floors(),
+          hint: (text, bad) => hint(text, bad), redraw: () => { paint(); sheetFor(); } });
+        bPlans = btn("Plans", "Add data via plans (AI, experimental)", () => pickTool("plans"));
+        toolSeg.appendChild(bPlans);
+        paint();
+      }).catch((err) => { plansLoading = false; console.warn("PadSpan: the Plans tool failed to load", err); });
+    },
     /** The host's edit (the light-placement gate), or null: no Edit. */
     setEdit(fn){
       const had = !!editFn;
@@ -1325,6 +1359,7 @@ export function createEditor(ctx){
       keys(false);
       if (fur) fur.dispose();
       if (strip) strip.dispose();
+      if (plans) plans.dispose();
       clearArcs();
       if (line.parent) line.parent.remove(line);
       box.dispose(); lineMat.dispose(); arcMat.dispose(); fillMat.dispose();

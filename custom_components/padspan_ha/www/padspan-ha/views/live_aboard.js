@@ -536,6 +536,7 @@ function createSlot(slotKey){
   // connection, toast, settings, states), from the newest card; topCb: the
   // host's floor chips, which a piece moved up or down a floor follows.
   let layer = null, furnishP = null, topCb = null;
+  let plansP = null;                                        // Add data via plans (experimental): what its tool needs of the host, or null
   // P5 (live_aboard_devices.js): what each linked piece shows, and the
   // outlines round the emergency lights while the Atlas's test runs.
   let devices = null, emOutlines = [], emKey = "";
@@ -631,7 +632,7 @@ function createSlot(slotKey){
     fpsUi = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
-    layer = null; furnishP = null; topCb = null;
+    layer = null; furnishP = null; topCb = null; plansP = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
     observers = [];
     disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes);
@@ -1373,6 +1374,8 @@ function createSlot(slotKey){
       // P2 Furnish: its tool, the furniture drawn, and where on screen each view is.
       FURNISH, PIECES, FURN: () => FURN, layer, rect: () => view3Rect(), viewAt: (x, y) => viewAt(x, y),
       STRIP, RUNS,                                           // the Strip tool (lights laid out along their runs)
+      // Add data via plans (live_aboard_plans.js, experimental): loaded only when the editor asks (the master switch on).
+      loadPlans: () => import(`./live_aboard_plans.js${new URL(import.meta.url).search}`),
       STOREY,                                                // stairs in Furnish: the floor they reach, their rise
       lights: () => lights.map(L => ({ eid: L.eid, F: L.F, drawn: L.drawn, guess: L.guess, label: (deviceInfo(L.eid) || {}).label || L.eid })),
       // The plan alone (a narrow screen): its middle as it shows, not where the hidden 3D view looks.
@@ -4759,6 +4762,7 @@ function createSlot(slotKey){
         // tool open. p.furnish is the host's own for the tool (its flows and
         // "This is a device…"), handed through: the view calls nothing itself.
         furnishP = p.furnish && typeof p.furnish === "object" ? { ...p.furnish, states: p.states || null } : null;
+        plansP = p.plans && typeof p.plans === "object" ? p.plans : null;
         // A piece moved a floor: its floor shows, and the camera stays where it is.
         topCb = typeof p.setTopFloor === "function" ? (fid) => { keepCam = true; try { p.setTopFloor(fid); } finally { keepCam = false; } } : null;
         setFurnishView(!!furnishP);
@@ -4771,6 +4775,7 @@ function createSlot(slotKey){
         prefs = p.prefs && typeof p.prefs.get === "function" && typeof p.prefs.set === "function" ? p.prefs : null;
         update(p);
         if (editor) editor.setFurnish(!!furnishP);           // after update: a file read needs the card's data
+        if (editor) editor.setPlans(plansP);                 // the Plans tool only while the host hands it
         // A tool asked for on the way in (the setup wizard's "Open Live
         // Aboard (Edit → Heights)"), taken once: {tool, eid}. Taken even with
         // no editor (no WebGL), or it would open that tool on a later visit.

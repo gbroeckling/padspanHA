@@ -398,6 +398,21 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: subzones — %s", e)
         errors.append("padspan_ha.subzones")
 
+    # ── 9a'''. The plan AI's store (plan_ai.py) — only a file that exists, emptied ───
+    try:
+        from .const import DATA_PLAN_AI, PLAN_AI_STORE_KEY  # noqa: PLC0415
+        from .plan_ai import empty as _plan_ai_empty  # noqa: PLC0415
+        from .ws_common import _store_file_written  # noqa: PLC0415
+        if await _store_file_written(hass, PLAN_AI_STORE_KEY):
+            await _St(hass, 1, PLAN_AI_STORE_KEY).async_save(_plan_ai_empty())
+            cleared += 1
+        pa_obj = domain.get(DATA_PLAN_AI)
+        if pa_obj is not None:
+            pa_obj.data = _plan_ai_empty()
+    except Exception as e:
+        _LOGGER.warning("Factory reset: plan_ai — %s", e)
+        errors.append("padspan_ha.plan_ai")
+
     # ── 9a''. Robot vacuum (vacuum_import.py) — the link, the walker and its
     # review pile; only a file that exists, emptied, and its polling stopped.
     try:

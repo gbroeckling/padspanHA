@@ -208,6 +208,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "atlas_3d_tags": False,               # tags and scanners: every placed tag with its name, every scanner at its height
     "atlas_3d_ai_task_entity": "",        # ai_task.* that reads photos; "" = none (the photo button explains)
     "atlas_3d_ai_task_backup_entity": "", # ai_task.* used when the main one can't be reached (ws_house3d_photo.ask_ai); "" = no backup
+    "ai_plans_enabled": False,            # Settings → AI: AI map-building research (experimental, 2026-11): hides the stair finder and the Plans tool while off; a home that used the stair finder comes up on (ai_plans_stamp)
     "ai_stairs_enabled": False,           # Settings → AI: stairs read off the floor plans by the AI Task (0.38.188), off until chosen
     "ai_photos_enabled": True,            # Settings → AI: furniture (tags, receivers, people's figures) from a photo; on as it always was
     "atlas_3d_library": False,            # the shared furniture library
@@ -432,6 +433,21 @@ def trial_state_kept(live: dict[str, Any] | None, other: dict[str, Any] | None =
     return out
 
 
+def ai_plans_stamp(data: dict, loaded: Any) -> bool:
+    """The AI map-building switch (ai_plans_enabled, 2026-11) on an upgrade:
+    a home that had turned the stair finder on comes up with the master
+    switch on too, so nobody loses the stair finder (Garry, 2026-11-02:
+    "Anyone using the stair find has the switch on by default"); every
+    other home, and a fresh install, gets False. Decided once: only while
+    the loaded settings have no ai_plans_enabled at all. Called from
+    async_load and from a restore (ws_backup), which hot-patches the data
+    without a load. Returns whether it set anything."""
+    if not isinstance(loaded, dict) or "ai_plans_enabled" in loaded:
+        return False
+    data["ai_plans_enabled"] = loaded.get("ai_stairs_enabled") is True
+    return True
+
+
 @dataclass
 class SettingsStore:
     # The three field annotations below do NOT get their usual @dataclass
@@ -512,6 +528,9 @@ class SettingsStore:
             ran = bool(loaded.get("vacation_mode_enabled") or loaded.get("vacation_mode_pattern")
                        or loaded.get("vacation_mode_pattern_built_at") or loaded.get("vacation_mode_periods"))
             self.data["vacation_mode_tracked_since"] = time.time() if ran else 0
+        # The AI map-building switch, once: on where the stair finder was.
+        if ai_plans_stamp(self.data, loaded):
+            _normalized = True
         # First sight of this install, once (see first_seen_ts above).
         _fs = self.data.get("first_seen_ts")
         if isinstance(_fs, bool) or not isinstance(_fs, (int, float)) or _fs <= 0:

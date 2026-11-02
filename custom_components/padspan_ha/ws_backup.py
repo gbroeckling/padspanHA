@@ -516,6 +516,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                             # made since (settings_store.py).
                             if (store_obj.data or {}).get("atlas_default_v1_applied"):
                                 data["atlas_default_v1_applied"] = True
+                            # A backup from before the AI map-building switch:
+                            # on where the stair finder was (settings_store).
+                            from .settings_store import ai_plans_stamp
+                            ai_plans_stamp(data, data)
                             # A Pro invite is this install's now, answered or
                             # not: an older backup must not bring one back.
                             from .pro_invite import SETTINGS_KEY as _INVITE_KEY

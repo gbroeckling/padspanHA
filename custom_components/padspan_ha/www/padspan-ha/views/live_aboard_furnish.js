@@ -466,8 +466,9 @@ export function createFurnish(ctx){
       menu.appendChild(d("h5", null, "House"));
       menu.appendChild(btn("Stairs", "Stairs up to the floor above: straight, L, U, or round two or three landings", () => { closeMenu(); add([{ recipe: recipeFor("stairs") }]); }));
       // Settings → AI → Stairs from your floor plans (off until chosen): the AI Task reads them.
+      // Under the master switch over every AI map-building feature (ai_plans_enabled, 2026-11).
       const hs = (ctx.host() || {}).settings || {};
-      if (hs.ai_stairs_enabled === true && String(hs.atlas_3d_ai_task_entity || "").startsWith("ai_task.")) {
+      if (hs.ai_plans_enabled === true && hs.ai_stairs_enabled === true && String(hs.atlas_3d_ai_task_entity || "").startsWith("ai_task.")) {
         menu.appendChild(btn("Read stairs off the plans (AI)",
           "Your AI Task looks for the stairs on each floor plan you placed and adds what it finds as a first guess to check: drag, turn or delete them; nothing is kept until Save",
           () => { closeMenu(); readPlanStairs(); }));
@@ -876,7 +877,7 @@ export function createFurnish(ctx){
           } else failed++;
         } catch (e) {
           failed++;
-          if (e && (e.code === "ai_stairs_off" || e.code === "no_ai_task")) { ctx.hint(String(e.message || e.code), true); return; }
+          if (e && (e.code === "ai_plans_off" || e.code === "ai_stairs_off" || e.code === "no_ai_task")) { ctx.hint(String(e.message || e.code), true); return; }
         }
       }
       // Where each one goes: the floor it climbs from.

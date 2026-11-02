@@ -149,6 +149,7 @@ def _read(h, conn, **kw):
 def _stairs_ready(monkeypatch, tmp_path, answer):
     from PIL import Image
     h, conn, ai, media = _ready(monkeypatch, tmp_path, answer=answer)
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_plans_enabled"] = True
     h.data[DOMAIN][DATA_SETTINGS].data["ai_stairs_enabled"] = True
     h.data[DOMAIN][DATA_MODEL] = SimpleNamespace(map_frac_to_metres=lambda fx, fy, mid: _to_m(fx, fy) if mid == "m1" else None)
     # A 2000 × 1600 plan on disk: made 1024 × 819, sent at its frame 1036 × 812, and the boxes read in those pixels.
@@ -194,6 +195,12 @@ def test_the_gates(monkeypatch, tmp_path, disk):
     h.data[DOMAIN][DATA_SETTINGS].data.pop("ai_stairs_enabled")
     assert _read(h, conn) == {"error": S.STAIRS_OFF_CODE}           # off until chosen
     h.data[DOMAIN][DATA_SETTINGS].data["ai_stairs_enabled"] = True
+    # The master switch (2026-11) over every AI map-building feature hides the stair finder too.
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_plans_enabled"] = False
+    assert _read(h, conn) == {"error": S.PLANS_OFF_CODE}
+    h.data[DOMAIN][DATA_SETTINGS].data.pop("ai_plans_enabled")
+    assert _read(h, conn) == {"error": S.PLANS_OFF_CODE}
+    h.data[DOMAIN][DATA_SETTINGS].data["ai_plans_enabled"] = True
     h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = ""
     assert _read(h, conn) == {"error": "no_ai_task"}
     assert ai.calls == []

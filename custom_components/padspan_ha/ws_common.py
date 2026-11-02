@@ -47,6 +47,8 @@ from .const import (
     HOUSE3D_STORE_KEY,
     DATA_SUBZONES,
     SUBZONES_STORE_KEY,
+    DATA_PLAN_AI,
+    PLAN_AI_STORE_KEY,
     DATA_LOST_AND_FOUND,
     LOST_AND_FOUND_STORE_KEY,
     LIGHT_SHAPE_KINDS,
@@ -406,6 +408,7 @@ _ALL_STORE_KEYS = [
     HOUSE3D_STORE_KEY,
     LOST_AND_FOUND_STORE_KEY,
     SUBZONES_STORE_KEY,
+    PLAN_AI_STORE_KEY,
     "padspan_ha.vacuum",          # vacuum_import.VACUUM_STORE_KEY: the robot link, walker and review pile
 ]
 
@@ -447,6 +450,8 @@ _DATA_KEY_MAP = {
     LOST_AND_FOUND_STORE_KEY: DATA_LOST_AND_FOUND,
     # Sub-zones (subzones.py): no file until one is added, like Live Aboard's.
     SUBZONES_STORE_KEY: DATA_SUBZONES,
+    # The plan AI's suggestions, verdicts and remembered rejects (plan_ai.py): no file until a session runs.
+    PLAN_AI_STORE_KEY: DATA_PLAN_AI,
     # The robot vacuum's link, walker and review pile (vacuum_import.py): no file until an import.
     "padspan_ha.vacuum": "vacuum_import",
 }
@@ -456,7 +461,7 @@ _DATA_KEY_MAP = {
 # off: an install that never used it has no file, and its backups must carry
 # no entry for it, or a later restore would create the file, or empty one that
 # has furniture in it by then (house3d_store.py).
-_BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY, SUBZONES_STORE_KEY, "padspan_ha.vacuum"})
+_BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY, SUBZONES_STORE_KEY, PLAN_AI_STORE_KEY, "padspan_ha.vacuum"})
 
 # "There was no file": what a safety backup taken right before an operation
 # that may CREATE one of those stores records for it (the Bright import's;
