@@ -3961,6 +3961,12 @@ function _atlasWeatherSection(ctx, el, settings){
   // or an alert — never one of the house's alarms (atlas_weather.js warningPickerIds).
   const warnList = WX ? WX.warningPickerIds(states, entities) : [];
   picker("Rain sensor", "atlas_weather_rain_entity", "None — use the weather entity", rainIds);
+  // One that has stopped reporting counts as no reading (atlas_weather.js).
+  const rainSince = WX ? WX.rainSensorStaleSince(String(settings.atlas_weather_rain_entity || ""), states, entities, Date.now()) : null;
+  if (rainSince !== null) {
+    box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
+      `This sensor hasn't reported since ${new Date(rainSince).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}. Using the weather forecast instead.`));
+  }
   picker("Weather entity", "atlas_weather_condition_entity",
     firstWx ? `Automatic — ${nameOf(firstWx)}` : "Automatic — none found (no weather shows)", ids.filter(eid => eid.startsWith("weather.")));
   picker("Weather warnings", "atlas_weather_warning_entity",

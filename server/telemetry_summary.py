@@ -610,13 +610,14 @@ def main() -> int:
     # except source: a chosen entity no longer exists (a fallback may draw);
     # the sources say whether the fallbacks work outside Canada. Notes
     # (0.38.142+): a wet rain sensor overruled by a clear sky (dew, not rain);
-    # a leak detector chosen as the warning entity, ignored.
+    # a leak detector chosen as the warning entity, ignored; a rain sensor
+    # that has stopped reporting.
     print("Atlas weather (page loads; installs)")
     any_wx = False
     for prefix, title in (("weather_error:", "errors, per kind (no weather drawn; source: a chosen entity is gone)"),
                           ("weather_shown:", "shown, per state"),
                           ("weather_source:", "decided by, per source"),
-                          ("weather_note:", "set aside (sensor_overruled: wet sensor, clear sky; warning_ignored: a leak detector)")):
+                          ("weather_note:", "set aside (sensor_overruled: wet sensor, clear sky; warning_ignored: a leak detector; sensor_stale: a rain sensor stopped reporting)")):
         rows = sorted(((k, v) for k, v in usage.items() if k.startswith(prefix)),
                       key=lambda kv: (-len(usage_installs[kv[0]]), -kv[1], kv[0]))
         if not rows:
