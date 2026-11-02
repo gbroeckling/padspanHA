@@ -325,7 +325,7 @@ def test_a_motion_sensors_reach_is_soft_light_with_no_hard_edge():
     """Its reach stays, on every screen and off the house too. It used to be a pale plate
     with a bright outline, which cut across rooms and stood out as a disc on the ground."""
     mo = (_WWW / "views" / "live_aboard_motion.js").read_text(encoding="utf-8")
-    assert "smoothstep(0.0, 0.9, e);" in mo and "c = over(vec4(0.80, 0.90, 1.0, fill), c);" in mo
+    assert "smoothstep(0.0, min(0.9, 0.45 * reach), e);" in mo and "c = over(vec4(0.80, 0.90, 1.0, fill), c);" in mo
     assert "smoothstep(0.05, 0.09, e)" not in mo and "smoothstep(0.018, 0.04, e)" not in mo, "no outline"
     assert "if ((lens && !S.dim) || focusEid === S.eid) fa = Math.max(fa, COVER_A);" in mo, "still every sensor with Motion picked"
 

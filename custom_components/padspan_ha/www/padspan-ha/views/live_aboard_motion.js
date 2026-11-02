@@ -318,11 +318,12 @@ void main(){
       side = abs(side);
     }
     if (inside <= 0.0) continue;
-    // A soft pool of pale light, strongest at the sensor and fading out to
+    // A soft pool of pale light, strongest near the sensor and fading out to
     // nothing at its reach and along its sides: where it sees, with no hard
-    // edge to cut across a room or stand out on the ground.
+    // edge to cut across a room or stand out on the ground. The fade scales
+    // down with a short reach, or a small fan would be all fade.
     float e = min(reach - r, side);
-    float fill = fa * (0.28 + 0.72 * pow(1.0 - r / reach, 1.4)) * smoothstep(0.0, 0.9, e);
+    float fill = fa * (0.28 + 0.72 * pow(max(0.0, 1.0 - r / reach), 1.4)) * smoothstep(0.0, min(0.9, 0.45 * reach), e);
     c = over(vec4(0.80, 0.90, 1.0, fill), c);
   }
   for (int i = 0; i < ${MAX_S}; i++) {
