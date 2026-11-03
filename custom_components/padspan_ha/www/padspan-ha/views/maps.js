@@ -21,7 +21,7 @@ const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
 const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM,
-        floorIdAtLevel, sceneColours, defaultPerimeterMarginM, shapeSvg, pointInPolygon } =
+        floorIdAtLevel, floorNameAtLevel, sceneColours, defaultPerimeterMarginM, shapeSvg, pointInPolygon } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 // THE shared Lights view (data pipeline, map card, index table) — used
 // verbatim by the Lights sidebar panel, so the two tools always show the
@@ -8566,7 +8566,12 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
     const v = toVB(ev);
     const picked = _doorCircleFloorForClick(ctx, o, frame, v);
     mapState._doorCircleM = { x_m: picked.cx, y_m: picked.cy, r_m: 1, floorId: picked.fid };
-    ctx.toast("Drag the circle to position it, drag its edge to resize, then Save opening above.");
+    // The nearest wall can be on a floor that isn't chosen: the circle fades with
+    // that floor and takes no taps, so it's chosen first.
+    const pickedZ = _levelForFloorId(frame, ctx.state.model, ctx.state.model?.floors || [], picked.fid);
+    ctx.toast([...svg.querySelectorAll('g[data-role="floorghost"]')].some(g => Number(g.getAttribute("data-z")) === pickedZ)
+      ? `The nearest wall is on ${floorNameAtLevel(frame, ctx.state.model, ctx.state.model?.floors || [], pickedZ) || "another floor"}. Choose that floor to drag the circle, then Save opening above.`
+      : "Drag the circle to position it, drag its edge to resize, then Save opening above.");
     ctx.actions.renderRooms();
   });
 
@@ -8603,6 +8608,12 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
       fid = _floorIdForZ(ctx, Number.isFinite(hitZ) ? hitZ : (frame.levels[0] || 0), frame);
     }
     const z = _levelForFloorId(frame, ctx.state.model, floors, fid);
+    // A floor chosen, and this light keeps another: the point tapped on this
+    // plate would land off the plan on its own floor. It stays in the queue.
+    if (z !== hitZ && _aFloorIsFaded(svg)) {
+      ctx.toast(`${l.code} belongs on ${floorNameAtLevel(frame, ctx.state.model, floors, z) || "another floor"}. Choose that floor first.`);
+      return;
+    }
     const [x_m, y_m] = frame.isoInv(v.x, v.y, z);
     _pushUndo(o.mapState, [eid]);
     _draftAt(ctx, o, eid, x_m, y_m, fid, "manual");
@@ -9678,8 +9689,11 @@ function _lightsTab(ctx, maps, active) {
   previewApi.openFloor = (z) => openFloorSheet(previewApi, lights, ctx.state.model, z);
 
   // View settings live in mapState so slider positions survive re-renders;
-  // seeded from (and saved to) the SAME settings keys the sidebar uses.
-  if (!mapState._lightsView) mapState._lightsView = {
+  // seeded from (and saved to) the SAME settings keys the sidebar uses. Opened
+  // before the settings came in, it's seeded again when they do, or the saved
+  // floor would be lost until the page is opened again.
+  const settingsIn = Object.keys(ctx.state.settings || {}).length > 0;
+  if (!mapState._lightsView || (mapState._lightsViewEarly && settingsIn)) mapState._lightsView = {
     floorGap: ctx.state.settings?.overview_iso_floor_gap ?? 150,
     horizGap: ctx.state.settings?.overview_iso_horiz_gap ?? 0,
     focusIdx: ctx.state.settings?.overview_iso_focus ?? 0,
@@ -9689,6 +9703,7 @@ function _lightsTab(ctx, maps, active) {
     // in-memory-only zoom reset to 1.0 on every reboot/reload.
     zoom: ctx.state.settings?.overview_iso_zoom ?? 1.0,
   };
+  mapState._lightsViewEarly = !settingsIn;
   const view = mapState._lightsView;
 
   // ── Transform mode ──────────────────────────────────────────────────────
