@@ -196,9 +196,10 @@ def _budget(monkeypatch, timeout=0.2, budget=0.3, read_min=0.05):
 def test_a_later_read_gets_only_the_time_left(monkeypatch, tmp_path, disk):
     """The kind's read would fit in PHOTO_TIMEOUT_S on its own, but not in
     what the quick look left of the budget."""
-    _budget(monkeypatch)
+    # Whole seconds: on a loaded machine a tenth of a second can pass before a read starts.
+    _budget(monkeypatch, timeout=2.0, budget=2.5, read_min=0.1)
     h, conn, ai, media, counted = _setup(monkeypatch, tmp_path, [{"what_it_is": "sofa"}, dict(_SOFA)],
-                                         delays=[0.15, 0.18])
+                                         delays=[1.5, 1.8])
     out = _photo(h, conn)
     assert out["ok"] is False and out["reason"] == "error" and ai.reads == ["quick", "sofa"]
     assert _leftovers(media) == []
