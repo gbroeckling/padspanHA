@@ -48,6 +48,9 @@ class _MacTable:
         pos = len(_MAC_MAGIC)
         blob_len, n24, n28, n36 = struct.unpack_from("<IIII", raw, pos)
         pos += 16
+        # Each block takes at least 3 bytes. A bad count would allocate gigabytes.
+        if blob_len > len(raw) or 3 * (n24 + n28 + n36) > len(raw):
+            raise ValueError("maker table header doesn't fit the file")
         self._names = raw[pos:pos + blob_len]
         pos += blob_len
         self._starts = array("I", [0])
@@ -113,16 +116,20 @@ def load_tables() -> None:
     with _lock:
         if _loaded:
             return
+        # Whatever a damaged file does, one try: every build trying again would
+        # read it again.
         try:
-            _companies = {int(k, 16): v for k, v in _read_tsv("bt_companies.tsv")}
-            _members = {k.lower(): v for k, v in _read_tsv("bt_members.tsv")}
-        except (OSError, ValueError) as err:
-            _LOGGER.warning("PadSpan's Bluetooth name tables could not be read: %s", err)
-        try:
-            _mac = _MacTable((_DATA / "mac_makers.bin").read_bytes())
-        except (OSError, ValueError, struct.error, IndexError) as err:
-            _LOGGER.warning("PadSpan's address maker table could not be read: %s", err)
-        _loaded = True
+            try:
+                _companies = {int(k, 16): v for k, v in _read_tsv("bt_companies.tsv")}
+                _members = {k.lower(): v for k, v in _read_tsv("bt_members.tsv")}
+            except Exception as err:  # noqa: BLE001 - no names is better than no build
+                _LOGGER.warning("PadSpan's Bluetooth name tables could not be read: %s", err)
+            try:
+                _mac = _MacTable((_DATA / "mac_makers.bin").read_bytes())
+            except Exception as err:  # noqa: BLE001 - likewise
+                _LOGGER.warning("PadSpan's address maker table could not be read: %s", err)
+        finally:
+            _loaded = True
 
 
 async def async_load_tables(hass: Any) -> None:
@@ -154,7 +161,7 @@ def address_maker(address: Any) -> Optional[str]:
         return None
     try:
         return _mac.lookup(int(digits, 16))
-    except ValueError:
+    except (ValueError, IndexError):  # IndexError: a damaged table
         return None
 
 

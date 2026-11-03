@@ -481,8 +481,11 @@ class SettingsStore:
         loaded = await self.store.async_load()
         if isinstance(loaded, dict):
             self.data = {**DEFAULT_SETTINGS, **loaded}
+            # A stored False stays: it does nothing here, and an older version
+            # read back with no key would turn the online lookup on again.
             for key in RETIRED_SETTINGS:
-                self.data.pop(key, None)
+                if self.data.get(key) is not False:
+                    self.data.pop(key, None)
         else:
             self.data = dict(DEFAULT_SETTINGS)
         # A brand-new install — no settings file and no other PadSpan file in

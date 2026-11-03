@@ -9,7 +9,7 @@
  * Data source: snapshot tags + roomTagMap; live index built per-render for friendly names.
  */
 
-const { deviceName, deviceWhat, addressBadge, fadeFor, groupDevices, groupHead, groupRows, groupTitle, firstFew } =
+const { deviceName, deviceWhat, addressBadge, fadeFor, groupDevices, groupHead, groupRows, groupTitle, firstFew, serviceWords, SERVICE_HOW } =
   await import(`./device_name.js${new URL(import.meta.url).search}`);
 export function renderTags(ctx, tagsList) {
   const { el } = ctx.helpers;
@@ -447,10 +447,12 @@ export function render(ctx){
           return null;
         })()),
         // Enrichment: company + device type + services
-        ((o.company_name || o.maker_guess || deviceWhat(o) || o.address_kind || (o.service_names && o.service_names.length))
+        ((o.company_name || o.service_owner || o.maker_guess || deviceWhat(o) || o.address_kind || (o.service_names && o.service_names.length))
           ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
               addressBadge(el, o),
-              (o.company_name || o.maker_guess) ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, o.company_name || `Probably ${o.maker_guess}`) : null,
+              o.company_name ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, o.company_name)
+                : o.service_owner ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#94a3b8;border-color:#334155",title:SERVICE_HOW}, serviceWords(o))
+                : o.maker_guess ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, `Probably ${o.maker_guess}`) : null,
               deviceWhat(o) ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, deviceWhat(o)) : null,
               ...(o.service_names || []).slice(0,2).map(sn =>
                 el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)
@@ -625,7 +627,7 @@ export function render(ctx){
             : (isObjAway
               ? (_lastKnownText(o.key || o.address || o.entity_id || "") || (o.last_room ? `Last: ${o.last_room}` : "—"))
               : room)),
-          el("div",{class:"basic-obj-sub"}, [kind, o.company_name || (o.maker_guess ? `Probably ${o.maker_guess}` : null), deviceWhat(o) === kind ? null : deviceWhat(o), isObjAway ? null : rssi].filter(Boolean).join(" · ")),
+          el("div",{class:"basic-obj-sub"}, [kind, o.company_name || serviceWords(o) || (o.maker_guess ? `Probably ${o.maker_guess}` : null), deviceWhat(o) === kind ? null : deviceWhat(o), isObjAway ? null : rssi].filter(Boolean).join(" · ")),
           _macOf(o) && _macOf(o) !== name ? el("div",{class:"basic-obj-sub",style:"font-family:monospace;font-size:11px"}, _macOf(o)) : null,
         ].filter(Boolean)),
         actions,

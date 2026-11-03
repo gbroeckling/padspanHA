@@ -1290,7 +1290,8 @@ def _busy_day(h, hours: float = 24.0):
         w.add("lostfound", rnd.uniform(10, 90000))
         w.add("states", rnd.uniform(500, 120000))
         for m in ("bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing", "dev_merged",
-                  "merge_name", "merge_data", "merge_held", "occ_wear_gain", "occ_wear_lost"):
+                  "merge_name", "merge_data", "merge_held", "occ_wear_gain", "occ_wear_lost",
+                  "occ_wear_more", "occ_wear_fewer"):
             w.add(m, rnd.uniform(0, 40000))
         w.add("type_known_pc", rnd.uniform(0, 100))
         for v in ("atlas", "sim", "other", "none"):

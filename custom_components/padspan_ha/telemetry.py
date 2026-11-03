@@ -1062,10 +1062,13 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     "occ_unknown_n": ("occ_unk", ("p50", "max")),
     "occ_conf": ("occ_conf", ("p50", "per_h")),
     # What the corrected wearable company numbers moved: addresses an estimate
-    # counted because of them, and addresses it no longer counted. Only from a
-    # house where it happened.
+    # counted because of them, addresses it no longer counted, and how many
+    # people more or fewer the estimate says than the old numbers would. Only
+    # from a house where it happened.
     "occ_wear_gain_n": ("occ_wear_gain", ("max", "per_h")),
     "occ_wear_lost_n": ("occ_wear_lost", ("max", "per_h")),
+    "occ_wear_more_n": ("occ_wear_more", ("max",)),
+    "occ_wear_fewer_n": ("occ_wear_fewer", ("max",)),
     "ha_states_n": ("states", ("max",)),
     # Bermuda troubleshooting (perf_sampler.padspan_sizes): its entities and
     # receiver devices, HA entities taken as tag candidates, and saved tags
@@ -1593,13 +1596,17 @@ def _object_detail(obj_list: list) -> dict[str, int]:
         if not isinstance(o, dict) or o.get("kind") not in ("ble", "ibeacon", "private_ble"):
             continue
         out["total"] += 1
-        name = str(o.get("user_label") or o.get("name") or "").strip()
+        # A label, or what a plain device broadcasts: an iBeacon's `name` is mostly
+        # PadSpan's own "iBeacon xxxxxxxx".
+        name = str(o.get("user_label") or (o.get("name") if o.get("kind") == "ble" else "") or "").strip()
         if name and name.upper() != str(o.get("address") or "").upper():
             out["named"] += 1
         how = o.get("maker_source") if o.get("company_name") else "guess" if o.get("maker_guess") else None
         if how:
             out["maker"] += 1
             out[f"maker_{how}"] = out.get(f"maker_{how}", 0) + 1
+        if o.get("service_owner") and not o.get("company_name"):  # not a maker, so not in `maker`
+            out["maker_service_uuid"] = out.get("maker_service_uuid", 0) + 1
         if o.get("device_type") or o.get("auto_class"):
             out["type"] += 1
         if o.get("name_source"):

@@ -74,11 +74,6 @@ def broadcast_name(obj: dict[str, Any]) -> str:
     return "" if _BEACON_NAME_RE.match(name) else name
 
 
-def _a(word: str) -> str:
-    """"a Google", "an Apple"."""
-    return f"{'an' if word[:1].lower() in 'aeiou' else 'a'} {word}"
-
-
 def _best_name(obj: dict[str, Any], maker: str | None, guess: str | None, owner: str | None) -> tuple[str, str]:
     label = clean_name(obj.get("user_label"))
     if label and not _BEACON_NAME_RE.match(label):
@@ -103,10 +98,10 @@ def _best_name(obj: dict[str, Any], maker: str | None, guess: str | None, owner:
         return beacon, "beacon"
     if maker:
         return f"{maker} device", "maker"
+    if owner:
+        return f"Uses a service from {owner}", "service"
     if guess:
         return f"Probably {guess} device", "maker"
-    if owner:
-        return f"Device using {_a(owner)} service", "maker"
     return UNNAMED, "none"
 
 
@@ -335,23 +330,22 @@ _MAKER_HOW = {
 
 def describe(obj: dict[str, Any], classify_findmy: bool = True) -> dict[str, Any]:
     """The name, maker, type and how each is known. A service's owner often isn't
-    who made the device (a CP27 beacon reads "Neurostim OAB"), so a maker known
-    only that way is said as "uses a ... service" and goes in service_owner."""
-    company = obj.get("company_name") or None
+    who made the device (a CP27 beacon reads "Neurostim OAB"), so it's said as
+    "Uses a service from ..." and only stands in when nothing names a maker."""
+    maker = obj.get("company_name") or None
     source = obj.get("maker_source")
-    owner = company if source == "service_uuid" else None
-    maker = None if owner else company
-    guess = None if company else (obj.get("maker_guess") or None)
+    owner = obj.get("service_owner") or None
+    guess = None if maker else (obj.get("maker_guess") or None)
 
     what, what_how, rotates = what_it_is(obj, classify_findmy)
     name, name_source = _best_name(obj, maker, guess, owner)
 
     how: list[str] = []
-    if owner:
-        how.append(f"Uses {_a(owner)} service, from a service number in its broadcast.")
-    elif maker:
+    if maker:
         how.append(_MAKER_HOW.get(source, "{}, from its company number.").format(maker))
-    elif guess:
+    elif owner:
+        how.append(f"Uses a service from {owner}. Other makers' devices can use it too, so this doesn't say who made it.")
+    if guess:
         how.append(f"Probably {guess}, from its address. No receiver has confirmed the address is fixed.")
     if what:
         how.append(f"{what}, from {what_how}.")
@@ -368,11 +362,13 @@ def describe(obj: dict[str, Any], classify_findmy: bool = True) -> dict[str, Any
 
 def apply_detail(obj: dict[str, Any], classify_findmy: bool = True) -> None:
     """Put describe()'s answer on an object, empty fields left off, and drop a
-    link to PadSpan's own Home Assistant device: it isn't another source."""
+    link to PadSpan's own Home Assistant device: it isn't another source. The
+    maker and service owner are already on it (company_name, service_owner)."""
     if is_own_device(obj.get("device")):
         obj["device"] = None
-    for key, value in describe(obj, classify_findmy).items():
-        if value:
-            obj[key] = value
+    detail = describe(obj, classify_findmy)
+    for key in ("best_name", "name_source", "what_it_is", "how_known", "address_kind"):
+        if detail[key]:
+            obj[key] = detail[key]
         else:
             obj.pop(key, None)

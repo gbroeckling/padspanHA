@@ -58,11 +58,12 @@ check("a named device doesn't", DN.fadeFor({ age_s: 90000, user_label: "Car" }) 
 
 // ── Grouping ──────────────────────────────────────────────────────────────────
 const rot = (over) => ({ address_kind: "rotating", name_source: "maker", age_s: 5, ...over });
-const pc = (n) => rot({ key: `pc${n}`, what_it_is: "Windows PC", maker: "Microsoft", age_s: n });
+const pc = (n) => rot({ key: `pc${n}`, what_it_is: "Windows PC", company_name: "Microsoft", age_s: n });
 const word = DN.groupWord;
 check("word: what it is", word(pc(1)) === "Windows PC");
-check("word: maker", word(rot({ maker: "Apple" })) === "Apple device");
-check("word: service owner", word(rot({ service_owner: "Google" })) === "Google service");
+check("word: maker", word(rot({ company_name: "Apple" })) === "Apple device");
+check("word: service owner", word(rot({ name_source: "service", service_owner: "Google" })) === "Google service");
+check("service words", DN.serviceWords({ service_owner: "Google" }) === "Uses a service from Google" && DN.serviceWords({}) === "");
 check("word: nothing", word(rot({ name_source: "none" })) === "unnamed");
 check("fixed stands alone", word({ ...pc(1), address_kind: "fixed" }) === null);
 check("labelled stands alone", word({ ...pc(1), user_label: "Mine" }) === null);

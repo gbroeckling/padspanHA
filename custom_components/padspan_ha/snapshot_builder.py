@@ -2097,13 +2097,20 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         _merge_counts = {"merge_same_name": 0, "merge_same_data": 0, "merge_held": 0}
 
         def _mergeable(group: list) -> list:
-            """The group without anything the guard protects, freshest first:
-            the primary is the address still on the air, not the strongest
-            reading (the same-label pass below learned this first)."""
+            """The group without anything the guard protects, the one to lead first:
+            an address still on the air, not a strong old reading (the same-label
+            pass below learned this first). Anything heard in the last minute
+            counts as equally fresh, then the strongest: exact freshness made a
+            row flip each poll between two live addresses, its room with it."""
             free = [o for o in group if not _merge_guard(o)]
             _merge_counts["merge_held"] += len(group) - len(free)
-            free.sort(key=lambda o: ((o.get("age_s") if o.get("age_s") is not None else 1e9),
-                                     -(o.get("rssi") if o.get("rssi") is not None else -999)))
+
+            def _rank(o: dict[str, Any]) -> tuple:
+                age = o.get("age_s") if o.get("age_s") is not None else 1e9
+                return (0 if age <= 60 else age, -(o.get("rssi") if o.get("rssi") is not None else -999),
+                        str(o.get("key") or ""))
+
+            free.sort(key=_rank)
             return free
 
         def _run_dedup(objects: list, absorbed: set) -> list:
@@ -2504,7 +2511,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
 
         # Fields to merge (never overwrite good data with empty values)
         _MERGE_FIELDS = (
-            "company_name", "maker_source", "address_type", "espresense_id",
+            "company_name", "maker_source", "service_owner", "address_type", "espresense_id",
             "broadcast_name", "device_type", "service_names", "service_uuid_map",
             "name", "private_ble_name", "ibeacon_uuid", "ibeacon_major",
             "ibeacon_minor", "tx_power", "manufacturer_data", "service_data",

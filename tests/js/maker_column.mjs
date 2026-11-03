@@ -41,7 +41,7 @@ const walk = (n, out = []) => { if (!n) return out; out.push(n); for (const c of
 const OBJECTS = [
   { key: "ble:F0:18:98:12:34:56", kind: "ble", address: "F0:18:98:12:34:56", name: "Speaker", age_s: 2, company_name: "Apple", maker_source: "address", address_type: "public" },
   { key: "ble:4C:11:22:33:44:01", kind: "ble", address: "4C:11:22:33:44:01", name: "Phone A", age_s: 2, company_name: "Apple", maker_source: "company_id" },
-  { key: "ble:4C:11:22:33:44:02", kind: "ble", address: "4C:11:22:33:44:02", name: "Phone B", age_s: 2, company_name: "Google", maker_source: "service_uuid" },
+  { key: "ble:4C:11:22:33:44:02", kind: "ble", address: "4C:11:22:33:44:02", name: "Phone B", age_s: 2, company_name: null, maker_source: null, service_owner: "Google" },
   { key: "ble:4C:11:22:33:44:03", kind: "ble", address: "4C:11:22:33:44:03", name: "Tag", age_s: 2, company_name: "Tile", maker_source: "espresense" },
   { key: "ble:A4:C1:38:00:00:01", kind: "ble", address: "A4:C1:38:00:00:01", name: "Sensor", age_s: 2, maker_guess: "Telink Semiconductor" },
   { key: "ble:C4:11:22:33:44:55", kind: "ble", address: "C4:11:22:33:44:55", name: "Watch", age_s: 2, address_type: "random" },
@@ -99,7 +99,7 @@ check("every row was read", Object.keys(rows).length >= OBJECTS.length - 1, JSON
 check("a confirmed address shows its maker", rows.Speaker === "Apple", JSON.stringify(rows));
 check("how it is known is in the hover text", /confirmed this address is fixed/.test(titles.Speaker || ""), titles.Speaker);
 check("from the broadcast's company number", rows["Phone A"] === "Apple" && /company number/.test(titles["Phone A"] || ""), JSON.stringify(rows));
-check("from a service's owner", rows["Phone B"] === "Google" && /service/.test(titles["Phone B"] || ""), JSON.stringify(rows));
+check("a service's owner isn't the maker", rows["Phone B"] === "Uses a service from Google" && /doesn't say who made/.test(titles["Phone B"] || ""), JSON.stringify(rows));
 check("from ESPresense's id", rows.Tag === "Tile" && /ESPresense/.test(titles.Tag || ""), JSON.stringify(rows));
 check("no receiver's word: probably", rows.Sensor === "Probably Telink Semiconductor", JSON.stringify(rows));
 check("and the hover text says why", /No receiver has confirmed/.test(titles.Sensor || ""), titles.Sensor);

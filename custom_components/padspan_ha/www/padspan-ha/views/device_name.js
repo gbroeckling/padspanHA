@@ -27,6 +27,10 @@ export function deviceWhat(o){
   return o.what_it_is || (o.best_name ? null : (o.auto_class || o.device_type || null));
 }
 
+/** "Uses a service from Google", and why that isn't a maker. */
+export const serviceWords = (o) => o && o.service_owner ? `Uses a service from ${o.service_owner}` : "";
+export const SERVICE_HOW = "It broadcasts a service number Bluetooth assigned to this company. Other makers' devices can use it too, so this doesn't say who made the device.";
+
 const ADDRESS_WORDS = {
   fixed: ["Fixed", "This device keeps one address, so it reads as one device."],
   rotating: ["Rotating", "This device changes its address every so often, as phones and trackers do, so one device can leave many rows."],
@@ -56,9 +60,9 @@ export function fadeFor(o){
  *  isKept(o) keeps others out, like a followed device. */
 export function groupWord(o, isKept){
   if(!o || o.address_kind !== "rotating" || o.user_label || o.identified) return null;
-  if(!["maker", "none", "beacon"].includes(o.name_source)) return null;
+  if(!["maker", "service", "none", "beacon"].includes(o.name_source)) return null;
   if(isKept && isKept(o)) return null;
-  return o.what_it_is || (o.maker ? `${o.maker} device` : "") || (o.service_owner ? `${o.service_owner} service` : "") || "unnamed";
+  return o.what_it_is || (o.company_name ? `${o.company_name} device` : "") || (o.service_owner ? `${o.service_owner} service` : "") || "unnamed";
 }
 
 /** entries in order, with any two or more sharing a word gathered at the place

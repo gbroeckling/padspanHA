@@ -66,12 +66,14 @@ def test_then_the_maker_then_unnamed_and_never_the_address():
     assert _name() == ("Unnamed device", "none")
 
 
-def test_a_maker_known_only_from_a_service_isnt_called_the_maker():
-    d = DD.describe(_obj(company_name="Neurostim OAB", maker_source="service_uuid"))
-    assert d["best_name"] == "Device using a Neurostim OAB service"
+def test_a_service_owner_is_never_called_the_maker():
+    d = DD.describe(_obj(service_owner="Neurostim OAB"))
+    assert (d["best_name"], d["name_source"]) == ("Uses a service from Neurostim OAB", "service")
     assert d["maker"] is None and d["service_owner"] == "Neurostim OAB"
-    assert d["how_known"].startswith("Uses a Neurostim OAB service,")
-    assert DD.describe(_obj(company_name="Apple", maker_source="service_uuid"))["best_name"] == "Device using an Apple service"
+    assert d["how_known"].startswith("Uses a service from Neurostim OAB. Other makers' devices")
+    # A real maker comes first, and a "probably" comes after the owner.
+    assert _name(service_owner="X", company_name="Feasycom", maker_source="address") == ("Feasycom device", "maker")
+    assert _name(service_owner="X", maker_guess="Y") == ("Uses a service from X", "service")
 
 
 @pytest.mark.parametrize("raw,want", [
@@ -122,7 +124,7 @@ def test_apply_detail_only_adds_fields():
     after = json.loads(json.dumps(before))
     DD.apply_detail(after)
     assert {k: after[k] for k in before} == before
-    assert set(after) - set(before) <= {"best_name", "name_source", "maker", "service_owner", "what_it_is", "how_known", "address_kind"}
+    assert set(after) - set(before) <= {"best_name", "name_source", "what_it_is", "how_known", "address_kind"}
 
 
 # ── n8: what it is ────────────────────────────────────────────────────────────

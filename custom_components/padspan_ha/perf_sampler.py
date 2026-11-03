@@ -118,7 +118,7 @@ METRICS: tuple[str, ...] = ("load", "cpu", "rss", "mem", "swap", "lag", "snap", 
                             "pos_n", "pos_unk", "pos_heard", "pos_chg", "occ_unk", "occ_conf",
                             # addresses the corrected wearable numbers added to or took
                             # from an estimate (ws_occupancy), when they did
-                            "occ_wear_gain", "occ_wear_lost",
+                            "occ_wear_gain", "occ_wear_lost", "occ_wear_more", "occ_wear_fewer",
                             # positioning_unsure's share and fusion's room changes (0.38.165)
                             "pos_unsure", "fusion_chg",
                             # HA's device and entity registries, the most same-named devices
@@ -542,7 +542,7 @@ def padspan_sizes(hass: HomeAssistant, kb: dict[str, float], *, estimate: bool) 
                    ("saved_entities_missing", "saved_missing"), ("merged_by_device", "dev_merged"),
                    ("merge_same_name", "merge_name"), ("merge_same_data", "merge_data"),
                    ("merge_held", "merge_held"), ("type_known_pc", "type_known_pc")):
-        if isinstance(raw.get(_k), int):
+        if isinstance(raw.get(_k), (int, float)):
             out[_m] = raw[_k]
     # The cached live snapshot: held between builds (and doubled while one is
     # built), and sent as JSON to every open panel every 5 s.

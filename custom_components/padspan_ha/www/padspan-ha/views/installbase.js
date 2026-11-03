@@ -317,10 +317,10 @@ function renderUnlocked(ctx, root) {
         ["A real name", detail.named || 0, detail.total],
         ["A maker", detail.maker || 0, detail.total],
         ["  ↳ from the company number in its broadcast", detail.maker_company_id || 0, detail.total],
-        ["  ↳ from a service it broadcasts", detail.maker_service_uuid || 0, detail.total],
-        ["  ↳ from ESPresense's id", detail.maker_espresense || 0, detail.total],
+                ["  ↳ from ESPresense's id", detail.maker_espresense || 0, detail.total],
         ["  ↳ from the address list, address confirmed", detail.maker_address || 0, detail.total],
         ["  ↳ from the address list, \"probably\"", detail.maker_guess || 0, detail.total],
+        ["No maker, uses a company's service", detail.maker_service_uuid || 0, detail.total],
         ["A type (what it is)", detail.type || 0, detail.total],
       ]));
     }

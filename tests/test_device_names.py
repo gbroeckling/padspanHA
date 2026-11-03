@@ -74,9 +74,9 @@ def test_a_service_uuid_names_its_owner(uuid, owner) -> None:
     ("service_data", {"0000fef3-0000-1000-8000-00805f9b34fb": "0x01"}),
     ("service_data", {"fcf1": "0x01"}),
 ])
-def test_an_object_with_only_a_service_gets_a_maker(field, value) -> None:
+def test_an_object_with_only_a_service_gets_an_owner_not_a_maker(field, value) -> None:
     o = BE.enrich_object({field: value})
-    assert o["company_name"] == "Google" and o["maker_source"] == "service_uuid"
+    assert o["company_name"] is None and o["maker_source"] is None and o["service_owner"] == "Google"
     assert o["service_names"] == [], "the same word again as a service says nothing"
     assert "Google" in o["service_uuid_map"].values()
 
@@ -100,17 +100,18 @@ def test_a_128_bit_uuid_off_the_bluetooth_base_matches_nothing(uuid) -> None:
 
 @pytest.mark.parametrize("uuid,service", [
     ("feaa", "Eddystone"), ("fe2c", "Google Fast Pair"), ("fcd2", "BTHome"), ("fd6f", "Exposure Notification"),
+    ("fcb2", "Apple"),
 ])
 def test_an_open_format_says_what_it_is_not_who_made_it(uuid, service) -> None:
     """Anyone's hardware sends these. A Feasycom beacon with Eddystone isn't Google."""
     o = BE.enrich_object({"service_uuids": [uuid], "service_data": {uuid: "0x00"}})
-    assert o["company_name"] is None and o["service_names"] == [service]
-    assert BE.enrich_object({"espresense_id": f"sd:{uuid}"})["company_name"] is None
+    assert o["service_owner"] is None and o["company_name"] is None and o["service_names"] == [service]
+    assert BE.enrich_object({"espresense_id": f"sd:{uuid}"})["service_owner"] is None
 
 
 def test_an_open_format_doesnt_hide_a_real_owner_beside_it() -> None:
-    assert BE.enrich_object({"service_uuids": ["feaa", "fef3"]})["company_name"] == "Google"
-    assert BE.enrich_object({"service_uuids": ["feaa", "fd5a"]})["company_name"] == "Samsung Electronics"
+    assert BE.enrich_object({"service_uuids": ["feaa", "fef3"]})["service_owner"] == "Google"
+    assert BE.enrich_object({"service_uuids": ["feaa", "fd5a"]})["service_owner"] == "Samsung Electronics"
 
 
 def test_a_16_bit_uuid_on_the_base_still_matches() -> None:
@@ -263,8 +264,8 @@ async def test_the_setting_is_dropped_from_an_older_file() -> None:
 
     store._first_run = _first
     await store.async_load()
-    assert "vendor_lookup_enabled" not in store.data and store.data["room_change_delay_s"] == 12.0
-    assert "vendor_lookup_enabled" not in _Disk.saved, "gone from the file too"
+    assert store.data["vendor_lookup_enabled"] is False and store.data["room_change_delay_s"] == 12.0
+    assert _Disk.saved["vendor_lookup_enabled"] is False, "an older version read back with no key turns the lookup on"
 
 
 def _done(value):
@@ -284,8 +285,8 @@ def test_the_report_no_longer_lists_the_switch() -> None:
 @pytest.mark.parametrize("device_id,maker", [
     ("apple:1005:9-26", "Apple"), ("apple:findmy", "Apple"), ("msft:cdp:0901", "Microsoft"),
     ("tile:aabbccddeeff", "Tile"), ("md:0075:12", "Samsung Electronics"), ("md:0059:8-12", "Nordic Semiconductor"),
-    ("sd:fef3", "Google"), ("sd:fd5a12", "Samsung Electronics"),
-    # No maker in these.
+    # No maker in these. A service number says whose service, see below.
+    ("sd:fef3", None), ("sd:fd5a12", None),
     ("iBeacon:e2c56db5-1-2", None), ("name:living-room-tv", None), ("ad:180f", None), ("aabbccddeeff", None),
     ("md:zzzz:1", None), ("sd:", None), ("sd:fef3abcd-0000-1000-8000-00805f9b34fb", None), ("", None), (None, None),
 ])
@@ -293,6 +294,12 @@ def test_espresenses_id_says_who_made_it(device_id, maker) -> None:
     o = BE.enrich_object({"espresense_id": device_id, "manufacturer_data": {}, "service_uuids": [], "service_data": {}})
     assert o["company_name"] == maker
     assert o["maker_source"] == ("espresense" if maker else None)
+
+
+@pytest.mark.parametrize("device_id,owner", [("sd:fef3", "Google"), ("sd:fd5a12", "Samsung Electronics"), ("sd:", None),
+                                             ("sd:fef3abcd-0000-1000-8000-00805f9b34fb", None), ("md:0075:12", None)])
+def test_espresenses_id_says_whose_service(device_id, owner) -> None:
+    assert BE.enrich_object({"espresense_id": device_id})["service_owner"] == owner
 
 
 def test_espresense_rows_carry_the_id_through_to_a_maker(maker) -> None:
@@ -345,7 +352,7 @@ def test_an_ibeacon_still_gets_a_maker_from_elsewhere() -> None:
     o = BE.enrich_object({"manufacturer_data": {"76": "0x02 0x15 0x00", "117": "0x01"}})
     assert o["company_name"] == "Samsung Electronics"
     o = BE.enrich_object({"manufacturer_data": {"76": "0x02 0x15 0x00"}, "service_data": {"fef3": "0x01"}})
-    assert o["company_name"] == "Google"
+    assert o["company_name"] is None and o["service_owner"] == "Google"
 
 
 def test_other_apple_broadcasts_are_still_apple() -> None:

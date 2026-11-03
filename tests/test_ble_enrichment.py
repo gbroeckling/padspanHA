@@ -217,8 +217,8 @@ def test_enrich_object_with_services() -> None:
     enrich_object(obj)
     assert "Battery" in obj["service_names"]
     assert "Device Information" in obj["service_names"]
-    assert obj["company_name"] == "Tile", "the company that holds feed"
-    assert "Tile" not in obj["service_names"], "the maker isn't repeated as a service"
+    assert obj["company_name"] is None and obj["service_owner"] == "Tile", "the company that holds feed"
+    assert "Tile" not in obj["service_names"], "the owner isn't repeated as a service"
     assert obj["service_uuid_map"]["180f"] == "Battery"
     assert obj["service_uuid_map"]["feed"] == "Tile"
 

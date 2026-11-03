@@ -8,7 +8,7 @@
 // The metric frame the lights map draws with. Metres in, screen out, no photo
 // anywhere in it — the 3D map below uses THIS, and the stack_transform import
 // above survives only for the experimental 2D map, which is swept next.
-const { deviceName, deviceWhat, addressBadge, fadeFor, groupRows, firstFew } =
+const { deviceName, deviceWhat, addressBadge, fadeFor, groupRows, firstFew, serviceWords, SERVICE_HOW } =
   await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { fabricFrame, barrierNoReading } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
@@ -470,13 +470,13 @@ export function renderClassic(ctx){
   // asked or sent: the broadcast and PadSpan's built-in lists are the only sources.
   const MAKER_HOW = {
     company_id: "From the company number in its broadcast",
-    service_uuid: "From a service it broadcasts, which this company holds",
     espresense: "From ESPresense's id for this device",
     address: "From the built-in list of address makers. A receiver confirmed this address is fixed",
   };
   function makerCell(o, kind, addr){
     if(kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") return el("span",{class:"badge"}, "n/a");
     if(o.company_name) return el("span",{class:"badge", title: MAKER_HOW[o.maker_source] || ""}, o.company_name);
+    if(o.service_owner) return el("span",{class:"badge", title: SERVICE_HOW}, serviceWords(o));
     if(o.maker_guess) return el("span",{class:"badge", title:"From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance"}, `Probably ${o.maker_guess}`);
     if(kind === "private_ble" || o.address_type === "random" || (kind === "ble" && isRandomAddress(addr))) return el("span",{class:"badge warn"}, "random address");
     return el("span",{class:"badge"}, "maker unknown");
@@ -680,10 +680,11 @@ export function renderClassic(ctx){
           (o.entity_id ? el("div",{style:"color:#94a3b8"}, o.entity_id) : null),
           (Array.isArray(o.linked_entities) && o.linked_entities.length ? el("div",{style:"color:#94a3b8"}, `Linked: ${o.linked_entities.join(", ")}`) : null),
           (kind==="ble" && Array.isArray(o.sources) && o.sources.length ? (() => { const _by = o.sources.map(s=>{const _src=typeof s==="object"?(s.source||""):String(s);const id=_sid(_src);const _fn=ctx.helpers.radioName(_src);return id?id+" "+(_fn||_src):(_fn||_src);}); return el("div",{style:"color:#94a3b8",title:_by.join(", ")}, `Seen by: ${firstFew(_by)}`); })() : null),
-          ((o.company_name || deviceWhat(o) || o.address_kind || (o.service_names && o.service_names.length))
+          ((o.company_name || o.service_owner || deviceWhat(o) || o.address_kind || (o.service_names && o.service_names.length))
             ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
                 addressBadge(el, o),
-                o.company_name ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#7dd3fc;border:1px solid #1e4976"}, o.company_name) : null,
+                o.company_name ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#7dd3fc;border:1px solid #1e4976"}, o.company_name)
+                  : o.service_owner ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#94a3b8;border:1px solid #334155",title:SERVICE_HOW}, serviceWords(o)) : null,
                 deviceWhat(o) ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, deviceWhat(o)) : null,
                 ...(o.service_names || []).slice(0,3).map(sn =>
                   el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a3a2a;color:#a7f3d0;border:1px solid #166534"}, sn)

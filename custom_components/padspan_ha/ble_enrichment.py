@@ -199,12 +199,15 @@ def lookup_service_owner(uuid_str: str) -> Optional[str]:
 
 # Open formats: a company holds the UUID, and anyone's hardware sends it. Like
 # Apple's number on an iBeacon, they don't say who made the device: Eddystone,
-# Fast Pair, BTHome, Exposure Notification.
-_OPEN_FORMAT_UUIDS = frozenset({"feaa", "fe2c", "fcd2", "fd6f"})
+# Fast Pair, BTHome, Exposure Notification, and FCB2, the format location
+# trackers of any brand must send (Apple holds it).
+_OPEN_FORMAT_UUIDS = frozenset({"feaa", "fe2c", "fcd2", "fd6f", "fcb2"})
 
 
-def _maker_from_service(uuid_str: str) -> Optional[str]:
-    """The company a broadcast's service UUID says made the device, if it says."""
+def _owner_of_service(uuid_str: str) -> Optional[str]:
+    """The company whose service a device broadcasts, open formats aside. That
+    company often didn't make the device: a CP27 beacon's service is Neurostim
+    OAB's, a Feasycom's Dialog Semiconductor's. So it's never a maker."""
     return None if _uuid16(uuid_str) in _OPEN_FORMAT_UUIDS else lookup_service_owner(uuid_str)
 
 
@@ -271,7 +274,7 @@ _ESPRESENSE_MAKERS = {"apple": 0x004C, "msft": 0x0006, "tile": 0x067C}
 
 def _maker_from_espresense_id(device_id: Any) -> Optional[str]:
     """The maker in an ESPresense fingerprint id: apple:..., msft:..., tile:...,
-    md:<company number in hex>:..., sd:<service UUID>..., else None."""
+    md:<company number in hex>:..., else None."""
     head, sep, rest = str(device_id or "").partition(":")
     if not sep:
         return None
@@ -283,10 +286,16 @@ def _maker_from_espresense_id(device_id: Any) -> Optional[str]:
             return lookup_company(int(rest.split(":")[0], 16))
         except ValueError:
             return None
-    if head == "sd":
-        # Its first service UUID; a 128-bit one has its first dash at [8].
-        return _maker_from_service(rest[:4]) if len(rest) >= 4 and rest[8:9] != "-" else None
     return None
+
+
+def _owner_from_espresense_id(device_id: Any) -> Optional[str]:
+    """The service owner in an ESPresense id, sd:<service UUID>...; a 128-bit
+    UUID has its first dash at [8]."""
+    head, sep, rest = str(device_id or "").partition(":")
+    if head != "sd" or not sep or len(rest) < 4 or rest[8:9] == "-":
+        return None
+    return _owner_of_service(rest[:4])
 
 
 def apply_address_maker(obj: Dict[str, Any], address: Any, address_type: Optional[str]) -> None:
@@ -323,8 +332,9 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
 
     Adds:
       - company_name: str|None — who made it, from what its broadcast says
-      - maker_source: str|None — how that is known: "company_id", "service_uuid"
-        or "espresense" ("address" comes later, from apply_address_maker)
+      - maker_source: str|None — how that is known: "company_id" or "espresense"
+        ("address" comes later, from apply_address_maker)
+      - service_owner: str|None — whose service it broadcasts, which isn't a maker
       - device_type: str|None  — specific device type (e.g. "AirPods", "Find My", "Phone")
       - service_names: list[str] — human-readable names for service_uuids
     """
@@ -397,14 +407,7 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
                 service_names.append(name)
                 seen.add(name)
 
-    # ── No company number: the company that holds a service it broadcasts,
-    # then what ESPresense recognised ──
-    if not company_name:
-        for u in [*svc_uuids, *svc_data]:
-            company_name = _maker_from_service(str(u))
-            if company_name:
-                maker_source = "service_uuid"
-                break
+    # ── No company number: what ESPresense recognised ──
     if not company_name:
         company_name = _maker_from_espresense_id(obj.get("espresense_id"))
         if company_name:
@@ -412,8 +415,17 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
     obj["company_name"] = company_name
     obj["maker_source"] = maker_source
 
-    # The maker is shown on its own; the same word again as a service says nothing.
-    obj["service_names"] = [n for n in service_names if n != company_name]
+    # ── Whose service it broadcasts. Kept apart from the maker ──
+    owner = None
+    for u in [*svc_uuids, *svc_data]:
+        owner = _owner_of_service(str(u))
+        if owner:
+            break
+    owner = owner or _owner_from_espresense_id(obj.get("espresense_id"))
+    obj["service_owner"] = None if owner == company_name else owner
+
+    # Shown on their own; the same word again as a service says nothing.
+    obj["service_names"] = [n for n in service_names if n != company_name and n != owner]
     obj["service_uuid_map"] = service_uuid_map
 
     return obj

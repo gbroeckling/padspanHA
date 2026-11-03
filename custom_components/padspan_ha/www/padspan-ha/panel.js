@@ -4164,10 +4164,13 @@ class PadSpanHaApp extends HTMLElement {
       ].filter(Boolean)) : null,
       // What it is, who made it, and how we know
       (kind !== "entity" && (obj.how_known || what)) ? el("div", {style:"margin-top:8px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px"}, [
-        ...(obj.maker || obj.maker_guess || obj.service_owner || obj.company_name ? [
-          el("span", {class:"muted"}, obj.service_owner ? "Service" : "Maker"),
-          el("span", {}, obj.service_owner ? `Uses ${/^[aeiou]/i.test(obj.service_owner) ? "an" : "a"} ${obj.service_owner} service`
-            : obj.maker || obj.company_name || `Probably ${obj.maker_guess}`),
+        ...(obj.company_name || obj.maker_guess ? [
+          el("span", {class:"muted"}, "Maker"),
+          el("span", {}, obj.company_name || `Probably ${obj.maker_guess}`),
+        ] : []),
+        ...(obj.service_owner ? [
+          el("span", {class:"muted"}, "Service"),
+          el("span", {title: DEVICE_NAME ? DEVICE_NAME.SERVICE_HOW : ""}, `Uses a service from ${obj.service_owner}`),
         ] : []),
         ...(what ? [el("span", {class:"muted"}, "What it is"), el("span", {}, what)] : []),
         ...(obj.how_known ? [el("span", {class:"muted"}, "How we know"), el("span", {style:"color:#94a3b8"}, obj.how_known)] : []),
