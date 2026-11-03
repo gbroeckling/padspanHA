@@ -143,6 +143,7 @@ import bright_build  # noqa: E402  (sibling module)
 STATIC_FILES = [
     "VERSION.txt",
     "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
     "README.md",
     "hacs.json",        # ← HACS reads this from the repo, not the zip
     ".gitignore",
@@ -573,6 +574,8 @@ def build_zip():
         for f in sorted(INTEGRATION.rglob("*")):
             if f.is_file() and "__pycache__" not in f.parts and f.suffix != ".pyc":
                 zf.write(f, f.relative_to(INTEGRATION))
+        # It lives at the repo's root, and what it lists travels in this zip.
+        zf.write(ROOT / "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md")
     count = len(zipfile.ZipFile(ZIP_PATH).namelist())
     print(f"  {count} files -> dist/padspan_ha.zip")
 

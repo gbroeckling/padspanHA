@@ -146,7 +146,9 @@ def test_the_notes_file_is_in_the_zip_and_the_release_commit(tmp_path, monkeypat
 
     monkeypatch.setattr(R, "ZIP_PATH", tmp_path / "padspan_ha.zip")
     R.build_zip()
-    assert "www/padspan-ha/assets/whatsnew.json" in zipfile.ZipFile(tmp_path / "padspan_ha.zip").namelist()
+    names = zipfile.ZipFile(tmp_path / "padspan_ha.zip").namelist()
+    assert "www/padspan-ha/assets/whatsnew.json" in names
+    assert "THIRD_PARTY_NOTICES.md" in names, "what it lists travels in this zip"
 
     staged = []
 
