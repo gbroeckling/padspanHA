@@ -483,8 +483,8 @@
    "de": "<b>Automorph</b>: ein weicher Lichtschein von jeder Leuchte in ihren Raum"
   },
   {
-   "en": "<b>Showcase</b> presentation mode, now with 20 selectable themes <a href=\"/showcase-themes.html\" style=\"color:var(--acc)\">— sneak peek <span class=\"pill soon\">New</span></a>",
-   "de": "<b>Showcase</b>-Präsentationsmodus, jetzt mit 20 wählbaren Designs <a href=\"/showcase-themes.html\" style=\"color:var(--acc)\">– kleine Vorschau <span class=\"pill soon\">Neu</span></a>"
+   "en": "<b>Showcase</b> presentation mode, now with 20 selectable themes <a href=\"/showcase-themes.html\" style=\"color:var(--acc)\">— see them all <span class=\"pill soon\">New</span></a>",
+   "de": "<b>Showcase</b>-Präsentationsmodus, jetzt mit 20 wählbaren Designs <a href=\"/showcase-themes.html\" style=\"color:var(--acc)\">– alle ansehen <span class=\"pill soon\">Neu</span></a>"
   },
   {
    "en": "Unlocked by either key: <a href=\"#editions\">PadSpan Bright Pro</a> at $35 CAD/year for the lighting half, or <a href=\"#pro\">PadSpan Pro</a> at $45 for everything. Nothing you have drawn is ever touched by the gate — enter a key and every placement returns exactly as it was, and a lapsed licence still reads and exports everything you built.",
@@ -503,8 +503,8 @@
    "de": "Eine Schritt-für-Schritt-Anleitung baut das 3D-Haus aus der Karte, die du schon hast"
   },
   {
-   "en": "Mezzanines and galleries drawn inside a tall room, with glass railings on the open edges <span class=\"pill soon\">Beta</span>",
-   "de": "Zwischengeschosse und Galerien in hohen Räumen, mit Glasgeländern an den offenen Kanten <span class=\"pill soon\">Beta</span>"
+   "en": "Mezzanines and galleries drawn inside a tall room, with a glass railing on the open edges you choose <span class=\"pill soon\">Beta</span>",
+   "de": "Zwischengeschosse und Galerien in hohen Räumen, mit einem Glasgeländer an den offenen Kanten, die du auswählst <span class=\"pill soon\">Beta</span>"
   },
   {
    "en": "The Atlas as your Overview, the first thing PadSpan opens",
