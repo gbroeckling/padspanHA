@@ -708,14 +708,16 @@ def without_pieces(data: dict) -> dict:
     return out
 
 
-async def async_restore_data(hass: HomeAssistant, incoming: Any) -> Any:
+async def async_restore_data(hass: HomeAssistant, incoming: Any, *, exact: bool = False) -> Any:
     """What a backup restore writes for this file (ws_backup): the backup's,
     except that a backup with no furniture in it (one from before the
     furniture) keeps the furniture this install has now. The plan, "Undoing
     it": restoring an older backup that has no furniture leaves the current
     furniture alone. What this house shared to the library stays as it is now
     (house3d_library.carried_over). A file that cannot be read now, or either
-    side a newer PadSpan's, is restored as the backup has it."""
+    side a newer PadSpan's, is restored as the backup has it. `exact`: a net
+    taken just before pieces were added (the plan AI's), whose no furniture
+    means there was none: nothing placed since stays."""
     pieces = incoming.get("pieces") if isinstance(incoming, dict) else None
     if not isinstance(incoming, dict) or not writable(incoming):
         return incoming
@@ -727,7 +729,7 @@ async def async_restore_data(hass: HomeAssistant, incoming: Any) -> Any:
         return incoming
     from .house3d_library import carried_over  # noqa: PLC0415
     out = carried_over(current, incoming)
-    if (isinstance(pieces, dict) and pieces) or not current.get("pieces"):
+    if exact or (isinstance(pieces, dict) and pieces) or not current.get("pieces"):
         return out
     return {**out, "pieces": copy.deepcopy(current["pieces"])}
 

@@ -10,7 +10,7 @@ takes a batch of them back. Each runs from ws_plan_ai.py with the 3D store's
 lock and then the plan store's held, so nothing lands between its checks and
 its writes. Nothing else in the plan AI touches the 3D file (test_plan_ai.py
 scans for it), and nothing here touches any file but padspan_ha.house3d and
-padspan_ha.plan_ai, apart from the one safety backup a session takes:
+padspan_ha.plan_ai, apart from the one safety backup it keeps:
 barriers, rooms, floors, scale, maps, settings and calibration are not reachable
 from here (apply_edit refuses any section but the 3D file's own).
 
@@ -72,11 +72,14 @@ def _entry(house: dict[str, Any], target: str) -> Any:
 
 def settle_pending(store: A.PlanAiStore, house: dict[str, Any] | None) -> bool:
     """A commit or an undo cut short between its writes (the module's note).
-    Its write landed, if any item's entry is what the batch says it became or
-    carries the note of this commit: the batch stands. Otherwise it never
-    happened: its items go, and each suggestion is what it was, its minted
-    piece id kept. `house` None (unreadable): left for next time. In memory;
-    the caller saves when it returns True."""
+    A commit's write landed if any item's entry is what the batch says it became
+    or carries the note of this commit. An undo's landed if any entry is what it
+    went back to; but a stair gone proves nothing by itself (one deleted by hand
+    looks like the undo of a new stair), so that counts only while no other entry
+    is still what the undo would have changed. Landed, the batch stands. Otherwise
+    it never happened: its items go, and each suggestion is what it was, its minted
+    piece id kept. `house` None (unreadable): left for next time. In memory; the
+    caller saves when it returns True."""
     if house is None or not A.writable(store.data):
         return False
     batches = store.data.get("batches") or {}
@@ -95,7 +98,13 @@ def settle_pending(store: A.PlanAiStore, house: dict[str, Any] | None) -> bool:
             note = live.get("plan_ai") if isinstance(live, dict) else None
             return isinstance(note, dict) and p.get("at") is not None and note.get("batch") == bid and note.get("at") == p["at"]
 
-        if any(landed(it) for it in items):
+        def holds(it: dict, key: str) -> bool:
+            return it.get(key) is not None and _entry(house, it.get("target")) == it[key]
+
+        stands = any(landed(it) for it in items)
+        if p.get("at") is None:
+            stands = any(holds(it, "after") for it in items) or (stands and not any(holds(it, "before") for it in items))
+        if stands:
             b.pop("pending", None)
             continue
         sess = store.session(b.get("session")) if b.get("session") else None
@@ -197,23 +206,16 @@ def _new_piece(sug: dict, pid: str, final: Any, note: dict, indoor: set[str]) ->
             "library_id": None, "submission_id": None, "entity_id": None, "entity_reg_id": None, "plan_ai": note}
 
 
-def _corrected(sug: dict, live: dict, final: Any, note: dict, indoor: set[str]) -> dict[str, Any]:
+def _corrected(sug: dict, live: dict, final: Any, note: dict) -> dict[str, Any]:
     """The target as it is, with where the draft's piece stands (the AI's
-    position when no final is sent) and its note. Whatever else the draft's
-    piece changed goes too: it is a person's own edit of that stair. Its
-    label, device and every other key stay."""
+    position when no final is sent) and its note. Nothing else comes from the
+    draft, which may be older than the stair: shape, size, turn, style, colours,
+    floor, label and device stay as the file has them. A person's own edit of
+    those stays in the draft for the ordinary Save after this (draft.adopt)."""
     geom = sug.get("geom") or {}
+    at = final if isinstance(final, dict) else {}
     out = copy.deepcopy(live)
-    if isinstance(final, dict):
-        out.update({k: final[k] for k in _FINAL_PIECE if k in final})
-        fid = A.base_floor(out.get("floor_id"))
-        if fid not in indoor:
-            raise Refused("invalid", f"{sug.get('id')}: that isn't an indoor floor")
-        out["floor_id"] = fid
-        if "recipe" in final:
-            out["recipe"] = {**out.get("recipe", {}), **_final_recipe(str(sug.get("id")), final)}
-    else:
-        out.update(x_m=geom.get("x_m"), y_m=geom.get("y_m"))
+    out.update(x_m=at.get("x_m", geom.get("x_m")), y_m=at.get("y_m", geom.get("y_m")))
     out["plan_ai"] = note
     return out
 
@@ -347,7 +349,7 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
 
     # The edit, checked in full before anything is touched.
     batch_id = sess.get("batch") if isinstance((store.data.get("batches") or {}).get(sess.get("batch")), dict) else None
-    if batch_id and (store.data["batches"][batch_id].get("undone_at") or store.data["batches"][batch_id].get("undo_of")):
+    if batch_id and (store.data["batches"][batch_id].get("undone_at") or A.puts_back(store.data["batches"][batch_id])):
         batch_id = None
     batch_id = batch_id or "pb_" + secrets.token_hex(4)
     at = time.time()
@@ -360,7 +362,7 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
         if kind == "stairs" and v == "new":
             entries[pid] = _new_piece(sug, pid, it.get("final"), note, indoor)
         elif kind == "stairs":
-            entries[pid] = _corrected(sug, entries.get(pid) or live_pieces[pid], it.get("final"), note, indoor)
+            entries[pid] = _corrected(sug, entries.get(pid) or live_pieces[pid], it.get("final"), note)
         else:
             base = entries.get(pid) or {**copy.deepcopy(live_pieces[pid]), "plan_ai": note}
             entries[pid] = _with_rail(base, it["rail"])
@@ -372,10 +374,11 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
     except H.EditError as err:
         raise Refused("invalid", str(err)) from err
 
-    # The net, once a session (auto backups are three, shared by every operation).
-    if not sess.get("backup_id"):
-        from .ws_backup import _auto_backup  # noqa: PLC0415
-        backup_id = await _auto_backup(hass, "Before keeping items from the plans", [HOUSE3D_STORE_KEY], mark_absent=True)
+    # The net, once a session while it lasts. It holds one slot of its own, so it
+    # never pushes out another operation's; a later session's takes that slot.
+    from .ws_backup import _auto_backup, _backup_exists  # noqa: PLC0415
+    if not sess.get("backup_id") or not await _backup_exists(hass, sess["backup_id"]):
+        backup_id = await _auto_backup(hass, "Before keeping items from the plans", [HOUSE3D_STORE_KEY], mark_absent=True, slot="plan_ai", exact=True)
         if not backup_id:
             raise Refused("backup_failed", "Could not take the safety backup. Nothing was saved.")
         sess["backup_id"] = backup_id
@@ -497,6 +500,7 @@ async def undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStore,
     sess = store.session(b.get("session")) if b.get("session") else None
     sugs = (sess or {}).get("suggestions") or {}
     was: dict[str, dict] = {}
+    puts = not A.puts_back(b)                  # stored: past the batch cap the chain it comes from is gone
     try:
         u_items = []
         for it in undone:
@@ -507,13 +511,13 @@ async def undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStore,
                 sugs[i]["state"] = (it.get("prior") or {}).get(i) or "undone"
             u_items.append({"sug_id": it.get("sug_id"), "also": it.get("also") or [], "kind": it.get("kind"), "target": it.get("target"),
                             "before": copy.deepcopy(it.get("after")), "after": copy.deepcopy(it.get("before")), "prior": prior})
-        batches[uid] = {"session": b.get("session"), "committed_at": at, "items": u_items, "undone_at": None, "undo_of": batch_id,
+        batches[uid] = {"session": b.get("session"), "committed_at": at, "items": u_items, "undone_at": None, "undo_of": batch_id, "puts_back": puts,
                         "skipped": [s["sug_id"] for s in skipped],
                         "pending": {"from": 0, "was": was, "undid": batch_id, "session_batch": (sess or {}).get("batch"), "at": None}}
         b["undone_at"] = at
         b["skipped"] = [s["sug_id"] for s in skipped]
         if sess is not None:
-            sess["batch"] = None
+            sess["batch"] = None if puts else uid   # what a put-back kept stands: the next keep joins it, so one undo still takes it all
             sess["rev"] = int(sess.get("rev") or 0) + 1
         store.trim()
         written = await store.async_checked_save() and await house.async_write(new)
@@ -526,7 +530,7 @@ async def undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStore,
     await _finish(store, batches[uid])
 
     A._bump(hass, "plan_ai_undo:batch")  # noqa: SLF001
-    if A.puts_back(batches, b):
+    if A.puts_back(b):
         A._bump(hass, "plan_ai_undo:put_back")  # noqa: SLF001
     elif not b.get("undo_of"):
         for it in undone:

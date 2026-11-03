@@ -201,10 +201,13 @@ def test_the_backup_comes_before_the_write_and_only_once_a_session(monkeypatch, 
     taken = []
     from custom_components.padspan_ha import ws_backup
 
-    async def _bk(hass, note, keys, *, mark_absent=False):
+    async def _bk(hass, note, keys, **_):
         taken.append((note, list(keys), copy.deepcopy(hass.data[DOMAIN][DATA_HOUSE3D].data), list(disk.writes)))
         return "bk_test"
+    async def _there(hass, backup_id):
+        return True
     monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
+    monkeypatch.setattr(ws_backup, "_backup_exists", _there)
     writes_before = list(disk.writes)
     r1 = _commit(h, conn, sid, sess["rev"], {"sug_id": a["id"], "v": "new", "final": _final(a)})
     assert len(taken) == 1 and taken[0][0] == "Before keeping items from the plans" and taken[0][1] == [HOUSE3D_STORE_KEY]
@@ -212,7 +215,7 @@ def test_the_backup_comes_before_the_write_and_only_once_a_session(monkeypatch, 
     assert taken[0][3] == writes_before, "nothing written before it"
     assert sess["backup_id"] == "bk_test"
     r2 = _commit(h, conn, sid, r1["rev"], {"sug_id": b["id"], "v": "new", "final": _final(b)})
-    assert r2["ok"] and len(taken) == 1, "one per session: auto backups are three, shared by every operation"
+    assert r2["ok"] and len(taken) == 1, "one per session, while it is still there"
     assert r2["backup_id"] == "bk_test"
 
 
@@ -221,7 +224,7 @@ def test_no_backup_no_write(monkeypatch, tmp_path, disk):
     sug = _one(sess)
     from custom_components.padspan_ha import ws_backup
 
-    async def _none(hass, note, keys, *, mark_absent=False):
+    async def _none(hass, note, keys, **_):
         return None
     monkeypatch.setattr(ws_backup, "_auto_backup", _none)
     raw, ledger = _file(tmp_path).read_bytes(), _file(tmp_path, PLAN_AI_STORE_KEY).read_bytes()
@@ -584,7 +587,7 @@ def test_a_failed_write_leaves_everything_as_it_was_and_a_retry_works(monkeypatc
     h, conn, store, sess, sid, counted, sug, item = _keep_one(monkeypatch, tmp_path, disk)
     from custom_components.padspan_ha import ws_backup
 
-    async def _bk(hass, note, keys, *, mark_absent=False):
+    async def _bk(hass, note, keys, **_):
         return "bk_test"
     monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
     raw = _file(tmp_path).read_bytes()
@@ -756,7 +759,7 @@ def test_an_unexpected_error_on_the_way_leaves_everything_as_it_was(monkeypatch,
     item = {"sug_id": sug["id"], "v": "new", "final": _final(sug)}
     from custom_components.padspan_ha import ws_backup
 
-    async def _bk(hass, note, keys, *, mark_absent=False):
+    async def _bk(hass, note, keys, **_):
         return "bk_test"
     monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
     monkeypatch.setattr(C, "_side_source", lambda *a: 1 / 0)
@@ -774,7 +777,7 @@ def test_a_last_mark_that_wont_save_is_no_failure(monkeypatch, tmp_path, disk):
     h, conn, store, sess, sid, counted, sug, item = _keep_one(monkeypatch, tmp_path, disk)
     from custom_components.padspan_ha import ws_backup
 
-    async def _bk(hass, note, keys, *, mark_absent=False):
+    async def _bk(hass, note, keys, **_):
         return "bk_test"
     monkeypatch.setattr(ws_backup, "_auto_backup", _bk)
     disk.fail = [None, None, "raised"]
@@ -1075,8 +1078,11 @@ def test_every_new_counter_is_in_the_closed_family_and_counts_only():
         assert e in T.PLAN_AI_EVENTS and len(e) <= 64, e
     for name in ("not_found", "already_running", "house3d_newer", "plan_ai_newer"):
         assert f"plan_ai_commit:{name}" not in T.PLAN_AI_EVENTS, "a refusal with nothing to learn from is dropped by bump, never named"
-    for code in ("rev_mismatch", "already_committed", "changed_since", "not_open", "stair_first", "invalid", "backup_failed", "save_failed", "already_undone"):
+    for code in ("rev_mismatch", "already_committed", "changed_since", "not_open", "stair_first", "invalid", "backup_failed", "save_failed"):
         assert f"plan_ai_commit:{code}" in T.PLAN_AI_EVENTS, code
+    for code in ("already_undone", "save_failed"):
+        assert f"plan_ai_undo:{code}" in T.PLAN_AI_EVENTS, code
+    assert "plan_ai_commit:already_undone" not in T.PLAN_AI_EVENTS, "an undo's refusal is an undo's"
 
 
 # ═══ a downgrade to v0.38.199 ════════════════════════════════════════════════

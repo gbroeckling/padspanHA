@@ -481,5 +481,28 @@ tryCase("plans: once committed, no step and no Save brings back what it was", ()
   while (dr.undo()) { /* every step */ }
   check("plans: every Undo step holds the file's stair, never the draft's", !dr.cur.pieces.fur_0000000a && dr.cur.pieces.fur_00000001.x_m === 5 && dr.cur.pieces.fur_bbbbbbbb.plan_ai.batch === "b" && D.planPending(dr.cur).length === 0, dr.cur.pieces);
 });
+tryCase("plans: adopt keeps the person's own edits and nothing the items took", () => {
+  const piece = () => ({ id: "fur_00000001", floor_id: "main", x_m: 3, y_m: 4, rotation: 0, label: "Hall", recipe: { kind: "stairs", width_m: 1, params: { shape: "straight", rail: "none" } } });
+  const f = D.ownedOf({ schema: 1, pieces: { fur_00000001: piece() } });
+  // A correction: the file rounds its position; that is no edit of the person's.
+  let dr = D.createDraft(f);
+  dr.change((c) => { const q = c.pieces.fur_00000001; q[D.PLAN_NOTE] = { session: "s", sugs: { b: { v: "correction", was: { x_m: 3, y_m: 4 } } } }; q.x_m = 1.234567; q.y_m = 4; });
+  dr.adopt("pieces", { fur_00000001: { ...piece(), x_m: 1.235, plan_ai: { batch: "b" }, updated_at: "t" } });
+  check("plans: a rounded position isn't left to save", dr.changes() === null, dr.changes());
+  // A railing: its side and style were taken; a drag and a name weren't.
+  dr = D.createDraft(f);
+  dr.change((c) => { const q = c.pieces.fur_00000001; q.x_m = 3.5; q.label = "Mine"; });
+  dr.change((c) => { const q = c.pieces.fur_00000001; q[D.PLAN_NOTE] = { session: "s", sugs: { r: { v: "new", rail: { side: "both", style: "topless" }, was_params: { rail: "none", rail_style: null } } } }; q.recipe.params.rail = "both"; q.recipe.params.rail_style = "topless"; });
+  const filed = { ...piece(), plan_ai: { batch: "b" }, recipe: { ...piece().recipe, params: { shape: "l", rail: "both", rail_style: "single_bar" } } };
+  dr.adopt("pieces", { fur_00000001: filed });
+  const p = dr.changes().pieces.fur_00000001;
+  check("plans: the drag and the name stay; the file's rail and shape stand", p.x_m === 3.5 && p.label === "Mine" && p.recipe.params.rail_style === "single_bar" && p.recipe.params.shape === "l" && p.plan_ai.batch === "b" && !(D.PLAN_NOTE in p), p);
+  check("plans: the base is the file's, so the next Save sends only the rest", dr.base.pieces.fur_00000001.x_m === 3 && dr.base.pieces.fur_00000001.label === "Hall");
+  // A key the person took away goes too.
+  dr = D.createDraft(f);
+  dr.change((c) => { const q = c.pieces.fur_00000001; delete q.label; q[D.PLAN_NOTE] = { session: "s", sugs: { b: { v: "correction", was: { x_m: 3, y_m: 4 } } } }; });
+  dr.adopt("pieces", { fur_00000001: { ...piece(), plan_ai: { batch: "b" } } });
+  check("plans: a key the person removed stays removed", !("label" in dr.cur.pieces.fur_00000001), dr.cur.pieces.fur_00000001);
+});
 
 console.log(JSON.stringify({ cases, failures, payloads }));

@@ -117,15 +117,27 @@ def _trim_backups(backups: list[dict[str, Any]], auto: bool) -> None:
     a backup the user made, and a new manual backup never removes more than
     the oldest manual one. An entry without the mark counts as manual: that
     includes automatic ones from before the mark existed, which is the side
-    that keeps them.
+    that keeps them. An automatic backup with a slot of its own (_auto_backup)
+    doesn't count against the others' cap.
     """
     cap = _MAX_AUTO_BACKUPS if auto else _MAX_BACKUPS
-    same = [b for b in backups if bool(b.get("auto")) == auto]
+    same = [b for b in backups if bool(b.get("auto")) == auto and not b.get("slot")]
     drop = {id(b) for b in same[:max(0, len(same) - cap)]}
     backups[:] = [b for b in backups if id(b) not in drop]
 
 
-async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *, mark_absent: bool = False) -> str | None:
+async def _backup_exists(hass: HomeAssistant, backup_id: str) -> bool:
+    """Is that backup still in the list? Not if it was replaced or deleted, or
+    the list can't be read."""
+    try:
+        bk = await _load_backups(hass)
+    except Exception:  # noqa: BLE001
+        return False
+    return any(b.get("id") == backup_id for b in bk.get("backups") or [])
+
+
+async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *, mark_absent: bool = False,
+                       slot: str | None = None, exact: bool = False) -> str | None:
     """Snapshot the named stores into the normal backup list before a
     destructive operation, and return the backup id.
 
@@ -135,6 +147,10 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *,
     Backup/Restore UI shows, so recovery is the flow the user already knows.
     Failure here is reported to the caller — a safety net that silently did
     not happen is worse than none, because the user will believe it exists.
+
+    `slot`: one kept apart from the shared cap, replacing that slot's last one
+    and nobody else's. `exact`: a restore takes Live Aboard's file as it stands
+    here, furniture or none (house3d_store.async_restore_data).
     """
     import os as _os  # noqa: PLC0415
     from homeassistant.helpers.storage import Store as _St  # noqa: PLC0415
@@ -161,6 +177,8 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *,
     try:
         async with _backups_lock(hass):
             bk = await _load_backups(hass)
+            if slot:
+                bk["backups"] = [b for b in bk.get("backups") or [] if b.get("slot") != slot]
             bk.setdefault("backups", []).append({
                 "id": backup_id,
                 "created_at": dt_util.utcnow().replace(microsecond=0).isoformat(),
@@ -169,6 +187,8 @@ async def _auto_backup(hass: HomeAssistant, note: str, store_keys: list[str], *,
                 "stores": stores_data,
                 "map_images": {},
                 "auto": True,
+                **({"slot": slot} if slot else {}),
+                **({"exact": True} if exact else {}),
             })
             _trim_backups(bk["backups"], auto=True)
             await _save_backups(hass, bk)
@@ -482,9 +502,10 @@ async def ws_store_backup_restore(hass: HomeAssistant, connection, msg) -> None:
                         continue
                 if store_key == HOUSE3D_STORE_KEY:
                     # Live Aboard's file: a backup with no furniture in it keeps
-                    # the furniture placed since (house3d_store.async_restore_data).
+                    # the furniture placed since (house3d_store.async_restore_data),
+                    # unless it was marked exact when it was taken.
                     from .house3d_store import async_restore_data
-                    data = await async_restore_data(hass, data)
+                    data = await async_restore_data(hass, data, exact=bool(backup.get("exact")))
                 if store_key == WLED_LOOKS_STORE_KEY:
                     # Looks come back; what PadSpan did to each device's
                     # flash (sync switched off, the originals kept) stays.

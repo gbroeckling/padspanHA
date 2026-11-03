@@ -166,6 +166,7 @@ async def ws_plan_ai_status(hass: HomeAssistant, connection, msg) -> None:
         except ReadFailed:
             house = None
         async with store.lock:
+            sess = store.session(sid) or sess              # a commit that failed while this waited put back a whole new store
             settled = C.settle_pending(store, house)       # a commit a crash cut short: finished or taken back
             if A.check_session(hass, store, sess, house) or settled:
                 await store.async_save()
@@ -320,7 +321,7 @@ async def ws_plan_ai_sessions_get(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"sessions": out, "undo": A.last_batch(store)})
 
 
-async def _write(hass: HomeAssistant, connection, msg, store: A.PlanAiStore, what) -> None:
+async def _write(hass: HomeAssistant, connection, msg, store: A.PlanAiStore, what, counter: str) -> None:
     """One of the two writers, with the 3D store's lock and then the plan
     store's held throughout (never the other way about), so nothing lands
     between its checks and its writes. A refusal with a list is an ok: false
@@ -335,7 +336,7 @@ async def _write(hass: HomeAssistant, connection, msg, store: A.PlanAiStore, wha
         async with house.lock, store.lock:
             answer = await what(house)
     except C.Refused as err:
-        A._bump(hass, f"plan_ai_commit:{err.code}")  # noqa: SLF001
+        A._bump(hass, f"{counter}:{err.code}")  # noqa: SLF001
         if err.extra is None:
             connection.send_error(msg["id"], err.code, err.message)
         else:
@@ -358,7 +359,7 @@ async def ws_plan_ai_commit(hass: HomeAssistant, connection, msg) -> None:
     store = await _refused(hass, connection, msg)
     if store is None:
         return
-    await _write(hass, connection, msg, store, lambda house: C.commit(hass, store, house, msg["session"], msg["rev"], msg["items"]))
+    await _write(hass, connection, msg, store, lambda house: C.commit(hass, store, house, msg["session"], msg["rev"], msg["items"]), "plan_ai_commit")
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_ai_undo", vol.Required("batch_id"): str})
@@ -368,7 +369,7 @@ async def ws_plan_ai_undo(hass: HomeAssistant, connection, msg) -> None:
     store = await _refused(hass, connection, msg)
     if store is None:
         return
-    await _write(hass, connection, msg, store, lambda house: C.undo(hass, store, house, msg["batch_id"]))
+    await _write(hass, connection, msg, store, lambda house: C.undo(hass, store, house, msg["batch_id"]), "plan_ai_undo")
 
 
 WS_COMMANDS = (ws_plan_ai_plans, ws_plan_ai_start, ws_plan_ai_status, ws_plan_ai_cancel, ws_plan_ai_verdict,

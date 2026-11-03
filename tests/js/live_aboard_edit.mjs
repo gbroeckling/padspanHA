@@ -1136,7 +1136,7 @@ await tryCase("tool: the setup wizard's way in opens Edit at its tool, once", as
     geom: { x_m: x, y_m: y, rotation: 0, width_m: 1, depth_m: 3, shape: "straight", says: "UP", sure_up: true }, match: { relation: "new", near: [], near_names: [], held: null } });
   const plan = { rev: 5, commitCalls: [], refuse: null, undo: null, session: { id: "ps_1", rev: 5, status: "done", spent_s: 10, budget_s: 480, plans: [{ map_id: "m1", name: "Main", read: true, answered: true }],
     suggestions: { s1: stairOf("s1", 2, 2), s2: stairOf("s2", 7, 2) } } };
-  plansHook = { settings: {}, callWS: async (m) => {
+  const plansHookKept = async (m) => {
     const t = m.type.replace("padspan_ha/", "");
     if (t === "plan_ai_plans") return { plans: [{ map_id: "m1", name: "Main", floor_id: "main", refs: 1 }], ai: { ready: true, name: "AI", local: true }, running: null, latest: "ps_1" };
     if (t === "plan_ai_status") return { session: clone(plan.session), undo: plan.undo };
@@ -1159,7 +1159,8 @@ await tryCase("tool: the setup wizard's way in opens Edit at its tool, once", as
       return { ok: true, rev: plan.rev, batch: "pb_1", piece_ids: ids, suggestions: clone(plan.session.suggestions), undo: plan.undo, data: clone(server.file) };
     }
     throw new Error("no such command here: " + t);
-  } };
+  };
+  plansHook = { settings: {}, callWS: plansHookKept };
   const inSheet = (label) => { const sh = [...document.querySelectorAll(".la3d-sheet")].concat(all(card)).find(n => n.classList && n.classList.contains("la3d-sheet")); return allIn(sh).find(n => String(n.tagName).toUpperCase() === "BUTTON" && n.textContent.trim() === label); };
   poll(); await settle(40);
   await tryCase("plans: the tool's button comes only with the host's word", async () => {
@@ -1234,6 +1235,24 @@ await tryCase("tool: the setup wizard's way in opens Edit at its tool, once", as
     click("Save", "la3d-tools"); await settle(30);
     const e = ed();
     check("plans: the tool gone: what the draft held never goes the ordinary way", payloads.length === n0 && plan.commitCalls.length === c0 && e.planPending.length === 0 && /weren't kept/.test(e.hint) && !e.dirty, { hint: e.hint, n: payloads.length - n0 });
+  });
+  await tryCase("plans: the tool gone with another edit in the same Save: that goes, and it says the items weren't kept", async () => {
+    plansHook = { settings: {}, callWS: plansHookKept };
+    poll(); await settle(30);
+    click("Plans", "la3d-tools"); await settle(20);
+    if (ed().tool !== "plans") { click("Plans", "la3d-tools"); await settle(20); }
+    plan.session.suggestions.s4 = stairOf("s4", 3, 7);
+    click("Plans", "la3d-tools"); await settle(20); click("Plans", "la3d-tools"); await settle(30);
+    inSheet("New").click(); await settle();
+    check("plans: (one waiting, with another edit)", ed().planPending.length === 1, ed().planPending);
+    await pickTool("window");
+    drag(where("main", 0, 0.5, WALL_Z), where("main", 0, 1.9, WALL_Z)); await settle();
+    plansHook = null;
+    poll(); await settle(30);
+    const n0 = payloads.length, c0 = plan.commitCalls.length;
+    click("Save", "la3d-tools"); await settle(30);
+    const e = ed();
+    check("plans: the tool gone, another edit: it is saved and says the items weren't kept", payloads.length === n0 + 1 && plan.commitCalls.length === c0 && e.planPending.length === 0 && /^Saved, but the items from the plans weren't kept/.test(e.hint) && e.hintBad && !e.dirty, { hint: e.hint, bad: e.hintBad, n: payloads.length - n0 });
   });
   await closeEdit();
 }

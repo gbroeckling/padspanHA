@@ -252,9 +252,16 @@ export function createDraft(base){
     },
     /** Entries a server command just wrote (plan_ai_commit): in the base, the
      *  draft and every Undo and Redo step each is the file's own now, so no
-     *  step and no Save brings back what it was. `renamed`, {draft's id: the
-     *  file's id}: a draft-only entry that became that one (a strip on it follows). */
+     *  step and no Save brings back what it was. Only what the person changed on
+     *  such a piece besides what its items took stays in the draft, for the Save
+     *  after (ownEdits). `renamed`, {draft's id: the file's id}: a draft-only
+     *  entry that became that one (a strip on it follows). */
     adopt(section, entries, renamed = {}){
+      const own = {};
+      for (const id of Object.keys(entries)) {
+        const b = (d.base[section] || {})[id], c = (d.cur[section] || {})[id];
+        if (b && c && c[PLAN_NOTE]) own[id] = ownEdits(entries[id], b, c);
+      }
       const put = (c) => {
         if (!c || !c[section]) return c;
         for (const id of Object.keys(renamed)) delete c[section][id];
@@ -265,6 +272,7 @@ export function createDraft(base){
       put(d.base); put(d.cur);
       d.undo = d.undo.map(x => JSON.stringify(put(JSON.parse(x))));
       d.redo = d.redo.map(x => JSON.stringify(put(JSON.parse(x))));
+      Object.assign(d.cur[section] || {}, own);
     },
   };
 }
@@ -305,6 +313,26 @@ export function dropPlanPending(c, ids = null){
     if (c.pieces[id] && !Object.keys(n.sugs).length) delete p[PLAN_NOTE];
   }
   return c;
+}
+/** A piece plan_ai_commit just wrote (`filed`), with what the person changed
+ *  from `base` to `cur` that its items didn't take: each item's note says what
+ *  it set (was, was_params). What the person left alone stays the file's, however
+ *  old the draft. */
+function ownEdits(filed, base, cur){
+  const out = copy(filed), items = Object.values(cur[PLAN_NOTE].sugs || {});
+  const took = (key) => items.flatMap(e => Object.keys(e[key] || {}));
+  const carry = (to, b, c, skip) => {
+    for (const k of new Set([...Object.keys(b), ...Object.keys(c)])) {
+      if (skip.includes(k) || JSON.stringify(b[k]) === JSON.stringify(c[k])) continue;
+      if (k in c) to[k] = copy(c[k]); else delete to[k];
+    }
+  };
+  carry(out, base, cur, [PLAN_NOTE, "recipe", ...took("was")]);
+  if (out.recipe && base.recipe && cur.recipe) {
+    carry(out.recipe, base.recipe, cur.recipe, ["params"]);
+    carry(out.recipe.params = out.recipe.params || {}, base.recipe.params || {}, cur.recipe.params || {}, took("was_params"));
+  }
+  return out;
 }
 /** The draft's piece as plan_ai_commit reads it: without the note. */
 export function planFinal(p){

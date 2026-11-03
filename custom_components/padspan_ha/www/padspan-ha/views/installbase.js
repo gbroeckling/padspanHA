@@ -833,9 +833,8 @@ function word(kind, k) {
       if (a === "plan_ai_moved_after_accept") return `Plan AI ${W_PLAN_KIND[b] || b} kept, then moved over 30 cm before Save`;
       if (a === "plan_ai_rail_side") return `Plan AI railing kept on ${b === "ai" ? "the side the AI said" : "a side the person chose"}`;
       if (a === "plan_ai_commit") return `Plan AI keep ${{ done: "written", rev_mismatch: "refused: the list had changed", already_committed: "refused: already kept", changed_since: "refused: a target changed since",
-        not_open: "refused: item no longer open", stair_first: "refused: railing before its stair", invalid: "refused: not a valid item", backup_failed: "stopped: no safety backup", save_failed: "stopped: the write failed",
-        already_undone: "refused: already undone" }[b] || b}`;
-      if (a === "plan_ai_undo") return `Plan AI undo: ${{ batch: "a batch taken back", put_back: "an undo put back", item_skipped: "an item left, changed since", stairs: "a stair taken back", railing: "a railing taken back" }[b] || b}`;
+        not_open: "refused: item no longer open", stair_first: "refused: railing before its stair", invalid: "refused: not a valid item", backup_failed: "stopped: no safety backup", save_failed: "stopped: the write failed" }[b] || b}`;
+      if (a === "plan_ai_undo") return `Plan AI undo: ${{ batch: "a batch taken back", put_back: "an undo put back", item_skipped: "an item left, changed since", stairs: "a stair taken back", railing: "a railing taken back", already_undone: "refused: already undone", save_failed: "stopped: the write failed" }[b] || b}`;
       if (key === "plan_ai_stale") return "Plan AI item changed since it was read (stale)";
       if (key === "plan_ai_no_floor") return "Plan AI find left out: no floor for it to climb from";
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;

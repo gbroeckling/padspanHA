@@ -690,8 +690,8 @@ PLAN_AI_HELD: tuple[str, ...] = ("frame", "eye")
 PLAN_AI_CROP: tuple[str, ...] = ("kept", "placed", "dropped")
 PLAN_AI_KEPT: tuple[str, ...] = ("new", "correction")
 PLAN_AI_COMMIT: tuple[str, ...] = ("done", "rev_mismatch", "already_committed", "changed_since", "not_open", "stair_first", "invalid",
-                                   "backup_failed", "save_failed", "already_undone")
-PLAN_AI_UNDO: tuple[str, ...] = ("batch", "put_back", "item_skipped", "stairs", "railing")
+                                   "backup_failed", "save_failed")
+PLAN_AI_UNDO: tuple[str, ...] = ("batch", "put_back", "item_skipped", "stairs", "railing", "already_undone", "save_failed")
 PLAN_AI_EVENTS: frozenset[str] = frozenset(
     {f"plan_ai_session:{k}" for k in PLAN_AI_SESSION} | {f"plan_ai_cancel_why:{k}" for k in PLAN_AI_CANCEL_WHY}
     | {f"plan_ai_model:{k}" for k in PLAN_AI_MODEL} | {f"plan_ai_frame:{k}" for k in PLAN_AI_FRAME}

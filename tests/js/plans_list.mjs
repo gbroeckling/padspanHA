@@ -429,5 +429,90 @@ proto.focus = function () { focused = text(this); };
   M.tool.dispose();
 }
 proto.focus = realFocus;
+
+// ── A correction and a railing: only what they are, and the person's own edits stay ──
+{
+  const hintOn = (extra = {}) => ({ ...stair("r"), kind: "railing", geom: { stair: "fur_0000000f", side: "left", x_m: 3, y_m: 4 },
+    match: { relation: "correction", target: "fur_0000000f", near: [], held: null, target_snap: { label: "Hall stairs" } }, ...extra });
+  const moveTo = stair("c", { geom: { x_m: 1.5, y_m: 4 }, match: { relation: "correction", target: "fur_0000000f", distance_m: 1.5, hand: true, near: [], held: null, target_snap: { label: "Hall stairs" } } });
+  // The server's answer, as plan_ai_write writes it: position, or side and style, on the file's own piece.
+  const world = (sugs, filed = stairPiece("fur_0000000f")) => {
+    const file = { schema: 1, pieces: { fur_0000000f: JSON.parse(JSON.stringify(filed)) } };
+    const answers = { ...BASE,
+      plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1", start_blocked: null },
+      plan_ai_status: () => ({ session: SESSION({ suggestions: sugs }), undo: null }),
+      plan_ai_commit: (m) => {
+        const p = file.pieces.fur_0000000f, ids = {};
+        for (const it of m.items) {
+          if (it.rail) p.recipe.params = { ...p.recipe.params, rail: it.rail.side, rail_style: it.rail.style };
+          else { p.x_m = it.final.x_m; p.y_m = it.final.y_m; }
+          ids[it.sug_id] = "fur_0000000f";
+        }
+        p.plan_ai = { batch: "pb_1" };
+        return { ok: true, rev: 4, batch: "pb_1", piece_ids: ids, suggestions: {}, undo: { id: "pb_1", items: m.items.length, puts_back: false }, data: JSON.parse(JSON.stringify(file)) };
+      } };
+    return { M: mount(answers, { schema: 1, pieces: { fur_0000000f: stairPiece("fur_0000000f") } }), file };
+  };
+  /** What live_aboard_edit.save does around plans.commit. */
+  const saved = async (M) => {
+    const kept = await M.tool.commit();
+    M.draft.adopt("pieces", kept.pieces, kept.renamed);
+    M.draft.change((c) => { DRAFT.dropPlanPending(c, null); });
+    return M.draft.changes();
+  };
+
+  // A railing kept on a stair dragged in the same draft: the drag stays for the Save after.
+  {
+    const { M, file } = world({ r: hintOn() });
+    M.tool.show(true); await settle();
+    M.draft.change((c) => { c.pieces.fur_0000000f.x_m = 3.5; });
+    M.sheet.replaceChildren(); M.tool.sheet();
+    await click(button(M.sheet, "Keep this rail"));
+    const item = M.sent("plan_ai_commit").length;
+    const ch = await saved(M);
+    const [sent] = M.sent("plan_ai_commit");
+    check("railing: the commit takes side and style only", item === 0 && file.pieces.fur_0000000f.x_m === 3 && file.pieces.fur_0000000f.recipe.params.rail === "inner" && sent.items[0].final === undefined, sent);
+    check("railing: a drag in the same draft is still there, for the ordinary Save", ch && ch.pieces && ch.pieces.fur_0000000f.x_m === 3.5 && M.draft.cur.pieces.fur_0000000f.recipe.params.rail === "inner", ch);
+    check("railing: nothing still marked", DRAFT.planPending(M.draft.cur).length === 0, M.draft.cur.pieces);
+    M.tool.dispose();
+  }
+  // A correction sends where it stands, nothing else; a stair changed elsewhere stays changed.
+  {
+    const { M, file } = world({ c: moveTo });
+    M.tool.show(true); await settle();
+    const other = file.pieces.fur_0000000f;                  // another tab, after this draft began
+    other.recipe.params.shape = "l"; other.recipe.width_m = 1.4; other.rotation = 90;
+    await click(button(M.sheet, "Take the AI's position"));
+    const ch = await saved(M);
+    const [sent] = M.sent("plan_ai_commit");
+    check("correction: position only on the wire", Object.keys(sent.items[0].final).sort().join() === "x_m,y_m" && sent.items[0].final.x_m === 1.5, sent.items[0]);
+    check("correction: an older draft puts nothing back", ch === null && M.draft.cur.pieces.fur_0000000f.recipe.params.shape === "l" && M.draft.cur.pieces.fur_0000000f.recipe.width_m === 1.4 && M.draft.cur.pieces.fur_0000000f.rotation === 90 && M.draft.cur.pieces.fur_0000000f.x_m === 1.5, { ch, p: M.draft.cur.pieces.fur_0000000f });
+    M.tool.dispose();
+  }
+  // A person's own turn and size in that draft aren't the commit's: they go with the ordinary Save.
+  {
+    const { M, file } = world({ c: moveTo });
+    M.tool.show(true); await settle();
+    M.draft.change((c) => { const q = c.pieces.fur_0000000f; q.rotation = 45; q.recipe.width_m = 1.2; });
+    M.sheet.replaceChildren(); M.tool.sheet();
+    await click(button(M.sheet, "Take the AI's position"));
+    const ch = await saved(M);
+    check("correction: the person's own edits stay in the draft", ch && ch.pieces.fur_0000000f.rotation === 45 && ch.pieces.fur_0000000f.recipe.width_m === 1.2 && ch.pieces.fur_0000000f.x_m === 1.5, ch);
+    check("correction: the commit itself took neither", file.pieces.fur_0000000f.rotation === 0 && file.pieces.fur_0000000f.recipe.width_m !== 1.2, file.pieces.fur_0000000f);
+    M.tool.dispose();
+  }
+  // A railing's style starts on the one the stair has.
+  {
+    const filed = stairPiece("fur_0000000f");
+    filed.recipe.params.rail_style = "topless";
+    const answers = { ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1", start_blocked: null },
+      plan_ai_status: () => ({ session: SESSION({ suggestions: { r: hintOn() } }), undo: null }) };
+    const M = mount(answers, { schema: 1, pieces: { fur_0000000f: filed } });
+    M.tool.show(true); await settle();
+    const pressed = buttons(M.sheet).filter(b => b.getAttribute("aria-pressed") === "true").map(text);
+    check("railing: its style starts on the stair's own", pressed.includes("Topless") && !pressed.includes("Balustrade"), pressed);
+    M.tool.dispose();
+  }
+}
 console.log(JSON.stringify(results));
 process.exit(0);
