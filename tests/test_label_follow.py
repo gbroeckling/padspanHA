@@ -269,6 +269,43 @@ def test_two_named_devices_stopping_together_leave_the_new_one_with_neither() ->
     assert air.links.current(A) == A and air.links.current(other) == other
 
 
+@pytest.mark.parametrize("later", [3.0, 5.0, 20.0, 60.0])
+def test_two_named_devices_stopping_seconds_apart_leave_the_new_one_with_neither(later) -> None:
+    """Whichever stopped first used to link at once: the other didn't count until
+    it had been silent for 90 s."""
+    other = "4F:00:00:00:00:09"
+    air = Air(watched=[A, other])
+    air.poll()
+
+    def both():
+        air.heard(A)
+        air.heard(other)
+    air.run(30, each=both)
+    air.t += later
+    air.heard(other)
+    air.heard(B)
+    air.run(400, each=lambda: air.heard(B))
+    assert air.links.current(A) == A and air.links.current(other) == other
+
+
+def test_another_named_device_still_on_the_air_doesnt_stop_the_link() -> None:
+    other = "4F:00:00:00:00:09"
+    air = Air(watched=[A, other])
+    air.poll()
+
+    def both():
+        air.heard(A)
+        air.heard(other)
+    air.run(30, each=both)
+    air.heard(B)
+
+    def on_air():
+        air.heard(B)
+        air.heard(other)
+    air.run(400, each=on_air)
+    assert air.links.current(A) == B and air.links.current(other) == other
+
+
 def test_an_address_one_device_is_using_isnt_a_candidate_for_another() -> None:
     other = "4F:00:00:00:00:09"
     air = Air(watched=[A, other], state={"links": {other: {"path": [{"a": B, "by": "you", "ts": NOON}]}}})
@@ -287,6 +324,44 @@ def test_the_question_goes_when_the_two_are_heard_at_once() -> None:
         air.heard(B, name="", md=md)
     air.run(30, each=both)
     assert A not in air.links.asks and B in air.links.refused[A]
+
+
+def _asked_then_stopped(air: Air) -> None:
+    """A question open on B, then B stops too."""
+    air.poll()
+    air.run(30, each=lambda: air.heard(A))
+    air.heard(B, place=ELSEWHERE)
+    air.run(280, each=lambda: air.heard(B, place=ELSEWHERE))
+    assert air.links.asks[A]["a"] == B
+    air.run(160)
+
+
+def test_the_question_closes_when_the_old_address_comes_back() -> None:
+    """It stayed open for days with the device live, and it isn't a No: B isn't refused."""
+    air = Air()
+    _asked_then_stopped(air)
+    air.heard(A)
+    air.poll(5)
+    assert A not in air.links.asks and B not in air.links.refused.get(A, [])
+    assert not air.links.answer(A, B, True, air.t), "there is nothing left to say Yes to"
+    air.run(60, each=lambda: air.heard(A))
+    assert air.links.current(A) == A and "label_link_old_back" not in air.events
+    assert B not in air.links.refused.get(A, [])
+
+
+def test_a_stopped_address_with_an_old_stamp_doesnt_close_the_question() -> None:
+    air = Air()
+    _asked_then_stopped(air)
+    air.run(600)
+    assert air.links.asks[A]["a"] == B, "the old address has said nothing since it was asked"
+
+
+def test_a_question_nobody_answered_goes_after_a_week() -> None:
+    air = Air()
+    _asked_then_stopped(air)
+    air.t += LF.ASK_MAX_GAP_S + 1
+    air.poll()
+    assert A not in air.links.asks
 
 
 def test_the_question_goes_when_its_address_is_named() -> None:
@@ -346,6 +421,77 @@ def _weak(air: Air) -> None:
     """Same maker, kind, moment and place; nothing to compare it by."""
     md = {"76": "0x10 0x05 0x01"}
     _hand_over(air, name="", md=md, old_kw={"name": "", "md": md})
+
+
+def _crowded(monkeypatch, budget, watched=5, others=50) -> Air:
+    """Devices that each stop and start again on a new address, among others."""
+    monkeypatch.setattr(LF, "SCAN_BUDGET", budget)
+    olds = [f"4A:00:00:00:01:{i:02X}" for i in range(watched)]
+    air = Air(watched=olds)
+    air.poll()
+
+    def all_old():
+        for i, old in enumerate(olds):
+            air.heard(old, name=f"Device {i}")
+        for i in range(others):
+            air.heard(f"7A:00:00:00:02:{i:02X}", name=f"Stranger {i}")
+    air.run(30, each=all_old)
+    return air
+
+
+def _start_new(air: Air, watched=5) -> dict:
+    news = {f"4A:00:00:00:01:{i:02X}": f"5B:00:00:00:03:{i:02X}" for i in range(watched)}
+
+    def all_new():
+        for i, new in enumerate(news.values()):
+            air.heard(new, name=f"Device {i}")
+    all_new()
+    air.run(10, each=all_new)
+    return news, all_new
+
+
+def test_under_the_cap_nothing_waits_or_is_counted(monkeypatch) -> None:
+    air = _crowded(monkeypatch, LF.SCAN_BUDGET)
+    news, more = _start_new(air)
+    air.run(200, each=more)
+    assert all(air.links.current(o) == n for o, n in news.items())
+    assert "label_link_capped" not in air.events
+
+
+def test_at_the_cap_the_walks_are_bounded_and_counted(monkeypatch) -> None:
+    """One walk a poll: the poll stays bounded, and it's said in the report."""
+    air = _crowded(monkeypatch, 60)
+    walks: list[int] = []
+    real = LF.LabelLinks._may_walk
+
+    def counted(self, root, records):
+        ok = real(self, root, records)
+        walks.append(ok)
+        return ok
+    monkeypatch.setattr(LF.LabelLinks, "_may_walk", counted)
+    _start_new(air)
+    air.t += 100
+    del walks[:]
+    capped = air.events.count("label_link_capped")
+    air.poll(10)
+    assert sum(walks) == 1 and len(walks) > 1
+    assert air.events.count("label_link_capped") == capped + 1, "once a poll, however many waited"
+
+
+def test_at_the_cap_every_device_gets_its_turn_and_still_links(monkeypatch) -> None:
+    """Late, never wrong: one walk a poll and all five land inside the window."""
+    air = _crowded(monkeypatch, 60)
+    news, more = _start_new(air)
+    air.run(200, each=more)
+    assert all(air.links.current(o) == n for o, n in news.items())
+    assert "label_link_capped" in air.events
+
+
+def test_a_list_bigger_than_the_cap_still_gets_a_walk_each_poll(monkeypatch) -> None:
+    air = _crowded(monkeypatch, 5)
+    news, more = _start_new(air)
+    air.run(200, each=more)
+    assert all(air.links.current(o) == n for o, n in news.items())
 
 
 def test_good_evidence_with_no_name_is_a_question() -> None:
@@ -822,6 +968,41 @@ async def test_nothing_is_forgotten_while_the_stores_are_still_loading(monkeypat
     dom[DATA_OBJECTS] = labels
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["4A:00:00:00:00:01", "0A:00:00:00:00:01", "CA:00:00:00:00:01"])
+async def test_a_restart_keeps_a_link_and_its_answers_whatever_the_address_looks_like(monkeypatch, root) -> None:
+    """The first build after a restart reads the history only later on. Until then an
+    address off the air that a radio called random, and that isn't rotating-shaped,
+    looked unwatched, and its link, No answers and Undo were wiped and saved so."""
+    state = {"links": {root: {"path": [{"a": B, "by": "evidence", "ts": NOON - 3600}]}}, "refused": {root: [C]},
+             "moves": {root: 2}, "undone": {root: {"a": C, "ts": NOON - 3600}}}
+    links = LF.LabelLinks(json.loads(json.dumps(state)))
+    house = _house(monkeypatch, links=links, labels={root: "My Car"})
+    dom = house.hass.data[DOMAIN]
+    del dom[DATA_OBJECT_HISTORY]
+    dom["_obj_hist_store"].saved = {f"ble:{root}": {
+        "key": f"ble:{root}", "address": root, "kind": "ble", "user_label": "My Car", "address_type": "random",
+        "name": "My Car", "_last_seen_ts": NOON - 7200.0, "_cache_age_s": 0.0, "sources": {}}}
+    for at in (0.0, 10.0):
+        await house.build(at, [])
+        assert DATA_OBJECT_HISTORY in dom and links.current(root) == B
+        assert links.refused[root] == [C] and links.moves[root] == 2 and links.undone[root]["a"] == C
+    assert dom[SB._LABEL_LINKS_STORE].saved is None, "nothing changed, so nothing was saved"
+
+
+@pytest.mark.asyncio
+async def test_the_first_panel_read_after_a_restart_has_the_links(monkeypatch) -> None:
+    house = _house(monkeypatch, links=_linked())
+    dom = house.hass.data[DOMAIN]
+    del dom[DATA_OBJECT_HISTORY]
+    del dom[SB._LABEL_LINKS]
+    dom[SB._LABEL_LINKS_STORE] = None
+    with patch("homeassistant.helpers.storage.Store", lambda *a, **k: SimpleNamespace(
+            async_load=AsyncMock(return_value=_linked().to_state()))):
+        await house.build(0.0, [])
+    assert dom[SB._LABEL_LINKS].current(A) == B
+
+
 # ── A person's answers, over the websocket ──────────────────────────────────
 
 def _conn():
@@ -901,7 +1082,7 @@ def test_a_followed_device_can_use_a_link_for_its_row() -> None:
 # ── Rule 7: the report, and what it says to people ──────────────────────────
 
 _EVENTS = ("label_link_linked", "label_link_asked", "label_link_yes", "label_link_no", "label_link_undone",
-           "label_link_wrong_after_undo", "label_link_old_back")
+           "label_link_wrong_after_undo", "label_link_old_back", "label_link_capped")
 
 
 def test_the_report_has_a_closed_count_for_each_and_a_plain_name() -> None:

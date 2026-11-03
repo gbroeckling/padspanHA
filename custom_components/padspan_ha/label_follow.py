@@ -92,6 +92,11 @@ PATH_MAX = 16
 REFUSED_MAX = 64
 # How long an undone link is watched for the radio to confirm it was wrong.
 UNDONE_WATCH_S = 7 * 86400.0
+# Address records one poll may walk looking for new addresses, over all the
+# devices it watches. Each stopped device walks the whole list, on the event loop,
+# so a very large home paid watched x addresses every poll (20 x 9,178: 288 ms
+# measured). A device with no turn left goes first next poll: late, never wrong.
+SCAN_BUDGET = 40_000
 
 _APPLE_KEYS = ("76", "0x004c", "0x004C")
 _MAC_LEN = 17
@@ -243,6 +248,9 @@ class LabelLinks:
         # This poll's watched devices, and the addresses links already use.
         self._watched: dict[str, Any] = {}
         self._taken: set[str] = set()
+        # What this poll may still walk (SCAN_BUDGET), and who goes first next poll.
+        self._budget = SCAN_BUDGET
+        self._next_turn: str | None = None
         self.dirty = False
 
     def to_state(self) -> dict[str, Any]:
@@ -336,7 +344,14 @@ class LabelLinks:
             if name:
                 names.setdefault(name, []).append(addr)
 
-        for root, hist in watched.items():
+        self._budget = SCAN_BUDGET
+        order = sorted(watched)
+        if self._next_turn in watched:
+            turn = order.index(self._next_turn)
+            order = order[turn:] + order[:turn]
+        self._next_turn = None
+        for root in order:
+            hist = watched[root]
             self._check_returned(root, now_ts, records)
             cur = self.current(root)
             if cur != root and cur in claimed:
@@ -366,6 +381,17 @@ class LabelLinks:
 
     def _count(self, event: str) -> None:
         self._events.append(event)
+
+    def _may_walk(self, root: str, records: dict[str, dict[str, Any]]) -> bool:
+        """May this device walk the whole address list this poll? The poll's first walk
+        always may, so an enormous list still gets one a poll. Counted once a poll."""
+        if self._budget == SCAN_BUDGET or self._budget >= len(records):
+            self._budget -= len(records)
+            return True
+        if self._next_turn is None:
+            self._next_turn = root
+            self._count("label_link_capped")
+        return False
 
     def _sounded(self, root: str, cur: str, hist: dict[str, Any] | None,
                  history: dict[str, dict[str, Any]] | None) -> dict[str, Any] | None:
@@ -454,30 +480,36 @@ class LabelLinks:
             return False
         return may_rotate(addr, rec.get("address_type"))
 
-    def _drop_question_overtaken(self, root: str, silent: float, now_ts: float, records: dict[str, dict[str, Any]],
+    def _drop_question_overtaken(self, root: str, last_ts: float, now_ts: float, records: dict[str, dict[str, Any]],
                                  proven: set[str], claimed: set[str]) -> None:
-        """The question's address has an identity of its own now, or both addresses
-        are on the air at once, which is two devices: nothing left to ask."""
+        """Nothing left to ask: the question's address has an identity of its own now,
+        both addresses are on the air at once (two devices), the address it asks about
+        leaving has been heard since it was asked (a Yes would only undo itself when
+        that address reports again), or nobody answered for a week."""
         ask = self.asks.get(root)
         if not ask:
             return
+        asked = float(ask.get("ts") or 0.0)
         addr, cand = ask["a"], records.get(ask["a"])
-        both_live = cand is not None and silent < LIVE_S and now_ts - _seen_ts(cand, now_ts) < LIVE_S \
-            and _seen_ts(cand, now_ts) > float(ask.get("ts") or 0.0)
+        both_live = cand is not None and now_ts - last_ts < LIVE_S and now_ts - _seen_ts(cand, now_ts) < LIVE_S \
+            and _seen_ts(cand, now_ts) > asked
         if both_live:
             self._refuse(root, [addr])
-        if both_live or addr in proven or addr in claimed:
+        if both_live or addr in proven or addr in claimed or last_ts > asked or now_ts - asked > ASK_MAX_GAP_S:
             del self.asks[root]
             self.dirty = True
 
     def _another_could_be_it(self, root: str, addr: str, rec: dict[str, Any], mk: tuple, now_ts: float) -> bool:
-        """Exactly one, from both sides: another named device that stopped at the same
-        moment, with the same name or data, could as well be the one that moved."""
+        """Exactly one, from both sides: another named device that stopped around the
+        same moment, with the same name or data, could as well be the one that moved.
+        Only the moment decides, not how long ago it was: one still on the air fails
+        the test as soon as it next reports, and with an age limit the later of two
+        would link as soon as the earlier aged out."""
         for other in self._watched:
             if other == root:
                 continue
             last = self._last.get(self.current(other))
-            if last is None or not max(LIVE_S, GAP_S) <= now_ts - last["ts"] <= WINDOW_S:
+            if last is None:
                 continue
             if last["ts"] - SLACK_S <= self.first_heard.get(addr, float("-inf")) <= last["ts"] + GAP_S \
                     and same_identity_data(last["rec"], rec) and same_maker_kind(maker_kind(last["rec"]), mk):
@@ -489,7 +521,7 @@ class LabelLinks:
         last_ts = last["ts"]
         silent = now_ts - last_ts
         old = last["rec"]
-        self._drop_question_overtaken(root, silent, now_ts, records, proven, claimed)
+        self._drop_question_overtaken(root, last_ts, now_ts, records, proven, claimed)
         old_mk = maker_kind(old)
         if silent < max(LIVE_S, GAP_S):
             return
@@ -498,16 +530,14 @@ class LabelLinks:
             return
         if silent <= ASK_MAX_GAP_S:
             self._ask_late(root, cur, last, old, old_mk, now_ts, records, proven, claimed, names)
-        ask = self.asks.get(root)
-        if ask is not None and now_ts - float(ask.get("ts") or 0.0) > ASK_MAX_GAP_S:
-            del self.asks[root]
-            self.dirty = True
 
     def _hand_over(self, root: str, cur: str, last: dict[str, Any], old_mk: tuple, now_ts: float,
                    records: dict[str, dict[str, Any]], proven: set[str], claimed: set[str]) -> bool:
         """The old address has stopped and the window is open. True when it linked."""
         last_ts, old = last["ts"], last["rec"]
         first = self.first_heard
+        if not self._may_walk(root, records):
+            return False
         lo, hi = last_ts - SLACK_S, last_ts + GAP_S
         timed = [a for a, r in records.items()
                  if lo <= first.get(a, float("-inf")) <= hi
@@ -552,10 +582,12 @@ class LabelLinks:
         if not pool and not distinctive_payloads(old):
             return
         if not pool:
+            if not self._may_walk(root, records):
+                return
             pool = list(records)
         live = [a for a in pool
-                if now_ts - _seen_ts(records[a], now_ts) <= LIVE_S
-                and self.first_heard.get(a, float("-inf")) > last["ts"] + GAP_S
+                if self.first_heard.get(a, float("-inf")) > last["ts"] + GAP_S
+                and now_ts - _seen_ts(records[a], now_ts) <= LIVE_S
                 and self._candidate_ok(a, records[a], root, cur, proven, claimed)
                 and same_identity_data(old, records[a])
                 and same_maker_kind(old_mk, maker_kind(records[a]))]

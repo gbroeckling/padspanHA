@@ -177,6 +177,10 @@ async def _label_follow_step(hass: HomeAssistant, ble_by_addr: dict, canonical_b
     if None in (dom.get(DATA_OBJECTS), dom.get(DATA_DEVICE_REGISTRY), dom.get(DATA_SETTINGS)):
         return      # still starting: nobody looks named yet, and that must not end a link
     links = await _label_links(hass)
+    # The history is read from disk later in the first build. Until then an address
+    # off the air has no radio's word on its type, looks unwatched and loses its notes.
+    if dom.get(DATA_OBJECT_HISTORY) is None:
+        return
     claimed = _named_or_followed(dom)
     # From HA 2026.8 a named device's own row in HA carries its address: that's
     # PadSpan quoting itself, not another integration knowing the device.

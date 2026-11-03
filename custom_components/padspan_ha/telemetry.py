@@ -296,8 +296,10 @@ EVENTS: frozenset[str] = frozenset({
     #                         both addresses on the air at once.
     #   label_link_old_back   a link dropped by itself: an address it had left
     #                         came back, so that was no hand-over.
+    #   label_link_capped     a poll reached the cap on walking the address list
+    #                         (label_follow.SCAN_BUDGET), so some devices waited.
     "label_link_linked", "label_link_asked", "label_link_yes", "label_link_no", "label_link_undone",
-    "label_link_wrong_after_undo", "label_link_old_back",
+    "label_link_wrong_after_undo", "label_link_old_back", "label_link_capped",
     # The Atlas emergency lighting test (emergency_test.py): a test started,
     # ended (the lights already on left on), or ended with Force off.
     "emergency_test_on", "emergency_test_off", "emergency_force_off",
