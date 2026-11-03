@@ -524,7 +524,7 @@ export function helpTexts() { return {
       t("The rows above the map in Mapping → Atlas change how the map is drawn while you place and style devices. None of them moves a device or changes its settings. Most need a PadSpan Bright Pro or PadSpan Pro key; Whole house, ▦ New layout and Live Aboard need PadSpan Pro."),
       t("SHOWCASE — Draws each fixture in its real colour, with pools of light and shadows. It's only a picture: everything stays where it is and stays editable. While it's on (in the new layout, under Showcase options) you also get:"),
       t("  Theme — one of 20 looks for the whole map: colours, room edges and the style of the light."),
-      t("  West Coast Forest — a dark theme that also draws a west coast forest round the house on the flat map: Douglas fir, cedar and hemlock, ferns, fallen logs and mist. It stays behind the map, never on a floor, and rain falls in front of it. Live Aboard takes only its colours."),
+      t("  West Coast Forest — a dark theme that also draws a west coast forest round the house: Douglas fir, cedar and hemlock, ferns, fallen logs and mist. On the flat map it stays behind the map, never on a floor, and rain falls in front of it. Live Aboard grows the trees in 3D when it follows the Atlas's look; none stands on a room or in your view, and Edit and Furnish leave them out."),
       t("  ⊞ Fit room — keeps each fixture's drawing inside its room, a little in from the walls. Saved sizes don't change."),
       t("  ☼ Light spread — bands showing roughly how far each light reaches."),
       t("  ✨ Scene — previews a colour layout across the house: Sunset, Dusk, Ember, Ocean, then off. ↻ turns it 45°. Your lights change only when you click Apply, and only the ones already on."),

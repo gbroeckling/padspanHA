@@ -113,6 +113,10 @@ const FPS = await import(`./live_aboard_fps.js${new URL(import.meta.url).search}
 const STOREY = await import(`./live_aboard_storey.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_storey failed to load", err); return null; });
 
+// West Coast Forest's trees (live_aboard_forest.js): fetched the first time a
+// view follows the Atlas with that theme on (syncForest); otherwise never.
+let FOREST = null, forestImport = null;
+
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
 /** Add data via plans with no 3D on this device: the list, in `box` (live_aboard_plans.js, loaded on this one click). */
@@ -544,6 +548,9 @@ function createSlot(slotKey){
   // Studio could not be made on this slot (createStudio threw): the normal
   // look from then on, warned once, not tried again on every sync.
   let studioFailed = false;
+  // West Coast Forest's trees (live_aboard_forest.js), made only while Live
+  // Aboard follows the Atlas with that theme on; fetched the first time it does.
+  let forest = null, forestFailed = false;
   // Furniture (P2 Furnish, live_aboard_furnish.js): every piece drawn on its
   // floor (layer). furnishP: what the Furnish tool needs of the host (its
   // connection, toast, settings, states), from the newest card; topCb: the
@@ -666,6 +673,8 @@ function createSlot(slotKey){
     wx = null;
     try { if (studio) studio.dispose(); } catch (_) { /* gone with the scene */ }
     studio = null;
+    try { if (forest) forest.dispose(); } catch (_) { /* gone with the scene */ }
+    forest = null;
     // Give the GPU its context back: the flat Atlas needs none.
     try { if (renderer) { renderer.dispose(); if (failed !== "context_lost") renderer.forceContextLoss(); } } catch (_) { /* best effort */ }
     renderer = null; scene = null; house = null; floorsUi = []; lights = [];
@@ -3280,6 +3289,8 @@ function createSlot(slotKey){
       if (wallMoves || wallCapped) delete quality.measured.high;
     }
     const step = HOUSE.qualityStep(quality.setting, true, quality.measured);
+    // Too slow with the trees: the trees go, and it is timed again without them.
+    if (step.fallback && forest) { dropForest(true); quality.measured = {}; decideQuality(); return; }
     if (step.fallback) { fail(step.fallback); return; }
     if (step.measure) {
       quality.measuring = step.measure; quality.intervals = []; quality.t0 = 0; quality.last = 0;
@@ -3965,6 +3976,7 @@ function createSlot(slotKey){
       if (lampsDirty || lampTarget.distanceToSquared(cam.target) > 1) assignLamps();
       const vp = viewports();
       if (studio) studio.prepare(camera);
+      if (forest) forestFrame();
       if (!vp.plan) renderer.render(scene, camera);
       else {
         // Furnish: the 3D view and the plan, each in its own part of the one canvas.
@@ -4707,6 +4719,51 @@ function createSlot(slotKey){
     }
     requestRender();
   }
+  /** West Coast Forest's trees (live_aboard_forest.js): only with the Atlas's
+   *  look, Showcase on and that theme (below Pro, Showcase is off). Never the
+   *  view's failure: trees that cannot be drawn are simply not drawn. */
+  function syncForest(){
+    const want = !!atlas && atlas.on && atlas.theme === "west_coast_forest" && !forestFailed;
+    if (!want) { dropForest(false); return; }
+    if (!FOREST) {
+      if (!forestImport) {
+        forestImport = import(`./live_aboard_forest.js${new URL(import.meta.url).search}`)
+          .then((m) => { FOREST = m; }, (err) => { console.warn("PadSpan: live_aboard_forest failed to load", err); });
+      }
+      forestImport.then(() => { if (FOREST) redraw(); else forestFailed = true; });
+      return;
+    }
+    try {
+      if (!forest) {
+        forest = FOREST.createForest({ THREE, scene, renderer });
+        // The frame-time check timed the house without the trees: timed again with them.
+        quality.measured = {}; if (!quality.measuring) quality.profile = null;
+        wallMoves = wallCapped = false;
+        requestRender();
+      }
+      forest.house({ rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02, seed: FOREST.forestSeed(lastP && lastP.model) });
+    } catch (err) { console.warn("PadSpan: the forest failed", err); dropForest(true); }
+  }
+  function dropForest(failedToo){
+    if (failedToo) forestFailed = true;
+    if (!forest) return;
+    try { forest.dispose(); } catch (_) { /* best effort */ }
+    forest = null;
+    if (ground) ground.visible = true;
+    if (gridLines) gridLines.visible = true;
+    requestRender();
+  }
+  /** Before a frame: the trees take over from the ground and its grid, except
+   *  in the Plans tool's quiet view, Edit and Furnish, where the house is on its
+   *  plain ground as ever. */
+  function forestFrame(){
+    try {
+      const on = !quiet && !furnishOn && !(editor && editor.active);
+      forest.prepare(camera, cam.target, { on, night: nightK, profile: quality.profile || quality.measuring || "low" });
+      if (ground) ground.visible = !on;
+      if (gridLines) gridLines.visible = !on;
+    } catch (err) { console.warn("PadSpan: the forest failed", err); dropForest(true); }
+  }
   /** Rain and snow (live_aboard_weather.js): the flat Atlas's own decision,
    *  from the host's own weather inputs, only while Rain and snow is on
    *  (settings.atlas_3d_weather: on unless false). Off, none of it is made,
@@ -4734,7 +4791,7 @@ function createSlot(slotKey){
         colour: studio ? studio.rain() : plainSky() ? "#ffffff" : (theme3d && theme3d.weather) || WEATHER.colourOf(p.showcase && p.showcase.theme),
         snowColour: plainSky() ? "#ffffff" : WEATHER.colourOf(p.showcase && p.showcase.theme),
         profile: quality.profile || quality.measuring || "low", nowMs: Date.now(),
-        house: { key: `${shellGen}|${topElev}`, rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02,
+        house: { key: `${shellGen}|${topElev}${forest ? "|forest" : ""}`, ...(forest ? FOREST.RAIN_REACH : {}), rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02,
                  shown: (fl) => HOUSE.floorShown(fl, topElev),
                  walls: () => floorsUi.filter(F => F.group.visible).flatMap(F => F.pieces.map(P => ({ P, F }))) } });
       if (changed) requestRender();
@@ -4841,6 +4898,7 @@ function createSlot(slotKey){
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
     if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
     applySun(p);
+    syncForest();
     if (setting !== quality.setting || (!quality.profile && !quality.measuring)) {
       quality.setting = setting; quality.measured = {}; quality.profile = null; wallMoves = wallCapped = false;
       decideQuality();
@@ -5106,6 +5164,8 @@ function createSlot(slotKey){
     },
     /** The harness counts what covers what, and asks for every real height. */
     _raised: { overlaps: () => (raisedL ? raisedL.overlaps() : null), disable: (on) => { if (raisedL) raisedL.disable(on); } },
+    /** The forest as drawn, and the draws of the last frame (the harness reads them). */
+    _forest(){ return { forest: forest ? forest.state() : null, calls: renderer ? renderer.info.render.calls : 0, triangles: renderer ? renderer.info.render.triangles : 0, frames, profile: quality.profile, measuring: quality.measuring, measured: { ...quality.measured } }; },
     /** Put the camera somewhere (the harness frames a shot). */
     _look(theta, phi, target, radius){
       cam.moved = true; cam.needsFit = false;

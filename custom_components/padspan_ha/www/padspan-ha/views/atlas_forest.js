@@ -63,7 +63,7 @@ export function forestSeed(model){
   return h >>> 0;
 }
 // Which kind of tree grows here: stands, not a mix of single trees.
-function standOf(seed, x, y){
+export function standOf(seed, x, y){
   const n = (cx, cy, salt) => {
     const gx = Math.floor(x / cx), gy = Math.floor(y / cy), fx = x / cx - gx, fy = y / cy - gy;
     const at = (a, b) => cellRandom(seed, a, b, salt)();
