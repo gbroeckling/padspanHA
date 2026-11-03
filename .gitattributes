@@ -1,2 +1,4 @@
 # Shell scripts run on Linux (5810 cron): never check them out with CRLF.
 *.sh text eol=lf
+# Generated tables: never touch their bytes.
+*.bin binary

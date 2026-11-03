@@ -8,6 +8,7 @@
 
 // Locate lives here as an option (Garry, 2026-09-23): it works on where the
 // followed object is right now, the same live poll Follow already runs.
+const { deviceName, pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const locateView =
   await import(`./locate.js${new URL(import.meta.url).search}`);
 
@@ -95,7 +96,8 @@ export function render(ctx) {
         ? "Track exactly where a person or object is right now."
         : "Track a tag's real-time location. Position updates every ~5 s in Live mode."),
     ]),
-    dataMode !== "live"
+    !ctx.state._dataModeKnown ? null
+      : dataMode !== "live"
       ? el("span", { class: "badge warn" }, "Sample mode — switch to Live for real data")
       : el("span", { class: "badge" }, "Live · auto-refresh 5 s"),
   ]);
@@ -162,8 +164,8 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
     const ra = a.rssi ?? -999, rb = b.rssi ?? -999;
     if (ra !== rb) return rb - ra;
     if (!!a.identified !== !!b.identified) return a.identified ? -1 : 1;
-    const na = a.user_label || a.name || a.entity_id || a.address || "";
-    const nb = b.user_label || b.name || b.entity_id || b.address || "";
+    const na = deviceName(a, "");
+    const nb = deviceName(b, "");
     return na.localeCompare(nb);
   });
 
@@ -177,7 +179,7 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
     if (!id) continue;
     if (_isScanner(o)) continue;
     if (_quietMode && !o.user_label && !o.identified && !ctx.actions.followedHas(id)) continue;
-    const name = o.user_label || o.private_ble_name || o.name || o.entity_id || id;
+    const name = pickName(o, id);
     const room = o.room ? ` · ${o.room}` : "";
     const rssiStr = o.rssi != null ? ` (${o.rssi} dBm)` : "";
     const kind = o.kind === "entity" ? "[Entity]" : (o.identified ? "[Tagged]" : "[Unidentified]");
@@ -275,7 +277,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
   const _sid = (source) => _rsid(source || "");
   const obj    = chosen;
   const userLabel = obj.user_label || "";
-  const name   = userLabel || obj.name || obj.entity_id || obj.address || "Unknown";
+  const name   = deviceName(obj, "Unknown");
   const room   = obj.room || "—";
   const addr   = obj.address || "";
   // Resolve canonical address for tag/rename (same logic as _showObjectDetail)
@@ -294,6 +296,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
   const allAddr = new Set();
   if (addr) allAddr.add(addr.toUpperCase());
   for (const a of (obj.all_addresses || [])) allAddr.add(String(a).toUpperCase());
+  if (obj.label_link) allAddr.add(String(obj.label_link.address).toUpperCase());
   const seenBy = ads
     .filter(a => {
       if (!a.address) return false;
@@ -350,6 +353,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
         el("div", { style: "font-size:28px;font-weight:800;color:#52b788;margin-top:2px" }, room),
         floor !== "—" ? el("div", { class: "muted", style: "margin-top:4px" }, `Floor: ${floor}`) : null,
         lastSeen ? el("div", { class: "muted", style: "margin-top:8px" }, `Last seen: ${lastSeen}`) : null,
+        ctx.actions.labelLines ? ctx.actions.labelLines(obj, "own") : null,
       ].filter(Boolean)),
     ]);
   }
@@ -385,6 +389,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
       ].filter(Boolean)),
     ]),
     addr ? el("div", { class: "muted", style: "font-size:11px;margin-top:8px" }, `Address: ${addr}`) : null,
+    ctx.actions.labelLines ? ctx.actions.labelLines(obj, "own") : null,
   ].filter(Boolean));
 }
 
@@ -464,7 +469,7 @@ function _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios
       s += `<circle cx="${tx}" cy="${ty}" r="13" fill="#5eead4" opacity="0.2"/>`;
       s += `<circle cx="${tx}" cy="${ty}" r="9"  fill="#5eead4" opacity="0.95"/>`;
       s += `<circle cx="${tx}" cy="${ty}" r="4.5" fill="#071008"/>`;
-      const lbl = (chosen.user_label || chosen.name || "Tag").substring(0, 14);
+      const lbl = deviceName(chosen, "Tag").substring(0, 14);
       s += `<text x="${tx}" y="${ty + 26}" text-anchor="middle" fill="#5eead4" font-size="11" font-weight="600">${_esc(lbl)}</text>`;
     }
   });
@@ -481,7 +486,7 @@ function _buildMapCard(ctx, el, helpBtn, snap, chosen, haAreas, haFloors, radios
     ]),
     el("div", { class: "muted", style: "margin-bottom:10px;font-size:12px" },
       chosenRoom
-        ? `Showing: ${chosen.user_label || chosen.name || "Tag"} is in ${chosenRoom}`
+        ? `Showing: ${deviceName(chosen, "Tag")} is in ${chosenRoom}`
         : "Tag has no room assignment yet."),
     wrap,
   ]);
@@ -539,7 +544,7 @@ function _buildLog(el, history) {
 // ── Alert configuration (per-device, inline in Follow) ────────────────────────
 function _buildAlerts(ctx, el, helpBtn, addr, chosen, haAreas, dataMode, isBasic) {
   const cfg = ctx.state.followAlertConfig[addr] || {};
-  const name = chosen.user_label || chosen.name || addr || "tag";
+  const name = deviceName(chosen, addr || "tag");
   // An email, or a picked notify target (a phone needs no email).
   const saved = !!((cfg.email || cfg.notify_service) && (cfg.on_room_change || cfg.on_arrive || cfg.on_depart));
 

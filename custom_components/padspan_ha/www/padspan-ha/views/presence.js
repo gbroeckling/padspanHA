@@ -9,6 +9,7 @@
  * verifying that objects are detected where expected.
  */
 
+const { pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 export function render(ctx){
   const { el, radioShortId } = ctx.helpers;
   const _sid = (source) => radioShortId ? radioShortId(source || "") : "";
@@ -108,7 +109,7 @@ export function render(ctx){
 
         const devRow = d => {
           const o = objIndex.get(d.addr);
-          const label = (o && o.user_label) || (o && o.name) || d.name || d.addr;
+          const label = o ? pickName(o, d.addr) : (d.name || d.addr);
           const rssiStr = d.rssi!=null ? `RSSI ${d.rssi}` : "";
 
           // Use stable identifier for private_ble/ibeacon — their raw BLE

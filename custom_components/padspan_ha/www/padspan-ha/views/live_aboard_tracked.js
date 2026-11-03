@@ -87,7 +87,7 @@ export function trackedOf(snapshot){
     if (!key || (!placed && !room)) continue;
     (placed ? out : byRoom).push({ key, x: placed ? x : null, y: placed ? y : null, roomOnly: !placed, floor_id: o.floor_id || null,
                linked: Array.isArray(o.linked_entities) ? o.linked_entities.map(String) : [],
-               label: String(o.user_label || o.private_ble_name || o.name || ""), shown: !!(o.user_label || o.identified),
+               label: String(o.best_name || o.user_label || o.private_ble_name || o.name || ""), shown: !!(o.user_label || o.identified),
                beacon: o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon",
                room, age: fin(o.age_s), sure: fin(o.knn_confidence),
                heard: (Array.isArray(o.sources) ? o.sources : []).map(s => (s && typeof s === "object" ? { source: String(s.source || ""), rssi: fin(s.rssi) } : { source: String(s || ""), rssi: null }))
@@ -562,16 +562,26 @@ export function createTrackedLayer(ctx){
     else I.walking = I.at.distanceTo(I.to) > 0.02;
     // A tag's ring lies on its floor and its stem stands on it; its name is
     // over it (the root is at the tag, its floor below it).
-    const down = F.fl.elev - y;
-    if (I.halo) I.halo.position.y = down + 0.02;
-    if (I.stem) { const a = I.stem.geometry.attributes.position; a.setY(0, down + 0.02); a.needsUpdate = true; I.stem.geometry.computeBoundingSphere(); }
+    I.down = F.fl.elev - y;
+    foot(I);
     if (I.name) I.name.sp.position.y = h + 0.06;
     pose(I, 0);
   }
   /** Where it stands and how it moves (t: ms). */
+  /** A tag's ring on its floor and its stem up to it, wherever it stands on
+   *  that line (I.lift: drawing only), in the root's own turn. */
+  function foot(I){
+    if (!I.halo) return;
+    const c = Math.cos(I.yaw), s = Math.sin(I.yaw), x = -I.lift.x * c + I.lift.z * s, z = -I.lift.x * s - I.lift.z * c, y = I.down - I.lift.y + 0.02;
+    I.halo.position.set(x, y, z);
+    const a = I.stem.geometry.attributes.position;
+    a.setXYZ(0, x, y, z); a.needsUpdate = true;
+    I.stem.geometry.computeBoundingSphere();
+  }
   function pose(I, t){
-    I.root.position.copy(I.at);
+    I.root.position.copy(I.at).add(I.lift);
     I.root.rotation.y = I.yaw;
+    if (I.lift.x || I.lift.z) foot(I);
     if (I.kind === "person" && I.body) {
       // A simple walk: a step's bob and sway while moving; still otherwise.
       const s = t / 1000, step = I.walking ? Math.abs(Math.sin(Math.PI * 1.9 * s)) : 0;
@@ -669,7 +679,7 @@ export function createTrackedLayer(ctx){
         let I = items.get(w.key);
         if (!I) {
           I = { key: w.key, kind: w.kind, root: new THREE.Group(), body: null, look: null, F: null, at: new THREE.Vector3(), to: new THREE.Vector3(),
-                yaw: 0, walking: false, placed: false, halo: null, stem: null, name: null, card: null };
+                yaw: 0, walking: false, placed: false, halo: null, stem: null, name: null, card: null, lift: new THREE.Vector3(), down: 0 };
           I.root.name = "tracked:" + w.key; items.set(w.key, I); changed = true;
         }
         if (rebuilt) { I.F = null; if (I.root.parent) I.root.parent.remove(I.root); }
@@ -722,6 +732,30 @@ export function createTrackedLayer(ctx){
       for (const I of items.values()) if (I.walking && shown(I)) return WALK_MS[quality];
       return 0;
     },
+    /** Is a tag on its stem drawn at all? */
+    get tagCount(){ let n = 0; for (const I of items.values()) if (I.kind === "beacon" && I.name && I.F) n++; return n; },
+    /** The tags on their stems, to keep clear of the words: the name and the
+     *  tag move up and down the stem together; on the move, they stay as they are. */
+    raised(){
+      const out = [];
+      for (const I of items.values()) {
+        if (I.kind !== "beacon" || !I.name || !I.F) continue;
+        const S = I.body && I.body.g.userData && I.body.g.userData.size, h = (S ? S.h * I.body.g.scale.y : 0) + 0.06;
+        const px = LABEL_PX * (ctx.uiScale ? ctx.uiScale() : 1), F = I.F;
+        out.push({ id: I.key, shown: shown(I), hold: I.walking, home: new THREE.Vector3(I.at.x, I.at.y + h, I.at.z), lift: I.lift,
+                   parts: [{ ox: 0, oy: -px / 2, w: px * I.name.sp.userData.aspect, h: px * 46 / 48, text: true }],
+                   minY: F.fl.elev + 0.45 + h, maxY: ctx.floorAbove && ctx.floorAbove(F) ? F.fl.elev + F.fl.h - 0.3 + h : Infinity,
+                   hides: () => false,
+                   set: (x, y, z) => { I.lift.set(x, y, z); pose(I, 0); foot(I); } });
+      }
+      return out;
+    },
+    /** The words showing: tags' names. */
+    texts(){
+      const out = [];
+      for (const I of items.values()) if (I.name && shown(I)) out.push({ sprite: I.name.sp, tw: 1, th: 46 / 48, owner: I.key, id: `tag ${I.name.text}` });
+      return out;
+    },
     /** The tags, scanners and people on floors that show, for a tap: {key,
      *  kind ("tag" | "scanner" | "person"), at (world: the middle of what is
      *  drawn), pts (a person: more of them, feet to head), live() (a person:
@@ -770,7 +804,7 @@ export function createTrackedLayer(ctx){
       const r = (v) => Math.round(v * 1000) / 1000;
       return [...items.values()].map(I => ({ key: I.key, kind: I.kind, floor: I.F ? I.F.fl.id : null, at: [r(I.at.x), r(I.at.y), r(I.at.z)],
         to: [r(I.to.x), r(I.to.y), r(I.to.z)], yaw: r(I.yaw), walking: I.walking, marker: !!I.marker, plain: !!I.plain, shown: shown(I),
-        name: I.name ? I.name.text : null, halo: I.halo ? r(I.halo.scale.x) : null, ground: I.halo ? r(I.at.y + I.halo.position.y) : null,
+        name: I.name ? I.name.text : null, halo: I.halo ? r(I.halo.scale.x) : null, ground: I.halo ? r(I.at.y + I.lift.y + I.halo.position.y) : null,
         dim: !!I.dim, opacity: I.body ? Math.max(...(I.body.dimMats && I.body.dimMats.length ? I.body.dimMats.map(m => m.opacity) : [1])) : null,
         pinned: !!I.pinned, card: I.card ? { title: I.card.title, lines: I.card.lines.slice() } : null }));
     },

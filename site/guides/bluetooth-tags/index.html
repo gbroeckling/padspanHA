@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which Bluetooth tag works in Home Assistant? AirTag, Tile and beacons for keys, pets and guests | PadSpan HA</title>
+<meta name="description" content="AirTags and SmartTags keep changing their Bluetooth address, so Home Assistant can't recognise them from room to room. A beacon with a fixed ID can be. Which tag to buy for keys, pets and guests, how to test one, and how to set it up.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/bluetooth-tags/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/bluetooth-tags/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/bluetooth-tags/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/bluetooth-tags/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Which Bluetooth tag works in Home Assistant?">
+<meta property="og:description" content="AirTags change their address on purpose. Beacons don't. What to buy for keys, pets and guests, and how to test a tag before you rely on it.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/bluetooth-tags/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/bluetooth-tags/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1>Which Bluetooth tag works in Home Assistant?</h1>
+<p class="lead">To know which room your keys, your dog or a guest is in, Home Assistant has to recognise their tag every time a Bluetooth proxy hears it. The best-known tags are built to stop that: an AirTag keeps changing its Bluetooth address so that nobody can follow it around. A plain beacon with a fixed ID has no such problem, and it works in Bermuda, PadSpan, ESPresense and NeonPlan alike.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/">See keys and a guest's tag on a demo house</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Install PadSpan</a>
+</div>
+<figure>
+  <a href="/demo/media/estate-3d-guest-tag.jpg"><img src="/demo/media/estate-3d-guest-tag.jpg" width="1920" height="1080" alt="Close in on PadSpan's demo house in 3D: one tag marked Keys and another marked Jordan, Guest, among the furnished rooms of the main floor" loading="lazy"></a>
+  <figcaption>Tags with their names on the demo house, in Live Aboard (PadSpan Pro): the keys, and a tag lent to a guest. The names are made up. <a href="/demo/">Open it yourself</a> (the demo runs as Pro).</figcaption>
+</figure>
+
+<h2>The short version</h2>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>Tag</th><th>What it sends</th><th>Room by room?</th></tr>
+  <tr><td><b>A beacon with a fixed iBeacon ID</b><br>Feasycom, Blue Charm, Minew, Pawscout and others</td><td>The same ID every time, and many let you set how often</td><td><b>Yes</b>, in Bermuda, PadSpan, ESPresense and NeonPlan. Buy this kind.</td></tr>
+  <tr><td><b>Anything with one fixed address</b><br>Cheap key finders, Shelly BLU and other BTHome devices, Xiaomi thermometers, RuuviTag, simple watches</td><td>The same Bluetooth address every time</td><td><b>Yes</b>, if it sends every few seconds. Sensors that only send on an event won't hold a room, and many devices go quiet while connected to a phone, so test it.</td></tr>
+  <tr><td><b>Tile</b></td><td>Older ones keep one address. Life360, which owns Tile, says it's moving to changing addresses, and owners report it on newer ones</td><td><b>Maybe.</b> Test yours, and don't buy one for this.</td></tr>
+  <tr><td><b>AirTag and other Find My tags</b><br>Chipolo ONE Spot, eufy and others</td><td>A new address every 15 minutes near the owner's iPhone, once a day away from it</td><td><b>Not in Bermuda, ESPresense or NeonPlan.</b> PadSpan can keep a named tag going while it stays in range (experimental, <a href="#airtags">see below</a>).</td></tr>
+  <tr><td><b>Samsung SmartTag</b></td><td>A new ID about every 15 minutes near its owner</td><td><b>Not reliably.</b></td></tr>
+  <tr><td><b>Google Find Hub tags</b><br>Moto Tag, Chipolo POP, Pebblebee, Pixel Tag</td><td>A new ID about every 17 minutes</td><td><b>No</b>, except with experimental add-ons.</td></tr>
+  <tr><td><b>A phone or smartwatch</b></td><td>A changing address, but its IRK key or its own beacon identifies it</td><td><b>Yes</b>, after one step per device: <a href="/guides/phone-room-presence/">Which room is my phone in?</a></td></tr>
+</table>
+</div>
+<p>You also need at least one Bluetooth scanner: an ESPHome proxy, a Shelly Gen2+ <a href="/guides/shelly-bluetooth-proxy/">set up as a scanner</a>, or Home Assistant's own adapter. One is enough to tell home from away. For rooms, put one in every room you want to tell apart: <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></p>
+
+<h2>Why the famous tags change their address</h2>
+<p>A proxy only knows what a tag sends over the air. Apple's, Samsung's and Google's tags change their address and their ID on a schedule, so that a stranger can't use a tag to follow someone. The draft standard for such tags, <a href="https://datatracker.ietf.org/doc/draft-ietf-dult-accessory-protocol/">DULT</a>, asks for exactly that: a new address every 15 minutes near the owner, and every 24 hours away from the owner. Apple's second-generation AirTag, from January 2026, still has "unique Bluetooth identifiers that change frequently". Without the owner's cryptographic keys, nothing in what the tag sends links one address to the next, so Home Assistant just sees a string of new devices.</p>
+<p>A beacon does the opposite. It sends the same ID, a UUID, major and minor, every time, so it can be recognised even if its address changes. The trade-off is that anyone with a Bluetooth scanner can recognise that ID too. That's no worry for the dog, but think about it for something you carry around town.</p>
+
+<h2>What to buy</h2>
+<p>These are examples from the makers' own pages and from <a href="https://www.home-assistant.io/integrations/ibeacon/#known-working-devices">Home Assistant's list of known working iBeacons</a>. We haven't tested them ourselves, and the specs are the makers'.</p>
+<ul>
+  <li><b>For keys:</b> a small beacon with a hole for the key ring. The <a href="https://www.feasystore.com/product/fsc-bp103c/">Feasycom FSC-BP103C</a> is IP66 and rated for up to 3 years at one advert every 1.3 seconds; you can set it from 0.1 to 10 seconds. The <a href="https://www.minewstore.com/product/e8-asset-tracking-tag">Minew E8</a> has a key-chain hole and is rated for a year. Blue Charm's <a href="https://bluecharmbeacons.com/product/bluetooth-ble-multi-beacon-bc011">BC011</a> and <a href="https://bluecharmbeacons.com/product/bluetooth-ble-ibeacon-bc021-multibeacon-with-button-trigger-and-motion-sensor">BC021</a> are on Home Assistant's list.</li>
+  <li><b>For a collar:</b> the <a href="https://pawscout.com/shop/pawscout-tag/">Pawscout Tag</a> is made for cats and dogs (IPX7) and is on Home Assistant's list too. A bigger dog can carry a waterproof beacon such as the <a href="https://www.feasystore.com/product/fsc-bp108b/">Feasycom FSC-BP108B</a> (IP67, 48 × 37 mm). GPS collars vary: one user <a href="https://github.com/agittins/bermuda/pull/863">reports a Tractive tracks fine in Bermuda</a> (October 2026), and another <a href="https://github.com/agittins/bermuda/issues/419">saw a Fi go 90 minutes without an advert</a> while paired (January 2025). Check how a tag holds its coin cell, since a <a href="https://www.petpoisonhelpline.com/poison/batteries/">swallowed disc battery can injure a pet</a>.</li>
+  <li><b>For guests:</b> a few of the key-ring beacons, kept in a drawer. Multi-packs can ship with one shared ID, so give each beacon its own minor in the maker's app. A spare phone works as well.</li>
+</ul>
+<p>How often a tag sends is a trade-off. <a href="https://www.feasycom.com/datasheet/fsc-bp108b.pdf">Feasycom's lab figures</a> for one beacon at 0 dBm run from 271 days at 0.1 seconds to 2,091 days at one second. Around one second is a good start. By default PadSpan checks every 5 seconds and doesn't use readings older than 15 seconds to place a tag, so one that only sends now and then won't hold its room well.</p>
+
+<h2>Test a tag before you rely on it</h2>
+<p>Makers rarely say what a tag sends, so look for yourself. It takes a few minutes now and a look tomorrow.</p>
+<ol>
+  <li>Keep the tag's phone nearby, if it has one, with the tag set up in its app. A Find My tag away from its owner can keep one address for a whole day and fool you.</li>
+  <li>Open Home Assistant's <a href="https://my.home-assistant.io/redirect/bluetooth_advertisement_monitor">Bluetooth advertisement monitor</a>, or <a href="https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-mobile">nRF Connect</a> on an Android phone. iPhones don't show apps a device's Bluetooth address.</li>
+  <li>Hold the tag next to a proxy, or next to the Android phone, to pick it out by its signal. Write down its address. nRF Connect also shows an iBeacon's UUID, major and minor.</li>
+  <li>Look again after an hour, and again after a day.</li>
+</ol>
+<ul>
+  <li><b>The same address or the same iBeacon ID:</b> it can be recognised, and it holds a room if it sends every few seconds.</li>
+  <li><b>Gone while its phone is connected:</b> it stops sending during a connection, which <a href="https://github.com/agittins/bermuda/wiki/Supported-devices">Bermuda's docs warn about</a>. Disconnect it from its app, or choose another.</li>
+  <li><b>A new address each time, and no fixed ID:</b> nothing can recognise it without its cryptographic keys.</li>
+</ul>
+
+<h2>Set it up in PadSpan</h2>
+<p>This part is free. PadSpan reads Home Assistant's own Bluetooth data, and each room comes from its scanner's Home Assistant area.</p>
+<ol>
+  <li>Hold the tag next to a proxy.</li>
+  <li>In PadSpan, open <b>Follow</b> and <b>Choose a tag to follow</b>. The list starts with the strongest signal, so your tag should be near the top, marked <b>[Unidentified]</b>.</li>
+  <li>Pick it and select <b>Name this tag</b>. Keep the name short, such as "Keys". (<b>Overview → Objects → All objects → Tag → Save label</b> does the same.)</li>
+</ol>
+<p>The name is what gives the tag its Home Assistant entities. For a tag called Keys:</p>
+<ul>
+  <li><code>device_tracker.keys</code>: its state is the room, <code>not_home</code> once it hasn't been heard for five minutes, or <code>unknown</code> while it has no room. Change the five minutes under <b>Settings → Presence → Home/Away Timeout → Away timeout</b>. (From the 0.38.202 beta, Presence is called Tracking.)</li>
+  <li><code>sensor.keys_area</code>: the room, with <code>room_confidence</code> as an attribute, plus <b>Distance</b> sensors.</li>
+</ul>
+<p>The same <b>Follow</b> screen has <b>Movement Alerts</b>, for when the tag changes room, arrives home or leaves. <b>Traceback</b> keeps its last 7 days. A named tag never counts as a person: PadSpan's people count leaves out keys, beacons, boxes and vehicles, so keys on the hall table don't make an empty house look occupied. Two things it can't do are ring a tag and read its battery, so a tag with a flat battery looks the same as one that left the house.</p>
+<p>Here's one automation to start with, for when you leave and your keys don't. The person needs a tracker that knows when they've left, such as the Companion app:</p>
+<pre><code>alias: Keys left behind
+triggers:
+  - trigger: state
+    entity_id: person.alex
+    to: not_home
+    for: "00:06:00"
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: device_tracker.keys
+        state: not_home
+actions:
+  - action: notify.mobile_app_alex_phone
+    data:
+      message: "Your keys are still at home: {{ states('device_tracker.keys') }}"</code></pre>
+<p>The six minutes outlast PadSpan's five-minute away timeout, so keys in your pocket have gone <code>not_home</code> by the time it checks. Raise it if you raised the timeout. A room works the same way: <code>entity_id: device_tracker.dog</code> with <code>to: Garage</code> tells you the dog went into the garage. Spell the room as it appears in <a href="https://my.home-assistant.io/redirect/developer_states/">Settings → Tools → States</a>. To ask by voice, PadSpan has an Assist intent that names the room for a tag's name, once you add the sentences in <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/docs/GETTING_STARTED.md">Getting Started</a>.</p>
+
+<h2>Lending a tag to a guest</h2>
+<p>Give each guest a small Bluetooth tag for their visit, and PadSpan shows which room they're in, wherever your proxies reach. <b>Guest tags</b> are new in 0.38.178, so they're in the current stable. They're free, and off until you turn them on.</p>
+<ol>
+  <li>Turn on <b>Settings → Presence → Guest tags → Use tags as guest tags</b>. It takes a Home Assistant administrator. Here you also choose how long a finished stay's report is kept: not at all, 7, 30 (the default) or 90 days.</li>
+  <li>Name a spare tag as above, such as "Guest tag 1". In the new <b>Guests</b> tab, pick it under <b>Use as a guest tag</b> and select <b>Add</b>.</li>
+  <li>On the tag, select <b>Lend to a guest</b>. Enter who has it and, if you want, until when, which rooms they shouldn't go into, whether to tell you when they arrive or leave, and quiet hours.</li>
+  <li><b>Guests → Staying now</b> shows where they are, since when, and the time spent in each room. When it comes back, select <b>Tag returned</b>, and the report moves to <b>Past stays</b>.</li>
+</ol>
+<p>Tell your guest the tag is tracked, and lend it only if they agree. A beacon won't warn anyone the way an AirTag does, so the telling is up to you, and <a href="https://support.apple.com/en-us/119874">tracking people without their consent is a crime in many countries</a>. Their name stays in your Home Assistant: it isn't in the usage report or a PadSpan backup. The Overview marks the tag with a <b>Guest</b> badge, and the Atlas and Live Aboard show it too, when PadSpan has a spot for it, once <b>Show tags &amp; scanners</b> is on (Pro). A <a href="/guides/large-homes/">big house with a wall screen</a> (Pro) is where this shows best.</p>
+
+<h2 id="airtags">Already own AirTags?</h2>
+<ul>
+  <li><b>Home or away:</b> Find My knows where they are, and people bring that into Home Assistant by other routes. <a href="https://www.howtogeek.com/airtags-are-the-best-home-assistant-accessory-youve-overlooked/">How-To Geek's piece</a> (July 2026) uses an Apple Shortcut, HomeKit Bridge and a Mac at home reading its Find My cache. That gets you zones and home or away, not a room.</li>
+  <li><b>In PadSpan (free, experimental):</b> turn on <b>Settings → Features → MAC Rotation Bridging</b>, which is off by default, and name the tag. When the tag changes address, PadSpan carries its name, room and history over if it's clear which one it is: the same kind of tag, the old address has stopped, the new one appeared at that moment, and your scanners hear it in the same place. For a Find My tag it won't guess. Two tags lying together that change at the same moment stay unlinked, and a tag that was out of range when it changed comes back as a new device, so you'd name it again. The same switch links other rotating devices by what they advertise, which can occasionally link the wrong one.</li>
+  <li><b>So it suits a tag that stays home,</b> in a bag or on a remote. It doesn't suit the keys you carry out of the house: gone long enough for an address change, they come back nameless.</li>
+  <li><b>With the tag's cryptographic keys:</b> <a href="https://github.com/malmeloo/hass-FindMy">hass-FindMy</a>, an experimental integration, can recognise AirTags on ESPHome proxies once you've imported each tag and signed in with an Apple account. It gives you a tag near a proxy, not a room; <a href="https://github.com/agittins/bermuda/pull/844">a pull request to add rooms through Bermuda</a> is still open.</li>
+  <li><b>Not for guests or pets.</b> Apple built AirTag <a href="https://www.apple.com/newsroom/2022/02/an-update-on-airtag-and-unwanted-tracking/">"not to track people or another person's property"</a>. A guest carrying your AirTag would get Apple's stalking alert, <a href="https://support.apple.com/en-us/119874">"AirTag Found Moving With You"</a>, on their iPhone, and an AirTag away from its owner for a while plays a sound when it moves. For a guest, use a beacon and tell them it's tracked.</li>
+</ul>
+
+<h2>Free, and what Pro adds</h2>
+<p>Naming tags, the Home Assistant entities, Movement Alerts, Traceback, guest tags, MAC Rotation Bridging and the named tags on the Overview's map are all free. PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, so every light and device sits where it really is, and <b>Show tags &amp; scanners</b> (off by default) puts each tag it can place on it, with its name. The same goes for Live Aboard, the 3D house (still experimental), which you look into the way you'd look into a house in The Sims. <b>Locate</b> tells you which way to walk, room by room, from the phone you're carrying to the tag, then, when it has a spot for both, shows the metres once you're in the same room. You can try all of Pro free for 90 days in <b>Settings → Features → PadSpan licence</b>, no card, just an email for the licence key. An administrator starts it, it needs the opt-in usage report on, and that stays on until the trial ends.</p>
+
+<h2>The same tags in other projects</h2>
+<ul>
+  <li><b><a href="https://github.com/agittins/bermuda/wiki/Supported-devices">Bermuda</a></b> tracks fixed addresses, iBeacons and phones by IRK, and lists AirTags and Find Hub tags under "Currently NOT Supported". You pick a device in its options (<b>Settings → Devices &amp; services → Bermuda → Configure → Select Devices</b>). PadSpan <a href="/guides/bermuda/">runs next to it</a> on the same proxies.</li>
+  <li><b><a href="https://espresense.com/devices/">ESPresense</a></b> takes "anything that follows the iBeacon or Eddystone standards". On AirTags it says "we can only count how many are currently not connected to a phone".</li>
+  <li><b><a href="https://github.com/Mastershort/neonplan3d/blob/main/docs/manual.md">NeonPlan 3D</a></b> locates key tags "with a fixed address or as an iBeacon", and says "AirTags do not work".</li>
+  <li><b><a href="https://www.home-assistant.io/integrations/ibeacon/">Home Assistant's iBeacon Tracker</a></b> is built in. It gives an estimated distance and presence, not a room, and it doesn't support beacons whose major and minor keep changing.</li>
+</ul>
+
+<h2>When a tag won't show up</h2>
+<ul>
+  <li><b>It isn't in the list at all.</b> Some tags sleep until they've been paired once or a button is pressed; <a href="https://community.home-assistant.io/t/presence-detection-with-bluetooth-key-tags/682515">one owner's tags switched themselves off</a> until they'd been paired with the maker's app, updated and unpaired. Others go quiet while connected to their app.</li>
+  <li><b>Its name keeps disappearing.</b> It's changing its address. Run the test above.</li>
+  <li><b>It's heard but never gets a room.</b> Check that its scanners have areas in Home Assistant: <b>Health → Scanner → Room Mappings</b> lists each scanner's room.</li>
+  <li><b>It jumps between rooms.</b> That's signal noise, and <a href="/guides/room-flapping/">Why does my phone jump between rooms?</a> explains what helps. A tag low on a collar has it harder: <a href="https://github.com/agittins/bermuda/issues/343">Bermuda's author points out</a> that a pet lying on top of its tag can block the signal.</li>
+</ul>
+
+<h2>Sources</h2>
+<ul>
+  <li>Address changes: the <a href="https://datatracker.ietf.org/doc/draft-ietf-dult-accessory-protocol/">IETF DULT draft</a>, Apple's <a href="https://www.apple.com/newsroom/2026/01/apple-introduces-new-airtag-with-expanded-range-and-improved-findability/">second-generation AirTag announcement</a>, Google's <a href="https://developers.google.com/nearby/fast-pair/specifications/extensions/fmdn">Find Hub tag specification</a> and <a href="https://www.android.com/learn-find-hub/compatible-devices/">list of tags</a>, <a href="https://blog.google/products-and-platforms/devices/pixel/google-pixel-tag/">its Pixel Tag post</a>, <a href="https://www.eufy.com/products/t87b0011">eufy's Find My tag</a>, a <a href="https://www.usenix.org/system/files/usenixsecurity24_slides-yu-tingfeng.pdf">USENIX 2024 talk on SmartTags</a> and a <a href="https://petsymposium.org/popets/2024/popets-2024-0082.pdf">PoPETs 2024 study of trackers</a>.</li>
+  <li>Tile: <a href="https://arxiv.org/html/2510.00350">Georgia Tech's study of a 2022 Tile Mate</a>, <a href="https://www.theregister.com/security/2025/09/30/tile-trackers-leak-unencrypted-bluetooth-data-say-boffins/854165">The Register on Life360's reply</a>, and owners' reports in Bermuda issues <a href="https://github.com/agittins/bermuda/issues/412">#412</a> and <a href="https://github.com/agittins/bermuda/issues/779">#779</a>.</li>
+  <li>Other tags: <a href="https://github.com/agittins/bermuda/wiki/Supported-devices">Bermuda's supported devices</a>, <a href="https://docs.ruuvi.com/communication/bluetooth-advertisements/data-format-5-rawv2">Ruuvi's data format</a> and <a href="https://community.home-assistant.io/t/best-ble-beacon-tag-for-keys/839321">a forum thread on tags for keys</a>.</li>
+  <li>Home Assistant's <a href="https://www.home-assistant.io/integrations/bluetooth/">Bluetooth</a> and <a href="https://www.home-assistant.io/integrations/ibeacon/">iBeacon Tracker</a> docs.</li>
+  <li>PadSpan's <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/docs/GUEST_TAGS_GUIDE.md">Guest tags guide</a> and its code at the 0.38.199 stable.</li>
+</ul>
+<p style="font-size:13px;color:var(--mut)">Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Install PadSpan</a>
+</div>
+<p style="font-size:13px;color:var(--mut)">The install button opens PadSpan in HACS, or in <b>Settings → Marketplace</b> from Home Assistant 2026.11.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · AirTag, iBeacon, iPhone and Find My are trademarks of Apple Inc.; Tile of Life360; SmartTag of Samsung; Android, Find Hub and Pixel of Google LLC; The Sims of Electronic Arts. PadSpan isn't affiliated with any of them, or with the makers named here.</p>
+</div></footer>
+</body>
+</html>

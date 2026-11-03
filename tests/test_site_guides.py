@@ -107,6 +107,44 @@ def test_guides_only_leaves_the_home_page_alone(monkeypatch) -> None:
     assert len(sent) == 1 and sorted(sent[0]) == sorted(_url(p) for p in _GUIDES)
 
 
+def test_the_sitemap_dates_each_guide_from_git(monkeypatch) -> None:
+    """Google only trusts lastmod while it stays accurate, so nobody types it: a
+    committed page gets its last commit's day, a changed page today, and a page
+    git can't date gets nothing rather than a guess."""
+    mod = _deploy_site()
+    committed, changed, undated = mod.GUIDES[0], mod.GUIDES[1], mod.GUIDES[2]
+
+    def fake_run(cmd, shell=True, input=None, capture_output=False, check=False, text=False):
+        out = ""
+        if "status --porcelain" in cmd:
+            out = f" M site/{changed}\n"
+        elif f"-- site/{committed}" in cmd:
+            out = "2026-10-31\n"
+        return SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    xml = mod.sitemap_with_dates().decode("utf-8")
+
+    def loc(name: str) -> str:
+        return f"<loc>{mod.URL}{name.rsplit('/', 1)[0]}/</loc>"
+
+    today = mod.datetime.date.today().isoformat()
+    assert f"{loc(committed)}<lastmod>2026-10-31</lastmod><changefreq>" in xml
+    assert f"{loc(changed)}<lastmod>{today}</lastmod><changefreq>" in xml
+    assert f"{loc(undated)}<changefreq>" in xml
+    assert "<loc>https://padspan.traks.ca/</loc><changefreq>" in xml, "the home page isn't a guide"
+
+
+def test_a_sitemap_date_never_stops_a_deploy(monkeypatch) -> None:
+    mod = _deploy_site()
+
+    def broken(*a, **k):
+        raise OSError("no git here")
+
+    monkeypatch.setattr(mod.subprocess, "run", broken)
+    assert mod.sitemap_with_dates() == (_SITE / "sitemap.xml").read_bytes()
+
+
 def test_the_indexnow_key_file_holds_its_own_name() -> None:
     """IndexNow fetches /<key>.txt and compares what it reads with the key."""
     keys = list(_deploy_site().INDEXNOW_KEYS)

@@ -60,7 +60,6 @@ from .const import (
     DATA_TRACEBACK,
 )
 from .build_info import BUILD_ID, BUILD_VERSION
-from .vendor_lookup import async_lookup_vendor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -161,7 +160,11 @@ from .ws_floorplan_import import (  # noqa: F401  (re-exported: registration, te
 )
 from .ws_vacuum import HANDLERS as _VACUUM_HANDLERS
 from .ws_objects import (  # noqa: F401  (re-exported: registration, tests, callers)
+    ws_device_how_known,
     ws_findmy_unlink,
+    ws_label_link_answer,
+    ws_label_link_undo,
+    ws_label_link_hint_off,
     ws_object_label_delete,
     ws_object_label_list,
     ws_object_label_set,
@@ -255,6 +258,8 @@ from .ws_fabric import (  # noqa: F401  (re-exported: registration, tests, calle
     ws_fabric_map_transform_set,
     ws_fabric_reset_spatial,
     ws_fabric_resync,
+    ws_fabric_open_edges_apply,
+    ws_fabric_rf_barrier_rails_stamp,
     ws_fabric_rf_barrier_remove,
     ws_fabric_rf_barrier_set,
     ws_fabric_room_add,
@@ -299,7 +304,6 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_settings_set)
     websocket_api.async_register_command(hass, ws_scanner_offset_set)
     websocket_api.async_register_command(hass, ws_live_snapshot)
-    websocket_api.async_register_command(hass, ws_vendor_lookup)
     websocket_api.async_register_command(hass, ws_maps_list)
     websocket_api.async_register_command(hass, ws_maps_image_urls)
     websocket_api.async_register_command(hass, ws_maps_upload)
@@ -388,6 +392,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .ws_house3d_stairs import WS_COMMANDS as _house3d_stairs_commands
     for _cmd in _house3d_stairs_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Add data via plans (ws_plan_ai.py, experimental, off by default): the plan AI's sessions and verdicts; never the house.
+    from .ws_plan_ai import WS_COMMANDS as _plan_ai_commands
+    for _cmd in _plan_ai_commands:
+        websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
     # The Overview's accuracy tips (setup_checks.py): the setup steps the report finds skipped most.
     from .setup_checks import WS_COMMANDS as _setup_tip_commands
@@ -420,7 +428,11 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_private_ble_add_irk)
     websocket_api.async_register_command(hass, ws_private_ble_delete_irk)
     websocket_api.async_register_command(hass, ws_objects_clear_history)
+    websocket_api.async_register_command(hass, ws_device_how_known)
     websocket_api.async_register_command(hass, ws_findmy_unlink)
+    websocket_api.async_register_command(hass, ws_label_link_answer)
+    websocket_api.async_register_command(hass, ws_label_link_undo)
+    websocket_api.async_register_command(hass, ws_label_link_hint_off)
     websocket_api.async_register_command(hass, ws_companion_discover)
     websocket_api.async_register_command(hass, ws_companion_follow)
     websocket_api.async_register_command(hass, ws_companion_unfollow)
@@ -459,6 +471,8 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_fabric_truth_candidates)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_set)
     websocket_api.async_register_command(hass, ws_fabric_rf_barrier_remove)
+    websocket_api.async_register_command(hass, ws_fabric_rf_barrier_rails_stamp)
+    websocket_api.async_register_command(hass, ws_fabric_open_edges_apply)
     websocket_api.async_register_command(hass, ws_fabric_map_transform_set)
     websocket_api.async_register_command(hass, ws_fabric_map_reanchor)
     websocket_api.async_register_command(hass, ws_occupancy_estimate)
@@ -673,51 +687,6 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
 # This is the MAIN data pipeline: assembles everything the UI needs from HA state,
 # BLE advertisements, device/entity registries, calibration, and object history.
 # Called every 5s by the panel's poll loop and on demand by other handlers.
-
-
-@websocket_api.websocket_command(
-    {
-        "type": "padspan_ha/vendor_lookup",
-        "mac": str,
-        vol.Optional("force_refresh"): bool,
-    }
-)
-@websocket_api.async_response
-async def ws_vendor_lookup(hass: HomeAssistant, connection, msg) -> None:
-    """Maker (vendor) lookup for a MAC address, online.
-
-    Used by the Overview → Objects/Unidentified modal. On by default (only an
-    administrator changes it); when the settings can't be read nothing is sent.
-    It sends only the first three bytes of an address, and only after a
-    Bluetooth receiver has confirmed that the device has a fixed,
-    maker-assigned address (ESPHome proxies on version 2022.12 or newer and
-    Home Assistant's own Bluetooth say so, and PadSpan remembers it; Shelly,
-    ESPresense and Tasmota don't, so a device only they have heard isn't looked
-    up). Any other address gets the answer kept for its prefix, if there is
-    one; so does every address when the type can't be read.
-    """
-    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    enabled = False
-    try:
-        if st:
-            enabled = st.get("vendor_lookup_enabled", True) is True
-    except Exception:
-        enabled = False
-
-    if not enabled:
-        connection.send_result(msg["id"], {"enabled": False})
-        return
-
-    mac = msg.get("mac") or ""
-    force = bool(msg.get("force_refresh", False))
-    try:
-        from .bluetooth_live import known_address_type  # noqa: PLC0415
-        atype = known_address_type(hass, mac)
-    except Exception:
-        atype = None  # not confirmed: nothing is sent
-    res = await async_lookup_vendor(hass, mac, force_refresh=force, address_type=atype)
-    res["enabled"] = True
-    connection.send_result(msg["id"], res)
 
 
 # ── Maps CRUD ──────────────────────────────────────────────────────────────────

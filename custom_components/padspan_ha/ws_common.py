@@ -47,6 +47,8 @@ from .const import (
     HOUSE3D_STORE_KEY,
     DATA_SUBZONES,
     SUBZONES_STORE_KEY,
+    DATA_PLAN_AI,
+    PLAN_AI_STORE_KEY,
     DATA_LOST_AND_FOUND,
     LOST_AND_FOUND_STORE_KEY,
     LIGHT_SHAPE_KINDS,
@@ -406,6 +408,7 @@ _ALL_STORE_KEYS = [
     HOUSE3D_STORE_KEY,
     LOST_AND_FOUND_STORE_KEY,
     SUBZONES_STORE_KEY,
+    PLAN_AI_STORE_KEY,
     "padspan_ha.vacuum",          # vacuum_import.VACUUM_STORE_KEY: the robot link, walker and review pile
 ]
 
@@ -447,6 +450,8 @@ _DATA_KEY_MAP = {
     LOST_AND_FOUND_STORE_KEY: DATA_LOST_AND_FOUND,
     # Sub-zones (subzones.py): no file until one is added, like Live Aboard's.
     SUBZONES_STORE_KEY: DATA_SUBZONES,
+    # The plan AI's suggestions, verdicts and remembered rejects (plan_ai.py): no file until a session runs.
+    PLAN_AI_STORE_KEY: DATA_PLAN_AI,
     # The robot vacuum's link, walker and review pile (vacuum_import.py): no file until an import.
     "padspan_ha.vacuum": "vacuum_import",
 }
@@ -456,7 +461,7 @@ _DATA_KEY_MAP = {
 # off: an install that never used it has no file, and its backups must carry
 # no entry for it, or a later restore would create the file, or empty one that
 # has furniture in it by then (house3d_store.py).
-_BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY, SUBZONES_STORE_KEY, "padspan_ha.vacuum"})
+_BACKUP_ONLY_ONCE_WRITTEN = frozenset({HOUSE3D_STORE_KEY, SUBZONES_STORE_KEY, PLAN_AI_STORE_KEY, "padspan_ha.vacuum"})
 
 # "There was no file": what a safety backup taken right before an operation
 # that may CREATE one of those stores records for it (the Bright import's;
@@ -485,7 +490,8 @@ async def _store_file_written(hass, store_key: str) -> bool:
 
 _MAX_BACKUPS = 3  # Oldest backup is dropped when a new one exceeds this limit
 # Automatic backups (ws_backup._auto_backup, marked "auto") have their own cap
-# and never push out a backup a person made, nor the other way round.
+# and never push out a backup a person made, nor the other way round. One with
+# a slot of its own (the plan AI's net) stands outside this cap.
 _MAX_AUTO_BACKUPS = 3
 
 
@@ -622,20 +628,23 @@ _NAME_MAC_TAIL_RE = re.compile(r"\s*\((?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\)\
 NAME_FROM: tuple[str, ...] = ("ha_user", "ha", "scanner", "area", "source")
 
 
-def radio_display(radio: dict, device: Any = None) -> tuple[str, str]:
+def radio_display(radio: dict, device: Any = None, parent: Any = None) -> tuple[str, str]:
     """The one name a receiver goes by everywhere in the panel, and where it
     came from (one of NAME_FROM, for the opt-in report).
 
-    The name the user gave it in Home Assistant first (that's what they see in
-    HA too), then HA's own device name, then the scanner's name with its
-    "(AA:BB:..)" tail dropped, then "<area> receiver", then the raw source.
+    Home Assistant files a remote scanner as its own device, named "X (AA:BB:..)",
+    via the ESPHome or Shelly device that provides it (`parent`). A name set on
+    that device wins: the one the user gave it in Home Assistant, then the
+    scanner device's, then the device's own name (what's set in ESPHome), then
+    the scanner device's. No "(AA:BB:..)" tail on any of them. Then the scanner's
+    name, then "<area> receiver", then the raw source.
     """
     src = str(radio.get("source") or "")
-    if device is not None:
-        for attr, origin in (("name_by_user", "ha_user"), ("name", "ha")):
-            v = str(getattr(device, attr, None) or "").strip()
-            if v:
-                return v, origin
+    for dev, attr, origin in ((parent, "name_by_user", "ha_user"), (device, "name_by_user", "ha_user"),
+                              (parent, "name", "ha"), (device, "name", "ha")):
+        v = _NAME_MAC_TAIL_RE.sub("", str(getattr(dev, attr, None) or "")).strip()
+        if v:
+            return v, origin
     raw = str(radio.get("name") or "").strip()
     if raw and raw != src:
         cleaned = _NAME_MAC_TAIL_RE.sub("", raw).strip()
@@ -716,6 +725,14 @@ class RadioDeviceIndex:
                     if bt and id(dev) not in seen_bt.setdefault(bt, set()):
                         seen_bt[bt].add(id(dev))
                         self._by_shelly_bt.setdefault(bt, []).append(dev)
+
+    def parent_of(self, dev: Any) -> Any:
+        """The device a scanner device belongs to, its "via" device, or None.
+        Only a scanner device (see area_id_of): any other device's via device
+        is something else, a hub for one."""
+        if not any(isinstance(c, (tuple, list)) and c and c[0] == "bluetooth" for c in (getattr(dev, "connections", None) or ())):
+            return None
+        return self._by_id.get(str(getattr(dev, "via_device_id", None) or ""))
 
     def area_id_of(self, dev: Any) -> str | None:
         """A radio device's area, else the area of the device it belongs to.

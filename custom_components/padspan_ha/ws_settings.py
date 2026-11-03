@@ -60,7 +60,7 @@ _SHOWCASE_THEMES = (
     "material_you", "neon_precision", "luxury_realestate",
     "wabi_sabi", "hygge", "aurora", "automotive_hud", "art_deco",
     "swiss_style", "bauhaus", "holographic", "retro_futurism",
-    "obsidian_noir",
+    "obsidian_noir", "west_coast_forest",
 )
 
 
@@ -499,7 +499,6 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("trial_nudge_done"): bool,               # the Overview trial milestone card was answered; never again
         vol.Optional("tester_nudge_done"): bool,              # the Overview tester card was shown; never again
         vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
-        vol.Optional("vendor_lookup_enabled"): bool,
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
         vol.Optional("ref_power"): vol.Coerce(float),
@@ -555,6 +554,7 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("atlas_3d_ai_task_backup_entity"): vol.Any(str, None),
         vol.Optional("ai_photos_enabled"): bool,
         vol.Optional("ai_stairs_enabled"): bool,
+        vol.Optional("ai_plans_enabled"): bool,
         vol.Optional("atlas_3d_library"): bool,
         vol.Optional("atlas_3d_weather"): bool,
         vol.Optional("atlas_3d_showcase"): bool,
@@ -752,7 +752,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                 from .perf_sampler import async_runs_opted_out  # noqa: PLC0415
                 await async_runs_opted_out(hass)
         if ("atlas_3d_library" in msg or "atlas_3d_ai_task_entity" in msg or "ai_photos_enabled" in msg
-                or "ai_stairs_enabled" in msg or "atlas_3d_ai_task_backup_entity" in msg):
+                or "ai_stairs_enabled" in msg or "ai_plans_enabled" in msg or "atlas_3d_ai_task_backup_entity" in msg):
             # Live Aboard's shared library and a cloud AI Task reading photos
             # both let data leave the house: an administrator's call, like the
             # usage report above.
@@ -783,15 +783,6 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # a bug or a probe; store an empty string rather than the input.
             _wn = str(msg.get("whatsnew_seen_version") or "").strip()
             payload["whatsnew_seen_version"] = _wn if re.fullmatch(r"\d+\.\d+\.\d+", _wn) else ""
-        if "vendor_lookup_enabled" in msg:
-            # It decides what leaves the house, so it is an admin's call
-            # (README: Security), like the usage report's switch above.
-            _user = getattr(connection, "user", None)
-            if _user is not None and getattr(_user, "is_admin", True) is False:
-                connection.send_error(msg["id"], "unauthorized",
-                                      "Only an administrator can change the device maker lookup")
-                return
-            payload["vendor_lookup_enabled"] = bool(msg.get("vendor_lookup_enabled"))
         if "room_change_delay_s" in msg:
             payload["room_change_delay_s"] = max(0.0, min(300.0, float(msg["room_change_delay_s"])))
         if "away_timeout_m" in msg:
@@ -1245,7 +1236,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
                     "overview_atlas", "lights_panel_enabled", "atlas_emergency_button", "atlas_live_colours", "bermuda_ignore", "bright_reveal_presence",
                     "atlas_weather_enabled", "atlas_alert_pulse", "atlas_heatmap_enabled",
                     "atlas_3d_enabled", "atlas_3d_people", "atlas_3d_tags", "atlas_3d_library",
-                    "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled",
+                    "atlas_3d_weather", "atlas_3d_showcase", "ai_photos_enabled", "ai_stairs_enabled", "ai_plans_enabled",
                     "tags_room_events_enabled", "tags_nfc_identify_enabled",
                     "tags_phone_autolink_enabled", "quiet_mode", "light_theme", "day_theme", "theme_follow_sun", "wall_pixel_shift", "wall_fully",
                     "beacon_auto_calibrate", "overview_persistent_pins", "overview_show_walls",

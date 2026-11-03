@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.38.216";
-const RELEASE_BUILD_ID = "20261102T112614Z";
+const APP_VERSION = "0.38.220";
+const RELEASE_BUILD_ID = "20261103T075541Z";
 // The stamp the views are actually loaded with.
 //
 // This was the release literal above, so every view URL stayed frozen between
@@ -149,6 +149,13 @@ let STATUS_DOT = null;
 import(`./views/status_dot.js?b=${BUILD_ID}`)
   .then(m => { STATUS_DOT = m; })
   .catch(err => console.warn("PadSpan: status_dot module failed to load", err));
+
+// One name per device, on the server's word (views/device_name.js). Used here by
+// the device window; until it lands, the window reads the fields itself.
+let DEVICE_NAME = null;
+import(`./views/device_name.js?b=${BUILD_ID}`)
+  .then(m => { DEVICE_NAME = m; })
+  .catch(err => console.warn("PadSpan: device_name module failed to load", err));
 
 // The map as text for screen readers (views/map_text.js). Until it lands, or
 // if it never does, the Overview simply has no hidden text.
@@ -311,11 +318,11 @@ function _sampleKind(payload){
   const READS = new Set(("adaptive_fingerprints_get adaptive_status_get auto_diagnostics bright_import_status calibration_beacon_profiles "
     + "calibration_get calibration_health_check calibration_room_walk_preview capture_get capture_list capture_status device_registry_list "
     + "emergency_status fabric_health fabric_truth_candidates follow_alert_get forensics_query forensics_stats guests_get ha_entities_audit "
-    + "house3d_get house3d_import_preview house3d_library_get house3d_library_search house3d_stairs_plans house3d_stairs_read insights_get "
+    + "house3d_get house3d_import_preview house3d_library_get house3d_library_search house3d_stairs_plans house3d_stairs_read plan_ai_plans plan_ai_status plan_ai_sessions_get insights_get "
     + "install_base licence_homes live_snapshot logs_get lost_and_found_get maps_image_urls maps_list model_get movement_history_get "
     + "notify_services_list object_label_list occupancy_estimate positioning_diag private_ble_status propagation_health radio_audit "
     + "room_tags setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
-    + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status vendor_lookup wled_backups wled_devices "
+    + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status wled_backups wled_devices "
     + "wled_exact_list wled_get wled_look_get wled_teams_get motion_reconnects vacuum_import_preview irk_validate "
     + "companion_discover").split(" ").map(t => "padspan_ha/" + t));
   for (const t of ["config/entity_registry/list", "config/entity_registry/list_for_display", "config/entity_registry/get",
@@ -352,6 +359,9 @@ const MENU = [
   ["sandbox","Sandbox","mdi:flask-outline"],
   ["installbase","Install Base","mdi:chart-box-outline"],
 ];
+
+// Screens reached by a link, never listed in MENU: what the phone's top bar calls them.
+const UNLISTED_VIEW_TITLES = { objects: "Devices", history: "History", events: "Events", debug: "Debug", diagnostics: "Diagnostics" };
 
 // ── Complexity Mode Tab Sets ─────────────────────────────────────────────────
 // Modes no longer hide screens (2026-10-30): every screen is in the menu in
@@ -1715,7 +1725,11 @@ class PadSpanHaApp extends HTMLElement {
           // Skip for non-live views (calibration, maps, etc.) — they don't poll-render,
           // so _lastGoodRender goes stale naturally. Forcing a render mid-drag breaks things.
           const _liveSet = new Set(["overview","follow","monitor"]);
-          const _isLiveView = _liveSet.has(this.state?.view);
+          // Sample mode has no poll that stamps a render, so the time since one
+          // says nothing there: a forced render would only close what is open.
+          // One that failed still gets the recovery below.
+          const _noPollToWatch = !!this.state?._dataModeKnown && this.state?.dataMode !== "live" && !this._renderFailCount;
+          const _isLiveView = _liveSet.has(this.state?.view) && !_noPollToWatch;
           const sinceGoodRender = this._lastGoodRender ? performance.now() - this._lastGoodRender : 0;
           // Follow/Monitor re-render from the poll every 20 s (_SLOW_INTERVAL),
           // through its focus guard. The watchdog stays above that, so it only
@@ -2115,23 +2129,36 @@ class PadSpanHaApp extends HTMLElement {
   /** The sample house, loaded the first time Sample mode needs it (never in Live mode). null if it could not load. */
   _ensureSampleHouse(){
     if (this._sampleHouse) return Promise.resolve(this._sampleHouse);
-    if (this._sampleHouseFailed) return Promise.resolve(null);
+    // Failed a moment ago: not asked again yet (every read comes through here).
+    if (Date.now() < (this._sampleHouseRetryAt || 0)) return Promise.resolve(null);
     if (!this._sampleHouseP) {
-      this._sampleHouseP = import(`./sample_house.js?b=${BUILD_ID}`)
+      // A browser remembers a module that failed to load as failed, so another
+      // try has to ask for it under a new address.
+      const fails = this._sampleHouseFails || 0;
+      this._sampleHouseP = import(`./sample_house.js?b=${BUILD_ID}${fails ? "&retry=" + fails : ""}`)
         .then(m => {
           if (this._sampleGateOn() && !this._sampleHouse) {
             this._sampleHouse = m.createSampleHouse();
+            this._houseGen = (this._houseGen || 0) + 1;
             // The settings already read are the real house's: its Vacation
             // Mode, flood latches and so on are not the sample house's.
             if (this.state.settings) { this._realSettings = this.state.settings; this.state.settings = this._sampleHouse.settingsFor(this.state.settings); }
             this._syncSampleHass();
+            // It loaded on a later try: what is on screen came without it.
+            if (this._sampleHouseMissed) {
+              this._sampleHouseMissed = false;
+              this._dropHouseCaches();
+              this._refreshAll(false).finally(() => this._scheduleRender());
+            }
           }
           return this._sampleHouse;
         })
         .catch(err => {
-          // Sample mode then shows the small demo house (sample_data.js) as before.
+          // Sample mode shows the small demo house (sample_data.js) until a later try loads it.
           console.warn("PadSpan: the sample house failed to load", err);
-          this._sampleHouseFailed = true;
+          this._sampleHouseFails = fails + 1;
+          this._sampleHouseMissed = true;
+          this._sampleHouseRetryAt = Date.now() + 10000;
           return null;
         })
         .finally(() => { this._sampleHouseP = null; });
@@ -2152,9 +2179,50 @@ class PadSpanHaApp extends HTMLElement {
     return err;
   }
 
-  /** Every message sent while Sample mode is on (_sampleKind). */
+  /** No settings answer yet, so nobody knows which house this screen is on
+   *  ("sample" in state.dataMode is only the default until then). */
+  _modeUnknown(){
+    return !this.state._dataModeKnown && !(this._realHass && this._realHass.padspan_demo === true);
+  }
+
+  /** Resolves when the mode is known (_applyDataMode; the watchdog's
+   *  _retryDataMode keeps asking). One promise for every change held, so they
+   *  leave in the order they were made. No answer within 20 s of the first
+   *  one held: they are refused together, not sent blind (_sampleCall has the
+   *  one exception). */
+  _modeAnswered(){
+    if (!this._modeGate) {
+      const gate = this._modeGate = {};
+      gate.promise = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          this._modeGate = null;
+          reject(new Error("Home Assistant hasn't answered yet, so nothing was changed. Try again in a moment."));
+        }, 20000);
+        gate.release = () => { clearTimeout(timer); this._modeGate = null; resolve(); };
+      });
+    }
+    return this._modeGate.promise;
+  }
+
+  /** Every message sent while Sample mode is on (_sampleKind), or while the
+   *  mode is unknown: reads as ever, but a change waits to hear which house
+   *  this is, and then goes where that house sends it. */
   async _sampleCall(payload){
     const real = this._realHass;
+    if (this._modeUnknown()) {
+      const unknownKind = _sampleKind(payload);
+      if (unknownKind === "read" || unknownKind === "pass") return real.callWS(payload);
+      try {
+        await this._modeAnswered();
+      } catch (err) {
+        // The way out when the settings never answer: the repair tools still
+        // reach the server, as they always have before the mode is known.
+        // An answer in time decides as for any change: Sample refuses them.
+        if (!["padspan_ha/factory_reset", "padspan_ha/store_backup_restore"].includes(payload.type)) throw err;
+        return this._realHass.callWS(payload);
+      }
+      return this._sampleCall(payload);
+    }
     // Switched back to Live while a view still held the sample hass.
     if (!this._sampleGateOn()) return real.callWS(payload);
     const kind = _sampleKind(payload);
@@ -2177,28 +2245,31 @@ class PadSpanHaApp extends HTMLElement {
 
   /** What the views talk to: real, or in Sample mode the sample house in
    *  front of it. The same object until either changes, and one connection
-   *  object for the whole Sample session (set hass's reconnect test). */
+   *  object for the whole Sample session (set hass's reconnect test). While
+   *  the mode is unknown the same copy holds changes back (_sampleCall). */
   _viewHass(real){
-    if (!real || !this._sampleGateOn()) return real;
+    if (!real || !(this._sampleGateOn() || this._modeUnknown())) return real;
     const house = this._sampleHouse;
     const w0 = this._sampleWrap;
     if (w0 && w0._real === real && w0._house === house) return w0;
     const self = this;
+    // Nothing is pushed from a sample house; with the mode unknown it may be the real one.
+    const push = (how) => async (...a) => self._modeUnknown() ? self._realHass.connection[how](...a) : () => {};
     const conn = this._sampleConn || (this._sampleConn = {
       connected: true, addEventListener(){}, removeEventListener(){},
       sendMessagePromise: (m) => self._sampleCall(m),
-      // Nothing is pushed from a sample house.
-      subscribeMessage: async () => () => {}, subscribeEvents: async () => () => {},
+      subscribeMessage: push("subscribeMessage"), subscribeEvents: push("subscribeEvents"),
     });
+    const held = (fn) => (...a) => self._modeUnknown() ? self._modeAnswered().then(() => fn(...a)) : fn(...a);
     const w = Object.assign({}, real, {
       callWS: (m) => self._sampleCall(m),
       sendWS: (m) => { self._sampleCall(m).catch(() => {}); },
       // Refused only while Sample mode is on: a view still holding this copy
       // after the switch back to Live is talking to the real house again.
-      callService: (...a) => self._sampleGateOn() ? Promise.reject(self._sampleBlocked()) : self._realHass.callService(...a),
+      callService: held((...a) => self._sampleGateOn() ? Promise.reject(self._sampleBlocked()) : self._realHass.callService(...a)),
       // A history read gets nothing; anything else is a change.
-      callApi: (method, ...a) => !self._sampleGateOn() ? self._realHass.callApi(method, ...a)
-        : String(method).toUpperCase() === "GET" ? Promise.resolve([]) : Promise.reject(self._sampleBlocked()),
+      callApi: held((method, ...a) => !self._sampleGateOn() ? self._realHass.callApi(method, ...a)
+        : String(method).toUpperCase() === "GET" ? Promise.resolve([]) : Promise.reject(self._sampleBlocked())),
       connection: conn,
       padspan_sample: true,
     });
@@ -2228,6 +2299,7 @@ class PadSpanHaApp extends HTMLElement {
     const on = this._sampleGateOn();
     if (on !== !!this._sampleOn) {
       this._sampleOn = on;
+      this._houseGen = (this._houseGen || 0) + 1;
       this._dropHouseCaches();
       if (!on) {
         this._sampleHouse = null; this._sampleWrap = null;
@@ -2284,6 +2356,7 @@ class PadSpanHaApp extends HTMLElement {
    * its own follows another screen's "Back to my house" (_applyDataMode).
    */
   _sampleSettingsTick(){
+    if (this._sampleGateOn() && !this._sampleHouse) this._ensureSampleHouse();
     if (this.state.dataMode === "live" || !this.state._dataModeKnown || this._sampleTickBusy) return;
     if (Date.now() - (this._settingsPollTs || 0) < 30000) return;
     this._settingsPollTs = Date.now();
@@ -2632,21 +2705,25 @@ class PadSpanHaApp extends HTMLElement {
    * poll runs only in Live mode, and the watchdog's own refresh only when
    * #content is empty, so a wall kiosk that booted during an HA restart sat
    * on an empty screen for good. Called from the 5 s watchdog; one attempt
-   * in flight at a time. Once the mode is known, a full refresh brings the
-   * data and, in Live mode, the poll starts.
+   * in flight at a time, or a new one after 20 s if that one never answers
+   * (it still counts if it does). Once the mode is known, one full refresh
+   * brings the data and, in Live mode, the poll starts.
    */
   _retryDataMode(){
-    if(this.state._dataModeKnown || this._modeRetry) return;
-    this._modeRetry = true;
+    if(this.state._dataModeKnown) return;
+    const now = Date.now();
+    if(this._modeRetry && now - this._modeRetry < 20000) return;
+    this._modeRetry = now;
     this._fetchSettings()
       .then(() => {
-        if(!this.state._dataModeKnown) return;
+        if(!this.state._dataModeKnown || this._modeRetryRefreshed) return;
+        this._modeRetryRefreshed = true;
         return this._refreshAll(false).then(() => {
           if(this.state.dataMode === "live" && !this._pollTimer) this._startDataPoll();
         });
       })
       .catch(() => {})
-      .finally(() => { this._modeRetry = false; });
+      .finally(() => { if(this._modeRetry === now) this._modeRetry = 0; });
   }
 
   /**
@@ -2678,6 +2755,7 @@ class PadSpanHaApp extends HTMLElement {
     const mode = own || (!this.state._dataModeKnown || server === "live" ? server : this.state.dataMode);
     this.state.dataMode = mode;
     this.state._dataModeKnown = true;
+    if(this._modeGate) this._modeGate.release();
     if(mode === "live" && (this.state.live.snapshot === SAMPLE_SNAPSHOT || this.state.live.fromSample)){
       this.state.live.snapshot = null;
       this.state.live.fromSample = false;
@@ -2966,8 +3044,12 @@ class PadSpanHaApp extends HTMLElement {
     // The floor plan is invisible without this list, so unlike other fetches
     // a failure here gets one retry, and a failed/malformed response never
     // clobbers a previously-good list (blank-map prevention).
+    // Which house it is for: _houseGen, not this._hass (a new one on every
+    // state change). An answer about the other house is dropped and asked again.
+    const gen = this._houseGen;
     try {
       const res = await this._callWS({ type: "padspan_ha/maps_list" });
+      if(gen !== this._houseGen) return this._getMapsList(retry);
       if(Array.isArray(res?.maps)){
         _mapImageUrls = res.image_urls || {};
         this._mapUrlsAt = Date.now();
@@ -2989,8 +3071,10 @@ class PadSpanHaApp extends HTMLElement {
 
 
   async _getModel(){
+    const gen = this._houseGen;  // as in _getMapsList
     try {
       const res = await this._callWS({ type: "padspan_ha/model_get" });
+      if(gen !== this._houseGen) return this._getModel();
       // Copy EVERYTHING the backend sends. This used to be a hand-written
       // whitelist, and it dropped keys three separate times in one session —
       // origin forwarding, the migration marker, then light_positions_m and
@@ -3009,6 +3093,7 @@ class PadSpanHaApp extends HTMLElement {
       this.state.model = { ...defaults, ...(res && typeof res === "object" ? res : {}) };
       this.state._modelLoaded = true;
     } catch (e) {
+      if(gen !== this._houseGen) return this._getModel();
       // non-fatal
       console.warn("model_get failed", e);
     }
@@ -3531,7 +3616,7 @@ class PadSpanHaApp extends HTMLElement {
     const mobileTitle = this.shadowRoot.querySelector("#mobileTitle");
     if (mobileTitle) {
       const mi = MENU.find(x => x[0] === this.state.view);
-      mobileTitle.textContent = mi ? mi[1] : this.state.view === "setup" ? "Setup" : this.state.view;
+      mobileTitle.textContent = mi ? mi[1] : this.state.view === "setup" ? "Setup" : UNLISTED_VIEW_TITLES[this.state.view] || "PadSpan";
     }
     this._paintDataModeLabel();
     const mobileModePill = this.shadowRoot.querySelector("#mobileModePill");
@@ -3642,6 +3727,7 @@ class PadSpanHaApp extends HTMLElement {
         HELP,
         /** "" in English; in a shipped language, the note a translated help page opens with. */
         helpNote: () => (HELP_MOD && HELP_MOD.helpNote ? HELP_MOD.helpNote() : ""),
+        trainingNote: () => (HELP_MOD && HELP_MOD.trainingNote ? HELP_MOD.trainingNote() : ""),
         mapImageUrl,
         radioShortId,
         awayTimeoutS,
@@ -3729,11 +3815,6 @@ class PadSpanHaApp extends HTMLElement {
         closeModal: ()=>this._closeModal(),
         callWS: (payload)=>this._callWS(payload),
 
-        // Vendor lookup (online, cached server-side)
-        vendorLookup: async (mac, force_refresh=false)=>{
-          return await this._callWS({ type:"padspan_ha/vendor_lookup", mac, force_refresh: !!force_refresh });
-        },
-
         // Object label actions (tag/untag BLE devices)
         objectLabelSet: async (address, label)=>{
           const res = await this._callWS({ type:"padspan_ha/object_label_set", address, label });
@@ -3773,6 +3854,9 @@ class PadSpanHaApp extends HTMLElement {
           } catch(e){ /* non-fatal */ }
         },
         showHelp: (key)=>this._showHelp(key),
+        // A device's quiet lines (name links). "list": a row, never in Basic.
+        // "own": its own view. Neither on a wall, where nobody is there to answer.
+        labelLines: (obj, where="list", after=null)=>this._labelLines(obj, where, after),
 
         // Area / entity management
         areaDelete: async (area_id) =>
@@ -4049,12 +4133,25 @@ class PadSpanHaApp extends HTMLElement {
    * action buttons (follow, delete, close).
    * Handles all BLE kinds: ble, private_ble, ibeacon, and HA entities.
    */
+  _labelLines(obj, where, after){
+    if(!DEVICE_NAME || !DEVICE_NAME.labelLines) return null;
+    if(this.state.kioskMode || (wallScreen(false) && untouchedFor(120000))) return null;
+    if(where === "list" && this.state.complexity === "basic") return null;
+    return DEVICE_NAME.labelLines(el, obj, {
+      wsCall: (type, data) => this._callWS({ type, ...data }),
+      toast: (msg, bad) => this._toast(msg, bad),
+      showHelp: (key) => this._showHelp(key),
+      after: async () => { if(after) after(); await this._getLiveSnapshot(); this._scheduleRender(); },
+    });
+  }
+
   _showObjectDetail(obj){
     const addr = obj.address || "";
     const userLabel = obj.user_label || "";
-    const name = userLabel || obj.name || obj.entity_id || addr || "Unknown";
+    const name = DEVICE_NAME ? DEVICE_NAME.deviceName(obj, "Unknown") : (obj.best_name || userLabel || obj.name || obj.entity_id || addr || "Unknown");
     const kind = obj.kind || "";
     const identified = !!obj.identified;
+    const what = DEVICE_NAME ? DEVICE_NAME.deviceWhat(obj) : (obj.what_it_is || obj.auto_class || null);
 
     // Canonical address for rename (varies by kind)
     const tagAddr = kind === "private_ble" ? (obj.canonical_id || addr)
@@ -4062,6 +4159,11 @@ class PadSpanHaApp extends HTMLElement {
                   : addr;
     const canRename = (kind==="ble"||kind==="private_ble"||kind==="ibeacon") && !!tagAddr;
 
+    let howEl = null;
+    if(kind !== "entity" && (obj.how_known || obj.best_name)){
+      howEl = el("span", {style:"color:#94a3b8"}, obj.how_known || "");
+      if(DEVICE_NAME) DEVICE_NAME.fillHowKnown(howEl, obj, (type, data) => this._callWS({ type, ...data }));
+    }
 
     const body = el("div", {style:"display:flex;flex-direction:column;gap:14px"});
 
@@ -4076,7 +4178,24 @@ class PadSpanHaApp extends HTMLElement {
           kind==="ibeacon" ? (identified?"iBeacon · Identified":"iBeacon · Unidentified") :
           kind==="ble" ? (identified?"BLE · Identified":"BLE · Unidentified") : "HA Entity"),
       ]),
-      addr ? el("div", {class:"muted", style:"font-family:monospace;font-size:12px"}, addr) : null,
+      addr ? el("div", {class:"muted", style:"font-family:monospace;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"}, [
+        addr,
+        DEVICE_NAME ? DEVICE_NAME.addressBadge(el, obj) : null,
+      ].filter(Boolean)) : null,
+      // What it is, who made it, and how we know
+      (kind !== "entity" && (obj.how_known || obj.best_name || what)) ? el("div", {style:"margin-top:8px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px"}, [
+        ...(obj.company_name || obj.maker_guess ? [
+          el("span", {class:"muted"}, "Maker"),
+          el("span", {}, obj.company_name || `Probably ${obj.maker_guess}`),
+        ] : []),
+        ...(obj.service_owner ? [
+          el("span", {class:"muted"}, "Service"),
+          el("span", {title: DEVICE_NAME ? DEVICE_NAME.SERVICE_HOW : ""}, `Uses a service from ${obj.service_owner}`),
+        ] : []),
+        ...(what ? [el("span", {class:"muted"}, "What it is"), el("span", {}, what)] : []),
+        ...(howEl ? [el("span", {class:"muted"}, "How we know"), howEl] : []),
+      ]) : null,
+      this._labelLines(obj, "own", () => this._closeModal()),
       obj.canonical_id ? el("div", {class:"muted", style:"font-size:11px"}, `Canonical: ${obj.canonical_id}`) : null,
       (Array.isArray(obj.all_addresses) && obj.all_addresses.length > 1)
         ? el("div", {class:"muted", style:"font-size:11px"}, `Addresses (${obj.all_addresses.length}): ${obj.all_addresses.slice(0,5).join(", ")}${obj.all_addresses.length>5?" + "+(obj.all_addresses.length-5)+" more":""}`)
@@ -4088,10 +4207,8 @@ class PadSpanHaApp extends HTMLElement {
         ? el("div", {class:"muted", style:"font-size:11px;color:#60a5fa"}, `Linked entities: ${obj.linked_entities.join(", ")}`)
         : null,
       // Enrichment badges
-      (obj.company_name || obj.auto_class || obj.device_type || (obj.service_names && obj.service_names.length) || obj.connectable != null)
+      ((obj.service_names && obj.service_names.length) || obj.connectable != null)
         ? el("div", {style:"display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"}, [
-            obj.company_name ? el("span",{class:"badge",style:"background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, obj.company_name) : null,
-            (obj.auto_class || obj.device_type) ? el("span",{class:"badge",style:"background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, obj.auto_class || obj.device_type) : null,
             ...(obj.service_names || []).map(sn =>
               el("span",{class:"badge",style:"background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)
             ),
@@ -4209,7 +4326,7 @@ class PadSpanHaApp extends HTMLElement {
     const _radioMap = {};
     const _radios = this.state.live?.snapshot?.ble?.radios || [];
     for(const r of _radios){
-      if(r.source) _radioMap[r.source] = r.name || r.source;
+      if(r.source) _radioMap[r.source] = r.display_name || r.name || r.source;
     }
     const _friendlySource = (src) => _radioMap[src] || src || "—";
     const makeSourceRow = (srcName, rssi, age_s) => {
@@ -4302,6 +4419,15 @@ class PadSpanHaApp extends HTMLElement {
       sum.style.cssText = "cursor:pointer;font-weight:600;font-size:13px;color:#52b788";
       sum.textContent = "Raw BLE data";
       det.appendChild(sum);
+      if(DEVICE_NAME){
+        const copyBtn = el("button", {class:"btn tiny", onclick: async () => {
+          const ok = await DEVICE_NAME.copyText(DEVICE_NAME.rawBroadcast(obj));
+          copyBtn.textContent = ok ? "Copied" : "Couldn't copy here: see Raw BLE data below";
+          if(!ok) det.open = true;
+          setTimeout(() => { copyBtn.textContent = "Copy raw broadcast"; }, 2500);
+        }}, "Copy raw broadcast");
+        body.appendChild(el("div", {}, copyBtn));
+      }
       if(Object.keys(manufData).length){
         det.appendChild(el("div", {style:"font-size:12px;color:#94a3b8;margin-top:8px"}, "Manufacturer data:"));
         det.appendChild(el("table", {class:"table", style:"margin-top:4px"}, [
@@ -4509,7 +4635,7 @@ class PadSpanHaApp extends HTMLElement {
     ]);
     if(objects.length){
       for(const o of objects){
-        const oName = o.user_label || o.name || o.entity_id || o.address || "Unknown";
+        const oName = DEVICE_NAME ? DEVICE_NAME.pickName(o, "Unknown") : (o.best_name || o.user_label || o.name || o.entity_id || o.address || "Unknown");
         const oKey = (o.address || o.entity_id || "").toUpperCase();
         const isFollowed = oKey && this.state.followedAddrs.has(oKey);
         const oc = isFollowed ? "#fbbf24" : (o.identified ? "#5eead4" : "#f59e0b");
@@ -4536,7 +4662,7 @@ class PadSpanHaApp extends HTMLElement {
     ]);
     if(radios.length){
       for(const r of radios){
-        const rName = r.name || r.source || "Scanner";
+        const rName = r.display_name || r.name || r.source || "Scanner";
         const sid = radioShortId(r.source || "");
         const rRow = el("div", {style:"display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0d1f12"}, [
           el("span", {style:"font-family:monospace;font-weight:700;font-size:12px;letter-spacing:.04em;color:#52b788;flex-shrink:0"}, sid),
@@ -4666,7 +4792,7 @@ class PadSpanHaApp extends HTMLElement {
     ]);
     if(devices.length){
       for(const d of devices){
-        const dName = d.user_label || d.name || d.address || "Unknown";
+        const dName = DEVICE_NAME ? DEVICE_NAME.deviceName(d, "Unknown") : (d.best_name || d.user_label || d.name || d.address || "Unknown");
         const rssi = d.srcRssi;
         const pct = rssiToPercent(rssi);
         const bar = el("div", {style:`width:${pct.toFixed(0)}%;height:5px;background:#52b788;border-radius:2px`});

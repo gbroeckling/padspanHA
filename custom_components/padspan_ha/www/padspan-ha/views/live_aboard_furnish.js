@@ -466,8 +466,9 @@ export function createFurnish(ctx){
       menu.appendChild(d("h5", null, "House"));
       menu.appendChild(btn("Stairs", "Stairs up to the floor above: straight, L, U, or round two or three landings", () => { closeMenu(); add([{ recipe: recipeFor("stairs") }]); }));
       // Settings → AI → Stairs from your floor plans (off until chosen): the AI Task reads them.
+      // Under the master switch over every AI map-building feature (ai_plans_enabled, 2026-11).
       const hs = (ctx.host() || {}).settings || {};
-      if (hs.ai_stairs_enabled === true && String(hs.atlas_3d_ai_task_entity || "").startsWith("ai_task.")) {
+      if (hs.ai_plans_enabled === true && hs.ai_stairs_enabled === true && String(hs.atlas_3d_ai_task_entity || "").startsWith("ai_task.")) {
         menu.appendChild(btn("Read stairs off the plans (AI)",
           "Your AI Task looks for the stairs on each floor plan you placed and adds what it finds as a first guess to check: drag, turn or delete them; nothing is kept until Save",
           () => { closeMenu(); readPlanStairs(); }));
@@ -761,6 +762,10 @@ export function createFurnish(ctx){
    *  they go up to. */
   function stairRows(el, p, spec){
     el.appendChild(d("div", "la3d-sec", "Stairs"));
+    if (p.plan_ai && p.plan_ai.session) {
+      const kept = num(p.plan_ai.at) !== null ? new Date(p.plan_ai.at * 1000).toLocaleDateString() : "";
+      el.appendChild(d("p", "la3d-sub", `From the plan, read by the AI (experimental)${kept ? `, kept ${kept}` : ""}. Edit → Plans or Settings → AI undoes that session.`));
+    }
     const params = p.recipe.params || {}, r = reachOf(p);
     const shapeP = spec && Array.isArray(spec.params) ? spec.params.find(x => x.key === "shape") : null;
     const set = (patch) => {
@@ -789,12 +794,20 @@ export function createFurnish(ctx){
     if (shape !== "straight") pick("Turns", "turn", [["left", "Left"], ["right", "Right"]], params.turn === "right" ? "right" : "left");
     pick("Style", "style", [["closed", "Closed"], ["open", "Open"], ["treads", "Treads only"], ["floating", "Floating"]],
       ["closed", "open", "treads", "floating"].includes(params.style) ? params.style : "closed");
-    // The rail: for a straight flight its sides are left and right as you go
-    // up (inner = left); for a turn, the inside is the well.
-    const railNow = ["auto", "both", "inner", "outer", "none"].includes(params.rail) ? params.rail : "auto";
+    // The rail: none until one is chosen (2026-11-02); for a straight flight
+    // its sides are left and right as you go up (inner = left); for a turn,
+    // the inside is the well. Auto, what every stair had before, is stamped
+    // away on read with the rail it drew; a piece that has not been through
+    // the server yet (a library item, say) still shows it, to be kept or
+    // changed. Then its style: a balustrade, topless (the spindles and
+    // posts, no top rail) or a single bar (nothing under it).
+    const railNow = ["both", "inner", "outer", "none"].includes(params.rail) ? params.rail : params.rail === "auto" ? "auto" : "none";
+    const legacy = railNow === "auto" ? [["auto", "Auto (as before)"]] : [];
     pick("Rail", "rail", shape === "straight"
-      ? [["auto", "Auto"], ["both", "Both"], ["inner", "Left"], ["outer", "Right"], ["none", "None"]]
-      : [["auto", "Auto"], ["both", "Both"], ["inner", "Inside"], ["outer", "Outside"], ["none", "None"]], railNow);
+      ? [["none", "None"], ["both", "Both"], ["inner", "Left"], ["outer", "Right"], ...legacy]
+      : [["none", "None"], ["both", "Both"], ["inner", "Inside"], ["outer", "Outside"], ...legacy], railNow);
+    if (railNow !== "none") pick("Rail style", "rail_style", [["balustrade", "Balustrade"], ["topless", "Topless"], ["single_bar", "Single bar"]],
+      ["balustrade", "topless", "single_bar"].includes(params.rail_style) ? params.rail_style : "balustrade");
     // Whole floors above, and with a split level on its own floor, a few
     // steps within that floor (up out of a sunken room, or up to a raised one).
     const from = r.from ? r.from.elev : null, fl = floorList(), whole = r.from ? (r.from.parent || r.from.id) : null;
@@ -876,7 +889,7 @@ export function createFurnish(ctx){
           } else failed++;
         } catch (e) {
           failed++;
-          if (e && (e.code === "ai_stairs_off" || e.code === "no_ai_task")) { ctx.hint(String(e.message || e.code), true); return; }
+          if (e && (e.code === "ai_plans_off" || e.code === "ai_stairs_off" || e.code === "no_ai_task")) { ctx.hint(String(e.message || e.code), true); return; }
         }
       }
       // Where each one goes: the floor it climbs from.
@@ -900,7 +913,7 @@ export function createFurnish(ctx){
       }
       const base = recipeFor("stairs");
       add(placed.map(({ fid, st }) => {
-        const recipe = { ...base, params: { ...(base.params || {}), shape: st.shape, style: "closed", rail: "auto" },
+        const recipe = { ...base, params: { ...(base.params || {}), shape: st.shape, style: "closed", rail: "none" },
                          width_m: st.width_m, depth_m: st.depth_m };
         const piece = PIECES.makePiece(recipe, fid, { x: st.x_m, y: st.y_m, rotation: st.rotation }, "build");
         piece.label = st.sure_up ? "Stairs (AI first guess)" : "Stairs (AI first guess, check which way is up)";
@@ -1295,6 +1308,22 @@ export function createFurnish(ctx){
     },
     /** For the harness and a test: add a piece of a kind, as Build does. */
     build(kind){ add([{ recipe: recipeFor(kind) }]); return sel; },
+    /** A stair off a plan as Build would place it (the Plans tool puts it in the
+     *  draft): on its floor, up to the next, its rise the gap, squared to its
+     *  room, no rail until a person chooses one. Null until the builders are here. */
+    /** Build ▾ open (the Plans tool's Add by hand, from its what's-missing pass). */
+    openBuild(){ if (!menuOpen) toggleMenu(); },
+    planStair(g, floorId, label){
+      const base = recipeFor("stairs");
+      if (!base || base.kind !== "stairs") return null;
+      const recipe = { ...base, params: { ...(base.params || {}), shape: g.shape || "straight", style: "closed", rail: "none" }, width_m: g.width_m, depth_m: g.depth_m };
+      const p = PIECES.makePiece(recipe, floorId, { x: g.x_m, y: g.y_m, rotation: g.rotation }, "build");
+      p.label = label;
+      inRange(p.recipe);
+      stairFix(p);
+      squareInRoom(p);
+      return p;
+    },
     dispose(){
       closeFlow(); keys(false);
       if (outline.parent) outline.parent.remove(outline);

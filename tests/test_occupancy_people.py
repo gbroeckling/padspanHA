@@ -24,7 +24,8 @@ from custom_components.padspan_ha.const import DATA_MODEL, DATA_SETTINGS, DOMAIN
 
 # Apple continuity subtype bytes (ble_enrichment.APPLE_SUBTYPES)
 APPLE = {"Nearby Info": 0x10, "AirPlay": 0x09, "iBeacon": 0x02, "Find My": 0x12, "Handoff": 0x0C, "AirPods": 0x07}
-MICROSOFT, GOOGLE, GARMIN = 6, 224, 80
+MICROSOFT, GOOGLE, GARMIN, POLAR, POLAR_EU, OURA, OURA_2, WITHINGS = 6, 224, 0x0087, 0x006B, 0x00D1, 0x02B2, 0x0304, 0x03FF
+LOGITECH = 0x01DA    # the old table's "Oura"
 
 
 # ── builders ────────────────────────────────────────────────────────────────
@@ -266,6 +267,16 @@ def test_two_phone_clusters_in_one_room_are_one_person(monkeypatch):
     ("4D:49:7F:E7:CD:2B", dict(apple="Nearby Info"), True),     # same, LA bit clear — the bit is random
     ("4F:49:7F:E7:CD:2B", dict(apple="Handoff"), True),
     ("4F:49:7F:E7:CD:2B", dict(company=GARMIN), True),          # Garmin watch
+    ("4F:49:7F:E7:CD:2B", dict(company=POLAR), True),           # Polar, both numbers
+    ("4F:49:7F:E7:CD:2B", dict(company=POLAR_EU), True),
+    ("4F:49:7F:E7:CD:2B", dict(company=OURA), True),            # Oura, both numbers
+    ("4F:49:7F:E7:CD:2B", dict(company=OURA_2), True),
+    ("4F:49:7F:E7:CD:2B", dict(company=WITHINGS), True),
+    ("4F:49:7F:E7:CD:2B", dict(company=LOGITECH), False),       # a mouse was counted as a person
+    ("4F:49:7F:E7:CD:2B", dict(company=0x0050), False),         # the old "Garmin": SiRF
+    ("4F:49:7F:E7:CD:2B", dict(company=0x0089), False),         # the old "Polar": GN Hearing, a hearing aid
+    ("4F:49:7F:E7:CD:2B", dict(company=0x0189), False),         # the old "Withings": Physical Enterprises
+    ("4F:49:7F:E7:CD:2B", dict(company=0x0161), False),         # the old "Fitbit"
     ("4F:49:7F:E7:CD:2B", dict(services=["180d"]), True),       # heart-rate broadcaster on a rotating address
     ("7F:4B:C2:3F:12:01", dict(apple="AirPlay"), False),        # Apple TV / HomePod
     ("4F:49:7F:E7:CD:2B", dict(apple="AirPods"), False),        # earbuds

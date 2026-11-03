@@ -10,6 +10,41 @@
 //   Possible — object-history first/last-seen span overlaps the window
 //              (lower confidence: the device may have left and returned)
 
+const { deviceName, deviceWhat } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+
+/** The CSV export's lines. Its columns keep their meaning for anyone reading a file:
+ *  name and device_type are what the device sent. PadSpan's one name and what it
+ *  works out the device is come last, as best_name and what_it_is. */
+export function csvLines(recorded, possible){
+  // Quote + neutralize spreadsheet formula injection — device names arrive
+  // over RF from untrusted hardware (a name like "=HYPERLINK(…)" must not
+  // execute when the CSV is opened in Excel).
+  const esc = (v)=>{
+    v = String(v==null?"":v);
+    if(/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+    return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  };
+  const lines = ["confidence,address,name,label,vendor,device_type,session_start,session_end,dwell,max_rssi,scanners,best_name,what_it_is"];
+  for(const r of recorded){
+    for(const s of (r.sessions||[])){
+      lines.push([ "recorded", r.address, r.name, r.user_label||"", r.company_name||"", r.device_type||"",
+        new Date(s.start*1000).toISOString(), new Date(s.end*1000).toISOString(),
+        Math.round(s.end - s.start) + "s", s.rssi, (r.sources||[]).join("; "), deviceName(r, ""), deviceWhat(r)||"" ].map(esc).join(","));
+    }
+    const _left = (Number(r.session_count) || 0) - (r.sessions||[]).length;
+    if (_left > 0) {
+      lines.push([ "recorded", r.address, r.name, r.user_label||"", r.company_name||"", r.device_type||"",
+        "", "", `${_left} earlier session(s) in this window not included`, "", "", deviceName(r, ""), deviceWhat(r)||"" ].map(esc).join(","));
+    }
+  }
+  for(const p of possible){
+    lines.push([ "possible", p.address||p.key, p.name, p.user_label||"", p.company_name||"", p.device_type||"",
+      new Date(p.first_seen*1000).toISOString(), new Date(p.last_seen*1000).toISOString(),
+      "", "", "", deviceName(p, ""), deviceWhat(p)||"" ].map(esc).join(","));
+  }
+  return lines;
+}
+
 export function render(ctx){
   const { el, helpBtn } = ctx.helpers;
   const root = el("section",{id:"forensics"});
@@ -164,33 +199,7 @@ export function render(ctx){
   // Export
   const exportBtn = el("button",{class:"btn inline"},"Export CSV");
   exportBtn.addEventListener("click", ()=>{
-    // Quote + neutralize spreadsheet formula injection — device names arrive
-    // over RF from untrusted hardware (a name like "=HYPERLINK(…)" must not
-    // execute when the CSV is opened in Excel).
-    const esc = (v)=>{
-      v = String(v==null?"":v);
-      if(/^[=+\-@\t\r]/.test(v)) v = "'" + v;
-      return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
-    };
-    const lines = ["confidence,address,name,label,vendor,device_type,session_start,session_end,dwell,max_rssi,scanners"];
-    for(const r of recorded){
-      for(const s of (r.sessions||[])){
-        lines.push([ "recorded", r.address, r.name, r.user_label||"", r.company_name||"", r.device_type||"",
-          new Date(s.start*1000).toISOString(), new Date(s.end*1000).toISOString(),
-          Math.round(s.end - s.start) + "s", s.rssi, (r.sources||[]).join("; ") ].map(esc).join(","));
-      }
-      const _left = (Number(r.session_count) || 0) - (r.sessions||[]).length;
-      if (_left > 0) {
-        lines.push([ "recorded", r.address, r.name, r.user_label||"", r.company_name||"", r.device_type||"",
-          "", "", `${_left} earlier session(s) in this window not included`, "", "" ].map(esc).join(","));
-      }
-    }
-    for(const p of possible){
-      lines.push([ "possible", p.address||p.key, p.name, p.user_label||"", p.company_name||"", p.device_type||"",
-        new Date(p.first_seen*1000).toISOString(), new Date(p.last_seen*1000).toISOString(),
-        "", "", "" ].map(esc).join(","));
-    }
-    const blob = new Blob([lines.join("\n")], {type:"text/csv"});
+    const blob = new Blob([csvLines(recorded, possible).join("\n")], {type:"text/csv"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -228,7 +237,7 @@ export function render(ctx){
   } else {
     const tbody = el("tbody",{});
     for(const r of recorded){
-      const name = r.user_label || (r.name && r.name !== r.address ? r.name : "");
+      const name = deviceName(r, "");
       const sess = (r.sessions||[]);
       // Only the last 10 sessions ship; session_count is the true total.
       const total = Number(r.session_count) || sess.length;
@@ -238,9 +247,9 @@ export function render(ctx){
         el("td",{},[
           name ? el("div",{style:"font-weight:600"},name) : null,
           el("div",{style:"font-family:monospace;font-size:11px;color:#94a3b8"},r.address),
-          (r.company_name || r.device_type) ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"},[
+          (r.company_name || deviceWhat(r)) ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"},[
             r.company_name ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, r.company_name) : null,
-            r.device_type ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, r.device_type) : null,
+            deviceWhat(r) ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, deviceWhat(r)) : null,
           ].filter(Boolean)) : null,
         ].filter(Boolean)),
         el("td",{style:"font-size:11px"},sessStr),
@@ -282,13 +291,13 @@ export function render(ctx){
   } else {
     const tbody = el("tbody",{});
     for(const p of possible.slice(0, 200)){
-      const name = p.user_label || (p.name && p.name !== p.address ? p.name : "");
+      const name = deviceName(p, "");
       tbody.appendChild(el("tr",{},[
         el("td",{},[
           name ? el("div",{style:"font-weight:600"},name) : null,
           el("div",{style:"font-family:monospace;font-size:11px;color:#94a3b8"},p.address || p.key),
-          (p.company_name || p.device_type) ? el("div",{style:"font-size:11px;color:#7dd3fc"},
-            [p.company_name, p.device_type].filter(Boolean).join(" · ")) : null,
+          (p.company_name || deviceWhat(p)) ? el("div",{style:"font-size:11px;color:#7dd3fc"},
+            [p.company_name, deviceWhat(p)].filter(Boolean).join(" · ")) : null,
         ].filter(Boolean)),
         el("td",{},p.kind || ""),
         el("td",{},_fmtTs(p.first_seen)),

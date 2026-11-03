@@ -21,7 +21,7 @@ export function render(ctx){
     helpBtn("qa"),
   ]));
 
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── Config Health ──
   const healthCard = el("div",{class:"card"});
@@ -161,7 +161,7 @@ export function render(ctx){
     if(unmapped.length > 0){
       const chips = el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:4px"});
       for(const s of unmapped){
-        const chipLabel = (_sid(s.source||"") ? _sid(s.source||"")+" " : "") + (s.name||s.source);
+        const chipLabel = (_sid(s.source||"") ? _sid(s.source||"")+" " : "") + (s.display_name||s.name||s.source);
         const chip = el("span",{style:"font-size:11px;color:#ffd54f;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"}, chipLabel);
         chip.addEventListener("click", ()=>ctx.actions.showScannerDetail(s));
         chips.appendChild(chip);
@@ -566,7 +566,7 @@ export function render(ctx){
         const otherSet = radioDevSets[r2.source] || new Set();
         let shared = 0;
         for(const addr of devSet) if(otherSet.has(addr)) shared++;
-        if(shared > 0) overlaps.push({ source: r2.source, name: r2.name || r2.source, shared });
+        if(shared > 0) overlaps.push({ source: r2.source, name: r2.display_name || r2.name || r2.source, shared });
       }
       overlaps.sort((a,b) => b.shared - a.shared);
 
@@ -796,7 +796,7 @@ export function render(ctx){
       ].filter(Boolean)));
 
       // Row 2: full radio name (no truncation)
-      const nameLink = el("span",{style:"font-weight:600;color:#e2e8f0;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;word-break:break-word"}, esc(r.name || r.source));
+      const nameLink = el("span",{style:"font-weight:600;color:#e2e8f0;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;word-break:break-word"}, esc(r.display_name || r.name || r.source));
       nameLink.addEventListener("click", (ev)=>{ ev.stopPropagation(); ctx.actions.showScannerDetail(r); });
       summary.appendChild(el("div",{style:"padding-left:42px;margin-top:3px"},[nameLink]));
 
@@ -840,8 +840,8 @@ export function render(ctx){
             const delta = hwRaw[a.src] - hwRaw[bestNeighbor.src];
             if(Math.abs(delta) >= 2){
               const note = delta > 0
-                ? `This radio's hardware outperforms ${esc(bestNeighbor.radio.name||bestNeighbor.src)} by ~${Math.abs(delta).toFixed(1)} dBm on average for shared devices, suggesting a better antenna or Bluetooth chipset.`
-                : `${esc(bestNeighbor.radio.name||bestNeighbor.src)} outperforms this radio by ~${Math.abs(delta).toFixed(1)} dBm on shared devices \u2014 may have a better antenna or chipset.`;
+                ? `This radio's hardware outperforms ${esc(bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src)} by ~${Math.abs(delta).toFixed(1)} dBm on average for shared devices, suggesting a better antenna or Bluetooth chipset.`
+                : `${esc(bestNeighbor.radio.display_name||bestNeighbor.radio.name||bestNeighbor.src)} outperforms this radio by ~${Math.abs(delta).toFixed(1)} dBm on shared devices \u2014 may have a better antenna or chipset.`;
               rankGrid.appendChild(el("div",{class:"muted",style:"font-size:11px;margin-top:4px;font-style:italic"}, note));
             }
           }

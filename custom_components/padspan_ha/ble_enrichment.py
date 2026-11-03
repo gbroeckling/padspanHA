@@ -5,83 +5,28 @@
 """BLE advertisement enrichment — decode company IDs, service UUIDs, and device types.
 
 Data sources:
-  - Bluetooth SIG Assigned Numbers (https://www.bluetooth.com/specifications/assigned-numbers/)
-  - Apple Continuity Protocol reverse-engineering (https://github.com/furiousMAC/continuern)
+  - Bluetooth SIG and IEEE lists, as generated tables (device_tables.py)
+  - Apple Continuity Protocol reverse-engineering (https://github.com/furiousMAC/continuity)
   - GATT Services specification
 
-This module is pure lookup tables — no I/O, no async, no HA dependencies.
+This module is pure lookups — no I/O, no async, no HA dependencies. The company,
+service-owner and address tables answer once device_tables has loaded them.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
+from . import device_tables
+from .findmy import _payload_bytes
 
-# ─── Bluetooth SIG Company Identifiers ──────────────────────────────────────
-# Key: integer company ID from manufacturer_data.  Value: short company name.
-# Source: bluetooth.com/specifications/assigned-numbers/company-identifiers/
-# Only the ~80 most common BLE advertisers are included to keep the module lean.
-
-COMPANY_IDS: Dict[int, str] = {
-    0: "Ericsson",
-    1: "Nokia",
-    2: "Intel",
-    3: "IBM",
-    4: "Toshiba",
-    5: "3Com",
-    6: "Microsoft",
-    7: "Lucent",
-    8: "Motorola",
-    9: "Infineon",
-    10: "Qualcomm",
-    13: "Texas Instruments",
-    15: "Broadcom",
-    29: "Harman",
-    56: "Samsung",
-    57: "Samsung",
-    72: "Plantronics",
-    76: "Apple",
-    77: "Nordic Semiconductor",
-    78: "Mitel",
-    80: "Garmin",
-    89: "Bose",
-    117: "Beats Electronics",
-    134: "Google",
-    137: "Polar Electro",
-    152: "Logitech",
-    171: "Amazon",
-    196: "Huawei",
-    224: "Google",
-    256: "Tile",
-    301: "Sony",
-    310: "Xiaomi",
-    311: "Xiaomi",
-    343: "LG Electronics",
-    348: "Samsung",
-    353: "Fitbit",
-    362: "Ring",
-    376: "Fossil",
-    387: "Jabra",
-    388: "Jabra",
-    393: "Withings",
-    472: "Peloton",
-    474: "Oura",
-    501: "Amazfit",
-    741: "Espressif",
-    757: "Shelly",
-    768: "Sonos",
-    769: "IKEA",
-    936: "Eufy",
-    960: "SwitchBot",
-    985: "Govee",
-    1001: "Meross",
-    1177: "Thermopro",
-    2: "Intel",
-}
 
 # ─── GATT Service UUIDs ─────────────────────────────────────────────────────
 # Key: 16-bit UUID as lowercase hex string (no 0x prefix).
-# Standard services from bluetooth.com + common vendor-specific 16-bit UUIDs.
+# Standard services from bluetooth.com + vendor-specific 16-bit UUIDs that say more
+# than their owner's name; any other UUID a company holds answers with the company
+# (lookup_service_owner).
 
 SERVICE_UUIDS: Dict[str, str] = {
     # Standard GATT Services
@@ -127,8 +72,8 @@ SERVICE_UUIDS: Dict[str, str] = {
     "fe9f": "Google",
     "fea0": "Google",
     "feaa": "Eddystone",
+    "fcd2": "BTHome",
     "feab": "Nokia",
-    "feb9": "Wearable Sensing",
     "febe": "Bose",
     "fec7": "Apple Continuity",
     "fec8": "Apple Continuity",
@@ -218,25 +163,54 @@ APPLE_SUBTYPES: Dict[int, str] = {
 
 def lookup_company(company_id: int) -> Optional[str]:
     """Return company name for a Bluetooth SIG company identifier."""
-    return COMPANY_IDS.get(company_id)
+    return device_tables.company(company_id)
+
+
+_SIG_BASE_TAIL = "-0000-1000-8000-00805f9b34fb"
+
+
+def _uuid16(uuid_str: str) -> Optional[str]:
+    """A UUID's 16-bit form, or None when it hasn't one.
+
+    Accepts "0x180F", "180f", "0000180f-0000-1000-8000-00805f9b34fb". Only a
+    128-bit UUID on the Bluetooth base has a 16-bit form: taking those four
+    digits out of any other read "abcd1800-1111-..." as Generic Access.
+    """
+    u = uuid_str.strip().lower()
+    if u.startswith("0x"):
+        u = u[2:]
+    if len(u) == 36:
+        return u[4:8] if u.startswith("0000") and u.endswith(_SIG_BASE_TAIL) else None
+    return u.zfill(4) if len(u) <= 4 else None
 
 
 def lookup_service_uuid(uuid_str: str) -> Optional[str]:
-    """Return human name for a 16-bit GATT service UUID string.
+    """Return a human name for a service UUID: the service's own, else the
+    company that holds the UUID."""
+    u = _uuid16(uuid_str)
+    if u is None:
+        return None
+    return SERVICE_UUIDS.get(u) or device_tables.service_owner(u)
 
-    Accepts formats: "0x180F", "180f", "0000180f-0000-1000-8000-00805f9b34fb".
-    """
-    u = uuid_str.strip().lower()
-    # Strip 0x prefix
-    if u.startswith("0x"):
-        u = u[2:]
-    # Extract 16-bit part from full 128-bit UUID
-    if len(u) == 36 and u[8] == "-":
-        u = u[4:8]
-    # Normalize 4-char hex
-    if len(u) <= 4:
-        u = u.zfill(4)
-    return SERVICE_UUIDS.get(u)
+
+def lookup_service_owner(uuid_str: str) -> Optional[str]:
+    """Which company holds this service UUID, per Bluetooth SIG's member list."""
+    u = _uuid16(uuid_str)
+    return device_tables.service_owner(u) if u is not None else None
+
+
+# Open formats: a company holds the UUID, and anyone's hardware sends it. Like
+# Apple's number on an iBeacon, they don't say who made the device: Eddystone,
+# Fast Pair, BTHome, Exposure Notification, and FCB2, the format location
+# trackers of any brand must send (Apple holds it).
+_OPEN_FORMAT_UUIDS = frozenset({"feaa", "fe2c", "fcd2", "fd6f", "fcb2"})
+
+
+def _owner_of_service(uuid_str: str) -> Optional[str]:
+    """The company whose service a device broadcasts, open formats aside. That
+    company often didn't make the device: a CP27 beacon's service is Neurostim
+    OAB's, a Feasycom's Dialog Semiconductor's. So it's never a maker."""
+    return None if _uuid16(uuid_str) in _OPEN_FORMAT_UUIDS else lookup_service_owner(uuid_str)
 
 
 def lookup_appearance(code: int) -> Optional[str]:
@@ -281,29 +255,166 @@ def decode_apple_subtype(manuf_payload: Any) -> Optional[str]:
     return None
 
 
+def apple_records(raw: bytes) -> list[tuple[int, int, int]]:
+    """(type, start, end) of each record in Apple's block, a chain of type, length,
+    value; a record cut short ends the chain."""
+    out: list[tuple[int, int, int]] = []
+    i = 0
+    while i + 2 <= len(raw):
+        start, end = i + 2, i + 2 + raw[i + 1]
+        if end > len(raw):
+            break
+        out.append((raw[i], start, end))
+        i = end
+    return out
+
+
+def apple_said_by_others(payload: Any) -> bool:
+    """HomeKit, or Find My's device type 2 without AirPods' pairing record."""
+    raw = _payload_bytes(payload)
+    kinds = {r[0]: r for r in (apple_records(raw) if raw else ())}
+    if 0x07 in kinds:  # AirPods' own pairing record
+        return False
+    if 0x06 in kinds:  # HomeKit
+        return True
+    if 0x12 in kinds:  # Find My, its device type in bits 4-5 of the status byte
+        start, end = kinds[0x12][1:]
+        return end > start and (raw[start] >> 4) & 0x03 == 2
+    return False
+
+
+@lru_cache(maxsize=8192)
+def _apple_text_number_only(payload: str) -> bool:
+    return _is_ibeacon_payload(payload) or apple_said_by_others(payload)
+
+
+def apple_number_only(payload: Any) -> bool:
+    """Does this Apple-numbered block use Apple's number whoever made the device?
+    The iBeacon format, HomeKit (an Eve or a Nanoleaf) and Find My's device type 2,
+    which is another brand's tag or AirPods: there the number says nothing about the
+    maker. AirPods are told by their pairing record, which is Apple's alone. Asked of
+    the same few thousand strings every build, so those are remembered."""
+    if isinstance(payload, str):
+        return _apple_text_number_only(payload)
+    return _is_ibeacon_payload(payload) or apple_said_by_others(payload)
+
+
+def with_model_maker(obj: Dict[str, Any]) -> Dict[str, Any]:
+    """An object as calibration's model groups read it (compute_beacon_profiles).
+    Apple's number no longer makes Apple the maker of a HomeKit or Find My accessory
+    on screen, and a beacon's group stays what it was."""
+    if not obj.get("company_name") and apple_said_by_others((obj.get("manufacturer_data") or {}).get("76")):
+        return {**obj, "company_name": "Apple"}
+    return obj
+
+
+def _is_ibeacon_payload(payload: Any) -> bool:
+    """Does this Apple-numbered block start 02 15, the iBeacon format?"""
+    try:
+        if isinstance(payload, (bytes, bytearray, list, tuple)):
+            return len(payload) >= 2 and int(payload[0]) == 0x02 and int(payload[1]) == 0x15
+        if isinstance(payload, str):
+            parts = payload.strip().split()
+            return len(parts) >= 2 and int(parts[0], 16) == 0x02 and int(parts[1], 16) == 0x15
+    except (ValueError, TypeError):
+        pass
+    return False
+
+
+# ESPresense's id for a device it has no address for. Its ids start with what
+# it recognised; only these say who made the thing. An "iBeacon:" id doesn't:
+# anyone's hardware can send one.
+_ESPRESENSE_MAKERS = {"apple": 0x004C, "msft": 0x0006, "tile": 0x067C}
+
+
+def _maker_from_espresense_id(device_id: Any) -> Optional[str]:
+    """The maker in an ESPresense fingerprint id: apple:..., msft:..., tile:...,
+    md:<company number in hex>:..., else None."""
+    head, sep, rest = str(device_id or "").partition(":")
+    if not sep:
+        return None
+    cid = _ESPRESENSE_MAKERS.get(head)
+    if cid is not None:
+        return lookup_company(cid)
+    if head == "md":
+        try:
+            return lookup_company(int(rest.split(":")[0], 16))
+        except ValueError:
+            return None
+    return None
+
+
+def _owner_from_espresense_id(device_id: Any) -> Optional[str]:
+    """The service owner in an ESPresense id, sd:<service UUID>...; a 128-bit
+    UUID has its first dash at [8]."""
+    head, sep, rest = str(device_id or "").partition(":")
+    if head != "sd" or not sep or len(rest) < 4 or rest[8:9] == "-":
+        return None
+    return _owner_of_service(rest[:4])
+
+
+def apply_address_maker(obj: Dict[str, Any], address: Any, address_type: Optional[str]) -> None:
+    """Fill in the maker from the built-in address list, when the broadcast didn't say.
+
+    address_type is what a radio reported. A confirmed public address really is
+    maker-assigned: company_name, maker_source "address". A confirmed random
+    address means nothing to the list and is never looked up. With no word from
+    a radio (Tasmota, Shelly, ESPresense, or an address not heard lately) a hit
+    is only likely, since a random address can match a block by chance, so it
+    goes in maker_guess and the panel words it "probably". Bits 0x01 and 0x02
+    of the first byte mark an address IEEE didn't assign, so those aren't tried.
+    """
+    if obj.get("company_name") or address_type == "random":
+        return
+    try:
+        first = int(str(address).split(":")[0], 16)
+    except (ValueError, IndexError):
+        return
+    if address_type != "public" and first & 0x03:
+        return
+    maker = device_tables.address_maker(address)
+    if not maker:
+        return
+    if address_type == "public":
+        obj["company_name"] = maker
+        obj["maker_source"] = "address"
+    else:
+        obj["maker_guess"] = maker
+
+
 def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
     """Add enrichment fields to a BLE object dict in-place and return it.
 
     Adds:
-      - company_name: str|None — from manufacturer_data company ID
+      - company_name: str|None — who made it, from what its broadcast says
+      - maker_source: str — how that is known, left off with no maker: "company_id"
+        or "espresense" ("address" comes later, from apply_address_maker)
+      - service_owner: str|None — whose service it broadcasts, which isn't a maker
       - device_type: str|None  — specific device type (e.g. "AirPods", "Find My", "Phone")
       - service_names: list[str] — human-readable names for service_uuids
     """
     manuf = obj.get("manufacturer_data") or {}
     svc_uuids = obj.get("service_uuids") or []
+    # Advert rows are bluetooth_live's own records, enriched again each build.
+    obj.pop("maker_guess", None)
 
     # ── Company name from manufacturer_data keys ──
+    # Some formats use Apple's number whoever made the device, so there it says
+    # nothing about the maker (apple_number_only).
     company_name = None
+    maker_source = None
     for key in manuf:
         try:
             cid = int(key)
+            if cid == 0x004C and apple_number_only(manuf[key]):
+                continue
             name = lookup_company(cid)
             if name:
                 company_name = name
+                maker_source = "company_id"
                 break
         except (ValueError, TypeError):
             continue
-    obj["company_name"] = company_name
 
     # ── Device type — Apple Continuity subtype (most specific) ──
     device_type = None
@@ -350,7 +461,32 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
             if name not in seen:
                 service_names.append(name)
                 seen.add(name)
-    obj["service_names"] = service_names
+
+    # ── No company number: what ESPresense recognised ──
+    if not company_name:
+        company_name = _maker_from_espresense_id(obj.get("espresense_id"))
+        if company_name:
+            maker_source = "espresense"
+    obj["company_name"] = company_name
+    if maker_source:
+        obj["maker_source"] = maker_source
+    else:
+        obj.pop("maker_source", None)
+
+    # ── Whose service it broadcasts. Kept apart from the maker ──
+    owner = None
+    for u in [*svc_uuids, *svc_data]:
+        owner = _owner_of_service(str(u))
+        if owner:
+            break
+    owner = owner or _owner_from_espresense_id(obj.get("espresense_id"))
+    if owner and owner != company_name:
+        obj["service_owner"] = owner
+    else:
+        obj.pop("service_owner", None)
+
+    # Shown on their own; the same word again as a service says nothing.
+    obj["service_names"] = [n for n in service_names if n != company_name and n != owner]
     obj["service_uuid_map"] = service_uuid_map
 
     return obj

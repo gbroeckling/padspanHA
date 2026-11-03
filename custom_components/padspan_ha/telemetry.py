@@ -284,6 +284,20 @@ EVENTS: frozenset[str] = frozenset({
     "findmy_linked", "findmy_linked_slow",
     "findmy_missed_ambiguous", "findmy_missed_late", "findmy_missed_elsewhere", "findmy_missed_no_candidate",
     "findmy_moved_back", "findmy_moved_back_addrs", "findmy_back_on_day_key", "findmy_not_this_tag",
+    # A name following a rotating address, on screen only (label_follow.py).
+    # Garry, 2026-11-02: the merge guard keeps a name on the first address, and
+    # a guess can mix signal into calibration, so "find a better way". These say
+    # whether the better way is right in homes other than his.
+    #   label_link_linked     a name moved to a new address on evidence.
+    #   label_link_asked      "This looks like <label>: same device?" put up.
+    #   label_link_yes, _no   how that was answered.
+    #   label_link_undone     a person's Undo.
+    #   label_link_wrong_after_undo  an undone link the radio then proved wrong:
+    #                         both addresses on the air at once.
+    #   label_link_old_back   a link dropped by itself: an address it had left
+    #                         came back, so that was no hand-over.
+    "label_link_linked", "label_link_asked", "label_link_yes", "label_link_no", "label_link_undone",
+    "label_link_wrong_after_undo", "label_link_old_back",
     # The Atlas emergency lighting test (emergency_test.py): a test started,
     # ended (the lights already on left on), or ended with Force off.
     "emergency_test_on", "emergency_test_off", "emergency_force_off",
@@ -450,10 +464,12 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # before the change (server/telemetry_summary.py splits them on that).
 # tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
+    "device_name",
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
+    "atlas_forest",                                 # the trees behind the flat map (Showcase theme "West Coast Forest")
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
     "calibration_results",                          # Calibration's Results tab (the one it opens on)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish
@@ -464,6 +480,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "iphone_irk",                                   # the iPhone setup path: IRK steps instead of BLE Transmitter
     "live_aboard_people", "live_aboard_photo",
     "live_aboard_runs", "live_aboard_strip",        # Live Aboard's Strip tool: strips and string lights
+    "live_aboard_plans",                            # Add data via plans (experimental): the Plans tool's list
     "atlas_screen", "atlas_aboard",                 # the flat Atlas: the map alone, full screen; Live Aboard's on the map
     "map_text",                                     # the map as text for screen readers (Overview, the flat Atlas)
     "whos_where",                                   # Who's where now, before any room is drawn (Overview)
@@ -472,6 +489,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "atlas_heatmap",                                # the flat Atlas: temperature / humidity / CO2 heatmap
     "live_aboard_marks",                            # Live Aboard: the Atlas's leak sensors, locks, codes and class chips
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)
+    "live_aboard_raised",                           # Live Aboard: what stands on a line, clear of the words
     "live_aboard_panel",                            # Live Aboard on the wall panel: its home view, Follow, the People chip
     "live_aboard_director",                         # Live Aboard on the wall panel: flies to a doorbell, door or alarm that went off
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)
@@ -555,7 +573,9 @@ OFFER_EVENTS: frozenset[str] = frozenset(
 #   weather_note:<kind>      what the decision set aside on purpose (0.38.142):
 #                            sensor_overruled — a wet rain sensor under a
 #                            clear sky (dew or frost, not rain); warning_ignored
-#                            — the chosen warning entity is a leak detector.
+#                            — the chosen warning entity is a leak detector;
+#                            sensor_stale — a rain sensor whose device has
+#                            stopped reporting.
 # Words only: never an entity id, never alert text.
 WEATHER_WARNING_PLATFORMS: tuple[str, ...] = ("env_canada", "meteoalarm", "dwd_weather_warnings", "nina",
                                               "meteo_france", "weatheralerts", "nws_alerts")
@@ -563,7 +583,7 @@ WEATHER_ERROR_KINDS: tuple[str, ...] = ("mask_build", "mask_unsupported", "tiles
 WEATHER_SHOWN_STATES: tuple[str, ...] = ("light_rain", "heavy_rain", "light_snow", "heavy_snow", "still")
 WEATHER_SOURCES: tuple[str, ...] = ("rain_sensor", "condition", "none",
                                     *(f"warning:{p}" for p in WEATHER_WARNING_PLATFORMS), "warning:other")
-WEATHER_NOTE_KINDS: tuple[str, ...] = ("sensor_overruled", "warning_ignored")
+WEATHER_NOTE_KINDS: tuple[str, ...] = ("sensor_overruled", "warning_ignored", "sensor_stale")
 WEATHER_EVENTS: frozenset[str] = frozenset(
     {f"weather_error:{k}" for k in WEATHER_ERROR_KINDS}
     | {f"weather_shown:{k}" for k in WEATHER_SHOWN_STATES}
@@ -630,12 +650,86 @@ PHOTO_QUICK_OUTCOMES: tuple[str, ...] = ("ok", "fallback")
 # sent: stair_read:found (one or more), :none, :bad_answer, :error or
 # :no_ai_task. Never the plan, the answer or where the stairs are.
 STAIR_READ_OUTCOMES: tuple[str, ...] = ("found", "none", "bad_answer", "error", "no_ai_task")
+# And (2026-11-02, the plan sent at the model's own frame) how each box in an
+# answer fared: stair_box:kept (became a stair), :dropped (not a staircase's
+# size or shape) or :past_edge (out past the picture: the AI answered in
+# another frame than the one sent, as Ollama's Qwen did before the fix).
+STAIR_BOX_OUTCOMES: tuple[str, ...] = ("kept", "dropped", "past_edge")
 PHOTO_EVENTS: frozenset[str] = frozenset(
     {f"photo_read:{k}" for k in PHOTO_READ_OUTCOMES} | {f"photo_subject:{k}" for k in PHOTO_SUBJECTS}
     | {f"photo_secs:{k}" for k in PHOTO_SECS} | {f"photo_quick:{k}" for k in PHOTO_QUICK_OUTCOMES})
 # And (0.38.193) how long the AI took over each plan, in the photo bands.
 STAIR_EVENTS: frozenset[str] = frozenset(
-    {f"stair_read:{k}" for k in STAIR_READ_OUTCOMES} | {f"stair_secs:{k}" for k in PHOTO_SECS})
+    {f"stair_read:{k}" for k in STAIR_READ_OUTCOMES} | {f"stair_secs:{k}" for k in PHOTO_SECS}
+    | {f"stair_box:{k}" for k in STAIR_BOX_OUTCOMES})
+# The Open edges tool (2026-11-02, Mapping → Edit → Signal walls, ws_fabric.py
+# ws_fabric_open_edges_apply), once per use: open_edge:tap (a stretch tapped
+# open), :all (Open all edges on a room), :replaced (a signal wall gave way to
+# an open edge, the one use that changes positioning) or :removed (Remove open
+# edges). And how many Open edges from before had the railing they showed
+# made their own word, after a Save: rail_stamped:glass or :none (ws_fabric.py
+# ws_fabric_rf_barrier_rails_stamp). Never which room, wall or where.
+OPEN_EDGE_ACTIONS: tuple[str, ...] = ("tap", "all", "replaced", "removed")
+OPEN_EDGE_EVENTS: frozenset[str] = frozenset(
+    {f"open_edge:{k}" for k in OPEN_EDGE_ACTIONS} | {"rail_stamped:glass", "rail_stamped:none"})
+# Add data via plans (plan_ai.py, experimental, 2026-11), counts only: how a
+# session ended and why one was cut short; whether the AI was local and in
+# which frame it answers; how many plans and reads, and how long each read
+# took (the photo bands); each AI failure by reason; a session in which no
+# plan's whole read answered, apart from one that found nothing, and why; a
+# time budget that ran out inside the reads, and in which; what the second look
+# did to a find (kept it, placed it, dropped it); what was suggested and what was
+# already in the house, per kind; a find with no floor to climb from; each
+# verdict given (it looks right, wrong, later; a railing hint that went with its
+# stair), each one taken back, and why an item was marked wrong, per kind;
+# positions held as coarse; corrections aimed at a hand-placed or an AI-placed
+# stair; a stacked stairwell offered and taken; an item whose target changed
+# since; each item kept as new or as a correction, and whether a correction was
+# taken on a hand-placed or an AI-placed stair; a stair moved after it was
+# accepted; whose side a railing kept has; how each commit ended; each undo, by
+# kind, and what it left; for lights, each plan's answer to whether it draws
+# fixtures, how many tiles a session read, a slow AI's tiles skipped, and a
+# symbol with no placed light (outside the AI's failures). Never a plan, an
+# answer, a name or a position.
+PLAN_AI_SESSION: tuple[str, ...] = ("started", "done", "no_read", "cancelled", "failed", "out_of_time")
+PLAN_AI_NO_READ: tuple[str, ...] = ("no_media", "no_picture", "unreachable", "timeout", "bad_answer")
+PLAN_AI_BUDGET_CUT: tuple[str, ...] = ("whole", "crop", "railing", "tiles", "light_crop")
+PLAN_AI_CANCEL_WHY: tuple[str, ...] = ("user", "switch_off", "house3d_off", "licence", "plan_gone", "plan_changed", "restart")
+PLAN_AI_MODEL: tuple[str, ...] = ("local", "cloud", "unknown")
+PLAN_AI_FRAME: tuple[str, ...] = ("probed", "named")
+PLAN_AI_PLAN_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "gt6")
+PLAN_AI_READ_BANDS: tuple[str, ...] = ("1_5", "6_15", "16_40", "gt40")
+PLAN_AI_ERRORS: tuple[str, ...] = ("no_ai_task", "bad_answer", "timeout", "unreachable", "no_media", "no_picture", "budget", "suspect_frame")
+PLAN_AI_KINDS: tuple[str, ...] = ("stairs", "railing", "light")
+PLAN_AI_FIXTURES: tuple[str, ...] = ("yes", "no", "unsure")
+PLAN_AI_TILE_BANDS: tuple[str, ...] = ("none", "1_9", "10_27", "gt27")
+PLAN_AI_VERDICTS: tuple[str, ...] = ("failure", "later", "right")
+PLAN_AI_FAILURE_WHY: tuple[str, ...] = ("wrong_place", "nothing_there", "already_here", "wrong_kind", "cant_tell")
+PLAN_AI_HELD: tuple[str, ...] = ("frame", "eye")
+PLAN_AI_CROP: tuple[str, ...] = ("kept", "placed", "dropped", "light_kept", "light_placed", "light_dropped")
+PLAN_AI_KEPT: tuple[str, ...] = ("new", "correction")
+PLAN_AI_COMMIT: tuple[str, ...] = ("done", "rev_mismatch", "already_committed", "changed_since", "not_open", "stair_first", "invalid",
+                                   "backup_failed", "save_failed")
+PLAN_AI_UNDO: tuple[str, ...] = ("batch", "put_back", "item_skipped", "stairs", "railing", "light", "already_undone", "save_failed")
+PLAN_AI_EVENTS: frozenset[str] = frozenset(
+    {f"plan_ai_session:{k}" for k in PLAN_AI_SESSION} | {f"plan_ai_cancel_why:{k}" for k in PLAN_AI_CANCEL_WHY}
+    | {f"plan_ai_model:{k}" for k in PLAN_AI_MODEL} | {f"plan_ai_frame:{k}" for k in PLAN_AI_FRAME}
+    | {f"plan_ai_plans:{k}" for k in PLAN_AI_PLAN_BANDS} | {f"plan_ai_reads:{k}" for k in PLAN_AI_READ_BANDS}
+    | {f"plan_ai_read_secs:{k}" for k in PHOTO_SECS} | {f"plan_ai_error:{k}" for k in PLAN_AI_ERRORS}
+    | {f"plan_ai_suggested:{k}" for k in PLAN_AI_KINDS} | {f"plan_ai_duplicate:{k}" for k in PLAN_AI_KINDS}
+    | {f"plan_ai_verdict:{k}_{v}" for k in PLAN_AI_KINDS for v in PLAN_AI_VERDICTS}
+    | {f"plan_ai_taken_back:{k}_{v}" for k in PLAN_AI_KINDS for v in PLAN_AI_VERDICTS}
+    | {f"plan_ai_failure_why:{k}_{w}" for k in PLAN_AI_KINDS for w in PLAN_AI_FAILURE_WHY} | {f"plan_ai_held:{k}" for k in PLAN_AI_HELD}
+    | {f"plan_ai_crop:{k}" for k in PLAN_AI_CROP} | {f"plan_ai_no_read:{k}" for k in PLAN_AI_NO_READ}
+    | {f"plan_ai_budget_cut:{k}" for k in PLAN_AI_BUDGET_CUT}
+    | {f"plan_ai_verdict:{k}_{v}" for k in PLAN_AI_KINDS for v in PLAN_AI_KEPT}
+    | {f"plan_ai_commit:{k}" for k in PLAN_AI_COMMIT} | {f"plan_ai_undo:{k}" for k in PLAN_AI_UNDO}
+    | {"plan_ai_verdict:railing_settled", "plan_ai_taken_back:railing_settled", "plan_ai_no_floor",
+       "plan_ai_correction_target:hand", "plan_ai_correction_target:ai", "plan_ai_correction_taken:hand", "plan_ai_correction_taken:ai",
+       "plan_ai_stacked:offered", "plan_ai_stacked:taken", "plan_ai_stale", "plan_ai_moved_after_accept:stairs",
+       "plan_ai_rail_side:ai", "plan_ai_rail_side:own", "plan_ai_light_unmatched", "plan_ai_tiles_slow"}
+    | {f"plan_ai_fixtures:{k}" for k in PLAN_AI_FIXTURES} | {f"plan_ai_tiles:{k}" for k in PLAN_AI_TILE_BANDS}
+    | {f"plan_ai_missing_added:{k}" for k in PLAN_AI_KINDS})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
@@ -778,7 +872,7 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "ha_entity_tracker_enabled", "ha_entity_area_enabled", "ha_entity_distance_enabled",
     "ha_entity_scanner_distance_enabled", "ha_entity_occupancy_enabled",
     "tags_room_events_enabled", "tags_nfc_identify_enabled", "tags_phone_autolink_enabled",
-    "update_check_enabled", "vendor_lookup_enabled", "onboarding_completed",
+    "update_check_enabled", "onboarding_completed",
     "atlas_3d_enabled", "low_memory_mode",
     # Pro: the Atlas as Overview (0.38.137) — whether anyone wants it as the front door.
     "overview_atlas",
@@ -798,6 +892,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "enhanced_security": "enhanced_security",
     # A backup AI Task is set (Settings → AI): yes only, never which one.
     "atlas_3d_ai_task_backup_entity": "ai_backup",
+    # AI map-building research (experimental, 2026-11): on only; an untouched house sends what it always did.
+    "ai_plans_enabled": "ai_plans",
     # 0.38.178: several wall screens (Settings → Optimize for scale).
     "optimize_for_scale": "scale",
     "guest_tags_enabled": "guest_tags",
@@ -996,6 +1092,14 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     # 1 medium, 2 high) and estimates per hour — phones through a wall.
     "occ_unknown_n": ("occ_unk", ("p50", "max")),
     "occ_conf": ("occ_conf", ("p50", "per_h")),
+    # What the corrected wearable company numbers moved: addresses an estimate
+    # counted because of them, addresses it no longer counted, and how many
+    # people more or fewer the estimate says than the old numbers would. Only
+    # from a house where it happened.
+    "occ_wear_gain_n": ("occ_wear_gain", ("max", "per_h")),
+    "occ_wear_lost_n": ("occ_wear_lost", ("max", "per_h")),
+    "occ_wear_more_n": ("occ_wear_more", ("max",)),
+    "occ_wear_fewer_n": ("occ_wear_fewer", ("max",)),
     "ha_states_n": ("states", ("max",)),
     # Bermuda troubleshooting (perf_sampler.padspan_sizes): its entities and
     # receiver devices, HA entities taken as tag candidates, and saved tags
@@ -1008,6 +1112,14 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     # build — the match that never fired before 0.38.109; a large number here
     # would mean it merges more than it should.
     "merged_by_device_n": ("dev_merged", ("max",)),
+    # The merges that go by a guess (same name, same maker data), what the guard
+    # kept out of one (labelled, saved, pinned or calibrated), and how many BLE
+    # objects a radio has given an address type. Read these before the merge
+    # test itself changes. A house with no merges sends only the last.
+    "merge_same_name_n": ("merge_name", ("max",)),
+    "merge_same_data_n": ("merge_data", ("max",)),
+    "merge_held_n": ("merge_held", ("max",)),
+    "type_known_pc": ("type_known_pc", ("p50",)),
     "smoothed_n": ("smoothed", ("p50", "max")),
     "background_n": ("background", ("max",)),
     "lostfound_n": ("lostfound", ("max",)),
@@ -1090,8 +1202,9 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
+            or name in PLAN_AI_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
-            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS)
+            or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS)
 
 
 def bump(hass: HomeAssistant, event: str, n: int = 1) -> bool:
@@ -1497,6 +1610,70 @@ def _runs_payload(raw: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# bluetooth_live.receiver_type's words, and the two MQTT feeds, told by source.
+RECEIVER_TYPES: tuple[str, ...] = ("esphome", "shelly", "ha_adapter", "ruuvi", "other")
+
+
+def _object_detail(obj_list: list) -> dict[str, int]:
+    """How much the house's objects say about themselves: of `total` Bluetooth
+    objects, how many have a real name, a maker, and a type. `maker_*` splits
+    the makers by how they are known (one level deep, so stats.php adds them
+    up), "guess" being the built-in address list with no receiver's word that
+    the address is fixed. `name_*` says where each best name came from, `what`
+    how many have a type read from the broadcast, `addr_*` how many a radio says
+    are fixed or rotating. Counts only, never a name, a maker or an address."""
+    out = {"total": 0, "named": 0, "maker": 0, "type": 0}
+    for o in obj_list:
+        if not isinstance(o, dict) or o.get("kind") not in ("ble", "ibeacon", "private_ble"):
+            continue
+        out["total"] += 1
+        # A label, or what a plain device broadcasts: an iBeacon's `name` is mostly
+        # PadSpan's own "iBeacon xxxxxxxx".
+        name = str(o.get("user_label") or (o.get("name") if o.get("kind") == "ble" else "") or "").strip()
+        if name and name.upper() != str(o.get("address") or "").upper():
+            out["named"] += 1
+        how = o.get("maker_source") if o.get("company_name") else "guess" if o.get("maker_guess") else None
+        if how:
+            out["maker"] += 1
+            out[f"maker_{how}"] = out.get(f"maker_{how}", 0) + 1
+        if o.get("service_owner") and not o.get("company_name"):  # not a maker, so not in `maker`
+            out["maker_service_uuid"] = out.get("maker_service_uuid", 0) + 1
+        if o.get("device_type") or o.get("auto_class"):
+            out["type"] += 1
+        source = o.get("name_source") or ("maker" if o.get("best_name") else None)  # left off when it's maker
+        if source:
+            k = f"name_{source}"
+            out[k] = out.get(k, 0) + 1
+        if o.get("what_it_is"):
+            out["what"] = out.get("what", 0) + 1
+        if o.get("address_kind"):
+            k = f"addr_{o['address_kind']}"
+            out[k] = out.get(k, 0) + 1
+    return out
+
+
+def _padspan_device_ids(hass: HomeAssistant) -> dict[str, int]:
+    """PadSpan's devices in HA's registry, and the ids each has built up (0.38.105
+    and older added one each time an object's id changed). Counts only. Near
+    zero on any install that never ran those versions."""
+    from homeassistant.helpers import device_registry as _dr  # noqa: PLC0415
+    from .util import ha_devices as _ha_devices  # noqa: PLC0415
+    counts: list[int] = []
+    names: dict[str, int] = {}
+    for dev in _ha_devices(_dr.async_get(hass)):
+        ids = [i for i in dev.identifiers if i and i[0] == DOMAIN]
+        if not ids:
+            continue
+        counts.append(len(ids))
+        name = str(dev.name_by_user or dev.name or "")
+        names[name] = names.get(name, 0) + 1
+    if not counts:
+        return {}
+    return {"devices": len(counts), "ids": sum(counts), "most": max(counts),
+            "over_10": sum(1 for n in counts if n > 10),
+            "same_name": sum(n for name, n in names.items() if name and n > 1)}
+
+
 def _positioning_now(coord) -> dict[str, int]:
     """What the engine did with the house's own objects this poll.
 
@@ -1578,6 +1755,15 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                                    and str(r.get("source") or "").lower().startswith("tasmota_"))
     scanner_kinds["other"] = max(0, len(radios) - scanner_kinds["ip_known"] - scanner_kinds["espresense"]
                                  - scanner_kinds["tasmota"])
+    # What each receiver is (bluetooth_live.receiver_type): the split "other"
+    # above can't give, which says how many homes' receivers pass on an address
+    # type or a full broadcast. Fixed words and counts, zeros left out.
+    scanner_types: dict[str, int] = {}
+    for r in radios:
+        src = str(r.get("source") or "").lower()
+        k = ("espresense" if src.startswith("espresense") else "tasmota" if src.startswith("tasmota_")
+             else r.get("receiver_type") if r.get("receiver_type") in RECEIVER_TYPES else "other")
+        scanner_types[k] = scanner_types.get(k, 0) + 1
     # Where each receiver's one name came from (ws_common.radio_display,
     # 0.38.132): the user's HA name, HA's device name, the scanner's own, its
     # area, or nothing but its source. Fixed words and counts, zeros left out.
@@ -1848,6 +2034,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     env = {
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
+        "scanner_types": scanner_types,
         "scanner_names": scanner_names,
         # Receivers with a minimum signal set (opt-in; a count, never which).
         "scanner_floors": len(settings.get("scanner_min_rssi") or {}) if isinstance(settings.get("scanner_min_rssi"), dict) else 0,
@@ -1884,6 +2071,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "objects_total": _len(obj_list),
         "objects_identified": sum(1 for o in obj_list if isinstance(o, dict) and o.get("identified")),
         "objects_by_kind": by_kind,
+        "object_detail": _object_detail(obj_list),
         "integrations": integrations,
     }
     # The hardware class and the load it runs at (perf_sampler.py) — so a
@@ -2169,6 +2357,12 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         health["entity_dup_n"] = sum(1 for _m in _bases if _m and _m.group(1) in _ids)
     except Exception as err:
         _LOGGER.debug("Telemetry: entity_dup_n left out: %s", err)
+    try:
+        _ids = _padspan_device_ids(hass)
+        if _ids:
+            health["device_ids"] = _ids
+    except Exception as err:
+        _LOGGER.debug("Telemetry: device_ids left out: %s", err)
     try:
         from . import perf_sampler as _ps  # noqa: PLC0415
         _pw = _ps.take_window(hass) if consume else _ps.window(hass)

@@ -92,6 +92,8 @@ def test_off_means_no_import(card) -> None:
     assert "views/live_aboard_motion.js" in set(card["loaded"]), card["loaded"]
     # So is the house itself: each storey's floor, the roof, stairs' openings (live_aboard_storey.js, 2026-10-05).
     assert "views/live_aboard_storey.js" in set(card["loaded"]), card["loaded"]
+    # The Plans tool (live_aboard_plans.js, experimental) loads only with Settings → AI's master switch on: not here.
+    assert "views/live_aboard_plans.js" not in set(card["loaded"]), card["loaded"]
 
 
 def test_off_means_the_3d_file_is_never_read_or_written(card) -> None:
@@ -277,7 +279,11 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     # The editor's heights go on the placement records (2026-10-05: the Atlas's
     # own fabric_light_height_set, on the same gate as edit, _laHeightsPut).
     # The seventh is Trails' read of Traceback's history, with live data only.
-    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 7
+    # The eighth (2026-11-02) writes Open edges' railing words to their stored
+    # records (barrierRail, on the same gate as edit): after a Save, so the
+    # railings from before become choices. Only the words go, never a record.
+    assert "settingsSet(" not in mblock and mblock.count("wsCall(") == 8
+    assert 'barrierRail: paid && !preview ? (rails) => ctx.actions.wsCall("padspan_ha/fabric_rf_barrier_rails_stamp", { rails })' in mblock
     assert 'ctx.actions.wsCall("padspan_ha/settings_set", { [key]: v })' in mblock
     assert "heights: paid && !preview ? _laHeightsPut(ctx, mapState) : null," in mblock
     put = maps[maps.index("export function _laHeightsPut("):][:400]
@@ -287,6 +293,12 @@ def test_the_compass_save_writes_the_bearing_alone() -> None:
     assert 'load: () => ctx.actions.wsCall("padspan_ha/house3d_get"),' in mblock
     lm = _js(_VIEWS / "lights_map.js")
     assert 'saveNorth: typeof h3.saveNorth === "function" ? h3.saveNorth : null,' in lm
+    # The view only gets what lights_map.js hands it, field by field: with this
+    # line gone the stamp can't run at all, whatever maps.js gives.
+    assert 'barrierRail: typeof h3.barrierRail === "function" ? h3.barrierRail : null,' in lm
+    # It runs after a Save of the person's own, never on opening: editSave is its one caller.
+    la_src = (_VIEWS / "live_aboard.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert la_src.count("stampEdgeRails(") == 2 and "await saveEdit(ch0, base);\n    stampEdgeRails();" in la_src
     la = _js(_VIEWS / "live_aboard.js")
     assert "callWS" not in la and "wsCall" not in la and "settings_set" not in la
     # Save, Cancel, Escape, a tap elsewhere; the preview drives the sun only.

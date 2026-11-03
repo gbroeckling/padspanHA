@@ -1,13 +1,13 @@
 # PadSpan HA — BLE Room-Presence Tracking for Home Assistant
 # Copyright (C) 2026 Garry Broeckling
 # Licensed under the GNU General Public License v3.0
-"""Factory Reset erases what the maker lookup learned.
+"""Factory Reset erases what the maker rules learned.
 
 The help says a reset "erases all of PadSpan's data". The addresses a radio
-confirmed as public (bluetooth_live, padspan_ha.public_addresses) and the
-makers kept for 30 days (vendor_lookup, padspan_ha.vendor_cache) outlived it,
-in memory and on disk. Each file goes through the store the live object
-writes with, so a save still pending can't write it back.
+confirmed as public (bluetooth_live, padspan_ha.public_addresses) outlived it,
+in memory and on disk, and so did the makers an older version's online lookup
+kept (padspan_ha.vendor_cache). The first goes through the store the live
+object writes with, so a save still pending can't write it back.
 """
 
 from __future__ import annotations
@@ -67,11 +67,8 @@ def test_a_factory_reset_erases_the_confirmed_addresses_and_the_kept_makers(stor
     bl._public = {"F0:18:98:12:34:56": 1761900000}
     bl._save_public()
     h.data[DOMAIN][BL.DATA_KEY] = bl
-    # The live VendorCache (vendor_lookup._get_cache): its data and its store.
-    vc = SimpleNamespace(data={"entries": {"F0:18:98": {"found": True, "sources": {"macvendors": "Apple, Inc."}}}},
-                         store=_Store(None, 1, VENDOR_CACHE_STORE_KEY))
-    _run(vc.store.async_save(vc.data))
-    h.data[DOMAIN]["_vendor_cache"] = vc
+    # What an older version's online lookup left on disk.
+    store.files[VENDOR_CACHE_STORE_KEY] = {"entries": {"F0:18:98": {"found": True}}}
     assert PUBLIC_ADDRESSES_STORE_KEY in store.files and VENDOR_CACHE_STORE_KEY in store.files
 
     conn = MagicMock()
@@ -79,11 +76,11 @@ def test_a_factory_reset_erases_the_confirmed_addresses_and_the_kept_makers(stor
 
     assert bl._public == {} and getattr(public_store, "removed", False), "through the store it writes with"
     assert PUBLIC_ADDRESSES_STORE_KEY not in store.files
-    assert vc.data == {"entries": {}} and VENDOR_CACHE_STORE_KEY not in store.files
+    assert VENDOR_CACHE_STORE_KEY not in store.files
     errors = conn.send_result.call_args[0][1]["errors"]
     assert PUBLIC_ADDRESSES_STORE_KEY not in errors and VENDOR_CACHE_STORE_KEY not in errors
     # Learned again from scratch afterwards.
-    assert BL.known_address_type(h, "F0:18:98:12:34:56") is None
+    assert bl.known_type("F0:18:98:12:34:56") is None
 
 
 def test_a_factory_reset_with_nothing_loaded_still_removes_the_files(store) -> None:
@@ -93,7 +90,6 @@ def test_a_factory_reset_with_nothing_loaded_still_removes_the_files(store) -> N
                    VENDOR_CACHE_STORE_KEY: {"entries": {"F0:18:98": {}}}}
     h = _hass()
     h.data[DOMAIN].pop(BL.DATA_KEY, None)
-    h.data[DOMAIN].pop("_vendor_cache", None)
     conn = MagicMock()
     _run(ws_factory_reset(h, conn, {"id": 1, "confirm": "FACTORY RESET"}))
     assert PUBLIC_ADDRESSES_STORE_KEY not in store.files and VENDOR_CACHE_STORE_KEY not in store.files

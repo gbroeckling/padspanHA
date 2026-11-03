@@ -91,6 +91,10 @@ const MARKS = await import(`./live_aboard_marks.js${new URL(import.meta.url).sea
 // as it was).
 const MOTION = await import(`./live_aboard_motion.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_motion failed to load", err); return null; });
+// What stands on a line keeps clear of the words (live_aboard_raised.js)
+// (optional: missing, each stands at its real height).
+const RAISED = await import(`./live_aboard_raised.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_raised failed to load", err); return null; });
 // The wall panel (live_aboard_panel.js): a home view it goes back to, Follow,
 // the People chip, the two switches in Views ▾ (optional: missing, as it was).
 const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).search}`)
@@ -111,6 +115,11 @@ const STOREY = await import(`./live_aboard_storey.js${new URL(import.meta.url).s
 
 export const HOUSE3D_EVENTS = HOUSE.HOUSE3D_EVENTS;
 export const HOUSE3D_FALLBACK_KINDS = HOUSE.HOUSE3D_FALLBACK_KINDS;
+/** Add data via plans with no 3D on this device: the list, in `box` (live_aboard_plans.js, loaded on this one click). */
+export async function openPlansList(box, host){
+  const PLANS = await import(`./live_aboard_plans.js${new URL(import.meta.url).search}`);
+  return PLANS.openPlansList(box, { ...host, DRAFT, PIECES, FURN });
+}
 
 const D2R = Math.PI / 180;
 const FOV = 40;
@@ -509,6 +518,10 @@ function createSlot(slotKey){
   // each has ({entity id: {over, gone}}: what the map said of it then; see
   // recordsNow and goneNow).
   let fileRaw = null, recZ = {}, fileZ = {}, shownMemo = null, shownSig = "";
+  // Railings became choices (2026-11-02): after a Save of the person's own, the
+  // Open edges from before get the word for what they show (stampEdgeRails).
+  // True while that runs.
+  let railsStamping = false;
   // Why the file cannot be edited: read but refused ({code: "read_failed"}),
   // or a newer PadSpan's ({code: "house3d_newer"}: read so, or a Save refused
   // so); null when it can. The next read that works says again.
@@ -536,6 +549,7 @@ function createSlot(slotKey){
   // connection, toast, settings, states), from the newest card; topCb: the
   // host's floor chips, which a piece moved up or down a floor follows.
   let layer = null, furnishP = null, topCb = null;
+  let plansP = null;                                        // Add data via plans (experimental): what its tool needs of the host, or null
   // P5 (live_aboard_devices.js): what each linked piece shows, and the
   // outlines round the emergency lights while the Atlas's test runs.
   let devices = null, emOutlines = [], emKey = "";
@@ -553,6 +567,8 @@ function createSlot(slotKey){
   let marks = null, codes = null, classF = null, zoomCb = null, zoomShown = null;
   // live_aboard_motion.js: motion in the house (motionL) and the Motion chip.
   let motionL = null, mchip = null;
+  // live_aboard_raised.js: what stands on a line, clear of the words; editing: its real height.
+  let raisedL = null, raisedOff = false;
   let wetEl = null, wetRows = [], wetKey = "";           // a window open while it rains: its glow and its chip
   // live_aboard_panel.js: the home view, going back to it, Follow, the People chip.
   let panel = null;
@@ -606,6 +622,7 @@ function createSlot(slotKey){
     try { if (root && root.parentNode) root.parentNode.removeChild(root); } catch (_) { /* already out */ }
   }
   function teardown(){
+    rawP = null;                                             // the Plans tool closing with the view has nothing to draw again
     try { endSpin(false); hidePill(); dropPointers(); endScreen(); } catch (_) { /* nothing to undo */ }
     try { if (use) use.dispose(); } catch (_) { /* gone with the view */ }
     use = null;
@@ -618,6 +635,8 @@ function createSlot(slotKey){
     trailData = null; trailAt = 0; trailLoad = null;
     try { if (marks) marks.dispose(); if (codes) codes.dispose(); } catch (_) { /* gone with the view */ }
     marks = null; codes = null; zoomCb = null;
+    try { if (raisedL) raisedL.dispose(); } catch (_) { /* gone with the view */ }
+    raisedL = null;
     try { if (motionL) motionL.dispose(); if (mchip) mchip.dispose(); } catch (_) { /* gone with the view */ }
     try { if (storeyL) storeyL.dispose(); } catch (_) { /* gone with the view */ }
     try { if (plumb) { plumb.dispose(); plumb = null; } } catch (_) { /* gone with the view */ }
@@ -631,7 +650,7 @@ function createSlot(slotKey){
     fpsUi = null;
     if (peopleTimer !== null) { clearTimeout(peopleTimer); peopleTimer = null; }
     try { if (layer) layer.dispose(); } catch (_) { /* gone with the view */ }
-    layer = null; furnishP = null; topCb = null;
+    layer = null; furnishP = null; topCb = null; plansP = null;
     for (const o of observers) { try { o(); } catch (_) { /* gone */ } }
     observers = [];
     disposeList(shellRes); disposeList(lightRes); disposeList(sensorRes);
@@ -1084,7 +1103,7 @@ function createSlot(slotKey){
   function wetNow(p){
     const w = p && p.weather && p.weather.settings ? p.weather : null;
     if (!w || !AW) return false;
-    try { return AW.decideAtlasWeather(AW.weatherSettingsFrom(w.settings), w.states || {}, w.entities).kind !== "off"; }
+    try { return AW.decideAtlasWeather(AW.weatherSettingsFrom(w.settings), w.states || {}, w.entities, Date.now()).kind !== "off"; }
     catch (_) { return false; }
   }
   function paintWet(p){
@@ -1344,17 +1363,23 @@ function createSlot(slotKey){
     tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi, uiScale: () => wallUiOf(root),
       canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)),
       canonAt: (fid, x, y) => (house && house.canonAt ? house.canonAt(fid, x, y) : (house && house.canon ? house.canon(fid) : String(fid))),
-      quality: () => (profileOf().pbr ? "high" : "low"),
+      quality: () => (profileOf().pbr ? "high" : "low"), floorAbove,
       fadeOf: TRAILS ? TRAILS.fadeOf : null, colourOf: TRAILS ? TRAILS.trailColour : null }) : null;
     marks = MARKS ? MARKS.createMarkLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     // Under the roof while it shows is hidden too (a marker, a code).
     const hidden = (v) => blocked(v) || !!(storeyL && storeyL.hides(v.x, v.z, v.y));
     codes = MARKS ? MARKS.createCodeLayer({ THREE, behind: hidden }) : null;
     motionL = MOTION ? MOTION.createMotionLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low"), behind: hidden,
-      dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22,
+      dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22, floorAbove,
+      built: () => { if (raisedL) raisedL.forget(); },
       floorTiles: () => floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles).concat(storeyL ? storeyL.roofs() : []) }) : null;
     storeyL = STOREY ? STOREY.createStoreyLayer({ THREE, lit: (g, spec, c, r) => lit(g, spec, c, r), slabT: HOUSE.SLAB_T,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
+    raisedL = RAISED ? RAISED.createRaisedLayer({ THREE, camera: () => camera, size: () => [canvas.clientWidth || 0, canvas.clientHeight || 0],
+      any: () => !!((motionL && motionL.anyRaised()) || (tracked && tracked.tagCount)), raised: raisedNow, texts: wordsNow, ready: shouldDraw,
+      busy: () => !!cam.fly || !!quality.measuring || dirty, movedAt: () => camMovedAt, off: () => raisedOff,
+      quality: () => (profileOf().pbr ? "high" : "low"), settled: recheckCovers,
+      draw: () => { liveMs = liveRate(performance.now()); requestRender(); } }) : null;
     panel = PANEL ? makePanel() : null;
     director = DIRECTOR && panel ? makeDirector() : null;
     planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
@@ -1373,6 +1398,11 @@ function createSlot(slotKey){
       // P2 Furnish: its tool, the furniture drawn, and where on screen each view is.
       FURNISH, PIECES, FURN: () => FURN, layer, rect: () => view3Rect(), viewAt: (x, y) => viewAt(x, y),
       STRIP, RUNS,                                           // the Strip tool (lights laid out along their runs)
+      // Add data via plans (live_aboard_plans.js, experimental): loaded only when the editor asks (the master switch on).
+      loadPlans: () => import(`./live_aboard_plans.js${new URL(import.meta.url).search}`),
+      // Its vetting map: stairs drawn at their real rise, a floor by the view's name for it, the flight to an item, north for "1.4 m east".
+      recipeOf: (p) => stairRecipe(p), canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)), flySpot: (F, x, y, span, pad) => flySpot(F, x, y, span, pad),
+      compass: () => HOUSE.fabricCompass(bearingNow()), quiet: (on) => setQuiet(on),
       STOREY,                                                // stairs in Furnish: the floor they reach, their rise
       lights: () => lights.map(L => ({ eid: L.eid, F: L.F, drawn: L.drawn, guess: L.guess, label: (deviceInfo(L.eid) || {}).label || L.eid })),
       // The plan alone (a narrow screen): its middle as it shows, not where the hidden 3D view looks.
@@ -2966,7 +2996,7 @@ function createSlot(slotKey){
     const fans = DEVICES && lights.some(L => L.spin && L.spin.rps > 0 && L.F.group.visible)
       ? DEVICES.DEVICE_MS[quality.profile === "high" ? "high" : "low"] : 0;
     const rates = [wxMs, devices ? devices.rate() : 0, tracked ? tracked.rate() : 0, fans, marks ? marks.rate() : 0,
-                   motionL ? motionL.rate() : 0, panel ? panel.rate() : 0].filter(Boolean);
+                   motionL ? motionL.rate() : 0, panel ? panel.rate() : 0, raisedL ? raisedL.rate() : 0].filter(Boolean);
     const slow = rates.length ? Math.min(...rates) : 0;
     const fast = slow ? Math.min(own, slow) : own;
     if (storeyL && storeyL.moving) return fast;                // the roof lifting away or coming back
@@ -3015,6 +3045,7 @@ function createSlot(slotKey){
     if (devices) devices.tick(t);                             // fans, washers, robots out
     if (marks) marks.tick(t);                                 // a leak's ripples
     if (motionL) motionL.tick(t);                             // a trigger's ring, its coverage's flash
+    if (raisedL) raisedL.tick(t);                             // what stands on a line, moving clear of a word
     turnFans(t);                                              // ceiling fans that run
     if (tracked) tracked.tick(t);                             // people walking
     if (panel) panel.tick(t);                                 // the camera after someone followed
@@ -3075,7 +3106,7 @@ function createSlot(slotKey){
             if (!underRoof(F, _v2) && !behind(_v2, occ, F)) { lbl.position.copy(_v2); u.behind = false; break; }
           }
         }
-        lbl.visible = !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
+        lbl.visible = !quiet && !u.covered && !(persp && u.behind) && wPx - 28 * hPx / 68 <= roomPx * 1.15;   // the plan: no wall stands in front
         u.px = lbl.visible ? hPx : 0;
         lbl.scale.set(wPx * k, hPx * k, 1);
       });
@@ -3091,8 +3122,35 @@ function createSlot(slotKey){
       const nameH = C.label ? Math.max(C.label.userData.px, 18) : 0;
       C.sprite.center.set(0.5, C.label ? 0.5 + (nameH / 2 + 2 + hPx / 2) / hPx : 0.5);
       if (persp && !C.label) C.behind = underRoof(C.F, C.sprite.position) || behind(C.sprite.position, above(C.F), C.F);
-      C.sprite.visible = !!C.parts && !(C.label ? C.label.userData.covered || (persp && C.label.userData.behind) : persp && C.behind);
+      C.sprite.visible = !quiet && !!C.parts && !(C.label ? C.label.userData.covered || (persp && C.label.userData.behind) : persp && C.behind);
     }
+  }
+  /** Does a floor show above this one? */
+  function floorAbove(F){ return floorsUi.some(G => G !== F && G.group.visible && !G.fl.outdoor && G.fl.elev > F.fl.elev + 0.5); }
+  /** What stands on a line (live_aboard_raised.js): a motion marker with its
+   *  code under it, a tag with its name. */
+  function raisedNow(){
+    const out = [];
+    for (const R of motionL ? motionL.raised() : []) {
+      const code = codes ? codes.part(R.id) : null, set = R.set;
+      if (code) { R.parts.push(code); R.code = true; }
+      R.set = (x, y, z) => { set(x, y, z); if (codes) codes.follow(R.id); };
+      out.push(R);
+    }
+    if (tracked) out.push(...tracked.raised());
+    return out;
+  }
+  /** Every word showing in the house: the rooms' names and readouts, the
+   *  codes, tags' names, a leak's alarm, "Unlinked". */
+  function wordsNow(){
+    const out = [];
+    for (const F of floorsUi) {
+      if (!F.group.visible) continue;
+      F.labels.forEach((l, i) => { if (l.visible) out.push({ sprite: l, tw: 1 - 28 / (l.userData.aspect * 68), th: l.userData.letters, owner: null, id: `name ${F.rooms[i].name}` }); });
+    }
+    for (const C of chips) if (C.F.group.visible && C.sprite.visible) out.push({ sprite: C.sprite, tw: C.pillW, th: (READ_C - 8) / READ_C, owner: null, id: `chip ${C.text}` });
+    for (const L of [codes, marks, tracked, devices]) if (L && L.texts) out.push(...L.texts());
+    return out;
   }
   /** Under the roof while it shows: a name, a chip (live_aboard_storey.js). */
   const underRoof = (F, v) => !!(storeyL && storeyL.covers(F, v.x, v.z));
@@ -3111,7 +3169,8 @@ function createSlot(slotKey){
 
   // ── floors, walls, quality ────────────────────────────────────────────────
   function applyTop(){
-    for (const F of floorsUi) F.group.visible = HOUSE.floorShown(F.fl, topElev);
+    // (The Plans tool's vetting map: this floor alone, so nothing from below shows through round its plan.)
+    for (const F of floorsUi) F.group.visible = HOUSE.floorShown(F.fl, topElev) && (!quiet || topElev === null || (F.fl.chipElev ?? F.fl.elev) >= topElev - 1e-3);
     // With the floors above hidden, a tall room's walls stop where they
     // start (under that floor's slab), as the rest of the house does.
     const hid = floorsUi.filter(F => !F.fl.outdoor && !F.group.visible).map(F => F.fl.elev);
@@ -3125,6 +3184,7 @@ function createSlot(slotKey){
     lampsDirty = true;
     liveMs = liveRate(performance.now());                    // a floor shown again may be swinging or flashing
     recheckCovers();
+    if (raisedL) raisedL.touch();
   }
   /** Walls or floors changed: what covers a motion marker or a code is worked out again. */
   function recheckCovers(){ if (motionL && motionL.recheck) motionL.recheck(); if (codes && codes.recheck) codes.recheck(); }
@@ -3135,6 +3195,7 @@ function createSlot(slotKey){
     paintWindows();
     recheckCovers();
     requestRender();
+    if (raisedL) raisedL.touch();
   }
   function updateCutaway(){
     const topDown = cam.phi < 0.2;
@@ -3267,6 +3328,7 @@ function createSlot(slotKey){
     camMovedAt = performance.now();
     tellZoom();
     requestRender();
+    if (raisedL) raisedL.touch();
   }
   const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), _plane = new THREE.Plane();
   /** The world point on the plane y = h under a screen point, or null. */
@@ -3366,6 +3428,7 @@ function createSlot(slotKey){
         const g = editor.down(e);
         if (g === "line" || g === "drag" || g === "swallow") mode = "edit";
         else if (g === "tap") mode = "editTap";
+        else if (g === "pan") mode = "pan";                  // the Plans tool: a press on nothing moves the plan under the mouse, never turns it
         return;
       }
       // Furnish's plan: one finger or the mouse moves the plan (it never turns).
@@ -3634,6 +3697,18 @@ function createSlot(slotKey){
     applyCam();
     if (u >= 1 && f.inward) afterZoom(true);
   }
+  /** The Plans tool: fly to a plan point on floor F, `span` metres of it filling
+   *  what the card and the bars leave clear (pad: {top, right, bottom} px they
+   *  cover), that point in the middle of it, from straight above as the view is. */
+  function flySpot(F, x, y, span, pad){
+    if (!renderer || failed || !camera || !F) return;
+    const H = (canvas && canvas.clientHeight) || 1, W = (canvas && canvas.clientWidth) || 1, top = (pad && pad.top) || 0, right = (pad && pad.right) || 0, bottom = (pad && pad.bottom) || 0;
+    const perPx = span / Math.max(1, Math.min(W - right, H - top - bottom));
+    const radius = Math.max(MIN_R, Math.min(MAX_R, perPx * H / (2 * Math.tan(FOV / 2 * D2R))));
+    const sx = right / 2 * perPx, sy = (bottom - top) / 2 * perPx;
+    const target = new THREE.Vector3(x + Math.cos(cam.theta) * sx + Math.sin(cam.theta) * sy, F.fl.elev, y - Math.sin(cam.theta) * sx + Math.cos(cam.theta) * sy);
+    flyTo({ target, radius, theta: cam.theta, phi: cam.phi }, false);
+  }
   /** A double-tap on a room's floor: fly in to frame it, from the same side. */
   function flyToRoomAt(x, y){
     const rect = view3Rect();
@@ -3881,6 +3956,9 @@ function createSlot(slotKey){
       if (cam.needsFit && (canvas.clientWidth || 0) > 0) { openView(); if (studio) arrive(); }
       if (wallMoves) { const pr = ratioFor(drawnW, drawnH); if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr); }
       updateCutaway();
+      // Editing, or the plan beside it: what stands on a line stands at its real height.
+      const off = furnishOn || !!(editor && editor.active);
+      if (off !== raisedOff) { raisedOff = off; if (raisedL) raisedL.touch(); }
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
       sizeSprites();
@@ -4023,6 +4101,7 @@ function createSlot(slotKey){
     camera.updateProjectionMatrix();
     paintPlan();
     requestRender();
+    if (raisedL) raisedL.touch();
   }
   function wireObservers(){
     if (typeof ResizeObserver !== "undefined") {
@@ -4143,8 +4222,14 @@ function createSlot(slotKey){
    *  heights went in says so, and hands the editor the heights saved (it
    *  starts from them: live_aboard_edit.js). A height written to the file
    *  for a device with no record is the newest it has from then on (fileZ).
-   *  A host with no height command: all to the file, as before. */
+   *  A host with no height command: all to the file, as before. A Save that
+   *  went through brings the railings from before over (stampEdgeRails). */
   async function editSave(ch0, base){
+    const r = await saveEdit(ch0, base);
+    stampEdgeRails();
+    return r;
+  }
+  async function saveEdit(ch0, base){
     // A split level (HOUSE.splitLevels) is drawn, never stored: its floor's id goes to the file.
     const ch = HOUSE.wholeFloors ? HOUSE.wholeFloors(ch0) : ch0;
     const p = lastP || {}, edit = p.edit, put = typeof p.heights === "function" ? p.heights : null;
@@ -4194,7 +4279,31 @@ function createSlot(slotKey){
       return false;
     });
   }
-  const redraw = guard(() => { if (lastP && renderer && !failed) update(lastP); });
+  const redraw = guard(() => { if (rawP && renderer && !failed) update(rawP); });   // rawP: while quiet, lastP is the quiet copy, and update(lastP) would make that the real data
+  /** After a Save of the person's own, never on opening: each Open (Loft)
+   *  edge with no rail word gets the word for what the drop rule draws
+   *  (HOUSE.edgeRailsToStamp: glass or none, so nothing changes to look at).
+   *  Only the words go to the host (barrierRail: the view calls nothing
+   *  itself); the server puts each on the record it holds. Then a file from
+   *  before says its railings are chosen. Quiet: a failure leaves everything
+   *  as it was and the next Save tries again. A home with no 3D file, whose
+   *  file says "chosen" from its first Save, has its edges brought over the
+   *  same way. */
+  async function stampEdgeRails(){
+    const p = lastP;
+    if (railsStamping || !p || !reading || fileErr || typeof p.edit !== "function" || typeof p.barrierRail !== "function") return;
+    railsStamping = true;
+    try {
+      const todo = HOUSE.edgeRailsToStamp(reading, (p.model && p.model.rf_barriers_m) || []);
+      if (todo.length) await p.barrierRail(Object.fromEntries(todo.map(({ id, rail }) => [id, rail])));
+      if (fileRaw && fileRaw.rails_chosen !== true) {
+        const r = await p.edit({ rails_chosen: true });
+        if (r && r.data) { fileRaw = r.data; file = DRAFT.ownedOf(r.data); }
+      }
+    } catch (err) {
+      console.warn("PadSpan Live Aboard: the railings could not be made choices on this screen:", why(err));
+    } finally { railsStamping = false; }
+  }
   // Why the file cannot be edited, changed: Edit says so.
   function setFileErr(code){
     if (((fileErr && fileErr.code) || null) === (code || null)) return;
@@ -4223,7 +4332,7 @@ function createSlot(slotKey){
   function topDownOn(F){
     const pts = [];
     for (const r of F.rooms) for (const p of r.pts) pts.push(new THREE.Vector3(p[0], F.fl.elev, p[1]), new THREE.Vector3(p[0], F.fl.elev + F.fl.h - HOUSE.SLAB_T, p[1]));
-    cam.moved = true; cam.needsFit = false;
+    cam.moved = true; cam.needsFit = false; cam.fly = null;      // (the Plans tool may have a flight on the way)
     fit(0, MIN_PHI, pts.length ? pts : undefined);
   }
   // ── a slider being dragged (the editor's Height, Sill, Head) ──────────────
@@ -4636,7 +4745,45 @@ function createSlot(slotKey){
   }
 
   // ── the slot ──────────────────────────────────────────────────────────────
+  // The Plans tool's vetting map: only the plan, the house and its pins. Nothing
+  // live is drawn (no lights, sensors, readouts, names, people or weather, and
+  // their frames with them) and the walls are down, so the plan reads between
+  // them. All of that comes back when the tool closes; the floor and the camera
+  // stay where the tool left them (in memory, until a page load or Save view).
+  // A real alarm stays: a smoke, gas, CO or leak alarm going off or still latched
+  // is drawn as ever, and named over the view, as it may be on another floor.
+  let quiet = false, quietWalls = null, rawP = null, quietAlarmEl = null;
+  const alarmOf = (p, l) => (MARKS && MARKS.markKindOf(l) === "flood" ? MARKS.floodLook(l, p.floodLatches, Date.now()) : null);
+  function quietOf(p){
+    const lbe = p.lightsByEid || {};
+    return { ...p, hidden: { has: (eid) => { const k = alarmOf(p, lbe[eid]); return !(k && k.alarm); } }, weather: null, emergency: null, people: null, tags: null, classFilter: null };
+  }
+  /** The alarms' words over the view while it is quiet: nothing to say, no element. */
+  function sayQuietAlarms(p){
+    const words = !quiet || !p ? [] : Object.values(p.lightsByEid || {}).flatMap((l) => { const k = alarmOf(p, l); return k && k.alarm ? [`${k.word} · ${l.area_name || l.friendly_name || l.entity_id}`] : []; });
+    if (!words.length) { if (quietAlarmEl) { quietAlarmEl.remove(); quietAlarmEl = null; } return; }
+    if (!quietAlarmEl) {
+      quietAlarmEl = document.createElement("div");
+      quietAlarmEl.className = "la3d-quiet-alarm";
+      quietAlarmEl.setAttribute("role", "alert");
+      quietAlarmEl.style.cssText = "position:absolute;left:50%;top:56px;transform:translateX(-50%);z-index:6;max-width:80%;padding:6px 14px;border-radius:999px;background:#b91c1c;color:#fff;font-weight:700;font-size:14px;text-align:center;pointer-events:none";
+      root.appendChild(quietAlarmEl);
+    }
+    quietAlarmEl.textContent = words.join(", ");
+  }
+  function setQuiet(on){
+    on = !!on;
+    if (on === quiet) return;
+    quiet = on;
+    if (on) { quietWalls = wallMode; setWalls("down"); } else if (quietWalls) { setWalls(quietWalls); quietWalls = null; }
+    if (rawP && renderer && !failed) update(rawP); else sayQuietAlarms(null);
+    if (house) applyTop();
+    requestRender();
+  }
   function update(p){
+    rawP = p;
+    sayQuietAlarms(p);
+    if (quiet && p) p = quietOf(p);
     // A room raised above its floor is drawn as a level of its own (HOUSE.splitLevels).
     if (p && p.model && HOUSE.splitLevels) p = { ...p, model: HOUSE.splitLevels(p.model) };
     lastP = p;
@@ -4689,6 +4836,7 @@ function createSlot(slotKey){
     paintWet(p);
     paintHeat();
     syncMarks(p, vd);
+    if (raisedL) raisedL.touch();                            // what shows may have changed
     selIds = p.topFloorIds ? new Set([...(p.topFloorIds instanceof Set ? p.topFloorIds : [].concat(p.topFloorIds))].map(String)) : null;
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
     if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
@@ -4759,6 +4907,7 @@ function createSlot(slotKey){
         // tool open. p.furnish is the host's own for the tool (its flows and
         // "This is a device…"), handed through: the view calls nothing itself.
         furnishP = p.furnish && typeof p.furnish === "object" ? { ...p.furnish, states: p.states || null } : null;
+        plansP = p.plans && typeof p.plans === "object" ? p.plans : null;
         // A piece moved a floor: its floor shows, and the camera stays where it is.
         topCb = typeof p.setTopFloor === "function" ? (fid) => { keepCam = true; try { p.setTopFloor(fid); } finally { keepCam = false; } } : null;
         setFurnishView(!!furnishP);
@@ -4771,6 +4920,7 @@ function createSlot(slotKey){
         prefs = p.prefs && typeof p.prefs.get === "function" && typeof p.prefs.set === "function" ? p.prefs : null;
         update(p);
         if (editor) editor.setFurnish(!!furnishP);           // after update: a file read needs the card's data
+        if (editor) editor.setPlans(plansP);                 // the Plans tool only while the host hands it
         // A tool asked for on the way in (the setup wizard's "Open Live
         // Aboard (Edit → Heights)"), taken once: {tool, eid}. Taken even with
         // no editor (no WebGL), or it would open that tool on a later visit.
@@ -4843,6 +4993,7 @@ function createSlot(slotKey){
                readouts: readouts.map(R => ({ eid: R.eid, kind: R.kind, ...(R.shown || {}) })),
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
                motionLayer: motionL ? motionL.state() : null, motionChip: mchip ? mchip.state() : null,
+               raised: raisedL ? raisedL.state() : null,
                names: floorsUi.flatMap(F => F.labels.map((l, i) => ({ room: F.rooms[i].name, shown: F.group.visible && l.visible,
                                                                        text: l.userData.text || String(F.rooms[i].name), color: l.userData.color || "#ffffff",
                                                                        opacity: l.material.opacity,
@@ -4906,6 +5057,8 @@ function createSlot(slotKey){
     _furnish(){ return editor ? editor.furnish : null; },
     /** The Strip tool (the harness lays out a light through it). */
     _strip(){ return editor ? editor.strip : null; },
+    /** The Plans tool (the harness reads its vetting map). */
+    _plans(){ return editor ? editor.plans : null; },
     /** A piece's middle (dz metres above its bottom) on screen, in the 3D view or the plan. */
     _wherePiece(id, dz = 0.3, inPlan = false){
       const r = layer && layer.rootOf(id), vp = inPlan ? viewports().plan : viewports().d3;
@@ -4951,6 +5104,8 @@ function createSlot(slotKey){
       const slabs = F.group.children.filter(o => o.name === "storey-floor");
       return { tile: !!(F.tiles && r.intersectObject(F.tiles, false).length), slab: slabs.some(o => r.intersectObject(o, false).length > 0) };
     },
+    /** The harness counts what covers what, and asks for every real height. */
+    _raised: { overlaps: () => (raisedL ? raisedL.overlaps() : null), disable: (on) => { if (raisedL) raisedL.disable(on); } },
     /** Put the camera somewhere (the harness frames a shot). */
     _look(theta, phi, target, radius){
       cam.moved = true; cam.needsFit = false;

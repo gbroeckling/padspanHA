@@ -69,7 +69,7 @@ footer p{margin:4px 0}
 <p class="lead">Your Bluetooth proxies hear your phone straight away. What they can't tell on their own is whose phone it is, because phones keep changing their Bluetooth address so that nobody can follow them. One step per phone fixes that. An Android phone sends a beacon from the Home Assistant Companion app; an iPhone or Apple Watch is recognised by its key, the IRK. From then on, Bermuda or PadSpan can put each phone in a room.</p>
 <div class="cta">
   <a class="btn primary" href="/demo/">See phones in rooms on a demo house</a>
-  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Install PadSpan</a>
 </div>
 
 <h2>The short version</h2>
@@ -84,7 +84,7 @@ footer p{margin:4px 0}
 <p>You also need at least one Bluetooth proxy, or a Shelly Gen2+ <a href="/guides/shelly-bluetooth-proxy/">set up as a scanner</a>. One is enough to tell home from away. For rooms, put one in every room you want to tell apart. <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a> goes into the details.</p>
 
 <h2>Why a phone needs a step at all</h2>
-<p>Most tags and beacons keep one Bluetooth address, so a proxy knows them every time it hears them. Phones don't. They advertise from a random address and change it regularly: Android at least every 15 minutes, Apple "on a frequent basis", in its own words. That stops strangers following your phone around a shop, and it's also why Home Assistant sees your phone as a string of new devices. There are two ways around it:</p>
+<p>Beacons and simple key tags keep one Bluetooth address, so a proxy knows them every time it hears them (<a href="/guides/bluetooth-tags/">AirTags don't</a>). Phones don't either. They advertise from a random address and change it regularly: Android at least every 15 minutes, Apple "on a frequent basis", in its own words. That stops strangers following your phone around a shop, and it's also why Home Assistant sees your phone as a string of new devices. There are two ways around it:</p>
 <ul>
   <li><b>The phone says who it is.</b> The Android Companion app can send an iBeacon, a Bluetooth advert with an ID that never changes.</li>
   <li><b>You hold its key.</b> Every iPhone and Apple Watch has an Identity Resolving Key (IRK) that turns its changing addresses back into one device. Give Home Assistant the key, and it knows the phone whatever address it uses.</li>
@@ -141,7 +141,7 @@ footer p{margin:4px 0}
   <li><b>"The provided IRK does not match any BLE devices that Home Assistant can see."</b> Wake the phone, bring it near a proxy and try again.</li>
   <li><b>"The key does not look like a valid IRK."</b> Copy the whole key: 32 hex characters, or the base64 text that ends in "=".</li>
   <li><b>An Android phone disappears after a while.</b> Battery optimisation has usually stopped the Companion app; see step 4 above.</li>
-  <li><b>irk-capture can't get a key from a watch.</b> Its docs say watches that need "reverse" pairing won't work, and some watches, including some Garmins, keep a fixed Bluetooth address and have no IRK. A watch with a fixed address doesn't need one: it can be tracked like a tag.</li>
+  <li><b>irk-capture can't get a key from a watch.</b> Its docs say watches that need "reverse" pairing won't work, and some watches, including some Garmins, keep a fixed Bluetooth address and have no IRK. A watch with a fixed address doesn't need one: it can be <a href="/guides/bluetooth-tags/">tracked like a tag</a>.</li>
   <li><b>A phone keeps jumping between rooms.</b> That's signal noise, not setup: <a href="/guides/room-flapping/">Why does my phone jump between rooms?</a> explains what helps. And if whole rooms never show up, <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></li>
 </ul>
 
@@ -158,7 +158,7 @@ footer p{margin:4px 0}
 
 <div class="cta">
   <a class="btn primary" href="/demo/">Try the demo in your browser</a>
-  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Open PadSpan in HACS</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Install PadSpan</a>
 </div>
 
 </main>

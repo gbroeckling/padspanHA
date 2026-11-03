@@ -47,6 +47,18 @@ _CASES = [
     "back to Live: the real house reloads and nothing of the sample one is left",
     "Bright: Sample mode shows the sample house the same way, and writes nothing",
     "the house could not load: the small demo house, and writes still refused",
+    "the house failed to load once: a later try loads it, and what was on screen goes",
+    "the mode is unknown, on a house in sample: a change waits, and is then refused",
+    "the mode is unknown, on a house in live: a change waits, and is then sent",
+    "held changes leave in the order they were made, through every door, whatever the gaps",
+    "a change made right after the answer leaves after the ones held",
+    "no answer in 20 s: changes are refused and nothing is sent, the repair tools still reach the server, in order",
+    "a home really in Sample: the repair tools are refused like any change",
+    "the watchdog keeps asking when an ask never answers, at a modest rate, and one answer brings one refresh",
+    "with the mode unknown no screen prints Sample",
+    "a real answer that lands after the switch to the sample house is dropped",
+    "Live: a new hass object while a read is out does not drop its answer",
+    "the sample house's guest is on the Guests page",
     "the website demo's fake Home Assistant (padspan_demo) is asked directly",
     # review follow-ups
     "a Sample-mode page load sends none of the report's queued counts",
@@ -103,7 +115,7 @@ def test_the_house_is_loaded_only_for_sample_mode() -> None:
     assert not re.search(r"^\s*import\s[^(]*from\s", panel, re.M), "panel.js has a static import"
     assert len(re.findall(r"import\([^)]*sample_house", panel)) == 1 and not re.search(r"import\([^)]*estate", panel)
     i = panel.index("  _ensureSampleHouse(){")
-    assert i < panel.index("import(`./sample_house.js?b=${BUILD_ID}`)") < panel.index("  _sampleBlocked(){")
+    assert i < panel.index('import(`./sample_house.js?b=${BUILD_ID}${fails ? "&retry=" + fails : ""}`)') < panel.index("  _sampleBlocked(){")
     assert '"./views/sample_house.js"' not in panel and "sample_house" not in panel[panel.index("const _VIEW_PATHS"):panel.index("const _VIEW_PATHS_HIDDEN_OK")]
     # Only the house module imports the estate, with the panel's own ?b= stamp.
     importers = [p.name for p in _WWW.rglob("*.js") if "vendor" not in p.parts and "estate.js" in _text(p) and p.name != "estate.js"]
@@ -127,7 +139,7 @@ def test_only_these_messages_reach_home_assistant_in_sample_mode() -> None:
     assert 'if (type === "padspan_ha/telemetry_event") return "drop";' in body
     # The gate is the views' hass in Sample mode: callWS, the connection, services and the REST API all go through it.
     for s in ("callWS: (m) => self._sampleCall(m)", "sendMessagePromise: (m) => self._sampleCall(m)",
-              "callService: (...a) => self._sampleGateOn() ? Promise.reject(self._sampleBlocked()) : self._realHass.callService(...a)", "this._hass = this._viewHass(hass);"):
+              "callService: held((...a) => self._sampleGateOn() ? Promise.reject(self._sampleBlocked()) : self._realHass.callService(...a))", "this._hass = this._viewHass(hass);"):
         assert s in panel, s
 
 

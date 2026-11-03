@@ -30,7 +30,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, DATA_SETTINGS, DATA_DEVICE_REGISTRY
 from .geo_bridge import accuracy_from_confidence, metres_to_latlon
 from .presence_coordinator import PresenceCoordinator
-from .entity_identity import alternates_of, pick_uid_key, registry_ready, uid_safe
+from .entity_identity import alternates_of, kept_device_info, pick_uid_key, registry_ready, uid_safe
 from .presence_rules import away_timeout_s, is_away
 
 # HA's own constant, with a literal fallback so an import change upstream
@@ -260,8 +260,9 @@ class PadSpanDeviceTracker(CoordinatorEntity["PresenceCoordinator"], TrackerEnti
     @property
     def device_info(self) -> dict[str, Any]:
         uid = _device_uid(self._obj) or self._init_uid
+        identifiers, _connections = kept_device_info(getattr(self, "hass", None), "device_tracker", self.unique_id, uid)
         return {
-            "identifiers": {(DOMAIN, uid)},
+            "identifiers": identifiers,
             "name": self._label(),
             "manufacturer": "PadSpan HA",
             "model": "BLE Presence Tracker",

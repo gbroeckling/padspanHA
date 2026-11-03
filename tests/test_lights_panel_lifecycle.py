@@ -168,6 +168,39 @@ def test_the_hidden_button_hides_only_while_idle(result) -> None:
     assert e["backWhenReEnabled"] == 1, e
 
 
+def test_a_saved_floor_applies_when_the_page_opens(result) -> None:
+    """2026-11-02: the first card is drawn before the model is read. With no
+    floors to check against, the clamp took the saved floor to All, and it only
+    came back on a Refresh."""
+    a = result["savedFloor"]
+    for name, idx in (("main", 1), ("pair", 2), ("upstairs", 3), ("all", 0)):
+        s = a[name]
+        assert s["noFloors"] and set(s["noFloors"]) == {idx}, (name, s)
+        assert s["floors"] and set(s["floors"]) == {idx}, (name, s)
+        assert s["focus"] == idx, (name, s)
+    assert a["main"]["on"] == [1] and a["upstairs"]["on"] == [3] and a["all"]["on"] == [0], a
+    assert a["pair"]["on"] == [], a   # a pair has no chip of its own (the slider's)
+
+
+def test_the_saved_floors_one_scroll_is_asked_for_when_the_page_opens_and_never_again(result) -> None:
+    """The card scrolls on this request only (tests/js/atlas_keep_card.mjs). A
+    failed model read makes no card with floors, so the request goes with it, or
+    some later card would move the page; a Refresh reads the view again and asks nothing."""
+    for name, s in result["savedFloor"].items():
+        assert s["askedAtOpen"] is True and s["askLeft"] is False and s["askedOnRefresh"] is False, name
+
+
+def test_a_saved_floor_no_longer_there_is_all(result) -> None:
+    s = result["savedFloor"]["gone"]
+    assert s["focus"] == 0 and set(s["floors"]) == {0}, s
+    assert s["on"] == [0], s
+
+
+def test_a_failed_model_read_keeps_the_saved_floor(result) -> None:
+    s = result["savedFloor"]["modelDown"]
+    assert s["focus"] == 3 and not s["floors"], s
+
+
 def test_a_failed_settings_fetch_keeps_the_hidden_button_hidden(result) -> None:
     assert result["emerg3"]["keptOnFailedFetch"] is True, result["emerg3"]
 

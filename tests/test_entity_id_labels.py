@@ -69,6 +69,7 @@ def _labelled(cls, **extra):
     e.coordinator = SimpleNamespace(data={"k": {"user_label": "Car Keys", "kind": "ble", "address": "AA:BB:CC:DD:EE:FF"}})
     e._key = "k"
     e._init_uid = "uid"
+    e._uid_key = "uid"
     e._init_label = "Car Keys"
     for attr, value in extra.items():
         setattr(e, attr, value)

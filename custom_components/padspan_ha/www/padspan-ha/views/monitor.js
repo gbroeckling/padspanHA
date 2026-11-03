@@ -9,6 +9,8 @@
  * on a different aspect of system state (BLE coverage, zone config, performance).
  */
 
+const { pickName, hideIrks } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+
 // Signal quality, per scanner (Diagnostics + Insights tabs).
 //
 // Averaging RSSI across every advertisement a scanner merely overhears
@@ -84,7 +86,7 @@ export function render(ctx){
   // DIAGNOSTICS TAB (default)
   // ═══════════════════════════════════════════════════════════════════════════
   const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── BLE Diag Errors (top-level warning) ──
   const bleDiag = snap && snap.ble && snap.ble.diag;
@@ -259,7 +261,7 @@ export function render(ctx){
   grid.appendChild(el("div",{class:"card"},[
     el("div",{style:"font-weight:700;margin-bottom:8px"},"Session Info"),
     el("div",{style:"display:flex;flex-direction:column;gap:4px;font-size:12px"},[
-      el("div",{}, [el("span",{class:"muted"},"Data mode: "), el("span",{style:"font-weight:600"}, ctx.state.dataMode.toUpperCase())]),
+      el("div",{}, [el("span",{class:"muted"},"Data mode: "), el("span",{style:"font-weight:600"}, ctx.state._dataModeKnown ? ctx.state.dataMode.toUpperCase() : "…")]),
       el("div",{}, [el("span",{class:"muted"},"Panel uptime: "), el("span",{style:"font-weight:600"}, `${uptimeMin}m ${uptimeSec}s`)]),
       el("div",{}, [el("span",{class:"muted"},"Events logged: "), el("span",{style:"font-weight:600"}, String((ctx.state._sessionEvents||[]).length))]),
     ]),
@@ -326,7 +328,7 @@ function _zones(ctx, el){
   const floorRooms = {};
   let hasFloors = false;
   if(floors.length > 0 && areas.length > 0){
-    for(const f of floors) floorRooms[f.floor_id] = { name: f.name || f.floor_id, rooms: [] };
+    for(const f of floors) floorRooms[f.id] = { name: f.name || f.id, rooms: [] };
     floorRooms["_none"] = { name: "Unassigned", rooms: [] };
     for(const a of areas){
       const fid = a.floor_id || "_none";
@@ -361,7 +363,7 @@ function _zones(ctx, el){
     if(objs.length > 0){
       const list = el("div",{style:"display:flex;flex-direction:column;gap:3px"});
       for(const o of objs.slice(0, 8)){
-        const label = o.user_label || o.name || o.address || "Unknown";
+        const label = pickName(o, "Unknown");
         const rssiText = o.rssi != null ? ` (${o.rssi} dBm)` : "";
         const isFollowed = ctx.actions.followedHas && ctx.actions.followedHas(o.address || o.key);
         const objRow = el("div",{"data-obj-click":"1",style:"font-size:12px;cursor:pointer;padding:2px 4px;border-radius:3px;display:flex;align-items:center;gap:4px"});
@@ -430,7 +432,7 @@ function _insights(ctx, el, _sid){
   const roomTagMap = ctx.state.roomTagMap || {};
   const maps = (ctx.state.maps && ctx.state.maps.list) || [];
 
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── Room Occupancy bar chart ──
   const roomCounts = {};
@@ -539,7 +541,7 @@ function _insights(ctx, el, _sid){
         row.addEventListener("mouseleave", ()=>{ row.style.background = ""; });
         row.addEventListener("click", ()=>ctx.actions.showObjectDetail(obj));
       }
-      row.appendChild(el("span",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0"}, obj ? (obj.user_label || obj.name || x.t) : x.t));
+      row.appendChild(el("span",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0"}, obj ? (obj.best_name || obj.user_label || obj.name || x.t) : x.t));
       row.appendChild(el("span",{class:"badge",style:"flex-shrink:0",title:x.rooms.join(", ")}, `${x.n} rooms`));
       list.appendChild(row);
     }
@@ -684,20 +686,8 @@ const DIAG_LIST_CAP = 200;
 // The person's own objects. Diagnostics' report lists only these.
 export const _isMine = (o) => !!(o && (o.identified || o.user_label || o.kind === "private_ble"));
 
-// A phone's IRK (its identity key: whoever has it can follow the phone through
-// its changing Bluetooth addresses) is the key and canonical_id of its
-// objects, "irk:" + 32 hex (private_ble_resolver.py). This export and the
-// Diagnostics report are made to be sent, to a public GitHub issue as well, so
-// each IRK is replaced by a number that stands for the same phone everywhere
-// in the one report.
-export function hideIrks(text) {
-  const seen = new Map();
-  return String(text).replace(/irk:[0-9a-f]{32}/gi, (m) => {
-    const k = m.toLowerCase();
-    if (!seen.has(k)) seen.set(k, `irk:hidden-${seen.size + 1}`);
-    return seen.get(k);
-  });
-}
+// This export and the Diagnostics report are made to be sent, so each hides IRKs.
+export { hideIrks };
 export function diagSnapshot(snap){
   if(!snap || typeof snap !== "object") return snap;
   const out = Object.assign({}, snap);
@@ -762,7 +752,7 @@ function _diagExport(ctx, el){
     selectAll(); ctx.toast("Copy blocked by browser. Press Ctrl/Cmd+C.", true);
   });
 
-  const wrap = el("div",{class:"grid"});
+  const wrap = el("div",{class:"grid grid-wide"});
   const diagCard = el("div",{class:"card"});
   diagCard.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
     el("div",{},[

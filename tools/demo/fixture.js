@@ -60,9 +60,11 @@ export function harnessFixture(q){
     floor_elevations: { hall: 0, mezz: 3.2 },
     room_geometry_m: { Hall: rect("hall", 0, 0, 20, 12), Gallery: rect("mezz", 0, 0, 14, 4),
                        Toilets: rect("mezz", 14.12, 0, 20, 2.5), Walkway: rect("mezz", 14.12, 2.62, 20, 4) },
+    // ?rails=glass|none: the two edges over the hall with that railing chosen on the barrier
+    // (rail, 2026-11-02); without it, no rail word, as an edge from before: railed by the rule.
     rf_barriers_m: [
-      { id: "gal", name: "Gallery edge", material: "open", attenuation_dbm: 0, floor_id: "mezz", points_m: [[0, 4], [14, 4]] },
-      { id: "walk", name: "Walkway edge", material: "open", attenuation_dbm: 0, floor_id: "mezz", points_m: [[14.12, 4], [20, 4]] },
+      { id: "gal", name: "Gallery edge", material: "open", attenuation_dbm: 0, floor_id: "mezz", points_m: [[0, 4], [14, 4]], ...(q.get("rails") ? { rail: q.get("rails") } : {}) },
+      { id: "walk", name: "Walkway edge", material: "open", attenuation_dbm: 0, floor_id: "mezz", points_m: [[14.12, 4], [20, 4]], ...(q.get("rails") ? { rail: q.get("rails") } : {}) },
       { id: "galwalk", name: "Gallery to walkway", material: "open", attenuation_dbm: 0, floor_id: "mezz", points_m: [[14.06, 2.62], [14.06, 4]] },
     ],
     light_positions_m: { "light.kitchen_pots": { x_m: 10, y_m: 8, floor_id: "hall" }, "light.bed": { x_m: 6, y_m: 2, floor_id: "mezz" },

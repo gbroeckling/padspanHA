@@ -69,7 +69,7 @@ footer p{margin:4px 0}
 <p class="lead">Deine Bluetooth-Proxys hören dein Handy sofort. Was sie allein nicht erkennen: wessen Handy das ist. Denn Handys wechseln ständig ihre Bluetooth-Adresse, damit ihnen niemand folgen kann. Ein Schritt pro Handy löst das. Ein Android-Handy sendet ein Beacon aus der Home-Assistant-Companion-App; iPhones und Apple Watches erkennt man an ihrem Schlüssel, dem IRK. Danach können Bermuda oder PadSpan jedes Handy einem Raum zuordnen.</p>
 <div class="cta">
   <a class="btn primary" href="/demo/?hl=de">Handys in ihren Räumen im Demo-Haus ansehen</a>
-  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan in HACS öffnen</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan installieren</a>
 </div>
 
 <h2>Kurz gesagt</h2>
@@ -84,7 +84,7 @@ footer p{margin:4px 0}
 <p>Außerdem brauchst du mindestens einen Bluetooth-Proxy oder einen Shelly ab Gen2, <a href="/guides/shelly-bluetooth-proxy/de/">als Scanner eingerichtet</a>. Einer reicht, um zu Hause von unterwegs zu unterscheiden. Für Räume gehört einer in jeden Raum, den du unterscheiden willst. Die Details stehen in <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a></p>
 
 <h2>Warum ein Handy überhaupt einen Schritt braucht</h2>
-<p>Die meisten Tracker und Beacons behalten ihre Bluetooth-Adresse, also erkennt ein Proxy sie jedes Mal wieder. Handys nicht. Sie senden von einer zufälligen Adresse und wechseln sie regelmäßig: Android spätestens alle 15 Minuten, und Apple schreibt nur, dass die Adresse häufig wechselt. Das verhindert, dass Fremde dein Handy durch einen Laden verfolgen, und es ist auch der Grund, warum Home Assistant dein Handy als eine Reihe neuer Geräte sieht. Es gibt zwei Wege drumherum:</p>
+<p>Beacons und einfache Schlüssel-Tracker behalten ihre Bluetooth-Adresse, also erkennt ein Proxy sie jedes Mal wieder (<a href="/guides/bluetooth-tags/de/">AirTags nicht</a>). Handys auch nicht. Sie senden von einer zufälligen Adresse und wechseln sie regelmäßig: Android spätestens alle 15 Minuten, und Apple schreibt nur, dass die Adresse häufig wechselt. Das verhindert, dass Fremde dein Handy durch einen Laden verfolgen, und es ist auch der Grund, warum Home Assistant dein Handy als eine Reihe neuer Geräte sieht. Es gibt zwei Wege drumherum:</p>
 <ul>
   <li><b>Das Handy sagt, wer es ist.</b> Die Android-Companion-App kann ein iBeacon senden, ein Bluetooth-Advertisement mit einer ID, die sich nie ändert.</li>
   <li><b>Du hast seinen Schlüssel.</b> Jedes iPhone und jede Apple Watch hat einen Identity Resolving Key (IRK), der die wechselnden Adressen wieder einem Gerät zuordnet. Gib Home Assistant den Schlüssel, dann erkennt es das Handy, egal welche Adresse es gerade benutzt.</li>
@@ -141,7 +141,7 @@ footer p{margin:4px 0}
   <li><b>Home Assistant meldet, der IRK passe zu keinem BLE-Gerät, das es sehen kann.</b> Weck das Handy auf, bring es in die Nähe eines Proxys und versuch es noch einmal.</li>
   <li><b>Home Assistant meldet, der Schlüssel sehe nicht wie ein gültiger IRK aus.</b> Kopier den ganzen Schlüssel: 32 Hex-Zeichen oder den Base64-Text, der auf „=“ endet.</li>
   <li><b>Ein Android-Handy verschwindet nach einer Weile.</b> Meist hat die Akku-Optimierung die Companion-App gestoppt; siehe Schritt 4 oben.</li>
-  <li><b>irk-capture bekommt von einer Uhr keinen Schlüssel.</b> Laut seiner Doku klappt es nicht mit Uhren, die „umgekehrt“ gekoppelt werden müssen, und manche Uhren, darunter einige von Garmin, behalten eine feste Bluetooth-Adresse und haben keinen IRK. Eine Uhr mit fester Adresse braucht auch keinen: Sie lässt sich wie ein Tracker erkennen.</li>
+  <li><b>irk-capture bekommt von einer Uhr keinen Schlüssel.</b> Laut seiner Doku klappt es nicht mit Uhren, die „umgekehrt“ gekoppelt werden müssen, und manche Uhren, darunter einige von Garmin, behalten eine feste Bluetooth-Adresse und haben keinen IRK. Eine Uhr mit fester Adresse braucht auch keinen: Sie lässt sich <a href="/guides/bluetooth-tags/de/">wie ein Tracker</a> erkennen.</li>
   <li><b>Ein Handy springt ständig zwischen Räumen.</b> Das ist Signalrauschen, kein Einrichtungsfehler: <a href="/guides/room-flapping/de/">Warum springt mein Handy zwischen den Räumen?</a> erklärt, was hilft. Und wenn ganze Räume nie auftauchen: <a href="/guides/bluetooth-proxies/de/">Wie viele Bluetooth-Proxys brauche ich?</a></li>
 </ul>
 
@@ -158,7 +158,7 @@ footer p{margin:4px 0}
 
 <div class="cta">
   <a class="btn primary" href="/demo/?hl=de">Demo im Browser ausprobieren</a>
-  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan in HACS öffnen</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">PadSpan installieren</a>
 </div>
 </main>
 <footer><div class="in">

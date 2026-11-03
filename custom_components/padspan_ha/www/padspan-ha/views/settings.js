@@ -324,7 +324,9 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         "anyone who can't use a dark screen; photos and map images are turned back so they still " +
         "look normal. Day is the panel redrawn in light colours. Every one keeps the green accent " +
         "and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D " +
-        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser."),
+        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser. " +
+        "The sidebar Atlas page is the exception: it stays dark with every theme, and Light doesn't change " +
+        "it either, so Light won't help there if you can't use a dark screen."),
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night","Night"), mkTheme("graphite","Graphite"), mkTheme("ocean","Ocean"),
         mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
@@ -973,7 +975,7 @@ function _settingsPresence(ctx, el){
       style: "width:220px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
     });
     for (const [v, label] of [["auto", "Follow Home Assistant areas"],
-                              ["manual", "Standalone — the fabric is the truth"]]) {
+                              ["manual", "Standalone — use the saved layout"]]) {
       const o = el("option", { value: v }, label);
       if (cur === v) o.selected = true;
       sel.appendChild(o);
@@ -982,7 +984,7 @@ function _settingsPresence(ctx, el){
       try {
         await ctx.actions.callWS({ type: "padspan_ha/fabric_sync_mode_set", mode: sel.value });
         ctx.toast(sel.value === "manual"
-          ? "Standalone — rooms and scanners come from the fabric only"
+          ? "Standalone — rooms and scanners come from the saved layout only"
           : "Following Home Assistant areas");
         await ctx.actions.modelRefresh();
       } catch(e) { ctx.toast("Failed to save", true); }
@@ -1363,36 +1365,17 @@ function _settingsPresence(ctx, el){
     ]),
   ]));
 
-  // ── Device makers (online lookup) ──────────────────────────────────────────
-  // On by default; only an administrator changes it (ws_settings). What is sent
-  // is decided by vendor_lookup.py; the card says it in the rule's own words.
-  const makerOn = settings.vendor_lookup_enabled !== false;
-  const makerAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
-  const makerBtn = el("button", { class: "btn inline", "data-setting": "vendor_lookup_enabled", style: makerOn
-    ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-    : "color:#94a3b8" }, makerOn ? "On" : "Off");
-  if (!makerAdmin) { makerBtn.disabled = true; makerBtn.title = "Only an administrator can change this"; }
-  makerBtn.addEventListener("click", async () => {
-    try {
-      await ctx.actions.settingsSet({ vendor_lookup_enabled: !makerOn });
-      ctx.toast(`Device maker lookup ${!makerOn ? "on" : "off"}`);
-      ctx.actions.renderRooms();
-    } catch(e) { ctx.toast("Failed to save setting", true); }
-  });
+  // ── Device makers ──────────────────────────────────────────────────────────
+  // Nothing to switch: nothing is sent (ble_enrichment.py, device_tables.py).
   put("privacy", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Look up device makers online"),
-    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "When this is on, opening a device list (such as the Overview's All objects) asks two public services (macvendors.com and " +
-      "maclookup.app) which company made each nearby Bluetooth device. " +
-      "It sends only the first three bytes of an address, and only after a Bluetooth receiver has confirmed that the device has a fixed, maker-assigned address (ESPHome proxies on version 2022.12 or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it; Shelly, ESPresense and Tasmota don't, so a device only they have heard isn't looked up). " +
-      "Each answer is kept for 30 days, so each maker is asked about once. " +
-      "Like any web request, the services see your IP address. " +
-      "Only an administrator can change this."
+    el("div", { class: "h2" }, "Device makers"),
+    el("div", { class: "muted", style: "font-size:12px" },
+      "PadSpan names a device's maker from what the device itself broadcasts and from lists built into PadSpan " +
+      "(Bluetooth's official company and service numbers, and IEEE's list of address makers). Nothing is sent anywhere for this. " +
+      "The address list counts as fact only for an address a Bluetooth receiver has confirmed is fixed and maker-assigned " +
+      "(ESPHome proxies on version 2022.12 or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it). " +
+      "Shelly, ESPresense and Tasmota don't say, so there a match reads \"Probably\". An address a receiver reports as random is never looked up."
     ),
-    el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Device makers"),
-      makerBtn,
-    ]),
   ]));
 
   // ── Enhanced security ──────────────────────────────────────────────────────
@@ -1422,7 +1405,7 @@ function _settingsPresence(ctx, el){
     "Clearing history, forgetting lost items and suspending learning",
     "Live Aboard edits, sharing to its library and its photo reader",
     "PadSpan's log",
-    "Settings that apply to the whole home (the update check, device maker lookup, positioning and the rest)",
+    "Settings that apply to the whole home (the update check, positioning and the rest)",
   ];
   put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Enhanced security"),
@@ -2421,7 +2404,7 @@ function _settingsPresence(ctx, el){
       "floor plane. PadSpan deducts the vertical offset between each scanner's mounted height and the " +
       "device's assumed carry height above the floor. 1.0 m suits a pocketed phone or a wrist; " +
       "lower it for floor-level tags (robot vacuum, pet collar). " +
-      "Scanner heights come from the fabric (default: the map's ceiling height); floor stacking from " +
+      "Scanner heights come from the saved layout (default: the map's ceiling height); floor stacking from " +
       "the per-floor heights."
     ),
     el("div", { style: rowStyle }, [
@@ -2475,10 +2458,10 @@ function _settingsPresence(ctx, el){
   put("integrations", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "GPS Bridge"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Anchor the fabric to a real-world location so tracked objects' device_tracker entities report a " +
+      "Anchor the saved layout to a real-world location so tracked objects' device_tracker entities report a " +
       "real latitude/longitude and plot on Home Assistant's built-in map — in addition to, not instead " +
       "of, their room-name state. Leave latitude/longitude blank to disable (no GPS is reported, never a " +
-      "guess at (0, 0)). Bearing is the compass direction, clockwise from true north, that the fabric's " +
+      "guess at (0, 0)). Bearing is the compass direction, clockwise from true north, that the layout's " +
       "own +Y axis points toward. +Y runs down your floorplan as it is drawn, so a plan drawn north-up " +
       "is 180."
     ),
@@ -3680,7 +3663,7 @@ function _settingsFeatures(ctx, el){
     {
       key: "apple_auto_classify",
       label: "Apple Device Classification",
-      desc: "Shows what sent an Apple Find My signal — an AirTag, another brand's Find My tag (\"Find My accessory\"), AirPods, " +
+      desc: "Shows what sent an Apple Find My signal — an AirTag, a \"Find My accessory\" (another brand's tag, or AirPods), " +
             "or an Apple device such as an iPhone, iPad or Mac — instead of just \"Find My\", in Devices, Bluetooth → Advertisements " +
             "and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says " +
             "which. Display-only — does not affect tracking or identity.",
@@ -3961,6 +3944,12 @@ function _atlasWeatherSection(ctx, el, settings){
   // or an alert — never one of the house's alarms (atlas_weather.js warningPickerIds).
   const warnList = WX ? WX.warningPickerIds(states, entities) : [];
   picker("Rain sensor", "atlas_weather_rain_entity", "None — use the weather entity", rainIds);
+  // One that has stopped reporting counts as no reading (atlas_weather.js).
+  const rainSince = WX ? WX.rainSensorStaleSince(String(settings.atlas_weather_rain_entity || ""), states, entities, Date.now()) : null;
+  if (rainSince !== null) {
+    box.appendChild(el("div",{style:"font-size:11px;color:#fbbf24;line-height:1.5;margin-top:4px"},
+      `This sensor hasn't reported since ${new Date(rainSince).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}. Using the weather forecast instead.`));
+  }
   picker("Weather entity", "atlas_weather_condition_entity",
     firstWx ? `Automatic — ${nameOf(firstWx)}` : "Automatic — none found (no weather shows)", ids.filter(eid => eid.startsWith("weather.")));
   picker("Weather warnings", "atlas_weather_warning_entity",
@@ -4194,16 +4183,42 @@ function _settingsAI(ctx, el){
     ]));
     return r;
   };
-  feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
-    "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
-    "Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.",
-    settings.ai_photos_enabled !== false, false));
-  feats.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
+  // The master switch over every AI map-building feature (2026-11, experimental, off by default): today's
+  // stair finder and the Plans tool in Live Aboard's Edit bar. Off hides them all; its two rows show only while on.
+  const chip = el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "EXPERIMENTAL");
+  const master = el("label",{"data-ai-plans":"",style:"display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid #1e3a2a;cursor:pointer"});
+  const masterCb = el("input",{type:"checkbox", style:"margin-top:3px"});
+  masterCb.checked = settings.ai_plans_enabled === true;
+  master.appendChild(masterCb);
+  master.appendChild(el("div",{},[
+    el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["AI map-building research (experimental)", chip]),
+    el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
+      "Research feature. The AI suggests; you check every item. It never writes your map, rooms, walls or calibration. " +
+      "Turning it off hides it; it does not undo what you kept."),
+  ]));
+  feats.appendChild(master);
+  const under = el("div",{"data-ai-plans-under":"",style:`margin-left:22px;display:${settings.ai_plans_enabled === true ? "" : "none"}`});
+  masterCb.addEventListener("change", ()=>{ const want = masterCb.checked; under.style.display = want ? "" : "none";
+    save("ai_plans_enabled", want, ()=>{ masterCb.checked = !want; under.style.display = !want ? "" : "none"; }); });
+  under.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
     "Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor " +
     "plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then " +
     "drag, turn or delete it. A small AI on your own computer finds most staircases but often gets their shape and which " +
     "way is up wrong; a cloud AI reads plans better. The plans are sent to your AI only when you press it. Off until you turn it on.",
     settings.ai_stairs_enabled === true, false));
+  under.appendChild(el("div",{style:"padding:8px 0;border-top:1px solid #1e3a2a"},[
+    el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, "Add data via plans"),
+    el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
+      "In Live Aboard's Edit bar, the Plans tool: your AI reads the floor plans you placed for staircases and railings and lists " +
+      "what it finds for you to check, item by item. What you keep goes into your 3D house when you press Save, and one undo takes a whole session back."),
+  ]));
+  // The last session's undo (admins; ws_plan_ai.plan_ai_undo): what changed since is left, and said. Asked here in the page.
+  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin && settings.ai_plans_enabled === true) under.appendChild(_planAiLastRow(ctx, el));
+  feats.appendChild(under);
+  feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
+    "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
+    "Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.",
+    settings.ai_photos_enabled !== false, false));
   feats.appendChild(sw("", "Rooms and walls from a floor plan picture",
     "Traces the rooms and walls of a floor plan image for you, as a first guess to check before it is kept.", false, true));
   feats.appendChild(sw("", "Ask your voice assistant where someone is",
@@ -4504,6 +4519,48 @@ function _atlas3dSection(ctx, el, settings){
 // on, so the box says nothing of them while it is off, and only once the
 // library's server is live (LIBRARY_SERVER_LIVE in the library's own module,
 // loaded here only then): before that, nothing of the library shows.
+/** "Last plan session: 17 items, 2026-11-05 · Undo": hidden until the server names a batch that can be undone. */
+function _planAiLastRow(ctx, el){
+  const box = el("div",{"data-ai-plans-last":"", style:"display:none;padding:8px 0;border-top:1px solid #1e3a2a"});
+  const show = (u) => {
+    box.innerHTML = "";
+    box.style.display = u ? "" : "none";
+    if (!u) return;
+    const when = u.at ? new Date(u.at * 1000) : null;
+    const day = when ? `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, "0")}-${String(when.getDate()).padStart(2, "0")}` : "";
+    const n = u.items || 0;
+    const back = u.puts_back === true;
+    box.appendChild(el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, back ? `The last undo: ${n} item${n === 1 ? "" : "s"}, ${day}` : `Last plan session: ${n} item${n === 1 ? "" : "s"} kept, ${day}`));
+    const acts = el("span",{style:"display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px"});
+    const ask = () => {
+      acts.innerHTML = "";
+      acts.appendChild(el("button",{class:"btn inline", type:"button", "data-ai-plans-undo":"", onclick: ()=>{
+        acts.innerHTML = "";
+        acts.appendChild(el("span",{style:"font-size:12px;color:#fca5a5"}, back ? "Put those items back in your 3D house?" : "Take what this session kept out of your 3D house? Anything you changed since is left as it is."));
+        acts.appendChild(el("button",{class:"btn inline", type:"button", "data-ai-plans-undo-yes":"", style:"background:#7f1d1d;border-color:#dc2626;color:#fca5a5", onclick: async ()=>{
+          acts.innerHTML = "";
+          acts.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"}, "Working…"));
+          try {
+            const r = await ctx.actions.wsCall("padspan_ha/plan_ai_undo", { batch_id: u.id });
+            const left = (r && r.skipped ? r.skipped.length : 0);
+            ctx.toast(`${back ? "Put back" : "Undone"}: ${r.undone} of ${r.of}${left ? `. ${left} ${left === 1 ? "was" : "were"} changed since and left as ${left === 1 ? "it is" : "they are"}` : ""}.`);
+            // Every Live Aboard open in this page reads its file again.
+            try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
+            show(r && r.undo);
+          } catch (e) {
+            ctx.toast("Could not undo: " + String((e && e.message) || e), true);
+            ask();
+          }
+        }}, back ? "Put back" : "Undo"));
+        acts.appendChild(el("button",{class:"btn inline", type:"button", style:"color:#94a3b8;border-color:#94a3b840", onclick: ask}, "Cancel"));
+      }}, back ? "Put back…" : "Undo this session…"));
+    };
+    ask();
+    box.appendChild(el("div",{}, [acts]));
+  };
+  ctx.actions.wsCall("padspan_ha/plan_ai_sessions_get").then((r) => show(r && r.undo)).catch(() => show(null));
+  return box;
+}
 function _atlas3dLibraryRows(ctx, el, settings, more, row, save){
   const spot = el("div",{});
   more.appendChild(spot);

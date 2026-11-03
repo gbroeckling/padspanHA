@@ -459,3 +459,73 @@ def test_editing_and_saving_leaves_the_map_bytes_unchanged(disk, tmp_path):
         assert _file(tmp_path, k).read_bytes() == raw[k], k
     for k, v in live.items():
         assert h.data[DOMAIN][k] == v, k
+
+
+# ═══ railings are chosen (2026-11-02) ═══════════════════════════════════════
+
+def test_a_stairs_rail_style_is_kept_like_its_style_and_auto_still_saves():
+    """A new stair saves with rail none (the Furnish tab's default) and a
+    rail_style of balustrade, topless or single_bar; a newer version's word
+    is kept, as a style is, so a save is never refused for it; "auto" from
+    an older screen is still accepted (and stamped). An Open barrier's
+    railing (rail) is the barrier's own key and comes through the fabric's
+    read untouched."""
+    st = {"recipe": {"kind": "stairs", "params": {"shape": "u", "style": "open", "rail": "none", "rail_style": "topless"},
+                     "width_m": 2, "depth_m": 3, "height_m": 2.8}, "floor_id": "main", "x_m": 1, "y_m": 2}
+    out = H.apply_edit(H.empty(), {"pieces": {"fur_1a2b3c4d": st}})
+    assert out["pieces"]["fur_1a2b3c4d"]["recipe"]["params"] == {"shape": "u", "style": "open", "rail": "none", "rail_style": "topless"}
+    for word in ("single_bar", "balustrade", "rope"):
+        p = {**st["recipe"]["params"], "rail": "both", "rail_style": word}
+        got = H.apply_edit(H.empty(), {"pieces": {"fur_1a2b3c4d": {**st, "recipe": {**st["recipe"], "params": p}}}})
+        assert got["pieces"]["fur_1a2b3c4d"]["recipe"]["params"]["rail_style"] == word
+    for bad in ("Rope!", 3, ""):
+        with pytest.raises(H.EditError, match="rail_style"):
+            H.apply_edit(H.empty(), {"pieces": {"fur_1a2b3c4d": {**st, "recipe": {**st["recipe"], "params": {**st["recipe"]["params"], "rail_style": bad}}}}})
+    with pytest.raises(H.EditError, match="rail"):
+        H.apply_edit(H.empty(), {"pieces": {"fur_1a2b3c4d": {**st, "recipe": {**st["recipe"], "params": {**st["recipe"]["params"], "rail": "glass"}}}}})
+    from custom_components.padspan_ha import fabric_store as FS  # noqa: PLC0415
+    bar = FS.FabricStore._norm_barrier({"id": "gal", "name": "Gallery edge", "material": "open", "floor_id": "mezz",
+                                        "points_m": [[0, 4], [14, 4]], "rail": "glass"})
+    assert bar["rail"] == "glass" and "rail" not in FS.FabricStore._norm_barrier({"name": "Edge", "points_m": [[0, 0], [1, 0]]})
+
+
+def test_a_stair_from_before_is_stamped_with_the_rail_it_drew_and_the_file_says_when_its_rails_are_chosen():
+    """2026-11-02: a stair on "auto" (or with no rail word) is stamped, on
+    read and on write, with the rail and rail_style that draw exactly what
+    auto drew, so nobody sees a change; only words an older version accepts
+    (rail from its own list, rail_style a param it keeps unread), so a
+    downgrade still saves. A file from before says its rails are not chosen
+    (the first screen that may edit gives its Open edges their words, then
+    sets rails_chosen, once, never back); a new house's are."""
+    drew = {("straight", "closed"): ("both", "single_bar"), ("straight", "open"): ("both", "balustrade"),
+            ("straight", "treads"): ("both", "balustrade"), ("l", "floating"): ("both", "balustrade"),
+            ("u", "closed"): ("outer", "single_bar"), ("l", "closed"): ("outer", "single_bar"),
+            ("l", "treads"): ("inner", "balustrade"), ("u", "open"): ("inner", "balustrade"),
+            ("l2", "closed"): ("inner", "balustrade"), ("l3", "open"): ("inner", "balustrade"),
+            ("u", "glass"): ("outer", "single_bar")}                             # a newer style word is drawn closed
+
+    def piece(params):
+        return {"id": "fur_00000001", "recipe": {"kind": "stairs", "params": params, "colors": [], "width_m": 1.0, "depth_m": 3.0, "height_m": 2.8},
+                "floor_id": "main", "x_m": 0, "y_m": 0, "z_m": 0, "rotation": 0}
+    pieces = {f"fur_{i:08x}": piece({"shape": s, "style": st, **({"rail": "auto"} if i % 2 else {})}) for i, (s, st) in enumerate(drew)}
+    old = {"schema": 1, "pieces": pieces, "lights": {}, "openings": {}, "devices": {}, "figures": {}, "library": {}}
+    keep = copy.deepcopy(old)
+    got = H.normalise(old)
+    assert old == keep, "the tolerant read leaves what it was given as it is"
+    assert got["rails_chosen"] is False
+    for pid, key in zip(pieces, drew):
+        p = got["pieces"][pid]["recipe"]["params"]
+        assert (p["rail"], p["rail_style"]) == drew[key], key
+        assert p["rail"] in ("auto", "both", "inner", "outer", "none"), "a word an older version's list has"
+    # A rail chosen stays as it is; a new house's rails are chosen from the start.
+    chosen = H.normalise({**old, "pieces": {"fur_000000aa": piece({"shape": "l", "rail": "none", "rail_style": "topless"})}, "rails_chosen": True})
+    assert chosen["pieces"]["fur_000000aa"]["recipe"]["params"] == {"shape": "l", "rail": "none", "rail_style": "topless"}
+    assert chosen["rails_chosen"] is True and H.empty()["rails_chosen"] is True and H.normalise(None)["rails_chosen"] is True
+    # On write too ("auto" from an older screen), and the first save of a file from before carries the stamp.
+    out = H.apply_edit(old, {"pieces": {"fur_00000001": {**piece({"shape": "u", "style": "closed", "rail": "auto"}), "x_m": 1}}})
+    assert out["pieces"]["fur_00000001"]["recipe"]["params"] == {"shape": "u", "style": "closed", "rail": "outer", "rail_style": "single_bar"}
+    assert out["pieces"]["fur_00000000"]["recipe"]["params"]["rail"] == "both" and out["rails_chosen"] is False
+    assert H.apply_edit(old, {"rails_chosen": True})["rails_chosen"] is True
+    assert H.apply_edit(out, {"openings": {"bar_a71a3324": {"hinge": "left"}}, "rails_chosen": True})["rails_chosen"] is True
+    with pytest.raises(H.EditError, match="rails_chosen"):
+        H.apply_edit(H.empty(), {"rails_chosen": False})

@@ -43,6 +43,7 @@ export const SHOWCASE_LOOKS = Object.freeze({
   holographic:            row("#0a0810", "#161126", "#ff9ff3", 0.3,  0.9,  0.35, 1.45),
   retro_futurism:         row("#0d0521", "#180b35", "#ff5ab0", 0.35, 0.9,  0.32, 1.4),
   obsidian_noir:          row("#000000", "#0c0c0c", "#ffffff", 0,    0.75, 0.5,  1.3),
+  west_coast_forest:      row("#070d0b", "#0e1712", "#8fb0a6", 0.3,  0.75, 0.42, 1.35),
 });
 /** The look for a theme: its row, else Classic's (today's look). */
 export function lookOf(key){

@@ -16,6 +16,7 @@
 // The iPhone setup path (#69), behind iphone_irk_guide; query inherited from
 // our own module URL so the ?b= cache-buster propagates.
 // If it can't load, the page goes on as it always was (the guide reads as off).
+const { deviceName, deviceWhat, listWhat, addressBadge, serviceWords, SERVICE_HOW, fillHowKnown } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { iphoneGuideOn, isApplePhone, renderIphonePath } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {} }));
@@ -105,6 +106,14 @@ export function btAgo(sec) {
 }
 
 // A chip. tone ∈ good | ok | bad | info | violet | accent | mono | sid | quiet
+// How a device's maker is known (ble_enrichment.enrich_object, apply_address_maker).
+const MAKER_HOW = {
+  company_id: "From the company number in its broadcast",
+  espresense: "From ESPresense's id for this device",
+  address: "From the built-in list of address makers. A receiver confirmed this address is fixed",
+};
+const MAKER_GUESS_HOW = "From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance";
+
 function chip(el, text, tone, title) {
   return el("span", { class: "bt-chip" + (tone ? " " + tone : ""), ...(title ? { title } : {}) }, String(text));
 }
@@ -214,7 +223,8 @@ export function render(ctx) {
       if (!filter) return true;
       // Concatenate all searchable fields into one haystack string for substring match
       const xr = a._xref || {};
-      const hay = `${a.name || ""} ${a.address || ""} ${a.source || ""} ${a.company_name || ""} ${a.device_type || ""} ${a.auto_class || ""} ${(a.service_names||[]).join(" ")} ${xr.label || ""} ${xr.kind || ""} ${xr.room || ""} ${xr.canonical_id || ""} ${xr.ibeacon_uuid || ""}`.toLowerCase();
+      const _o = objIndex.get(String(a.address || "").toUpperCase()) || a;
+      const hay = `${_o.best_name || ""} ${_o.what_it_is || ""} ${a.name || ""} ${a.address || ""} ${a.source || ""} ${a.company_name || ""} ${a.device_type || ""} ${a.auto_class || ""} ${(a.service_names||[]).join(" ")} ${xr.label || ""} ${xr.kind || ""} ${xr.room || ""} ${xr.canonical_id || ""} ${xr.ibeacon_uuid || ""}`.toLowerCase();
       return hay.includes(filter);
     })
     .slice(0, maxItems);
@@ -412,12 +422,12 @@ export function render(ctx) {
 
       const irkInputRow = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap" });
       const irkNameInput = el("input", {
-        class: "input", type: "text", placeholder: "Device name \u2014 e.g. Garry's Pixel",
-        style: "width:190px",
+        class: "input", type: "text", placeholder: "Device name — e.g. Alice's Pixel",
+        style: "width:190px;box-sizing:content-box",
       });
       const irkValueInput = el("input", {
         class: "input", type: "text", placeholder: "IRK (hex or base64)",
-        style: "width:270px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
+        style: "width:270px;box-sizing:content-box;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
       });
       const irkAddBtn = el("button", { class: "btn inline" }, "Add");
       const irkMsg = el("div", { style: "font-size:12px;margin-top:5px;min-height:16px;width:100%" });
@@ -993,6 +1003,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
   for (const o of allObjects) {
     if (o.address) objByAddr.set(String(o.address).toUpperCase(), o);
     for (const a of (o.all_addresses || [])) { if (a) objByAddr.set(String(a).toUpperCase(), o); }
+    if (o.label_link) objByAddr.set(String(o.label_link.address).toUpperCase(), o);
   }
 
   // Find all ads from the selected scanner, then dedup by address keeping the
@@ -1082,7 +1093,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
     for (const r of holdRows) {
       const addr = String(r.ad.address || "").toUpperCase();
       const obj = objByAddr.get(addr);
-      const label = obj ? (obj.user_label || obj.name || addr) : (r.ad.name && r.ad.name !== addr ? r.ad.name : addr);
+      const label = obj ? deviceName(obj, addr) : deviceName(r.ad, addr);
       holdBox.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:4px" }, [
         el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, label),
         el("span", { style: "color:#52b788;white-space:nowrap" }, r.gone ? "gone quiet" : r.fresh ? "new" : `${r.jump > 0 ? "+" : ""}${Math.round(r.jump)} dB`),
@@ -1112,7 +1123,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
     for (const a of _filteredAds) {
       const addr = (a.address || "").toUpperCase();
       const obj = objByAddr.get(addr);
-      const displayName = obj ? (obj.user_label || obj.name || addr) : (a.name && a.name !== addr ? a.name : addr);
+      const displayName = obj ? deviceName(obj, addr) : deviceName(a, addr);
       // A Find My tag carried across address changes (findmy.py) is not an
       // IRK phone, whatever its merged kind says.
       const kindLabel = obj ? (obj.findmy ? "Find My" : obj.kind === "private_ble" ? "Private BLE" : obj.kind === "ibeacon" ? "iBeacon" : obj.identified ? "BLE" : "BLE?") : "";
@@ -1199,15 +1210,18 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const src = a.source || "";
     const xr = a._xref || {};  // Backend cross-reference: label, kind, room, canonical_id, etc.
     const obj = addr ? objIndex.get(String(addr).toUpperCase()) : null;
-    const userLabel = xr.label || (obj && obj.user_label) || "";
-    const displayName = userLabel || a.name || addr || "Unknown";
+    const userLabel = xr.user_label || (obj && obj.user_label) || "";
+    const displayName = deviceName(obj || a, addr || "Unknown");
     const sid = _rsid(src);  // Short scanner ID (e.g. "S1") for compact display
 
     // Enrichment badges (inline, compact)
     const badges = [];
     if (xr.kind)          badges.push(kindBadge(xr.findmy ? "findmy" : xr.kind));
-    if (a.company_name)   badges.push(chip(el, a.company_name, "info", "Manufacturer, from the advertisement"));
-    if (a.auto_class || a.device_type) badges.push(chip(el, a.auto_class || a.device_type, "violet"));
+    if (a.company_name)   badges.push(chip(el, a.company_name, "info", MAKER_HOW[(obj || a).maker_source] || MAKER_HOW.company_id));
+    else if (a.service_owner) badges.push(chip(el, serviceWords(a), "quiet", SERVICE_HOW));
+    else if (a.maker_guess) badges.push(chip(el, `Probably ${a.maker_guess}`, "quiet", MAKER_GUESS_HOW));
+    if (listWhat(obj || a)) badges.push(chip(el, listWhat(obj || a), "violet"));
+    badges.push(addressBadge(el, obj || a));
     if (a.connectable)    badges.push(chip(el, "connectable", "good", "This device accepts connections"));
 
     // Service names (max 3, then a count)
@@ -1272,12 +1286,14 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const card = el("div", { class: "bt-panel" });
 
     // Header: the name, its kind, and how strongly it is being heard right now
-    const hdrName = xr.label || a.name || selected;
+    const hdrName = deviceName(obj || a, selected);
     card.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
       el("div", { style: "font-size:15px;font-weight:800;letter-spacing:-.01em;flex:1;min-width:0;word-break:break-word" }, hdrName),
       sigEl(el, a.rssi),
     ]));
     if (xr.kind) card.appendChild(el("div", { class: "bt-chips" }, [kindBadge(xr.findmy ? "findmy" : xr.kind)]));
+    const _nameLines = obj && ctx.actions.labelLines ? ctx.actions.labelLines(obj) : null;
+    if (_nameLines) card.appendChild(_nameLines);
     // A Find My tag carried onto this address by MAC Rotation Bridging: if
     // it's the wrong tag, undo that link here (round 9 — otherwise it lasted
     // days).
@@ -1310,7 +1326,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       for (const [k, v] of rows) {
         if (v === null || v === undefined || v === "") continue;
         dl.appendChild(el("dt", {}, k));
-        dl.appendChild(el("dd", { class: _MONO.test(k) ? "mono-val" : "" }, String(v)));
+        dl.appendChild(el("dd", { class: _MONO.test(k) ? "mono-val" : "" }, v.nodeType ? v : String(v)));
       }
       s.appendChild(dl);
       return s;
@@ -1319,8 +1335,8 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     // Identity
     const idRows = [
       ["Address", a.address],
-      ["Name", a.name || "\u2014"],
-      ["User Label", xr.label || (obj?.user_label) || "\u2014"],
+      ["Broadcast name", (a.name && a.name !== a.address && a.name) || "\u2014"],
+      ["User Label", xr.user_label || (obj?.user_label) || "\u2014"],
       ["Object Kind", xr.kind || "untracked"],
     ];
     if (xr.canonical_id) idRows.push(["Canonical ID", xr.canonical_id]);
@@ -1337,17 +1353,21 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       ["TX Power", a.tx_power != null ? `${a.tx_power} dBm` : "\u2014"],
       ["Age", ageText(a.age_s)],
       ["Scanner", (_rsid(a.source) ? _rsid(a.source) + " " : "") + (a.source || "\u2014")],
-      ["Connectable", a.connectable ? "Yes" : "No"],
+      ["Connectable", a.connectable === true ? "Yes" : a.connectable === false ? "No" : "Unknown"],
     ];
     card.appendChild(section("Signal", sigRows));
 
     // Manufacturer
     const md = a.manufacturer_data || {};
     const mdKeys = Object.keys(md);
-    if (mdKeys.length || a.company_name || a.auto_class || a.device_type) {
+    if (mdKeys.length || a.company_name || a.service_owner || a.maker_guess || deviceWhat(obj || a)) {
+      const howEl = el("span", {}, "\u2014");
+      if ((obj || a).how_known || (obj || a).best_name) fillHowKnown(howEl, obj || a, ctx.actions.wsCall);
       const mfRows = [
-        ["Company", a.company_name || "\u2014"],
-        ["Device Type", a.auto_class || a.device_type || "\u2014"],
+        ["Company", a.company_name || (a.maker_guess ? `Probably ${a.maker_guess}` : "\u2014")],
+        ["Service", serviceWords(a) || "\u2014"],
+        ["What it is", deviceWhat(obj || a) || "\u2014"],
+        ["How we know", howEl],
       ];
       for (const cid of mdKeys) {
         mfRows.push(["Manuf ID " + cid, md[cid]]);
@@ -1545,11 +1565,11 @@ function renderVisualization(ctx, radios, ads, objIndex) {
       // Build a rich label: prefer user_label > object name > ad name > address
       let devLabel = "";
       if (obj) {
-        devLabel = obj.user_label || obj.name || a.name || addr;
+        devLabel = deviceName(obj, a.name || addr);
         const room = obj.room || a.area_name || "";
         if (room) devLabel += ` · ${room}`;
       } else {
-        devLabel = a.name || addr;
+        devLabel = deviceName(a, addr);
         if (a.area_name) devLabel += ` · ${a.area_name}`;
       }
       if (a.rssi != null) devLabel += ` (${a.rssi})`;
@@ -2472,7 +2492,7 @@ function renderIrkPanel(ctx, snap) {
     "Capturing an IRK from a phone or watch needs the ESPHome IRK Capture tool \u2014 github.com/DerekSeaman/irk-capture"));
 
   const nameInp = el("input", {
-    class: "input", type: "text", placeholder: "Device name \u2014 e.g. Garry's Pixel",
+    class: "input", type: "text", placeholder: "Device name \u2014 e.g. Alice's Pixel",
     style: "width:100%;box-sizing:border-box",
   });
   const irkInp = el("input", {

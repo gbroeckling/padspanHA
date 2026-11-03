@@ -28,6 +28,6 @@ def test_older_home_assistant_leaves_it_out(monkeypatch):
 def test_no_address_no_connection_and_every_device_uses_the_rule():
     assert S._bt_connections(None) == set() and S._bt_connections("") == set()
     src = Path(S.__file__).read_text(encoding="utf-8")
-    assert src.count('"connections": _bt_connections(address),') == 3
+    assert src.count('uid, _bt_connections(address))') == 3
     assert "{(dr.CONNECTION_BLUETOOTH, address)}\n" not in src.replace("\r\n", "\n").split("def _bt_connections")[0]
     assert "(int(_HA_MAJOR), int(_HA_MINOR)) >= (2026, 8)" in src and "_HA_KEEPS_BT_APART = True" in src

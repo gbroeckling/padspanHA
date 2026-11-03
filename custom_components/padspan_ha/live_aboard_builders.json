@@ -1712,7 +1712,19 @@
       "outer",
       "none"
      ],
-     "def": "auto"
+     "def": "none"
+    },
+    {
+     "key": "rail_style",
+     "label": "Rail style",
+     "type": "choice",
+     "choices": [
+      "balustrade",
+      "topless",
+      "single_bar"
+     ],
+     "def": "balustrade",
+     "keepWord": true
     }
    ],
    "colorNames": [

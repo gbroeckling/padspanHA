@@ -3100,6 +3100,8 @@ function _laStored(){
   return null;
 }
 const _laCannotHere = () => _laStored() || (_laNoGl ? "no_webgl" : null);
+/** Why this device shows no 3D view (no WebGL, too slow), or null: the Furnish tab's way to the Plans list. */
+export const la3dCannotHere = () => _laCannotHere();
 function _laRemember(why){
   if (!_LA_KEEP.includes(why) || _laStored() === why) return;
   try { _laKeptIn(why).setItem(_LA_FAILED, JSON.stringify({ build: _LA_BUILD, why })); } catch (_) {}
@@ -3304,6 +3306,19 @@ function _abLoad(){
     .catch((err) => { console.warn("PadSpan: atlas_aboard failed to load", err); _abFailed = true; });
 }
 
+// Showcase's West Coast Forest: the trees behind the flat map (atlas_forest.js),
+// fetched the first time that theme is on and the Atlas draws it; any other
+// theme never fetches it. A failure leaves the map without trees.
+const FOREST_THEME = "west_coast_forest";
+let _FOREST = null, _forestLoading = null, _forestFailed = false;
+const _forestRedraw = new Map();          // slot -> the newest card's redraw
+function _forestLoad(){
+  if (_FOREST || _forestFailed || _forestLoading) return;
+  _forestLoading = import(`./atlas_forest.js${new URL(import.meta.url).search}`)
+    .then((m) => { _FOREST = m; for (const f of [..._forestRedraw.values()]) { try { f(); } catch (_) { /* the next card draws */ } } })
+    .catch((err) => { console.warn("PadSpan: atlas_forest failed to load", err); _forestFailed = true; });
+}
+
 // How long Whole house's "Yes, change the whole house" stays armed untouched.
 export const WH_ARM_MS = 10000;
 
@@ -3332,7 +3347,7 @@ function _cardAlerts(host){
   let wet = null;
   try {
     const w = host.weather;
-    const d = WX && w && w.settings ? WX.decideAtlasWeather(WX.weatherSettingsFrom(w.settings), w.states, w.entities) : null;
+    const d = WX && w && w.settings ? WX.decideAtlasWeather(WX.weatherSettingsFrom(w.settings), w.states, w.entities, Date.now()) : null;
     wet = d && (d.kind === "rain" || d.kind === "snow") ? d.kind : null;
   } catch (_) { wet = null; }
   const alerts = safetyAlerts(Object.values(host.lightsByEid || {}),
@@ -3352,6 +3367,8 @@ const _noting = (el, notes) => (tag, attrs, kids) => {
   return el(tag, attrs, kids);
 };
 
+/** The Plans list there, from the 3D module (no GL asked of it): only ever on a press in that tab. */
+export const la3dPlansList = async (box, host) => (await import(`./live_aboard.js${new URL(import.meta.url).search}`)).openPlansList(box, host);
 export function buildLightsMapCard(hostIn){
   const keep = hostIn.keepCard || null;
   if (keep && keep.refresh && keep.card && keep.card.isConnected && keep.refresh(hostIn)) return keep.card;
@@ -3450,7 +3467,15 @@ export function buildLightsMapCard(hostIn){
     // (live check 2026-09-24).
     return zArr.map(z => floorNameAtLevel(_frame, host.model, floors, z) || `L${z}`).join(" + ");
   };
-  view.focusIdx = Math.max(0, Math.min(view.focusIdx, isoPos.length - 1));
+  // No floors yet (the first card is drawn before the model is read): nothing to
+  // check a saved floor against, and it has to last until there is. A floor no
+  // longer there (past the end of the list) means All.
+  if (sortedLevels.length && isoPos[view.focusIdx] === undefined) view.focusIdx = 0;
+  // Mapping → Atlas asked for on one floor (the Plans tool's fixture symbol with no placed light), once.
+  if (sortedLevels.length && typeof host.takeAtlasFloor === "function") {
+    const askedFloor = host.takeAtlasFloor(), i = askedFloor ? isoPos.findIndex(p => p === _frame.levelOf(String(askedFloor))) : -1;
+    if (i >= 0) view.focusIdx = i;
+  }
   // A wall that cycles through its floors (lights_panel.js _wallCycle):
   // All and each floor on its own, not the pairs between them.
   if (host.wall) view.wallStops = isoPos.map((p, i) => (Array.isArray(p) ? -1 : i)).filter(i => i >= 0);
@@ -3493,6 +3518,29 @@ export function buildLightsMapCard(hostIn){
   if (wxSlot) {
     try { wxOutdoorZ = WX.outdoorPlateLevels(_frame, isOutdoorFloorId); } catch (_) { wxOutdoorZ = null; }
   }
+  // Showcase's West Coast Forest (see _forestLoad): its trees go first in the
+  // stage, behind the drawing, which leaves out its ground for them. Any other
+  // theme, or a tier without Showcase: none of this runs, and a forest shown
+  // before lets go of its picture. The rain is laid over both, as ever.
+  const forestKey = (host.weather && host.weather.slot) || (host.screen && host.screen.slot) || "atlas";
+  const forestOn = () => !!host.showcase && host.showcaseTheme === FOREST_THEME;
+  const forestSlot = () => (_FOREST && forestOn() ? _FOREST.atlasForestSlot(forestKey) : null);
+  let forestGapKey = null, forestGeo = null;
+  const mountForest = (svgStr) => {
+    if (!forestOn()) { _forestRedraw.delete(forestKey); if (_FOREST) _FOREST.atlasForestSlot(forestKey).release(); return; }
+    _forestRedraw.set(forestKey, () => rebuildISO());
+    _forestLoad();
+    const slot = forestSlot();
+    if (!slot) return;
+    // The same plates and stacks the rain's mask is made from.
+    const gapKey = `${view.floorGap}|${view.horizGap}`;
+    if (gapKey !== forestGapKey) {
+      forestGapKey = gapKey;
+      try { forestGeo = WX ? { outdoorZ: WX.outdoorPlateLevels(_frame, isOutdoorFloorId), offsets: WX.plateOffsets(fabricFrame(host.model, floors, view.floorGap, view.horizGap)) } : null; }
+      catch (_) { forestGeo = null; }
+    }
+    slot.attach(isoDiv, { svg: svgStr, model: host.model, outdoorZ: forestGeo && forestGeo.outdoorZ, plateOffsets: forestGeo && forestGeo.offsets });
+  };
   const mountWeather = (svgStr) => {
     if (!wxSlot) return;
     // The plates move with the Spacing and L/R sliders (and Reset view),
@@ -3573,6 +3621,9 @@ export function buildLightsMapCard(hostIn){
           // Save, house3d_edit) only where the host lets lights be placed.
           load: typeof h3.load === "function" ? h3.load : null,
           edit: typeof h3.edit === "function" ? h3.edit : null,
+          // Open edges from before get the railing they showed as their own
+          // word, after a Save (live_aboard.js stampEdgeRails).
+          barrierRail: typeof h3.barrierRail === "function" ? h3.barrierRail : null,
           // The setup wizard's way in (aboard_wizard.js): a tool to open Edit at, taken once.
           openTool: h3.openTool && typeof h3.openTool.take === "function" ? h3.openTool : null,
           // Its heights go on the placement records (fabric_light_height_set),
@@ -3597,6 +3648,17 @@ export function buildLightsMapCard(hostIn){
           // moved up or down a floor takes along.
           furnish: h3.furnish === true ? { callWS: typeof h3.callWS === "function" ? h3.callWS : null,
             toast: typeof h3.toast === "function" ? h3.toast : null, settings: h3.settings, entities: h3.entities || null } : null,
+          // Add data via plans (experimental, 2026-11): the Plans tool in Edit, only with Settings → AI's
+          // master switch on, an AI Task chosen, where Edit itself is offered, never on Sample mode's house, and
+          // only for an administrator (every plan_ai_ command is one's).
+          plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && h3.admin !== false && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")
+            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings, telemetry: h3.telemetry || null,
+              // The flat Atlas is where a pin is dropped: leave Edit (asking first if something is unsaved), then Map on that room.
+              openAtlasRoom: typeof h3.openAtlasRoom !== "function" ? null : (fid, room) => {
+                const go = () => { _la3dPick(h3.slot, false); h3.openAtlasRoom(fid, room); };
+                const s = la3dSlot();
+                if (!(s && s.holdLeave && s.holdLeave(go))) go();
+              } } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
           // The view's floor stepper (▲ Main ▼ · All): the floor chips'
           // choice, a floor at a time, lowest first; and, on the sidebar,
@@ -3812,6 +3874,7 @@ export function buildLightsMapCard(hostIn){
     }
     // The weather overlay takes the same width and centring as the SVG.
     if (wxSlot) wxSlot.fit(view.zoom, V2, wallW);
+    if (forestSlot()) forestSlot().fit(view.zoom, V2, wallW);
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
   // Zoom about a point (pinch midpoint / wheel): keep what is under the
@@ -3836,6 +3899,7 @@ export function buildLightsMapCard(hostIn){
     const abDrawn = abData ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abData, host.lightsByEid, h3.settings.light_shapes)) : null;
     const isoOpts =
       { showcase: !!host.showcase, showcaseTheme: host.showcaseTheme || "classic",
+        ...(forestOn() ? { outsideBehind: true } : {}),
         liveColours: !!host.liveColours,
         fitRooms: !!host.showcase && !!host.fitRooms,
         ambient: host.ambient, isolux: !!host.showcase && !!host.isolux,
@@ -3903,6 +3967,7 @@ export function buildLightsMapCard(hostIn){
         Promise.resolve().then(() => live.read()).then((snap) => abDraw(snap && typeof snap === "object" ? snap : null), () => {});
       }
     }
+    mountForest(svgStr);
     mountWeather(svgStr);
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);
@@ -4817,6 +4882,20 @@ export function buildLightsMapCard(hostIn){
   };
   const legend = legendOf(host, h3);
   if (legend.node) { legend.node.classList.add("lv-shapes"); mapCard.appendChild(legend.node); }   // a wall leaves it out (styles.css)
+  // The page just opened on a saved floor whose plate is off screen: with the
+  // others faded, only backdrop would show. Once (lights_panel.js _loadSettings),
+  // the sidebar only: Mapping's map sits under its tools, a wall screen fits the
+  // house and is looked at from across a room. Choosing a floor never scrolls. A
+  // saved view can be a pair of floors (the slider): one on screen is enough.
+  function chosenIntoView(idx) {
+    if (!scr || !idx || host.wall) return;
+    const plates = [].concat(isoPos[idx])
+      .map(z => isoDiv.querySelector(`g[data-role="floorslab"][data-z="${z}"] [data-role="slabtop"]`)).filter(Boolean);
+    const box = isoDiv.getBoundingClientRect();
+    const top = Math.max(0, box.top), bottom = box.height ? Math.min(window.innerHeight, box.bottom) : window.innerHeight;
+    const off = (p) => { const r = p.getBoundingClientRect(), mid = r.top + r.height / 2; return mid < top || mid > bottom; };
+    if (plates.length && plates.every(off)) plates[0].scrollIntoView({ block: "center", inline: "nearest" });
+  }
   rebuildISO();
   // Kept (host.keepCard, see _cardSig): what this card is built from, besides
   // the devices, and the next tick's way in. A card built from the same takes
@@ -4884,6 +4963,12 @@ export function buildLightsMapCard(hostIn){
       if (view.scrollLeft !== undefined) isoDiv.scrollLeft = view.scrollLeft;
       if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
     });
+  }
+  // On the first card that has floors to draw; every later one leaves the page
+  // where it is. A microtask, as above: the card has to be on screen to be measured.
+  if (view.scrollToChosen && sortedLevels.length) {
+    view.scrollToChosen = false;
+    queueMicrotask(() => chosenIntoView(view.focusIdx));
   }
   return mapCard;
 }

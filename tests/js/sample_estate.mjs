@@ -79,11 +79,11 @@ const method = (n) => extractBlock(new RegExp(`^\\s{2}(?:async\\s+)?${n}\\s*\\(`
 const METHODS = ["_wsCount", "_logEvent", "_callWS", "_fetchSettings", "_loadSettings", "_applyDataMode", "_setDataMode",
   "_recomputeDerived", "_getRoomTags", "_getLiveSnapshot", "_refreshAll", "_getMapsList", "_getModel", "_getStatus",
   "_getVersionInfo", "_runAutoDiag", "_loadAlertConfigs",
-  "_sampleGateOn", "_ensureSampleHouse", "_sampleBlocked", "_sampleCall", "_viewHass", "_syncSampleHass", "_dropHouseCaches",
+  "_retryDataMode", "_sampleGateOn", "_modeUnknown", "_modeAnswered", "_ensureSampleHouse", "_sampleBlocked", "_sampleCall", "_viewHass", "_syncSampleHass", "_dropHouseCaches",
   "_keepLiveFollow", "_restoreLiveFollow", "_telemetryEvent", "_telemetryFlush", "_sampleSettingsTick", "_updateEmergencyBanner"];
 let bodies = METHODS.map(method).join("\n\n");
 // The one import of the sample house: counted, and pointed at the file.
-const IMPORT = "import(`./sample_house.js?b=${BUILD_ID}`)";
+const IMPORT = 'import(`./sample_house.js?b=${BUILD_ID}${fails ? "&retry=" + fails : ""}`)';
 expect(bodies.split(IMPORT).length === 2, "panel.js should import sample_house.js exactly once, in _ensureSampleHouse");
 bodies = bodies.replace(IMPORT, "__importHouse()");
 // Module-level in panel.js, from SAMPLE_READONLY_MSG to the end of _sampleKind(): the
@@ -471,6 +471,296 @@ await run("the house could not load: the small demo house, and writes still refu
   try { await p._callWS({ type: "padspan_ha/model_update" }); } catch (e) { err = e; }
   expect(err && err.code === "sample_mode", "a write went through");
   expect(!hass.log.some(e => e.type === "padspan_ha/model_update"), "the write reached Home Assistant");
+});
+
+await run("the house failed to load once: a later try loads it, and what was on screen goes", async () => {
+  failImport = true;
+  const { p } = await bootPanel({ data_mode: "sample" });
+  failImport = false;
+  expect(p.state.maps.list.some(m => m.id === "real_plan"), "the real plans were not the fallback, so this test no longer shows anything");
+  const tried = houseImports;
+  await p._ensureSampleHouse();
+  expect(houseImports === tried, "asked again at once: every read would ask");
+  p._sampleHouseRetryAt = 0;
+  await p._ensureSampleHouse();
+  await flush(40);
+  expect(houseImports === tried + 1, "no second try");
+  expect(p._sampleHouse, "the house did not load on the second try");
+  expect(p.state.maps.list.length && p.state.maps.list.every(m => /^estate_/.test(m.id)), "real plans stayed: " + p.state.maps.list.map(m => m.id));
+  expect(Object.keys(p.state.model.room_geometry_m || {}).includes("Games Room") && !p.state.model.room_geometry_m.Den, "the real rooms stayed");
+  expect(p.state.live.snapshot !== SAMPLE_SNAPSHOT, "the small demo house stayed");
+});
+
+/** What waits on a timer (the shim's queue) runs along until it is done. */
+async function along(pr) {
+  let done = false;
+  const going = pr.finally(() => { done = true; });
+  for (let i = 0; i < 200 && !done; i++) await flush();
+  return going;
+}
+
+/** A Home Assistant whose settings_get fails until told otherwise. */
+function realHassSettingsDown(server) {
+  const hass = realHass(server);
+  const callWS = hass.callWS;
+  hass.settingsDown = true;
+  hass.callWS = (m) => (m.type === "padspan_ha/settings_get" && hass.settingsDown) ? Promise.reject(new Error("no answer")) : callWS(m);
+  return hass;
+}
+const CHANGES = /model_update|maps_update|^light\.turn_on|^POST /;
+
+// The shim runs every queued timer at the next flush. The wait for the mode's
+// answer (20 s) runs out only when a case says so.
+const shimSetTimeout = globalThis.setTimeout, shimClearTimeout = globalThis.clearTimeout;
+let modeDeadlines = [];
+globalThis.setTimeout = (fn, ms, ...a) => {
+  if (ms !== 20000) return shimSetTimeout(fn, ms, ...a);
+  modeDeadlines.push(fn);
+  return { modeDeadline: fn };
+};
+globalThis.clearTimeout = (id) => {
+  if (id && id.modeDeadline) modeDeadlines = modeDeadlines.filter(f => f !== id.modeDeadline);
+  else shimClearTimeout(id);
+};
+const twentySecondsLater = () => { const due = modeDeadlines; modeDeadlines = []; due.forEach(f => f()); };
+
+for (const [saved, ends] of [["sample", "refused"], ["live", "sent"]]) {
+  await run(`the mode is unknown, on a house in ${saved}: a change waits, and is then ${ends}`, async () => {
+    globalThis.localStorage.clear();
+    const hass = realHassSettingsDown({ data_mode: saved });
+    const p = new (browser(globalThis.localStorage))();
+    p.setHass(hass);
+    await along(p._refreshAll(false));
+    expect(!p.state._dataModeKnown, "the mode is known");
+    expect(p.state.maps.list.some(m => m.id === "real_plan"), "reads did not go to Home Assistant");
+    const settled = {};
+    const note = (k, pr) => pr.then(() => { settled[k] = "ok"; }, (e) => { settled[k] = e.code || "error"; });
+    note("callWS", p._hass.callWS({ type: "padspan_ha/model_update" }));
+    note("_callWS", p._callWS({ type: "padspan_ha/maps_update" }));
+    note("connection", p._hass.connection.sendMessagePromise({ type: "padspan_ha/model_update" }));
+    note("service", p._hass.callService("light", "turn_on", { entity_id: "light.real_den" }));
+    note("api", p._hass.callApi("POST", "services/x"));
+    await flush(5);
+    expect(!Object.keys(settled).length, "answered before the mode was known: " + JSON.stringify(settled));
+    expect(!hass.log.some(e => CHANGES.test(e.type || "")), "a change reached Home Assistant: " + JSON.stringify(hass.log.map(e => e.type)));
+    hass.settingsDown = false;
+    await along(p._fetchSettings());
+    await flush(40);
+    expect(p.state.dataMode === saved && p.state._dataModeKnown, "not on " + saved);
+    const reached = hass.log.filter(e => CHANGES.test(e.type || "")).length;
+    if (saved === "sample") {
+      expect(Object.values(settled).length === 5 && Object.values(settled).every(v => v === "sample_mode"), "not refused: " + JSON.stringify(settled));
+      expect(reached === 0, "a change reached Home Assistant");
+    } else {
+      expect(Object.values(settled).length === 5 && Object.values(settled).every(v => v === "ok"), "not sent: " + JSON.stringify(settled));
+      expect(reached === 5, "reached: " + reached);
+      expect(p._hass === hass, "Live does not get Home Assistant itself once the mode is known");
+    }
+  });
+}
+
+/** A real pause: what is held must wait out a pause, as a person's next click would. */
+const pause = (ms) => new Promise(r => globalThis._realSetTimeout(r, ms));
+
+/** A panel with its first settings answer still out (the settings fail until told otherwise). */
+function unknownPanel(saved) {
+  globalThis.localStorage.clear();
+  const hass = realHassSettingsDown({ data_mode: saved });
+  const p = new (browser(globalThis.localStorage))();
+  p.setHass(hass);
+  return { p, hass };
+}
+const WRITES = /^padspan_ha\/(model_update|maps_update|factory_reset|store_backup_restore)$|^light\.|^POST /;
+const sentOrder = (hass) => hass.log.filter(e => WRITES.test(e.type || "")).map(e => (e.msg && e.msg.probe) || e.type);
+
+await run("held changes leave in the order they were made, through every door, whatever the gaps", async () => {
+  const { p, hass } = unknownPanel("live");
+  const made = [];
+  const steps = [
+    () => { made.push("A"); return p._hass.callWS({ type: "padspan_ha/model_update", probe: "A" }); },
+    () => { made.push("light.turn_on"); return p._hass.callService("light", "turn_on", { entity_id: "light.real_den" }); },
+    () => { made.push("B"); return p._callWS({ type: "padspan_ha/maps_update", probe: "B" }); },
+    () => { made.push("POST services/x"); return p._hass.callApi("POST", "services/x"); },
+    () => { made.push("C"); return p._hass.connection.sendMessagePromise({ type: "padspan_ha/model_update", probe: "C" }); },
+    () => { made.push("light.turn_off"); return p._hass.callService("light", "turn_off", { entity_id: "light.real_den" }); },
+  ];
+  const going = [];
+  for (const [i, step] of steps.entries()) { going.push(step()); await pause([0, 60, 130, 210, 7, 260][i]); }
+  expect(!sentOrder(hass).length, "sent before the answer: " + sentOrder(hass));
+  expect(modeDeadlines.length === 1, "one wait for all of them, not one each: " + modeDeadlines.length);
+  hass.settingsDown = false;
+  await along(p._fetchSettings());
+  await Promise.all(going);
+  expect(JSON.stringify(sentOrder(hass)) === JSON.stringify(made), "order: " + sentOrder(hass) + " made: " + made);
+  expect(!modeDeadlines.length, "the answer left the wait running");
+});
+
+await run("a change made right after the answer leaves after the ones held", async () => {
+  const { p, hass } = unknownPanel("live");
+  const a = p._hass.callWS({ type: "padspan_ha/model_update", probe: "A" });
+  hass.settingsDown = false;
+  await along(p._fetchSettings());
+  const b = p._hass.callWS({ type: "padspan_ha/model_update", probe: "B" });
+  await Promise.all([a, b]);
+  expect(JSON.stringify(sentOrder(hass)) === '["A","B"]', "order: " + sentOrder(hass));
+});
+
+await run("no answer in 20 s: changes are refused and nothing is sent, the repair tools still reach the server, in order", async () => {
+  const { p, hass } = unknownPanel("live");
+  const settled = {};
+  const note = (k, pr) => pr.then(() => { settled[k] = "sent"; }, (e) => { settled[k] = e.message; });
+  note("model", p._hass.callWS({ type: "padspan_ha/model_update" }));
+  note("restore", p._callWS({ type: "padspan_ha/store_backup_restore", backup_id: "b1" }));
+  note("service", p._hass.callService("light", "turn_on", {}));
+  note("reset", p._callWS({ type: "padspan_ha/factory_reset", confirm: "FACTORY RESET" }));
+  await flush(5);
+  expect(!Object.keys(settled).length, "answered before the wait ran out: " + JSON.stringify(settled));
+  twentySecondsLater();
+  await flush(5);
+  const REFUSED = /hasn't answered yet, so nothing was changed/;
+  expect(REFUSED.test(settled.model) && REFUSED.test(settled.service), "not refused: " + JSON.stringify(settled));
+  expect(settled.restore === "sent" && settled.reset === "sent", "a repair tool did not go: " + JSON.stringify(settled));
+  expect(JSON.stringify(sentOrder(hass)) === '["padspan_ha/store_backup_restore","padspan_ha/factory_reset"]', "reached: " + sentOrder(hass));
+  // Still no answer: the next change waits its own 20 s, not refused at once.
+  const later = p._hass.callWS({ type: "padspan_ha/model_update" }).then(() => "sent", () => "refused");
+  expect(modeDeadlines.length === 1, "no new wait");
+  hass.settingsDown = false;
+  await along(p._fetchSettings());
+  expect(await later === "sent", "the answer did not release the later change");
+});
+
+await run("a home really in Sample: the repair tools are refused like any change", async () => {
+  // The answer arrives during the wait.
+  const held = unknownPanel("sample");
+  const during = held.p._callWS({ type: "padspan_ha/factory_reset", confirm: "FACTORY RESET" }).then(() => "sent", (e) => e.code);
+  held.hass.settingsDown = false;
+  await along(held.p._fetchSettings());
+  expect(await during === "sample_mode", "held until Sample was known: " + await during);
+  // Known before the call.
+  for (const type of ["padspan_ha/factory_reset", "padspan_ha/store_backup_restore"]) {
+    let err = null;
+    try { await held.p._callWS({ type, backup_id: "b1" }); } catch (e) { err = e; }
+    expect(err && err.code === "sample_mode", type + " went through");
+  }
+  expect(!sentOrder(held.hass).length, "reached: " + sentOrder(held.hass));
+  // This browser's own Sample, a Live server: the same once the answer is in.
+  globalThis.localStorage.clear();
+  globalThis.localStorage.setItem("padspan_data_mode", "sample");
+  const hass = realHassSettingsDown({ data_mode: "live" });
+  const own = new (browser(globalThis.localStorage))();
+  own.setHass(hass);
+  const r = own._callWS({ type: "padspan_ha/store_backup_restore", backup_id: "b1" }).then(() => "sent", (e) => e.code);
+  hass.settingsDown = false;
+  await along(own._fetchSettings());
+  expect(await r === "sample_mode", "own Sample: " + await r);
+  expect(!sentOrder(hass).length, "reached: " + sentOrder(hass));
+});
+
+await run("the watchdog keeps asking when an ask never answers, at a modest rate, and one answer brings one refresh", async () => {
+  globalThis.localStorage.clear();
+  const hass = realHass({ data_mode: "live" });
+  const answer = hass.callWS;
+  const hung = [];
+  let asks = 0;
+  hass.callWS = (m) => {
+    if (m.type !== "padspan_ha/settings_get" || !hass.hanging) return answer(m);
+    asks++;
+    return new Promise((resolve) => hung.push(() => resolve(answer(m))));
+  };
+  hass.hanging = true;
+  const p = new (browser(globalThis.localStorage))();
+  p.setHass(hass);
+  let refreshes = 0;
+  const refreshAll = p._refreshAll.bind(p);
+  p._refreshAll = (...a) => { refreshes++; return refreshAll(...a); };
+  const realNow = Date.now;
+  let now = realNow();
+  Date.now = () => now;
+  try {
+    p._retryDataMode();
+    expect(asks === 1, "first ask: " + asks);
+    for (let i = 0; i < 3; i++) { now += 5000; p._retryDataMode(); }
+    expect(asks === 1, "asked again within 20 s: " + asks);
+    now += 5000; p._retryDataMode();
+    expect(asks === 2, "stopped asking after one that never answered: " + asks);
+    now += 5000; p._retryDataMode();
+    expect(asks === 2, "a tick after the new ask asked again: " + asks);
+    for (let i = 0; i < 15; i++) { now += 5000; p._retryDataMode(); }
+    expect(asks === 6, "not about three asks a minute: " + asks);
+    expect(!p.state._dataModeKnown, "known with no answer");
+    // Every hung ask answers at once, as after a stall.
+    hass.hanging = false;
+    hung.forEach(f => f());
+    await flush(40);
+    expect(p.state._dataModeKnown && p.state.dataMode === "live", "not on Live");
+    expect(refreshes === 1, "refreshes: " + refreshes);
+    const before = asks;
+    now += 60000; p._retryDataMode();
+    expect(asks === before, "kept asking once known");
+  } finally { Date.now = realNow; }
+});
+
+await run("with the mode unknown no screen prints Sample", async () => {
+  globalThis.localStorage.clear();
+  const hass = realHassSettingsDown({ data_mode: "sample" });
+  const p = new (browser(globalThis.localStorage))();
+  p.setHass(hass);
+  await along(p._refreshAll(false));
+  for (const view of ["overview", "follow", "health", "monitor", "sandbox"]) {
+    const node = await renderView(p, view);
+    expect(!/Mode: SAMPLE|mode: SAMPLE|Sample mode/.test(text(node)), view + ": " + (text(node).match(/.{30}(Mode: SAMPLE|mode: SAMPLE|Sample mode).{10}/) || [""])[0]);
+  }
+});
+
+await run("a real answer that lands after the switch to the sample house is dropped", async () => {
+  globalThis.localStorage.clear();
+  const hass = realHassSettingsDown({ data_mode: "sample" });
+  const held = [];
+  const callWS = hass.callWS;
+  hass.callWS = (m) => (m.type === "padspan_ha/model_get" || m.type === "padspan_ha/maps_list")
+    ? new Promise((res, rej) => held.push(() => callWS(m).then(res, rej))) : callWS(m);
+  const p = new (browser(globalThis.localStorage))();
+  p.setHass(hass);
+  const model = p._getModel(), plans = p._getMapsList();
+  await flush(10);
+  expect(held.length === 2, "the real reads were not sent: " + held.length);
+  hass.settingsDown = false;
+  await along(p._fetchSettings());
+  await p._ensureSampleHouse();
+  expect(p._sampleGateOn(), "not on the sample house");
+  held.splice(0).forEach(go => go());
+  for (let i = 0; i < 20 && held.length < 2; i++) await flush();
+  // Asked again, of the sample house: never of Home Assistant.
+  expect(!held.length, "asked Home Assistant again");
+  await along(Promise.all([model, plans]));
+  await flush(10);
+  expect(!p.state.model.room_geometry_m.Den && p.state.model.room_geometry_m["Games Room"], "real rooms over the sample house");
+  expect(p.state.maps.list.length && p.state.maps.list.every(m => /^estate_/.test(m.id)), "real plans over the sample house: " + p.state.maps.list.map(m => m.id));
+  expect(p.state._modelLoaded === true && p.state._mapsLoaded === true, "never marked as loaded");
+});
+
+await run("Live: a new hass object while a read is out does not drop its answer", async () => {
+  globalThis.localStorage.clear();
+  const hass = realHass({ data_mode: "live" });
+  const p = new (browser(globalThis.localStorage))();
+  p.setHass(hass);
+  await p._fetchSettings();
+  const model = p._getModel(), plans = p._getMapsList();
+  for (let i = 0; i < 3; i++) p.setHass({ ...hass });
+  await Promise.all([model, plans]);
+  expect(p.state.model.room_geometry_m.Den, "the model was dropped");
+  expect(p.state.maps.list.some(m => m.id === "real_plan"), "the plans were dropped");
+  expect(hass.log.filter(e => e.type === "padspan_ha/model_get").length === 1, "asked again");
+});
+
+await run("the sample house's guest is on the Guests page", async () => {
+  const { p } = await bootPanel({ data_mode: "sample", guest_tags_enabled: true });
+  const r = await p._callWS({ type: "padspan_ha/guests_get" });
+  expect(r.enabled === true, "says guest tags are off");
+  expect(r.tags.length === 1 && r.tags[0].guest === "Jordan" && r.tags[0].session === r.sessions[0].id, JSON.stringify(r.tags));
+  expect(r.sessions[0].name === "Jordan" && !r.sessions[0].ended && r.sessions[0].room, JSON.stringify(r.sessions));
+  const node = await renderView(p, "guests");
+  expect(/Staying now \(1\)/.test(text(node)) && /Jordan/.test(text(node)) && !/Guest tags are off/.test(text(node)), text(node).slice(0, 300));
 });
 
 await run("the website demo's fake Home Assistant (padspan_demo) is asked directly", async () => {

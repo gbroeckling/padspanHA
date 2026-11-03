@@ -53,7 +53,7 @@ NEWER_MESSAGE = ("Live Aboard's file was saved by a newer PadSpan. This version 
 
 def empty() -> dict[str, Any]:
     """The file's content for a house with nothing in 3D yet."""
-    return {"schema": SCHEMA, **{k: {} for k in SECTIONS}, "library": {}}
+    return {"schema": SCHEMA, **{k: {} for k in SECTIONS}, "library": {}, "rails_chosen": True}
 
 
 def writable(data: Any) -> bool:
@@ -78,7 +78,44 @@ def normalise(raw: Any) -> dict[str, Any]:
         for k in (*SECTIONS, "library"):
             if not isinstance(out.get(k), dict):
                 out[k] = {}
+        # Railings are choices (2026-11-02). A file from before says its are
+        # not yet (rails_chosen false: the person's first Save gives each
+        # Open edge the word for what it shows, live_aboard.js stampEdgeRails,
+        # then sets it), and each of its stairs on "auto" (or with no rail
+        # word) is stamped with the rail it drew, every read, until a save
+        # writes it. `raw` itself is left as it is.
+        out.setdefault("rails_chosen", False)
+        pieces = {}
+        for pid, p in out["pieces"].items():
+            r = p.get("recipe") if isinstance(p, dict) else None
+            if (isinstance(r, dict) and r.get("kind") == "stairs" and isinstance(r.get("params"), dict)
+                    and r["params"].get("rail") in (None, "auto")):
+                p = copy.deepcopy(p)
+                stamp_stair_rail(p["recipe"]["params"])
+            pieces[pid] = p
+        out["pieces"] = pieces
     return out
+
+
+def stamp_stair_rail(p: dict) -> None:
+    """A stair on "auto" (or with no rail word: every stair before
+    2026-11-02) gets the rail and rail_style that draw exactly what auto
+    drew (live_aboard_furniture.js stairFlights): the plain rods, a single
+    bar, on both sides of a closed straight flight and on the outside of a
+    closed L or U; a balustrade on both sides of any other straight or
+    floating stair, else on the inside (the well). Nobody sees a change; a
+    new stair starts with none (the Furnish tab's default)."""
+    if p.get("rail") not in (None, "auto"):
+        return
+    shape, style = p.get("shape", "straight"), p.get("style", "closed")
+    if style not in STAIR_STYLES:
+        style = "closed"                              # a newer style word is drawn closed
+    if shape == "straight" or style == "floating":
+        p["rail"], p["rail_style"] = "both", "single_bar" if shape == "straight" and style == "closed" else "balustrade"
+    elif style == "closed" and shape in ("l", "u"):
+        p["rail"], p["rail_style"] = "outer", "single_bar"
+    else:
+        p["rail"], p["rail_style"] = "inner", "balustrade"
 
 
 async def async_file_exists(hass: HomeAssistant) -> bool:
@@ -214,12 +251,19 @@ REF_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 # two or three landings (l2, l3), turning left or right; closed, open,
 # treads only (fixed into a wall) or floating (on a spine, fixed at the bottom
 # and the top), with a rail on both sides, the inside, the outside or none
-# (auto: as closed stairs always had); from their floor up to the floor they reach (to_floor, a
-# floor's id; none: the next floor up). Width and depth are their footprint,
-# height their rise (the gap between the two floors, kept by the editor; the
-# view always draws the gap).
+# (a new stair starts with none, 2026-11-02; "auto", what every stair had
+# before, is still accepted and is stamped on read with the rail it drew,
+# stamp_stair_rail, so an older version's file and save both work) in a
+# rail_style: balustrade (a handrail on spindles), topless (the spindles and
+# posts, no top rail) or single_bar (one bar, nothing under it), a short word
+# kept like a style so a newer version's save is never refused, and one an
+# older version keeps unread; from their floor up to the floor they
+# reach (to_floor, a floor's id; none: the next floor up). Width and depth
+# are their footprint, height their rise (the gap between the two floors,
+# kept by the editor; the view always draws the gap).
 STAIR_SHAPES, STAIR_TURNS = ("straight", "l", "u", "l2", "l3"), ("left", "right")
 STAIR_STYLES, STAIR_RAILS = ("closed", "open", "treads", "floating"), ("auto", "both", "inner", "outer", "none")
+STAIR_RAIL_STYLES = ("balustrade", "topless", "single_bar")
 # A style this version does not know (a newer one's) is kept, if it is a short
 # lowercase word, and drawn as closed: a save is never refused for it, as
 # 0.38.183 to 0.38.195 refuse a whole save holding a floating stair.
@@ -394,7 +438,12 @@ def _stairs(pid: str, r: dict) -> None:
     style = p.get("style", "closed")
     if style not in STAIR_STYLES and not (isinstance(style, str) and STAIR_STYLE_WORD.fullmatch(style)):
         raise EditError(f"{pid} stairs style must be a short lowercase word ({', '.join(STAIR_STYLES)})")
+    if p.get("rail") == "auto":                       # from an older screen: the rail it drew (a rail not given at all is stamped on read)
+        stamp_stair_rail(p)
     _pick(p.get("rail", "auto"), STAIR_RAILS, f"{pid} stairs rail")
+    rs = p.get("rail_style", "balustrade")
+    if rs not in STAIR_RAIL_STYLES and not (isinstance(rs, str) and STAIR_STYLE_WORD.fullmatch(rs)):
+        raise EditError(f"{pid} stairs rail_style must be a short lowercase word ({', '.join(STAIR_RAIL_STYLES)})")
     to = p.get("to_floor")
     if to is not None and not _plain(to, 64):
         raise EditError(f"{pid}: the floor stairs reach (to_floor) must be a floor's id")
@@ -407,9 +456,13 @@ def _stairs(pid: str, r: dict) -> None:
 def _piece(pid: str, e: dict, stamp: str) -> dict:
     """A piece of furniture (contracts §2), complete: what it is, where it
     stands, which device it is. Its floor may be one since deleted (the plan:
-    a floor that no longer exists is accepted). Keys it does not know are kept."""
+    a floor that no longer exists is accepted). Keys it does not know are kept.
+    An AI suggestion still in the editor's draft is kept only by the plan AI's
+    one writer (plan_ai_write.py), never by an ordinary Save."""
     if e.get("id", pid) != pid:
         raise EditError(f"{pid}: its id must be its key")
+    if "plan_ai_pending" in e:
+        raise EditError(f"{pid}: an item from the plans is kept through the Plans tool's own Save")
     fl, label = e.get("floor_id"), e.get("label") or ""
     if not isinstance(fl, str) or not fl.strip() or len(fl) > 64:
         raise EditError(f"{pid}: floor_id must be a floor's id")
@@ -597,7 +650,7 @@ def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
     base = normalise(data)
     if not writable(base):
         raise NewerFile(NEWER_MESSAGE)
-    if not isinstance(changes, dict) or set(changes) - set(EDIT_SECTIONS):
+    if not isinstance(changes, dict) or set(changes) - set(EDIT_SECTIONS) - {"rails_chosen"}:
         raise EditError(f"an edit has only {', '.join(EDIT_SECTIONS)}")
     out = copy.deepcopy(base)
     n, stamp = 0, dt_util.utcnow().replace(microsecond=0).isoformat()
@@ -625,6 +678,14 @@ def apply_edit(data: Any, changes: Any) -> dict[str, Any]:
                 target[key] = {**keep, **(clean or {})}
         if len(target) > max(_CAPS[section], before):
             raise EditError(f"{section}: at most {_CAPS[section]}")
+    # The railings a file from before showed became choices (2026-11-02,
+    # live_aboard.js stampEdgeRails): from now on an edge is railed only
+    # where its word says. Set once, never back.
+    if "rails_chosen" in changes:
+        if changes["rails_chosen"] is not True:
+            raise EditError("rails_chosen can only be set")
+        out["rails_chosen"] = True
+        n += 1
     if not n:
         raise EditError("nothing to save")
     # A piece removed takes no strip with it: a run on it stays where it was.
@@ -647,14 +708,16 @@ def without_pieces(data: dict) -> dict:
     return out
 
 
-async def async_restore_data(hass: HomeAssistant, incoming: Any) -> Any:
+async def async_restore_data(hass: HomeAssistant, incoming: Any, *, exact: bool = False) -> Any:
     """What a backup restore writes for this file (ws_backup): the backup's,
     except that a backup with no furniture in it (one from before the
     furniture) keeps the furniture this install has now. The plan, "Undoing
     it": restoring an older backup that has no furniture leaves the current
     furniture alone. What this house shared to the library stays as it is now
     (house3d_library.carried_over). A file that cannot be read now, or either
-    side a newer PadSpan's, is restored as the backup has it."""
+    side a newer PadSpan's, is restored as the backup has it. `exact`: a net
+    taken just before pieces were added (the plan AI's), whose no furniture
+    means there was none: nothing placed since stays."""
     pieces = incoming.get("pieces") if isinstance(incoming, dict) else None
     if not isinstance(incoming, dict) or not writable(incoming):
         return incoming
@@ -666,7 +729,7 @@ async def async_restore_data(hass: HomeAssistant, incoming: Any) -> Any:
         return incoming
     from .house3d_library import carried_over  # noqa: PLC0415
     out = carried_over(current, incoming)
-    if (isinstance(pieces, dict) and pieces) or not current.get("pieces"):
+    if exact or (isinstance(pieces, dict) and pieces) or not current.get("pieces"):
         return out
     return {**out, "pieces": copy.deepcopy(current["pieces"])}
 

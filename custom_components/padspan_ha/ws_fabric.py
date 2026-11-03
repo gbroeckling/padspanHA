@@ -36,7 +36,7 @@ from .model_store import KEEP_HEIGHT
 from .snapshot_builder import _live_snapshot
 from .ws_common import admin_if_enhanced_security, _invalidate_snapshot_cache, _tier_at_least
 from .ws_backup import _auto_backup
-from .telemetry import bump as _bump
+from .telemetry import OPEN_EDGE_ACTIONS, bump as _bump
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -812,6 +812,60 @@ async def ws_fabric_rf_barrier_remove(hass: HomeAssistant, connection, msg) -> N
     await mdl.async_remove_rf_barrier_m(bid)
     _bump(hass, "wall_removed")
     connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_rf_barrier_rails_stamp",
+        "rails": {str: vol.In(("glass", "none"))},
+    }
+)
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_fabric_rf_barrier_rails_stamp(hass: HomeAssistant, connection, msg) -> None:
+    """Open edges from before 2026-11-02 get the railing they showed as their
+    own word (live_aboard.js stampEdgeRails, after a Save of the person's own).
+    Only the `rail` key changes, on the record as stored, where it stands
+    (FabricStore.async_stamp_barrier_rails).
+    """
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    if not fab:
+        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        return
+    counts = await fab.async_stamp_barrier_rails(msg["rails"])
+    for word, n in counts.items():
+        if n:
+            _bump(hass, f"rail_stamped:{word}", n)
+    connection.send_result(msg["id"], {"ok": True, "stamped": counts})
+
+
+@websocket_api.websocket_command(
+    {
+        "type": "padspan_ha/fabric_open_edges_apply",
+        "action": vol.In(OPEN_EDGE_ACTIONS),
+        vol.Optional("set_barriers", default=list): [dict],
+        vol.Optional("remove_barrier_ids", default=list): [str],
+    }
+)
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_fabric_open_edges_apply(hass: HomeAssistant, connection, msg) -> None:
+    """The Open edges tool's one write (Mapping → Edit → Signal walls): the open
+    edges, what is left of a wall one replaces and the walls it removes, in one
+    save, all or nothing, so a dropped connection can't leave half a wall. Each
+    use counts once, as open_edge:<action>, never as walls placed.
+    """
+    fab = hass.data.get(DOMAIN, {}).get(DATA_FABRIC)
+    if not fab:
+        connection.send_error(msg["id"], "no_fabric", "FabricStore not loaded")
+        return
+    norm = [fab._norm_barrier(dict(b)) if b.get("name") else None for b in msg["set_barriers"]]
+    if any(b is None for b in norm):
+        connection.send_error(msg["id"], "invalid", "each barrier needs a name and at least two points_m")
+        return
+    await fab.async_spatial_update(set_barriers=norm, remove_barrier_ids=msg["remove_barrier_ids"], op="open_edges")
+    _bump(hass, f"open_edge:{msg['action']}")
+    connection.send_result(msg["id"], {"ok": True, "barriers": norm})
 
 
 @websocket_api.websocket_command(

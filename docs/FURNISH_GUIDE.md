@@ -46,24 +46,34 @@ The other ways in:
     gaps between them), **Treads only** (nothing under them, as if fixed into the wall beside
     them) or **Floating** (the treads alone on one steel spine down the middle, fixed to the
     floor at the bottom and to the floor or landing at the top, touching no wall).
-  - **Rail:** **Auto**, **Both**, **Inside** (the well side of a turn; Left on a straight flight),
-    **Outside** (Right on a straight flight) or **None**. Auto keeps the plain rods closed
-    straight, L and U stairs have always had, and gives the other styles and shapes a handrail on
-    spindles on the open side (both sides of a Floating stair, which has no wall beside it). A rail stands its full height, so over the top flights it rises
-    into the opening in the floor above, as a real one does.
+  - **Rail:** **None** until you pick **Both**, **Inside** (the well side of a turn; Left on a
+    straight flight) or **Outside** (Right on a straight flight). Stairs from before 2026-11-02 were
+    given the rail they showed as their setting (the plain rods closed straight, L and U stairs
+    always had, as a Single bar; a balustrade on the open side for the other styles and shapes,
+    both sides of a Floating stair). A rail stands its full height, so over the top flights it
+    rises into the opening in the floor above, as a real one does.
+  - **Rail style:** **Balustrade** (a handrail on spindles, a post at each end), **Topless** (the
+    spindles and posts with no top rail) or **Single bar** (one bar and nothing under it, on a post
+    at each end).
   - **Stairs in stair rooms** (Build ▾ → House, shown when there are some): a first guess for each
     room called Stairs, Stairwell or Staircase (Escalier, Treppenhaus, Trap…) that has none yet and
     a floor above. It's squared to the room's longest wall and sized to the room: a straight flight
-    against a long wall with the rail on the open side when the room is long enough, else a U or a
-    flight round two landings filling it. Drag it, turn it or change it like any other; nothing is
+    against a long wall when the room is long enough, else a U or a flight round two landings
+    filling it, with no rail until you pick one. Drag it, turn it or change it like any other; nothing is
     kept until Save.
-  - **Read stairs off the plans (AI)** (Build ▾ → House, with **Settings → AI → Stairs from your floor
-    plans** on and an AI Task picked): your AI looks for the stairs on each floor plan you placed and adds
+  - **Read stairs off the plans (AI)** (Build ▾ → House, with **Settings → AI → AI map-building research
+    (experimental)** on, **Stairs from your floor plans** on under it, and an AI Task picked; with the
+    master switch off, both the row and this item are hidden): your AI looks for the stairs on each floor plan you placed and adds
     what it finds, unsaved: put on the floor it climbs from (a flight marked DOWN on an upper plan goes on
     the floor below), one staircase seen on two plans added once, none where stairs already stand, each
     squared to its room. It's a first guess: in a test with a small local model (qwen2.5vl:7b) it found
     most staircases but got their exact size and which way is up wrong often enough that you should check
     every one. A bigger or cloud model reads plans better. A plan is sent to your AI only when you press it.
+  - **Check the AI's finds one by one (experimental):** **Edit → Plans** in Live Aboard shows your plan
+    under the house with what the AI found, and you accept or refuse each item before anything is kept. It's
+    an experiment and the AI gets things wrong, so check every item. See
+    [Plans](LIVE_ABOARD_GUIDE.md#plans-what-an-ai-finds-on-your-floor-plans-experimental) in the Live Aboard
+    Guide. On a device with no 3D, this tab offers the same items as a list: **Add data via plans (experimental)**.
   - **From a file:** Import brings a Sweet Home 3D staircase in as stairs (its own staircase mark, or
     a name like "Spiral staircase" or "L-shaped stairs" for a first guess at the shape; a mirrored
     model turns the other way), and with RoomPlan import on (Settings → Features), the furniture and

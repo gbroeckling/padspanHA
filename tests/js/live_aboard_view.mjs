@@ -152,6 +152,7 @@ await tryCase("frames: at rest the view asks for no frame at all", async () => {
   const slot = LA.liveAboardSlot("view-frames");
   const { stage } = card(slot, liveP(LIVE()));
   await later(10000, 60);                                  // the quality check, then rest
+  await later(1000);                                       // the camera's first fit has settled too (a marker's height is looked at once it has)
   const s = slot._state(), d = den(s), g = denGlow(s), queued = { frames: pendingFrames(), timers: pendingTimers() };
   const f0 = s.frames;
   await later(60000);

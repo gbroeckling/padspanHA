@@ -734,6 +734,39 @@ export const SHOWCASE_THEMES = {
     labelColorOff: "#5a5a5a",
     codeChipBg: "#000000",
     codeChipBgOpacity: 0.85,
+  },
+  west_coast_forest: {
+    // Garry, 2026-11-02: "a forest theme ... quite dark, and looking like west
+    // coast forest". The house in dark forest tones, warm where it is lit. The
+    // flat map's outside (atlas_forest.js) is the trees: the only theme with a
+    // layer of its own, drawn behind the drawing while this theme is on.
+    label: "West Coast Forest",
+    vignetteStops: [[0,"#35504c",0.26], [55,"#16262a",0.1], [100,"#060c0b",0]],
+    slabStops: [[0,"#23382d",0.5], [100,"#08110c",0.62]],
+    slabSideTop: {fill:"#14221a", fillOpacity:0.82, stroke:"#050a07"},
+    slabSideFront: {fill:"#0b1610", fillOpacity:0.88, stroke:"#050a07"},
+    glossStops: [[0,"#d7ebdc",0.13], [45,"#d7ebdc",0.03], [100,"#000000",0.3]],
+    washStops: [[0,"#cfe3e0",0.06], [100,"#cfe3e0",0]],
+    shadeStops: [[0,"#020504",0.55], [55,"#020504",0.22], [100,"#020504",0]],
+    roomEdgeStroke: "#050a07",
+    roomFillOpacity: 0.12,
+    roomStrokeOpacity: 0.62,
+    roomStrokeWidth: 1.2,
+    roomGlowStops: [[0,0.16], [45,0.05], [100,0]],
+    roomLabelOpacity: 0.8,
+    roomLabelLetterSpacing: "0.1em",
+    roomLabelUppercase: false,
+    poolStops: [[0,0.92], [28,0.5], [62,0.16], [100,0]],
+    fixtureOffFill: "#101a14",
+    fixtureOnStrokeFallback: "#e8b878",
+    fixtureOffStroke: "#34443a",
+    fixtureBloomOpacity: 0.42,
+    fixtureBodyOnOpacity: 0.92,
+    fixtureBodyOffOpacity: 0.5,
+    inkOffColor: "#5f7064",
+    labelColorOff: "#7f9184",
+    codeChipBg: "#060c09",
+    codeChipBgOpacity: 0.8,
   },};
 export const SHOWCASE_THEME_NAMES = Object.keys(SHOWCASE_THEMES);
 
@@ -2647,6 +2680,11 @@ function beaconLookSVG(bx, by, look){
 // Each plate's colour in the stack, bottom up: its number badge and its
 // outline. Live Aboard colours and numbers its floors from this same list.
 export const LAYER_PAL = ["#52b788","#f59e0b","#60a5fa","#e879f9","#fb923c","#34d399","#f87171","#a78bfa"];
+// How much of a floor shows while another is chosen ("Only this floor"): a
+// backdrop you can still recognise, under the chosen floor. Under 0.5, or
+// Mapping's _floorZAtVb (maps.js) would count its plate as chosen.
+const GHOST_FLOOR_OPACITY = 0.25;
+
 export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGap, lightsByEid={}, lightsLoading=false, floors=[], opts={}){
   const SHOW = !!opts.showcase;
   // A wall screen sized for its room (lights_map, wall mode): room names grow
@@ -2963,7 +3001,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
   let s=`<svg viewBox="${viewX0} ${viewY} ${WTOTAL} ${HTOTAL}" xmlns="http://www.w3.org/2000/svg" width="100%" `+
     `data-natural-h="${HTOTAL}" style="display:block;font-family:system-ui,sans-serif">`;
-  s+=`<rect x="${viewX0}" y="${viewY}" width="${WTOTAL}" height="${HTOTAL}" fill="${AMB?mixHex("#071008","#22301f",AMB):"#071008"}"/>`;
+  s+=`<rect x="${viewX0}" y="${viewY}" width="${WTOTAL}" height="${HTOTAL}" fill="${AMB?mixHex("#071008","#22301f",AMB):"#071008"}"${SHOW&&opts.outsideBehind?' fill-opacity="0"':""}/>`;
 
   // ── Showcase: the colour a fixture actually throws ────────────────────────
   // A light that reports rgb_color is drawn and glows in ITS OWN colour, so a
@@ -3619,12 +3657,18 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
   // viewBox itself needs them, see the content-extent pass above.
   for(const z of levels){
     const isFocused=focusZ===null||(Array.isArray(focusZ)?focusZ.includes(z):focusZ===z);
-    const go=isFocused?1.0:0.1;
-    // A ghosted floor is a backdrop, not a target: at 0.1 opacity its hexes are
-    // invisible but would still swallow clicks and drags meant for the focused
-    // floor (they overlap in iso space), so you'd toggle or move a light you
-    // cannot see.
+    const go=isFocused?1.0:GHOST_FLOOR_OPACITY;
+    // A ghosted floor is a backdrop, not a target: its rooms, names and markers
+    // fade together in one group (data-role="floorghost") and would otherwise
+    // still swallow clicks and drags meant for the focused floor (they overlap
+    // in iso space). Its slab stays outside that group, at the same fade: the
+    // people layer, the rain mask and the poll's patch look for it at the top
+    // of the drawing. So does its badge, full strength, because it still works.
     const gpe=isFocused?"":` pointer-events="none"`;
+    // What this floor draws above the fade: a leak or open-window ring and the
+    // ring that flashes a light's spot. Each still has to be seen, and neither
+    // takes a tap.
+    let overGhost="";
     const lyrColor=levelColor(z);
     const lidx=levels.indexOf(z);
 
@@ -3789,6 +3833,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // inert by being added here without its own explicit override, the way
     // the floor badge did.
     s+=`</g>`;
+    if(!isFocused) s+=`<g data-role="floorghost" data-z="${z}" opacity="${go}"${gpe}>`;
 
     // `extra` carries data-* attributes (floor z, whether it is placed) so the
     // Mapping → Lights tab's build tools can act on any hex directly; the
@@ -4100,7 +4145,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const labelHit=(cx,cy,fs)=>{
         const w=String(l.code||"").length*fs*0.64+fs*0.9, h=fs*1.5;
         return `<rect data-hit="1" x="${(cx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" `+
-          `width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="transparent" stroke="none" pointer-events="all"/>`;
+          `width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="transparent" stroke="none" pointer-events="${l._ghostedFloor?"none":"all"}"/>`;
       };
       const lbl=tempLbl!==null ? tempLbl : humidityLbl!==null ? humidityLbl : (HIDECODES ? (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap,true) : "") : (CODECHIP ? codeChipSvg(l,hx,hy,SHOW?tCol:"#e2e8f0",chipGap) : (SHOW
         ? labelHit(hx,lblY,CODE_PX*0.92)+
@@ -4142,7 +4187,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       const w=label.length*fs*0.58+fs*2.4, h=fs*2.1;
       const col=anyOn?"#fbbf24":"#94a3b8";
       return `<g class="lstack" data-role="stack" data-room="${escSVG(room)}" data-z="${z}" `+
-        `data-eids="${escSVG(eids.join(","))}" style="cursor:pointer" pointer-events="all">`+
+        `data-eids="${escSVG(eids.join(","))}" style="cursor:pointer" pointer-events="${isFocused?"all":"none"}">`+
         `<rect x="${(cx-w/2).toFixed(1)}" y="${(cy-h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" `+
         `rx="${(h/2).toFixed(1)}" fill="#0b1810" fill-opacity="0.88" stroke="${col}" stroke-opacity="0.6" `+
         `stroke-width="0.8" stroke-dasharray="3,2"/>`+
@@ -5735,7 +5780,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         {
           s+=`<g class="lroom" data-role="room" data-room="${escSVG(r.room)}" data-z="${z}" style="cursor:pointer">`+
             `<rect x="${(lix-rw/2).toFixed(1)}" y="${(liy-rh/2).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" `+
-            `rx="3" fill="transparent" stroke="none" pointer-events="all"/>`;
+            `rx="3" fill="transparent" stroke="none" pointer-events="${isFocused?"all":"none"}"/>`;
         }
         // Lighter and smaller than before (Garry, 2026-09-07: "takes up too
         // much space" and needs to stay "somewhat transparent" over whatever
@@ -6045,7 +6090,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
             `data-invert="${bar.invert_state?1:0}" data-name="${escSVG(bar.name||"")}" `+
             `data-opener="${escSVG(bar.linked_opener_entity_id||"")}" data-lock="${escSVG(bar.linked_lock_entity_id||"")}" `+
             `points="${ppx}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="16" stroke-linecap="round" `+
-            `pointer-events="stroke" style="cursor:pointer"/>`;
+            `pointer-events="${isFocused?"stroke":"none"}" style="cursor:pointer"/>`;
         }
       }
       // The wall the circle currently straddles, drawn WITH A GAP over the
@@ -6091,7 +6136,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       if(P.length<2) continue;
       const pp=P.map(q=>iso(q[0],q[1],z).map(v=>v.toFixed(1)).join(",")).join(" ");
       const col=escSVG(String(u.color||"#cbd5e1")), w=Number(u.width)>0?Number(u.width):1;
-      const op=((Number.isFinite(Number(u.opacity))?Number(u.opacity):0.6)*go).toFixed(2);
+      const op=(Number.isFinite(Number(u.opacity))?Number(u.opacity):0.6).toFixed(2);
       s+=u.closed
         ? `<polygon points="${pp}" fill="${col}" fill-opacity="${(Number(u.fill)||0).toFixed(2)}" stroke="${col}" stroke-width="${w}" stroke-linejoin="round" opacity="${op}" pointer-events="none"/>`
         : `<polyline points="${pp}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" opacity="${op}" pointer-events="none"/>`;
@@ -6239,7 +6284,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
       s+=auraGlow+auraEdge;
     }
     // The heatmap, under the air bars, the labels and the markers.
-    if(heatByZ.has(z)) s+=HEATMAP.heatFloorSvg(HEAT, heatByZ.get(z), hereRooms, floorBox.get(z), iso, z, (r)=>roomClip.get(r), (0.45*go).toFixed(2));
+    if(heatByZ.has(z)) s+=HEATMAP.heatFloorSvg(HEAT, heatByZ.get(z), hereRooms, floorBox.get(z), iso, z, (r)=>roomClip.get(r), "0.45");
     // Poor-air rooms on this floor: the rising bars, under the labels and
     // the markers (see airFx, computed before the defs).
     for(const fx of airFx){
@@ -6250,12 +6295,14 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // bars (see floodFx, computed before the defs alongside airFx).
     for(const fx of floodFx){
       if(fx.room.z!==z) continue;
-      s+=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.liveWet);
+      const ring=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.liveWet);
+      if(isFocused) s+=ring; else overGhost+=ring;
     }
     // Flagged openings on this floor (Alert pulse): the amber ring.
     for(const fx of alertFx){
       if(fx.room.z!==z) continue;
-      s+=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.kind==="rain_open", fx.kind);
+      const ring=floodRingSvg(fx.room, fx.eid, fx.x, fx.y, fx.kind==="rain_open", fx.kind);
+      if(isFocused) s+=ring; else overGhost+=ring;
     }
     for(const fn of labelJobs) fn();
 
@@ -6397,7 +6444,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // six hours of continuous fresh motion.
     if(LOCATE_EID){
       const found=jobs.find(j=>j[0].entity_id===LOCATE_EID);
-      if(found) s+=locateSvg(found[1],found[2]);
+      if(found){
+        if(isFocused) s+=locateSvg(found[1],found[2]); else overGhost+=locateSvg(found[1],found[2]);
+      }
     }
     if(CHANGED.size) for(const [l2,hx,hy] of jobs){
       if(!CHANGED.has(String(l2.entity_id))) continue;
@@ -6497,6 +6546,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // chip's matching clamp inside markerSvg.
     jobs.forEach((j,i)=>{ s+=markerSvg(j[0], j[1], j[2], j[3], j[4], !!j[7], nearestDist[i], j[8]); });
     for(const st of stacks) s+=stackChipSvg(...st);
+    if(!isFocused) s+=`</g>`+overGhost;
 
     // Floor level badge
     // The badge marks the storey, so it has to stay on the canvas. Slabs are

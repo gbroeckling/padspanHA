@@ -2,9 +2,36 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
+const { deviceName, pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
 import { buildCalibrationMatrix, errorColor } from "./calibration_matrix.js";
 import { attachPanZoom } from "./pan_zoom.js";
+
+// A tall plan fits the window instead of filling the card. Only the box's size
+// changes: its shape stays the plan's, and a point is a fraction of the plan's
+// on-screen box, so where a point is, or lands, does not depend on this.
+// Never under 360 px wide (or the card's width), so a tap stays precise on a
+// short window, such as a phone on its side, or with a very long plan: the page
+// scrolls instead.
+// border: the box's own border in px (its content is what has the plan's shape).
+/** A receiver's one name, to show. Saved names (a reading's, a placed receiver's
+ *  label) stay as they were saved; they are read back and matched on. */
+function _rxShown(ctx, source, saved) {
+  const r = (ctx.state.live?.snapshot?.ble?.radios || []).find(x => x.source === source);
+  return (r && r.display_name) || saved || source || "";
+}
+/** The same with its room, as a live reading's name has it. */
+function _rxLine(ctx, source, saved) {
+  const r = (ctx.state.live?.snapshot?.ble?.radios || []).find(x => x.source === source);
+  if (!r || !r.display_name) return saved || source;
+  const area = r.area_name || r.area || "";
+  return area && area !== r.display_name ? `${r.display_name} \u00b7 ${area}` : r.display_name;
+}
+
+function _fitPlanToWindow(box, vbH, border) {
+  box.style.width = `min(100% - ${border * 2}px, max(max(100vh - 140px, 320px) * ${100 / vbH}, 360px))`;
+  box.style.marginInline = "auto";
+}
 
 // PadSpan HA — BLE Fingerprint Calibration
 // Phone-based signal collection for precise indoor location modelling.
@@ -790,7 +817,7 @@ function _setup(ctx, el, cs, calData) {
     // Tracked objects — use stable identifiers for rotating-MAC devices
     for (const o of bleObjs) {
       const stableId = _setupStableId(o);
-      const label = (o.user_label || o.name || stableId) + (o.rssi ? ` (${o.rssi} dBm)` : "") + (o.kind === "private_ble" ? " [Private BLE]" : o.kind === "ibeacon" ? " [iBeacon]" : "");
+      const label = pickName(o, stableId) + (o.rssi ? ` (${o.rssi} dBm)` : "") + (o.kind === "private_ble" ? " [Private BLE]" : o.kind === "ibeacon" ? " [iBeacon]" : "");
       deviceItems.push({ id: stableId, label, search: `${label} ${stableId}`.toLowerCase(), group: "tracked" });
     }
     // Raw advertisement devices not already in objects.list (hidden in quiet mode)
@@ -870,13 +897,13 @@ function _setup(ctx, el, cs, calData) {
     if (radioCount > 0) {
       const box = el("div", { style: "background:#0a150e;border:1px solid #1b3526;border-radius:8px;padding:10px;margin-top:6px" });
       box.appendChild(el("div", { style: "font-weight:600;font-size:13px;color:#52b788;margin-bottom:6px" },
-        `✓ ${obj?.user_label || obj?.name || cs.deviceId} — seen by ${radioCount} radio${radioCount > 1 ? "s" : ""}`));
+        `✓ ${obj ? pickName(obj, cs.deviceId) : cs.deviceId} — seen by ${radioCount} radio${radioCount > 1 ? "s" : ""}`));
       if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, `Room: ${obj.room}`));
       box.appendChild(el("div", { style: "font-size:11px;color:#78909c;margin-bottom:4px" }, "Per-radio RSSI:"));
       const sorted = Object.entries(perRadio).sort((a, b) => (b[1].rssi || -200) - (a[1].rssi || -200));
       const _setupTxPower = obj?.tx_power ?? null;
       for (const [src, info] of sorted) {
-        box.appendChild(_rssiRow(el, info.name || src, info.rssi, null, info.age_s, _setupTxPower, _plOpts(ctx, src)));
+        box.appendChild(_rssiRow(el, _rxLine(ctx, src, info.name), info.rssi, null, info.age_s, _setupTxPower, _plOpts(ctx, src)));
       }
       deviceCard.appendChild(box);
     } else {
@@ -887,7 +914,7 @@ function _setup(ctx, el, cs, calData) {
       if (entityRssi || entityScanner) {
         const box = el("div", { style: "background:#0a150e;border:1px solid #3d2d0a;border-radius:8px;padding:10px;margin-top:6px" });
         box.appendChild(el("div", { style: "font-weight:600;font-size:13px;color:#fbbf24;margin-bottom:6px" },
-          `⚠ ${obj?.user_label || obj?.name || cs.deviceId} — entity data only (no direct BLE advertisements)`));
+          `⚠ ${obj ? pickName(obj, cs.deviceId) : cs.deviceId} — entity data only (no direct BLE advertisements)`));
         if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, `Room: ${obj.room}`));
         if (entityRssi) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `RSSI: ${entityRssi} dBm (from entity attributes)`));
         if (entityScanner) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `Nearest scanner: ${entityScanner}`));
@@ -985,7 +1012,7 @@ function _setup(ctx, el, cs, calData) {
   const durRow = el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" });
   for (const d of [15, 30, 60, 90]) {
     const btn = el("button", {
-      class: "btn" + (cs.duration === d ? "" : " inline"),
+      class: "btn inline" + (cs.duration === d ? " on" : ""),
       style: "min-width:60px",
       onclick: () => { cs.duration = d; ctx.actions.renderRooms(); },
     }, `${d}s`);
@@ -1137,6 +1164,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   // overflow:hidden. Tying mapWrap's own box to the SAME aspect ratio the
   // SVG's own viewBox already uses gives it real height with no measurement.
   mapWrap.style.aspectRatio = `100 / ${vbH}`;
+  _fitPlanToWindow(mapWrap, vbH, 2);
 
   // Existing calibration points as dots
   let dotsSvg = mapPts.map(p => {
@@ -1239,7 +1267,7 @@ function _pinAndListen(ctx, el, cs, calData) {
           `✓ Beacon visible on ${pinRadioCount} radio${pinRadioCount > 1 ? "s" : ""}`));
         const sorted = Object.entries(pinPerRadio).sort((a, b) => (b[1].rssi || -200) - (a[1].rssi || -200));
         for (const [src, info] of sorted) {
-          signalBox.appendChild(_rssiRow(el, info.name || src, info.rssi, null, info.age_s, _pinTxPower, _plOpts(ctx, src)));
+          signalBox.appendChild(_rssiRow(el, _rxLine(ctx, src, info.name), info.rssi, null, info.age_s, _pinTxPower, _plOpts(ctx, src)));
         }
       } else {
         signalBox.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;font-weight:600" },
@@ -1295,7 +1323,7 @@ function _buildCollectionUI(ctx, el, cs) {
   const { el: elHelper } = ctx.helpers;
   for (const [src, rd] of Object.entries(cs.readings || {})) {
     const mean = rd.samples.length ? rd.samples.reduce((a, b) => a + b, 0) / rd.samples.length : -100;
-    scanDiv.appendChild(_rssiRow(elHelper, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
+    scanDiv.appendChild(_rssiRow(elHelper, _rxLine(ctx, src, rd.name), Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
   }
   wrap.appendChild(scanDiv);
 
@@ -1387,7 +1415,7 @@ function _startCollection(ctx, cs, _snap, _mapData) {
       if (sorted.length) {
         for (const [src, rd] of sorted) {
           const mean = rd.samples.reduce((a, b) => a + b, 0) / rd.samples.length;
-          cs._scanEl.appendChild(_rssiRow(el, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
+          cs._scanEl.appendChild(_rssiRow(el, _rxLine(ctx, src, rd.name), Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
         }
       } else {
         cs._scanEl.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;text-align:center;padding:8px" },
@@ -1424,7 +1452,7 @@ function _buildSavePanel(ctx, el, cs, calData, mapData) {
   if (readingsEntries.length) {
     for (const [src, rd] of readingsEntries) {
       const mean = rd.samples.length ? rd.samples.reduce((a, b) => a + b, 0) / rd.samples.length : -100;
-      wrap.appendChild(_rssiRow(el, rd.name || src, Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
+      wrap.appendChild(_rssiRow(el, _rxLine(ctx, src, rd.name), Math.round(mean), rd.samples.length, null, cs._txPower, _plOpts(ctx, src)));
     }
   } else {
     wrap.appendChild(el("div", { style: "font-size:12px;color:#f59e0b;margin-bottom:8px" },
@@ -1615,6 +1643,7 @@ function _roam(ctx, el, cs, calData) {
   // propagates up through position:absolute, so mapWrap needs its own
   // aspect-ratio tie or it collapses to ~0px under overflow:hidden.
   mapWrap.style.aspectRatio = `100 / ${vbH}`;
+  _fitPlanToWindow(mapWrap, vbH, 2);
   mapInner.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}"
       preserveAspectRatio="none" style="width:100%;display:block">
     <image href="${imgUrl}" x="0" y="0" width="100" height="${vbH}" preserveAspectRatio="none"/>
@@ -1969,6 +1998,7 @@ function _modelTab(ctx, el, cs, calData) {
         const confSvg = _confusionLinksSvg(mapLoo?.room_confusion, mapData, vbH);
 
         const miniDiv = el("div", { style: "border-radius:6px;overflow:hidden;border:1px solid #1b3526;margin-bottom:6px" });
+        _fitPlanToWindow(miniDiv, vbH, 1);
         miniDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}" preserveAspectRatio="none" style="width:100%;display:block">
           <image href="${imgUrl}" x="0" y="0" width="100" height="${vbH}" preserveAspectRatio="none"/>
           ${gSvg}${confSvg}${dotsSvg}
@@ -2020,7 +2050,7 @@ function _modelTab(ctx, el, cs, calData) {
       const rSqColor = fit.r_squared >= 0.7 ? "#52b788" : fit.r_squared >= 0.4 ? "#f59e0b" : "#dc2626";
       tbody.appendChild(el("tr", {}, [
         el("td", { style: "font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
-          fit.scanner_name || src),
+          _rxShown(ctx, src, fit.scanner_name)),
         el("td", { style: "font-family:monospace;font-size:11px" }, fit.n.toFixed(2)),
         el("td", { style: "font-family:monospace;font-size:11px" }, fit.rssi_1m + " dBm"),
         el("td", { style: `font-family:monospace;font-size:11px;color:${rSqColor}` }, fit.r_squared.toFixed(2)),
@@ -2217,7 +2247,7 @@ function _matrixTab(ctx, el, cs, calData) {
     for (const o of anchors) {
       const sev = o.anchor_drift_severity || "unknown";
       tbody.appendChild(el("tr", {}, [
-        el("td", { style: "font-size:11px" }, o.user_label || o.name || o.key),
+        el("td", { style: "font-size:11px" }, deviceName(o, o.key)),
         el("td", { class: "muted", style: "font-size:11px" }, o.room || "—"),
         el("td", { style: "font-family:monospace;font-size:11px" }, o.anchor_drift_m != null ? `${o.anchor_drift_m}m` : "—"),
         el("td", { style: `font-size:11px;font-weight:700;color:${driftColor[sev]}` }, sev.toUpperCase()),
@@ -2282,7 +2312,7 @@ function _matrixTab(ctx, el, cs, calData) {
     el("th", {}, "Point"),
     ...matrix.scanners.map(src => el("th",
       { style: "font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" },
-      pathLoss[src].scanner_name || src)),
+      _rxShown(ctx, src, pathLoss[src].scanner_name))),
   ]));
   const tbody = el("tbody");
   for (const row of matrix.rows) {
@@ -2788,9 +2818,9 @@ function _tuneTab(ctx, el, cs, calData) {
           const [px, py] = iso(wx, wy, z);
           const isSel = ts.selectedRx && ts.selectedRx.mapId === m.id && ts.selectedRx.rxId === r.id;
           const rx = Math.round(px), ry = Math.round(py);
-          const _full = r.label || r.id || "R";
+          const _full = _rxShown(ctx, r.source, r.label || r.id) || "R";
           const lbl = _full.length > 20 ? _full.substring(0, 19) + "…" : _full;
-          const tip = `${r.label || r.id || "Receiver"}${r.room ? " | Room: " + r.room : ""} | x: ${(r.x * 100).toFixed(1)}% y: ${(r.y * 100).toFixed(1)}%`;
+          const tip = `${_rxShown(ctx, r.source, r.label || r.id) || "Receiver"}${r.room ? " | Room: " + r.room : ""} | x: ${(r.x * 100).toFixed(1)}% y: ${(r.y * 100).toFixed(1)}%`;
 
           s += `<g data-rx-id="${_esc(r.id)}" data-map-id="${_esc(m.id)}" data-z="${z}" data-tip="${_esc(tip)}" style="cursor:grab">`;
           // Transparent hit area for easier clicking/dragging
@@ -3446,7 +3476,7 @@ function _tuneTab(ctx, el, cs, calData) {
     const _fabPos = (ctx.state.model?.scanner_positions_m || {})[rx.source];
     const _posStr = _fabPos ? `${_fabPos.x_m?.toFixed(1)}m, ${_fabPos.y_m?.toFixed(1)}m` : `${(rx.x * 100).toFixed(1)}%, ${(rx.y * 100).toFixed(1)}%`;
     const lines = [
-      `<b style="color:#52b788">${_esc(rx.label || rx.id)}</b>`,
+      `<b style="color:#52b788">${_esc(_rxShown(ctx, rx.source, rx.label || rx.id))}</b>`,
       `Floor: ${_esc(_floorName)}`,
       `Room: ${_esc(rx.room || "\u2014")}`,
       `Position: ${_posStr}`,
@@ -3506,7 +3536,7 @@ function _tuneTab(ctx, el, cs, calData) {
               z_m: Math.round(Math.max(0, Math.min(100, v)) * 100) / 100,
             };
           } catch (_e) { /* publication is best-effort */ }
-          ctx.toast(`${rx.label || rx.source}: height set to ${v} m`);
+          ctx.toast(`${((ctx.state.live?.snapshot?.ble?.radios || []).find(x => x.source === rx.source)?.display_name) || rx.label || rx.source}: height set to ${v} m`);
           ts._tuneRev = (ts._tuneRev || 0) + 1;
           if (ctx.actions.modelRefresh) await ctx.actions.modelRefresh();
         } catch (e) {
@@ -3595,7 +3625,7 @@ function _tuneTab(ctx, el, cs, calData) {
   placeBanner.style.cssText = "display:none;background:#1a2e0e;border:2px solid #52b788;border-radius:8px;padding:8px 14px;font-size:12px;color:#a7f3d0;text-align:center";
   function _refreshPlaceBanner() {
     if (ts.pendingPlace) {
-      const nm = ts.pendingPlace.name || ts.pendingPlace.source || "radio";
+      const nm = ts.pendingPlace.shown || ts.pendingPlace.name || ts.pendingPlace.source || "radio";
       placeBanner.innerHTML = `<b style="color:#52b788">Double-click</b> on the 3D map to place <b style="color:#fbbf24">${_esc(nm)}</b> &nbsp; <span style="color:#94a3b8;cursor:pointer;text-decoration:underline" id="_cancelPlace">Cancel</span>`;
       placeBanner.style.display = "block";
       const cancelEl = placeBanner.querySelector("#_cancelPlace");
@@ -3681,7 +3711,7 @@ function _tuneTab(ctx, el, cs, calData) {
       const lbl = document.createElement("span");
       lbl.style.cssText = `flex:1;font-size:12px;color:${isPlaced ? "#d1d5db" : "#e2e8f0;font-weight:600"}`;
       const area = rd.area_name ? ` (${rd.area_name})` : "";
-      lbl.textContent = `${nm || src || "Unknown"}${area}`;
+      lbl.textContent = `${rd.display_name || nm || src || "Unknown"}${area}`;
       row.appendChild(lbl);
 
       if (isPlaced) {
@@ -3715,7 +3745,7 @@ function _tuneTab(ctx, el, cs, calData) {
           // A demo radio can be looked at, never placed (#88).
           const _blocked = tuneWriteBlock(ctx.state);
           if (_blocked) { ctx.toast(_blocked, true); return; }
-          ts.pendingPlace = { source: src, name: nm, area_name: rd.area_name || "" };
+          ts.pendingPlace = { source: src, name: nm, shown: rd.display_name || "", area_name: rd.area_name || "" };
           _refreshRadiosList();
           _refreshPlaceBanner();
         });
@@ -4329,9 +4359,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const [wx, wy] = xf.mapPt(r.x || 0, r.y || 0);
           const [px, py] = iso(wx, wy, z);
           const rx = Math.round(px), ry = Math.round(py);
-          const _full = r.label || r.id || "R";
+          const _full = _rxShown(ctx, r.source, r.label || r.id) || "R";
           const lbl = _full.length > 20 ? _full.substring(0, 19) + "…" : _full;
-          const tip = `Scanner: ${r.label || r.id || "Receiver"}${r.room ? " | Room: " + r.room : ""}${!_isLive ? " (offline)" : ""}`;
+          const tip = `Scanner: ${_rxShown(ctx, r.source, r.label || r.id) || "Receiver"}${r.room ? " | Room: " + r.room : ""}${!_isLive ? " (offline)" : ""}`;
           const _rxCol = _isLive ? "#52b788" : "#4a6052";
           s += `<g data-tip="${_esc(tip)}" style="cursor:default;opacity:${_isLive ? 0.6 : 0.3}">`;
           s += `<circle cx="${rx}" cy="${ry}" r="10" fill="none" stroke="${_rxCol}" stroke-width="1.2" opacity="0.5"/>`;
@@ -4362,11 +4392,11 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const [px, py] = iso(wx, wy, z);
           const isSel = bs.selectedBk && bs.selectedBk.mapId === m.id && bs.selectedBk.bkId === bk.id;
           const bx = Math.round(px), by = Math.round(py);
-          const lbl = (liveObj?.user_label || liveObj?.name || bk.label || bk.key || "B").substring(0, 8);
+          const lbl = (liveObj ? deviceName(liveObj, "B") : (bk.label || bk.key || "B")).substring(0, 8);
           const detectedRoom = isLive && liveObj?.room ? liveObj.room : _detectRoom(useX, useY, m);
           const fillColor = isLive && !isTimerActive ? "#52b788" : "#5eead4";
           const confidence = liveObj?.knn_confidence;
-          const tipParts = [liveObj?.user_label || liveObj?.name || bk.label || bk.key || "Beacon"];
+          const tipParts = [liveObj ? deviceName(liveObj, "Beacon") : (bk.label || bk.key || "Beacon")];
           if (detectedRoom) tipParts.push("Room: " + detectedRoom);
           tipParts.push(`Pinned: x ${(useX * 100).toFixed(1)}% y ${(useY * 100).toFixed(1)}%`);
           // Show server estimate in tooltip if available
@@ -4507,7 +4537,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const opt = document.createElement("option");
     opt.value = o.key;
     const kindBadge = o.kind === "ibeacon" ? " [iBeacon]" : o.kind === "private_ble" ? " [Private BLE]" : " [BLE]";
-    opt.textContent = (o.user_label || o.name || o.key) + (o.rssi ? ` (${o.rssi} dBm)` : "") + kindBadge;
+    opt.textContent = pickName(o, o.key) + (o.rssi ? ` (${o.rssi} dBm)` : "") + kindBadge;
     bkSel.appendChild(opt);
   }
 
@@ -5379,7 +5409,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
             if (rd.samples.length < 5) continue;
             const mean = rd.samples.reduce((a, b) => a + b, 0) / rd.samples.length;
             const variance = rd.samples.reduce((a, v) => a + (v - mean) ** 2, 0) / rd.samples.length;
-            if (Math.sqrt(variance) > 15) { highVar = rd.name || src; break; }
+            if (Math.sqrt(variance) > 15) { highVar = _rxLine(ctx, src, rd.name); break; }
           }
           entry.warning = highVar ? `\u26a0 High variance on ${highVar}` : "";
         }
@@ -5451,7 +5481,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const confirmPurge = confirm(
             `This is the 3rd consecutive calibration for "${entry.bk.label || bkKey}" within a few minutes.\n\n` +
             `OK deletes this beacon's earlier Beacon Tune points (and its automatic [auto] points) and keeps the new readings. ` +
-            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) are kept.\n\n` +
+            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) and Calibration Guide points are kept, ` +
+            `except Guide points saved by 0.38.209 to 0.38.217, which count as Beacon Tune points. ` +
+            `If it keeps showing at the old spot, delete the kept points by hand on the Model tab.\n\n` +
             `Choose OK to replace them (hard relocation).\n` +
             `Choose Cancel to keep them and just add this as another data point.`
           );
@@ -5897,7 +5929,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       nameCol.style.cssText = "flex:1;min-width:0;display:flex;flex-direction:column;gap:1px";
       const nameEl = document.createElement("span");
       nameEl.style.cssText = `font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isPinned ? "#d1d5db" : "#e2e8f0"};${isPinned ? "" : "font-weight:600"}`;
-      nameEl.textContent = obj.user_label || obj.name || obj.key;
+      nameEl.textContent = pickName(obj, obj.key);
       nameCol.appendChild(nameEl);
       // Detail line: kind + RSSI + room
       const detailParts = [];
@@ -6051,8 +6083,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       nameRow.appendChild(icon);
       const nameEl = document.createElement("span");
       nameEl.style.cssText = "font-size:12px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
-      nameEl.textContent = obj?.user_label || obj?.name || bk.label || bk.key;
-      nameEl.title = obj?.user_label || obj?.name || bk.label || bk.key;
+      nameEl.textContent = obj ? pickName(obj, bk.key) : (bk.label || bk.key);
+      nameEl.title = obj ? pickName(obj, bk.key) : (bk.label || bk.key);
       nameRow.appendChild(nameEl);
       leftCol.appendChild(nameRow);
 
@@ -6241,7 +6273,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
         for (const [src, info] of radioEntries.slice(0, 6)) {
           const chip = document.createElement("span");
           const rssiColor = (info.rssi || -200) > -70 ? "#52b788" : (info.rssi || -200) > -85 ? "#f59e0b" : "#f87171";
-          const shortName = (info.name || src || "?").substring(0, 10);
+          const shortName = (_rxShown(ctx, src, info.name) || "?").substring(0, 10);
           chip.style.cssText = `padding:1px 6px;border-radius:3px;background:#0a1a12;border:1px solid #1b3526;color:#d1d5db;white-space:nowrap`;
           chip.innerHTML = `${_esc(shortName)} <span style="color:${rssiColor};font-weight:600">${_esc(String(info.rssi ?? "?"))}</span>`;
           if (info.age_s != null) chip.innerHTML += ` <span style="color:#64748b">${Math.round(info.age_s)}s</span>`;
@@ -6696,7 +6728,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           room: room,
           device_id: deviceId,
           label: bkLabel,
-          source: "beacon_tune",
           scanner_readings: scannerReadings,
           weight: weight,
         });
@@ -6747,7 +6778,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       const src = r.source || "";
       if (!src || seen.has(src)) continue;
       seen.add(src);
-      out.push({ source: src, name: (radios.find(x => x.source === src)?.name) || r.label || src });
+      out.push({ source: src, name: _rxShown(ctx, src, (radios.find(x => x.source === src)?.name) || r.label) });
     }
     return out;
   }

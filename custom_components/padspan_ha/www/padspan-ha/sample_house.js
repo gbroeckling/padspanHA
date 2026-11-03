@@ -120,6 +120,19 @@ export function radiosOf(model){
 // charger. Unnamed and in one room each (heard from its middle), as the engine leaves them.
 const HEARD = [["Living Room", "TV"], ["Media Room", "Soundbar"], ["Kitchen", ""], ["Primary Bedroom", "Watch"], ["Office", ""], ["Games Room", ""]];
 
+/** The guests page's answer (ws_guests.py's shape): the tags on loan and their stays, running a day by now. */
+function guestsOf(list, walkers, nowS){
+  const lent = walkers.filter(w => w.guest).map(w => ({ w, room: (list.find(o => o.key === w.key) || {}).room || "" }));
+  return {
+    enabled: true, retention_days: 30, candidates: [],
+    tags: lent.map(({ w, room }) => ({ pid: w.key, label: w.name, key: w.key, keys: [w.key], kind: w.kind,
+                                       present: true, room, session: w.guest.session, guest: w.guest.name })),
+    sessions: lent.map(({ w, room }) => ({ id: w.guest.session, pid: w.key, name: w.guest.name, tag: w.name, start: nowS - 86400, end_planned: null,
+                                           ended: null, end_how: null, opts: { off_limits: [] }, present: true, room,
+                                           summary: { rooms: {}, off_limits: [], length_s: 86400 } })),
+  };
+}
+
 /**
  * The live snapshot (snapshot_builder.py's shape) of everyone t seconds
  * along their walks: who is where, the receivers, what each one hears.
@@ -352,6 +365,7 @@ export function createSampleHouse(q = new URLSearchParams(), { now = Date.now } 
   const route = (m) => {
     switch (m && m.type) {
       case "padspan_ha/model_get": return clone(model);
+      case "padspan_ha/guests_get": return guestsOf(snapshot().objects.list, fx.WALKERS, now() / 1000);
       case "padspan_ha/maps_list": return { maps: clone(plans.maps), image_urls: { ...plans.imageUrls } };
       case "padspan_ha/maps_image_urls": return { image_urls: { ...plans.imageUrls } };
       case "padspan_ha/live_snapshot": return { snapshot: snapshot() };

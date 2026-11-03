@@ -40,6 +40,7 @@ the only 404s in a check's console are real.) Then open `http://127.0.0.1:8765/t
 | `la=0` | The flat Atlas instead of Live Aboard |
 | `display=0` | The Mapping layout instead of the sidebar's display mode |
 | `edit=1` | Hand Live Aboard an `edit` (Edit and its tools show) |
+| `plans=1` | With `edit=1`: the Plans tool on, over a fake server and a fictional session (`plans_fixture.js`; pictures drawn on a canvas, never a real plan) |
 | `tool=heights\|door\|window\|doorway\|strip`, `teid=` | With `edit=1`: open Edit at that tool (and pick that light in Strip), as the setup wizard does |
 | `sky=rainy` / `sunny` | The weather entity's condition (rain alert, rain) |
 | `night=1` | `sun.sun` below the horizon |
@@ -48,6 +49,8 @@ the only 404s in a check's console are real.) Then open `http://127.0.0.1:8765/t
 | `cls=temp` | Pick a device-type chip (heat map with `temp`) |
 | `smoke=0`, `wopen=0` | The smoke alarm quiet; the living-room window shut |
 | `gym=1` | A hall 7.5 m to the roof with a mezzanine at 3.2 m (gallery, walkway, toilets); its open edges over the hall get railings |
+| `rails=glass\|none` | With `gym=1`: the two edges over the hall with that railing chosen on the barrier (`rail`); without it, railed by the rule as an edge from before |
+| `stairs=<rail>:<style>[:<shape>:<stair style>]` | A staircase in the Living Room with that rail (`auto\|none\|both\|inner\|outer`; `balustrade\|topless\|single_bar`), e.g. `stairs=both:topless:l:open` |
 | `loft=1` | Open (Loft) edges that stay gaps: upstairs over the Laundry (an ordinary storey below, so no railing), between two upstairs rooms and on the main floor's street side |
 | `w=380` | Card width in px (a phone; desktop browsers won't go narrower than ~500 px) |
 | `click=A,B` | Press buttons by their text after load |
@@ -83,6 +86,8 @@ the Playwright scripts for those (`pip install playwright`; they use the install
 | `pw_sheet.py <out.png>` | A door's sheet: hinge, swing, shown, type (sliding), arcs, Save |
 | `pw_help.py` | Views ▾ → How it works and its guide link |
 | `pw_load.py` | Load the page, list visible buttons and any errors |
+| `pw_plans.py <out_dir> [desktop\|phone]` | The Plans tool's vetting map by real clicks: pins, verdicts, keys, undo, floors, recap, the plan; screenshots in `out_dir` |
+| `pw_raised.py [outprefix]` | What stands on a line against the words: overlaps before and after at several orbits, rest afterwards |
 | `pw_tool.py [light]` | The setup wizard's way in (`?edit=1&tool=<t>&teid=<light>`): Edit opens at Heights, Door, Window, Strip (with the light picked) |
 
 Run them with `python -X utf8 <script> ...` (the page uses characters a Windows console can't

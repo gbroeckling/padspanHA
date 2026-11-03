@@ -123,9 +123,12 @@ warm from outside.
 **Mezzanines and open edges:** draw a mezzanine, gallery or loft as its own floor in Home Assistant.
 In Mapping → Floor Heights, give the hall underneath its full height (floor to roof) and the
 mezzanine its real **base elevation**. Live Aboard then draws the mezzanine inside the hall, under
-the hall's roof. Where its edge has a railing in real life, draw that edge in Mapping as a wall
-with the **Open (Loft)** material: over the hall it gets a glass railing. Anywhere else (between
-two rooms on one floor, or over an ordinary storey below) it stays an open gap.
+the hall's roof. Where its edge is open in real life, mark it in Mapping → Edit → Signal walls
+(**Open edge: tap a room edge**, or draw it with the **Open (Loft)** material), and where it has a
+railing, press **Railing** on its row: a new open edge has none until you choose. An edge from
+before keeps what it shows (a glass railing over the hall, an open gap anywhere else: between two
+rooms on one floor, or over an ordinary storey below), and that becomes its setting the first time
+you Save in Live Aboard.
 
 **Doors and windows** linked to sensors open and shut as they do. A lock linked to a door glows red
 while it's unlocked.
@@ -203,6 +206,35 @@ row, or the **Heights** list to set several at once. They're the same heights.
 3. Set its **height** with the chips (Toe-kick, Counter, Under cabinets, Valance, Cove, Ceiling
    edge) or in centimetres, and **which way it shines**.
 4. **Remove run** puts it back to PadSpan's guess.
+
+### Plans: what an AI finds on your floor plans (experimental)
+
+**This is an experiment. The AI gets things wrong, so check every item.** On a small local AI about
+2 in 10 stair suggestions are wrong and 2 or 3 in 10 real stairs are missed; for lights it's about
+3 in 10 wrong and 4 in 10 missed. It's off until you turn it on, and it needs PadSpan Pro, **AI
+map-building research (experimental)** on in **Settings → AI**, and an AI Task picked there. A local
+AI keeps your plans in the house; a cloud AI gets a copy.
+
+1. Press **Edit → Plans** and tick the plans to read. Tick **Lights** only if you want lights too,
+   and only on the sheets that draw them: lights are read last and take 2.5-3 minutes a plan, so
+   with many plans ticked the time can run out first. The read stops after 8 minutes and keeps what
+   it found.
+2. Your plan shows under the house, seen from straight above, with what the AI found as dashed
+   shapes and numbered pins. Lights, sensors and names step aside until you close the tool, but a
+   smoke, gas, CO or leak alarm stays, with its word and place over the view.
+3. Go through them one at a time: **New**, **Correction**, **Failure**, **Looks right** or **Later**.
+   **Move by hand** lets you drag a stair into place. There's no accept-all.
+4. **Save** keeps what you accepted, and **Undo this session** takes it all back. Nothing is kept
+   before Save, and it only ever writes your 3D house, never your map, rooms, walls or calibration.
+
+Lights are never placed or moved from a plan. A symbol can only change what a light you already
+placed is drawn as. If there's no placed light near a symbol, **Open Mapping → Atlas** closes the tool
+(asking first if something isn't saved) and opens the flat Atlas on that room, so you can place it
+yourself. A mark near a placed light that the AI didn't read closely is listed as that, not as
+already there.
+
+Keys while the map shows: **N** new, **C** correction, **F** failure, **L** later, **Enter** next,
+**Backspace** previous, **Z** undo, **P** plan on or off.
 
 ### Undo, Save, keyboard
 

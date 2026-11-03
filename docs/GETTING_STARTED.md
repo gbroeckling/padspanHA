@@ -229,7 +229,7 @@ Everything else is open to every user unless you turn on **Settings → Tracking
 - clearing history, forgetting lost items and suspending learning
 - Live Aboard edits, sharing to its library and its photo reader
 - PadSpan's log
-- settings that apply to the whole home, such as the update check and device maker lookup
+- settings that apply to the whole home, such as the update check
 
 Household members can still view everything, use the lights and the emergency lighting test, send Follow's test notification, change the theme and the choices kept in their own browser (Map or 3D, what the Atlas shows, how much of the menu they see), and assign a Bluetooth radio to a room (Overview → Bluetooth radios → Assign). Display settings that change every screen in the home (Quiet mode, the Atlas as Overview, the Atlas layout and its showcase theme) need an admin while it is on. When they try anything on the list, PadSpan says "Only an admin can change this while Enhanced security is on". More protections will be added to the same switch over time.
 
