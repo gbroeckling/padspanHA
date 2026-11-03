@@ -51,7 +51,7 @@ bthome-ble (https://github.com/Bluetooth-Devices/bthome-ble, MIT: Shelly BLU mod
 
 PadSpan HA bundles tables of numbers and names generated from public registries. No source file, header or other
 text from them is included, and they stay under neither of PadSpan's licences beyond what the facts themselves allow.
-`tools/build_device_tables.py` regenerates them; a release or a house never asks these registries for anything.
+`tools/build_device_tables.py` in the padspanHA repository regenerates them; a release or a house never asks these registries for anything.
 
 ## Bluetooth SIG Assigned Numbers
 

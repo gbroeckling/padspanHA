@@ -150,6 +150,17 @@ def test_the_zip_is_flat_and_bright(tree, tmp_path):
     assert n == len(names) and "manifest.json" in names and "__init__.py" in names
     assert "www/padspan-bright/panel.js" in names
     assert not any("__pycache__" in x or x.endswith(".pyc") for x in names)
+    assert "THIRD_PARTY_NOTICES.md" in names
+
+
+def test_the_third_party_notices_travel_and_are_right_for_bright(tree):
+    """three.js's licence asks to go with the copies, and every path it names is there."""
+    text = (tree / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    assert "PadSpan Bright bundles" in text and "three.js" in text and "Bluetooth SIG" in text
+    named = re.findall(r"`(custom_components/[^`]+)`", text)
+    assert len(named) >= 6
+    for rel in named:
+        assert (tree / rel).is_file(), rel
 
 
 def test_release_publishes_bright_now_that_the_listing_is_live():

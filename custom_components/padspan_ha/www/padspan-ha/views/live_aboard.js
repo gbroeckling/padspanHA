@@ -364,6 +364,10 @@ export function liveAboardSlot(key){
 const FILE_CHANGED = "padspan-ha-house3d-changed";
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
   window.addEventListener(FILE_CHANGED, () => { for (const s of _slots.values()) s.reload(); });
+  // Mapping's alarm tick (panel.js _mappingAlarmTick): a slot showing the Plans map says so.
+  window.addEventListener("padspan-ha-alarms-now", (e) => {
+    for (const s of _slots.values()) if (s.quietAlarmsNow(e.detail.states, e.detail.latches)) e.detail.plansOpen = true;
+  });
 }
 /** The feature was switched off: give the screen's GL context back (a later
  *  switch-on starts afresh). */
@@ -4815,9 +4819,10 @@ function createSlot(slotKey){
     const lbe = p.lightsByEid || {};
     return { ...p, hidden: { has: (eid) => { const k = alarmOf(p, lbe[eid]); return !(k && k.alarm); } }, weather: null, emergency: null, people: null, tags: null, classFilter: null };
   }
+  const quietWords = (p) => Object.values(p.lightsByEid || {}).flatMap((l) => { const k = alarmOf(p, l); return k && k.alarm ? [`${k.word} · ${l.area_name || l.friendly_name || l.entity_id}`] : []; });
   /** The alarms' words over the view while it is quiet: nothing to say, no element. */
   function sayQuietAlarms(p){
-    const words = !quiet || !p ? [] : Object.values(p.lightsByEid || {}).flatMap((l) => { const k = alarmOf(p, l); return k && k.alarm ? [`${k.word} · ${l.area_name || l.friendly_name || l.entity_id}`] : []; });
+    const words = !quiet || !p ? [] : quietWords(p);
     if (!words.length) { if (quietAlarmEl) { quietAlarmEl.remove(); quietAlarmEl = null; } return; }
     if (!quietAlarmEl) {
       quietAlarmEl = document.createElement("div");
@@ -4827,6 +4832,21 @@ function createSlot(slotKey){
       root.appendChild(quietAlarmEl);
     }
     quietAlarmEl.textContent = words.join(", ");
+  }
+  /** Mapping has no poll, so while quiet its tick brings the leak, smoke, gas and CO
+   *  sensors' states and the latches here, and nothing else moves: the view is
+   *  gone through again only when what it says would change. False when not quiet. */
+  function quietAlarmsNow(states, latches){
+    if (!quiet || !rawP) return false;
+    const lightsByEid = { ...rawP.lightsByEid };
+    for (const [eid, l] of Object.entries(lightsByEid)) {
+      const s = states && states[eid];
+      if (s && s.state !== l.state && alarmOf(rawP, l)) lightsByEid[eid] = { ...l, state: s.state };
+    }
+    const next = { ...rawP, lightsByEid, floodLatches: latches || rawP.floodLatches };
+    if (renderer && !failed && quietWords(next).join(", ") !== (quietAlarmEl ? quietAlarmEl.textContent : "")) { update(next); requestRender(); }
+    else rawP = next;
+    return true;
   }
   function setQuiet(on){
     on = !!on;
@@ -4921,6 +4941,7 @@ function createSlot(slotKey){
   return {
     get element(){ return root; },
     get failed(){ return failed; },
+    quietAlarmsNow,
     /** Show the 3D house in place of the flat stage `s` (a fresh card's
      *  .lv-stage, already in its card). Never throws: false means the flat
      *  Atlas is showing (and why is in .failed). p = {model, floors,

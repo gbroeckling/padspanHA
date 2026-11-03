@@ -162,7 +162,7 @@ def test_help_in_every_language() -> None:
 
 # ── the drawing (tests/js/atlas_forest.mjs) ──────────────────────────────────
 
-@pytest.mark.parametrize("prefix", ["off:", "keep:", "clear: fixture", "clear: estate", "same:", "layer:", "light:"])
+@pytest.mark.parametrize("prefix", ["off:", "keep:", "clear: fixture", "clear: estate", "same:", "layer:", "light:", "turned:"])
 def test_each_part_of_the_forest(forest, prefix) -> None:
     got = {k: v for k, v in forest["cases"].items() if k.startswith(prefix)}
     assert got, f"no {prefix} case ran: {sorted(forest['cases'])}"

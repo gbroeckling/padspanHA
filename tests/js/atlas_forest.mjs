@@ -243,5 +243,26 @@ await tryCase("light: the Light theme's sum undoes itself", async () => {
     { d: [...d], want });
 });
 
+// ── a wall turned by its link ────────────────────────────────────────────────
+await tryCase("turned: the sizes are the laid-out ones and the offsets go along the right edges", async () => {
+  // Laid out: a layer 1080 x 1920 at the page's corner, a drawing 1000 wide and 900
+  // tall in it, 40 in from its left and 100 down.
+  const svg = { clientWidth: 1000 };
+  const layerOn = (turn) => ({ offsetWidth: 1080, offsetHeight: 1920,
+    getRootNode: () => ({ host: { getAttribute: (a) => (a === "data-wall-rotate" ? turn : null) } }) });
+  const box = (left, top, width, height) => ({ left, top, width, height, right: left + width, bottom: top + height });
+  const want = { svgW: 1000, w: 1080, h: 1920, dx: 40, dy: 100 };
+  const same = (a, b) => Object.keys(b).every(k => a[k] === b[k]);
+  // Turned 90: the layout's left edge is the screen's top, its top edge the screen's right.
+  const at90 = FO.laidOut(svg, layerOn("90"), box(1920 - 100 - 900, 40, 900, 1000), box(0, 0, 1920, 1080));
+  check("turned: 90", same(at90, want), at90);
+  // Turned 270: its left edge is the screen's bottom, its top edge the screen's left.
+  const at270 = FO.laidOut(svg, layerOn("270"), box(100, 1080 - 40 - 1000, 900, 1000), box(0, 0, 1920, 1080));
+  check("turned: 270", same(at270, want), at270);
+  // Not turned: the browser's boxes, as ever.
+  const flat = FO.laidOut({ clientWidth: 1 }, layerOn(null), box(40, 100, 1000, 900), box(0, 0, 1080, 1920));
+  check("turned: not turned", same(flat, want), flat);
+});
+
 console.log(JSON.stringify({ cases, failures, counts }));
 process.exit(failures.length ? 1 : 0);
