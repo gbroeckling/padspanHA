@@ -585,13 +585,20 @@ if (Cls) {
     };
     const el = new Cls();
     const draw = el._render, seen = [];
-    el._render = function () { draw.call(el); seen.push([Object.keys(el.state.model?.room_geometry_m || {}).length > 0, el._view.focusIdx]); };
+    let asked = 0;
+    el._render = function () { if (el._view.scrollToChosen === true) asked++; draw.call(el); seen.push([Object.keys(el.state.model?.room_geometry_m || {}).length > 0, el._view.focusIdx]); };
     el.connectedCallback();
     // The real path: HA assigns .hass, the setter boots, nothing awaits it.
     el.hass = hass;
     for (let i = 0; i < 12; i++) await flush();
     const chips = el.shadowRoot.querySelector("#content")._all().filter(n => n.classList && n.classList.contains("floor") && n.classList.contains("on"));
     const out = { focus: el._view.focusIdx, noFloors: seen.filter(s => !s[0]).map(s => s[1]), floors: seen.filter(s => s[0]).map(s => s[1]), on: chips.map(c => c._floorIdx) };
+    // The one scroll's request: made as the page opens, gone once the model's read has settled, not made again by a Refresh.
+    out.askedAtOpen = asked > 0; out.askLeft = el._view.scrollToChosen === true;
+    asked = 0;
+    await el._boot();
+    for (let i = 0; i < 12; i++) await flush();
+    out.askedOnRefresh = asked > 0 || el._view.scrollToChosen === true;
     el.disconnectedCallback();
     return out;
   };

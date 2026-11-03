@@ -182,6 +182,14 @@ def test_a_saved_floor_applies_when_the_page_opens(result) -> None:
     assert a["pair"]["on"] == [], a   # a pair has no chip of its own (the slider's)
 
 
+def test_the_saved_floors_one_scroll_is_asked_for_when_the_page_opens_and_never_again(result) -> None:
+    """The card scrolls on this request only (tests/js/atlas_keep_card.mjs). A
+    failed model read makes no card with floors, so the request goes with it, or
+    some later card would move the page; a Refresh reads the view again and asks nothing."""
+    for name, s in result["savedFloor"].items():
+        assert s["askedAtOpen"] is True and s["askLeft"] is False and s["askedOnRefresh"] is False, name
+
+
 def test_a_saved_floor_no_longer_there_is_all(result) -> None:
     s = result["savedFloor"]["gone"]
     assert s["focus"] == 0 and set(s["floors"]) == {0}, s

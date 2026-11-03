@@ -4871,6 +4871,20 @@ export function buildLightsMapCard(hostIn){
   };
   const legend = legendOf(host, h3);
   if (legend.node) { legend.node.classList.add("lv-shapes"); mapCard.appendChild(legend.node); }   // a wall leaves it out (styles.css)
+  // The page just opened on a saved floor whose plate is off screen: with the
+  // others faded, only backdrop would show. Once (lights_panel.js _loadSettings),
+  // the sidebar only: Mapping's map sits under its tools, a wall screen fits the
+  // house and is looked at from across a room. Choosing a floor never scrolls. A
+  // saved view can be a pair of floors (the slider): one on screen is enough.
+  function chosenIntoView(idx) {
+    if (!scr || !idx || host.wall) return;
+    const plates = [].concat(isoPos[idx])
+      .map(z => isoDiv.querySelector(`g[data-role="floorslab"][data-z="${z}"] [data-role="slabtop"]`)).filter(Boolean);
+    const box = isoDiv.getBoundingClientRect();
+    const top = Math.max(0, box.top), bottom = box.height ? Math.min(window.innerHeight, box.bottom) : window.innerHeight;
+    const off = (p) => { const r = p.getBoundingClientRect(), mid = r.top + r.height / 2; return mid < top || mid > bottom; };
+    if (plates.length && plates.every(off)) plates[0].scrollIntoView({ block: "center", inline: "nearest" });
+  }
   rebuildISO();
   // Kept (host.keepCard, see _cardSig): what this card is built from, besides
   // the devices, and the next tick's way in. A card built from the same takes
@@ -4938,6 +4952,12 @@ export function buildLightsMapCard(hostIn){
       if (view.scrollLeft !== undefined) isoDiv.scrollLeft = view.scrollLeft;
       if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
     });
+  }
+  // On the first card that has floors to draw; every later one leaves the page
+  // where it is. A microtask, as above: the card has to be on screen to be measured.
+  if (view.scrollToChosen && sortedLevels.length) {
+    view.scrollToChosen = false;
+    queueMicrotask(() => chosenIntoView(view.focusIdx));
   }
   return mapCard;
 }

@@ -235,7 +235,10 @@ class PadSpanLightsApp extends HTMLElement {
     this._settingsTs = Date.now();
     this._render();
     this._loadEmergency().then(()=>this._render());
-    this._loadModel().then(()=>this._render());
+    // The saved floor comes into view once, on the card the new model makes
+    // (lights_map.js). A failed read makes none: the request goes with it, or
+    // some later card would move the page.
+    this._loadModel().then(()=>{ this._render(); this._view.scrollToChosen = false; });
     // Clear again AFTER the awaits: two overlapping boots (a second Refresh
     // click while the first is still loading) both pass the clear above before
     // either assigns, and the first timer would be orphaned beyond reach.
@@ -373,6 +376,8 @@ class PadSpanLightsApp extends HTMLElement {
         // panel is set up once and left running unattended; an in-memory
         // zoom reset to 1.0 on every reboot/reload.
         this._view.zoom     = s.overview_iso_zoom      ?? 1.0;
+        // When the page opens, and never again: not on Refresh, which comes here too.
+        if(!this._openScrollAsked){ this._openScrollAsked = true; this._view.scrollToChosen = true; }
       }
       // Per-light shape overrides — set in the Mapping → Lights tab, read here
       // so both views draw the same fixture outlines.

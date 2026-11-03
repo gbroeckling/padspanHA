@@ -222,9 +222,9 @@ def test_choosing_a_floor_leaves_the_page_where_it_is() -> None:
     lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8").replace("\r\n", "\n")
     i = lm.index("const switchTo = (idx) => {")
     assert "scrollIntoView" not in lm[i:lm.index("\n      };\n", i)]
-    panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
-    for src in (lm, panel):
-        assert "chosenIntoView" not in src and "scrollToChosen" not in src
+    assert "chosenIntoView" not in lm[i:lm.index("\n      };\n", i)]
+    # The one scroll is when the page opens: run in tests/js/atlas_keep_card.mjs and lights_panel_lifecycle.mjs.
+    assert lm.count("chosenIntoView(") == 2 and "scrollToChosen" not in (_VIEWS / "maps.js").read_text(encoding="utf-8")
 
 
 def test_a_saved_floor_waits_for_floors_and_one_gone_means_all() -> None:
