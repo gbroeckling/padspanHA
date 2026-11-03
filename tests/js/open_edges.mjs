@@ -337,8 +337,13 @@ const metal = () => ({ id: "m1", name: "Barrier 1", material: "metal", attenuati
   click(button(root, "Open all edges")); await settle();
   state.maps._selectedBarrierId = null;
   click(button(root, "Rooms")); click(button(root, "Signal walls"));
-  const labels = () => all(root).filter(n => String(n.className || "").includes("maplabel") && n.textContent === "Open (Loft)").length;   // the stage's names are pills over it now
+  // A name on the stage is a div over the plan (.maplabel, _stageLabel), not SVG text.
+  const labels = () => all(root).filter(n => String(n.className || "").split(/\s+/).includes("maplabel") && n.textContent === "Open (Loft)").length;
   check("labels: one Open (Loft) label over all a room's open edges", server.length >= 4 && labels() === 1, [server.length, labels()]);
+  // Wall names show only in the Signal walls tool, an open edge's too.
+  click(button(root, "Rooms"));
+  check("labels: none in another tool", labels() === 0, labels());
+  click(button(root, "Signal walls"));
   state.maps._selectedBarrierId = server[server.length - 1].id;
   click(button(root, "Rooms")); click(button(root, "Signal walls"));
   check("labels: the selected edge shows its own too", labels() === 2, labels());
