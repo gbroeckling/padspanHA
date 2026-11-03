@@ -31,6 +31,11 @@ from .const import SETTINGS_STORE_KEY
 
 _LOGGER = logging.getLogger(__name__)
 
+# Settings that no longer do anything, dropped from the file at its next save.
+# vendor_lookup_enabled: the online maker lookup's switch. Makers now come from
+# built-in lists, and nothing is sent, so there is nothing to switch.
+RETIRED_SETTINGS: tuple[str, ...] = ("vendor_lookup_enabled",)
+
 DEFAULT_SETTINGS: dict[str, Any] = {
     "data_mode": "sample",  # "sample" | "live"
     "cpu_mode": "shared",  # "shared" | "single" | "dedicated" — see PresenceCoordinator
@@ -76,11 +81,6 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # The free-Pro offers' on/off switches from the update check's answer
     # (update_check._keep_offers): {"tester": bool, "invite": bool}; {} = all on.
     "server_offers": {},
-    # Opening the Objects list asks two public lookup services which company made
-    # each nearby device (vendor_lookup.py): only the first three bytes, and only
-    # for addresses a Bluetooth receiver confirms are fixed and maker-assigned
-    # (ESPHome, HA's own Bluetooth). Admin-only switch.
-    "vendor_lookup_enabled": True,
     "ref_power":      -59.0,   # dBm RSSI at 1 m (distance formula)
     "path_loss_exp":   2.5,    # path-loss exponent n (distance formula)
     "hidden_map_ids":  [],     # map IDs hidden from 3D stack view
@@ -481,6 +481,11 @@ class SettingsStore:
         loaded = await self.store.async_load()
         if isinstance(loaded, dict):
             self.data = {**DEFAULT_SETTINGS, **loaded}
+            # A stored False stays: it does nothing here, and an older version
+            # read back with no key would turn the online lookup on again.
+            for key in RETIRED_SETTINGS:
+                if self.data.get(key) is not False:
+                    self.data.pop(key, None)
         else:
             self.data = dict(DEFAULT_SETTINGS)
         # A brand-new install — no settings file and no other PadSpan file in

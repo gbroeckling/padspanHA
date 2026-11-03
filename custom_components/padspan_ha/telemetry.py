@@ -284,6 +284,20 @@ EVENTS: frozenset[str] = frozenset({
     "findmy_linked", "findmy_linked_slow",
     "findmy_missed_ambiguous", "findmy_missed_late", "findmy_missed_elsewhere", "findmy_missed_no_candidate",
     "findmy_moved_back", "findmy_moved_back_addrs", "findmy_back_on_day_key", "findmy_not_this_tag",
+    # A name following a rotating address, on screen only (label_follow.py).
+    # Garry, 2026-11-02: the merge guard keeps a name on the first address, and
+    # a guess can mix signal into calibration, so "find a better way". These say
+    # whether the better way is right in homes other than his.
+    #   label_link_linked     a name moved to a new address on evidence.
+    #   label_link_asked      "This looks like <label>: same device?" put up.
+    #   label_link_yes, _no   how that was answered.
+    #   label_link_undone     a person's Undo.
+    #   label_link_wrong_after_undo  an undone link the radio then proved wrong:
+    #                         both addresses on the air at once.
+    #   label_link_old_back   a link dropped by itself: an address it had left
+    #                         came back, so that was no hand-over.
+    "label_link_linked", "label_link_asked", "label_link_yes", "label_link_no", "label_link_undone",
+    "label_link_wrong_after_undo", "label_link_old_back",
     # The Atlas emergency lighting test (emergency_test.py): a test started,
     # ended (the lights already on left on), or ended with Force off.
     "emergency_test_on", "emergency_test_off", "emergency_force_off",
@@ -450,6 +464,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # before the change (server/telemetry_summary.py splits them on that).
 # tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
+    "device_name",
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
@@ -856,7 +871,7 @@ _FEATURE_FLAGS: tuple[str, ...] = (
     "ha_entity_tracker_enabled", "ha_entity_area_enabled", "ha_entity_distance_enabled",
     "ha_entity_scanner_distance_enabled", "ha_entity_occupancy_enabled",
     "tags_room_events_enabled", "tags_nfc_identify_enabled", "tags_phone_autolink_enabled",
-    "update_check_enabled", "vendor_lookup_enabled", "onboarding_completed",
+    "update_check_enabled", "onboarding_completed",
     "atlas_3d_enabled", "low_memory_mode",
     # Pro: the Atlas as Overview (0.38.137) — whether anyone wants it as the front door.
     "overview_atlas",
@@ -1076,6 +1091,14 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     # 1 medium, 2 high) and estimates per hour — phones through a wall.
     "occ_unknown_n": ("occ_unk", ("p50", "max")),
     "occ_conf": ("occ_conf", ("p50", "per_h")),
+    # What the corrected wearable company numbers moved: addresses an estimate
+    # counted because of them, addresses it no longer counted, and how many
+    # people more or fewer the estimate says than the old numbers would. Only
+    # from a house where it happened.
+    "occ_wear_gain_n": ("occ_wear_gain", ("max", "per_h")),
+    "occ_wear_lost_n": ("occ_wear_lost", ("max", "per_h")),
+    "occ_wear_more_n": ("occ_wear_more", ("max",)),
+    "occ_wear_fewer_n": ("occ_wear_fewer", ("max",)),
     "ha_states_n": ("states", ("max",)),
     # Bermuda troubleshooting (perf_sampler.padspan_sizes): its entities and
     # receiver devices, HA entities taken as tag candidates, and saved tags
@@ -1088,6 +1111,14 @@ PERF_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
     # build — the match that never fired before 0.38.109; a large number here
     # would mean it merges more than it should.
     "merged_by_device_n": ("dev_merged", ("max",)),
+    # The merges that go by a guess (same name, same maker data), what the guard
+    # kept out of one (labelled, saved, pinned or calibrated), and how many BLE
+    # objects a radio has given an address type. Read these before the merge
+    # test itself changes. A house with no merges sends only the last.
+    "merge_same_name_n": ("merge_name", ("max",)),
+    "merge_same_data_n": ("merge_data", ("max",)),
+    "merge_held_n": ("merge_held", ("max",)),
+    "type_known_pc": ("type_known_pc", ("p50",)),
     "smoothed_n": ("smoothed", ("p50", "max")),
     "background_n": ("background", ("max",)),
     "lostfound_n": ("lostfound", ("max",)),
@@ -1578,6 +1609,70 @@ def _runs_payload(raw: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# bluetooth_live.receiver_type's words, and the two MQTT feeds, told by source.
+RECEIVER_TYPES: tuple[str, ...] = ("esphome", "shelly", "ha_adapter", "ruuvi", "other")
+
+
+def _object_detail(obj_list: list) -> dict[str, int]:
+    """How much the house's objects say about themselves: of `total` Bluetooth
+    objects, how many have a real name, a maker, and a type. `maker_*` splits
+    the makers by how they are known (one level deep, so stats.php adds them
+    up), "guess" being the built-in address list with no receiver's word that
+    the address is fixed. `name_*` says where each best name came from, `what`
+    how many have a type read from the broadcast, `addr_*` how many a radio says
+    are fixed or rotating. Counts only, never a name, a maker or an address."""
+    out = {"total": 0, "named": 0, "maker": 0, "type": 0}
+    for o in obj_list:
+        if not isinstance(o, dict) or o.get("kind") not in ("ble", "ibeacon", "private_ble"):
+            continue
+        out["total"] += 1
+        # A label, or what a plain device broadcasts: an iBeacon's `name` is mostly
+        # PadSpan's own "iBeacon xxxxxxxx".
+        name = str(o.get("user_label") or (o.get("name") if o.get("kind") == "ble" else "") or "").strip()
+        if name and name.upper() != str(o.get("address") or "").upper():
+            out["named"] += 1
+        how = o.get("maker_source") if o.get("company_name") else "guess" if o.get("maker_guess") else None
+        if how:
+            out["maker"] += 1
+            out[f"maker_{how}"] = out.get(f"maker_{how}", 0) + 1
+        if o.get("service_owner") and not o.get("company_name"):  # not a maker, so not in `maker`
+            out["maker_service_uuid"] = out.get("maker_service_uuid", 0) + 1
+        if o.get("device_type") or o.get("auto_class"):
+            out["type"] += 1
+        source = o.get("name_source") or ("maker" if o.get("best_name") else None)  # left off when it's maker
+        if source:
+            k = f"name_{source}"
+            out[k] = out.get(k, 0) + 1
+        if o.get("what_it_is"):
+            out["what"] = out.get("what", 0) + 1
+        if o.get("address_kind"):
+            k = f"addr_{o['address_kind']}"
+            out[k] = out.get(k, 0) + 1
+    return out
+
+
+def _padspan_device_ids(hass: HomeAssistant) -> dict[str, int]:
+    """PadSpan's devices in HA's registry, and the ids each has built up (0.38.105
+    and older added one each time an object's id changed). Counts only. Near
+    zero on any install that never ran those versions."""
+    from homeassistant.helpers import device_registry as _dr  # noqa: PLC0415
+    from .util import ha_devices as _ha_devices  # noqa: PLC0415
+    counts: list[int] = []
+    names: dict[str, int] = {}
+    for dev in _ha_devices(_dr.async_get(hass)):
+        ids = [i for i in dev.identifiers if i and i[0] == DOMAIN]
+        if not ids:
+            continue
+        counts.append(len(ids))
+        name = str(dev.name_by_user or dev.name or "")
+        names[name] = names.get(name, 0) + 1
+    if not counts:
+        return {}
+    return {"devices": len(counts), "ids": sum(counts), "most": max(counts),
+            "over_10": sum(1 for n in counts if n > 10),
+            "same_name": sum(n for name, n in names.items() if name and n > 1)}
+
+
 def _positioning_now(coord) -> dict[str, int]:
     """What the engine did with the house's own objects this poll.
 
@@ -1659,6 +1754,15 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
                                    and str(r.get("source") or "").lower().startswith("tasmota_"))
     scanner_kinds["other"] = max(0, len(radios) - scanner_kinds["ip_known"] - scanner_kinds["espresense"]
                                  - scanner_kinds["tasmota"])
+    # What each receiver is (bluetooth_live.receiver_type): the split "other"
+    # above can't give, which says how many homes' receivers pass on an address
+    # type or a full broadcast. Fixed words and counts, zeros left out.
+    scanner_types: dict[str, int] = {}
+    for r in radios:
+        src = str(r.get("source") or "").lower()
+        k = ("espresense" if src.startswith("espresense") else "tasmota" if src.startswith("tasmota_")
+             else r.get("receiver_type") if r.get("receiver_type") in RECEIVER_TYPES else "other")
+        scanner_types[k] = scanner_types.get(k, 0) + 1
     # Where each receiver's one name came from (ws_common.radio_display,
     # 0.38.132): the user's HA name, HA's device name, the scanner's own, its
     # area, or nothing but its source. Fixed words and counts, zeros left out.
@@ -1929,6 +2033,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
     env = {
         "scanners": len(radios),
         "scanner_kinds": scanner_kinds,
+        "scanner_types": scanner_types,
         "scanner_names": scanner_names,
         # Receivers with a minimum signal set (opt-in; a count, never which).
         "scanner_floors": len(settings.get("scanner_min_rssi") or {}) if isinstance(settings.get("scanner_min_rssi"), dict) else 0,
@@ -1965,6 +2070,7 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         "objects_total": _len(obj_list),
         "objects_identified": sum(1 for o in obj_list if isinstance(o, dict) and o.get("identified")),
         "objects_by_kind": by_kind,
+        "object_detail": _object_detail(obj_list),
         "integrations": integrations,
     }
     # The hardware class and the load it runs at (perf_sampler.py) — so a
@@ -2250,6 +2356,12 @@ def build_payload(hass: HomeAssistant, *, consume: bool = False) -> dict[str, An
         health["entity_dup_n"] = sum(1 for _m in _bases if _m and _m.group(1) in _ids)
     except Exception as err:
         _LOGGER.debug("Telemetry: entity_dup_n left out: %s", err)
+    try:
+        _ids = _padspan_device_ids(hass)
+        if _ids:
+            health["device_ids"] = _ids
+    except Exception as err:
+        _LOGGER.debug("Telemetry: device_ids left out: %s", err)
     try:
         from . import perf_sampler as _ps  # noqa: PLC0415
         _pw = _ps.take_window(hass) if consume else _ps.window(hass)

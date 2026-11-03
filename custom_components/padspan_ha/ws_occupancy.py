@@ -40,7 +40,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .ble_enrichment import decode_apple_subtype, lookup_company, lookup_service_uuid
+from .ble_enrichment import decode_apple_subtype, lookup_service_uuid
 from .bluetooth_live import get_bluetooth_live
 from .const import DATA_MODEL, DATA_SETTINGS, DOMAIN
 from .presence_rules import away_timeout_s, below_floor, is_away, is_outdoor_floor
@@ -68,9 +68,14 @@ PHONE_CLASS_APPLE = frozenset({
     "Nearby Info", "Nearby Action", "Handoff", "Hotspot",
     "Wi-Fi Join", "Wi-Fi Settings", "Siri", "AirDrop", "Magic Switch",
 })
-# Wearable makers whose watches and bands rotate their address like a phone
-# (names as ble_enrichment's company table spells them).
-PHONE_CLASS_COMPANIES = frozenset({"Garmin", "Fitbit", "Polar Electro", "Oura", "Withings"})
+# Wearable makers whose watches and bands rotate their address like a phone, by
+# their Bluetooth SIG company number: Garmin, Polar (2), Oura (2), Withings.
+# Fitbit has no number under its own name in SIG's list, so it isn't here.
+PHONE_CLASS_COMPANIES = frozenset({0x0087, 0x006B, 0x00D1, 0x02B2, 0x0304, 0x03FF})
+# The numbers the old hand-made table called Garmin, Fitbit, Polar, Oura and
+# Withings: really SiRF, yikes, GN Hearing, Logitech and Physical Enterprises.
+# Only for the opt-in report's count of what the correction moved.
+_OLD_PHONE_CLASS_COMPANIES = frozenset({0x0050, 0x0161, 0x0089, 0x01DA, 0x0189})
 PERSON_SENSOR_CLASSES = ("occupancy", "presence", "motion")
 
 
@@ -211,29 +216,34 @@ def _irk_phones(objects: list[dict[str, Any]], people: list[dict[str, Any]]) -> 
         })
 
 
-def _phone_class(manuf: dict[str, Any], service_uuids: list[Any]) -> bool:
+def _phone_class(manuf: dict[str, Any], service_uuids: list[Any],
+                 companies: frozenset[int] = PHONE_CLASS_COMPANIES) -> bool:
     """Does this advert come from something a person carries?"""
     apple = manuf.get("76") if "76" in manuf else manuf.get(76)
     if apple is not None:
         return decode_apple_subtype(apple) in PHONE_CLASS_APPLE
     for key in manuf:
         try:
-            company = lookup_company(int(key))
+            if int(key) in companies:
+                return True
         except (TypeError, ValueError):
             continue
-        if company in PHONE_CLASS_COMPANIES:
-            return True
     return any(lookup_service_uuid(str(u)) == "Heart Rate" for u in (service_uuids or []))
 
 
 def _phone_candidates(ads: list[dict[str, Any]], claimed_addrs: set[str],
-                      floors: dict[str, float] | None = None) -> dict[str, dict[str, float]]:
+                      floors: dict[str, float] | None = None,
+                      shift: dict[str, int] | None = None,
+                      companies: frozenset[int] = PHONE_CLASS_COMPANIES) -> dict[str, dict[str, float]]:
     """Rotating addresses that look like a phone or watch inside the building.
 
     Returns {address: {scanner: best_rssi}}. The locally-administered bit is
     not consulted — it is a random bit inside a rotating address. A local
     name disqualifies: a phone's rotating adverts are anonymous, a named
     rotating emitter is a Mac, a TV or a public OUI that merely looks rotating.
+    `shift`, if given, gets how many addresses count now that the old company
+    numbers missed ("gained") and how many they counted that don't now ("lost").
+    `companies` is whose numbers count as a wearable's.
     """
     by_addr: dict[str, dict[str, Any]] = {}
     for ad in ads:
@@ -261,7 +271,10 @@ def _phone_candidates(ads: list[dict[str, Any]], claimed_addrs: set[str],
         fp = entry["fp"]
         if entry["named"] or len(fp) < MIN_SCANNERS or max(fp.values()) < INSIDE_RSSI:
             continue
-        if not _phone_class(entry["manuf"], entry["svc"]):
+        phone = _phone_class(entry["manuf"], entry["svc"], companies)
+        if shift is not None and phone != _phone_class(entry["manuf"], entry["svc"], _OLD_PHONE_CLASS_COMPANIES):
+            shift["gained" if phone else "lost"] += 1
+        if not phone:
             continue
         out[addr] = fp
     return out
@@ -381,6 +394,47 @@ def _training_accuracy(training: list[dict[str, Any]]) -> dict[str, Any]:
 
 # ── The estimate ────────────────────────────────────────────────────────────
 
+def _fuse(clusters: list[dict[str, Any]], people: list[dict[str, Any]], sensed: dict[str, Any]) -> dict[str, Any]:
+    """The count from phones, known people and sensed rooms (step 4 below, whose
+    comment says why). Places the people it assumes, in `people` itself."""
+    known = len(people)
+    bodies: list[dict[str, Any]] = []
+    for c in clusters:
+        body = next((b for b in bodies if c["room"] and b["room"] == c["room"]), None)
+        if body is None:
+            bodies.append({"room": c["room"], "addresses": list(c["addresses"]), "explained": False})
+        else:
+            body["addresses"].extend(c["addresses"])
+    unplaced = [p for p in people if not p["room"]]
+
+    def _assume(room: str | None, via: str) -> None:
+        # A room named after someone is theirs first ("Nicole's Office").
+        words = {w for w in (room or "").lower().replace("'s", "").split() if len(w) >= 3}
+        owner = next((p for p in unplaced if any(w in words for w in p["name"].lower().split())), unplaced[0])
+        unplaced.remove(owner)
+        owner["room"], owner["via"], owner["assumed"] = room, via, True
+
+    for body in bodies:
+        if body["room"] and any(p["room"] == body["room"] for p in people):
+            body["explained"] = True
+        elif unplaced:
+            _assume(body["room"], "unclaimed phone nearby (assumed)")
+            body["explained"] = True
+    unknown_phones = [b for b in bodies if not b["explained"]]
+
+    placed_rooms = {p["room"] for p in people if p["room"]} | {b["room"] for b in unknown_phones if b["room"]}
+    unaccounted = [r for r in sensed["occupancy_rooms"] if r not in placed_rooms]
+    for r in list(unaccounted):
+        if not unplaced:
+            break
+        _assume(r, "occupancy sensor (assumed)")
+        unaccounted.remove(r)
+    firm = known + len(unknown_phones)
+    floor = len(sensed["occupancy_rooms"]) or (1 if sensed["motion_rooms"] else 0)
+    return {"bodies": bodies, "unknown_phones": unknown_phones, "unaccounted": unaccounted,
+            "placed_rooms": placed_rooms, "firm": firm, "estimate": max(firm, floor)}
+
+
 async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
     """People in the building: known people, unclaimed phones, sensed rooms.
 
@@ -422,16 +476,40 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
     ads = (bl.get_snapshot(max_ads=10000, max_age_s=PHONE_AD_MAX_AGE_S).get("advertisements") or []) if bl else []
     from .presence_rules import scanner_floors  # noqa: PLC0415
     _st_fl = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    fps = _phone_candidates(ads, claimed_addrs, scanner_floors((_st_fl.data if _st_fl else {}) or {}))
-    clusters = []
-    for members in _cluster(fps, thresh):
-        strongest = max(members, key=lambda a: max(fps[a].values()))
-        best_src = max(fps[strongest], key=lambda s: fps[strongest][s])
-        clusters.append({"addresses": members, "room": source_to_room.get(best_src) or None})
+    _shift = {"gained": 0, "lost": 0}
+    fps = _phone_candidates(ads, claimed_addrs, scanner_floors((_st_fl.data if _st_fl else {}) or {}), _shift)
+    # The opt-in report: how the corrected wearable numbers move the count. A
+    # house they don't touch reports nothing.
+    if _shift["gained"]:
+        record_duration(hass, "occ_wear_gain", float(_shift["gained"]))
+    if _shift["lost"]:
+        record_duration(hass, "occ_wear_lost", float(_shift["lost"]))
+
+    def _clusters_of(prints: dict[str, dict[str, float]]) -> list[dict[str, Any]]:
+        out = []
+        for members in _cluster(prints, thresh):
+            strongest = max(members, key=lambda a: max(prints[a].values()))
+            best_src = max(prints[strongest], key=lambda s: prints[strongest][s])
+            out.append({"addresses": members, "room": source_to_room.get(best_src) or None})
+        return out
+
+    clusters = _clusters_of(fps)
 
     # 3. Sensed rooms.
     sensed = _sensor_rooms(hass, room_names, room_floor) if hybrid else {
         "occupancy_rooms": [], "motion_rooms": [], "stuck_sensors": []}
+
+    # The opt-in report: whether the correction moved the estimate, not just its
+    # addresses. Worked out again with the old numbers only where they differ.
+    if _shift["gained"] or _shift["lost"]:
+        _old_fps = _phone_candidates(ads, claimed_addrs, scanner_floors((_st_fl.data if _st_fl else {}) or {}),
+                                     None, _OLD_PHONE_CLASS_COMPANIES)
+        _moved = _fuse(clusters, [dict(p) for p in people], sensed)["estimate"] \
+            - _fuse(_clusters_of(_old_fps), [dict(p) for p in people], sensed)["estimate"]
+        if _moved > 0:
+            record_duration(hass, "occ_wear_more", float(_moved))
+        elif _moved < 0:
+            record_duration(hass, "occ_wear_fewer", float(-_moved))
 
     # 4. Fuse.
     #    A phone body is one person per room, however many rotating addresses
@@ -444,40 +522,9 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
     #    the first deploy added a person for every occupied room and said 4
     #    with 2 home. Motion attributes, and floors an otherwise empty count.
     known = len(people)
-    bodies: list[dict[str, Any]] = []
-    for c in clusters:
-        body = next((b for b in bodies if c["room"] and b["room"] == c["room"]), None)
-        if body is None:
-            bodies.append({"room": c["room"], "addresses": list(c["addresses"]), "explained": False})
-        else:
-            body["addresses"].extend(c["addresses"])
-    unplaced = [p for p in people if not p["room"]]
-
-    def _assume(room: str | None, via: str) -> None:
-        # A room named after someone is theirs first ("Nicole's Office").
-        words = {w for w in (room or "").lower().replace("'s", "").split() if len(w) >= 3}
-        owner = next((p for p in unplaced if any(w in words for w in p["name"].lower().split())), unplaced[0])
-        unplaced.remove(owner)
-        owner["room"], owner["via"], owner["assumed"] = room, via, True
-
-    for body in bodies:
-        if body["room"] and any(p["room"] == body["room"] for p in people):
-            body["explained"] = True
-        elif unplaced:
-            _assume(body["room"], "unclaimed phone nearby (assumed)")
-            body["explained"] = True
-    unknown_phones = [b for b in bodies if not b["explained"]]
-
-    placed_rooms = {p["room"] for p in people if p["room"]} | {b["room"] for b in unknown_phones if b["room"]}
-    unaccounted = [r for r in sensed["occupancy_rooms"] if r not in placed_rooms]
-    for r in list(unaccounted):
-        if not unplaced:
-            break
-        _assume(r, "occupancy sensor (assumed)")
-        unaccounted.remove(r)
-    firm = known + len(unknown_phones)
-    floor = len(sensed["occupancy_rooms"]) or (1 if sensed["motion_rooms"] else 0)
-    estimate = max(firm, floor)
+    _fused = _fuse(clusters, people, sensed)
+    bodies, unknown_phones, unaccounted = _fused["bodies"], _fused["unknown_phones"], _fused["unaccounted"]
+    placed_rooms, firm, estimate = _fused["placed_rooms"], _fused["firm"], _fused["estimate"]
     low = firm
     high = firm + len(unaccounted)
     unknown = estimate - known
@@ -542,7 +589,7 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
         if ident in seen_ids:
             continue
         seen_ids.add(ident)
-        things.append({"label": obj.get("user_label") or obj.get("name") or obj.get("key"),
+        things.append({"label": obj.get("best_name") or obj.get("user_label") or obj.get("name") or obj.get("key"),
                        "kind": obj.get("kind"), "room": obj.get("room") or None})
 
     # For the opt-in report (0.38.133; a no-op while it is off): how many

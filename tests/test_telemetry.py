@@ -260,7 +260,11 @@ def test_nothing_from_the_house_is_in_the_report():
     # screen is set up adds nothing here: only settings changed from their
     # defaults are sent (features.ov_*), and the per-screen lists
     # (env.screens) only from a house with two screens or more.
-    assert len(text) < 4365
+    # Raised 4365 -> 4450 for env.scanner_types and env.object_detail (~80 bytes
+    # here): Garry approved them on 2026-11-02 (the device detail plan's n14),
+    # the receiver types "other" hides and how many objects have a name, a maker
+    # and a type, nested so telemetry.php needs no deploy.
+    assert len(text) < 4450
 
 
 def test_presets_are_capped_at_ten_per_report():
@@ -1285,8 +1289,11 @@ def _busy_day(h, hours: float = 24.0):
         w.add("background", rnd.uniform(0, 80000))
         w.add("lostfound", rnd.uniform(10, 90000))
         w.add("states", rnd.uniform(500, 120000))
-        for m in ("bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing", "dev_merged"):
+        for m in ("bermuda_ents", "bermuda_rcv", "tag_cands", "saved_missing", "dev_merged",
+                  "merge_name", "merge_data", "merge_held", "occ_wear_gain", "occ_wear_lost",
+                  "occ_wear_more", "occ_wear_fewer"):
             w.add(m, rnd.uniform(0, 40000))
+        w.add("type_known_pc", rnd.uniform(0, 100))
         for v in ("atlas", "sim", "other", "none"):
             w.add(f"cpu@{v}", rnd.uniform(1, 99.4))
             w.add(f"lag@{v}", rnd.uniform(0.05, 1800))
@@ -1338,7 +1345,10 @@ def test_a_full_load_section_is_small_and_every_word_is_on_the_list():
     # 2600 -> 2650 (0.38.139): readings the per-receiver minimum signal kept out.
     # 2650 -> 2700 (0.38.165): the unsure share and fusion's room changes,
     # each sent only while its (off by default) setting is on.
-    assert section < 2700, section
+    # 2700 -> 3000 (device names): what the guessing merges did and held back,
+    # how many objects a radio typed, and what the corrected wearable numbers
+    # moved, the merges and the wearables only from a house where they happened.
+    assert section < 3000, section
     assert len(json.dumps(p)) <= T._MAX_BYTES
 
 

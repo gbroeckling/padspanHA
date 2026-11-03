@@ -87,7 +87,7 @@ export function trackedOf(snapshot){
     if (!key || (!placed && !room)) continue;
     (placed ? out : byRoom).push({ key, x: placed ? x : null, y: placed ? y : null, roomOnly: !placed, floor_id: o.floor_id || null,
                linked: Array.isArray(o.linked_entities) ? o.linked_entities.map(String) : [],
-               label: String(o.user_label || o.private_ble_name || o.name || ""), shown: !!(o.user_label || o.identified),
+               label: String(o.best_name || o.user_label || o.private_ble_name || o.name || ""), shown: !!(o.user_label || o.identified),
                beacon: o.kind === "ble" || o.kind === "private_ble" || o.kind === "ibeacon",
                room, age: fin(o.age_s), sure: fin(o.knn_confidence),
                heard: (Array.isArray(o.sources) ? o.sources : []).map(s => (s && typeof s === "object" ? { source: String(s.source || ""), rssi: fin(s.rssi) } : { source: String(s || ""), rssi: null }))

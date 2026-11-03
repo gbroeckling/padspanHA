@@ -477,3 +477,9 @@ def maps_store_with(maps: list) -> Any:
     ms.maps_dir = Path(".")
     ms.data = {"maps": maps}
     return ms
+
+# The built-in name tables. In Home Assistant the first snapshot loads them off
+# the event loop; here, once for the whole session, so any test can read a maker.
+from custom_components.padspan_ha import device_tables as _device_tables  # noqa: E402
+
+_device_tables.load_tables()

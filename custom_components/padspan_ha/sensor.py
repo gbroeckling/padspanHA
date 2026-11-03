@@ -43,7 +43,7 @@ from .const import (
 )
 from .presence_coordinator import PresenceCoordinator
 from .presence_rules import away_timeout_s, calc_distance as _calc_distance
-from .entity_identity import alternates_of, pick_uid_key, registry_ready, uid_safe
+from .entity_identity import alternates_of, kept_device_info, pick_uid_key, registry_ready, uid_safe
 from .subzones import SubzoneEntityMixin, async_setup_entities as _subzone_entities
 
 # A PadSpan device names its Bluetooth address as a device connection. Before
@@ -294,14 +294,15 @@ class PadSpanAreaSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity):
         address = self._obj.get("address")
         model_id = self._obj.get("kind")
         serial_number = self._obj.get("padspan_id")
+        identifiers, connections = kept_device_info(getattr(self, "hass", None), "sensor", self.unique_id, uid, _bt_connections(address))
         return {
-            "identifiers": {(DOMAIN, uid)},
+            "identifiers": identifiers,
             "name": self._label(),
             "manufacturer": "PadSpan HA",
             "model": "BLE Presence Tracker",
             "model_id": model_id,
             "serial_number": serial_number,
-            "connections": _bt_connections(address),
+            "connections": connections,
         }
 
     # ── state ─────────────────────────────────────────────────────────────────
@@ -425,14 +426,15 @@ class PadSpanDistanceSensor(CoordinatorEntity[PresenceCoordinator], SensorEntity
         address = self._obj.get("address")
         model_id = self._obj.get("kind")
         serial_number = self._obj.get("padspan_id")
+        identifiers, connections = kept_device_info(getattr(self, "hass", None), "sensor", self.unique_id, uid, _bt_connections(address))
         return {
-            "identifiers": {(DOMAIN, uid)},
+            "identifiers": identifiers,
             "name": self._label(),
             "manufacturer": "PadSpan HA",
             "model": "BLE Presence Tracker",
             "model_id": model_id,
             "serial_number": serial_number,
-            "connections": _bt_connections(address),
+            "connections": connections,
         }
 
     @property
@@ -513,14 +515,15 @@ class PadSpanScannerDistanceSensor(CoordinatorEntity[PresenceCoordinator], Senso
         address = self._obj.get("address")
         model_id = self._obj.get("kind")
         serial_number = self._obj.get("padspan_id")
+        identifiers, connections = kept_device_info(getattr(self, "hass", None), "sensor", self.unique_id, uid, _bt_connections(address))
         return {
-            "identifiers": {(DOMAIN, uid)},
+            "identifiers": identifiers,
             "name": self._label(),
             "manufacturer": "PadSpan HA",
             "model": "BLE Presence Tracker",
             "model_id": model_id,
             "serial_number": serial_number,
-            "connections": _bt_connections(address),
+            "connections": connections,
         }
 
     @property

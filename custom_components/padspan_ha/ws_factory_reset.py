@@ -36,6 +36,7 @@ from .const import (
     ADAPTIVE_STORE_KEY,
     OBJECT_STORE_KEY,
     FINDMY_STORE_KEY,
+    LABEL_LINKS_STORE_KEY,
     MAPS_STORE_KEY,
     MODEL_STORE_KEY,
     FABRIC_STORE_KEY,
@@ -295,6 +296,19 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: Find My links — %s", e)
         errors.append(FINDMY_STORE_KEY)
 
+    # ── 6c. Name links — which address a named device uses on screen (label_follow.py) ──
+    try:
+        _old_ll = domain.pop("label_links_store", None)
+        if _old_ll is not None:
+            await _old_ll.async_save({})
+        st = _St(hass, 1, LABEL_LINKS_STORE_KEY)
+        await st.async_save({})
+        cleared += 1
+        domain.pop("label_links", None)
+    except Exception as e:
+        _LOGGER.warning("Factory reset: name links — %s", e)
+        errors.append(LABEL_LINKS_STORE_KEY)
+
     # ── 7. AlertStore — reset to {} ───────────────────────────────────────
     try:
         st = _St(hass, 1, ALERTS_STORE_KEY)
@@ -543,11 +557,10 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
     except Exception:
         pass
 
-    # The maker lookup's own files: the addresses a radio confirmed as public
-    # (bluetooth_live) and the makers kept for 30 days (vendor_lookup). Both
+    # The addresses a radio confirmed as public (bluetooth_live), removed through
+    # the store the live object writes with, so a save still pending can't write
+    # it back; and any makers an older version's online lookup kept. Both
     # outlived a reset, though the help says it erases all of PadSpan's data.
-    # Each is removed through the store the live object writes with, so a
-    # save still pending can't write it back.
     try:
         _bl = get_bluetooth_live(hass)
         if _bl is not None:
@@ -558,10 +571,7 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
         _LOGGER.warning("Factory reset: public addresses — %s", e)
         errors.append(PUBLIC_ADDRESSES_STORE_KEY)
     try:
-        _vc = domain.get("_vendor_cache")
-        if _vc is not None:
-            _vc.data = {"entries": {}}
-        await (getattr(_vc, "store", None) or _St(hass, 1, VENDOR_CACHE_STORE_KEY)).async_remove()
+        await _St(hass, 1, VENDOR_CACHE_STORE_KEY).async_remove()
         cleared += 1
     except Exception as e:
         _LOGGER.warning("Factory reset: vendor cache — %s", e)

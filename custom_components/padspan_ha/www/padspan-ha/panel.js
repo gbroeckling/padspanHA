@@ -150,6 +150,13 @@ import(`./views/status_dot.js?b=${BUILD_ID}`)
   .then(m => { STATUS_DOT = m; })
   .catch(err => console.warn("PadSpan: status_dot module failed to load", err));
 
+// One name per device, on the server's word (views/device_name.js). Used here by
+// the device window; until it lands, the window reads the fields itself.
+let DEVICE_NAME = null;
+import(`./views/device_name.js?b=${BUILD_ID}`)
+  .then(m => { DEVICE_NAME = m; })
+  .catch(err => console.warn("PadSpan: device_name module failed to load", err));
+
 // The map as text for screen readers (views/map_text.js). Until it lands, or
 // if it never does, the Overview simply has no hidden text.
 let MAP_TEXT = null;
@@ -315,7 +322,7 @@ function _sampleKind(payload){
     + "install_base licence_homes live_snapshot logs_get lost_and_found_get maps_image_urls maps_list model_get movement_history_get "
     + "notify_services_list object_label_list occupancy_estimate positioning_diag private_ble_status propagation_health radio_audit "
     + "room_tags setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
-    + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status vendor_lookup wled_backups wled_devices "
+    + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status wled_backups wled_devices "
     + "wled_exact_list wled_get wled_look_get wled_teams_get motion_reconnects vacuum_import_preview irk_validate "
     + "companion_discover").split(" ").map(t => "padspan_ha/" + t));
   for (const t of ["config/entity_registry/list", "config/entity_registry/list_for_display", "config/entity_registry/get",
@@ -3808,11 +3815,6 @@ class PadSpanHaApp extends HTMLElement {
         closeModal: ()=>this._closeModal(),
         callWS: (payload)=>this._callWS(payload),
 
-        // Vendor lookup (online, cached server-side)
-        vendorLookup: async (mac, force_refresh=false)=>{
-          return await this._callWS({ type:"padspan_ha/vendor_lookup", mac, force_refresh: !!force_refresh });
-        },
-
         // Object label actions (tag/untag BLE devices)
         objectLabelSet: async (address, label)=>{
           const res = await this._callWS({ type:"padspan_ha/object_label_set", address, label });
@@ -3852,6 +3854,9 @@ class PadSpanHaApp extends HTMLElement {
           } catch(e){ /* non-fatal */ }
         },
         showHelp: (key)=>this._showHelp(key),
+        // A device's quiet lines (name links). "list": a row, never in Basic.
+        // "own": its own view. Neither on a wall, where nobody is there to answer.
+        labelLines: (obj, where="list", after=null)=>this._labelLines(obj, where, after),
 
         // Area / entity management
         areaDelete: async (area_id) =>
@@ -4128,12 +4133,25 @@ class PadSpanHaApp extends HTMLElement {
    * action buttons (follow, delete, close).
    * Handles all BLE kinds: ble, private_ble, ibeacon, and HA entities.
    */
+  _labelLines(obj, where, after){
+    if(!DEVICE_NAME || !DEVICE_NAME.labelLines) return null;
+    if(this.state.kioskMode || (wallScreen(false) && untouchedFor(120000))) return null;
+    if(where === "list" && this.state.complexity === "basic") return null;
+    return DEVICE_NAME.labelLines(el, obj, {
+      wsCall: (type, data) => this._callWS({ type, ...data }),
+      toast: (msg, bad) => this._toast(msg, bad),
+      showHelp: (key) => this._showHelp(key),
+      after: async () => { if(after) after(); await this._getLiveSnapshot(); this._scheduleRender(); },
+    });
+  }
+
   _showObjectDetail(obj){
     const addr = obj.address || "";
     const userLabel = obj.user_label || "";
-    const name = userLabel || obj.name || obj.entity_id || addr || "Unknown";
+    const name = DEVICE_NAME ? DEVICE_NAME.deviceName(obj, "Unknown") : (obj.best_name || userLabel || obj.name || obj.entity_id || addr || "Unknown");
     const kind = obj.kind || "";
     const identified = !!obj.identified;
+    const what = DEVICE_NAME ? DEVICE_NAME.deviceWhat(obj) : (obj.what_it_is || obj.auto_class || null);
 
     // Canonical address for rename (varies by kind)
     const tagAddr = kind === "private_ble" ? (obj.canonical_id || addr)
@@ -4141,6 +4159,11 @@ class PadSpanHaApp extends HTMLElement {
                   : addr;
     const canRename = (kind==="ble"||kind==="private_ble"||kind==="ibeacon") && !!tagAddr;
 
+    let howEl = null;
+    if(kind !== "entity" && (obj.how_known || obj.best_name)){
+      howEl = el("span", {style:"color:#94a3b8"}, obj.how_known || "");
+      if(DEVICE_NAME) DEVICE_NAME.fillHowKnown(howEl, obj, (type, data) => this._callWS({ type, ...data }));
+    }
 
     const body = el("div", {style:"display:flex;flex-direction:column;gap:14px"});
 
@@ -4155,7 +4178,24 @@ class PadSpanHaApp extends HTMLElement {
           kind==="ibeacon" ? (identified?"iBeacon · Identified":"iBeacon · Unidentified") :
           kind==="ble" ? (identified?"BLE · Identified":"BLE · Unidentified") : "HA Entity"),
       ]),
-      addr ? el("div", {class:"muted", style:"font-family:monospace;font-size:12px"}, addr) : null,
+      addr ? el("div", {class:"muted", style:"font-family:monospace;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"}, [
+        addr,
+        DEVICE_NAME ? DEVICE_NAME.addressBadge(el, obj) : null,
+      ].filter(Boolean)) : null,
+      // What it is, who made it, and how we know
+      (kind !== "entity" && (obj.how_known || obj.best_name || what)) ? el("div", {style:"margin-top:8px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px"}, [
+        ...(obj.company_name || obj.maker_guess ? [
+          el("span", {class:"muted"}, "Maker"),
+          el("span", {}, obj.company_name || `Probably ${obj.maker_guess}`),
+        ] : []),
+        ...(obj.service_owner ? [
+          el("span", {class:"muted"}, "Service"),
+          el("span", {title: DEVICE_NAME ? DEVICE_NAME.SERVICE_HOW : ""}, `Uses a service from ${obj.service_owner}`),
+        ] : []),
+        ...(what ? [el("span", {class:"muted"}, "What it is"), el("span", {}, what)] : []),
+        ...(howEl ? [el("span", {class:"muted"}, "How we know"), howEl] : []),
+      ]) : null,
+      this._labelLines(obj, "own", () => this._closeModal()),
       obj.canonical_id ? el("div", {class:"muted", style:"font-size:11px"}, `Canonical: ${obj.canonical_id}`) : null,
       (Array.isArray(obj.all_addresses) && obj.all_addresses.length > 1)
         ? el("div", {class:"muted", style:"font-size:11px"}, `Addresses (${obj.all_addresses.length}): ${obj.all_addresses.slice(0,5).join(", ")}${obj.all_addresses.length>5?" + "+(obj.all_addresses.length-5)+" more":""}`)
@@ -4167,10 +4207,8 @@ class PadSpanHaApp extends HTMLElement {
         ? el("div", {class:"muted", style:"font-size:11px;color:#60a5fa"}, `Linked entities: ${obj.linked_entities.join(", ")}`)
         : null,
       // Enrichment badges
-      (obj.company_name || obj.auto_class || obj.device_type || (obj.service_names && obj.service_names.length) || obj.connectable != null)
+      ((obj.service_names && obj.service_names.length) || obj.connectable != null)
         ? el("div", {style:"display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"}, [
-            obj.company_name ? el("span",{class:"badge",style:"background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, obj.company_name) : null,
-            (obj.auto_class || obj.device_type) ? el("span",{class:"badge",style:"background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, obj.auto_class || obj.device_type) : null,
             ...(obj.service_names || []).map(sn =>
               el("span",{class:"badge",style:"background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)
             ),
@@ -4288,7 +4326,7 @@ class PadSpanHaApp extends HTMLElement {
     const _radioMap = {};
     const _radios = this.state.live?.snapshot?.ble?.radios || [];
     for(const r of _radios){
-      if(r.source) _radioMap[r.source] = r.name || r.source;
+      if(r.source) _radioMap[r.source] = r.display_name || r.name || r.source;
     }
     const _friendlySource = (src) => _radioMap[src] || src || "—";
     const makeSourceRow = (srcName, rssi, age_s) => {
@@ -4381,6 +4419,15 @@ class PadSpanHaApp extends HTMLElement {
       sum.style.cssText = "cursor:pointer;font-weight:600;font-size:13px;color:#52b788";
       sum.textContent = "Raw BLE data";
       det.appendChild(sum);
+      if(DEVICE_NAME){
+        const copyBtn = el("button", {class:"btn tiny", onclick: async () => {
+          const ok = await DEVICE_NAME.copyText(DEVICE_NAME.rawBroadcast(obj));
+          copyBtn.textContent = ok ? "Copied" : "Couldn't copy here: see Raw BLE data below";
+          if(!ok) det.open = true;
+          setTimeout(() => { copyBtn.textContent = "Copy raw broadcast"; }, 2500);
+        }}, "Copy raw broadcast");
+        body.appendChild(el("div", {}, copyBtn));
+      }
       if(Object.keys(manufData).length){
         det.appendChild(el("div", {style:"font-size:12px;color:#94a3b8;margin-top:8px"}, "Manufacturer data:"));
         det.appendChild(el("table", {class:"table", style:"margin-top:4px"}, [
@@ -4588,7 +4635,7 @@ class PadSpanHaApp extends HTMLElement {
     ]);
     if(objects.length){
       for(const o of objects){
-        const oName = o.user_label || o.name || o.entity_id || o.address || "Unknown";
+        const oName = DEVICE_NAME ? DEVICE_NAME.pickName(o, "Unknown") : (o.best_name || o.user_label || o.name || o.entity_id || o.address || "Unknown");
         const oKey = (o.address || o.entity_id || "").toUpperCase();
         const isFollowed = oKey && this.state.followedAddrs.has(oKey);
         const oc = isFollowed ? "#fbbf24" : (o.identified ? "#5eead4" : "#f59e0b");
@@ -4615,7 +4662,7 @@ class PadSpanHaApp extends HTMLElement {
     ]);
     if(radios.length){
       for(const r of radios){
-        const rName = r.name || r.source || "Scanner";
+        const rName = r.display_name || r.name || r.source || "Scanner";
         const sid = radioShortId(r.source || "");
         const rRow = el("div", {style:"display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0d1f12"}, [
           el("span", {style:"font-family:monospace;font-weight:700;font-size:12px;letter-spacing:.04em;color:#52b788;flex-shrink:0"}, sid),
@@ -4745,7 +4792,7 @@ class PadSpanHaApp extends HTMLElement {
     ]);
     if(devices.length){
       for(const d of devices){
-        const dName = d.user_label || d.name || d.address || "Unknown";
+        const dName = DEVICE_NAME ? DEVICE_NAME.deviceName(d, "Unknown") : (d.best_name || d.user_label || d.name || d.address || "Unknown");
         const rssi = d.srcRssi;
         const pct = rssiToPercent(rssi);
         const bar = el("div", {style:`width:${pct.toFixed(0)}%;height:5px;background:#52b788;border-radius:2px`});

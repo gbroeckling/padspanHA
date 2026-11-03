@@ -5,6 +5,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
+const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { BUY_URL: _LIC_BUY_URL, PRO_PRICE: _LIC_PRICE, LICENCE_PATH: _LIC_PATH, tierAtLeast: _tierAtLeast,
         surfacesForEdition: _surfacesForEdition } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
@@ -10047,7 +10048,7 @@ function _lightsTab(ctx, maps, active) {
       && typeof o.y_m === "number" && Number.isFinite(o.y_m))
     .map(o => ({
       key: o.key || o.address || o.entity_id || "",
-      label: o.user_label || o.private_ble_name || o.name || "",
+      label: deviceName(o, ""),
       x_m: o.x_m, y_m: o.y_m,
       floor_id: o.floor_id || null,
       // A tag lent to a guest (o.guest, only while Guest tags are on): the

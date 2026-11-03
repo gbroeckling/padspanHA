@@ -1365,36 +1365,17 @@ function _settingsPresence(ctx, el){
     ]),
   ]));
 
-  // ── Device makers (online lookup) ──────────────────────────────────────────
-  // On by default; only an administrator changes it (ws_settings). What is sent
-  // is decided by vendor_lookup.py; the card says it in the rule's own words.
-  const makerOn = settings.vendor_lookup_enabled !== false;
-  const makerAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
-  const makerBtn = el("button", { class: "btn inline", "data-setting": "vendor_lookup_enabled", style: makerOn
-    ? "background:#0a2a1a;border-color:#52b788;color:#52b788;font-weight:700"
-    : "color:#94a3b8" }, makerOn ? "On" : "Off");
-  if (!makerAdmin) { makerBtn.disabled = true; makerBtn.title = "Only an administrator can change this"; }
-  makerBtn.addEventListener("click", async () => {
-    try {
-      await ctx.actions.settingsSet({ vendor_lookup_enabled: !makerOn });
-      ctx.toast(`Device maker lookup ${!makerOn ? "on" : "off"}`);
-      ctx.actions.renderRooms();
-    } catch(e) { ctx.toast("Failed to save setting", true); }
-  });
+  // ── Device makers ──────────────────────────────────────────────────────────
+  // Nothing to switch: nothing is sent (ble_enrichment.py, device_tables.py).
   put("privacy", el("div", { class: "card" }, [
-    el("div", { class: "h2" }, "Look up device makers online"),
-    el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "When this is on, opening a device list (such as the Overview's All objects) asks two public services (macvendors.com and " +
-      "maclookup.app) which company made each nearby Bluetooth device. " +
-      "It sends only the first three bytes of an address, and only after a Bluetooth receiver has confirmed that the device has a fixed, maker-assigned address (ESPHome proxies on version 2022.12 or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it; Shelly, ESPresense and Tasmota don't, so a device only they have heard isn't looked up). " +
-      "Each answer is kept for 30 days, so each maker is asked about once. " +
-      "Like any web request, the services see your IP address. " +
-      "Only an administrator can change this."
+    el("div", { class: "h2" }, "Device makers"),
+    el("div", { class: "muted", style: "font-size:12px" },
+      "PadSpan names a device's maker from what the device itself broadcasts and from lists built into PadSpan " +
+      "(Bluetooth's official company and service numbers, and IEEE's list of address makers). Nothing is sent anywhere for this. " +
+      "The address list counts as fact only for an address a Bluetooth receiver has confirmed is fixed and maker-assigned " +
+      "(ESPHome proxies on version 2022.12 or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it). " +
+      "Shelly, ESPresense and Tasmota don't say, so there a match reads \"Probably\". An address a receiver reports as random is never looked up."
     ),
-    el("div", { style: rowStyle }, [
-      el("div", { style: "font-size:13px;color:#a7f3d0;min-width:130px" }, "Device makers"),
-      makerBtn,
-    ]),
   ]));
 
   // ── Enhanced security ──────────────────────────────────────────────────────
@@ -1424,7 +1405,7 @@ function _settingsPresence(ctx, el){
     "Clearing history, forgetting lost items and suspending learning",
     "Live Aboard edits, sharing to its library and its photo reader",
     "PadSpan's log",
-    "Settings that apply to the whole home (the update check, device maker lookup, positioning and the rest)",
+    "Settings that apply to the whole home (the update check, positioning and the rest)",
   ];
   put("privacy", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "Enhanced security"),
@@ -3682,7 +3663,7 @@ function _settingsFeatures(ctx, el){
     {
       key: "apple_auto_classify",
       label: "Apple Device Classification",
-      desc: "Shows what sent an Apple Find My signal — an AirTag, another brand's Find My tag (\"Find My accessory\"), AirPods, " +
+      desc: "Shows what sent an Apple Find My signal — an AirTag, a \"Find My accessory\" (another brand's tag, or AirPods), " +
             "or an Apple device such as an iPhone, iPad or Mac — instead of just \"Find My\", in Devices, Bluetooth → Advertisements " +
             "and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says " +
             "which. Display-only — does not affect tracking or identity.",

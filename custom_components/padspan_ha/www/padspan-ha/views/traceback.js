@@ -9,6 +9,7 @@
 
 // Shared stack transform (P2-5); query inherited from our own module URL so
 // the ?b= cache-buster propagates (see docs/06_UI_CACHE_BUSTING.md).
+const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { mapXform, fabricWorldRooms, worldGauge, metresToWorld } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 // Keyed morph for the current-frame object markers — see its own header for
@@ -905,7 +906,7 @@ export function render(ctx) {
 
       const col = DISCO_COLORS[di % DISCO_COLORS.length];
       const isSelected = tb.discoSelected === (obj.key || obj.address);
-      const lbl = (obj.user_label || obj.name || obj.address || "?").substring(0, 14);
+      const lbl = deviceName(obj, "?").substring(0, 14);
       const kindBadge = obj.kind === "ibeacon" ? "iB" : obj.kind === "private_ble" ? "pBLE" : obj.kind === "entity" ? "ent" : "BLE";
 
       // Glow ring for selected
@@ -2081,9 +2082,9 @@ export function render(ctx) {
       nameTd.style.cssText = "max-width:200px;overflow:hidden;text-overflow:ellipsis";
       const nameMain = document.createElement("div");
       nameMain.style.cssText = "font-weight:600;color:" + col;
-      nameMain.textContent = obj.user_label || obj.name || obj.address || "?";
+      nameMain.textContent = deviceName(obj, "?");
       nameTd.appendChild(nameMain);
-      if (obj.address && obj.address !== (obj.user_label || obj.name)) {
+      if (obj.address && obj.address !== deviceName(obj, "?")) {
         const addrSub = document.createElement("div");
         addrSub.style.cssText = "font-size:10px;color:#64748b;font-family:monospace";
         addrSub.textContent = obj.address;

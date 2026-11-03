@@ -6,7 +6,6 @@ import pytest
 
 from custom_components.padspan_ha.ble_enrichment import (
     APPLE_SUBTYPES,
-    COMPANY_IDS,
     SERVICE_UUIDS,
     decode_apple_subtype,
     enrich_object,
@@ -25,13 +24,12 @@ from custom_components.padspan_ha.ble_enrichment import (
     "company_id, expected",
     [
         (76, "Apple"),
-        (56, "Samsung"),
-        (134, "Google"),
+        (117, "Samsung Electronics"),
         (224, "Google"),
-        (310, "Xiaomi"),
-        (256, "Tile"),
+        (911, "Xiaomi"),
+        (0x067C, "Tile"),
         (0, "Ericsson"),
-        (741, "Espressif"),
+        (741, "Espressif Systems"),
     ],
 )
 def test_lookup_company_known(company_id: int, expected: str) -> None:
@@ -204,10 +202,10 @@ def test_enrich_object_apple_string_key() -> None:
 def test_enrich_object_samsung() -> None:
     """Samsung device gets company name, no Apple device type."""
     obj = {
-        "manufacturer_data": {56: b"\x01\x02\x03"},
+        "manufacturer_data": {117: b"\x01\x02\x03"},
     }
     enrich_object(obj)
-    assert obj["company_name"] == "Samsung"
+    assert obj["company_name"] == "Samsung Electronics"
     assert obj["device_type"] is None
 
 
@@ -219,7 +217,8 @@ def test_enrich_object_with_services() -> None:
     enrich_object(obj)
     assert "Battery" in obj["service_names"]
     assert "Device Information" in obj["service_names"]
-    assert "Tile" in obj["service_names"]
+    assert obj["company_name"] is None and obj["service_owner"] == "Tile", "the company that holds feed"
+    assert "Tile" not in obj["service_names"], "the owner isn't repeated as a service"
     assert obj["service_uuid_map"]["180f"] == "Battery"
     assert obj["service_uuid_map"]["feed"] == "Tile"
 
@@ -247,7 +246,7 @@ def test_enrich_object_unknown_services_skipped() -> None:
 def test_enrich_object_appearance_fallback() -> None:
     """When no Apple subtype, appearance provides device_type."""
     obj = {
-        "manufacturer_data": {56: b"\x01"},  # Samsung, no Apple data
+        "manufacturer_data": {117: b"\x01"},  # Samsung, no Apple data
         "appearance": 192,
     }
     enrich_object(obj)
@@ -282,7 +281,7 @@ def test_enrich_object_no_manufacturer_data() -> None:
 def test_enrich_object_manufacturer_data_string_company_id() -> None:
     """Company ID as string key works for non-Apple vendors."""
     obj = {
-        "manufacturer_data": {"310": b"\x01\x02"},
+        "manufacturer_data": {"911": b"\x01\x02"},
     }
     enrich_object(obj)
     assert obj["company_name"] == "Xiaomi"

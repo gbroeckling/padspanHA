@@ -19,6 +19,7 @@
 // Everything else — the 3D stack, presence, scanners, barriers — reads the
 // metric fabric and never a photograph. See tests/test_photo_divorce.py.
 
+const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { mapXform, fabricWorldRooms, worldGauge } =
   await import(`./stack_transform.js${new URL(import.meta.url).search}`);
 
@@ -368,7 +369,7 @@ const { mapXform, fabricWorldRooms, worldGauge } =
           continue;
         }
 
-        const lbl = (o.user_label || o.private_ble_name || o.name || "").substring(0, 14);
+        const lbl = deviceName(o, "").substring(0, 14);
         const _oKey = _esc(o.key || o.address || o.entity_id || "");
 
         if (isFollowed) {

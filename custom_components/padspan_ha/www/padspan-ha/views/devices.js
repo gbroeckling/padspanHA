@@ -11,6 +11,8 @@
  */
 
 // ── Sub-tab state ────────────────────────────────────────────────────────────
+const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupDevices, groupHead, groupTitle } =
+  await import(`./device_name.js${new URL(import.meta.url).search}`);
 const TABS = [
   { id: "all",      label: "All Devices" },
   { id: "by_room",  label: "By Room" },
@@ -104,7 +106,7 @@ function _renderAll(ctx) {
         id: stableId,
         padspan_id: o.padspan_id || "",
         type: o.kind,
-        name: o.user_label || o.private_ble_name || o.name || o.address || "Unknown",
+        name: deviceName(o),
         room: o.room || "",
         stateRaw: o.room || (o.age_s != null ? `seen ${Math.round(o.age_s)}s ago` : ""),
         missing: false,
@@ -231,7 +233,8 @@ function _renderAll(ctx) {
   ].filter(Boolean));
 
   // ── Device rows ───────────────────────────────────────────────────────────
-  const rows = filtered.slice(0, 300).map(d => {
+  const _devHay = (d) => `${d.name} ${d.id} ${d.room} ${d.stateRaw} ${d.type} ${deviceWhat(d.obj) || ""} ${(d.obj && d.obj.company_name) || ""} ${(d.obj && d.obj.label_link && d.obj.label_link.address) || ""}`.toLowerCase();
+  const _devRow = (d, grouped) => {
     const kindBadge = d.type === "entity"      ? el("span", { class: "badge", style: "font-size:10px" }, "Entity")
                     : d.type === "private_ble"  ? el("span", { class: "badge", style: "font-size:10px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976" }, "Private BLE")
                     : d.type === "ibeacon"      ? el("span", { class: "badge", style: "font-size:10px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6" }, "iBeacon")
@@ -245,6 +248,8 @@ function _renderAll(ctx) {
         : el("span", { class: "pill", style: "color:#94a3b8" }, "No room");
 
     const sub = [d.id];
+    const what = listWhat(d.obj);
+    if (what) sub.unshift(what);
     if (d.padspan_id) sub.push(d.padspan_id);
     if (d.rssi != null) sub.push(`RSSI ${d.rssi}`);
     if (d.age_s != null) sub.push(`${Math.round(d.age_s)}s ago`);
@@ -290,26 +295,64 @@ function _renderAll(ctx) {
       }}, "Untag"));
     }
 
-    const hay = `${d.name} ${d.id} ${d.room} ${d.stateRaw} ${d.type}`.toLowerCase();
-    return el("div", { class: "dev-tag", "data-search": hay, style: "cursor:pointer", onclick: (e) => {
+    const hay = _devHay(d);
+    return el("div", { class: "dev-tag", "data-search": hay, style: `cursor:pointer;opacity:${fadeFor(d.obj)}${grouped ? ";margin-left:14px" : ""}`, onclick: (e) => {
       if (e.target.closest("button")) return;
       if (d.obj) ctx.actions.showObjectDetail(d.obj);
     }}, [
       el("div", { class: "dev-tag-main" }, [
         el("div", { class: "dev-tag-name" }, d.name),
         el("div", { class: "dev-tag-sub" }, sub.join(" \u00b7 ")),
+        ctx.actions.labelLines ? ctx.actions.labelLines(d.obj) : null,
       ]),
       el("div", { class: "dev-tag-right", style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap" }, [
         kindBadge,
+        addressBadge(el, d.obj),
         statusBadge,
         ...btns,
-      ]),
+      ].filter(Boolean)),
     ]);
-  });
+  };
+
+  // Rotating addresses nobody named, gathered by kind: "169 Windows PC addresses".
+  // Rows past the 300 lines on screen, like a closed group's, aren't built until a
+  // search matches them.
+  if (!ctx.state.devGroupsOpen) ctx.state.devGroupsOpen = new Set();
+  const _openGroups = ctx.state.devGroupsOpen;
+  const rows = [], listKids = [], _heads = [];
+  const _isFollowedObj = (o) => _followedAddrs.has(String(o.address || "").toUpperCase());
+  const LINES = 300;
+  let _lines = 0;
+  for (const item of groupDevices(filtered, d => d.obj, _isFollowedObj)) {
+    if (++_lines > LINES) break;
+    if (item.entry) {
+      const row = _devRow(item.entry, false);
+      rows.push(row);
+      listKids.push(row);
+      continue;
+    }
+    const group = item.group, open = _openGroups.has(group.word);
+    const head = groupHead(el, group, open, () => {
+      if (_openGroups.has(group.word)) _openGroups.delete(group.word); else _openGroups.add(group.word);
+      ctx.actions.renderRooms();
+    }, (content) => el("div", { class: "dev-tag" }, content));
+    listKids.push(head.shell);
+    const built = open ? group.entries.slice(0, Math.max(0, LINES - _lines)) : [];
+    for (const d of built) {
+      const row = _devRow(d, true);
+      rows.push(row);
+      listKids.push(row);
+    }
+    _lines += built.length;
+    const more = el("div", { class: "muted", style: "display:none;font-size:12px;padding:4px 0 4px 14px" }, "");
+    listKids.push(more);
+    const rest = group.entries.slice(built.length);
+    _heads.push({ group, head, open, more, rest, restHays: rest.map(_devHay), hays: group.entries.map(_devHay), found: [] });
+  }
 
   const countEl = el("div", { class: "h2", style: "flex:1" }, "");
   const emptyMsg = el("div", { class: "muted", style: "padding:12px 0" }, "No devices match the current filters.");
-  const listEl = el("div", { class: "dev-tag-list list-scroll" }, rows);
+  const listEl = el("div", { class: "dev-tag-list list-scroll" }, listKids);
 
   // In-place text search: toggle row visibility against the live search term
   // without rebuilding the DOM, so the search box retains focus while typing.
@@ -320,6 +363,31 @@ function _renderAll(ctx) {
       const ok = !q || (row.getAttribute("data-search") || "").includes(q);
       row.style.display = ok ? "" : "none";
       if (ok) shown++;
+    }
+    let room = LINES - shown - _heads.length;
+    for (const h of _heads) {
+      const { group, head, open, more, rest, restHays, hays } = h;
+      const matches = q ? hays.filter(x => x.includes(q)).length : hays.length;
+      head.shell.style.display = matches ? "" : "none";
+      head.title.textContent = groupTitle(group, matches);
+      // A search opens the group: its matches are built, as many as there's room for.
+      for (const row of h.found) row.remove();
+      h.found = [];
+      const hits = q ? rest.filter((_d, i) => restHays[i].includes(q)) : [];
+      for (const d of hits.slice(0, Math.max(0, room))) {
+        const row = _devRow(d, true);
+        more.parentNode.insertBefore(row, more);
+        h.found.push(row);
+      }
+      room -= h.found.length;
+      const open_ = open || h.found.length > 0;
+      const button = head.shell.querySelector("button");
+      button.setAttribute("aria-expanded", open_ ? "true" : "false");
+      button.firstChild.textContent = open_ ? "\u25BE" : "\u25B8";
+      const left = q ? hits.length - h.found.length : open ? rest.length : 0;
+      more.style.display = left ? "" : "none";
+      more.textContent = left ? `${left} more here${q ? "" : ": search to find one"}` : "";
+      shown += q ? hits.length : rest.length;
     }
     countEl.textContent = `Showing ${shown} of ${allDevices.length}`;
     emptyMsg.style.display = shown === 0 ? "" : "none";

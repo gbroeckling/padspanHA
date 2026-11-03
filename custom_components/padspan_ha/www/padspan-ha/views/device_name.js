@@ -1,0 +1,304 @@
+// PadSpan HA — BLE Room-Presence Tracking for Home Assistant
+// Copyright (C) 2026 Garry Broeckling
+// Licensed under the GNU General Public License v3.0
+// See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
+/**
+ * One name for a device on every screen, and how device lists show the rotating
+ * addresses a day of phones and PCs leave behind. The server works the name out
+ * (device_detail.py); the chain here is only for what never went through it, like
+ * Sample mode's objects. Pure but for groupRows' DOM and copyText.
+ */
+
+export const UNNAMED = "Unnamed device";
+
+/** The device's one name. */
+export function deviceName(o, fallback = UNNAMED){
+  if(!o) return fallback;
+  if(o.best_name) return o.best_name;
+  const named = o.user_label || o.private_ble_name || o.name || o.entity_id || "";
+  if(named && String(named).toUpperCase() !== String(o.address || "").toUpperCase()) return String(named);
+  return o.company_name ? `${o.company_name} device` : (o.address ? UNNAMED : fallback);
+}
+
+/** Where its name came from. The server leaves off the commonest, "maker". */
+const nameSource = (o) => o.name_source || (o.best_name ? "maker" : null);
+
+const MAC_RE = /^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+
+/** The device's name where a person picks one out of many. A name that is only a
+ *  maker, a service or "Unnamed device" gets the end of its address, or a list of
+ *  phones is the same row fifty times: "Apple device · 8A:3B:63". */
+export function pickName(o, fallback = UNNAMED){
+  const name = deviceName(o, fallback);
+  if(!o) return name;
+  const generic = o.best_name ? ["maker", "service", "none"].includes(nameSource(o))
+    : name === UNNAMED || name === `${o.company_name} device`;
+  if(!generic) return name;
+  const one = Array.isArray(o.all_addresses) && o.all_addresses.length === 1 ? o.all_addresses[0] : "";
+  const mac = [o.address, one].find(a => MAC_RE.test(String(a || "")));
+  return mac ? `${name} · ${String(mac).slice(-8).toUpperCase()}` : name;
+}
+
+const HOW_FIELDS = ["kind", "name", "broadcast_name", "company_name", "maker_source", "service_owner", "maker_guess",
+  "manufacturer_data", "service_uuids", "service_data", "espresense_id"];
+const howAsked = new Map();
+
+/** Put "How we know" in a node. The server words it when a window opens, so the
+ *  snapshot doesn't carry it for every device; a window redrawn by a poll isn't asked
+ *  twice. wsCall(type, data). Sample mode's objects already have it. */
+export function fillHowKnown(node, o, wsCall){
+  if(o.how_known){ node.textContent = o.how_known; return; }
+  const object = {};
+  for(const k of HOW_FIELDS) if(o[k] !== undefined && o[k] !== null) object[k] = o[k];
+  const key = JSON.stringify(object);
+  if(howAsked.has(key)){ node.textContent = howAsked.get(key); return; }
+  node.textContent = "\u2026";
+  wsCall("padspan_ha/device_how_known", { object }).then((r) => {
+    if(howAsked.size >= 200) howAsked.clear();
+    howAsked.set(key, r.how_known);
+    node.textContent = r.how_known;
+  }).catch(() => { node.textContent = "\u2014"; });
+}
+
+/** What the device is, from its broadcast. "Handoff" and the like are message
+ *  types, not devices; only what never went through the server shows them. */
+export function deviceWhat(o){
+  if(!o) return null;
+  return o.what_it_is || (o.best_name ? null : (o.auto_class || o.device_type || null));
+}
+
+/** "Uses a service from Google", and why that isn't a maker. */
+export const serviceWords = (o) => o && o.service_owner ? `Uses a service from ${o.service_owner}` : "";
+export const SERVICE_HOW = "It broadcasts a service number Bluetooth assigned to this company. Other makers' devices can use it too, so this doesn't say who made the device.";
+
+/** What it is, for a list whose kind badge may already have said so. */
+export function listWhat(o){
+  const what = deviceWhat(o);
+  if(o && what === o.best_name) return null;  // "Apple device" twice
+  return what === "iBeacon" && o && o.kind === "ibeacon" ? null : what;
+}
+
+const LINK_HOW = "On screen only: its calibration, learning, alerts and Home Assistant stay on the address you named it by. Undo puts the name back there.";
+
+/** What the name links say about a device (label_follow.py): where its name has
+ *  gone, one question, and the pointer to its IRK. Quiet lines, never a window.
+ *  act: { wsCall, toast, after, showHelp }. null when there is nothing to say. */
+export function labelLines(el, o, act){
+  if(!o) return null;
+  const out = [];
+  const line = (text, buttons, title) => el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:3px;font-size:11px;color:#94a3b8", title: title || "" },
+    [el("span", {}, text), ...buttons]);
+  const button = (text, run) => el("button", { type: "button", class: "btn tiny", style: "font-size:10px;padding:1px 6px", onclick: async (e) => {
+    e.stopPropagation();
+    try { await run(); } catch(err) { act.toast("That didn't work: " + ((err && (err.message || err.code)) || err), true); }
+    if(act.after) await act.after();
+  } }, text);
+  const key = o.key;
+  if(o.label_link){
+    out.push(line(`Now on ${o.label_link.address}. ${o.label_link.by === "you" ? "You said it's the same device." : "It looks like the same device."}`,
+      [button("Undo", () => act.wsCall("padspan_ha/label_link_undo", { key }))], LINK_HOW));
+  }
+  if(o.label_ask){
+    const answer = (same) => act.wsCall("padspan_ha/label_link_answer", { key: o.label_ask.key, address: o.label_ask.address, same });
+    out.push(line(`This looks like ${o.label_ask.label}: same device?`,
+      [button("Yes", () => answer(true)), button("No", () => answer(false))], LINK_HOW));
+  }
+  // The same question on the named device's own row: a stranger's row can be far
+  // down a list of thousands, and Basic has no such list at all.
+  if(o.label_asking){
+    const answer = (same) => act.wsCall("padspan_ha/label_link_answer", { key, address: o.label_asking.address, same });
+    out.push(line(`A new address, ${o.label_asking.address}, looks like this device: same device?`,
+      [button("Yes", () => answer(true)), button("No", () => answer(false))], LINK_HOW));
+  }
+  if(o.irk_hint){
+    out.push(line("This device keeps changing its address. Adding its key (IRK) makes it certain.",
+      [button("How", () => act.showHelp("private_ble")),
+       button("Dismiss", () => act.wsCall("padspan_ha/label_link_hint_off", { key }))]));
+  }
+  return out.length ? el("div", {}, out) : null;
+}
+
+const ADDRESS_WORDS = {
+  fixed: ["Fixed", "This device keeps one address, so it reads as one device."],
+  rotating: ["Rotating", "This device changes its address every so often, as phones and trackers do, so one device can leave many rows."],
+};
+
+/** A small Fixed or Rotating badge, or null when no receiver has said. */
+export function addressBadge(el, o){
+  const word = o && ADDRESS_WORDS[o.address_kind];
+  if(!word) return null;
+  return el("span", {
+    class: "badge",
+    style: "font-size:10px;padding:1px 5px;" + (o.address_kind === "fixed"
+      ? "background:#1a3a2a;color:#a7f3d0;border-color:#166534" : "background:#2a2a1a;color:#fde68a;border-color:#854d0e"),
+    title: word[1],
+  }, word[0]);
+}
+
+/** How far to fade a row nobody named by how long ago it was heard. */
+export function fadeFor(o){
+  const age = o && o.age_s;
+  if(!o || o.user_label || typeof age !== "number") return 1;
+  return age <= 300 ? 1 : age <= 3600 ? 0.8 : age <= 21600 ? 0.62 : 0.5;
+}
+
+/** The word a rotating address is grouped under, or null when it stands alone:
+ *  only addresses nobody named, and whose best name is no more than their kind.
+ *  isKept(o) keeps others out, like a followed device. */
+export function groupWord(o, isKept){
+  if(!o || o.address_kind !== "rotating" || o.user_label || o.identified) return null;
+  if(!["maker", "service", "none", "beacon"].includes(nameSource(o))) return null;
+  if(isKept && isKept(o)) return null;
+  return o.what_it_is || (o.company_name ? `${o.company_name} device` : "") || (o.service_owner ? `${o.service_owner} service` : "") || "unnamed";
+}
+
+/** entries in order, with any two or more sharing a word gathered at the place
+ *  of the first: [{entry}|{group:{word, entries, newest}}]. Nothing is dropped. */
+export function groupDevices(entries, objOf, isKept){
+  const byWord = new Map();
+  for(const e of entries){
+    const word = groupWord(objOf(e), isKept);
+    if(!word) continue;
+    if(!byWord.has(word)) byWord.set(word, []);
+    byWord.get(word).push(e);
+  }
+  const out = [], placed = new Set();
+  for(const e of entries){
+    const word = groupWord(objOf(e), isKept);
+    const members = word ? byWord.get(word) : null;
+    if(!members || members.length < 2){ out.push({ entry: e }); continue; }
+    if(placed.has(word)) continue;
+    placed.add(word);
+    let newest = null;
+    for(const m of members){
+      const age = objOf(m).age_s;
+      if(typeof age === "number" && (newest === null || age < newest)) newest = age;
+    }
+    out.push({ group: { word, entries: members, newest } });
+  }
+  return out;
+}
+
+const ago = (s) => s == null ? "" : s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+
+/** "169 Windows PC addresses", or "3 of 169 ..." while a search narrows them. */
+export function groupTitle(group, shown = group.entries.length){
+  const n = group.entries.length, count = shown < n ? `${shown} of ${n}` : String(n);
+  return `${count} ${group.word} ${n === 1 ? "address" : "addresses"}`;
+}
+
+/** A group's clickable head. makeShell(content) puts it in a row of the list's own kind. */
+export function groupHead(el, group, open, onToggle, makeShell){
+  const title = el("span", { style: "font-weight:600" }, "");
+  const when = el("span", { class: "muted", style: "font-size:11px" }, group.newest == null ? "" : `newest ${ago(group.newest)}`);
+  const arrow = el("span", { "aria-hidden": "true", style: "display:inline-block;width:14px;font-size:15px;color:#52b788" }, open ? "▾" : "▸");
+  const button = el("button", {
+    type: "button",
+    "aria-expanded": open ? "true" : "false",
+    style: "display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;min-height:36px;padding:4px 6px;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer",
+    onclick: (e) => { e.stopPropagation(); onToggle(); },
+  }, [arrow, title, when]);
+  const shell = makeShell(button);
+  shell.style.opacity = String(group.newest == null ? 1 : fadeFor({ age_s: group.newest }));
+  return { shell, title };
+}
+
+/**
+ * Gather rows already in `parent`: [{node, obj}]. Rows in a closed group are
+ * hidden, not removed, so a list's own filter keeps working: call refresh(searching)
+ * right after each pass of it (it reads the display each row was just given), and
+ * the group counts what passed. A search opens every group it matches.
+ * reapply() runs the list's filter again, after a group opens or closes.
+ */
+export function groupRows(el, rows, parent, { openKeys, isKept, makeShell, reapply }){
+  const groups = [];
+  for(const item of groupDevices(rows, r => r.obj, isKept)){
+    if(!item.group) continue;
+    const group = item.group, key = group.word;
+    const head = groupHead(el, group, openKeys.has(key), () => {
+      if(openKeys.has(key)) openKeys.delete(key); else openKeys.add(key);
+      reapply();
+    }, makeShell);
+    parent.insertBefore(head.shell, group.entries[0].node);
+    let at = head.shell;
+    for(const r of group.entries){
+      parent.insertBefore(r.node, at.nextSibling);
+      at = r.node;
+    }
+    groups.push({ group, key, head });
+  }
+  return {
+    groups,
+    refresh(searching){
+      for(const { group, key, head } of groups){
+        const shown = group.entries.filter(r => r.node.style.display !== "none").length;
+        const open = openKeys.has(key) || (searching && shown > 0);
+        head.shell.style.display = shown ? "" : "none";
+        head.title.textContent = groupTitle(group, shown);
+        const button = head.shell.querySelector("button");
+        if(button){
+          button.setAttribute("aria-expanded", open ? "true" : "false");
+          button.firstChild.textContent = open ? "▾" : "▸";
+        }
+        if(!open) for(const r of group.entries) r.node.style.display = "none";
+      }
+    },
+  };
+}
+
+/** Which receivers heard it, short enough for a list: a device heard by all 18
+ *  would otherwise be the tallest thing on the screen. The full list is the title. */
+export function firstFew(names, n = 3){
+  return names.length <= n ? names.join(", ") : `${names.slice(0, n).join(", ")} +${names.length - n} more`;
+}
+
+// A phone's IRK (its identity key: whoever has it can follow the phone through
+// its changing Bluetooth addresses) is the key and canonical_id of its
+// objects, "irk:" + 32 hex (private_ble_resolver.py), and what ESPresense sends
+// as an id. Anything made to be sent, to a public GitHub issue as well, has each
+// IRK replaced by a number that stands for the same phone everywhere in it.
+export function hideIrks(text) {
+  const seen = new Map();
+  return String(text).replace(/irk:[0-9a-f]{32}/gi, (m) => {
+    const k = m.toLowerCase();
+    if (!seen.has(k)) seen.set(k, `irk:hidden-${seen.size + 1}`);
+    return seen.get(k);
+  });
+}
+
+/** The raw broadcast, as a person can paste it into a bug report. Apple's hashes
+ *  of a phone, email or Apple ID were taken out before it was ever stored, and an
+ *  IRK is hidden here. Only the name it broadcast: `name` can be your label. */
+export function rawBroadcast(o){
+  const raw = { address: o.address || "" };
+  if(o.address_type) raw.address_type = o.address_type;
+  if(o.broadcast_name) raw.broadcast_name = o.broadcast_name;
+  for(const k of ["manufacturer_data", "service_data", "service_uuids", "connectable", "tx_power", "espresense_id"]){
+    const v = o[k];
+    if(v === null || v === undefined) continue;
+    if(typeof v === "object" && !Object.keys(v).length) continue;
+    raw[k] = v;
+  }
+  return hideIrks(JSON.stringify(raw, null, 2));
+}
+
+/** Copy text; the clipboard API only exists on https or localhost, and Home
+ *  Assistant is often plain http. True when it worked. */
+export async function copyText(text){
+  try {
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch(_e) { /* the old way below */ }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch(_e) { ok = false; }
+  ta.remove();
+  return ok;
+}

@@ -9,6 +9,8 @@
  * Data source: snapshot tags + roomTagMap; live index built per-render for friendly names.
  */
 
+const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupDevices, groupHead, groupRows, groupTitle, firstFew, serviceWords, SERVICE_HOW } =
+  await import(`./device_name.js${new URL(import.meta.url).search}`);
 export function renderTags(ctx, tagsList) {
   const { el } = ctx.helpers;
   const { mode, tagFilter } = ctx.state;
@@ -333,6 +335,7 @@ export function render(ctx){
     }
   }
 
+  const _objRows = [];
   const objRowEls = allObjects.map(o=>{
     // Skip entity rows that duplicate a BLE/iBeacon/private_ble row for the same device
     if(_isDuplicateEntity(o)) return null;
@@ -341,7 +344,7 @@ export function render(ctx){
     const identified = !!o.identified;
     const addr = o.address || "";
     const userLabel = o.user_label || "";
-    const displayName = userLabel || o.name || o.entity_id || addr || "—";
+    const displayName = deviceName(o, "—");
     const rssi = o.rssi != null ? `${o.rssi} dBm` : "";
     const age = o.age_s != null ? fmtAgo(o.age_s) : "";
     const isPrivateBle = kind === "private_ble";
@@ -349,9 +352,11 @@ export function render(ctx){
     const isAway = _isAway(o);
     const _sid = ctx.helpers.radioShortId || (() => "");
     const _rName = ctx.helpers.radioName || (() => "");
-    const scanner = (kind==="ble" || isPrivateBle || isIbeacon) && Array.isArray(o.sources) && o.sources.length
-      ? o.sources.map(s => { const src = typeof s === "object" ? (s.source || "") : String(s); const id = _sid(src); const fn = _rName(src); return id ? id+" "+(fn||src) : (fn||src); }).filter(Boolean).join(", ")
-      : (o.room || "");
+    const _heardBy = (kind==="ble" || isPrivateBle || isIbeacon) && Array.isArray(o.sources) && o.sources.length
+      ? o.sources.map(s => { const src = typeof s === "object" ? (s.source || "") : String(s); const id = _sid(src); const fn = _rName(src); return id ? id+" "+(fn||src) : (fn||src); }).filter(Boolean)
+      : null;
+    const scanner = _heardBy ? _heardBy.join(", ") : (o.room || "");
+    const scannerShort = _heardBy ? firstFew(_heardBy) : scanner;
 
     // For iBeacon the stable identifier is the UUID key, not the rotating MAC
     const followKey = isIbeacon ? (o.key || "") : (addr || o.entity_id || "");
@@ -393,10 +398,11 @@ export function render(ctx){
       "data-age": String(o.age_s != null ? Math.round(o.age_s) : 0),
       "data-search": [
         kind, displayName, addr, userLabel, o.entity_id, scanner,
-        o.ibeacon_uuid, o.company_name, o.device_type, o.auto_class,
+        o.ibeacon_uuid, o.company_name, o.device_type, o.auto_class, o.what_it_is,
         (o.service_names||[]).join(" "),
         o.canonical_id, o.key, o.name, o.private_ble_name,
         (o.all_addresses||[]).join(" "),
+        o.label_link ? o.label_link.address : "",
         (o.linked_entities||[]).join(" "),
         o.ibeacon_major, o.ibeacon_minor,
         o.vendor, o.device, o.prefix,
@@ -428,6 +434,7 @@ export function render(ctx){
         (Array.isArray(o.all_addresses) && o.all_addresses.length > 1
           ? el("div",{class:"muted",style:"font-size:10px;color:#a78bfa"}, `${o.all_addresses.length} MACs merged`)
           : null),
+        ctx.actions.labelLines ? ctx.actions.labelLines(o) : null,
         // WTI score badge (dev mode)
         (_wtiRoomAdv && _wtiScoresAdv && !identified && (() => {
           const sc = _wtiScoresAdv[(addr || "").toUpperCase()] || 0;
@@ -442,10 +449,13 @@ export function render(ctx){
           return null;
         })()),
         // Enrichment: company + device type + services
-        ((o.company_name || o.auto_class || o.device_type || (o.service_names && o.service_names.length))
+        ((o.company_name || o.service_owner || o.maker_guess || deviceWhat(o) || o.address_kind || (o.service_names && o.service_names.length))
           ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
-              o.company_name ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, o.company_name) : null,
-              (o.auto_class || o.device_type) ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, o.auto_class || o.device_type) : null,
+              addressBadge(el, o),
+              o.company_name ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, o.company_name)
+                : o.service_owner ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#94a3b8;border-color:#334155",title:SERVICE_HOW}, serviceWords(o))
+                : o.maker_guess ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, `Probably ${o.maker_guess}`) : null,
+              listWhat(o) ? el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, listWhat(o)) : null,
               ...(o.service_names || []).slice(0,2).map(sn =>
                 el("span",{class:"badge",style:"font-size:10px;padding:1px 5px;background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)
               ),
@@ -467,10 +477,10 @@ export function render(ctx){
                 ? el("div",{class:"muted",style:"font-size:10px;margin-top:2px;color:#c4b5fd"}, t) : null; })(),
             ].filter(Boolean)
           : (age || "—"))),
-      el("td",{class:"muted obj-scanner",style:"font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis"},
+      el("td",{class:"muted obj-scanner",style:"font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis",title:scanner},
         o.knn_confidence > 0
-          ? [scanner || "—", el("div",{style:"font-size:10px;color:#52b788;margin-top:1px"}, `Calibrated ${Math.round(o.knn_confidence*100)}%`)]
-          : (scanner || "—")),
+          ? [scannerShort || "—", el("div",{style:"font-size:10px;color:#52b788;margin-top:1px"}, `Calibrated ${Math.round(o.knn_confidence*100)}%`)]
+          : (scannerShort || "—")),
       followCell,
       tagCell,
     ]);
@@ -480,9 +490,21 @@ export function render(ctx){
       if(ev.target.tagName==="BUTTON") return;
       ctx.actions.showObjectDetail(o);
     });
+    tr.style.opacity = String(fadeFor(o));
     objTbody.appendChild(tr);
+    _objRows.push({ node: tr, obj: o });
     return tr;
   }).filter(Boolean);
+
+  // Rotating addresses nobody named, gathered by kind: "169 Windows PC addresses".
+  if(!ctx.state.objGroupsOpen) ctx.state.objGroupsOpen = new Set();
+  const _isFollowedObj = (o) => ctx.actions.followedHas(o.address || "");
+  const _objGroups = groupRows(el, _objRows, objTbody, {
+    openKeys: ctx.state.objGroupsOpen,
+    isKept: _isFollowedObj,
+    makeShell: (content) => el("tr",{},[el("td",{colspan:"7"}, content)]),
+    reapply: () => applyObjFilter(),
+  });
 
   function applyObjFilter(){
     const q = String(ctx.state.objSearch||"").toLowerCase();
@@ -514,6 +536,7 @@ export function render(ctx){
       tr.style.display = ok ? "" : "none";
       if(ok) shown++;
     }
+    _objGroups.refresh(!!q);
     const _dedupN = (summary && summary.dedup_absorbed) || 0;
     objStats.textContent = `${shown} of ${objRowEls.length}` + (_dedupN ? ` (${_dedupN} merged)` : "");
   }
@@ -551,9 +574,12 @@ export function render(ctx){
 
     // Walk-to-Identify candidates shown with a "Likely in" badge (for wti_tag).
     const _wtiCandAddrs = new Set();
+    // The address under the name: an iBeacon's own one, not its key.
+    const _macOf = (o) => o.kind === "ibeacon"
+      ? (Array.isArray(o.all_addresses) && o.all_addresses.length === 1 ? o.all_addresses[0] : "") : (o.address || "");
     const mkCard = (o) => {
       const addr = o.address || o.entity_id || "";
-      const name = o.user_label || o.name || o.entity_id || addr || "Unknown";
+      const name = deviceName(o, "Unknown");
       const room = o.room || "—";
       const rssi = o.rssi != null ? `${o.rssi} dBm` : null;
       const kind = o.kind === "entity" ? "HA Entity"
@@ -592,8 +618,9 @@ export function render(ctx){
 
       return el("div",{class:"basic-obj-card"},[
         el("div",{},[
-          el("div",{class:"basic-obj-name",style:"display:flex;align-items:center;gap:6px"},[
+          el("div",{class:"basic-obj-name",style:"display:flex;align-items:center;gap:6px;flex-wrap:wrap"},[
             el("span",{}, name),
+            addressBadge(el, o),
             o._ghost ? el("span",{class:"badge",style:"background:#2a1a00;color:#f59e0b;border-color:#92400e;font-size:10px"}, "Waiting for signal") : null,
             isObjAway && !o._ghost ? el("span",{class:"badge",style:"background:#3a0a0a;color:#f87171;border-color:#7f1d1d;font-size:10px"}, "Away") : null,
           ].filter(Boolean)),
@@ -602,8 +629,9 @@ export function render(ctx){
             : (isObjAway
               ? (_lastKnownText(o.key || o.address || o.entity_id || "") || (o.last_room ? `Last: ${o.last_room}` : "—"))
               : room)),
-          el("div",{class:"basic-obj-sub"}, [kind, o.company_name, o.auto_class || o.device_type, isObjAway ? null : rssi].filter(Boolean).join(" · ")),
-        ]),
+          el("div",{class:"basic-obj-sub"}, [kind, o.company_name || serviceWords(o) || (o.maker_guess ? `Probably ${o.maker_guess}` : null), deviceWhat(o) === kind ? null : listWhat(o), isObjAway ? null : rssi].filter(Boolean).join(" · ")),
+          _macOf(o) && _macOf(o) !== name ? el("div",{class:"basic-obj-sub",style:"font-family:monospace;font-size:11px"}, _macOf(o)) : null,
+        ].filter(Boolean)),
         actions,
       ]);
     };
@@ -764,8 +792,29 @@ export function render(ctx){
       // WTI threshold: devices scoring above 40% of the top score are "likely in room"
       const _wtiMaxScore = _wtiScores ? Math.max(0, ...Object.values(_wtiScores)) : 0;
       const _wtiThreshold = _wtiMaxScore * 0.4;
-      _sortedUnident.slice(0, 50).forEach(o => {
+      // Rotating addresses nobody named, gathered by kind, unless Walk-to-Identify
+      // is ranking them one by one. A closed group's cards aren't built.
+      if(!ctx.state.objGroupsOpen) ctx.state.objGroupsOpen = new Set();
+      const _openGroups = ctx.state.objGroupsOpen;
+      const _basicCards = [];
+      const _basicItems = _wtiRoom && _wtiScores
+        ? _sortedUnident.map(entry => ({ entry }))
+        : groupDevices(_sortedUnident, o => o, (o) => ctx.actions.followedHas(o.address || ""));
+      for(const item of _basicItems.slice(0, 50)){
+        if(item.entry){ _basicCards.push(item.entry); continue; }
+        const group = item.group, open = _openGroups.has(group.word);
+        const head = groupHead(el, group, open, () => {
+          if(_openGroups.has(group.word)) _openGroups.delete(group.word); else _openGroups.add(group.word);
+          ctx.actions.renderRooms();
+        }, (content) => el("div",{class:"basic-obj-card",style:"padding:4px 8px"}, content));
+        head.title.textContent = groupTitle(group);
+        _basicCards.push(head.shell);
+        if(open) _basicCards.push(...group.entries);
+      }
+      _basicCards.forEach(o => {
+        if(o.nodeType){ unCard.appendChild(o); return; }
         const card = mkCard(o);
+        card.style.opacity = String(fadeFor(o));
         // WTI badge: show "Likely in [Room]" with match % for top candidates
         if (_wtiRoom && _wtiScores && _wtiMaxScore > 0) {
           const score = _wtiScores[(o.address || "").toUpperCase()] || 0;

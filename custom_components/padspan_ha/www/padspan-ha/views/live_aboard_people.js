@@ -64,7 +64,7 @@ export function beaconsOf(snapshot){
     const id = o.key || o.address || "";
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, label: o.user_label || o.private_ble_name || o.name || id });
+    out.push({ id, label: o.best_name || o.user_label || o.private_ble_name || o.name || id });
   }
   return out.sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -85,7 +85,7 @@ export function thingsOf(snapshot){
     seen.add(id);
     const room = typeof o.room === "string" && o.room ? o.room : "", heard = TR.seenText(o.age_s);
     const where = o._stale ? "Not heard now" : [room ? `In ${room}` : "", heard].filter(Boolean).join(" · ");
-    out.push({ id, label: String(o.user_label || o.private_ble_name || o.name || id), where: where || (o.kind === "entity" ? "A Home Assistant tracker" : "") });
+    out.push({ id, label: String(o.best_name || o.user_label || o.private_ble_name || o.name || id), where: where || (o.kind === "entity" ? "A Home Assistant tracker" : "") });
   }
   return out.sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 }
