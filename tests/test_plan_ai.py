@@ -907,7 +907,8 @@ def test_a_railing_hint_beside_an_existing_stair_is_matched_to_its_rail(monkeypa
     stair = next(s for s in sess["suggestions"].values() if s["kind"] == "stairs")
     hint = next(s for s in sess["suggestions"].values() if s["kind"] == "railing")
     assert stair["state"] == "duplicate"                                  # the stair itself is already there: its hint still counts
-    assert hint["geom"]["stair"] == "fur_00000001" and hint["match"]["relation"] == relation and hint["state"] == state and hint["match"]["have"] == rail
+    # A stair stored on "auto" reads as the word it draws (house3d_store.stamp_stair_rail; a closed straight flight: both).
+    assert hint["geom"]["stair"] == "fur_00000001" and hint["match"]["relation"] == relation and hint["state"] == state and hint["match"]["have"] == {"auto": "both"}.get(rail, rail)
     assert ("plan_ai_duplicate:railing" in counted) == (relation == "duplicate")
     assert ("plan_ai_suggested:railing" in counted) == (relation != "duplicate")
     assert T.event_allowed("plan_ai_duplicate:railing")
