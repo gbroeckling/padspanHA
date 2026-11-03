@@ -911,28 +911,28 @@
    "de": "In wenigen Minuten startklar"
   },
   {
-   "en": "<b style=\"color:var(--acc2)\">Requirements:</b> Home Assistant 2024.1+, at least one BLE scanner (ESPresense, Bermuda proxy, or HA Bluetooth proxy), and HACS (recommended).",
-   "de": "<b style=\"color:var(--acc2)\">Voraussetzungen:</b> Home Assistant 2024.1+, mindestens ein BLE-Scanner (ESPresense, Bermuda-Proxy oder Bluetooth-Proxy von HA) und HACS (empfohlen)."
+   "en": "<b style=\"color:var(--acc2)\">Requirements:</b> Home Assistant 2024.1+ and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set up as a scanner, or your Home Assistant machine's own Bluetooth.",
+   "de": "<b style=\"color:var(--acc2)\">Voraussetzungen:</b> Home Assistant 2024.1+ und mindestens ein Bluetooth-Scanner: ein ESPHome-Bluetooth-Proxy, ein als Scanner eingerichteter Shelly ab Gen2 oder das eigene Bluetooth deines Home-Assistant-Rechners."
   },
   {
-   "en": "Via HACS (recommended)",
-   "de": "Über HACS (empfohlen)"
+   "en": "From the Marketplace (Home Assistant 2026.11+)",
+   "de": "Aus dem Marketplace (Home Assistant 2026.11+)"
   },
   {
-   "en": "Open HACS in your Home Assistant instance",
-   "de": "Öffne HACS in deinem Home Assistant"
+   "en": "Open Settings → Marketplace",
+   "de": "Öffne Einstellungen → Marketplace"
   },
   {
-   "en": "Search for and install <b>PadSpan HA</b> (it's in the HACS default list)",
-   "de": "Suche nach <b>PadSpan HA</b> und installiere es (es steht in der Standardliste von HACS)"
+   "en": "Search for <b>room presence</b> or <b>PadSpan</b> and install <b>PadSpan HA</b>",
+   "de": "Suche nach <b>room presence</b> oder <b>PadSpan</b> und installiere <b>PadSpan HA</b>"
   },
   {
-   "en": "Restart Home Assistant completely",
-   "de": "Starte Home Assistant komplett neu"
+   "en": "The setup dialog opens straight away, with no restart: select <b>Submit</b>",
+   "de": "Der Einrichtungsdialog öffnet sich sofort, ohne Neustart: Wähl <b>OK</b>"
   },
   {
-   "en": "Add the integration: Settings → Devices &amp; Services → Add Integration → PadSpan HA",
-   "de": "Füge die Integration hinzu: Einstellungen → Geräte &amp; Dienste → Integration hinzufügen → PadSpan HA"
+   "en": "On 2026.10 or older: install it from HACS, restart Home Assistant completely, then Settings → Devices &amp; Services → Add Integration → PadSpan HA",
+   "de": "Bei 2026.10 oder älter: Installiere es aus HACS, starte Home Assistant komplett neu und dann Einstellungen → Geräte &amp; Dienste → Integration hinzufügen → PadSpan HA"
   },
   {
    "en": "Quick Start",
@@ -943,20 +943,20 @@
    "de": "Öffne das Panel <b>PadSpan HA</b> in der Seitenleiste"
   },
   {
-   "en": "The onboarding wizard guides you: upload a map, set scale, draw rooms, place scanners, calibrate",
-   "de": "Der Einrichtungsassistent führt dich durch: Karte hochladen, Maßstab setzen, Räume zeichnen, Scanner platzieren, kalibrieren"
+   "en": "Give each scanner its Home Assistant area. <b>Who's where now</b> then puts each device in the room of the scanner that hears it best, with no floor plan",
+   "de": "Gib jedem Scanner seinen Home-Assistant-Bereich. <b>Who's where now</b> ordnet dann jedes Gerät dem Raum des Scanners zu, der es am besten hört, ganz ohne Grundriss"
   },
   {
-   "en": "Try <b>Sample mode</b> to explore every feature with demo data",
-   "de": "Probier den <b>Sample mode</b> aus, um jede Funktion mit Demodaten kennenzulernen"
+   "en": "Name your phones and tags to get their Home Assistant entities",
+   "de": "Gib deinen Handys und Trackern einen Namen, damit sie ihre Entitäten in Home Assistant bekommen"
   },
   {
-   "en": "Switch to <b>Live mode</b> — your BLE scanners are auto-discovered",
-   "de": "Wechsle in den <b>Live mode</b>: Deine BLE-Scanner werden automatisch gefunden"
+   "en": "Want the map? <b>Make it a map</b> walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, <b>Put it on the map</b>",
+   "de": "Du willst die Karte? <b>Make it a map</b> führt dich durch: Grundriss hochladen, Maßstab festlegen, Räume zeichnen, Scanner platzieren, <b>Put it on the map</b>"
   },
   {
-   "en": "Tag your devices and start tracking",
-   "de": "Ordne deine Geräte zu und leg los"
+   "en": "Every step, with pictures: <a href=\"/guides/get-started/\">From the Marketplace to your first room</a>",
+   "de": "Alle Schritte, mit Bildern: <a href=\"/guides/get-started/de/\">Vom Marketplace zum ersten Raum</a>"
   },
   {
    "en": "Documentation",
