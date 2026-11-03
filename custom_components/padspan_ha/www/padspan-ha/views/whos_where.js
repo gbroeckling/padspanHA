@@ -20,6 +20,7 @@
 // the panel's poll calls (panel.js _render, fromPoll), so it never goes stale
 // the way the static room grid does.
 
+const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const okRoom = (r) => typeof r === "string" && r !== "" && r !== "unknown" && r !== "not_home";
 const up = (a) => String(a || "").toUpperCase();
 
@@ -81,7 +82,7 @@ export function whoIsWhere(snap, scanners, opts = {}){
     const phone = !known && o.kind === "private_ble" && o.private_ble_name;
     const r = okRoom(o.room) ? roomOf(o.room) : (known || phone) ? noRoom : null;
     if (!r) continue;
-    if (known) r.people.push({ name: String(o.user_label || o.private_ble_name || o.name || "a device"), key, track: false });
+    if (known) r.people.push({ name: String(deviceName(o, "a device")), key, track: false });
     else if (phone) r.people.push({ name: String(o.private_ble_name), key, track: true });
     else r.others += 1;
   }

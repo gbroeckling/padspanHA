@@ -20,6 +20,7 @@ from .const import (
     DATA_OBJECT_HISTORY,
     DATA_FORENSICS,
 )
+from .device_detail import describe as _describe
 from .ws_common import _get_settings, _invalidate_snapshot_cache, _pro_expiry_state
 from .telemetry import bump as _bump
 
@@ -69,6 +70,8 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
     # labelled phone doesn't show up as an anonymous MAC.
     obj_store = _dom.get(DATA_OBJECTS)
     _hist: dict = _dom.get(DATA_OBJECT_HISTORY) or {}
+    _st = _dom.get(DATA_SETTINGS)
+    _classify = bool(_st and _st.get("apple_auto_classify"))
     _mac_to_hist: dict[str, tuple[str, dict]] = {}
     for _k, _cached in list(_hist.items()):
         if not _k.startswith(("irk:", "ibeacon:")):
@@ -96,6 +99,8 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
                 label = obj_store.get_label(h.get("canonical_id") or hist_key)
                 if label:
                     r["user_label"] = label
+        _d = _describe({**(h or {}), **r}, _classify)
+        r["best_name"], r["what_it_is"] = _d["best_name"], _d["what_it_is"]
 
     # Fallback tier: cache entries whose [first_seen, last_seen] span overlaps
     # the window but have no recorded sessions.  A device seen before AND
@@ -123,10 +128,13 @@ async def ws_forensics_query(hass: HomeAssistant, connection, msg) -> None:
         # all_addresses — drop them too if any of those MACs was recorded.
         if any(str(a or "").upper() in recorded_addrs for a in (cached.get("all_addresses") or [])):
             continue
+        _d = _describe(cached, _classify)
         possible.append({
             "key": key,
             "kind": cached.get("kind") or "",
             "address": addr,
+            "best_name": _d["best_name"],
+            "what_it_is": _d["what_it_is"],
             "name": cached.get("name") or "",
             "user_label": cached.get("user_label") or "",
             "company_name": cached.get("company_name") or "",

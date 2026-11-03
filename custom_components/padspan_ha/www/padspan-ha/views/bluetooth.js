@@ -16,6 +16,7 @@
 // The iPhone setup path (#69), behind iphone_irk_guide; query inherited from
 // our own module URL so the ?b= cache-buster propagates.
 // If it can't load, the page goes on as it always was (the guide reads as off).
+const { deviceName, deviceWhat, addressBadge } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { iphoneGuideOn, isApplePhone, renderIphonePath } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {} }));
@@ -223,7 +224,7 @@ export function render(ctx) {
       if (!filter) return true;
       // Concatenate all searchable fields into one haystack string for substring match
       const xr = a._xref || {};
-      const hay = `${a.name || ""} ${a.address || ""} ${a.source || ""} ${a.company_name || ""} ${a.device_type || ""} ${a.auto_class || ""} ${(a.service_names||[]).join(" ")} ${xr.label || ""} ${xr.kind || ""} ${xr.room || ""} ${xr.canonical_id || ""} ${xr.ibeacon_uuid || ""}`.toLowerCase();
+      const hay = `${a.best_name || ""} ${a.what_it_is || ""} ${a.name || ""} ${a.address || ""} ${a.source || ""} ${a.company_name || ""} ${a.device_type || ""} ${a.auto_class || ""} ${(a.service_names||[]).join(" ")} ${xr.label || ""} ${xr.kind || ""} ${xr.room || ""} ${xr.canonical_id || ""} ${xr.ibeacon_uuid || ""}`.toLowerCase();
       return hay.includes(filter);
     })
     .slice(0, maxItems);
@@ -1091,7 +1092,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
     for (const r of holdRows) {
       const addr = String(r.ad.address || "").toUpperCase();
       const obj = objByAddr.get(addr);
-      const label = obj ? (obj.user_label || obj.name || addr) : (r.ad.name && r.ad.name !== addr ? r.ad.name : addr);
+      const label = obj ? deviceName(obj, addr) : deviceName(r.ad, addr);
       holdBox.appendChild(el("div", { style: "display:flex;align-items:center;gap:8px;margin-top:4px" }, [
         el("span", { style: "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" }, label),
         el("span", { style: "color:#52b788;white-space:nowrap" }, r.gone ? "gone quiet" : r.fresh ? "new" : `${r.jump > 0 ? "+" : ""}${Math.round(r.jump)} dB`),
@@ -1121,7 +1122,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
     for (const a of _filteredAds) {
       const addr = (a.address || "").toUpperCase();
       const obj = objByAddr.get(addr);
-      const displayName = obj ? (obj.user_label || obj.name || addr) : (a.name && a.name !== addr ? a.name : addr);
+      const displayName = obj ? deviceName(obj, addr) : deviceName(a, addr);
       // A Find My tag carried across address changes (findmy.py) is not an
       // IRK phone, whatever its merged kind says.
       const kindLabel = obj ? (obj.findmy ? "Find My" : obj.kind === "private_ble" ? "Private BLE" : obj.kind === "ibeacon" ? "iBeacon" : obj.identified ? "BLE" : "BLE?") : "";
@@ -1209,7 +1210,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const xr = a._xref || {};  // Backend cross-reference: label, kind, room, canonical_id, etc.
     const obj = addr ? objIndex.get(String(addr).toUpperCase()) : null;
     const userLabel = xr.user_label || (obj && obj.user_label) || "";
-    const displayName = userLabel || xr.label || a.name || addr || "Unknown";
+    const displayName = deviceName(obj || a, addr || "Unknown");
     const sid = _rsid(src);  // Short scanner ID (e.g. "S1") for compact display
 
     // Enrichment badges (inline, compact)
@@ -1217,7 +1218,8 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     if (xr.kind)          badges.push(kindBadge(xr.findmy ? "findmy" : xr.kind));
     if (a.company_name)   badges.push(chip(el, a.company_name, "info", MAKER_HOW[a.maker_source] || MAKER_HOW.company_id));
     else if (a.maker_guess) badges.push(chip(el, `Probably ${a.maker_guess}`, "quiet", MAKER_GUESS_HOW));
-    if (a.auto_class || a.device_type) badges.push(chip(el, a.auto_class || a.device_type, "violet"));
+    if (deviceWhat(a)) badges.push(chip(el, deviceWhat(a), "violet"));
+    badges.push(addressBadge(el, a));
     if (a.connectable)    badges.push(chip(el, "connectable", "good", "This device accepts connections"));
 
     // Service names (max 3, then a count)
@@ -1282,7 +1284,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const card = el("div", { class: "bt-panel" });
 
     // Header: the name, its kind, and how strongly it is being heard right now
-    const hdrName = xr.label || a.name || selected;
+    const hdrName = deviceName(obj || a, selected);
     card.appendChild(el("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" }, [
       el("div", { style: "font-size:15px;font-weight:800;letter-spacing:-.01em;flex:1;min-width:0;word-break:break-word" }, hdrName),
       sigEl(el, a.rssi),
@@ -1329,7 +1331,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     // Identity
     const idRows = [
       ["Address", a.address],
-      ["Name", a.name || "\u2014"],
+      ["Broadcast name", (a.name && a.name !== a.address && a.name) || "\u2014"],
       ["User Label", xr.user_label || (obj?.user_label) || "\u2014"],
       ["Object Kind", xr.kind || "untracked"],
     ];
@@ -1354,10 +1356,11 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     // Manufacturer
     const md = a.manufacturer_data || {};
     const mdKeys = Object.keys(md);
-    if (mdKeys.length || a.company_name || a.maker_guess || a.auto_class || a.device_type) {
+    if (mdKeys.length || a.company_name || a.maker_guess || deviceWhat(a)) {
       const mfRows = [
         ["Company", a.company_name || (a.maker_guess ? `Probably ${a.maker_guess}` : "\u2014")],
-        ["Device Type", a.auto_class || a.device_type || "\u2014"],
+        ["What it is", deviceWhat(a) || "\u2014"],
+        ["How we know", a.how_known || "\u2014"],
       ];
       for (const cid of mdKeys) {
         mfRows.push(["Manuf ID " + cid, md[cid]]);
@@ -1555,11 +1558,11 @@ function renderVisualization(ctx, radios, ads, objIndex) {
       // Build a rich label: prefer user_label > object name > ad name > address
       let devLabel = "";
       if (obj) {
-        devLabel = obj.user_label || obj.name || a.name || addr;
+        devLabel = deviceName(obj, a.name || addr);
         const room = obj.room || a.area_name || "";
         if (room) devLabel += ` · ${room}`;
       } else {
-        devLabel = a.name || addr;
+        devLabel = deviceName(a, addr);
         if (a.area_name) devLabel += ` · ${a.area_name}`;
       }
       if (a.rssi != null) devLabel += ` (${a.rssi})`;

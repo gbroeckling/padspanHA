@@ -560,7 +560,7 @@ async def compute_occupancy_estimate(hass: HomeAssistant) -> dict[str, Any]:
         if ident in seen_ids:
             continue
         seen_ids.add(ident)
-        things.append({"label": obj.get("user_label") or obj.get("name") or obj.get("key"),
+        things.append({"label": obj.get("best_name") or obj.get("user_label") or obj.get("name") or obj.get("key"),
                        "kind": obj.get("kind"), "room": obj.get("room") or None})
 
     # For the opt-in report (0.38.133; a no-op while it is off): how many

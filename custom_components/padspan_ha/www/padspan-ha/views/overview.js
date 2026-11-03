@@ -8,6 +8,8 @@
 // The metric frame the lights map draws with. Metres in, screen out, no photo
 // anywhere in it — the 3D map below uses THIS, and the stack_transform import
 // above survives only for the experimental 2D map, which is swept next.
+const { deviceName, deviceWhat, addressBadge, fadeFor, groupRows, firstFew } =
+  await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { fabricFrame, barrierNoReading } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 // The plan viewer — the one view whose subject IS the photograph.
@@ -418,12 +420,12 @@ export function renderClassic(ctx){
           if(radio.disabled) await ctx.actions.radioDisabledSet(radio.source, false);
           await ctx.actions.radioLostSet(radio.source, true);
           ctx.actions.closeModal();
-          ctx.toast(`"${radio.name || radio.source}" marked as Lost`);
+          ctx.toast(`"${radio.display_name || radio.name || radio.source}" marked as Lost`);
         } else if(v === "__disabled__"){
           if(radio.lost) await ctx.actions.radioLostSet(radio.source, false);
           await ctx.actions.radioDisabledSet(radio.source, true);
           ctx.actions.closeModal();
-          ctx.toast(`"${radio.name || radio.source}" marked as Disabled`);
+          ctx.toast(`"${radio.display_name || radio.name || radio.source}" marked as Disabled`);
         } else {
           // Restore from lost/disabled if needed, then set area
           if(radio.lost)     await ctx.actions.radioLostSet(radio.source, false);
@@ -445,7 +447,7 @@ export function renderClassic(ctx){
         saveBtn.disabled = false;
       }
     });
-    const radioLabel = [sid, radio.name || radio.source].filter(Boolean).join("  ·  ");
+    const radioLabel = [sid, radio.display_name || radio.name || radio.source].filter(Boolean).join("  ·  ");
     const body = el("div",{},[
       el("div",{class:"muted", style:"margin-bottom:8px"}, `Radio: ${radioLabel}`),
       radio.lost     ? el("div",{style:"color:#f59e0b;font-size:12px;margin-bottom:8px"}, "⚠ Currently marked as Lost. Select a room to restore it.") : null,
@@ -454,7 +456,7 @@ export function renderClassic(ctx){
       el("div",{class:"row",style:"gap:8px;flex-wrap:wrap"},[sel, saveBtn, cancelBtn]),
       status,
     ].filter(Boolean));
-    ctx.actions.openModal("Assign Area", body, `HA area for "${radio.name || radio.source}"`);
+    ctx.actions.openModal("Assign Area", body, `HA area for "${radio.display_name || radio.name || radio.source}"`);
   }
 
   // A first byte with bit 0x02 (locally administered) or 0x01 (multicast) set
@@ -593,6 +595,7 @@ export function renderClassic(ctx){
     table.appendChild(tbody);
 
     // Build rows once, then filter by show/hide (fast, no re-render).
+    const _listRows = [];
     const rowEls = list.map((o)=>{
       // Skip entity rows that duplicate a BLE row for the same physical device
       if(_ovIsDup(o)) return null;
@@ -601,7 +604,7 @@ export function renderClassic(ctx){
       const identified = !!o.identified;
       const addr = o.address || "";
       const userLabel = o.user_label || "";
-      const name = userLabel || o.name || o.entity_id || "";
+      const name = deviceName(o, "");
       const room = o.room || "";
       const rssi = (o.rssi==null?"":String(o.rssi));
       const lastSeen = o.age_s!=null ? fmtAgo(o.age_s) : (o.last_seen || "");
@@ -655,7 +658,7 @@ export function renderClassic(ctx){
         "data-age": String(o.age_s != null ? Math.round(o.age_s) : 0),
         "data-search": [
           kind, name, addr, room, userLabel, o.entity_id, _guestName(o),
-          o.ibeacon_uuid, o.company_name, o.device_type, o.auto_class,
+          o.ibeacon_uuid, o.company_name, o.device_type, o.auto_class, o.what_it_is,
           (o.service_names||[]).join(" "),
           o.canonical_id, o.key, o.name, o.private_ble_name,
           (o.all_addresses||[]).join(" "),
@@ -673,14 +676,15 @@ export function renderClassic(ctx){
             ? el("div",{title:`Tag: ${name}`}, [_guestName(o), " ", el("span",{style:_GUEST_PILL_CSS}, "Guest"),
                 el("span",{style:"color:#94a3b8;margin-left:6px"}, name)])
             : el("div",{}, name)),
-          (userLabel && (o.name && o.name !== userLabel) ? el("div",{style:"color:#94a3b8"}, `raw: ${o.name}`) : null),
+          (userLabel && o.broadcast_name && o.broadcast_name !== userLabel ? el("div",{style:"color:#94a3b8"}, `Broadcasts as ${o.broadcast_name}`) : null),
           (o.entity_id ? el("div",{style:"color:#94a3b8"}, o.entity_id) : null),
           (Array.isArray(o.linked_entities) && o.linked_entities.length ? el("div",{style:"color:#94a3b8"}, `Linked: ${o.linked_entities.join(", ")}`) : null),
-          (kind==="ble" && Array.isArray(o.sources) && o.sources.length ? el("div",{style:"color:#94a3b8"}, `Seen by: ${o.sources.map(s=>{const _src=typeof s==="object"?(s.source||""):String(s);const id=_sid(_src);const _fn=ctx.helpers.radioName(_src);return id?id+" "+(_fn||_src):(_fn||_src);}).join(", ")}`) : null),
-          ((o.company_name || o.auto_class || o.device_type || (o.service_names && o.service_names.length))
+          (kind==="ble" && Array.isArray(o.sources) && o.sources.length ? (() => { const _by = o.sources.map(s=>{const _src=typeof s==="object"?(s.source||""):String(s);const id=_sid(_src);const _fn=ctx.helpers.radioName(_src);return id?id+" "+(_fn||_src):(_fn||_src);}); return el("div",{style:"color:#94a3b8",title:_by.join(", ")}, `Seen by: ${firstFew(_by)}`); })() : null),
+          ((o.company_name || deviceWhat(o) || o.address_kind || (o.service_names && o.service_names.length))
             ? el("div",{style:"display:flex;flex-wrap:wrap;gap:4px;margin-top:2px"}, [
+                addressBadge(el, o),
                 o.company_name ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#7dd3fc;border:1px solid #1e4976"}, o.company_name) : null,
-                (o.auto_class || o.device_type) ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, o.auto_class || o.device_type) : null,
+                deviceWhat(o) ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, deviceWhat(o)) : null,
                 ...(o.service_names || []).slice(0,3).map(sn =>
                   el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a3a2a;color:#a7f3d0;border:1px solid #166534"}, sn)
                 ),
@@ -713,10 +717,20 @@ export function renderClassic(ctx){
         if(ev.target.tagName==="BUTTON"||ev.target.tagName==="A") return;
         ctx.actions.closeModal(); ctx.actions.showObjectDetail(o);
       });
+      tr.style.opacity = String(fadeFor(o));
+      _listRows.push({ node: tr, obj: o });
       return tr;
     }).filter(Boolean);
 
     rowEls.forEach(tr=>tbody.appendChild(tr));
+
+    // Rotating addresses nobody named, gathered by kind: "169 Windows PC addresses".
+    const _listGroups = groupRows(el, _listRows, tbody, {
+      openKeys: new Set(),
+      isKept: (o) => ctx.actions.followedHas(o.address || ""),
+      makeShell: (content) => el("tr",{},[el("td",{colspan:"10"}, content)]),
+      reapply: () => apply(),
+    });
 
     function apply(){
       const q = (search.value||"").trim().toLowerCase();
@@ -750,6 +764,7 @@ export function renderClassic(ctx){
         tr.style.display = ok ? "" : "none";
         if(ok) shown++;
       }
+      _listGroups.refresh(!!q);
       stats.textContent = `${shown} of ${rowEls.length}`;
     }
 
@@ -1553,7 +1568,7 @@ export function renderClassic(ctx){
       // ── Helper: build tooltip string for any object ────────────────────────
       const _objTip = (o) => {
         const parts = [];
-        const n = o.user_label || o.private_ble_name || o.name || o.address || o.entity_id || "Unknown";
+        const n = deviceName(o, "Unknown");
         if(_guestName(o)) parts.push(`${_guestName(o)} (Guest)`, `Tag: ${n}`);
         else parts.push(n);
         if(o.kind) parts.push(`Kind: ${o.kind}`);
@@ -1634,7 +1649,7 @@ export function renderClassic(ctx){
         const isGhost = o._ghost || o._stale;
         const ageS = typeof o.age_s === "number" ? o.age_s : 0;
         const isAway = isGhost && (o.rssi == null) && (ageS > _awayTimeoutS2);
-        const lbl = (_guestName(o)||o.user_label||o.private_ble_name||o.name||"?").substring(0,14);
+        const lbl = (_guestName(o)||deviceName(o, "?")).substring(0,14);
         let bx, by;
         let posConf = 0;  // confidence for dashed circle
 
@@ -1776,7 +1791,7 @@ export function renderClassic(ctx){
           _renderedObjKeys.add(oKey);
           const _ok = _esc(oKey);
           const isAway = ctx.helpers.isAway(obj, ctx.helpers.awayTimeoutS(ctx.state.settings));
-          const objLabel = _guestName(obj) || obj.user_label || obj.private_ble_name || obj.name || "";
+          const objLabel = _guestName(obj) || deviceName(obj, "");
 
           // The server's position, else the room centroid with a small
           // stagger so several room-only objects do not stack on one point.
@@ -2243,7 +2258,7 @@ export function renderClassic(ctx){
         for(const o of (rr.objects||[]).slice(0,6)){
           const oKey = o.address || o.entity_id || "";
           const isF = ctx.actions.followedHas(oKey);
-          const tagLbl = o.user_label || o.private_ble_name || o.name || o.address || "?";
+          const tagLbl = deviceName(o, "?");
           const lbl = (_guestName(o) || tagLbl).substring(0,16);
           const oc = isF ? "#fbbf24" : (o.identified ? "#5eead488" : "#f59e0b88");
           const chip = el("span",{style:`font-size:10px;padding:1px 5px;border-radius:3px;background:${oc}22;color:${isF?"#fbbf24":"#94a3b8"};border:1px solid ${oc};white-space:nowrap${isF?";font-weight:700":""}`}, isF ? lbl + " \u25C9" : lbl);
@@ -2813,12 +2828,12 @@ export function renderClassic(ctx){
       roomRadios.slice(0,5).forEach((r, ri) => {
         const rx = x + 22 + ri * 52, ry = y + 105;
         const sid = _sid(r.source || "");
-        const rName = (r.name || r.source || "radio").substring(0, 12);
+        const rName = (r.display_name || r.name || r.source || "radio").substring(0, 12);
         s += `<circle cx="${rx}" cy="${ry}" r="14" fill="none" stroke="#52b788" stroke-width="0.7" opacity="0.2"/>`;
         s += `<circle cx="${rx}" cy="${ry}" r="8"  fill="none" stroke="#52b788" stroke-width="1"   opacity="0.5"/>`;
         s += `<circle cx="${rx}" cy="${ry}" r="4"  fill="#52b788"/>`;
         s += `<text x="${rx}" y="${ry - 18}" text-anchor="middle" fill="#52b788" font-size="9" font-weight="600">${sid ? _esc(sid)+" " : ""}${_esc(rName)}</text>`;
-        const lbl = (r.name || r.source || "").substring(0, 9);
+        const lbl = (r.display_name || r.name || r.source || "").substring(0, 9);
         s += `<text x="${rx}" y="${ry + 20}" text-anchor="middle" fill="#52b788" font-size="8" opacity="0.7">${_esc(lbl)}</text>`;
       });
 
@@ -2830,7 +2845,7 @@ export function renderClassic(ctx){
         s += `<circle cx="${ox}" cy="${oy}" r="7" fill="${oc}" opacity="0.9"/>`;
         // Guest tag: an amber ring and the guest's name; tag label in the hover.
         if(_guestName(o)) s += `<circle cx="${ox}" cy="${oy}" r="10" fill="none" stroke="#fbbf24" stroke-width="1.5"><title>${_esc(_guestName(o))} (Guest) · Tag: ${_esc(o.user_label || o.private_ble_name || o.name || "?")}</title></circle>`;
-        const lbl = (_guestName(o) || o.user_label || o.private_ble_name || o.name || "?").substring(0, 6);
+        const lbl = (_guestName(o) || deviceName(o, "?")).substring(0, 6);
         s += `<text x="${ox}" y="${oy + 18}" text-anchor="middle" fill="${oc}" font-size="9">${_esc(lbl)}</text>`;
       });
 
@@ -2846,12 +2861,12 @@ export function renderClassic(ctx){
       s += `<text x="${PX}" y="${uy + 14}" fill="#94a3b8" font-size="12" font-weight="600">Radios not yet assigned to an HA area</text>`;
       unassignedRadios.slice(0,6).forEach((r, ri) => {
         const rx = PX + 20 + ri * 140, ry = uy + 42;
-        const rName = (r.name || r.source || "Unknown").substring(0, 16);
+        const rName = (r.display_name || r.name || r.source || "Unknown").substring(0, 16);
         s += `<circle cx="${rx}" cy="${ry}" r="8" fill="none" stroke="#52b788" stroke-width="0.8" opacity="0.3"/>`;
         s += `<circle cx="${rx}" cy="${ry}" r="5" fill="none" stroke="#52b788" stroke-width="1"   opacity="0.6"/>`;
         s += `<circle cx="${rx}" cy="${ry}" r="3" fill="#52b78888"/>`;
         s += `<text x="${rx + 14}" y="${ry - 2}" fill="#52b788" font-size="10" font-weight="600">${_esc(rName)}</text>`;
-        s += `<text x="${rx + 14}" y="${ry + 12}" fill="#94a3b8" font-size="9">${_esc(r.name || r.source || "Unknown")}</text>`;
+        s += `<text x="${rx + 14}" y="${ry + 12}" fill="#94a3b8" font-size="9">${_esc(r.display_name || r.name || r.source || "Unknown")}</text>`;
       });
     }
 

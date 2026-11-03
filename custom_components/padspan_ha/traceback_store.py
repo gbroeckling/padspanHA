@@ -343,7 +343,7 @@ class TracebackStore:
             rssi = o.get("rssi")
             if rssi is not None:
                 entry["rssi"] = rssi
-            label = o.get("user_label") or o.get("name")
+            label = o.get("best_name") or o.get("user_label") or o.get("name")
             if label and label != key:
                 entry["n"] = label[:30]
             kind = o.get("kind")

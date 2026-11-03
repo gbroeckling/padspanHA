@@ -39,6 +39,7 @@
  * unlike that presentation-only gate, there's a real write to refuse.
  */
 
+const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { tierAtLeast, currentTier } =
   await import(`./editions.js${new URL(import.meta.url).search}`);
 // The 90-day trial card (trial_offer.js). Optional: a card that fails to load
@@ -92,7 +93,7 @@ export function render(ctx, { targetKey } = {}) {
     const raw = (ctx.state.live?.snapshot?.objects?.list) || [];
     const candidates = raw
       .filter(o => !isScanner(o) && o.room)
-      .map(o => ({ key: o.key || o.address || o.entity_id, label: o.user_label || o.private_ble_name || o.name || o.address || o.entity_id || "?", room: o.room, floor_id: o.floor_id, x_m: o.x_m, y_m: o.y_m, identified: !!o.identified }))
+      .map(o => ({ key: o.key || o.address || o.entity_id, label: deviceName(o, "?"), room: o.room, floor_id: o.floor_id, x_m: o.x_m, y_m: o.y_m, identified: !!o.identified }))
       .filter(o => o.key)
       .sort((a, b) => (b.identified - a.identified) || a.label.localeCompare(b.label));
 

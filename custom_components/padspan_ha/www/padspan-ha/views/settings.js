@@ -3663,7 +3663,7 @@ function _settingsFeatures(ctx, el){
     {
       key: "apple_auto_classify",
       label: "Apple Device Classification",
-      desc: "Shows what sent an Apple Find My signal — an AirTag, another brand's Find My tag (\"Find My accessory\"), AirPods, " +
+      desc: "Shows what sent an Apple Find My signal — an AirTag, a \"Find My accessory\" (another brand's tag, or AirPods), " +
             "or an Apple device such as an iPhone, iPad or Mac — instead of just \"Find My\", in Devices, Bluetooth → Advertisements " +
             "and a device's details. It can't tell an iPhone from an iPad or a Watch: nothing Apple sends over Bluetooth says " +
             "which. Display-only — does not affect tracking or identity.",

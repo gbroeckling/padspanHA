@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Garry Broeckling
 // Licensed under the GNU General Public License v3.0
 // See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
+const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
 import { buildCalibrationMatrix, errorColor } from "./calibration_matrix.js";
 import { attachPanZoom } from "./pan_zoom.js";
@@ -802,7 +803,7 @@ function _setup(ctx, el, cs, calData) {
     // Tracked objects — use stable identifiers for rotating-MAC devices
     for (const o of bleObjs) {
       const stableId = _setupStableId(o);
-      const label = (o.user_label || o.name || stableId) + (o.rssi ? ` (${o.rssi} dBm)` : "") + (o.kind === "private_ble" ? " [Private BLE]" : o.kind === "ibeacon" ? " [iBeacon]" : "");
+      const label = deviceName(o, stableId) + (o.rssi ? ` (${o.rssi} dBm)` : "") + (o.kind === "private_ble" ? " [Private BLE]" : o.kind === "ibeacon" ? " [iBeacon]" : "");
       deviceItems.push({ id: stableId, label, search: `${label} ${stableId}`.toLowerCase(), group: "tracked" });
     }
     // Raw advertisement devices not already in objects.list (hidden in quiet mode)
@@ -882,7 +883,7 @@ function _setup(ctx, el, cs, calData) {
     if (radioCount > 0) {
       const box = el("div", { style: "background:#0a150e;border:1px solid #1b3526;border-radius:8px;padding:10px;margin-top:6px" });
       box.appendChild(el("div", { style: "font-weight:600;font-size:13px;color:#52b788;margin-bottom:6px" },
-        `✓ ${obj?.user_label || obj?.name || cs.deviceId} — seen by ${radioCount} radio${radioCount > 1 ? "s" : ""}`));
+        `✓ ${obj ? deviceName(obj, cs.deviceId) : cs.deviceId} — seen by ${radioCount} radio${radioCount > 1 ? "s" : ""}`));
       if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, `Room: ${obj.room}`));
       box.appendChild(el("div", { style: "font-size:11px;color:#78909c;margin-bottom:4px" }, "Per-radio RSSI:"));
       const sorted = Object.entries(perRadio).sort((a, b) => (b[1].rssi || -200) - (a[1].rssi || -200));
@@ -899,7 +900,7 @@ function _setup(ctx, el, cs, calData) {
       if (entityRssi || entityScanner) {
         const box = el("div", { style: "background:#0a150e;border:1px solid #3d2d0a;border-radius:8px;padding:10px;margin-top:6px" });
         box.appendChild(el("div", { style: "font-weight:600;font-size:13px;color:#fbbf24;margin-bottom:6px" },
-          `⚠ ${obj?.user_label || obj?.name || cs.deviceId} — entity data only (no direct BLE advertisements)`));
+          `⚠ ${obj ? deviceName(obj, cs.deviceId) : cs.deviceId} — entity data only (no direct BLE advertisements)`));
         if (obj?.room) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8;margin-bottom:6px" }, `Room: ${obj.room}`));
         if (entityRssi) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `RSSI: ${entityRssi} dBm (from entity attributes)`));
         if (entityScanner) box.appendChild(el("div", { style: "font-size:12px;color:#94a3b8" }, `Nearest scanner: ${entityScanner}`));
@@ -2232,7 +2233,7 @@ function _matrixTab(ctx, el, cs, calData) {
     for (const o of anchors) {
       const sev = o.anchor_drift_severity || "unknown";
       tbody.appendChild(el("tr", {}, [
-        el("td", { style: "font-size:11px" }, o.user_label || o.name || o.key),
+        el("td", { style: "font-size:11px" }, deviceName(o, o.key)),
         el("td", { class: "muted", style: "font-size:11px" }, o.room || "—"),
         el("td", { style: "font-family:monospace;font-size:11px" }, o.anchor_drift_m != null ? `${o.anchor_drift_m}m` : "—"),
         el("td", { style: `font-size:11px;font-weight:700;color:${driftColor[sev]}` }, sev.toUpperCase()),
@@ -4377,11 +4378,11 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const [px, py] = iso(wx, wy, z);
           const isSel = bs.selectedBk && bs.selectedBk.mapId === m.id && bs.selectedBk.bkId === bk.id;
           const bx = Math.round(px), by = Math.round(py);
-          const lbl = (liveObj?.user_label || liveObj?.name || bk.label || bk.key || "B").substring(0, 8);
+          const lbl = (liveObj ? deviceName(liveObj, "B") : (bk.label || bk.key || "B")).substring(0, 8);
           const detectedRoom = isLive && liveObj?.room ? liveObj.room : _detectRoom(useX, useY, m);
           const fillColor = isLive && !isTimerActive ? "#52b788" : "#5eead4";
           const confidence = liveObj?.knn_confidence;
-          const tipParts = [liveObj?.user_label || liveObj?.name || bk.label || bk.key || "Beacon"];
+          const tipParts = [liveObj ? deviceName(liveObj, "Beacon") : (bk.label || bk.key || "Beacon")];
           if (detectedRoom) tipParts.push("Room: " + detectedRoom);
           tipParts.push(`Pinned: x ${(useX * 100).toFixed(1)}% y ${(useY * 100).toFixed(1)}%`);
           // Show server estimate in tooltip if available
@@ -4522,7 +4523,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
     const opt = document.createElement("option");
     opt.value = o.key;
     const kindBadge = o.kind === "ibeacon" ? " [iBeacon]" : o.kind === "private_ble" ? " [Private BLE]" : " [BLE]";
-    opt.textContent = (o.user_label || o.name || o.key) + (o.rssi ? ` (${o.rssi} dBm)` : "") + kindBadge;
+    opt.textContent = deviceName(o, o.key) + (o.rssi ? ` (${o.rssi} dBm)` : "") + kindBadge;
     bkSel.appendChild(opt);
   }
 
@@ -5914,7 +5915,7 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       nameCol.style.cssText = "flex:1;min-width:0;display:flex;flex-direction:column;gap:1px";
       const nameEl = document.createElement("span");
       nameEl.style.cssText = `font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isPinned ? "#d1d5db" : "#e2e8f0"};${isPinned ? "" : "font-weight:600"}`;
-      nameEl.textContent = obj.user_label || obj.name || obj.key;
+      nameEl.textContent = deviceName(obj, obj.key);
       nameCol.appendChild(nameEl);
       // Detail line: kind + RSSI + room
       const detailParts = [];
@@ -6068,8 +6069,8 @@ function _beaconTuneTab(ctx, el, cs, calData) {
       nameRow.appendChild(icon);
       const nameEl = document.createElement("span");
       nameEl.style.cssText = "font-size:12px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
-      nameEl.textContent = obj?.user_label || obj?.name || bk.label || bk.key;
-      nameEl.title = obj?.user_label || obj?.name || bk.label || bk.key;
+      nameEl.textContent = obj ? deviceName(obj, bk.key) : (bk.label || bk.key);
+      nameEl.title = obj ? deviceName(obj, bk.key) : (bk.label || bk.key);
       nameRow.appendChild(nameEl);
       leftCol.appendChild(nameRow);
 

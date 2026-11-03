@@ -24,6 +24,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant, callback
 
+from .device_detail import scrub_apple_block
 from .proxy_health import AdvertRateHealth
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,6 +37,12 @@ def _now() -> dt.datetime:
 def _bytes_to_hex_list(b: bytes) -> str:
     # Match HA UI-ish style: "0x4A 0x17 ..."
     return " ".join(f"0x{v:02X}" for v in b)
+
+
+def _manuf_hex(company: Any, payload: bytes) -> str:
+    """A manufacturer block as stored, the hashes of a person's identifiers in
+    Apple's taken out first (device_detail.scrub_apple_block)."""
+    return _bytes_to_hex_list(scrub_apple_block(payload) if company == 76 else payload)
 
 
 def _scanning_mode(obj: Any, attr: str) -> Optional[str]:
@@ -198,7 +205,7 @@ def _service_info_to_record(si: Any, seen: Optional[dt.datetime] = None,
     try:
         for k, v in dict(manuf).items():
             if isinstance(v, (bytes, bytearray)):
-                manuf_out[str(k)] = _bytes_to_hex_list(bytes(v))
+                manuf_out[str(k)] = _manuf_hex(k, bytes(v))
             else:
                 manuf_out[str(k)] = str(v)
     except Exception:
@@ -254,7 +261,7 @@ def _service_info_to_record_from_adv(
     try:
         for k, v in dict(manuf).items():
             if isinstance(v, (bytes, bytearray)):
-                manuf_out[str(k)] = _bytes_to_hex_list(bytes(v))
+                manuf_out[str(k)] = _manuf_hex(k, bytes(v))
             else:
                 manuf_out[str(k)] = str(v)
     except Exception:

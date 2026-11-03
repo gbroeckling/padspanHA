@@ -16,12 +16,13 @@
 // text (textContent), never as markup.
 
 /** A box no one sees and a screen reader still reads. */
+const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 export const SR_ONLY = "position:fixed;top:0;left:0;width:1px;height:1px;margin:0;padding:0;border:0;"
   + "overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none";
 /** At most one announcement this often (ms). */
 export const EVERY_MS = 10000;
 
-const nameOf = (o) => String(o.user_label || o.private_ble_name || o.name || "").trim() || "an unnamed device";
+const nameOf = (o) => deviceName(o, "").trim() || "an unnamed device";
 const okRoom = (r) => typeof r === "string" && r !== "" && r !== "unknown" && r !== "not_home";
 
 /** [[room, line]] from [{room, name}]: every room on the map (rooms, in order)

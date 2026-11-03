@@ -11,6 +11,8 @@
  */
 
 // ── Sub-tab state ────────────────────────────────────────────────────────────
+const { deviceName, deviceWhat, addressBadge, fadeFor, groupDevices, groupHead, groupTitle } =
+  await import(`./device_name.js${new URL(import.meta.url).search}`);
 const TABS = [
   { id: "all",      label: "All Devices" },
   { id: "by_room",  label: "By Room" },
@@ -104,7 +106,7 @@ function _renderAll(ctx) {
         id: stableId,
         padspan_id: o.padspan_id || "",
         type: o.kind,
-        name: o.user_label || o.private_ble_name || o.name || o.address || "Unknown",
+        name: deviceName(o),
         room: o.room || "",
         stateRaw: o.room || (o.age_s != null ? `seen ${Math.round(o.age_s)}s ago` : ""),
         missing: false,
@@ -231,7 +233,8 @@ function _renderAll(ctx) {
   ].filter(Boolean));
 
   // ── Device rows ───────────────────────────────────────────────────────────
-  const rows = filtered.slice(0, 300).map(d => {
+  const _devHay = (d) => `${d.name} ${d.id} ${d.room} ${d.stateRaw} ${d.type} ${deviceWhat(d.obj) || ""} ${(d.obj && d.obj.company_name) || ""}`.toLowerCase();
+  const _devRow = (d, grouped) => {
     const kindBadge = d.type === "entity"      ? el("span", { class: "badge", style: "font-size:10px" }, "Entity")
                     : d.type === "private_ble"  ? el("span", { class: "badge", style: "font-size:10px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976" }, "Private BLE")
                     : d.type === "ibeacon"      ? el("span", { class: "badge", style: "font-size:10px;background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6" }, "iBeacon")
@@ -245,6 +248,8 @@ function _renderAll(ctx) {
         : el("span", { class: "pill", style: "color:#94a3b8" }, "No room");
 
     const sub = [d.id];
+    const what = deviceWhat(d.obj);
+    if (what) sub.unshift(what);
     if (d.padspan_id) sub.push(d.padspan_id);
     if (d.rssi != null) sub.push(`RSSI ${d.rssi}`);
     if (d.age_s != null) sub.push(`${Math.round(d.age_s)}s ago`);
@@ -290,8 +295,8 @@ function _renderAll(ctx) {
       }}, "Untag"));
     }
 
-    const hay = `${d.name} ${d.id} ${d.room} ${d.stateRaw} ${d.type}`.toLowerCase();
-    return el("div", { class: "dev-tag", "data-search": hay, style: "cursor:pointer", onclick: (e) => {
+    const hay = _devHay(d);
+    return el("div", { class: "dev-tag", "data-search": hay, style: `cursor:pointer;opacity:${fadeFor(d.obj)}${grouped ? ";margin-left:14px" : ""}`, onclick: (e) => {
       if (e.target.closest("button")) return;
       if (d.obj) ctx.actions.showObjectDetail(d.obj);
     }}, [
@@ -301,15 +306,45 @@ function _renderAll(ctx) {
       ]),
       el("div", { class: "dev-tag-right", style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap" }, [
         kindBadge,
+        addressBadge(el, d.obj),
         statusBadge,
         ...btns,
-      ]),
+      ].filter(Boolean)),
     ]);
-  });
+  };
+
+  // Rotating addresses nobody named, gathered by kind: "169 Windows PC addresses".
+  // A closed group's rows aren't built, so the 300-row cap counts lines on screen.
+  if (!ctx.state.devGroupsOpen) ctx.state.devGroupsOpen = new Set();
+  const _openGroups = ctx.state.devGroupsOpen;
+  const rows = [], listKids = [], _heads = [];
+  const _isFollowedObj = (o) => _followedAddrs.has(String(o.address || "").toUpperCase());
+  for (const item of groupDevices(filtered, d => d.obj, _isFollowedObj).slice(0, 300)) {
+    if (item.entry) {
+      const row = _devRow(item.entry, false);
+      rows.push(row);
+      listKids.push(row);
+      continue;
+    }
+    const group = item.group, open = _openGroups.has(group.word);
+    const head = groupHead(el, group, open, () => {
+      if (_openGroups.has(group.word)) _openGroups.delete(group.word); else _openGroups.add(group.word);
+      ctx.actions.renderRooms();
+    }, (content) => el("div", { class: "dev-tag" }, content));
+    listKids.push(head.shell);
+    _heads.push({ group, head, open, hays: group.entries.map(_devHay) });
+    if (open) {
+      for (const d of group.entries) {
+        const row = _devRow(d, true);
+        rows.push(row);
+        listKids.push(row);
+      }
+    }
+  }
 
   const countEl = el("div", { class: "h2", style: "flex:1" }, "");
   const emptyMsg = el("div", { class: "muted", style: "padding:12px 0" }, "No devices match the current filters.");
-  const listEl = el("div", { class: "dev-tag-list list-scroll" }, rows);
+  const listEl = el("div", { class: "dev-tag-list list-scroll" }, listKids);
 
   // In-place text search: toggle row visibility against the live search term
   // without rebuilding the DOM, so the search box retains focus while typing.
@@ -320,6 +355,12 @@ function _renderAll(ctx) {
       const ok = !q || (row.getAttribute("data-search") || "").includes(q);
       row.style.display = ok ? "" : "none";
       if (ok) shown++;
+    }
+    for (const { group, head, open, hays } of _heads) {
+      const matches = q ? hays.filter(h => h.includes(q)).length : hays.length;
+      head.shell.style.display = matches ? "" : "none";
+      head.title.textContent = groupTitle(group, matches);
+      if (!open) shown += matches;
     }
     countEl.textContent = `Showing ${shown} of ${allDevices.length}`;
     emptyMsg.style.display = shown === 0 ? "" : "none";

@@ -29,6 +29,7 @@ pytestmark = pytest.mark.skipif(_NODE is None, reason="node is not installed")
 
 def _run(tmp_path: Path, body: str) -> dict:
     shutil.copy(_VIEWS / "devices.js", tmp_path / "devices.mjs")
+    shutil.copy(_VIEWS / "device_name.js", tmp_path / "device_name.js")
     shutil.copy(_SHIM, tmp_path / "dom_shim.mjs")
     harness = f"""
 import {{ install }} from './dom_shim.mjs';

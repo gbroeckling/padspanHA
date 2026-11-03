@@ -450,6 +450,7 @@ TAB_EVENTS: frozenset[str] = frozenset(
 # before the change (server/telemetry_summary.py splits them on that).
 # tests/test_telemetry.py holds UI_ERROR_HELPERS to the files in views/.
 UI_ERROR_HELPERS: frozenset[str] = frozenset({
+    "device_name",
     "atlas_weather", "fabric_compass", "live_aboard", "live_aboard_draft", "live_aboard_edit", "live_aboard_furniture",
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
@@ -1584,7 +1585,9 @@ def _object_detail(obj_list: list) -> dict[str, int]:
     objects, how many have a real name, a maker, and a type. `maker_*` splits
     the makers by how they are known (one level deep, so stats.php adds them
     up), "guess" being the built-in address list with no receiver's word that
-    the address is fixed. Counts only, never a name, a maker or an address."""
+    the address is fixed. `name_*` says where each best name came from, `what`
+    how many have a type read from the broadcast, `addr_*` how many a radio says
+    are fixed or rotating. Counts only, never a name, a maker or an address."""
     out = {"total": 0, "named": 0, "maker": 0, "type": 0}
     for o in obj_list:
         if not isinstance(o, dict) or o.get("kind") not in ("ble", "ibeacon", "private_ble"):
@@ -1599,6 +1602,14 @@ def _object_detail(obj_list: list) -> dict[str, int]:
             out[f"maker_{how}"] = out.get(f"maker_{how}", 0) + 1
         if o.get("device_type") or o.get("auto_class"):
             out["type"] += 1
+        if o.get("name_source"):
+            k = f"name_{o['name_source']}"
+            out[k] = out.get(k, 0) + 1
+        if o.get("what_it_is"):
+            out["what"] = out.get("what", 0) + 1
+        if o.get("address_kind"):
+            k = f"addr_{o['address_kind']}"
+            out[k] = out.get(k, 0) + 1
     return out
 
 

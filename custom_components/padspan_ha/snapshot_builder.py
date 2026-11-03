@@ -53,6 +53,11 @@ from .beacon_identity import (
 # minting objects for long.
 _SETTLED_POLLS = 3
 from .ble_enrichment import apply_address_maker as _apply_address_maker, enrich_object as _enrich_ble_object
+from .device_detail import (
+    apply_detail as _apply_detail,
+    broadcast_name as _broadcast_name,
+    scrub_apple_hex as _scrub_apple_hex,
+)
 from . import device_tables as _device_tables
 from . import low_memory as _low_memory
 from .merge_guard import MergeGuard
@@ -244,6 +249,9 @@ def _reenrich_history(cache: dict[str, Any]) -> None:
     for entry in cache.values():
         if isinstance(entry, dict) and entry.get("kind") in ("ble", "private_ble", "ibeacon"):
             try:
+                _md = entry.get("manufacturer_data")
+                if isinstance(_md, dict) and "76" in _md:  # hashes an older version stored
+                    _md["76"] = _scrub_apple_hex(_md["76"])
                 _enrich_ble_object(entry)
             except Exception:  # noqa: BLE001 - one odd old entry keeps what it had
                 pass
@@ -791,7 +799,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     area = area_names.get(area_id, "")
                     if area:
                         radio["area_name"] = area
-            radio["display_name"], radio["name_from"] = radio_display(radio, match.device)
+            radio["display_name"], radio["name_from"] = radio_display(radio, match.device, index.parent_of(match.device))
         # The two Shelly rules' use, for the opt-in report (telemetry.py
         # health.radios_shelly_mac / radios_area_via). Counts, never names.
         (snapshot.setdefault("ble", {}))["shelly_rules"] = {"mac": index.shelly_matched, "area_via": index.area_from_via}
@@ -2497,7 +2505,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         # Fields to merge (never overwrite good data with empty values)
         _MERGE_FIELDS = (
             "company_name", "maker_source", "address_type", "espresense_id",
-            "device_type", "service_names", "service_uuid_map",
+            "broadcast_name", "device_type", "service_names", "service_uuid_map",
             "name", "private_ble_name", "ibeacon_uuid", "ibeacon_major",
             "ibeacon_minor", "tx_power", "manufacturer_data", "service_data",
             "service_uuids", "all_addresses", "linked_entities", "device",
@@ -2512,8 +2520,15 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 continue
             _current_keys.add(key)
 
-            # Merge: keep previously-discovered metadata if current is empty
+            # The name it broadcast outlives the advert that carried it, so a
+            # device doesn't fall back from its name to its maker between
+            # adverts. `name` itself is left alone: the same-name merge reads it.
             prev = _cache.get(key)
+            _bn = _broadcast_name(obj) or (_broadcast_name(prev) if prev else "")
+            if _bn:
+                obj["broadcast_name"] = _bn
+
+            # Merge: keep previously-discovered metadata if current is empty
             if prev:
                 for fld in _MERGE_FIELDS:
                     cur_val = obj.get(fld)
@@ -2932,6 +2947,14 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     except Exception as _maker_err:
         _LOGGER.debug("Address makers: %s", _maker_err)
 
+    # ── One name, maker and type for each object (device_detail.py) ──
+    # Over the FINAL list too, and never into history: it follows what's known now.
+    try:
+        for _o in (snapshot.get("objects") or {}).get("list") or []:
+            _apply_detail(_o, _classify)
+    except Exception as _detail_err:
+        _LOGGER.debug("Device detail: %s", _detail_err)
+
     # ── Enrich raw advertisements with decoded metadata + object cross-reference ──
     try:
         from .ble_enrichment import enrich_object as _enrich_ad
@@ -2954,6 +2977,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     # "label" falls back to the name, often the address: only
                     # this one says someone named the device.
                     "user_label": _xobj.get("user_label") or "",
+                    "best_name": _xobj.get("best_name") or "",
                     "identified": _xobj.get("identified", False),
                     "room": _xobj.get("room"),
                 }
@@ -2973,6 +2997,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     _ad["_xref"]["entity_id"] = _xobj["entity_id"]
             else:
                 _ad["_xref"] = None
+            _apply_detail(_ad, _classify)
+            if _xobj and _xobj.get("best_name"):
+                _ad["best_name"] = _xobj["best_name"]
+                _ad["name_source"] = _xobj.get("name_source")
     except Exception:
         pass
 

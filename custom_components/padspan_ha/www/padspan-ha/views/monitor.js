@@ -361,7 +361,7 @@ function _zones(ctx, el){
     if(objs.length > 0){
       const list = el("div",{style:"display:flex;flex-direction:column;gap:3px"});
       for(const o of objs.slice(0, 8)){
-        const label = o.user_label || o.name || o.address || "Unknown";
+        const label = o.best_name || o.user_label || o.name || o.address || "Unknown";
         const rssiText = o.rssi != null ? ` (${o.rssi} dBm)` : "";
         const isFollowed = ctx.actions.followedHas && ctx.actions.followedHas(o.address || o.key);
         const objRow = el("div",{"data-obj-click":"1",style:"font-size:12px;cursor:pointer;padding:2px 4px;border-radius:3px;display:flex;align-items:center;gap:4px"});
@@ -539,7 +539,7 @@ function _insights(ctx, el, _sid){
         row.addEventListener("mouseleave", ()=>{ row.style.background = ""; });
         row.addEventListener("click", ()=>ctx.actions.showObjectDetail(obj));
       }
-      row.appendChild(el("span",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0"}, obj ? (obj.user_label || obj.name || x.t) : x.t));
+      row.appendChild(el("span",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0"}, obj ? (obj.best_name || obj.user_label || obj.name || x.t) : x.t));
       row.appendChild(el("span",{class:"badge",style:"flex-shrink:0",title:x.rooms.join(", ")}, `${x.n} rooms`));
       list.appendChild(row);
     }

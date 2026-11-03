@@ -627,20 +627,23 @@ _NAME_MAC_TAIL_RE = re.compile(r"\s*\((?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\)\
 NAME_FROM: tuple[str, ...] = ("ha_user", "ha", "scanner", "area", "source")
 
 
-def radio_display(radio: dict, device: Any = None) -> tuple[str, str]:
+def radio_display(radio: dict, device: Any = None, parent: Any = None) -> tuple[str, str]:
     """The one name a receiver goes by everywhere in the panel, and where it
     came from (one of NAME_FROM, for the opt-in report).
 
-    The name the user gave it in Home Assistant first (that's what they see in
-    HA too), then HA's own device name, then the scanner's name with its
-    "(AA:BB:..)" tail dropped, then "<area> receiver", then the raw source.
+    Home Assistant files a remote scanner as its own device, named "X (AA:BB:..)",
+    via the ESPHome or Shelly device that provides it (`parent`). A name set on
+    that device wins: the one the user gave it in Home Assistant, then the
+    scanner device's, then the device's own name (what's set in ESPHome), then
+    the scanner device's. No "(AA:BB:..)" tail on any of them. Then the scanner's
+    name, then "<area> receiver", then the raw source.
     """
     src = str(radio.get("source") or "")
-    if device is not None:
-        for attr, origin in (("name_by_user", "ha_user"), ("name", "ha")):
-            v = str(getattr(device, attr, None) or "").strip()
-            if v:
-                return v, origin
+    for dev, attr, origin in ((parent, "name_by_user", "ha_user"), (device, "name_by_user", "ha_user"),
+                              (parent, "name", "ha"), (device, "name", "ha")):
+        v = _NAME_MAC_TAIL_RE.sub("", str(getattr(dev, attr, None) or "")).strip()
+        if v:
+            return v, origin
     raw = str(radio.get("name") or "").strip()
     if raw and raw != src:
         cleaned = _NAME_MAC_TAIL_RE.sub("", raw).strip()
@@ -721,6 +724,14 @@ class RadioDeviceIndex:
                     if bt and id(dev) not in seen_bt.setdefault(bt, set()):
                         seen_bt[bt].add(id(dev))
                         self._by_shelly_bt.setdefault(bt, []).append(dev)
+
+    def parent_of(self, dev: Any) -> Any:
+        """The device a scanner device belongs to, its "via" device, or None.
+        Only a scanner device (see area_id_of): any other device's via device
+        is something else, a hub for one."""
+        if not any(isinstance(c, (tuple, list)) and c and c[0] == "bluetooth" for c in (getattr(dev, "connections", None) or ())):
+            return None
+        return self._by_id.get(str(getattr(dev, "via_device_id", None) or ""))
 
     def area_id_of(self, dev: Any) -> str | None:
         """A radio device's area, else the area of the device it belongs to.
