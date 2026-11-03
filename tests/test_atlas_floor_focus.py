@@ -154,16 +154,19 @@ def test_mappings_plate_lookup_still_skips_a_faded_plate() -> None:
     assert fade and float(fade.group(1)) < 0.5
 
 
-def test_a_door_circle_on_a_faded_floor_stays_in_hand(tmp_path) -> None:
+def test_a_door_circle_fades_with_its_floor(tmp_path) -> None:
     circle = {"doorCircleM": {"x_m": 1, "y_m": 1, "r_m": 1, "floorId": "up"}}
     out = _draw(tmp_path, {"faded": [0, {**_OPTS, **circle}], "chosen": [1, {**_OPTS, **circle}]})
     root = ET.fromstring(out["faded"])
-    tops = [e for e in root if e.get("data-role") == "doorcircle"]
-    assert len(tops) == 1 and tops[0].get("pointer-events") is None
-    assert not [e for g in _ghosts(root) for e in g.iter() if e.get("data-role") == "doorcircle"]
-    # On the chosen floor it stays where it always was: under that floor's markers.
+    assert not [e for e in root if e.get("data-role") == "doorcircle"]
+    inside = [e for g in _ghosts(root) for e in g.iter() if e.get("data-role") == "doorcircle"]
+    assert len(inside) == 1
+    # Its handle has no pointer-events of its own, so the group's "none" holds.
+    assert not [e for e in inside[0].iter() if e.get("pointer-events") not in (None, "none")]
+    # On the chosen floor it is where it always was: under that floor's markers.
     chosen = out["chosen"]
     assert chosen.index('data-role="doorcircle"') < chosen.index('<g class="lhex" data-eid="light.up"')
+    assert not [e for g in _ghosts(ET.fromstring(chosen)) for e in g.iter() if e.get("data-role") == "doorcircle"]
 
 
 def test_alarms_and_the_locate_ring_stay_over_the_fade(tmp_path) -> None:
@@ -187,6 +190,16 @@ def test_alarms_and_the_locate_ring_stay_over_the_fade(tmp_path) -> None:
     assert start < a.index('class="lflood" data-eid="binary_sensor.leak_up"') < a.index('<g class="lhex" data-eid="light.up"', start)
 
 
+def test_an_open_window_ring_stays_over_the_fade(tmp_path) -> None:
+    alerts = {"alertOpenings": {"binary_sensor.door_up": "left_open"}}
+    out = _draw(tmp_path, {"faded": [0, {**_OPTS, **alerts}], "chosen": [1, {**_OPTS, **alerts}]})
+    root = ET.fromstring(out["faded"])
+    rings = [e for e in root if e.get("class") == "lalert" and e.get("data-eid") == "binary_sensor.door_up"]
+    assert len(rings) == 1 and rings[0].get("pointer-events") == "none"
+    assert not [e for g in _ghosts(root) for e in g.iter() if e.get("class") == "lalert"]
+    assert out["chosen"].count('class="lalert" data-eid="binary_sensor.door_up"') == 1
+
+
 def test_an_underlay_is_not_faded_twice(tmp_path) -> None:
     under = {"underlay": [{"floor_id": "up", "pts": [[1, 1], [2, 2]], "opacity": 0.6, "color": "#abcdef"}]}
     out = _draw(tmp_path, {"main": [0, {**_OPTS, **under}]})
@@ -205,26 +218,27 @@ def test_live_tracker_does_not_draw_with_this_renderer() -> None:
         assert all("buildIsoSVG" not in i for i in imported), name
 
 
-def test_a_chosen_floor_off_screen_comes_into_view_at_100_percent() -> None:
-    src = (_VIEWS / "lights_map.js").read_text(encoding="utf-8").replace("\r\n", "\n")
-    i = src.index("const switchTo = (idx) => {")
-    body = src[i:src.index("\n      };\n", i)]
-    assert body.index("rebuildISO();") < body.index("chosenIntoView(idx);")
-    i = src.index("function chosenIntoView(idx) {")
-    helper = src[i:src.index("\n  }\n", i)]
-    assert "if (!scr || !idx || view.zoom > 1) return;" in helper
-    assert "mid < 0 || mid > window.innerHeight" in helper
-    assert "plates.every(off)" in helper and ".scrollIntoView(" in helper
-
-
-def test_only_reading_the_saved_view_asks_for_the_scroll() -> None:
-    src = (_WWW / "lights_panel.js").read_text(encoding="utf-8").replace("\r\n", "\n")
-    i = src.index("if(applyView){")
-    assert "this._view.scrollToChosen = true;" in src[i:src.index("\n      }\n", i)]
-    assert src.count("scrollToChosen = true") == 1
-    # A kept card (the poll's update) returns before this; a new one asks once.
+def test_choosing_a_floor_leaves_the_page_where_it_is() -> None:
     lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert "if (view.scrollToChosen && sortedLevels.length) {\n    view.scrollToChosen = false;" in lm
+    i = lm.index("const switchTo = (idx) => {")
+    assert "scrollIntoView" not in lm[i:lm.index("\n      };\n", i)]
+    panel = (_WWW / "lights_panel.js").read_text(encoding="utf-8")
+    for src in (lm, panel):
+        assert "chosenIntoView" not in src and "scrollToChosen" not in src
+
+
+def test_a_saved_floor_waits_for_floors_and_one_gone_means_all() -> None:
+    # Run in the panel by tests/js/lights_panel_lifecycle.mjs; Mapping's card
+    # takes the same line.
+    lm = (_VIEWS / "lights_map.js").read_text(encoding="utf-8")
+    assert "if (sortedLevels.length && isoPos[view.focusIdx] === undefined) view.focusIdx = 0;" in lm
+
+
+def test_mapping_opened_before_the_settings_takes_the_saved_view_when_they_come() -> None:
+    src = (_VIEWS / "maps.js").read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert "if (!mapState._lightsView || (mapState._lightsViewEarly && settingsIn)) mapState._lightsView = {" in src
+    assert "focusIdx: ctx.state.settings?.overview_iso_focus ?? 0," in src
+    assert "mapState._lightsViewEarly = !settingsIn;\n  const view = mapState._lightsView;" in src
 
 
 def _place(tmp_path: Path, script: str) -> dict:
@@ -247,11 +261,14 @@ const MODEL = {json.dumps({
     "floors": _FLOORS,
     "room_geometry_m": {"Kitchen": _rect("main", 0, 0, 6, 4), "Loft": _rect("up", 0, 0, 6, 4)},
     "light_positions_m": {"light.placed": {"x_m": 2, "y_m": 2, "floor_id": "up"}},
+    "rf_barriers_m": [{"id": "w1", "floor_id": "up", "points_m": [[0, 0], [6, 0]]}],
 })};
 const frame = IL.fabricFrame(MODEL, MODEL.floors, 150, 0);
 const [LOW, HIGH] = frame.levels;
 const NS = "http://www.w3.org/2000/svg";
-const LBE = {{ "light.loose": {{ entity_id: "light.loose", code: "L1" }}, "light.placed": {{ entity_id: "light.placed", code: "P1" }} }};
+const LBE = {{ "light.loose": {{ entity_id: "light.loose", code: "L1" }}, "light.placed": {{ entity_id: "light.placed", code: "P1" }},
+  "light.roomed": {{ entity_id: "light.roomed", code: "R1", area_name: "Loft" }} }};
+const toasts = [];
 function stage(chosen) {{
   const isoDiv = document.createElement("div"), svg = document.createElementNS(NS, "svg");
   isoDiv.appendChild(svg);
@@ -279,7 +296,7 @@ function stage(chosen) {{
 }}
 function wire(chosen, queue, dropped) {{
   const s = stage(chosen);
-  const ctx = {{ state: {{ model: MODEL }}, hass: {{}}, toast: () => {{}}, helpers: {{}}, actions: {{ renderRooms: () => {{}} }} }};
+  const ctx = {{ state: {{ model: MODEL }}, hass: {{}}, toast: (m) => toasts.push(m), helpers: {{}}, actions: {{ renderRooms: () => {{}} }} }};
   const o = {{ mapState: {{ _placeQueue: queue }}, view: {{ floorGap: 150, horizGap: 0 }}, lightsByEid: LBE, model: MODEL,
     onDropPlace: (x, y, z) => dropped.push([x, y, z]), toggle: () => {{}} }};
   M._wireLightsBuild(ctx, s.isoDiv, o);
@@ -290,6 +307,17 @@ function place(chosen, eid, x, y) {{
   s.svg.dispatchEvent({{ type: "click", target: s.svg, clientX: x, clientY: y }});
   const d = (s.o.mapState._lightsDraftM || {{}})[eid];
   return {{ floor: d ? d.floor_id : null, left: s.o.mapState._placeQueue.length }};
+}}
+function placeSaying(chosen, eid, x, y) {{
+  toasts.length = 0;
+  return {{ ...place(chosen, eid, x, y), said: toasts.slice() }};
+}}
+function circle(chosen, x, y) {{
+  toasts.length = 0;
+  const s = wire(chosen, [], []);
+  s.o.mapState._doorCircleEid = "binary_sensor.door";
+  s.svg.dispatchEvent({{ type: "click", target: s.svg, clientX: x, clientY: y }});
+  return {{ floor: s.o.mapState._doorCircleM ? s.o.mapState._doorCircleM.floorId : null, said: toasts.slice() }};
 }}
 function pin(chosen, x, y) {{
   const dropped = [], s = wire(chosen, [], dropped);
@@ -323,6 +351,41 @@ out.lower_faded = place(HIGH, "light.loose", 50, 250);
     assert out["upper_chosen"] == {"floor": "up", "left": 0}
     for ignored in ("loose_on_faded", "loose_off_plates", "placed_on_faded_own_floor", "placed_off_plates", "lower_faded"):
         assert out[ignored] == {"floor": None, "left": 1}, ignored
+
+
+def test_a_queued_light_of_another_floor_is_refused_and_stays_queued(tmp_path) -> None:
+    out = _place(tmp_path, """
+out.stored = placeSaying(LOW, "light.placed", 50, 250);
+out.roomed = placeSaying(LOW, "light.roomed", 50, 250);
+out.stored_own = placeSaying(HIGH, "light.placed", 50, 50);
+out.roomed_own = placeSaying(HIGH, "light.roomed", 50, 50);
+out.loose = placeSaying(LOW, "light.loose", 50, 250);
+out.silent = placeSaying(LOW, "light.placed", 50, 50);
+out.all = placeSaying(null, "light.placed", 50, 250);
+""")
+    assert out["stored"] == {"floor": None, "left": 1, "said": ["P1 belongs on Up. Choose that floor first."]}
+    assert out["roomed"] == {"floor": None, "left": 1, "said": ["R1 belongs on Up. Choose that floor first."]}
+    for own in ("stored_own", "roomed_own"):
+        assert out[own]["floor"] == "up" and out[own]["left"] == 0, own
+    # No floor of its own: the plate tapped is its floor.
+    assert out["loose"]["floor"] == "main" and out["loose"]["left"] == 0
+    # A faded plate still ignores the tap, without a word.
+    assert out["silent"] == {"floor": None, "left": 1, "said": []}
+    # All floors: placed as ever.
+    assert out["all"]["floor"] == "up" and out["all"]["left"] == 0 and "belongs" not in out["all"]["said"][0]
+
+
+def test_a_door_circle_whose_wall_is_on_a_faded_floor_says_to_choose_it(tmp_path) -> None:
+    out = _place(tmp_path, """
+out.faded = circle(LOW, 50, 250);
+out.chosen = circle(HIGH, 50, 50);
+out.all = circle(null, 50, 50);
+""")
+    assert out["faded"]["floor"] == "up"
+    assert out["faded"]["said"] == ["The nearest wall is on Up. Choose that floor to drag the circle, then Save opening above."]
+    for name in ("chosen", "all"):
+        assert out[name]["floor"] == "up"
+        assert out[name]["said"] == ["Drag the circle to position it, drag its edge to resize, then Save opening above."], name
 
 
 def test_with_all_a_queued_light_lands_as_it_always_did(tmp_path) -> None:

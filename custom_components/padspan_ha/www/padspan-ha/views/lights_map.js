@@ -3450,7 +3450,10 @@ export function buildLightsMapCard(hostIn){
     // (live check 2026-09-24).
     return zArr.map(z => floorNameAtLevel(_frame, host.model, floors, z) || `L${z}`).join(" + ");
   };
-  view.focusIdx = Math.max(0, Math.min(view.focusIdx, isoPos.length - 1));
+  // No floors yet (the first card is drawn before the model is read): nothing to
+  // check a saved floor against, and it has to last until there is. A floor no
+  // longer there (past the end of the list) means All.
+  if (sortedLevels.length && isoPos[view.focusIdx] === undefined) view.focusIdx = 0;
   // A wall that cycles through its floors (lights_panel.js _wallCycle):
   // All and each floor on its own, not the pairs between them.
   if (host.wall) view.wallStops = isoPos.map((p, i) => (Array.isArray(p) ? -1 : i)).filter(i => i >= 0);
@@ -4670,7 +4673,6 @@ export function buildLightsMapCard(hostIn){
         resetFocusCtl(view.focusIdx);
         rebuildISO();
         if (cam) { isoDiv.scrollLeft = cam.sl; isoDiv.scrollTop = cam.st; }
-        chosenIntoView(idx);
         for (const b of bar.querySelectorAll("button")) if (b._floorIdx !== undefined) b.classList.toggle("on", b._floorIdx === idx);
       };
       const mk = (label, idx, act) => {
@@ -4818,18 +4820,6 @@ export function buildLightsMapCard(hostIn){
   };
   const legend = legendOf(host, h3);
   if (legend.node) { legend.node.classList.add("lv-shapes"); mapCard.appendChild(legend.node); }   // a wall leaves it out (styles.css)
-  // At 100% a tall house runs below the fold, and with the other floors faded a
-  // chosen floor off screen would leave only backdrop to look at. Zoomed in, the
-  // camera is what you left, so it stays. The sidebar only: Mapping's map sits
-  // under its tools, and they should stay in reach. A saved view can be a pair
-  // of floors (the slider): one of them on screen is enough.
-  function chosenIntoView(idx) {
-    if (!scr || !idx || view.zoom > 1) return;
-    const plates = [].concat(isoPos[idx])
-      .map(z => isoDiv.querySelector(`g[data-role="floorslab"][data-z="${z}"] [data-role="slabtop"]`)).filter(Boolean);
-    const off = (p) => { const r = p.getBoundingClientRect(), mid = r.top + r.height / 2; return mid < 0 || mid > window.innerHeight; };
-    if (plates.length && plates.every(off)) plates[0].scrollIntoView({ block: "center", inline: "nearest" });
-  }
   rebuildISO();
   // Kept (host.keepCard, see _cardSig): what this card is built from, besides
   // the devices, and the next tick's way in. A card built from the same takes
@@ -4897,14 +4887,6 @@ export function buildLightsMapCard(hostIn){
       if (view.scrollLeft !== undefined) isoDiv.scrollLeft = view.scrollLeft;
       if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
     });
-  }
-  // The view just read from the settings (lights_panel.js _loadSettings): its
-  // floor comes into view once, on the first card that has floors to draw, and
-  // later polls leave the page where you scrolled it. A microtask, as above: the
-  // card has to be on screen to be measured.
-  if (view.scrollToChosen && sortedLevels.length) {
-    view.scrollToChosen = false;
-    queueMicrotask(() => chosenIntoView(view.focusIdx));
   }
   return mapCard;
 }
