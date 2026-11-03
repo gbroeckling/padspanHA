@@ -26,7 +26,7 @@ every rotating address treated as someone's device and the name and payload
 hidden, so devices of one maker and kind had only the moment and the place to tell
 them apart. Identity came from what the rule never reads (an iBeacon id, a payload
 that stayed the same, an AirPlay target's IP). One receiver: 2 right, 13 wrong. Two
-or more, within MAX_DB: 227 right, 1 doubtful (one spot, two IPs, likely one Mac).
+or more, within MAX_DB: 225 right, 1 doubtful (one spot, two IPs, likely one Mac).
 MAX_DB under 5 lost right ones and over 5 added only coincidences; GAP_S over 90
 turned right ones ambiguous and under 90 lost them. Very few devices there both
 rotate and send a name (a TV: 2 of 2 right), so this is one house's evidence.
