@@ -163,7 +163,7 @@ EVENTS: frozenset[str] = frozenset({
     "light_placed", "light_removed", "wall_placed", "wall_removed",
     "room_committed", "irk_added", "irk_add_refused", "irk_validate",
     "calibration_point_added", "capture_started", "forensics_query",
-    "showcase_on", "backup_created", "backup_restored", "factory_reset",
+    "showcase_on", "showcase_forest_default", "backup_created", "backup_restored", "factory_reset",
     "bright_import",
     # A floor-plan image asked for with a link that no longer works (expired,
     # or signed before a restart): the panel renews its links every 10

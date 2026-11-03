@@ -13,6 +13,7 @@ Skipped inside a Bright tree: a Bright tree does not derive a Bright tree.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -190,10 +191,12 @@ def test_bright_publish_waits_for_validation_before_release():
     assert push_head < wait < push_tag < release
 
 
+@pytest.mark.skipif(not os.environ.get("PADSPAN_BRIGHT_SUITE"), reason="runs in a stable's Bright pass (release.py); set PADSPAN_BRIGHT_SUITE to run it here")
 def test_the_generated_suite_passes(tree):
     """The proof that the rename produced a working integration: the renamed
-    suite, run inside the generated tree, is green. Slow (a second suite) and
-    worth every second — nothing else watches the Bright edition."""
+    suite, run inside the generated tree, is green. A second whole suite, so only
+    on asking: a stable's Bright pass runs the same suite before Bright is built
+    (Garry, 2026-11-03); betas never ship Bright."""
     res = bb.run_suite(tree)
     tail = "\n".join((res.stdout or "").strip().splitlines()[-15:])
     assert res.returncode == 0, f"Bright suite failed:\n{tail}\n{(res.stderr or '')[-2000:]}"

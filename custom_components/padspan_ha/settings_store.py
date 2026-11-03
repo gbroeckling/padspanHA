@@ -152,6 +152,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "door_opener_ids": [],  # cover./switch./button. entity_ids marked "this is a door/window opener" (Devices -> Door Openers); Bright+ control, tier-blind storage
     "door_composites": [],  # receipt for Devices -> Door Openers' "build from relays" wizard: [{id, kind, name, entity_id, relays, generated:{scripts,automations,helper_id,template_entry_id}}] — every HA object the wizard created for one composite, so Remove can delete exactly those and nothing else; Bright+ control, tier-blind storage
     "lights_showcase": False,  # Mapping -> Lights: presentation rendering of the same map
+    "lights_showcase_seen": False,  # Showcase has been on here: a forested home's first look (ws_settings._forested_home) is only ever the first
     "lights_fit_rooms": False,  # Mapping -> Lights Showcase: never draw a fixture larger than its room
     "lights_isolux": False,  # Mapping -> Lights Showcase: relative-illuminance contours on the metre grid
     "lights_hide_untouched": False,  # Mapping -> Lights: draw only fixtures that have been sized/rotated/coloured/shaped

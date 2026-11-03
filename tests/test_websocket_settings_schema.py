@@ -27,6 +27,7 @@ def _schema_keys() -> set[str]:
 # Settings the frontend never sends over settings_set: they are written by
 # backend code paths (their own websocket commands or internal bookkeeping).
 _BACKEND_ONLY = {
+    "lights_showcase_seen",  # stamped when Showcase is switched (a forested home's first look), never sent
     "forensics_license_key",       # padspan_ha/forensics_license_activate
     "forensics_license_expires",   # ditto — derived at activation
     "license_is_trial",            # padspan_ha/trial_start — same reason, never user-settable

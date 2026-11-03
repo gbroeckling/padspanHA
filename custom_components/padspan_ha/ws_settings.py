@@ -102,6 +102,25 @@ def _sanitize_light_shapes(raw: Any) -> dict[str, str]:
     }
 
 
+# West Coast Forest as the first look where a home stands among forests (Garry,
+# 2026-11-03): only the first time Showcase goes on, never over a look someone has.
+_FOREST_COUNTRIES = frozenset({"DE", "AT", "CH", "SE", "FI", "NO", "EE", "LV", "SI"})
+
+
+def _forested_home(cfg: Any) -> bool:
+    """Germany and other heavily forested countries, or the Pacific Northwest's coast
+    (coastal BC, Washington, Oregon, far northern California). Read from Home
+    Assistant's own config: nothing leaves the house."""
+    country = getattr(cfg, "country", None)
+    if isinstance(country, str) and country.strip().upper() in _FOREST_COUNTRIES:
+        return True
+    try:
+        lat, lon = float(cfg.latitude), float(cfg.longitude)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return 40.0 <= lat <= 60.0 and -135.0 <= lon <= -120.5
+
+
 def _normalize_showcase_theme(value: Any) -> str:
     """The Showcase-theme equivalent of _normalize_automorph_style above —
     same reasoning, same shared use by the live setter and the preset
@@ -1009,9 +1028,16 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             )
         if "lights_showcase" in msg:
             payload["lights_showcase"] = bool(msg["lights_showcase"])
-            if payload["lights_showcase"] and not st.data.get("lights_showcase"):
+            was_on = bool(st.data.get("lights_showcase"))
+            if payload["lights_showcase"] and not was_on:
                 from .telemetry import bump as _bump  # noqa: PLC0415
                 _bump(hass, "showcase_on")
+                if (not st.data.get("lights_showcase_seen") and "lights_showcase_theme" not in msg
+                        and st.data.get("lights_showcase_theme", "classic") == "classic" and _forested_home(hass.config)):
+                    payload["lights_showcase_theme"] = "west_coast_forest"
+                    _bump(hass, "showcase_forest_default")
+            if payload["lights_showcase"] or was_on:   # it has been used: from now on the look is theirs
+                payload["lights_showcase_seen"] = True
         if "lights_hide_untouched" in msg:
             payload["lights_hide_untouched"] = bool(msg["lights_hide_untouched"])
         if "lights_hide_device_codes" in msg:
