@@ -33,6 +33,11 @@ export function helpNote() {
     : t("This help is translated, but the rest of the panel is still in English, so the names of its tabs, buttons and settings appear here in English, in quotes.");
 }
 
+/** Training's own note under it: not all of Training is translated yet. */
+export function trainingNote() {
+  return currentLanguage() === "en" ? "" : t("Some of this training is still in English: the walkthroughs and parts of the Quick Start and the Full Manual.");
+}
+
 export function helpTexts() { return {
 
   // ── Follow ──────────────────────────────────────────────────────────────────
@@ -250,7 +255,7 @@ export function helpTexts() { return {
     body: [
       t("Settings is in the menu in every mode. In Advanced and Development mode it has seven tabs: Appearance, Scanner Map, Tracking, Features, AI, Atlas and UI Structure. The small \"?\" beside each tab's name gives a short summary of it."),
       t("In Basic mode there are no tabs. Settings shows the Appearance settings, and the buttons \"Usage report →\" and \"Guest tags →\", which each open just that one card."),
-      t("Appearance — room colours, Panel Style (Classic or 2025), Theme (Night, Graphite, Ocean, Dusk, High contrast, Light (inverted) or Day, with \"Follow the sun\") and 2D Map Mode. Advanced and Development mode also list your floors. Floors and rooms come from Home Assistant: add or rename them in HA Settings → Areas & Zones."),
+      t("Appearance — room colours, Panel Style (Classic or 2025), Theme (Night, Graphite, Ocean, Dusk, High contrast, Light (inverted) or Day, with \"Follow the sun\") and 2D Map Mode. The sidebar Atlas page stays dark with every theme, Light (inverted) included. Advanced and Development mode also list your floors. Floors and rooms come from Home Assistant: add or rename them in HA Settings → Areas & Zones."),
       t("Scanner Map — where PadSpan estimates each Bluetooth scanner sits on your floor plans, worked out from your calibration points. It also has Replace Scanner (move calibration readings to a new scanner when you swap hardware), Relearn Radio (shift a scanner's readings after an antenna change) and a Clear button for each map, which deletes that map's calibration points."),
       t("Tracking — how PadSpan decides which room a device is in and when it is away, in eight sections. See \"Tracking Settings\"."),
       t("Features — the PadSpan licence card, the experimental switches and the Forensics card."),
@@ -405,7 +410,7 @@ export function helpTexts() { return {
       t("Placing or dragging a beacon starts a 60-second capture: leave the beacon where it is until the timer ends, and the readings are saved as a calibration point."),
       t("A beacon you place is pinned as a fixed beacon: PadSpan shows it in its pinned room instead of working the room out from signals. A device PadSpan knows moves is never pinned: a phone with its IRK, a Find My tag (such as an AirTag) it has followed across an address change, or anything you follow. That one gets the single 60-second capture, then goes back to live tracking. Follow a tag that moves before placing it."),
       t("\"Auto-Cal: ON/OFF\" (on unless you turn it off): while a pinned beacon sits still, PadSpan adds a fresh calibration point from it, at most once every 10 minutes per beacon and only when at least two receivers hear it well. Each beacon keeps at most 50 of these points; past that the oldest are removed. They are labelled [auto] on the Model tab. Adaptive Learning (Settings → Tracking → Positioning and calibration) adds them too, even with Auto-Cal off."),
-      t("Moving a beacon: drag it to its new spot (or use \"Relocate\"), and another 60-second capture follows. If you move the same beacon three times within about 6 minutes, PadSpan asks about a \"hard relocation\". OK DELETES that beacon's earlier Beacon Tune points and its [auto] points, once the new one has saved; this can't be undone. Points you collected by carrying the same device (Pin & Listen, Roam, Walk a room) are kept, and so are Beacon Tune points saved by an older version of PadSpan, which didn't mark them. Cancel keeps the old points and adds the new one. Choose OK only if the old spots were wrong."),
+      t("Moving a beacon: drag it to its new spot (or use \"Relocate\"), and another 60-second capture follows. If you move the same beacon three times within about 6 minutes, PadSpan asks about a \"hard relocation\". OK DELETES that beacon's earlier Beacon Tune points and its [auto] points, once the new one has saved; this can't be undone. Points you collected by carrying the same device (Pin & Listen, Roam, Walk a room) are kept, and so are Beacon Tune points saved by an older version of PadSpan, which didn't mark them. Calibration Guide points stay too, except those saved by 0.38.209 to 0.38.216, which count as Beacon Tune points. If the beacon keeps showing at its old spot, delete the points that stayed by hand on the Model tab. Cancel keeps the old points and adds the new one. Choose OK only if the old spots were wrong."),
       t("The small ? beside a beacon's position opens \"Position Percentages\": what its x% and y% mean (how far across and down the floor plan image it sits) and how signal strength is read."),
     ],
   },
@@ -543,7 +548,7 @@ export function helpTexts() { return {
   atlas_page: {
     title: t("The Atlas — everyday control"),
     body: [
-      t("The Atlas is the map you use day to day: every floor, with your lights, strips, fans, sensors, locks, doors and windows where they really are. It has its own entry in Home Assistant's sidebar, on by default (Settings → Atlas → Show the Atlas in the Home Assistant sidebar; a change needs a restart of Home Assistant). Administrators get ✎ Edit map (not in Basic mode), which opens Mapping → Atlas, where the map is built."),
+      t("The Atlas is the map you use day to day: every floor, with your lights, strips, fans, sensors, locks, doors and windows where they really are. It has its own entry in Home Assistant's sidebar, on by default (Settings → Atlas → Show the Atlas in the Home Assistant sidebar; a change needs a restart of Home Assistant). Administrators get ✎ Edit map (not in Basic mode), which opens Mapping → Atlas, where the map is built. The sidebar page stays dark with every theme in Settings. Light (inverted) doesn't change it either, so it won't help here if you can't use a dark screen."),
       t("Tap a light to switch it. Tap its code, or press and hold, for brightness, colour, effects and fan speed; hold a dimmable light and slide up or down to dim it. Tap a room's name for everything in the room. Motion, temperature and air-quality tiles only show what's happening; tap a motion tile for its last 7 days."),
       t("Above the map, the device chips (All, Lights, Strips, Fans, Motion, Temps and so on) bring one kind to the front, and the floor chips show one floor, with a dot for what's on up there. ◎ Find active jumps to whatever is on or tripped. Below the map, the light index lists every device, placed or not; click Code, Light, Room or State to sort it."),
       t("Two taps on a room's empty floor zoom to that room. ⛶ at the bottom right fills the screen. Zoom in far enough and the bars step aside for the map; ☰ brings them back."),

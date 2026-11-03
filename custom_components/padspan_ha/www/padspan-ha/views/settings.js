@@ -324,7 +324,9 @@ function _settingsAppearance(ctx, el, helpBtn, draft, haFloors, haAreas, roomCol
         "anyone who can't use a dark screen; photos and map images are turned back so they still " +
         "look normal. Day is the panel redrawn in light colours. Every one keeps the green accent " +
         "and the colours that mean something (alarms, warnings, tracking), and maps, charts, the 3D " +
-        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser."),
+        "house and Live Tracker keep their night colours. It takes effect immediately, in every browser. " +
+        "The sidebar Atlas page is the exception: it stays dark with every theme, and Light doesn't change " +
+        "it either, so Light won't help there if you can't use a dark screen."),
       el("div",{class:"row",style:"flex-wrap:wrap"},[ mkTheme("night","Night"), mkTheme("graphite","Graphite"), mkTheme("ocean","Ocean"),
         mkTheme("dusk","Dusk"), mkTheme("contrast","High contrast"), mkTheme("light","Light (inverted)"), mkTheme("day","Day") ].filter(Boolean)),
       ...(proOk || hideLocked ? [] : [el("div",{class:"muted",style:"font-size:12px;margin-top:8px"},
@@ -973,7 +975,7 @@ function _settingsPresence(ctx, el){
       style: "width:220px;background:#0a150e;color:#e2e8f0;border:1px solid #2d5a3d;border-radius:6px;padding:4px 8px;font-size:13px",
     });
     for (const [v, label] of [["auto", "Follow Home Assistant areas"],
-                              ["manual", "Standalone — the fabric is the truth"]]) {
+                              ["manual", "Standalone — use the saved layout"]]) {
       const o = el("option", { value: v }, label);
       if (cur === v) o.selected = true;
       sel.appendChild(o);
@@ -982,7 +984,7 @@ function _settingsPresence(ctx, el){
       try {
         await ctx.actions.callWS({ type: "padspan_ha/fabric_sync_mode_set", mode: sel.value });
         ctx.toast(sel.value === "manual"
-          ? "Standalone — rooms and scanners come from the fabric only"
+          ? "Standalone — rooms and scanners come from the saved layout only"
           : "Following Home Assistant areas");
         await ctx.actions.modelRefresh();
       } catch(e) { ctx.toast("Failed to save", true); }
@@ -2421,7 +2423,7 @@ function _settingsPresence(ctx, el){
       "floor plane. PadSpan deducts the vertical offset between each scanner's mounted height and the " +
       "device's assumed carry height above the floor. 1.0 m suits a pocketed phone or a wrist; " +
       "lower it for floor-level tags (robot vacuum, pet collar). " +
-      "Scanner heights come from the fabric (default: the map's ceiling height); floor stacking from " +
+      "Scanner heights come from the saved layout (default: the map's ceiling height); floor stacking from " +
       "the per-floor heights."
     ),
     el("div", { style: rowStyle }, [
@@ -2475,10 +2477,10 @@ function _settingsPresence(ctx, el){
   put("integrations", el("div", { class: "card" }, [
     el("div", { class: "h2" }, "GPS Bridge"),
     el("div", { class: "muted", style: "font-size:12px;margin-bottom:14px" },
-      "Anchor the fabric to a real-world location so tracked objects' device_tracker entities report a " +
+      "Anchor the saved layout to a real-world location so tracked objects' device_tracker entities report a " +
       "real latitude/longitude and plot on Home Assistant's built-in map — in addition to, not instead " +
       "of, their room-name state. Leave latitude/longitude blank to disable (no GPS is reported, never a " +
-      "guess at (0, 0)). Bearing is the compass direction, clockwise from true north, that the fabric's " +
+      "guess at (0, 0)). Bearing is the compass direction, clockwise from true north, that the layout's " +
       "own +Y axis points toward. +Y runs down your floorplan as it is drawn, so a plan drawn north-up " +
       "is 180."
     ),

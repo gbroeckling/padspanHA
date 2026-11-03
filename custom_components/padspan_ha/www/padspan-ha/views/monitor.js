@@ -84,7 +84,7 @@ export function render(ctx){
   // DIAGNOSTICS TAB (default)
   // ═══════════════════════════════════════════════════════════════════════════
   const _quietMode = !!(ctx.state.settings && ctx.state.settings.quiet_mode);
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── BLE Diag Errors (top-level warning) ──
   const bleDiag = snap && snap.ble && snap.ble.diag;
@@ -259,7 +259,7 @@ export function render(ctx){
   grid.appendChild(el("div",{class:"card"},[
     el("div",{style:"font-weight:700;margin-bottom:8px"},"Session Info"),
     el("div",{style:"display:flex;flex-direction:column;gap:4px;font-size:12px"},[
-      el("div",{}, [el("span",{class:"muted"},"Data mode: "), el("span",{style:"font-weight:600"}, ctx.state.dataMode.toUpperCase())]),
+      el("div",{}, [el("span",{class:"muted"},"Data mode: "), el("span",{style:"font-weight:600"}, ctx.state._dataModeKnown ? ctx.state.dataMode.toUpperCase() : "…")]),
       el("div",{}, [el("span",{class:"muted"},"Panel uptime: "), el("span",{style:"font-weight:600"}, `${uptimeMin}m ${uptimeSec}s`)]),
       el("div",{}, [el("span",{class:"muted"},"Events logged: "), el("span",{style:"font-weight:600"}, String((ctx.state._sessionEvents||[]).length))]),
     ]),
@@ -326,7 +326,7 @@ function _zones(ctx, el){
   const floorRooms = {};
   let hasFloors = false;
   if(floors.length > 0 && areas.length > 0){
-    for(const f of floors) floorRooms[f.floor_id] = { name: f.name || f.floor_id, rooms: [] };
+    for(const f of floors) floorRooms[f.id] = { name: f.name || f.id, rooms: [] };
     floorRooms["_none"] = { name: "Unassigned", rooms: [] };
     for(const a of areas){
       const fid = a.floor_id || "_none";
@@ -430,7 +430,7 @@ function _insights(ctx, el, _sid){
   const roomTagMap = ctx.state.roomTagMap || {};
   const maps = (ctx.state.maps && ctx.state.maps.list) || [];
 
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── Room Occupancy bar chart ──
   const roomCounts = {};
@@ -762,7 +762,7 @@ function _diagExport(ctx, el){
     selectAll(); ctx.toast("Copy blocked by browser. Press Ctrl/Cmd+C.", true);
   });
 
-  const wrap = el("div",{class:"grid"});
+  const wrap = el("div",{class:"grid grid-wide"});
   const diagCard = el("div",{class:"card"});
   diagCard.appendChild(el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"},[
     el("div",{},[

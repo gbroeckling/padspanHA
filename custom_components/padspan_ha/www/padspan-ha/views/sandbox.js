@@ -26,7 +26,7 @@ export function render(ctx){
   root.appendChild(el("div",{class:"muted",style:"font-size:12px;margin-bottom:16px;line-height:1.5"},
     "Experimental data playground — explore live data, check experimental feature status, and poke around under the hood. Nothing here changes your config."));
 
-  const grid = el("div",{class:"grid"});
+  const grid = el("div",{class:"grid grid-wide"});
 
   // ── Experimental Features Hub ──────────────────────────────────────────────
   const expCard = el("div",{class:"card",style:"border-color:#f59e0b"});
@@ -110,7 +110,7 @@ export function render(ctx){
   const inspectorCard = el("div",{class:"card"});
   inspectorCard.appendChild(el("div",{style:"font-weight:700;margin-bottom:8px"},"State Inspector"));
   inspectorCard.appendChild(el("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px"},[
-    el("div",{}, [el("span",{class:"muted"},"Mode: "), el("span",{style:"font-weight:600"}, ctx.state.dataMode.toUpperCase())]),
+    el("div",{}, [el("span",{class:"muted"},"Mode: "), el("span",{style:"font-weight:600"}, ctx.state._dataModeKnown ? ctx.state.dataMode.toUpperCase() : "…")]),
     el("div",{}, [el("span",{class:"muted"},"Session: "), el("span",{style:"font-weight:600"}, `${uptimeMin}m`)]),
     el("div",{}, [el("span",{class:"muted"},"Objects: "), el("span",{style:"font-weight:600"}, String(objects.length))]),
     el("div",{}, [el("span",{class:"muted"},"Radios: "), el("span",{style:"font-weight:600"}, String(radios.length))]),
@@ -207,25 +207,18 @@ export function render(ctx){
       document.head.appendChild(st);
     }
 
-    // Tower layout: horizontal scroll, each floor is a fixed-width column
+    // Tower layout: the floors share the card's width; horizontal scroll past that
     const towerWrap = el("div",{style:"display:flex;gap:10px;align-items:flex-end;min-height:160px;padding-top:24px;overflow-x:auto;padding-bottom:4px"});
-
-    // Calculate column width: fill available space, but guarantee room for text.
-    // Budget is sized to the card's typical rendered width (.grid columns are
-    // minmax(220px,1fr), minus card padding) rather than the card's max width,
-    // so low floor-counts don't get an oversized column and overflow.
-    const floorCount = floorOrder.length || 1;
-    const colWidth = Math.max(120, Math.floor(200 / floorCount));
 
     for(const fo of floorOrder){
       const floorRooms = floorMap.get(fo.id) || [];
       // Sort: rooms with devices first (desc), then alphabetical
       floorRooms.sort((a,b) => (b.count - a.count) || a.room.localeCompare(b.room));
 
-      const col = el("div",{style:`width:${colWidth}px;min-width:${colWidth}px;display:flex;flex-direction:column;align-items:stretch`});
+      const col = el("div",{style:"flex:1 1 76px;min-width:76px;max-width:200px;display:flex;flex-direction:column;align-items:stretch"});
 
       // Floor label
-      col.appendChild(el("div",{style:`font-size:10px;font-weight:800;color:#e2e8f0;text-align:center;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:${colWidth}px`}, fo.label));
+      col.appendChild(el("div",{style:`font-size:10px;font-weight:800;color:#e2e8f0;text-align:center;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap`}, fo.label));
 
       // Tower body
       const tower = el("div",{style:"border-radius:6px;overflow:hidden;border:1px solid #1e3a2a;background:#0a1a0f"});

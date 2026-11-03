@@ -4673,6 +4673,7 @@ export function buildLightsMapCard(hostIn){
         resetFocusCtl(view.focusIdx);
         rebuildISO();
         if (cam) { isoDiv.scrollLeft = cam.sl; isoDiv.scrollTop = cam.st; }
+        chosenIntoView(idx);
         for (const b of bar.querySelectorAll("button")) if (b._floorIdx !== undefined) b.classList.toggle("on", b._floorIdx === idx);
       };
       const mk = (label, idx, act) => {
@@ -4820,6 +4821,18 @@ export function buildLightsMapCard(hostIn){
   };
   const legend = legendOf(host, h3);
   if (legend.node) { legend.node.classList.add("lv-shapes"); mapCard.appendChild(legend.node); }   // a wall leaves it out (styles.css)
+  // At 100% a tall house runs below the fold, and with the other floors faded a
+  // chosen floor off screen would leave only backdrop to look at. Zoomed in, the
+  // camera is what you left, so it stays. The sidebar only: Mapping's map sits
+  // under its tools, and they should stay in reach. A saved view can be a pair
+  // of floors (the slider): one of them on screen is enough.
+  function chosenIntoView(idx) {
+    if (!scr || !idx || view.zoom > 1) return;
+    const plates = [].concat(isoPos[idx])
+      .map(z => isoDiv.querySelector(`g[data-role="floorslab"][data-z="${z}"] [data-role="slabtop"]`)).filter(Boolean);
+    const off = (p) => { const r = p.getBoundingClientRect(), mid = r.top + r.height / 2; return mid < 0 || mid > window.innerHeight; };
+    if (plates.length && plates.every(off)) plates[0].scrollIntoView({ block: "center", inline: "nearest" });
+  }
   rebuildISO();
   // Kept (host.keepCard, see _cardSig): what this card is built from, besides
   // the devices, and the next tick's way in. A card built from the same takes
@@ -4887,6 +4900,14 @@ export function buildLightsMapCard(hostIn){
       if (view.scrollLeft !== undefined) isoDiv.scrollLeft = view.scrollLeft;
       if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
     });
+  }
+  // The view just read from the settings (lights_panel.js _loadSettings): its
+  // floor comes into view once, on the first card that has floors to draw, and
+  // later polls leave the page where you scrolled it. A microtask, as above: the
+  // card has to be on screen to be measured.
+  if (view.scrollToChosen && sortedLevels.length) {
+    view.scrollToChosen = false;
+    queueMicrotask(() => chosenIntoView(view.focusIdx));
   }
   return mapCard;
 }

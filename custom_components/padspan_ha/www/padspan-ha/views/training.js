@@ -752,7 +752,7 @@ function _svgPrivateBle() {
 <rect x="220" y="30" width="160" height="120" rx="8" fill="#0a150e" stroke="#60a5fa" stroke-width="2"/>
 <text x="300" y="50" text-anchor="middle" fill="#60a5fa" font-size="10" font-weight="600" font-family="system-ui">With IRK</text>
 <rect x="250" y="60" width="100" height="24" rx="6" fill="#1a2744" stroke="#60a5fa" stroke-width="1"/>
-<text x="300" y="76" text-anchor="middle" fill="#60a5fa" font-size="10" font-family="system-ui">Garry's iPhone</text>
+<text x="300" y="76" text-anchor="middle" fill="#60a5fa" font-size="10" font-family="system-ui">Alice's iPhone</text>
 <text x="300" y="100" text-anchor="middle" fill="#4ade80" font-size="9" font-family="system-ui">1 stable identity</text>
 <text x="300" y="130" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">Blue badge in all views</text>
 <text x="200" y="175" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">Settings → Tracking → Phone Tracking (Private BLE)</text>
@@ -2075,8 +2075,8 @@ export function render(ctx) {
   for (const [id, label, icon] of [["walkthroughs","Walkthroughs","📡"],["quickstart","Quick Start","🗒️"],["manual","Full Manual","📖"]]) {
     const active = ts.tab === id;
     const btn = el("button", {
-      class: "btn" + (active ? "" : " inline"),
-      style: active ? "border-color:#52b788;font-weight:600" : "",
+      class: "btn inline" + (active ? " on" : ""),
+      style: active ? "border-color:#52b788" : "",
       onclick: () => { ts.tab = id; ctx.actions.renderRooms(); },
     }, icon + "  " + label);
     tabBar.appendChild(btn);
@@ -2104,6 +2104,7 @@ function _renderWalkthroughs(ctx, el, ts) {
     // ── Walkthrough selector grid ────────────────────────────────────────────
     wrap.appendChild(el("div", { class: "muted", style: "font-size:13px;margin-bottom:14px" },
       "Choose a topic to get started. Each walkthrough is step-by-step with animated diagrams."));
+    _helpNote(ctx, el, wrap);
     const grid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px" });
     for (const wt of WALKTHROUGHS) {
       const card = el("div", {
@@ -2286,7 +2287,7 @@ const QUICKSTART_SECTIONS = [
 // A translated help is read here inside English section names and intros:
 // the same note the help modal opens with, once at the top. English: nothing.
 function _helpNote(ctx, el, wrap) {
-  const note = ctx.helpers.helpNote ? ctx.helpers.helpNote() : "";
+  const note = [ctx.helpers.helpNote, ctx.helpers.trainingNote].map(f => (f ? f() : "")).filter(Boolean).join(" ");
   if (note) wrap.appendChild(el("div", { style: "font-size:13px;margin-bottom:12px;color:#94a3b8;font-style:italic;line-height:1.6" }, note));
 }
 

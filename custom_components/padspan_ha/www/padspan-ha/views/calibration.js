@@ -6,6 +6,18 @@ import { estimateDistanceM, formatDistanceM } from "./path_loss.js";
 import { buildCalibrationMatrix, errorColor } from "./calibration_matrix.js";
 import { attachPanZoom } from "./pan_zoom.js";
 
+// A tall plan fits the window instead of filling the card. Only the box's size
+// changes: its shape stays the plan's, and a point is a fraction of the plan's
+// on-screen box, so where a point is, or lands, does not depend on this.
+// Never under 360 px wide (or the card's width), so a tap stays precise on a
+// short window, such as a phone on its side, or with a very long plan: the page
+// scrolls instead.
+// border: the box's own border in px (its content is what has the plan's shape).
+function _fitPlanToWindow(box, vbH, border) {
+  box.style.width = `min(100% - ${border * 2}px, max(max(100vh - 140px, 320px) * ${100 / vbH}, 360px))`;
+  box.style.marginInline = "auto";
+}
+
 // PadSpan HA — BLE Fingerprint Calibration
 // Phone-based signal collection for precise indoor location modelling.
 //
@@ -985,7 +997,7 @@ function _setup(ctx, el, cs, calData) {
   const durRow = el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" });
   for (const d of [15, 30, 60, 90]) {
     const btn = el("button", {
-      class: "btn" + (cs.duration === d ? "" : " inline"),
+      class: "btn inline" + (cs.duration === d ? " on" : ""),
       style: "min-width:60px",
       onclick: () => { cs.duration = d; ctx.actions.renderRooms(); },
     }, `${d}s`);
@@ -1137,6 +1149,7 @@ function _pinAndListen(ctx, el, cs, calData) {
   // overflow:hidden. Tying mapWrap's own box to the SAME aspect ratio the
   // SVG's own viewBox already uses gives it real height with no measurement.
   mapWrap.style.aspectRatio = `100 / ${vbH}`;
+  _fitPlanToWindow(mapWrap, vbH, 2);
 
   // Existing calibration points as dots
   let dotsSvg = mapPts.map(p => {
@@ -1615,6 +1628,7 @@ function _roam(ctx, el, cs, calData) {
   // propagates up through position:absolute, so mapWrap needs its own
   // aspect-ratio tie or it collapses to ~0px under overflow:hidden.
   mapWrap.style.aspectRatio = `100 / ${vbH}`;
+  _fitPlanToWindow(mapWrap, vbH, 2);
   mapInner.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}"
       preserveAspectRatio="none" style="width:100%;display:block">
     <image href="${imgUrl}" x="0" y="0" width="100" height="${vbH}" preserveAspectRatio="none"/>
@@ -1969,6 +1983,7 @@ function _modelTab(ctx, el, cs, calData) {
         const confSvg = _confusionLinksSvg(mapLoo?.room_confusion, mapData, vbH);
 
         const miniDiv = el("div", { style: "border-radius:6px;overflow:hidden;border:1px solid #1b3526;margin-bottom:6px" });
+        _fitPlanToWindow(miniDiv, vbH, 1);
         miniDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 ${vbH}" preserveAspectRatio="none" style="width:100%;display:block">
           <image href="${imgUrl}" x="0" y="0" width="100" height="${vbH}" preserveAspectRatio="none"/>
           ${gSvg}${confSvg}${dotsSvg}
@@ -5451,7 +5466,9 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           const confirmPurge = confirm(
             `This is the 3rd consecutive calibration for "${entry.bk.label || bkKey}" within a few minutes.\n\n` +
             `OK deletes this beacon's earlier Beacon Tune points (and its automatic [auto] points) and keeps the new readings. ` +
-            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) are kept.\n\n` +
+            `Points you collected by carrying it (Pin & Listen, Roam, Walk a room) and Calibration Guide points are kept, ` +
+            `except Guide points saved by 0.38.209 to 0.38.216, which count as Beacon Tune points. ` +
+            `If it keeps showing at the old spot, delete the kept points by hand on the Model tab.\n\n` +
             `Choose OK to replace them (hard relocation).\n` +
             `Choose Cancel to keep them and just add this as another data point.`
           );
@@ -6696,7 +6713,6 @@ function _beaconTuneTab(ctx, el, cs, calData) {
           room: room,
           device_id: deviceId,
           label: bkLabel,
-          source: "beacon_tune",
           scanner_readings: scannerReadings,
           weight: weight,
         });

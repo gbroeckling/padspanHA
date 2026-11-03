@@ -168,6 +168,16 @@ def test_the_hidden_button_hides_only_while_idle(result) -> None:
     assert e["backWhenReEnabled"] == 1, e
 
 
+def test_a_refreshs_scroll_request_goes_with_its_model_read(result) -> None:
+    """Review 2026-11-02: a Refresh whose model read failed made no new card, so
+    the request to bring the saved floor into view stayed armed, and the next
+    new card (a drawer opened, a poll later) moved the page."""
+    a = result["savedAsk"]
+    assert a["usedByNewCard"] is True, a
+    assert a["leftAfterGoodRead"] is False, a
+    assert a["leftAfterFailedRead"] is False, a
+
+
 def test_a_failed_settings_fetch_keeps_the_hidden_button_hidden(result) -> None:
     assert result["emerg3"]["keptOnFailedFetch"] is True, result["emerg3"]
 

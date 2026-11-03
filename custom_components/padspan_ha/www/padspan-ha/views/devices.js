@@ -30,7 +30,7 @@ export function render(ctx) {
   for (const t of TABS) {
     const active = ctx.state._devicesTab === t.id;
     const btn = el("button", {
-      class: "btn" + (active ? "" : " inline"),
+      class: "btn inline" + (active ? " on" : ""),
       style: `font-size:12px;padding:4px 14px;border-radius:8px 8px 0 0;${active ? "border-bottom:2px solid #52b788" : ""}`,
     }, t.label);
     btn.addEventListener("click", () => {
@@ -212,7 +212,7 @@ function _renderAll(ctx) {
 
   // ── Controls ──────────────────────────────────────────────────────────────
   const filterBtn = (value, label, count) => el("button", {
-    class: "btn" + (filter === value ? "" : " inline"),
+    class: "btn inline" + (filter === value ? " on" : ""),
     style: "font-size:11px;padding:3px 10px",
     onclick: () => { ctx.state.devFilter = value; ctx.actions.renderRooms(); },
   }, `${label} (${count})`);
@@ -472,7 +472,7 @@ async function _loadRegistryAsync(ctx, el, container) {
       const lblInput = document.createElement("input");
       lblInput.type = "text"; lblInput.value = d.label || "";
       lblInput.placeholder = "unlabeled";
-      lblInput.style.cssText = "background:transparent;border:1px solid #2d4a38;border-radius:4px;padding:2px 6px;color:#e2e8f0;font-size:12px;font-weight:600;width:140px";
+      lblInput.style.cssText = "background:transparent;border:1px solid #2d4a38;border-radius:4px;padding:2px 6px;color:#e2e8f0;font-size:12px;font-weight:600;width:140px;box-sizing:content-box";
       lblInput.addEventListener("keydown", async (e) => {
         if (e.key !== "Enter") return;
         const newLabel = lblInput.value.trim();
@@ -1077,7 +1077,7 @@ function _renderRelayWizard(ctx) {
   const card = el("div", { class: "card" });
   card.appendChild(el("div", { style: "font-weight:700;font-size:14px;color:#52b788;margin-bottom:8px" }, "Build an Opener, Lock, or Light from Relays"));
   card.appendChild(el("div", { style: "font-size:11px;color:#94a3b8;margin-bottom:12px" },
-    "For a door, window, or light with no ready-made entity — just a bare relay (a ProDino channel, a Pakedge PoE port, anything switch./light.*). Builds the same kind of script, automation, and template entity Garry's own garage doors, Bedroom1 window, and PoE-switched lights already use, then offers the result the same way any other opener, lock, or light is offered."));
+    "For a door, window, or light with no ready-made entity — just a bare relay (a ProDino channel, a Pakedge PoE port, anything switch./light.*). Builds the script, automation, and template entity it needs, then offers the result the same way any other opener, lock, or light is offered."));
 
   const composites = (ctx.state.settings && ctx.state.settings.door_composites) || [];
   if (composites.length) {

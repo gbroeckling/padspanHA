@@ -291,4 +291,50 @@ tryCase("wiring: a hold the poll cut short leaves no timer, ring or dimming", ()
     { pending: pending.length, ring: !!ring, timers: timerQueue.slice(t0, t0 + 2).map(t => !!t), opacity: g.style.opacity });
 });
 
+// ── one floor chosen: the others fade (iso_lights.js, data-role="floorghost") ──
+tryCase("fade: a light on a faded floor patched, still faded, always the full rebuild's markup", () => {
+  const view = newView();
+  view.focusIdx = 1;                                 // [All, main, main + upper, upper]: main alone
+  const a = card(view);
+  const ghost = a.parts.filter(n => n._leaf.startsWith('<g data-role="floorghost" data-z="1"'));
+  const was = ghost[0] ? ghost[0]._leaf : "";
+  const kept = a.parts.find(n => n._leaf.startsWith('<g class="lroom"'));
+  const b = card(view, { states: flip("light.office") });
+  const ghost2 = b.parts.filter(n => n._leaf.startsWith('<g data-role="floorghost" data-z="1"'));
+  check("fade: a light on a faded floor patched, still faded, always the full rebuild's markup",
+    ghost.length === 1 && b.svg === a.svg && ghost2.length === 1 && ghost2[0]._leaf !== was && b.parts.includes(kept)
+    && markupOf(b.svg) === fullMarkup(view, { states: flip("light.office") }), { ghosts: ghost.length, same: b.svg === a.svg });
+});
+tryCase("fade: another floor and back, nothing left over", () => {
+  const view = newView();
+  const all = card(view);
+  const allMarkup = markupOf(all.svg);
+  view.focusIdx = 1;
+  const one = card(view);
+  const faded = markupOf(one.svg).includes('data-role="floorghost"');
+  view.focusIdx = 3;
+  const other = card(view);
+  const swapped = markupOf(other.svg) === fullMarkup(view);
+  view.focusIdx = 0;
+  const back = card(view);
+  const backAgain = card(view);
+  check("fade: another floor and back, nothing left over",
+    faded && swapped && back.svg !== other.svg && markupOf(back.svg) === allMarkup && !markupOf(back.svg).includes("floorghost")
+    && backAgain.svg === back.svg && markupOf(backAgain.svg) === allMarkup, { faded, swapped });
+});
+tryCase("fade: the people layer still lands at the top of the drawing, outside the fade", () => {
+  const view = newView();
+  view.focusIdx = 1;
+  const a = card(view);
+  // atlas_aboard.js place(): just under the next floor's plate.
+  const slab = a.parts.find(n => n._leaf.startsWith('<g data-role="floorslab" data-z="1"'));
+  const live = document.createElementNS(SVG_NS, "g");
+  live.setAttribute("data-live", "");
+  a.svg.insertBefore(live, slab);
+  const b = card(view, { states: flip("light.office") });
+  const kids = b.svg.childNodes, i = kids.indexOf(live);
+  check("fade: the people layer still lands at the top of the drawing, outside the fade",
+    !!slab && b.svg === a.svg && i >= 0 && /^<g data-role="floorslab" data-z="1"/.test((kids[i + 1] && kids[i + 1]._leaf) || ""), i);
+});
+
 console.log(JSON.stringify({ cases, failures }));

@@ -119,6 +119,7 @@ for (const [btn, part, mustNot] of [
   check(`settings: ${btn} draws the bar and the one card; no tabs, sections or other cards`,
     focusedOnly(root, part) && tabsOf(root).length === 0 && attrs(root, "data-presence-section").length === 0
     && mustNot.every(w => !body.includes(w)), { kids: (root.children || []).length, found: mustNot.filter(w => body.includes(w)), body: body.slice(0, 300) });
+  check(`settings: ${btn} says its title once`, body.split(f.title).length - 1 === 1 && text(root.children[1]).startsWith(f.title), body.slice(0, 120));
   click(attr(root, "data-focus-back"));
   const again = SET.render(ctx);
   check(`settings: ${btn} ← Back returns to Appearance, still Basic`,
@@ -208,6 +209,7 @@ async function editFocus(partKey, extra, setup) {
   check("edit: no Mapping tabs, map or floor switch, Trim, Rotate, Signal walls, Enclose, Suggest Placement or All rooms",
     tabsOf(root).length === 0 && !/Map:|Floor:|Trim Image|Rotate Image|Signal walls|Enclose|Suggest Placement/.test(body)
     && !attr(root, "data-all-rooms") && focusedOnly(root, "rooms"), body.slice(0, 400));
+  check("edit: no layout printed as text under the one tool", !/Room bounds:|Receivers:/.test(body), body.slice(-300));
   check("edit: the bar says which room and goes back to Rooms", /Outline: Kitchen/.test(text(attr(root, "data-focus-bar"))) && !!attr(root, "data-focus-back", "rooms"), null);
   click(attr(root, "data-focus-back", "rooms"));
   check("edit: ← Back returns to the Rooms page, still Basic", ctx.state.view === "rooms" && !ctx.state._focus && ctx.state.complexity === "basic" && noSwitch(calls), ctx.state.view);

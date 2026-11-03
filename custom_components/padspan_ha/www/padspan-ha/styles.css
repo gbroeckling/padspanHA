@@ -13,10 +13,14 @@
 .nav button:hover{border-color:var(--accent);background:linear-gradient(180deg,#1e3d2a,#112918)}
 .main{padding:16px 16px 80px;overflow-y:auto}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+/* Cards with tables or bars in them: at 220 px they clip. A few cards share the row. */
+.grid-wide{grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr))}
 .card{background:#0f1a12;border:1px solid var(--line);border-radius:12px;padding:12px}
 .kpi{font-size:24px;font-weight:700;margin-top:4px}
 .mono{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#0c1a0e;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto}
 textarea.mono{color:var(--text)}
+textarea.mono,input[type="text"]{box-sizing:border-box}
+#health .mono{background:none;border:none;border-radius:0;padding:0}
 .hidden{display:none}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 /* Flood alarm latches, sidebar (panel.js #emergencyBanner) — always visible
@@ -107,6 +111,8 @@ textarea.mono{color:var(--text)}
 
 .marker{position:absolute;transform:translate(-50%,-50%);min-width:28px;height:28px;padding:0 4px;border-radius:999px;border:2px solid #52b788;background:#0d1f12;color:#dce7ff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;letter-spacing:.03em;cursor:grab;user-select:none;white-space:nowrap}
 .marker:active{cursor:grabbing}
+/* A name on a map stage (maps.js _stageLabelStyle): the stage's box, a fixed size. */
+.maplabel{position:absolute;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 6px;border:1px solid #52b788;border-radius:6px;background:rgba(7,16,8,.78);color:#e2e8f0;font-size:11.5px;line-height:1.35;font-weight:600;pointer-events:none;user-select:none}
 
 /* Sidebar scroll polish */
 .left::-webkit-scrollbar{width:10px}
@@ -114,8 +120,8 @@ textarea.mono{color:var(--text)}
 
 
 /* --- v0.4.0 additions --- */
-.toast{position:sticky;top:0;z-index:50;margin:0 0 10px 0;padding:10px 12px;border-radius:12px;background:rgba(82,183,136,.12);border:1px solid rgba(82,183,136,.35);color:var(--text)}
-.toast.error{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.35)}
+.toast{position:sticky;top:0;z-index:50;margin:0 0 10px 0;padding:10px 12px;border-radius:12px;background:linear-gradient(rgba(82,183,136,.12),rgba(82,183,136,.12)),var(--bg);border:1px solid rgba(82,183,136,.35);color:var(--text)}
+.toast.error{background:linear-gradient(rgba(245,158,11,.10),rgba(245,158,11,.10)),var(--bg);border-color:rgba(245,158,11,.35)}
 .toast.hidden{display:none}
 .stale-build{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px 0;padding:8px 12px;border-radius:12px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);color:var(--text);font-size:13px}
 .stale-build.hidden{display:none}
@@ -191,6 +197,7 @@ textarea.mono{color:var(--text)}
 @media (max-width:900px){.grid-2{grid-template-columns:1fr}}
 
 .input,.select{
+  box-sizing:border-box;
   width:100%;
   padding:8px 10px;
   border:1px solid rgba(255,255,255,0.18);
@@ -200,6 +207,8 @@ textarea.mono{color:var(--text)}
   outline:none;
 }
 .input::placeholder{color:rgba(255,255,255,0.55)}
+select.input{margin-top:0}
+input.input[type="email"]{min-height:37px}
 
 /* --- Bluetooth + Devices UI upgrades (v0.4.10) --- */
 .tabs{display:flex;gap:8px;margin:10px 0 12px 0}
@@ -709,7 +718,7 @@ textarea.mono{color:var(--text)}
   /* Cards full-width, no wrapping issues */
   .card{word-break:break-word}
   .card .btn{word-break:normal;overflow-wrap:break-word;max-width:100%}
-  .grid{grid-template-columns:1fr}
+  .grid{grid-template-columns:minmax(0,1fr)}
   .grid-2{grid-template-columns:minmax(0,1fr)}
   .presence-scanners{columns:3 240px}
   .controls input[type="text"]{min-width:unset;width:100%}
@@ -717,6 +726,7 @@ textarea.mono{color:var(--text)}
   /* Row wrapping on narrow screens */
   .row{flex-wrap:wrap}
   .bt-adv-right{flex-wrap:wrap}
+  .bt-kpis{flex-wrap:wrap}
 
   /* Modal full-screen on phone */
   .modal .overlay{padding:0;align-items:flex-end}
@@ -739,6 +749,8 @@ textarea.mono{color:var(--text)}
   .controls input[type="text"]{min-width:unset;width:100%}
   .toolbar{flex-wrap:wrap;gap:6px}
   .toolbar select{min-width:0;flex:1 1 120px;max-width:100%}
+  .maprow{flex-wrap:wrap}
+  .maprow > :last-child{flex:1 0 100%}
   .h2{font-size:15px}
 }
 
@@ -1039,7 +1051,7 @@ textarea.mono{color:var(--text)}
 }
 #bluetooth .bt-controls .input,#bluetooth .bt-controls .select{
   background:var(--bt-surface);border-color:var(--bt-line);border-radius:9px;
-  padding:7px 10px;font-size:12px;
+  padding:7px 10px;font-size:12px;margin-top:0;min-height:34px;
 }
 #bluetooth .bt-controls .input:focus,#bluetooth .bt-controls .select:focus{
   border-color:rgba(82,183,136,.65);
@@ -1168,7 +1180,7 @@ textarea.mono{color:var(--text)}
    wins on source order (this rule comes later in the file). */
 input.lv-preset-name{background:rgba(15,26,18,.85);color:#e2e8f0;
   border:1px solid rgba(196,181,253,.3);border-radius:8px;padding:2px 8px;
-  font-size:11px;width:150px}
+  font-size:11px;width:150px;box-sizing:content-box}
 input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 .lv-sep{width:1px;align-self:stretch;margin:2px 3px;
   background:linear-gradient(180deg,transparent,rgba(120,190,155,.26),transparent)}
@@ -1381,6 +1393,7 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
   background:linear-gradient(180deg,#101d14 0%,#0d1811 100%);
   box-shadow:0 10px 24px -8px rgba(0,0,0,.6);transition:max-height .16s ease}
 .lv-drawer.open{max-height:220px;overflow-y:auto;border-bottom:1px solid rgba(120,190,155,.18)}
+@media(max-width:900px){.lv-drawer.open{max-height:min(70vh,100%)}}
 .lv-drawer .lv-toolbar,.lv-drawer .lv-presetbar{margin:0;border:none;background:none;border-radius:0}
 
 /* ── Emergency lighting test (the Atlas sidebar; lights_panel.js) ─────────

@@ -37,11 +37,11 @@ export function render(ctx){
     ctx.helpers.helpBtn("health"),
   ]));
 
-  root.appendChild(el("div",{class:"grid"},[
+  root.appendChild(el("div",{class:"grid grid-wide"},[
     el("div",{class:"card"},[
       el("div",{style:"font-weight:700"},"System"),
       el("div",{class:"mono"}, `UI v${ctx.state.version} • build ${ctx.state.buildId}`),
-      el("div",{class:"mono"}, `Data mode: ${ctx.state.dataMode.toUpperCase()}`),
+      el("div",{class:"mono"}, `Data mode: ${ctx.state._dataModeKnown ? ctx.state.dataMode.toUpperCase() : "…"}`),
       el("div",{class:"mono"}, `Refresh: ${ctx.state.timing.lastRefreshMs ?? "\u2014"}ms`),
     ]),
     el("div",{class:"card"},[
@@ -149,6 +149,13 @@ export function render(ctx){
 // The rules are the backend's (bright_import.py): back up first, refuse a
 // non-empty house, never merge, reload after. This card only says what the
 // backend will do and shows what it said.
+
+// A floor as people know it: Home Assistant's name, not the id behind it.
+function _floorLabel(ctx, fid) {
+  if (fid === "__outside__") return "Outside";
+  const f = (ctx.state.model?.floors || []).find(x => String(x.id) === String(fid));
+  return f ? (f.name || f.id) : fid;
+}
 
 async function _fetchAndRenderBrightImport(ctx, container) {
   const { el } = ctx.helpers;
@@ -258,7 +265,7 @@ function _renderFabric(ctx, container, data) {
     for (const [fid, f] of Object.entries(_fabricFloors).sort()) {
       const _cl = f.clusters;
       const _clBad = typeof _cl === "number" && _cl > 1;
-      _ffTbl.appendChild(el("div",{style:"color:#e2e8f0;font-weight:600"},fid));
+      _ffTbl.appendChild(el("div",{style:"color:#e2e8f0;font-weight:600"},_floorLabel(ctx, fid)));
       _ffTbl.appendChild(el("div",{class:"mono",style:"text-align:right"},String(f.rooms ?? 0)));
       _ffTbl.appendChild(el("div",{class:"mono",style:"color:#94a3b8"},
         f.bbox_w_m != null ? `${f.bbox_w_m}m × ${f.bbox_h_m}m` : "—"));
@@ -327,7 +334,7 @@ function _renderFabric(ctx, container, data) {
       tbl.appendChild(el("div",{class:"mono",style:"text-align:right"},p.x_m != null ? p.x_m.toFixed(2) : "\u2014"));
       tbl.appendChild(el("div",{class:"mono",style:"text-align:right"},p.y_m != null ? p.y_m.toFixed(2) : "\u2014"));
       tbl.appendChild(el("div",{class:"mono",style:"text-align:right"},p.z_m != null ? p.z_m.toFixed(1) : "\u2014"));
-      tbl.appendChild(el("div",{class:"mono",style:"color:#64748b"},p.floor_id));
+      tbl.appendChild(el("div",{class:"mono",style:"color:#64748b"},_floorLabel(ctx, p.floor_id)));
       tbl.appendChild(el("div",{style:`color:${p.origin==="manual"?"#f59e0b":"#52b788"}`},p.origin));
     }
     card.appendChild(tbl);
@@ -348,7 +355,7 @@ function _renderFabric(ctx, container, data) {
       tbl.appendChild(el("div",{style:"color:#e2e8f0;font-weight:600"},g.room));
       tbl.appendChild(el("div",{class:"mono"},g.type));
       tbl.appendChild(el("div",{class:"mono",style:"color:#94a3b8"},cStr));
-      tbl.appendChild(el("div",{class:"mono",style:"color:#64748b"},g.floor_id));
+      tbl.appendChild(el("div",{class:"mono",style:"color:#64748b"},_floorLabel(ctx, g.floor_id)));
       tbl.appendChild(el("div",{style:`color:${g.origin==="manual"?"#f59e0b":"#52b788"}`},g.origin));
     }
     card.appendChild(tbl);
@@ -385,7 +392,7 @@ function _renderFabric(ctx, container, data) {
       const typeColor = s.source_type === "manual" ? "#f59e0b" : "#52b788";
       tbl.appendChild(el("div",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e8f0"},s.source));
       tbl.appendChild(el("div",{style:"color:#94a3b8"},s.room));
-      tbl.appendChild(el("div",{class:"mono",style:"color:#64748b"},s.floor_id));
+      tbl.appendChild(el("div",{class:"mono",style:"color:#64748b"},_floorLabel(ctx, s.floor_id)));
       tbl.appendChild(el("div",{style:`color:${typeColor};font-weight:600`},s.source_type));
     }
     card.appendChild(tbl);
@@ -485,7 +492,7 @@ function _renderFabric(ctx, container, data) {
       tbl.appendChild(el("div",{class:"mono",style:"text-align:center"},String(m.has_receivers)));
       tbl.appendChild(el("div",{class:"mono",style:"text-align:center"},String(m.has_room_bounds)));
       tbl.appendChild(el("div",{class:"mono",style:"text-align:center"},String(m.has_rf_barriers)));
-      tbl.appendChild(el("div",{class:"mono",style:"color:#64748b"},m.floor_id));
+      tbl.appendChild(el("div",{class:"mono",style:"color:#64748b"},_floorLabel(ctx, m.floor_id)));
     }
     card.appendChild(tbl);
     container.appendChild(card);
@@ -567,7 +574,7 @@ function _renderRadioAudit(ctx, container, data) {
       _row("ESPHome", d.is_esphome ? `Yes (${(d.esphome_names||[]).join(", ")||"?"})` : "No",
         d.is_esphome ? "#52b788" : "#64748b");
       _row("HA Area", d.ha_area || "(none)", d.ha_area ? "#e2e8f0" : "#f87171");
-      _row("HA Floor", d.ha_floor || "(none)", d.ha_floor ? "#e2e8f0" : "#f87171");
+      _row("HA Floor", d.ha_floor ? _floorLabel(ctx, d.ha_floor) : "(none)", d.ha_floor ? "#e2e8f0" : "#f87171");
 
       // MACs
       if (d.macs && d.macs.length) {
@@ -592,14 +599,14 @@ function _renderRadioAudit(ctx, container, data) {
     const f = r.fabric;
     if (f) {
       rCard.appendChild(el("div",{style:"font-size:10px;color:#64748b;margin-top:2px"},
-        `Layout: ${f.room} (${f.floor_id}) [${f.source_type}]`));
+        `Layout: ${f.room} (${_floorLabel(ctx, f.floor_id)}) [${f.source_type}]`));
     }
 
     // Position
     const p = r.position_m;
     if (p) {
       rCard.appendChild(el("div",{style:"font-size:10px;color:#64748b"},
-        `Position: (${p.x_m?.toFixed(1)}, ${p.y_m?.toFixed(1)}, z=${p.z_m?.toFixed(1)}) [${p.floor_id}]`));
+        `Position: (${p.x_m?.toFixed(1)}, ${p.y_m?.toFixed(1)}, z=${p.z_m?.toFixed(1)}) [${_floorLabel(ctx, p.floor_id)}]`));
     }
 
     // Mismatches
@@ -676,7 +683,6 @@ function _renderCritics(ctx, container, data) {
     style:`border:1px solid ${bannerColor}33;background:${bannerBg};margin-bottom:12px`
   },[
     el("div",{style:`display:flex;align-items:center;gap:8px`},[
-      el("div",{style:`font-weight:800;font-size:15px;color:${bannerColor}`},"Problems found"),
       el("div",{class:"pill",style:`background:${bannerColor}22;color:${bannerColor};font-size:10px;padding:2px 8px`},
         summary.healthy ? "HEALTHY" : `${summary.total} ISSUE${summary.total !== 1 ? "S" : ""}`
       ),
@@ -835,9 +841,9 @@ function _renderCapture(ctx, container) {
   // gauge, which a click-on-image picker would depend on. Left blank, the
   // mark behaves exactly as before (room label only).
   const markX = el("input", {class:"input", type:"number", step:"0.1", placeholder:"x (m)",
-    style:"width:64px;padding:3px 6px;font-size:11px"});
+    style:"width:64px;box-sizing:content-box;padding:3px 6px;font-size:11px"});
   const markY = el("input", {class:"input", type:"number", step:"0.1", placeholder:"y (m)",
-    style:"width:64px;padding:3px 6px;font-size:11px"});
+    style:"width:64px;box-sizing:content-box;padding:3px 6px;font-size:11px"});
   row.appendChild(recBtn); row.appendChild(markSel); row.appendChild(markX); row.appendChild(markY);
   row.appendChild(markBtn);
 
@@ -1011,11 +1017,11 @@ async function _renderReplayPanel(ctx, panel, sessionId) {
 
   const abRow = el("div", {style:"display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap"});
   const qIn = el("input", {class:"input", type:"number", step:"0.01", placeholder:"kalman_q",
-    style:"width:80px;padding:2px 6px;font-size:10px"});
+    style:"width:80px;box-sizing:content-box;padding:2px 6px;font-size:10px"});
   const rIn = el("input", {class:"input", type:"number", step:"0.5", placeholder:"kalman_r",
-    style:"width:80px;padding:2px 6px;font-size:10px"});
+    style:"width:80px;box-sizing:content-box;padding:2px 6px;font-size:10px"});
   const dIn = el("input", {class:"input", type:"number", step:"1", placeholder:"room_change_delay_s",
-    style:"width:120px;padding:2px 6px;font-size:10px"});
+    style:"width:120px;box-sizing:content-box;padding:2px 6px;font-size:10px"});
   const abBtn = el("button", {class:"btn", style:"width:auto;padding:2px 10px;font-size:10px"}, "Run A/B");
   abRow.appendChild(qIn); abRow.appendChild(rIn); abRow.appendChild(dIn); abRow.appendChild(abBtn);
   panel.appendChild(abRow);

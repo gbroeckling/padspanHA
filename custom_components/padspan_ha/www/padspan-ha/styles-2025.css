@@ -340,10 +340,10 @@ svg text, svg tspan { letter-spacing: normal; }
 .muted{color:var(--ps-tx2)}
 .toast{
   border-radius:var(--ps-r2);
-  background:var(--ps-ac-bg);
+  background:linear-gradient(var(--ps-ac-bg),var(--ps-ac-bg)),var(--bg);
   border:1px solid var(--ps-ac-ln);
 }
-.toast.error{background:rgba(242,104,92,.11);border-color:rgba(242,104,92,.45)}
+.toast.error{background:linear-gradient(rgba(242,104,92,.11),rgba(242,104,92,.11)),var(--bg);border-color:rgba(242,104,92,.45)}
 
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media(max-width:1100px){

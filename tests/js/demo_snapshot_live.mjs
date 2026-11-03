@@ -77,7 +77,7 @@ const REQUIRED = ["_wsCount", "_logEvent", "_callWS", "_fetchSettings", "_loadSe
 // runs (and fails) against the pre-fix panel.js.
 const OPTIONAL = ["_applyDataMode", "_dataModeLabel", "_retryDataMode", "_onDataModeClick", "_paintDataModeLabel",
   // Sample mode's gate in front of Home Assistant (panel.js _sampleCall).
-  "_sampleGateOn", "_sampleBlocked", "_sampleCall", "_viewHass", "_syncSampleHass", "_dropHouseCaches",
+  "_sampleGateOn", "_modeUnknown", "_modeAnswered", "_sampleBlocked", "_sampleCall", "_viewHass", "_syncSampleHass", "_dropHouseCaches",
   "_keepLiveFollow", "_restoreLiveFollow"];
 const bodies = [];
 for (const n of REQUIRED) {

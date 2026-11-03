@@ -412,12 +412,12 @@ export function render(ctx) {
 
       const irkInputRow = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap" });
       const irkNameInput = el("input", {
-        class: "input", type: "text", placeholder: "Device name \u2014 e.g. Garry's Pixel",
-        style: "width:190px",
+        class: "input", type: "text", placeholder: "Device name — e.g. Alice's Pixel",
+        style: "width:190px;box-sizing:content-box",
       });
       const irkValueInput = el("input", {
         class: "input", type: "text", placeholder: "IRK (hex or base64)",
-        style: "width:270px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
+        style: "width:270px;box-sizing:content-box;font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
       });
       const irkAddBtn = el("button", { class: "btn inline" }, "Add");
       const irkMsg = el("div", { style: "font-size:12px;margin-top:5px;min-height:16px;width:100%" });
@@ -2472,7 +2472,7 @@ function renderIrkPanel(ctx, snap) {
     "Capturing an IRK from a phone or watch needs the ESPHome IRK Capture tool \u2014 github.com/DerekSeaman/irk-capture"));
 
   const nameInp = el("input", {
-    class: "input", type: "text", placeholder: "Device name \u2014 e.g. Garry's Pixel",
+    class: "input", type: "text", placeholder: "Device name \u2014 e.g. Alice's Pixel",
     style: "width:100%;box-sizing:border-box",
   });
   const irkInp = el("input", {

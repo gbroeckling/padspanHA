@@ -38,11 +38,11 @@ const run = (tab, helpers) => T.render({
   actions: { renderRooms() {} },
 });
 
-for (const tab of ["manual", "quickstart"]) {
+for (const tab of ["manual", "quickstart", "walkthroughs"]) {
   const shown = texts(run(tab, { helpNote: () => NOTE })).filter(s => s === NOTE).length;
   check(`${tab}_note_once`, shown === 1, shown);
   check(`${tab}_english_unchanged`, tree(run(tab, { helpNote: () => "" })) === tree(run(tab, {})));
 }
-check("walkthroughs_no_note", !texts(run("walkthroughs", { helpNote: () => NOTE })).includes(NOTE));
+check("training_note_follows_it", texts(run("manual", { helpNote: () => NOTE, trainingNote: () => "T" })).includes(NOTE + " T"));
 
 console.log(JSON.stringify({ cases, failures }));
