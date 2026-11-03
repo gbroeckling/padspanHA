@@ -592,7 +592,7 @@ export function createEditor(ctx){
       if (draft === sent) draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
       if (fur) fur.refresh();
       if (strip) strip.refresh();
-      hint(kept ? kept.said : "Saved.");
+      hint(kept ? kept.said : notKept ? "Saved, but the items from the plans weren't kept: their session is gone, or the Plans tool is off here." : "Saved.", !kept && notKept);
       if (plans) plans.afterSave();                // each correction's target and each plan checked again
     } catch (err) {
       // Refused: the draft stays, to be saved again; what went wrong said plainly.

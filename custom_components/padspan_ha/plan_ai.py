@@ -1129,7 +1129,7 @@ def check_session(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any],
     a plan whose picture or placement changed since the read marks its
     suggestions still open stale; a correction whose target is gone or differs
     from its snapshot is stale too, and a railing hint whose stair was kept and
-    is no longer there. `house` None (the 3D file couldn't be read): the
+    is no longer there, and a duplicate of a stair that is gone. `house` None (the 3D file couldn't be read): the
     targets aren't judged. Returns whether anything changed."""
     was_moved = {pl["map_id"] for pl in sess.get("plans") or [] if pl.get("changed")}
     moved = plans_moved(hass, sess)
@@ -1137,11 +1137,13 @@ def check_session(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any],
     stairs = {st["id"]: st for st in stair_pieces(house)}
     sugs = sess.get("suggestions") or {}
     for sug in sugs.values():
-        if not isinstance(sug, dict) or sug.get("state") not in ("queued", "later"):
+        if not isinstance(sug, dict) or sug.get("state") not in ("queued", "later", "duplicate"):
             continue
         stale = sug.get("map_id") in moved
         match = sug.get("match") or {}
-        if not stale and house is not None and match.get("target") and (match.get("relation") in ("correction", "stacked") or sug.get("kind") == "railing"):
+        if sug.get("state") == "duplicate":          # "already in your house", until that stair is gone
+            stale = house is not None and bool(match.get("target")) and match["target"] not in stairs
+        elif not stale and house is not None and match.get("target") and (match.get("relation") in ("correction", "stacked") or sug.get("kind") == "railing"):
             tgt = stairs.get(match["target"])
             stale = tgt is None or target_snap(tgt) != match.get("target_snap")
         elif not stale and house is not None and sug.get("kind") == "railing":
@@ -1156,14 +1158,11 @@ def check_session(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any],
     return changed
 
 
-def puts_back(batches: dict[str, Any], b: dict[str, Any]) -> bool:
+def puts_back(b: dict[str, Any]) -> bool:
     """Would undoing this batch put items back? Yes for an undo; no for what it
-    undid, or for an undo of an undo, which kept them again."""
-    n = 0
-    while isinstance(b, dict) and b.get("undo_of"):
-        n += 1
-        b = batches.get(b["undo_of"])
-    return n % 2 == 1
+    undid, or for an undo of an undo, which kept them again. plan_ai_write.undo
+    writes it on the batch it makes."""
+    return bool(b.get("puts_back"))
 
 
 def items_in(entries: Any) -> int:
@@ -1177,7 +1176,7 @@ def batch_summary(batches: dict[str, Any], batch_id: str) -> dict[str, Any]:
     undoing it does."""
     b = batches[batch_id]
     return {"id": batch_id, "session": b.get("session"), "at": b.get("committed_at"), "items": items_in(b.get("items")),
-            "puts_back": puts_back(batches, b)}
+            "puts_back": puts_back(b)}
 
 
 def track_record(store: PlanAiStore) -> dict[str, dict[str, int]]:

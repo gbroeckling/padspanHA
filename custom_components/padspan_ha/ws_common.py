@@ -490,7 +490,8 @@ async def _store_file_written(hass, store_key: str) -> bool:
 
 _MAX_BACKUPS = 3  # Oldest backup is dropped when a new one exceeds this limit
 # Automatic backups (ws_backup._auto_backup, marked "auto") have their own cap
-# and never push out a backup a person made, nor the other way round.
+# and never push out a backup a person made, nor the other way round. One with
+# a slot of its own (the plan AI's net) stands outside this cap.
 _MAX_AUTO_BACKUPS = 3
 
 

@@ -554,7 +554,7 @@ export function createPlans(ctx){
       keys.add(p.piece);
       const sug = (sess.suggestions || {})[p.sug_id] || {};
       if (sug.kind === "railing") return { sug_id: p.sug_id, v: p.v, rail: p.rail };
-      const final = ctx.DRAFT.planFinal(dr.cur.pieces[p.piece]);
+      const q = dr.cur.pieces[p.piece], final = p.made ? ctx.DRAFT.planFinal(q) : { x_m: q.x_m, y_m: q.y_m };   // a correction: where it stands, nothing else
       return { sug_id: p.sug_id, v: p.v, final, ...(p.target ? { target: p.target } : null) };
     });
     let r;
@@ -812,6 +812,7 @@ export function createPlans(ctx){
     const pick = railPick.get(sug.id) || {};
     const said = { left: "inner", right: "outer", both: "both" }[(sug.geom || {}).side];
     if (!pick.side && said && (said === "both" || flat(params))) pick.side = said;
+    if (!pick.style && params && RAIL_STYLES.some(([v]) => v === params.rail_style)) pick.style = params.rail_style;
     railPick.set(sug.id, pick);
     if (!home || !q) { a.appendChild(d("span", "pl-sub", "Keep its stair first: there is nothing to put a rail on yet.")); return; }
     const sides = d("div", "pl-choose");
