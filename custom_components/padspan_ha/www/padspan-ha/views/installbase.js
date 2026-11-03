@@ -547,6 +547,7 @@ const W_FEATURE = {
   wall_fully: "Wall screen: Fully Kiosk support", wall_floor_cycle: "Wall screen: cycles through floors",
   director: "3D house: camera flies to events", scale: "Optimize for several wall screens",
   ai_backup: "AI: a backup AI Task is set",
+  ai_plans: "AI map-building research is on (experimental)",
   guest_tags: "Guest tags", room_walk: "Calibration: Walk a room", day_theme: "Day colour theme (Pro)",
   fusion: "Combines position and signal for the room",
   tasmota_ble_enabled: "Tasmota Bluetooth receivers",
@@ -654,6 +655,8 @@ const W_SURFACE = {
   atlas: "the Atlas", busy_times: "Busy times", locate: "Locate", maps: "Maps", milestone: "a setup milestone",
   settings: "Settings", sidebar: "the sidebar", update_banner: "the update banner", overview: "the Overview",
 };
+// Add data via plans (telemetry.PLAN_AI_EVENTS, experimental): the kinds it suggests.
+const W_PLAN_KIND = { stairs: "stairs", railing: "a railing hint", light: "a light" };
 const W_EVENT = {
   stale_receivers_listed: "Opened the stale-receiver list (Mapping › 3D Stack)",
   status_dot_open: "Opened Health from the top bar's status dot",
@@ -802,6 +805,32 @@ function word(kind, k) {
                                        removed: "Open edges: a room's open edges taken back" }[b] || tidy(key);
       if (a === "rail_stamped") return { glass: "Open edge from before: its railing made its own setting",
                                           none: "Open edge from before: no railing made its own setting" }[b] || tidy(key);
+      if (a === "plan_ai_session") return `Plan AI session ${{ started: "started", done: "finished", no_read: "read nothing (no answer on any plan)", cancelled: "cancelled", failed: "failed", out_of_time: "ran out of time" }[b] || b}`;
+      if (a === "plan_ai_no_read") return `Plan AI session read nothing: ${{ no_media: "the media folder couldn't take the plan", no_picture: "the plans' pictures wouldn't open", unreachable: "the AI couldn't be reached", timeout: "no answer in time", bad_answer: "nothing usable in the answers" }[b] || b}`;
+      if (a === "plan_ai_budget_cut") return `Plan AI's time ran out during ${{ whole: "the whole-plan reads", crop: "the second looks", railing: "the railing questions" }[b] || b}`;
+      if (a === "plan_ai_cancel_why") return `Plan AI session cut short: ${{ user: "cancelled by the person", switch_off: "the switch went off", house3d_off: "Live Aboard went off",
+        licence: "the licence lapsed", plan_gone: "a plan was removed", plan_changed: "a plan moved", restart: "Home Assistant restarted" }[b] || b}`;
+      if (a === "plan_ai_model") return `Plan AI read by a ${{ local: "local", cloud: "cloud", unknown: "(unknown where)" }[b] || b} AI`;
+      if (a === "plan_ai_frame") return `Plan AI answered in a ${{ probed: "measured (Ollama)", named: "named" }[b] || b} picture frame`;
+      if (a === "plan_ai_plans") return `Plan AI session over ${{ "1": "1 plan", "2_3": "2–3 plans", "4_6": "4–6 plans", gt6: "over 6 plans" }[b] || b}`;
+      if (a === "plan_ai_reads") return `Plan AI session of ${{ "1_5": "1–5", "6_15": "6–15", "16_40": "16–40", gt40: "over 40" }[b] || b} reads`;
+      if (a === "plan_ai_read_secs") return `Plan AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to answer one read`;
+      if (a === "plan_ai_error") return `Plan AI read failed: ${{ no_ai_task: "no AI Task set up", bad_answer: "nothing usable in the answer", timeout: "no answer in time",
+        unreachable: "the AI couldn't be reached", no_media: "the media folder couldn't take the plan", no_picture: "a plan's picture wouldn't open", budget: "the session's time ran out", suspect_frame: "answered 0–1000 (position unsure)" }[b] || b}`;
+      if (a === "plan_ai_crop") return `Plan AI second look ${{ kept: "kept a find where it was", placed: "placed a find from its crop", dropped: "dropped a find (not there)" }[b] || b}`;
+      if (a === "plan_ai_suggested") return `Plan AI suggested ${W_PLAN_KIND[b] || b}`;
+      if (a === "plan_ai_duplicate") return `Plan AI found ${W_PLAN_KIND[b] || b} already in the house`;
+      if (a === "plan_ai_verdict") { const i = String(b).lastIndexOf("_"), k = String(b).slice(0, i), v = String(b).slice(i + 1);
+        return `Plan AI ${W_PLAN_KIND[k] || k} marked ${{ failure: "wrong", later: "later", right: "right", settled: "gone with its stair", new: "new (kept)", correction: "a correction (kept)" }[v] || v}`; }
+      if (a === "plan_ai_taken_back") { const i = String(b).lastIndexOf("_"), k = String(b).slice(0, i), v = String(b).slice(i + 1);
+        return `Plan AI ${W_PLAN_KIND[k] || k} verdict taken back (${{ failure: "wrong", later: "later", right: "right", settled: "gone with its stair" }[v] || v})`; }
+      if (a === "plan_ai_failure_why") { const i = String(b).indexOf("_"), k = String(b).slice(0, i), w = String(b).slice(i + 1);
+        return `Plan AI ${W_PLAN_KIND[k] || k} wrong because: ${{ wrong_place: "wrong place", nothing_there: "nothing there", already_here: "already here", wrong_kind: "wrong kind", cant_tell: "can't tell" }[w] || w}`; }
+      if (a === "plan_ai_held") return `Plan AI position held as coarse (${{ frame: "picture size unknown", eye: "plan placed by eye" }[b] || b})`;
+      if (a === "plan_ai_correction_target") return `Plan AI correction aimed at ${b === "hand" ? "a hand-placed" : "an AI-placed"} stair`;
+      if (a === "plan_ai_stacked") return `Plan AI stacked stairwell ${b === "offered" ? "offered" : "taken"}`;
+      if (key === "plan_ai_stale") return "Plan AI item changed since it was read (stale)";
+      if (key === "plan_ai_no_floor") return "Plan AI find left out: no floor for it to climb from";
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
       if (a === "photo_quick") return { ok: "AI photo read quickly (a quick look, then its kind)",
                                          fallback: "AI photo needed the full read (the quick look wasn't sure)" }[b] || tidy(key);

@@ -10372,7 +10372,7 @@ function _lightsTab(ctx, maps, active) {
     // slot and its own remembered choice), only while the setting is on and
     // the tier is Pro.
     house3d: ctx.state.settings && ctx.state.settings.atlas_3d_enabled !== undefined ? {
-      slot: "builder", settings: ctx.state.settings,
+      slot: "builder", settings: ctx.state.settings, sample: ctx.state.dataMode !== "live", admin: ctx.hass?.user?.is_admin !== false,
       states: ctx.hass?.states || {}, config: ctx.hass?.config || null,
       // Mapping → Furnish (P2): the Furnish tool open, and what its flows and
       // "This is a device…" need: the connection, a toast, the entity registry.

@@ -4202,16 +4202,40 @@ function _settingsAI(ctx, el){
     ]));
     return r;
   };
-  feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
-    "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
-    "Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.",
-    settings.ai_photos_enabled !== false, false));
-  feats.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
+  // The master switch over every AI map-building feature (2026-11, experimental, off by default): today's
+  // stair finder and the Plans tool in Live Aboard's Edit bar. Off hides them all; its two rows show only while on.
+  const chip = el("span",{style:"margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fbbf24;border:1px solid rgba(251,191,36,.45);border-radius:999px;padding:0 7px"}, "EXPERIMENTAL");
+  const master = el("label",{"data-ai-plans":"",style:"display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid #1e3a2a;cursor:pointer"});
+  const masterCb = el("input",{type:"checkbox", style:"margin-top:3px"});
+  masterCb.checked = settings.ai_plans_enabled === true;
+  master.appendChild(masterCb);
+  master.appendChild(el("div",{},[
+    el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, ["AI map-building research (experimental)", chip]),
+    el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
+      "Research feature. The AI suggests; you check every item. It never writes your map, rooms, walls or calibration. " +
+      "Turning it off hides it; it does not undo what you kept."),
+  ]));
+  feats.appendChild(master);
+  const under = el("div",{"data-ai-plans-under":"",style:`margin-left:22px;display:${settings.ai_plans_enabled === true ? "" : "none"}`});
+  masterCb.addEventListener("change", ()=>{ const want = masterCb.checked; under.style.display = want ? "" : "none";
+    save("ai_plans_enabled", want, ()=>{ masterCb.checked = !want; under.style.display = !want ? "" : "none"; }); });
+  under.appendChild(sw("ai_stairs_enabled", "Stairs from your floor plans",
     "Adds Read stairs off the plans (AI) to Live Aboard's Furnish → Build ▾ → House. Your AI looks for the stairs on each floor " +
     "plan you placed and puts what it finds in as a first guess: check where each one stands and which way is up, then " +
     "drag, turn or delete it. A small AI on your own computer finds most staircases but often gets their shape and which " +
     "way is up wrong; a cloud AI reads plans better. The plans are sent to your AI only when you press it. Off until you turn it on.",
     settings.ai_stairs_enabled === true, false));
+  under.appendChild(el("div",{style:"padding:8px 0;border-top:1px solid #1e3a2a"},[
+    el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, "Add data via plans"),
+    el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
+      "In Live Aboard's Edit bar, the Plans tool: your AI reads the floor plans you placed for staircases and railings and lists " +
+      "what it finds for you to check, item by item. This version keeps nothing in your house: marking an item wrong or later is all it saves."),
+  ]));
+  feats.appendChild(under);
+  feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
+    "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
+    "Tags, receivers and people's figures too. It names the piece itself, then reads that kind's details; telling it what the piece is first is quicker. It asks you for one real measurement unless something in the photo shows the scale.",
+    settings.ai_photos_enabled !== false, false));
   feats.appendChild(sw("", "Rooms and walls from a floor plan picture",
     "Traces the rooms and walls of a floor plan image for you, as a first guess to check before it is kept.", false, true));
   feats.appendChild(sw("", "Ask your voice assistant where someone is",

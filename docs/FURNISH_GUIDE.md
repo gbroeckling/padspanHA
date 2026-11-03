@@ -61,8 +61,9 @@ The other ways in:
     against a long wall when the room is long enough, else a U or a flight round two landings
     filling it, with no rail until you pick one. Drag it, turn it or change it like any other; nothing is
     kept until Save.
-  - **Read stairs off the plans (AI)** (Build ▾ → House, with **Settings → AI → Stairs from your floor
-    plans** on and an AI Task picked): your AI looks for the stairs on each floor plan you placed and adds
+  - **Read stairs off the plans (AI)** (Build ▾ → House, with **Settings → AI → AI map-building research
+    (experimental)** on, **Stairs from your floor plans** on under it, and an AI Task picked; with the
+    master switch off, both the row and this item are hidden): your AI looks for the stairs on each floor plan you placed and adds
     what it finds, unsaved: put on the floor it climbs from (a flight marked DOWN on an upper plan goes on
     the floor below), one staircase seen on two plans added once, none where stairs already stand, each
     squared to its room. It's a first guess: in a test with a small local model (qwen2.5vl:7b) it found

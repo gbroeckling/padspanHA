@@ -51,6 +51,10 @@ from .ws_house3d import OFF_CODE, OFF_MESSAGE, PRO_MESSAGE
 from . import ws_house3d_photo as P
 from .ws_common import admin_if_enhanced_security
 
+# The master switch over every AI map-building feature (Settings → AI → AI
+# map-building research, experimental, 2026-11): off hides the stair finder too.
+PLANS_OFF_CODE = "ai_plans_off"
+PLANS_OFF_MESSAGE = "AI map-building research is off: turn it on in Settings → AI to read plans."
 STAIRS_OFF_CODE = "ai_stairs_off"
 STAIRS_OFF_MESSAGE = "Reading stairs off the plans is off: turn on Stairs from your floor plans in Settings → AI."
 NOT_PLACED_CODE = "map_not_placed"
@@ -264,6 +268,9 @@ def _refused(hass: HomeAssistant, connection, msg) -> dict | None:
         connection.send_error(msg["id"], OFF_CODE, PRO_MESSAGE)
         return None
     st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    if ((st.data if st else {}) or {}).get("ai_plans_enabled") is not True:
+        connection.send_error(msg["id"], PLANS_OFF_CODE, PLANS_OFF_MESSAGE)
+        return None
     if ((st.data if st else {}) or {}).get("ai_stairs_enabled") is not True:
         connection.send_error(msg["id"], STAIRS_OFF_CODE, STAIRS_OFF_MESSAGE)
         return None

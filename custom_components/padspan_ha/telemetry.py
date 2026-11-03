@@ -464,6 +464,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "iphone_irk",                                   # the iPhone setup path: IRK steps instead of BLE Transmitter
     "live_aboard_people", "live_aboard_photo",
     "live_aboard_runs", "live_aboard_strip",        # Live Aboard's Strip tool: strips and string lights
+    "live_aboard_plans",                            # Add data via plans (experimental): the Plans tool's list
     "atlas_screen", "atlas_aboard",                 # the flat Atlas: the map alone, full screen; Live Aboard's on the map
     "map_text",                                     # the map as text for screen readers (Overview, the flat Atlas)
     "whos_where",                                   # Who's where now, before any room is drawn (Overview)
@@ -654,6 +655,48 @@ STAIR_EVENTS: frozenset[str] = frozenset(
 OPEN_EDGE_ACTIONS: tuple[str, ...] = ("tap", "all", "replaced", "removed")
 OPEN_EDGE_EVENTS: frozenset[str] = frozenset(
     {f"open_edge:{k}" for k in OPEN_EDGE_ACTIONS} | {"rail_stamped:glass", "rail_stamped:none"})
+# Add data via plans (plan_ai.py, experimental, 2026-11), counts only: how a
+# session ended and why one was cut short; whether the AI was local and in
+# which frame it answers; how many plans and reads, and how long each read
+# took (the photo bands); each AI failure by reason; a session in which no
+# plan's whole read answered, apart from one that found nothing, and why; a
+# time budget that ran out inside the reads, and in which; what the second look
+# did to a find (kept it, placed it, dropped it); what was suggested and what was
+# already in the house, per kind; a find with no floor to climb from; each
+# verdict given (it looks right, wrong, later; a railing hint that went with its
+# stair), each one taken back, and why an item was marked wrong, per kind;
+# positions held as coarse; corrections aimed at a hand-placed or an AI-placed
+# stair; a stacked stairwell offered; an item whose target changed since. Never
+# a plan, an answer, a name or a position.
+# Names for what the next stages add (new and correction verdicts, commits,
+# undo, lights) join the family when they have a call site.
+PLAN_AI_SESSION: tuple[str, ...] = ("started", "done", "no_read", "cancelled", "failed", "out_of_time")
+PLAN_AI_NO_READ: tuple[str, ...] = ("no_media", "no_picture", "unreachable", "timeout", "bad_answer")
+PLAN_AI_BUDGET_CUT: tuple[str, ...] = ("whole", "crop", "railing")
+PLAN_AI_CANCEL_WHY: tuple[str, ...] = ("user", "switch_off", "house3d_off", "licence", "plan_gone", "plan_changed", "restart")
+PLAN_AI_MODEL: tuple[str, ...] = ("local", "cloud", "unknown")
+PLAN_AI_FRAME: tuple[str, ...] = ("probed", "named")
+PLAN_AI_PLAN_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "gt6")
+PLAN_AI_READ_BANDS: tuple[str, ...] = ("1_5", "6_15", "16_40", "gt40")
+PLAN_AI_ERRORS: tuple[str, ...] = ("no_ai_task", "bad_answer", "timeout", "unreachable", "no_media", "no_picture", "budget", "suspect_frame")
+PLAN_AI_KINDS: tuple[str, ...] = ("stairs", "railing")
+PLAN_AI_VERDICTS: tuple[str, ...] = ("failure", "later", "right")
+PLAN_AI_FAILURE_WHY: tuple[str, ...] = ("wrong_place", "nothing_there", "already_here", "wrong_kind", "cant_tell")
+PLAN_AI_HELD: tuple[str, ...] = ("frame", "eye")
+PLAN_AI_CROP: tuple[str, ...] = ("kept", "placed", "dropped")
+PLAN_AI_EVENTS: frozenset[str] = frozenset(
+    {f"plan_ai_session:{k}" for k in PLAN_AI_SESSION} | {f"plan_ai_cancel_why:{k}" for k in PLAN_AI_CANCEL_WHY}
+    | {f"plan_ai_model:{k}" for k in PLAN_AI_MODEL} | {f"plan_ai_frame:{k}" for k in PLAN_AI_FRAME}
+    | {f"plan_ai_plans:{k}" for k in PLAN_AI_PLAN_BANDS} | {f"plan_ai_reads:{k}" for k in PLAN_AI_READ_BANDS}
+    | {f"plan_ai_read_secs:{k}" for k in PHOTO_SECS} | {f"plan_ai_error:{k}" for k in PLAN_AI_ERRORS}
+    | {f"plan_ai_suggested:{k}" for k in PLAN_AI_KINDS} | {f"plan_ai_duplicate:{k}" for k in PLAN_AI_KINDS}
+    | {f"plan_ai_verdict:{k}_{v}" for k in PLAN_AI_KINDS for v in PLAN_AI_VERDICTS}
+    | {f"plan_ai_taken_back:{k}_{v}" for k in PLAN_AI_KINDS for v in PLAN_AI_VERDICTS}
+    | {f"plan_ai_failure_why:{k}_{w}" for k in PLAN_AI_KINDS for w in PLAN_AI_FAILURE_WHY} | {f"plan_ai_held:{k}" for k in PLAN_AI_HELD}
+    | {f"plan_ai_crop:{k}" for k in PLAN_AI_CROP} | {f"plan_ai_no_read:{k}" for k in PLAN_AI_NO_READ}
+    | {f"plan_ai_budget_cut:{k}" for k in PLAN_AI_BUDGET_CUT}
+    | {"plan_ai_verdict:railing_settled", "plan_ai_taken_back:railing_settled", "plan_ai_no_floor",
+       "plan_ai_correction_target:hand", "plan_ai_correction_target:ai", "plan_ai_stacked:offered", "plan_ai_stale"})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
@@ -816,6 +859,8 @@ _FEATURE_ON_ONLY: dict[str, str] = {
     "enhanced_security": "enhanced_security",
     # A backup AI Task is set (Settings → AI): yes only, never which one.
     "atlas_3d_ai_task_backup_entity": "ai_backup",
+    # AI map-building research (experimental, 2026-11): on only; an untouched house sends what it always did.
+    "ai_plans_enabled": "ai_plans",
     # 0.38.178: several wall screens (Settings → Optimize for scale).
     "optimize_for_scale": "scale",
     "guest_tags_enabled": "guest_tags",
@@ -1108,6 +1153,7 @@ def enabled(hass: HomeAssistant) -> bool:
 def event_allowed(name: str) -> bool:
     return (name in EVENTS or name in TAB_EVENTS or name in UI_ERRORS or ui_error_at_allowed(name) or name in OFFER_EVENTS
             or name in WEATHER_EVENTS or name in HOUSE3D_EVENTS or name in PHOTO_EVENTS or name in STAIR_EVENTS
+            or name in PLAN_AI_EVENTS
             or name in CLIENT_EVENTS or name in SCREEN_EVENTS or name in OVERVIEW_EVENTS or name in TIP_EVENTS
             or name in CAL_RESULTS_EVENTS or name in SETUP_EVENTS or name in OPEN_EDGE_EVENTS)
 

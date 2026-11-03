@@ -390,6 +390,10 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     from .ws_house3d_stairs import WS_COMMANDS as _house3d_stairs_commands
     for _cmd in _house3d_stairs_commands:
         websocket_api.async_register_command(hass, _cmd)
+    # Add data via plans (ws_plan_ai.py, experimental, off by default): the plan AI's sessions and verdicts; never the house.
+    from .ws_plan_ai import WS_COMMANDS as _plan_ai_commands
+    for _cmd in _plan_ai_commands:
+        websocket_api.async_register_command(hass, _cmd)
     websocket_api.async_register_command(hass, ws_flood_reset)
     # The Overview's accuracy tips (setup_checks.py): the setup steps the report finds skipped most.
     from .setup_checks import WS_COMMANDS as _setup_tip_commands

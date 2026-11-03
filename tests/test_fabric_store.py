@@ -464,8 +464,11 @@ def test_nothing_converts_photo_coordinates_into_data() -> None:
     # ws_house3d_stairs.py (0.38.188): stairs the AI Task found on a plan come
     # back as a first guess in metres through the plan's own placement, never
     # stored by it: the Furnish tab adds them unsaved, and Save keeps metres.
+    # plan_ai.py (2026-11, experimental): the same conversion for the plan
+    # AI's finds and a plan's corners; its store holds metres, and no view
+    # reads a placement.
     allowed = {"migrations.py", "model_store.py", "fabric_truth.py",
-               "calibration_store.py", "ws_maps.py", "ws_house3d_stairs.py"}
+               "calibration_store.py", "ws_maps.py", "ws_house3d_stairs.py", "plan_ai.py"}
     for path in src.glob("*.py"):
         text = path.read_text(encoding="utf-8")
         if path.name not in allowed:
