@@ -177,6 +177,10 @@ async def _label_follow_step(hass: HomeAssistant, ble_by_addr: dict, canonical_b
     if None in (dom.get(DATA_OBJECTS), dom.get(DATA_DEVICE_REGISTRY), dom.get(DATA_SETTINGS)):
         return      # still starting: nobody looks named yet, and that must not end a link
     links = await _label_links(hass)
+    # The history is read from disk later in the first build. Until then an address
+    # off the air has no radio's word on its type, looks unwatched and loses its notes.
+    if dom.get(DATA_OBJECT_HISTORY) is None:
+        return
     claimed = _named_or_followed(dom)
     # From HA 2026.8 a named device's own row in HA carries its address: that's
     # PadSpan quoting itself, not another integration knowing the device.
@@ -189,7 +193,8 @@ async def _label_follow_step(hass: HomeAssistant, ble_by_addr: dict, canonical_b
             continue
         hist = history.get(f"ble:{addr}")
         said = (ble_by_addr.get(addr) or {}).get("address_type") or (hist or {}).get("address_type")
-        if may_rotate(addr, said):
+        # With no row and no advert nobody has said what it is: its notes still stand.
+        if may_rotate(addr, said) or (said is None and links.has_notes(addr)):
             watched[addr] = hist
     for event in links.step(time.time(), ble_by_addr, watched, proven=proven, claimed=claimed, history=history):
         bump(hass, event)
@@ -2743,7 +2748,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     cached_obj.pop("user_label", None)
                     is_identified = False
             # Tagged/identified objects never expire from history
-            if not is_identified and stale_s > _HISTORY_TTL:
+            # ... nor one whose name follows a new address, or has a question open.
+            _ll = _dom.get(_LABEL_LINKS)
+            if not is_identified and stale_s > _HISTORY_TTL and not (_ll is not None and _ll.needs_row(key[4:])):
                 del _cache[key]
                 continue
             # 0.38.105 made a Bermuda device's Floor, Area Last Seen and each

@@ -711,7 +711,7 @@ export function createPlans(ctx){
         l.appendChild(d("span", null, `${p.name || "a plan"}${p.refs === 0 ? " (placed by eye)" : ""}`));
         sheet.appendChild(l);
       }
-      if (list.length > 1) sheet.appendChild(d("div", "pl-note", `${list.length} plans cover ${floorName(fid)}: both are read, and you pick which to trust per item.`));
+      if (list.length > 1) sheet.appendChild(d("div", "pl-note", `${list.length} plans cover ${floorName(fid)}: ${list.length === 2 ? "both" : "all"} are read, and you pick which to trust per item.`));
     }
     // 2. Which kinds.
     sheet.appendChild(d("h5", null, "Which kinds"));

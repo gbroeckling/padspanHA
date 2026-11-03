@@ -45,6 +45,19 @@ const settle = async () => { for (let i = 0; i < 20; i++) await null; };
 const press = async (b) => { b.click(); await settle(); };
 
 check("nothing to say: nothing shown", DN.labelLines(el, { key: "ble:A" }, acts()) === null);
+
+{
+  // A double click: the second found the question closed and gave a red toast over a Yes that worked.
+  const a = acts();
+  const n = DN.labelLines(el, { key: "ble:B", label_ask: { key: "ble:A", address: "5B:00", label: "Car" } }, a);
+  const [yes, no] = buttons(n);
+  yes.click(); yes.click(); no.click();
+  await settle();
+  check("a double click answers once", a.log.filter(l => l[0] === "padspan_ha/label_link_answer").length === 1 && !a.log.some(l => l[0] === "toast"), JSON.stringify(a.log));
+  yes.click();
+  await settle();
+  check("and it answers again once the first is done", a.log.filter(l => l[0] === "padspan_ha/label_link_answer").length === 2, JSON.stringify(a.log));
+}
 check("no device: nothing shown", DN.labelLines(el, null, acts()) === null);
 
 {

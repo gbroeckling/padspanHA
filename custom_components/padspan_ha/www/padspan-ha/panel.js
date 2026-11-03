@@ -22,8 +22,8 @@ If UI changes don't show:
 // BUILD_ID (YYYYMMDDTHHMMSSZ) is appended to all JS import URLs as a cache-buster
 // so browsers always load the latest code after a release.
 // CHANNEL controls the sidebar badge and maps to GitHub release types (beta=pre-release).
-const APP_VERSION = "0.38.220";
-const RELEASE_BUILD_ID = "20261103T075541Z";
+const APP_VERSION = "0.38.223";
+const RELEASE_BUILD_ID = "20261103T153612Z";
 // The stamp the views are actually loaded with.
 //
 // This was the release literal above, so every view URL stayed frozen between
@@ -1945,6 +1945,41 @@ class PadSpanHaApp extends HTMLElement {
   }
 
   /**
+   * Mapping has no poll: a rebuild would break what is being drawn. Only the
+   * alarm state goes on. The banner reads the latches as on the other tabs,
+   * every 30 s, and while the Plans map is open (the tool can hold someone
+   * here a long while) every tick, for its alarm word and marks. Nothing here
+   * renders, and of the settings read only the latches are kept.
+   */
+  async _mappingAlarmTick(){
+    const say = (latches) => {
+      const detail = { states: this._hass && this._hass.states, latches, plansOpen: false };
+      window.dispatchEvent(new CustomEvent("padspan-ha-alarms-now", { detail }));
+      return detail.plansOpen;
+    };
+    const plansOpen = say(this.state.settings && this.state.settings.flood_latches);
+    if(!plansOpen && Date.now() - (this._settingsPollTs || 0) <= 30000) return;
+    this._settingsPollTs = Date.now();
+    this._pollInFlight = true;
+    this._pollStartedAt = performance.now();
+    try{
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("poll_timeout")), 15_000));
+      const res = await Promise.race([this._callWS({ type: "padspan_ha/settings_get" }), timeout]);
+      const latches = res && res.settings && res.settings.flood_latches;
+      if(latches && this.state.settings){
+        this.state.settings.flood_latches = latches;
+        this._updateEmergencyBanner();
+        if(plansOpen) say(latches);
+      }
+    } catch(e){
+      // The next tick asks again.
+    } finally {
+      this._pollInFlight = false;
+      this._pollStartedAt = null;
+    }
+  }
+
+  /**
    * Single poll iteration — called every 5s by _pollTimer.
    * Guards prevent overlapping calls, polling in sample mode, and interrupting
    * the maps view (where drawing/dragging would break on DOM rebuild).
@@ -1971,10 +2006,10 @@ class PadSpanHaApp extends HTMLElement {
       return;
     }
     if(this._pollInFlight) return;
-    if(this.state.view === "maps") return;
     // Optimize for scale: a page nobody can see (display off, tab in the
     // background) asks for nothing; it catches up when it is shown again.
     if(this.state.settings && this.state.settings.optimize_for_scale && document.visibilityState === "hidden") return;
+    if(this.state.view === "maps"){ await this._mappingAlarmTick(); return; }
 
     this._pollInFlight = true;
     this._pollStartedAt = performance.now();

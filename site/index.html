@@ -184,6 +184,58 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.223</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">3 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>A hint of a nice day.</b> When the weather says sunny and it is daylight, the mist clears, soft flecks of sun fall on the forest floor, the side of the trees toward the sun catches the light, and blue shows through the canopy. It stays a dark forest. Every other kind of day, and every night, looks as it did.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
+        <span class="relver">v0.38.222</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">3 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>The trees in West Coast Forest looked like palms.</b> Each tree was a few big boughs on a long bare trunk. They now have pointed crowns that start lower, made of many short branches with no stem down the middle. Douglas fir, cedar and hemlock read as what they are, from close up and from far off.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
+        <span class="relver">v0.38.221</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">3 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Showcase's West Coast Forest now stands up in 3D.</b> When Live Aboard follows the Atlas's look with that theme on, the house sits in a dark Pacific Northwest forest: tall Douglas fir, western red cedar and hemlock with long bare trunks and drooping boughs, a near-black mossy floor with sword ferns, salal, fallen logs and mossy rocks, going back into cold mist under a dark overcast sky. Rain falls in the trees. The same house always gets the same forest.</li>
+          <li><b>It keeps out of your way.</b> No tree stands on or over a room, outdoor room or deck, and anything between the camera and the house dissolves at any angle, on Top and on the way to a room. Edit, Furnish and the Plans tool's vetting map leave it out. It adds no setting and costs nothing at rest; a slow screen draws fewer trees, and one too slow for them goes without. With any other theme or look the file is never fetched.</li>
+          <li><b>A very large home stays bounded.</b> The search for a named device's new address used to cost devices times addresses on every poll, 288 ms with 20 named devices among 9,178 addresses. Each poll now has a limit, and a device that misses its turn goes first on the next, so a link can come a little later but never differently. Ordinary homes don't reach it. The usage report (opt-in) counts the polls that do.</li>
+          <li><b>The third-party notices now come with the download,</b> in both editions, not only in the repository.</li>
+          <li><b>A No covers the device for a week.</b> After a No to "This looks like Car Keys: same device?", there are no more questions about that device for 7 days, though clear evidence can still link it on its own. Otherwise each named device gets at most one question a day, where one rotating every 15 minutes could get 95, and that question follows the device's newest address, so a late Yes lands on the address it uses now. Both survive a restart, Factory Reset clears them, and the usage report (opt-in) counts the questions held back.</li>
+          <li><b>A restart no longer forgets a name's link, No answers and Undo.</b> For a device whose address a radio calls random but which doesn't look rotating, off the air at a Home Assistant restart, the first moment after the restart wiped them and saved that. About half of random addresses look like that. Now nothing is decided until the device history has loaded, so "that address isn't linked again" holds after a restart too.</li>
+          <li><b>A name that moved stays on screen after a day.</b> Once the first address had been silent for a day (the default history), the name's row went and the new address came back as a stranger's. For about half of random addresses its link, No answers and Undo were deleted too. The row now stays while it has a link or an open question, and the notes stay whatever happens to the row.</li>
+          <li><b>The alarm word in the Plans map is live.</b> With the map open, nothing refreshed it: a real alarm could go unsaid, and a word could stay after the alarm was over. Now a smoke, gas, CO or leak alarm shows over the view within about 5 seconds, drawn on the map as well, and one that's over goes as quickly. Only the alarms are read; the map, the card and what you're drawing are left alone.</li>
+          <li><b>The emergency banner shows on Mapping too.</b> Mapping's tab didn't read alarm latches at all, so the banner never came while you stayed on it. It now comes as on the other tabs, within 30 seconds, and within about 5 while the Plans map is open.</li>
+          <li><b>A question closes itself when the device comes back.</b> "This looks like Car Keys: same device?" stayed up even with the old address on the air again for days, and a Yes then undid itself on a later report and refused the new address. Now the question goes as soon as the old address is heard, without counting as a No.</li>
+          <li><b>"Nothing else fits" now holds when two devices stop seconds apart.</b> Two named devices with the same name and maker that stopped a few seconds apart could give the name to whichever stopped first. Now a new address that could be either links to neither.</li>
+          <li><b>West Coast Forest on a turned wall.</b> With <code>?wall_rotate=90</code> or <code>270</code> the trees were smeared and the house-shaped gap was in the wrong place. They now draw as on a screen hung that way.</li>
+          <li><b>A double click on Yes or No answers once,</b> without a red "That question isn't open any more" over a Yes that worked.</li>
+          <li><b>"3 plans cover Main: all are read",</b> not "both".</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.220</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">2 November 2026</span>
@@ -4061,25 +4113,25 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 <section class="wrap" id="install">
   <div class="kick">Installation</div>
   <h2>Up and running in minutes</h2>
-  <p class="lede"><b style="color:var(--acc2)">Requirements:</b> Home Assistant 2024.1+, at least one BLE scanner (ESPresense, Bermuda proxy, or HA Bluetooth proxy), and HACS (recommended).</p>
+  <p class="lede"><b style="color:var(--acc2)">Requirements:</b> Home Assistant 2024.1+ and at least one Bluetooth scanner: an ESPHome Bluetooth proxy, a Shelly Gen2 or newer set up as a scanner, or your Home Assistant machine's own Bluetooth.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
     <div class="feat">
-      <h3>Via HACS (recommended)</h3>
+      <h3>From the Marketplace (Home Assistant 2026.11+)</h3>
       <ol class="steps">
-        <li>Open HACS in your Home Assistant instance</li>
-        <li>Search for and install <b>PadSpan HA</b> (it's in the HACS default list)</li>
-        <li>Restart Home Assistant completely</li>
-        <li>Add the integration: Settings → Devices &amp; Services → Add Integration → PadSpan HA</li>
+        <li>Open Settings → Marketplace</li>
+        <li>Search for <b>room presence</b> or <b>PadSpan</b> and install <b>PadSpan HA</b></li>
+        <li>The setup dialog opens straight away, with no restart: select <b>Submit</b></li>
+        <li>On 2026.10 or older: install it from HACS, restart Home Assistant completely, then Settings → Devices &amp; Services → Add Integration → PadSpan HA</li>
       </ol>
     </div>
     <div class="feat">
       <h3>Quick Start</h3>
       <ol class="steps">
         <li>Open the <b>PadSpan HA</b> panel in the sidebar</li>
-        <li>The onboarding wizard guides you: upload a map, set scale, draw rooms, place scanners, calibrate</li>
-        <li>Try <b>Sample mode</b> to explore every feature with demo data</li>
-        <li>Switch to <b>Live mode</b> — your BLE scanners are auto-discovered</li>
-        <li>Tag your devices and start tracking</li>
+        <li>Give each scanner its Home Assistant area. <b>Who's where now</b> then puts each device in the room of the scanner that hears it best, with no floor plan</li>
+        <li>Name your phones and tags to get their Home Assistant entities</li>
+        <li>Want the map? <b>Make it a map</b> walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, <b>Put it on the map</b></li>
+        <li>Every step, with pictures: <a href="/guides/get-started/">From the Marketplace to your first room</a></li>
       </ol>
     </div>
   </div>

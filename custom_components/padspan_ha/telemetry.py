@@ -290,14 +290,18 @@ EVENTS: frozenset[str] = frozenset({
     # whether the better way is right in homes other than his.
     #   label_link_linked     a name moved to a new address on evidence.
     #   label_link_asked      "This looks like <label>: same device?" put up.
+    #   label_link_held       a question held back: one a day for each device,
+    #                         none for a week after a No. Each address once.
     #   label_link_yes, _no   how that was answered.
     #   label_link_undone     a person's Undo.
     #   label_link_wrong_after_undo  an undone link the radio then proved wrong:
     #                         both addresses on the air at once.
     #   label_link_old_back   a link dropped by itself: an address it had left
     #                         came back, so that was no hand-over.
+    #   label_link_capped     a poll reached the cap on walking the address list
+    #                         (label_follow.SCAN_BUDGET), so some devices waited.
     "label_link_linked", "label_link_asked", "label_link_yes", "label_link_no", "label_link_undone",
-    "label_link_wrong_after_undo", "label_link_old_back",
+    "label_link_wrong_after_undo", "label_link_old_back", "label_link_capped", "label_link_held",
     # The Atlas emergency lighting test (emergency_test.py): a test started,
     # ended (the lights already on left on), or ended with Force off.
     "emergency_test_on", "emergency_test_off", "emergency_force_off",
@@ -470,6 +474,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
     "atlas_forest",                                 # the trees behind the flat map (Showcase theme "West Coast Forest")
+    "live_aboard_forest",                           # the same theme's trees in Live Aboard
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
     "calibration_results",                          # Calibration's Results tab (the one it opens on)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish

@@ -12,7 +12,10 @@ const W = "../../custom_components/padspan_ha/www/padspan-ha/";
 const LM = await import(W + "views/lights_map.js");
 const q = new URLSearchParams(location.search);
 // The fixture house (rooms, lights, sensors, states): tools/demo/fixture.js, shared with the public demo.
-const { MODEL, STATES } = (await import("../demo/fixture.js")).harnessFixture(q);
+// dump=<dir>: a real house's model_get.json and states.json from there, instead of the fixture (the dumps stay out of the repo).
+const { MODEL, STATES } = q.get("dump")
+  ? { MODEL: await (await fetch(q.get("dump") + "/model_get.json")).json(), STATES: Object.fromEntries((await (await fetch(q.get("dump") + "/states.json")).json()).map(st => [st.entity_id, st])) }
+  : (await import("../demo/fixture.js")).harnessFixture(q);
 const tier = q.get("tier") || "pro";
 const LIGHTS = LM.gatherLights(STATES, {}, {}, tier, {}, {}, {}, {}, Date.now());
 const LBE = Object.fromEntries(LIGHTS.map(l => [l.entity_id, l]));
@@ -46,6 +49,7 @@ const view = { floorGap: Number(q.get("gap") || 260), horizGap: 0, focusIdx: Num
 let host;
 const render = () => { const m = document.getElementById("mount"); m.innerHTML = ""; m.appendChild(LM.buildLightsMapCard(host)); };
 host = { el, view, floors: MODEL.floors, model: MODEL, byRoom: {}, hiddenEids: new Set(), lightsByEid: LBE, lightsLoading: false, tier,
+  ...(q.get("theme") ? { showcase: true, showcaseTheme: q.get("theme") } : {}),
   layoutV2: true, displayMode: q.get("display") !== "0", codeChip: true, hitHalo: true, collapseUnplaced: true,
   screen: { slot: "atlas", shownAt: 1 },
   house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto", ...(q.get("look") ? { atlas_3d_look: q.get("look") } : {}), ...(PLANS ? PLANS.settings : {}) },

@@ -80,7 +80,7 @@ OLD_NAMES: tuple[str, ...] = tuple(old for old, _ in RENAMES)
 # from scripts/bright_README.md.
 COPY: tuple[str, ...] = (
     "custom_components", "tests", ".github",
-    "hacs.json", "LICENSE", "pyproject.toml", "requirements_test.txt",
+    "hacs.json", "LICENSE", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "requirements_test.txt",
     "eslint.config.mjs", "VERSION.txt", ".gitignore", "icon.png", "logo.png",
 )
 SKIP_DIRS = {"__pycache__", ".pytest_cache", ".git"}
@@ -254,6 +254,7 @@ def build_zip(tree: Path, zip_path: Path) -> int:
         for f in sorted(integ.rglob("*")):
             if f.is_file() and "__pycache__" not in f.parts and f.suffix != ".pyc":
                 zf.write(f, f.relative_to(integ))
+        zf.write(tree / "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md")
     return len(zipfile.ZipFile(zip_path).namelist())
 
 

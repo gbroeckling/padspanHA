@@ -74,7 +74,8 @@ def test_the_theme_name_is_kept_and_nothing_near_it(raw, want) -> None:
     assert WS._normalize_showcase_theme(raw) == want
 
 
-def test_live_aboard_has_a_dark_row_and_no_trees() -> None:
+def test_live_aboard_has_a_dark_row_and_its_own_trees() -> None:
+    """Its row; the trees are live_aboard_forest.js (tests/test_live_aboard_forest.py), never the flat picture."""
     src = _js(_VIEWS / "live_aboard_showcase.js")
     m = re.search(r'west_coast_forest:\s+row\("(#[0-9a-f]{6})", "(#[0-9a-f]{6})"', src)
     assert m, "no row in SHOWCASE_LOOKS"
@@ -161,7 +162,7 @@ def test_help_in_every_language() -> None:
 
 # ── the drawing (tests/js/atlas_forest.mjs) ──────────────────────────────────
 
-@pytest.mark.parametrize("prefix", ["off:", "keep:", "clear: fixture", "clear: estate", "same:", "layer:", "light:"])
+@pytest.mark.parametrize("prefix", ["off:", "keep:", "clear: fixture", "clear: estate", "same:", "layer:", "light:", "turned:"])
 def test_each_part_of_the_forest(forest, prefix) -> None:
     got = {k: v for k, v in forest["cases"].items() if k.startswith(prefix)}
     assert got, f"no {prefix} case ran: {sorted(forest['cases'])}"

@@ -88,10 +88,13 @@ export function labelLines(el, o, act){
   const out = [];
   const line = (text, buttons, title) => el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:3px;font-size:11px;color:#94a3b8", title: title || "" },
     [el("span", {}, text), ...buttons]);
+  let busy = false;       // a double click answers once: the second found the question already closed
   const button = (text, run) => el("button", { type: "button", class: "btn tiny", style: "font-size:10px;padding:1px 6px", onclick: async (e) => {
     e.stopPropagation();
+    if(busy) return;
+    busy = true;
     try { await run(); } catch(err) { act.toast("That didn't work: " + ((err && (err.message || err.code)) || err), true); }
-    if(act.after) await act.after();
+    try { if(act.after) await act.after(); } finally { busy = false; }
   } }, text);
   const key = o.key;
   if(o.label_link){

@@ -144,7 +144,7 @@ export function weatherArea(h){
   if (!box) return null;
   const ground = Number.isFinite(h.ground) ? h.ground : 0;
   const sx = box.x1 - box.x0, sy = box.y1 - box.y0, cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
-  const r = Math.hypot(sx, sy) / 2 + clamp(0.25 * Math.max(sx, sy), 6, 12);
+  const r = Math.hypot(sx, sy) / 2 + clamp(0.25 * Math.max(sx, sy), 6, 12) + (Number(h.reach) || 0);   // reach, rise: West Coast Forest's rain, in the trees
   const patches = [{ disc: true, cx, cy, r, area: Math.PI * r * r }];
   for (const d of decks) {
     const b = d.bb, far = [[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]].some(([x, y]) => Math.hypot(x - cx, y - cy) > r * 0.72);
@@ -152,7 +152,7 @@ export function weatherArea(h){
     const q = { x0: b.x0 - 1.5, y0: b.y0 - 1.5, x1: b.x1 + 1.5, y1: b.y1 + 1.5 };
     patches.push({ ...q, area: (q.x1 - q.x0) * (q.y1 - q.y0) });
   }
-  top = Math.max(Number.isFinite(top) ? top : ground + 3, ground + 3) + SKY;
+  top = Math.max(Number.isFinite(top) ? top : ground + 3, ground + 3) + SKY + (Number(h.rise) || 0);
   // Every indoor room's box together: a fall nowhere near it is clear at once.
   let ib = null;
   for (const R of indoor) ib = grow(ib, R.bb);

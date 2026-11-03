@@ -1315,10 +1315,39 @@ await tryCase("tool: the setup wizard's way in opens Edit at its tool, once", as
       latchesHook = null;
       poll(); await settle(30);
       check("plans: quiet: over: gone again", !pill() && !st().marks.length, { pill: pill() && pill().textContent, marks: st().marks });
+      // Mapping has no poll: only the panel's alarm tick (panel.js _mappingAlarmTick) reaches the view.
+      const tick = (states, latches) => {
+        const detail = { states, latches, plansOpen: false };
+        for (const fn of winL["padspan-ha-alarms-now"] || []) fn({ detail });
+        return detail.plansOpen;
+      };
+      const offAll = { [SMOKE]: { state: "off" }, [LEAK]: { state: "off" }, [DRY]: { state: "off" } };
+      check("plans: quiet: tick: the view says the Plans map is open", tick(offAll, {}) === true && !pill());
+      const before = { lights: st().lights, readouts: st().readouts.length };
+      tick({ ...offAll, [SMOKE]: { state: "on" } }, {}); await settle(30);
+      check("plans: quiet: tick: an alarm shows with no render", pill() && pill().textContent === "SMOKE · Den smoke" && mark(SMOKE) && mark(SMOKE).badge.on && mark(SMOKE).ripple.on, { pill: pill() && pill().textContent, marks: st().marks });
+      check("plans: quiet: tick: nothing else comes back", !mark(DRY) && st().lights === before.lights && st().readouts.length === before.readouts, { marks: st().marks, lights: st().lights });
+      const same = pill();
+      tick({ ...offAll, [SMOKE]: { state: "on" } }, {}); await settle(30);
+      check("plans: quiet: tick: nothing new: the word stays the same element, not said again", pill() === same);
+      tick(offAll, { [LEAK]: { triggered_at: Date.now() / 1000 - 3600 } }); await settle(30);
+      check("plans: quiet: tick: dry, a latch from the server still says ALARM", pill() && pill().textContent === "ALARM · Rec leak" && mark(LEAK) && mark(LEAK).look.latched && !mark(SMOKE), { pill: pill() && pill().textContent, marks: st().marks });
+      tick(offAll, {}); await settle(30);
+      check("plans: quiet: tick: the latch gone on the server, the word and mark go", !pill() && !st().marks.length, { pill: pill() && pill().textContent, marks: st().marks });
+      tick(offAll, { [LEAK]: { triggered_at: Date.now() / 1000 - 3600 } }); await settle(30);
+      check("plans: quiet: tick: latched again", !!pill());
+      tick(offAll, { [LEAK]: { triggered_at: Date.now() / 1000 - 49 * 3600 } }); await settle(30);
+      check("plans: quiet: tick: a latch past its two days goes", !pill(), pill() && pill().textContent);
+      tick({ ...offAll, [LEAK]: { state: "on" } }, {}); await settle(30);
+      check("plans: quiet: tick: wet on another floor", pill() && pill().textContent === "WET · Rec leak", pill() && pill().textContent);
+      tick(offAll, {}); await settle(30);
+      check("plans: quiet: tick: dry again", !pill());
       LBE[SMOKE] = { ...LBE[SMOKE], state: "on" };
       poll(); await settle(30);
       await plansOff();
       check("plans: quiet: the tool closed: the word goes, the alarm is drawn as ever", !pill() && mark(SMOKE) && mark(SMOKE).badge.on && !!mark(DRY), { pill: !!pill(), marks: st().marks });
+      const lit = mark(SMOKE).look.alarm, drawn = st().marks.length;
+      check("plans: quiet: tick: with the tool closed the tick changes nothing here", tick(offAll, {}) === false && mark(SMOKE).look.alarm === lit && st().marks.length === drawn);
     } finally {
       for (const eid of [SMOKE, LEAK, DRY]) { delete MODEL.light_positions_m[eid]; delete LBE[eid]; }
       latchesHook = null;

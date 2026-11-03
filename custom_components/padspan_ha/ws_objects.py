@@ -420,7 +420,8 @@ def _name_links_saved(hass: HomeAssistant, links: Any) -> None:
 @admin_if_enhanced_security
 async def ws_label_link_answer(hass: HomeAssistant, connection, msg) -> None:
     """"This looks like <label>: same device?" answered (label_follow.py). Yes moves
-    the name on screen and nothing else; No is remembered."""
+    the name on screen and nothing else; No is remembered, and stops the questions
+    about that device for a week."""
     import time as _time  # noqa: PLC0415
     links, root = await _name_links_root(hass, msg)
     if not links.answer(root, str(msg["address"]).upper(), msg["same"], _time.time()):

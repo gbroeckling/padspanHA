@@ -142,7 +142,7 @@ def test_the_snapshot_is_handed_over_only_while_show_people_is_on() -> None:
     # Mapping does not poll (panel.js _pollTick skips it): with live data the
     # view reads the live snapshot itself, as the sidebar does; sample data
     # stays the page's own.
-    assert "if(this.state.view === \"maps\") return;" in _js(_WWW / "panel.js")
+    assert "if(this.state.view === \"maps\"){ await this._mappingAlarmTick(); return; }" in _js(_WWW / "panel.js")
     assert 'people: ctx.state.dataMode === "live"' in mblock
     assert '? { read: () => ctx.actions.wsCall("padspan_ha/live_snapshot").then((r) => (r && r.snapshot) || null),' in mblock
     assert "everyMs: 1000 * (Number(ctx.state.settings.presence_poll_interval_s) || 5) }" in mblock
@@ -219,3 +219,12 @@ def test_the_view_reads_by_its_own_clock_only_while_it_shows() -> None:
     assert "clearTimeout(peopleTimer); peopleTimer = null;" in td
     det = la[la.index("    detach(){"):]
     assert "peopleClock();" in det[:det.index(chr(10))], "Map picked: the clock stops"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_mapping_keeps_only_its_alarm_state_going() -> None:
+    """Mapping's poll stays off, but for the alarms: tests/js/mapping_alarm_tick.mjs."""
+    r = subprocess.run([shutil.which("node"), str(Path(__file__).parent / "js" / "mapping_alarm_tick.mjs"), str(_WWW)],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr + r.stdout
+    assert json.loads(r.stdout.strip().splitlines()[-1])["cases"] >= 10

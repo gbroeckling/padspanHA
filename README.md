@@ -16,7 +16,7 @@ PadSpan is a Home Assistant integration for Bluetooth room presence. It listens 
 
 🎁 **PadSpan Pro free:** testers get two years of Pro while the anonymous usage report stays on ([how](./docs/PADSPAN_PRO.md#get-pro-free-by-testing-it)), and until December 31 the first 20 people to ask get a year ([details](https://github.com/gbroeckling/padspanHA/discussions/92)).
 
-🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)** · 📖 **Guides:** [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) · [Which Bluetooth tag works?](https://padspan.traks.ca/guides/bluetooth-tags/) · [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Your Shellys can be Bluetooth proxies](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/) · [Which floor plan for Home Assistant?](https://padspan.traks.ca/guides/floor-plans/) · [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/) · [Every floor of a big house on one wall](https://padspan.traks.ca/guides/large-homes/) · [Which touch screen for a PadSpan wall?](https://padspan.traks.ca/guides/wall-screens/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/) · 🎬 **Making a video or article?** [The creators kit](https://padspan.traks.ca/creators/)
+🌐 **Website: [padspan.traks.ca](https://padspan.traks.ca)** · 📖 **Guides:** [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/) · [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) · [Which Bluetooth tag works?](https://padspan.traks.ca/guides/bluetooth-tags/) · [Why does my phone jump between rooms?](https://padspan.traks.ca/guides/room-flapping/) · [How many Bluetooth proxies do I need?](https://padspan.traks.ca/guides/bluetooth-proxies/) · [Your Shellys can be Bluetooth proxies](https://padspan.traks.ca/guides/shelly-bluetooth-proxy/) · [Which floor plan for Home Assistant?](https://padspan.traks.ca/guides/floor-plans/) · [Your robot vacuum's map as your floor plan](https://padspan.traks.ca/guides/robot-vacuum-floor-plan/) · [Every floor of a big house on one wall](https://padspan.traks.ca/guides/large-homes/) · [Which touch screen for a PadSpan wall?](https://padspan.traks.ca/guides/wall-screens/) · [Bermuda and PadSpan together](https://padspan.traks.ca/guides/bermuda/) · [all guides](https://padspan.traks.ca/guides/) · 🎬 **Making a video or article?** [The creators kit](https://padspan.traks.ca/creators/)
 
 <sub>The tour is the real panel on the demo's sample house, at real speed, with captions added. The full walkthrough video is on [padspan.traks.ca](https://padspan.traks.ca/#demo).</sub>
 
@@ -269,7 +269,9 @@ Setting up HACS for the first time? A GitHub change can make HACS's sign-in step
 3. Open the **PadSpan HA** panel in the sidebar. **Who's where now** puts each device in the room of the scanner that hears it best, from each scanner's Home Assistant area. No floor plan needed
 4. Name your phones and tags: [Which room is my phone in?](https://padspan.traks.ca/guides/phone-room-presence/) shows how for iPhone, Apple Watch and Android
 5. **Preview a finished house** shows a sample house with every feature set up. **Back to my house** returns to yours
-6. Want the map? **Make it a map** walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, calibrate
+6. Want the map? **Make it a map** walks you through it: upload a floor plan, set its scale, draw rooms, place scanners, then **Put it on the map** and calibrate
+
+Every step, with pictures: [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/).
 
 ---
 

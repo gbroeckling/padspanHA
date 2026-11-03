@@ -63,7 +63,7 @@ export function forestSeed(model){
   return h >>> 0;
 }
 // Which kind of tree grows here: stands, not a mix of single trees.
-function standOf(seed, x, y){
+export function standOf(seed, x, y){
   const n = (cx, cy, salt) => {
     const gx = Math.floor(x / cx), gy = Math.floor(y / cy), fx = x / cx - gx, fy = y / cy - gy;
     const at = (a, b) => cellRandom(seed, a, b, salt)();
@@ -563,6 +563,17 @@ export function underInvert(node){
   }
   return false;
 }
+/** The layer's size, the drawing's width and where the drawing sits in the layer,
+ *  all as laid out. A wall turned by its link (?wall_rotate) rotates the whole page,
+ *  and the boxes the browser reports are the turned ones: height for width, and the
+ *  offsets along other edges. So there the sizes are the elements' own. */
+export function laidOut(svg, layer, sr, cr){
+  const rn = layer.getRootNode ? layer.getRootNode() : null, turn = rn && rn.host && rn.host.getAttribute ? rn.host.getAttribute("data-wall-rotate") : null;
+  if (turn !== "90" && turn !== "270") return { svgW: sr.width, w: cr.width, h: cr.height, dx: sr.left - cr.left, dy: sr.top - cr.top };
+  return { svgW: svg.clientWidth, w: layer.offsetWidth, h: layer.offsetHeight,
+           dx: turn === "90" ? sr.top - cr.top : cr.bottom - sr.bottom,
+           dy: turn === "90" ? cr.right - sr.right : sr.left - cr.left };
+}
 function createSlot(){
   let layer = null, stageNow = null, shapeKey = null, painted = null, last = null, seen = null, timer = null, paints = 0, ms = 0, ro = null, fitKey = null, paintedAt = -Infinity;
   let shownUrl = null, token = 0;
@@ -614,9 +625,11 @@ function createSlot(){
     if (!svg || !svg.getBoundingClientRect) return false;
     const sr = svg.getBoundingClientRect(), cr = layer.getBoundingClientRect(), [vx, vy, vw, vh] = last.viewBox;
     if (!(sr.width > 0) || !(cr.width > 0) || !(cr.height > 0)) return false;   // hidden (Live Aboard showing), or not on the page yet
-    const s = sr.width / vw, dpr = Math.min(globalThis.devicePixelRatio || 1, 3);
-    const area = { x0: vx - (sr.left - cr.left) / s, y0: vy - (sr.top - cr.top) / s };
-    area.x1 = area.x0 + cr.width / s; area.y1 = area.y0 + cr.height / s;
+    const box = laidOut(svg, layer, sr, cr);
+    if (!(box.svgW > 0)) return false;
+    const s = box.svgW / vw, dpr = Math.min(globalThis.devicePixelRatio || 1, 3);
+    const area = { x0: vx - box.dx / s, y0: vy - box.dy / s };
+    area.x1 = area.x0 + box.w / s; area.y1 = area.y0 + box.h / s;
     const W = area.x1 - area.x0, H = area.y1 - area.y0;
     // Pixel for pixel with the screen where the budget allows; the sprites in
     // quarter steps, so a small change of size draws them again only rarely.

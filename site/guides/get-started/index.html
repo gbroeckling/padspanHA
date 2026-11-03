@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up room presence in Home Assistant: from the Marketplace to your first room | PadSpan HA</title>
+<meta name="description" content="What to do after you install PadSpan from the Home Assistant Marketplace: give each Bluetooth scanner its room, see who's where with no floor plan, name your phone, then put your house on a map.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/get-started/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/get-started/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/get-started/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/get-started/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="From the Marketplace to your first room">
+<meta property="og:description" content="After you install PadSpan: rooms for your scanners, who's where, your phone, then the map. With the steps that are easy to miss.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/get-started/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;overflow-x:auto;line-height:1.5}
+pre code{background:none;border:0;padding:0;font-size:13px;overflow-wrap:normal}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px}th,td{padding:7px 5px;hyphens:auto;-webkit-hyphens:auto}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/get-started/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1>From the Marketplace to your first room</h1>
+<p class="lead">Home Assistant 2026.11 makes installing PadSpan a search and a click. This page is what comes after that: give each Bluetooth scanner its room, see who's where without drawing anything, name your phone and, if you want it, put your house on a map. All of that is free, and the steps that are easy to miss are called out.</p>
+<div class="cta">
+  <a class="btn primary" href="/demo/?page=panel&amp;fresh=1">See a new install's first screen</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Install PadSpan</a>
+</div>
+
+<h2>What you need</h2>
+<ul>
+  <li><b>Home Assistant.</b> The Marketplace comes with 2026.11. PadSpan itself runs on 2024.1 or newer, installed through HACS on anything before 2026.11.</li>
+  <li><b>At least one Bluetooth scanner.</b> An ESPHome Bluetooth proxy, a Shelly Gen2 or newer <a href="/guides/shelly-bluetooth-proxy/">set up as a scanner</a>, or your Home Assistant machine's own Bluetooth. One scanner tells home from away. For rooms, put one in every room you want to tell apart: <a href="/guides/bluetooth-proxies/">How many Bluetooth proxies do I need?</a></li>
+  <li><b>An area for each room.</b> PadSpan's rooms are Home Assistant's areas, under <b>Settings → Areas, labels &amp; zones</b>.</li>
+  <li><b>More than 2 GB of RAM</b> is recommended. Near a busy street PadSpan hears thousands of passing devices, and a 2 GB Raspberry Pi can run out of memory within hours. On a small machine, PadSpan's own <b>Settings → Presence</b> has a <b>Low-memory mode</b>.</li>
+</ul>
+<p>No scanner yet? You can install PadSpan anyway. It shows a made-up house until it hears its first scanner, then switches to yours by itself. Or <a href="/demo/">try the demo</a> in your browser, with nothing to install.</p>
+
+<h2>1. Install it</h2>
+<p>On Home Assistant 2026.11 or newer:</p>
+<ol>
+  <li>Open <b>Settings → Marketplace</b>. The first time, Home Assistant warns you that community projects aren't reviewed by the Home Assistant project. It can't install anything until you accept.</li>
+  <li>Search for <b>room presence</b> or <b>PadSpan</b>, open <b>PadSpan HA</b> and select <b>Install</b>. Check that the dialog offers 0.38.199 or newer, then select <b>Install</b> again.</li>
+  <li>The setup dialog opens straight away, with no restart and nothing to fill in. Select <b>Submit</b>.</li>
+  <li>Open <b>PadSpan HA</b> in the sidebar. The other new entry, <b>Atlas</b>, is the map of your lights and devices. Leave it for later.</li>
+</ol>
+<p>On 2026.10 or older, install <b>PadSpan HA</b> from HACS, restart Home Assistant fully, then add it under <b>Settings → Devices &amp; services → Add integration</b>. The <b>Install PadSpan</b> button on this page opens the right place on either. Already have PadSpan through HACS? Upgrading to 2026.11 moves it to the Marketplace by itself, and it keeps getting updates.</p>
+
+<h2>2. Give every scanner its room</h2>
+<p>PadSpan puts each device in the room whose scanner hears it best, and a scanner's room is the Home Assistant area of its device. A scanner with no area gives no room, however well it hears you: a phone right beside it lands in the next scanner's room. So this comes first.</p>
+<p>You can set the area on the device in Home Assistant, under <b>Settings → Devices &amp; services → Devices</b>. Or do it in PadSpan: on the <b>Overview</b>, in the <b>Bluetooth radios</b> card, select <b>View radios list</b>, then <b>Assign</b> beside the scanner, pick the area and select <b>Save</b>. A Shelly's scanner is a device of its own in Home Assistant, and <a href="/guides/shelly-bluetooth-proxy/">the Shelly guide</a> covers that.</p>
+
+<h2>3. See who's where</h2>
+<p>You don't need a floor plan for this. On the <b>Overview</b>, the <b>Who's where now</b> card lists each room, the named devices in it, and a count of everything else its scanner hears.</p>
+<figure>
+  <img src="/demo/media/setup-whos-where.jpg" width="1600" height="1048" alt="PadSpan's first screen on a new install: a Make it a map checklist at 0 of 6, and the Who's where now card with the rooms Hall, Kitchen and Living Room and the devices in each" loading="lazy">
+  <figcaption>A new install's first screen, on the demo's sample house. The names are made up, and yours also offers the Pro trial and asks whether to share a usage report. <a href="/demo/?page=panel&amp;fresh=1">Open it yourself</a>.</figcaption>
+</figure>
+<p>The screen tells you where you stand:</p>
+<div style="overflow-x:auto">
+<table>
+  <tr><th>What it says</th><th>What it means</th></tr>
+  <tr><td>"You're looking at a made-up house, with every feature set up."</td><td>PadSpan hasn't heard a scanner yet, or you chose <b>Preview a finished house</b>. A brand-new install switches to your house by itself when it hears one. Otherwise select <b>Back to my house</b>.</td></tr>
+  <tr><td>"No Bluetooth scanners found yet."</td><td>Add an ESPHome Bluetooth proxy, or use your Home Assistant machine's own Bluetooth. It shows up within a minute.</td></tr>
+  <tr><td>"… so PadSpan can tell home from away but not rooms."</td><td>No scanner has an area yet. Give each one the area it's in.</td></tr>
+  <tr><td>"… so you get home or away."</td><td>All your scanners are in one area. Put one in another room.</td></tr>
+  <tr><td>"One scanner has no Home Assistant area yet, so it gives no room: <i>its name</i>."</td><td>The others work. Give this one its area.</td></tr>
+  <tr><td>"Heard, no room yet"</td><td>A named device or phone that only a scanner with no area can hear. Give that scanner its area.</td></tr>
+  <tr><td>"Your 3 scanners cover 3 rooms."</td><td>It's working. Each device goes to the room whose scanner hears it best.</td></tr>
+</table>
+</div>
+
+<h2>4. Name your phone</h2>
+<p>A device you haven't named gets no entities from PadSpan. Naming one gives it a device tracker whose state is the room, an <b>Area</b> sensor and <b>Distance</b> sensors.</p>
+<ul>
+  <li><b>Android:</b> switch on <b>BLE Transmitter</b> in the Companion app (Manage sensors). Then on the <b>Overview</b>, under <b>Track Your Phone</b>, select <b>Track this phone</b>. If it shows <b>Setup</b> or <b>Enable &amp; Track</b>, the sensor isn't on yet, and that button says what to do.</li>
+  <li><b>iPhone or Apple Watch:</b> get its key, the IRK, into Home Assistant once, then select <b>Track</b> beside its name in <b>Who's where now</b>. It can take five minutes to appear, and once rooms are on the map that card is gone, so use <b>All objects → Tag</b> instead. <a href="/guides/phone-room-presence/">Which room is my phone in?</a> has the steps.</li>
+  <li><b>A beacon or key tag:</b> on the <b>Overview</b>, in the <b>Objects</b> card, open <b>All objects</b>, select <b>Tag</b> on its row, type a name and select <b>Save label</b>. <a href="/guides/bluetooth-tags/">Which Bluetooth tag works?</a> has what to buy.</li>
+</ul>
+
+<h2>5. Put your house on a map</h2>
+<p>This part is optional, and it's free. It turns the list of rooms into your house, drawn on the <b>Overview</b>. Calibration needs it, and with three or more scanners placed on it, PadSpan can also place devices between them, even in rooms with no scanner of their own.</p>
+<figure>
+  <img src="/demo/media/setup-overview-rooms.jpg" width="1400" height="1242" alt="The demo house's rooms on PadSpan's Overview: three floors stacked one above the other, each room outlined in its own colour with its name" loading="lazy">
+  <figcaption>The demo house on the <b>Overview</b>, with the floors stacked. <a href="/demo/?page=panel">Open it yourself</a>.</figcaption>
+</figure>
+<p>Select <b>Make it a map</b> on the <b>Who's where now</b> card. The wizard has five steps, one floor at a time:</p>
+<ol>
+  <li><b>Upload floor plan.</b> Any picture of the floor works, even a photo of a sketch (PNG, JPG, WebP, GIF or SVG). Choose its floor, give it a name and select <b>Upload &amp; Convert</b>.</li>
+  <li><b>Set the scale.</b> Click both ends of a wall you know, type its length in metres and select <b>Add 1st Measurement</b>. Do the same along a wall at a different angle, ideally at right angles to the first, and select <b>Add 2nd Measurement</b>. Then select <b>Save Scale</b>. It only takes metres, so 12 feet is 3.66. A sketch may show a warning that the map appears stretched, and you can still save. Don't skip this one: without a scale, nothing can go on the map at the end, and calibration can't start.</li>
+  <li><b>Draw rooms.</b> Under the map, pick a room from <b>Choose room…</b> (the list is your Home Assistant areas), select <b>Start drawing</b>, click each corner, then select <b>Finish</b> or double-click. When the floor's rooms are drawn, select <b>Save Layout</b>, because <b>Next</b> doesn't save for you. A room missing from the list? Check under <b>Settings → Areas, labels &amp; zones</b> that its area is on this floor.</li>
+  <li><b>Place scanners.</b> In the <b>Live BLE Radios</b> list under the map, select <b>Add</b> beside each scanner on this floor, drag it to where it's mounted, and select <b>Save Layout</b>. Use <b>Add</b> in this list, not <b>Add Receiver</b> above it or a double-click on the map, even though the step's own text suggests that: only a marker from this list is linked to a real scanner.</li>
+  <li><b>Finish, then Put it on the map.</b> This is the step that's easy to miss. Until you select <b>Put it on the map</b>, your rooms and scanners are only on the picture, and <b>Done</b> doesn't move them. Once the first room is on, your house takes the place of <b>Who's where now</b> on the Overview, for the whole house, so draw every room your scanners cover: a device in a room you haven't drawn may not show. For the next floor, select <b>+ Set up another floor</b> and set its scale too, even though the step says the scale is set. With two floors or more, line them up and set their heights in <b>Mapping → 3D Stack</b>.</li>
+</ol>
+<figure>
+  <img src="/demo/media/setup-finish.jpg" width="1600" height="758" alt="The wizard's last step, Ground floor is set up: 3 rooms and 3 scanners are on this floor plan but not yet on the map of your house, with a Put it on the map button" loading="lazy">
+  <figcaption>Step 5, on the demo's sample plan. <a href="/demo/?page=panel&amp;fresh=wizard">Try it yourself</a>: select <b>Make it a map</b>, then <b>5. Finish</b>.</figcaption>
+</figure>
+<p><b>Already finished, and the Overview says "Positioning fabric not built yet"?</b> You don't have to start again, and you don't have to go to <b>Mapping → Rooms</b>, where that message sends you. Select <b>Make it a map</b>, then <b>5. Finish</b>, then <b>Put it on the map</b>. That covers your first plan. For another floor, use <b>Commit this layout to fabric</b> in <b>Mapping → Rooms</b> and <b>Calibration → Tune → Save</b>. A scanner you placed with a double-click needs adding again from <b>Live BLE Radios</b> first. Versions before 0.38.174 don't have the button, so update PadSpan first.</p>
+<p><b>No picture of the floor?</b> In <b>Mapping → Rooms</b> you can add rooms in metres with no picture: type the area's exact name in the <b>New room name</b> box, select <b>+ Add room</b>, then drag it to shape and select <b>Save corrections</b>. Calibration still needs a plan with a scale. The same screen imports a Sweet Home 3D file, and a <a href="/guides/robot-vacuum-floor-plan/">robot vacuum's map</a> can give you the plan and rooms at once on an empty floor: turn on PadSpan's <b>Settings → Features → Robot Vacuum Import</b> first (experimental, off by default). <a href="/guides/floor-plans/">Which floor plan for Home Assistant?</a> compares your options.</p>
+
+<h2>6. Calibrate</h2>
+<p>The strongest scanner is a good first answer. Calibration teaches PadSpan what each spot in your house really sounds like, and it's free. It needs a floor with a plan and a scale. Open <b>Calibration</b> in PadSpan's menu, select <b>Guided calibration</b>, choose your phone or a tag and the floor, walk the house, then select <b>Compute Model</b>. PadSpan listens at each spot: 15 seconds is the default, the panel recommends 60, and it asks for 10–20 spots spread across each floor.</p>
+<p>Open it yourself rather than waiting for the checklist: the Overview's checklist counts a scanner on the map as calibrated, so it closes itself after <b>Put it on the map</b>, before you've walked anywhere. If a phone still jumps between rooms, see <a href="/guides/room-flapping/">Why does my phone jump between rooms?</a></p>
+
+<h2>Free, and what Pro adds</h2>
+<p>Everything on this page is free. PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house, so every light and device sits where it really is; Live Aboard, the same house in 3D, like looking into a house in The Sims (still experimental); Furnish, for your furniture; the wall screen; and Forensics, Busy Times and Locate. You can try all of Pro free for 90 days, no card. Start it from PadSpan's <b>Settings → Features → PadSpan licence</b>, or from the last row of the Overview's checklist while that's showing. It asks for an email to send your key and needs the usage report on, which can't be turned off until the trial ends.</p>
+
+<h2>If it still doesn't work</h2>
+<ul>
+  <li><b>"Bluetooth feed unavailable".</b> Restart Home Assistant fully, under <b>Settings → System → Restart</b>. The panel says a reload isn't enough after a first install.</li>
+  <li><b>Uploading a plan, saving the scale or starting the trial is refused.</b> Those need a Home Assistant administrator.</li>
+  <li><b>Calibration has gone from the menu, or Mapping has lost Edit and Rooms.</b> The mode button at the top right has switched the panel to <b>Basic</b>. Select it again and it goes back to <b>Advanced</b>.</li>
+  <li><b>All objects is full of strangers' devices.</b> Normal near a street. In that list, change <b>All statuses</b> to <b>Identified</b>, or search by name.</li>
+  <li><b>Something else.</b> <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> on GitHub.</li>
+</ul>
+
+<h2>Sources</h2>
+<ul>
+  <li>The Marketplace: <a href="https://www.hacs.xyz/docs/marketplace/">HACS's page on the move</a> and <a href="https://frenck.dev/hacs-is-now-the-home-assistant-marketplace/">Franck Nijhof's post</a>.</li>
+  <li>Home Assistant's <a href="https://www.home-assistant.io/docs/organizing/areas/">areas</a> docs.</li>
+  <li>PadSpan's <a href="https://github.com/gbroeckling/padspanHA/blob/v0.38.199/README.md">README</a> and its code at the 0.38.199 stable. The pictures are from the <a href="/demo/">demo</a>, which runs as Pro.</li>
+</ul>
+<p style="font-size:13px;color:var(--mut)">Written for 0.38.199, the current stable. From the 0.38.203 beta, <b>Make it a map</b> opens a guided <b>Setup</b> list that leads to these same steps, with floor heights added for a house of two floors or more. <b>Settings → Presence</b> is called <b>Tracking</b> there, and the warning reads "Room and receiver layout not built yet". Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try the demo in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Install PadSpan</a>
+</div>
+<p style="font-size:13px;color:var(--mut)">The install button opens PadSpan in HACS, or in <b>Settings → Marketplace</b> from Home Assistant 2026.11.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · iPhone and Apple Watch are trademarks of Apple Inc.; Android of Google LLC; Shelly of Shelly Group; Raspberry Pi of Raspberry Pi Ltd; The Sims of Electronic Arts. PadSpan isn't affiliated with any of them.</p>
+</div></footer>
+</body>
+</html>
