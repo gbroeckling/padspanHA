@@ -396,7 +396,7 @@ function renderUnlocked(ctx, root) {
     const ovSettings = Object.fromEntries(Object.entries(ovMap).filter(([k]) => !/^screens?(_listed)?:/.test(k)));
     const ovScreens = Object.fromEntries(Object.entries(ovMap).filter(([k]) => /^screens?(_listed)?:/.test(k)));
     // Things people did, things PadSpan did by itself, and what the panel saw of its screen.
-    const _auto = /^(irk_resolved|irk_unresolved_rpa|irk_cache_cleared|scan_mode_flip|lost_and_found|tagged_(arrived|departed)|findmy_|mqtt_publish_failed|proxy_rate_drops|vacation_resumed|bermuda_history_purged|house3d_fallback|map_placement_refused|weather_note|weather_source|weather_shown|wall_reload|view_link|ui_error_while)/;
+    const _auto = /^(irk_resolved|irk_unresolved_rpa|irk_cache_cleared|scan_mode_flip|lost_and_found|tagged_(arrived|departed)|findmy_|label_link_(linked|asked|old_back|wrong_after_undo)|mqtt_publish_failed|proxy_rate_drops|vacation_resumed|bermuda_history_purged|house3d_fallback|map_placement_refused|weather_note|weather_source|weather_shown|wall_reload|view_link|ui_error_while)/;
     const _screen = /^(client_|wall_screen:|overview_shown:|house3d_wall_draw:)/;
     const usePeople = {}, useAuto = {}, useScreen = {};
     for (const [k, v] of Object.entries(s.usage || {})) (_screen.test(k) ? useScreen : _auto.test(k) ? useAuto : usePeople)[k] = v;
@@ -696,6 +696,12 @@ const W_EVENT = {
   findmy_back_on_day_key: "Find My tag back on its daily key",
   findmy_moved_back: "Find My tag went back to an earlier address",
   findmy_moved_back_addrs: "Links undone when a Find My tag went back",
+  label_link_linked: "A name moved to a device's new address, on screen",
+  label_link_asked: "Asked whether a new address is a named device",
+  label_link_yes: "Answered yes: same device", label_link_no: "Answered no: a different device",
+  label_link_undone: "Undid a name's move to a new address",
+  label_link_wrong_after_undo: "An undone move proved wrong: both addresses heard at once",
+  label_link_old_back: "A name went back by itself: the old address came back",
   forensics_query: "Ran a Forensics search", free_pro_card_shown: "Saw the free-Pro card",
   getting_started_shown: "Saw the Getting Started card", house3d_opened: "Opened the 3D house",
   "house3d_wall_draw:high": "Wall: every pixel, always",

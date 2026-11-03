@@ -8,9 +8,10 @@ The object list merges plain BLE objects on a guess: same name, same maker
 data, same scanners (snapshot_builder, D3 to D7). A wrong guess on something
 someone looks after does real harm: its signal mixes into new calibration
 points, it takes another device's label, and an absorbed object is deleted from
-history. So nothing labelled, saved, pinned, used in calibration or linked to a
-Home Assistant device or entity is merged by a guess, in either pass. Labels
-attach after the first pass, so the stores are asked, not just the object.
+history. So nothing labelled, saved, pinned, followed, used in calibration or
+linked to a Home Assistant device or entity is merged by a guess, in either
+pass: a followed device keeps its own row every poll. Labels attach after the
+first pass, so the stores are asked, not just the object.
 
 Merges that go by an address or a broadcast ID, not a guess (an entity and its
 own address, one Eddystone ID, one label on one address), aren't asked.
@@ -20,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .const import DATA_CALIBRATION, DATA_DEVICE_REGISTRY, DATA_MODEL, DATA_OBJECTS, DOMAIN
+from .const import DATA_CALIBRATION, DATA_DEVICE_REGISTRY, DATA_MODEL, DATA_OBJECTS, DATA_SETTINGS, DOMAIN
 
 
 def _norm(key: Any) -> str:
@@ -41,14 +42,17 @@ class MergeGuard:
         self._registry = dom.get(DATA_DEVICE_REGISTRY)
         self._calibration = dom.get(DATA_CALIBRATION)
         self._model = dom.get(DATA_MODEL)
+        self._settings = dom.get(DATA_SETTINGS)
         self._ready = None not in (self._labels, self._registry, self._calibration, self._model)
         self._kept: set[str] | None = None
 
     def _kept_keys(self) -> set[str]:
-        """Every key a pin or a calibration point is stored under. Built when
-        the first merge of a build asks, so a house with none pays nothing."""
+        """Every key a pin or a calibration point is stored under, and every one
+        being followed. Built when the first merge of a build asks, so a house
+        with none pays nothing."""
         if self._kept is None:
             kept = {_norm(k) for k in self._model.beacon_positions_m()}
+            kept |= {_norm(k) for k in ((self._settings.data if self._settings else {}).get("followed_addrs") or [])}
             for point in (self._calibration.data or {}).get("points") or []:
                 if isinstance(point, dict) and point.get("device_id"):
                     kept.add(_norm(point["device_id"]))

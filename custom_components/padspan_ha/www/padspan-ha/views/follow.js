@@ -296,6 +296,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
   const allAddr = new Set();
   if (addr) allAddr.add(addr.toUpperCase());
   for (const a of (obj.all_addresses || [])) allAddr.add(String(a).toUpperCase());
+  if (obj.label_link) allAddr.add(String(obj.label_link.address).toUpperCase());
   const seenBy = ads
     .filter(a => {
       if (!a.address) return false;
@@ -352,6 +353,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
         el("div", { style: "font-size:28px;font-weight:800;color:#52b788;margin-top:2px" }, room),
         floor !== "—" ? el("div", { class: "muted", style: "margin-top:4px" }, `Floor: ${floor}`) : null,
         lastSeen ? el("div", { class: "muted", style: "margin-top:8px" }, `Last seen: ${lastSeen}`) : null,
+        ctx.actions.labelLines ? ctx.actions.labelLines(obj, "own") : null,
       ].filter(Boolean)),
     ]);
   }
@@ -387,6 +389,7 @@ function _buildStatus(ctx, el, helpBtn, chosen, haAreas, haFloors, ads, dataMode
       ].filter(Boolean)),
     ]),
     addr ? el("div", { class: "muted", style: "font-size:11px;margin-top:8px" }, `Address: ${addr}`) : null,
+    ctx.actions.labelLines ? ctx.actions.labelLines(obj, "own") : null,
   ].filter(Boolean));
 }
 

@@ -401,6 +401,64 @@ async def ws_findmy_unlink(hass: HomeAssistant, connection, msg) -> None:
     connection.send_result(msg["id"], {"unlinked": res[0], "back_to": res[1]})
 
 
+async def _name_links_root(hass: HomeAssistant, msg: dict[str, Any]) -> tuple[Any, str]:
+    """The screen's name links and the device's first address, from its row's key."""
+    from .snapshot_builder import _label_links  # noqa: PLC0415
+    key = str(msg.get("key") or "").strip().upper()
+    return await _label_links(hass), key[4:] if key.startswith("BLE:") else key
+
+
+def _name_links_saved(hass: HomeAssistant, links: Any) -> None:
+    from .snapshot_builder import _label_links_save  # noqa: PLC0415
+    _label_links_save(hass, links, 1)
+    _invalidate_snapshot_cache(hass)
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/label_link_answer", "key": str, "address": str, "same": bool})
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_label_link_answer(hass: HomeAssistant, connection, msg) -> None:
+    """"This looks like <label>: same device?" answered (label_follow.py). Yes moves
+    the name on screen and nothing else; No is remembered."""
+    import time as _time  # noqa: PLC0415
+    links, root = await _name_links_root(hass, msg)
+    if not links.answer(root, str(msg["address"]).upper(), msg["same"], _time.time()):
+        connection.send_error(msg["id"], "not_open", "That question isn't open any more")
+        return
+    if msg["same"]:
+        _bump(hass, "label_link_yes")
+    else:
+        _bump(hass, "label_link_no")
+    _name_links_saved(hass, links)
+    connection.send_result(msg["id"], {"same": msg["same"], "current": links.current(root)})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/label_link_undo", "key": str})
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_label_link_undo(hass: HomeAssistant, connection, msg) -> None:
+    """One click removes a link: the name goes back to the device's first address."""
+    import time as _time  # noqa: PLC0415
+    links, root = await _name_links_root(hass, msg)
+    if not links.undo(root, _time.time()):
+        connection.send_error(msg["id"], "not_linked", "That device isn't linked to another address")
+        return
+    _bump(hass, "label_link_undone")
+    _name_links_saved(hass, links)
+    connection.send_result(msg["id"], {"current": root})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/label_link_hint_off", "key": str})
+@websocket_api.async_response
+@admin_if_enhanced_security
+async def ws_label_link_hint_off(hass: HomeAssistant, connection, msg) -> None:
+    """The pointer to a device's IRK, dismissed for good."""
+    links, root = await _name_links_root(hass, msg)
+    links.dismiss_hint(root)
+    _name_links_saved(hass, links)
+    connection.send_result(msg["id"], {"ok": True})
+
+
 @websocket_api.websocket_command({"type": "padspan_ha/objects_clear_history"})
 @websocket_api.async_response
 @admin_if_enhanced_security

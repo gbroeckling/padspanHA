@@ -1003,6 +1003,7 @@ function renderScanners(ctx, radios, sources, adsAll) {
   for (const o of allObjects) {
     if (o.address) objByAddr.set(String(o.address).toUpperCase(), o);
     for (const a of (o.all_addresses || [])) { if (a) objByAddr.set(String(a).toUpperCase(), o); }
+    if (o.label_link) objByAddr.set(String(o.label_link.address).toUpperCase(), o);
   }
 
   // Find all ads from the selected scanner, then dedup by address keeping the
@@ -1291,6 +1292,8 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       sigEl(el, a.rssi),
     ]));
     if (xr.kind) card.appendChild(el("div", { class: "bt-chips" }, [kindBadge(xr.findmy ? "findmy" : xr.kind)]));
+    const _nameLines = obj && ctx.actions.labelLines ? ctx.actions.labelLines(obj) : null;
+    if (_nameLines) card.appendChild(_nameLines);
     // A Find My tag carried onto this address by MAC Rotation Bridging: if
     // it's the wrong tag, undo that link here (round 9 — otherwise it lasted
     // days).

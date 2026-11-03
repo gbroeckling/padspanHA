@@ -36,6 +36,7 @@ from .const import (
     ADAPTIVE_STORE_KEY,
     OBJECT_STORE_KEY,
     FINDMY_STORE_KEY,
+    LABEL_LINKS_STORE_KEY,
     MAPS_STORE_KEY,
     MODEL_STORE_KEY,
     FABRIC_STORE_KEY,
@@ -294,6 +295,19 @@ async def ws_factory_reset(hass: HomeAssistant, connection, msg) -> None:
     except Exception as e:
         _LOGGER.warning("Factory reset: Find My links — %s", e)
         errors.append(FINDMY_STORE_KEY)
+
+    # ── 6c. Name links — which address a named device uses on screen (label_follow.py) ──
+    try:
+        _old_ll = domain.pop("label_links_store", None)
+        if _old_ll is not None:
+            await _old_ll.async_save({})
+        st = _St(hass, 1, LABEL_LINKS_STORE_KEY)
+        await st.async_save({})
+        cleared += 1
+        domain.pop("label_links", None)
+    except Exception as e:
+        _LOGGER.warning("Factory reset: name links — %s", e)
+        errors.append(LABEL_LINKS_STORE_KEY)
 
     # ── 7. AlertStore — reset to {} ───────────────────────────────────────
     try:

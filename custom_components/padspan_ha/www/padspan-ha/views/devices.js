@@ -233,7 +233,7 @@ function _renderAll(ctx) {
   ].filter(Boolean));
 
   // ── Device rows ───────────────────────────────────────────────────────────
-  const _devHay = (d) => `${d.name} ${d.id} ${d.room} ${d.stateRaw} ${d.type} ${deviceWhat(d.obj) || ""} ${(d.obj && d.obj.company_name) || ""}`.toLowerCase();
+  const _devHay = (d) => `${d.name} ${d.id} ${d.room} ${d.stateRaw} ${d.type} ${deviceWhat(d.obj) || ""} ${(d.obj && d.obj.company_name) || ""} ${(d.obj && d.obj.label_link && d.obj.label_link.address) || ""}`.toLowerCase();
   const _devRow = (d, grouped) => {
     const kindBadge = d.type === "entity"      ? el("span", { class: "badge", style: "font-size:10px" }, "Entity")
                     : d.type === "private_ble"  ? el("span", { class: "badge", style: "font-size:10px;background:#1a2a3a;color:#7dd3fc;border-color:#1e4976" }, "Private BLE")
@@ -303,6 +303,7 @@ function _renderAll(ctx) {
       el("div", { class: "dev-tag-main" }, [
         el("div", { class: "dev-tag-name" }, d.name),
         el("div", { class: "dev-tag-sub" }, sub.join(" \u00b7 ")),
+        ctx.actions.labelLines ? ctx.actions.labelLines(d.obj) : null,
       ]),
       el("div", { class: "dev-tag-right", style: "display:flex;align-items:center;gap:6px;flex-wrap:wrap" }, [
         kindBadge,

@@ -3854,6 +3854,9 @@ class PadSpanHaApp extends HTMLElement {
           } catch(e){ /* non-fatal */ }
         },
         showHelp: (key)=>this._showHelp(key),
+        // A device's quiet lines (name links). "list": a row, never in Basic.
+        // "own": its own view. Neither on a wall, where nobody is there to answer.
+        labelLines: (obj, where="list", after=null)=>this._labelLines(obj, where, after),
 
         // Area / entity management
         areaDelete: async (area_id) =>
@@ -4130,6 +4133,18 @@ class PadSpanHaApp extends HTMLElement {
    * action buttons (follow, delete, close).
    * Handles all BLE kinds: ble, private_ble, ibeacon, and HA entities.
    */
+  _labelLines(obj, where, after){
+    if(!DEVICE_NAME || !DEVICE_NAME.labelLines) return null;
+    if(this.state.kioskMode || (wallScreen(false) && untouchedFor(120000))) return null;
+    if(where === "list" && this.state.complexity === "basic") return null;
+    return DEVICE_NAME.labelLines(el, obj, {
+      wsCall: (type, data) => this._callWS({ type, ...data }),
+      toast: (msg, bad) => this._toast(msg, bad),
+      showHelp: (key) => this._showHelp(key),
+      after: async () => { if(after) after(); await this._getLiveSnapshot(); this._scheduleRender(); },
+    });
+  }
+
   _showObjectDetail(obj){
     const addr = obj.address || "";
     const userLabel = obj.user_label || "";
@@ -4175,6 +4190,7 @@ class PadSpanHaApp extends HTMLElement {
         ...(what ? [el("span", {class:"muted"}, "What it is"), el("span", {}, what)] : []),
         ...(obj.how_known ? [el("span", {class:"muted"}, "How we know"), el("span", {style:"color:#94a3b8"}, obj.how_known)] : []),
       ]) : null,
+      this._labelLines(obj, "own", () => this._closeModal()),
       obj.canonical_id ? el("div", {class:"muted", style:"font-size:11px"}, `Canonical: ${obj.canonical_id}`) : null,
       (Array.isArray(obj.all_addresses) && obj.all_addresses.length > 1)
         ? el("div", {class:"muted", style:"font-size:11px"}, `Addresses (${obj.all_addresses.length}): ${obj.all_addresses.slice(0,5).join(", ")}${obj.all_addresses.length>5?" + "+(obj.all_addresses.length-5)+" more":""}`)

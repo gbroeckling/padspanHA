@@ -284,6 +284,20 @@ EVENTS: frozenset[str] = frozenset({
     "findmy_linked", "findmy_linked_slow",
     "findmy_missed_ambiguous", "findmy_missed_late", "findmy_missed_elsewhere", "findmy_missed_no_candidate",
     "findmy_moved_back", "findmy_moved_back_addrs", "findmy_back_on_day_key", "findmy_not_this_tag",
+    # A name following a rotating address, on screen only (label_follow.py).
+    # Garry, 2026-11-02: the merge guard keeps a name on the first address, and
+    # a guess can mix signal into calibration, so "find a better way". These say
+    # whether the better way is right in homes other than his.
+    #   label_link_linked     a name moved to a new address on evidence.
+    #   label_link_asked      "This looks like <label>: same device?" put up.
+    #   label_link_yes, _no   how that was answered.
+    #   label_link_undone     a person's Undo.
+    #   label_link_wrong_after_undo  an undone link the radio then proved wrong:
+    #                         both addresses on the air at once.
+    #   label_link_old_back   a link dropped by itself: an address it had left
+    #                         came back, so that was no hand-over.
+    "label_link_linked", "label_link_asked", "label_link_yes", "label_link_no", "label_link_undone",
+    "label_link_wrong_after_undo", "label_link_old_back",
     # The Atlas emergency lighting test (emergency_test.py): a test started,
     # ended (the lights already on left on), or ended with Force off.
     "emergency_test_on", "emergency_test_off", "emergency_force_off",

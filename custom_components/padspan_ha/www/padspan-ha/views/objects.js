@@ -402,6 +402,7 @@ export function render(ctx){
         (o.service_names||[]).join(" "),
         o.canonical_id, o.key, o.name, o.private_ble_name,
         (o.all_addresses||[]).join(" "),
+        o.label_link ? o.label_link.address : "",
         (o.linked_entities||[]).join(" "),
         o.ibeacon_major, o.ibeacon_minor,
         o.vendor, o.device, o.prefix,
@@ -433,6 +434,7 @@ export function render(ctx){
         (Array.isArray(o.all_addresses) && o.all_addresses.length > 1
           ? el("div",{class:"muted",style:"font-size:10px;color:#a78bfa"}, `${o.all_addresses.length} MACs merged`)
           : null),
+        ctx.actions.labelLines ? ctx.actions.labelLines(o) : null,
         // WTI score badge (dev mode)
         (_wtiRoomAdv && _wtiScoresAdv && !identified && (() => {
           const sc = _wtiScoresAdv[(addr || "").toUpperCase()] || 0;

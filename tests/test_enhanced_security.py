@@ -56,7 +56,7 @@ GATED = {
     "ws_house3d_photo": "house3d_from_photo",
     "ws_house3d_stairs": "house3d_stairs_plans house3d_stairs_read",
     "ws_maps": "maps_update",
-    "ws_objects": "object_label_set object_label_delete findmy_unlink objects_clear_history",
+    "ws_objects": "object_label_set object_label_delete findmy_unlink label_link_answer label_link_undo label_link_hint_off objects_clear_history",
     "ws_occupancy": "occupancy_train",
     "ws_radios": "scanner_offset_set radio_lost_set radio_disabled_set",
 }

@@ -105,6 +105,94 @@ async def _findmy_bridge(hass: HomeAssistant):
     return bridge
 
 
+_LABEL_LINKS = "label_links"
+_LABEL_LINKS_STORE = "label_links_store"
+
+
+async def _label_links(hass: HomeAssistant):
+    """The screen's name links (label_follow.py), loaded from their Store once."""
+    from .label_follow import LabelLinks  # noqa: PLC0415
+    dom = hass.data.setdefault(DOMAIN, {})
+    links = dom.get(_LABEL_LINKS)
+    if links is None:
+        from homeassistant.helpers.storage import Store  # noqa: PLC0415
+        from .const import LABEL_LINKS_STORE_KEY  # noqa: PLC0415
+        store = Store(hass, 1, LABEL_LINKS_STORE_KEY)
+        try:
+            state = await store.async_load()
+        except Exception:  # noqa: BLE001 — a bad file starts empty, never blocks the snapshot
+            state = None
+        links = dom[_LABEL_LINKS] = LabelLinks(state if isinstance(state, dict) else None)
+        dom[_LABEL_LINKS_STORE] = store
+    return links
+
+
+def _label_links_save(hass: HomeAssistant, links: Any, delay: float = 5) -> None:
+    """Once for each change: a delayed save asked for again every poll never comes."""
+    links.dirty = False
+    store = hass.data.get(DOMAIN, {}).get(_LABEL_LINKS_STORE)
+    if store is not None:
+        store.async_delay_save(links.to_state, delay)
+
+
+def _named_or_followed(dom: dict) -> set[str]:
+    """Every plain address someone named or followed. iBeacon and IRK keys have
+    an identity of their own, so they are never in it."""
+    from .label_follow import is_plain_mac  # noqa: PLC0415
+    out: set[str] = set()
+
+    def add(key: Any) -> None:
+        key = str(key or "").strip().upper()
+        key = key[4:] if key.startswith("BLE:") else key
+        if is_plain_mac(key):
+            out.add(key)
+    st = dom.get(DATA_SETTINGS)
+    for key in (st.data if st else {}).get("followed_addrs") or ():
+        add(key)
+    obj_store = dom.get(DATA_OBJECTS)
+    if obj_store is not None:
+        for key, entry in obj_store.all().items():
+            if isinstance(entry, dict) and entry.get("label"):
+                add(key)
+    dev_reg = dom.get(DATA_DEVICE_REGISTRY)
+    if dev_reg is not None:
+        for dev in dev_reg.all_labeled().values():
+            idents = [i for i in (dev.get("identities") or []) if isinstance(i, dict)]
+            if any(i.get("kind") in ("ibeacon", "irk") for i in idents):
+                continue
+            for ident in idents:
+                add(ident.get("value"))
+    return out
+
+
+async def _label_follow_step(hass: HomeAssistant, ble_by_addr: dict, canonical_by_addr: dict, ibeacon_addrs: set,
+                             addr_to_device: dict, addr_to_entities: dict) -> None:
+    """One poll of the name links (label_follow.py). Reads the adverts, keeps its
+    own notes and changes nothing in this build. A house where nobody named or
+    followed a plain address that may rotate pays for one walk over its labels."""
+    from .label_follow import may_rotate  # noqa: PLC0415
+    from .telemetry import bump  # noqa: PLC0415
+    dom = hass.data.get(DOMAIN, {})
+    if None in (dom.get(DATA_OBJECTS), dom.get(DATA_DEVICE_REGISTRY), dom.get(DATA_SETTINGS)):
+        return      # still starting: nobody looks named yet, and that must not end a link
+    links = await _label_links(hass)
+    claimed = _named_or_followed(dom)
+    proven = set(canonical_by_addr) | set(ibeacon_addrs) | set(addr_to_device) | set(addr_to_entities)
+    history = dom.get(DATA_OBJECT_HISTORY) or {}
+    watched: dict[str, Any] = {}
+    for addr in claimed:
+        if addr in proven:
+            continue
+        hist = history.get(f"ble:{addr}")
+        said = (ble_by_addr.get(addr) or {}).get("address_type") or (hist or {}).get("address_type")
+        if may_rotate(addr, said):
+            watched[addr] = hist
+    for event in links.step(time.time(), ble_by_addr, watched, proven=proven, claimed=claimed, history=history):
+        bump(hass, event)
+    if links.dirty:
+        _label_links_save(hass, links)
+
+
 def _findmy_forget_in_history(dom: dict, ident: str, addr: str) -> None:
     """An address unlinked from a Find My tag leaves the tag's cached object
     too: the history cache replays that object (with its address list and
@@ -1520,6 +1608,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         # NOTE: _private_groups MUST be initialized before section A because
         # section A references it to link entity objects to private_ble devices.
         _private_groups: dict[str, dict[str, Any]] = {}  # canonical_id → merged info
+        # A name following a rotating address: it only reads here, and what it
+        # concludes reaches the screen alone (ws_live_snapshot, label_follow.py).
+        try:
+            await _label_follow_step(hass, ble_by_addr, canonical_by_addr, ibeacon_addrs, addr_to_device, addr_to_entities)
+        except Exception as _lf_err:  # noqa: BLE001 — a name that doesn't follow is the old behaviour
+            _LOGGER.debug("Name links: %s", _lf_err)
         for addr, rec in ble_by_addr.items():
             if addr in ibeacon_addrs:
                 continue  # absorbed into a merged iBeacon group (section C)
@@ -3386,6 +3480,17 @@ async def ws_live_snapshot(hass: HomeAssistant, connection, msg) -> None:
             hass.data[DOMAIN]["_room_held_keys"] = _now
     except Exception as _hold_err:
         _LOGGER.warning("Room hold failed: %s", _hold_err, exc_info=True)
+
+    # A name following a rotating address (label_follow.py): the screen's copy
+    # alone, after everything above that writes (Lost & Found, the room hold).
+    # The presence poll, Follow's alerts and the stores never see this.
+    try:
+        _ll = hass.data.get(DOMAIN, {}).get(_LABEL_LINKS)
+        if _ll is not None and _ll.shows_anything():
+            from .label_follow import overlay as _ll_overlay  # noqa: PLC0415
+            snap["objects"]["list"] = _ll_overlay(snap["objects"]["list"], _ll)
+    except Exception as _ll_err:  # noqa: BLE001 — the rows as they were
+        _LOGGER.debug("Name links not shown: %s", _ll_err)
 
     # Rebuild room_tag_map from overlaid objects so the map matches the
     # presence coordinator's smoothed room assignments (spatial centroid).

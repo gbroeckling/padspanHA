@@ -81,6 +81,7 @@ MODEL_STORE_KEY = "padspan_ha.model"
 FABRIC_STORE_KEY = "padspan_ha.fabric"
 OBJECT_STORE_KEY = "padspan_ha.objects"
 FINDMY_STORE_KEY = "padspan_ha.findmy_bridge"   # findmy.py — which address each known Find My tag uses now
+LABEL_LINKS_STORE_KEY = "padspan_ha.label_links"   # label_follow.py — which address a named device uses on screen; what it may be, never who it is
 CALIBRATION_STORE_KEY = "padspan_ha.calibration"
 ALERTS_STORE_KEY = "padspan_ha.follow_alerts"
 MOVEMENT_STORE_KEY = "padspan_ha.movement_history"

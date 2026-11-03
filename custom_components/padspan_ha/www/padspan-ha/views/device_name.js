@@ -37,6 +37,46 @@ export function listWhat(o){
   return what === "iBeacon" && o && o.kind === "ibeacon" ? null : what;
 }
 
+const LINK_HOW = "On screen only: its calibration, learning, alerts and Home Assistant stay on the address you named it by. Undo puts the name back there.";
+
+/** What the name links say about a device (label_follow.py): where its name has
+ *  gone, one question, and the pointer to its IRK. Quiet lines, never a window.
+ *  act: { wsCall, toast, after, showHelp }. null when there is nothing to say. */
+export function labelLines(el, o, act){
+  if(!o) return null;
+  const out = [];
+  const line = (text, buttons, title) => el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:3px;font-size:11px;color:#94a3b8", title: title || "" },
+    [el("span", {}, text), ...buttons]);
+  const button = (text, run) => el("button", { type: "button", class: "btn tiny", style: "font-size:10px;padding:1px 6px", onclick: async (e) => {
+    e.stopPropagation();
+    try { await run(); } catch(err) { act.toast("That didn't work: " + ((err && (err.message || err.code)) || err), true); }
+    if(act.after) await act.after();
+  } }, text);
+  const key = o.key;
+  if(o.label_link){
+    out.push(line(`Now on ${o.label_link.address}. ${o.label_link.by === "you" ? "You said it's the same device." : "It looks like the same device."}`,
+      [button("Undo", () => act.wsCall("padspan_ha/label_link_undo", { key }))], LINK_HOW));
+  }
+  if(o.label_ask){
+    const answer = (same) => act.wsCall("padspan_ha/label_link_answer", { key: o.label_ask.key, address: o.label_ask.address, same });
+    out.push(line(`This looks like ${o.label_ask.label}: same device?`,
+      [button("Yes", () => answer(true)), button("No", () => answer(false))], LINK_HOW));
+  }
+  // The same question on the named device's own row: a stranger's row can be far
+  // down a list of thousands, and Basic has no such list at all.
+  if(o.label_asking){
+    const answer = (same) => act.wsCall("padspan_ha/label_link_answer", { key, address: o.label_asking.address, same });
+    out.push(line(`A new address, ${o.label_asking.address}, looks like this device: same device?`,
+      [button("Yes", () => answer(true)), button("No", () => answer(false))], LINK_HOW));
+  }
+  if(o.irk_hint){
+    out.push(line("This device keeps changing its address. Adding its key (IRK) makes it certain.",
+      [button("How", () => act.showHelp("private_ble")),
+       button("Dismiss", () => act.wsCall("padspan_ha/label_link_hint_off", { key }))]));
+  }
+  return out.length ? el("div", {}, out) : null;
+}
+
 const ADDRESS_WORDS = {
   fixed: ["Fixed", "This device keeps one address, so it reads as one device."],
   rotating: ["Rotating", "This device changes its address every so often, as phones and trackers do, so one device can leave many rows."],
