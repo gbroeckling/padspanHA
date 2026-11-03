@@ -53,7 +53,7 @@ Automorph grows a soft aura from a fixture out into its room — a decorative re
 
 ## Showcase
 
-Showcase is a set of 19 curated visual themes for the whole map — colour, room edges, glow and light-pool style change together, each theme with its own distinct hook (a mandala-poled neon HUD look, a plain white-marble-and-brass "real estate" look, a bioluminescent deep-sea look with no room edges at all, and so on). Pick one from the Atlas toolbar under **Presentation**.
+Showcase is a set of 20 curated visual themes for the whole map — colour, room edges, glow and light-pool style change together, each theme with its own distinct hook (a mandala-poled neon HUD look, a plain white-marble-and-brass "real estate" look, a bioluminescent deep-sea look with no room edges at all, and so on). Pick one from the Atlas toolbar under **Presentation**.
 
 The **presets bar** saves a whole look — Showcase theme, Automorph style, and optionally floor/spacing/layout — under a name you choose, and loads it back later with **Apply**. Older presets saved before layout was included never move your camera when applied.
 

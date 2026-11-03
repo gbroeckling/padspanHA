@@ -16,7 +16,8 @@
 - **A name can follow a device whose address changes.** A device you named or follow, with no IRK or fixed ID, can keep its name and its row on a new address. That takes strong evidence: it started as the old one stopped, with the same name or data, maker and kind, heard by at least two of the same receivers, and nothing else fits.
 - **When it's close, it asks.** One quiet line says "This looks like Car Keys: same device?" A No means no more questions about that device for 7 days, though clear evidence can still link it. Otherwise it asks at most once a day for each device. The question closes itself if the old address comes back. "Now on ..." has Undo, and all of this survives a restart.
 - **Following a name only moves what's on screen.** Calibration, learning, Follow's alerts and Home Assistant's sensors stay on the first address, so a wrong link can't mix another device's signal into them.
-- **West Coast Forest, a new Showcase theme (Pro key).** Dark colours for the whole map, and on the flat Atlas a forest of fir, cedar and hemlock round the house, behind everything on the map. Pick it in Showcase options → Theme.
+- **West Coast Forest, a new Showcase theme (Pro key).** Dark colours for the whole map, and a forest of Douglas fir, cedar and hemlock round the house: on the flat Atlas behind everything on the map, and in Live Aboard as real trees standing in the mist, with ferns, logs and mossy rocks. Pick it in Showcase options → Theme.
+- **That forest on a bright sunny day.** When the weather says sunny, in daylight, the mist clears and a little sun gets through. It stays a dark forest, and every other day and night stays misty. In Live Aboard no tree stands on or over the house, what stands in the way dissolves, and Edit and Furnish leave the forest out. A slow screen draws fewer trees, and one too slow goes without.
 - **Live Aboard on a wall screen (`?kiosk=1`) is sharp and fills the screen.** It draws every pixel, softer only while turning if the graphics chip needs that; a chip too slow for that draws about 1440p's worth, or on Auto goes to Low. **Low** chosen in Settings stays Low. If turning by hand runs the house past the edge, **Fit** brings it back. Home Assistant's sidebar is hidden on that browser; **Show HA** on the Atlas page (without `?kiosk=1`) brings it back.
 - **Choosing a floor on the flat Atlas fades the others,** so what looks tappable is tappable. Floor badges and leak or open-window rings stay bright. A saved floor now applies when the page opens.
 - **In Live Aboard,** a motion sensor's reach is a soft pool of light, and a raised marker moves clear of the words around it. Stored heights and spots don't change.
@@ -94,7 +95,7 @@
 - **Going back to 0.38.199 brings the online lookup back.** Opening the Objects list sends whole Bluetooth addresses again, unless the lookup was off when you updated: that choice is kept. 0.38.199 has no switch for it on screen.
 - **On 0.38.199, Beacon Tune's hard relocation deletes carried-device points again.**
 - **0.38.199 doesn't know the new railing choices.** An open edge over a drop gets its glass railing back, and stairs draw their rail in the old style. A stair set to no rail stays that way.
-- **West Coast Forest shows as Classic.**
+- **West Coast Forest shows as Classic,** with no trees in Live Aboard.
 - **What you kept from plans stays in your 3D house,** but the plans tool and its undo aren't there.
 - Nothing else needs a newer version. What this one stores that older ones don't know (name links and answers, Beacon Tune's marks, the Vacation Mode choice, Setup's progress) is ignored by them, and a running trip's routine still plays.
 

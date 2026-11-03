@@ -131,7 +131,7 @@ it never drifts.
 | Temperature, humidity, air readouts | Floating readouts, read-only as on the Atlas. |
 | Emergency lighting button | Unchanged: it is HTML above the stage. The devices phase also outlines the emergency lights in 3D while a test runs. |
 | Outdoor weather (`atlas_weather.js`) | The same decision (`decideAtlasWeather`, the same settings), drawn as rain or snow falling outside the walls. A snowfall warning puts snow on decks and roofs. |
-| Showcase styles (19 themes) | Atmosphere phase: each theme's colours become 3D lighting and material presets. Automorph stays 2D-only. |
+| Showcase styles (20 themes) | Atmosphere phase: each theme's colours become 3D lighting and material presets. Automorph stays 2D-only. |
 | Tracked people, phones and tags (Overview's live snapshot) | Optional **people layer**, off by default: soft markers at their positions. |
 | Sweet Home 3D import (`sh3d_import.py`, rooms only today) | Import phase: also reads its doors and windows, and its furniture as **size and kind only**, mapped onto PadSpan's own builders (never its models). |
 
