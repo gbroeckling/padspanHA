@@ -489,6 +489,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "atlas_heatmap",                                # the flat Atlas: temperature / humidity / CO2 heatmap
     "live_aboard_marks",                            # Live Aboard: the Atlas's leak sensors, locks, codes and class chips
     "live_aboard_motion",                           # Live Aboard: motion (the ring, the room's glow, markers, coverage, the chip)
+    "live_aboard_raised",                           # Live Aboard: what stands on a line, clear of the words
     "live_aboard_panel",                            # Live Aboard on the wall panel: its home view, Follow, the People chip
     "live_aboard_director",                         # Live Aboard on the wall panel: flies to a doorbell, door or alarm that went off
     "live_aboard_storey",                           # Live Aboard: the house itself (each storey's floor, the roof, stair openings)

@@ -377,6 +377,12 @@ export function createDeviceLayer(ctx){
     has(eid, live = "glow"){ for (const R of recs.values()) if (R.eid === eid && R.live === live && R.root.parent) return true; return false; },
     /** Linked pieces on a floor that shows, for a press: {id, eid, root}. */
     pickable(){ return [...recs.values()].filter(R => R.eid && shown(R)).map(R => ({ id: R.id, eid: R.eid, root: R.root })); },
+    /** The words showing (live_aboard_raised.js): "Unlinked" over a device. */
+    texts(){
+      const out = [];
+      for (const R of recs.values()) if (R.badge && shown(R)) out.push({ sprite: R.badge, tw: 180 / 184, th: 56 / 60, owner: null, id: "Unlinked" });
+      return out;
+    },
     /** Lamps glowing on a floor that shows: where their light comes from. */
     lamps(){
       const out = [];
