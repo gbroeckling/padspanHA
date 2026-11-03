@@ -396,7 +396,7 @@ function renderUnlocked(ctx, root) {
     const ovSettings = Object.fromEntries(Object.entries(ovMap).filter(([k]) => !/^screens?(_listed)?:/.test(k)));
     const ovScreens = Object.fromEntries(Object.entries(ovMap).filter(([k]) => /^screens?(_listed)?:/.test(k)));
     // Things people did, things PadSpan did by itself, and what the panel saw of its screen.
-    const _auto = /^(irk_resolved|irk_unresolved_rpa|irk_cache_cleared|scan_mode_flip|lost_and_found|tagged_(arrived|departed)|findmy_|label_link_(linked|asked|old_back|wrong_after_undo|capped)|mqtt_publish_failed|proxy_rate_drops|vacation_resumed|bermuda_history_purged|house3d_fallback|map_placement_refused|weather_note|weather_source|weather_shown|wall_reload|view_link|ui_error_while)/;
+    const _auto = /^(irk_resolved|irk_unresolved_rpa|irk_cache_cleared|scan_mode_flip|lost_and_found|tagged_(arrived|departed)|findmy_|label_link_(linked|asked|held|old_back|wrong_after_undo|capped)|mqtt_publish_failed|proxy_rate_drops|vacation_resumed|bermuda_history_purged|house3d_fallback|map_placement_refused|weather_note|weather_source|weather_shown|wall_reload|view_link|ui_error_while)/;
     const _screen = /^(client_|wall_screen:|overview_shown:|house3d_wall_draw:)/;
     const usePeople = {}, useAuto = {}, useScreen = {};
     for (const [k, v] of Object.entries(s.usage || {})) (_screen.test(k) ? useScreen : _auto.test(k) ? useAuto : usePeople)[k] = v;

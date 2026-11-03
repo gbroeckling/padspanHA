@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 from types import SimpleNamespace
@@ -625,6 +626,20 @@ def test_a_device_rotating_every_15_minutes_gets_one_question_a_day(answer) -> N
     assert air.links.moves[A] >= rotor.n - 1, "the pointer to the IRK comes when it always did"
 
 
+def test_the_days_question_follows_the_device_so_a_late_yes_lands_on_its_address_now() -> None:
+    """Asked once, answered 20 hours later: on the address it uses now, not one it
+    left 19 hours ago. Still one question and one count."""
+    air = Air()
+    _first_stopped(air)
+    rotor = Rotor(air)
+    asked = _run_rotors(air, 20 * 3600.0, [rotor])
+    assert len(asked) == 1 and air.events.count("label_link_asked") == 1
+    assert asked[0][2] != rotor.cur and air.links.asks[A]["a"] == rotor.cur and air.links.asks[A]["ts"] == asked[0][0]
+    assert air.links.answer(A, asked[0][2], True, air.t) is False, "the address it has left isn't the question now"
+    assert air.links.answer(A, rotor.cur, True, air.t) is True
+    assert air.links.current(A) == rotor.cur
+
+
 def test_a_no_means_no_questions_about_that_device_for_a_week() -> None:
     """The device is back on its first address on day 3 and rotates again, so the
     old rule's own end (7 days silent) can't be what keeps this quiet."""
@@ -634,8 +649,9 @@ def test_a_no_means_no_questions_about_that_device_for_a_week() -> None:
     first = _run_rotors(air, 3600.0, [rotor])
     assert len(first) == 1
     said_no = air.t
-    assert air.links.answer(A, first[0][2], False, said_no) is True
-    assert first[0][2] in air.links.refused[A]
+    newest = air.links.asks[A]["a"]
+    assert newest == rotor.cur and air.links.answer(A, newest, False, said_no) is True
+    assert newest in air.links.refused[A]
     air.events.clear()
     assert _run_rotors(air, 3 * DAY, [rotor]) == []
     del air.heard_at[rotor.cur]
@@ -705,7 +721,7 @@ def test_the_rule_survives_a_restart(said_no) -> None:
     first = _run_rotors(air, 3600.0, [rotor])
     assert len(first) == 1
     if said_no:
-        air.links.answer(A, first[0][2], False, air.t)
+        assert air.links.answer(A, air.links.asks[A]["a"], False, air.t) is True
     else:
         del air.links.asks[A]       # the question closed; the day isn't over
     start = (air.t, dict(air.heard_at), rotor.n, rotor.cur, rotor.since, air.links.to_state())
@@ -1208,6 +1224,76 @@ async def test_a_restart_keeps_a_link_and_its_answers_whatever_the_address_looks
     assert dom[SB._LABEL_LINKS_STORE].saved is None, "nothing changed, so nothing was saved"
 
 
+SHAPES = ["4A:00:00:00:00:01", "0A:00:00:00:00:01", "CA:00:00:00:00:01"]
+
+
+def _silent_since(root: str, hours: float) -> dict:
+    """The first address's history row, as a day's silence finds it."""
+    return {f"ble:{root}": {"key": f"ble:{root}", "address": root, "kind": "ble", "user_label": "My Car",
+                            "identified": True, "address_type": "random", "name": "My Car",
+                            "_last_seen_ts": NOON - hours * 3600.0, "_cache_age_s": 0.0, "sources": {}}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", SHAPES)
+@pytest.mark.parametrize("hours", [25.0, 72.0])
+async def test_a_moved_name_stays_on_screen_long_after_the_first_address_stops(monkeypatch, root, hours) -> None:
+    """Labels are stored under the plain address and a row looks itself up as ble:...,
+    so a row aged out after a day, and with no row the notes went too for two shapes."""
+    state = {"links": {root: {"path": [{"a": B, "by": "evidence", "ts": NOON - hours * 3600.0 + 60.0}]}},
+             "refused": {root: [C]}, "moves": {root: 1}, "quiet": {root: NOON + 3600.0}}
+    links = LF.LabelLinks(json.loads(json.dumps(state)))
+    house = _house(monkeypatch, links=links, labels={root: "My Car"})
+    house.hass.data[DOMAIN][DATA_OBJECT_HISTORY] = _silent_since(root, hours)
+    for at in (0.0, 10.0):
+        built = await house.build(at, _ads(B, PLACE, "My Car", 1.0, NOON + at))
+    rows = {o["key"]: o for o in (await house.panel(built))["objects"]["list"]}
+    assert f"ble:{B}" not in rows, "the new address is folded into the name's row"
+    assert rows[f"ble:{root}"]["user_label"] == "My Car" and rows[f"ble:{root}"]["label_link"]["address"] == B
+    assert links.current(root) == B and links.refused[root] == [C] and links.quiet[root] == NOON + 3600.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", SHAPES)
+async def test_a_no_outlives_the_row_whatever_the_address_looks_like(monkeypatch, root) -> None:
+    state = {"refused": {root: [C]}, "quiet": {root: NOON + 3600.0}}
+    links = LF.LabelLinks(json.loads(json.dumps(state)))
+    house = _house(monkeypatch, links=links, labels={root: "My Car"})
+    dom = house.hass.data[DOMAIN]
+    dom[DATA_OBJECT_HISTORY] = _silent_since(root, 25.0)
+    for at in (0.0, 10.0):
+        await house.build(at, [])
+    assert f"ble:{root}" not in dom[DATA_OBJECT_HISTORY], "a row with nothing to show still ages out"
+    assert links.refused[root] == [C] and links.quiet[root] == NOON + 3600.0
+
+
+@pytest.mark.asyncio
+async def test_no_row_no_question_so_the_report_doesnt_count_one_nobody_saw(monkeypatch) -> None:
+    links = LF.LabelLinks()
+    house = _house(monkeypatch, links=links)
+    bumped: list[str] = []
+    monkeypatch.setattr(T, "bump", lambda h, e, n=1: bumped.append(e))
+    dom = house.hass.data[DOMAIN]
+    dom[DATA_OBJECT_HISTORY] = _silent_since(A, 23.9)
+    await house.build(0.0, _ads(A, PLACE, "My Car", 86040.0, NOON))     # it knows how A sounded
+    links._last[A] = {"ts": NOON - 25 * 3600.0, "rssi": {}, "rec": {"name": "My Car", "address": A}}
+    dom[DATA_OBJECT_HISTORY] = {}
+    await house.build(10.0, [])
+    await house.build(20.0, _ads(B, PLACE, "My Car", 1.0, NOON + 20.0))
+    await house.build(30.0, _ads(B, PLACE, "My Car", 1.0, NOON + 30.0))
+    assert A not in links.asks and "label_link_asked" not in bumped and A not in links.quiet
+
+
+@pytest.mark.asyncio
+async def test_an_open_question_keeps_the_row_it_shows_on(monkeypatch) -> None:
+    links = LF.LabelLinks({"asks": {A: {"a": B, "why": "gap", "ts": NOON - 600.0}}})
+    house = _house(monkeypatch, links=links)
+    house.hass.data[DOMAIN][DATA_OBJECT_HISTORY] = _silent_since(A, 25.0)
+    built = await house.build(0.0, _ads(B, PLACE, "My Car", 1.0, NOON))
+    rows = {o["key"]: o for o in (await house.panel(built))["objects"]["list"]}
+    assert rows[f"ble:{A}"]["label_asking"]["address"] == B and rows[f"ble:{B}"]["label_ask"]["label"] == "My Car"
+
+
 @pytest.mark.asyncio
 async def test_the_first_panel_read_after_a_restart_has_the_links(monkeypatch) -> None:
     house = _house(monkeypatch, links=_linked())
@@ -1308,6 +1394,12 @@ def test_the_report_has_a_closed_count_for_each_and_a_plain_name() -> None:
     for event in _EVENTS:
         assert event in T.EVENTS
         assert f"{event}:" in names, event
+
+
+def test_the_report_files_what_padspan_does_by_itself_apart_from_what_people_do() -> None:
+    names = (_WWW / "views" / "installbase.js").read_text(encoding="utf-8")
+    auto = {f"label_link_{n}" for n in re.search(r"label_link_\(([^)]*)\)", names).group(1).split("|")}
+    assert auto == set(_EVENTS) - {"label_link_yes", "label_link_no", "label_link_undone"}
 
 
 def test_the_report_carries_counts_and_nothing_identifying() -> None:

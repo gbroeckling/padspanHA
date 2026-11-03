@@ -257,6 +257,7 @@ class LabelLinks:
         self._events: list[str] = []
         # This poll's watched devices, and the addresses links already use.
         self._watched: dict[str, Any] = {}
+        self._history: dict[str, dict[str, Any]] | None = None
         self._taken: set[str] = set()
         # What this poll may still walk (SCAN_BUDGET), and who goes first next poll.
         self._budget = SCAN_BUDGET
@@ -271,6 +272,13 @@ class LabelLinks:
                 "moves": dict(self.moves),
                 "hint_off": sorted(self.hint_off),
                 "undone": {k: dict(v) for k, v in self.undone.items()}}
+
+    def has_notes(self, root: str) -> bool:
+        return any(root in book for book in (self.links, self.asks, self.refused, self.undone, self.quiet))
+
+    def needs_row(self, root: str) -> bool:
+        """The link and the question show on the device's own row, so it must stay."""
+        return root in self.links or root in self.asks
 
     def current(self, root: str) -> str:
         link = self.links.get(root)
@@ -348,6 +356,7 @@ class LabelLinks:
             return []
         self._note_first_heard(now_ts, records)
         self._watched = watched
+        self._history = history
         self._taken = {link["path"][-1]["a"] for link in self.links.values()}
 
         names: dict[str, list[str]] = {}
@@ -588,7 +597,10 @@ class LabelLinks:
     def _ask_late(self, root: str, cur: str, last: dict[str, Any], old: dict[str, Any], old_mk: tuple, now_ts: float,
                   records: dict[str, dict[str, Any]], proven: set[str], claimed: set[str],
                   names: dict[str, list[str]]) -> None:
-        """Long after it stopped, one address on the air now with its name or payload."""
+        """Long after it stopped, one address on the air now with its name or payload.
+        Not once its row has expired: there is nowhere to show the question."""
+        if self._history is not None and root not in records and f"ble:{root}" not in self._history:
+            return
         name = real_name(old)
         pool = names.get(name, ()) if name else ()
         if not pool and not distinctive_payloads(old):
@@ -615,6 +627,9 @@ class LabelLinks:
             self.moves[root] = self.moves.get(root, 0) + 1
             self.dirty = True
         if now_ts < self.quiet.get(root, 0.0):
+            if ask:     # the day's one question, on the address the device uses now
+                ask["a"], ask["why"] = addr, why
+                self.dirty = True
             if _first_time(self._held, pair):
                 self._count("label_link_held")
             return
