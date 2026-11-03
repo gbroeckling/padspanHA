@@ -527,7 +527,8 @@ def test_no_is_remembered_and_stops_asking() -> None:
 
 def test_after_a_yes_on_an_address_long_gone_the_next_one_is_still_asked_about() -> None:
     """A car wakes for 20 seconds, hours apart. The person answers long after the
-    address it asked about stopped, and the next wake must not fall silent."""
+    address it asked about stopped, and the next wake must not fall silent. It
+    waits its turn: one question a day."""
     air = Air()
     air.watched = {A: {"name": "My Car", "_last_seen_ts": NOON - 3600.0, "_cache_age_s": 0.0, "address": A}}
     air.poll()
@@ -541,6 +542,10 @@ def test_after_a_yes_on_an_address_long_gone_the_next_one_is_still_asked_about()
     air.poll(600.0)
     air.heard(C)
     air.poll(5.0)
+    assert A not in air.links.asks and air.events.count("label_link_held") == 1
+    air.t += LF.ASK_EVERY_S
+    air.heard(C)
+    air.poll(5.0)
     assert air.links.asks[A]["a"] == C and air.links.current(A) == B
 
 
@@ -550,6 +555,219 @@ def test_only_the_question_on_the_table_can_be_answered() -> None:
     assert air.links.answer(A, C, True, air.t) is False
     assert air.links.answer(C, B, True, air.t) is False
     assert air.links.current(A) == A
+
+
+# ── Rule 3b: what a No covers, and how often it asks ────────────────────────
+# Garry, by form, 2026-11-03: "That device, for a week". No more questions about
+# that named device for 7 days, clear evidence can still link it, and otherwise at
+# most 1 question per named device per day. It was 95 a day at 15-minute rotations.
+
+ONE_RECEIVER = {"kit": -50.0}       # a link can never happen, so each rotation could ask
+ROTATE_S = 900.0
+DAY = 86400.0
+D = "4D:00:00:00:00:04"
+
+
+class Rotor:
+    """A device on a new address every 15 minutes, keeping its name. Its old address
+    stops at once, as a rotation does."""
+
+    def __init__(self, air: Air, name="My Car", place=ONE_RECEIVER, prefix="5B") -> None:
+        self.air, self.name, self.place, self.prefix = air, name, place, prefix
+        self.n, self.cur, self.since = 0, None, 0.0
+
+    def tick(self) -> None:
+        if self.cur is None or self.air.t - self.since >= ROTATE_S:
+            if self.cur:
+                del self.air.heard_at[self.cur]
+            self.n += 1
+            self.cur = f"{self.prefix}:00:00:00:{self.n >> 8:02X}:{self.n & 0xFF:02X}"
+            self.since = self.air.t
+        self.air.heard(self.cur, name=self.name, place=self.place)
+
+
+def _run_rotors(air: Air, seconds: float, rotors, roots=(A), answer=None, step=30.0) -> list[tuple[float, str, str]]:
+    """Runs the rotations. Every question put up, as (when, device, address)."""
+    roots = [roots] if isinstance(roots, str) else list(roots)
+    asked: list[tuple[float, str, str]] = []
+    shown = {root: (air.links.asks.get(root) or {}).get("ts") for root in roots}
+    end = air.t + seconds
+    while air.t < end:
+        for rotor in rotors:
+            rotor.tick()
+        air.poll(step)
+        for root in roots:
+            ask = air.links.asks.get(root)
+            if ask and ask["ts"] != shown[root]:
+                shown[root] = ask["ts"]
+                asked.append((ask["ts"], root, ask["a"]))
+                if answer is not None:
+                    assert air.links.answer(root, ask["a"], answer, air.t) is True
+    return asked
+
+
+def _first_stopped(air: Air, addr=A, place=ONE_RECEIVER, name="My Car") -> None:
+    air.poll()
+    air.run(30, each=lambda: air.heard(addr, place=place, name=name))
+    del air.heard_at[addr]
+
+
+@pytest.mark.parametrize("answer", [None, True], ids=["nobody answers", "yes every time"])
+def test_a_device_rotating_every_15_minutes_gets_one_question_a_day(answer) -> None:
+    air = Air()
+    _first_stopped(air)
+    rotor = Rotor(air)
+    asked = _run_rotors(air, 6 * DAY, [rotor], answer=answer)
+    gaps = [b[0] - a[0] for a, b in zip(asked, asked[1:])]
+    assert 5 <= len(asked) <= 6 and all(gap >= DAY for gap in gaps), (len(asked), gaps)
+    assert air.events.count("label_link_asked") == len(asked)
+    assert air.events.count("label_link_held") >= 90 * 5, "each address held back is counted once"
+    assert air.links.moves[A] >= rotor.n - 1, "the pointer to the IRK comes when it always did"
+
+
+def test_a_no_means_no_questions_about_that_device_for_a_week() -> None:
+    """The device is back on its first address on day 3 and rotates again, so the
+    old rule's own end (7 days silent) can't be what keeps this quiet."""
+    air = Air()
+    _first_stopped(air)
+    rotor = Rotor(air)
+    first = _run_rotors(air, 3600.0, [rotor])
+    assert len(first) == 1
+    said_no = air.t
+    assert air.links.answer(A, first[0][2], False, said_no) is True
+    assert first[0][2] in air.links.refused[A]
+    air.events.clear()
+    assert _run_rotors(air, 3 * DAY, [rotor]) == []
+    del air.heard_at[rotor.cur]
+    rotor.cur = None
+    air.run(60, each=lambda: air.heard(A, place=ONE_RECEIVER))
+    del air.heard_at[A]
+    until = said_no + LF.NO_QUIET_S
+    assert _run_rotors(air, until - air.t - 60.0, [rotor]) == []
+    assert not air.links.asks and air.events.count("label_link_asked") == 0
+    assert air.events.count("label_link_held") >= 90 * 6
+    # The week is over: it may ask again, once.
+    after = _run_rotors(air, 2 * 3600.0, [rotor])
+    assert len(after) == 1 and after[0][0] >= until
+
+
+def test_after_a_no_a_clear_evidence_link_still_lands() -> None:
+    air = Air()
+    _asked_then_stopped(air)
+    assert air.links.answer(A, B, False, air.t) is True
+    del air.heard_at[B]
+    air.events.clear()
+    air.run(30, each=lambda: air.heard(A))
+    del air.heard_at[A]
+    rotor = Rotor(air, place=PLACE, prefix="6C")
+    assert _run_rotors(air, DAY, [rotor]) == [], "good evidence never needed to ask"
+    assert air.events.count("label_link_linked") >= 90
+    path = air.links.links[A]["path"]
+    assert path[-1]["a"].startswith("6C:") and all(p["by"] == "evidence" for p in path)
+    assert B in air.links.refused[A], "and never to the address it said No to"
+    assert air.t < air.links.quiet[A], "the week still stands"
+
+
+def test_a_no_about_one_device_leaves_another_device_asking() -> None:
+    air = Air(watched=(A, D))
+    air.poll()
+
+    def both():
+        air.heard(A, place=ONE_RECEIVER)
+        air.heard(D, place=ONE_RECEIVER, name="Bike")
+    air.run(30, each=both)
+    del air.heard_at[A], air.heard_at[D]
+    car, bike = Rotor(air), Rotor(air, name="Bike", prefix="6C")
+    first = _run_rotors(air, 3600.0, [car, bike], roots=(A, D))
+    assert sorted(q[1] for q in first) == sorted((A, D))
+    ask = air.links.asks[A]
+    assert air.links.answer(A, ask["a"], False, air.t) is True
+    later = _run_rotors(air, 1.5 * DAY, [car, bike], roots=(A, D))
+    assert [q[1] for q in later] == [D], "the bike's next day comes; the car stays quiet"
+    assert A not in air.links.asks
+
+
+def _restarted(air: Air, last_heard: float, drop=()) -> None:
+    """The file as saved, a new run, and the first address known from its history."""
+    state = json.loads(json.dumps(air.links.to_state()))
+    for name in drop:
+        state.pop(name)
+    air.links = LF.LabelLinks(state)
+    air.watched = {A: {"name": "My Car", "address": A, "_last_seen_ts": last_heard, "_cache_age_s": 0.0}}
+
+
+@pytest.mark.parametrize("said_no", [False, True], ids=["one a day", "a week after a No"])
+def test_the_rule_survives_a_restart(said_no) -> None:
+    air = Air()
+    _first_stopped(air)
+    last_heard = air.t - 10.0
+    rotor = Rotor(air)
+    first = _run_rotors(air, 3600.0, [rotor])
+    assert len(first) == 1
+    if said_no:
+        air.links.answer(A, first[0][2], False, air.t)
+    else:
+        del air.links.asks[A]       # the question closed; the day isn't over
+    start = (air.t, dict(air.heard_at), rotor.n, rotor.cur, rotor.since, air.links.to_state())
+    _restarted(air, last_heard)
+    assert _run_rotors(air, 3 * 3600.0, [rotor]) == []
+    # And the same three hours with the note gone do ask, so that proved something.
+    air.t, air.heard_at, rotor.n, rotor.cur, rotor.since, state = start
+    air.links = LF.LabelLinks(state)
+    _restarted(air, last_heard, drop=("quiet",))
+    assert len(_run_rotors(air, 3 * 3600.0, [rotor])) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_no_through_the_websocket_is_saved_with_the_links(monkeypatch) -> None:
+    links = LF.LabelLinks({"asks": {A: {"a": B, "why": "gap", "ts": NOON}}})
+    house = _house(monkeypatch, links=links)
+    monkeypatch.setattr(WO, "_bump", lambda h, e, n=1: None)
+    monkeypatch.setattr(WO, "_invalidate_snapshot_cache", lambda h: None)
+    conn, sent = _conn()
+    await WO.ws_label_link_answer(house.hass, conn, {"id": 1, "key": f"ble:{A}", "address": B, "same": False})
+    assert sent["result"]["same"] is False
+    saved = house.hass.data[DOMAIN][SB._LABEL_LINKS_STORE].saved
+    assert LF.LabelLinks(saved).quiet[A] == links.quiet[A] and saved["refused"][A] == [B]
+
+
+@pytest.mark.asyncio
+async def test_a_factory_reset_clears_the_week(monkeypatch) -> None:
+    import homeassistant.helpers.storage as hs
+
+    from custom_components.padspan_ha.ws_factory_reset import ws_factory_reset
+    from tests.test_maker_lookup_reset import _Store as Disk
+    from tests.test_telemetry import _hass
+
+    Disk.files = {}
+    monkeypatch.setattr(hs, "Store", Disk)
+    hass = _hass()
+    links = await SB._label_links(hass)
+    links.asks[A] = {"a": B, "why": "gap", "ts": NOON}
+    assert links.answer(A, B, False, NOON) is True
+    SB._label_links_save(hass, links)
+    assert Disk.files["padspan_ha.label_links"]["quiet"][A] == NOON + LF.NO_QUIET_S
+
+    await ws_factory_reset(hass, MagicMock(), {"id": 1, "confirm": "FACTORY RESET"})
+
+    after = await SB._label_links(hass)
+    assert after is not links and after.quiet == {} and after.refused == {}
+
+
+def test_taking_the_name_away_ends_the_week_too() -> None:
+    air = Air()
+    _weak(air)
+    air.links.answer(A, B, False, air.t)
+    assert A in air.links.quiet
+    air.watched = {D: None}
+    air.poll(1.0)
+    assert A not in air.links.quiet
+
+
+@pytest.mark.parametrize("quiet", ["x", [A], {A: "soon"}, {A: None}])
+def test_a_damaged_note_on_when_to_ask_is_ignored(quiet) -> None:
+    links = LF.LabelLinks({"quiet": quiet})
+    assert links.quiet == {}
 
 
 # ── Rule 4: the pointer to the real fix ─────────────────────────────────────
@@ -1082,7 +1300,7 @@ def test_a_followed_device_can_use_a_link_for_its_row() -> None:
 # ── Rule 7: the report, and what it says to people ──────────────────────────
 
 _EVENTS = ("label_link_linked", "label_link_asked", "label_link_yes", "label_link_no", "label_link_undone",
-           "label_link_wrong_after_undo", "label_link_old_back", "label_link_capped")
+           "label_link_wrong_after_undo", "label_link_old_back", "label_link_capped", "label_link_held")
 
 
 def test_the_report_has_a_closed_count_for_each_and_a_plain_name() -> None:

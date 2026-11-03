@@ -698,6 +698,7 @@ const W_EVENT = {
   findmy_moved_back_addrs: "Links undone when a Find My tag went back",
   label_link_linked: "A name moved to a device's new address, on screen",
   label_link_asked: "Asked whether a new address is a named device",
+  label_link_held: "Held a question back: one a day for each device, none for a week after a No",
   label_link_yes: "Answered yes: same device", label_link_no: "Answered no: a different device",
   label_link_undone: "Undid a name's move to a new address",
   label_link_wrong_after_undo: "An undone move proved wrong: both addresses heard at once",

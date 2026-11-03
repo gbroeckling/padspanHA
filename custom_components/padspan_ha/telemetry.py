@@ -290,6 +290,8 @@ EVENTS: frozenset[str] = frozenset({
     # whether the better way is right in homes other than his.
     #   label_link_linked     a name moved to a new address on evidence.
     #   label_link_asked      "This looks like <label>: same device?" put up.
+    #   label_link_held       a question held back: one a day for each device,
+    #                         none for a week after a No. Each address once.
     #   label_link_yes, _no   how that was answered.
     #   label_link_undone     a person's Undo.
     #   label_link_wrong_after_undo  an undone link the radio then proved wrong:
@@ -299,7 +301,7 @@ EVENTS: frozenset[str] = frozenset({
     #   label_link_capped     a poll reached the cap on walking the address list
     #                         (label_follow.SCAN_BUDGET), so some devices waited.
     "label_link_linked", "label_link_asked", "label_link_yes", "label_link_no", "label_link_undone",
-    "label_link_wrong_after_undo", "label_link_old_back", "label_link_capped",
+    "label_link_wrong_after_undo", "label_link_old_back", "label_link_capped", "label_link_held",
     # The Atlas emergency lighting test (emergency_test.py): a test started,
     # ended (the lights already on left on), or ended with Force off.
     "emergency_test_on", "emergency_test_off", "emergency_force_off",

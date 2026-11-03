@@ -40,7 +40,10 @@ on the new address's row, "This looks like <label>: same device?"
          or too few heard both;
   weak   no name or payload to compare, but the moment and the place fit, and
          it is the only one of its maker and kind.
-Yes makes that one link the person's. No is remembered.
+Yes makes that one link the person's. No is remembered for that address, and
+there are no more questions about that device for a week; only a link on clear
+evidence still lands. Otherwise a device gets at most one question a day: Garry,
+by form, 2026-11-03, after a device rotating every 15 minutes was asked 95 times.
 
 WHAT A LINK TOUCHES
 ===================
@@ -85,6 +88,10 @@ MIN_NAME = 3
 _NOT_A_NAME_RE = re.compile(r"^([0-9A-Fa-f]{2}[:\-]){2,}|^[0-9A-Fa-f]{4,}$|^BLE$|^Unknown$")
 # How long after the old address stopped a same-named new one is still asked about.
 ASK_MAX_GAP_S = 7 * 86400.0
+# One question a day for each device, and none for a week after a No. A question
+# held back still counts as a move, so the pointer below comes as soon as it did.
+ASK_EVERY_S = 86400.0
+NO_QUIET_S = 7 * 86400.0
 # Changes of address before the pointer to the real fix (an IRK).
 HINT_AFTER = 3
 # Addresses kept per link and refused per device.
@@ -207,6 +214,7 @@ class LabelLinks:
               "you"; the last entry is the address it uses now.
     asks:     {first address: {"a", "why", "ts"}}: the question open for it.
     refused:  {first address: [addresses]}: answered No, or undone.
+    quiet:    {first address: when}: no new question about it before then.
     moves:    {first address: n}: new addresses it has been linked to or asked about.
     hint_off: first addresses whose pointer to an IRK was dismissed.
     undone:   {first address: {"a", "ts"}}: for the report's wrong-after-undo.
@@ -230,6 +238,7 @@ class LabelLinks:
             k: dict(v) for k, v in book("asks").items() if isinstance(v, dict) and v.get("a")}
         self.refused: dict[str, list[str]] = {
             k: [str(a) for a in v][-REFUSED_MAX:] for k, v in book("refused").items() if isinstance(v, list)}
+        self.quiet: dict[str, float] = {k: float(v) for k, v in book("quiet").items() if isinstance(v, (int, float))}
         off = state.get("hint_off")
         self.hint_off: set[str] = {str(a) for a in off} if isinstance(off, list) else set()
         self.undone: dict[str, dict[str, Any]] = {
@@ -242,8 +251,9 @@ class LabelLinks:
         self._last: dict[str, dict[str, Any]] = {}
         # {(first address, address): the report that may mean it is back}.
         self._returning: dict[tuple[str, str], float] = {}
-        # Asked-about pairs this run, so the report counts each once.
+        # Pairs asked about and held back this run, so the report counts each once.
         self._asked: set[tuple[str, str]] = set()
+        self._held: set[tuple[str, str]] = set()
         self._events: list[str] = []
         # This poll's watched devices, and the addresses links already use.
         self._watched: dict[str, Any] = {}
@@ -257,6 +267,7 @@ class LabelLinks:
         return {"links": {k: {"path": [dict(p) for p in v["path"]]} for k, v in self.links.items()},
                 "asks": {k: dict(v) for k, v in self.asks.items()},
                 "refused": {k: list(v) for k, v in self.refused.items() if v},
+                "quiet": dict(self.quiet),
                 "moves": dict(self.moves),
                 "hint_off": sorted(self.hint_off),
                 "undone": {k: dict(v) for k, v in self.undone.items()}}
@@ -281,6 +292,7 @@ class LabelLinks:
             self._link(root, address, "you", now_ts, count_move=False)
         else:
             self._refuse(root, [address])
+            self.quiet[root] = now_ts + NO_QUIET_S
         self.dirty = True
         return True
 
@@ -411,7 +423,7 @@ class LabelLinks:
     def _forget_unwatched(self, watched: dict[str, Any]) -> None:
         """Its name or its Follow was taken away, or it now has an identity of its
         own: the links, questions and answers about it go too."""
-        for book in (self.links, self.asks, self.moves, self.refused, self.undone):
+        for book in (self.links, self.asks, self.moves, self.refused, self.undone, self.quiet):
             for root in [r for r in book if r not in watched]:
                 del book[root]
                 self.dirty = True
@@ -598,14 +610,28 @@ class LabelLinks:
         ask = self.asks.get(root)
         if ask and ask.get("a") == addr:
             return
-        self.asks[root] = {"a": addr, "why": why, "ts": now_ts}
-        self.dirty = True
-        if (root, addr) not in self._asked:
-            if len(self._asked) >= 4096:
-                self._asked.clear()
-            self._asked.add((root, addr))
+        pair = (root, addr)
+        if pair not in self._asked and pair not in self._held:
             self.moves[root] = self.moves.get(root, 0) + 1
+            self.dirty = True
+        if now_ts < self.quiet.get(root, 0.0):
+            if _first_time(self._held, pair):
+                self._count("label_link_held")
+            return
+        self.asks[root] = {"a": addr, "why": why, "ts": now_ts}
+        self.quiet[root] = now_ts + ASK_EVERY_S
+        self.dirty = True
+        if _first_time(self._asked, pair):
             self._count("label_link_asked")
+
+
+def _first_time(seen: set[tuple[str, str]], pair: tuple[str, str]) -> bool:
+    if pair in seen:
+        return False
+    if len(seen) >= 4096:
+        seen.clear()
+    seen.add(pair)
+    return True
 
 
 def _place(a: dict[str, float], b: dict[str, float]) -> tuple[float | None, int]:

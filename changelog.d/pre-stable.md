@@ -13,5 +13,4 @@
 ### Changed
 - **A very large home stays bounded.** The search for a named device's new address used to cost devices times addresses on every poll, 288 ms with 20 named devices among 9,178 addresses. Each poll now has a limit, and a device that misses its turn goes first on the next, so a link can come a little later but never differently. Ordinary homes don't reach it. The usage report (opt-in) counts the polls that do.
 - **The third-party notices now come with the download,** in both editions, not only in the repository.
-
-A No is remembered for that address. A device that keeps changing address can still be asked about its next one.
+- **A No covers the device for a week.** After a No to "This looks like Car Keys: same device?", there are no more questions about that device for 7 days, though clear evidence can still link it on its own. Otherwise each named device gets at most one question a day, where one rotating every 15 minutes could get 95. Both survive a restart, Factory Reset clears them, and the usage report (opt-in) counts the questions held back.
