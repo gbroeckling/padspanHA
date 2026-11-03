@@ -202,6 +202,7 @@ export function duplicateOf(p, rand){
   out.x_m = mm((num(p.x_m) ?? 0) + 0.3); out.y_m = mm((num(p.y_m) ?? 0) + 0.3);
   out.entity_id = null; out.entity_reg_id = null; out.submission_id = null;
   delete out.updated_at;
+  delete out.plan_ai; delete out.plan_ai_pending;     // a copy didn't come from the plan, and only its original is kept through the Plans tool
   return out;
 }
 

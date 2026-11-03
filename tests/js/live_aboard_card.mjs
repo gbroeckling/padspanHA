@@ -522,5 +522,47 @@ await tryCase("fallback: a GL that throws is an error, and the card still draws"
   NodeCls.prototype.getContext = realGetContext;
 });
 
+// The Plans tool's button in Mapping (S5 of the review of 2026-11-02): it must end on the flat Atlas.
+await tryCase("plans: Open Mapping → Atlas leaves 3D for Map on that room, asking first if something is unsaved", async () => {
+  installStubGL();
+  localStorage.setItem(PICK("builder"), "1"); localStorage.removeItem(FAILED); sessionStorage.removeItem(FAILED);
+  const page = "?page=plans-atlas";
+  const M = await reload(page);
+  const opened = [];
+  const h = { ...H3(true, "builder", { ai_plans_enabled: true, atlas_3d_ai_task_entity: "ai_task.x" }), callWS: async () => ({}),
+    openAtlasRoom: (fid, room) => opened.push([fid, room, localStorage.getItem(PICK("builder"))]) };
+  const LA = await import(pathToFileURL(join(WWW, "views", "live_aboard.js")).href + page);
+  const slot = LA.liveAboardSlot("builder");
+  let handed = null;
+  const attach = slot.attach;
+  slot.attach = function(stage, p){ handed = p.plans || handed; return attach.call(this, stage, p); };
+  card({ house3d: h, M });
+  const got = await waitFor(() => handed && typeof handed.openAtlasRoom === "function");
+  check("plans: the tool gets the button's way", got, handed);
+  const real = slot.holdLeave;
+  let go = null;
+  slot.holdLeave = (fn) => { go = fn; return true; };
+  handed.openAtlasRoom("main", "Hall");
+  check("plans: something unsaved: asked first, nothing moves", typeof go === "function" && !opened.length && localStorage.getItem(PICK("builder")) === "1", { opened, pick: localStorage.getItem(PICK("builder")) });
+  go();
+  check("plans: then Map is picked before the Atlas opens on the room", JSON.stringify(opened) === JSON.stringify([["main", "Hall", "0"]]), opened);
+  opened.length = 0;
+  localStorage.setItem(PICK("builder"), "1");
+  slot.holdLeave = () => false;
+  handed.openAtlasRoom("main", "Kitchen");
+  check("plans: nothing unsaved: straight there", JSON.stringify(opened) === JSON.stringify([["main", "Kitchen", "0"]]), opened);
+  slot.holdLeave = real; slot.attach = attach;
+  const none = { ...H3(true, "builder", { ai_plans_enabled: true, atlas_3d_ai_task_entity: "ai_task.x" }), callWS: async () => ({}) };
+  localStorage.setItem(PICK("builder"), "1");
+  handed = null;
+  slot.attach = function(stage, p){ handed = p.plans || handed; return attach.call(this, stage, p); };
+  card({ house3d: none, M });
+  await waitFor(() => handed);
+  check("plans: a host with no Atlas of its own offers no button", handed && handed.openAtlasRoom === null, handed);
+  slot.attach = attach;
+  localStorage.removeItem(PICK("builder"));
+  NodeCls.prototype.getContext = realGetContext;
+});
+
 console.log(JSON.stringify({ cases, failures, loaded: threeLoads().map(u => u.replace(/^.*\/padspan-ha\//, "")) }));
 process.exit(failures.length ? 1 : 0);

@@ -3665,9 +3665,9 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
     // people layer, the rain mask and the poll's patch look for it at the top
     // of the drawing. So does its badge, full strength, because it still works.
     const gpe=isFocused?"":` pointer-events="none"`;
-    // What this floor draws above the fade: a leak or open-window ring, the
-    // ring that flashes a light's spot, the door circle. Each still has to be
-    // seen, and none takes a tap but the circle, a tool in your hand.
+    // What this floor draws above the fade: a leak or open-window ring and the
+    // ring that flashes a light's spot. Each still has to be seen, and neither
+    // takes a tap.
     let overGhost="";
     const lyrColor=levelColor(z);
     const lidx=levels.indexOf(z);
@@ -6121,15 +6121,13 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
         const N=48, ring=[];
         for(let i=0;i<N;i++){ const t=(i/N)*Math.PI*2; ring.push(pt(iso(ccx+cr*Math.cos(t), ccy+cr*Math.sin(t), z))); }
         const [hx,hy]=iso(ccx+cr, ccy, z);
-        // The nearest wall can be on a floor that isn't chosen.
-        const doorCircle=`<g class="ldoorcircle" data-role="doorcircle" data-cx="${scx.toFixed(1)}" data-cy="${scy.toFixed(1)}" `+
+        s+=`<g class="ldoorcircle" data-role="doorcircle" data-cx="${scx.toFixed(1)}" data-cy="${scy.toFixed(1)}" `+
           `data-z="${z}" style="cursor:move">`+
           `<polygon points="${ring.join(" ")}" fill="#22d3ee" fill-opacity="0.14" stroke="#22d3ee" `+
           `stroke-width="2" stroke-dasharray="2,3"/>`+
           `<circle data-role="doorcircle-resize" cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="7" `+
           `fill="#22d3ee" stroke="#083344" stroke-width="1.5" style="cursor:ew-resize"/>`+
           `</g>`;
-        if(isFocused) s+=doorCircle; else overGhost+=doorCircle;
       }
     }
     if(UNDERLAY) for(const u of UNDERLAY){

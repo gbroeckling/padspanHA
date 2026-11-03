@@ -151,7 +151,8 @@ tryCase("place: outside every room, the nearest room's name spot", () => {
 tryCase("place: a new piece and its copy", () => {
   const r = recipe("sofa", 2.2, 0.9, 0.8);
   const p = P.makePiece(r, "main", { x: 1.23456, y: 2, rotation: -90 }, "library");
-  const c = P.duplicateOf({ ...p, entity_id: "light.a", entity_reg_id: "abc", submission_id: "sub_1", updated_at: "x" });
+  const c = P.duplicateOf({ ...p, entity_id: "light.a", entity_reg_id: "abc", submission_id: "sub_1", updated_at: "x", plan_ai: { batch: "b" }, plan_ai_pending: { sugs: { a: {} } } });
+  check("duplicate: a copy isn't the plan's", !("plan_ai" in c) && !("plan_ai_pending" in c), c);
   r.width_m = 9;                                        // the piece holds its own copy
   check("place: a new piece and its copy",
     P.PIECE_ID.test(p.id) && p.x_m === 1.235 && p.rotation === 270 && p.origin === "library" && p.z_m === 0 && p.recipe.width_m === 2.2

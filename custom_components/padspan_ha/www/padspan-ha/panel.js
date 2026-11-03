@@ -311,7 +311,7 @@ function _sampleKind(payload){
   const READS = new Set(("adaptive_fingerprints_get adaptive_status_get auto_diagnostics bright_import_status calibration_beacon_profiles "
     + "calibration_get calibration_health_check calibration_room_walk_preview capture_get capture_list capture_status device_registry_list "
     + "emergency_status fabric_health fabric_truth_candidates follow_alert_get forensics_query forensics_stats guests_get ha_entities_audit "
-    + "house3d_get house3d_import_preview house3d_library_get house3d_library_search house3d_stairs_plans house3d_stairs_read plan_ai_plans plan_ai_status insights_get "
+    + "house3d_get house3d_import_preview house3d_library_get house3d_library_search house3d_stairs_plans house3d_stairs_read plan_ai_plans plan_ai_status plan_ai_sessions_get insights_get "
     + "install_base licence_homes live_snapshot logs_get lost_and_found_get maps_image_urls maps_list model_get movement_history_get "
     + "notify_services_list object_label_list occupancy_estimate positioning_diag private_ble_status propagation_health radio_audit "
     + "room_tags setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "

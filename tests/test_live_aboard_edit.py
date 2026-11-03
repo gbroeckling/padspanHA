@@ -59,6 +59,8 @@ def editor() -> dict:
     ("schema:", 1),
     # Heights → "What is this?": a light's kind, 3D only, sent with Save.
     ("kind:", 1),
+    # Items from the plans: the draft's until Save; then the one writer, then the ordinary Save.
+    ("plans:", 10),
 ])
 def test_the_editor_harness_covers_each_part(editor, prefix, least) -> None:
     got = [k for k in editor["cases"] if k.startswith(prefix)]
@@ -126,7 +128,7 @@ def test_edit_is_handed_over_only_where_lights_are_placed() -> None:
 def test_nothing_is_stored_until_save_and_save_goes_through_the_host() -> None:
     ed = _code(_VIEWS / "live_aboard_edit.js")
     # The draft's starting copy goes along: the host's Save sends only the heights it changed (2026-10-05).
-    assert "const r = await editFn(ch, draft.base);" in ed and "ctx.saved(r.data);" in ed
+    assert "const r = ch ? await editFn(ch, draft.base) : kept;" in ed and "ctx.saved(r.data);" in ed
     assert ed.count("editFn(") == 1, "Save is the one place the editor writes"
     for name in ("live_aboard.js", "live_aboard_edit.js", "live_aboard_draft.js"):
         code = _code(_VIEWS / name)

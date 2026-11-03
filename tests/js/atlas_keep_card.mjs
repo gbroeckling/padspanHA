@@ -587,7 +587,7 @@ await tryCase("card: a floor chosen and back, on its screen, always what a new c
     keptOnTick: c2 === c1 && two === f2, stillFades: two.includes("floorghost"), backIsNew: kser(c3) === f3, backIsAll: kser(c3) === all, keptAfter: c4 === c3 };
   check("card: a floor chosen and back, on its screen, always what a new card makes", Object.values(out).every(Boolean), out);
 });
-await tryCase("card: a saved floor comes into view once, and a tick never moves the page", async () => {
+await tryCase("card: a saved floor off screen comes into view once when the page opens, and nothing else moves the page", async () => {
   // The drawing is parsed one level here, so the plate is a stand-in, off screen.
   const seen = [], plate = { getBoundingClientRect: () => ({ top: -5000, height: 100 }), scrollIntoView: (o) => seen.push(o) };
   const qs = proto.querySelector;
@@ -598,7 +598,7 @@ await tryCase("card: a saved floor comes into view once, and a tick never moves 
     await saved.tick(CBASE);
     const first = seen.length, once = saved.view.scrollToChosen;
     let st = CBASE;
-    for (const f of CSTEPS) { st = f(st); await saved.tick(st); }
+    for (const f of CSTEPS) { st = f(st); await saved.tick(st); }          // polls, and a floor chosen
     const ticks = seen.length;
     const all = pair();
     all.view.scrollToChosen = true;
@@ -608,17 +608,22 @@ await tryCase("card: a saved floor comes into view once, and a tick never moves 
     unasked.view.focusIdx = 1;
     await unasked.tick(CBASE);
     const noFlag = seen.length;
-    const zoomed = pair();
-    zoomed.view.focusIdx = 1; zoomed.view.zoom = 2; zoomed.view.scrollToChosen = true;
-    await zoomed.tick(CBASE);
-    const atZoom = seen.length;
     const mapView = { ...cviewOf(), focusIdx: 1, scrollToChosen: true };
     const h = cardHost(CBASE, { view: mapView, slot: "builder2" }); delete h.keepCard; delete h.screen;
     screen().appendChild(LM.buildLightsMapCard(h));
     await settle();
-    const out = { first, once, ticks, onAll, allDone, noFlag, atZoom, mapping: seen.length };
-    check("card: a saved floor comes into view once, and a tick never moves the page",
-      first === 1 && once === false && ticks === 1 && onAll === 1 && allDone === false && noFlag === 1 && atZoom === 1 && seen.length === 1, out);
+    const mapping = seen.length;
+    const wallView = { ...cviewOf(), focusIdx: 1, scrollToChosen: true };
+    screen().appendChild(LM.buildLightsMapCard(cardHost(CBASE, { view: wallView, slot: "wall2", extra: { wall: true } })));
+    await settle();
+    const wall = seen.length, wallDone = wallView.scrollToChosen;
+    plate.getBoundingClientRect = () => ({ top: 100, height: 100 });
+    const shown = pair();
+    shown.view.focusIdx = 1; shown.view.scrollToChosen = true;
+    await shown.tick(CBASE);
+    const out = { first, once, ticks, onAll, allDone, noFlag, mapping, wall, wallDone, onScreen: seen.length, onScreenDone: shown.view.scrollToChosen };
+    check("card: a saved floor off screen comes into view once when the page opens, and nothing else moves the page",
+      first === 1 && once === false && ticks === 1 && onAll === 1 && allDone === false && noFlag === 1 && mapping === 1 && wall === 1 && wallDone === false && seen.length === 1 && shown.view.scrollToChosen === false, out);
   } finally { proto.querySelector = qs; }
 });
 await tryCase("card: the Mapping tab's host (no keepCard) builds a new card every time", async () => {

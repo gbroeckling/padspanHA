@@ -433,4 +433,76 @@ tryCase("walls: with nothing in the file the house is as part B drew it", () => 
   check("walls: with nothing in the file the house is as part B drew it", a === b);
 });
 
+// ── items from the plans: held in the draft until Save, read off it each time ──
+tryCase("plans: a kept item is the draft's own, and leaves with Undo or Discard", () => {
+  const f = D.ownedOf({ schema: 1, pieces: { fur_00000001: { id: "fur_00000001", floor_id: "main", x_m: 3, y_m: 4, label: "Hall", recipe: { kind: "stairs", params: { rail: "none" } } } } });
+  const dr = D.createDraft(f);
+  dr.change((c) => { c.pieces.fur_0000000a = { id: "fur_0000000a", floor_id: "main", x_m: 1, y_m: 2, recipe: { kind: "stairs", params: {} }, [D.PLAN_NOTE]: { session: "s", sugs: { a: { v: "new", made: true } } } }; });
+  dr.change((c) => { const q = c.pieces.fur_00000001; q.x_m = 5; q[D.PLAN_NOTE] = { session: "s", sugs: { b: { v: "correction", was: { x_m: 3, y_m: 4 } } } }; });
+  const held = D.planPending(dr.cur).map(p => [p.sug_id, p.v, p.piece]).sort();
+  check("plans: read off the draft", JSON.stringify(held) === JSON.stringify([["a", "new", "fur_0000000a"], ["b", "correction", "fur_00000001"]]), held);
+  dr.undo();
+  check("plans: Undo takes the last back", D.planPending(dr.cur).map(p => p.sug_id).join() === "a" && dr.cur.pieces.fur_00000001.x_m === 3);
+  dr.redo();
+  dr.discard();
+  check("plans: Discard takes all back", D.planPending(dr.cur).length === 0 && !dr.dirty);
+  dr.undo();
+  check("plans: and Undo brings them back", D.planPending(dr.cur).length === 2);
+});
+tryCase("plans: taken back, a piece it made goes and what it set goes back", () => {
+  const c = { pieces: {
+    fur_0000000a: { id: "fur_0000000a", x_m: 1, recipe: { params: { rail: "both", rail_style: "topless" } }, [D.PLAN_NOTE]: { session: "s", sugs: { a: { v: "new", made: true }, r: { v: "new", rail: { side: "both", style: "topless" }, was_params: { rail: "none", rail_style: null } } } } },
+    fur_00000001: { id: "fur_00000001", x_m: 5, y_m: 9, recipe: { params: { rail: "inner", rail_style: "topless" } }, [D.PLAN_NOTE]: { session: "s", sugs: { b: { v: "correction", was: { x_m: 3, y_m: 4 } }, r2: { v: "new", rail: { side: "inner", style: "topless" }, was_params: { rail: "none", rail_style: null } } } } },
+  } };
+  D.dropPlanPending(c, new Set(["r2"]));
+  check("plans: a rail taken back: its side and style as they were, the correction stays", c.pieces.fur_00000001.recipe.params.rail === "none" && !("rail_style" in c.pieces.fur_00000001.recipe.params) && c.pieces.fur_00000001.x_m === 5 && !!c.pieces.fur_00000001[D.PLAN_NOTE].sugs.b);
+  D.dropPlanPending(c, new Set(["b"]));
+  check("plans: a correction taken back: where it stood, no note", c.pieces.fur_00000001.x_m === 3 && c.pieces.fur_00000001.y_m === 4 && !(D.PLAN_NOTE in c.pieces.fur_00000001));
+  D.dropPlanPending(c, new Set(["r"]));
+  check("plans: a rail on a piece it didn't make leaves the piece", c.pieces.fur_0000000a && c.pieces.fur_0000000a.recipe.params.rail === "none" && !!c.pieces.fur_0000000a[D.PLAN_NOTE].sugs.a);
+  D.dropPlanPending(c, null);
+  check("plans: all: the piece it made goes", !c.pieces.fur_0000000a);
+  const pf = D.planFinal({ id: "fur_1", x_m: 1, [D.PLAN_NOTE]: { sugs: {} } });
+  check("plans: the commit's final carries no note", !(D.PLAN_NOTE in pf) && pf.x_m === 1);
+});
+tryCase("plans: once committed, no step and no Save brings back what it was", () => {
+  const f = D.ownedOf({ schema: 1, pieces: { fur_00000001: { id: "fur_00000001", floor_id: "main", x_m: 3, y_m: 4, recipe: { kind: "stairs", params: {} } } } });
+  const dr = D.createDraft(f);
+  dr.change((c) => { c.pieces.fur_0000000a = { id: "fur_0000000a", floor_id: "main", x_m: 1, y_m: 2, recipe: { kind: "stairs", params: {} }, [D.PLAN_NOTE]: { session: "s", sugs: { a: { v: "new", made: true } } } }; });
+  dr.change((c) => { const q = c.pieces.fur_00000001; q.x_m = 5; q[D.PLAN_NOTE] = { session: "s", sugs: { b: { v: "correction", was: { x_m: 3, y_m: 4 } } } }; });
+  dr.change((c) => { c.lights["light.a"] = { run: { pts: [[0, 0, 1], [1, 0, 1]], face: "room", loop: false, piece: "fur_0000000a" } }; c.openings.win_00000001 = D.newOpening("window", "main", [0, 0], [1, 0], 2.6); });
+  const saved = { fur_00000001: { id: "fur_00000001", floor_id: "main", x_m: 5, y_m: 4, recipe: { kind: "stairs", params: {} }, plan_ai: { batch: "b" } },
+                  fur_bbbbbbbb: { id: "fur_bbbbbbbb", floor_id: "main", x_m: 1, y_m: 2, recipe: { kind: "stairs", params: {} }, plan_ai: { batch: "b" } } };
+  dr.adopt("pieces", saved, { fur_0000000a: "fur_bbbbbbbb" });
+  const ch = dr.changes();
+  check("plans: after the commit Save has only the person's other edits", ch && !ch.pieces && ch.openings && ch.lights, ch);
+  check("plans: a strip on the draft's stair follows it to the file's id", dr.cur.lights["light.a"].run.piece === "fur_bbbbbbbb");
+  check("plans: nothing still marked", D.planPending(dr.cur).length === 0);
+  while (dr.undo()) { /* every step */ }
+  check("plans: every Undo step holds the file's stair, never the draft's", !dr.cur.pieces.fur_0000000a && dr.cur.pieces.fur_00000001.x_m === 5 && dr.cur.pieces.fur_bbbbbbbb.plan_ai.batch === "b" && D.planPending(dr.cur).length === 0, dr.cur.pieces);
+});
+tryCase("plans: adopt keeps the person's own edits and nothing the items took", () => {
+  const piece = () => ({ id: "fur_00000001", floor_id: "main", x_m: 3, y_m: 4, rotation: 0, label: "Hall", recipe: { kind: "stairs", width_m: 1, params: { shape: "straight", rail: "none" } } });
+  const f = D.ownedOf({ schema: 1, pieces: { fur_00000001: piece() } });
+  // A correction: the file rounds its position; that is no edit of the person's.
+  let dr = D.createDraft(f);
+  dr.change((c) => { const q = c.pieces.fur_00000001; q[D.PLAN_NOTE] = { session: "s", sugs: { b: { v: "correction", was: { x_m: 3, y_m: 4 } } } }; q.x_m = 1.234567; q.y_m = 4; });
+  dr.adopt("pieces", { fur_00000001: { ...piece(), x_m: 1.235, plan_ai: { batch: "b" }, updated_at: "t" } });
+  check("plans: a rounded position isn't left to save", dr.changes() === null, dr.changes());
+  // A railing: its side and style were taken; a drag and a name weren't.
+  dr = D.createDraft(f);
+  dr.change((c) => { const q = c.pieces.fur_00000001; q.x_m = 3.5; q.label = "Mine"; });
+  dr.change((c) => { const q = c.pieces.fur_00000001; q[D.PLAN_NOTE] = { session: "s", sugs: { r: { v: "new", rail: { side: "both", style: "topless" }, was_params: { rail: "none", rail_style: null } } } }; q.recipe.params.rail = "both"; q.recipe.params.rail_style = "topless"; });
+  const filed = { ...piece(), plan_ai: { batch: "b" }, recipe: { ...piece().recipe, params: { shape: "l", rail: "both", rail_style: "single_bar" } } };
+  dr.adopt("pieces", { fur_00000001: filed });
+  const p = dr.changes().pieces.fur_00000001;
+  check("plans: the drag and the name stay; the file's rail and shape stand", p.x_m === 3.5 && p.label === "Mine" && p.recipe.params.rail_style === "single_bar" && p.recipe.params.shape === "l" && p.plan_ai.batch === "b" && !(D.PLAN_NOTE in p), p);
+  check("plans: the base is the file's, so the next Save sends only the rest", dr.base.pieces.fur_00000001.x_m === 3 && dr.base.pieces.fur_00000001.label === "Hall");
+  // A key the person took away goes too.
+  dr = D.createDraft(f);
+  dr.change((c) => { const q = c.pieces.fur_00000001; delete q.label; q[D.PLAN_NOTE] = { session: "s", sugs: { b: { v: "correction", was: { x_m: 3, y_m: 4 } } } }; });
+  dr.adopt("pieces", { fur_00000001: { ...piece(), plan_ai: { batch: "b" } } });
+  check("plans: a key the person removed stays removed", !("label" in dr.cur.pieces.fur_00000001), dr.cur.pieces.fur_00000001);
+});
+
 console.log(JSON.stringify({ cases, failures, payloads }));

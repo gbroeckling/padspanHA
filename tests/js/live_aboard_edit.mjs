@@ -71,6 +71,8 @@ const tryCase = async (name, fn) => {
   try { await fn(); } catch (e) { failures.push({ name, detail: String(e && e.stack || e).slice(0, 900) }); cases[name] = false; }
 };
 const clone = (x) => JSON.parse(JSON.stringify(x));
+const allIn = (n, out = []) => { for (const c of (n && (n.childNodes || n.children)) || []) { out.push(c); allIn(c, out); } return out; };
+const all = allIn;
 const settle = async (rounds = 12) => { await shim.flush(rounds); await new Promise(r => globalThis._realSetTimeout(r, 0)); };
 
 // ── the house, the 3D file, the server ──────────────────────────────────────
@@ -125,9 +127,12 @@ let tagsHook = null;                             // Show tags & scanners: the li
 // The setup wizard's way in (aboard_wizard.js → Mapping's openTool): taken once.
 let openNext = null;
 const toolHook = { take: () => { const t = openNext; openNext = null; return t; } };
-const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: topIds, quality: "low",
+// The Plans tool (live_aboard_plans.js): only while the host hands it (null: off).
+let plansHook = null;
+let latchesHook = null;
+const P = () => ({ floodLatches: latchesHook, model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: topIds, quality: "low",
   telemetry: () => {}, states: {}, config: {}, bearing: 0, saveNorth: null, useApi: () => api, haStartedMs: 0,
-  load: async () => ({ data: clone(server.file) }), edit: editFn, tags: tagsHook, openTool: toolHook });
+  load: async () => ({ data: clone(server.file) }), edit: editFn, tags: tagsHook, openTool: toolHook, plans: plansHook });
 /** A fresh card, as the Atlas builds one every 5 s: the view moves into it. */
 function poll(){
   card = document.createElement("div");
@@ -1126,4 +1131,200 @@ await tryCase("tool: the setup wizard's way in opens Edit at its tool, once", as
     first.editing && first.tool === "heights" && second.editing && second.tool === "heights" && third.tool === "window" && openNext === null,
     { first, second, third });
 });
+// ── Items from the plans: the editor's draft until Save, then their one writer ─
+{
+  const stairOf = (id, x, y) => ({ id, kind: "stairs", map_id: "m1", floor_id: "main", state: "queued", verdict: null, box_px: [10, 10, 40, 60], frame: [1036, 812], seen_on: [{ map_id: "m1" }],
+    geom: { x_m: x, y_m: y, rotation: 0, width_m: 1, depth_m: 3, shape: "straight", says: "UP", sure_up: true }, match: { relation: "new", near: [], near_names: [], held: null } });
+  const plan = { rev: 5, commitCalls: [], refuse: null, undo: null, session: { id: "ps_1", rev: 5, status: "done", spent_s: 10, budget_s: 480, plans: [{ map_id: "m1", name: "Main", read: true, answered: true }],
+    suggestions: { s1: stairOf("s1", 2, 2), s2: stairOf("s2", 7, 2) } } };
+  const plansHookKept = async (m) => {
+    const t = m.type.replace("padspan_ha/", "");
+    if (t === "plan_ai_plans") return { plans: [{ map_id: "m1", name: "Main", floor_id: "main", refs: 1 }], ai: { ready: true, name: "AI", local: true }, running: null, latest: "ps_1" };
+    if (t === "plan_ai_status") return { session: clone(plan.session), undo: plan.undo };
+    if (t === "maps_image_urls") return { image_urls: {} };
+    if (t === "plan_ai_commit") {
+      plan.commitCalls.push(clone(m));
+      if (plan.refuse) { const r = plan.refuse; plan.refuse = null; if (r instanceof Error) throw r; return r; }
+      const pieces = {};
+      const ids = {};
+      for (const it of m.items) {
+        const pid = "fur_abcdef0" + plan.commitCalls.length;
+        ids[it.sug_id] = pid;
+        server.file.pieces = server.file.pieces || {};
+        server.file.pieces[pid] = { ...clone(it.final), id: pid, label: "Stairs (from the plan)", plan_ai: { session: m.session, batch: "pb_1" } };
+        pieces[pid] = server.file.pieces[pid];
+        plan.session.suggestions[it.sug_id].state = "committed_new";
+      }
+      plan.session.rev = ++plan.rev;
+      plan.undo = { id: "pb_1", items: m.items.length, puts_back: false };
+      return { ok: true, rev: plan.rev, batch: "pb_1", piece_ids: ids, suggestions: clone(plan.session.suggestions), undo: plan.undo, data: clone(server.file) };
+    }
+    throw new Error("no such command here: " + t);
+  };
+  plansHook = { settings: {}, callWS: plansHookKept };
+  const inSheet = (label) => { const sh = [...document.querySelectorAll(".la3d-sheet")].concat(all(card)).find(n => n.classList && n.classList.contains("la3d-sheet")); return allIn(sh).find(n => String(n.tagName).toUpperCase() === "BUTTON" && n.textContent.trim() === label); };
+  poll(); await settle(40);
+  await tryCase("plans: the tool's button comes only with the host's word", async () => {
+    await openEdit();
+    check("plans: the tool's button comes only with the host's word", !!button("Plans", "la3d-tools"), null);
+    click("Plans", "la3d-tools");
+    await settle(30);
+    check("plans: its list opens in the sheet", ed().tool === "plans" && !!inSheet("New"), ed().tool);
+  });
+  await tryCase("plans: New is a draft step, sent to nothing, undone like any other", async () => {
+    const n0 = payloads.length;
+    inSheet("New").click(); await settle();
+    const pend = ed().planPending;
+    const piece = ed().draft.pieces[pend[0].piece];
+    check("plans: New is a draft step, sent to nothing, undone like any other", pend.length === 1 && pend[0].sug_id === "s1" && piece.label === "Stairs (from the plan)" && piece.recipe.kind === "stairs" && piece.recipe.params.rail === "none"
+      && piece.floor_id === "main" && ed().dirty && ed().canUndo && payloads.length === n0 && plan.commitCalls.length === 0, { pend, piece });
+    click("Undo", "la3d-tools"); await settle();
+    check("plans: the toolbar's Undo clears it", ed().planPending.length === 0 && !ed().dirty, ed().planPending);
+    click("Redo", "la3d-tools"); await settle();
+    check("plans: Redo brings it back", ed().planPending.length === 1, ed().planPending);
+    click("Discard", "la3d-tools"); await settle();
+    check("plans: Discard takes it out", ed().planPending.length === 0 && !ed().dirty, ed().planPending);
+  });
+  await tryCase("plans: Save sends a refusal back without touching anything", async () => {
+    inSheet("New").click(); await settle();
+    const before = JSON.stringify(ed().draft), n0 = payloads.length;
+    plan.refuse = Object.assign(new Error("The session changed since you looked."), { code: "rev_mismatch" });
+    click("Save", "la3d-tools"); await settle(30);
+    check("plans: a refused commit: no ordinary Save, the draft stays, says why", payloads.length === n0 && plan.commitCalls.length === 1 && ed().planPending.length === 1 && JSON.stringify(ed().draft) === before && /^Not saved: The session changed/.test(ed().hint) && ed().hintBad, { hint: ed().hint, n: payloads.length - n0 });
+  });
+  await tryCase("plans: Save: the one writer first, then the person's own edit, no note on either", async () => {
+    await pickTool("window");
+    const a = where("main", 0, 5.5, WALL_Z), b = where("main", 0, 6.7, WALL_Z);
+    drag(a, b); await settle();
+    const added = Object.keys(ed().draft.openings).find(k => !(k in server.file.openings));
+    const temp = ed().planPending[0].piece;
+    const n0 = payloads.length, c0 = plan.commitCalls.length;
+    click("Save", "la3d-tools"); await settle(30);
+    const sent = payloads.slice(n0), commit = plan.commitCalls[c0], e = ed();
+    check("plans: Save: the one writer first, then the person's own edit, no note on either", added && commit && commit.items.length === 1 && commit.items[0].v === "new" && !("plan_ai_pending" in commit.items[0].final)
+      && commit.session === "ps_1" && sent.length === 1 && JSON.stringify(Object.keys(sent[0])) === JSON.stringify(["openings"]) && Object.keys(sent[0].openings).join() === added && !JSON.stringify(sent).includes("plan_ai"), { commit, sent });
+    check("plans: after it, the draft holds the file's stair, nothing pending, nothing left to save", !e.dirty && !e.canUndo && e.planPending.length === 0 && !e.draft.pieces[temp] && !!e.draft.pieces.fur_abcdef02 && e.draft.pieces.fur_abcdef02.plan_ai.batch === "pb_1", { dirty: e.dirty, pending: e.planPending, pieces: Object.keys(e.draft.pieces) });
+    check("plans: says what was kept", /^Kept 1 new from the plans/.test(e.hint), e.hint);
+  });
+  await tryCase("plans: the commit stands and the other edit is refused: both said, the commit not undone", async () => {
+    click("Plans", "la3d-tools"); await settle(20);
+    if (ed().tool !== "plans") { click("Plans", "la3d-tools"); await settle(20); }
+    inSheet("New").click(); await settle();
+    await pickTool("window");
+    drag(where("main", 0, 0.5, WALL_Z), where("main", 0, 1.9, WALL_Z)); await settle();
+    const added = Object.keys(ed().draft.openings).find(k => !(k in server.file.openings));
+    server.fail = { code: "save_failed", message: "the disk" };
+    click("Save", "la3d-tools"); await settle(30);
+    const e = ed();
+    check("plans: the commit stands and the other edit is refused: both said, the commit not undone", /^Kept 1 new from the plans/.test(e.hint) && /other changes weren't saved/.test(e.hint) && e.hintBad && e.planPending.length === 0 && e.dirty && !!e.draft.openings[added], { hint: e.hint, dirty: e.dirty, p: e.planPending });
+    click("Undo", "la3d-tools"); await settle();
+    check("plans: an Undo after it can't bring back what the commit replaced", ed().planPending.length === 0 && !JSON.stringify(ed().changes || {}).includes("plan_ai_pending"), ed().changes);
+    if (ed().dirty) click("Discard", "la3d-tools");
+    await settle();
+  });
+  await tryCase("plans: the tool gone: what the draft held never goes the ordinary way", async () => {
+    click("Plans", "la3d-tools"); await settle(20);
+    if (ed().tool !== "plans") { click("Plans", "la3d-tools"); await settle(20); }
+    plan.session.suggestions.s3 = stairOf("s3", 3, 6);
+    plan.session.status = "done";
+    click("Plans", "la3d-tools"); await settle(20); click("Plans", "la3d-tools"); await settle(30);
+    inSheet("New").click(); await settle();
+    check("plans: (one waiting)", ed().planPending.length === 1, ed().planPending);
+    plansHook = null;
+    poll(); await settle(30);
+    const n0 = payloads.length, c0 = plan.commitCalls.length;
+    click("Save", "la3d-tools"); await settle(30);
+    const e = ed();
+    check("plans: the tool gone: what the draft held never goes the ordinary way", payloads.length === n0 && plan.commitCalls.length === c0 && e.planPending.length === 0 && /weren't kept/.test(e.hint) && !e.dirty, { hint: e.hint, n: payloads.length - n0 });
+  });
+  await tryCase("plans: the tool gone with another edit in the same Save: that goes, and it says the items weren't kept", async () => {
+    plansHook = { settings: {}, callWS: plansHookKept };
+    poll(); await settle(30);
+    click("Plans", "la3d-tools"); await settle(20);
+    if (ed().tool !== "plans") { click("Plans", "la3d-tools"); await settle(20); }
+    plan.session.suggestions.s4 = stairOf("s4", 3, 7);
+    click("Plans", "la3d-tools"); await settle(20); click("Plans", "la3d-tools"); await settle(30);
+    inSheet("New").click(); await settle();
+    check("plans: (one waiting, with another edit)", ed().planPending.length === 1, ed().planPending);
+    await pickTool("window");
+    drag(where("main", 0, 0.5, WALL_Z), where("main", 0, 1.9, WALL_Z)); await settle();
+    plansHook = null;
+    poll(); await settle(30);
+    const n0 = payloads.length, c0 = plan.commitCalls.length;
+    click("Save", "la3d-tools"); await settle(30);
+    const e = ed();
+    check("plans: the tool gone, another edit: it is saved and says the items weren't kept", payloads.length === n0 + 1 && plan.commitCalls.length === c0 && e.planPending.length === 0 && /^Saved, but the items from the plans weren't kept/.test(e.hint) && e.hintBad && !e.dirty, { hint: e.hint, bad: e.hintBad, n: payloads.length - n0 });
+  });
+  // The quiet view, B1 of the review of 2026-11-02: what it hides comes back after a draft change.
+  const plansOff = async () => { if (ed().tool === "plans") { click("Plans", "la3d-tools"); await settle(30); } };
+  const plansOn = async () => { if (ed().tool !== "plans") { click("Plans", "la3d-tools"); await settle(30); } };
+  const fresh = () => { plan.session.suggestions = { s9: stairOf("s9", 2, 2) }; plan.session.status = "done"; plan.undo = null; plan.refuse = null; };
+  await tryCase("plans: quiet: what it hides comes back when the tool closes, after a draft change", async () => {
+    plansHook = { settings: {}, callWS: plansHookKept };
+    fresh();
+    poll(); await settle(30);
+    await plansOff();
+    if (ed().dirty) { click("Discard", "la3d-tools"); await settle(); }
+    const was = { lights: st().lights, readouts: st().readouts.length };
+    check("plans: quiet: (a house with lights and a readout)", was.lights > 0 && was.readouts > 0, was);
+    for (const how of ["nothing", "new", "new then undo", "new then discard", "new, then a poll"]) {
+      fresh();
+      await plansOn();
+      const quietNow = { lights: st().lights, readouts: st().readouts.length };
+      if (how !== "nothing") { inSheet("New").click(); await settle(); }
+      if (how === "new then undo") { click("Undo", "la3d-tools"); await settle(); }
+      if (how === "new then discard") { click("Discard", "la3d-tools"); await settle(); }
+      if (how === "new, then a poll") { poll(); await settle(30); }
+      const during = st().lights;
+      await plansOff();
+      const after = { lights: st().lights, readouts: st().readouts.length };
+      check(`plans: quiet: ${how}: hidden while it shows, back when it closes`, quietNow.lights === 0 && quietNow.readouts === 0 && during === 0 && after.lights === was.lights && after.readouts === was.readouts, { how, quietNow, during, after, was });
+      if (ed().dirty) { click("Discard", "la3d-tools"); await settle(); }
+    }
+  });
+  // A real alarm mustn't vanish behind the quiet view.
+  await tryCase("plans: quiet: a real alarm still shows", async () => {
+    const SMOKE = "binary_sensor.den_smoke", LEAK = "binary_sensor.rec_leak", DRY = "binary_sensor.den_leak";
+    const flood = (entity_id, device_class, state, friendly_name) => ({ entity_id, device_class, state, friendly_name, isFlood: true });
+    MODEL.light_positions_m[SMOKE] = { x_m: 6, y_m: 3, floor_id: "main" };
+    MODEL.light_positions_m[LEAK] = { x_m: 2, y_m: 3, floor_id: "basement" };
+    MODEL.light_positions_m[DRY] = { x_m: 7, y_m: 3, floor_id: "main" };
+    LBE[SMOKE] = flood(SMOKE, "smoke", "off", "Den smoke");
+    LBE[LEAK] = flood(LEAK, "moisture", "off", "Rec leak");
+    LBE[DRY] = flood(DRY, "moisture", "off", "Den leak");
+    const pill = () => root().querySelectorAll(".la3d-quiet-alarm")[0] || null;
+    const mark = (eid) => st().marks.find(m => m.eid === eid) || null;
+    try {
+      fresh();
+      poll(); await settle(30);
+      await plansOn();
+      check("plans: quiet: nothing alarming: no mark and no word", !st().marks.length && !pill(), { marks: st().marks, pill: !!pill() });
+      LBE[SMOKE] = { ...LBE[SMOKE], state: "on" };
+      poll(); await settle(30);
+      const m = mark(SMOKE);
+      check("plans: quiet: smoke going off mid-tool: drawn, ripple and word", m && m.look.alarm && m.badge.on && m.badge.word === "SMOKE" && m.ripple.on && m.shown, m);
+      check("plans: quiet: named over the view", pill() && pill().textContent === "SMOKE · Den smoke" && pill().getAttribute("role") === "alert", pill() && pill().textContent);
+      check("plans: quiet: a quiet sensor beside it stays hidden, and the lights too", !mark(DRY) && st().lights === 0, { marks: st().marks, lights: st().lights });
+      LBE[LEAK] = { ...LBE[LEAK], state: "on" };
+      poll(); await settle(30);
+      check("plans: quiet: a leak on another floor is named too", pill() && pill().textContent.includes("WET · Rec leak") && pill().textContent.includes("SMOKE · Den smoke"), pill() && pill().textContent);
+      LBE[SMOKE] = { ...LBE[SMOKE], state: "off" }; LBE[LEAK] = { ...LBE[LEAK], state: "off" };
+      latchesHook = { [LEAK]: { triggered_at: Date.now() / 1000 - 3600 } };
+      poll(); await settle(30);
+      check("plans: quiet: still latched, it is still an alarm", pill() && pill().textContent === "ALARM · Rec leak" && mark(LEAK) && mark(LEAK).look.latched && !mark(SMOKE), { pill: pill() && pill().textContent, marks: st().marks });
+      latchesHook = null;
+      poll(); await settle(30);
+      check("plans: quiet: over: gone again", !pill() && !st().marks.length, { pill: pill() && pill().textContent, marks: st().marks });
+      LBE[SMOKE] = { ...LBE[SMOKE], state: "on" };
+      poll(); await settle(30);
+      await plansOff();
+      check("plans: quiet: the tool closed: the word goes, the alarm is drawn as ever", !pill() && mark(SMOKE) && mark(SMOKE).badge.on && !!mark(DRY), { pill: !!pill(), marks: st().marks });
+    } finally {
+      for (const eid of [SMOKE, LEAK, DRY]) { delete MODEL.light_positions_m[eid]; delete LBE[eid]; }
+      latchesHook = null;
+    }
+    poll(); await settle(30);
+  });
+  await closeEdit();
+}
 console.log(JSON.stringify({ cases, failures, payloads, start: FILE0 }));

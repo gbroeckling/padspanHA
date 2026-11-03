@@ -3100,6 +3100,8 @@ function _laStored(){
   return null;
 }
 const _laCannotHere = () => _laStored() || (_laNoGl ? "no_webgl" : null);
+/** Why this device shows no 3D view (no WebGL, too slow), or null: the Furnish tab's way to the Plans list. */
+export const la3dCannotHere = () => _laCannotHere();
 function _laRemember(why){
   if (!_LA_KEEP.includes(why) || _laStored() === why) return;
   try { _laKeptIn(why).setItem(_LA_FAILED, JSON.stringify({ build: _LA_BUILD, why })); } catch (_) {}
@@ -3365,6 +3367,8 @@ const _noting = (el, notes) => (tag, attrs, kids) => {
   return el(tag, attrs, kids);
 };
 
+/** The Plans list there, from the 3D module (no GL asked of it): only ever on a press in that tab. */
+export const la3dPlansList = async (box, host) => (await import(`./live_aboard.js${new URL(import.meta.url).search}`)).openPlansList(box, host);
 export function buildLightsMapCard(hostIn){
   const keep = hostIn.keepCard || null;
   if (keep && keep.refresh && keep.card && keep.card.isConnected && keep.refresh(hostIn)) return keep.card;
@@ -3463,7 +3467,15 @@ export function buildLightsMapCard(hostIn){
     // (live check 2026-09-24).
     return zArr.map(z => floorNameAtLevel(_frame, host.model, floors, z) || `L${z}`).join(" + ");
   };
-  view.focusIdx = Math.max(0, Math.min(view.focusIdx, isoPos.length - 1));
+  // No floors yet (the first card is drawn before the model is read): nothing to
+  // check a saved floor against, and it has to last until there is. A floor no
+  // longer there (past the end of the list) means All.
+  if (sortedLevels.length && isoPos[view.focusIdx] === undefined) view.focusIdx = 0;
+  // Mapping → Atlas asked for on one floor (the Plans tool's fixture symbol with no placed light), once.
+  if (sortedLevels.length && typeof host.takeAtlasFloor === "function") {
+    const askedFloor = host.takeAtlasFloor(), i = askedFloor ? isoPos.findIndex(p => p === _frame.levelOf(String(askedFloor))) : -1;
+    if (i >= 0) view.focusIdx = i;
+  }
   // A wall that cycles through its floors (lights_panel.js _wallCycle):
   // All and each floor on its own, not the pairs between them.
   if (host.wall) view.wallStops = isoPos.map((p, i) => (Array.isArray(p) ? -1 : i)).filter(i => i >= 0);
@@ -3640,7 +3652,13 @@ export function buildLightsMapCard(hostIn){
           // master switch on, an AI Task chosen, where Edit itself is offered, never on Sample mode's house, and
           // only for an administrator (every plan_ai_ command is one's).
           plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && h3.admin !== false && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")
-            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings } : null,
+            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings, telemetry: h3.telemetry || null,
+              // The flat Atlas is where a pin is dropped: leave Edit (asking first if something is unsaved), then Map on that room.
+              openAtlasRoom: typeof h3.openAtlasRoom !== "function" ? null : (fid, room) => {
+                const go = () => { _la3dPick(h3.slot, false); h3.openAtlasRoom(fid, room); };
+                const s = la3dSlot();
+                if (!(s && s.holdLeave && s.holdLeave(go))) go();
+              } } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
           // The view's floor stepper (▲ Main ▼ · All): the floor chips'
           // choice, a floor at a time, lowest first; and, on the sidebar,
@@ -4717,7 +4735,6 @@ export function buildLightsMapCard(hostIn){
         resetFocusCtl(view.focusIdx);
         rebuildISO();
         if (cam) { isoDiv.scrollLeft = cam.sl; isoDiv.scrollTop = cam.st; }
-        chosenIntoView(idx);
         for (const b of bar.querySelectorAll("button")) if (b._floorIdx !== undefined) b.classList.toggle("on", b._floorIdx === idx);
       };
       const mk = (label, idx, act) => {
@@ -4865,16 +4882,18 @@ export function buildLightsMapCard(hostIn){
   };
   const legend = legendOf(host, h3);
   if (legend.node) { legend.node.classList.add("lv-shapes"); mapCard.appendChild(legend.node); }   // a wall leaves it out (styles.css)
-  // At 100% a tall house runs below the fold, and with the other floors faded a
-  // chosen floor off screen would leave only backdrop to look at. Zoomed in, the
-  // camera is what you left, so it stays. The sidebar only: Mapping's map sits
-  // under its tools, and they should stay in reach. A saved view can be a pair
-  // of floors (the slider): one of them on screen is enough.
+  // The page just opened on a saved floor whose plate is off screen: with the
+  // others faded, only backdrop would show. Once (lights_panel.js _loadSettings),
+  // the sidebar only: Mapping's map sits under its tools, a wall screen fits the
+  // house and is looked at from across a room. Choosing a floor never scrolls. A
+  // saved view can be a pair of floors (the slider): one on screen is enough.
   function chosenIntoView(idx) {
-    if (!scr || !idx || view.zoom > 1) return;
+    if (!scr || !idx || host.wall) return;
     const plates = [].concat(isoPos[idx])
       .map(z => isoDiv.querySelector(`g[data-role="floorslab"][data-z="${z}"] [data-role="slabtop"]`)).filter(Boolean);
-    const off = (p) => { const r = p.getBoundingClientRect(), mid = r.top + r.height / 2; return mid < 0 || mid > window.innerHeight; };
+    const box = isoDiv.getBoundingClientRect();
+    const top = Math.max(0, box.top), bottom = box.height ? Math.min(window.innerHeight, box.bottom) : window.innerHeight;
+    const off = (p) => { const r = p.getBoundingClientRect(), mid = r.top + r.height / 2; return mid < top || mid > bottom; };
     if (plates.length && plates.every(off)) plates[0].scrollIntoView({ block: "center", inline: "nearest" });
   }
   rebuildISO();
@@ -4945,10 +4964,8 @@ export function buildLightsMapCard(hostIn){
       if (view.scrollTop !== undefined) isoDiv.scrollTop = view.scrollTop;
     });
   }
-  // The view just read from the settings (lights_panel.js _loadSettings): its
-  // floor comes into view once, on the first card that has floors to draw, and
-  // later polls leave the page where you scrolled it. A microtask, as above: the
-  // card has to be on screen to be measured.
+  // On the first card that has floors to draw; every later one leaves the page
+  // where it is. A microtask, as above: the card has to be on screen to be measured.
   if (view.scrollToChosen && sortedLevels.length) {
     view.scrollToChosen = false;
     queueMicrotask(() => chosenIntoView(view.focusIdx));

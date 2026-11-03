@@ -571,38 +571,46 @@ if (Cls) {
   } catch (e) { fail("emergency button hidden in settings", "lifecycle", e); }
 }
 
-// Refresh reads the saved view, and its floor comes into view on the card the
-// new model makes (lights_map.js). A failed model read makes no such card: the
-// request goes with that read, or some later card would move the page.
-const savedAsk = { usedByNewCard: null, leftAfterGoodRead: null, leftAfterFailedRead: null };
+// The saved floor when the page opens: the first card is drawn before the model
+// is read, with no floors to check it against, and it has to last until there
+// are. MODEL has two floors, so the view runs All, Main, the pair, Upstairs.
+const savedFloor = {};
 if (Cls) {
-  try {
-    // On screen, so a card built from the same is kept (as in the browser).
-    const proto = Object.getPrototypeOf(document.createElement("div"));
-    Object.defineProperty(proto, "isConnected", { configurable: true, get: () => true });
-    let modelDown = false;
-    const hass = makeHass({ settings: { ...BASE, overview_iso_focus: 1 } });
+  const open = async (focus, modelDown = false) => {
+    const hass = makeHass({ settings: { ...BASE, overview_iso_focus: focus } });
     const real = hass.callWS;
     hass.callWS = async (m) => {
       if (m.type === "padspan_ha/model_get" && modelDown) throw new Error("ws down");
       return real(m);
     };
     const el = new Cls();
+    const draw = el._render, seen = [];
+    let asked = 0;
+    el._render = function () { if (el._view.scrollToChosen === true) asked++; draw.call(el); seen.push([Object.keys(el.state.model?.room_geometry_m || {}).length > 0, el._view.focusIdx]); };
     el.connectedCallback();
+    // The real path: HA assigns .hass, the setter boots, nothing awaits it.
     el.hass = hass;
-    await el._boot(); await flush(); await flush();
-    const draw = el._render, used = [];
-    el._render = function () { const before = el._view.scrollToChosen; draw.call(el); used.push(!!before && !el._view.scrollToChosen); };
-    await el._boot(); await flush(); await flush();
-    savedAsk.usedByNewCard = used.includes(true);
-    savedAsk.leftAfterGoodRead = !!el._view.scrollToChosen;
-    modelDown = true;
-    await el._boot(); await flush(); await flush();
-    savedAsk.leftAfterFailedRead = !!el._view.scrollToChosen;
+    for (let i = 0; i < 12; i++) await flush();
+    const chips = el.shadowRoot.querySelector("#content")._all().filter(n => n.classList && n.classList.contains("floor") && n.classList.contains("on"));
+    const out = { focus: el._view.focusIdx, noFloors: seen.filter(s => !s[0]).map(s => s[1]), floors: seen.filter(s => s[0]).map(s => s[1]), on: chips.map(c => c._floorIdx) };
+    // The one scroll's request: made as the page opens, gone once the model's read has settled, not made again by a Refresh.
+    out.askedAtOpen = asked > 0; out.askLeft = el._view.scrollToChosen === true;
+    asked = 0;
+    await el._boot();
+    for (let i = 0; i < 12; i++) await flush();
+    out.askedOnRefresh = asked > 0 || el._view.scrollToChosen === true;
     el.disconnectedCallback();
-    delete proto.isConnected;
-  } catch (e) { fail("a Refresh's request to bring the saved floor into view", "lifecycle", e); }
+    return out;
+  };
+  try {
+    savedFloor.main = await open(1);
+    savedFloor.pair = await open(2);
+    savedFloor.upstairs = await open(3);
+    savedFloor.all = await open(0);
+    savedFloor.gone = await open(5);
+    savedFloor.modelDown = await open(3, true);
+  } catch (e) { fail("a saved floor when the page opens", "lifecycle", e); }
 }
 
-console.log(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedAsk }));
+console.log(JSON.stringify({ scenarios, failures, blip, restart, emergency, emerg2, emerg3, savedFloor }));
 process.exit(failures.length ? 1 : 0);

@@ -762,6 +762,10 @@ export function createFurnish(ctx){
    *  they go up to. */
   function stairRows(el, p, spec){
     el.appendChild(d("div", "la3d-sec", "Stairs"));
+    if (p.plan_ai && p.plan_ai.session) {
+      const kept = num(p.plan_ai.at) !== null ? new Date(p.plan_ai.at * 1000).toLocaleDateString() : "";
+      el.appendChild(d("p", "la3d-sub", `From the plan, read by the AI (experimental)${kept ? `, kept ${kept}` : ""}. Edit → Plans or Settings → AI undoes that session.`));
+    }
     const params = p.recipe.params || {}, r = reachOf(p);
     const shapeP = spec && Array.isArray(spec.params) ? spec.params.find(x => x.key === "shape") : null;
     const set = (patch) => {
@@ -1304,6 +1308,22 @@ export function createFurnish(ctx){
     },
     /** For the harness and a test: add a piece of a kind, as Build does. */
     build(kind){ add([{ recipe: recipeFor(kind) }]); return sel; },
+    /** A stair off a plan as Build would place it (the Plans tool puts it in the
+     *  draft): on its floor, up to the next, its rise the gap, squared to its
+     *  room, no rail until a person chooses one. Null until the builders are here. */
+    /** Build ▾ open (the Plans tool's Add by hand, from its what's-missing pass). */
+    openBuild(){ if (!menuOpen) toggleMenu(); },
+    planStair(g, floorId, label){
+      const base = recipeFor("stairs");
+      if (!base || base.kind !== "stairs") return null;
+      const recipe = { ...base, params: { ...(base.params || {}), shape: g.shape || "straight", style: "closed", rail: "none" }, width_m: g.width_m, depth_m: g.depth_m };
+      const p = PIECES.makePiece(recipe, floorId, { x: g.x_m, y: g.y_m, rotation: g.rotation }, "build");
+      p.label = label;
+      inRange(p.recipe);
+      stairFix(p);
+      squareInRoom(p);
+      return p;
+    },
     dispose(){
       closeFlow(); keys(false);
       if (outline.parent) outline.parent.remove(outline);

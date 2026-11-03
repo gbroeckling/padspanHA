@@ -39,15 +39,19 @@ if (q.get("stairs")) {
   FILE.pieces = { fur_0000aa01: { id: "fur_0000aa01", recipe: { kind: "stairs", params: { shape: shape || "l", turn: "left", style: style || "open", rail, rail_style: rail_style || "balustrade", to_floor: "upper" },
     colors: [], width_m: 2.4, depth_m: 3, height_m: 2.8 }, origin: "build", label: "", library_id: null, submission_id: null, floor_id: "main", x_m: 8, y_m: 3, z_m: 0, rotation: 0, entity_id: null, entity_reg_id: null } };
 }
+// plans=1 (with edit=1): the Plans tool on, over a fake server and a fictional session (plans_fixture.js).
+const PLANS = q.get("plans") ? (await import("./plans_fixture.js")).plansFixture(MODEL, FILE, q.get("plans") === "lights") : null;
+window.__plans = PLANS;
 const view = { floorGap: Number(q.get("gap") || 260), horizGap: 0, focusIdx: Number(q.get("focus") || 0), zoom: Number(q.get("zoom") || 1) };
 let host;
 const render = () => { const m = document.getElementById("mount"); m.innerHTML = ""; m.appendChild(LM.buildLightsMapCard(host)); };
 host = { el, view, floors: MODEL.floors, model: MODEL, byRoom: {}, hiddenEids: new Set(), lightsByEid: LBE, lightsLoading: false, tier,
   layoutV2: true, displayMode: q.get("display") !== "0", codeChip: true, hitHalo: true, collapseUnplaced: true,
   screen: { slot: "atlas", shownAt: 1 },
-  house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto", ...(q.get("look") ? { atlas_3d_look: q.get("look") } : {}) },
+  house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto", ...(q.get("look") ? { atlas_3d_look: q.get("look") } : {}), ...(PLANS ? PLANS.settings : {}) },
+    ...(PLANS ? { callWS: PLANS.callWS, openAtlasRoom: PLANS.openAtlasRoom } : {}),
     telemetry: () => {}, useApi: () => ({ lbe: LBE, states: STATES, hass: { states: STATES, callService: () => Promise.resolve() } }),
-    edit: q.get("edit") ? (ch) => Promise.resolve({ data: {} }) : undefined,
+    edit: q.get("edit") ? (ch) => Promise.resolve({ data: PLANS ? JSON.parse(JSON.stringify(FILE)) : {} }) : undefined,
     // tool=heights|door|window|doorway|strip[&teid=light.x]: the setup wizard's way in (taken once).
     openTool: q.get("tool") ? { take: (() => { let t = { tool: q.get("tool"), eid: q.get("teid") || null }; return () => { const r = t; t = null; return r; }; })() } : undefined,
     states: STATES, people: { read: () => Promise.resolve({ objects: { list: [] } }), everyMs: 5000 }, load: () => Promise.resolve({ data: FILE }) },

@@ -21,7 +21,7 @@ const { makeStackXform, mapXform, imageAr, fabricWorldRooms, mapFracToMetres,
 // THE fabric frame — the Lights tab inverts drags through the exact function
 // the renderer draws with, so the two cannot disagree.
 const { fabricFrame, markerScale, markerRadiusPx, cmFromHandlePx, MAX_FIXTURE_CM,
-        floorIdAtLevel, sceneColours, defaultPerimeterMarginM, shapeSvg, pointInPolygon } =
+        floorIdAtLevel, floorNameAtLevel, sceneColours, defaultPerimeterMarginM, shapeSvg, pointInPolygon } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
 // THE shared Lights view (data pipeline, map card, index table) — used
 // verbatim by the Lights sidebar panel, so the two tools always show the
@@ -31,7 +31,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity,
-        vacationOptionsOf, vacationEndsText } =
+        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
@@ -8385,6 +8385,19 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
         // A floor chosen: off its plate, the pin goes home and nothing moves
         // (as the queue's tap, below). No render follows, so it has to go now.
         if (dropZ === null && _aFloorIsFaded(svg)) { dropG.removeAttribute("transform"); return; }
+        // A floor chosen, and the pin's light keeps another: refused as the
+        // queue's tap is. Nothing placed, and the queue isn't touched.
+        const pinEid = o.mapState._selLight && o.mapState._selLight.eid;
+        const pinLight = pinEid && o.lightsByEid[pinEid];
+        if (pinLight && _aFloorIsFaded(svg)) {
+          const floors = ctx.state.model?.floors || [];
+          const ownZ = _levelForFloorId(frame, ctx.state.model, floors, _floorIdForLight(ctx, pinEid, dropZ, frame, o.lightsByEid));
+          if (ownZ !== dropZ) {
+            ctx.toast(`${pinLight.code} belongs on ${floorNameAtLevel(frame, ctx.state.model, floors, ownZ) || "another floor"}. Choose that floor first.`);
+            dropG.removeAttribute("transform");
+            return;
+          }
+        }
         o.onDropPlace(v.x, v.y, dropZ);
       };
       dropG.addEventListener("pointermove", mm);
@@ -8566,7 +8579,12 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
     const v = toVB(ev);
     const picked = _doorCircleFloorForClick(ctx, o, frame, v);
     mapState._doorCircleM = { x_m: picked.cx, y_m: picked.cy, r_m: 1, floorId: picked.fid };
-    ctx.toast("Drag the circle to position it, drag its edge to resize, then Save opening above.");
+    // The nearest wall can be on a floor that isn't chosen: the circle fades with
+    // that floor and takes no taps, so it's chosen first.
+    const pickedZ = _levelForFloorId(frame, ctx.state.model, ctx.state.model?.floors || [], picked.fid);
+    ctx.toast([...svg.querySelectorAll('g[data-role="floorghost"]')].some(g => Number(g.getAttribute("data-z")) === pickedZ)
+      ? `The nearest wall is on ${floorNameAtLevel(frame, ctx.state.model, ctx.state.model?.floors || [], pickedZ) || "another floor"}. Choose that floor to drag the circle, then Save opening above.`
+      : "Drag the circle to position it, drag its edge to resize, then Save opening above.");
     ctx.actions.renderRooms();
   });
 
@@ -8603,6 +8621,12 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
       fid = _floorIdForZ(ctx, Number.isFinite(hitZ) ? hitZ : (frame.levels[0] || 0), frame);
     }
     const z = _levelForFloorId(frame, ctx.state.model, floors, fid);
+    // A floor chosen, and this light keeps another: the point tapped on this
+    // plate would land off the plan on its own floor. It stays in the queue.
+    if (z !== hitZ && _aFloorIsFaded(svg)) {
+      ctx.toast(`${l.code} belongs on ${floorNameAtLevel(frame, ctx.state.model, floors, z) || "another floor"}. Choose that floor first.`);
+      return;
+    }
     const [x_m, y_m] = frame.isoInv(v.x, v.y, z);
     _pushUndo(o.mapState, [eid]);
     _draftAt(ctx, o, eid, x_m, y_m, fid, "manual");
@@ -9678,8 +9702,11 @@ function _lightsTab(ctx, maps, active) {
   previewApi.openFloor = (z) => openFloorSheet(previewApi, lights, ctx.state.model, z);
 
   // View settings live in mapState so slider positions survive re-renders;
-  // seeded from (and saved to) the SAME settings keys the sidebar uses.
-  if (!mapState._lightsView) mapState._lightsView = {
+  // seeded from (and saved to) the SAME settings keys the sidebar uses. Opened
+  // before the settings came in, it's seeded again when they do, or the saved
+  // floor would be lost until the page is opened again.
+  const settingsIn = Object.keys(ctx.state.settings || {}).length > 0;
+  if (!mapState._lightsView || (mapState._lightsViewEarly && settingsIn)) mapState._lightsView = {
     floorGap: ctx.state.settings?.overview_iso_floor_gap ?? 150,
     horizGap: ctx.state.settings?.overview_iso_horiz_gap ?? 0,
     focusIdx: ctx.state.settings?.overview_iso_focus ?? 0,
@@ -9689,6 +9716,7 @@ function _lightsTab(ctx, maps, active) {
     // in-memory-only zoom reset to 1.0 on every reboot/reload.
     zoom: ctx.state.settings?.overview_iso_zoom ?? 1.0,
   };
+  mapState._lightsViewEarly = !settingsIn;
   const view = mapState._lightsView;
 
   // ── Transform mode ──────────────────────────────────────────────────────
@@ -9717,6 +9745,16 @@ function _lightsTab(ctx, maps, active) {
   // other devices if placed"); wall-linking a lock is a SEPARATE, additive
   // capability (see the Map column below), not a replacement for it.
   const placeableLights = lights.filter(l => !l.isDoor);
+  // The Plans tool's fixture symbol with no placed light: Mapping → Atlas on its
+  // floor, its room's lights chosen, for the person to place it. Nothing is written.
+  const openAtlasRoom = (floorId, room) => {
+    const mine = room ? placeableLights.filter(l => l.area_name === room) : [];
+    mapState._atlasFloorAsk = floorId;
+    mapState._selSet = new Set(mine.map(l => l.entity_id));
+    mapState._focusRow = mine.length ? mine[0].entity_id : null;
+    ctx.toast(room ? `Mapping → Atlas, ${room}: choose a light, then drop its pin where the plan draws it.` : "Mapping → Atlas: choose a light, then drop its pin where the plan draws it.");
+    ctx.actions.setMapsTab("lights");
+  };
   // The builder's checklist: how much of the house is actually placed.
   const nPlaced = placeableLights.filter(l => placements[l.entity_id]).length;
   const nApprox = placeableLights.filter(l => placements[l.entity_id] && placements[l.entity_id].source === "auto").length;
@@ -10269,6 +10307,7 @@ function _lightsTab(ctx, maps, active) {
     // selection to place — dragging it onto the map otherwise has nothing
     // to do. (Defined above, hoisted so _wireLightsBuild can drive it too.)
     onDropPlace,
+    takeAtlasFloor: () => { const f = mapState._atlasFloorAsk; mapState._atlasFloorAsk = null; return f || null; },
     // Preview-as-sidebar asks the renderer for the use-surface ergonomics
     // (the sidebar's exact options) and wires the sidebar's exact gestures.
     codeChip: preview, hitHalo: preview, collapseUnplaced: preview,
@@ -10392,6 +10431,7 @@ function _lightsTab(ctx, maps, active) {
       trails: ctx.state.dataMode !== "live" ? null
         : { read: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } },
       callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); },
+      openAtlasRoom,
       // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
       // like the Settings box (settingsSet would re-render everything).
       saveNorth: async (b) => {
@@ -10783,11 +10823,24 @@ function _lightsTab(ctx, maps, active) {
   // Mapping → Furnish (P2): the same card, its 3D house in the Furnish tool;
   // the light-placement tools are this tab's, not Furnish's.
   if (furnish) {
+    // Add data via plans (experimental): the vetting map lives in the 3D editor, so with no 3D on
+    // this device (no WebGL, too slow) its list opens here. Same gates as the Plans tool (lights_map.js).
+    const S = ctx.state.settings || {};
+    const plansList = S.ai_plans_enabled === true && ctx.state.dataMode === "live" && ctx.hass?.user?.is_admin !== false
+      && String(S.atlas_3d_ai_task_entity || "").startsWith("ai_task.") && !!la3dCannotHere();
+    const plansBox = plansList ? (mapState._plansListBox || (mapState._plansListBox = el("div", {}))) : null;
+    const plansBtn = plansList ? el("button", { class: "btn inline", style: "margin-left:6px", title: "This device shows no 3D view, so the AI's finds from your plans open as a list", onclick: async () => {
+      if (mapState._plansList) { mapState._plansList.dispose(); mapState._plansList = null; return; }
+      try {
+        mapState._plansList = await la3dPlansList(plansBox, { floors: ctx.state.model?.floors || [], toast: (t, bad) => ctx.toast(t, bad), openAtlasRoom,
+          callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } });
+      } catch (e) { ctx.toast(String((e && e.message) || e), true); }
+    } }, "Add data via plans (experimental)") : null;
     return el("div", {}, [
       el("div", { class: "card", style: "padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.5" }, [
         "Furnish Live Aboard: Build adds a piece; drag it into place. Floor ▲ / ▼ moves it to another floor, and Height in room raises it onto a table, a shelf or a wall. Nothing is kept until Save. ",
-        ctx.helpers.helpBtn ? ctx.helpers.helpBtn("aboard_3d") : null]),
-      mapCardEl]);
+        ctx.helpers.helpBtn ? ctx.helpers.helpBtn("aboard_3d") : null, plansBtn]),
+      plansBox, mapCardEl]);
   }
   // The drafting grid on the stage says "editing" without a word.
   if (paid && !preview) { const stage = mapCardEl.querySelector(".lv-stage"); if (stage) stage.classList.add("editing"); }
