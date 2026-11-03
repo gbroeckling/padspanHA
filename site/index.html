@@ -184,6 +184,116 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.224</span>
+        <span class="pill stable">Stable</span>
+        <span class="reldate">3 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>This is everything since 0.38.199 in one go,</b> written as how it works now. The betas' notes under it are steps along the way; where they differ, this one is right.</li>
+          <li><b>Coming from 0.38.166 or older?</b> The changes before these are in 0.38.199's notes, under Full history on padspan.traks.ca.</li>
+          <li><b>Setup, one step after another.</b> Plan, scale, floor heights, rooms, receivers, then calibration. Each step says whether it's done, and you can skip one and come back. Open it from the Overview's Getting started card or the Setup button on Mapping.</li>
+          <li><b>Calibration opens on Results:</b> how accurate your house is now, which rooms need work, and the one next thing to do. Every other tab is still there, and Calibration is in Basic mode too.</li>
+          <li><b>A Receivers page.</b> Every Bluetooth receiver in one table: room, height, signal adjustment, status and how many devices it hears.</li>
+          <li><b>A Rooms page.</b> Every room under its floor, with its colour, outline, ceiling height, split level, receivers and who is in it. Names and floors still come from Home Assistant's Areas.</li>
+          <li><b>A status dot in the top bar</b> when something is wrong: red when something is broken, amber when something needs a look, nothing when all is well. Click it to open Health.</li>
+          <li><b>One name for each device, on every screen.</b> The name you gave it comes first, then the phone's or Home Assistant device's name, the name it broadcasts, and its maker ("Samsung device"). The address sits underneath. Where you pick a device, a name that is only a maker gets the end of its address: "Apple device · 8A:3B:63".</li>
+          <li><b>What a device is.</b> Windows PC, AirTag, AirPods, Tile, SmartTag and others are read from the device's own broadcast, and the device window says how PadSpan knows. Apple's broadcasts mostly don't say iPhone, iPad, Mac or Watch, so those read "Apple device". A Fixed or Rotating badge shows what a receiver said about the address.</li>
+          <li><b>Shorter device lists.</b> Devices, By Room and All objects gather the rotating addresses nobody named by kind ("169 Windows PC addresses"), and older rows fade. Nothing is deleted: click the line, or search.</li>
+          <li><b>A name can follow a device whose address changes.</b> A device you named or follow, with no IRK or fixed ID, can keep its name and its row on a new address. That takes strong evidence: it started as the old one stopped, with the same name or data, maker and kind, heard by at least two of the same receivers, and nothing else fits.</li>
+          <li><b>When it's close, it asks.</b> One quiet line says "This looks like Car Keys: same device?" A No means no more questions about that device for 7 days, though clear evidence can still link it. Otherwise it asks at most once a day for each device. The question closes itself if the old address comes back. "Now on ..." has Undo, and all of this survives a restart.</li>
+          <li><b>Following a name only moves what's on screen.</b> Calibration, learning, Follow's alerts and Home Assistant's sensors stay on the first address, so a wrong link can't mix another device's signal into them.</li>
+          <li><b>West Coast Forest, a new Showcase theme (Pro key).</b> Dark colours for the whole map, and a forest of Douglas fir, cedar and hemlock round the house: on the flat Atlas behind everything on the map, and in Live Aboard as real trees standing in the mist, with ferns, logs and mossy rocks. Pick it in Showcase options → Theme.</li>
+          <li><b>That forest on a bright sunny day.</b> When the weather says sunny, in daylight, the mist clears and a little sun gets through. It stays a dark forest, and every other day and night stays misty. In Live Aboard no tree stands on or over the house, what stands in the way dissolves, and Edit and Furnish leave the forest out. A slow screen draws fewer trees, and one too slow goes without.</li>
+          <li><b>Live Aboard on a wall screen (<code>?kiosk=1</code>) is sharp and fills the screen.</b> It draws every pixel, softer only while turning if the graphics chip needs that; a chip too slow for that draws about 1440p's worth, or on Auto goes to Low. <b>Low</b> chosen in Settings stays Low. If turning by hand runs the house past the edge, <b>Fit</b> brings it back. Home Assistant's sidebar is hidden on that browser; <b>Show HA</b> on the Atlas page (without <code>?kiosk=1</code>) brings it back.</li>
+          <li><b>Choosing a floor on the flat Atlas fades the others,</b> so what looks tappable is tappable. Floor badges and leak or open-window rings stay bright. A saved floor now applies when the page opens.</li>
+          <li><b>In Live Aboard,</b> a motion sensor's reach is a soft pool of light, and a raised marker moves clear of the words around it. Stored heights and spots don't change.</li>
+          <li><b>A backup AI Task</b> in Settings → AI, used for photo and stair reads only when the main one can't be reached. There's no backup until you pick one.</li>
+          <li><b>The help was rewritten for every screen,</b> with "?" buttons where there were none, in English, German, French and Dutch.</li>
+          <li><b>Preview a finished house</b> shows a three-storey sample house on every screen. Nothing in it can be changed or saved. If you see a house you don't recognise, you're in Sample mode: press <b>Live</b> in the top bar.</li>
+          <li><b>More tools.</b> Every screen is in the menu in every mode now. Devices, Bluetooth, Presence, Monitor, QA, Sandbox and Install Base are in a <b>More tools</b> group at the bottom. In Basic, Live Tracker, Occupancy, Manage, Traceback and Health are there too. Opening one never changes your mode.</li>
+          <li><b>Pure Live is now Live Tracker.</b> Links and settings are the same.</li>
+          <li><b>The menu's Setup group is now Build, and Mapping's Rooms tab is now Layout.</b> The guided Setup keeps its name.</li>
+          <li><b>Settings → Presence is now Settings → Tracking,</b> in eight sections you can fold. No setting or default changed, though some have plainer names.</li>
+          <li><b>Settings → Atlas</b> is a new tab with everything about the Atlas, Live Aboard and wall screens, moved from UI Structure.</li>
+          <li><b>Quiet mode is switched with the Quiet tick at the top of the Overview.</b> Its card in Settings says whether it's on and takes you there.</li>
+          <li><b>"Aggressive BLE reseed (5s)"</b> is in Settings → Tracking → Receivers.</li>
+          <li><b>Plain names for expert words,</b> such as Error Matrix → Accuracy by spot, RF Barriers → Signal walls, Isolux → Light spread and Diag Export → Export for support.</li>
+          <li><b>The Overview's Objects list is now All objects.</b></li>
+          <li><b>Monitor → Quick status and Manage → History</b> now point to Health and History. Manage → Events' room log, which never filled, is now a button to History → Movement.</li>
+          <li><b>Railings only where you choose them.</b> A new stair has no rail until you pick Both, Left or Right (Inside or Outside on a turn) on its panel in Furnish, with two new styles, Topless and Single bar. A new Open (Loft) edge has none until you press Railing on its row in Signal walls.</li>
+          <li><b>Your railings were converted, so nothing looks different.</b> Stairs you have keep the rail they showed, as their own setting. Open edges keep theirs, and it becomes their own setting the first time you Save in Live Aboard; one railed on only part of its length stays as it is until you choose.</li>
+          <li><b>Open edges, for rooms with no wall between them.</b> In Mapping → Edit → Signal walls, <b>Open edge: tap a room edge</b> opens one edge, <b>Open all edges</b> a whole room, and <b>Remove open edges</b> takes them back. If a signal wall runs along an edge, PadSpan asks first: that stretch of wall goes, and positions near it can shift.</li>
+          <li><b>Occupancy matches wearables by their real company numbers.</b> Garmin, Polar, Oura and Withings now count; Logitech, hearing aids and others the old table mislabelled don't. This hasn't been checked with real wearables yet, and a watch left on a charger can count as a person, so your count may move a little.</li>
+          <li><b>Vacation Mode replays last week.</b> Each day of a new trip plays like the same day last week. For the old way, pick <b>Monthly average</b> under Options → Routine from. A trip already running when you update keeps its routine, and so does one you turn back on within 3 weeks.</li>
+          <li><b>Vacation Mode has new options,</b> all off until you set them: evening lights (up to 10), a limit on lights on at once, and a preview of the next 24 hours.</li>
+          <li><b>Moving a beacon keeps more of your calibration.</b> Beacon Tune's hard relocation deletes only that beacon's earlier Beacon Tune and [auto] points, not Pin &amp; Listen, Roam, Walk a room or Calibration Guide points. Points from before this update are kept too, so if a moved beacon keeps showing at its old spot, delete those by hand.</li>
+          <li><b>Placing on a chosen floor.</b> With a floor chosen in Mapping, a light from another floor isn't placed: it says which floor to choose and stays in the queue. A door or window circle fades with its floor; choose that floor to drag it.</li>
+          <li><b>A device you named, pinned, calibrated or are following is never merged with another on a guess.</b> It keeps its own row.</li>
+          <li><b>A receiver goes by one name on screen:</b> the one set on its ESPHome or Shelly device. What calibration already saved under it stays as it was.</li>
+          <li><b>Photo reads are quicker.</b> A quick look names the kind first, and photos are sent at 1024 px.</li>
+          <li><b>Sample mode is per browser.</b> A house left in Sample mode before the update stays in it, showing the sample house, until someone presses Live.</li>
+          <li><b>In Basic, a link opens just the part it's about,</b> with a "← Back", and you stay in Basic.</li>
+          <li><b>Getting started's Calibrate tick needs real calibration</b> (five points or a computed model). A card you already finished or skipped stays away.</li>
+          <li><b>Point Align and Compare Maps give their errors in metres.</b> The ratings are the same.</li>
+          <li><b>Forensics' CSV has two new columns at the end,</b> <code>best_name</code> and <code>what_it_is</code>. The others stay as they were.</li>
+          <li><b>Add data via plans (experimental).</b> In Live Aboard's Edit → Plans, your AI reads the floor plans you tick for stairs and railings, and lists what it finds on a map for you to check one item at a time. There is no "accept all". Nothing is kept until you press Save, and one undo takes a whole session back.</li>
+          <li><b>What it can touch.</b> It writes only your 3D house, after a safety backup, and never your map, rooms, walls, floors, scale, settings or calibration. If you ask it to read lights on a plan, it can only change how a light you already placed is drawn; it never adds or moves one.</li>
+          <li><b>What it needs.</b> A Pro key and an AI Task. Plans go only to the AI Task you chose, or to your backup when that one is away, and a read can keep that AI busy for up to 8 minutes. A smoke, gas, CO or leak alarm still shows over the map.</li>
+          <li><b>One switch: Settings → AI → AI map-building research (experimental).</b> It covers the plans tool and the stair finder, and off hides both. If you had the stair finder on when you updated, the switch comes up on, so you keep it. If not, the stair finder stays hidden until you turn the switch on.</li>
+          <li><b>The stair finder lands stairs where they're drawn.</b> On a tall plan, a local AI's stairs landed metres away or went missing, and a stair with a landing was thrown out. It's still a first guess to check.</li>
+          <li><b>The online maker lookup is gone, and nothing is sent.</b> 0.38.199 sent whole Bluetooth addresses to macvendors.com and maclookup.app when the Objects list opened. Makers now come from lists built into PadSpan (Bluetooth's company and service numbers, and IEEE's address list), on your own machine. Its switch has gone too, and the first start removes the answers it kept.</li>
+          <li><b>"Probably" where nobody can be sure.</b> IEEE's list counts as fact only for an address a receiver has confirmed is fixed (ESPHome from 2022.12 and Home Assistant's own Bluetooth say so). With Shelly, ESPresense or Tasmota a match reads "Probably Espressif". A random address is never looked up.</li>
+          <li><b>Hashes of phone numbers, emails and Apple IDs in Apple's broadcasts are no longer kept,</b> in new adverts or in what history already holds. Nothing ever read them.</li>
+          <li><b>Support reports hide phones' identity keys,</b> and Diagnostics lists only your own devices. Reports still name your rooms, plans and devices' Bluetooth addresses, so look them over before you send one. A device's "Copy raw broadcast" hides any IRK and your label.</li>
+          <li><b>Device makers are right.</b> The old company table had 36 of its 53 entries wrong: Samsung showed as "Beats Electronics". It's replaced by Bluetooth's full list. A company that only holds a service number reads "Uses a service from Google", not as the maker.</li>
+          <li><b>A rain sensor that has stopped reporting no longer makes it rain.</b> If its device's Last seen is over 3 hours old, PadSpan goes by the weather entity, and Settings says so.</li>
+          <li><b>The emergency banner shows on Mapping too.</b></li>
+          <li><b>A device's id in Home Assistant no longer grows or moves.</b> Existing ids stay as they are.</li>
+          <li><b>Open walls store 0 dB when saved.</b> One an old path saved at 6 dB counts 6 dB until you save it again. Saving a signal wall no longer moves it to the end of the list.</li>
+          <li><b>Screens that fit.</b> Tabs no longer jump when clicked, fields stay inside their cards, Monitor, QA, Sandbox, Health and Diagnostics use the width of the screen, and tall plans fit the window on Pin &amp; Listen, Roam and Model. Phone layouts are fixed on Devices, Presence, Bluetooth, Health, Manage, Sandbox and Mapping.</li>
+          <li><b>There's a menu at window widths from 901 to 1100 px.</b></li>
+          <li><b>Mapping's Edit tools.</b> The highlight follows the tool you're using, the Set the scale step opens on Measure, and names on the map stay a normal size.</li>
+          <li><b>Floors go by their names,</b> not internal ids, and the 3D Isometric Preview names the right floors.</li>
+          <li><b>Colours.</b> Rooms no longer draw solid black in the Library and 3D Stack. Day and Light themes no longer have dark-on-dark boxes, pale Bluetooth colours or solid black checkboxes. The support report's text can be read, and the 3D map's floors no longer hang dark shafts over the floors below.</li>
+          <li><b>Sample mode.</b> It no longer closes what you opened, or shows your own rooms on the sample house while Home Assistant is slow to answer.</li>
+          <li><b>The Atlas.</b> A mouse click on a light's ⋯, Hide or Show no longer switches the light, and hiding the controls can be undone without a reload.</li>
+          <li><b>Vacation Mode's Options box scrolls</b> instead of hiding Evening lights and the preview.</li>
+          <li><b>Bluetooth → Advertisements says only what it knows,</b> and a made-up UUID no longer reads as a real service.</li>
+          <li><b>Calibration and receivers.</b> Stop &amp; Discard no longer leaves a capture running, and a signal adjustment past ±20 dB is no longer cut when you press Save without changing it.</li>
+          <li><b>Compare Maps</b> no longer shows nothing when a plan has rooms but isn't placed yet, and <b>Diagnostics</b> lists your devices again.</li>
+          <li><b>A wall turned by its link (<code>&amp;wall_rotate=90</code> or <code>270</code>)</b> uses the whole screen, and draws the forest correctly.</li>
+          <li><b>Manage → HA Entities</b> names the occupancy sensor correctly: <code>sensor.padspan_occupancy_occupancy</code>.</li>
+          <li>Holding a light on the map to dim it is no longer cut short by an update, and Track Your Phone's search no longer fails because of one phone.</li>
+          <li>A very large home stays quick while looking for a named device's new address. A link can come a little later, never differently.</li>
+          <li>The third-party notices now come with the download. Fewer warnings in the Home Assistant log.</li>
+          <li><b>Going back to 0.38.199 brings the online lookup back.</b> Opening the Objects list sends whole Bluetooth addresses again, unless the lookup was off when you updated: that choice is kept. 0.38.199 has no switch for it on screen.</li>
+          <li><b>On 0.38.199, Beacon Tune's hard relocation deletes carried-device points again.</b></li>
+          <li><b>0.38.199 doesn't know the new railing choices.</b> An open edge over a drop gets its glass railing back, and stairs draw their rail in the old style. A stair set to no rail stays that way.</li>
+          <li><b>West Coast Forest shows as Classic,</b> with no trees in Live Aboard.</li>
+          <li><b>What you kept from plans stays in your 3D house,</b> but the plans tool and its undo aren't there.</li>
+          <li>Nothing else needs a newer version. What this one stores that older ones don't know (name links and answers, Beacon Tune's marks, the Vacation Mode choice, Setup's progress) is ignored by them, and a running trip's routine still plays.</li>
+          <li>Can't find a screen? Open More tools at the bottom of the menu.</li>
+          <li>Settings → Presence is Settings → Tracking. Mapping → Rooms is Mapping → Layout. The menu's Setup group is Build.</li>
+          <li>Calibration opens on Results; the tab you used is still in the tab bar.</li>
+          <li>A new stair has no rail? Pick one on its panel in Furnish.</li>
+          <li>Stair finder gone? Settings → AI → AI map-building research (experimental).</li>
+          <li>People count moved a little? See Occupancy above.</li>
+          <li>Vacation lights following a different pattern on a new trip? Options → Routine from → Monthly average brings back the old routine next time.</li>
+          <li>how far people get through Setup, and which Calibration Results buttons are used</li>
+          <li>opening More tools, the Receivers and Rooms pages, and the status dot</li>
+          <li>Vacation Mode's routine choice and which options are set (yes or no)</li>
+          <li>photo quick looks, backup AI Task use, and how a wall screen ended up drawing</li>
+          <li>how many devices have a real name, a maker and a type, and what the wearable change did to the estimate</li>
+          <li>names that followed a device: links made, questions asked, yes, no, undone and proved wrong</li>
+          <li>open edges, railings brought over, and a rain sensor that went quiet</li>
+          <li>the plans tool, only when its switch is on: reads, what was suggested, each verdict and undo</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.223</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">3 November 2026</span>
