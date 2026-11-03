@@ -94,8 +94,7 @@ export function labelLines(el, o, act){
     if(busy) return;
     busy = true;
     try { await run(); } catch(err) { act.toast("That didn't work: " + ((err && (err.message || err.code)) || err), true); }
-    if(act.after) await act.after();
-    busy = false;
+    try { if(act.after) await act.after(); } finally { busy = false; }
   } }, text);
   const key = o.key;
   if(o.label_link){
