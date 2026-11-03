@@ -120,6 +120,31 @@ def test_the_name_it_sent_outlives_the_advert_that_carried_it() -> None:
     assert air.links.current(A) == B
 
 
+def test_its_last_report_being_one_far_receivers_doesnt_lose_the_others() -> None:
+    """Seen on the house's recording: an address's very last report came from one
+    receiver, and the pattern from the receivers before it was thrown away."""
+    air = Air()
+    air.poll()
+    air.heard(A)
+    air.poll(5.0)
+    air.t += 90.0                         # the others have aged out by now
+    air.heard(A, place={"hall": -82.0})
+    air.poll(5.0)
+    air.heard(B)
+    air.run(400, each=lambda: air.heard(B))
+    assert air.links.current(A) == A      # over a minute later it doesn't count: that's its own moment
+    late = Air()
+    late.poll()
+    late.heard(A)
+    late.poll(5.0)
+    late.t += 40.0
+    late.heard(A, place={"hall": -82.0})
+    late.poll(5.0)
+    late.heard(B)
+    late.run(400, each=lambda: late.heard(B))
+    assert late.links.current(A) == B
+
+
 def test_a_distinctive_payload_counts_as_the_name_does() -> None:
     air = Air()
     payload = {"224": "0x01 0x36 0xCA 0x50 0xD8 0xF0"}
@@ -756,6 +781,35 @@ async def test_a_real_hand_over_through_the_builder_and_the_panel(monkeypatch) -
     assert rows[f"ble:{A}"]["address"] == A
     assert house.hass.data[DOMAIN][SB._LABEL_LINKS_STORE].saved["links"][A]["path"][0]["a"] == B
     assert now == NOON
+
+
+def test_named_and_followed_comes_from_all_three_places_and_only_plain_addresses() -> None:
+    saved = {"ps_1": {"label": "Bag", "identities": [{"kind": "mac", "value": f"ble:{C}"}]},
+             "ps_2": {"label": "Phone", "identities": [{"kind": "irk", "value": "irk:abc"}, {"kind": "mac", "value": "AA:AA:AA:AA:AA:AA"}]},
+             "ps_3": {"label": "Tag", "identities": [{"kind": "ibeacon", "value": "ibeacon:u:1:2"}]}}
+    dom = {DATA_SETTINGS: SimpleNamespace(data={"followed_addrs": [B.lower(), "IBEACON:U:1:2"]}),
+           DATA_OBJECTS: _Labels({A: "My Car", "IBEACON:X:1:2": "Beacon"}),
+           DATA_DEVICE_REGISTRY: SimpleNamespace(all_labeled=lambda: saved)}
+    assert SB._named_or_followed(dom) == {A, B, C}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("device,followed_on", [
+    ({"manufacturer": "PadSpan HA"}, True),      # its own row in HA: PadSpan quoting itself (HA 2026.8+)
+    ({"manufacturer": "Bermuda"}, False),        # another integration knows this address
+])
+async def test_a_named_devices_own_row_in_ha_isnt_an_identity(monkeypatch, device, followed_on) -> None:
+    from custom_components.padspan_ha.device_detail import is_own_device
+    if followed_on:
+        assert is_own_device(device)
+    house = _house(monkeypatch)
+    ads = _ads(A, PLACE, "My Car", 1.0, NOON)
+    records = {A: {"address": A, "name": "My Car", "age_s": 1.0, "last_seen": _iso(NOON - 1.0),
+                   "sources": {a["source"]: {"rssi": a["rssi"], "age_s": 1.0} for a in ads}}}
+    links = house.hass.data[DOMAIN][SB._LABEL_LINKS]
+    links.links[A] = {"path": [{"a": B, "by": "you", "ts": NOON}]}
+    await SB._label_follow_step(house.hass, records, {}, set(), {A: device}, {})
+    assert (A in links.links) is followed_on
 
 
 @pytest.mark.asyncio

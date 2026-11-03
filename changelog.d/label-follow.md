@@ -5,7 +5,7 @@
 - **This moves what's on screen, and nothing else.** Calibration, learning, Follow's alerts, Home Assistant and PadSpan's saved ids stay on the address you named the device by, so a wrong link can't mix another device's signal into them. Home Assistant's sensors for that device keep reading its first address.
 - **When it's close but not certain, it asks.** One quiet line on the new address's row: "This looks like Car Keys: same device?" Yes moves the name for that address, and No is remembered. It's not a window, and it doesn't appear on wall screens, or in Basic outside the device's own view.
 - **Undo.** "Now on ..." on the device's row has Undo. One click puts the name back on the first address, and that address isn't linked again.
-- **A pointer to the certain way.** A named device that keeps changing gets one line pointing to its IRK, once, with Dismiss. That's the only way to be sure with a phone or watch.
+- **A pointer to the certain way.** A named device that keeps changing gets one line pointing to its IRK, once, with Dismiss. With an IRK, a phone or watch is recognised for certain.
 - **The usage report (opt-in) counts how this goes:** links made, questions asked, yes, no, undone, and links that proved wrong. Counts only, never a name or an address.
 
 ### Changed

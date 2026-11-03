@@ -170,6 +170,7 @@ async def _label_follow_step(hass: HomeAssistant, ble_by_addr: dict, canonical_b
     """One poll of the name links (label_follow.py). Reads the adverts, keeps its
     own notes and changes nothing in this build. A house where nobody named or
     followed a plain address that may rotate pays for one walk over its labels."""
+    from .device_detail import is_own_device  # noqa: PLC0415
     from .label_follow import may_rotate  # noqa: PLC0415
     from .telemetry import bump  # noqa: PLC0415
     dom = hass.data.get(DOMAIN, {})
@@ -177,7 +178,10 @@ async def _label_follow_step(hass: HomeAssistant, ble_by_addr: dict, canonical_b
         return      # still starting: nobody looks named yet, and that must not end a link
     links = await _label_links(hass)
     claimed = _named_or_followed(dom)
-    proven = set(canonical_by_addr) | set(ibeacon_addrs) | set(addr_to_device) | set(addr_to_entities)
+    # From HA 2026.8 a named device's own row in HA carries its address: that's
+    # PadSpan quoting itself, not another integration knowing the device.
+    own = {a for a, device in addr_to_device.items() if is_own_device(device)}
+    proven = set(canonical_by_addr) | set(ibeacon_addrs) | ((set(addr_to_device) | set(addr_to_entities)) - own)
     history = dom.get(DATA_OBJECT_HISTORY) or {}
     watched: dict[str, Any] = {}
     for addr in claimed:

@@ -348,9 +348,14 @@ class LabelLinks:
                 seen = _seen_ts(rec, now_ts)
                 prev = self._last.get(cur)
                 if prev is None or seen > prev["ts"]:
-                    # The name it sent outlives the advert that carried it.
+                    # The name it sent outlives the advert that carried it. So do
+                    # the receivers it just left: its last report is often one far
+                    # receiver's, and that alone would read as one receiver's pattern.
                     kept = real_name(prev["rec"]) if prev else ""
-                    self._last[cur] = {"ts": seen, "rssi": rssi_vector(rec),
+                    heard = rssi_vector(rec)
+                    if prev and seen - prev["ts"] <= LIVE_S:
+                        heard = {**prev["rssi"], **heard}
+                    self._last[cur] = {"ts": seen, "rssi": heard,
                                        "rec": {**rec, "broadcast_name": kept} if kept and not real_name(rec) else rec}
             last = self._last.get(cur) or self._sounded(root, cur, hist, history)
             if last is None:
@@ -564,6 +569,8 @@ class LabelLinks:
         self.asks[root] = {"a": addr, "why": why, "ts": now_ts}
         self.dirty = True
         if (root, addr) not in self._asked:
+            if len(self._asked) >= 4096:
+                self._asked.clear()
             self._asked.add((root, addr))
             self.moves[root] = self.moves.get(root, 0) + 1
             self._count("label_link_asked")
