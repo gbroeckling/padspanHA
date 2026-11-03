@@ -337,7 +337,7 @@ const metal = () => ({ id: "m1", name: "Barrier 1", material: "metal", attenuati
   click(button(root, "Open all edges")); await settle();
   state.maps._selectedBarrierId = null;
   click(button(root, "Rooms")); click(button(root, "Signal walls"));
-  const labels = () => all(root).filter(n => String(n.tagName || "").toLowerCase() === "text" && n.textContent === "Open (Loft)").length;
+  const labels = () => all(root).filter(n => String(n.className || "").includes("maplabel") && n.textContent === "Open (Loft)").length;   // the stage's names are pills over it now
   check("labels: one Open (Loft) label over all a room's open edges", server.length >= 4 && labels() === 1, [server.length, labels()]);
   state.maps._selectedBarrierId = server[server.length - 1].id;
   click(button(root, "Rooms")); click(button(root, "Signal walls"));

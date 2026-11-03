@@ -6,7 +6,8 @@
 // Add data via plans (experimental, off by default; 2026-11): Live Aboard's
 // Plans tool, Edit → Plans, beside Door, Window, Heights and Strip. Present
 // only while Settings → AI's master switch is on and an AI Task is chosen
-// (live_aboard_edit.js setPlans). Stage 1a, the dry run: the list view only.
+// (live_aboard_edit.js setPlans). The list view; the vetting map comes later and
+// this stays its fallback.
 //
 //   The sheet   which placed plans to read (grouped by floor, all ticked),
 //               which kinds (stairs; railings beside them; lights come
@@ -19,13 +20,18 @@
 //               the Library's signed picture link and the box the AI gave:
 //               say it looks right, mark it wrong (one reason chip), later, all
 //               written at once, or take that back; "already in your house"
-//               and "ignored before" listed apart; Manage ignored. New and
-//               Correction are shown but come in the next beta: nothing here
-//               writes the house.
+//               and "ignored before" listed apart; Manage ignored.
+//   New,        go into the editor's draft: a new stair is a draft piece, a
+//   Correction  correction the target piece moved, a railing its side and
+//               style, each one undo step, and what is pending is read off the
+//               draft, so Undo, Discard and a lost page take it back and the
+//               server never knew. Save sends them first to plan_ai_commit, the
+//               one writer (plan_ai_write.py), and only then the person's other
+//               edits. "Undo this session" takes a whole session back.
 //
-// Imports nothing; the editor hands in the sheet, the host's callWS and the
-// floors. No placement, picture size or map record is read here: the server
-// answers in metres and the crop is cut by fractions of the picture.
+// Imports nothing; the editor hands in the sheet, the host's callWS, the floors
+// and its draft. No placement, picture size or map record is read here: the
+// server answers in metres and the crop is cut by fractions of the picture.
 
 const CSS = `
 .la3d-sheet.plans{max-height:calc(100% - 120px);overflow-y:auto;width:min(520px,calc(100% - 24px))}
@@ -44,6 +50,12 @@ const CSS = `
 .la3d-sheet.plans .pl-rel.correction{color:#60a5fa;border-color:rgba(96,165,250,.5)}
 .la3d-sheet.plans .pl-rel.stacked{color:#c4b5fd;border-color:rgba(196,181,253,.5)}
 .la3d-sheet.plans .pl-rel.stale{color:#94a3b8;border-color:rgba(148,163,184,.5)}
+.la3d-sheet.plans .pl-rel.kept{color:#6ee7b7;border-color:rgba(110,231,183,.5)}
+.la3d-sheet.plans .pl-choose{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:6px;font-size:11px;color:#94a3b8}
+.la3d-sheet.plans .pl-choose button{font:inherit;font-size:11px;padding:4px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#e2e8f0;cursor:pointer;min-height:28px}
+.la3d-sheet.plans .pl-choose button[aria-pressed="true"]{background:#1b4332;border-color:#52b788;color:#d8f3dc}
+.la3d-sheet.plans .pl-foot button.go{background:#1b4332;border-color:#52b788;color:#d8f3dc;font-weight:700}
+.la3d-sheet.plans .pl-acts button:focus-visible,.la3d-sheet.plans .pl-foot button:focus-visible{outline:2px solid #fbbf24;outline-offset:1px}
 .la3d-sheet.plans .pl-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .la3d-sheet.plans .pl-acts button{font:inherit;font-size:11px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#e2e8f0;cursor:pointer;min-height:32px}
 .la3d-sheet.plans .pl-acts button[disabled]{opacity:.45;cursor:default}
@@ -62,8 +74,10 @@ const BANNER = "Experimental. On a small local AI about 2 in 10 stair suggestion
 const CUE = { stairs: "Check which way is up and the shape.", railing: "The AI can't tell the side for sure: look at the plan." };
 const WHY = [["wrong_place", "Wrong place"], ["nothing_there", "Nothing there"], ["already_here", "Already here"], ["wrong_kind", "Wrong kind"], ["cant_tell", "Can't tell"]];
 const WHY_WORD = Object.fromEntries(WHY);
-const NEXT_BETA = "Comes in the next beta: this version writes nothing to your house.";
 const POLL_MS = 3000;
+const PIECE_LABEL = "Stairs (from the plan)";
+const RAIL_STYLES = [["balustrade", "Balustrade"], ["topless", "Topless"], ["single_bar", "Single bar"]];
+const OPEN = new Set(["queued", "later", "right", "stale"]);
 const CANCEL_WORDS = { user: "cancelled", switch_off: "stopped: the switch was turned off", house3d_off: "stopped: Live Aboard was turned off",
   licence: "stopped: the licence lapsed", plan_gone: "stopped: a plan was removed", plan_changed: "stopped: a plan was moved or replaced", restart: "" };
 // Why reads failed (the session's `errors`), and so why a session read nothing at all (its `error`).
@@ -92,12 +106,17 @@ function planNote(ai, n){
 
 /**
  * ctx = { root, sheet, guard, host() → {callWS, settings} | null, floors() → [{fl: {id, name, outdoor}}],
- *         hint(text, bad), redraw() (the editor's paint and sheet again) }
+ *         hint(text, bad), redraw() (the editor's paint and sheet again),
+ *         DRAFT (live_aboard_draft.js), draft() → the editor's draft, change(fn) → one undo step, save() (the editor's Save),
+ *         saving(), stairPiece(geom, floor id, label) → a draft piece, fileWritten(data) (an undo wrote the file),
+ *         reloadFile() (read the 3D file again: someone else wrote it) }
  */
 export function createPlans(ctx){
   const { sheet, guard } = ctx;
   let shownNow = false, step = "idle", info = null, sess = null, poll = null, busy = false, err = "", view = "list";
-  let urls = null, ignored = null, failing = null, cancelNote = "", runningId = null;
+  let urls = null, ignored = null, failing = null, cancelNote = "", runningId = null, undoInfo = null, askUndo = false, focusBtn = null;
+  const stackFloor = new Map();      // a stacked item's floor, as picked
+  const railPick = new Map();        // a railing hint's side and style, as picked
   const picked = new Set();
   const kinds = { stairs: true, railing: true };
   const style = document.createElement("style");
@@ -125,6 +144,11 @@ export function createPlans(ctx){
   const sugs = () => Object.values((sess && sess.suggestions) || {});
   const movedPlan = (mid) => !!((sess && sess.plans) || []).find(x => x.map_id === mid && x.changed);
   const unread = () => ((sess && sess.plans) || []).filter(p => p.read && !p.answered).length;   // its whole read was tried, and no answer came of it
+  // What is pending is the draft's: read off it each time, never kept here.
+  const pendings = () => { const dr = ctx.draft && ctx.draft(); return dr && ctx.DRAFT ? ctx.DRAFT.planPending(dr.cur) : []; };
+  const pendingOf = (id) => pendings().find(p => p.sug_id === id) || null;
+  const dirty = () => { const dr = ctx.draft && ctx.draft(); return !!(dr && dr.dirty); };
+  const take = (r) => { if (r && r.session) sess = r.session; if (r && "undo" in r) undoInfo = r.undo; };
 
   // ── opening: what is there to read, and what the last session left ───────
   async function open(){
@@ -139,6 +163,8 @@ export function createPlans(ctx){
       else if (info.latest) {
         const r = await call("plan_ai_status", { session: info.latest });
         sess = r && r.session ? r.session : null;
+        undoInfo = r ? r.undo || null : null;
+        settle();
         // What the last session left, or how it ended ("Home Assistant restarted during the read; run it again").
         step = sess && (Object.keys(sess.suggestions || {}).length || sess.status !== "done") ? "list" : "consent";
       } else step = "consent";
@@ -153,6 +179,7 @@ export function createPlans(ctx){
 
   /** Back to the plans and the button, with what the server says now (a start may be allowed again). */
   async function readAgain(){
+    if (pendings().length) { ctx.hint("Save or take back the items you kept first: a new read starts a new list.", true); return; }
     step = "consent"; err = ""; redraw();
     try { const r = await call("plan_ai_plans"); if (r && Array.isArray(r.plans)) info = r; } catch (e) { err = String((e && e.message) || e); }
     redraw();
@@ -179,6 +206,7 @@ export function createPlans(ctx){
       try {
         const r = await call("plan_ai_status", { session: sid });
         sess = r && r.session ? r.session : sess;
+        if (r && "undo" in r) undoInfo = r.undo;
         if (sess && sess.status !== "running") { stopPoll(); step = "list"; loadUrls(); }
       } catch (e) { err = String((e && e.message) || e); stopPoll(); step = "consent"; }
       redraw();
@@ -202,12 +230,151 @@ export function createPlans(ctx){
       const r = await call("plan_ai_verdict", { session: sess.id, rev: sess.rev, sug_id: sug.id, v, ...(why ? { why } : {}) });
       sess.rev = r.rev; sess.suggestions[sug.id] = r.suggestion; failing = null;
       for (const h of r.changed || []) sess.suggestions[h.id] = h;     // a stair's railing hint goes and comes back with it
-      ctx.hint(v === "failure" ? ((r.changed || []).length ? "Noted. Its railing hint goes with it." : "Noted.") : v === "later" ? "Later, then."
+      ctx.hint(v === "failure" ? (why === "already_here" ? "Noted: yours stays where it is." : (r.changed || []).length ? "Noted. Its railing hint goes with it." : "Noted.") : v === "later" ? "Later, then."
         : v === "right" ? "Noted: it looks right. Nothing is written to your house." : "Taken back.");
     } catch (e) {
-      if (e && e.code === "rev_mismatch") { ctx.hint("That list had changed: here it is again."); try { const r = await call("plan_ai_status", { session: sess.id }); sess = r.session || sess; } catch (_) { /* kept */ } }
+      if (e && e.code === "rev_mismatch") { ctx.hint("That list had changed: here it is again."); await reload(); }
       else err = String((e && e.message) || e);
     }
+    busy = false;
+    settle();
+    redraw();
+  }
+  async function reload(){
+    if (!sess) return;
+    try { take(await call("plan_ai_status", { session: sess.id })); } catch (_) { /* kept */ }
+  }
+
+  // ── New and Correction: the editor's draft, one undo step each ───────────
+  const NOTE = () => ctx.DRAFT.PLAN_NOTE;
+  /** A note added to the piece's entry for this suggestion (a piece can hold a stair's and its railing's). */
+  const noted = (q, sugId, e) => { const n = q[NOTE()] || { session: sess.id, sugs: {} }; n.sugs[sugId] = e; q[NOTE()] = n; };
+  function keepNew(sug){
+    if (!ctx.change || !sess) return;
+    if (sug.state === "stale" && movedPlan(sug.map_id)) { ctx.hint("The plan moved: read it again.", true); return; }
+    const fid = stackFloor.get(sug.id) || sug.floor_id;
+    const piece = ctx.stairPiece(sug.geom || {}, fid, PIECE_LABEL);
+    if (!piece) { ctx.hint("The furniture builders aren't loaded yet: try again in a moment.", true); return; }
+    noted(piece, sug.id, { v: "new", made: true });
+    if (ctx.change((c) => { c.pieces[piece.id] = piece; })) ctx.hint("In your draft: nothing is kept until Save. Undo takes it back.");
+    redraw();
+  }
+  function takeAi(sug, target = null){
+    const m = sug.match || {}, tid = target || m.target, g = sug.geom || {};
+    const ok = ctx.change((c) => {
+      const q = c.pieces[tid];
+      if (!q) return;
+      noted(q, sug.id, { v: "correction", was: { x_m: q.x_m, y_m: q.y_m }, ...(target ? { target } : null) });
+      q.x_m = g.x_m; q.y_m = g.y_m;
+    });
+    if (ok) ctx.hint(`Moved in your draft, ${m1(m.distance_m)} m: nothing is kept until Save. Undo takes it back.`);
+    else ctx.hint("That stair isn't in your draft any more: it was removed.", true);
+    redraw();
+  }
+  function takeBack(sug){
+    if (ctx.change((c) => { ctx.DRAFT.dropPlanPending(c, new Set([sug.id])); })) ctx.hint("Taken back. Nothing was kept.");
+    redraw();
+  }
+  /** The piece a railing hint goes on: the stair in the house, or its stair if it is kept or about to be. */
+  function railHome(hint){
+    const m = hint.match || {};
+    if (m.target) return m.target;
+    const stair = (sess.suggestions || {})[(hint.geom || {}).stair];
+    if (!stair) return null;
+    if (String(stair.state).startsWith("committed")) return stair.piece_id;
+    const pend = pendingOf(stair.id);
+    return pend ? pend.piece : null;
+  }
+  const flat = (params) => ((params && params.shape) || "straight") === "straight";
+  function railSides(params){
+    return flat(params) ? [["both", "Both"], ["inner", "Left"], ["outer", "Right"]] : [["both", "Both"], ["inner", "Inside"], ["outer", "Outside"]];
+  }
+  function keepRail(hint){
+    const home = railHome(hint), pick = railPick.get(hint.id) || {};
+    if (!home || !pick.side) return;
+    const v = (hint.match || {}).relation === "correction" ? "correction" : "new", style = pick.style || "balustrade";
+    const ok = ctx.change((c) => {
+      const q = c.pieces[home];
+      if (!q || !q.recipe) return;
+      const params = q.recipe.params = { ...(q.recipe.params || {}) };
+      noted(q, hint.id, { v, rail: { side: pick.side, style }, was_params: { rail: params.rail ?? null, rail_style: params.rail_style ?? null } });
+      params.rail = pick.side; params.rail_style = style;
+    });
+    if (ok) ctx.hint("The railing is in your draft: nothing is kept until Save. Undo takes it back.");
+    else ctx.hint("That stair isn't in your draft any more.", true);
+    redraw();
+  }
+  /** Anything pending whose suggestion can't be kept any more (kept by someone
+   *  else, marked wrong, gone) leaves the draft; in the file it is already. */
+  function settle(extra = null){
+    const dr = ctx.draft && ctx.draft();
+    if (!dr || !ctx.DRAFT || !sess) return;
+    const drop = new Set(extra || []);
+    for (const p of pendings()) {
+      if (p.session !== sess.id) continue;
+      const s = (sess.suggestions || {})[p.sug_id];
+      if (!s || !OPEN.has(s.state) || (s.state === "stale" && (p.v !== "new" || !p.made || movedPlan(s.map_id)))) drop.add(p.sug_id);
+    }
+    if (drop.size && !(ctx.saving && ctx.saving())) ctx.change((c) => { ctx.DRAFT.dropPlanPending(c, drop); });
+  }
+
+  // ── Save: what the draft holds goes to the one writer ─────────────────────
+  /** Called by the editor's Save. {data, pieces, renamed, said}, or a refusal
+   *  thrown (err.planRefusal): nothing was written and the draft stays. */
+  async function commit(){
+    const all = pendings();
+    const sid = all.length ? all[0].session : null;
+    if (!sid) return null;
+    if (!sess || sess.id !== sid) { take(await call("plan_ai_status", { session: sid })); }
+    if (!sess || sess.id !== sid) return null;
+    const dr = ctx.draft(), mine = all.filter(p => p.session === sid), renamed = {}, keys = new Set();
+    const items = mine.map((p) => {
+      keys.add(p.piece);
+      const sug = (sess.suggestions || {})[p.sug_id] || {};
+      if (sug.kind === "railing") return { sug_id: p.sug_id, v: p.v, rail: p.rail };
+      const final = ctx.DRAFT.planFinal(dr.cur.pieces[p.piece]);
+      return { sug_id: p.sug_id, v: p.v, final, ...(p.target ? { target: p.target } : null) };
+    });
+    let r;
+    try {
+      r = await call("plan_ai_commit", { session: sid, rev: sess.rev, items });
+    } catch (e) {
+      throw Object.assign(new Error(String((e && e.message) || e)), { code: e && e.code, planRefusal: true });
+    }
+    if (r && r.ok === false) throw Object.assign(new Error(r.message || r.code), { code: r.code, planRefusal: true, changed: r.changed, items: r.items });
+    sess.rev = r.rev;
+    for (const [id, s] of Object.entries(r.suggestions || {})) sess.suggestions[id] = s;
+    undoInfo = r.undo || undoInfo;
+    const ids = r.piece_ids || {}, f = ctx.DRAFT.ownedOf(r.data), pieces = {};
+    for (const p of mine) { const pid = ids[p.sug_id]; if (!pid) continue; if (p.made) renamed[p.piece] = pid; if (f.pieces[pid]) pieces[pid] = f.pieces[pid]; }
+    const nNew = mine.filter(p => p.v === "new" && p.made).length, nCorr = mine.filter(p => p.v === "correction").length, nRail = mine.filter(p => p.rail).length;
+    const said = `Kept ${[nNew ? `${nNew} new` : "", nCorr ? `${nCorr} correction${nCorr === 1 ? "" : "s"}` : "", nRail ? `${nRail} railing${nRail === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ")} from the plans. Undo this session takes them back.`;
+    return { data: r.data, pieces, renamed, said };
+  }
+  /** Refused: nothing was written. The list as it is now; what changed leaves the draft. */
+  async function refused(e){
+    await reload();
+    const gone = new Set((e.changed || []).map(c => c.sug_id));
+    for (const id of e.items || []) gone.add(id);
+    if (e.code === "not_found") for (const p of pendings()) gone.add(p.sug_id);
+    settle(gone);
+    if (e.code === "changed_since") e.message = "Some items changed since you looked. Nothing was saved: check them again.";
+    if (ctx.reloadFile && e.code !== "changed_since") ctx.reloadFile();   // someone else's keep: the house as it is now
+    redraw();
+  }
+
+  // ── Undo this session ─────────────────────────────────────────────────────
+  async function undoSession(){
+    if (!undoInfo || busy) return;
+    if (dirty()) { ctx.hint("Save or discard your changes first: an undo starts from what is saved.", true); askUndo = false; redraw(); return; }
+    busy = true; err = ""; askUndo = false; redraw();
+    try {
+      const was = undoInfo, r = await call("plan_ai_undo", { batch_id: was.id });
+      if (r && r.data && r.undone) ctx.fileWritten(r.data);
+      await reload();                                      // the list, and what undoing now would do
+      const left = (r.skipped || []).length;
+      ctx.hint(`${was.puts_back ? "Put back" : "Undone"}: ${r.undone} of ${r.of}.${left ? ` ${left} ${left === 1 ? "was" : "were"} changed since and left as ${left === 1 ? "it is" : "they are"}.` : ""}`, !r.undone);
+    } catch (e) { err = String((e && e.message) || e); }
     busy = false;
     redraw();
   }
@@ -373,19 +540,26 @@ export function createPlans(ctx){
     const g = sug.geom || {}, m = sug.match || {};
     const kind = sug.kind === "railing" ? "Railing hint" : "Stairs";
     const seen = Array.isArray(sug.seen_on) && sug.seen_on.length > 1 ? ` · seen on ${sug.seen_on.length} plans` : ` · ${planName(sug.map_id)}`;
-    const size = sug.kind === "stairs" ? ` · ${m1(g.width_m)} × ${m1(g.depth_m)} m` : "";
+    const size = sug.kind !== "railing" ? ` · ${m1(g.width_m)} × ${m1(g.depth_m)} m` : "";
     const side = sug.kind === "railing" ? (g.side ? ` · the AI says ${g.side}` : " · a rail on one side: which?") : "";
     t.appendChild(d("div", null, `${kind} · ${floorName(sug.floor_id)}${seen}${size}${side}`));
     const rel = d("div", "pl-sub");
     const label = m.target_snap && m.target_snap.label ? m.target_snap.label : "a stair";
-    if (sug.state === "stale") rel.appendChild(Object.assign(d("span", "pl-rel stale", movedPlan(sug.map_id) ? "the plan moved: read it again" : "changed since you looked"), { title: "The plan or the stair it points at changed since the read." }));
+    const pend = pendingOf(sug.id);
+    if (pend) rel.appendChild(d("span", "pl-rel kept", pend.v === "correction" ? "kept as a correction, until Save" : "kept, until Save"));
+    else if (sug.state === "committed_new") rel.appendChild(d("span", "pl-rel kept", "kept as new"));
+    else if (sug.state === "committed_correction") rel.appendChild(d("span", "pl-rel kept", "kept as a correction"));
+    else if (sug.state === "undone") rel.appendChild(d("span", "pl-rel stale", "undone"));
+    else if (sug.state === "stale") rel.appendChild(Object.assign(d("span", "pl-rel stale", movedPlan(sug.map_id) ? "the plan moved: read it again" : "changed since you looked"), { title: "The plan or the stair it points at changed since the read." }));
     else if (m.relation === "correction" && sug.kind === "railing") rel.appendChild(d("span", "pl-rel correction", `correction · a rail on another side of ${label}`));
     else if (m.relation === "correction") rel.appendChild(d("span", "pl-rel correction", `correction · ${m1(m.distance_m)} m from ${label}`));
     else if (m.relation === "stacked") rel.appendChild(d("span", "pl-rel stacked", "a second staircase here, stacked?"));
     else if (m.relation === "new") rel.appendChild(d("span", "pl-rel new", (m.near_names || []).length ? `new · near ${m.near_names.join(" and ")}` : "new"));
     rel.appendChild(document.createTextNode(CUE[sug.kind] || ""));
     t.appendChild(rel);
-    if (sug.kind === "stairs" && m.relation === "correction" && m.hand === true) t.appendChild(d("div", "pl-sub", `You placed this one. The AI puts it ${m1(m.distance_m)} m away. Keep yours unless the plan says otherwise.`));
+    const stillOpen = OPEN.has(sug.state) && sug.state !== "stale";
+    if (stillOpen && sug.kind === "stairs" && m.relation === "correction" && m.hand === true) t.appendChild(d("div", "pl-sub", `You placed this one. The AI puts it ${m1(m.distance_m)} m away. Keep yours unless the plan says otherwise.`));
+    else if (stillOpen && sug.kind === "stairs" && m.relation === "correction") t.appendChild(d("div", "pl-sub", `The AI placed this one too. This read puts it ${m1(m.distance_m)} m away.`));
     for (const o of m.others || []) t.appendChild(d("div", "pl-sub", `${planName(o.map_id)} puts one ${m1(o.distance_m)} m from here: both are listed, nothing wins by itself.`));
     if (m.held === "frame") t.appendChild(d("div", "pl-sub", "Position may be coarse: this AI's picture size isn't known."));
     else if (m.held === "eye") t.appendChild(d("div", "pl-sub", "The plan was placed by eye, so the offset may be the plan's."));
@@ -394,18 +568,86 @@ export function createPlans(ctx){
     r.appendChild(t);
     return r;
   }
+  /** The floor a stacked staircase climbs from: asked before it is kept (the arrow read is unreliable). */
+  function floorChoice(sug){
+    const all = (ctx.floors() || []).filter(G => G && G.fl && !G.fl.outdoor && !G.fl.parent).sort((p, q) => (p.fl.elev || 0) - (q.fl.elev || 0));
+    const from = all.slice(0, -1);
+    const row_ = d("div", "pl-choose");
+    row_.appendChild(d("span", null, "It climbs from:"));
+    const cur = stackFloor.get(sug.id) || sug.floor_id;
+    for (const G of from) {
+      const b = btn(G.fl.name || String(G.fl.id), `It starts on ${G.fl.name || G.fl.id}`, () => { stackFloor.set(sug.id, String(G.fl.id)); redraw(); });
+      b.setAttribute("aria-pressed", String(String(G.fl.id) === String(cur)));
+      row_.appendChild(b);
+    }
+    return row_;
+  }
+  /** A railing hint: which side (only when the AI could tell is one picked for you), which style. */
+  function railActs(sug, a){
+    const home = railHome(sug), dr = ctx.draft && ctx.draft();
+    const q = home && dr ? dr.cur.pieces[home] : null;
+    const params = q && q.recipe ? q.recipe.params : null;
+    const pick = railPick.get(sug.id) || {};
+    const said = { left: "inner", right: "outer", both: "both" }[(sug.geom || {}).side];
+    if (!pick.side && said && (said === "both" || flat(params))) pick.side = said;
+    railPick.set(sug.id, pick);
+    if (!home || !q) { a.appendChild(d("span", "pl-sub", "Keep its stair first: there is nothing to put a rail on yet.")); return; }
+    const sides = d("div", "pl-choose");
+    sides.appendChild(d("span", null, "Side:"));
+    for (const [v, word] of railSides(params)) {
+      const b = btn(word, `A rail: ${word.toLowerCase()}`, () => { pick.side = v; redraw(); });
+      b.setAttribute("aria-pressed", String(pick.side === v));
+      sides.appendChild(b);
+    }
+    a.appendChild(sides);
+    const looks = d("div", "pl-choose");
+    looks.appendChild(d("span", null, "Style:"));
+    for (const [v, word] of RAIL_STYLES) {
+      const b = btn(word, `The rail's style: ${word.toLowerCase()}`, () => { pick.style = v; redraw(); });
+      b.setAttribute("aria-pressed", String((pick.style || "balustrade") === v));
+      looks.appendChild(b);
+    }
+    a.appendChild(looks);
+    const keep = btn("Keep this rail", "Into your draft: nothing is kept until Save", () => keepRail(sug), "go");
+    keep.disabled = busy || !pick.side;
+    a.appendChild(keep);
+  }
   function queuedActs(sug){
     const a = d("div", "pl-acts");
-    const bNew = btn("New", NEXT_BETA, () => {}); bNew.disabled = true;
-    a.appendChild(bNew);
-    if ((sug.match || {}).relation === "correction" && sug.state !== "stale") { const bC = btn("Correction", NEXT_BETA, () => {}); bC.disabled = true; a.appendChild(bC); }
+    const m = sug.match || {};
+    const stale = sug.state === "stale";
+    // Already in the draft: only taking it back. The toolbar's Undo does the same.
+    if (pendingOf(sug.id)) {
+      const b = btn("Take that back", "Out of your draft: nothing was kept", () => takeBack(sug));
+      b.disabled = busy;
+      a.appendChild(b);
+      return a;
+    }
+    const moved = movedPlan(sug.map_id);
+    if (sug.kind === "railing") { if (!stale) railActs(sug, a); }
+    else if (!moved) {
+      if (m.relation === "stacked") a.appendChild(floorChoice(sug));
+      const bNew = btn("New", m.relation === "correction" ? "A staircase of its own, beside the one you have (into your draft)" : "Add it to your draft: nothing is kept until Save", () => keepNew(sug), m.relation === "correction" ? null : "go");
+      if (m.relation === "correction" && !stale) {
+        // Keep mine is where a hand-placed stair starts; the AI's position only where the AI placed it too.
+        const mine = btn("Keep mine", "Yours stays where it is (noted at once)", () => verdict(sug, "failure", "already_here"));
+        const takeIt = btn("Take the AI's position", "Move it there in your draft: nothing is kept until Save", () => takeAi(sug), m.hand === true ? null : "go");
+        if (m.hand === true) { a.append(mine, takeIt); if (!focusBtn) focusBtn = mine; }
+        else { a.append(takeIt, mine); if (!focusBtn) focusBtn = takeIt; }
+      }
+      a.appendChild(bNew);
+      if (m.relation === "new" && !m.held) for (const [i, id] of (m.near || []).entries()) {
+        if (m.near_snaps && m.near_snaps[id]) a.appendChild(btn(`A correction of ${(m.near_names || [])[i] || "that stair"}`, "Move that stair here in your draft: nothing is kept until Save", () => takeAi(sug, id)));
+      }
+    }
     if (failing === sug.id) {
       for (const [k, word] of WHY) a.appendChild(btn(word, `Mark it wrong: ${word.toLowerCase()}`, () => verdict(sug, "failure", k), "why"));
       a.appendChild(btn("Never mind", "Keep it in the queue", () => { failing = null; redraw(); }));
     } else {
-      if (sug.state !== "stale") a.appendChild(btn("Looks right", "The AI got this one right (noted at once; nothing is written to your house)", () => verdict(sug, "right")));
+      if (sug.state !== "stale" && sug.state !== "right") a.appendChild(btn("Looks right", "The AI got this one right (noted at once; nothing is written to your house)", () => verdict(sug, "right")));
       a.appendChild(btn("Failure", "Mark it wrong, with a reason (noted at once)", () => { failing = sug.id; redraw(); }));
-      if (sug.state !== "stale") a.appendChild(btn("Later", "Come back to it (noted at once)", () => verdict(sug, "later")));
+      if (sug.state !== "stale" && sug.state !== "later") a.appendChild(btn("Later", "Come back to it (noted at once)", () => verdict(sug, "later")));
+      if (sug.state === "right" || sug.state === "later") a.appendChild(btn("Take that back", "Back to the queue", () => verdict(sug, "back")));
     }
     for (const b of a.querySelectorAll("button")) if (!b.disabled) b.disabled = busy;
     return a;
@@ -418,7 +660,7 @@ export function createPlans(ctx){
   }
 
   function paintList(){
-    head("Add data via plans", "The AI's finds, one by one. Nothing is written to your house in this version.");
+    head("Add data via plans", "The AI's finds, one by one. Nothing goes into your house until you press Save.");
     sheet.appendChild(d("div", "pl-ban", BANNER));
     sheet.appendChild(d("div", "pl-sum", summary()));
     errLine();
@@ -429,20 +671,45 @@ export function createPlans(ctx){
       sheet.appendChild(d("h5", null, `${title} (${list.length})`));
       for (const s of list.sort((a, b) => order(a) - order(b) || String(a.floor_id).localeCompare(String(b.floor_id)))) sheet.appendChild(row(s, actsOf ? actsOf(s) : null));
     };
-    group("To check", ss.filter(s => s.state === "queued"), queuedActs);
-    group("Changed since you looked", ss.filter(s => s.state === "stale"), queuedActs);
-    group("Looks right", ss.filter(s => s.state === "right"), backActs);
-    group("Later", ss.filter(s => s.state === "later"), backActs);
+    const pendIds = new Set(pendings().map(p => p.sug_id));
+    group("To keep, when you Save", ss.filter(s => pendIds.has(s.id)), queuedActs);
+    group("To check", ss.filter(s => s.state === "queued" && !pendIds.has(s.id)), queuedActs);
+    group("Changed since you looked", ss.filter(s => s.state === "stale" && !pendIds.has(s.id)), queuedActs);
+    group("Looks right", ss.filter(s => s.state === "right" && !pendIds.has(s.id)), queuedActs);
+    group("Later", ss.filter(s => s.state === "later" && !pendIds.has(s.id)), queuedActs);
     group("Marked wrong", ss.filter(s => s.state === "failure" && !(s.verdict && s.verdict.remembered)), backActs);
+    group("Kept", ss.filter(s => String(s.state).startsWith("committed")), null);
+    group("Undone", ss.filter(s => s.state === "undone"), null);
     group("Gone with its stair", ss.filter(s => s.state === "settled"), null);
     group("Already in your house", ss.filter(s => s.state === "duplicate"), null);
     group("Ignored before", ss.filter(s => s.state === "failure" && s.verdict && s.verdict.remembered),
       (s) => { const a = d("div", "pl-acts"); const b = btn("Un-ignore", "Forget that reject and queue it again", () => forget(s.verdict.reject)); b.disabled = busy; a.appendChild(b); return a; });
     if (!ss.length && sess.status === "done") sheet.appendChild(d("div", "pl-note", unread() ? "The AI found nothing on the plans it could read." : "The AI found nothing on these plans."));
     const foot = d("div", "pl-foot");
+    const pend = pendings();
+    if (pend.length) {
+      const n = pend.filter(p => p.v === "new" && p.made).length, c = pend.filter(p => p.v === "correction").length, l = pend.filter(p => p.rail).length;
+      const words = [n ? `${n} new` : "", c ? `${c} correction${c === 1 ? "" : "s"}` : "", l ? `${l} railing${l === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ");
+      const keep = btn(`Keep ${words} (one undo for the whole session)`, "Save: into your 3D house, with a safety backup and one undo", () => ctx.save(), "go");
+      keep.disabled = busy || !!(ctx.saving && ctx.saving());
+      foot.appendChild(keep);
+    }
+    if (undoInfo && !askUndo) {
+      const word = undoInfo.puts_back ? `Put back ${undoInfo.items}` : `Undo this session (${undoInfo.items})`;
+      const b = btn(word, "Takes back what this session kept; anything changed since is left", () => { askUndo = true; redraw(); });
+      b.disabled = busy;
+      foot.appendChild(b);
+    }
     foot.appendChild(btn("Manage ignored", "The finds you marked wrong, remembered per plan", () => openIgnored()));
     foot.appendChild(btn("Read again", "Back to the plans and the button", () => readAgain()));
     sheet.appendChild(foot);
+    if (undoInfo && askUndo) {
+      const a = d("div", "pl-acts");
+      a.appendChild(d("span", "pl-sub", undoInfo.puts_back ? "Put those items back in your 3D house?" : "Take what this session kept out of your 3D house? Anything you changed since is left as it is."));
+      a.appendChild(btn(undoInfo.puts_back ? "Put back" : "Undo", "Goes at once", () => undoSession(), "go"));
+      a.appendChild(btn("Cancel", "Leave it", () => { askUndo = false; redraw(); }));
+      sheet.appendChild(a);
+    }
   }
 
   function paintIgnored(){
@@ -467,13 +734,18 @@ export function createPlans(ctx){
     sheet.appendChild(foot);
   }
 
+  /** Keep mine, or the AI's position where the AI placed it too: where the keyboard starts on the first correction. */
+  function paintFocus(){
+    if (focusBtn && !focusBtn.disabled) { try { focusBtn.focus({ preventScroll: true }); } catch (_) { /* no matter */ } }
+  }
   function paint(){
     sheet.classList.add("plans");
+    focusBtn = null;
     if (view === "ignored") { paintIgnored(); return true; }
     if (step === "loading") { head("Add data via plans"); sheet.appendChild(d("div", "pl-note", "Looking for your plans…")); return true; }
     if (step === "sample") { head("Add data via plans"); sheet.appendChild(d("div", "pl-note", "Sample mode shows a sample house: switch to Live mode to read your own plans.")); return true; }
     if (step === "progress") { paintProgress(); return true; }
-    if (step === "list" && sess) { paintList(); return true; }
+    if (step === "list" && sess) { paintList(); paintFocus(); return true; }
     paintConsent();
     return true;
   }
@@ -489,6 +761,7 @@ export function createPlans(ctx){
     },
     /** The sheet's content for the step we are at; true: there is one. */
     sheet: () => paint(),
+    commit, refused,
     dispose(){ stopPoll(); shownNow = false; try { style.remove(); } catch (_) { /* gone with its root */ } },
   };
 }

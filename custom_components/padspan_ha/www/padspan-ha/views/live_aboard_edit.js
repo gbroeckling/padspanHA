@@ -564,12 +564,25 @@ export function createEditor(ctx){
   async function save(then){
     if (!draft || !editFn) return;
     if (saving) { if (then) afterSave = then; return; }
-    const ch = draft.changes();
+    let ch = draft.changes();
     if (!ch) { if (then) then(); return; }
     const sent = draft;
     saving = true; paint();
+    let kept = null, notKept = false;
     try {
-      const r = await editFn(ch, draft.base);
+      // Items from the plans go first, through their one writer (plan_ai_commit:
+      // it checks them, takes its backup, writes them and their undo together).
+      // Refused, nothing is written and the draft stays. Then the person's other
+      // edits, as Save always sends them. Anything still marked (the tool gone,
+      // another session's) never goes the ordinary way: it leaves the draft.
+      if (DRAFT.planPending(draft.cur).length) {
+        kept = plans ? await plans.commit() : null;
+        if (kept) { ctx.saved(kept.data); if (draft === sent) draft.adopt("pieces", kept.pieces, kept.renamed); }
+        if (draft === sent) notKept = draft.change((c) => { DRAFT.dropPlanPending(c, null); });
+        ch = draft === sent ? draft.changes() : null;
+      }
+      const r = ch ? await editFn(ch, draft.base) : kept;
+      if (!r && notKept) { saving = false; hint("The items from the plans weren't kept: their session is gone, or the Plans tool is off here. Nothing else was waiting to be saved.", true); redrawSoon(); sheetFor(); paint(); return; }
       if (!r || typeof r !== "object" || !r.data) throw new Error("no answer");
       saving = false;
       ctx.saved(r.data);
@@ -578,10 +591,13 @@ export function createEditor(ctx){
       if (draft === sent) draft.rebase(ctx.file() || DRAFT.ownedOf(r.data));
       if (fur) fur.refresh();
       if (strip) strip.refresh();
-      hint("Saved.");
+      hint(kept ? kept.said : "Saved.");
     } catch (err) {
       // Refused: the draft stays, to be saved again; what went wrong said plainly.
       saving = false; afterSave = null;
+      // A refusal of the plans' items: its list says what changed; the sheet reloads and those leave the draft.
+      if (plans && err && err.planRefusal) await plans.refused(err);
+      if (kept) { hint(`${kept.said} Your other changes weren't saved: ${String((err && (err.message || err.code)) || err)}`, true); redrawSoon(); sheetFor(); paint(); return; }
       // Part of it went in (the heights: live_aboard.js editSave): from here
       // the draft starts from them, so Undo, Discard and the next Save count
       // them as saved.
@@ -1270,7 +1286,12 @@ export function createEditor(ctx){
         plansLoading = false;
         if (!mod || typeof mod.createPlans !== "function" || !plansHost || plans) return;
         plans = mod.createPlans({ root, sheet, guard, host: () => plansHost, floors: () => ctx.floors(),
-          hint: (text, bad) => hint(text, bad), redraw: () => { paint(); sheetFor(); } });
+          hint: (text, bad) => hint(text, bad), redraw: () => { paint(); sheetFor(); },
+          // New and Correction are this draft's: one step each, undone like any other, kept by Save.
+          DRAFT, draft: () => draft, change: (fn) => change(fn), save: () => save(null), saving: () => saving,
+          stairPiece: (g, fid, label) => (fur ? fur.planStair(g, fid, label) : null), reloadFile: () => ctx.reload(),
+          // An undo wrote the file (only with nothing unsaved here): the draft starts again from it.
+          fileWritten: (data) => { ctx.saved(data); if (draft) draft.rebase(ctx.file() || DRAFT.ownedOf(data)); if (fur) fur.refresh(); if (strip) strip.refresh(); redrawSoon(); } });
         bPlans = btn("Plans", "Add data via plans (AI, experimental)", () => pickTool("plans"));
         toolSeg.appendChild(bPlans);
         paint();
@@ -1351,7 +1372,7 @@ export function createEditor(ctx){
                gesture: gesture ? { kind: gesture.kind, span: gesture.span || null } : null, pending: !!pending,
                line: line.visible, arcs: arcs.length / 3, cantEdit: cantEdit(), editWhy: editWhy.style.display === "none" ? "" : editWhy.textContent,
                editAvailable: bEdit.getAttribute("aria-disabled") !== "true",
-               furnishOn, furnish: fur ? fur.state() : null, strip: strip ? strip.state() : null };
+               furnishOn, furnish: fur ? fur.state() : null, strip: strip ? strip.state() : null, planPending: draft ? DRAFT.planPending(draft.cur) : [] };
     },
     /** A plan point on floor fid at height z, in client px (the harness presses it). */
     whereOf(fid, x, y, z = 1){ const F = ctx.floors().find(q => q.fl.id === fid); return F ? screenAt(F, x, y, z) : null; },

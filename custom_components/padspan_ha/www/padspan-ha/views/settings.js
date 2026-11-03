@@ -4229,8 +4229,10 @@ function _settingsAI(ctx, el){
     el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, "Add data via plans"),
     el("div",{style:"font-size:11px;color:#94a3b8;line-height:1.5;margin-top:2px"},
       "In Live Aboard's Edit bar, the Plans tool: your AI reads the floor plans you placed for staircases and railings and lists " +
-      "what it finds for you to check, item by item. This version keeps nothing in your house: marking an item wrong or later is all it saves."),
+      "what it finds for you to check, item by item. What you keep goes into your 3D house when you press Save, and one undo takes a whole session back."),
   ]));
+  // The last session's undo (admins; ws_plan_ai.plan_ai_undo): what changed since is left, and said. Asked here in the page.
+  if (ctx.hass && ctx.hass.user && ctx.hass.user.is_admin && settings.ai_plans_enabled === true) under.appendChild(_planAiLastRow(ctx, el));
   feats.appendChild(under);
   feats.appendChild(sw("ai_photos_enabled", "Furniture from a photo",
     "In Live Aboard's Furnish, take a photo of a sofa, a bed or a lamp and the AI fills in its kind, style, colours and sizes. " +
@@ -4536,6 +4538,48 @@ function _atlas3dSection(ctx, el, settings){
 // on, so the box says nothing of them while it is off, and only once the
 // library's server is live (LIBRARY_SERVER_LIVE in the library's own module,
 // loaded here only then): before that, nothing of the library shows.
+/** "Last plan session: 17 items, 2026-11-05 · Undo": hidden until the server names a batch that can be undone. */
+function _planAiLastRow(ctx, el){
+  const box = el("div",{"data-ai-plans-last":"", style:"display:none;padding:8px 0;border-top:1px solid #1e3a2a"});
+  const show = (u) => {
+    box.innerHTML = "";
+    box.style.display = u ? "" : "none";
+    if (!u) return;
+    const when = u.at ? new Date(u.at * 1000) : null;
+    const day = when ? `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, "0")}-${String(when.getDate()).padStart(2, "0")}` : "";
+    const n = u.items || 0;
+    const back = u.puts_back === true;
+    box.appendChild(el("div",{style:"font-size:13px;color:#e2e8f0;font-weight:600"}, back ? `The last undo: ${n} item${n === 1 ? "" : "s"}, ${day}` : `Last plan session: ${n} item${n === 1 ? "" : "s"} kept, ${day}`));
+    const acts = el("span",{style:"display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px"});
+    const ask = () => {
+      acts.innerHTML = "";
+      acts.appendChild(el("button",{class:"btn inline", type:"button", "data-ai-plans-undo":"", onclick: ()=>{
+        acts.innerHTML = "";
+        acts.appendChild(el("span",{style:"font-size:12px;color:#fca5a5"}, back ? "Put those items back in your 3D house?" : "Take what this session kept out of your 3D house? Anything you changed since is left as it is."));
+        acts.appendChild(el("button",{class:"btn inline", type:"button", "data-ai-plans-undo-yes":"", style:"background:#7f1d1d;border-color:#dc2626;color:#fca5a5", onclick: async ()=>{
+          acts.innerHTML = "";
+          acts.appendChild(el("span",{style:"font-size:12px;color:#94a3b8"}, "Working…"));
+          try {
+            const r = await ctx.actions.wsCall("padspan_ha/plan_ai_undo", { batch_id: u.id });
+            const left = (r && r.skipped ? r.skipped.length : 0);
+            ctx.toast(`${back ? "Put back" : "Undone"}: ${r.undone} of ${r.of}${left ? `. ${left} ${left === 1 ? "was" : "were"} changed since and left as ${left === 1 ? "it is" : "they are"}` : ""}.`);
+            // Every Live Aboard open in this page reads its file again.
+            try { window.dispatchEvent(new Event("padspan-ha-house3d-changed")); } catch (_) { /* none open */ }
+            show(r && r.undo);
+          } catch (e) {
+            ctx.toast("Could not undo: " + String((e && e.message) || e), true);
+            ask();
+          }
+        }}, back ? "Put back" : "Undo"));
+        acts.appendChild(el("button",{class:"btn inline", type:"button", style:"color:#94a3b8;border-color:#94a3b840", onclick: ask}, "Cancel"));
+      }}, back ? "Put back…" : "Undo this session…"));
+    };
+    ask();
+    box.appendChild(el("div",{}, [acts]));
+  };
+  ctx.actions.wsCall("padspan_ha/plan_ai_sessions_get").then((r) => show(r && r.undo)).catch(() => show(null));
+  return box;
+}
 function _atlas3dLibraryRows(ctx, el, settings, more, row, save){
   const spot = el("div",{});
   more.appendChild(spot);

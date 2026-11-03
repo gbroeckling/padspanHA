@@ -4,7 +4,7 @@
 # See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 """Add data via plans: the plan AI (experimental, off by default; 2026-11).
 
-Stage 1a, the dry run. The person's own AI Task reads each placed floor plan
+The reading (Stage 1a). The person's own AI Task reads each placed floor plan
 for staircases, then looks again at a crop round each one (the measured
 recipe: a find the crop says isn't there is dropped, one it boxes is placed
 from that box), and asks whether a handrail is drawn beside it; all inside one
@@ -19,8 +19,8 @@ which no plan's whole read answered ends failed, saying why: it read nothing,
 which is not the same as finding nothing.
 
 Nothing here writes the 3D house, the map (fabric, model, maps), calibration
-or any other store: keeping a suggestion (new, correction) is the next
-stage's one commit command. The plan's picture goes only to the chosen AI
+or any other store: keeping a suggestion (new, correction) and undoing what was
+kept is plan_ai_write.py, the one writer. The plan's picture goes only to the chosen AI
 Task, as the photo step sends a photo (ws_house3d_photo.ask: a hidden file
 for the call); the answer is reduced to numbers and closed words before it
 is stored, and the model's text is never stored, shown or logged.
@@ -173,6 +173,24 @@ class PlanAiStore:
         await self.store.async_save(self._data)
         return True
 
+    async def async_checked_save(self) -> bool:
+        """Write the data and read it back: written only if the file then holds
+        it. Home Assistant's Store logs a failed write and returns normally, so
+        only the comparison tells (house3d_store.async_write). What a commit's
+        ledger stands on (plan_ai_write.py)."""
+        if not writable(self._data):
+            return False
+        try:
+            await self.store.async_save(self._data)
+            back = await self.store.async_load()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error("PadSpan plans: the plan store couldn't be written: %s", P._why(err))  # noqa: SLF001
+            return False
+        if back != self._data:
+            _LOGGER.error("PadSpan plans: the plan store doesn't hold what was written")
+            return False
+        return True
+
     def session(self, sid: str | None) -> dict[str, Any] | None:
         sessions = self._data.get("sessions") or {}
         if sid:
@@ -273,6 +291,17 @@ def plan_now(hass: HomeAssistant, map_id: str) -> dict[str, Any] | None:
         if pl["map_id"] == map_id:
             return pl
     return None
+
+
+def plans_moved(hass: HomeAssistant, sess: dict[str, Any]) -> set[str]:
+    """The session's plans whose picture or placement changed since the read
+    (each marked changed, for good: its positions came from what was there):
+    their ids."""
+    for pl in sess.get("plans") or []:
+        now = plan_now(hass, pl["map_id"])
+        if now is None or now["image_sig"] != pl["image_sig"] or now["place_sig"] != pl["place_sig"]:
+            pl["changed"] = True
+    return {pl["map_id"] for pl in sess.get("plans") or [] if pl.get("changed")}
 
 
 # ── Frames and the 0-1000 trap ───────────────────────────────────────────────
@@ -421,8 +450,8 @@ def classify(fid: str, implied_to: str | None, x: float, y: float, stairs: list[
         out.update(target=st["id"], distance_m=round(d, 2), target_snap=target_snap(st), hand=st["hand"],
                    relation="duplicate" if d <= DUP_M else "correction")
         return out
-    if len(agree) >= 2:
-        return out                                   # new, near them: the person may turn it into a correction of one
+    if len(agree) >= 2:                              # new, near them: the person may turn it into a correction of one
+        return {**out, "near_snaps": {st["id"]: target_snap(st) for _, st in agree}}
     if other:
         d, st = other[0]
         return {**out, "relation": "stacked", "target": st["id"], "distance_m": round(d, 2), "target_snap": target_snap(st)}
@@ -1063,13 +1092,16 @@ def start(hass: HomeAssistant, store: PlanAiStore, ai: dict[str, Any], plans_: l
     return sid
 
 
-def settle_rails(hass: HomeAssistant, sess: dict[str, Any], stair_id: str) -> list[dict]:
+def settle_rails(hass: HomeAssistant, sess: dict[str, Any], stair_id: str, why: str | None = None) -> list[dict]:
     """A stair marked wrong takes its railing hint out of the queue: there is
-    nothing to check beside a stair that isn't there. The hint keeps where it
-    stood, for a take-back. No reject of its own: the stair's stops the hint
-    coming back on the next read. The hints it changed."""
+    nothing to check beside a stair that isn't there. "Already here" (Keep
+    mine) says the stair is there, so a hint on the stair in the house stays.
+    The hint keeps where it stood, for a take-back. No reject of its own: the
+    stair's stops the hint coming back on the next read. The hints it changed."""
     out = []
     for hint in (sess.get("suggestions") or {}).values():
+        if why == "already_here" and isinstance(hint, dict) and (hint.get("match") or {}).get("target"):
+            continue
         if isinstance(hint, dict) and hint.get("of_stair") == stair_id and hint.get("state") in ("queued", "later", "stale"):
             hint["verdict"] = {"v": "settled", "at": time.time(), "stair": stair_id, "was": {"state": hint["state"], "verdict": hint.get("verdict")}}
             hint["state"] = "settled"
@@ -1093,25 +1125,26 @@ def unsettle_rails(hass: HomeAssistant, sess: dict[str, Any], stair_id: str) -> 
 def check_session(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any], house: dict | None) -> bool:
     """The target and signature checks on a session that is not running:
     a plan whose picture or placement changed since the read marks its
-    queued suggestions stale; a correction whose target is gone or differs
-    from its snapshot is stale too. Returns whether anything changed."""
-    changed = False
+    suggestions still open stale; a correction whose target is gone or differs
+    from its snapshot is stale too, and a railing hint whose stair was kept and
+    is no longer there. `house` None (the 3D file couldn't be read): the
+    targets aren't judged. Returns whether anything changed."""
+    was_moved = {pl["map_id"] for pl in sess.get("plans") or [] if pl.get("changed")}
+    moved = plans_moved(hass, sess)
+    changed = moved != was_moved
     stairs = {st["id"]: st for st in stair_pieces(house)}
-    for pl in sess.get("plans") or []:
-        now = plan_now(hass, pl["map_id"])
-        gone = now is None or now["image_sig"] != pl["image_sig"] or now["place_sig"] != pl["place_sig"]
-        if gone and not pl.get("changed"):
-            pl["changed"] = True
-            changed = True
-    moved = {pl["map_id"] for pl in sess.get("plans") or [] if pl.get("changed")}
-    for sug in (sess.get("suggestions") or {}).values():
-        if not isinstance(sug, dict) or sug.get("state") != "queued":
+    sugs = sess.get("suggestions") or {}
+    for sug in sugs.values():
+        if not isinstance(sug, dict) or sug.get("state") not in ("queued", "later"):
             continue
         stale = sug.get("map_id") in moved
         match = sug.get("match") or {}
-        if not stale and match.get("target") and (match.get("relation") in ("correction", "stacked") or sug.get("kind") == "railing"):
+        if not stale and house is not None and match.get("target") and (match.get("relation") in ("correction", "stacked") or sug.get("kind") == "railing"):
             tgt = stairs.get(match["target"])
             stale = tgt is None or target_snap(tgt) != match.get("target_snap")
+        elif not stale and house is not None and sug.get("kind") == "railing":
+            stair = sugs.get((sug.get("geom") or {}).get("stair")) or {}
+            stale = stair.get("state") == "undone" or (str(stair.get("state")).startswith("committed") and stair.get("piece_id") not in stairs)
         if stale:
             sug["state"] = "stale"
             changed = True
@@ -1119,3 +1152,40 @@ def check_session(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any],
     if changed:
         sess["rev"] = int(sess.get("rev") or 0) + 1
     return changed
+
+
+def puts_back(batches: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Would undoing this batch put items back? Yes for an undo; no for what it
+    undid, or for an undo of an undo, which kept them again."""
+    n = 0
+    while isinstance(b, dict) and b.get("undo_of"):
+        n += 1
+        b = batches.get(b["undo_of"])
+    return n % 2 == 1
+
+
+def items_in(entries: Any) -> int:
+    """How many suggestions a batch's entries hold: a stair and its railing are
+    one entry (one before, one after) and two items to the person who kept them."""
+    return sum(1 + len(e.get("also") or []) for e in entries or [])
+
+
+def batch_summary(batches: dict[str, Any], batch_id: str) -> dict[str, Any]:
+    """A batch as the sheet and Settings say it: how many items, and what
+    undoing it does."""
+    b = batches[batch_id]
+    return {"id": batch_id, "session": b.get("session"), "at": b.get("committed_at"), "items": items_in(b.get("items")),
+            "puts_back": puts_back(batches, b)}
+
+
+def last_batch(store: PlanAiStore, sid: str | None = None) -> dict[str, Any] | None:
+    """The newest batch still standing (of one session, or of any): what "Undo
+    this session" undoes. A batch in the middle of its two writes is not one."""
+    batches = store.data.get("batches") or {}
+    best = None
+    for bid, b in batches.items():
+        if not isinstance(b, dict) or b.get("undone_at") or b.get("pending") or not b.get("items") or (sid and b.get("session") != sid):
+            continue
+        if best is None or float(b.get("committed_at") or 0) > float(batches[best].get("committed_at") or 0):
+            best = bid
+    return batch_summary(batches, best) if best else None

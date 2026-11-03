@@ -250,7 +250,67 @@ export function createDraft(base){
       d.undo = d.undo.map(x => JSON.stringify(out(JSON.parse(x))));
       d.redo = d.redo.map(x => JSON.stringify(out(JSON.parse(x))));
     },
+    /** Entries a server command just wrote (plan_ai_commit): in the base, the
+     *  draft and every Undo and Redo step each is the file's own now, so no
+     *  step and no Save brings back what it was. `renamed`, {draft's id: the
+     *  file's id}: a draft-only entry that became that one (a strip on it follows). */
+    adopt(section, entries, renamed = {}){
+      const put = (c) => {
+        if (!c || !c[section]) return c;
+        for (const id of Object.keys(renamed)) delete c[section][id];
+        for (const id of Object.keys(entries)) c[section][id] = copy(entries[id]);
+        for (const e of Object.values(c.lights || {})) if (e && e.run && renamed[e.run.piece]) e.run.piece = renamed[e.run.piece];
+        return c;
+      };
+      put(d.base); put(d.cur);
+      d.undo = d.undo.map(x => JSON.stringify(put(JSON.parse(x))));
+      d.redo = d.redo.map(x => JSON.stringify(put(JSON.parse(x))));
+    },
   };
+}
+
+// ── Items from the plans, until Save ────────────────────────────────────────
+// A suggestion accepted in the Plans tool (live_aboard_plans.js) is a change in
+// this draft like any other, so Undo and Discard take it back and a lost page
+// loses it. The piece it made or changed says so in PLAN_NOTE, {session, sugs:
+// {suggestion's id: {v: "new" | "correction", made (the suggestion made this
+// piece), was (what it set, as it stood), rail: {side, style}, target}}}, and
+// that note is all there is: what is pending is read off the draft, every time.
+// The server refuses the note in an ordinary Save (house3d_store._piece): only
+// plan_ai_commit keeps these.
+export const PLAN_NOTE = "plan_ai_pending";
+/** What the draft `c` holds for the plans: [{piece, session, sug_id, v, rail, target, made}]. */
+export function planPending(c){
+  const out = [];
+  for (const [piece, p] of Object.entries((c && c.pieces) || {})) {
+    const n = p && p[PLAN_NOTE];
+    if (!n || !n.sugs) continue;
+    for (const [sug_id, e] of Object.entries(n.sugs)) out.push({ piece, session: n.session, sug_id, v: e.v, rail: e.rail || null, target: e.target || null, made: !!e.made });
+  }
+  return out;
+}
+/** Those suggestions (a Set of ids; null: all) out of the draft `c`, in place:
+ *  a piece one made goes, and whatever one set on a piece goes back to what it was. */
+export function dropPlanPending(c, ids = null){
+  for (const [id, p] of Object.entries((c && c.pieces) || {})) {
+    const n = p && p[PLAN_NOTE];
+    if (!n || !n.sugs) continue;
+    for (const [sug, e] of Object.entries(n.sugs)) {
+      if (ids && !ids.has(sug)) continue;
+      if (e.made) { delete c.pieces[id]; break; }
+      for (const [k, v] of Object.entries(e.was || {})) { if (v === null) delete p[k]; else p[k] = v; }
+      for (const [k, v] of Object.entries(e.was_params || {})) { if (v === null) delete p.recipe.params[k]; else p.recipe.params[k] = v; }
+      delete n.sugs[sug];
+    }
+    if (c.pieces[id] && !Object.keys(n.sugs).length) delete p[PLAN_NOTE];
+  }
+  return c;
+}
+/** The draft's piece as plan_ai_commit reads it: without the note. */
+export function planFinal(p){
+  const out = copy(p);
+  delete out[PLAN_NOTE];
+  return out;
 }
 
 // ── Walls as runs, corners and openings ─────────────────────────────────────

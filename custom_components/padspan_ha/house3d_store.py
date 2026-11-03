@@ -456,9 +456,13 @@ def _stairs(pid: str, r: dict) -> None:
 def _piece(pid: str, e: dict, stamp: str) -> dict:
     """A piece of furniture (contracts §2), complete: what it is, where it
     stands, which device it is. Its floor may be one since deleted (the plan:
-    a floor that no longer exists is accepted). Keys it does not know are kept."""
+    a floor that no longer exists is accepted). Keys it does not know are kept.
+    An AI suggestion still in the editor's draft is kept only by the plan AI's
+    one writer (plan_ai_write.py), never by an ordinary Save."""
     if e.get("id", pid) != pid:
         raise EditError(f"{pid}: its id must be its key")
+    if "plan_ai_pending" in e:
+        raise EditError(f"{pid}: an item from the plans is kept through the Plans tool's own Save")
     fl, label = e.get("floor_id"), e.get("label") or ""
     if not isinstance(fl, str) or not fl.strip() or len(fl) > 64:
         raise EditError(f"{pid}: floor_id must be a floor's id")

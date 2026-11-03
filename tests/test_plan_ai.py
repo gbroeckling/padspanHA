@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from custom_components.padspan_ha import plan_ai as A
+from custom_components.padspan_ha import plan_ai_write as C
 from custom_components.padspan_ha import settings_store as SS
 from custom_components.padspan_ha import telemetry as T
 from custom_components.padspan_ha import ws_common
@@ -206,7 +207,7 @@ def test_every_command_refuses_while_the_switch_live_aboard_or_pro_is_off(monkey
 def test_every_command_is_an_administrators_registered_and_a_read_in_sample_mode():
     src = (_ROOT / "ws_plan_ai.py").read_text(encoding="utf-8")
     names = re.findall(r"async def (ws_plan_ai_[a-z_]+)\(", src)
-    assert len(names) == 8 and set(names) == {fn.__name__ for fn in W.WS_COMMANDS}
+    assert len(names) == 10 and set(names) == {fn.__name__ for fn in W.WS_COMMANDS}
     for name in names:
         head = src.split(f"async def {name}(", 1)[0].rsplit("@websocket_api.websocket_command", 1)[1]
         assert "@websocket_api.require_admin" in head, name
@@ -214,7 +215,7 @@ def test_every_command_is_an_administrators_registered_and_a_read_in_sample_mode
     # Sample mode: the two reads are answered empty, everything else is a write and refused (panel.js _sampleKind).
     panel = (_WWW / "panel.js").read_text(encoding="utf-8")
     reads = panel[panel.index("const READS = new Set("):panel.index('.split(" ").map(t => "padspan_ha/" + t));')]
-    assert "plan_ai_plans plan_ai_status" in reads and "plan_ai_start" not in reads and "plan_ai_verdict" not in reads
+    assert "plan_ai_plans plan_ai_status plan_ai_sessions_get" in reads and not {"plan_ai_start", "plan_ai_verdict", "plan_ai_commit", "plan_ai_undo"} & set(reads.split())
 
 
 def test_the_stair_finders_loop_stops_on_the_master_code_and_its_menu_item_follows_the_switch():
@@ -907,7 +908,8 @@ def test_a_railing_hint_beside_an_existing_stair_is_matched_to_its_rail(monkeypa
     stair = next(s for s in sess["suggestions"].values() if s["kind"] == "stairs")
     hint = next(s for s in sess["suggestions"].values() if s["kind"] == "railing")
     assert stair["state"] == "duplicate"                                  # the stair itself is already there: its hint still counts
-    assert hint["geom"]["stair"] == "fur_00000001" and hint["match"]["relation"] == relation and hint["state"] == state and hint["match"]["have"] == rail
+    # "auto" is stamped on read with the rail it drew (house3d_store.stamp_stair_rail): both sides of a closed straight flight.
+    assert hint["geom"]["stair"] == "fur_00000001" and hint["match"]["relation"] == relation and hint["state"] == state and hint["match"]["have"] == ("both" if rail == "auto" else rail)
     assert ("plan_ai_duplicate:railing" in counted) == (relation == "duplicate")
     assert ("plan_ai_suggested:railing" in counted) == (relation != "duplicate")
     assert T.event_allowed("plan_ai_duplicate:railing")
@@ -1310,7 +1312,7 @@ def test_a_session_and_its_verdicts_leave_every_other_store_byte_identical(monke
 # ═══ the counters ════════════════════════════════════════════════════════════
 
 def test_the_family_is_closed_every_name_has_a_call_site_and_nothing_names_a_plan():
-    src = inspect.getsource(A) + inspect.getsource(W)
+    src = inspect.getsource(A) + inspect.getsource(W) + inspect.getsource(C)
     for e in T.PLAN_AI_EVENTS:
         assert T.event_allowed(e) and len(e) <= 64, e
         a, _, b = e.partition(":")

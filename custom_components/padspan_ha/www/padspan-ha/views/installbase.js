@@ -828,7 +828,14 @@ function word(kind, k) {
         return `Plan AI ${W_PLAN_KIND[k] || k} wrong because: ${{ wrong_place: "wrong place", nothing_there: "nothing there", already_here: "already here", wrong_kind: "wrong kind", cant_tell: "can't tell" }[w] || w}`; }
       if (a === "plan_ai_held") return `Plan AI position held as coarse (${{ frame: "picture size unknown", eye: "plan placed by eye" }[b] || b})`;
       if (a === "plan_ai_correction_target") return `Plan AI correction aimed at ${b === "hand" ? "a hand-placed" : "an AI-placed"} stair`;
+      if (a === "plan_ai_correction_taken") return `Plan AI correction taken on ${b === "hand" ? "a hand-placed" : "an AI-placed"} stair`;
       if (a === "plan_ai_stacked") return `Plan AI stacked stairwell ${b === "offered" ? "offered" : "taken"}`;
+      if (a === "plan_ai_moved_after_accept") return `Plan AI ${W_PLAN_KIND[b] || b} kept, then moved over 30 cm before Save`;
+      if (a === "plan_ai_rail_side") return `Plan AI railing kept on ${b === "ai" ? "the side the AI said" : "a side the person chose"}`;
+      if (a === "plan_ai_commit") return `Plan AI keep ${{ done: "written", rev_mismatch: "refused: the list had changed", already_committed: "refused: already kept", changed_since: "refused: a target changed since",
+        not_open: "refused: item no longer open", stair_first: "refused: railing before its stair", invalid: "refused: not a valid item", backup_failed: "stopped: no safety backup", save_failed: "stopped: the write failed",
+        already_undone: "refused: already undone" }[b] || b}`;
+      if (a === "plan_ai_undo") return `Plan AI undo: ${{ batch: "a batch taken back", put_back: "an undo put back", item_skipped: "an item left, changed since", stairs: "a stair taken back", railing: "a railing taken back" }[b] || b}`;
       if (key === "plan_ai_stale") return "Plan AI item changed since it was read (stale)";
       if (key === "plan_ai_no_floor") return "Plan AI find left out: no floor for it to climb from";
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
