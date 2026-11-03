@@ -707,8 +707,7 @@ from .setup_checks import SETUP_STEPS  # noqa: E402
 SETUP_EVENTS: frozenset[str] = frozenset(
     {f"setup_{a}:{s}" for a in ("step", "skip") for s in SETUP_STEPS} | {"setup_done"})
 # The AI Task chosen for photos (env.ai, 0.38.187), only where one is chosen:
-# local (Ollama on the home's own network), cloud (OpenAI, Google, Anthropic,
-# Home Assistant Cloud, an Ollama at an outside address…),
+# local (Ollama), cloud (OpenAI, Google, Anthropic, Home Assistant Cloud…),
 # unknown (another integration) or unready (chosen, but gone, blind to
 # pictures, or Home Assistant too old). Never its name or entity.
 AI_TASK_WORDS: tuple[str, ...] = ("local", "cloud", "unknown", "unready")

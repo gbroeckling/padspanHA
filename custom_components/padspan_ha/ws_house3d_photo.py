@@ -48,7 +48,6 @@ import asyncio
 import base64
 import binascii
 import errno
-import ipaddress
 import json
 import logging
 import os
@@ -83,8 +82,7 @@ _FOLDER = ".padspan_ha_photo_"
 _READING = "house3d_photo_folders"    # hass.data[DOMAIN]: the folders of the photos being read now
 _SUPPORTS = 1 | 2                     # AITaskEntityFeature GENERATE_DATA | SUPPORT_ATTACHMENTS
 # Where an AI Task runs, by its integration, for the screen's note (anything
-# else: "if it runs in the cloud, the photo leaves the house"). An integration
-# in _LOCAL takes any URL, so it is only as local as its server (_host_at_home).
+# else: "if it runs in the cloud, the photo leaves the house").
 _LOCAL = frozenset({"ollama"})
 _CLOUD = frozenset({"openai_conversation", "google_generative_ai_conversation", "anthropic", "cloud",
                     "open_router", "openrouter", "mistral_ai", "azure_openai_conversation", "groq", "xai"})
@@ -203,40 +201,8 @@ def _entity_ready(hass: HomeAssistant, eid: str) -> dict[str, Any]:
     if isinstance(feats, int) and not isinstance(feats, bool) and feats & _SUPPORTS != _SUPPORTS:
         return {"ready": False, "message": NO_AI_BLIND.format(name=name)}
     plat = _platform(hass, eid)
-    local = _host_at_home(_server_url(hass, eid)) if plat in _LOCAL else False if plat in _CLOUD else None
+    local = True if plat in _LOCAL else False if plat in _CLOUD else None
     return {"ready": True, "ai_task": eid, "name": name, "local": local}
-
-
-# Names only a home's own network can answer (none is in the public DNS).
-_HOME_SUFFIXES = (".local", ".localhost", ".lan", ".home", ".internal", ".intranet", ".localdomain", ".home.arpa")
-
-
-def _host_at_home(url: str | None) -> bool | None:
-    """Whether an AI server's URL is on the home's own network. True: a
-    loopback, private or link-local address, a single-label name (an add-on's
-    or a Docker service's, never a public host) or a name in _HOME_SUFFIXES.
-    False: anything else, which a plan or a photo must be told leaves the
-    house. None: no URL to go by, or one that can't be read. The name itself
-    is judged: nothing is looked up, since the caller may be on the event loop."""
-    if not url:
-        return None
-    try:                                               # as _probe reads it: no scheme means http
-        host = urlsplit(url if "://" in url else f"http://{url}").hostname
-    except ValueError:
-        return None
-    host = (host or "").rstrip(".").lower()
-    if not host:
-        return None
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        pass
-    else:
-        ip = getattr(ip, "ipv4_mapped", None) or ip
-        return ip.is_private or ip.is_loopback or ip.is_link_local
-    if "." not in host:
-        return not (host.isdigit() or host.startswith("0x"))   # 134744072 and 0x8080808 are addresses, written oddly
-    return host.endswith(_HOME_SUFFIXES)
 
 
 # ── what is asked ────────────────────────────────────────────────────────────

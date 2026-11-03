@@ -3,8 +3,8 @@
 // Licensed under the GNU General Public License v3.0
 //
 // Add data via plans, Stage 1a's list view (views/live_aboard_plans.js), RUN
-// rather than read: what the consent sheet asks before a plan is sent (a cloud
-// AI needs the tick; a backup only reads with its own), progress and cancel,
+// rather than read: what the sheet says before a plan is sent (which AI reads
+// it, no tick and no gate), progress and cancel,
 // and the list: Failure with a reason chip written at click, Later, take that
 // back, Looks right, a stair's railing hint going with it, New and Correction
 // greyed, no accept-all, Manage ignored, how a session that was cut short or
@@ -86,19 +86,13 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   check("consent: thumbnails from the signed link", all(M.sheet).filter(n => tag(n) === "IMG").length === 2, "no thumbs");
   check("consent: what to expect", t().includes("For your 2 plans: roughly 3-8 items, 2-6 minutes to vet."), t());
   check("consent: lights say later, doors not offered as a kind", t().includes("Lights — comes in a later beta"), t());
-  check("consent: an AI on the home network stays in the house, the button reads", t().includes("Mac vision will read the plans. It is on your own network, so the plans stay in the house.") && !!button(M.sheet, "Read 2 plans"), t());
-  check("consent: reads can hold a shared AI box, said once", t().includes("Reading can keep this AI busy for up to 8 minutes: if it also answers your voice assistant, voice may be slow until it ends."), t());
-  check("consent: the cloud backup isn't named as reading, no cloud tick", !t().includes("reads them instead") && !t().includes("I understand these plans leave the house"), t());
-  await tick(M.sheet, "let the backup");
-  check("consent: the backup's own tick brings the cloud words", t().includes("reads them instead") && t().includes("I understand these plans leave the house") && !!button(M.sheet, "Send 2 plans to the cloud"), t());
-  check("consent: with the backup ticked, the shared box note names it", t().includes("Reading can keep this AI or the backup busy for up to 8 minutes: if either also answers your voice assistant"), t());
-  await click(button(M.sheet, "Send 2 plans to the cloud"));
-  check("consent: no tick, nothing sent", M.sent("plan_ai_start").length === 0 && t().includes("Tick that you understand"), t());
-  await tick(M.sheet, "I understand");
+  check("note: one line names the AI and the backup, in the photo step's words", t().includes("Mac vision will read the plans. It runs in your home, so the plans stay in the house. If it's away, the backup, Cloud, reads them instead. That one runs in the cloud: the plans leave the house for that service. PadSpan keeps no copy."), t());
+  check("note: reads can hold a shared AI box, the backup named", t().includes("Reading can keep this AI or the backup busy for up to 8 minutes: if either also answers your voice assistant, voice may be slow until it ends."), t());
+  check("no gate: no tick about the cloud or the backup, no address advice, the button as ever", !t().includes("I understand") && !t().includes("let the backup") && !t().includes("address") && !!button(M.sheet, "Read 2 plans") && !button(M.sheet, "Send 2 plans to the cloud"), t());
   await tick(M.sheet, "Electrical");
-  await click(button(M.sheet, "Send 1 plan to the cloud"));
+  await click(button(M.sheet, "Read 1 plan"));
   const st = M.sent("plan_ai_start")[0];
-  check("start: only the ticked, both ticks said", st && st.map_ids.join() === "m1" && st.backup_ok === true && st.cloud_ok === true && st.kinds.join() === "stairs,railing", JSON.stringify(st));
+  check("start: only the ticked, no consent words", st && st.map_ids.join() === "m1" && !("backup_ok" in st) && !("cloud_ok" in st) && st.kinds.join() === "stairs,railing", JSON.stringify(st));
   check("progress: says what it reads and that the page can close", t().includes("Reading Main floor for stairs (1 of 2)") && t().includes("this page can close and come back"), t());
   await click(button(M.sheet, "Cancel"));
   check("progress: cancel goes to the server and says the read runs on", M.sent("plan_ai_cancel")[0]?.session === "ps_1" && t().includes("Stopping after the read in flight."), t());
@@ -108,25 +102,26 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
 {
   const M = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: { ready: true, name: "OpenAI", local: false }, running: null, latest: null, start_blocked: null } });
   M.tool.show(true); await settle();
-  check("cloud: says it leaves, the address line, the tick, the button", text(M.sheet).includes("runs in the cloud") && text(M.sheet).includes("A plan with your address on it goes with it") && !!button(M.sheet, "Send 2 plans to the cloud"), text(M.sheet));
+  check("cloud: says it leaves, no tick, the button as ever", text(M.sheet).includes("OpenAI will read the plans. It runs in the cloud: the plans leave the house for that service.") && !text(M.sheet).includes("I understand") && !text(M.sheet).includes("address") && button(M.sheet, "Read 2 plans").disabled === false, text(M.sheet));
   check("cloud: no shared-box note on a cloud AI", !text(M.sheet).includes("voice assistant"), text(M.sheet));
-  await tick(M.sheet, "I understand");
-  M.tool.show(false); M.tool.show(true); await settle();
-  check("cloud: the tick doesn't persist across opens", all(all(M.sheet).find(n => tag(n) === "LABEL" && text(n).includes("I understand"))).find(n => tag(n) === "INPUT").checked === false, text(M.sheet));
+  await click(button(M.sheet, "Read 2 plans"));
+  check("cloud: it goes", M.sent("plan_ai_start").length === 1 && !text(M.sheet).includes("Tick"), text(M.sheet));
   M.tool.dispose();
   const U = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: { ready: true, name: "Mystery", local: null }, running: null, latest: null, start_blocked: null } });
   U.tool.show(true); await settle();
-  check("unknown: an Ollama with no URL to go by needs the tick", text(U.sheet).includes("If it runs in the cloud, the plans leave the house") && text(U.sheet).includes("I understand these plans leave the house") && text(U.sheet).includes("voice assistant"), text(U.sheet));
+  check("unknown: hedged, no tick", text(U.sheet).includes("If it runs in the cloud, the plans leave the house") && !text(U.sheet).includes("I understand") && text(U.sheet).includes("voice assistant"), text(U.sheet));
   U.tool.dispose();
+  const One = mount({ ...BASE, plan_ai_plans: { plans: PLANS.slice(0, 1), ai: LOCAL, running: null, latest: null, start_blocked: null } });
+  One.tool.show(true); await settle();
+  check("one plan: said in the singular", text(One.sheet).includes("Mac vision will read the plan. It runs in your home, so the plan stays in the house."), text(One.sheet));
+  One.tool.dispose();
   const NB = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: { ...LOCAL, main_away: true }, running: null, latest: null, start_blocked: null } });
   NB.tool.show(true); await settle();
   check("away, no backup: said, and no go", text(NB.sheet).includes("Mac vision is away right now") && button(NB.sheet, "Read 2 plans").disabled === true, text(NB.sheet));
   NB.tool.dispose();
   const A = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: { ...LOCAL, backup: "ai_task.b", backup_name: "Spare", backup_local: true, main_away: true }, running: null, latest: null } });
   A.tool.show(true); await settle();
-  check("away: no go until the backup is agreed", button(A.sheet, "Read 2 plans").disabled === true && text(A.sheet).includes("if you tick it below"), text(A.sheet));
-  await tick(A.sheet, "let the backup");
-  check("away: agreed, it can go", button(A.sheet, "Read 2 plans").disabled === false && text(A.sheet).includes("so the backup, Spare, will read"), text(A.sheet));
+  check("away, with a backup: it goes, the backup named", button(A.sheet, "Read 2 plans").disabled === false && text(A.sheet).includes("so the backup, Spare, will read"), text(A.sheet));
   A.tool.dispose();
   const N = mount({ ...BASE, plan_ai_plans: { plans: [], ai: LOCAL, running: null, latest: null } });
   N.tool.show(true); await settle();

@@ -111,7 +111,7 @@ async def _session(h, map_ids=("m1", "m2"), kinds=("stairs", "railing"), *, befo
     ai = P.ai_task(h, with_backup=True)
     plans = [p for p in A.plans(h) if p["map_id"] in map_ids]
     sid = "ps_test"
-    sess = A.new_session(ai, plans, list(kinds), False, A.frame_kind(h, ai["ai_task"]))
+    sess = A.new_session(ai, plans, list(kinds), A.frame_kind(h, ai["ai_task"]))
     store.data["sessions"][sid] = sess
     await store.async_save()
     job = A.Job(sid)
@@ -184,7 +184,7 @@ def test_the_stamp_runs_from_the_settings_load_and_from_a_restore(monkeypatch, d
 def test_every_command_refuses_while_the_switch_live_aboard_or_pro_is_off(monkeypatch, tmp_path, disk):
     h, conn, ai, media = _house(monkeypatch, tmp_path)
     st = h.data[DOMAIN][DATA_SETTINGS].data
-    cmds = {W.ws_plan_ai_plans: {}, W.ws_plan_ai_start: {"map_ids": ["m1"], "kinds": ["stairs"], "backup_ok": False},
+    cmds = {W.ws_plan_ai_plans: {}, W.ws_plan_ai_start: {"map_ids": ["m1"], "kinds": ["stairs"]},
             W.ws_plan_ai_status: {}, W.ws_plan_ai_cancel: {"session": "x"},
             W.ws_plan_ai_verdict: {"session": "x", "rev": 1, "sug_id": "s", "v": "later"},
             W.ws_plan_ai_rejects_get: {}, W.ws_plan_ai_reject_forget: {"key": "k"}, W.ws_plan_ai_sessions_get: {}}
@@ -779,7 +779,7 @@ def test_home_assistant_stopping_leaves_the_session_for_the_restart_sweep(monkey
         aitask = P.ai_task(h, with_backup=True)
         loop = asyncio.get_running_loop()
         h.async_create_background_task = lambda coro, name: loop.create_task(coro)
-        sid = A.start(h, store, aitask, A.plans(h), ["stairs"], False, "probed")
+        sid = A.start(h, store, aitask, A.plans(h), ["stairs"], "probed")
         await asyncio.sleep(0.05)
         job = A.running(h)
         job.task.cancel()
@@ -965,7 +965,7 @@ def test_a_plan_of_the_outside_is_not_offered_read_or_accepted(monkeypatch, tmp_
                                 floors=({"id": "main", "name": "Main"}, {"id": "upper", "name": "Upper"}, {"id": "outside", "name": "Outside"}))
     assert [p["map_id"] for p in _call(W.ws_plan_ai_plans, h, conn)["plans"]] == ["m1"]
     assert A.plan_now(h, "site") is None
-    assert _call(W.ws_plan_ai_start, h, conn, map_ids=["m1", "site"], kinds=["stairs"], backup_ok=False)["error"] == S.NOT_PLACED_CODE
+    assert _call(W.ws_plan_ai_start, h, conn, map_ids=["m1", "site"], kinds=["stairs"])["error"] == S.NOT_PLACED_CODE
     assert ai.calls == []
 
 
@@ -1172,21 +1172,21 @@ def test_start_is_one_at_a_time_one_a_minute_ten_a_day_and_over_placed_plans_onl
     h.async_create_background_task = lambda coro, name: _task(coro)
 
     async def go():
-        out = _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False)
+        out = _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"])
         r = await out
         assert "session" in r and A.running(h) is not None
-        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False))["error"] == "already_running"
+        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"]))["error"] == "already_running"
         assert (await _call_async(W.ws_plan_ai_cancel, h, conn, session=r["session"]))["ok"] is True
         await tasks[-1]
         st = (await _call_async(W.ws_plan_ai_status, h, conn, session=r["session"]))["session"]
         assert st["status"] == "cancelled" and st["error"] == "user" and A.running(h) is None
-        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False))["error"] == "too_soon"
+        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"]))["error"] == "too_soon"
         h.data[DOMAIN][A._DATA_STARTS] = [0.0]
-        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["nope"], kinds=["stairs"], backup_ok=False))["error"] == S.NOT_PLACED_CODE
-        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["lights"], backup_ok=False))["error"] == "bad_kinds"
+        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["nope"], kinds=["stairs"]))["error"] == S.NOT_PLACED_CODE
+        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["lights"]))["error"] == "bad_kinds"
         import time as _time
         h.data[DOMAIN][A._DATA_STARTS] = [_time.monotonic() - 3600 * i - 120 for i in range(A.STARTS_A_DAY)]
-        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False))["error"] == "daily_cap"
+        assert (await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"]))["error"] == "daily_cap"
         pl = await _call_async(W.ws_plan_ai_plans, h, conn)
         assert [p["map_id"] for p in pl["plans"]] == ["m1", "m2"] and pl["plans"][0]["refs"] == 1 and pl["plans"][0]["corners_m"] == [[0, 0], [10, 0], [10, 8], [0, 8]]
         assert pl["ai"]["ready"] is True and pl["ai"]["local"] is True and pl["start_blocked"] == "daily_cap"
@@ -1213,7 +1213,7 @@ def test_a_second_press_while_the_first_is_saving_starts_nothing(monkeypatch, tm
 
     async def go():
         conns = [MagicMock(), MagicMock()]
-        await asyncio.gather(*(W.ws_plan_ai_start(h, c, {"id": 5, "map_ids": ["m1"], "kinds": ["stairs"], "backup_ok": False}) for c in conns))
+        await asyncio.gather(*(W.ws_plan_ai_start(h, c, {"id": 5, "map_ids": ["m1"], "kinds": ["stairs"]}) for c in conns))
         await asyncio.gather(*tasks)
         return conns
     conns = asyncio.new_event_loop().run_until_complete(go())
@@ -1221,76 +1221,38 @@ def test_a_second_press_while_the_first_is_saving_starts_nothing(monkeypatch, tm
     assert len(tasks) == 1 and len(h.data[DOMAIN][DATA_PLAN_AI].data["sessions"]) == 1
 
 
-def test_a_plan_leaves_the_house_only_with_the_tick_asked_on_the_server_too(monkeypatch, tmp_path, disk):
-    h, conn, ai, media = _house(monkeypatch, tmp_path, platform="openai_conversation")
+def test_a_start_asks_for_no_tick_and_the_backup_reads_when_the_main_one_is_away(monkeypatch, tmp_path, disk):
+    """Garry, 2026-11-02: "Just let it leave." A cloud AI reads with no tick and
+    no refusal; the backup is used as ask_ai always uses it, with none either."""
+    src = inspect.getsource(W)
+    assert "cloud_ok" not in src and "backup_ok" not in src and "cloud_not_agreed" not in src
+    h, conn, ai, media = _house(monkeypatch, tmp_path, platform="openai_conversation", plans=(("m1", "Main", "main", _T1),))
     tasks = []
     h.async_create_background_task = lambda coro, name: tasks.append(asyncio.get_event_loop().create_task(coro)) or tasks[-1]
 
     async def go():
-        out = await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False)
-        assert out["error"] == "cloud_not_agreed" and ai.calls == []
-        out = await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False, cloud_ok=True)
-        assert "session" in out
+        assert "session" in await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"])
         await asyncio.gather(*tasks)
     asyncio.new_event_loop().run_until_complete(go())
-    assert ai.calls
-    # A local main with a cloud backup: only the backup's own tick brings it in, and then the cloud tick is needed.
-    h, conn, ai, media = _house(monkeypatch, tmp_path)
+    assert ai.calls and all(d["entity_id"] == P_AI for _d, _s, d in ai.calls)
+    # The main one away, a backup set: the command asks for the backup itself, and it reads.
+    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),))
     real = P.ai_task
     seen = []
 
     def ai_task(hass, *, with_backup=False):
         seen.append(with_backup)
-        return {**real(hass), **({"backup": "ai_task.cloud", "backup_name": "Cloud", "backup_local": False} if with_backup else {})}
+        return {**real(hass), "backup": "ai_task.spare", "backup_name": "Spare", "backup_local": True, "main_away": True}
     monkeypatch.setattr(P, "ai_task", ai_task)
-    assert _call(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=True)["error"] == "cloud_not_agreed" and seen == [True]
-
-
-@pytest.mark.parametrize("url,local", [("https://ollama.com", False), ("http://8.8.8.8:11434", False), (None, None)])
-def test_an_ollama_outside_the_house_needs_the_tick_and_says_so(monkeypatch, tmp_path, disk, url, local):
-    """Review 2026-11-02: HA's Ollama takes any URL. Outside the house (or
-    with no URL to go by) it is not local: no plan goes without the tick, on
-    the server, whatever the sheet said, and a local read's short cap isn't its."""
-    from tests.test_house3d_photo import _HOST_AT_HOME
-    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),))
-    monkeypatch.setattr(P, "_server_url", lambda hass, eid: url)
-    monkeypatch.setattr(P, "_host_at_home", _HOST_AT_HOME)
-    info = _call(W.ws_plan_ai_plans, h, conn)["ai"]
-    assert info["local"] is local
-    tasks = []
-    h.async_create_background_task = lambda coro, name: tasks.append(asyncio.get_event_loop().create_task(coro)) or tasks[-1]
-    seen = []
-    real = P.ask_ai
-
-    async def spy(hass, ai_, instructions, structure, raw, mime, task_name="x", *, count=True, timeout_s=None):
-        seen.append(timeout_s)
-        return await real(hass, ai_, instructions, structure, raw, mime, task_name, count=count, timeout_s=timeout_s)
-    monkeypatch.setattr(P, "ask_ai", spy)
-
-    async def go():
-        out = await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False)
-        assert out["error"] == "cloud_not_agreed" and ai.calls == []
-        out = await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False, cloud_ok=True)
-        assert "session" in out
-        await asyncio.gather(*tasks)
-    asyncio.new_event_loop().run_until_complete(go())
-    assert ai.calls and all(t == P.PHOTO_TIMEOUT_S for t in seen)
-
-
-def test_an_ollama_on_the_home_network_needs_no_tick(monkeypatch, tmp_path, disk):
-    from tests.test_house3d_photo import _HOST_AT_HOME
-    h, conn, ai, media = _house(monkeypatch, tmp_path, plans=(("m1", "Main", "main", _T1),))
-    monkeypatch.setattr(P, "_server_url", lambda hass, eid: "http://192.168.1.60:11434")
-    monkeypatch.setattr(P, "_host_at_home", _HOST_AT_HOME)
-    assert _call(W.ws_plan_ai_plans, h, conn)["ai"]["local"] is True
     tasks = []
     h.async_create_background_task = lambda coro, name: tasks.append(asyncio.get_event_loop().create_task(coro)) or tasks[-1]
 
-    async def go():
-        assert "session" in await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False)
+    async def go2():
+        assert "session" in await _call_async(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"])
         await asyncio.gather(*tasks)
-    asyncio.new_event_loop().run_until_complete(go())
-    assert ai.calls
+    asyncio.new_event_loop().run_until_complete(go2())
+    assert seen == [True] and ai.calls and all(d["entity_id"] == "ai_task.spare" for _d, _s, d in ai.calls)
+    assert h.data[DOMAIN][DATA_PLAN_AI].session(None)["backup_used"] is True
 
 
 def test_without_an_ai_task_start_refuses_and_counts_it(monkeypatch, tmp_path, disk):
@@ -1298,7 +1260,7 @@ def test_without_an_ai_task_start_refuses_and_counts_it(monkeypatch, tmp_path, d
     monkeypatch.setattr(T, "bump", lambda hass, e, n=1: counted.extend([e] * n))
     h, conn, ai, media = _house(monkeypatch, tmp_path)
     h.data[DOMAIN][DATA_SETTINGS].data["atlas_3d_ai_task_entity"] = ""
-    assert _call(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"], backup_ok=False)["error"] == P.NO_AI_CODE
+    assert _call(W.ws_plan_ai_start, h, conn, map_ids=["m1"], kinds=["stairs"])["error"] == P.NO_AI_CODE
     assert counted == ["plan_ai_error:no_ai_task"] and ai.calls == []
     assert _call(W.ws_plan_ai_plans, h, conn)["ai"]["ready"] is False
 

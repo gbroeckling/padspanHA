@@ -10,10 +10,9 @@
 //
 //   The sheet   which placed plans to read (grouped by floor, all ticked),
 //               which kinds (stairs; railings beside them; lights come
-//               later), what to expect, where the plans go (an AI on the home's
-//               own network keeps them in the house; anything else needs a
-//               tick), how long the AI may be busy, and one button. A session
-//               that read nothing says why, not that the AI found nothing.
+//               later), what to expect, which AI reads them, how long it may
+//               be busy, and one button. A session that read nothing says why,
+//               not that the AI found nothing.
 //   The job     runs on the server (ws_plan_ai.py); the sheet asks for its
 //               status every 3 s and can cancel it between reads.
 //   The list    one row per suggestion, with a crop of the plan drawn from
@@ -77,23 +76,19 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const m1 = (v) => (num(v) === null ? "?" : (Math.round(v * 10) / 10).toFixed(1));
 const mins = (s) => { s = Math.max(0, Math.round(num(s) || 0)); return s >= 60 ? `${Math.floor(s / 60)} m ${s % 60} s` : `${s} s`; };
 
-/** Where the plans go, in the photo step's own words (its aiNote) with "plan" for "photo".
- *  The backup is named only as what it is: it reads only with its own tick (backupOk). */
-function planNote(ai, n, backupOk){
+/** Which AI reads the plans, in the photo step's own words (its aiNote) with "plan" for "photo". */
+function planNote(ai, n){
   const name = (ai && ai.name) || "The AI Task";
-  const them = n === 1 ? "the plan" : "the plans";
-  const whereOf = (local, it = "it") => (local === true ? `${it[0].toUpperCase()}${it.slice(1)} is on your own network, so ${them} stay in the house.`
-    : local === false ? `${it[0].toUpperCase()}${it.slice(1)} runs in the cloud: ${them} leave the house for that service.`
-    : `If ${it} runs in the cloud, ${them} leave the house for that service.`);
+  const [them, stay, leave, it_] = n === 1 ? ["the plan", "stays", "leaves", "it"] : ["the plans", "stay", "leave", "them"];
+  const whereOf = (local, it = "it") => (local === true ? `${it[0].toUpperCase()}${it.slice(1)} runs in your home, so ${them} ${stay} in the house.`
+    : local === false ? `${it[0].toUpperCase()}${it.slice(1)} runs in the cloud: ${them} ${leave} the house for that service.`
+    : `If ${it} runs in the cloud, ${them} ${leave} the house for that service.`);
   const bk = ai && ai.backup ? (ai.backup_name || ai.backup) : null;
   if (!bk && ai && ai.main_away) return `${name} is away right now, so nothing can read ${them}. Start it, or set a backup in Settings → AI, then open this again.`;
-  if (bk && ai.main_away) return backupOk ? `The main AI Task is away, so the backup, ${bk}, will read ${them}. ${whereOf(ai.backup_local)} PadSpan keeps no copy.`
-    : `The main AI Task is away. The backup, ${bk}, can read ${them} if you tick it below. ${whereOf(ai.backup_local, "that one")}`;
-  const also = bk && backupOk ? ` If it's away, the backup, ${bk}, reads them instead. ${whereOf(ai.backup_local, "that one")}` : "";
+  if (bk && ai.main_away) return `The main AI Task is away, so the backup, ${bk}, will read ${them}. ${whereOf(ai.backup_local)} PadSpan keeps no copy.`;
+  const also = bk ? ` If it's away, the backup, ${bk}, reads ${it_} instead. ${whereOf(ai.backup_local, "that one")}` : "";
   return `${name} will read ${them}. ${whereOf(ai && ai.local)}${also} PadSpan keeps no copy.`;
 }
-/** Whether a plan could leave the house: the main AI Task, or a backup allowed to read it, not local. */
-const mayLeave = (ai, backupOk) => !!ai && (ai.local !== true || (!!backupOk && !!ai.backup && ai.backup_local !== true));
 
 /**
  * ctx = { root, sheet, guard, host() → {callWS, settings} | null, floors() → [{fl: {id, name, outdoor}}],
@@ -105,7 +100,6 @@ export function createPlans(ctx){
   let urls = null, ignored = null, failing = null, cancelNote = "", runningId = null;
   const picked = new Set();
   const kinds = { stairs: true, railing: true };
-  let cloudOk = false, backupOk = false;
   const style = document.createElement("style");
   style.textContent = CSS;
   ctx.root.appendChild(style);
@@ -169,11 +163,10 @@ export function createPlans(ctx){
     if (busy) return;
     const ids = [...picked];
     if (!ids.length) { err = "Tick at least one plan."; redraw(); return; }
-    if (mayLeave(info && info.ai, backupOk) && !cloudOk) { err = "Tick that you understand the plans leave the house, or choose a local AI Task in Settings → AI."; redraw(); return; }
     busy = true; err = ""; redraw();
     try {
       const want = ["stairs"].concat(kinds.railing ? ["railing"] : []);
-      const r = await call("plan_ai_start", { map_ids: ids, kinds: want, backup_ok: !!backupOk, cloud_ok: !!cloudOk });
+      const r = await call("plan_ai_start", { map_ids: ids, kinds: want });
       sess = null; cancelNote = ""; step = "progress"; busy = false;
       startPoll(r.session);
     } catch (e) { fail(e); }
@@ -319,31 +312,15 @@ export function createPlans(ctx){
     const ai = info && info.ai;
     if (!ai || ai.ready === false) sheet.appendChild(d("div", "pl-note pl-bad", (ai && ai.message) || "Pick an AI Task in Settings → AI first."));
     else {
-      sheet.appendChild(d("div", "pl-note", planNote(ai, n, backupOk)));
-      const withBackup = !!(backupOk && ai.backup);
-      if (ai.local !== false || withBackup) sheet.appendChild(d("div", "pl-note", sharedNote(withBackup)));
-      if (mayLeave(ai, backupOk)) {
-        sheet.appendChild(d("div", "pl-note", "A plan with your address on it goes with it; crop it in Mapping → Upload first if you'd rather not."));
-        const l = d("label", "pl-tick");
-        const cb = d("input"); cb.type = "checkbox"; cb.checked = cloudOk;
-        cb.addEventListener("change", () => { cloudOk = cb.checked; });
-        l.append(cb, d("span", null, "I understand these plans leave the house"));
-        sheet.appendChild(l);
-      }
-      if (ai.backup) {
-        const l = d("label", "pl-tick");
-        const cb = d("input"); cb.type = "checkbox"; cb.checked = backupOk;
-        cb.addEventListener("change", () => { backupOk = cb.checked; redraw(); });
-        l.append(cb, d("span", null, `If the main one is away, let the backup (${ai.backup_name || ai.backup}) read them`));
-        sheet.appendChild(l);
-      }
+      sheet.appendChild(d("div", "pl-note", planNote(ai, n)));
+      if (ai.local !== false || ai.backup) sheet.appendChild(d("div", "pl-note", sharedNote(!!ai.backup)));
     }
     // 5. Go.
     const acts = d("div", "pl-acts");
     const go = btn("", "Start reading", () => start(), "go");
-    go.textContent = mayLeave(ai, backupOk) ? `Send ${n} plan${n === 1 ? "" : "s"} to the cloud` : `Read ${n} plan${n === 1 ? "" : "s"}`;
+    go.textContent = `Read ${n} plan${n === 1 ? "" : "s"}`;
     const blocked = info && info.start_blocked;
-    go.disabled = busy || !ai || ai.ready === false || !!blocked || !n || (ai.main_away === true && !backupOk);
+    go.disabled = busy || !ai || ai.ready === false || !!blocked || !n || (ai.main_away === true && !ai.backup);
     acts.appendChild(go);
     if (sess && Object.keys(sess.suggestions || {}).length) acts.appendChild(btn("Back to the last list", "The last session's items", () => { step = "list"; redraw(); }));
     sheet.appendChild(acts);
@@ -507,7 +484,7 @@ export function createPlans(ctx){
       on = !!on;
       if (on === shownNow) return;
       shownNow = on;
-      if (on) { view = "list"; failing = null; cloudOk = false; backupOk = false; open(); }     // each opening asks again
+      if (on) { view = "list"; failing = null; open(); }
       else { stopPoll(); sheet.classList.remove("plans"); }
     },
     /** The sheet's content for the step we are at; true: there is one. */

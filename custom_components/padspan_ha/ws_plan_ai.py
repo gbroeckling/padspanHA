@@ -102,16 +102,12 @@ async def ws_plan_ai_plans(hass: HomeAssistant, connection, msg) -> None:
     "type": "padspan_ha/plan_ai_start",
     vol.Required("map_ids"): [str],
     vol.Optional("kinds", default=["stairs", "railing"]): [str],
-    vol.Optional("backup_ok", default=False): bool,
-    vol.Optional("cloud_ok", default=False): bool,
 })
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_plan_ai_start(hass: HomeAssistant, connection, msg) -> None:
-    """Start one session over the ticked plans. The backup AI Task is used
-    only when the sheet named it and the person agreed (backup_ok); a plan
-    goes to an AI not known to be local only with the tick (cloud_ok), asked
-    here too, since the AI Task may have changed since the sheet was drawn."""
+    """Start one session over the ticked plans, read by the AI Task, or by the
+    backup when it is away, as ask_ai always does."""
     store = await _refused(hass, connection, msg)
     if store is None:
         return
@@ -125,13 +121,10 @@ async def ws_plan_ai_start(hass: HomeAssistant, connection, msg) -> None:
     if not kinds or "stairs" not in kinds:
         connection.send_error(msg["id"], "bad_kinds", "Stairs are the one kind this version reads; lights come later.")
         return
-    ai = P.ai_task(hass, with_backup=bool(msg.get("backup_ok")))
+    ai = P.ai_task(hass, with_backup=True)
     if not ai.get("ready"):
         A._bump(hass, "plan_ai_error:no_ai_task")  # noqa: SLF001
         connection.send_error(msg["id"], P.NO_AI_CODE, ai.get("message", ""))
-        return
-    if (ai.get("local") is not True or (ai.get("backup") and ai.get("backup_local") is not True)) and not msg.get("cloud_ok"):
-        connection.send_error(msg["id"], "cloud_not_agreed", "These plans would leave the house: tick that you understand, or choose a local AI Task in Settings → AI.")
         return
     by_id = {p["map_id"]: p for p in A.plans(hass)}
     want = list(dict.fromkeys(str(m) for m in msg["map_ids"]))
@@ -139,7 +132,7 @@ async def ws_plan_ai_start(hass: HomeAssistant, connection, msg) -> None:
     if not want or missing:
         connection.send_error(msg["id"], NOT_PLACED_CODE, "That floor plan isn't placed on its floor yet: place it in Mapping → 3D Stack first.")
         return
-    sid = A.start(hass, store, ai, [by_id[m] for m in want], kinds, bool(msg.get("backup_ok")), A.frame_kind(hass, ai["ai_task"]))
+    sid = A.start(hass, store, ai, [by_id[m] for m in want], kinds, A.frame_kind(hass, ai["ai_task"]))
     connection.send_result(msg["id"], {"session": sid})
 
 

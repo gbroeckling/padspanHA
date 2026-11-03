@@ -637,11 +637,11 @@ def start_allowed(hass: HomeAssistant, now: float | None = None) -> str | None:
     return None
 
 
-def new_session(ai: dict, plans_: list[dict], kinds: list[str], backup_ok: bool, frame: str) -> dict[str, Any]:
+def new_session(ai: dict, plans_: list[dict], kinds: list[str], frame: str) -> dict[str, Any]:
     """A session record about to run (the store's shape, section 4)."""
     return {"rev": 1, "started_at": time.time(), "finished_at": None, "status": "running", "error": None,
             "ai_task": str(ai.get("ai_task") or ""), "local": ai.get("local"), "backup_used": False,
-            "backup_ok": bool(backup_ok), "frame": frame, "budget_s": PLAN_BUDGET_S, "spent_s": 0.0,
+            "frame": frame, "budget_s": PLAN_BUDGET_S, "spent_s": 0.0,
             "reads": 0, "tiles": 0, "timeouts": 0, "errors": {}, "skipped": 0, "no_floor": 0, "crop_dropped": 0,
             "progress": {"plan": 0, "of": len(plans_), "name": "", "step": "stairs"},
             "plans": [{"map_id": p["map_id"], "name": p.get("name") or "", "floor_id": p["floor_id"],
@@ -1046,8 +1046,7 @@ class Runner:
         await self._save()
 
 
-def start(hass: HomeAssistant, store: PlanAiStore, ai: dict[str, Any], plans_: list[dict], kinds: list[str],
-          backup_ok: bool, frame: str) -> str:
+def start(hass: HomeAssistant, store: PlanAiStore, ai: dict[str, Any], plans_: list[dict], kinds: list[str], frame: str) -> str:
     """Make a session and start its task. The id. Nothing here waits, so a
     second press finds the job (already_running), and a status check never
     sees a session marked running with no job behind it."""
@@ -1055,7 +1054,7 @@ def start(hass: HomeAssistant, store: PlanAiStore, ai: dict[str, Any], plans_: l
     dom = hass.data.setdefault(DOMAIN, {})
     now = time.monotonic()
     dom[_DATA_STARTS] = [t for t in dom.get(_DATA_STARTS, []) if now - t < 86400] + [now]
-    store.data.setdefault("sessions", {})[sid] = new_session(ai, plans_, kinds, backup_ok, frame)
+    store.data.setdefault("sessions", {})[sid] = new_session(ai, plans_, kinds, frame)
     store.trim()
     job = Job(sid)
     dom[_DATA_JOB] = job
