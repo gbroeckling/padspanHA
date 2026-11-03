@@ -3652,7 +3652,13 @@ export function buildLightsMapCard(hostIn){
           // master switch on, an AI Task chosen, where Edit itself is offered, never on Sample mode's house, and
           // only for an administrator (every plan_ai_ command is one's).
           plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && h3.admin !== false && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")
-            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings, telemetry: h3.telemetry || null, openAtlasRoom: h3.openAtlasRoom || null } : null,
+            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings, telemetry: h3.telemetry || null,
+              // The flat Atlas is where a pin is dropped: leave Edit (asking first if something is unsaved), then Map on that room.
+              openAtlasRoom: typeof h3.openAtlasRoom !== "function" ? null : (fid, room) => {
+                const go = () => { _la3dPick(h3.slot, false); h3.openAtlasRoom(fid, room); };
+                const s = la3dSlot();
+                if (!(s && s.holdLeave && s.holdLeave(go))) go();
+              } } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
           // The view's floor stepper (▲ Main ▼ · All): the floor chips'
           // choice, a floor at a time, lowest first; and, on the sidebar,

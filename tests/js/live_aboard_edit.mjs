@@ -129,7 +129,8 @@ let openNext = null;
 const toolHook = { take: () => { const t = openNext; openNext = null; return t; } };
 // The Plans tool (live_aboard_plans.js): only while the host hands it (null: off).
 let plansHook = null;
-const P = () => ({ model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: topIds, quality: "low",
+let latchesHook = null;
+const P = () => ({ floodLatches: latchesHook, model: MODEL, floors: MODEL.floors, lightsByEid: LBE, hidden: new Set(), topFloorIds: topIds, quality: "low",
   telemetry: () => {}, states: {}, config: {}, bearing: 0, saveNorth: null, useApi: () => api, haStartedMs: 0,
   load: async () => ({ data: clone(server.file) }), edit: editFn, tags: tagsHook, openTool: toolHook, plans: plansHook });
 /** A fresh card, as the Atlas builds one every 5 s: the view moves into it. */
@@ -1253,6 +1254,76 @@ await tryCase("tool: the setup wizard's way in opens Edit at its tool, once", as
     click("Save", "la3d-tools"); await settle(30);
     const e = ed();
     check("plans: the tool gone, another edit: it is saved and says the items weren't kept", payloads.length === n0 + 1 && plan.commitCalls.length === c0 && e.planPending.length === 0 && /^Saved, but the items from the plans weren't kept/.test(e.hint) && e.hintBad && !e.dirty, { hint: e.hint, bad: e.hintBad, n: payloads.length - n0 });
+  });
+  // The quiet view, B1 of the review of 2026-11-02: what it hides comes back after a draft change.
+  const plansOff = async () => { if (ed().tool === "plans") { click("Plans", "la3d-tools"); await settle(30); } };
+  const plansOn = async () => { if (ed().tool !== "plans") { click("Plans", "la3d-tools"); await settle(30); } };
+  const fresh = () => { plan.session.suggestions = { s9: stairOf("s9", 2, 2) }; plan.session.status = "done"; plan.undo = null; plan.refuse = null; };
+  await tryCase("plans: quiet: what it hides comes back when the tool closes, after a draft change", async () => {
+    plansHook = { settings: {}, callWS: plansHookKept };
+    fresh();
+    poll(); await settle(30);
+    await plansOff();
+    if (ed().dirty) { click("Discard", "la3d-tools"); await settle(); }
+    const was = { lights: st().lights, readouts: st().readouts.length };
+    check("plans: quiet: (a house with lights and a readout)", was.lights > 0 && was.readouts > 0, was);
+    for (const how of ["nothing", "new", "new then undo", "new then discard", "new, then a poll"]) {
+      fresh();
+      await plansOn();
+      const quietNow = { lights: st().lights, readouts: st().readouts.length };
+      if (how !== "nothing") { inSheet("New").click(); await settle(); }
+      if (how === "new then undo") { click("Undo", "la3d-tools"); await settle(); }
+      if (how === "new then discard") { click("Discard", "la3d-tools"); await settle(); }
+      if (how === "new, then a poll") { poll(); await settle(30); }
+      const during = st().lights;
+      await plansOff();
+      const after = { lights: st().lights, readouts: st().readouts.length };
+      check(`plans: quiet: ${how}: hidden while it shows, back when it closes`, quietNow.lights === 0 && quietNow.readouts === 0 && during === 0 && after.lights === was.lights && after.readouts === was.readouts, { how, quietNow, during, after, was });
+      if (ed().dirty) { click("Discard", "la3d-tools"); await settle(); }
+    }
+  });
+  // A real alarm mustn't vanish behind the quiet view.
+  await tryCase("plans: quiet: a real alarm still shows", async () => {
+    const SMOKE = "binary_sensor.den_smoke", LEAK = "binary_sensor.rec_leak", DRY = "binary_sensor.den_leak";
+    const flood = (entity_id, device_class, state, friendly_name) => ({ entity_id, device_class, state, friendly_name, isFlood: true });
+    MODEL.light_positions_m[SMOKE] = { x_m: 6, y_m: 3, floor_id: "main" };
+    MODEL.light_positions_m[LEAK] = { x_m: 2, y_m: 3, floor_id: "basement" };
+    MODEL.light_positions_m[DRY] = { x_m: 7, y_m: 3, floor_id: "main" };
+    LBE[SMOKE] = flood(SMOKE, "smoke", "off", "Den smoke");
+    LBE[LEAK] = flood(LEAK, "moisture", "off", "Rec leak");
+    LBE[DRY] = flood(DRY, "moisture", "off", "Den leak");
+    const pill = () => root().querySelectorAll(".la3d-quiet-alarm")[0] || null;
+    const mark = (eid) => st().marks.find(m => m.eid === eid) || null;
+    try {
+      fresh();
+      poll(); await settle(30);
+      await plansOn();
+      check("plans: quiet: nothing alarming: no mark and no word", !st().marks.length && !pill(), { marks: st().marks, pill: !!pill() });
+      LBE[SMOKE] = { ...LBE[SMOKE], state: "on" };
+      poll(); await settle(30);
+      const m = mark(SMOKE);
+      check("plans: quiet: smoke going off mid-tool: drawn, ripple and word", m && m.look.alarm && m.badge.on && m.badge.word === "SMOKE" && m.ripple.on && m.shown, m);
+      check("plans: quiet: named over the view", pill() && pill().textContent === "SMOKE · Den smoke" && pill().getAttribute("role") === "alert", pill() && pill().textContent);
+      check("plans: quiet: a quiet sensor beside it stays hidden, and the lights too", !mark(DRY) && st().lights === 0, { marks: st().marks, lights: st().lights });
+      LBE[LEAK] = { ...LBE[LEAK], state: "on" };
+      poll(); await settle(30);
+      check("plans: quiet: a leak on another floor is named too", pill() && pill().textContent.includes("WET · Rec leak") && pill().textContent.includes("SMOKE · Den smoke"), pill() && pill().textContent);
+      LBE[SMOKE] = { ...LBE[SMOKE], state: "off" }; LBE[LEAK] = { ...LBE[LEAK], state: "off" };
+      latchesHook = { [LEAK]: { triggered_at: Date.now() / 1000 - 3600 } };
+      poll(); await settle(30);
+      check("plans: quiet: still latched, it is still an alarm", pill() && pill().textContent === "ALARM · Rec leak" && mark(LEAK) && mark(LEAK).look.latched && !mark(SMOKE), { pill: pill() && pill().textContent, marks: st().marks });
+      latchesHook = null;
+      poll(); await settle(30);
+      check("plans: quiet: over: gone again", !pill() && !st().marks.length, { pill: pill() && pill().textContent, marks: st().marks });
+      LBE[SMOKE] = { ...LBE[SMOKE], state: "on" };
+      poll(); await settle(30);
+      await plansOff();
+      check("plans: quiet: the tool closed: the word goes, the alarm is drawn as ever", !pill() && mark(SMOKE) && mark(SMOKE).badge.on && !!mark(DRY), { pill: !!pill(), marks: st().marks });
+    } finally {
+      for (const eid of [SMOKE, LEAK, DRY]) { delete MODEL.light_positions_m[eid]; delete LBE[eid]; }
+      latchesHook = null;
+    }
+    poll(); await settle(30);
   });
   await closeEdit();
 }

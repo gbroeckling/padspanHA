@@ -69,6 +69,11 @@ The other ways in:
     squared to its room. It's a first guess: in a test with a small local model (qwen2.5vl:7b) it found
     most staircases but got their exact size and which way is up wrong often enough that you should check
     every one. A bigger or cloud model reads plans better. A plan is sent to your AI only when you press it.
+  - **Check the AI's finds one by one (experimental):** **Edit → Plans** in Live Aboard shows your plan
+    under the house with what the AI found, and you accept or refuse each item before anything is kept. It's
+    an experiment and the AI gets things wrong, so check every item. See
+    [Plans](LIVE_ABOARD_GUIDE.md#plans-what-an-ai-finds-on-your-floor-plans-experimental) in the Live Aboard
+    Guide. On a device with no 3D, this tab offers the same items as a list: **Add data via plans (experimental)**.
   - **From a file:** Import brings a Sweet Home 3D staircase in as stairs (its own staircase mark, or
     a name like "Spiral staircase" or "L-shaped stairs" for a first guess at the shape; a mirrored
     model turns the other way), and with RoomPlan import on (Settings → Features), the furniture and

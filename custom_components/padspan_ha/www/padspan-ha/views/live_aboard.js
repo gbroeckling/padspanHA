@@ -4230,7 +4230,7 @@ function createSlot(slotKey){
       return false;
     });
   }
-  const redraw = guard(() => { if (lastP && renderer && !failed) update(lastP); });
+  const redraw = guard(() => { if (rawP && renderer && !failed) update(rawP); });   // rawP: while quiet, lastP is the quiet copy, and update(lastP) would make that the real data
   /** After a Save of the person's own, never on opening: each Open (Loft)
    *  edge with no rail word gets the word for what the drop rule draws
    *  (HOUSE.edgeRailsToStamp: glass or none, so nothing changes to look at).
@@ -4699,23 +4699,41 @@ function createSlot(slotKey){
   // The Plans tool's vetting map: only the plan, the house and its pins. Nothing
   // live is drawn (no lights, sensors, readouts, names, people or weather, and
   // their frames with them) and the walls are down, so the plan reads between
-  // them. Everything comes back as it was when the tool closes.
-  let quiet = false, quietWalls = null, rawP = null;
-  const ALL_HIDDEN = { has: () => true };
+  // them. All of that comes back when the tool closes; the floor and the camera
+  // stay where the tool left them (in memory, until a page load or Save view).
+  // A real alarm stays: a smoke, gas, CO or leak alarm going off or still latched
+  // is drawn as ever, and named over the view, as it may be on another floor.
+  let quiet = false, quietWalls = null, rawP = null, quietAlarmEl = null;
+  const alarmOf = (p, l) => (MARKS && MARKS.markKindOf(l) === "flood" ? MARKS.floodLook(l, p.floodLatches, Date.now()) : null);
   function quietOf(p){
-    return { ...p, hidden: ALL_HIDDEN, weather: null, emergency: null, people: null, tags: null, classFilter: null, floodLatches: null };
+    const lbe = p.lightsByEid || {};
+    return { ...p, hidden: { has: (eid) => { const k = alarmOf(p, lbe[eid]); return !(k && k.alarm); } }, weather: null, emergency: null, people: null, tags: null, classFilter: null };
+  }
+  /** The alarms' words over the view while it is quiet: nothing to say, no element. */
+  function sayQuietAlarms(p){
+    const words = !quiet || !p ? [] : Object.values(p.lightsByEid || {}).flatMap((l) => { const k = alarmOf(p, l); return k && k.alarm ? [`${k.word} · ${l.area_name || l.friendly_name || l.entity_id}`] : []; });
+    if (!words.length) { if (quietAlarmEl) { quietAlarmEl.remove(); quietAlarmEl = null; } return; }
+    if (!quietAlarmEl) {
+      quietAlarmEl = document.createElement("div");
+      quietAlarmEl.className = "la3d-quiet-alarm";
+      quietAlarmEl.setAttribute("role", "alert");
+      quietAlarmEl.style.cssText = "position:absolute;left:50%;top:56px;transform:translateX(-50%);z-index:6;max-width:80%;padding:6px 14px;border-radius:999px;background:#b91c1c;color:#fff;font-weight:700;font-size:14px;text-align:center;pointer-events:none";
+      root.appendChild(quietAlarmEl);
+    }
+    quietAlarmEl.textContent = words.join(", ");
   }
   function setQuiet(on){
     on = !!on;
     if (on === quiet) return;
     quiet = on;
     if (on) { quietWalls = wallMode; setWalls("down"); } else if (quietWalls) { setWalls(quietWalls); quietWalls = null; }
-    if (rawP && renderer && !failed) update(rawP);
+    if (rawP && renderer && !failed) update(rawP); else sayQuietAlarms(null);
     if (house) applyTop();
     requestRender();
   }
   function update(p){
     rawP = p;
+    sayQuietAlarms(p);
     if (quiet && p) p = quietOf(p);
     // A room raised above its floor is drawn as a level of its own (HOUSE.splitLevels).
     if (p && p.model && HOUSE.splitLevels) p = { ...p, model: HOUSE.splitLevels(p.model) };

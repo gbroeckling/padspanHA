@@ -168,6 +168,8 @@ const KIND_OF = { stairs: { word: "Stairs", glyph: SVG('<path d="M2 14h3v-4h3V6h
   railing: { word: "Railing hint", glyph: SVG('<path d="M2 4h12M4 4v9M8 4v9M12 4v9"/>') },
   light: { word: "Light", glyph: SVG('<circle cx="8" cy="8" r="5"/><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>') } };
 const GHOST = 0.45, DASH_COL = "#f59e0b", RECAP_EVERY = 25, TEX_MAX = 1024, PLAN_OPACITY = 0.7, SPOT_M = 14, MIN_PX_M = 34;
+/** The signed picture links last 24 hours (map_image_view.py SIGN_TTL): asked for again well before that. */
+const LINK_MS = 20 * 3600 * 1000;
 const WHY = [["wrong_place", "Wrong place"], ["nothing_there", "Nothing there"], ["already_here", "Already here"], ["wrong_kind", "Wrong kind"], ["cant_tell", "Can't tell"]];
 const WHY_WORD = Object.fromEntries(WHY);
 const POLL_MS = 3000;
@@ -332,7 +334,7 @@ function planNote(ai, n){
 export function createPlans(ctx){
   const { sheet, guard } = ctx;
   let shownNow = false, step = "idle", info = null, sess = null, poll = null, busy = false, err = "", view = "list";
-  let urls = null, ignored = null, failing = null, cancelNote = "", runningId = null, undoInfo = null, askUndo = false, focusBtn = null;
+  let urls = null, urlsAt = 0, urlsAsked = false, ignored = null, failing = null, cancelNote = "", runningId = null, undoInfo = null, askUndo = false, focusBtn = null;
   let record = null;                 // this house's own record, per kind (the server's: plan_ai.track_record)
   const stackFloor = new Map();      // a stacked item's floor, as picked
   const railPick = new Map();        // a railing hint's side and style, as picked
@@ -394,8 +396,9 @@ export function createPlans(ctx){
     redraw();
   }
   function loadUrls(){
-    if (urls) return;
-    call("maps_image_urls").then((r) => { urls = (r && r.image_urls) || {}; redraw(); }).catch(() => { urls = {}; });
+    if ((urls && Date.now() - urlsAt < LINK_MS) || urlsAsked) return;
+    urlsAsked = true;
+    call("maps_image_urls").then((r) => { urls = (r && r.image_urls) || {}; urlsAt = Date.now(); urlsAsked = false; redraw(); }).catch(() => { urls = {}; urlsAt = Date.now(); urlsAsked = false; });
   }
 
   /** Back to the plans and the button, with what the server says now (a start may be allowed again). */
@@ -741,7 +744,8 @@ export function createPlans(ctx){
     const lo = Math.max(1, Math.round(n * 1.5)) + yes * 6, hi = Math.max(lo, n * 4 + yes * 12);
     sheet.appendChild(d("div", "pl-note", `About 1-2 staircases and 0-2 railing hints per plan${yes ? "; on a plan with fixtures 6-12 lights" : ""}. For your ${n} plan${n === 1 ? "" : "s"}: roughly ${lo}-${hi} items, `
       + `${Math.max(1, n) + yes}-${Math.max(1, n) * 3 + yes * 3} minutes to vet.`));
-    if (yes) sheet.appendChild(d("div", "pl-note", "Light tiles are read last, about a minute and a half a plan. Lights are never placed or moved: a symbol can only change a placed light's kind."));
+    if (yes) sheet.appendChild(d("div", "pl-note", "Light tiles are read last, 2.5-3 minutes a plan. Lights are never placed or moved: a symbol can only change a placed light's kind."));
+    if (kinds.light) sheet.appendChild(d("div", "pl-note", "Tick only the sheets that draw lights: with more plans ticked, the session's time can run out before the lights are read."));
     // 4. Where the plans go.
     sheet.appendChild(d("h5", null, "Where the plans go"));
     const ai = info && info.ai;
@@ -779,18 +783,21 @@ export function createPlans(ctx){
     sheet.appendChild(acts);
   }
 
+  /** A mark near a placed light that nobody read a symbol from: nothing says it is that light. */
+  const unsaid = (s) => s.kind === "light" && s.state === "duplicate" && (s.geom || {}).symbol === "unknown";
   function summary(){
     if (sess.status === "failed" && NO_READ[sess.error]) return `Nothing was read: ${NO_READ[sess.error]}. That isn't the AI finding nothing: read again once it's sorted.`;
     const ss = sugs();
     const stairs = ss.filter(s => s.kind === "stairs" && s.state !== "duplicate").length;
     const rails = ss.filter(s => s.kind === "railing").length;
-    const lights = ss.filter(s => s.kind === "light" && s.state !== "duplicate").length, lightsHere = ss.filter(s => s.kind === "light" && s.state === "duplicate").length;
+    const lights = ss.filter(s => s.kind === "light" && s.state !== "duplicate").length, lightsHere = ss.filter(s => s.kind === "light" && s.state === "duplicate" && !unsaid(s)).length, lightsUnsaid = ss.filter(unsaid).length;
     const skipped = sess.skipped || 0, read = (sess.plans || []).filter(p => p.answered).length, notRead = unread();
     const errs = sess.errors || {}, failedReads = Object.keys(NO_READ).reduce((t, k) => t + (errs[k] || 0), 0);
     const worst = Object.keys(NO_READ).reduce((a, k) => ((errs[k] || 0) > (errs[a] || 0) ? k : a));
     const lightsWord = sess.lights_asked ? `, ${lights} light${lights === 1 ? "" : "s"}` : "";
     let line = `Found ${stairs} stair${stairs === 1 ? "" : "s"}, ${rails} railing hint${rails === 1 ? "" : "s"}${lightsWord} on ${read} plan${read === 1 ? "" : "s"} in ${mins(sess.spent_s)}.`;
     if (lightsHere) line += ` ${lightsHere} light${lightsHere === 1 ? " was" : "s were"} already there.`;
+    if (lightsUnsaid) line += ` ${lightsUnsaid} mark${lightsUnsaid === 1 ? "" : "s"} near a placed light ${lightsUnsaid === 1 ? "wasn't" : "weren't"} read closely enough to say what ${lightsUnsaid === 1 ? "it is" : "they are"}.`;
     if (sess.tiles_skipped === "slow") line += " Lights weren't read: this AI's first read took over 45 seconds, and nine tiles a plan would use up the session.";
     else if (sess.lights_asked && !sess.tiles && (sess.plans || []).some(p => (p.kinds || []).includes("light"))) line += " Lights weren't read: the time ran out first.";
     if (sess.light_dropped) line += ` ${sess.light_dropped} light${sess.light_dropped === 1 ? "" : "s"} left out: a closer look found no fixture there.`;
@@ -867,7 +874,7 @@ export function createPlans(ctx){
     row_.appendChild(d("span", null, "It climbs from:"));
     const cur = stackFloor.get(sug.id) || sug.floor_id;
     for (const G of from) {
-      const b = btn(G.fl.name || String(G.fl.id), `It starts on ${G.fl.name || G.fl.id}`, () => { stackFloor.set(sug.id, String(G.fl.id)); redraw(); });
+      const b = btn(G.fl.name || String(G.fl.id), `It starts on ${G.fl.name || G.fl.id}`, () => { stackFloor.set(sug.id, String(G.fl.id)); if (mapAwake) goTo(sug.id); else redraw(); });   // its pin and ghost are on that floor now
       b.setAttribute("aria-pressed", String(String(G.fl.id) === String(cur)));
       row_.appendChild(b);
     }
@@ -984,7 +991,8 @@ export function createPlans(ctx){
     group("Kept", ss.filter(s => String(s.state).startsWith("committed")), null);
     group("Undone", ss.filter(s => s.state === "undone"), null);
     group("Gone with its stair", ss.filter(s => s.state === "settled"), null);
-    group("Already in your house", ss.filter(s => s.state === "duplicate"), null);
+    group("Already in your house", ss.filter(s => s.state === "duplicate" && !unsaid(s)), null);
+    group("Near a placed light, not read closely", ss.filter(unsaid), null);
     group("Ignored before", ss.filter(s => s.state === "failure" && s.verdict && s.verdict.remembered),
       (s) => { const a = d("div", "pl-acts"); const b = btn("Un-ignore", "Forget that reject and queue it again", () => forget(s.verdict.reject)); b.disabled = busy; a.appendChild(b); return a; });
     if (!ss.length && sess.status === "done") sheet.appendChild(d("div", "pl-note", unread() ? "The AI found nothing on the plans it could read." : "The AI found nothing on these plans."));
@@ -1062,13 +1070,14 @@ export function createPlans(ctx){
   };
   const same = (a, b) => { const fa = floorUi(a), fb = floorUi(b); return fa && fb ? fa === fb : String(a) === String(b); };
   const itemFloorId = (s) => { const p = pendingOf(s.id), dr = ctx.draft && ctx.draft(); const q = p && dr ? dr.cur.pieces[p.piece] : null; return q ? q.floor_id : stackFloor.get(s.id) || s.floor_id; };
-  const roomAt = (s, at = null) => {
-    const F = floorUi(itemFloorId(s)), g = at || s.geom || {};
+  const roomAt = (s, at = null, fid = itemFloorId(s)) => {
+    const F = floorUi(fid), g = at || s.geom || {};
     return (F && (F.rooms || []).find(r2 => !r2.outdoor && Array.isArray(r2.pts) && r2.pts.length >= 3 && inPolygon(num(g.x_m) ?? 0, num(g.y_m) ?? 0, r2.pts))) || null;
   };
   const roomOf = (s, at = null) => { const r = roomAt(s, at); return r ? r.name || "" : ""; };
-  const roomRank = (s) => { const r = roomAt(s); return r ? Math.min(...r.pts.map(p => p[1])) * 1000 + Math.min(...r.pts.map(p => p[0])) : Infinity; };
-  const floorRank = (s) => { const F = floorUi(itemFloorId(s)); return F ? num(F.fl.elev) ?? 0 : 0; };
+  // The order goes by the floor the AI read it on: a floor picked for a stacked stair renumbers nothing.
+  const roomRank = (s) => { const r = roomAt(s, null, s.floor_id); return r ? Math.min(...r.pts.map(p => p[1])) * 1000 + Math.min(...r.pts.map(p => p[0])) : Infinity; };
+  const floorRank = (s) => { const F = floorUi(s.floor_id); return F ? num(F.fl.elev) ?? 0 : 0; };
   const orderNow = () => orderItems(mapItems(), floorRank, roomRank);
   const sugOf = (id) => (id && sess && sess.suggestions ? sess.suggestions[id] || null : null);
   const shownFloor = () => (expectFloor && floorUi(expectFloor)) || (ctx.currentFloor ? ctx.currentFloor() : null);
@@ -1452,6 +1461,9 @@ export function createPlans(ctx){
     ctx.hint("Drag the stair or its pin into place. Nothing is kept until Save.");
     redraw();
   }
+  /** Move by hand lasts as long as its item is in the draft: Undo or Discard ends it, so no drag goes outside the item's note. */
+  const pendingPiece = (id) => pendings().some(p => p.piece === id);
+  function holdMove(){ if (moving && !pendingPiece(moving)) moving = null; return !!moving; }
   function moveDone(){
     if (!moving) return;
     const id = cur;
@@ -1501,7 +1513,7 @@ export function createPlans(ctx){
   }
   function down(e){
     const F = shownFloor();
-    if (moving) {
+    if (holdMove()) {
       const dr = ctx.draft(), q = dr ? dr.cur.pieces[moving] : null, at = F ? onFloor(e.clientX, e.clientY, F) : null;
       const corners = q && ctx.STOREY && ctx.STOREY.footprint ? ctx.STOREY.footprint(q) : null;
       if (at && corners && inPolygon(at[0], at[1], corners)) { gesture = dragFrom(e, false); if (gesture) return "drag"; }
@@ -1515,6 +1527,7 @@ export function createPlans(ctx){
   function move(e){
     const g = gesture;
     if (!g || !g.id) return;
+    if (!pendingPiece(g.id)) { gesture = null; return; }
     if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) <= 6) return;
     g.moved = true;
     const at = onFloor(e.clientX, e.clientY, g.F);
@@ -1530,17 +1543,22 @@ export function createPlans(ctx){
     if (g.moved) { if (ctx.redrawHouse) ctx.redrawHouse(); redraw(); }
   }
   function hover(e){
-    if (!moving) return "";
+    if (!holdMove()) return "";
     const F = shownFloor(), dr = ctx.draft(), q = dr ? dr.cur.pieces[moving] : null, at = F ? onFloor(e.clientX, e.clientY, F) : null;
     const corners = q && ctx.STOREY && ctx.STOREY.footprint ? ctx.STOREY.footprint(q) : null;
     return at && corners && inPolygon(at[0], at[1], corners) ? "grab" : "";
   }
   /** While the map shows and focus is in no field: N, C, F, L, Enter, Backspace, Z, P. True: it was ours.
+   *  N, C, F and L are always ours here, doing something or not, held or not, so none reaches Home Assistant's
+   *  own one-letter shortcuts ("c" is its command palette); E, D, M and A go on to it. The map off the page
+   *  (another view, another Home Assistant page: the slot isn't told): no key is ours.
    *  (Inside the panel's shadow root a window listener sees its host as the target: composedPath has the real one.) */
   function key(e){
-    if (!mapAwake || e.repeat || e.ctrlKey || e.metaKey || e.altKey || (ctx.saving && ctx.saving()) || ctx.root.querySelector(".la3d-ask.on")) return false;
+    if (!mapAwake || !ctx.root.isConnected || e.ctrlKey || e.metaKey || e.altKey) return false;
     const t = (typeof e.composedPath === "function" && e.composedPath()[0]) || e.target;
     if (t && (/^(input|textarea|select)$/i.test(String(t.tagName || t.localName || "")) || t.isContentEditable)) return false;
+    const mine = /^[ncfl]$/i.test(String(e.key));
+    if (e.repeat || (ctx.saving && ctx.saving()) || ctx.root.querySelector(".la3d-ask.on")) return mine;
     // Enter on a button in the card is that button (Keep mine, where it starts); on a pin, the next item.
     const k = e.key, onBtn = !!(t && String(t.tagName).toUpperCase() === "BUTTON" && !(t.classList && t.classList.contains("pl-pin")));
     if (k === "Escape") {
@@ -1552,12 +1570,12 @@ export function createPlans(ctx){
     if (k === "z" || k === "Z") { undoLast(); return true; }
     if (card !== "item") {
       if (k === "Enter" && !onBtn) { onward(); return true; }
-      return false;
+      return mine;
     }
     if (k === "Enter") { if (onBtn) return false; if (moving) moveDone(); else step_(1); return true; }
     if (k === "Backspace") { step_(-1); return true; }
     const s = sugOf(cur);
-    if (!s || busy) return false;
+    if (!s || busy) return mine;
     const low = k.length === 1 ? k.toLowerCase() : "";
     const st = stateOf(s), open = st === "queued" || st === "stale" || st === "later" || st === "right", m = s.match || {};
     if (low === "n" && open && !movedPlan(s.map_id) && s.kind !== "light" && !(s.kind === "railing" && m.relation === "correction")) { vNew(s); return true; }
@@ -1570,7 +1588,7 @@ export function createPlans(ctx){
     }
     if (low === "f" && open) { if (failing === s.id) vServer(s, "failure", "nothing_there"); else { failing = s.id; redraw(); } return true; }
     if (low === "l" && open && st !== "stale") { vServer(s, "later"); return true; }
-    return false;
+    return mine;
   }
   /** On from a recap, or from the floor's what's-missing pass. */
   function onward(){
@@ -1948,6 +1966,8 @@ export function createPlans(ctx){
     if (focusBtn && !focusBtn.disabled) { try { focusBtn.focus({ preventScroll: true }); } catch (_) { /* no matter */ } }
   }
   function paint(){
+    if (urls) loadUrls();                                // a tool left open overnight: fresh links before the old ones run out
+    holdMove();
     sheet.classList.add("plans");
     const onMap = mapWanted();
     sheet.classList.toggle("map", onMap);
@@ -1969,8 +1989,8 @@ export function createPlans(ctx){
       on = !!on;
       if (on === shownNow) return;
       shownNow = on;
-      if (on) { view = "list"; failing = null; listAsked = false; cur = null; card = "item"; open(); }
-      else { stopPoll(); sheet.classList.remove("plans"); sheet.classList.remove("map"); mapSleep(); }
+      if (on) { view = "list"; failing = null; listAsked = false; cur = null; card = "item"; urls = null; open(); }
+      else { stopPoll(); sheet.classList.remove("plans"); sheet.classList.remove("map"); mapSleep(); pics.clear(); }
     },
     /** The sheet's content for the step we are at; true: there is one. */
     sheet: () => paint(),

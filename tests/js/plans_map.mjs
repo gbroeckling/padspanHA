@@ -94,6 +94,7 @@ function mount(over = {}) {
   const sess = SESSION(over.suggestions || SUGS());
   const sheet = document.createElement("div"), root = document.createElement("div"), scene = new Obj();
   root.clientWidth = 1200;
+  root.isConnected = true;
   sheet.scrollTop = 0;
   const calls = [], hints = [], floors = FLOORS(), M = { floor: "main", shell: 1, flown: [], quiet: [], renders: 0, telemetry: [] };
   const answers = {
@@ -533,6 +534,160 @@ const openMap = async (M) => { M.tool.show(true); await settle(); M.redraw(); aw
   await click(buttons(Q.sheet).find(b => /^Read 4 plans/.test(text(b))));
   const started = Q.sent("plan_ai_start")[0] || {};
   check("the question: the start carries each plan's answer", (started.kinds || []).includes("light") && started.fixtures && started.fixtures.m2 === "yes" && started.fixtures.m1 === "unsure" && Object.keys(started.fixtures).length === 4, started);
+  Q.tool.dispose();
+}
+// ── the review of 2026-11-02 (S1-S7) ─────────────────────────────────────────
+{
+  // S1: off the page the keys are nobody's here.
+  const M = mount();
+  await openMap(M);
+  const n0 = M.sent("plan_ai_verdict").length;
+  M.root.isConnected = false;
+  const away = ["l", "c", "n", "f", "z", "p", "Enter", "Backspace", "Escape"].map(k => M.tool.key({ key: k, target: {} }));
+  await settle();
+  check("S1: off the page no key is taken and none acts", away.every(x => x === false) && M.sent("plan_ai_verdict").length === n0 && !DRAFT.planPending(M.draft.cur).length && M.state().card === "item", JSON.stringify(away));
+  M.root.isConnected = true;
+  check("S1: back on the page they are the map's again", await key(M, "l") === true && M.sent("plan_ai_verdict").length === n0 + 1, "");
+  M.tool.dispose();
+}
+for (const how of ["undo", "discard"]) {
+  // S2: Undo or Discard with Move by hand open.
+  const M = mount();
+  await openMap(M);
+  await walk(M, "b");
+  await click(button(M.sheet, "Move by hand"));
+  check(`S2 ${how}: (Move by hand open)`, M.state().moving === "fur_0000000f", M.state());
+  const x0 = "fur_0000000f";
+  if (how === "undo") M.draft.undo(); else M.draft.discard();
+  const before = JSON.stringify(M.draft.cur.pieces[x0]);
+  // A drag before anything is painted: no Move by hand is left to start one.
+  RAY = [2.6, 4];
+  const early = M.tool.down({ clientX: 10, clientY: 10, pointerType: "mouse" });
+  check(`S2 ${how}: at once, a press on the stair starts no drag`, early !== "drag" && M.state().moving === null, early);
+  M.redraw();
+  check(`S2 ${how}: the card no longer says drag, nothing pending`, M.state().moving === null && !text(M.sheet).includes("Drag") && !DRAFT.planPending(M.draft.cur).length, text(M.sheet));
+  M.tool.move({ clientX: 60, clientY: 40 });
+  M.tool.up({ clientX: 60, clientY: 40 });
+  check(`S2 ${how}: the person's own stair stays where it was`, JSON.stringify(M.draft.cur.pieces[x0]) === before && !M.draft.dirty, M.draft.cur.pieces[x0]);
+  M.tool.dispose();
+}
+{
+  // S2: a drag under way when the item leaves the draft.
+  const M = mount();
+  await openMap(M);
+  await walk(M, "b");
+  await click(button(M.sheet, "Move by hand"));
+  RAY = [4, 4];
+  const g = M.tool.down({ clientX: 10, clientY: 10, pointerType: "mouse" });
+  M.draft.undo();
+  const before = JSON.stringify(M.draft.cur.pieces.fur_0000000f);
+  RAY = [9, 9];
+  M.tool.move({ clientX: 80, clientY: 80 });
+  M.tool.up({ clientX: 80, clientY: 80 });
+  check("S2: a drag under way when Undo comes writes nothing", g === "drag" && JSON.stringify(M.draft.cur.pieces.fur_0000000f) === before && !M.draft.dirty, M.draft.cur.pieces.fur_0000000f);
+  M.tool.dispose();
+}
+{
+  // S3: N, C, F and L never reach Home Assistant while the map shows.
+  const M = mount({ suggestions: { ...SUGS(), k: stair("k", 9, 9, {}, { state: "committed_new" }) } });
+  await openMap(M);
+  await walk(M, "k");
+  const calls0 = M.calls.length;
+  const decided = [];
+  for (const k of ["n", "c", "f", "l", "C", "L"]) decided.push(await key(M, k));
+  check("S3: on a decided item they are taken and do nothing", decided.every(x => x === true) && M.calls.length === calls0 && !DRAFT.planPending(M.draft.cur).length, JSON.stringify(decided));
+  await walk(M, "a");
+  const others = ["e", "d", "m", "a"].map(k => M.tool.key({ key: k, target: {} }));
+  check("S3: E, D, M and A pass on", others.every(x => x === false), JSON.stringify(others));
+  const typed = [{ tagName: "INPUT" }, { tagName: "TEXTAREA" }, { tagName: "DIV", isContentEditable: true }].map(n => ["n", "c", "f", "l"].map(k => M.tool.key({ key: k, target: {}, composedPath: () => [n] }))).flat();
+  check("S3: typed text is the field's, in a shadow root too", typed.every(x => x === false) && !DRAFT.planPending(M.draft.cur).length && !M.state().verdicts, JSON.stringify(typed));
+  const chord = M.tool.key({ key: "c", ctrlKey: true, target: {} });
+  check("S3: Ctrl+C is the browser's", chord === false, "");
+  // Held: the first press decides, the repeats are swallowed and do nothing.
+  await walk(M, "a");
+  check("S3: the first press of a held key decides", await key(M, "l") === true && M.sent("plan_ai_verdict").length === 1, M.sent("plan_ai_verdict"));
+  const n = M.sent("plan_ai_verdict").length, at = M.state().cur;
+  const held = ["l", "c", "n", "f"].map(k => M.tool.key({ key: k, repeat: true, target: {} }));
+  await settle();
+  check("S3: its repeats are taken and do nothing", held.every(x => x === true) && M.sent("plan_ai_verdict").length === n && M.state().cur === at, JSON.stringify(held));
+  check("S3: a held Enter is still the page's", M.tool.key({ key: "Enter", repeat: true, target: {} }) === false, "");
+  M.tool.dispose();
+  // The what's-missing card.
+  const F = mount({ suggestions: { a: stair("a", 1, 1) } });
+  await openMap(F);
+  await key(F, "n");
+  check("S3: (the what's-missing card)", F.state().card === "floor", F.state());
+  const onFloor = ["n", "c", "f", "l"].map(k => F.tool.key({ key: k, target: {} }));
+  check("S3: on the what's-missing card they are taken and do nothing", onFloor.every(x => x === true) && F.state().card === "floor" && DRAFT.planPending(F.draft.cur).length === 1, JSON.stringify(onFloor));
+  F.tool.dispose();
+  // The recap.
+  const many = {};
+  for (let i = 0; i < 27; i++) many[`i${i}`] = stair(`i${i}`, i % 5, Math.floor(i / 5));
+  const C = mount({ suggestions: many });
+  await openMap(C);
+  for (let i = 0; i < 25 && C.state().card !== "recap"; i++) await key(C, "l");
+  check("S3: (the recap)", C.state().card === "recap", C.state());
+  const onRecap = ["n", "c", "f", "l"].map(k => C.tool.key({ key: k, target: {} }));
+  check("S3: on the recap they are taken and do nothing", onRecap.every(x => x === true) && C.state().card === "recap", JSON.stringify(onRecap));
+  C.tool.dispose();
+}
+{
+  // S4: another floor for a stacked stair: it stays in view, and the numbers hold.
+  const M = mount();
+  await openMap(M);
+  await walk(M, "s");
+  const was = Object.fromEntries(M.state().pins.map(p => [p.id, p.n]));
+  await click(button(M.sheet, "Basement"));
+  const st = M.state();
+  check("S4: the view goes to that floor", M.M.floor === "basement" && st.cur === "s", JSON.stringify({ floor: M.M.floor, cur: st.cur }));
+  check("S4: its pin and ghost are on it", M.pin("s") && st.ghosts.includes("s"), JSON.stringify(st));
+  check("S4: its number holds", M.pin("s") && M.pin("s").n === was.s, JSON.stringify([was.s, M.pin("s")]));
+  check("S4: the card says it, and asks no more than it did", text(M.sheet).includes("It climbs from:") && button(M.sheet, "Basement").getAttribute("aria-pressed") === "true", text(M.sheet));
+  await key(M, "Backspace");
+  const now = Object.fromEntries(M.state().pins.map(p => [p.id, p.n]));
+  check("S4: every other pin keeps its number", Object.keys(was).filter(id => id !== "s").every(id => now[id] === was[id]) && !("s" in now), JSON.stringify([was, now]));
+  M.tool.dispose();
+  // Picking the floor it already has is no surprise, and a keep writes the floor picked.
+  const K = mount();
+  await openMap(K);
+  await walk(K, "s");
+  await click(button(K.sheet, "Basement"));
+  await click(button(K.sheet, "New"));
+  const held = DRAFT.planPending(K.draft.cur).find(p => p.sug_id === "s");
+  check("S4: New then writes the floor picked", held && K.draft.cur.pieces[held.piece].floor_id === "basement", JSON.stringify(held));
+  K.tool.dispose();
+}
+{
+  // S6: signed links expire; each opening asks again, and a tool left open does.
+  const M = mount();
+  await openMap(M);
+  const asks = () => M.sent("maps_image_urls").length;
+  const a0 = asks();
+  M.redraw(); await settle();
+  check("S6: no asking on each paint", asks() === a0 && a0 === 1, a0);
+  M.tool.show(false); await settle();
+  M.tool.show(true); await settle(); M.redraw(); await settle();
+  check("S6: each opening asks again", asks() === a0 + 1, asks());
+  const realNow = Date.now;
+  Date.now = () => realNow() + 21 * 3600 * 1000;
+  M.redraw(); await settle();
+  const late = asks();
+  M.redraw(); await settle();
+  Date.now = realNow;
+  check("S6: a tool left open asks again before they run out, and once", late === a0 + 2 && asks() === late, [late, asks()]);
+  M.tool.dispose();
+}
+{
+  // S7: the words on the sheet.
+  const Q = mount({ suggestions: {}, answers: { plan_ai_plans: { ...INFO, latest: null } } });
+  Q.tool.show(true); await settle(); Q.redraw(); await settle();
+  check("S7: nothing about lights until Lights is ticked", !text(Q.sheet).includes("Tick only the sheets") && !text(Q.sheet).includes("minutes a plan"), text(Q.sheet));
+  const tick = all(Q.sheet).filter(n => tag(n) === "LABEL").find(n => text(n).startsWith("Lights"));
+  const cb = all(tick).find(n => tag(n) === "INPUT");
+  cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); await settle();
+  check("S7: with Lights ticked: tick only the sheets that draw them", text(Q.sheet).includes("Tick only the sheets that draw lights"), text(Q.sheet));
+  await click(buttons(Q.sheet).filter(b => label(b) === "Yes")[0]);
+  check("S7: the time as measured", text(Q.sheet).includes("2.5-3 minutes a plan") && !text(Q.sheet).includes("a minute and a half"), text(Q.sheet));
   Q.tool.dispose();
 }
 console.log(JSON.stringify(results));

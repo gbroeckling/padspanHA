@@ -1289,7 +1289,8 @@ class Runner:
             rk = remembered_reject(rejects, "light", f["map_id"], pl.get("image_sig") or "", pl.get("place_sig") or "", f["x_m"], f["y_m"])
             if match["relation"] == "duplicate":
                 sug["state"] = "duplicate"
-                _bump(self.hass, "plan_ai_duplicate:light")
+                if symbol != "unknown":            # a mark nobody read a symbol from isn't "already there"
+                    _bump(self.hass, "plan_ai_duplicate:light")
             elif rk:
                 sug["state"] = "failure"
                 sug["verdict"] = {"v": "failure", "at": time.time(), "why": (rejects[rk] or {}).get("why"), "remembered": True, "reject": rk}

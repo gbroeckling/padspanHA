@@ -47,6 +47,9 @@ with sync_playwright() as p:
         (loc.tap if phone else loc.click)()
         pg.wait_for_timeout(450)
 
+    def pending_now():
+        return pg.evaluate(f"async () => {{ {SLOT} return s._state().edit.planPending; }}")
+
     def shot(name):
         pg.wait_for_timeout(700)
         pg.screenshot(path=str(out / f"{'phone' if phone else 'desktop'}_lights_{name}.png"))
@@ -93,8 +96,13 @@ with sync_playwright() as p:
     expect("no placed light here" in c and "Open Mapping" in c and "Failure" not in c, "unmatched: the Atlas button, no verdict")
     shot("5_unmatched")
     press("Open Mapping")
+    # A kind is waiting in the draft: it asks first, and Keep editing stays here with nothing lost.
     opened = pg.evaluate("() => window.__plans.calls.filter(c => c.type === 'open_atlas')")
-    expect(len(opened) == 1 and opened[0]["floor"] == "main" and opened[0]["room"], f"the button opens Mapping → Atlas on that room: {opened}")
+    asking = pg.locator(".la3d-ask.on")
+    expect(asking.count() == 1 and not opened, f"something unsaved: the button asks before it leaves: {opened}")
+    asking.locator("button", has_text="Keep editing").first.click()
+    pg.wait_for_timeout(400)
+    expect(pg.locator(".la3d-ask.on").count() == 0 and st()["onMap"] and bool(pending_now()), "Keep editing: still here, the draft as it was")
     press("Keep 1 correction")
     pg.wait_for_timeout(900)
     items = pending()

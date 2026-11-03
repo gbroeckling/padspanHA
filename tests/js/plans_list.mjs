@@ -514,5 +514,23 @@ proto.focus = realFocus;
     M.tool.dispose();
   }
 }
+// ── S7: a mark nobody read a symbol from isn't "already there" ──────────────
+{
+  const lightSug = (id, symbol) => ({ ...stair(id), kind: "light", state: "duplicate", geom: { x_m: 1, y_m: 2, symbol }, match: { relation: "duplicate", near: [], held: null, target: "light.a", label: "Hall", now_kind: "pot" } });
+  const M = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1", start_blocked: null },
+    plan_ai_status: { session: SESSION({ lights_asked: true, suggestions: { y: lightSug("y", "pot"), u: lightSug("u", "unknown"), v: lightSug("v", "unknown") } }) } });
+  M.tool.show(true); await settle();
+  const t = text(M.sheet);
+  check("S7: one read as that light is already there", t.includes("1 light was already there."), t);
+  check("S7: the others are said for what they are", t.includes("2 marks near a placed light weren't read closely enough to say what they are."), t);
+  check("S7: each in its own group", t.includes("Already in your house") && t.includes("Near a placed light, not read closely"), t);
+  M.tool.dispose();
+  const O = mount({ ...BASE, plan_ai_plans: { plans: PLANS, ai: LOCAL, running: null, latest: "ps_1", start_blocked: null },
+    plan_ai_status: { session: SESSION({ lights_asked: true, suggestions: { u: lightSug("u", "unknown") } }) } });
+  O.tool.show(true); await settle();
+  const o = text(O.sheet);
+  check("S7: only unread marks: nothing called already there", !o.includes("already there") && !o.includes("Already in your house") && o.includes("1 mark near a placed light wasn't read closely enough to say what it is."), o);
+  O.tool.dispose();
+}
 console.log(JSON.stringify(results));
 process.exit(0);

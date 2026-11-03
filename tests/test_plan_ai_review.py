@@ -368,3 +368,35 @@ def test_a_later_sessions_duplicate_goes_stale_when_its_stair_is_undone_and_can_
     assert st["suggestions"][dup[0]["id"]]["state"] == "stale"
     k = _commit(h, conn, sid2, st["rev"], {"sug_id": dup[0]["id"], "v": "new", "final": _final(dup[0])})
     assert k["ok"], k
+
+
+def test_the_guides_describe_the_plans_tool_in_plain_words_with_its_warning():
+    """The review of 2026-11-02: the Plans tool is in both guides, says it is an experiment, and the time is the measured one."""
+    from pathlib import Path
+    docs = Path(__file__).parents[1] / "docs"
+    if not docs.is_dir():
+        pytest.skip("the Bright derivation carries no docs/")
+    live = " ".join((docs / "LIVE_ABOARD_GUIDE.md").read_text(encoding="utf-8").split())
+    furn = " ".join((docs / "FURNISH_GUIDE.md").read_text(encoding="utf-8").split())
+    head = "### Plans: what an AI finds on your floor plans (experimental)"
+    assert head in live and "**This is an experiment. The AI gets things wrong, so check every item.**" in live
+    assert "2.5-3 minutes a plan" in live and "minute and a half" not in live
+    assert "AI map-building research (experimental)" in live and "Undo this session" in live and "never your map, rooms, walls or calibration" in live
+    assert "alarm stays" in live and "Lights are never placed or moved from a plan" in live
+    assert "(experimental)" in furn and "the AI gets things wrong, so check every item" in furn
+    assert "LIVE_ABOARD_GUIDE.md#plans-what-an-ai-finds-on-your-floor-plans-experimental" in furn
+
+
+@pytest.mark.parametrize("lang", ["de", "fr", "nl"])
+def test_the_help_says_the_measured_time_and_the_alarm_in_every_language(lang):
+    """S7 of the review of 2026-11-02, and the alarm: the English and each translation say the same, none left on the old words."""
+    import json
+    from pathlib import Path
+    www = Path(A.__file__).parent / "www" / "padspan-ha"
+    english = (www / "help_content.js").read_text(encoding="utf-8")
+    assert "2.5-3 minutes a plan" in english and "minute and a half" not in english and "a smoke, gas, CO or leak alarm" in english
+    rows = json.loads((www / "i18n" / lang / "help.json").read_text(encoding="utf-8"))
+    time_row = next(v for k, v in rows.items() if "2.5-3 minutes a plan" in k)
+    alarm_row = next(v for k, v in rows.items() if "a smoke, gas, CO or leak alarm" in k)
+    assert "2,5" in time_row and "CO" in alarm_row
+    assert not any("minute and a half" in k for k in rows)

@@ -262,6 +262,21 @@ def test_the_budget_running_out_in_the_tiles_keeps_what_was_read(monkeypatch, tm
     assert len(sess["suggestions"]) == 1 and next(iter(sess["suggestions"].values()))["reads"] == ["tile"]
 
 
+def test_a_mark_with_no_symbol_read_near_a_placed_light_isnt_counted_as_already_there(monkeypatch, tmp_path, disk):  # noqa: F811
+    # The review of 2026-11-02, S7: the time ran out before the closer look, at the pots. It keeps its state
+    # (nothing to offer, it can't disagree) and the view says it wasn't read; no counter says it was already there.
+    h, conn, fake, counted, session = _ready(monkeypatch, tmp_path, _tile0((7.0, 3.0)))
+    real = A.Runner.left
+
+    def budget(self):
+        return 1.0 if self.phase in ("tiles", "light_crop") and self.sess.get("tiles", 0) >= 3 else real(self)
+    monkeypatch.setattr(A.Runner, "left", budget)
+    store, sess, sid = _run(session())
+    sug = next(iter(sess["suggestions"].values()))
+    assert sug["state"] == "duplicate" and sug["geom"]["symbol"] == "unknown" and sug["reads"] == ["tile"]
+    assert "plan_ai_duplicate:light" not in counted
+
+
 def test_the_conflation_only_light_entries_correction_duplicate_unmatched(monkeypatch, tmp_path, disk):  # noqa: F811
     # At the hall ceiling (a fan and a sensor share the spot); at the pots; nowhere near anything.
     h, conn, fake, counted, session = _ready(monkeypatch, tmp_path, _tile0((2.0, 3.0), (7.0, 3.0), (3.0, 1.0)))
