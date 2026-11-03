@@ -454,6 +454,7 @@ UI_ERROR_HELPERS: frozenset[str] = frozenset({
     "live_aboard_house", "live_aboard_library", "live_aboard_use",
     "live_aboard_weather", "live_aboard_showcase", "live_aboard_fps",
     "live_aboard_studio",                           # Live Aboard's Studio look (atlas_3d_look "studio")
+    "atlas_forest",                                 # the trees behind the flat map (Showcase theme "West Coast Forest")
     "calibration_walk",                             # Calibration's Walk a room tab (calibration_room_walk)
     "calibration_results",                          # Calibration's Results tab (the one it opens on)
     "live_aboard_pieces", "live_aboard_furnish",   # Live Aboard P2 Furnish

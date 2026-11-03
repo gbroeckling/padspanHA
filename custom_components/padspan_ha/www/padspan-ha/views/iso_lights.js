@@ -734,6 +734,39 @@ export const SHOWCASE_THEMES = {
     labelColorOff: "#5a5a5a",
     codeChipBg: "#000000",
     codeChipBgOpacity: 0.85,
+  },
+  west_coast_forest: {
+    // Garry, 2026-11-02: "a forest theme ... quite dark, and looking like west
+    // coast forest". The house in dark forest tones, warm where it is lit. The
+    // flat map's outside (atlas_forest.js) is the trees: the only theme with a
+    // layer of its own, drawn behind the drawing while this theme is on.
+    label: "West Coast Forest",
+    vignetteStops: [[0,"#35504c",0.26], [55,"#16262a",0.1], [100,"#060c0b",0]],
+    slabStops: [[0,"#23382d",0.5], [100,"#08110c",0.62]],
+    slabSideTop: {fill:"#14221a", fillOpacity:0.82, stroke:"#050a07"},
+    slabSideFront: {fill:"#0b1610", fillOpacity:0.88, stroke:"#050a07"},
+    glossStops: [[0,"#d7ebdc",0.13], [45,"#d7ebdc",0.03], [100,"#000000",0.3]],
+    washStops: [[0,"#cfe3e0",0.06], [100,"#cfe3e0",0]],
+    shadeStops: [[0,"#020504",0.55], [55,"#020504",0.22], [100,"#020504",0]],
+    roomEdgeStroke: "#050a07",
+    roomFillOpacity: 0.12,
+    roomStrokeOpacity: 0.62,
+    roomStrokeWidth: 1.2,
+    roomGlowStops: [[0,0.16], [45,0.05], [100,0]],
+    roomLabelOpacity: 0.8,
+    roomLabelLetterSpacing: "0.1em",
+    roomLabelUppercase: false,
+    poolStops: [[0,0.92], [28,0.5], [62,0.16], [100,0]],
+    fixtureOffFill: "#101a14",
+    fixtureOnStrokeFallback: "#e8b878",
+    fixtureOffStroke: "#34443a",
+    fixtureBloomOpacity: 0.42,
+    fixtureBodyOnOpacity: 0.92,
+    fixtureBodyOffOpacity: 0.5,
+    inkOffColor: "#5f7064",
+    labelColorOff: "#7f9184",
+    codeChipBg: "#060c09",
+    codeChipBgOpacity: 0.8,
   },};
 export const SHOWCASE_THEME_NAMES = Object.keys(SHOWCASE_THEMES);
 
@@ -2963,7 +2996,7 @@ export function buildIsoSVG(model, byRoom, hiddenEids, focusZ, floorGap, horizGa
 
   let s=`<svg viewBox="${viewX0} ${viewY} ${WTOTAL} ${HTOTAL}" xmlns="http://www.w3.org/2000/svg" width="100%" `+
     `data-natural-h="${HTOTAL}" style="display:block;font-family:system-ui,sans-serif">`;
-  s+=`<rect x="${viewX0}" y="${viewY}" width="${WTOTAL}" height="${HTOTAL}" fill="${AMB?mixHex("#071008","#22301f",AMB):"#071008"}"/>`;
+  s+=`<rect x="${viewX0}" y="${viewY}" width="${WTOTAL}" height="${HTOTAL}" fill="${AMB?mixHex("#071008","#22301f",AMB):"#071008"}"${SHOW&&opts.outsideBehind?' fill-opacity="0"':""}/>`;
 
   // ── Showcase: the colour a fixture actually throws ────────────────────────
   // A light that reports rgb_color is drawn and glows in ITS OWN colour, so a
