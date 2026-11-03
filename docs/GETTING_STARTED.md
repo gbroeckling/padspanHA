@@ -2,6 +2,8 @@
 
 This guide walks you through your first 30 minutes with PadSpan — from install to tracking your first device across rooms.
 
+> **New install?** [From the Marketplace to your first room](https://padspan.traks.ca/guides/get-started/) has the current first steps, with pictures: Who's where now, Make it a map and Put it on the map.
+
 > **Just here for light control, no BLE presence tracking?** This whole guide is about the BLE tracking side. Skip to the [Atlas Guide](ATLAS_GUIDE.md) instead — that's the device map (lights, fans, sensors, locks, doors) and it works the same whether you're on PadSpan HA or [PadSpan Bright](https://github.com/gbroeckling/padspanBright).
 
 ## Prerequisites
