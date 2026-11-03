@@ -32,7 +32,7 @@ import re
 from functools import lru_cache
 from typing import Any
 
-from .ble_enrichment import _uuid16
+from .ble_enrichment import _uuid16, apple_records as _apple_records
 from .findmy import _payload_bytes
 from .xiaomi_models import XIAOMI_MODELS
 
@@ -56,11 +56,16 @@ def is_own_device(device: Any) -> bool:
     return isinstance(device, dict) and device.get("manufacturer") == _OWN_MAKER
 
 
+@lru_cache(maxsize=4096)
+def _clean_text(raw: str) -> str:
+    name = _NAME_TAIL_RE.sub("", _CONTROL_RE.sub("", raw)).strip()
+    return "" if _MAC_RE.match(name) else name
+
+
 def clean_name(raw: Any) -> str:
     """A name fit to show: no control characters (one device's is "\\x00"), no
     address tail, and not just an address."""
-    name = _NAME_TAIL_RE.sub("", _CONTROL_RE.sub("", str(raw or ""))).strip()
-    return "" if _MAC_RE.match(name) else name
+    return _clean_text(str(raw)) if raw else ""
 
 
 def broadcast_name(obj: dict[str, Any]) -> str:
@@ -106,22 +111,6 @@ def _best_name(obj: dict[str, Any], maker: str | None, guess: str | None, owner:
 
 
 # ─── Apple Continuity (company 0x004C) ──────────────────────────────────────
-# The block is a chain of type, length, value records.
-
-
-def _apple_records(raw: bytes) -> list[tuple[int, int, int]]:
-    """(type, start, end) of each record; a record cut short ends the chain."""
-    out: list[tuple[int, int, int]] = []
-    i = 0
-    while i + 2 <= len(raw):
-        start, end = i + 2, i + 2 + raw[i + 1]
-        if end > len(raw):
-            break
-        out.append((raw[i], start, end))
-        i = end
-    return out
-
-
 # AirDrop: 2-byte hashes of Apple ID, phone and emails. Tethering Target: an
 # iCloud id. Nearby Action: after its flags and type, 3-byte hashes of Apple ID,
 # phone, email and network.
@@ -131,15 +120,25 @@ _APPLE_HASH_RECORDS = {0x05: 0, 0x0D: 0, 0x0F: 2}
 def scrub_apple_block(raw: bytes) -> bytes:
     """Apple's block with the bytes that hash a person's identifiers zeroed, its
     shape unchanged. Before anything stores it: a hash of a phone number is not
-    PadSpan's to keep, and nothing reads them."""
+    PadSpan's to keep, and nothing reads them. A record that overruns the block ends
+    the chain, and what's left could be anything: a hash record loses its bytes to
+    the end, and so does the rest after any other record's bad length, unless that's
+    a Find My record cut short, which holds a key and is read."""
     out = None
+    at = 0
     for kind, start, end in _apple_records(raw):
+        at = end
         keep = _APPLE_HASH_RECORDS.get(kind)
         if keep is None:
             continue
         if out is None:
             out = bytearray(raw)
         for i in range(start + keep, end):
+            out[i] = 0
+    if at + 2 < len(raw) and raw[at] != 0x12:
+        if out is None:
+            out = bytearray(raw)
+        for i in range(at + 2 + _APPLE_HASH_RECORDS.get(raw[at], 0), len(raw)):
             out[i] = 0
     return raw if out is None else bytes(out)
 
@@ -177,8 +176,8 @@ def _apple_what(payload: str, classify: bool) -> tuple[str | None, str | None, b
         return "iBeacon", "its iBeacon broadcast", False
     if 0x06 in kinds:
         return "Apple Home accessory", "its HomeKit broadcast", False
-    if 0x10 in kinds:
-        return "Apple phone or tablet", "its Nearby Info broadcast", False
+    if 0x10 in kinds:  # Macs and Watches may send it too, so it says no more than this
+        return "Apple device", "its Nearby Info broadcast", False
     return None, None, False
 
 
@@ -203,6 +202,7 @@ _SHELLY_MODELS = {
     "SBHT-003C": "H&T", "SBHT-203C": "H&T ZB", "SBHT-103C": "H&T Display ZB", "SBBT-004CEU": "Wall Switch 4",
     "SBBT-004CUS": "RC Button 4", "SBTR-001AEU": "TRV",
 }
+_SHELLY_BLU_RE = re.compile(r"^SB[A-Z]{2}-|^Shelly ?BLU")
 _GOVEE_RE = re.compile(r"^(?:Govee_|GV)(H?\d{4}[A-Z]?)(?:[_ ]|$)")
 
 
@@ -281,8 +281,9 @@ def what_it_is(obj: dict[str, Any], classify_findmy: bool = True) -> tuple[str |
             return what, "its Microsoft broadcast", False
     if "1177" in manuf or 1177 in manuf:  # 0x0499
         return "RuuviTag", "its company number", False
-    if "2985" in manuf or 2985 in manuf:  # 0x0BA9, Allterco
-        return "Shelly BLU device", "its company number", False
+    if "2985" in manuf or 2985 in manuf:  # 0x0BA9, Allterco: every Shelly, not just BLU
+        blu = _SHELLY_BLU_RE.match(clean_name(obj.get("broadcast_name") or obj.get("name")))
+        return ("Shelly BLU device" if blu else "Shelly device"), "its company number", False
     if "1660" in manuf or 1660 in manuf:  # 0x067C
         return "Tile", "its company number", True
     found = _service_what(obj.get("service_uuids"), obj.get("service_data"))
@@ -328,10 +329,11 @@ _MAKER_HOW = {
 }
 
 
-def describe(obj: dict[str, Any], classify_findmy: bool = True) -> dict[str, Any]:
+def describe(obj: dict[str, Any], classify_findmy: bool = True, how_known: bool = True) -> dict[str, Any]:
     """The name, maker, type and how each is known. A service's owner often isn't
     who made the device (a CP27 beacon reads "Neurostim OAB"), so it's said as
-    "Uses a service from ..." and only stands in when nothing names a maker."""
+    "Uses a service from ..." and only stands in when nothing names a maker.
+    how_known=False skips the wording, which nobody reads on a list."""
     maker = obj.get("company_name") or None
     source = obj.get("maker_source")
     owner = obj.get("service_owner") or None
@@ -341,14 +343,15 @@ def describe(obj: dict[str, Any], classify_findmy: bool = True) -> dict[str, Any
     name, name_source = _best_name(obj, maker, guess, owner)
 
     how: list[str] = []
-    if maker:
-        how.append(_MAKER_HOW.get(source, "{}, from its company number.").format(maker))
-    elif owner:
-        how.append(f"Uses a service from {owner}. Other makers' devices can use it too, so this doesn't say who made it.")
-    if guess:
-        how.append(f"Probably {guess}, from its address. No receiver has confirmed the address is fixed.")
-    if what:
-        how.append(f"{what}, from {what_how}.")
+    if how_known:
+        if maker:
+            how.append(_MAKER_HOW.get(source, "{}, from its company number.").format(maker))
+        elif owner:
+            how.append(f"Uses a service from {owner}. Other makers' devices can use it too, so this doesn't say who made it.")
+        if guess:
+            how.append(f"Probably {guess}, from its address. No receiver has confirmed the address is fixed.")
+        if what:
+            how.append(f"{what}, from {what_how}.")
     return {
         "best_name": name,
         "name_source": name_source,
@@ -363,12 +366,16 @@ def describe(obj: dict[str, Any], classify_findmy: bool = True) -> dict[str, Any
 def apply_detail(obj: dict[str, Any], classify_findmy: bool = True) -> None:
     """Put describe()'s answer on an object, empty fields left off, and drop a
     link to PadSpan's own Home Assistant device: it isn't another source. The
-    maker and service owner are already on it (company_name, service_owner)."""
+    maker and service owner are already on it (company_name, service_owner).
+
+    This goes to every screen every 5 s, so two things stay off it: how_known,
+    which the device window asks for when it opens, and name_source when it is
+    "maker", the commonest: best_name with no name_source means maker."""
     if is_own_device(obj.get("device")):
         obj["device"] = None
-    detail = describe(obj, classify_findmy)
-    for key in ("best_name", "name_source", "what_it_is", "how_known", "address_kind"):
-        if detail[key]:
+    detail = describe(obj, classify_findmy, how_known=False)
+    for key in ("best_name", "name_source", "what_it_is", "address_kind"):
+        if detail[key] and not (key == "name_source" and detail[key] == "maker"):
             obj[key] = detail[key]
         else:
             obj.pop(key, None)

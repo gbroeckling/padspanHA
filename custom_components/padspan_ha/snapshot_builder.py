@@ -3081,10 +3081,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     "label": _xobj.get("user_label") or _xobj.get("name"),
                     # "label" falls back to the name, often the address: only
                     # this one says someone named the device.
-                    "user_label": _xobj.get("user_label") or "",
+                    **({"user_label": _xobj["user_label"]} if _xobj.get("user_label") else {}),
                     "identified": _xobj.get("identified", False),
                     "room": _xobj.get("room"),
                 }
+                _ad.pop("maker_source", None)  # the object says it
                 if _xobj.get("canonical_id"):
                     _ad["_xref"]["canonical_id"] = _xobj["canonical_id"]
                 if _xobj.get("findmy"):

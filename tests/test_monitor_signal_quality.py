@@ -36,6 +36,7 @@ pytestmark = pytest.mark.skipif(_NODE is None, reason="node is not installed")
 def _run(tmp_path: Path, ads: list[dict]) -> dict:
     src = (_VIEWS / "monitor.js").read_text(encoding="utf-8")
     (tmp_path / "monitor.mjs").write_text(src, encoding="utf-8")
+    (tmp_path / "device_name.js").write_text((_VIEWS / "device_name.js").read_text(encoding="utf-8"), encoding="utf-8")
     script = (
         "import { _scannerQuality, _qualityGrade } from './monitor.mjs';\n"
         f"const ADS = {json.dumps(ads)};\n"

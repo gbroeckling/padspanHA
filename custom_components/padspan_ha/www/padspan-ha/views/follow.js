@@ -8,7 +8,7 @@
 
 // Locate lives here as an option (Garry, 2026-09-23): it works on where the
 // followed object is right now, the same live poll Follow already runs.
-const { deviceName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+const { deviceName, pickName } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const locateView =
   await import(`./locate.js${new URL(import.meta.url).search}`);
 
@@ -179,7 +179,7 @@ function _buildSelector(ctx, el, helpBtn, allObjects, currentAddr, isBasic) {
     if (!id) continue;
     if (_isScanner(o)) continue;
     if (_quietMode && !o.user_label && !o.identified && !ctx.actions.followedHas(id)) continue;
-    const name = deviceName(o, id);
+    const name = pickName(o, id);
     const room = o.room ? ` · ${o.room}` : "";
     const rssiStr = o.rssi != null ? ` (${o.rssi} dBm)` : "";
     const kind = o.kind === "entity" ? "[Entity]" : (o.identified ? "[Tagged]" : "[Unidentified]");

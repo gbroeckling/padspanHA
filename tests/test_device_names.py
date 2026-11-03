@@ -76,7 +76,7 @@ def test_a_service_uuid_names_its_owner(uuid, owner) -> None:
 ])
 def test_an_object_with_only_a_service_gets_an_owner_not_a_maker(field, value) -> None:
     o = BE.enrich_object({field: value})
-    assert o["company_name"] is None and o["maker_source"] is None and o["service_owner"] == "Google"
+    assert o["company_name"] is None and "maker_source" not in o and o["service_owner"] == "Google"
     assert o["service_names"] == [], "the same word again as a service says nothing"
     assert "Google" in o["service_uuid_map"].values()
 
@@ -293,7 +293,7 @@ def test_the_report_no_longer_lists_the_switch() -> None:
 def test_espresenses_id_says_who_made_it(device_id, maker) -> None:
     o = BE.enrich_object({"espresense_id": device_id, "manufacturer_data": {}, "service_uuids": [], "service_data": {}})
     assert o["company_name"] == maker
-    assert o["maker_source"] == ("espresense" if maker else None)
+    assert o.get("maker_source") == ("espresense" if maker else None)
 
 
 @pytest.mark.parametrize("device_id,owner", [("sd:fef3", "Google"), ("sd:fd5a12", "Samsung Electronics"), ("sd:", None),

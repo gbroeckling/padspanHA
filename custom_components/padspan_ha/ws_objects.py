@@ -22,6 +22,7 @@ from .const import (
     OBJECT_HISTORY_STORE_KEY,
     DATA_DEVICE_REGISTRY,
 )
+from .device_detail import describe as _describe
 from .telemetry import bump as _bump
 from .ws_common import admin_if_enhanced_security, _DEFAULT_IBEACON_UUIDS, _invalidate_snapshot_cache
 
@@ -431,6 +432,15 @@ async def ws_label_link_answer(hass: HomeAssistant, connection, msg) -> None:
         _bump(hass, "label_link_no")
     _name_links_saved(hass, links)
     connection.send_result(msg["id"], {"same": msg["same"], "current": links.current(root)})
+
+
+@websocket_api.websocket_command({"type": "padspan_ha/device_how_known", vol.Required("object"): dict})
+@websocket_api.async_response
+async def ws_device_how_known(hass: HomeAssistant, connection, msg) -> None:
+    """The device window's "How we know": left off the snapshot, which goes to every
+    screen every 5 s, and worked out from the fields the window already has."""
+    st = hass.data[DOMAIN].get(DATA_SETTINGS)
+    connection.send_result(msg["id"], {"how_known": _describe(msg["object"], bool(st and st.get("apple_auto_classify")))["how_known"]})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/label_link_undo", "key": str})

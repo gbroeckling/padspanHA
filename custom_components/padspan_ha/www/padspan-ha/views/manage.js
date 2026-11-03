@@ -2640,7 +2640,7 @@ function _beaconChars(ctx, el){
       sHead.appendChild(el("th",{style:"padding:3px 5px"},"Beacon"));
       for (const src of allScanners) {
         sHead.appendChild(el("th",{style:"padding:3px 5px;max-width:80px;overflow:hidden;text-overflow:ellipsis",title:src},
-          scanner_names[src] || src.substring(0,12)));
+          ctx.helpers.radioName(src) || scanner_names[src] || src.substring(0,12)));
       }
       st.appendChild(sHead);
 

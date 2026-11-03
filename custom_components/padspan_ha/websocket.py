@@ -160,6 +160,7 @@ from .ws_floorplan_import import (  # noqa: F401  (re-exported: registration, te
 )
 from .ws_vacuum import HANDLERS as _VACUUM_HANDLERS
 from .ws_objects import (  # noqa: F401  (re-exported: registration, tests, callers)
+    ws_device_how_known,
     ws_findmy_unlink,
     ws_label_link_answer,
     ws_label_link_undo,
@@ -427,6 +428,7 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_private_ble_add_irk)
     websocket_api.async_register_command(hass, ws_private_ble_delete_irk)
     websocket_api.async_register_command(hass, ws_objects_clear_history)
+    websocket_api.async_register_command(hass, ws_device_how_known)
     websocket_api.async_register_command(hass, ws_findmy_unlink)
     websocket_api.async_register_command(hass, ws_label_link_answer)
     websocket_api.async_register_command(hass, ws_label_link_undo)
