@@ -70,6 +70,8 @@ CROP_MIN_FRAC = 0.05                  # a crop's box narrower or lower than this
 STATUS: tuple[str, ...] = ("running", "done", "cancelled", "failed", "out_of_time")
 CANCEL_WHY: tuple[str, ...] = ("user", "switch_off", "house3d_off", "licence", "plan_gone", "plan_changed", "restart")
 FAILURE_WHY: tuple[str, ...] = ("wrong_place", "nothing_there", "already_here", "wrong_kind", "cant_tell")
+# Counted from the panel (views/live_aboard_plans.js, the what's-missing pass, through telemetry_event): the Add by hand it led to.
+MISSING_ADDED_EVENT = "plan_ai_missing_added:{kind}"
 VERDICTS: tuple[str, ...] = ("failure", "later", "right")   # what a person can say of a suggestion in this stage; each is stored and counted
 # Why a session read nothing: the reason most of its failed reads gave, the earlier here on a tie.
 NO_READ_WHY: tuple[str, ...] = ("no_media", "no_picture", "unreachable", "timeout", "bad_answer")
@@ -1176,6 +1178,27 @@ def batch_summary(batches: dict[str, Any], batch_id: str) -> dict[str, Any]:
     b = batches[batch_id]
     return {"id": batch_id, "session": b.get("session"), "at": b.get("committed_at"), "items": items_in(b.get("items")),
             "puts_back": puts_back(batches, b)}
+
+
+def track_record(store: PlanAiStore) -> dict[str, dict[str, int]]:
+    """This house's own record, per kind, over the sessions kept: how many of
+    the items a person decided were right (kept, or "looks right") of how many
+    (those, and the ones marked wrong). No confidence number exists: this is
+    the only figure the vetting map shows. Later, unmatched, undone and a
+    remembered reject (nobody looked at it this time) don't count."""
+    out: dict[str, dict[str, int]] = {}
+    for sess in (store.data.get("sessions") or {}).values():
+        for sug in (sess.get("suggestions") or {}).values() if isinstance(sess, dict) else ():
+            if not isinstance(sug, dict):
+                continue
+            state, verdict = sug.get("state"), sug.get("verdict") or {}
+            right = state in ("committed_new", "committed_correction", "right")
+            if not right and not (state == "failure" and not verdict.get("remembered")):
+                continue
+            row = out.setdefault(str(sug.get("kind") or "stairs"), {"right": 0, "of": 0})
+            row["of"] += 1
+            row["right"] += 1 if right else 0
+    return out
 
 
 def last_batch(store: PlanAiStore, sid: str | None = None) -> dict[str, Any] | None:

@@ -1311,6 +1311,8 @@ export function createFurnish(ctx){
     /** A stair off a plan as Build would place it (the Plans tool puts it in the
      *  draft): on its floor, up to the next, its rise the gap, squared to its
      *  room, no rail until a person chooses one. Null until the builders are here. */
+    /** Build ▾ open (the Plans tool's Add by hand, from its what's-missing pass). */
+    openBuild(){ if (!menuOpen) toggleMenu(); },
     planStair(g, floorId, label){
       const base = recipeFor("stairs");
       if (!base || base.kind !== "stairs") return null;

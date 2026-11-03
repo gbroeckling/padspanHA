@@ -169,7 +169,7 @@ async def ws_plan_ai_status(hass: HomeAssistant, connection, msg) -> None:
             settled = C.settle_pending(store, house)       # a commit a crash cut short: finished or taken back
             if A.check_session(hass, store, sess, house) or settled:
                 await store.async_save()
-    connection.send_result(msg["id"], {"session": _public(sess, sid), "running": job.sid if job else None, "undo": A.last_batch(store, sid)})
+    connection.send_result(msg["id"], {"session": _public(sess, sid), "running": job.sid if job else None, "undo": A.last_batch(store, sid), "record": A.track_record(store)})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_ai_cancel", vol.Required("session"): str})
@@ -252,7 +252,7 @@ async def ws_plan_ai_verdict(hass: HomeAssistant, connection, msg) -> None:
         sess["rev"] = int(sess.get("rev") or 0) + 1
         store.trim()
         await store.async_save()
-    connection.send_result(msg["id"], {"rev": sess["rev"], "suggestion": sug, "changed": changed})
+    connection.send_result(msg["id"], {"rev": sess["rev"], "suggestion": sug, "changed": changed, "record": A.track_record(store)})
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_ai_rejects_get"})

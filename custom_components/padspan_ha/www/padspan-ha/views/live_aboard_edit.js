@@ -207,6 +207,7 @@ export function createEditor(ctx){
   const hintEl = d("div", "la3d-hint");
   hintEl.setAttribute("aria-live", "polite");
   const toolSeg = seg(bDoor, bWin, bHts, ...(bStrip ? [bStrip] : []));
+  toolSeg.classList.add("la3d-toolseg");
   toolSeg.insertBefore(bWay, bWin.nextSibling);
   tools.append(toolSeg, seg(bUndo, bRedo), seg(bSave, bDiscard), hintEl);
   root.appendChild(tools);
@@ -592,6 +593,7 @@ export function createEditor(ctx){
       if (fur) fur.refresh();
       if (strip) strip.refresh();
       hint(kept ? kept.said : "Saved.");
+      if (plans) plans.afterSave();                // each correction's target and each plan checked again
     } catch (err) {
       // Refused: the draft stays, to be saved again; what went wrong said plainly.
       saving = false; afterSave = null;
@@ -694,7 +696,7 @@ export function createEditor(ctx){
     hint(drawing(tool) ? "Press on a wall and drag along it, or tap its two ends."
       : tool === "heights" ? "Tap a light, a sensor or a readout."
       : tool === "strip" ? "Tap a light, or pick one from the list."
-      : tool === "plans" ? "Add data via plans (AI, experimental): what the AI found on your floor plans, one item at a time."
+      : tool === "plans" ? "What the AI found on your floor plans, one item at a time."
       : DRAW_HINT);
     paint();
     sheetFor();
@@ -1057,6 +1059,7 @@ export function createEditor(ctx){
     const on = active();
     if (fur && furnishing()) fur.layout();
     if (strip && stripping()) strip.layout();
+    if (planning()) plans.layout();
     if (on && arcsGen !== ctx.shellGen()) { syncArcs(); ctx.render(); }
     const r0 = root.getBoundingClientRect(), off = (p) => [p[0] - r0.left - (root.clientLeft || 0), p[1] - r0.top - (root.clientTop || 0)];
     const put = (el, p, cls) => {
@@ -1116,6 +1119,7 @@ export function createEditor(ctx){
     if (!active() || askEl.classList.contains("on") || saving) return null;
     if (furnishing()) return fur.down(e);                // a piece: "drag"; anything else: "tap"
     if (stripping()) return strip.down(e);               // a handle: "drag"; a wall while drawing: "line"; a light: "tap"
+    if (planning() && plans.mapShown()) return plans.down(e);   // the vetting map: a stair being moved by hand: "drag"; it never turns
     const x = e.clientX, y = e.clientY, k = kindOfPtr(e);
     const s = shown();
     if (s && s.handles && sel) {
@@ -1163,6 +1167,7 @@ export function createEditor(ctx){
   function move(e){
     if (furnishing()) { fur.move(e); return; }
     if (stripping()) { strip.move(e); return; }
+    if (planning() && plans.mapShown()) { plans.move(e); return; }
     const g = gesture;
     if (!g || (g.kind !== "line" && g.kind !== "drag")) return;
     if (!g.moved && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) > SLOP) g.moved = true;
@@ -1182,6 +1187,7 @@ export function createEditor(ctx){
   function up(e){
     if (furnishing()) { fur.up(e); paint(); return; }
     if (stripping()) { strip.up(e); paint(); return; }
+    if (planning() && plans.mapShown()) { plans.up(e); paint(); return; }
     const g = gesture;
     gesture = null;
     if (!g) { paint3d(); return; }
@@ -1244,11 +1250,12 @@ export function createEditor(ctx){
     if (g.span.stop === "opening") flash("Stopped at the opening next to it: openings never overlap.");
     else hint(`${NAME[g.kindOf] || "Window"} now ${DRAFT.metres(g.span.len)}.`);
   }
-  function cancel(){ gesture = null; if (fur) fur.cancel(); if (strip) strip.cancel(); paint3d(); }
+  function cancel(){ gesture = null; if (fur) fur.cancel(); if (strip) strip.cancel(); if (plans) plans.cancel(); paint3d(); }
   function hover(e){
     if (!active()) return false;
     if (furnishing()) { canvas.style.cursor = fur.hover(e); return true; }
     if (stripping()) { canvas.style.cursor = strip.hover(e); return true; }
+    if (planning() && plans.mapShown()) { canvas.style.cursor = plans.hover(e); return true; }
     let cur = "";
     if (openingAt(e.clientX, e.clientY)) cur = "pointer";
     else if ((tool === "door" || tool === "window") && wallAt(e.clientX, e.clientY, REACH.mouse)) cur = "crosshair";
@@ -1288,12 +1295,19 @@ export function createEditor(ctx){
         plans = mod.createPlans({ root, sheet, guard, host: () => plansHost, floors: () => ctx.floors(),
           hint: (text, bad) => hint(text, bad), redraw: () => { paint(); sheetFor(); },
           // New and Correction are this draft's: one step each, undone like any other, kept by Save.
-          DRAFT, draft: () => draft, change: (fn) => change(fn), save: () => save(null), saving: () => saving,
+          DRAFT, draft: () => draft, change: (fn, group, moves) => change(fn, group, moves), save: () => save(null), saving: () => saving,
+          // The vetting map: the plan and the ghosts in this scene, pins over the view, its camera, the real builders.
+          THREE, PIECES: ctx.PIECES, STOREY: ctx.STOREY || null, FURN: ctx.FURN, recipeOf: ctx.recipeOf, canon: ctx.canon, compass: ctx.compass,
+          scene: () => ctx.scene(), camera: () => ctx.camera(), rect: () => viewRect(), screenAt: (F, x, y, z) => screenAt(F, x, y, z), shellGen: () => ctx.shellGen(),
+          render: () => ctx.render(), redrawHouse: () => redrawSoon(), currentFloor: () => currentFloor(), setTopFloor: (fid) => ctx.setTopFloor(fid),
+          flySpot: ctx.flySpot, quiet: ctx.quiet, picked: () => (ctx.selected ? ctx.selected() : null), undo: () => { if (draft && !saving && draft.undo()) afterHistory("Undone."); },
+          addByHand: () => { pickTool("furnish"); if (fur) fur.openBuild(); },
           stairPiece: (g, fid, label) => (fur ? fur.planStair(g, fid, label) : null), reloadFile: () => ctx.reload(),
           // An undo wrote the file (only with nothing unsaved here): the draft starts again from it.
           fileWritten: (data) => { ctx.saved(data); if (draft) draft.rebase(ctx.file() || DRAFT.ownedOf(data)); if (fur) fur.refresh(); if (strip) strip.refresh(); redrawSoon(); } });
         bPlans = btn("Plans", "Add data via plans (AI, experimental)", () => pickTool("plans"));
         toolSeg.appendChild(bPlans);
+        toolSeg.style.flexWrap = "wrap"; toolSeg.style.maxWidth = "100%";   // six tools: on a phone they wrap, never slide under the compass
         paint();
       }).catch((err) => { plansLoading = false; console.warn("PadSpan: the Plans tool failed to load", err); });
     },
@@ -1328,6 +1342,8 @@ export function createEditor(ctx){
     get furnish(){ return fur; },
     /** The Strip tool (the harness reaches it here). */
     get strip(){ return strip; },
+    /** The Plans tool (the harness reaches it here). */
+    get plans(){ return plans; },
     get active(){ return active(); },
     /** The file was read again, or could not be, or a Save found it a newer
      *  PadSpan's: Edit says so, and while it is open the hint says whether

@@ -40,6 +40,7 @@ the only 404s in a check's console are real.) Then open `http://127.0.0.1:8765/t
 | `la=0` | The flat Atlas instead of Live Aboard |
 | `display=0` | The Mapping layout instead of the sidebar's display mode |
 | `edit=1` | Hand Live Aboard an `edit` (Edit and its tools show) |
+| `plans=1` | With `edit=1`: the Plans tool on, over a fake server and a fictional session (`plans_fixture.js`; pictures drawn on a canvas, never a real plan) |
 | `tool=heights\|door\|window\|doorway\|strip`, `teid=` | With `edit=1`: open Edit at that tool (and pick that light in Strip), as the setup wizard does |
 | `sky=rainy` / `sunny` | The weather entity's condition (rain alert, rain) |
 | `night=1` | `sun.sun` below the horizon |
@@ -85,6 +86,7 @@ the Playwright scripts for those (`pip install playwright`; they use the install
 | `pw_sheet.py <out.png>` | A door's sheet: hinge, swing, shown, type (sliding), arcs, Save |
 | `pw_help.py` | Views ▾ → How it works and its guide link |
 | `pw_load.py` | Load the page, list visible buttons and any errors |
+| `pw_plans.py <out_dir> [desktop\|phone]` | The Plans tool's vetting map by real clicks: pins, verdicts, keys, undo, floors, recap, the plan; screenshots in `out_dir` |
 | `pw_tool.py [light]` | The setup wizard's way in (`?edit=1&tool=<t>&teid=<light>`): Edit opens at Heights, Door, Window, Strip (with the light picked) |
 
 Run them with `python -X utf8 <script> ...` (the page uses characters a Windows console can't

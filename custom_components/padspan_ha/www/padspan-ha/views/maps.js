@@ -31,7 +31,7 @@ const { ensureLightsRegistry, gatherLights, buildLightsMapCard, buildLightsTable
         wireUseSurface, openControlCard, controlApiFor, openBarrierCard, openRoomSheet, openFloorSheet, openActivityCalendar, setManyStates, doorInvertOf,
         isOutdoorFloorId, wireHoverHud, pressRing, HOLD_MS, PRESS_RING_MS,
         captureWholeHouse, applyWholeHouse, layoutTierFor, ensureExactDevices, isExactEntity,
-        vacationOptionsOf, vacationEndsText } =
+        vacationOptionsOf, vacationEndsText, la3dCannotHere, la3dPlansList } =
   await import(`./lights_map.js${new URL(import.meta.url).search}`);
 // Fixture-shape vocabulary + derivation (the tab owns the manual override UI).
 const { LIGHT_SHAPES, deriveLightShape, isControllable, deviceClassOf, hasControlCard, hasFixedGlyph, isDoorSensor } =
@@ -10783,11 +10783,24 @@ function _lightsTab(ctx, maps, active) {
   // Mapping → Furnish (P2): the same card, its 3D house in the Furnish tool;
   // the light-placement tools are this tab's, not Furnish's.
   if (furnish) {
+    // Add data via plans (experimental): the vetting map lives in the 3D editor, so with no 3D on
+    // this device (no WebGL, too slow) its list opens here. Same gates as the Plans tool (lights_map.js).
+    const S = ctx.state.settings || {};
+    const plansList = S.ai_plans_enabled === true && ctx.state.dataMode === "live" && ctx.hass?.user?.is_admin !== false
+      && String(S.atlas_3d_ai_task_entity || "").startsWith("ai_task.") && !!la3dCannotHere();
+    const plansBox = plansList ? (mapState._plansListBox || (mapState._plansListBox = el("div", {}))) : null;
+    const plansBtn = plansList ? el("button", { class: "btn inline", style: "margin-left:6px", title: "This device shows no 3D view, so the AI's finds from your plans open as a list", onclick: async () => {
+      if (mapState._plansList) { mapState._plansList.dispose(); mapState._plansList = null; return; }
+      try {
+        mapState._plansList = await la3dPlansList(plansBox, { floors: ctx.state.model?.floors || [], toast: (t, bad) => ctx.toast(t, bad),
+          callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } });
+      } catch (e) { ctx.toast(String((e && e.message) || e), true); }
+    } }, "Add data via plans (experimental)") : null;
     return el("div", {}, [
       el("div", { class: "card", style: "padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.5" }, [
         "Furnish Live Aboard: Build adds a piece; drag it into place. Floor ▲ / ▼ moves it to another floor, and Height in room raises it onto a table, a shelf or a wall. Nothing is kept until Save. ",
-        ctx.helpers.helpBtn ? ctx.helpers.helpBtn("aboard_3d") : null]),
-      mapCardEl]);
+        ctx.helpers.helpBtn ? ctx.helpers.helpBtn("aboard_3d") : null, plansBtn]),
+      plansBox, mapCardEl]);
   }
   // The drafting grid on the stage says "editing" without a word.
   if (paid && !preview) { const stage = mapCardEl.querySelector(".lv-stage"); if (stage) stage.classList.add("editing"); }

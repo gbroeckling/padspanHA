@@ -3100,6 +3100,8 @@ function _laStored(){
   return null;
 }
 const _laCannotHere = () => _laStored() || (_laNoGl ? "no_webgl" : null);
+/** Why this device shows no 3D view (no WebGL, too slow), or null: the Furnish tab's way to the Plans list. */
+export const la3dCannotHere = () => _laCannotHere();
 function _laRemember(why){
   if (!_LA_KEEP.includes(why) || _laStored() === why) return;
   try { _laKeptIn(why).setItem(_LA_FAILED, JSON.stringify({ build: _LA_BUILD, why })); } catch (_) {}
@@ -3365,6 +3367,8 @@ const _noting = (el, notes) => (tag, attrs, kids) => {
   return el(tag, attrs, kids);
 };
 
+/** The Plans list there, from the 3D module (no GL asked of it): only ever on a press in that tab. */
+export const la3dPlansList = async (box, host) => (await import(`./live_aboard.js${new URL(import.meta.url).search}`)).openPlansList(box, host);
 export function buildLightsMapCard(hostIn){
   const keep = hostIn.keepCard || null;
   if (keep && keep.refresh && keep.card && keep.card.isConnected && keep.refresh(hostIn)) return keep.card;
@@ -3640,7 +3644,7 @@ export function buildLightsMapCard(hostIn){
           // master switch on, an AI Task chosen, where Edit itself is offered, never on Sample mode's house, and
           // only for an administrator (every plan_ai_ command is one's).
           plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && h3.admin !== false && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")
-            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings } : null,
+            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings, telemetry: h3.telemetry || null } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
           // The view's floor stepper (▲ Main ▼ · All): the floor chips'
           // choice, a floor at a time, lowest first; and, on the sidebar,

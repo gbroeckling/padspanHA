@@ -831,6 +831,7 @@ function word(kind, k) {
       if (a === "plan_ai_correction_taken") return `Plan AI correction taken on ${b === "hand" ? "a hand-placed" : "an AI-placed"} stair`;
       if (a === "plan_ai_stacked") return `Plan AI stacked stairwell ${b === "offered" ? "offered" : "taken"}`;
       if (a === "plan_ai_moved_after_accept") return `Plan AI ${W_PLAN_KIND[b] || b} kept, then moved over 30 cm before Save`;
+      if (a === "plan_ai_missing_added") return `Plan AI ${W_PLAN_KIND[b] || b} added by hand after the what's-missing pass`;
       if (a === "plan_ai_rail_side") return `Plan AI railing kept on ${b === "ai" ? "the side the AI said" : "a side the person chose"}`;
       if (a === "plan_ai_commit") return `Plan AI keep ${{ done: "written", rev_mismatch: "refused: the list had changed", already_committed: "refused: already kept", changed_since: "refused: a target changed since",
         not_open: "refused: item no longer open", stair_first: "refused: railing before its stair", invalid: "refused: not a valid item", backup_failed: "stopped: no safety backup", save_failed: "stopped: the write failed",

@@ -708,7 +708,8 @@ PLAN_AI_EVENTS: frozenset[str] = frozenset(
     | {"plan_ai_verdict:railing_settled", "plan_ai_taken_back:railing_settled", "plan_ai_no_floor",
        "plan_ai_correction_target:hand", "plan_ai_correction_target:ai", "plan_ai_correction_taken:hand", "plan_ai_correction_taken:ai",
        "plan_ai_stacked:offered", "plan_ai_stacked:taken", "plan_ai_stale", "plan_ai_moved_after_accept:stairs",
-       "plan_ai_rail_side:ai", "plan_ai_rail_side:own"})
+       "plan_ai_rail_side:ai", "plan_ai_rail_side:own"}
+    | {f"plan_ai_missing_added:{k}" for k in PLAN_AI_KINDS})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the
 # nudges move the three setup steps most homes skip.
