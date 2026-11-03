@@ -4159,6 +4159,11 @@ class PadSpanHaApp extends HTMLElement {
                   : addr;
     const canRename = (kind==="ble"||kind==="private_ble"||kind==="ibeacon") && !!tagAddr;
 
+    let howEl = null;
+    if(kind !== "entity" && (obj.how_known || obj.best_name)){
+      howEl = el("span", {style:"color:#94a3b8"}, obj.how_known || "");
+      if(DEVICE_NAME) DEVICE_NAME.fillHowKnown(howEl, obj, (type, data) => this._callWS({ type, ...data }));
+    }
 
     const body = el("div", {style:"display:flex;flex-direction:column;gap:14px"});
 
@@ -4178,7 +4183,7 @@ class PadSpanHaApp extends HTMLElement {
         DEVICE_NAME ? DEVICE_NAME.addressBadge(el, obj) : null,
       ].filter(Boolean)) : null,
       // What it is, who made it, and how we know
-      (kind !== "entity" && (obj.how_known || what)) ? el("div", {style:"margin-top:8px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px"}, [
+      (kind !== "entity" && (obj.how_known || obj.best_name || what)) ? el("div", {style:"margin-top:8px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px"}, [
         ...(obj.company_name || obj.maker_guess ? [
           el("span", {class:"muted"}, "Maker"),
           el("span", {}, obj.company_name || `Probably ${obj.maker_guess}`),
@@ -4188,7 +4193,7 @@ class PadSpanHaApp extends HTMLElement {
           el("span", {title: DEVICE_NAME ? DEVICE_NAME.SERVICE_HOW : ""}, `Uses a service from ${obj.service_owner}`),
         ] : []),
         ...(what ? [el("span", {class:"muted"}, "What it is"), el("span", {}, what)] : []),
-        ...(obj.how_known ? [el("span", {class:"muted"}, "How we know"), el("span", {style:"color:#94a3b8"}, obj.how_known)] : []),
+        ...(howEl ? [el("span", {class:"muted"}, "How we know"), howEl] : []),
       ]) : null,
       this._labelLines(obj, "own", () => this._closeModal()),
       obj.canonical_id ? el("div", {class:"muted", style:"font-size:11px"}, `Canonical: ${obj.canonical_id}`) : null,
@@ -4630,7 +4635,7 @@ class PadSpanHaApp extends HTMLElement {
     ]);
     if(objects.length){
       for(const o of objects){
-        const oName = DEVICE_NAME ? DEVICE_NAME.deviceName(o, "Unknown") : (o.best_name || o.user_label || o.name || o.entity_id || o.address || "Unknown");
+        const oName = DEVICE_NAME ? DEVICE_NAME.pickName(o, "Unknown") : (o.best_name || o.user_label || o.name || o.entity_id || o.address || "Unknown");
         const oKey = (o.address || o.entity_id || "").toUpperCase();
         const isFollowed = oKey && this.state.followedAddrs.has(oKey);
         const oc = isFollowed ? "#fbbf24" : (o.identified ? "#5eead4" : "#f59e0b");
@@ -4657,7 +4662,7 @@ class PadSpanHaApp extends HTMLElement {
     ]);
     if(radios.length){
       for(const r of radios){
-        const rName = r.name || r.source || "Scanner";
+        const rName = r.display_name || r.name || r.source || "Scanner";
         const sid = radioShortId(r.source || "");
         const rRow = el("div", {style:"display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0d1f12"}, [
           el("span", {style:"font-family:monospace;font-weight:700;font-size:12px;letter-spacing:.04em;color:#52b788;flex-shrink:0"}, sid),

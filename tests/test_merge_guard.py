@@ -304,7 +304,7 @@ async def test_the_xref_says_whether_someone_named_it(build) -> None:
     snap, _objs = await build(hass, [_ad(A, name=A), _ad(plain, name=plain)])
     xref = {a["address"]: a["_xref"] for a in snap["ble"]["advertisements"]}
     assert xref[A]["user_label"] == "Keys" and xref[A]["label"] == "Keys"
-    assert xref[plain]["user_label"] == "" and xref[plain]["label"] == plain, "label stays for what reads it"
+    assert "user_label" not in xref[plain] and xref[plain]["label"] == plain, "label stays for what reads it"
 
 
 def test_history_gets_the_new_names_when_it_loads() -> None:

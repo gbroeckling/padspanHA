@@ -728,7 +728,7 @@ function _buildSearchIndex(ctx) {
       ? { x_m: o.x_m, y_m: o.y_m, floor_id: o.floor_id }
       : roomCentroid[o.room];
     if (!pos) continue;   // no fabric position AND no room to fall back to
-    out.push({ kind: "object", key, label, sub: o.room || "", ...pos });
+    out.push({ kind: "object", key, label, sub: o.room || "", search: [label, o.address, ...(o.all_addresses || [])].join(" "), ...pos });
   }
   for (const [room, pos] of Object.entries(roomCentroid)) {
     out.push({ kind: "room", key: room, label: room, sub: "Room", ...pos });
@@ -823,7 +823,7 @@ function SearchBox({ ctx }) {
 
   const q = query.trim().toLowerCase();
   const results = q
-    ? _buildSearchIndex(ctx).filter(r => r.label.toLowerCase().includes(q)).slice(0, 8)
+    ? _buildSearchIndex(ctx).filter(r => (r.search || r.label).toLowerCase().includes(q)).slice(0, 8)
     : [];
 
   const pick = (r) => {

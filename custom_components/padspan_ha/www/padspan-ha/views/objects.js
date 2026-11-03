@@ -629,7 +629,7 @@ export function render(ctx){
             : (isObjAway
               ? (_lastKnownText(o.key || o.address || o.entity_id || "") || (o.last_room ? `Last: ${o.last_room}` : "—"))
               : room)),
-          el("div",{class:"basic-obj-sub"}, [kind, o.company_name || serviceWords(o) || (o.maker_guess ? `Probably ${o.maker_guess}` : null), deviceWhat(o) === kind ? null : deviceWhat(o), isObjAway ? null : rssi].filter(Boolean).join(" · ")),
+          el("div",{class:"basic-obj-sub"}, [kind, o.company_name || serviceWords(o) || (o.maker_guess ? `Probably ${o.maker_guess}` : null), deviceWhat(o) === kind ? null : listWhat(o), isObjAway ? null : rssi].filter(Boolean).join(" · ")),
           _macOf(o) && _macOf(o) !== name ? el("div",{class:"basic-obj-sub",style:"font-family:monospace;font-size:11px"}, _macOf(o)) : null,
         ].filter(Boolean)),
         actions,

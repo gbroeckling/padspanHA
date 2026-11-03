@@ -1519,7 +1519,7 @@ export function renderClassic(ctx){
           const [px,py] = iso(sc.x_m, sc.y_m, z);
           const rsid = (_sid(sc.source) || "R").toUpperCase();
           const inRoom = storey.rooms.find(r => _ptInPoly(sc.x_m, sc.y_m, r.pts));
-          const _rTip = `${rsid} · ${(isLive ? liveRadio.name : null)||sc.source}`
+          const _rTip = `${rsid} · ${(isLive ? (liveRadio.display_name||liveRadio.name) : null)||sc.source}`
             + (inRoom ? `\nArea: ${inRoom.room}` : "")
             + ((isLive && liveRadio.scanning!=null) ? `\nScanning: ${liveRadio.scanning?"Yes":"No"}` : "")
             + ((isLive && liveRadio.scan_mode) ? `\nMode: ${liveRadio.scan_mode === "active" ? "Active — transmits scan requests" : liveRadio.scan_mode === "passive" ? "Passive — listens only" : liveRadio.scan_mode}` : "")

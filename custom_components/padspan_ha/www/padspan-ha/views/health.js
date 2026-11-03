@@ -59,7 +59,7 @@ export function render(ctx){
   if (deaf.length) {
     root.appendChild(el("div",{class:"card",style:"margin-top:12px;font-size:11px"},[
       el("div",{style:"font-weight:700;margin-bottom:4px"},"Hearing less than usual"),
-      el("div",{}, deaf.map(r => r.name || r.source).join(", ")),
+      el("div",{}, deaf.map(r => r.display_name || r.name || r.source).join(", ")),
       el("div",{class:"muted",style:"margin-top:4px"},
         "For over 10 minutes this scanner has heard far fewer Bluetooth advertisements than it usually does, while the others are normal. Rooms near it can be wrong. Restarting it often helps; on ESPHome, check its version and Wi-Fi."),
     ]));
@@ -78,7 +78,7 @@ export function render(ctx){
     const _sid = ctx.helpers.radioShortId;
     const liveRadios = (snap?.ble?.radios) || [];
     const nameMap = {};
-    for (const r of liveRadios) { if(r.source && r.name) nameMap[r.source] = r.name; }
+    for (const r of liveRadios) { if(r.source && (r.display_name || r.name)) nameMap[r.source] = r.display_name || r.name; }
     const entries = Object.entries(sh).sort((a,b) => a[1].reliability - b[1].reliability);
     const shCard = el("div",{class:"card",style:"margin-top:12px"});
     shCard.appendChild(el("div",{style:"display:flex;align-items:center;gap:8px;margin-bottom:8px"},[

@@ -15,9 +15,11 @@ service-owner and address tables answer once device_tables has loaded them.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from . import device_tables
+from .findmy import _payload_bytes
 
 
 # ─── GATT Service UUIDs ─────────────────────────────────────────────────────
@@ -253,6 +255,59 @@ def decode_apple_subtype(manuf_payload: Any) -> Optional[str]:
     return None
 
 
+def apple_records(raw: bytes) -> list[tuple[int, int, int]]:
+    """(type, start, end) of each record in Apple's block, a chain of type, length,
+    value; a record cut short ends the chain."""
+    out: list[tuple[int, int, int]] = []
+    i = 0
+    while i + 2 <= len(raw):
+        start, end = i + 2, i + 2 + raw[i + 1]
+        if end > len(raw):
+            break
+        out.append((raw[i], start, end))
+        i = end
+    return out
+
+
+def apple_said_by_others(payload: Any) -> bool:
+    """HomeKit, or Find My's device type 2 without AirPods' pairing record."""
+    raw = _payload_bytes(payload)
+    kinds = {r[0]: r for r in (apple_records(raw) if raw else ())}
+    if 0x07 in kinds:  # AirPods' own pairing record
+        return False
+    if 0x06 in kinds:  # HomeKit
+        return True
+    if 0x12 in kinds:  # Find My, its device type in bits 4-5 of the status byte
+        start, end = kinds[0x12][1:]
+        return end > start and (raw[start] >> 4) & 0x03 == 2
+    return False
+
+
+@lru_cache(maxsize=8192)
+def _apple_text_number_only(payload: str) -> bool:
+    return _is_ibeacon_payload(payload) or apple_said_by_others(payload)
+
+
+def apple_number_only(payload: Any) -> bool:
+    """Does this Apple-numbered block use Apple's number whoever made the device?
+    The iBeacon format, HomeKit (an Eve or a Nanoleaf) and Find My's device type 2,
+    which is another brand's tag or AirPods: there the number says nothing about the
+    maker. AirPods are told by their pairing record, which is Apple's alone. Asked of
+    the same few thousand strings every build, so those are remembered."""
+    if isinstance(payload, str):
+        return _apple_text_number_only(payload)
+    return _is_ibeacon_payload(payload) or apple_said_by_others(payload)
+
+
+def with_model_maker(obj: Dict[str, Any]) -> Dict[str, Any]:
+    """An object as calibration's model groups read it (compute_beacon_profiles).
+    Apple's number no longer makes Apple the maker of a HomeKit or Find My accessory
+    on screen, and a beacon's group stays what it was."""
+    if not obj.get("company_name") and apple_said_by_others((obj.get("manufacturer_data") or {}).get("76")):
+        return {**obj, "company_name": "Apple"}
+    return obj
+
+
 def _is_ibeacon_payload(payload: Any) -> bool:
     """Does this Apple-numbered block start 02 15, the iBeacon format?"""
     try:
@@ -332,8 +387,8 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
 
     Adds:
       - company_name: str|None — who made it, from what its broadcast says
-      - maker_source: str|None — how that is known: "company_id" or "espresense"
-        ("address" comes later, from apply_address_maker)
+      - maker_source: str — how that is known, left off with no maker: "company_id"
+        or "espresense" ("address" comes later, from apply_address_maker)
       - service_owner: str|None — whose service it broadcasts, which isn't a maker
       - device_type: str|None  — specific device type (e.g. "AirPods", "Find My", "Phone")
       - service_names: list[str] — human-readable names for service_uuids
@@ -344,14 +399,14 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
     obj.pop("maker_guess", None)
 
     # ── Company name from manufacturer_data keys ──
-    # The iBeacon format requires Apple's number whoever made the beacon, so
-    # there it says nothing about the maker.
+    # Some formats use Apple's number whoever made the device, so there it says
+    # nothing about the maker (apple_number_only).
     company_name = None
     maker_source = None
     for key in manuf:
         try:
             cid = int(key)
-            if cid == 0x004C and _is_ibeacon_payload(manuf[key]):
+            if cid == 0x004C and apple_number_only(manuf[key]):
                 continue
             name = lookup_company(cid)
             if name:
@@ -413,7 +468,10 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
         if company_name:
             maker_source = "espresense"
     obj["company_name"] = company_name
-    obj["maker_source"] = maker_source
+    if maker_source:
+        obj["maker_source"] = maker_source
+    else:
+        obj.pop("maker_source", None)
 
     # ── Whose service it broadcasts. Kept apart from the maker ──
     owner = None

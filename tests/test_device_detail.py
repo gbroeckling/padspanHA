@@ -124,7 +124,7 @@ def test_apply_detail_only_adds_fields():
     after = json.loads(json.dumps(before))
     DD.apply_detail(after)
     assert {k: after[k] for k in before} == before
-    assert set(after) - set(before) <= {"best_name", "name_source", "what_it_is", "how_known", "address_kind"}
+    assert set(after) - set(before) <= {"best_name", "name_source", "what_it_is", "address_kind"}
 
 
 # ── n8: what it is ────────────────────────────────────────────────────────────
@@ -138,8 +138,8 @@ APPLE = {
     "airpods_case": (_hex(0x12, 0x02, 0x2E, 0x02, 0x07, 0x11, 0x06, 0x39, *[0x22] * 15), "AirPods or Beats"),
     "airpods_open": (_hex(0x07, 0x19, 0x01, 0x14, 0x20, *[0x33] * 22), "AirPods or Beats"),
     "bits_3": (_hex(0x12, 0x02, 0x34, 0x01), "AirPods or Beats"),
-    "nearby_info": (_hex(0x10, 0x05, 0x03, 0x18, 1, 2, 3), "Apple phone or tablet"),
-    "handoff_then_nearby": (_hex(0x0C, 0x0E, 0x00, *[0x44] * 13, 0x10, 0x06, 0x45, 0x1D, 1, 2, 3, 4), "Apple phone or tablet"),
+    "nearby_info": (_hex(0x10, 0x05, 0x03, 0x18, 1, 2, 3), "Apple device"),
+    "handoff_then_nearby": (_hex(0x0C, 0x0E, 0x00, *[0x44] * 13, 0x10, 0x06, 0x45, 0x1D, 1, 2, 3, 4), "Apple device"),
     "homekit": (_hex(0x06, 0x03, 1, 2, 3), "Apple Home accessory"),
     "ibeacon": (_hex(0x02, 0x15, *[0x55] * 21), "iBeacon"),
     "airplay": (_hex(0x09, 0x06, 1, 2, 3, 4, 5, 6, 0x16, 0x01, 0x02), None),
@@ -201,7 +201,9 @@ def test_services(data, uuids, want):
 @pytest.mark.parametrize("over,want", [
     ({"name": "SBBT-002C"}, "Shelly BLU Button1"),
     ({"name": "SBDW-002C"}, "Shelly BLU Door/Window"),
-    ({"manufacturer_data": {"2985": _hex(1, 2)}}, "Shelly BLU device"),
+    ({"manufacturer_data": {"2985": _hex(1, 2)}}, "Shelly device"),
+    ({"name": "ShellyPlus1PM-AABB", "manufacturer_data": {"2985": _hex(1, 2)}}, "Shelly device"),
+    ({"name": "SBXX-999", "manufacturer_data": {"2985": _hex(1, 2)}}, "Shelly BLU device"),
     ({"manufacturer_data": {"1177": _hex(5, 2)}}, "RuuviTag"),
     ({"manufacturer_data": {"1660": _hex(5, 2)}}, "Tile"),
     ({"name": "GVH5075_1A2B"}, "Govee H5075"),
@@ -241,7 +243,7 @@ def test_only_the_kind_is_read_never_what_someone_is_doing():
     for state in range(256):
         nearby = DD.describe(_obj(manufacturer_data={"76": _hex(0x10, 0x05, state, state, 1, 2, 3)}))
         pairing = DD.describe(_obj(manufacturer_data={"76": _hex(0x07, 0x19, 0x01, 0x14, 0x20, *[state] * 22)}))
-        assert nearby["what_it_is"] == "Apple phone or tablet" and pairing["what_it_is"] == "AirPods or Beats"
+        assert nearby["what_it_is"] == "Apple device" and pairing["what_it_is"] == "AirPods or Beats"
         fields |= set(nearby) | set(pairing)
     assert fields == {"best_name", "name_source", "maker", "service_owner", "what_it_is", "how_known", "address_kind"}
 

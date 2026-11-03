@@ -341,6 +341,7 @@ _NODE = shutil.which("node")
 @pytest.mark.skipif(_NODE is None, reason="node is not installed")
 def test_diag_export_cuts_the_long_lists_but_keeps_every_own_object(tmp_path: Path):
     (tmp_path / "monitor.mjs").write_text((_VIEWS / "monitor.js").read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "device_name.js").write_text((_VIEWS / "device_name.js").read_text(encoding="utf-8"), encoding="utf-8")
     objs = [{"key": f"k{i}", "kind": "ble"} for i in range(5000)]
     objs[4000]["user_label"] = "Keys"
     objs[4500]["identified"] = True

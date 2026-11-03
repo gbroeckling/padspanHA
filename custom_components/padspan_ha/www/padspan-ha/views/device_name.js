@@ -20,6 +20,46 @@ export function deviceName(o, fallback = UNNAMED){
   return o.company_name ? `${o.company_name} device` : (o.address ? UNNAMED : fallback);
 }
 
+/** Where its name came from. The server leaves off the commonest, "maker". */
+const nameSource = (o) => o.name_source || (o.best_name ? "maker" : null);
+
+const MAC_RE = /^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+
+/** The device's name where a person picks one out of many. A name that is only a
+ *  maker, a service or "Unnamed device" gets the end of its address, or a list of
+ *  phones is the same row fifty times: "Apple device · 8A:3B:63". */
+export function pickName(o, fallback = UNNAMED){
+  const name = deviceName(o, fallback);
+  if(!o) return name;
+  const generic = o.best_name ? ["maker", "service", "none"].includes(nameSource(o))
+    : name === UNNAMED || name === `${o.company_name} device`;
+  if(!generic) return name;
+  const one = Array.isArray(o.all_addresses) && o.all_addresses.length === 1 ? o.all_addresses[0] : "";
+  const mac = [o.address, one].find(a => MAC_RE.test(String(a || "")));
+  return mac ? `${name} · ${String(mac).slice(-8).toUpperCase()}` : name;
+}
+
+const HOW_FIELDS = ["kind", "name", "broadcast_name", "company_name", "maker_source", "service_owner", "maker_guess",
+  "manufacturer_data", "service_uuids", "service_data", "espresense_id"];
+const howAsked = new Map();
+
+/** Put "How we know" in a node. The server words it when a window opens, so the
+ *  snapshot doesn't carry it for every device; a window redrawn by a poll isn't asked
+ *  twice. wsCall(type, data). Sample mode's objects already have it. */
+export function fillHowKnown(node, o, wsCall){
+  if(o.how_known){ node.textContent = o.how_known; return; }
+  const object = {};
+  for(const k of HOW_FIELDS) if(o[k] !== undefined && o[k] !== null) object[k] = o[k];
+  const key = JSON.stringify(object);
+  if(howAsked.has(key)){ node.textContent = howAsked.get(key); return; }
+  node.textContent = "\u2026";
+  wsCall("padspan_ha/device_how_known", { object }).then((r) => {
+    if(howAsked.size >= 200) howAsked.clear();
+    howAsked.set(key, r.how_known);
+    node.textContent = r.how_known;
+  }).catch(() => { node.textContent = "\u2014"; });
+}
+
 /** What the device is, from its broadcast. "Handoff" and the like are message
  *  types, not devices; only what never went through the server shows them. */
 export function deviceWhat(o){
@@ -34,6 +74,7 @@ export const SERVICE_HOW = "It broadcasts a service number Bluetooth assigned to
 /** What it is, for a list whose kind badge may already have said so. */
 export function listWhat(o){
   const what = deviceWhat(o);
+  if(o && what === o.best_name) return null;  // "Apple device" twice
   return what === "iBeacon" && o && o.kind === "ibeacon" ? null : what;
 }
 
@@ -106,7 +147,7 @@ export function fadeFor(o){
  *  isKept(o) keeps others out, like a followed device. */
 export function groupWord(o, isKept){
   if(!o || o.address_kind !== "rotating" || o.user_label || o.identified) return null;
-  if(!["maker", "service", "none", "beacon"].includes(o.name_source)) return null;
+  if(!["maker", "service", "none", "beacon"].includes(nameSource(o))) return null;
   if(isKept && isKept(o)) return null;
   return o.what_it_is || (o.company_name ? `${o.company_name} device` : "") || (o.service_owner ? `${o.service_owner} service` : "") || "unnamed";
 }
@@ -211,19 +252,34 @@ export function firstFew(names, n = 3){
   return names.length <= n ? names.join(", ") : `${names.slice(0, n).join(", ")} +${names.length - n} more`;
 }
 
+// A phone's IRK (its identity key: whoever has it can follow the phone through
+// its changing Bluetooth addresses) is the key and canonical_id of its
+// objects, "irk:" + 32 hex (private_ble_resolver.py), and what ESPresense sends
+// as an id. Anything made to be sent, to a public GitHub issue as well, has each
+// IRK replaced by a number that stands for the same phone everywhere in it.
+export function hideIrks(text) {
+  const seen = new Map();
+  return String(text).replace(/irk:[0-9a-f]{32}/gi, (m) => {
+    const k = m.toLowerCase();
+    if (!seen.has(k)) seen.set(k, `irk:hidden-${seen.size + 1}`);
+    return seen.get(k);
+  });
+}
+
 /** The raw broadcast, as a person can paste it into a bug report. Apple's hashes
- *  of a phone, email or Apple ID were taken out before it was ever stored. */
+ *  of a phone, email or Apple ID were taken out before it was ever stored, and an
+ *  IRK is hidden here. Only the name it broadcast: `name` can be your label. */
 export function rawBroadcast(o){
   const raw = { address: o.address || "" };
   if(o.address_type) raw.address_type = o.address_type;
-  if(o.name && o.name !== o.address) raw.name = o.name;
+  if(o.broadcast_name) raw.broadcast_name = o.broadcast_name;
   for(const k of ["manufacturer_data", "service_data", "service_uuids", "connectable", "tx_power", "espresense_id"]){
     const v = o[k];
     if(v === null || v === undefined) continue;
     if(typeof v === "object" && !Object.keys(v).length) continue;
     raw[k] = v;
   }
-  return JSON.stringify(raw, null, 2);
+  return hideIrks(JSON.stringify(raw, null, 2));
 }
 
 /** Copy text; the clipboard API only exists on https or localhost, and Home

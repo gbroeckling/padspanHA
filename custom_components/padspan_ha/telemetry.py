@@ -1623,8 +1623,9 @@ def _object_detail(obj_list: list) -> dict[str, int]:
             out["maker_service_uuid"] = out.get("maker_service_uuid", 0) + 1
         if o.get("device_type") or o.get("auto_class"):
             out["type"] += 1
-        if o.get("name_source"):
-            k = f"name_{o['name_source']}"
+        source = o.get("name_source") or ("maker" if o.get("best_name") else None)  # left off when it's maker
+        if source:
+            k = f"name_{source}"
             out[k] = out.get(k, 0) + 1
         if o.get("what_it_is"):
             out["what"] = out.get("what", 0) + 1

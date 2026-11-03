@@ -9,6 +9,8 @@
  * on a different aspect of system state (BLE coverage, zone config, performance).
  */
 
+const { pickName, hideIrks } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+
 // Signal quality, per scanner (Diagnostics + Insights tabs).
 //
 // Averaging RSSI across every advertisement a scanner merely overhears
@@ -361,7 +363,7 @@ function _zones(ctx, el){
     if(objs.length > 0){
       const list = el("div",{style:"display:flex;flex-direction:column;gap:3px"});
       for(const o of objs.slice(0, 8)){
-        const label = o.best_name || o.user_label || o.name || o.address || "Unknown";
+        const label = pickName(o, "Unknown");
         const rssiText = o.rssi != null ? ` (${o.rssi} dBm)` : "";
         const isFollowed = ctx.actions.followedHas && ctx.actions.followedHas(o.address || o.key);
         const objRow = el("div",{"data-obj-click":"1",style:"font-size:12px;cursor:pointer;padding:2px 4px;border-radius:3px;display:flex;align-items:center;gap:4px"});
@@ -684,20 +686,8 @@ const DIAG_LIST_CAP = 200;
 // The person's own objects. Diagnostics' report lists only these.
 export const _isMine = (o) => !!(o && (o.identified || o.user_label || o.kind === "private_ble"));
 
-// A phone's IRK (its identity key: whoever has it can follow the phone through
-// its changing Bluetooth addresses) is the key and canonical_id of its
-// objects, "irk:" + 32 hex (private_ble_resolver.py). This export and the
-// Diagnostics report are made to be sent, to a public GitHub issue as well, so
-// each IRK is replaced by a number that stands for the same phone everywhere
-// in the one report.
-export function hideIrks(text) {
-  const seen = new Map();
-  return String(text).replace(/irk:[0-9a-f]{32}/gi, (m) => {
-    const k = m.toLowerCase();
-    if (!seen.has(k)) seen.set(k, `irk:hidden-${seen.size + 1}`);
-    return seen.get(k);
-  });
-}
+// This export and the Diagnostics report are made to be sent, so each hides IRKs.
+export { hideIrks };
 export function diagSnapshot(snap){
   if(!snap || typeof snap !== "object") return snap;
   const out = Object.assign({}, snap);
