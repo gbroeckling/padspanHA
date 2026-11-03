@@ -723,7 +723,7 @@ function _buildSearchIndex(ctx) {
   for (const o of (snap?.objects?.list || [])) {
     const key = o.key || o.address || o.entity_id;
     if (!key) continue;
-    const label = o.user_label || o.private_ble_name || o.name || String(key).substring(0, 18);
+    const label = o.best_name || o.user_label || o.private_ble_name || o.name || String(key).substring(0, 18);
     const pos = (o.x_m != null && o.y_m != null)
       ? { x_m: o.x_m, y_m: o.y_m, floor_id: o.floor_id }
       : roomCentroid[o.room];
@@ -738,7 +738,7 @@ function _buildSearchIndex(ctx) {
     const pos = scanPos[r.source];
     if (!pos) continue;
     out.push({
-      kind: "scanner", key: r.source, label: r.name || r.source, sub: r.area_name || "Scanner",
+      kind: "scanner", key: r.source, label: r.display_name || r.name || r.source, sub: r.area_name || "Scanner",
       x_m: pos.x_m, y_m: pos.y_m, floor_id: pos.floor_id,
     });
   }
@@ -871,7 +871,7 @@ function FollowedTracker({ ctx, snap }) {
     if (!isFollowed) continue;
     devices.push({
       key: addr,
-      label: o.user_label || o.private_ble_name || o.name || addr.substring(0, 12),
+      label: o.best_name || o.user_label || o.private_ble_name || o.name || addr.substring(0, 12),
       room: o.room || "Unknown",
       rssi: o.rssi,
       age: o.age_s,
