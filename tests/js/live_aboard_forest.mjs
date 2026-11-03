@@ -12,6 +12,7 @@
 //   same     the same house, the same forest; another house, another forest;
 //            Low's trees are High's, fewer
 //   rain     the rain's patch moves only when the forest asks
+//   sun      only a bright sunny day by daylight, dry, changes the look
 //
 // usage: live_aboard_forest.mjs <www/padspan-ha dir> [dump model_get.json]
 // prints one JSON line: { cases: {name: result}, failures: [...], counts: {...} }
@@ -109,5 +110,11 @@ check("same: no rooms, no forest", FO.forestPlan([], 1) === null);
   const floor = { elev: 0, h: 2.8 }, rooms = [{ pts: [[0, 0], [10, 0], [10, 8], [0, 8]], floor, outdoor: false }];
   const plain = WEATHER.weatherArea({ rooms, ground: -0.3, shown: () => true }), grown = WEATHER.weatherArea({ rooms, ground: -0.3, shown: () => true, ...FO.RAIN_REACH });
   check("rain: reach and rise only when asked", grown.r === plain.r + FO.RAIN_REACH.reach && grown.top === plain.top + FO.RAIN_REACH.rise, { plain: [plain.r, plain.top], grown: [grown.r, grown.top] });
+}
+// The sun: a bright sunny day and nothing else.
+for (const [cond, wet, night, want] of [["sunny", false, 0, 1], ["sunny", false, 1, 0], ["sunny", false, 0.5, 0.5], ["sunny", true, 0, 0],
+                                        ["partlycloudy", false, 0, 0], ["cloudy", false, 0, 0], ["fog", false, 0, 0], ["rainy", false, 0, 0], ["clear-night", false, 1, 0], [null, false, 0, 0]]) {
+  const got = FO.niceDay(cond, wet, night);
+  check(`sun: ${cond}, wet ${wet}, night ${night}`, got === want, { got, want });
 }
 console.log(JSON.stringify({ cases, failures, counts }));

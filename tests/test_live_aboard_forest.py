@@ -129,7 +129,7 @@ def test_the_new_file_s_errors_are_kept() -> None:
 
 # ── the plan (tests/js/live_aboard_forest.mjs) ───────────────────────────────
 
-@pytest.mark.parametrize("prefix", ["read:", "clear: fixture", "clear: estate", "same:", "dense:", "budget:", "rain:"])
+@pytest.mark.parametrize("prefix", ["read:", "clear: fixture", "clear: estate", "same:", "dense:", "budget:", "rain:", "sun:"])
 def test_each_part_of_the_forest(forest, prefix) -> None:
     got = {k: v for k, v in forest["cases"].items() if k.startswith(prefix)}
     assert got, f"no {prefix} case ran: {sorted(forest['cases'])}"

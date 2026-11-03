@@ -119,6 +119,14 @@ export function forestPlan(rooms, seed, profile = "high"){
   return { cx, cy, R, out, trees, ferns, salal, logs, rocks };
 }
 
+/** The sun on the forest, 0 to 1: only on a bright sunny day (the weather's
+ *  condition is "sunny", it is not raining or snowing whatever the condition says,
+ *  and it is not dark: night 0 day, 1 night). Any other day is the dark, misty forest as it is. */
+export function niceDay(condition, wet, night){
+  if (wet || condition !== "sunny") return 0;
+  return 1 - Math.min(1, Math.max(0, Number(night) || 0));
+}
+
 // ── The shapes (a tree 1 high, its width in the same units) ─────────────────
 const LOG_R = 0.042;
 // base: where the crown starts (the bare trunk below); rmax: the crown's reach;
@@ -386,17 +394,36 @@ function paintMoss(){
   return c;
 }
 
+/** Where sun falls through the canopy, wrapping: red, the gaps it comes through;
+ *  green, the flecks of light under them. */
+function paintDapple(){
+  const S = 256, c = makeCanvas(S, S), g = c.getContext("2d"), rnd = cellRandom(0x5eed, 7, 8, 9);
+  g.fillStyle = "#000"; g.fillRect(0, 0, S, S);
+  g.globalCompositeOperation = "lighter";
+  const blob = (x, y, r, rgb, a) => {
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
+      const o = g.createRadialGradient(x + ox, y + oy, r * 0.1, x + ox, y + oy, r);
+      o.addColorStop(0, `rgba(${rgb},${a})`); o.addColorStop(1, `rgba(${rgb},0)`);
+      g.fillStyle = o; g.fillRect(x + ox - r, y + oy - r, 2 * r, 2 * r);
+    }
+  };
+  for (let i = 0; i < 26; i++) blob(rnd() * S, rnd() * S, 14 + rnd() * 34, "255,0,0", 0.5 + rnd() * 0.5);
+  for (let i = 0; i < 420; i++) blob(rnd() * S, rnd() * S, 1.5 + rnd() * rnd() * 9, "0,255,0", 0.35 + rnd() * 0.65);
+  return c;
+}
+
 // ── The shaders: the GPU fades, nothing per tree on the CPU per frame ───────
 const VS = `
-uniform vec3 uEye;
+uniform vec3 uEye, uSun;
 uniform vec4 uHouse, uAim;
 uniform vec2 uFog;
+uniform float uDay;
 attribute vec3 aCol;
 attribute vec4 iA, iB;
 attribute vec3 iC;
 varying vec2 vUv;
 varying vec3 vCol;
-varying float vFog, vFade;
+varying float vFog, vFade, vSun;
 #ifndef STILL
 // 1: stays. 0: it stands between the eye and a circle (c, R) and reaches the line of sight down to that circle's near edge.
 float wedge(vec2 b, float top, float crown, vec2 c, float R){
@@ -424,18 +451,25 @@ void main(){
   if (vFade <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 #endif
   vUv = uv;
+  vSun = 0.0;
+#ifndef STILL
+  // A nice day: the side of a tree toward the sun, more the higher up; the floor of the forest stays in shade.
+  vec2 off = world.xz - iA.xz;
+  vSun = uDay * (0.08 + 0.92 * smoothstep(2.0, 26.0, world.y - uHouse.w)) * clamp(0.2 + dot(off, uSun.xz) / max(length(off), 0.001) + 0.4 * uSun.y, 0.0, 1.0);
+#endif
   vCol = aCol * iC.x * vec3(1.0 + iC.y * 0.1, 1.0, 1.0 - iC.y * 0.1);
   float d = max(distance(world, uEye) - uFog.x, 0.0);
   vFog = 1.0 - exp(-d * uFog.y * (0.5 + exp(-max(world.y - uHouse.w, 0.0) / 15.0)));
   gl_Position = projectionMatrix * modelViewMatrix * vec4(world, 1.0);
 }`;
 const FS = `
+const vec3 SUN_ON_TREES = vec3(1.3, 1.05, 0.5);
 uniform sampler2D uMap;
 uniform vec3 uMist;
 uniform float uLight;
 varying vec2 vUv;
 varying vec3 vCol;
-varying float vFog, vFade;
+varying float vFog, vFade, vSun;
 void main(){
   vec4 t = texture2D(uMap, vUv);
 #ifdef A2C
@@ -446,23 +480,26 @@ void main(){
   float a = 1.0;
 #endif
   if (vFade < 0.995 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) > vFade) discard;
-  gl_FragColor = vec4(mix(vCol * t.rgb * uLight, uMist, vFog), a);
+  gl_FragColor = vec4(mix(vCol * t.rgb * uLight * (1.0 + vSun * SUN_ON_TREES), uMist, vFog), a);
 }`;
 const FLOOR_VS = `
 varying vec3 vW;
 void main(){ vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const FLOOR_FS = `
-uniform sampler2D uMoss;
+uniform sampler2D uMoss, uDapple;
 uniform vec3 uEye, uMist;
 uniform vec4 uHouse;
 uniform vec2 uFog, uEdge;
-uniform float uLight;
+uniform float uLight, uDay;
 varying vec3 vW;
 void main(){
   vec3 a = texture2D(uMoss, vW.xz / 5.3).rgb, b = texture2D(uMoss, vW.zx / 41.0 + 0.37).rgb;
   float d = max(distance(vW, uEye) - uFog.x, 0.0);
   float f = max(1.0 - exp(-d * uFog.y * 1.5), smoothstep(uEdge.x, uEdge.y, distance(vW.xz, uHouse.xy)));
-  gl_FragColor = vec4(mix(a * (0.5 + b * 4.5) * uLight, uMist, f), 1.0);
+  vec3 col = a * (0.5 + b * 4.5) * uLight;
+  float gap = smoothstep(0.15, 0.75, texture2D(uDapple, vW.xz / 71.0).r), fleck = gap * smoothstep(0.15, 0.7, texture2D(uDapple, vW.zx / 31.0 + 0.31).g);
+  col = col * (1.0 + uDay * (0.35 * gap + 1.5 * fleck)) + uDay * fleck * vec3(0.085, 0.07, 0.03);
+  gl_FragColor = vec4(mix(col, uMist, f), 1.0);
 }`;
 const SKY_VS = `
 varying vec3 vD;
@@ -475,9 +512,11 @@ void main(){ gl_FragColor = vec4(mix(uMist, uSky, smoothstep(0.0, 0.5, normalize
 // By day it is overcast under the canopy; by night nearly gone. Shown as written (no tone mapping, no lamp reaches them).
 const MIST_DAY = "#2a3a3a", MIST_NIGHT = "#121e20", SKY_DAY = "#141d20", SKY_NIGHT = "#04080a", LIGHT_NIGHT = 0.72;
 const FOG_DENSITY = 0.016;
+// A bright sunny day: the mist gone but for the far distance, blue over the canopy, the same dark forest.
+const MIST_SUN = "#2c464c", SKY_SUN = "#3c6c8e", FOG_SUN = 0.0012, LIGHT_SUN = 1.1;
 
 /** The forest in a scene: {house({rooms, ground, seed}), prepare(camera, target,
- *  {on, night, profile}), state(), dispose()}. Everything here is its own: when
+ *  {on, night, profile, day, sun}), state(), dispose()}. Everything here is its own: when
  *  it goes, the scene is as it found it. */
 export function createForest({ THREE, scene, renderer }){
   const group = new THREE.Group();
@@ -489,13 +528,14 @@ export function createForest({ THREE, scene, renderer }){
     if (repeat === "both") t.wrapS = t.wrapT = THREE.RepeatWrapping; else t.wrapS = THREE.RepeatWrapping;
     return t;
   };
-  const map = texOf(paintAtlas()), moss = texOf(paintMoss(), "both");
+  const map = texOf(paintAtlas()), moss = texOf(paintMoss(), "both"), dapple = texOf(paintDapple(), "both");
   // Colours are written to the screen as they are: no colour-space step, no tone mapping.
   const shown = (hex) => new THREE.Color(hex).convertLinearToSRGB();
-  const dayMist = shown(MIST_DAY), nightMist = shown(MIST_NIGHT), daySky = shown(SKY_DAY), nightSky = shown(SKY_NIGHT);
+  const dayMist = shown(MIST_DAY), nightMist = shown(MIST_NIGHT), daySky = shown(SKY_DAY), nightSky = shown(SKY_NIGHT), sunMist = shown(MIST_SUN), sunSky = shown(SKY_SUN);
   const shared = { uEye: { value: new THREE.Vector3() }, uHouse: { value: new THREE.Vector4() }, uAim: { value: new THREE.Vector4() },
                    uFog: { value: new THREE.Vector2(0, FOG_DENSITY) }, uMist: { value: dayMist.clone() }, uSky: { value: daySky.clone() },
-                   uEdge: { value: new THREE.Vector2(200, 300) }, uLight: { value: 1 }, uMap: { value: map }, uMoss: { value: moss } };
+                   uEdge: { value: new THREE.Vector2(200, 300) }, uLight: { value: 1 }, uMap: { value: map }, uMoss: { value: moss },
+                   uDapple: { value: dapple }, uDay: { value: 0 }, uSun: { value: new THREE.Vector3(0, 1, 0) } };
   const raw = (o) => new THREE.ShaderMaterial({ uniforms: shared, toneMapped: false, fog: false, lights: false, ...o });
   const a2c = !!(renderer && renderer.getContext && (renderer.getContext().getContextAttributes() || {}).antialias);
   const defines = a2c ? { A2C: 1 } : {};
@@ -508,7 +548,7 @@ export function createForest({ THREE, scene, renderer }){
   const sky = new THREE.Mesh(new THREE.SphereGeometry(600, 20, 10), mats.sky);
   sky.frustumCulled = false; sky.renderOrder = 9;
   group.add(sky);
-  let meshes = [], houseIn = null, key = null, built = null, plan = null, lastNight = -1, broken = false;
+  let meshes = [], houseIn = null, key = null, built = null, plan = null, lastNight = -1, lastDay = -1, broken = false;
 
   const instances = (G, list, order, topOf, material = mats.tree) => {
     if (!list.length) return null;
@@ -587,16 +627,20 @@ export function createForest({ THREE, scene, renderer }){
       shared.uAim.value.set(target.x, target.z, Math.min(10, 0.3 * e.distanceTo(target)), 0);
       shared.uFog.value.x = 0.6 * Math.hypot(e.x - h.x, e.z - h.y, e.y - h.w);
       sky.position.copy(e);
-      if (o.night !== lastNight) {
-        lastNight = o.night;
-        shared.uMist.value.copy(dayMist).lerp(nightMist, o.night);
-        shared.uSky.value.copy(daySky).lerp(nightSky, o.night);
-        shared.uLight.value = 1 + (LIGHT_NIGHT - 1) * o.night;
+      const day = o.day || 0;
+      if (o.sun) shared.uSun.value.copy(o.sun);
+      if (o.night !== lastNight || day !== lastDay) {
+        lastNight = o.night; lastDay = day;
+        shared.uDay.value = day;
+        shared.uMist.value.copy(dayMist).lerp(nightMist, o.night).lerp(sunMist, day);
+        shared.uSky.value.copy(daySky).lerp(nightSky, o.night).lerp(sunSky, day);
+        shared.uLight.value = (1 + (LIGHT_NIGHT - 1) * o.night) * (1 + (LIGHT_SUN - 1) * day);
+        shared.uFog.value.y = FOG_DENSITY + (FOG_SUN - FOG_DENSITY) * day;
       }
     },
     /** The harness reads what is drawn. */
     state(){
-      return { shown: group.visible, profile: built, seed: houseIn ? houseIn.seed : null, draws: meshes.length + 1,
+      return { shown: group.visible, profile: built, day: lastDay, seed: houseIn ? houseIn.seed : null, draws: meshes.length + 1,
                trees: plan ? plan.trees.length : 0, ferns: plan ? plan.ferns.length : 0, salal: plan ? plan.salal.length : 0,
                logs: plan ? plan.logs.length : 0, rocks: plan ? plan.rocks.length : 0, near: plan ? plan.trees.filter(t => t.near).length : 0 };
     },
@@ -606,7 +650,7 @@ export function createForest({ THREE, scene, renderer }){
       scene.remove(group);
       sky.geometry.dispose();
       for (const m of Object.values(mats)) m.dispose();
-      map.dispose(); moss.dispose();
+      map.dispose(); moss.dispose(); dapple.dispose();
     },
   };
 }

@@ -554,7 +554,7 @@ function createSlot(slotKey){
   let studioFailed = false;
   // West Coast Forest's trees (live_aboard_forest.js), made only while Live
   // Aboard follows the Atlas with that theme on; fetched the first time it does.
-  let forest = null, forestFailed = false;
+  let forest = null, forestFailed = false, forestDay = 0;
   // Furniture (P2 Furnish, live_aboard_furnish.js): every piece drawn on its
   // floor (layer). furnishP: what the Furnish tool needs of the host (its
   // connection, toast, settings, states), from the newest card; topCb: the
@@ -4746,7 +4746,16 @@ function createSlot(slotKey){
         requestRender();
       }
       forest.house({ rooms: house.rooms, ground: house.ground - HOUSE.SLAB_T - 0.02, seed: FOREST.forestSeed(lastP && lastP.model) });
+      const day = FOREST.niceDay(...skyNow(lastP), nightK);
+      if (day !== forestDay) { forestDay = day; requestRender(); }
     } catch (err) { console.warn("PadSpan: the forest failed", err); dropForest(true); }
+  }
+  /** The sky as the flat Atlas reads it: [the weather's condition, is it raining or snowing]. */
+  function skyNow(p){
+    const w = p && p.weather, st = (w && w.states) || (p && p.states) || {}, cfg = w && w.settings;
+    const eid = (cfg && cfg.conditionEntity) || (AW ? AW.firstWeatherEntity(st) : null);
+    const cond = eid && st[eid] ? String(st[eid].state).toLowerCase() : null;
+    return [cond, !!(AW && cfg && AW.decideAtlasWeather(cfg, st, w.entities, Date.now()).kind !== "off")];
   }
   function dropForest(failedToo){
     if (failedToo) forestFailed = true;
@@ -4763,7 +4772,7 @@ function createSlot(slotKey){
   function forestFrame(){
     try {
       const on = !quiet && !furnishOn && !(editor && editor.active);
-      forest.prepare(camera, cam.target, { on, night: nightK, profile: quality.profile || quality.measuring || "low" });
+      forest.prepare(camera, cam.target, { on, night: nightK, day: forestDay, sun: sunDir, profile: quality.profile || quality.measuring || "low" });
       if (ground) ground.visible = !on;
       if (gridLines) gridLines.visible = !on;
     } catch (err) { console.warn("PadSpan: the forest failed", err); dropForest(true); }
