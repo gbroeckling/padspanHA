@@ -4,6 +4,13 @@ All notable changes to PadSpan HA are documented here.
 
 ---
 
+## 0.38.222 — West Coast Forest's trees are conifers (2026-11-03)
+
+### Fixed
+- **The trees in West Coast Forest looked like palms.** Each tree was a few big boughs on a long bare trunk. They now have pointed crowns that start lower, made of many short branches with no stem down the middle. Douglas fir, cedar and hemlock read as what they are, from close up and from far off.
+
+---
+
 ## 0.38.221 — West Coast Forest grows real trees in Live Aboard; Fixes before the stable: a restart keeps a name's notes, the alarm word in Plans is live, questions close themselves (2026-11-03)
 
 ### New

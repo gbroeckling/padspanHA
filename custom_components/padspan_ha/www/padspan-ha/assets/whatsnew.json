@@ -1,5 +1,11 @@
 [
  {
+  "version": "0.38.222",
+  "title": "West Coast Forest's trees are conifers",
+  "date": "2026-11-03",
+  "body_markdown": "### Fixed\n- **The trees in West Coast Forest looked like palms.** Each tree was a few big boughs on a long bare trunk. They now have pointed crowns that start lower, made of many short branches with no stem down the middle. Douglas fir, cedar and hemlock read as what they are, from close up and from far off."
+ },
+ {
   "version": "0.38.221",
   "title": "West Coast Forest grows real trees in Live Aboard; Fixes before the stable: a restart keeps a name's notes, the alarm word in Plans is live, questions close themselves",
   "date": "2026-11-03",
@@ -76,11 +82,5 @@
   "title": "The maker lookup never sends a known random address",
   "date": "2026-10-31",
   "body_markdown": "### Fixed\n- **0.38.207 could still send the first three bytes of some random addresses** to macvendors.com and maclookup.app, for up to 30 seconds after an advert from Home Assistant's own Bluetooth adapter (up to 60 if the Bluetooth refresh interval was raised). Those adverts don't say whether an address is random, and each one wiped what BlueZ had said until PadSpan read it again. This version fixes it: once a radio has said an address is random, PadSpan keeps that for as long as it keeps the address, and for an address it has no type for yet, it asks the radios before anything is sent. Whole addresses were never sent.\n- **The Objects list shows each address's own maker.** It kept answers by their first three bytes, so a random address could show the maker of another device with the same first three bytes (nothing was sent for it). A random address now always says \"random address\", and so does a private BLE row.\n- **With the lookup off, every Bluetooth row says \"Lookup off\"**, iBeacon and private BLE rows included."
- },
- {
-  "version": "0.38.207",
-  "title": "The device maker lookup sends the first three bytes only",
-  "date": "2026-10-31",
-  "body_markdown": "### Changed\n- **The maker lookup no longer sends whole Bluetooth addresses.** Opening the Objects list asks macvendors.com and maclookup.app which company made each nearby device. It now sends the first three bytes of an address only (such as `AA:BB:CC`), never the whole address, and never an address known to be random or locally administered, the kind phones use. When a Bluetooth proxy reports an address as random (ESPHome proxies and BlueZ do), it is never sent; when the type isn't reported, the address's own bits decide. The list says \"random address\" for those.\n- **Only an administrator can turn it off or on:** Settings → Tracking → Privacy, updates and feedback → Look up device makers online, or the switch at the top of the Objects list. It stays on by default, so nothing changes for anyone who uses it, except what is sent.\n- With the lookup off, every Bluetooth row in the Objects list says so.\n- The usage report (opt-in) says whether the lookup is on, as a yes or no only."
  }
 ]
