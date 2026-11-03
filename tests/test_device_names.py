@@ -98,6 +98,21 @@ def test_a_128_bit_uuid_off_the_bluetooth_base_matches_nothing(uuid) -> None:
     assert BE.enrich_object({"service_uuids": [uuid], "service_data": {uuid: "0x01"}})["company_name"] is None
 
 
+@pytest.mark.parametrize("uuid,service", [
+    ("feaa", "Eddystone"), ("fe2c", "Google Fast Pair"), ("fcd2", "BTHome"), ("fd6f", "Exposure Notification"),
+])
+def test_an_open_format_says_what_it_is_not_who_made_it(uuid, service) -> None:
+    """Anyone's hardware sends these. A Feasycom beacon with Eddystone isn't Google."""
+    o = BE.enrich_object({"service_uuids": [uuid], "service_data": {uuid: "0x00"}})
+    assert o["company_name"] is None and o["service_names"] == [service]
+    assert BE.enrich_object({"espresense_id": f"sd:{uuid}"})["company_name"] is None
+
+
+def test_an_open_format_doesnt_hide_a_real_owner_beside_it() -> None:
+    assert BE.enrich_object({"service_uuids": ["feaa", "fef3"]})["company_name"] == "Google"
+    assert BE.enrich_object({"service_uuids": ["feaa", "fd5a"]})["company_name"] == "Samsung Electronics"
+
+
 def test_a_16_bit_uuid_on_the_base_still_matches() -> None:
     assert BE.lookup_service_uuid("0000180f-0000-1000-8000-00805f9b34fb") == "Battery"
 
@@ -211,12 +226,15 @@ def test_nothing_in_the_integration_names_the_services_any_more() -> None:
 
 
 def test_the_public_wording_says_nothing_is_sent() -> None:
-    readme = (_ROOT / "README.md")
-    if not readme.is_file():
-        pytest.skip("the Bright tree has its own README")
-    text = readme.read_text(encoding="utf-8")
-    assert "macvendors" not in text and "maclookup" not in text
-    assert "Nothing is sent anywhere for this" in text
+    if not (_ROOT / "site").is_dir():
+        pytest.skip("the Bright tree has its own README and no site")
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    assert "macvendors" not in readme and "maclookup" not in readme
+    assert "Nothing is sent anywhere for this" in readme
+    # The site's changelog keeps its history; what it claims today doesn't name them.
+    lede = next(ln for ln in (_ROOT / "site" / "index.html").read_text(encoding="utf-8").splitlines() if "What leaves your house" in ln)
+    assert "macvendors" not in lede and "so nothing is sent for those" in lede
+    assert "macvendors" not in (_ROOT / "site" / "creators" / "index.html").read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio

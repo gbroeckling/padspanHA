@@ -70,6 +70,7 @@ SERVICE_UUIDS: Dict[str, str] = {
     "fe9f": "Google",
     "fea0": "Google",
     "feaa": "Eddystone",
+    "fcd2": "BTHome",
     "feab": "Nokia",
     "febe": "Bose",
     "fec7": "Apple Continuity",
@@ -196,6 +197,17 @@ def lookup_service_owner(uuid_str: str) -> Optional[str]:
     return device_tables.service_owner(u) if u is not None else None
 
 
+# Open formats: a company holds the UUID, and anyone's hardware sends it. Like
+# Apple's number on an iBeacon, they don't say who made the device: Eddystone,
+# Fast Pair, BTHome, Exposure Notification.
+_OPEN_FORMAT_UUIDS = frozenset({"feaa", "fe2c", "fcd2", "fd6f"})
+
+
+def _maker_from_service(uuid_str: str) -> Optional[str]:
+    """The company a broadcast's service UUID says made the device, if it says."""
+    return None if _uuid16(uuid_str) in _OPEN_FORMAT_UUIDS else lookup_service_owner(uuid_str)
+
+
 def lookup_appearance(code: int) -> Optional[str]:
     """Return appearance category name for a 16-bit appearance value."""
     if code in APPEARANCE:
@@ -273,7 +285,7 @@ def _maker_from_espresense_id(device_id: Any) -> Optional[str]:
             return None
     if head == "sd":
         # Its first service UUID; a 128-bit one has its first dash at [8].
-        return lookup_service_owner(rest[:4]) if len(rest) >= 4 and rest[8:9] != "-" else None
+        return _maker_from_service(rest[:4]) if len(rest) >= 4 and rest[8:9] != "-" else None
     return None
 
 
@@ -389,7 +401,7 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
     # then what ESPresense recognised ──
     if not company_name:
         for u in [*svc_uuids, *svc_data]:
-            company_name = lookup_service_owner(str(u))
+            company_name = _maker_from_service(str(u))
             if company_name:
                 maker_source = "service_uuid"
                 break
