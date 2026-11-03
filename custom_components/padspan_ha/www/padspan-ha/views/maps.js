@@ -8385,6 +8385,19 @@ export function _wireLightsBuild(ctx, isoDiv, o) {
         // A floor chosen: off its plate, the pin goes home and nothing moves
         // (as the queue's tap, below). No render follows, so it has to go now.
         if (dropZ === null && _aFloorIsFaded(svg)) { dropG.removeAttribute("transform"); return; }
+        // A floor chosen, and the pin's light keeps another: refused as the
+        // queue's tap is. Nothing placed, and the queue isn't touched.
+        const pinEid = o.mapState._selLight && o.mapState._selLight.eid;
+        const pinLight = pinEid && o.lightsByEid[pinEid];
+        if (pinLight && _aFloorIsFaded(svg)) {
+          const floors = ctx.state.model?.floors || [];
+          const ownZ = _levelForFloorId(frame, ctx.state.model, floors, _floorIdForLight(ctx, pinEid, dropZ, frame, o.lightsByEid));
+          if (ownZ !== dropZ) {
+            ctx.toast(`${pinLight.code} belongs on ${floorNameAtLevel(frame, ctx.state.model, floors, ownZ) || "another floor"}. Choose that floor first.`);
+            dropG.removeAttribute("transform");
+            return;
+          }
+        }
         o.onDropPlace(v.x, v.y, dropZ);
       };
       dropG.addEventListener("pointermove", mm);

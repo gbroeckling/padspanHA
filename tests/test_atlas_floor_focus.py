@@ -319,14 +319,15 @@ function circle(chosen, x, y) {{
   s.svg.dispatchEvent({{ type: "click", target: s.svg, clientX: x, clientY: y }});
   return {{ floor: s.o.mapState._doorCircleM ? s.o.mapState._doorCircleM.floorId : null, said: toasts.slice() }};
 }}
-function pin(chosen, x, y) {{
-  const dropped = [], s = wire(chosen, [], dropped);
+function pin(chosen, x, y, eid) {{
+  const dropped = [], queue = eid ? [eid, "light.loose"] : [], s = wire(chosen, queue, dropped);
+  if (eid) s.o.mapState._selLight = {{ eid, mapId: null }};
   const ev = {{ button: 0, pointerType: "mouse", pointerId: 1, preventDefault() {{}}, stopPropagation() {{}} }};
   s.pinG.dispatchEvent({{ ...ev, type: "pointerdown", clientX: 500, clientY: 500 }});
   s.pinG.dispatchEvent({{ ...ev, type: "pointermove", clientX: x, clientY: y }});
   const during = s.pinG.getAttribute("transform");
   s.pinG.dispatchEvent({{ ...ev, type: "pointerup", clientX: x, clientY: y }});
-  return {{ dropped, z: dropped.length ? dropped[0][2] : "none", moved: !!during, transform: s.pinG.getAttribute("transform") }};
+  return {{ dropped, z: dropped.length ? dropped[0][2] : "none", moved: !!during, transform: s.pinG.getAttribute("transform"), left: queue.length }};
 }}
 const out = {{ LOW, HIGH }};
 {script}
@@ -414,6 +415,32 @@ out.all_off = pin(null, 300, 150);
         assert out[name]["moved"] and out[name]["dropped"] == [] and out[name]["transform"] is None, name
     assert out["all_on_high"]["z"] == out["HIGH"]
     assert out["all_off"]["z"] is None and len(out["all_off"]["dropped"]) == 1
+
+
+def test_the_drop_pin_refuses_a_light_of_another_floor_as_the_tap_does(tmp_path) -> None:
+    out = _place(tmp_path, """
+const saying = (chosen, x, y, eid) => {
+  toasts.length = 0;
+  return { ...pin(chosen, x, y, eid), said: toasts.slice() };
+};
+out.stored = saying(LOW, 50, 250, "light.placed");
+out.roomed = saying(LOW, 50, 250, "light.roomed");
+out.stored_own = saying(HIGH, 50, 50, "light.placed");
+out.roomed_own = saying(HIGH, 50, 50, "light.roomed");
+out.loose = saying(LOW, 50, 250, "light.loose");
+out.silent = saying(LOW, 50, 50, "light.placed");
+out.all = saying(null, 50, 250, "light.placed");
+""")
+    assert out["stored"]["dropped"] == [] and out["stored"]["transform"] is None and out["stored"]["left"] == 2
+    assert out["stored"]["said"] == ["P1 belongs on Up. Choose that floor first."]
+    assert out["roomed"]["dropped"] == [] and out["roomed"]["left"] == 2
+    assert out["roomed"]["said"] == ["R1 belongs on Up. Choose that floor first."]
+    # Its own floor chosen, or no floor of its own: placed, without a word.
+    for own in ("stored_own", "roomed_own", "loose"):
+        assert len(out[own]["dropped"]) == 1 and out[own]["said"] == [], own
+    # A faded plate still ignores the drop, without a word; All places as ever.
+    assert out["silent"]["dropped"] == [] and out["silent"]["said"] == [] and out["silent"]["transform"] is None
+    assert len(out["all"]["dropped"]) == 1 and out["all"]["said"] == []
 
 
 def test_a_changed_ring_stays_with_its_floor_in_traceback(tmp_path) -> None:
