@@ -5,7 +5,7 @@
 //
 // The trees of Showcase's West Coast Forest in Live Aboard, the flat Atlas's
 // forest (atlas_forest.js) standing up: tall Douglas fir, western red cedar and
-// western hemlock round the house, with long bare trunks and drooping boughs,
+// western hemlock round the house, pointed crowns of many short boughs,
 // on a near-black mossy floor with sword ferns, salal, logs and rocks, going
 // back into cold mist under a dark overcast sky. live_aboard.js imports this
 // file the first time it follows the Atlas (atlas_3d_look "atlas") with Showcase
@@ -122,13 +122,14 @@ export function forestPlan(rooms, seed, profile = "high"){
 // ── The shapes (a tree 1 high, its width in the same units) ─────────────────
 const LOG_R = 0.042;
 // base: where the crown starts (the bare trunk below); rmax: the crown's reach;
-// cards: boughs near and far; slot: its bough in the atlas; bark, leaf, tip: colours as shown.
+// slot: its bough in the atlas; bark, leaf, tip: colours as shown.
 const SHAPE = Object.freeze({
-  fir:     Object.freeze({ base: 0.44, rmax: 0.135, pow: 0.82, slot: 0, trunk: 0.024, flare: 1.35, bark: [0.17, 0.135, 0.11], leaf: [0.052, 0.112, 0.082], tip: [0.13, 0.235, 0.19] }),
-  cedar:   Object.freeze({ base: 0.2,  rmax: 0.17,  pow: 0.72, slot: 1, trunk: 0.03,  flare: 1.9,  bark: [0.2, 0.125, 0.09],  leaf: [0.06, 0.125, 0.07],  tip: [0.16, 0.27, 0.15] }),
-  hemlock: Object.freeze({ base: 0.26, rmax: 0.145, pow: 0.92, slot: 2, trunk: 0.022, flare: 1.3,  bark: [0.15, 0.135, 0.125], leaf: [0.05, 0.105, 0.09],  tip: [0.13, 0.225, 0.2] }),
+  fir:     Object.freeze({ base: 0.3,  rmax: 0.115, pow: 0.95, slot: 0, trunk: 0.024, flare: 1.35, bark: [0.17, 0.135, 0.11], leaf: [0.052, 0.112, 0.082], tip: [0.13, 0.235, 0.19] }),
+  cedar:   Object.freeze({ base: 0.12, rmax: 0.13,  pow: 0.82, slot: 1, trunk: 0.03,  flare: 1.9,  bark: [0.2, 0.125, 0.09],  leaf: [0.06, 0.125, 0.07],  tip: [0.16, 0.27, 0.15] }),
+  hemlock: Object.freeze({ base: 0.16, rmax: 0.105, pow: 1,    slot: 2, trunk: 0.022, flare: 1.3,  bark: [0.15, 0.135, 0.125], leaf: [0.05, 0.105, 0.09],  tip: [0.13, 0.225, 0.2] }),
 });
-const CARDS = { near: { whorls: 20, per: 3, wide: 0.8 }, far: { whorls: 11, per: 3, wide: 1 } };
+// Many short, narrow boughs up a pointed crown: one big bough on a bare trunk reads as a palm.
+const CARDS = { near: { whorls: 30, per: 7, wide: 0.75, most: 0.075 }, far: { whorls: 16, per: 6, wide: 0.9, most: 0.12 } };
 const MOSS = [0.1, 0.17, 0.075];
 
 // The atlas: four across, four down. Row 0 fir, cedar, hemlock, bark; row 1 fern,
@@ -184,7 +185,7 @@ function treeGeo(sp, lod, rnd){
     : [[0, rt * Sh.flare * 0.9], [0.1, rt * 0.9], [0.97, rt * 0.05]];
   pole(G, rings.map(([y, r]) => [y, r, barkAt(y)]), near ? 7 : 4, SLOT.bark);
   // The crown's dark heart: what shows through the boughs is shade, not sky.
-  const heart = mixCol(Sh.leaf, [0, 0, 0], 0.55), hb = Sh.base + 0.05, hr = Sh.rmax * 0.46;
+  const heart = mixCol(Sh.leaf, [0, 0, 0], 0.55), hb = Sh.base + 0.05, hr = Sh.rmax * 0.28;
   pole(G, [[hb, hr * 0.6, heart], [hb + (0.97 - hb) * 0.2, hr, heart], [0.97, hr * 0.03, heart]], near ? 6 : 4, SLOT.plain);
   // The boughs, a golden angle apart, whorl on whorl.
   let az = rnd() * 6.28;
@@ -193,15 +194,15 @@ function treeGeo(sp, lod, rnd){
     const reach = Sh.rmax * Math.pow(1 - eta, Sh.pow) * (0.72 + 0.28 * Math.min(1, eta * 7)) + 0.008;
     for (let q = 0; q < C.per; q++) {
       az += 2.39996;
-      const L = reach * (0.82 + rnd() * 0.36), W = L * C.wide * (0.85 + rnd() * 0.3);
+      const out = rnd(), L = reach * (0.55 + out * 0.7), W = Math.min(C.most, L * C.wide * (0.85 + rnd() * 0.3));   // short and dark inside, long and lit outside
       const low = 1 - eta, top = eta > 0.8;
       let d1, d2;
-      if (sp === "fir") { d1 = L * (top ? -0.28 : 0.06 + 0.2 * low); d2 = L * (top ? -0.42 : 0.2 + 0.46 * low); }
+      if (sp === "fir") { d1 = L * (top ? -0.2 : 0.03 + 0.12 * low); d2 = L * (top ? -0.32 : 0.1 + 0.34 * low); }
       else if (sp === "cedar") { d1 = L * (0.3 + 0.32 * low); d2 = L * (0.2 + 0.3 * low); }           // the J: down, then the tip turns up
       else { d1 = L * (0.14 + 0.2 * low); d2 = L * (0.56 + 0.34 * low); }                               // hemlock: soft, hanging
       const drops = near ? [0, d1, d2] : [0, d2 * 0.8];
       const roll = (rnd() - 0.5) * 1.5;
-      const k = (0.62 + 0.62 * eta) * (0.85 + rnd() * 0.3);
+      const k = (0.62 + 0.62 * eta) * (0.5 + out * 0.5 + rnd() * 0.2);
       bough(G, slot, y, az, L, W, drops, roll, mixCol(Sh.leaf, [0, 0, 0], 0.3), Sh.tip, k);
     }
   }
@@ -266,52 +267,29 @@ function bandsGeo(r1, h1, r2, h2){
 // ── The picture every bough is cut from ─────────────────────────────────────
 function makeCanvas(w, h){ const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
 const grey = (v, a = 1) => { const n = Math.round(Math.max(0, Math.min(1, v)) * 255); return `rgba(${n},${n},${n},${a})`; };
-function needles(g, rnd, x0, y0, ang, len, n, nl, lum){
-  const ca = Math.cos(ang), sa = Math.sin(ang);
-  g.beginPath();
-  g.strokeStyle = grey(lum);
-  for (let i = 0; i < n; i++) {
-    const t = i / n, x = x0 + ca * len * t, y = y0 + sa * len * t, l = nl * (1.15 - t * 0.6);
-    for (const side of [-1, 1]) {
-      const a = ang + side * (0.75 + rnd() * 0.25);
-      g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
-    }
-  }
-  g.stroke();
-}
-/** A spray on a stem from the slot's foot to its tip. */
-function spray(g, rnd, s, o){
-  const cx = s / 2;
-  // Its body, dark, under the needles: seen from far off this is the bough.
-  g.fillStyle = grey(0.34);
-  g.beginPath(); g.moveTo(cx, s);
-  for (let i = 0; i <= 10; i++) { const t = i / 10; g.lineTo(cx - o.body * s * Math.pow(Math.sin(Math.PI * Math.min(1, t * 0.92 + 0.08)), 0.7) * (0.82 + rnd() * 0.3), s * (1 - t * 0.97)); }
-  for (let i = 10; i >= 0; i--) { const t = i / 10; g.lineTo(cx + o.body * s * Math.pow(Math.sin(Math.PI * Math.min(1, t * 0.92 + 0.08)), 0.7) * (0.82 + rnd() * 0.3), s * (1 - t * 0.97)); }
-  g.closePath(); g.fill();
+/** A conifer's branch, foot at the slot's bottom, tip at its top: twigs and
+ *  needles in no pattern, with no stem down the middle, so that no bough reads as a frond. */
+function branch(g, rnd, s, o){
+  const cx = s / 2, widthAt = (t) => o.wide * s * Math.min(1, 0.3 + t * 4) * Math.pow(1 - t, o.taper);
   g.lineCap = "round";
-  for (let i = 0; i < o.twigs; i++) {
-    const t = (i + 0.4) / o.twigs, y = s * (1 - t * 0.95), reach = o.reach * s * Math.pow(Math.sin(Math.PI * Math.min(1, t * 0.88 + 0.12)), 0.8);
-    for (const side of [-1, 1]) {
-      const ang = -Math.PI / 2 + side * (o.angle + rnd() * 0.15), lum = 0.5 + rnd() * 0.5;
-      g.lineWidth = o.nw + 0.5; g.strokeStyle = grey(0.3);
-      g.beginPath(); g.moveTo(cx, y); g.lineTo(cx + Math.cos(ang) * reach, y + Math.sin(ang) * reach); g.stroke();
-      g.lineWidth = o.nw; needles(g, rnd, cx, y, ang, reach, o.n, o.nl, lum);
-    }
+  // Its shade, ragged at the edge: from far off this is the bough.
+  g.fillStyle = grey(0.3);
+  for (let i = 0; i < 70; i++) {
+    const t = rnd() * 0.96, w = widthAt(t);
+    g.beginPath(); g.arc(cx + (rnd() - 0.5) * w * 1.1, s * (1 - t), w * (0.16 + rnd() * 0.2) + 1, 0, 6.3); g.fill();
   }
-  g.strokeStyle = grey(0.22); g.lineWidth = 3.5;
-  g.beginPath(); g.moveTo(cx, s); g.lineTo(cx, s * 0.05); g.stroke();
-}
-/** Cedar's flat lace: every branch splits, alternately, into smaller ones. */
-function lace(g, rnd, x, y, ang, len, depth){
-  const ex = x + Math.cos(ang) * len, ey = y + Math.sin(ang) * len;
-  g.strokeStyle = grey(0.42 + (3 - depth) * 0.14 + rnd() * 0.3); g.lineWidth = 1.3 + depth * 1.05;
-  g.beginPath(); g.moveTo(x, y); g.lineTo(ex, ey); g.stroke();
-  if (depth <= 0) return;
-  const n = 3 + depth;
-  for (let i = 1; i <= n; i++) {
-    const t = i / (n + 0.4), px = x + (ex - x) * t, py = y + (ey - y) * t, l = len * 0.5 * (1.1 - t * 0.55);
-    lace(g, rnd, px, py, ang + 0.72, l, depth - 1);
-    lace(g, rnd, px, py, ang - 0.72, l, depth - 1);
+  for (let i = 0; i < o.twigs; i++) {
+    const t = Math.pow(rnd(), 0.8) * 0.97, x0 = cx + (rnd() - 0.5) * s * 0.03, y0 = s * (1 - t), side = rnd() < 0.5 ? -1 : 1;
+    const off = o.angle + (rnd() - 0.5) * 0.7, ang = -Math.PI / 2 + side * off;
+    const len = widthAt(t) * (0.55 + rnd() * 0.6) / Math.max(0.35, Math.sin(off)), ca = Math.cos(ang), sa = Math.sin(ang);
+    g.lineWidth = 1.4; g.strokeStyle = grey(0.26);
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + ca * len, y0 + sa * len); g.stroke();
+    g.lineWidth = o.nw;
+    for (let d = o.gap * rnd(); d < len; d += o.gap * (0.7 + rnd() * 0.6)) {
+      const a = ang + (rnd() - 0.5) * 2.2, l = o.nl * (0.5 + rnd() * 0.7), x = x0 + ca * d, y = y0 + sa * d;
+      g.strokeStyle = grey(0.42 + rnd() * 0.58);
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
   }
 }
 function barkPatch(g, rnd, s){
@@ -374,9 +352,9 @@ function paintAtlas(){
     g.beginPath(); g.rect(0, 0, CELL - 2 * PAD, CELL - 2 * PAD); g.clip();
     fn(CELL - 2 * PAD); g.restore();
   };
-  inSlot(0, 0, s => spray(g, rnd, s, { twigs: 11, reach: 0.44, angle: 0.72, n: 15, nl: 11, nw: 2, body: 0.26 }));      // fir: stiff, sparse
-  inSlot(1, 0, s => { g.lineCap = "round"; g.fillStyle = grey(0.3); g.beginPath(); g.ellipse(s / 2, s * 0.55, s * 0.26, s * 0.42, 0, 0, 6.3); g.fill(); lace(g, rnd, s / 2, s, -Math.PI / 2, s * 0.94, 3); });   // cedar: flat lace
-  inSlot(2, 0, s => spray(g, rnd, s, { twigs: 15, reach: 0.4, angle: 0.95, n: 13, nl: 7, nw: 1.5, body: 0.28 }));      // hemlock: fine, feathery
+  inSlot(0, 0, s => branch(g, rnd, s, { wide: 0.42, taper: 0.8, angle: 0.75, twigs: 130, gap: 5, nl: 9, nw: 1.6 }));   // fir: stiff, sparse
+  inSlot(1, 0, s => branch(g, rnd, s, { wide: 0.46, taper: 0.7, angle: 0.95, twigs: 170, gap: 6, nl: 6, nw: 2.2 }));   // cedar: flat, dense
+  inSlot(2, 0, s => branch(g, rnd, s, { wide: 0.38, taper: 0.9, angle: 0.9, twigs: 190, gap: 4, nl: 6, nw: 1.2 }));    // hemlock: fine, feathery
   inSlot(3, 0, s => barkPatch(g, rnd, s));
   inSlot(0, 1, s => fernPatch(g, rnd, s));
   inSlot(1, 1, s => salalPatch(g, rnd, s));

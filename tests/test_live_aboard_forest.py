@@ -153,3 +153,13 @@ def test_help_says_the_trees_are_in_3d_too() -> None:
     for lang in ("de", "fr", "nl"):
         data = json.loads((_WWW / "i18n" / lang / "help.json").read_bytes().decode("utf-8"))
         assert "3D" in data[key], lang
+
+def test_the_trees_are_conifers_not_palms() -> None:
+    """Garry, 2026-11-03: a few big boughs on a bare trunk read as palms. Many
+    short boughs up a crown that starts low, and no stem down a bough's picture."""
+    src = (Path(__file__).resolve().parent.parent / "custom_components/padspan_ha/www/padspan-ha/views/live_aboard_forest.js").read_text(encoding="utf-8")
+    bases = [float(x) for x in re.findall(r"base: ([0-9.]+),\s+rmax", src)]
+    assert len(bases) == 3 and max(bases) <= 0.3
+    near = re.search(r"near: \{ whorls: (\d+), per: (\d+), wide: [0-9.]+, most: ([0-9.]+) \}", src)
+    assert near and int(near[1]) * int(near[2]) >= 150 and float(near[3]) <= 0.08
+    assert "function spray(" not in src and "function lace(" not in src
