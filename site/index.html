@@ -184,6 +184,32 @@ footer .links{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin
 
     <div class="relitem">
       <div class="relhead">
+        <span class="relver">v0.38.221</span>
+        <span class="pill soon">Beta channel</span>
+        <span class="reldate">3 November 2026</span>
+      </div>
+      <div class="relbody">
+        <ul>
+          <li><b>Showcase's West Coast Forest now stands up in 3D.</b> When Live Aboard follows the Atlas's look with that theme on, the house sits in a dark Pacific Northwest forest: tall Douglas fir, western red cedar and hemlock with long bare trunks and drooping boughs, a near-black mossy floor with sword ferns, salal, fallen logs and mossy rocks, going back into cold mist under a dark overcast sky. Rain falls in the trees. The same house always gets the same forest.</li>
+          <li><b>It keeps out of your way.</b> No tree stands on or over a room, outdoor room or deck, and anything between the camera and the house dissolves at any angle, on Top and on the way to a room. Edit, Furnish and the Plans tool's vetting map leave it out. It adds no setting and costs nothing at rest; a slow screen draws fewer trees, and one too slow for them goes without. With any other theme or look the file is never fetched.</li>
+          <li><b>A very large home stays bounded.</b> The search for a named device's new address used to cost devices times addresses on every poll, 288 ms with 20 named devices among 9,178 addresses. Each poll now has a limit, and a device that misses its turn goes first on the next, so a link can come a little later but never differently. Ordinary homes don't reach it. The usage report (opt-in) counts the polls that do.</li>
+          <li><b>The third-party notices now come with the download,</b> in both editions, not only in the repository.</li>
+          <li><b>A No covers the device for a week.</b> After a No to "This looks like Car Keys: same device?", there are no more questions about that device for 7 days, though clear evidence can still link it on its own. Otherwise each named device gets at most one question a day, where one rotating every 15 minutes could get 95, and that question follows the device's newest address, so a late Yes lands on the address it uses now. Both survive a restart, Factory Reset clears them, and the usage report (opt-in) counts the questions held back.</li>
+          <li><b>A restart no longer forgets a name's link, No answers and Undo.</b> For a device whose address a radio calls random but which doesn't look rotating, off the air at a Home Assistant restart, the first moment after the restart wiped them and saved that. About half of random addresses look like that. Now nothing is decided until the device history has loaded, so "that address isn't linked again" holds after a restart too.</li>
+          <li><b>A name that moved stays on screen after a day.</b> Once the first address had been silent for a day (the default history), the name's row went and the new address came back as a stranger's. For about half of random addresses its link, No answers and Undo were deleted too. The row now stays while it has a link or an open question, and the notes stay whatever happens to the row.</li>
+          <li><b>The alarm word in the Plans map is live.</b> With the map open, nothing refreshed it: a real alarm could go unsaid, and a word could stay after the alarm was over. Now a smoke, gas, CO or leak alarm shows over the view within about 5 seconds, drawn on the map as well, and one that's over goes as quickly. Only the alarms are read; the map, the card and what you're drawing are left alone.</li>
+          <li><b>The emergency banner shows on Mapping too.</b> Mapping's tab didn't read alarm latches at all, so the banner never came while you stayed on it. It now comes as on the other tabs, within 30 seconds, and within about 5 while the Plans map is open.</li>
+          <li><b>A question closes itself when the device comes back.</b> "This looks like Car Keys: same device?" stayed up even with the old address on the air again for days, and a Yes then undid itself on a later report and refused the new address. Now the question goes as soon as the old address is heard, without counting as a No.</li>
+          <li><b>"Nothing else fits" now holds when two devices stop seconds apart.</b> Two named devices with the same name and maker that stopped a few seconds apart could give the name to whichever stopped first. Now a new address that could be either links to neither.</li>
+          <li><b>West Coast Forest on a turned wall.</b> With <code>?wall_rotate=90</code> or <code>270</code> the trees were smeared and the house-shaped gap was in the wrong place. They now draw as on a screen hung that way.</li>
+          <li><b>A double click on Yes or No answers once,</b> without a red "That question isn't open any more" over a Yes that worked.</li>
+          <li><b>"3 plans cover Main: all are read",</b> not "both".</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="relitem">
+      <div class="relhead">
         <span class="relver">v0.38.220</span>
         <span class="pill soon">Beta channel</span>
         <span class="reldate">2 November 2026</span>
