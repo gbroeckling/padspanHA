@@ -260,7 +260,7 @@ export function createDraft(base){
       const own = {};
       for (const id of Object.keys(entries)) {
         const b = (d.base[section] || {})[id], c = (d.cur[section] || {})[id];
-        if (b && c && c[PLAN_NOTE]) own[id] = ownEdits(entries[id], b, c);
+        if ((b || section === "lights") && c && c[PLAN_NOTE]) own[id] = ownEdits(entries[id], b || {}, c);   // a light may have had no entry
       }
       const put = (c) => {
         if (!c || !c[section]) return c;
@@ -287,13 +287,14 @@ export function createDraft(base){
 // The server refuses the note in an ordinary Save (house3d_store._piece): only
 // plan_ai_commit keeps these.
 export const PLAN_NOTE = "plan_ai_pending";
-/** What the draft `c` holds for the plans: [{piece, session, sug_id, v, rail, target, made}]. */
+/** What the draft `c` holds for the plans: [{piece, session, sug_id, v, rail, target, made, light}]. `light`: a light's
+ *  kind: `piece` is then its entity id, in c.lights. */
 export function planPending(c){
   const out = [];
-  for (const [piece, p] of Object.entries((c && c.pieces) || {})) {
+  for (const section of ["pieces", "lights"]) for (const [piece, p] of Object.entries((c && c[section]) || {})) {
     const n = p && p[PLAN_NOTE];
     if (!n || !n.sugs) continue;
-    for (const [sug_id, e] of Object.entries(n.sugs)) out.push({ piece, session: n.session, sug_id, v: e.v, rail: e.rail || null, target: e.target || null, made: !!e.made });
+    for (const [sug_id, e] of Object.entries(n.sugs)) out.push({ piece, session: n.session, sug_id, v: e.v, rail: e.rail || null, target: e.target || null, made: !!e.made, light: section === "lights" });
   }
   return out;
 }
@@ -311,6 +312,19 @@ export function dropPlanPending(c, ids = null){
       delete n.sugs[sug];
     }
     if (c.pieces[id] && !Object.keys(n.sugs).length) delete p[PLAN_NOTE];
+  }
+  // A light's kind: back to what it was; an entry made only for it goes.
+  for (const [id, p] of Object.entries((c && c.lights) || {})) {
+    const n = p && p[PLAN_NOTE];
+    if (!n || !n.sugs) continue;
+    for (const [sug, e] of Object.entries(n.sugs)) {
+      if (ids && !ids.has(sug)) continue;
+      for (const [k, v] of Object.entries(e.was || {})) { if (v === null) delete p[k]; else p[k] = v; }
+      delete n.sugs[sug];
+    }
+    if (Object.keys(n.sugs).length) continue;
+    delete p[PLAN_NOTE];
+    if (!Object.keys(p).length) delete c.lights[id];
   }
   return c;
 }

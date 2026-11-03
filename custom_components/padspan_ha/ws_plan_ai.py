@@ -11,7 +11,8 @@ map-building research) is off, while Live Aboard is off, and below Pro.
 - plan_ai_plans: the placed plans there are to read, with their corners
   and signatures, and the AI Task that would read them (local or not).
 - plan_ai_start: one session over the ticked plans; one at a time, one a
-  minute, ten a day. It answers at once; the job runs on the server.
+  minute, ten a day. It answers at once; the job runs on the server. Lights only
+  on a plan the person says draws fixtures.
 - plan_ai_status: the session (the latest, or one by id) with its
   suggestions, after the target and signature checks.
 - plan_ai_cancel: the job stops between reads (the read in flight runs on).
@@ -20,8 +21,9 @@ map-building research) is off, while Live Aboard is off, and below Pro.
   clicked, to this store only.
 - plan_ai_rejects_get / plan_ai_reject_forget: the remembered rejects.
 - plan_ai_sessions_get: the sessions kept, in short, and the last batch.
-- plan_ai_commit: keep suggestions as new or as corrections: the one thing that
-  writes the 3D house from the AI's finds (plan_ai_write.py). All or none.
+- plan_ai_commit: keep suggestions as new or as corrections (a light's: its kind,
+  never its position): the one thing that writes the 3D house from the AI's finds
+  (plan_ai_write.py). All or none.
 - plan_ai_undo: take a batch back; what changed since is left and reported.
 
 Only plan_ai_commit and plan_ai_undo write the 3D file, and nothing here writes
@@ -80,7 +82,7 @@ def _public(sess: dict[str, Any] | None, sid: str | None) -> dict[str, Any] | No
     """A session as the sheet sees it: everything but the raw finds."""
     if not sess:
         return None
-    return {"id": sid, **{k: v for k, v in sess.items() if k != "finds"}}
+    return {"id": sid, **{k: v for k, v in sess.items() if k not in ("finds", "light_finds")}}
 
 
 @websocket_api.websocket_command({"type": "padspan_ha/plan_ai_plans"})
@@ -105,6 +107,7 @@ async def ws_plan_ai_plans(hass: HomeAssistant, connection, msg) -> None:
     "type": "padspan_ha/plan_ai_start",
     vol.Required("map_ids"): [str],
     vol.Optional("kinds", default=["stairs", "railing"]): [str],
+    vol.Optional("fixtures", default={}): {str: vol.In(("yes", "no", "unsure"))},
 })
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -124,7 +127,7 @@ async def ws_plan_ai_start(hass: HomeAssistant, connection, msg) -> None:
             return
         kinds = [k for k in msg["kinds"] if k in A.KINDS]
         if not kinds or "stairs" not in kinds:
-            connection.send_error(msg["id"], "bad_kinds", "Stairs are the one kind this version reads; lights come later.")
+            connection.send_error(msg["id"], "bad_kinds", "Stairs are read on every plan.")
             return
         ai = P.ai_task(hass, with_backup=True)
         if not ai.get("ready"):
@@ -137,7 +140,10 @@ async def ws_plan_ai_start(hass: HomeAssistant, connection, msg) -> None:
         if not want or missing:
             connection.send_error(msg["id"], NOT_PLACED_CODE, "That floor plan isn't placed on its floor yet: place it in Mapping → 3D Stack first.")
             return
-        sid = A.start(hass, store, ai, [by_id[m] for m in want], kinds, A.frame_kind(hass, ai["ai_task"]))
+        fixtures = {m: msg["fixtures"].get(m, "unsure") for m in want} if "light" in kinds else {}
+        for answer in fixtures.values():
+            A._bump(hass, f"plan_ai_fixtures:{answer}")  # noqa: SLF001
+        sid = A.start(hass, store, ai, [by_id[m] for m in want], kinds, A.frame_kind(hass, ai["ai_task"]), fixtures)
     connection.send_result(msg["id"], {"session": sid})
 
 
@@ -355,7 +361,8 @@ async def _write(hass: HomeAssistant, connection, msg, store: A.PlanAiStore, wha
 @websocket_api.async_response
 async def ws_plan_ai_commit(hass: HomeAssistant, connection, msg) -> None:
     """Keep suggestions: items [{sug_id, v: new|correction, final (the draft's
-    piece), rail: {side, style} (a railing), target (a stair it was named near)}]."""
+    piece), rail: {side, style} (a railing), target (a stair it was named near)}].
+    A light's item is {sug_id, v: correction}: the kind is the symbol the AI read."""
     store = await _refused(hass, connection, msg)
     if store is None:
         return

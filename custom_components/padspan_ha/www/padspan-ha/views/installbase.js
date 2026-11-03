@@ -807,7 +807,7 @@ function word(kind, k) {
                                           none: "Open edge from before: no railing made its own setting" }[b] || tidy(key);
       if (a === "plan_ai_session") return `Plan AI session ${{ started: "started", done: "finished", no_read: "read nothing (no answer on any plan)", cancelled: "cancelled", failed: "failed", out_of_time: "ran out of time" }[b] || b}`;
       if (a === "plan_ai_no_read") return `Plan AI session read nothing: ${{ no_media: "the media folder couldn't take the plan", no_picture: "the plans' pictures wouldn't open", unreachable: "the AI couldn't be reached", timeout: "no answer in time", bad_answer: "nothing usable in the answers" }[b] || b}`;
-      if (a === "plan_ai_budget_cut") return `Plan AI's time ran out during ${{ whole: "the whole-plan reads", crop: "the second looks", railing: "the railing questions" }[b] || b}`;
+      if (a === "plan_ai_budget_cut") return `Plan AI's time ran out during ${{ tiles: "the light tiles", light_crop: "the lights' second looks", whole: "the whole-plan reads", crop: "the second looks", railing: "the railing questions" }[b] || b}`;
       if (a === "plan_ai_cancel_why") return `Plan AI session cut short: ${{ user: "cancelled by the person", switch_off: "the switch went off", house3d_off: "Live Aboard went off",
         licence: "the licence lapsed", plan_gone: "a plan was removed", plan_changed: "a plan moved", restart: "Home Assistant restarted" }[b] || b}`;
       if (a === "plan_ai_model") return `Plan AI read by a ${{ local: "local", cloud: "cloud", unknown: "(unknown where)" }[b] || b} AI`;
@@ -817,7 +817,9 @@ function word(kind, k) {
       if (a === "plan_ai_read_secs") return `Plan AI took ${{ lt5: "under 5 s", "5_15": "5–15 s", "15_45": "15–45 s", gt45: "over 45 s" }[b] || b} to answer one read`;
       if (a === "plan_ai_error") return `Plan AI read failed: ${{ no_ai_task: "no AI Task set up", bad_answer: "nothing usable in the answer", timeout: "no answer in time",
         unreachable: "the AI couldn't be reached", no_media: "the media folder couldn't take the plan", no_picture: "a plan's picture wouldn't open", budget: "the session's time ran out", suspect_frame: "answered 0–1000 (position unsure)" }[b] || b}`;
-      if (a === "plan_ai_crop") return `Plan AI second look ${{ kept: "kept a find where it was", placed: "placed a find from its crop", dropped: "dropped a find (not there)" }[b] || b}`;
+      if (a === "plan_ai_crop") return `Plan AI second look ${{ kept: "kept a find where it was", placed: "placed a find from its crop", dropped: "dropped a find (not there)", light_kept: "kept a light where it was", light_placed: "placed a light from its crop", light_dropped: "dropped a light (not there)" }[b] || b}`;
+      if (a === "plan_ai_fixtures") return `Plan AI plan said to draw light fixtures: ${{ yes: "yes", no: "no", unsure: "not sure" }[b] || b}`;
+      if (a === "plan_ai_tiles") return `Plan AI session with lights asked for read ${{ none: "no tiles", "1_9": "1–9 tiles", "10_27": "10–27 tiles", gt27: "over 27 tiles" }[b] || b}`;
       if (a === "plan_ai_suggested") return `Plan AI suggested ${W_PLAN_KIND[b] || b}`;
       if (a === "plan_ai_duplicate") return `Plan AI found ${W_PLAN_KIND[b] || b} already in the house`;
       if (a === "plan_ai_verdict") { const i = String(b).lastIndexOf("_"), k = String(b).slice(0, i), v = String(b).slice(i + 1);
@@ -835,8 +837,10 @@ function word(kind, k) {
       if (a === "plan_ai_rail_side") return `Plan AI railing kept on ${b === "ai" ? "the side the AI said" : "a side the person chose"}`;
       if (a === "plan_ai_commit") return `Plan AI keep ${{ done: "written", rev_mismatch: "refused: the list had changed", already_committed: "refused: already kept", changed_since: "refused: a target changed since",
         not_open: "refused: item no longer open", stair_first: "refused: railing before its stair", invalid: "refused: not a valid item", backup_failed: "stopped: no safety backup", save_failed: "stopped: the write failed" }[b] || b}`;
-      if (a === "plan_ai_undo") return `Plan AI undo: ${{ batch: "a batch taken back", put_back: "an undo put back", item_skipped: "an item left, changed since", stairs: "a stair taken back", railing: "a railing taken back", already_undone: "refused: already undone", save_failed: "stopped: the write failed" }[b] || b}`;
+      if (a === "plan_ai_undo") return `Plan AI undo: ${{ batch: "a batch taken back", put_back: "an undo put back", item_skipped: "an item left, changed since", stairs: "a stair taken back", railing: "a railing taken back", light: "a light's kind taken back", already_undone: "refused: already undone", save_failed: "stopped: the write failed" }[b] || b}`;
       if (key === "plan_ai_stale") return "Plan AI item changed since it was read (stale)";
+      if (key === "plan_ai_light_unmatched") return "Plan AI fixture symbol with no placed light (not an AI failure)";
+      if (key === "plan_ai_tiles_slow") return "Plan AI light tiles skipped: its first read took over 45 s";
       if (key === "plan_ai_no_floor") return "Plan AI find left out: no floor for it to climb from";
       if (a === "photo_subject") return `AI read a photo of ${{ furniture: "furniture", tag: "a tag", scanner: "a receiver", person: "a person" }[b] || b}`;
       if (a === "photo_quick") return { ok: "AI photo read quickly (a quick look, then its kind)",

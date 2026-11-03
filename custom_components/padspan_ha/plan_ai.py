@@ -18,6 +18,14 @@ a reject so the same find on the same plan is not queued again. A session in
 which no plan's whole read answered ends failed, saying why: it read nothing,
 which is not the same as finding nothing.
 
+Lights (Stage 3), only on a plan the person says draws light fixtures: after
+everything else, 3 x 3 tiles at 20 % overlap with the measured all-kinds prompt
+(only its lights kept), finds within LIGHT_MERGE_M one find, then one crop check
+per find, which also names the symbol. A symbol is matched against the placed
+light. entries of the map, and never moves one: within LIGHT_M and agreeing it is
+already there; within LIGHT_M and differing it may correct that light's KIND;
+further away it is unmatched, which is no failure of the AI.
+
 Nothing here writes the 3D house, the map (fabric, model, maps), calibration
 or any other store: keeping a suggestion (new, correction) and undoing what was
 kept is plan_ai_write.py, the one writer. The plan's picture goes only to the chosen AI
@@ -61,12 +69,19 @@ PLAN_READ_LOCAL_S = 90                # one read on a local AI Task; a cloud one
 START_GAP_S = 60                      # a start at most this often
 STARTS_A_DAY = 10
 MAX_SESSIONS, MAX_SUGGESTIONS, MAX_BATCHES, MAX_REJECTS = 5, 200, 20, 500
-KINDS: tuple[str, ...] = ("stairs", "railing")       # lights come with a later stage
+KINDS: tuple[str, ...] = ("stairs", "railing", "light")
 DUP_M, CORR_M = 1.0, 2.5              # within DUP_M of one existing stair: a duplicate, whatever its shape; up to CORR_M: a correction
 REJECT_M = 0.5                        # a find this close to a remembered reject on the same plan version is not queued
 CROP_M = (3.0, 8.0)                   # the crop round a find, its side: 2.5 × the find's long side, within these (experiment run_crops.py)
 CROP_PX = 768                         # sent no bigger than this on its long side, then fitted to the frame
 CROP_MIN_FRAC = 0.05                  # a crop's box narrower or lower than this share of it is a mark, not stairs (the smallest of 21 recorded answers: 0.14)
+LIGHT_CROP_MIN_FRAC = 0.005           # a light IS a small mark: only a box of nothing is no box
+LIGHT_M = 0.6                         # a symbol this close to a placed light (to its outline, if it has one) is about that light
+LIGHT_MERGE_M = 0.3                   # finds this close, across tiles or plans, are one
+MAX_LIGHTS = 40                       # on one plan, at most
+TILES, TILE_OVERLAP, TILE_PX = 3, 0.2, 1024    # the measured recipe (experiment planlib.tiles_of, run_reads stage_T)
+TILE_SLOW_S = 45                      # a first read longer than this: nine more a plan would eat the session, so no tiles
+GROUP_M = 1.5                         # a placed light drawn this long stands for a room's lights, unless it is a strip
 STATUS: tuple[str, ...] = ("running", "done", "cancelled", "failed", "out_of_time")
 CANCEL_WHY: tuple[str, ...] = ("user", "switch_off", "house3d_off", "licence", "plan_gone", "plan_changed", "restart")
 FAILURE_WHY: tuple[str, ...] = ("wrong_place", "nothing_there", "already_here", "wrong_kind", "cant_tell")
@@ -92,6 +107,27 @@ RAIL_PROMPT = (
     "balustrade drawn beside the staircase (a thin line or a row of small marks along its side)? Say left or right "
     "as someone climbing the stairs would, facing the way up. Output JSON only: "
     "{{\"rail\": \"yes|no\", \"side\": \"left|right|both|none\"}}.")
+# The measured light read (experiment planlib.prompt_all): all five kinds asked,
+# P 0.72 / R 0.57 on lights against 0.41 / 0.65 asking for lights alone. Only the
+# lights are kept; the doors, windows and the rest are discarded unseen.
+TILE_PROMPT = (
+    "This floor plan image is {w} by {h} pixels. Locate every door (a gap in a wall, usually with a thin quarter-circle swing arc), "
+    "window (a thin double or triple line set into an outside wall), staircase (a run of many short parallel step lines), "
+    "railing (a long thin line along a stair or the edge of an open area, not a full wall) and ceiling light fixture "
+    "(a small circle or circle with a cross, printed or handwritten). Output JSON: a list of objects "
+    "{{\"bbox_2d\": [x1, y1, x2, y2], \"label\": \"door|window|stairs|railing|light\"}} with pixel coordinates.")
+# The measured crop check (planlib.prompt_check), with the symbol asked in the same read: on 15 finds
+# (Mac, 2026-11-02) it answered present alike with and without the symbol, the boxes nearly alike on 14.
+LIGHT_CROP_PROMPT = (
+    "This is a crop of a floor plan, {w} by {h} pixels. Is there a ceiling light fixture (a small circle or circle with a "
+    "cross, a pot light or downlight mark, printed or handwritten) at or near the centre of this crop? Output JSON: "
+    "{{\"present\": true or false, \"bbox_2d\": [x1, y1, x2, y2], \"symbol\": \"pot|pendant|sconce|unknown\"}} with pixel "
+    "coordinates of it, or {{\"present\": false}}. symbol: pot for a small plain circle, pendant for a circle with a cross, "
+    "sconce for a half circle on a wall, unknown for anything else.")
+# What a symbol is drawn as (a kind Live Aboard has), and the kinds that already agree with it.
+SYMBOL_KIND = {"pot": "pot", "pendant": "pendant", "sconce": "sconce"}
+SYMBOL_AGREES = {"pot": ("pot", "pot_ring"), "pendant": ("pendant", "chandelier"), "sconce": ("sconce", "vanity")}
+_LIGHT_LABELS = ("light", "lights", "light fixture", "light fixtures", "ceiling light", "ceiling light fixture", "lamp")   # the experiment's synonyms
 
 
 # ── The store ────────────────────────────────────────────────────────────────
@@ -130,6 +166,7 @@ def sweep_restart(data: dict[str, Any], keep: str | None = None) -> int:
         if isinstance(sess, dict) and sess.get("status") == "running" and sid != keep:
             sess.update(status="failed", error="restart", finished_at=time.time(), rev=int(sess.get("rev") or 0) + 1)
             sess.pop("finds", None)
+            sess.pop("light_finds", None)
             n += 1
     return n
 
@@ -533,6 +570,232 @@ def merge_across_plans(finds: list[dict]) -> list[dict]:
     return out
 
 
+# ── Lights ───────────────────────────────────────────────────────────────────
+
+def _words(*w: str) -> re.Pattern[str]:
+    return re.compile(r"\b(" + "|".join(w) + r")\b")
+
+
+# What a light's name gives away (live_aboard_house.js NAME_KIND, in its order; that is what the house draws).
+_NAME_KIND = (
+    ("fan", _words("fans?")), ("chandelier", _words("chandeliers?")), ("pendant", _words("pendants?", "hanging", "drop lights?")),
+    ("vanity", _words("vanity")), ("sconce", _words("sconces?", "wall lights?", "wall lamps?")),
+    ("spot", _words("spots?", "spotlights?", "spot lights?", "floods?", "floodlights?", "flood lights?", "wall wash", "washers?")),
+    ("tv", _words("tv", "bias")), ("led", _words("status led", "indicator", "backlight")),
+    ("pot", _words("pots?", "pot ?lights?", "potlights?", "downlights?", "down lights?", "recessed", "can lights?", "cans")),
+    ("track", _words("track")),
+    ("strip", _words("valances?", "strips?", "coves?", "tape", "rope", r"under ?cab\w*", r"ws2812\w*", r"sk6812\w*", "neopixels?", "xmas", "christmas")),
+    ("tube", _words("flouresents?", "fluorescents?", "tubes?", "shop lights?")),
+    ("fixture", _words("ceiling lights?", "flush ?mounts?", "fixtures?", "dome lights?")),
+)
+_KIND_OF_SHAPE = {"hex": "fixture", "circle": "pot", "bar": "strip", "line": "track", "square": "tube", "fan": "fan", "pendant": "pendant",
+                  "sconce": "sconce", "chandelier": "chandelier", "triangle": "spot", "diamond": "led", "perimeter": "perimeter"}   # KIND_OF_SHAPE
+_STRIPS = ("strip", "valance", "undercab", "kick", "tv", "track", "tube", "led")
+
+
+def _drawn_kind(eid: str, label: Any, stored: Any, override: Any) -> str | None:
+    """What the house draws a light as, as far as a symbol can disagree with it
+    (live_aboard_house.js guessKind): the kind set in Live Aboard, the shape set
+    on the Atlas, the words in its name. None: nothing says (it glows)."""
+    if isinstance(stored, str) and stored:
+        return stored
+    if override and override != "auto" and override in _KIND_OF_SHAPE:
+        return _KIND_OF_SHAPE[override]
+    text = " " + re.sub(r"[^a-z0-9]+", " ", f"{eid} {label or ''}".lower()) + " "
+    return next((k for k, r in _NAME_KIND if r.search(text)), None)
+
+
+def footprint(rec: dict) -> tuple[tuple[float, float], tuple[float, float], float] | None:
+    """A placed light's outline in plan metres (live_aboard_house.js footprint):
+    its two half-axes and its long side. Under 30 cm a marker has no size."""
+    w, h = (S._num(rec.get("width_cm")) or 0.0) / 100, (S._num(rec.get("height_cm")) or 0.0) / 100  # noqa: SLF001
+    if max(w, h) < 0.3:
+        return None
+    t, c30 = math.radians(S._num(rec.get("rotation")) or 0.0), math.cos(math.pi / 6)  # noqa: SLF001
+    iso = lambda sx, sy: (sx / (2 * c30) + sy, -sx / (2 * c30) + sy)  # noqa: E731
+    e1, e2 = iso(math.cos(t), math.sin(t)), iso(-math.sin(t), math.cos(t))
+    a, b = (e1[0] * w / 2, e1[1] * w / 2), (e2[0] * h / 2, e2[1] * h / 2)
+    return a, b, 2 * max(math.hypot(*a), math.hypot(*b))
+
+
+def _seg_dist(px: float, py: float, a: tuple[float, float], b: tuple[float, float]) -> float:
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((px - a[0]) * dx + (py - a[1]) * dy) / (dx * dx + dy * dy))) if dx or dy else 0.0
+    return math.hypot(px - a[0] - t * dx, py - a[1] - t * dy)
+
+
+def light_distance(light: dict, x: float, y: float) -> float:
+    """How far a point is from a placed light: from its outline, where it has
+    one ("Pots Main North" covers 4.75 x 2 m: a symbol inside it is on it), else
+    from its point."""
+    dx, dy = x - light["x_m"], y - light["y_m"]
+    fp = light.get("fp")
+    if not fp:
+        return math.hypot(dx, dy)
+    a, b, _long = fp
+    det = a[0] * b[1] - a[1] * b[0]
+    if abs(det) > 1e-9 and abs((dx * b[1] - dy * b[0]) / det) <= 1 and abs((a[0] * dy - a[1] * dx) / det) <= 1:
+        return 0.0
+    corners = [(sa * a[0] + sb * b[0], sa * a[1] + sb * b[1]) for sa, sb in ((1, 1), (1, -1), (-1, -1), (-1, 1))]
+    return min(_seg_dist(dx, dy, corners[i], corners[(i + 1) % 4]) for i in range(4))
+
+
+def light_snap(light: dict) -> dict[str, Any]:
+    """The target as read at match time (compared again before a commit)."""
+    return {k: light.get(k) for k in ("x_m", "y_m", "floor_id", "stored_kind")}
+
+
+def placed_lights(hass: HomeAssistant, house: dict | None) -> list[dict[str, Any]]:
+    """The light. entries of the map's positions (never fan., binary_sensor.,
+    sensor. or lock., which share the store), read only, with what the 3D file
+    says of each. `group`: it stands for a room's lights (a Home Assistant
+    group, or a long outline that isn't a strip)."""
+    model = hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    overrides = ((st.data if st else {}) or {}).get("light_shapes") or {}
+    stored = (house or {}).get("lights") or {}
+    out = []
+    for eid, rec in (model.light_positions_m() if model is not None else {}).items():
+        if not str(eid).startswith("light.") or not isinstance(rec, dict):
+            continue
+        x, y = S._num(rec.get("x_m")), S._num(rec.get("y_m"))  # noqa: SLF001
+        if x is None or y is None:
+            continue
+        entry = stored.get(eid) if isinstance(stored.get(eid), dict) else {}
+        state = hass.states.get(eid)
+        label = rec.get("label") or (state.attributes.get("friendly_name") if state else None) or ""
+        kind, fp = _drawn_kind(eid, label, entry.get("kind"), overrides.get(eid)), footprint(rec)
+        members = state.attributes.get("entity_id") if state else None
+        out.append({"id": str(eid), "floor_id": str(rec.get("floor_id") or DEFAULT_FLOOR_ID), "x_m": x, "y_m": y, "label": str(label), "fp": fp,
+                    "stored_kind": entry.get("kind"), "kind": kind,
+                    "group": isinstance(members, (list, tuple)) or bool(fp and fp[2] >= GROUP_M and kind not in _STRIPS)})
+    return out
+
+
+def classify_light(fid: str, x: float, y: float, symbol: str, lights: list[dict], offered: set[tuple[str, str]]) -> dict[str, Any]:
+    """One symbol against the placed lights on its floor. Beyond LIGHT_M of all:
+    unmatched. Within it: a duplicate if it agrees with any of them, or says
+    nothing (unknown: it can't disagree, and there is no kind to offer), or was
+    offered already as that kind on that light; else a correction, kind only, of
+    the nearest."""
+    near = sorted(((light_distance(lt, x, y), lt) for lt in lights if base_floor(lt["floor_id"]) == base_floor(fid)), key=lambda t: t[0])
+    near = [(d, lt) for d, lt in near if d <= LIGHT_M]
+    out: dict[str, Any] = {"target": None, "distance_m": None, "relation": "unmatched", "near": [], "held": None, "target_snap": None}
+    if not near:
+        return out
+    d, lt = next(((d, lt) for d, lt in near if lt["kind"] in SYMBOL_AGREES.get(symbol, ())), near[0])
+    out.update(target=lt["id"], distance_m=round(d, 2), target_snap=light_snap(lt), label=lt["label"], now_kind=lt["kind"], group=lt["group"])
+    agrees = symbol not in SYMBOL_KIND or lt["kind"] in SYMBOL_AGREES[symbol] or (lt["id"], symbol) in offered
+    out["relation"] = "duplicate" if agrees else "correction"
+    if not agrees:
+        out["want_kind"] = SYMBOL_KIND[symbol]
+    return out
+
+
+def merge_lights(finds: list[dict]) -> list[dict]:
+    """Finds within LIGHT_MERGE_M of one on one floor are one, the first kept
+    (tiles overlap, and a model repeats itself), a known symbol winning over
+    unknown. Two plans seeing it are both named."""
+    out: list[dict] = []
+    for f in finds:
+        twin = next((g for g in out if g["plan_floor"] == f["plan_floor"] and math.hypot(g["x_m"] - f["x_m"], g["y_m"] - f["y_m"]) <= LIGHT_MERGE_M), None)
+        if twin is None:
+            out.append({**f, "seen_on": list(f.get("seen_on") or [{"map_id": f["map_id"], "x_m": f["x_m"], "y_m": f["y_m"]}])})
+            continue
+        if f["map_id"] not in [s["map_id"] for s in twin["seen_on"]]:
+            twin["seen_on"].append({"map_id": f["map_id"], "x_m": f["x_m"], "y_m": f["y_m"]})
+        if twin.get("symbol", "unknown") == "unknown" and f.get("symbol", "unknown") != "unknown":
+            twin["symbol"] = f["symbol"]
+    return out
+
+
+def capped_lights(finds: list[dict]) -> list[dict]:
+    """MAX_LIGHTS a plan: past that a read is noise."""
+    seen: dict[str, int] = {}
+    out = []
+    for f in finds:
+        seen[f["map_id"]] = seen.get(f["map_id"], 0) + 1
+        if seen[f["map_id"]] <= MAX_LIGHTS:
+            out.append(f)
+    return out
+
+
+def tile_boxes(W: int, H: int) -> list[tuple[int, int, int, int]]:
+    """TILES x TILES tiles covering a W x H picture, TILE_OVERLAP shared between neighbours."""
+    tw, th = W / (TILES - (TILES - 1) * TILE_OVERLAP), H / (TILES - (TILES - 1) * TILE_OVERLAP)
+    return [(round(i * tw * (1 - TILE_OVERLAP)), round(j * th * (1 - TILE_OVERLAP)),
+             min(W, round(i * tw * (1 - TILE_OVERLAP) + tw)), min(H, round(j * th * (1 - TILE_OVERLAP) + th)))
+            for j in range(TILES) for i in range(TILES)]
+
+
+def tiles(path) -> list[tuple[bytes, int, int, tuple[float, float, float, float]]]:
+    """A plan's tiles, each a JPEG at the frame the model looks at it in after
+    making it at most TILE_PX on its long side, with its size and its bounds as
+    fractions of the picture. Runs in the executor."""
+    from PIL import Image  # noqa: PLC0415
+    import io  # noqa: PLC0415
+    out = []
+    with Image.open(path) as im:
+        im = im.convert("RGB")
+        W, H = im.size
+        for box in tile_boxes(W, H):
+            part = im.crop(box)
+            part.thumbnail((TILE_PX, TILE_PX))
+            part = part.resize(S.frame_of(*part.size), Image.LANCZOS)
+            buf = io.BytesIO()
+            part.save(buf, "JPEG", quality=88)
+            out.append((buf.getvalue(), part.size[0], part.size[1], (box[0] / W, box[1] / H, box[2] / W, box[3] / H)))
+    return out
+
+
+_BOXED = re.compile(r"\{[^{}]*?\"bbox_2d\"[^{}]*?\}")
+
+
+def tile_lights(answer: Any, w: int, h: int) -> list[dict] | None:
+    """A tile's answer, reduced to its lights' boxes in the frame ({bbox_2d}),
+    each once; None when it can't be read. The model can run on, repeating itself
+    until it is cut off, so a list cut short still gives the objects it holds. A
+    box past the tile is another frame's, and goes."""
+    items = S._list_of(answer)  # noqa: SLF001
+    if items is None and isinstance(answer, str):
+        items = []
+        for m in _BOXED.finditer(answer):
+            try:
+                items.append(json.loads(m.group(0)))
+            except ValueError:
+                continue
+        if not items:
+            return None
+    if items is None:
+        return None
+    out, seen, edge = [], set(), S.PAST_EDGE_FRAC
+    for b in items:
+        bb = b.get("bbox_2d") if isinstance(b, dict) else None
+        if not isinstance(b, dict) or str(b.get("label") or "").strip().lower() not in _LIGHT_LABELS or not isinstance(bb, list) or len(bb) != 4:
+            continue
+        xs = [S._num(v) for v in bb]  # noqa: SLF001
+        if any(v is None for v in xs):
+            continue
+        x1, x2, y1, y2 = min(xs[0], xs[2]), max(xs[0], xs[2]), min(xs[1], xs[3]), max(xs[1], xs[3])
+        if x1 < -edge * w or y1 < -edge * h or x2 > (1 + edge) * w or y2 > (1 + edge) * h or (x1, y1, x2, y2) in seen:
+            continue
+        seen.add((x1, y1, x2, y2))
+        out.append({"bbox_2d": [x1, y1, x2, y2]})
+    return out
+
+
+def symbol_of(answer: Any) -> str:
+    """The symbol word of a crop check's answer, a closed word: unknown unless it says one."""
+    word: Any = None
+    if isinstance(answer, dict):
+        word = answer.get("symbol")
+    elif isinstance(answer, str):
+        m = re.search(r'"?symbol"?\s*:\s*"([a-zA-Z_ ]+)"', answer)
+        word = m.group(1) if m else None
+    word = str(word or "").strip().lower()
+    return word if word in SYMBOL_KIND else "unknown"
+
+
 # ── Rejects ──────────────────────────────────────────────────────────────────
 
 def reject_key(kind: str, map_id: str, isig: str, psig: str, x: float, y: float) -> str:
@@ -580,11 +843,11 @@ def crop(path, cx: float, cy: float, hx: float, hy: float) -> tuple[bytes, int, 
         return buf.getvalue(), part.size[0], part.size[1], (box[0] / W, box[1] / H, box[2] / W, box[3] / H)
 
 
-def crop_answer(answer: Any, w: int, h: int) -> tuple[bool, tuple[float, float, float, float] | None] | None:
+def crop_answer(answer: Any, w: int, h: int, min_frac: float = CROP_MIN_FRAC) -> tuple[bool, tuple[float, float, float, float] | None] | None:
     """The second look's answer, reduced to (present, its box as fractions of
     the crop, x1, y1, x2, y2, or None without a usable box); None when it says
     neither. A box out past the crop is another frame's, and one under
-    CROP_MIN_FRAC a side (a point, a mark) is no staircase: neither is used."""
+    min_frac a side (a point, a mark) is no staircase: neither is used."""
     present: Any = None
     bb: Any = None
     if isinstance(answer, dict):
@@ -606,7 +869,7 @@ def crop_answer(answer: Any, w: int, h: int) -> tuple[bool, tuple[float, float, 
     if x1 < -edge * w or y1 < -edge * h or x2 > (1 + edge) * w or y2 > (1 + edge) * h:
         return True, None
     x1, y1, x2, y2 = max(0.0, x1) / w, max(0.0, y1) / h, min(float(w), x2) / w, min(float(h), y2) / h
-    if x2 - x1 < CROP_MIN_FRAC or y2 - y1 < CROP_MIN_FRAC:
+    if x2 - x1 < min_frac or y2 - y1 < min_frac:
         return True, None
     return True, (x1, y1, x2, y2)
 
@@ -668,18 +931,23 @@ def start_allowed(hass: HomeAssistant, now: float | None = None) -> str | None:
     return None
 
 
-def new_session(ai: dict, plans_: list[dict], kinds: list[str], frame: str) -> dict[str, Any]:
-    """A session record about to run (the store's shape, section 4)."""
+def new_session(ai: dict, plans_: list[dict], kinds: list[str], frame: str, fixtures: dict[str, str] | None = None) -> dict[str, Any]:
+    """A session record about to run (the store's shape, section 4). `fixtures`:
+    the person's answer per plan (yes, no, unsure) to whether it draws light
+    fixtures; only a plan on yes is read for lights."""
+    fx = fixtures or {}
     return {"rev": 1, "started_at": time.time(), "finished_at": None, "status": "running", "error": None,
             "ai_task": str(ai.get("ai_task") or ""), "local": ai.get("local"), "backup_used": False,
             "frame": frame, "budget_s": PLAN_BUDGET_S, "spent_s": 0.0,
-            "reads": 0, "tiles": 0, "timeouts": 0, "errors": {}, "skipped": 0, "no_floor": 0, "crop_dropped": 0,
+            "reads": 0, "tiles": 0, "timeouts": 0, "errors": {}, "skipped": 0, "no_floor": 0, "crop_dropped": 0, "light_dropped": 0,
+            "lights_asked": "light" in kinds,
             "progress": {"plan": 0, "of": len(plans_), "name": "", "step": "stairs"},
             "plans": [{"map_id": p["map_id"], "name": p.get("name") or "", "floor_id": p["floor_id"],
-                       "kinds": list(kinds), "fixtures_drawn": None, "refs": int(p.get("refs") or 0),
+                       "kinds": [k for k in kinds if k != "light" or fx.get(p["map_id"]) == "yes"],
+                       "fixtures_drawn": {"yes": True, "no": False}.get(fx.get(p["map_id"], "")) if "light" in kinds else None, "refs": int(p.get("refs") or 0),
                        "image_sig": p["image_sig"], "place_sig": p["place_sig"], "frame": None, "suspect": False,
                        "read": False, "answered": False, "changed": False} for p in plans_],
-            "finds": [], "suggestions": {}, "batch": None, "backup_id": None}
+            "finds": [], "light_finds": [], "suggestions": {}, "batch": None, "backup_id": None}
 
 
 class Runner:
@@ -690,7 +958,8 @@ class Runner:
         self.t0 = time.monotonic()
         self.consecutive_timeouts = 0
         self.cut_short = False              # the budget ran out before a read this session wanted
-        self.phase = "whole"                # which reads are under way: whole, crop, railing
+        self.phase = "whole"                # which reads are under way: whole, crop, railing, tiles, light_crop
+        self.first_read_s: float | None = None   # how long the first answer took: a slow AI reads no tiles
         self.files: dict[str, Any] = {}     # map id → the plan's picture on disk, for its crops
         self.crops: dict[int, tuple[bytes, int, int]] = {}   # a find (by id) → its crop, for the railing question; never stored
 
@@ -771,6 +1040,8 @@ class Runner:
         finally:
             _bump(self.hass, P._secs_event(time.monotonic() - t0).replace("photo_secs:", "plan_ai_read_secs:"))  # noqa: SLF001
         self.consecutive_timeouts = 0
+        if self.first_read_s is None:
+            self.first_read_s = time.monotonic() - t0
         if by != self.ai.get("ai_task"):
             if not sess.get("backup_used"):              # counted per session, not per read (count=False above)
                 _bump(self.hass, "ai_backup_used")
@@ -852,7 +1123,8 @@ class Runner:
         find's, within CROP_M. False: it says nothing is there, and the find
         goes. A box places the find and is the box kept for the list, in the
         whole read's frame, so what is drawn is what the metres came from; any
-        other answer leaves it as it was."""
+        other answer leaves it as it was. A light's look also names its symbol."""
+        light = f.get("kind") == "light"
         model = self.hass.data.get(DOMAIN, {}).get(DATA_MODEL)
         mid = f["map_id"]
         to_m = lambda fx, fy: model.map_frac_to_metres(fx, fy, mid)  # noqa: E731
@@ -861,21 +1133,30 @@ class Runner:
         mx = math.hypot(*(a - b for a, b in zip(to_m(1, 0) or (0, 0), to_m(0, 0) or (0, 0)))) or 1.0
         my = math.hypot(*(a - b for a, b in zip(to_m(0, 1) or (0, 0), to_m(0, 0) or (0, 0)))) or 1.0
         side = min(CROP_M[1], max(CROP_M[0], 2.5 * max((x2 - x1) / w * mx, (y2 - y1) / h * my)))
-        self._progress(f, "check")
+        self._progress(f, "light_check" if light else "check")
         try:
             craw, cw, ch, (bx0, by0, bx1, by1) = await self.hass.async_add_executor_job(
                 crop, self.files[mid], (x1 + x2) / 2 / w, (y1 + y2) / 2 / h, side / 2 / mx, side / 2 / my)
         except Exception:  # noqa: BLE001 — a picture that won't crop: the find stays as the whole read had it
             return True
-        self.crops[id(f)] = (craw, cw, ch)
-        seen = await self.read(CROP_PROMPT.format(w=cw, h=ch), craw, lambda a: crop_answer(a, cw, ch))
+        if light:
+            def parse(a: Any) -> tuple | None:
+                got = crop_answer(a, cw, ch, LIGHT_CROP_MIN_FRAC)
+                return None if got is None else (*got, symbol_of(a))
+            seen = await self.read(LIGHT_CROP_PROMPT.format(w=cw, h=ch), craw, parse)
+        else:
+            self.crops[id(f)] = (craw, cw, ch)
+            seen = await self.read(CROP_PROMPT.format(w=cw, h=ch), craw, lambda a: crop_answer(a, cw, ch))
         if seen is None:
             return True
         f["reads"].append("crop")
-        present, at = seen
+        present, at = seen[:2]
+        if light:
+            f["symbol"] = seen[2]
         if not present:
-            self.sess["crop_dropped"] = int(self.sess.get("crop_dropped") or 0) + 1
-            _bump(self.hass, "plan_ai_crop:dropped")
+            key = "light_dropped" if light else "crop_dropped"
+            self.sess[key] = int(self.sess.get(key) or 0) + 1
+            _bump(self.hass, f"plan_ai_crop:{'light_' if light else ''}dropped")
             return False
         spot = None
         if at:
@@ -883,7 +1164,7 @@ class Runner:
             spot = to_m((fx0 + fx1) / 2, (fy0 + fy1) / 2)
         if spot:
             f.update(x_m=round(spot[0], 3), y_m=round(spot[1], 3), box_px=[round(fx0 * w, 1), round(fy0 * h, 1), round(fx1 * w, 1), round(fy1 * h, 1)])
-        _bump(self.hass, "plan_ai_crop:placed" if spot else "plan_ai_crop:kept")
+        _bump(self.hass, f"plan_ai_crop:{'light_' if light else ''}{'placed' if spot else 'kept'}")
         return True
 
     async def second_looks(self, finds: list[dict]) -> list[dict]:
@@ -915,6 +1196,109 @@ class Runner:
                 f["rail"] = {"drawn": yes, "side": side if f["sure_up"] else None}
             await self._save()
         return kept
+
+    async def read_lights(self) -> None:
+        """Last of all, so a slow AI loses the lights and not a stair: each plan
+        marked Yes in tiles, then one crop check per find. A first read over
+        TILE_SLOW_S skips them and says so. Cut short, what was read stays."""
+        sess = self.sess
+        yes = [pl for pl in sess.get("plans") or [] if "light" in (pl.get("kinds") or []) and pl.get("read") and pl["map_id"] in self.files and pl.get("frame")]
+        if not yes:
+            return
+        if (self.first_read_s or 0.0) > TILE_SLOW_S:
+            sess["tiles_skipped"] = "slow"
+            _bump(self.hass, "plan_ai_tiles_slow")
+            return
+        model = self.hass.data.get(DOMAIN, {}).get(DATA_MODEL)
+        finds: list[dict] = []
+        self.phase = "tiles"
+        for pl in yes:
+            if self.stop_here():
+                break
+            mid = pl["map_id"]
+            try:
+                parts = await self.hass.async_add_executor_job(tiles, self.files[mid])
+            except Exception:  # noqa: BLE001 — a picture that won't cut: this plan's lights stay unread
+                self._err("no_picture")
+                continue
+            W, H = pl["frame"]
+            plans_ = sess.get("plans") or []
+            for n, (raw, w, h, (bx0, by0, bx1, by1)) in enumerate(parts):
+                if self.stop_here():
+                    break
+                sess["progress"] = {"plan": plans_.index(pl) + 1, "of": len(plans_), "name": pl.get("name") or "", "step": "tiles", "tile": n + 1}
+                sess["tiles"] = int(sess.get("tiles") or 0) + 1
+                await self._save()
+                got = await self.read(TILE_PROMPT.format(w=w, h=h), raw, lambda a, w=w, h=h: tile_lights(a, w, h))
+                if got is None:
+                    continue
+                if sess.get("frame") != "probed" and suspect_frame(got, w, h) and not pl.get("suspect"):
+                    pl["suspect"] = True
+                    self._err("suspect_frame")
+                for b in got:
+                    x1, y1, x2, y2 = b["bbox_2d"]
+                    fx0, fy0 = bx0 + x1 / w * (bx1 - bx0), by0 + y1 / h * (by1 - by0)
+                    fx1, fy1 = bx0 + x2 / w * (bx1 - bx0), by0 + y2 / h * (by1 - by0)
+                    at = model.map_frac_to_metres((fx0 + fx1) / 2, (fy0 + fy1) / 2, mid)
+                    if at:
+                        finds.append({"kind": "light", "map_id": mid, "plan_floor": pl["floor_id"], "floor_id": pl["floor_id"], "frame": [W, H], "reads": ["tile"], "symbol": "unknown",
+                                      "x_m": round(at[0], 3), "y_m": round(at[1], 3),
+                                      "box_px": [round(fx0 * W, 1), round(fy0 * H, 1), round(fx1 * W, 1), round(fy1 * H, 1)]})
+                sess["light_finds"] = capped_lights(merge_lights(finds))
+        merged = sess.get("light_finds") or []
+        self.phase = "light_crop"
+        kept: list[dict] = []
+        for n, f in enumerate(merged):
+            if self.stop_here():
+                kept.extend(merged[n:])
+                break
+            if await self.look_again(f):
+                kept.append(f)
+            await self._save()
+        sess["light_finds"] = kept
+
+    def conflate_lights(self, house: dict | None, by_map: dict[str, dict], rejects: dict, sugs: dict[str, dict]) -> None:
+        """Every light find against the placed lights: a suggestion each. A
+        light is never moved or added here: at most its kind may change, on a
+        commit. A coarse frame offers no correction: a symbol can't be said to
+        be on a light there, so it is unmatched, and says why."""
+        sess = self.sess
+        lights = placed_lights(self.hass, house)
+        offered: set[tuple[str, str]] = set()
+        for f in merge_lights(sess.get("light_finds") or []):
+            if len(sugs) >= MAX_SUGGESTIONS:
+                break
+            pl = by_map.get(f["map_id"]) or {}
+            symbol = f.get("symbol") or "unknown"
+            match = classify_light(f["floor_id"], f["x_m"], f["y_m"], symbol, lights, offered)
+            if sess.get("frame") == "named":
+                match["held"] = "frame"
+                if match["relation"] == "correction":
+                    match.update(relation="unmatched", target=None, target_snap=None, distance_m=None)
+                    match.pop("want_kind", None)
+            elif match["relation"] == "correction" and int(pl.get("refs") or 0) == 0:
+                match["held"] = "eye"
+            if match["held"]:
+                _bump(self.hass, f"plan_ai_held:{match['held']}")
+            if match["relation"] == "correction":
+                offered.add((match["target"], symbol))
+            sid = "sug_" + secrets.token_hex(4)
+            sug = {"id": sid, "kind": "light", "map_id": f["map_id"], "floor_id": f["floor_id"], "box_px": f["box_px"], "frame": f["frame"],
+                   "seen_on": f["seen_on"], "reads": f["reads"], "geom": {"x_m": f["x_m"], "y_m": f["y_m"], "symbol": symbol}, "match": match,
+                   "state": "queued", "verdict": None, "piece_id": None}
+            rk = remembered_reject(rejects, "light", f["map_id"], pl.get("image_sig") or "", pl.get("place_sig") or "", f["x_m"], f["y_m"])
+            if match["relation"] == "duplicate":
+                sug["state"] = "duplicate"
+                _bump(self.hass, "plan_ai_duplicate:light")
+            elif rk:
+                sug["state"] = "failure"
+                sug["verdict"] = {"v": "failure", "at": time.time(), "why": (rejects[rk] or {}).get("why"), "remembered": True, "reject": rk}
+            elif match["relation"] == "unmatched":
+                sug["state"] = "unmatched"
+                _bump(self.hass, "plan_ai_light_unmatched")
+            else:
+                _bump(self.hass, "plan_ai_suggested:light")
+            sugs[sid] = sug
 
     async def conflate(self) -> None:
         """Every find of the session against the house and each other; the
@@ -1005,6 +1389,8 @@ class Runner:
             else:
                 _bump(self.hass, "plan_ai_suggested:railing")
             sugs[rid] = hint
+        if sess.get("light_finds"):
+            self.conflate_lights(house, by_map, rejects, sugs)
         sess["suggestions"] = sugs
 
     def no_read(self) -> str | None:
@@ -1046,6 +1432,7 @@ class Runner:
                 await self._save()
             if status == "done":
                 sess["finds"] = await self.second_looks(sess.get("finds") or [])
+                await self.read_lights()
             if status == "done":                       # one that came during the second looks: no next plan to notice it
                 why = self.guard()
                 status = "cancelled" if why else status
@@ -1064,6 +1451,7 @@ class Runner:
         if no_read:                                    # it read nothing, which is not the same as finding nothing
             status = "failed"
         sess.pop("finds", None)                        # matched: the suggestions hold what is kept
+        sess.pop("light_finds", None)
         sess.update(status=status, error=why if status == "cancelled" else no_read, finished_at=time.time())
         sess["progress"] = {"plan": n, "of": n, "name": "", "step": "done"}
         _bump(self.hass, f"plan_ai_session:{'no_read' if no_read else status}")
@@ -1074,10 +1462,13 @@ class Runner:
         reads = int(sess.get("reads") or 0)
         if reads:
             _bump(self.hass, f"plan_ai_reads:{_band(reads, ((5, '1_5'), (15, '6_15'), (40, '16_40')), 'gt40')}")
+        if sess.get("lights_asked"):
+            tiles_read = int(sess.get("tiles") or 0)
+            _bump(self.hass, f"plan_ai_tiles:{_band(tiles_read, ((0, 'none'), (9, '1_9'), (27, '10_27')), 'gt27')}")
         await self._save()
 
 
-def start(hass: HomeAssistant, store: PlanAiStore, ai: dict[str, Any], plans_: list[dict], kinds: list[str], frame: str) -> str:
+def start(hass: HomeAssistant, store: PlanAiStore, ai: dict[str, Any], plans_: list[dict], kinds: list[str], frame: str, fixtures: dict[str, str] | None = None) -> str:
     """Make a session and start its task. The id. Nothing here waits, so a
     second press finds the job (already_running), and a status check never
     sees a session marked running with no job behind it."""
@@ -1085,7 +1476,7 @@ def start(hass: HomeAssistant, store: PlanAiStore, ai: dict[str, Any], plans_: l
     dom = hass.data.setdefault(DOMAIN, {})
     now = time.monotonic()
     dom[_DATA_STARTS] = [t for t in dom.get(_DATA_STARTS, []) if now - t < 86400] + [now]
-    store.data.setdefault("sessions", {})[sid] = new_session(ai, plans_, kinds, frame)
+    store.data.setdefault("sessions", {})[sid] = new_session(ai, plans_, kinds, frame, fixtures)
     store.trim()
     job = Job(sid)
     dom[_DATA_JOB] = job
@@ -1129,19 +1520,28 @@ def check_session(hass: HomeAssistant, store: PlanAiStore, sess: dict[str, Any],
     a plan whose picture or placement changed since the read marks its
     suggestions still open stale; a correction whose target is gone or differs
     from its snapshot is stale too, and a railing hint whose stair was kept and
-    is no longer there, and a duplicate of a stair that is gone. `house` None (the 3D file couldn't be read): the
+    is no longer there, and a duplicate of a stair that is gone; a light's correction when that light moved, went or
+    was given another kind, and a duplicate of a light that is gone. `house` None (the 3D file couldn't be read): the
     targets aren't judged. Returns whether anything changed."""
     was_moved = {pl["map_id"] for pl in sess.get("plans") or [] if pl.get("changed")}
     moved = plans_moved(hass, sess)
     changed = moved != was_moved
     stairs = {st["id"]: st for st in stair_pieces(house)}
     sugs = sess.get("suggestions") or {}
+    lights = {lt["id"]: lt for lt in placed_lights(hass, house)} if house is not None and any(
+        isinstance(s, dict) and s.get("kind") == "light" for s in sugs.values()) else {}
     for sug in sugs.values():
         if not isinstance(sug, dict) or sug.get("state") not in ("queued", "later", "duplicate"):
             continue
         stale = sug.get("map_id") in moved
         match = sug.get("match") or {}
-        if sug.get("state") == "duplicate":          # "already in your house", until that stair is gone
+        if sug.get("kind") == "light":
+            tgt = lights.get(match.get("target"))
+            if sug.get("state") == "duplicate":
+                stale = house is not None and bool(match.get("target")) and tgt is None
+            elif not stale and house is not None and match.get("target"):
+                stale = tgt is None or light_snap(tgt) != match.get("target_snap")
+        elif sug.get("state") == "duplicate":        # "already in your house", until that stair is gone
             stale = house is not None and bool(match.get("target")) and match["target"] not in stairs
         elif not stale and house is not None and match.get("target") and (match.get("relation") in ("correction", "stacked") or sug.get("kind") == "railing"):
             tgt = stairs.get(match["target"])

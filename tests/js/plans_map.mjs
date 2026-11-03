@@ -48,6 +48,7 @@ const THREE = {
   Mesh: class extends Obj { constructor(g, m) { super(); this.geometry = g; this.material = m; this.isMesh = true; } },
   MeshBasicMaterial: Mat,
   BufferGeometry: class { setAttribute() {} setIndex() {} dispose() {} },
+  CircleGeometry: class { rotateX() { return this; } dispose() {} },
   BufferAttribute: class { constructor(a, n) { this.array = a; this.itemSize = n; } },
   CanvasTexture: class { constructor(c) { this.image = c; live.textures++; live.made++; } dispose() { live.textures--; live.disposed++; } },
   Raycaster: class { constructor() { this.ray = { intersectPlane: (_p, v) => { v.x = RAY[0]; v.z = RAY[1]; return v; } }; } setFromCamera() {} },
@@ -114,7 +115,7 @@ function mount(over = {}) {
   const draft = DRAFT.createDraft(DRAFT.ownedOf({ schema: 1, pieces: { fur_0000000f: stairPc("fur_0000000f", 2.6, 4) } }));
   let tool, n = 0;
   const redraw = () => { sheet.replaceChildren(); tool.sheet(); };
-  tool = P.createPlans({ root, sheet, guard: (f) => f, host: () => ({ callWS, telemetry: (t) => M.telemetry.push(t) }), floors: () => floors, hint: (t, bad) => hints.push([t, bad]), redraw,
+  tool = P.createPlans({ root, sheet, guard: (f) => f, host: () => ({ callWS, telemetry: (t) => M.telemetry.push(t), ...(over.host || {}) }), floors: () => floors, hint: (t, bad) => hints.push([t, bad]), redraw,
     DRAFT, draft: () => draft, change: (fn) => { const ok = draft.change(fn); if (ok) redraw(); return ok; }, saving: () => false, save: () => { M.saved = true; },
     stairPiece: (g, fid, lab) => stairPc(`fur_0000000${++n}`, g.x_m, g.y_m, { floor_id: fid, label: lab }), fileWritten: () => {},
     THREE, PIECES, STOREY, FURN: () => FURN, recipeOf: (p) => p.recipe, canon: (f) => String(f), compass: () => ({ north: [0, -1], east: [1, 0] }),
@@ -461,6 +462,78 @@ const openMap = async (M) => { M.tool.show(true); await settle(); M.redraw(); aw
   check("no 3D: says it is kept, listed as kept", toasts.some(t => /Kept 1 new/.test(t[0])) && text(sheet).includes("Kept (1)"), JSON.stringify(toasts) + text(sheet));
   L.dispose();
   check("no 3D: closes", !all(box).some(n => n.classList && n.classList.contains("pl-flat")), "");
+}
+// ── lights: kind only, ghosts and pins, the same card ─────────────────────────
+{
+  const light = (id, x, y, match, extra = {}) => ({ id, kind: "light", map_id: "m1", floor_id: "main", state: "queued", verdict: null, seen_on: [{ map_id: "m1" }], box_px: [1, 1, 2, 2], frame: [100, 100], reads: ["tile", "crop"],
+    geom: { x_m: x, y_m: y, symbol: "pot" }, match: { relation: "correction", target: "light.hall", distance_m: 0.2, want_kind: "pot", now_kind: "fixture", label: "Hall ceiling", group: false, near: [], held: null, target_snap: { x_m: x, y_m: y + 0.2, floor_id: "main", stored_kind: "fixture" }, ...match }, ...extra });
+  const opened = [];
+  const M = mount({ suggestions: {
+    lc: light("lc", 1, 1, {}),
+    lg: light("lg", 2, 2, { target: "light.pots", label: "Pots Main", group: true, now_kind: null }),
+    lu: light("lu", 3, 3, { relation: "unmatched", target: null, target_snap: null, want_kind: undefined }, { state: "unmatched" }),
+    ld: light("ld", 4, 4, { relation: "duplicate" }, { state: "duplicate" }),
+  }, host: { openAtlasRoom: (f, r) => opened.push([f, r]) } });
+  const before = JSON.stringify(M.draft.cur.pieces);
+  await openMap(M);
+  const st = M.state();
+  check("lights: a pin each, none for one already there", ["lc", "lg", "lu"].every(id => st.pins.some(p => p.id === id)) && !st.pins.some(p => p.id === "ld"), st.pins);
+  check("lights: ghosts, outside the draft", ["lc", "lg", "lu"].every(id => st.ghosts.includes(id)) && JSON.stringify(M.draft.cur.pieces) === before && !Object.keys(M.draft.cur.lights || {}).length, st.ghosts);
+  check("lights: the card says what it is and what the light is drawn as", text(M.sheet).includes("The plan draws a pot light here. Hall ceiling is drawn as a ceiling light.") && text(M.sheet).includes("About 3 in 10 lights are wrong"), text(M.sheet));
+  check("lights: no New and no Move by hand: a light's place is never touched", !button(M.sheet, "New") && !button(M.sheet, "Move by hand") && !!button(M.sheet, "Take the kind") && !!button(M.sheet, "Keep mine") && !!button(M.sheet, "Failure"), buttons(M.sheet).map(label));
+  await key(M, "n");
+  check("lights: N does nothing", !DRAFT.planPending(M.draft.cur).length, DRAFT.planPending(M.draft.cur));
+  await key(M, "c");
+  const e = (M.draft.cur.lights || {})["light.hall"] || {};
+  const pend = DRAFT.planPending(M.draft.cur);
+  check("lights: C puts the kind in the draft, and nothing else", e.kind === "pot" && e.x_m === undefined && e.z_m === undefined && JSON.stringify(M.draft.cur.pieces) === before && pend.length === 1 && pend[0].light === true && pend[0].piece === "light.hall", { e, pend });
+  check("lights: its pin says correction, and on to the next", M.pin("lc").state === "correction" && M.state().cur === "lg", M.state());
+  check("lights: a room group says so", text(M.sheet).includes("This room's lights are placed as a group: kind only?"), text(M.sheet));
+  await click(button(M.sheet, "Take the kind"));
+  check("lights: the keep button counts them as corrections", text(M.sheet).includes("Keep 2 corrections"), text(M.sheet));
+  await click(buttons(M.sheet).find(b => text(b) === "›") || button(M.sheet, "Done") || button(M.sheet, "Stay here"));
+  await walk(M, "lu");
+  if (M.state().card !== "item") { M.tool.show(false); M.tool.show(true); await settle(); M.redraw(); await settle(); await walk(M, "lu"); }
+  check("lights: unmatched is listed, with the Atlas button and no verdict", M.state().cur === "lu" && text(M.sheet).includes("A fixture symbol with no placed light here") && !!button(M.sheet, "Open Mapping → Atlas") && !button(M.sheet, "Failure") && !button(M.sheet, "Later"), { cur: M.state().cur, card: M.state().card, t: text(M.sheet) });
+  await click(button(M.sheet, "Open Mapping → Atlas"));
+  check("lights: the button opens Mapping → Atlas on that room", opened.length === 1 && opened[0][0] === "main" && opened[0][1] === "Hall", opened);
+  await key(M, "f");
+  check("lights: F on an unmatched symbol does nothing", M.sent("plan_ai_verdict").length === 0 && !text(M.sheet).includes("What's wrong with it?"), M.sent("plan_ai_verdict"));
+  check("lights: the floor's pass counts the symbol, not as a failure", P.missingLines("main", Object.values(M.sess.suggestions), [], []).includes("1 fixture symbol had no placed light (Mapping → Atlas)."), "");
+  // Save: items say which suggestion, and the server takes the kind from the symbol it read.
+  let got = null;
+  const commitAnswer = (m) => { got = m; return { ok: true, rev: 9, batch: "pb_1", piece_ids: { lc: "light.hall" }, suggestions: {}, undo: null,
+    data: { schema: 1, pieces: {}, lights: { "light.hall": { kind: "pot" } } } }; };
+  const M2 = mount({ suggestions: { lc: light("lc", 1, 1, {}) }, answers: { plan_ai_commit: commitAnswer } });
+  await openMap(M2);
+  await key(M2, "c");
+  const kept = await M2.tool.commit();
+  check("lights: a keep sends the suggestion alone", got && JSON.stringify(got.items) === JSON.stringify([{ sug_id: "lc", v: "correction" }]), got);
+  check("lights: the file's entries come back for the draft", kept && kept.lights["light.hall"] && kept.lights["light.hall"].kind === "pot" && !Object.keys(kept.renamed).length && /1 correction/.test(kept.said), kept);
+  // The draft's own rules: back to what it was; another edit of the same light stays.
+  const base = DRAFT.ownedOf({ schema: 1, pieces: {}, lights: { "light.a": { kind: "fixture", z_m: 2 } } });
+  const d = DRAFT.createDraft(base);
+  d.change((c) => { c.lights["light.a"].plan_ai_pending = { session: "s", sugs: { x: { v: "correction", was: { kind: "fixture" } } } }; c.lights["light.a"].kind = "pot"; c.lights["light.b"] = { kind: "pot", plan_ai_pending: { session: "s", sugs: { y: { v: "correction", was: { kind: null } } } } }; });
+  d.change((c) => { DRAFT.dropPlanPending(c, null); });
+  check("lights: taken back, the kind is what it was, and an entry made only for it goes", Object.keys(d.cur.lights).join() === "light.a" && d.cur.lights["light.a"].kind === "fixture" && d.cur.lights["light.a"].z_m === 2 && !d.cur.lights["light.a"].plan_ai_pending, d.cur.lights);
+  const d2 = DRAFT.createDraft(base);
+  d2.change((c) => { c.lights["light.a"].plan_ai_pending = { session: "s", sugs: { x: { v: "correction", was: { kind: "fixture" } } } }; c.lights["light.a"].kind = "pot"; c.lights["light.a"].z_m = 2.5; });
+  d2.adopt("lights", { "light.a": { kind: "pot", z_m: 2 } });
+  check("lights: a keep adopted, the person's own height stays for the Save after", d2.cur.lights["light.a"].kind === "pot" && d2.cur.lights["light.a"].z_m === 2.5 && !d2.cur.lights["light.a"].plan_ai_pending && d2.base.lights["light.a"].z_m === 2, d2.cur.lights);
+  // The fixture question.
+  const Q = mount({ suggestions: {}, answers: { plan_ai_plans: { ...INFO, latest: null }, plan_ai_start: { session: "ps_2" } } });
+  Q.tool.show(true); await settle(); Q.redraw(); await settle();
+  check("the question: not asked until Lights is ticked", !text(Q.sheet).includes("Does this plan draw light fixtures"), text(Q.sheet));
+  const tick = all(Q.sheet).filter(n => tag(n) === "LABEL").find(n => text(n).startsWith("Lights"));
+  const cb = all(tick).find(n => tag(n) === "INPUT");
+  cb.checked = true; cb.dispatchEvent(new Event("change", { bubbles: true })); await settle();
+  check("the question: per plan, Yes, No, Not sure, starting on Not sure", text(Q.sheet).includes("Does this plan draw light fixtures, like circles or pot marks?") && buttons(Q.sheet).filter(b => label(b) === "Yes").length === 4 && buttons(Q.sheet).filter(b => label(b) === "Not sure" && b.getAttribute("aria-pressed") === "true").length === 4, text(Q.sheet));
+  await click(buttons(Q.sheet).filter(b => label(b) === "Yes")[1]);
+  check("the question: what to expect counts the plan on Yes", text(Q.sheet).includes("on a plan with fixtures 6-12 lights"), text(Q.sheet));
+  await click(buttons(Q.sheet).find(b => /^Read 4 plans/.test(text(b))));
+  const started = Q.sent("plan_ai_start")[0] || {};
+  check("the question: the start carries each plan's answer", (started.kinds || []).includes("light") && started.fixtures && started.fixtures.m2 === "yes" && started.fixtures.m1 === "unsure" && Object.keys(started.fixtures).length === 4, started);
+  Q.tool.dispose();
 }
 console.log(JSON.stringify(results));
 process.exit(0);

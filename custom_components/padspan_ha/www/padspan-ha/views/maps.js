@@ -9745,6 +9745,16 @@ function _lightsTab(ctx, maps, active) {
   // other devices if placed"); wall-linking a lock is a SEPARATE, additive
   // capability (see the Map column below), not a replacement for it.
   const placeableLights = lights.filter(l => !l.isDoor);
+  // The Plans tool's fixture symbol with no placed light: Mapping → Atlas on its
+  // floor, its room's lights chosen, for the person to place it. Nothing is written.
+  const openAtlasRoom = (floorId, room) => {
+    const mine = room ? placeableLights.filter(l => l.area_name === room) : [];
+    mapState._atlasFloorAsk = floorId;
+    mapState._selSet = new Set(mine.map(l => l.entity_id));
+    mapState._focusRow = mine.length ? mine[0].entity_id : null;
+    ctx.toast(room ? `Mapping → Atlas, ${room}: choose a light, then drop its pin where the plan draws it.` : "Mapping → Atlas: choose a light, then drop its pin where the plan draws it.");
+    ctx.actions.setMapsTab("lights");
+  };
   // The builder's checklist: how much of the house is actually placed.
   const nPlaced = placeableLights.filter(l => placements[l.entity_id]).length;
   const nApprox = placeableLights.filter(l => placements[l.entity_id] && placements[l.entity_id].source === "auto").length;
@@ -10297,6 +10307,7 @@ function _lightsTab(ctx, maps, active) {
     // selection to place — dragging it onto the map otherwise has nothing
     // to do. (Defined above, hoisted so _wireLightsBuild can drive it too.)
     onDropPlace,
+    takeAtlasFloor: () => { const f = mapState._atlasFloorAsk; mapState._atlasFloorAsk = null; return f || null; },
     // Preview-as-sidebar asks the renderer for the use-surface ergonomics
     // (the sidebar's exact options) and wires the sidebar's exact gestures.
     codeChip: preview, hitHalo: preview, collapseUnplaced: preview,
@@ -10420,6 +10431,7 @@ function _lightsTab(ctx, maps, active) {
       trails: ctx.state.dataMode !== "live" ? null
         : { read: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } },
       callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); },
+      openAtlasRoom,
       // The 3D compass's Save: fabric_bearing_deg alone, straight to the wire
       // like the Settings box (settingsSet would re-render everything).
       saveNorth: async (b) => {
@@ -10820,7 +10832,7 @@ function _lightsTab(ctx, maps, active) {
     const plansBtn = plansList ? el("button", { class: "btn inline", style: "margin-left:6px", title: "This device shows no 3D view, so the AI's finds from your plans open as a list", onclick: async () => {
       if (mapState._plansList) { mapState._plansList.dispose(); mapState._plansList = null; return; }
       try {
-        mapState._plansList = await la3dPlansList(plansBox, { floors: ctx.state.model?.floors || [], toast: (t, bad) => ctx.toast(t, bad),
+        mapState._plansList = await la3dPlansList(plansBox, { floors: ctx.state.model?.floors || [], toast: (t, bad) => ctx.toast(t, bad), openAtlasRoom,
           callWS: (msg) => { const { type, ...rest } = msg || {}; return ctx.actions.wsCall(type, rest); } });
       } catch (e) { ctx.toast(String((e && e.message) || e), true); }
     } }, "Add data via plans (experimental)") : null;

@@ -93,7 +93,7 @@ const BASE = { maps_image_urls: { image_urls: { m1: "/signed/m1", m2: "/signed/m
   check("consent: two plans on a floor said", t().includes("2 plans cover Main"), t());
   check("consent: thumbnails from the signed link", all(M.sheet).filter(n => tag(n) === "IMG").length === 2, "no thumbs");
   check("consent: what to expect", t().includes("For your 2 plans: roughly 3-8 items, 2-6 minutes to vet."), t());
-  check("consent: lights say later, doors not offered as a kind", t().includes("Lights — comes in a later beta"), t());
+  check("consent: lights are asked for, off, doors not offered as a kind", t().includes("Lights — only on a plan that draws light fixtures") && !t().includes("Does this plan draw"), t());
   check("note: one line names the AI and the backup, in the photo step's words", t().includes("Mac vision will read the plans. It runs in your home, so the plans stay in the house. If it's away, the backup, Cloud, reads them instead. That one runs in the cloud: the plans leave the house for that service. PadSpan keeps no copy."), t());
   check("note: reads can hold a shared AI box, the backup named", t().includes("Reading can keep this AI or the backup busy for up to 8 minutes: if either also answers your voice assistant, voice may be slow until it ends."), t());
   check("no gate: no tick about the cloud or the backup, no address advice, the button as ever", !t().includes("I understand") && !t().includes("let the backup") && !t().includes("address") && !!button(M.sheet, "Read 2 plans") && !button(M.sheet, "Send 2 plans to the cloud"), t());

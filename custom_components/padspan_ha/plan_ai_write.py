@@ -5,7 +5,8 @@
 """Add data via plans: the ONE writer of the 3D house from AI suggestions
 (experimental, off by default; 2026-11).
 
-commit keeps suggestions (new, correction, a railing's side and style); undo
+commit keeps suggestions (new, correction, a railing's side and style, a light's
+kind, and never a light's position); undo
 takes a batch of them back. Each runs from ws_plan_ai.py with the 3D store's
 lock and then the plan store's held, so nothing lands between its checks and
 its writes. Nothing else in the plan AI touches the 3D file (test_plan_ai.py
@@ -49,7 +50,7 @@ PIECE_LABEL = "Stairs (from the plan)"       # setup_checks.stairs_summary count
 OPEN_STATES = ("queued", "later", "right", "stale")
 COMMITTED = {"new": "committed_new", "correction": "committed_correction"}
 RAIL_SIDES = ("both", "inner", "outer")      # a railing kept is a rail: nothing here proposes less rail
-SECTIONS = ("pieces",)                       # lights (kind only) come with Stage 3
+SECTIONS = ("pieces", "lights")
 MOVED_M = 0.3                                # kept, then moved further than this before Save: the position wasn't good enough
 _FINAL_PIECE = ("floor_id", "x_m", "y_m", "z_m", "rotation")
 _FINAL_RECIPE = ("params", "colors", "width_m", "depth_m", "height_m")
@@ -233,6 +234,13 @@ def _check_rail(sug_id: str, rail: Any) -> None:
         raise Refused("invalid", f"{sug_id}: a railing kept has a side ({', '.join(RAIL_SIDES)}) and a style ({', '.join(H.STAIR_RAIL_STYLES)})")
 
 
+def _light_kind(live: Any, kind: str) -> dict[str, Any]:
+    """A light's entry with its kind changed: the whole entry, as a key left out
+    goes (house3d_store _LIGHT_OWNED). Only what an edit may send: a newer
+    PadSpan's own keys stay in the file by themselves (apply_edit)."""
+    return {**{k: copy.deepcopy(v) for k, v in (live if isinstance(live, dict) else {}).items() if k in H._LIGHT_OWNED}, "kind": kind}  # noqa: SLF001
+
+
 def _correction_target(sug: dict, it: dict) -> tuple[str, Any]:
     """Which stair a correction moves, and how it was when the person looked:
     the one it was matched to, or one of the stairs it was named near. Never
@@ -287,7 +295,9 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
     # Stairs before railings: a railing may sit on a stair this commit makes.
     wanted.sort(key=lambda t: 0 if t[0].get("kind") == "stairs" else 1)
     live_pieces = house.data.get("pieces") or {}
+    live_lights = house.data.get("lights") or {}
     stairs = {st["id"]: st for st in A.stair_pieces(house.data)}
+    placed = {lt["id"]: lt for lt in A.placed_lights(hass, house.data)} if any(s.get("kind") == "light" for s, _ in wanted) else {}
     moved = A.plans_moved(hass, sess)
     indoor = _indoor(hass)
     changed: list[dict[str, str]] = []
@@ -295,7 +305,18 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
     for sug, it in wanted:
         sug_id, v, kind, m = sug["id"], it["v"], sug.get("kind"), sug.get("match") or {}
         why = None
-        if kind == "stairs" and sug.get("map_id") in moved:
+        if kind == "light":
+            # A kind, on the light it was matched to. Never a position, so never new.
+            if v != "correction" or m.get("relation") != "correction" or m.get("held") in ("frame", "suspect") or (sug.get("geom") or {}).get("symbol") not in A.SYMBOL_KIND:
+                raise Refused("invalid", f"{sug_id}: a light's only change here is its kind, on the placed light it was matched to")
+            if sug.get("state") == "stale":
+                raise Refused("not_open", "It changed since you looked: read it again or mark it wrong.", {"items": [sug_id], "rev": sess.get("rev")})
+            tgt = placed.get(m.get("target"))
+            why = "plan" if sug.get("map_id") in moved else "gone" if tgt is None else "changed" if A.light_snap(tgt) != m.get("target_snap") else None
+            if m.get("target") in pids.values():
+                raise Refused("invalid", "One light can only be given one kind in a keep.")
+            pids[sug_id] = m.get("target")
+        elif kind == "stairs" and sug.get("map_id") in moved:
             why = "plan"
         elif kind == "stairs" and v == "correction":
             if sug.get("state") == "stale":
@@ -334,7 +355,7 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
                 why = "gone" if pid not in live_pieces and pid not in pids.values() else None
                 pids[sug_id] = pid
         else:
-            raise Refused("invalid", f"{sug_id}: this version keeps only stairs and railings")
+            raise Refused("invalid", f"{sug_id}: this version keeps only stairs, railings and a light's kind")
         if why:
             changed.append({"sug_id": sug_id, "why": why})
     if changed:                                # nothing written: marked stale, and the sheet reloads
@@ -354,11 +375,16 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
     batch_id = batch_id or "pb_" + secrets.token_hex(4)
     at = time.time()
     entries: dict[str, dict] = {}
+    light_entries: dict[str, dict] = {}
     of_piece: dict[str, list[str]] = {}
     for sug, it in wanted:
         sug_id, v, kind = sug["id"], it["v"], sug.get("kind")
         pid = pids[sug_id]
         note = {"session": sid, "batch": batch_id, "kind": kind, "at": at}
+        if kind == "light":
+            light_entries[pid] = _light_kind(live_lights.get(pid), A.SYMBOL_KIND[sug["geom"]["symbol"]])
+            of_piece.setdefault(f"lights/{pid}", []).append(sug_id)
+            continue
         if kind == "stairs" and v == "new":
             entries[pid] = _new_piece(sug, pid, it.get("final"), note, indoor)
         elif kind == "stairs":
@@ -366,9 +392,9 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
         else:
             base = entries.get(pid) or {**copy.deepcopy(live_pieces[pid]), "plan_ai": note}
             entries[pid] = _with_rail(base, it["rail"])
-        of_piece.setdefault(pid, []).append(sug_id)
+        of_piece.setdefault(f"pieces/{pid}", []).append(sug_id)
     try:
-        new = H.apply_edit(house.data, {"pieces": entries})
+        new = H.apply_edit(house.data, {k: v for k, v in (("pieces", entries), ("lights", light_entries)) if v})
     except H.NewerFile as err:
         raise Refused("house3d_newer", str(err)) from err
     except H.EditError as err:
@@ -395,13 +421,16 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
         batch["pending"] = {"from": len(batch["items"]), "was": was, "session_batch": sess.get("batch"), "at": at}
         batch["committed_at"] = at
         by_id = {s["id"]: (s, it) for s, it in wanted}
-        for pid, ids in of_piece.items():
-            batch["items"].append({"sug_id": ids[0], "also": ids[1:], "kind": by_id[ids[0]][0].get("kind"), "target": f"pieces/{pid}",
-                                   "before": copy.deepcopy(live_pieces.get(pid)), "after": copy.deepcopy(new["pieces"][pid])})
+        for target, ids in of_piece.items():
+            section, _, pid = target.partition("/")
+            batch["items"].append({"sug_id": ids[0], "also": ids[1:], "kind": by_id[ids[0]][0].get("kind"), "target": target,
+                                   "before": copy.deepcopy((house.data.get(section) or {}).get(pid)), "after": copy.deepcopy(new[section][pid])})
         for sug, it in wanted:
             sug_id, v, kind, geom = sug["id"], it["v"], sug.get("kind"), sug.get("geom") or {}
-            side_source, moved_m, e = None, 0.0, new["pieces"][pids[sug_id]]
-            if kind == "stairs":
+            side_source, moved_m, e = None, 0.0, new["lights" if kind == "light" else "pieces"][pids[sug_id]]
+            if kind == "light":
+                pass
+            elif kind == "stairs":
                 moved_m = round(math.hypot(float(e["x_m"]) - float(geom.get("x_m") or 0.0), float(e["y_m"]) - float(geom.get("y_m") or 0.0)), 3)
                 if moved_m > MOVED_M:
                     moved_far.append(sug)
@@ -409,7 +438,7 @@ async def commit(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStor
                 side_source = _side_source(geom.get("side"), it["rail"]["side"], ((e.get("recipe") or {}).get("params") or {}).get("shape", "straight"))
             sug["state"] = COMMITTED[v]
             sug["piece_id"] = pids[sug_id]
-            sug["verdict"] = {"v": v, "at": at, "final": {k: e.get(k) for k in _FINAL_PIECE} if kind == "stairs" else None,
+            sug["verdict"] = {"v": v, "at": at, "final": {k: e.get(k) for k in _FINAL_PIECE} if kind == "stairs" else {"kind": e.get("kind")} if kind == "light" else None,
                               "rail": {k: it["rail"][k] for k in ("side", "style")} if kind == "railing" else None,
                               "why": None, "side_source": side_source, "moved_m": moved_m}
         sess["batch"] = batch_id
@@ -478,7 +507,8 @@ async def undo(hass: HomeAssistant, store: A.PlanAiStore, house: H.House3dStore,
             continue
         if it.get("before") is None:
             sec.pop(key, None)
-            removed[key] = live
+            if section == "pieces":
+                removed[key] = live
         else:
             sec[key] = copy.deepcopy(it["before"])
         undone.append(it)

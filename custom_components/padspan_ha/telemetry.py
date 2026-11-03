@@ -671,27 +671,30 @@ OPEN_EDGE_EVENTS: frozenset[str] = frozenset(
 # since; each item kept as new or as a correction, and whether a correction was
 # taken on a hand-placed or an AI-placed stair; a stair moved after it was
 # accepted; whose side a railing kept has; how each commit ended; each undo, by
-# kind, and what it left. Never a plan, an answer, a name or a position.
-# Names for what the next stages add (lights) join the family when they have a
-# call site.
+# kind, and what it left; for lights, each plan's answer to whether it draws
+# fixtures, how many tiles a session read, a slow AI's tiles skipped, and a
+# symbol with no placed light (outside the AI's failures). Never a plan, an
+# answer, a name or a position.
 PLAN_AI_SESSION: tuple[str, ...] = ("started", "done", "no_read", "cancelled", "failed", "out_of_time")
 PLAN_AI_NO_READ: tuple[str, ...] = ("no_media", "no_picture", "unreachable", "timeout", "bad_answer")
-PLAN_AI_BUDGET_CUT: tuple[str, ...] = ("whole", "crop", "railing")
+PLAN_AI_BUDGET_CUT: tuple[str, ...] = ("whole", "crop", "railing", "tiles", "light_crop")
 PLAN_AI_CANCEL_WHY: tuple[str, ...] = ("user", "switch_off", "house3d_off", "licence", "plan_gone", "plan_changed", "restart")
 PLAN_AI_MODEL: tuple[str, ...] = ("local", "cloud", "unknown")
 PLAN_AI_FRAME: tuple[str, ...] = ("probed", "named")
 PLAN_AI_PLAN_BANDS: tuple[str, ...] = ("1", "2_3", "4_6", "gt6")
 PLAN_AI_READ_BANDS: tuple[str, ...] = ("1_5", "6_15", "16_40", "gt40")
 PLAN_AI_ERRORS: tuple[str, ...] = ("no_ai_task", "bad_answer", "timeout", "unreachable", "no_media", "no_picture", "budget", "suspect_frame")
-PLAN_AI_KINDS: tuple[str, ...] = ("stairs", "railing")
+PLAN_AI_KINDS: tuple[str, ...] = ("stairs", "railing", "light")
+PLAN_AI_FIXTURES: tuple[str, ...] = ("yes", "no", "unsure")
+PLAN_AI_TILE_BANDS: tuple[str, ...] = ("none", "1_9", "10_27", "gt27")
 PLAN_AI_VERDICTS: tuple[str, ...] = ("failure", "later", "right")
 PLAN_AI_FAILURE_WHY: tuple[str, ...] = ("wrong_place", "nothing_there", "already_here", "wrong_kind", "cant_tell")
 PLAN_AI_HELD: tuple[str, ...] = ("frame", "eye")
-PLAN_AI_CROP: tuple[str, ...] = ("kept", "placed", "dropped")
+PLAN_AI_CROP: tuple[str, ...] = ("kept", "placed", "dropped", "light_kept", "light_placed", "light_dropped")
 PLAN_AI_KEPT: tuple[str, ...] = ("new", "correction")
 PLAN_AI_COMMIT: tuple[str, ...] = ("done", "rev_mismatch", "already_committed", "changed_since", "not_open", "stair_first", "invalid",
                                    "backup_failed", "save_failed")
-PLAN_AI_UNDO: tuple[str, ...] = ("batch", "put_back", "item_skipped", "stairs", "railing", "already_undone", "save_failed")
+PLAN_AI_UNDO: tuple[str, ...] = ("batch", "put_back", "item_skipped", "stairs", "railing", "light", "already_undone", "save_failed")
 PLAN_AI_EVENTS: frozenset[str] = frozenset(
     {f"plan_ai_session:{k}" for k in PLAN_AI_SESSION} | {f"plan_ai_cancel_why:{k}" for k in PLAN_AI_CANCEL_WHY}
     | {f"plan_ai_model:{k}" for k in PLAN_AI_MODEL} | {f"plan_ai_frame:{k}" for k in PLAN_AI_FRAME}
@@ -708,7 +711,8 @@ PLAN_AI_EVENTS: frozenset[str] = frozenset(
     | {"plan_ai_verdict:railing_settled", "plan_ai_taken_back:railing_settled", "plan_ai_no_floor",
        "plan_ai_correction_target:hand", "plan_ai_correction_target:ai", "plan_ai_correction_taken:hand", "plan_ai_correction_taken:ai",
        "plan_ai_stacked:offered", "plan_ai_stacked:taken", "plan_ai_stale", "plan_ai_moved_after_accept:stairs",
-       "plan_ai_rail_side:ai", "plan_ai_rail_side:own"}
+       "plan_ai_rail_side:ai", "plan_ai_rail_side:own", "plan_ai_light_unmatched", "plan_ai_tiles_slow"}
+    | {f"plan_ai_fixtures:{k}" for k in PLAN_AI_FIXTURES} | {f"plan_ai_tiles:{k}" for k in PLAN_AI_TILE_BANDS}
     | {f"plan_ai_missing_added:{k}" for k in PLAN_AI_KINDS})
 # The Overview's accuracy tips (setup_checks.py, 0.38.193): each one shown,
 # opened (gone to its fix) or hidden, and the whole card hidden. Whether the

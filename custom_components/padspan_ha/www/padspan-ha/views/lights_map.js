@@ -3471,6 +3471,11 @@ export function buildLightsMapCard(hostIn){
   // check a saved floor against, and it has to last until there is. A floor no
   // longer there (past the end of the list) means All.
   if (sortedLevels.length && isoPos[view.focusIdx] === undefined) view.focusIdx = 0;
+  // Mapping → Atlas asked for on one floor (the Plans tool's fixture symbol with no placed light), once.
+  if (sortedLevels.length && typeof host.takeAtlasFloor === "function") {
+    const askedFloor = host.takeAtlasFloor(), i = askedFloor ? isoPos.findIndex(p => p === _frame.levelOf(String(askedFloor))) : -1;
+    if (i >= 0) view.focusIdx = i;
+  }
   // A wall that cycles through its floors (lights_panel.js _wallCycle):
   // All and each floor on its own, not the pairs between them.
   if (host.wall) view.wallStops = isoPos.map((p, i) => (Array.isArray(p) ? -1 : i)).filter(i => i >= 0);
@@ -3647,7 +3652,7 @@ export function buildLightsMapCard(hostIn){
           // master switch on, an AI Task chosen, where Edit itself is offered, never on Sample mode's house, and
           // only for an administrator (every plan_ai_ command is one's).
           plans: h3.settings.ai_plans_enabled === true && h3.sample !== true && h3.admin !== false && String(h3.settings.atlas_3d_ai_task_entity || "").startsWith("ai_task.")
-            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings, telemetry: h3.telemetry || null } : null,
+            && typeof h3.callWS === "function" && typeof h3.edit === "function" ? { callWS: h3.callWS, settings: h3.settings, telemetry: h3.telemetry || null, openAtlasRoom: h3.openAtlasRoom || null } : null,
           setTopFloor: (fid) => la3dTopFloor(fid),
           // The view's floor stepper (▲ Main ▼ · All): the floor chips'
           // choice, a floor at a time, lowest first; and, on the sidebar,

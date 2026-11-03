@@ -578,7 +578,7 @@ export function createEditor(ctx){
       // another session's) never goes the ordinary way: it leaves the draft.
       if (DRAFT.planPending(draft.cur).length) {
         kept = plans ? await plans.commit() : null;
-        if (kept) { ctx.saved(kept.data); if (draft === sent) draft.adopt("pieces", kept.pieces, kept.renamed); }
+        if (kept) { ctx.saved(kept.data); if (draft === sent) { draft.adopt("pieces", kept.pieces, kept.renamed); if (kept.lights) draft.adopt("lights", kept.lights); } }
         if (draft === sent) notKept = draft.change((c) => { DRAFT.dropPlanPending(c, null); });
         ch = draft === sent ? draft.changes() : null;
       }

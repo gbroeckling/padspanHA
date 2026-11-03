@@ -20,10 +20,10 @@
 //               Nothing here costs a frame at rest: pins and ghosts move only
 //               in the view's own layout, which runs when it draws.
 //   The sheet   which placed plans to read (grouped by floor, all ticked),
-//               which kinds (stairs; railings beside them; lights come
-//               later), what to expect, which AI reads them, how long it may
-//               be busy, and one button. A session that read nothing says why,
-//               not that the AI found nothing.
+//               which kinds (stairs; railings beside them; lights, each plan
+//               asked whether it draws fixtures), what to expect, which AI reads
+//               them, how long it may be busy, and one button. A session that
+//               read nothing says why, not that the AI found nothing.
 //   The job     runs on the server (ws_plan_ai.py); the sheet asks for its
 //               status every 3 s and can cancel it between reads.
 //   The list    one row per suggestion, with a crop of the plan drawn from
@@ -33,7 +33,8 @@
 //               and "ignored before" listed apart; Manage ignored.
 //   New,        go into the editor's draft: a new stair is a draft piece, a
 //   Correction  correction the target piece moved, a railing its side and
-//               style, each one undo step, and what is pending is read off the
+//               style, a light its kind (never its place), each one undo step,
+//               and what is pending is read off the
 //               draft, so Undo, Discard and a lost page take it back and the
 //               server never knew. Save sends them first to plan_ai_commit, the
 //               one writer (plan_ai_write.py), and only then the person's other
@@ -42,9 +43,6 @@
 // Imports nothing; the editor hands in the sheet, the host's callWS, the floors,
 // its draft and three.js. No placement, picture size or map record is read
 // here: the server answers in metres and the crop is cut by fractions of the picture.
-//
-// Lights are Stage 3: KIND_OF, pinState and the missing pass already know them;
-// nothing reads a fixture yet.
 
 const CSS = `
 .la3d-sheet.plans{max-height:calc(100% - 120px);overflow-y:auto;width:min(520px,calc(100% - 24px))}
@@ -158,9 +156,14 @@ const CSS = `
 const BANNER = "Experimental. On a small local AI about 2 in 10 stair suggestions are wrong and 2-3 in 10 real stairs are missed; railings about half; "
   + "lights only where the plan draws them. Doors and windows aren't offered: the local model got them mostly wrong.";
 const CUE = { stairs: "Check which way is up and the shape.", railing: "The AI can't tell the side for sure: look at the plan.", light: "A wrong kind only changes the drawing." };
-const STRIP = "About 2 in 10 stairs are wrong, 2-3 in 10 are missed.";
+const STRIP = { stairs: "About 2 in 10 stairs are wrong, 2-3 in 10 are missed.", railing: "Railings: about half are wrong.", light: "About 3 in 10 lights are wrong, 4 in 10 are missed; handwritten marks far more." };
+const SYMBOL_WORD = { pot: "a pot light", pendant: "a pendant", sconce: "a wall light" };
+// What a kind is called (live_aboard_house.js LIGHT_KINDS, as the Heights tool says it).
+const KIND_WORD = { glow: "just its light", fixture: "a ceiling light", pot: "pot lights", pot_ring: "pot lights round the room", pendant: "a pendant", chandelier: "a chandelier",
+  sconce: "a wall light", vanity: "a vanity light", strip: "an LED strip", valance: "a valance", spot: "a spot", track: "track lights", tube: "a tube", fan: "a fan" };
+const kindWord = (k) => KIND_WORD[k] || (k ? String(k).replace(/_/g, " ") : KIND_WORD.glow);
 const SVG = (d) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-// Each kind: its word and its pin's glyph. (Lights are Stage 3: they have their glyph and cue, and no ghost.)
+// Each kind: its word and its pin's glyph.
 const KIND_OF = { stairs: { word: "Stairs", glyph: SVG('<path d="M2 14h3v-4h3V6h3V2h3"/>') },
   railing: { word: "Railing hint", glyph: SVG('<path d="M2 4h12M4 4v9M8 4v9M12 4v9"/>') },
   light: { word: "Light", glyph: SVG('<circle cx="8" cy="8" r="5"/><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>') } };
@@ -334,7 +337,8 @@ export function createPlans(ctx){
   const stackFloor = new Map();      // a stacked item's floor, as picked
   const railPick = new Map();        // a railing hint's side and style, as picked
   const picked = new Set();
-  const kinds = { stairs: true, railing: true };
+  const kinds = { stairs: true, railing: true, light: false };
+  const fixtures = new Map();        // map id → does it draw light fixtures: yes, no, unsure (the person's answer; lights read only on yes)
   const style = document.createElement("style");
   style.textContent = CSS;
   ctx.root.appendChild(style);
@@ -409,8 +413,8 @@ export function createPlans(ctx){
     if (!ids.length) { err = "Tick at least one plan."; redraw(); return; }
     busy = true; err = ""; redraw();
     try {
-      const want = ["stairs"].concat(kinds.railing ? ["railing"] : []);
-      const r = await call("plan_ai_start", { map_ids: ids, kinds: want });
+      const want = ["stairs"].concat(kinds.railing ? ["railing"] : [], kinds.light ? ["light"] : []);
+      const r = await call("plan_ai_start", { map_ids: ids, kinds: want, ...(kinds.light ? { fixtures: Object.fromEntries(ids.map(id => [id, fixtures.get(id) || "unsure"])) } : null) });
       sess = null; cancelNote = ""; step = "progress"; busy = false;
       startPoll(r.session);
     } catch (e) { fail(e); }
@@ -493,6 +497,26 @@ export function createPlans(ctx){
     else ctx.hint("That stair isn't in your draft any more: it was removed.", true);
     redraw();
   }
+  /** A light's kind, in the draft: never its place. One kind on a light: a second symbol's replaces the first's. */
+  function keepLight(sug){
+    const m = sug.match || {}, eid = m.target, kind = m.want_kind;
+    if (!ctx.change || !sess || !eid || !kind) return;
+    const others = new Set(pendings().filter(p => p.light && p.piece === eid && p.sug_id !== sug.id).map(p => p.sug_id));
+    const ok = ctx.change((c) => {
+      if (others.size) ctx.DRAFT.dropPlanPending(c, others);
+      const lights = c.lights || (c.lights = {}), q = lights[eid] || (lights[eid] = {});
+      noted(q, sug.id, { v: "correction", was: { kind: q.kind ?? null } });
+      q.kind = kind;
+    });
+    if (ok) ctx.hint("Its kind is in your draft: nothing is kept until Save. Undo takes it back.");
+    redraw();
+  }
+  /** Mapping → Atlas on the room a symbol with no placed light is in. */
+  function openAtlas(sug){
+    const h = ctx.host();
+    if (h && typeof h.openAtlasRoom === "function") h.openAtlasRoom(sug.floor_id, roomOf(sug));
+  }
+  const canOpenAtlas = () => { const h = ctx.host(); return !!(h && typeof h.openAtlasRoom === "function"); };
   function takeBack(sug){
     if (ctx.change((c) => { ctx.DRAFT.dropPlanPending(c, new Set([sug.id])); })) ctx.hint("Taken back. Nothing was kept.");
     redraw();
@@ -553,6 +577,7 @@ export function createPlans(ctx){
     const items = mine.map((p) => {
       keys.add(p.piece);
       const sug = (sess.suggestions || {})[p.sug_id] || {};
+      if (p.light) return { sug_id: p.sug_id, v: "correction" };                                  // its kind is the symbol the AI read
       if (sug.kind === "railing") return { sug_id: p.sug_id, v: p.v, rail: p.rail };
       const q = dr.cur.pieces[p.piece], final = p.made ? ctx.DRAFT.planFinal(q) : { x_m: q.x_m, y_m: q.y_m };   // a correction: where it stands, nothing else
       return { sug_id: p.sug_id, v: p.v, final, ...(p.target ? { target: p.target } : null) };
@@ -567,11 +592,17 @@ export function createPlans(ctx){
     sess.rev = r.rev;
     for (const [id, s] of Object.entries(r.suggestions || {})) sess.suggestions[id] = s;
     undoInfo = r.undo || undoInfo;
-    const ids = r.piece_ids || {}, f = ctx.DRAFT.ownedOf(r.data), pieces = {};
-    for (const p of mine) { const pid = ids[p.sug_id]; if (!pid) continue; if (p.made) renamed[p.piece] = pid; if (f.pieces[pid]) pieces[pid] = f.pieces[pid]; }
+    const ids = r.piece_ids || {}, f = ctx.DRAFT.ownedOf(r.data), pieces = {}, lights = {};
+    for (const p of mine) {
+      const pid = ids[p.sug_id];
+      if (!pid) continue;
+      if (p.light) { if (f.lights[pid]) lights[pid] = f.lights[pid]; continue; }
+      if (p.made) renamed[p.piece] = pid;
+      if (f.pieces[pid]) pieces[pid] = f.pieces[pid];
+    }
     const nNew = mine.filter(p => p.v === "new" && p.made).length, nCorr = mine.filter(p => p.v === "correction").length, nRail = mine.filter(p => p.rail).length;
     const said = `Kept ${[nNew ? `${nNew} new` : "", nCorr ? `${nCorr} correction${nCorr === 1 ? "" : "s"}` : "", nRail ? `${nRail} railing${nRail === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ")} from the plans. Undo this session takes them back.`;
-    return { data: r.data, pieces, renamed, said };
+    return { data: r.data, pieces, lights, renamed, said };
   }
   /** Refused: nothing was written. The list as it is now; what changed leaves the draft. */
   async function refused(e){
@@ -690,12 +721,27 @@ export function createPlans(ctx){
     };
     kindRow(null, "Stairs", true, true, "always read");
     kindRow("railing", "Railings beside stairs", kinds.railing, false, "a hint beside each staircase found");
-    kindRow(null, "Lights", false, true, "comes in a later beta");
+    kindRow("light", "Lights", kinds.light, false, "only on a plan that draws light fixtures");
+    if (kinds.light) {
+      sheet.appendChild(d("div", "pl-note", "Does this plan draw light fixtures, like circles or pot marks? Most architect's plans don't; electrical sheets do."));
+      for (const p of plans) {
+        if (!picked.has(p.map_id) || outdoor(p.floor_id)) continue;
+        const row_ = d("div", "pl-choose"), now = fixtures.get(p.map_id) || "unsure";
+        row_.appendChild(d("span", null, `${p.name || "a plan"}:`));
+        for (const [v, word] of [["yes", "Yes"], ["no", "No"], ["unsure", "Not sure"]]) {
+          const b = btn(word, v === "yes" ? "Read this plan for lights too" : "Don't read this plan for lights", () => { fixtures.set(p.map_id, v); redraw(); });
+          b.setAttribute("aria-pressed", String(now === v));
+          row_.appendChild(b);
+        }
+        sheet.appendChild(row_);
+      }
+    }
     // 3. What to expect.
-    const n = picked.size;
-    const lo = Math.max(1, Math.round(n * 1.5)), hi = Math.max(lo, n * 4);
-    sheet.appendChild(d("div", "pl-note", `About 1-2 staircases and 0-2 railing hints per plan. For your ${n} plan${n === 1 ? "" : "s"}: roughly ${lo}-${hi} items, `
-      + `${Math.max(1, n)}-${Math.max(1, n) * 3} minutes to vet.`));
+    const n = picked.size, yes = kinds.light ? [...picked].filter(id => fixtures.get(id) === "yes").length : 0;
+    const lo = Math.max(1, Math.round(n * 1.5)) + yes * 6, hi = Math.max(lo, n * 4 + yes * 12);
+    sheet.appendChild(d("div", "pl-note", `About 1-2 staircases and 0-2 railing hints per plan${yes ? "; on a plan with fixtures 6-12 lights" : ""}. For your ${n} plan${n === 1 ? "" : "s"}: roughly ${lo}-${hi} items, `
+      + `${Math.max(1, n) + yes}-${Math.max(1, n) * 3 + yes * 3} minutes to vet.`));
+    if (yes) sheet.appendChild(d("div", "pl-note", "Light tiles are read last, about a minute and a half a plan. Lights are never placed or moved: a symbol can only change a placed light's kind."));
     // 4. Where the plans go.
     sheet.appendChild(d("h5", null, "Where the plans go"));
     const ai = info && info.ai;
@@ -721,8 +767,10 @@ export function createPlans(ctx){
     head("Reading your plans", "The read runs on the server: this page can close and come back.");
     const pr = (sess && sess.progress) || {};
     const name = pr.name || "a plan", i = pr.plan || 0, n = pr.of || (info && info.running ? "?" : 0);
-    const what = pr.step === "check" ? `Checking a find on ${name}` : pr.step === "railing" ? `Looking for a railing on ${name}` : `Reading ${name} for stairs`;
-    sheet.appendChild(d("div", "pl-sum", `${what} (${i} of ${n})…${pr.step === "stairs" || !pr.step ? " then checking each find." : ""} A local AI can take a minute a read.`));
+    const what = pr.step === "check" ? `Checking a find on ${name}` : pr.step === "railing" ? `Looking for a railing on ${name}`
+      : pr.step === "tiles" ? `Reading ${name} for lights, tile ${pr.tile || 1} of 9` : pr.step === "light_check" ? `Checking a light on ${name}` : `Reading ${name} for stairs`;
+    const later = pr.step === "stairs" || !pr.step ? ` then checking each find.${sess && sess.lights_asked ? " Light tiles come last." : ""}` : "";
+    sheet.appendChild(d("div", "pl-sum", `${what} (${i} of ${n})…${later} A local AI can take a minute a read.`));
     if (sess) sheet.appendChild(d("div", "pl-note", `${sess.reads || 0} reads so far, ${mins(sess.spent_s)} spent of ${mins(sess.budget_s)}.`));
     if (cancelNote) sheet.appendChild(d("div", "pl-note", cancelNote));
     errLine();
@@ -736,10 +784,16 @@ export function createPlans(ctx){
     const ss = sugs();
     const stairs = ss.filter(s => s.kind === "stairs" && s.state !== "duplicate").length;
     const rails = ss.filter(s => s.kind === "railing").length;
+    const lights = ss.filter(s => s.kind === "light" && s.state !== "duplicate").length, lightsHere = ss.filter(s => s.kind === "light" && s.state === "duplicate").length;
     const skipped = sess.skipped || 0, read = (sess.plans || []).filter(p => p.answered).length, notRead = unread();
     const errs = sess.errors || {}, failedReads = Object.keys(NO_READ).reduce((t, k) => t + (errs[k] || 0), 0);
     const worst = Object.keys(NO_READ).reduce((a, k) => ((errs[k] || 0) > (errs[a] || 0) ? k : a));
-    let line = `Found ${stairs} stair${stairs === 1 ? "" : "s"}, ${rails} railing hint${rails === 1 ? "" : "s"} on ${read} plan${read === 1 ? "" : "s"} in ${mins(sess.spent_s)}.`;
+    const lightsWord = sess.lights_asked ? `, ${lights} light${lights === 1 ? "" : "s"}` : "";
+    let line = `Found ${stairs} stair${stairs === 1 ? "" : "s"}, ${rails} railing hint${rails === 1 ? "" : "s"}${lightsWord} on ${read} plan${read === 1 ? "" : "s"} in ${mins(sess.spent_s)}.`;
+    if (lightsHere) line += ` ${lightsHere} light${lightsHere === 1 ? " was" : "s were"} already there.`;
+    if (sess.tiles_skipped === "slow") line += " Lights weren't read: this AI's first read took over 45 seconds, and nine tiles a plan would use up the session.";
+    else if (sess.lights_asked && !sess.tiles && (sess.plans || []).some(p => (p.kinds || []).includes("light"))) line += " Lights weren't read: the time ran out first.";
+    if (sess.light_dropped) line += ` ${sess.light_dropped} light${sess.light_dropped === 1 ? "" : "s"} left out: a closer look found no fixture there.`;
     if (skipped) line += ` ${skipped} plan${skipped === 1 ? "" : "s"} skipped (out of time).`;
     if (notRead) line += ` ${notRead} plan${notRead === 1 ? "" : "s"} couldn't be read.`;
     if (failedReads) line += ` ${failedReads} read${failedReads === 1 ? "" : "s"} failed: ${NO_READ[worst]}.`;
@@ -753,6 +807,17 @@ export function createPlans(ctx){
     return line + (ss.length ? " Vet them one by one." : "");
   }
 
+  /** What a light's card says, list and map alike. */
+  function lightLines(sug, stillOpen){
+    const m = sug.match || {}, g = sug.geom || {}, out = [];
+    if (m.relation === "correction" && stillOpen) {
+      out.push(`The plan draws ${SYMBOL_WORD[g.symbol] || "a fixture"} here. ${m.label || "This light"} is drawn as ${kindWord(m.now_kind)}.`);
+      if (m.group) out.push("This room's lights are placed as a group: kind only?");
+      else out.push("Only what it is drawn as can change: where it stands stays.");
+    }
+    if (sug.state === "unmatched") out.push("A fixture symbol with no placed light here. PadSpan doesn't place lights from a plan: place it yourself if it's right.");
+    return out;
+  }
   function row(sug, acts){
     const r = d("div", "pl-row");
     const c = d("canvas"); c.width = 240; c.height = 168;
@@ -760,15 +825,18 @@ export function createPlans(ctx){
     if (urls) drawCrop(c, sug);
     const t = d("div", "pl-txt");
     const g = sug.geom || {}, m = sug.match || {};
-    const kind = sug.kind === "railing" ? "Railing hint" : "Stairs";
+    const kind = (KIND_OF[sug.kind] || KIND_OF.stairs).word;
     const seen = Array.isArray(sug.seen_on) && sug.seen_on.length > 1 ? ` · seen on ${sug.seen_on.length} plans` : ` · ${planName(sug.map_id)}`;
-    const size = sug.kind !== "railing" ? ` · ${m1(g.width_m)} × ${m1(g.depth_m)} m` : "";
+    const size = sug.kind === "stairs" ? ` · ${m1(g.width_m)} × ${m1(g.depth_m)} m` : "";
     const side = sug.kind === "railing" ? (g.side ? ` · the AI says ${g.side}` : " · a rail on one side: which?") : "";
     t.appendChild(d("div", null, `${kind} · ${floorName(sug.floor_id)}${seen}${size}${side}`));
     const rel = d("div", "pl-sub");
     const label = m.target_snap && m.target_snap.label ? m.target_snap.label : "a stair";
     const pend = pendingOf(sug.id);
-    if (pend) rel.appendChild(d("span", "pl-rel kept", pend.v === "correction" ? "kept as a correction, until Save" : "kept, until Save"));
+    if (sug.kind === "light" && !pend && sug.state !== "stale" && !String(sug.state).startsWith("committed") && sug.state !== "undone") {
+      if (m.relation === "correction") rel.appendChild(d("span", "pl-rel correction", `correction · ${m.label || "a placed light"} is drawn as ${kindWord(m.now_kind)}`));
+      else if (m.relation === "unmatched") rel.appendChild(d("span", "pl-rel stale", "a fixture symbol with no placed light here"));
+    } else if (pend) rel.appendChild(d("span", "pl-rel kept", pend.v === "correction" ? "kept as a correction, until Save" : "kept, until Save"));
     else if (sug.state === "committed_new") rel.appendChild(d("span", "pl-rel kept", "kept as new"));
     else if (sug.state === "committed_correction") rel.appendChild(d("span", "pl-rel kept", "kept as a correction"));
     else if (sug.state === "undone") rel.appendChild(d("span", "pl-rel stale", "undone"));
@@ -782,9 +850,10 @@ export function createPlans(ctx){
     const stillOpen = OPEN.has(sug.state) && sug.state !== "stale";
     if (stillOpen && sug.kind === "stairs" && m.relation === "correction" && m.hand === true) t.appendChild(d("div", "pl-sub", `You placed this one. The AI puts it ${m1(m.distance_m)} m away. Keep yours unless the plan says otherwise.`));
     else if (stillOpen && sug.kind === "stairs" && m.relation === "correction") t.appendChild(d("div", "pl-sub", `The AI placed this one too. This read puts it ${m1(m.distance_m)} m away.`));
+    if (sug.kind === "light") for (const line of lightLines(sug, stillOpen)) t.appendChild(d("div", "pl-sub", line));
     for (const o of m.others || []) t.appendChild(d("div", "pl-sub", `${planName(o.map_id)} puts one ${m1(o.distance_m)} m from here: both are listed, nothing wins by itself.`));
     if (m.held === "frame") t.appendChild(d("div", "pl-sub", "Position may be coarse: this AI's picture size isn't known."));
-    else if (m.held === "eye") t.appendChild(d("div", "pl-sub", "The plan was placed by eye, so the offset may be the plan's."));
+    else if (m.held === "eye") t.appendChild(d("div", "pl-sub", sug.kind === "light" ? "The plan was placed by eye, so this may be another light." : "The plan was placed by eye, so the offset may be the plan's."));
     if (sug.verdict && sug.verdict.why) t.appendChild(d("div", "pl-sub", `Marked wrong: ${WHY_WORD[sug.verdict.why] || sug.verdict.why}${sug.verdict.remembered ? " (ignored before)" : ""}`));
     if (acts) t.appendChild(acts);
     r.appendChild(t);
@@ -847,7 +916,12 @@ export function createPlans(ctx){
       return a;
     }
     const moved = movedPlan(sug.map_id);
-    if (sug.kind === "railing") { if (!stale) railActs(sug, a); }
+    if (sug.kind === "light") {
+      if (!stale && !moved && m.relation === "correction") {
+        const mine = btn("Keep mine", "It stays as it is (noted at once)", () => verdict(sug, "failure", "already_here"));
+        a.append(btn("Take the kind", "Into your draft: nothing is kept until Save", () => keepLight(sug), "go"), mine);
+      }
+    } else if (sug.kind === "railing") { if (!stale) railActs(sug, a); }
     else if (!moved) {
       if (m.relation === "stacked") a.appendChild(floorChoice(sug));
       const bNew = btn("New", m.relation === "correction" ? "A staircase of its own, beside the one you have (into your draft)" : "Add it to your draft: nothing is kept until Save", () => keepNew(sug), m.relation === "correction" ? null : "go");
@@ -888,7 +962,7 @@ export function createPlans(ctx){
     sheet.appendChild(d("div", "pl-sum", summary()));
     errLine();
     const ss = sugs();
-    const order = (s) => (s.kind === "stairs" ? 0 : 1);
+    const order = (s) => (s.kind === "stairs" ? 0 : s.kind === "railing" ? 1 : 2);
     const group = (title, list, actsOf) => {
       if (!list.length) return;
       sheet.appendChild(d("h5", null, `${title} (${list.length})`));
@@ -901,6 +975,12 @@ export function createPlans(ctx){
     group("Looks right", ss.filter(s => s.state === "right" && !pendIds.has(s.id)), queuedActs);
     group("Later", ss.filter(s => s.state === "later" && !pendIds.has(s.id)), queuedActs);
     group("Marked wrong", ss.filter(s => s.state === "failure" && !(s.verdict && s.verdict.remembered)), backActs);
+    group("No placed light here", ss.filter(s => s.state === "unmatched"), (s) => {
+      if (!canOpenAtlas()) return null;
+      const a = d("div", "pl-acts");
+      a.appendChild(btn("Open Mapping → Atlas", "Place a light there yourself: the plans never place one", () => openAtlas(s)));
+      return a;
+    });
     group("Kept", ss.filter(s => String(s.state).startsWith("committed")), null);
     group("Undone", ss.filter(s => s.state === "undone"), null);
     group("Gone with its stair", ss.filter(s => s.state === "settled"), null);
@@ -944,7 +1024,7 @@ export function createPlans(ctx){
     for (const r of ignored || []) {
       const rowEl = d("div", "pl-row");
       const t = d("div", "pl-txt");
-      t.appendChild(d("div", null, `${r.kind === "railing" ? "Railing hint" : "Stairs"} · ${r.plan || "a plan"} · ${floorName(r.floor_id)} · at ${m1(r.x_m)}, ${m1(r.y_m)} m`));
+      t.appendChild(d("div", null, `${(KIND_OF[r.kind] || KIND_OF.stairs).word} · ${r.plan || "a plan"} · ${floorName(r.floor_id)} · at ${m1(r.x_m)}, ${m1(r.y_m)} m`));
       t.appendChild(d("div", "pl-sub", `Marked wrong: ${WHY_WORD[r.why] || r.why || "no reason given"}`));
       const a = d("div", "pl-acts");
       const b = btn("Forget", "Queue it again next time", () => forget(r.key)); b.disabled = busy;
@@ -1096,7 +1176,7 @@ export function createPlans(ctx){
   }
   function ghostWanted(s){
     if (pendingOf(s.id) || movedPlan(s.map_id)) return false;
-    return s.state === "queued" || s.state === "later" || s.state === "stale";
+    return s.state === "queued" || s.state === "later" || s.state === "stale" || (s.kind === "light" && s.state === "unmatched");
   }
   function dropGhost(id){
     const G = ghosts.get(id);
@@ -1104,7 +1184,8 @@ export function createPlans(ctx){
     if (G.root.parent) G.root.parent.remove(G.root);
     dropMesh(G.dash);
     for (const m of G.mats) m.dispose();
-    try { const B = ctx.FURN && ctx.FURN(); if (B && B.disposePiece) B.disposePiece(G.body); } catch (_) { /* best effort */ }
+    if (G.geo) G.geo.dispose();
+    try { const B = ctx.FURN && ctx.FURN(); if (B && B.disposePiece && G.body) B.disposePiece(G.body); } catch (_) { /* best effort */ }
     ghosts.delete(id);
   }
   function buildGhost(id, piece, F, key){
@@ -1125,24 +1206,46 @@ export function createPlans(ctx){
     group.add(dash);
     ghosts.set(id, { root, dash, body, mats, key, corners, id, floor: F });
   }
+  /** A light's ghost: a disc and a dashed ring where the plan draws the symbol. It stands for nothing in the house. */
+  function buildLightGhost(id, g, F, key){
+    const x = num(g.x_m) ?? 0, y = num(g.y_m) ?? 0, R = 0.28, ring = [], corners = [[x - R, y - R], [x + R, y - R], [x + R, y + R], [x - R, y + R]];
+    for (let i = 0; i < 16; i++) ring.push([x + Math.cos(i * Math.PI / 8) * R, y + Math.sin(i * Math.PI / 8) * R]);
+    const geo = new THREE.CircleGeometry(0.17, 24);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color: DASH_COL, transparent: true, opacity: id === cur ? fade : GHOST, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    const disc = new THREE.Mesh(geo, mat), root = new THREE.Group();
+    disc.renderOrder = 6;
+    root.name = `plan-ghost:${id}`;
+    root.position.set(x, F.fl.elev + 0.05, y);
+    root.add(disc);
+    group.add(root);
+    const dash = dashMesh(dashTriangles(ring, true, 0.09, 0.06, 0.04), F.fl.elev + 0.05);
+    group.add(dash);
+    ghosts.set(id, { root, dash, body: null, geo, mats: [mat], key, corners, id, floor: F });
+  }
   function syncGhosts(F){
     const want = new Map();
     if (F) for (const s of sugs()) {
       if (!same(itemFloorId(s), F.fl.id) || !ghostWanted(s)) continue;
+      if (s.kind === "light") { want.set(s.id, { light: s.geom || {}, key: JSON.stringify([(s.geom || {}).x_m, (s.geom || {}).y_m, F.fl.elev]) }); continue; }
       const pc = ghostPiece(s);
       if (!pc) continue;
       const recipe = ctx.recipeOf ? ctx.recipeOf(pc) || pc.recipe : pc.recipe;
       want.set(s.id, { pc, key: JSON.stringify([pc.x_m, pc.y_m, pc.z_m, pc.rotation, recipe, F.fl.elev]) });
     }
     for (const [id, G] of [...ghosts]) { const w = want.get(id); if (!w || w.key !== G.key) dropGhost(id); }
-    for (const [id, w] of want) if (!ghosts.has(id)) { try { buildGhost(id, w.pc, F, w.key); } catch (_) { /* a ghost that won't draw: its pin still stands */ } }
+    for (const [id, w] of want) if (!ghosts.has(id)) { try { if (w.light) buildLightGhost(id, w.light, F, w.key); else buildGhost(id, w.pc, F, w.key); } catch (_) { /* a ghost that won't draw: its pin still stands */ } }
     for (const [id, G] of ghosts) for (const m of G.mats) m.opacity = id === cur ? fade : GHOST;
   }
   /** Before and after on a correction: the path of the move, dashed, between the stair and the ghost. */
   function syncOnion(F){
     const c = sugOf(cur), p = c ? pendingOf(c.id) : null;
     let from = null, to = null;
-    if (c && c.kind === "stairs" && F && same(itemFloorId(c), F.fl.id)) {
+    if (c && c.kind === "light" && F && same(itemFloorId(c), F.fl.id)) {
+      // Which light it is about: the line from the light to the symbol. Nothing moves.
+      const snap = (c.match || {}).target_snap, g = c.geom || {};
+      if (snap && (c.match || {}).relation === "correction" && ghostWanted(c) && Math.hypot(snap.x_m - g.x_m, snap.y_m - g.y_m) >= 0.05) { from = [snap.x_m, snap.y_m]; to = [g.x_m, g.y_m]; }
+    } else if (c && c.kind === "stairs" && F && same(itemFloorId(c), F.fl.id)) {
       if (p && p.v === "correction") {
         const dr = ctx.draft(), q = dr.cur.pieces[p.piece], e = q && q[NOTE()] && q[NOTE()].sugs[c.id];
         if (q && e && e.was) { from = [e.was.x_m, e.was.y_m]; to = [q.x_m, q.y_m]; }
@@ -1323,6 +1426,11 @@ export function createPlans(ctx){
     takeAi(s, target);
     if (pendings().length > had) { counted(s.id, "draft"); advance(s.id); }
   }
+  function vKind(s){
+    const had = pendingOf(s.id);
+    keepLight(s);
+    if (!had && pendingOf(s.id)) { counted(s.id, "draft"); advance(s.id); }
+  }
   function vRail(s){
     const pick = railPick.get(s.id) || {};
     if (!railHome(s)) { ctx.hint("Keep its stair first: there is nothing to put a rail on yet.", true); return; }
@@ -1452,9 +1560,10 @@ export function createPlans(ctx){
     if (!s || busy) return false;
     const low = k.length === 1 ? k.toLowerCase() : "";
     const st = stateOf(s), open = st === "queued" || st === "stale" || st === "later" || st === "right", m = s.match || {};
-    if (low === "n" && open && !movedPlan(s.map_id) && !(s.kind === "railing" && m.relation === "correction")) { vNew(s); return true; }
+    if (low === "n" && open && !movedPlan(s.map_id) && s.kind !== "light" && !(s.kind === "railing" && m.relation === "correction")) { vNew(s); return true; }
     if (low === "c" && open && st !== "stale") {
-      if (m.relation === "correction" && s.kind === "stairs") vTake(s);
+      if (s.kind === "light") { if (m.relation === "correction" && !movedPlan(s.map_id)) vKind(s); }
+      else if (m.relation === "correction" && s.kind === "stairs") vTake(s);
       else if (m.relation === "correction") vRail(s);
       else if (m.relation === "new" && !m.held && (m.near || []).length) { nearOpen = true; redraw(); }
       return true;
@@ -1636,7 +1745,7 @@ export function createPlans(ctx){
     if (!decided && CUE[s.kind]) sheet.appendChild(d("div", "pl-cue", CUE[s.kind]));
     // What it is, in words at the point of deciding.
     const label = m.target_snap && m.target_snap.label ? m.target_snap.label : "this stair";
-    const t = targetOf(s), mv = t && num(g.x_m) !== null ? moveWords(g.x_m - t.x_m, g.y_m - t.y_m, ctx.compass ? ctx.compass() : null) : `${m1(m.distance_m)} m`;
+    const t = s.kind === "stairs" ? targetOf(s) : null, mv = t && num(g.x_m) !== null ? moveWords(g.x_m - t.x_m, g.y_m - t.y_m, ctx.compass ? ctx.compass() : null) : `${m1(m.distance_m)} m`;
     const say = (text) => sheet.appendChild(d("div", "pl-say", text));
     if (st === "stale") say(movedPlan(s.map_id) ? "The plan moved: read it again." : "Changed since you looked.");
     if (st === "queued" || st === "later" || st === "right") {
@@ -1648,9 +1757,10 @@ export function createPlans(ctx){
       if (s.kind === "railing" && m.relation === "correction") say(`A rail on another side of ${label}.`);
       if (s.kind === "railing" && g.side) say(`The AI says ${g.side}.`);
     }
+    if (s.kind === "light") for (const line of lightLines(s, st === "queued" || st === "later" || st === "right")) say(line);
     for (const tw of twins(s)) say(`${planName(s.map_id)} puts it here, ${planName(tw.map_id)} there, ${m1(tw.distance_m)} m apart. Nothing wins by itself.`);
     if (m.held === "frame") say("Position may be coarse: this AI's picture size isn't known.");
-    else if (m.held === "eye") say("The plan was placed by eye, so the offset may be the plan's.");
+    else if (m.held === "eye") say(s.kind === "light" ? "The plan was placed by eye, so this may be another light." : "The plan was placed by eye, so the offset may be the plan's.");
     const pend = pendingOf(s.id);
     if (moving) {
       const pc = ctx.draft().cur.pieces[moving], dist = pc && num(g.x_m) !== null ? Math.hypot(pc.x_m - g.x_m, pc.y_m - g.y_m) : 0;
@@ -1662,13 +1772,19 @@ export function createPlans(ctx){
       sheet.appendChild(a);
       if (!focusBtn) focusBtn = done;
     } else if (pend) {
-      say(pend.v === "correction" ? `A correction in your draft: nothing is kept until Save.` : "New, in your draft: nothing is kept until Save.");
+      say(s.kind === "light" ? `Drawn as ${kindWord(m.want_kind)} in your draft: nothing is kept until Save.` : pend.v === "correction" ? `A correction in your draft: nothing is kept until Save.` : "New, in your draft: nothing is kept until Save.");
       const a = d("div", "pl-v");
       const back = vbtn("Take that back", "Out of your draft: nothing was kept", () => { vTakeBack(s); redraw(); });
       back.style.gridColumn = "span 2";
       a.appendChild(back);
       if (s.kind === "stairs") a.appendChild(vbtn("Move by hand", "Drag it into place", () => vMove(s)));
       sheet.appendChild(a);
+    } else if (st === "unmatched") {
+      if (canOpenAtlas()) {
+        const a = d("div", "pl-v");
+        a.appendChild(vbtn("Open Mapping → Atlas", "Place a light there yourself: the plans never place one", () => openAtlas(s), "wide"));
+        sheet.appendChild(a);
+      } else say("Place one in Mapping → Atlas.");
     } else if (st === "kept_new" || st === "kept_correction") {
       say(st === "kept_new" ? "Kept as new. Undo this session is under More." : "Kept as a correction. Undo this session is under More.");
     } else if (st === "failure") {
@@ -1703,7 +1819,24 @@ export function createPlans(ctx){
       sheet.appendChild(ctl);
     }
   }
+  /** A light's verdicts: its kind or not. No New, no Move by hand: a light's place is never touched from here. */
+  function paintLightVerdicts(s, st){
+    const m = s.match || {}, moved = movedPlan(s.map_id), stale = st === "stale", a = d("div", "pl-v"), b2 = d("div", "pl-v");
+    if (m.relation === "correction" && !stale) {
+      const take = vbtn("Take the kind", `Draw it as ${kindWord(m.want_kind)}, in your draft`, () => vKind(s), "cor", "C", moved);
+      a.append(take, vbtn("Keep mine", "It stays as it is (noted at once)", () => vServer(s, "failure", "already_here")));
+      a.children[1].style.gridColumn = "span 2";
+      if (!focusBtn && !moved) focusBtn = take;
+    }
+    b2.appendChild(vbtn("Failure", "Mark it wrong, with a reason (noted at once)", () => { failing = s.id; redraw(); }, "bad", "F"));
+    b2.appendChild(vbtn("Looks right", "The AI got this one right (noted at once; nothing is written to your house)", () => vServer(s, "right"), null, null, stale || st === "right"));
+    b2.appendChild(vbtn("Later", "Come back to it (noted at once)", () => vServer(s, "later"), null, "L", stale || st === "later"));
+    if (a.children.length) sheet.appendChild(a);
+    sheet.appendChild(b2);
+    if (st === "right" || st === "later") { const c = d("div", "pl-v"); c.appendChild(vbtn("Take that back", "Back to the queue", () => verdict(s, "back"), "wide")); sheet.appendChild(c); }
+  }
   function paintVerdicts(s, st){
+    if (s.kind === "light") { paintLightVerdicts(s, st); return; }
     const m = s.match || {}, moved = movedPlan(s.map_id), stale = st === "stale", rail = s.kind === "railing";
     if (rail && !stale) {
       const box = d("div");
@@ -1745,7 +1878,8 @@ export function createPlans(ctx){
     h.appendChild(d("span", null, "Add data via plans"));
     h.appendChild(d("span", "pl-chip", "EXPERIMENTAL"));
     sheet.appendChild(h);
-    sheet.appendChild(d("div", "pl-strip", STRIP));
+    const strip = d("div", "pl-strip", STRIP.stairs);
+    sheet.appendChild(strip);
     errLine();
     const order = orderNow();
     if (!sugOf(cur) || stateOf(sugOf(cur)) === null) {
@@ -1756,6 +1890,7 @@ export function createPlans(ctx){
       if (first) { const G = floorUi(itemFloorId(first)); if (G && (!picked || !F || G !== F)) { if (G !== F) expectFloor = String(G.fl.id); ctx.setTopFloor(String(G.fl.id)); } flyDue = true; }
     }
     const s = sugOf(cur), F = shownFloor();
+    strip.textContent = STRIP[(s && s.kind) || "stairs"] || STRIP.stairs;
     syncPlan(F);                                         // so the plan row below says the plan that shows
     if (card === "recap") paintRecap();
     else if (card === "floor") paintFloorDone(F);
@@ -1886,7 +2021,7 @@ export async function openPlansList(box, host){
       saving = true; redraw();
       try {
         const kept = await tool.commit();
-        if (kept) { draft.adopt("pieces", kept.pieces, kept.renamed); draft.rebase(DRAFT.ownedOf(kept.data)); toast(kept.said); }
+        if (kept) { draft.adopt("pieces", kept.pieces, kept.renamed); if (kept.lights) draft.adopt("lights", kept.lights); draft.rebase(DRAFT.ownedOf(kept.data)); toast(kept.said); }
       } catch (e) {
         if (e && e.planRefusal) await tool.refused(e);
         toast(String((e && (e.message || e.code)) || e), true);
