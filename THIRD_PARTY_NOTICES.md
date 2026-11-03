@@ -32,3 +32,25 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
+
+# Third-party data
+
+PadSpan HA bundles tables of numbers and names generated from public registries. No source file, header or other
+text from them is included, and they stay under neither of PadSpan's licences beyond what the facts themselves allow.
+`tools/build_device_tables.py` regenerates them; a release or a house never asks these registries for anything.
+
+## Bluetooth SIG Assigned Numbers
+
+- Files: `custom_components/padspan_ha/data/bt_companies.tsv` (company identifiers and company names) and
+  `custom_components/padspan_ha/data/bt_members.tsv` (member 16-bit UUIDs and the company each is assigned to).
+- Generated from: `company_identifiers.yaml` and `member_uuids.yaml` at
+  https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/, with legal forms dropped from the names.
+- Used for: naming a device's maker from the company number or service UUID in its own broadcast.
+
+## IEEE Registration Authority
+
+- File: `custom_components/padspan_ha/data/mac_makers.bin` (MA-L, MA-M and MA-S assignments and the organisation
+  each is assigned to, without addresses).
+- Generated from: https://standards-oui.ieee.org/oui/oui.csv, https://standards-oui.ieee.org/oui28/mam.csv and
+  https://standards-oui.ieee.org/oui36/oui36.csv.
+- Used for: naming a device's maker from its Bluetooth address, on this machine.

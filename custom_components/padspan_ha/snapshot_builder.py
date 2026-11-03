@@ -52,8 +52,10 @@ from .beacon_identity import (
 # real beacon to have re-advertised once, short enough that a rotator is not
 # minting objects for long.
 _SETTLED_POLLS = 3
-from .ble_enrichment import enrich_object as _enrich_ble_object
+from .ble_enrichment import apply_address_maker as _apply_address_maker, enrich_object as _enrich_ble_object
+from . import device_tables as _device_tables
 from . import low_memory as _low_memory
+from .merge_guard import MergeGuard
 from .perf_sampler import record_duration
 from .presence_rules import away_timeout_s, is_away
 from .util import ha_device_config_entries, ha_devices
@@ -234,6 +236,19 @@ async def _live_snapshot(hass: HomeAssistant) -> dict:
         return snap
 
 
+def _reenrich_history(cache: dict[str, Any]) -> None:
+    """Work out each kept object's maker, type and service names again from what
+    it stored, so an object not heard since an older version doesn't go on
+    showing that version's names. Run off the event loop when the history loads.
+    The history is nobody else's yet."""
+    for entry in cache.values():
+        if isinstance(entry, dict) and entry.get("kind") in ("ble", "private_ble", "ibeacon"):
+            try:
+                _enrich_ble_object(entry)
+            except Exception:  # noqa: BLE001 - one odd old entry keeps what it had
+                pass
+
+
 async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     """Build a comprehensive snapshot of all PadSpan-relevant HA data.
 
@@ -249,6 +264,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     IMPORTANT: This function must never raise.  If any subsection fails, it
     logs and continues so the UI always gets a renderable (possibly sparse) result.
     """
+    try:
+        await _device_tables.async_load_tables(hass)  # the name tables, off the loop, once
+    except Exception as _tbl_err:  # noqa: BLE001 - without them objects just have no maker yet
+        _LOGGER.debug("Name tables not loaded: %s", _tbl_err)
     snapshot: dict[str, Any] = {
         "source": "live",
         "generated_at": dt_util.utcnow().isoformat(),
@@ -997,6 +1016,13 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 }
                 ble_by_addr[addr] = rec
 
+            # What any radio said about the address, "random" never downgraded
+            # (as bluetooth_live keeps it), and ESPresense's id for the device.
+            if a.get("address_type") and rec.get("address_type") != "random":
+                rec["address_type"] = a["address_type"]
+            if a.get("espresense_id") and not rec.get("espresense_id"):
+                rec["espresense_id"] = a["espresense_id"]
+
             src = a.get("source")
             # Scanners marked lost/disabled don't contribute to per-scanner
             # RSSI maps (excluded from location math; radios list unaffected).
@@ -1703,6 +1729,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 "linked_entities": sorted(list(set(addr_to_entities.get(addr, [])))),
                 "device": addr_to_device.get(addr),
             }
+            if rec.get("address_type"):
+                obj["address_type"] = rec["address_type"]
+            if rec.get("espresense_id"):
+                obj["espresense_id"] = rec["espresense_id"]
             objects.append(obj)
 
         # (B2) Merged private_ble objects — one per canonical_id (phone identity)
@@ -2031,7 +2061,12 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     es.append(_s)
                     es_set.add(sk)
             if src.get("rssi") is not None:
-                if dst.get("rssi") is None or src["rssi"] > dst["rssi"]:
+                # Stronger only counts if it isn't older: the primary is the
+                # freshest address, and an old strong reading would make a live
+                # device read hours old.
+                _src_older = (src.get("age_s") is not None and dst.get("age_s") is not None
+                              and src["age_s"] > dst["age_s"])
+                if dst.get("rssi") is None or (src["rssi"] > dst["rssi"] and not _src_older):
                     dst["rssi"] = src["rssi"]
                     dst["age_s"] = src.get("age_s")
             if src.get("connectable") is True:
@@ -2047,6 +2082,21 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             sk2 = src.get("kind", "ble")
             if sk2 not in _mp:
                 _mp.append(sk2)
+
+        # The merges below that go by a guess (D3-D7): what they may touch, and
+        # what they did, for the opt-in report (raw_counts).
+        _merge_guard = MergeGuard(hass)
+        _merge_counts = {"merge_same_name": 0, "merge_same_data": 0, "merge_held": 0}
+
+        def _mergeable(group: list) -> list:
+            """The group without anything the guard protects, freshest first:
+            the primary is the address still on the air, not the strongest
+            reading (the same-label pass below learned this first)."""
+            free = [o for o in group if not _merge_guard(o)]
+            _merge_counts["merge_held"] += len(group) - len(free)
+            free.sort(key=lambda o: ((o.get("age_s") if o.get("age_s") is not None else 1e9),
+                                     -(o.get("rssi") if o.get("rssi") is not None else -999)))
+            return free
 
         def _run_dedup(objects: list, absorbed: set) -> list:
             """Run D1-D7 dedup strategies. Mutates absorbed set, returns filtered list."""
@@ -2153,8 +2203,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if len(group) <= 1:
                     continue
                 # All share the same broadcast name + have random MACs → likely same device
-                group.sort(key=lambda o: o.get("rssi") or -999, reverse=True)
+                group = _mergeable(group)
+                if len(group) <= 1:
+                    continue
                 primary = group[0]
+                _merge_counts["merge_same_name"] += len(group) - 1
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
                     _merge_into(primary, secondary)
@@ -2197,8 +2250,11 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             for fp, group in _manuf_groups.items():
                 if len(group) <= 1:
                     continue
-                group.sort(key=lambda o: o.get("rssi") or -999, reverse=True)
+                group = _mergeable(group)
+                if len(group) <= 1:
+                    continue
                 primary = group[0]
+                _merge_counts["merge_same_data"] += len(group) - 1
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
                     _merge_into(primary, secondary)
@@ -2257,7 +2313,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if len(group) <= 1:
                     continue
                 # Same Apple subtype + same scanners → likely same device rotating MACs
-                group.sort(key=lambda o: o.get("rssi") or -999, reverse=True)
+                group = _mergeable(group)
+                if len(group) <= 1:
+                    continue
                 primary = group[0]
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
@@ -2296,7 +2354,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             for uuid_key, group in _svcuuid_groups.items():
                 if len(group) <= 1:
                     continue
-                group.sort(key=lambda o: o.get("rssi") or -999, reverse=True)
+                group = _mergeable(group)
+                if len(group) <= 1:
+                    continue
                 primary = group[0]
                 for secondary in group[1:]:
                     absorbed.add(secondary.get("key", ""))
@@ -2337,7 +2397,9 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                 if len(group) <= 1:
                     continue
                 # Group all bare random-MAC devices per scanner set into one
-                group.sort(key=lambda o: o.get("rssi") or -999, reverse=True)
+                group = _mergeable(group)
+                if len(group) <= 1:
+                    continue
                 primary = group[0]
                 primary["name"] = f"Unknown BLE ({len(group)} rotations)"
                 for secondary in group[1:]:
@@ -2424,13 +2486,18 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
             _hist_store = _dom.setdefault("_obj_hist_store", _Store(hass, 1, OBJECT_HISTORY_STORE_KEY))
             _loaded = await _hist_store.async_load()
             _cache = _loaded if isinstance(_loaded, dict) else {}
+            try:
+                await hass.async_add_executor_job(_reenrich_history, _cache)
+            except Exception as _re_err:  # noqa: BLE001 - old names until heard again, nothing worse
+                _LOGGER.debug("Object history names not refreshed: %s", _re_err)
             _dom[DATA_OBJECT_HISTORY] = _cache
             _dom["_obj_hist_last_save"] = _now_ts
             _LOGGER.debug("Object history loaded from disk: %d entries", len(_cache))
 
         # Fields to merge (never overwrite good data with empty values)
         _MERGE_FIELDS = (
-            "company_name", "device_type", "service_names", "service_uuid_map",
+            "company_name", "maker_source", "address_type", "espresense_id",
+            "device_type", "service_names", "service_uuid_map",
             "name", "private_ble_name", "ibeacon_uuid", "ibeacon_major",
             "ibeacon_minor", "tx_power", "manufacturer_data", "service_data",
             "service_uuids", "all_addresses", "linked_entities", "device",
@@ -2744,6 +2811,10 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         identified = [o for o in objects if not (o.get("kind") in ("ble", "private_ble", "ibeacon") and not o.get("identified"))]
         common_prefixes = {p: c for p, c in prefix_counts.items() if c >= 3}
 
+        for _mc_key, _mc_n in _merge_counts.items():
+            if _mc_n:
+                (snapshot.get("raw_counts") or {})[_mc_key] = _mc_n
+
         snapshot["objects"] = {
             "list": objects,
             "summary": {
@@ -2827,6 +2898,40 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
     except Exception as _apple_err:
         _LOGGER.debug("Apple auto-classify error: %s", _apple_err)
 
+    # ── Makers from the built-in address list ──
+    # What a device's own broadcast says came first (enrich_object); this is for
+    # the rest. Over the FINAL list, so kept objects get it too, and never into
+    # history: a new word from a radio changes the answer. What a radio said
+    # outlives its advert on the object; "random" beats everything.
+    _bl_known = getattr(get_bluetooth_live(hass), "known_type", lambda _addr: None)
+
+    def _radio_says(addr: str, said: Any = None) -> str | None:
+        kinds = (said, _bl_known(addr))
+        return "random" if "random" in kinds else "public" if "public" in kinds else None
+
+    try:
+        _macs = _typed = 0
+        for _o in (snapshot.get("objects") or {}).get("list") or []:
+            _kind = _o.get("kind")
+            if _kind == "ble":
+                _mac = str(_o.get("address") or "")
+            elif _kind == "ibeacon" and len(_o.get("all_addresses") or ()) == 1:
+                _mac = str(_o["all_addresses"][0])  # a split beacon's one address
+            else:
+                continue
+            if len(_mac) != 17 or _mac.count(":") != 5:
+                continue
+            _macs += 1
+            _at = _radio_says(_mac.upper(), _o.get("address_type"))
+            if _at:
+                _typed += 1
+                _o["address_type"] = _at
+            _apply_address_maker(_o, _mac, _at)
+        if _macs:
+            (snapshot.get("raw_counts") or {})["type_known_pc"] = round(100.0 * _typed / _macs, 1)
+    except Exception as _maker_err:
+        _LOGGER.debug("Address makers: %s", _maker_err)
+
     # ── Enrich raw advertisements with decoded metadata + object cross-reference ──
     try:
         from .ble_enrichment import enrich_object as _enrich_ad
@@ -2839,12 +2944,16 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
         for _ad in _raw_ads:
             _enrich_ad(_ad)  # adds company_name, device_type, service_names, service_uuid_map
             _ad_addr = str(_ad.get("address") or "").upper()
+            _apply_address_maker(_ad, _ad_addr, _radio_says(_ad_addr, _ad.get("address_type")))
             _xobj = _obj_by_addr.get(_ad_addr)
             if _xobj:
                 _ad["_xref"] = {
                     "key": _xobj.get("key"),
                     "kind": _xobj.get("kind"),
                     "label": _xobj.get("user_label") or _xobj.get("name"),
+                    # "label" falls back to the name, often the address: only
+                    # this one says someone named the device.
+                    "user_label": _xobj.get("user_label") or "",
                     "identified": _xobj.get("identified", False),
                     "room": _xobj.get("room"),
                 }

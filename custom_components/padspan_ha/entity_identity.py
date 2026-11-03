@@ -26,6 +26,34 @@ _PREFERRED = ("irk:", "ibeacon:")
 REGISTRY_WAIT_S = 60.0
 
 
+def kept_device_info(hass: Any, platform: str, unique_id: str, uid: str,
+                     connections: set | None = None) -> tuple[set, set]:
+    """(identifiers, connections) for an entity's device_info.
+
+    HA reads device_info when it adds an entity, finds the device by identifier
+    or connection, and adds what it was sent. So an object's new id joined the
+    entity's device for good (one device has 1,332), and with no connection to
+    find it by made a second device and moved the entity there. An entity
+    already on a device stays on it, under an id that device already holds.
+    Its connections stay out then too: another device may hold them, and from
+    HA 2026.8 that refuses the add.
+    """
+    fresh = ({(DOMAIN, uid)}, set(connections or ()))
+    try:
+        from homeassistant.helpers import device_registry as dr  # noqa: PLC0415
+        from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+        reg = er.async_get(hass)
+        entity_id = reg.async_get_entity_id(platform, DOMAIN, unique_id)
+        entry = reg.async_get(entity_id) if entity_id else None
+        device = dr.async_get(hass).async_get(entry.device_id) if entry and entry.device_id else None
+        held = sorted(i for i in (device.identifiers if device else ()) if i[0] == DOMAIN)
+        if not held or (DOMAIN, uid) in held:
+            return fresh
+        return {held[0]}, set()
+    except Exception:  # noqa: BLE001 - no registry answer: as it always was
+        return fresh
+
+
 def uid_safe(text: str) -> str:
     return text.replace(":", "_").replace(" ", "_").replace("/", "_")
 

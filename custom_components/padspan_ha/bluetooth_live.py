@@ -131,6 +131,26 @@ def address_type_of(device: Any, esphome_ok: Optional[Callable[[str], bool]] = N
     return None
 
 
+def _tx_power_value(value: Any) -> Optional[int]:
+    """A declared TX power in dBm, or None. habluetooth reports -127 for "none"."""
+    if value is None:
+        return None
+    power = int(value)
+    return None if power == -127 else power
+
+
+def receiver_type(scanner: Any) -> str:
+    """What kind of receiver a Home Assistant scanner is, by its class:
+    bleak_esphome's ESPHomeScanner, aioshelly's ShellyBLEScanner, habluetooth's
+    HaScanner and HaScannerMgmt (this machine's own adapter), HA's
+    RuuviGatewayScanner. Fixed words for the opt-in report."""
+    name = type(scanner).__name__.lower()
+    for word, kind in (("esphome", "esphome"), ("shelly", "shelly"), ("hascanner", "ha_adapter"), ("ruuvi", "ruuvi")):
+        if word in name:
+            return kind
+    return "other"
+
+
 def _service_info_to_record(si: Any, seen: Optional[dt.datetime] = None,
                             esphome_ok: Optional[Callable[[str], bool]] = None) -> Dict[str, Any]:
     """Flatten a BluetoothServiceInfo(Bleak)-like object into a plain dict.
@@ -210,7 +230,7 @@ def _service_info_to_record(si: Any, seen: Optional[dt.datetime] = None,
         "name": name or address,
         "source": source,
         "rssi": rssi,
-        "tx_power": int(tx_power) if tx_power is not None else None,
+        "tx_power": _tx_power_value(tx_power),
         "connectable": bool(connectable) if connectable is not None else None,
         "address_type": address_type_of(getattr(si, "device", None), esphome_ok),
         "last_seen": seen_dt.isoformat(),
@@ -259,7 +279,7 @@ def _service_info_to_record_from_adv(
         "name": str(name or addr),
         "source": _coerce_source(source),
         "rssi": int(rssi) if rssi is not None else None,
-        "tx_power": int(tx_power) if tx_power is not None else None,
+        "tx_power": _tx_power_value(tx_power),
         "connectable": None,
         "address_type": address_type_of(ble_device, esphome_ok),
         "last_seen": seen.isoformat(),
@@ -286,8 +306,8 @@ class BluetoothLive:
         # REAL callbacks (never the reseed path) for median-of-N filtering.
         self._rssi_samples: Dict[str, Dict[str, Any]] = {}
         # {addr: "random" | "public"}: what any radio reported for the address,
-        # kept per address while it is cached (the maker lookup reads it,
-        # known_address_type). Not per report: HA's own adapter reports no type
+        # kept per address while it is cached (the maker list reads it,
+        # known_type). Not per report: HA's own adapter reports no type
         # on its live adverts (habluetooth's mgmt side channel) while the reseed
         # reads BlueZ's for the same address, so in 0.38.207 each live advert
         # wiped the reseed's "random" until the next reseed. A report with no
@@ -297,8 +317,8 @@ class BluetoothLive:
         # {addr: unix time}: addresses a radio confirmed as public (ESPHome
         # address_type 0, BlueZ AddressType "public"), kept in .storage
         # (PUBLIC_ADDRESSES_STORE_KEY) through prunes and restarts: a public
-        # address never changes type. The maker lookup asks online about these
-        # only (known_address_type). A "random" report removes one.
+        # address never changes type. The built-in maker list counts as fact for
+        # these only (known_type). A "random" report removes one.
         self._public: Dict[str, int] = {}
         self._public_store: Any = None
         # {ESPHome scanner source: (its firmware sends the address type, until)}
@@ -447,6 +467,12 @@ class BluetoothLive:
         ok = esphome_sends_address_type(esphome_version(self.hass, source))
         self._esphome_ok_cache[source] = (ok, now + (600.0 if ok else 60.0))
         return ok
+
+    def known_type(self, address: str) -> Optional[str]:
+        """"random" or "public" if a radio has said which (the second kept in
+        .storage, so it lasts), else None. Dict lookups only: read per object,
+        per build."""
+        return self._address_types.get(address) or ("public" if address in self._public else None)
 
     async def async_load_public(self, store: Any) -> None:
         """Read the confirmed public addresses kept from earlier runs."""
@@ -758,6 +784,7 @@ class BluetoothLive:
                             "requested_scan_mode": req_mode,
                             "adapter": str(adapter or "") if adapter is not None else "",
                             "last_heard_s": _lh_s,
+                            "receiver_type": receiver_type(s),
                         })
                         # Only while this scanner's drop is on: a healthy
                         # house's radios are exactly as before.
@@ -995,8 +1022,10 @@ async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
     bl = BluetoothLive(hass)
     try:
         from homeassistant.helpers.storage import Store  # noqa: PLC0415
-        from .const import PUBLIC_ADDRESSES_STORE_KEY  # noqa: PLC0415
+        from .const import PUBLIC_ADDRESSES_STORE_KEY, VENDOR_CACHE_STORE_KEY  # noqa: PLC0415
         await bl.async_load_public(Store(hass, 1, PUBLIC_ADDRESSES_STORE_KEY))
+        # The answers the online maker lookup kept. Nothing reads them any more.
+        await Store(hass, 1, VENDOR_CACHE_STORE_KEY).async_remove()
     except Exception as e:  # noqa: BLE001
         _LOGGER.debug("public address store unavailable: %s", e)
 
@@ -1045,43 +1074,6 @@ async def async_setup_bluetooth_live(hass: HomeAssistant) -> BluetoothLive:
 
     hass.data.setdefault("padspan_ha", {})[DATA_KEY] = bl
     return bl
-
-
-def known_address_type(hass: HomeAssistant, address: str) -> Optional[str]:
-    """"random" if any radio reported it so, else "public" if one confirmed it
-    (ESPHome address_type 0, BlueZ AddressType "public"; now, or before: kept
-    in .storage), else None. The maker lookup asks online about "public" only.
-
-    From PadSpan's cache (_address_types, _public) and the scanners' own caches:
-    HA's own adapter's live adverts carry no type, BlueZ's cache has it.
-    """
-    s = "".join(c for c in str(address or "").upper() if c in "0123456789ABCDEF")
-    key = ":".join(s[i:i + 2] for i in range(0, 12, 2)) if len(s) == 12 else str(address or "").upper()
-    kinds: set = set()
-    bl = get_bluetooth_live(hass)
-    if bl is not None:
-        try:
-            kinds.add(getattr(bl, "_address_types", {}).get(key))
-            for a in (bl._seen_by_source.get(key) or {}).values():
-                kinds.add(a.record.get("address_type"))
-            if key in getattr(bl, "_public", {}):
-                kinds.add("public")
-        except Exception:
-            pass
-    if "random" not in kinds:
-        try:
-            from habluetooth import get_manager as _get_bt_manager  # type: ignore
-            ok = bl._esphome_public_ok if bl is not None else (
-                lambda s: esphome_sends_address_type(esphome_version(hass, s)))
-            for dev in _get_bt_manager().async_scanner_devices_by_address(key, False):
-                kinds.add(address_type_of(getattr(dev, "ble_device", None), ok))
-        except Exception:
-            pass
-    if "random" in kinds:
-        return "random"
-    if "public" in kinds:
-        return "public"
-    return None
 
 
 def get_bluetooth_live(hass: HomeAssistant) -> Optional[BluetoothLive]:

@@ -315,7 +315,7 @@ function _sampleKind(payload){
     + "install_base licence_homes live_snapshot logs_get lost_and_found_get maps_image_urls maps_list model_get movement_history_get "
     + "notify_services_list object_label_list occupancy_estimate positioning_diag private_ble_status propagation_health radio_audit "
     + "room_tags setup_tips status store_backup_list subzones_list system_critics tags_status tester_preview tester_status traceback_get "
-    + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status vendor_lookup wled_backups wled_devices "
+    + "traceback_objects vacation_log_get vacation_preview vacuum_cal_pending_list vacuum_status wled_backups wled_devices "
     + "wled_exact_list wled_get wled_look_get wled_teams_get motion_reconnects vacuum_import_preview irk_validate "
     + "companion_discover").split(" ").map(t => "padspan_ha/" + t));
   for (const t of ["config/entity_registry/list", "config/entity_registry/list_for_display", "config/entity_registry/get",
@@ -3808,11 +3808,6 @@ class PadSpanHaApp extends HTMLElement {
         closeModal: ()=>this._closeModal(),
         callWS: (payload)=>this._callWS(payload),
 
-        // Vendor lookup (online, cached server-side)
-        vendorLookup: async (mac, force_refresh=false)=>{
-          return await this._callWS({ type:"padspan_ha/vendor_lookup", mac, force_refresh: !!force_refresh });
-        },
-
         // Object label actions (tag/untag BLE devices)
         objectLabelSet: async (address, label)=>{
           const res = await this._callWS({ type:"padspan_ha/object_label_set", address, label });
@@ -4167,9 +4162,10 @@ class PadSpanHaApp extends HTMLElement {
         ? el("div", {class:"muted", style:"font-size:11px;color:#60a5fa"}, `Linked entities: ${obj.linked_entities.join(", ")}`)
         : null,
       // Enrichment badges
-      (obj.company_name || obj.auto_class || obj.device_type || (obj.service_names && obj.service_names.length) || obj.connectable != null)
+      (obj.company_name || obj.maker_guess || obj.auto_class || obj.device_type || (obj.service_names && obj.service_names.length) || obj.connectable != null)
         ? el("div", {style:"display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"}, [
-            obj.company_name ? el("span",{class:"badge",style:"background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, obj.company_name) : null,
+            obj.company_name ? el("span",{class:"badge",style:"background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, obj.company_name)
+              : obj.maker_guess ? el("span",{class:"badge",style:"background:#1a2a3a;color:#7dd3fc;border-color:#1e4976"}, `Probably ${obj.maker_guess}`) : null,
             (obj.auto_class || obj.device_type) ? el("span",{class:"badge",style:"background:#2a1a3a;color:#c4b5fd;border-color:#5b21b6"}, obj.auto_class || obj.device_type) : null,
             ...(obj.service_names || []).map(sn =>
               el("span",{class:"badge",style:"background:#1a3a2a;color:#a7f3d0;border-color:#166534"}, sn)

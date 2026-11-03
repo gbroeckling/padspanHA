@@ -457,92 +457,32 @@ export function renderClassic(ctx){
     ctx.actions.openModal("Assign Area", body, `HA area for "${radio.name || radio.source}"`);
   }
 
-  // Best-effort OUI vendor lookup for one BLE row's Vendor cell, called
-  // from the Objects modal's post-open queue (see the concurrency limiter
-  // at the bottom of openObjectsList) rather than up front for every row —
-  // a modal can list hundreds of BLE addresses and the lookup is a network
-  // call, so doing it eagerly for rows the user may never scroll to would
-  // be wasted work and wasted rate-limit budget on whatever the lookup
-  // service imposes.
-  async function fillVendorCell(mac, cell){
-    if(!mac){ cell.textContent = ""; return; }
-    // Switched off (Settings → Tracking → Privacy, updates and feedback): ask nothing.
-    if(!makerLookupOn()){
-      cell.innerHTML = renderVendorHTML({ enabled: false });
-      return;
-    }
-    if(isRandomAddress(mac)){
-      cell.innerHTML = renderVendorHTML({ skipped: "local" });
-      return;
-    }
-    // Every row asks the server, which answers from its own 30-day cache by
-    // prefix (nothing sent) and knows which addresses a radio reported as
-    // random. Answers were kept here by prefix too, so a random address showed
-    // the maker of another device that shares its first three bytes.
-    cell.innerHTML = `<span class="badge">Looking up…</span>`;
-    try{
-      cell.innerHTML = renderVendorHTML(await ctx.actions.vendorLookup(mac, false));
-    }catch(e){
-      cell.innerHTML = `<span class="badge err">Lookup failed</span>`;
-    }
-  }
-
-  // The maker lookup's switch: on unless an administrator turned it off. Until
-  // settings have loaded nothing is asked.
-  function makerLookupOn(){
-    const s = ctx.state.settings;
-    return !!s && s.vendor_lookup_enabled !== false;
-  }
-
-  // The server's bit rule (vendor_lookup.lookup_skip_reason): a first byte with
-  // bit 0x02 (locally administered) or 0x01 (multicast) set is never sent.
+  // A first byte with bit 0x02 (locally administered) or 0x01 (multicast) set
+  // isn't an address any maker was assigned (ble_enrichment.apply_address_maker).
   function isRandomAddress(mac){
     const first = parseInt(String(mac || "").split(":")[0], 16);
     return Number.isFinite(first) && (first & 0x03) !== 0;
   }
 
-  // Formats one vendor-lookup response (macvendors.com + maclookup.app,
-  // called server-side — see fillVendorCell) into the Maker cell's badge
-  // markup. Two independent sources can each have an opinion on the same
-  // MAC; maclookup's is preferred when both answered because it is also
-  // the one source able to flag "randomized"/"private" addresses, which
-  // matters more to a viewer than which of the two vendor-name strings is
-  // shown.
-  function renderVendorHTML(res){
-    if(!res || res.enabled === false){
-      return `<span class="badge">Lookup off</span>`;
-    }
-    // Answered at home, nothing sent. "unconfirmed": no receiver confirmed a
-    // fixed, maker-assigned address (Shelly, ESPresense and Tasmota never say)
-    // and no answer is kept for its first three bytes. Otherwise a radio said
-    // random, or the bits mark it locally administered: it belongs to no maker.
-    if(res.skipped === "unconfirmed"){
-      return `<span class="badge">maker unknown (receiver doesn't say)</span>`;
-    }
-    if(res.skipped){
-      return `<span class="badge warn">random address</span>`;
-    }
-    const v1 = res.sources?.macvendors || null;
-    const v2 = res.sources?.maclookup?.company || null;
-    const rand = res.sources?.maclookup?.isRand;
-    const priv = res.sources?.maclookup?.isPrivate;
-    const flags = [];
-    if(rand===true) flags.push("randomized");
-    if(priv===true) flags.push("private");
-    const top = (v2 || v1 || "Unknown vendor");
-    const sub = flags.length ? ` <span class="badge warn">${flags.join(", ")}</span>` : "";
-    const bt = res.sources?.maclookup?.blockType ? ` · ${res.sources.maclookup.blockType}` : "";
-    return `<div><span class="badge">${escapeHtml(top)}</span>${sub}${escapeHtml(bt)}</div>`;
-  }
-
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g,(c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c]));
+  // The Maker cell, from what the server worked out for the object. Nothing is
+  // asked or sent: the broadcast and PadSpan's built-in lists are the only sources.
+  const MAKER_HOW = {
+    company_id: "From the company number in its broadcast",
+    service_uuid: "From a service it broadcasts, which this company holds",
+    espresense: "From ESPresense's id for this device",
+    address: "From the built-in list of address makers. A receiver confirmed this address is fixed",
+  };
+  function makerCell(o, kind, addr){
+    if(kind !== "ble" && kind !== "private_ble" && kind !== "ibeacon") return el("span",{class:"badge"}, "n/a");
+    if(o.company_name) return el("span",{class:"badge", title: MAKER_HOW[o.maker_source] || ""}, o.company_name);
+    if(o.maker_guess) return el("span",{class:"badge", title:"From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance"}, `Probably ${o.maker_guess}`);
+    if(kind === "private_ble" || o.address_type === "random" || (kind === "ble" && isRandomAddress(addr))) return el("span",{class:"badge warn"}, "random address");
+    return el("span",{class:"badge"}, "maker unknown");
   }
 
   // The Objects KPI's modal — every tracked object (HA entities plus raw
   // BLE/iBeacon/private_ble advertisements), filterable by kind, status,
-  // OUI commonness and a "how far back" age slider, with a best-effort
-  // vendor lookup queued after the modal opens (see fillVendorCell).
+  // OUI commonness and a "how far back" age slider.
   // Live-mode only: sample mode has no BLE advertisement monitor stream to
   // list. `initialFilter` lets a caller (the Unidentified count button)
   // open the modal pre-filtered instead of the viewer having to set it by
@@ -559,7 +499,6 @@ export function renderClassic(ctx){
 
     const list = liveSnap.objects.list || [];
     const summary = liveSnap.objects.summary || {};
-    const makerOn = makerLookupOn();
     const commonPrefixes = summary.common_prefixes || {};
 
     // Dedup: suppress entity rows whose device already has a BLE/iBeacon/private_ble row
@@ -636,21 +575,6 @@ export function renderClassic(ctx){
       [el("span",{class:"muted",style:"font-size:12px;white-space:nowrap"}, "History:"), ageSlider, ageLabel]));
     controls.appendChild(stats);
 
-    // Maker lookup switch, here where its answers show (admin-only, like the one
-    // in Settings). The server decides what is sent (vendor_lookup.py).
-    const makerAdmin = !!(ctx.hass && ctx.hass.user && ctx.hass.user.is_admin);
-    const makerToggle = el("button", { class: "btn inline", "data-maker-lookup": makerOn ? "on" : "off",
-      title: "Asks macvendors.com and maclookup.app which company made each device. It sends only the first three bytes of an address, and only after a Bluetooth receiver has confirmed that the device has a fixed, maker-assigned address (ESPHome proxies on version 2022.12 or newer and Home Assistant's own Bluetooth say so, and PadSpan remembers it; Shelly, ESPresense and Tasmota don't, so a device only they have heard isn't looked up)." },
-      makerOn ? "Look up makers online: On" : "Look up makers online: Off");
-    if (!makerAdmin) { makerToggle.disabled = true; makerToggle.title = "Only an administrator can change this"; }
-    makerToggle.addEventListener("click", async () => {
-      try {
-        await ctx.actions.settingsSet({ vendor_lookup_enabled: !makerOn });
-        openObjectsList(initialFilter);
-      } catch (e) { ctx.toast("Failed to save setting", true); }
-    });
-    controls.appendChild(makerToggle);
-
     const table = el("table",{class:"table"});
     const thead = el("thead",{}, el("tr",{},[
       el("th",{}, "Kind"),
@@ -685,20 +609,7 @@ export function renderClassic(ctx){
       const pfx = (o.prefix || "").toUpperCase();
       const isCommon = pfx && (commonPrefixes[pfx] || 0) >= 3;
 
-      // The Maker cell. With the lookup off every Bluetooth row (BLE, private
-      // BLE, iBeacon) says so, not just the first rows the queue would reach.
-      // On: a private BLE row is a resolvable private address, random by
-      // definition; an iBeacon row is one beacon heard from changing
-      // addresses, so there is no one address to look up; a BLE row says
-      // "random address" at once when its bits mark it so, and otherwise
-      // waits for the server's answer. Entities aren't Bluetooth rows: n/a.
-      const btRow = kind === "ble" || kind === "private_ble" || kind === "ibeacon";
-      const askMaker = makerOn && kind === "ble" && !!addr && !isRandomAddress(addr);
-      const vendorCell = el("td",{}, !btRow ? el("span",{class:"badge"}, "n/a")
-        : !makerOn ? el("span",{class:"badge"}, "Lookup off")
-        : (kind === "private_ble" || (kind === "ble" && isRandomAddress(addr))) ? el("span",{class:"badge warn"}, "random address")
-        : kind === "ibeacon" ? el("span",{class:"badge", title:"An iBeacon is heard from changing addresses, so there is no one address to look up"}, "n/a")
-        : el("span",{class:"badge"}, "—"));
+      const vendorCell = el("td",{}, makerCell(o, kind, addr));
 
       // Follow button
       const followKey = addr || o.entity_id || "";
@@ -755,7 +666,6 @@ export function renderClassic(ctx){
           (o.service_uuids||[]).join(" "),
           isAway ? "away" : "",
         ].filter(Boolean).join(" ").toLowerCase(),
-        "data-mac": addr,
       },[
         el("td",{}, kind==="ble" ? pill("BLE","") : pill("Entity","")),
         el("td",{}, [
@@ -803,9 +713,6 @@ export function renderClassic(ctx){
         if(ev.target.tagName==="BUTTON"||ev.target.tagName==="A") return;
         ctx.actions.closeModal(); ctx.actions.showObjectDetail(o);
       });
-      // kick vendor lookup for BLE rows (best-effort, after render)
-      tr._vendorCell = vendorCell;
-      tr._askMaker = askMaker;
       return tr;
     }).filter(Boolean);
 
@@ -855,29 +762,7 @@ export function renderClassic(ctx){
     body.appendChild(controls);
     body.appendChild(table);
 
-    ctx.actions.openModal(initialFilter === "unidentified" ? "Unidentified" : (_quietMode ? "Tracked objects" : "All objects"), body, makerOn ? "Filter + maker lookup (first three bytes only)" : "Filter");
-
-    // After modal opens, do vendor lookups for visible BLE rows (limited concurrency).
-    // With the lookup off every Bluetooth cell already says so and nothing is
-    // asked; rows already labelled "random address" aren't asked either.
-    const maxLookups = makerOn ? 40 : 0;
-    const queue = rowEls
-      .filter(tr=>tr._askMaker)
-      .slice(0, maxLookups);
-
-    // lightweight concurrency limiter
-    let i = 0;
-    const conc = 3;
-    const runOne = async ()=>{
-      while(i < queue.length){
-        const tr = queue[i++];
-        if(tr.style.display==="none") continue;
-        const mac = tr.getAttribute("data-mac") || "";
-        const cell = tr._vendorCell;
-        if(mac && cell) await fillVendorCell(mac, cell);
-      }
-    };
-    for(let n=0;n<conc;n++) runOne();
+    ctx.actions.openModal(initialFilter === "unidentified" ? "Unidentified" : (_quietMode ? "Tracked objects" : "All objects"), body, "Filter");
   }
 
   // The experimental 2D flat map lives in views/plan_viewer.js — it is a

@@ -499,7 +499,6 @@ async def ws_settings_get(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("trial_nudge_done"): bool,               # the Overview trial milestone card was answered; never again
         vol.Optional("tester_nudge_done"): bool,              # the Overview tester card was shown; never again
         vol.Optional("whatsnew_seen_version"): str,           # version the what's-new card last reported
-        vol.Optional("vendor_lookup_enabled"): bool,
         vol.Optional("room_change_delay_s"): vol.Coerce(float),
         vol.Optional("away_timeout_m"): vol.Coerce(float),
         vol.Optional("ref_power"): vol.Coerce(float),
@@ -784,15 +783,6 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg) -> None:
             # a bug or a probe; store an empty string rather than the input.
             _wn = str(msg.get("whatsnew_seen_version") or "").strip()
             payload["whatsnew_seen_version"] = _wn if re.fullmatch(r"\d+\.\d+\.\d+", _wn) else ""
-        if "vendor_lookup_enabled" in msg:
-            # It decides what leaves the house, so it is an admin's call
-            # (README: Security), like the usage report's switch above.
-            _user = getattr(connection, "user", None)
-            if _user is not None and getattr(_user, "is_admin", True) is False:
-                connection.send_error(msg["id"], "unauthorized",
-                                      "Only an administrator can change the device maker lookup")
-                return
-            payload["vendor_lookup_enabled"] = bool(msg.get("vendor_lookup_enabled"))
         if "room_change_delay_s" in msg:
             payload["room_change_delay_s"] = max(0.0, min(300.0, float(msg["room_change_delay_s"])))
         if "away_timeout_m" in msg:

@@ -60,7 +60,6 @@ from .const import (
     DATA_TRACEBACK,
 )
 from .build_info import BUILD_ID, BUILD_VERSION
-from .vendor_lookup import async_lookup_vendor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -301,7 +300,6 @@ def async_register_websockets(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_settings_set)
     websocket_api.async_register_command(hass, ws_scanner_offset_set)
     websocket_api.async_register_command(hass, ws_live_snapshot)
-    websocket_api.async_register_command(hass, ws_vendor_lookup)
     websocket_api.async_register_command(hass, ws_maps_list)
     websocket_api.async_register_command(hass, ws_maps_image_urls)
     websocket_api.async_register_command(hass, ws_maps_upload)
@@ -681,51 +679,6 @@ async def ws_room_height_set(hass: HomeAssistant, connection, msg) -> None:
 # This is the MAIN data pipeline: assembles everything the UI needs from HA state,
 # BLE advertisements, device/entity registries, calibration, and object history.
 # Called every 5s by the panel's poll loop and on demand by other handlers.
-
-
-@websocket_api.websocket_command(
-    {
-        "type": "padspan_ha/vendor_lookup",
-        "mac": str,
-        vol.Optional("force_refresh"): bool,
-    }
-)
-@websocket_api.async_response
-async def ws_vendor_lookup(hass: HomeAssistant, connection, msg) -> None:
-    """Maker (vendor) lookup for a MAC address, online.
-
-    Used by the Overview → Objects/Unidentified modal. On by default (only an
-    administrator changes it); when the settings can't be read nothing is sent.
-    It sends only the first three bytes of an address, and only after a
-    Bluetooth receiver has confirmed that the device has a fixed,
-    maker-assigned address (ESPHome proxies on version 2022.12 or newer and
-    Home Assistant's own Bluetooth say so, and PadSpan remembers it; Shelly,
-    ESPresense and Tasmota don't, so a device only they have heard isn't looked
-    up). Any other address gets the answer kept for its prefix, if there is
-    one; so does every address when the type can't be read.
-    """
-    st = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
-    enabled = False
-    try:
-        if st:
-            enabled = st.get("vendor_lookup_enabled", True) is True
-    except Exception:
-        enabled = False
-
-    if not enabled:
-        connection.send_result(msg["id"], {"enabled": False})
-        return
-
-    mac = msg.get("mac") or ""
-    force = bool(msg.get("force_refresh", False))
-    try:
-        from .bluetooth_live import known_address_type  # noqa: PLC0415
-        atype = known_address_type(hass, mac)
-    except Exception:
-        atype = None  # not confirmed: nothing is sent
-    res = await async_lookup_vendor(hass, mac, force_refresh=force, address_type=atype)
-    res["enabled"] = True
-    connection.send_result(msg["id"], res)
 
 
 # ── Maps CRUD ──────────────────────────────────────────────────────────────────

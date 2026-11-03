@@ -88,8 +88,8 @@ LOST_AND_FOUND_STORE_KEY = "padspan_ha.lost_and_found"
 ADAPTIVE_STORE_KEY = "padspan_ha.adaptive"
 BACKUPS_STORE_KEY = "padspan_ha.backups"
 OBJECT_HISTORY_STORE_KEY = "padspan_ha.object_history"
-VENDOR_CACHE_STORE_KEY = "padspan_ha.vendor_cache"
-PUBLIC_ADDRESSES_STORE_KEY = "padspan_ha.public_addresses"   # bluetooth_live.py — addresses a radio confirmed as public (the maker lookup asks about these only)
+VENDOR_CACHE_STORE_KEY = "padspan_ha.vendor_cache"          # the retired online maker lookup's answers: removed at start and by a Factory Reset
+PUBLIC_ADDRESSES_STORE_KEY = "padspan_ha.public_addresses"   # bluetooth_live.py — addresses a radio confirmed as public (the built-in maker list counts as fact for these only)
 TRACEBACK_STORE_KEY = "padspan_ha.traceback"
 FORENSICS_STORE_KEY = "padspan_ha.forensics"
 # Manifest only — session frames live in .storage/padspan_ha.capture_sessions/

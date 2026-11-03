@@ -73,7 +73,7 @@ fabric_truth_candidates fabric_health room_tags follow_alert_get forensics_stats
 house3d_import_preview house3d_library_search house3d_library_get private_ble_status irk_validate
 irk_auto_detect maps_list maps_image_urls notify_services_list object_label_list occupancy_estimate
 radio_audit settings_get subzones_list telemetry_preview live_snapshot motion_reconnects emergency_status
-wled_devices wled_get wled_state wled_backups wled_teams_get vendor_lookup
+wled_devices wled_get wled_state wled_backups wled_teams_get
 setup_tips
 """.split())
 # Everyday use, open to everyone as Home Assistant's own controls are.
@@ -223,8 +223,7 @@ def test_settings_off_a_non_admin_saves_as_before(key, value):
     assert data[key] == value
 
 
-@pytest.mark.parametrize("key,value", [("update_check_enabled", False), ("vendor_lookup_enabled", False),
-                                       ("room_change_delay_s", 12.0)])
+@pytest.mark.parametrize("key,value", [("update_check_enabled", False), ("room_change_delay_s", 12.0)])
 def test_settings_on_a_non_admin_cannot_change_the_homes_setup(key, value):
     data, conn = _set(True, False, **{key: value})
     assert conn.send_error.call_args.args[1] == "admin_only"
@@ -232,9 +231,9 @@ def test_settings_on_a_non_admin_cannot_change_the_homes_setup(key, value):
 
 
 def test_settings_on_a_mixed_message_from_a_non_admin_changes_nothing():
-    data, conn = _set(True, False, light_theme=True, vendor_lookup_enabled=False)
+    data, conn = _set(True, False, light_theme=True, update_check_enabled=False)
     assert conn.send_error.call_args.args[1] == "admin_only"
-    assert "light_theme" not in data and data.get("vendor_lookup_enabled") is not False
+    assert "light_theme" not in data and data.get("update_check_enabled") is not False
 
 
 @pytest.mark.parametrize("key,value", [("light_theme", True), ("whatsnew_seen_version", "0.38.164"),
@@ -246,9 +245,9 @@ def test_settings_on_a_persons_own_view_stays_theirs(key, value):
 
 
 def test_settings_on_an_admin_changes_anything():
-    data, conn = _set(True, True, vendor_lookup_enabled=False, update_check_enabled=False)
+    data, conn = _set(True, True, room_change_delay_s=12.0, update_check_enabled=False)
     conn.send_error.assert_not_called()
-    assert data["vendor_lookup_enabled"] is False and data["update_check_enabled"] is False
+    assert data["room_change_delay_s"] == 12.0 and data["update_check_enabled"] is False
 
 
 @pytest.mark.parametrize("on", [None, False, True])

@@ -305,6 +305,25 @@ function renderUnlocked(ctx, root) {
                                    ["placed_lights", "Lights on the map", "Lights placed on a floor plan"], ["objects_total", "Devices seen", "Bluetooth devices PadSpan has seen (most are neighbours' and passers-by)"]]) {
       homeCards.push(barCard(el, { title: label, ask: `${ask}, grouped (≤ 4 means up to 4)`, map: orderBuckets(dist[k]), total: n, ranked: false }));
     }
+    // Nested in env, so stats.php's fold has added them up (s.fields).
+    const envSums = (k) => (((s.fields || {}).env || {})[k] || {}).sums || {};
+    const rTypes = envSums("scanner_types");
+    if (Object.keys(rTypes).length) {
+      homeCards.push(barCard(el, { title: "What the receivers are", ask: "Every receiver, by what kind of device it is. Says who passes on an address type or a full broadcast", map: rTypes, total: Object.values(rTypes).reduce((a, b) => a + (Number(b) || 0), 0), unit: "receivers", kind: "receiver" }));
+    }
+    const detail = envSums("object_detail");
+    if (detail.total) {
+      homeCards.push(kvCard(el, "How much devices say about themselves", "Bluetooth devices across all homes that have each of these", [
+        ["A real name", detail.named || 0, detail.total],
+        ["A maker", detail.maker || 0, detail.total],
+        ["  ↳ from the company number in its broadcast", detail.maker_company_id || 0, detail.total],
+        ["  ↳ from a service it broadcasts", detail.maker_service_uuid || 0, detail.total],
+        ["  ↳ from ESPresense's id", detail.maker_espresense || 0, detail.total],
+        ["  ↳ from the address list, address confirmed", detail.maker_address || 0, detail.total],
+        ["  ↳ from the address list, \"probably\"", detail.maker_guess || 0, detail.total],
+        ["A type (what it is)", detail.type || 0, detail.total],
+      ]));
+    }
     const most = (k) => { const t = top(dist[k]); return t ? t[0].replace("<=", "≤").replace(">=", "≥") : "?"; };
     section("Homes", "How big the houses are and what else runs in them, from each install's latest report. Numbers are grouped, never exact.", [grid(homeCards)],
       `most have ${most("rooms")} rooms · ${most("scanners")} receivers · ${most("floors")} floors`);
@@ -426,7 +445,7 @@ function renderUnlocked(ctx, root) {
     // one row each: what it is, how many homes sent it, and what they said.
     // A field added to the report later turns up here by itself.
     const shownElsewhere = new Set(["scanners", "floors", "rooms", "maps", "calibration_points", "irks", "walls", "placed_lights",
-      "objects_total", "integrations", "scanner_kinds", "scan_modes", "scan_modes_requested", "scan_mode_installs", "ai", "screens",
+      "objects_total", "object_detail", "device_ids", "integrations", "scanner_kinds", "scanner_types", "scan_modes", "scan_modes_requested", "scan_mode_installs", "ai", "screens",
       "stairs", "calibration_no_floor", "install_age", "setup_stage", "country", "language",
       "crypto_ok", "ble_callback_active", "ble_diag_ok", "maps_geometry_faulted", "geometry_anchor_faulted", "stack_desync", "irks_silent",
       "has_metre_anchor", "floors_all_default", "scanner_z_uniform", "radios_ambiguous", "radios_unresolved", "calibration_points_vanished",
@@ -580,6 +599,10 @@ const W_FLAG = {
 const W_INTEGRATION = {
   bluetooth: "Bluetooth", mobile_app: "Home Assistant phone app", mqtt: "MQTT", ibeacon: "iBeacon tracker",
   esphome: "ESPHome", bermuda: "Bermuda", private_ble_device: "Private BLE Device",
+};
+const W_RECEIVER = {
+  esphome: "ESPHome proxy", shelly: "Shelly", ha_adapter: "Home Assistant's own adapter", ruuvi: "Ruuvi gateway",
+  espresense: "ESPresense", tasmota: "Tasmota", other: "Something else",
 };
 const W_MODULE = {
   ws_notify: "Notifications", __init__: "Start-up", ws_calibration: "Calibration",
@@ -763,6 +786,7 @@ function word(kind, k) {
     case "tab": return W_TAB[key] || tidy(key);
     case "flag": return W_FLAG[key] || tidy(key);
     case "integration": return W_INTEGRATION[key] || tidy(key);
+    case "receiver": return W_RECEIVER[key] || tidy(key);
     case "module": return W_MODULE[b || a] ? `${W_MODULE[b || a]}${b && a !== "WARNING" ? ` (${a.toLowerCase()})` : ""}` : tidy(b || a);
     case "view": return W_VIEW[key] || W_TAB[key] || tidy(key);
     case "stage": return W_STAGE[key] || tidy(key);

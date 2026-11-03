@@ -105,6 +105,15 @@ export function btAgo(sec) {
 }
 
 // A chip. tone ∈ good | ok | bad | info | violet | accent | mono | sid | quiet
+// How a device's maker is known (ble_enrichment.enrich_object, apply_address_maker).
+const MAKER_HOW = {
+  company_id: "From the company number in its broadcast",
+  service_uuid: "From a service it broadcasts, which this company holds",
+  espresense: "From ESPresense's id for this device",
+  address: "From the built-in list of address makers. A receiver confirmed this address is fixed",
+};
+const MAKER_GUESS_HOW = "From the built-in list of address makers. No receiver has confirmed this address is fixed, so a random address could match by chance";
+
 function chip(el, text, tone, title) {
   return el("span", { class: "bt-chip" + (tone ? " " + tone : ""), ...(title ? { title } : {}) }, String(text));
 }
@@ -1199,14 +1208,15 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const src = a.source || "";
     const xr = a._xref || {};  // Backend cross-reference: label, kind, room, canonical_id, etc.
     const obj = addr ? objIndex.get(String(addr).toUpperCase()) : null;
-    const userLabel = xr.label || (obj && obj.user_label) || "";
-    const displayName = userLabel || a.name || addr || "Unknown";
+    const userLabel = xr.user_label || (obj && obj.user_label) || "";
+    const displayName = userLabel || xr.label || a.name || addr || "Unknown";
     const sid = _rsid(src);  // Short scanner ID (e.g. "S1") for compact display
 
     // Enrichment badges (inline, compact)
     const badges = [];
     if (xr.kind)          badges.push(kindBadge(xr.findmy ? "findmy" : xr.kind));
-    if (a.company_name)   badges.push(chip(el, a.company_name, "info", "Manufacturer, from the advertisement"));
+    if (a.company_name)   badges.push(chip(el, a.company_name, "info", MAKER_HOW[a.maker_source] || MAKER_HOW.company_id));
+    else if (a.maker_guess) badges.push(chip(el, `Probably ${a.maker_guess}`, "quiet", MAKER_GUESS_HOW));
     if (a.auto_class || a.device_type) badges.push(chip(el, a.auto_class || a.device_type, "violet"));
     if (a.connectable)    badges.push(chip(el, "connectable", "good", "This device accepts connections"));
 
@@ -1320,7 +1330,7 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     const idRows = [
       ["Address", a.address],
       ["Name", a.name || "\u2014"],
-      ["User Label", xr.label || (obj?.user_label) || "\u2014"],
+      ["User Label", xr.user_label || (obj?.user_label) || "\u2014"],
       ["Object Kind", xr.kind || "untracked"],
     ];
     if (xr.canonical_id) idRows.push(["Canonical ID", xr.canonical_id]);
@@ -1337,16 +1347,16 @@ function renderMonitor(ctx, ads, radios, objIndex) {
       ["TX Power", a.tx_power != null ? `${a.tx_power} dBm` : "\u2014"],
       ["Age", ageText(a.age_s)],
       ["Scanner", (_rsid(a.source) ? _rsid(a.source) + " " : "") + (a.source || "\u2014")],
-      ["Connectable", a.connectable ? "Yes" : "No"],
+      ["Connectable", a.connectable === true ? "Yes" : a.connectable === false ? "No" : "Unknown"],
     ];
     card.appendChild(section("Signal", sigRows));
 
     // Manufacturer
     const md = a.manufacturer_data || {};
     const mdKeys = Object.keys(md);
-    if (mdKeys.length || a.company_name || a.auto_class || a.device_type) {
+    if (mdKeys.length || a.company_name || a.maker_guess || a.auto_class || a.device_type) {
       const mfRows = [
-        ["Company", a.company_name || "\u2014"],
+        ["Company", a.company_name || (a.maker_guess ? `Probably ${a.maker_guess}` : "\u2014")],
         ["Device Type", a.auto_class || a.device_type || "\u2014"],
       ];
       for (const cid of mdKeys) {
