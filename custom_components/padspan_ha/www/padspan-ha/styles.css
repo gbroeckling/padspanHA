@@ -1308,6 +1308,17 @@ input.lv-preset-name:focus{border-color:rgba(196,181,253,.7);outline:none}
 /* The phone rule above ("SVG maps: prevent overflow", max-width:900px) holds
    the map's SVG to the stage width whatever the zoom; the overlay follows. */
 @media(max-width:900px){.lv-wx{--wxcap:100%}}
+/* The trees of Showcase's West Coast Forest (views/atlas_forest.js): one plain box
+   with the picture as its background, first in the stage so it paints before the
+   drawing, as wide as the drawing and pulled up by its own height, so it adds
+   nothing to the scroll area. It is not positioned: no stacking context and no
+   layer of its own, nothing asked of the stage or the drawing. */
+.lv-forest{display:block;pointer-events:none;box-sizing:content-box;height:0;--fcap:100000%;
+  background-size:100% 100%;background-repeat:no-repeat;
+  width:min(var(--fz,100%),var(--fcap));
+  padding-top:calc(min(var(--fz,100%),var(--fcap)) * var(--fa,0));
+  margin-bottom:calc(-1 * min(var(--fz,100%),var(--fcap)) * var(--fa,0))}
+@media(max-width:900px){.lv-forest{--fcap:100%}}
 .lv-wx *{pointer-events:none}
 /* Four sides, not `inset`: older wall-tablet WebViews lack the shorthand. The
    tilted field reaches past the drawing by what the steepest wind needs for

@@ -3304,6 +3304,19 @@ function _abLoad(){
     .catch((err) => { console.warn("PadSpan: atlas_aboard failed to load", err); _abFailed = true; });
 }
 
+// Showcase's West Coast Forest: the trees behind the flat map (atlas_forest.js),
+// fetched the first time that theme is on and the Atlas draws it; any other
+// theme never fetches it. A failure leaves the map without trees.
+const FOREST_THEME = "west_coast_forest";
+let _FOREST = null, _forestLoading = null, _forestFailed = false;
+const _forestRedraw = new Map();          // slot -> the newest card's redraw
+function _forestLoad(){
+  if (_FOREST || _forestFailed || _forestLoading) return;
+  _forestLoading = import(`./atlas_forest.js${new URL(import.meta.url).search}`)
+    .then((m) => { _FOREST = m; for (const f of [..._forestRedraw.values()]) { try { f(); } catch (_) { /* the next card draws */ } } })
+    .catch((err) => { console.warn("PadSpan: atlas_forest failed to load", err); _forestFailed = true; });
+}
+
 // How long Whole house's "Yes, change the whole house" stays armed untouched.
 export const WH_ARM_MS = 10000;
 
@@ -3493,6 +3506,29 @@ export function buildLightsMapCard(hostIn){
   if (wxSlot) {
     try { wxOutdoorZ = WX.outdoorPlateLevels(_frame, isOutdoorFloorId); } catch (_) { wxOutdoorZ = null; }
   }
+  // Showcase's West Coast Forest (see _forestLoad): its trees go first in the
+  // stage, behind the drawing, which leaves out its ground for them. Any other
+  // theme, or a tier without Showcase: none of this runs, and a forest shown
+  // before lets go of its picture. The rain is laid over both, as ever.
+  const forestKey = (host.weather && host.weather.slot) || (host.screen && host.screen.slot) || "atlas";
+  const forestOn = () => !!host.showcase && host.showcaseTheme === FOREST_THEME;
+  const forestSlot = () => (_FOREST && forestOn() ? _FOREST.atlasForestSlot(forestKey) : null);
+  let forestGapKey = null, forestGeo = null;
+  const mountForest = (svgStr) => {
+    if (!forestOn()) { _forestRedraw.delete(forestKey); if (_FOREST) _FOREST.atlasForestSlot(forestKey).release(); return; }
+    _forestRedraw.set(forestKey, () => rebuildISO());
+    _forestLoad();
+    const slot = forestSlot();
+    if (!slot) return;
+    // The same plates and stacks the rain's mask is made from.
+    const gapKey = `${view.floorGap}|${view.horizGap}`;
+    if (gapKey !== forestGapKey) {
+      forestGapKey = gapKey;
+      try { forestGeo = WX ? { outdoorZ: WX.outdoorPlateLevels(_frame, isOutdoorFloorId), offsets: WX.plateOffsets(fabricFrame(host.model, floors, view.floorGap, view.horizGap)) } : null; }
+      catch (_) { forestGeo = null; }
+    }
+    slot.attach(isoDiv, { svg: svgStr, model: host.model, outdoorZ: forestGeo && forestGeo.outdoorZ, plateOffsets: forestGeo && forestGeo.offsets });
+  };
   const mountWeather = (svgStr) => {
     if (!wxSlot) return;
     // The plates move with the Spacing and L/R sliders (and Reset view),
@@ -3820,6 +3856,7 @@ export function buildLightsMapCard(hostIn){
     }
     // The weather overlay takes the same width and centring as the SVG.
     if (wxSlot) wxSlot.fit(view.zoom, V2, wallW);
+    if (forestSlot()) forestSlot().fit(view.zoom, V2, wallW);
     if (host.codeChip && codesShown !== null && codesShown !== codesVisibleAtZoom(view.zoom)) rebuildISO();
   };
   // Zoom about a point (pinch midpoint / wheel): keep what is under the
@@ -3844,6 +3881,7 @@ export function buildLightsMapCard(hostIn){
     const abDrawn = abData ? _AB.drawnWith(host.lightsByEid, host.byRoom, _AB.kindShapes(abData, host.lightsByEid, h3.settings.light_shapes)) : null;
     const isoOpts =
       { showcase: !!host.showcase, showcaseTheme: host.showcaseTheme || "classic",
+        ...(forestOn() ? { outsideBehind: true } : {}),
         liveColours: !!host.liveColours,
         fitRooms: !!host.showcase && !!host.fitRooms,
         ambient: host.ambient, isolux: !!host.showcase && !!host.isolux,
@@ -3911,6 +3949,7 @@ export function buildLightsMapCard(hostIn){
         Promise.resolve().then(() => live.read()).then((snap) => abDraw(snap && typeof snap === "object" ? snap : null), () => {});
       }
     }
+    mountForest(svgStr);
     mountWeather(svgStr);
     applyZoom();
     host.onHexesBuilt(isoDiv, rebuildISO);

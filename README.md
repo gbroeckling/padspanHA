@@ -148,7 +148,7 @@ Formerly "Lights" — renamed because it outgrew the name. One isometric map of 
 - **Outdoor gear** — anything HA puts on an Outside floor (shed, garden, driveway) places on the real floor plate just outside the room it lives beside, instead of falling off the map
 - **Doors & windows** as real RF barriers — material-aware attenuation (steel blocks harder than hollow-core), live open/closed state, and an **Invert** toggle for a sensor that reports backwards
 - **Automorph** — a soft aura grown from a fixture into its room, in a growing set of distinct styles (Glow, Blueprint, Nebula, Halo, Bloom and more)
-- **Showcase** — 19 curated visual themes for the map itself, with a presets bar to save and load a look
+- **Showcase** — 20 curated visual themes for the map itself, with a presets bar to save and load a look
 - A **hover HUD** names what's under the cursor (or a touch hold) with every stacked marker as a clickable row; **Alt+click** cycles the stack when several devices sit on top of each other
 - Full touch support — pinch-zoom, drag and tap are tuned for a wall panel or phone, not just a mouse
 

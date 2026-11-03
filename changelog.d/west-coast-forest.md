@@ -1,0 +1,4 @@
+# West Coast Forest: a Showcase theme with a forest round the house
+
+### New
+- **West Coast Forest, a new Showcase theme.** A dark theme for the whole map, and on the flat Atlas it also draws a west coast forest in the outside area round the house: Douglas fir, cedar and hemlock, sword ferns, salal, fallen logs and mossy rocks, going back into mist. It sits behind the map, so it never covers a room, a marker, a name or a light, and it never shows on a floor or between floors. Rain and snow still fall in front of it, outside only. The same house always gets the same forest. It is painted once and again only when the layout changes (floors, spacing, zoom, screen size), not on every update. Pick it in Showcase options → Theme; it needs PadSpan Pro or Bright Pro, as Showcase does. With "Same as the Atlas", Live Aboard takes its dark colours but draws no trees. Every other theme looks exactly as it did.

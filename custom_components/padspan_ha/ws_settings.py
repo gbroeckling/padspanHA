@@ -60,7 +60,7 @@ _SHOWCASE_THEMES = (
     "material_you", "neon_precision", "luxury_realestate",
     "wabi_sabi", "hygge", "aurora", "automotive_hud", "art_deco",
     "swiss_style", "bauhaus", "holographic", "retro_futurism",
-    "obsidian_noir",
+    "obsidian_noir", "west_coast_forest",
 )
 
 
