@@ -80,8 +80,9 @@ export const MARK_PX = { lit: 30, recent: 22, quiet: 20 };
 export const WIDE_STEP = 3;
 /** Its drop line: from a marker this high (m) or more, down to a ring on its
  *  floor this wide (m), so a sensor under a cut-away ceiling reads as over
- *  its spot in the room, not stuck to the far wall. */
-export const STEM = { minZ: 0.3, ring: 0.13, a: 0.75, quiet: 0.35 };
+ *  its spot in the room, not stuck to the far wall. Moved clear of a word
+ *  (live_aboard_raised.js), its marker stays at least lowest (m) over the floor. */
+export const STEM = { minZ: 0.3, ring: 0.13, a: 0.75, quiet: 0.35, lowest: 0.45 };
 /** The marker hangs this far out from its wall into the room (m), and this
  *  far under the ceiling at most, so a floor above never covers it. */
 export const MARK_OUT = 0.35, MARK_UNDER = 0.15;
@@ -381,7 +382,8 @@ export function bandStrip(pts, w, y){
  * ctx = {THREE, quality() ("low" | "high"), behind(v) (is world point v
  *        behind a wall or under a floor showing, from the eye), dim(eid)
  *        (faded by the class chips), dimK, floorTiles() (the floors that
- *        show, to tell a marker under one)}
+ *        show, to tell a marker under one), floorAbove(F) (a floor shows over
+ *        F), built() (the sensors were made afresh)}
  */
 export function createMotionLayer(ctx){
   const { THREE } = ctx;
@@ -489,14 +491,17 @@ export function createMotionLayer(ctx){
    *  sensor's height, under the ceiling. */
   function markAt(S){
     const out = S.ceiling ? 0 : MARK_OUT, top = S.F.fl.h - HOUSE.SLAB_T - MARK_UNDER;
-    S.at.set(S.mx + S.face[0] * out, S.F.fl.elev + Math.min(S.z, top), S.my + S.face[1] * out);
+    S.home.set(S.mx + S.face[0] * out, S.F.fl.elev + Math.min(S.z, top), S.my + S.face[1] * out);
+    // Drawn clear of the words around it (live_aboard_raised.js): the marker
+    // and the top of its line; its ring stays on its true spot.
+    S.at.copy(S.home).add(S.lift);
     if (S.sprite) S.sprite.position.copy(S.at);
     if (S.stem) {
       const y0 = S.F.fl.elev + 0.012, a = S.stem.line.geometry.attributes.position;
-      a.setXYZ(0, S.at.x, S.at.y, S.at.z); a.setXYZ(1, S.at.x, y0, S.at.z); a.needsUpdate = true;
+      a.setXYZ(0, S.at.x, S.at.y, S.at.z); a.setXYZ(1, S.home.x, y0, S.home.z); a.needsUpdate = true;
       S.stem.line.geometry.computeBoundingSphere();
       S.stem.line.computeLineDistances();
-      S.stem.ring.position.set(S.at.x, y0, S.at.z);
+      S.stem.ring.position.set(S.home.x, y0, S.home.z);
     }
   }
   // ── its drop line: from the marker down to a ring on its floor ────────────
@@ -602,7 +607,7 @@ export function createMotionLayer(ctx){
       sp.visible = false;
       res.push(tex, sm);
       S.canvas = c; S.tex = tex; S.sprite = sp;
-      S.at = new THREE.Vector3();
+      S.at = new THREE.Vector3(); S.home = new THREE.Vector3(); S.lift = new THREE.Vector3();
       S.stem = S.z >= STEM.minZ ? stem(S) : null;
       markAt(S);
       sp.position.copy(S.at);
@@ -622,6 +627,7 @@ export function createMotionLayer(ctx){
       if (onGround) patches.push(floorPatch(S.F, null, [S], (ground || 0) - HOUSE.SLAB_T - 0.02 + 0.006));
     }
     for (const [room, list] of byRoom) patches.push(floorPatch(list[0].F, room, list, null));
+    if (ctx.built) ctx.built();
   }
   /** Each sensor's own glow, and what it gives its floor (with its half). */
   function read(S, h){
@@ -744,10 +750,11 @@ export function createMotionLayer(ctx){
         // ☰ Motion picked: every motion sensor shows, whatever its age.
         let on = shown(S) && (!!room || L.wide || lens);
         if (on && again) {
-          _p.copy(S.at).project(c);
+          // Whether it shows goes by its true spot, wherever its marker stands on its line.
+          _p.copy(S.home).project(c);
           S.out = !(_p.z > -1 && _p.z < 1 && Math.abs(_p.x) <= 1.05 && Math.abs(_p.y) <= 1.05);
           // Quiet, it hides behind a wall as a code chip does; lit, only under a floor.
-          S.hid = !S.out && (L.wide ? under(S.at, c) : !!(ctx.behind && ctx.behind(S.at)));
+          S.hid = !S.out && (L.wide ? under(S.home, c) : !!(ctx.behind && ctx.behind(S.home)));
         }
         on = on && !S.out && !S.hid;
         S.shownNow = on;
@@ -772,6 +779,24 @@ export function createMotionLayer(ctx){
     recheck(){ camKey = null; },
     /** What a press can land on: a marker that shows, not faded. */
     pickable(){ return sensors.filter(S => S.shownNow && !S.dim).map(S => ({ eid: S.eid, v: S.at })); },
+    /** Is a sensor with a line here at all (live_aboard_raised.js)? */
+    anyRaised(){ return sensors.some(S => S.stem); },
+    /** Those on a line, for live_aboard_raised.js: where each stands and how
+     *  far it may go. Drawing only: S.z and the stored spot stay as they are. */
+    raised(){
+      const out = [];
+      for (const S of sensors) {
+        if (!S.stem) continue;
+        const L = S.look || markerLook(null);
+        out.push({ id: S.eid, shown: S.shownNow, hold: false, home: S.home, lift: S.lift, parts: [{ ox: 0, oy: 0, w: L.size, h: L.size, text: false }],
+                   minY: S.F.fl.elev + STEM.lowest,
+                   // Under the floor above while that shows; else free to rise.
+                   maxY: ctx.floorAbove && ctx.floorAbove(S.F) ? S.F.fl.elev + S.F.fl.h - HOUSE.SLAB_T - MARK_UNDER : Infinity,
+                   hides: (v, c, withCode) => under(v, c) || ((!L.wide || withCode) && !!(ctx.behind && ctx.behind(v))),
+                   set: (x, y, z) => { S.lift.set(x, y, z); markAt(S); if (S.S0.pos && S.S0.pos.copy) S.S0.pos.copy(S.at); } });
+      }
+      return out;
+    },
     /** The hover box's words for eid, or null. */
     label(eid){
       const S = sensors.find(x => x.eid === eid);
@@ -820,7 +845,7 @@ export function createMotionLayer(ctx){
       return {
         lens, focus: focusEid, night,
         sensors: sensors.map(S => ({ eid: S.eid, model: S.model, half: S.half, ceiling: S.ceiling, room: S.room ? S.room.name : null,
-          at: [S.at.x, S.at.y, S.at.z].map(v => Math.round(v * 1000) / 1000), mount: [S.mx, S.my].map(v => Math.round(v * 1000) / 1000),
+          at: [S.at.x, S.at.y, S.at.z].map(v => Math.round(v * 1000) / 1000), home: [S.home.x, S.home.y, S.home.z].map(v => Math.round(v * 1000) / 1000), mount: [S.mx, S.my].map(v => Math.round(v * 1000) / 1000),
           aim: S.aim.map(v => Math.round(v * 1000) / 1000), cover: S.cover, range: S.range, own: S.own, give: S.give,
           look: S.look, shown: S.shownNow, hid: !!S.hid, out: !!S.out, dim: S.dim, ring: S.ringT !== null, flash: S.flashT !== null, patch: S.patch ? patches.indexOf(S.patch) : -1 })),
         patches: patches.map(P => ({ room: P.room ? P.room.name : null, ground: P.ground, floor: P.F.fl.id, visible: P.mesh.visible,

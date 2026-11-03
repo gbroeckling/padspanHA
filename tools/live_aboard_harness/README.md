@@ -85,6 +85,7 @@ the Playwright scripts for those (`pip install playwright`; they use the install
 | `pw_sheet.py <out.png>` | A door's sheet: hinge, swing, shown, type (sliding), arcs, Save |
 | `pw_help.py` | Views ▾ → How it works and its guide link |
 | `pw_load.py` | Load the page, list visible buttons and any errors |
+| `pw_raised.py [outprefix]` | What stands on a line against the words: overlaps before and after at several orbits, rest afterwards |
 | `pw_tool.py [light]` | The setup wizard's way in (`?edit=1&tool=<t>&teid=<light>`): Edit opens at Heights, Door, Window, Strip (with the light picked) |
 
 Run them with `python -X utf8 <script> ...` (the page uses characters a Windows console can't

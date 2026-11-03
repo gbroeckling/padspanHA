@@ -55,6 +55,7 @@ export const FLOOD_RIPPLE = { wet: { n: 3, ms: 2600, spinMs: 9000 }, latched: { 
 export const LOCK_LOOK = { locked: "#fbbf24", off: "#374151", none: "#64748b" };
 const QUIET = "#cfd8d3", NO_READING = "#64748b";
 const TINT = 0.2, RING_W = 0.14, LOCK_REACH = 1.5, BADGE_PX = 26, CODE_PX = 17;
+const CODE_INK = 45 / 56;                   // how much of a code chip's height is the chip (its canvas: draw below)
 
 const num = (v) => (v === null || v === undefined || v === "" || typeof v === "boolean" ? null
   : (Number.isFinite(Number(v)) ? Number(v) : null));
@@ -364,6 +365,11 @@ export function createMarkLayer(ctx){
     },
     /** What a press can land on: not faded, on a floor that shows. */
     pickable(){ return marks.filter(M => shown(M) && !M.dim).map(M => ({ eid: M.eid, v: M.pos })); },
+    /** The words showing (live_aboard_raised.js): a leak's alarm. */
+    texts(){
+      return marks.filter(M => shown(M) && M.badge && M.badge.sprite.visible)
+        .map(M => ({ sprite: M.badge.sprite, tw: 160 / 168, th: 56 / 64, owner: null, id: `alarm ${M.badge.word}` }));
+    },
     /** The edit's Heights: {F, z, zDefault, x, y} for eid, or null. */
     info(eid){ const M = marks.find(x => x.eid === eid); return M ? { F: M.F, z: M.z, zDefault: M.zDefault, x: M.pos.x, y: M.pos.z, kind: M.kind } : null; },
     /** Heights' slider: moved in place (stored: the draft's record). */
@@ -460,6 +466,20 @@ export function createCodeLayer(ctx){
     },
     /** Walls or floors changed: what covers a code is worked out again. */
     recheck(){ camKey = null; },
+    /** Its device was moved: the chip goes with it. */
+    follow(eid){ const C = chips.get(eid); if (C && C.v) C.sprite.position.copy(C.v); },
+    /** The chip of eid as the part of its device that hangs under it (px from
+     *  the device), or null while it does not show. */
+    part(eid){
+      const C = chips.get(eid);
+      return C && C.sprite.visible ? { ox: 0, oy: (C.gap ?? 10) + CODE_PX / 2, w: CODE_PX * (200 / 56) * (C.w || 0.5), h: CODE_PX * CODE_INK, text: true } : null;
+    },
+    /** The words showing (live_aboard_raised.js). */
+    texts(){
+      const out = [];
+      for (const C of chips.values()) if (C.sprite.visible) out.push({ sprite: C.sprite, tw: C.w || 0.5, th: CODE_INK, owner: C.eid, id: `code ${C.text}` });
+      return out;
+    },
     /** Sized and shown for camera c over a view H px high; show: codes on
      *  at all (the preference, and room scale). */
     size(c, H, show){

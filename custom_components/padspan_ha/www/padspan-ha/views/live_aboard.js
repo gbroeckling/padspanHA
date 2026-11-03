@@ -91,6 +91,10 @@ const MARKS = await import(`./live_aboard_marks.js${new URL(import.meta.url).sea
 // as it was).
 const MOTION = await import(`./live_aboard_motion.js${new URL(import.meta.url).search}`)
   .catch(err => { console.warn("PadSpan: live_aboard_motion failed to load", err); return null; });
+// What stands on a line keeps clear of the words (live_aboard_raised.js)
+// (optional: missing, each stands at its real height).
+const RAISED = await import(`./live_aboard_raised.js${new URL(import.meta.url).search}`)
+  .catch(err => { console.warn("PadSpan: live_aboard_raised failed to load", err); return null; });
 // The wall panel (live_aboard_panel.js): a home view it goes back to, Follow,
 // the People chip, the two switches in Views ▾ (optional: missing, as it was).
 const PANEL = await import(`./live_aboard_panel.js${new URL(import.meta.url).search}`)
@@ -558,6 +562,8 @@ function createSlot(slotKey){
   let marks = null, codes = null, classF = null, zoomCb = null, zoomShown = null;
   // live_aboard_motion.js: motion in the house (motionL) and the Motion chip.
   let motionL = null, mchip = null;
+  // live_aboard_raised.js: what stands on a line, clear of the words; editing: its real height.
+  let raisedL = null, raisedOff = false;
   let wetEl = null, wetRows = [], wetKey = "";           // a window open while it rains: its glow and its chip
   // live_aboard_panel.js: the home view, going back to it, Follow, the People chip.
   let panel = null;
@@ -623,6 +629,8 @@ function createSlot(slotKey){
     trailData = null; trailAt = 0; trailLoad = null;
     try { if (marks) marks.dispose(); if (codes) codes.dispose(); } catch (_) { /* gone with the view */ }
     marks = null; codes = null; zoomCb = null;
+    try { if (raisedL) raisedL.dispose(); } catch (_) { /* gone with the view */ }
+    raisedL = null;
     try { if (motionL) motionL.dispose(); if (mchip) mchip.dispose(); } catch (_) { /* gone with the view */ }
     try { if (storeyL) storeyL.dispose(); } catch (_) { /* gone with the view */ }
     try { if (plumb) { plumb.dispose(); plumb = null; } } catch (_) { /* gone with the view */ }
@@ -1349,17 +1357,23 @@ function createSlot(slotKey){
     tracked = TRACKED ? TRACKED.createTrackedLayer({ THREE, FURN: () => FURN, floors: () => floorsUi, uiScale: () => wallUiOf(root),
       canon: (fid) => (house && house.canon ? house.canon(fid) : String(fid)),
       canonAt: (fid, x, y) => (house && house.canonAt ? house.canonAt(fid, x, y) : (house && house.canon ? house.canon(fid) : String(fid))),
-      quality: () => (profileOf().pbr ? "high" : "low"),
+      quality: () => (profileOf().pbr ? "high" : "low"), floorAbove,
       fadeOf: TRAILS ? TRAILS.fadeOf : null, colourOf: TRAILS ? TRAILS.trailColour : null }) : null;
     marks = MARKS ? MARKS.createMarkLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low") }) : null;
     // Under the roof while it shows is hidden too (a marker, a code).
     const hidden = (v) => blocked(v) || !!(storeyL && storeyL.hides(v.x, v.z, v.y));
     codes = MARKS ? MARKS.createCodeLayer({ THREE, behind: hidden }) : null;
     motionL = MOTION ? MOTION.createMotionLayer({ THREE, quality: () => (profileOf().pbr ? "high" : "low"), behind: hidden,
-      dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22,
+      dim: (eid) => dimOf(eid), dimK: MARKS ? MARKS.DIM_K : 0.22, floorAbove,
+      built: () => { if (raisedL) raisedL.forget(); },
       floorTiles: () => floorsUi.filter(F => F.group.visible && F.tiles).map(F => F.tiles).concat(storeyL ? storeyL.roofs() : []) }) : null;
     storeyL = STOREY ? STOREY.createStoreyLayer({ THREE, lit: (g, spec, c, r) => lit(g, spec, c, r), slabT: HOUSE.SLAB_T,
       quality: () => (profileOf().pbr ? "high" : "low") }) : null;
+    raisedL = RAISED ? RAISED.createRaisedLayer({ THREE, camera: () => camera, size: () => [canvas.clientWidth || 0, canvas.clientHeight || 0],
+      any: () => !!((motionL && motionL.anyRaised()) || (tracked && tracked.tagCount)), raised: raisedNow, texts: wordsNow, ready: shouldDraw,
+      busy: () => !!cam.fly || !!quality.measuring || dirty, movedAt: () => camMovedAt, off: () => raisedOff,
+      quality: () => (profileOf().pbr ? "high" : "low"), settled: recheckCovers,
+      draw: () => { liveMs = liveRate(performance.now()); requestRender(); } }) : null;
     panel = PANEL ? makePanel() : null;
     director = DIRECTOR && panel ? makeDirector() : null;
     planCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
@@ -2973,7 +2987,7 @@ function createSlot(slotKey){
     const fans = DEVICES && lights.some(L => L.spin && L.spin.rps > 0 && L.F.group.visible)
       ? DEVICES.DEVICE_MS[quality.profile === "high" ? "high" : "low"] : 0;
     const rates = [wxMs, devices ? devices.rate() : 0, tracked ? tracked.rate() : 0, fans, marks ? marks.rate() : 0,
-                   motionL ? motionL.rate() : 0, panel ? panel.rate() : 0].filter(Boolean);
+                   motionL ? motionL.rate() : 0, panel ? panel.rate() : 0, raisedL ? raisedL.rate() : 0].filter(Boolean);
     const slow = rates.length ? Math.min(...rates) : 0;
     const fast = slow ? Math.min(own, slow) : own;
     if (storeyL && storeyL.moving) return fast;                // the roof lifting away or coming back
@@ -3022,6 +3036,7 @@ function createSlot(slotKey){
     if (devices) devices.tick(t);                             // fans, washers, robots out
     if (marks) marks.tick(t);                                 // a leak's ripples
     if (motionL) motionL.tick(t);                             // a trigger's ring, its coverage's flash
+    if (raisedL) raisedL.tick(t);                             // what stands on a line, moving clear of a word
     turnFans(t);                                              // ceiling fans that run
     if (tracked) tracked.tick(t);                             // people walking
     if (panel) panel.tick(t);                                 // the camera after someone followed
@@ -3101,6 +3116,33 @@ function createSlot(slotKey){
       C.sprite.visible = !!C.parts && !(C.label ? C.label.userData.covered || (persp && C.label.userData.behind) : persp && C.behind);
     }
   }
+  /** Does a floor show above this one? */
+  function floorAbove(F){ return floorsUi.some(G => G !== F && G.group.visible && !G.fl.outdoor && G.fl.elev > F.fl.elev + 0.5); }
+  /** What stands on a line (live_aboard_raised.js): a motion marker with its
+   *  code under it, a tag with its name. */
+  function raisedNow(){
+    const out = [];
+    for (const R of motionL ? motionL.raised() : []) {
+      const code = codes ? codes.part(R.id) : null, set = R.set;
+      if (code) { R.parts.push(code); R.code = true; }
+      R.set = (x, y, z) => { set(x, y, z); if (codes) codes.follow(R.id); };
+      out.push(R);
+    }
+    if (tracked) out.push(...tracked.raised());
+    return out;
+  }
+  /** Every word showing in the house: the rooms' names and readouts, the
+   *  codes, tags' names, a leak's alarm, "Unlinked". */
+  function wordsNow(){
+    const out = [];
+    for (const F of floorsUi) {
+      if (!F.group.visible) continue;
+      F.labels.forEach((l, i) => { if (l.visible) out.push({ sprite: l, tw: 1 - 28 / (l.userData.aspect * 68), th: l.userData.letters, owner: null, id: `name ${F.rooms[i].name}` }); });
+    }
+    for (const C of chips) if (C.F.group.visible && C.sprite.visible) out.push({ sprite: C.sprite, tw: C.pillW, th: (READ_C - 8) / READ_C, owner: null, id: `chip ${C.text}` });
+    for (const L of [codes, marks, tracked, devices]) if (L && L.texts) out.push(...L.texts());
+    return out;
+  }
   /** Under the roof while it shows: a name, a chip (live_aboard_storey.js). */
   const underRoof = (F, v) => !!(storeyL && storeyL.covers(F, v.x, v.z));
   /** A name (and its room's chip) under a floor showing above it is hidden. */
@@ -3132,6 +3174,7 @@ function createSlot(slotKey){
     lampsDirty = true;
     liveMs = liveRate(performance.now());                    // a floor shown again may be swinging or flashing
     recheckCovers();
+    if (raisedL) raisedL.touch();
   }
   /** Walls or floors changed: what covers a motion marker or a code is worked out again. */
   function recheckCovers(){ if (motionL && motionL.recheck) motionL.recheck(); if (codes && codes.recheck) codes.recheck(); }
@@ -3142,6 +3185,7 @@ function createSlot(slotKey){
     paintWindows();
     recheckCovers();
     requestRender();
+    if (raisedL) raisedL.touch();
   }
   function updateCutaway(){
     const topDown = cam.phi < 0.2;
@@ -3274,6 +3318,7 @@ function createSlot(slotKey){
     camMovedAt = performance.now();
     tellZoom();
     requestRender();
+    if (raisedL) raisedL.touch();
   }
   const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), _plane = new THREE.Plane();
   /** The world point on the plane y = h under a screen point, or null. */
@@ -3888,6 +3933,9 @@ function createSlot(slotKey){
       if (cam.needsFit && (canvas.clientWidth || 0) > 0) { openView(); if (studio) arrive(); }
       if (wallMoves) { const pr = ratioFor(drawnW, drawnH); if (renderer.getPixelRatio() !== pr) renderer.setPixelRatio(pr); }
       updateCutaway();
+      // Editing, or the plan beside it: what stands on a line stands at its real height.
+      const off = furnishOn || !!(editor && editor.active);
+      if (off !== raisedOff) { raisedOff = off; if (raisedL) raisedL.touch(); }
       animateLive(performance.now());                        // and how often it moves now (liveMs)
       lastAmbient = t;
       sizeSprites();
@@ -4030,6 +4078,7 @@ function createSlot(slotKey){
     camera.updateProjectionMatrix();
     paintPlan();
     requestRender();
+    if (raisedL) raisedL.touch();
   }
   function wireObservers(){
     if (typeof ResizeObserver !== "undefined") {
@@ -4726,6 +4775,7 @@ function createSlot(slotKey){
     paintWet(p);
     paintHeat();
     syncMarks(p, vd);
+    if (raisedL) raisedL.touch();                            // what shows may have changed
     selIds = p.topFloorIds ? new Set([...(p.topFloorIds instanceof Set ? p.topFloorIds : [].concat(p.topFloorIds))].map(String)) : null;
     const t = HOUSE.topFloorElev(house.floors, p.topFloorIds || null);
     if (t !== topElev) { topElev = t; plan.fit = true; applyTop(); if (use && !use.pressing) use.clear(); requestRender(); }
@@ -4882,6 +4932,7 @@ function createSlot(slotKey){
                readouts: readouts.map(R => ({ eid: R.eid, kind: R.kind, ...(R.shown || {}) })),
                motion: sensorsUi.filter(S => S.kind === "motion").map(S => ({ eid: S.eid, look: S.look || null, col: S.col })),
                motionLayer: motionL ? motionL.state() : null, motionChip: mchip ? mchip.state() : null,
+               raised: raisedL ? raisedL.state() : null,
                names: floorsUi.flatMap(F => F.labels.map((l, i) => ({ room: F.rooms[i].name, shown: F.group.visible && l.visible,
                                                                        text: l.userData.text || String(F.rooms[i].name), color: l.userData.color || "#ffffff",
                                                                        opacity: l.material.opacity,
@@ -4990,6 +5041,8 @@ function createSlot(slotKey){
       const slabs = F.group.children.filter(o => o.name === "storey-floor");
       return { tile: !!(F.tiles && r.intersectObject(F.tiles, false).length), slab: slabs.some(o => r.intersectObject(o, false).length > 0) };
     },
+    /** The harness counts what covers what, and asks for every real height. */
+    _raised: { overlaps: () => (raisedL ? raisedL.overlaps() : null), disable: (on) => { if (raisedL) raisedL.disable(on); } },
     /** Put the camera somewhere (the harness frames a shot). */
     _look(theta, phi, target, radius){
       cam.moved = true; cam.needsFit = false;

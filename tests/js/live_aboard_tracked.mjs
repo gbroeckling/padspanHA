@@ -196,6 +196,7 @@ await tryCase("reads: through the host no more often than it says; off, what was
 await tryCase("tags: every tag the Atlas shows, no look needed, named, its ring as wide as it is unsure; every scanner at its height", async () => {
   people = null; tags = { snapshot: () => snap };
   poll(); await settle();
+  await later(1000);                                       // a name that moved clear of a word has finished moving
   const s = st(), keys = item("beacon:ble:keys"), watch = item("beacon:ble:watch"), found = item("beacon:ble:found");
   const s1 = item("scanner:AA:BB:CC:DD:EE:01"), s2 = item("scanner:AA:BB:CC:DD:EE:02"), s3 = item("scanner:AA:BB:CC:DD:EE:03");
   check("tags: every tag the Atlas shows, no look needed, named, its ring as wide as it is unsure; every scanner at its height",
@@ -214,6 +215,15 @@ await tryCase("tags: every tag the Atlas shows, no look needed, named, its ring 
     && !s.tracked.some(x => x.kind === "person") && s.liveMs === 0,
     { tracked: s.tracked });
 });
+await tryCase("tags: a tag on its stem moves clear of a word, its ring on the floor; a scanner stays", async () => {
+  const s = st(), ids = s.raised.items.map(x => x.id), moved = s.raised.items.filter(x => x.lift.some(v => v !== 0));
+  const beacons = s.tracked.filter(x => x.kind === "beacon");
+  check("tags: a tag on its stem moves clear of a word, its ring on the floor; a scanner stays",
+    ids.every(k => k.startsWith("binary_sensor.") || k.startsWith("beacon:")) && beacons.every(b => ids.includes(b.key)) && !ids.some(k => k.startsWith("scanner:"))
+    && moved.length > 0 && moved.every(m => { const b = beacons.find(x => x.key === m.id); return b && b.ground === 0.02 && b.at.join() === b.to.join(); })
+    && s.liveMs === 0, { ids, moved, beacons });
+});
+
 await tryCase("tags: a tapped tag says its room, when it was seen and which scanners hear it, strongest first", async () => {
   const keys = item("beacon:ble:keys"), watch = item("beacon:ble:watch"), found = item("beacon:ble:found");
   const at = slot._where({ tracked: "beacon:ble:keys" }), hit = at ? slot._pick(at[0], at[1]) : null;
