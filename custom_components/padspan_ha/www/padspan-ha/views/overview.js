@@ -8,7 +8,7 @@
 // The metric frame the lights map draws with. Metres in, screen out, no photo
 // anywhere in it — the 3D map below uses THIS, and the stack_transform import
 // above survives only for the experimental 2D map, which is swept next.
-const { deviceName, deviceWhat, addressBadge, fadeFor, groupRows, firstFew, serviceWords, SERVICE_HOW } =
+const { deviceName, deviceWhat, listWhat, addressBadge, fadeFor, groupRows, firstFew, serviceWords, SERVICE_HOW } =
   await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { fabricFrame, barrierNoReading } =
   await import(`./iso_lights.js${new URL(import.meta.url).search}`);
@@ -685,7 +685,7 @@ export function renderClassic(ctx){
                 addressBadge(el, o),
                 o.company_name ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#7dd3fc;border:1px solid #1e4976"}, o.company_name)
                   : o.service_owner ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a2a3a;color:#94a3b8;border:1px solid #334155",title:SERVICE_HOW}, serviceWords(o)) : null,
-                deviceWhat(o) ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, deviceWhat(o)) : null,
+                listWhat(o) ? el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#2a1a3a;color:#c4b5fd;border:1px solid #5b21b6"}, listWhat(o)) : null,
                 ...(o.service_names || []).slice(0,3).map(sn =>
                   el("span",{style:"font-size:10px;padding:1px 5px;border-radius:4px;background:#1a3a2a;color:#a7f3d0;border:1px solid #166534"}, sn)
                 ),

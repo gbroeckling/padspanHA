@@ -81,7 +81,7 @@ def test_a_cp27_doesnt_read_neurostim(tables) -> None:
 
 def test_location_trackers_format_isnt_apple_s(tables) -> None:
     o = BE.enrich_object({"service_data": {"0000fcb2-0000-1000-8000-00805f9b34fb": "0x01"}})
-    assert o["company_name"] is None and o["service_owner"] is None
+    assert o["company_name"] is None and o.get("service_owner") is None
 
 
 def test_the_report_counts_an_owner_apart_from_makers() -> None:

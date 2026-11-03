@@ -2984,7 +2984,6 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     # "label" falls back to the name, often the address: only
                     # this one says someone named the device.
                     "user_label": _xobj.get("user_label") or "",
-                    "best_name": _xobj.get("best_name") or "",
                     "identified": _xobj.get("identified", False),
                     "room": _xobj.get("room"),
                 }
@@ -3004,10 +3003,7 @@ async def _build_live_snapshot(hass: HomeAssistant) -> dict:
                     _ad["_xref"]["entity_id"] = _xobj["entity_id"]
             else:
                 _ad["_xref"] = None
-            _apply_detail(_ad, _classify)
-            if _xobj and _xobj.get("best_name"):
-                _ad["best_name"] = _xobj["best_name"]
-                _ad["name_source"] = _xobj.get("name_source")
+                _apply_detail(_ad, _classify)  # a row with an object reads the object's
     except Exception:
         pass
 

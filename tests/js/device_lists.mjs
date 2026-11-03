@@ -46,6 +46,9 @@ check("what: from the server only", DN.deviceWhat({ best_name: "a", device_type:
 check("what: server's word", DN.deviceWhat({ best_name: "a", what_it_is: "AirTag", device_type: "Find My" }) === "AirTag");
 check("what: sample mode", DN.deviceWhat({ device_type: "Tile" }) === "Tile");
 
+check("list: the kind badge already said iBeacon", DN.listWhat({ best_name: "a", kind: "ibeacon", what_it_is: "iBeacon" }) === null);
+check("list: anything else stays", DN.listWhat({ best_name: "a", kind: "ibeacon", what_it_is: "AirTag" }) === "AirTag");
+
 // ── Fixed or Rotating ─────────────────────────────────────────────────────────
 check("no badge until a radio has said", DN.addressBadge(el, { name: "x" }) === null);
 check("fixed", DN.addressBadge(el, { address_kind: "fixed" }).textContent === "Fixed");

@@ -16,7 +16,7 @@
 // The iPhone setup path (#69), behind iphone_irk_guide; query inherited from
 // our own module URL so the ?b= cache-buster propagates.
 // If it can't load, the page goes on as it always was (the guide reads as off).
-const { deviceName, deviceWhat, addressBadge, serviceWords, SERVICE_HOW } = await import(`./device_name.js${new URL(import.meta.url).search}`);
+const { deviceName, deviceWhat, listWhat, addressBadge, serviceWords, SERVICE_HOW } = await import(`./device_name.js${new URL(import.meta.url).search}`);
 const { iphoneGuideOn, isApplePhone, renderIphonePath } =
   await import(`./iphone_irk.js${new URL(import.meta.url).search}`)
     .catch(() => ({ iphoneGuideOn: () => false, isApplePhone: () => false, renderIphonePath: () => {} }));
@@ -223,7 +223,8 @@ export function render(ctx) {
       if (!filter) return true;
       // Concatenate all searchable fields into one haystack string for substring match
       const xr = a._xref || {};
-      const hay = `${a.best_name || ""} ${a.what_it_is || ""} ${a.name || ""} ${a.address || ""} ${a.source || ""} ${a.company_name || ""} ${a.device_type || ""} ${a.auto_class || ""} ${(a.service_names||[]).join(" ")} ${xr.label || ""} ${xr.kind || ""} ${xr.room || ""} ${xr.canonical_id || ""} ${xr.ibeacon_uuid || ""}`.toLowerCase();
+      const _o = objIndex.get(String(a.address || "").toUpperCase()) || a;
+      const hay = `${_o.best_name || ""} ${_o.what_it_is || ""} ${a.name || ""} ${a.address || ""} ${a.source || ""} ${a.company_name || ""} ${a.device_type || ""} ${a.auto_class || ""} ${(a.service_names||[]).join(" ")} ${xr.label || ""} ${xr.kind || ""} ${xr.room || ""} ${xr.canonical_id || ""} ${xr.ibeacon_uuid || ""}`.toLowerCase();
       return hay.includes(filter);
     })
     .slice(0, maxItems);
@@ -1218,8 +1219,8 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     if (a.company_name)   badges.push(chip(el, a.company_name, "info", MAKER_HOW[a.maker_source] || MAKER_HOW.company_id));
     else if (a.service_owner) badges.push(chip(el, serviceWords(a), "quiet", SERVICE_HOW));
     else if (a.maker_guess) badges.push(chip(el, `Probably ${a.maker_guess}`, "quiet", MAKER_GUESS_HOW));
-    if (deviceWhat(a)) badges.push(chip(el, deviceWhat(a), "violet"));
-    badges.push(addressBadge(el, a));
+    if (listWhat(obj || a)) badges.push(chip(el, listWhat(obj || a), "violet"));
+    badges.push(addressBadge(el, obj || a));
     if (a.connectable)    badges.push(chip(el, "connectable", "good", "This device accepts connections"));
 
     // Service names (max 3, then a count)
@@ -1356,12 +1357,12 @@ function renderMonitor(ctx, ads, radios, objIndex) {
     // Manufacturer
     const md = a.manufacturer_data || {};
     const mdKeys = Object.keys(md);
-    if (mdKeys.length || a.company_name || a.service_owner || a.maker_guess || deviceWhat(a)) {
+    if (mdKeys.length || a.company_name || a.service_owner || a.maker_guess || deviceWhat(obj || a)) {
       const mfRows = [
         ["Company", a.company_name || (a.maker_guess ? `Probably ${a.maker_guess}` : "\u2014")],
         ["Service", serviceWords(a) || "\u2014"],
-        ["What it is", deviceWhat(a) || "\u2014"],
-        ["How we know", a.how_known || "\u2014"],
+        ["What it is", deviceWhat(obj || a) || "\u2014"],
+        ["How we know", (obj || a).how_known || "\u2014"],
       ];
       for (const cid of mdKeys) {
         mfRows.push(["Manuf ID " + cid, md[cid]]);

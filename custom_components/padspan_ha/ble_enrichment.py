@@ -422,7 +422,10 @@ def enrich_object(obj: Dict[str, Any]) -> Dict[str, Any]:
         if owner:
             break
     owner = owner or _owner_from_espresense_id(obj.get("espresense_id"))
-    obj["service_owner"] = None if owner == company_name else owner
+    if owner and owner != company_name:
+        obj["service_owner"] = owner
+    else:
+        obj.pop("service_owner", None)
 
     # Shown on their own; the same word again as a service says nothing.
     obj["service_names"] = [n for n in service_names if n != company_name and n != owner]

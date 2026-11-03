@@ -105,8 +105,8 @@ def test_a_128_bit_uuid_off_the_bluetooth_base_matches_nothing(uuid) -> None:
 def test_an_open_format_says_what_it_is_not_who_made_it(uuid, service) -> None:
     """Anyone's hardware sends these. A Feasycom beacon with Eddystone isn't Google."""
     o = BE.enrich_object({"service_uuids": [uuid], "service_data": {uuid: "0x00"}})
-    assert o["service_owner"] is None and o["company_name"] is None and o["service_names"] == [service]
-    assert BE.enrich_object({"espresense_id": f"sd:{uuid}"})["service_owner"] is None
+    assert o.get("service_owner") is None and o["company_name"] is None and o["service_names"] == [service]
+    assert BE.enrich_object({"espresense_id": f"sd:{uuid}"}).get("service_owner") is None
 
 
 def test_an_open_format_doesnt_hide_a_real_owner_beside_it() -> None:
@@ -299,7 +299,7 @@ def test_espresenses_id_says_who_made_it(device_id, maker) -> None:
 @pytest.mark.parametrize("device_id,owner", [("sd:fef3", "Google"), ("sd:fd5a12", "Samsung Electronics"), ("sd:", None),
                                              ("sd:fef3abcd-0000-1000-8000-00805f9b34fb", None), ("md:0075:12", None)])
 def test_espresenses_id_says_whose_service(device_id, owner) -> None:
-    assert BE.enrich_object({"espresense_id": device_id})["service_owner"] == owner
+    assert BE.enrich_object({"espresense_id": device_id}).get("service_owner") == owner
 
 
 def test_espresense_rows_carry_the_id_through_to_a_maker(maker) -> None:

@@ -31,6 +31,12 @@ export function deviceWhat(o){
 export const serviceWords = (o) => o && o.service_owner ? `Uses a service from ${o.service_owner}` : "";
 export const SERVICE_HOW = "It broadcasts a service number Bluetooth assigned to this company. Other makers' devices can use it too, so this doesn't say who made the device.";
 
+/** What it is, for a list whose kind badge may already have said so. */
+export function listWhat(o){
+  const what = deviceWhat(o);
+  return what === "iBeacon" && o && o.kind === "ibeacon" ? null : what;
+}
+
 const ADDRESS_WORDS = {
   fixed: ["Fixed", "This device keeps one address, so it reads as one device."],
   rotating: ["Rotating", "This device changes its address every so often, as phones and trackers do, so one device can leave many rows."],

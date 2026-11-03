@@ -393,8 +393,9 @@ async def test_the_build_gives_every_object_and_row_the_fields_and_history_none(
     assert tag["what_it_is"] == "AirTag" and tag["address_kind"] == "rotating" and tag["name"] == TAG
     assert pc["what_it_is"] == "Windows PC" and pc["best_name"] == "Microsoft device" and pc["name"] == PC
     assert named["best_name"] == "EX90" and named["name_source"] == "broadcast" and named["address_kind"] == "fixed"
+    # A row with an object reads the object's: 3,000 rows every 5 s shouldn't each carry it.
     rows = {a["address"]: a for a in house.built["snap"]["ble"]["advertisements"]}
-    assert rows[PC]["best_name"] == "Microsoft device" and rows[PC]["_xref"]["best_name"] == "Microsoft device"
+    assert rows[PC]["_xref"]["key"] == "ble:" + PC and "best_name" not in rows[PC] and "how_known" not in rows[PC]
     cached = house.hass.data[DOMAIN][DATA_OBJECT_HISTORY]["ble:" + PC]
     assert not {"best_name", "what_it_is", "how_known", "address_kind"} & set(cached), "worked out fresh each build"
 
