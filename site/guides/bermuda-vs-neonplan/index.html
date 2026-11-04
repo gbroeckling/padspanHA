@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bermuda vs NeonPlan 3D vs PadSpan: room presence in the Home Assistant Marketplace | PadSpan HA</title>
+<meta name="description" content="Bermuda, NeonPlan 3D and PadSpan all tell you which room each phone, watch and tag is in, and all three are in Home Assistant's new Marketplace. What each one does, from their own docs as of November 2026, and which fits which house.">
+<link rel="canonical" href="https://padspan.traks.ca/guides/bermuda-vs-neonplan/">
+<link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/bermuda-vs-neonplan/">
+<link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/bermuda-vs-neonplan/de/">
+<link rel="alternate" hreflang="x-default" href="https://padspan.traks.ca/guides/bermuda-vs-neonplan/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PadSpan">
+<meta property="og:title" content="Bermuda, NeonPlan 3D or PadSpan?">
+<meta property="og:description" content="Three room presence options in Home Assistant's new Marketplace. What each does, from their own docs, and which fits which house.">
+<meta property="og:url" content="https://padspan.traks.ca/guides/bermuda-vs-neonplan/">
+<meta property="og:image" content="https://padspan.traks.ca/demo/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/images/icon.png">
+<style>
+:root{--bg:#071009;--card:#0d1d13;--line:rgba(154,230,180,.14);--fg:#e8f5ec;--mut:#93a99b;--acc:#34d399;--acc2:#a7f3d0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(52,211,153,.12),transparent 60%),var(--bg);color:var(--fg);line-height:1.65}
+a{color:var(--acc);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{border-bottom:1px solid var(--line);background:rgba(7,16,9,.82)}
+nav .in{max-width:820px;margin:0 auto;padding:12px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+nav .brand{color:var(--fg);font-weight:900;margin-right:auto}
+nav a{font-size:14px;font-weight:600}
+main{max-width:820px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:900;letter-spacing:-.01em;margin-bottom:14px}
+.lead{font-size:19px;color:#c8dccd;margin-bottom:22px}
+h2{font-size:23px;margin:38px 0 10px;font-weight:800}
+p{margin:10px 0}
+ul,ol{margin:10px 0 10px 22px}
+li{margin:6px 0}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 6px}
+.btn{display:inline-block;padding:11px 22px;border-radius:12px;font-weight:800;font-size:15px}
+.btn.primary{background:var(--acc);color:#04160c}
+.btn.ghost{border:1px solid var(--line);color:var(--fg)}
+.btn:hover{text-decoration:none;filter:brightness(1.08)}
+figure{margin:24px 0}
+figure img{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);display:block}
+figcaption{color:var(--mut);font-size:14px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:700}
+footer{border-top:1px solid var(--line);color:var(--mut);font-size:13px}
+footer .in{max-width:820px;margin:0 auto;padding:22px}
+footer p{margin:4px 0}
+@media (max-width:600px){table{font-size:13px;hyphens:auto}th,td{padding:7px 5px}}
+</style>
+</head>
+<body>
+<nav><div class="in">
+  <a class="brand" href="/">PadSpan™ HA</a>
+  <a href="/guides/">Guides</a>
+  <a href="/demo/">Live demo</a>
+  <a href="/#install">Install</a>
+  <a href="https://github.com/gbroeckling/padspanHA">GitHub</a>
+  <a href="/guides/bermuda-vs-neonplan/de/" hreflang="de" lang="de">Deutsch</a>
+</div></nav>
+<main>
+<h1>Bermuda, NeonPlan 3D or PadSpan?</h1>
+<p class="lead">All three tell you which room each phone, watch and tag is in, and all three are in Home Assistant 2026.11's new Marketplace. The Marketplace won't show you they do the same job. Search "bluetooth" and Bermuda comes first, search "floor plan" and NeonPlan 3D is near the top, and search "room presence" and PadSpan comes first. This is what each one does, from their own docs as of November 2026, and which fits which house. PadSpan's developer wrote it, so the sources are at the end.</p>
+
+<figure>
+  <img src="/demo/media/marketplace-search-room-presence.jpg" alt="Home Assistant's Marketplace with &quot;room presence&quot; in the search box. PadSpan HA is the first of five results." width="1184" height="428" loading="lazy">
+  <figcaption>Searching "room presence" on a 2026.11 beta, November 4. Results come in order of GitHub stars, after anything you've installed or that's new, so the first one isn't always the closest fit. Neither Bermuda nor NeonPlan 3D comes up for this search.</figcaption>
+</figure>
+
+<h2>The short version</h2>
+<ul>
+  <li><b><a href="https://github.com/agittins/bermuda">Bermuda</a></b> if sensors for your automations are all you want, from the proxies you already have. It's the most widely used of the three, there's very little to set up, and it has no map.</li>
+  <li><b><a href="https://github.com/Mastershort/neonplan3d">NeonPlan 3D</a></b> if a free 3D house you can look at and control is what you're after, and its free Locating also tells you who's in which room. You set up its rooms first (it can start them from your areas), then walk each room for 90 seconds.</li>
+  <li><b>PadSpan</b> if knowing where everyone is comes first. It works from each scanner's Home Assistant area before you've drawn anything, and it can alert you when a device changes room. A floor plan adds movement playback and, with its scale set, a calibration walk and positions between scanners. It runs next to Bermuda, so you don't have to choose. Exact placement on its Atlas map and the 3D house (still experimental) are Pro.</li>
+</ul>
+
+<h2>Side by side</h2>
+<table>
+  <tr><th></th><th>PadSpan</th><th>Bermuda</th><th>NeonPlan 3D</th></tr>
+  <tr><td>Who's in which room</td><td>Yes</td><td>Yes</td><td>Yes, since version 2.0 (October 2026), called Locating</td></tr>
+  <tr><td>Scanners</td><td>ESPHome Bluetooth proxies, Shelly Gen2+, Home Assistant's own Bluetooth or a USB adapter, or ESPresense nodes over MQTT once switched on</td><td>ESPHome Bluetooth proxies, Shelly Gen2 or later, USB adapters</td><td>ESPHome Bluetooth proxies, Shelly Gen2 and Gen3, Home Assistant's own Bluetooth adapter</td></tr>
+  <tr><td>What you do first</td><td>Give each scanner a Home Assistant area and name your phone. No plan needed</td><td>Give each proxy an area and pick your devices. No plan needed</td><td>Set up your rooms in its editor (it can start them from your areas), add your devices, then walk each room for 90 seconds</td></tr>
+  <tr><td>Calibration</td><td>Optional: a walk-around on a floor plan with its scale set, plus a per-scanner signal fit for scanners placed on it</td><td>Optional and guided: global, per proxy and per device</td><td>The 90-second walk (without it, it falls back to the nearest scanner); Check accuracy then shows how surely each room is recognised</td></tr>
+  <tr><td>A room with no scanner</td><td>Yes, less reliably: 3 or more scanners placed on a measured plan, with that room drawn on it</td><td>No</td><td>Yes, learned from the scanners in the rooms next door</td></tr>
+  <tr><td>Position between scanners</td><td>Yes, with 3 or more scanners placed on a measured plan</td><td>No</td><td>No: "room-level, not to the centimetre"</td></tr>
+  <tr><td>Your house on screen</td><td>Free: your rooms on your own floor plans, one floor at a time or all stacked. Pro: exact placement on the Atlas and the 3D house (Live Aboard, still experimental)</td><td>None yet: its wiki names a map as a goal. It has a Floor sensor once your areas have floors</td><td>A free 3D house drawn in Home Assistant, as a sidebar panel and a dashboard card. Furniture packs and add-ons are paid extras</td></tr>
+  <tr><td>Movement history</td><td>Playback (Traceback) on a floor plan, free</td><td>Home Assistant's own history, no playback</td><td>Home Assistant's own history of its room sensor, no playback. Its Time travel add-on never reads people or their trackers</td></tr>
+  <tr><td>Alerts when a device changes room</td><td>Built in (Follow)</td><td>With your own automations</td><td>With your own automations</td></tr>
+  <tr><td>Home Assistant entities</td><td>Room, distance and tracker, for each device you name</td><td>Room, distance and tracker, for each device you pick</td><td>A room sensor with its certainty, floor and since when</td></tr>
+  <tr><td>iPhones and Apple Watches (IRK)</td><td>Through Private BLE Device, with the key from a Mac or irk-capture</td><td>Through Private BLE Device, with the key from a Mac or ESP32 firmware</td><td>Its own key helper on an ESP32, or a key from a Mac</td></tr>
+  <tr><td>Android phones</td><td>The Home Assistant app's BLE Transmitter</td><td>The Home Assistant app's BLE Transmitter</td><td>The Home Assistant app's BLE Transmitter</td></tr>
+  <tr><td>AirTags</td><td>Experimental</td><td>No</td><td>No: "AirTags do not work"</td></tr>
+  <tr><td>Asking by voice</td><td>"Which room is Alice in?" once you add a few sentences to Assist yourself</td><td>Nothing of its own</td><td>"Where is my iPhone?", "Who is home?" and "Ring my iPhone", with its Assist sentences on</td></tr>
+  <tr><td>Motion and presence sensors</td><td>An optional tie-breaker, off by default</td><td>Not used</td><td>Used automatically, to speed up room changes</td></tr>
+  <tr><td>Reads other tools</td><td>Bermuda's rooms, and ESPresense nodes over MQTT once switched on</td><td>No</td><td>No, it runs beside them</td></tr>
+  <tr><td>Wall screens</td><td>Wall mode (Pro), for big touch screens</td><td>No</td><td>A dashboard card made for wall tablets, down to old Fire tablets</td></tr>
+  <tr><td>Try it before installing</td><td>Yes: a browser demo (it runs as Pro)</td><td>No</td><td>Yes: an online demo</td></tr>
+  <tr><td>Cost</td><td>Free and open source (GPL-3.0). Pro is a paid key; try all of Pro free for 90 days, no card</td><td>Free and open source (MIT)</td><td>Free and open source (MIT). Furniture packs and Pro add-ons are paid</td></tr>
+</table>
+
+<h2>Bermuda</h2>
+<p>Bermuda turns the Bluetooth adverts your proxies already hear into Home Assistant sensors: which area each device is in, its distance from the nearest proxy, and a device tracker. It recognises iPhones and Apple Watches through Home Assistant's Private BLE Device, and iBeacons even when their address changes, which covers Android phones running the Home Assistant app. Its calibration is guided, with settings for the whole house, each proxy and each device. Its wiki says a map of your house "is not yet a thing" and names one as a goal, so what you get today is sensors for the areas your proxies are in, plus a Floor sensor.</p>
+<p><b>Good fit:</b> you already have Bluetooth proxies (ESPHome or Shelly), and sensors for your automations are all you want.</p>
+
+<h2>NeonPlan 3D</h2>
+<p>NeonPlan 3D began as a 3D floor plan, and that's its main job. You draw your house in its editor, furniture included, and see and control lights, blinds, climate, media and cameras in a neon 3D view, as a sidebar panel or a dashboard card that runs on old wall tablets. Since version 2.0 it also locates people, for free. You set each scanner's room and add your devices, and its key helper gets the key from an iPhone or Apple Watch with a cheap ESP32 and no Mac. Then you walk each room for 90 seconds with a phone in your pocket. People stand in their rooms as glowing figures, each device gets a room sensor, and Assist can tell you where your iPhone is and ring it. Motion and presence sensors speed up room changes. Its manual says plainly that it works room by room, not to the centimetre, and that AirTags don't work.</p>
+<p><b>Good fit:</b> you want a 3D house first, for free, perhaps on a wall tablet, and knowing the room is enough.</p>
+
+<h2>PadSpan</h2>
+<p>PadSpan starts from the other end, with where people are. It reads Home Assistant's own Bluetooth data, so the ESPHome proxies and Shelly scanners the other two use serve it as well. Rooms come from each scanner's Home Assistant area, so with a scanner in each room it works with no plan and no walk. When you want more, you trace your rooms on a picture of your plan, or use your robot vacuum's map (experimental), and see everyone on it, one floor at a time or all floors stacked. On a plan with its scale set, a walk around the house teaches it what each room's signals look like, and with three or more scanners placed on a measured plan it can put a device between them, and in a room you've drawn that has no scanner of its own. It smooths readings with a Kalman filter and makes a new room win a vote before it moves anyone.</p>
+<p>On a floor plan, Traceback plays back where each device went. Follow can alert you when one changes room, and guest tags let you lend a tag to a visitor who has agreed to carry it. All of that is free. It wants more than 2 GB of RAM on your Home Assistant machine (a 2 GB machine can turn on Low-memory mode).</p>
+<figure>
+  <img src="/demo/media/setup-overview-rooms.jpg" alt="PadSpan's Overview: the rooms of a three-floor sample house drawn on its floor plans, with the floors stacked." width="1400" height="1242" loading="lazy">
+  <figcaption>PadSpan's free Overview on the demo's sample house: your rooms on your own plans, all floors stacked.</figcaption>
+</figure>
+<p>PadSpan Pro adds exact placement on the Atlas, the touchscreen map of the whole house with every light and device where it really is, and Live Aboard, your house in 3D like looking into a house in The Sims (still experimental), with Furnish. It also adds wall mode for a big touch screen, and Forensics, Busy Times and Locate. You can try all of Pro free for 90 days, no card. The trial needs an email address and the opt-in usage report on, and the report stays on until the trial ends.</p>
+<p><b>Good fit:</b> where people are matters most to you. You want to start without drawing anything, tune it on a real plan, see where someone's phone went, and be told when it moves.</p>
+
+<h2>Can I run them together?</h2>
+<p>Yes. Each one reads what Home Assistant's Bluetooth already hears, and none of them takes over your scanners, so the easiest test is your own house. Install two and keep the one you use. We installed all three from the Marketplace on the same 2026.11 beta on November 4, with no errors and no restart. That test had no scanners attached, so it says nothing about how well they locate side by side.</p>
+<p>By default, devices Bermuda tracks show up in PadSpan in the room Bermuda's Area sensor reports; <a href="/guides/bermuda/">Bermuda and PadSpan together</a> explains how. NeonPlan 3D doesn't read Bermuda or PadSpan, so its figures always show its own Locating.</p>
+
+<h2>Installing any of them</h2>
+<p>Go to Settings → Marketplace, search for the name and press Install. The first time, the Marketplace asks you to agree to a warning that what it lists is made by community contributors and isn't reviewed by the Home Assistant project. A setup dialog follows. For PadSpan's first steps, see <a href="/guides/get-started/">From the Marketplace to your first room</a>.</p>
+<p>ESPresense isn't in the Marketplace, because it's firmware for ESP32 boards; <a href="/guides/bermuda-vs-espresense/">Bermuda, ESPresense or PadSpan?</a> covers it. NextFloor, a free fork of NeonPlan 3D, doesn't locate people, so <a href="/guides/floor-plans/">Which floor plan for Home Assistant?</a> covers it with the other floor plans.</p>
+
+<div class="cta">
+  <a class="btn primary" href="/demo/">Try PadSpan in your browser</a>
+  <a class="btn ghost" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=gbroeckling&amp;repository=padspanHA&amp;category=integration">Install PadSpan</a>
+</div>
+
+<p style="font-size:13px;color:var(--mut)">Sources: NeonPlan 3D's <a href="https://github.com/Mastershort/neonplan3d">README</a>, <a href="https://github.com/Mastershort/neonplan3d/blob/main/docs/manual.md">manual</a> and code (version 2.3.0); Bermuda's <a href="https://github.com/agittins/bermuda">README</a> and <a href="https://github.com/agittins/bermuda/wiki">wiki</a> (version 0.8.7); <a href="https://github.com/gbroeckling/padspanHA">PadSpan's README</a> and code (version 0.38.224); Home Assistant's opt-in analytics for "most widely used". Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
+</main>
+<footer><div class="in">
+  <p>PadSpan HA is built by <a href="https://github.com/gbroeckling">Garry Broeckling</a>. Architecture, testing and releases are human-directed; the implementation is AI-assisted using Claude. <a href="https://github.com/gbroeckling/padspanHA/blob/main/docs/HOW_PADSPAN_IS_BUILT.md">How it's built</a>.</p>
+  <p>© 2026 Garry Broeckling · GPL-3.0 · PadSpan is a trademark of Devcon Computer Services Limited · Bermuda and NeonPlan 3D are independent open-source projects by their own authors.</p>
+</div></footer>
+</body>
+</html>

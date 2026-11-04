@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bermuda vs ESPresense vs PadSpan: Bluetooth room presence compared | PadSpan HA</title>
-<meta name="description" content="Three ways to get Bluetooth room presence in Home Assistant: Bermuda, ESPresense and PadSpan. What each one does, from their own docs as of October 2026, and which fits which house.">
+<meta name="description" content="Three of the ways to get Bluetooth room presence in Home Assistant: Bermuda, ESPresense and PadSpan. What each one does, from their own docs as of October 2026, and which fits which house.">
 <link rel="canonical" href="https://padspan.traks.ca/guides/bermuda-vs-espresense/">
 <link rel="alternate" hreflang="en" href="https://padspan.traks.ca/guides/bermuda-vs-espresense/">
 <link rel="alternate" hreflang="de" href="https://padspan.traks.ca/guides/bermuda-vs-espresense/de/">
@@ -64,7 +64,7 @@ footer p{margin:4px 0}
 </div></nav>
 <main>
 <h1>Bermuda, ESPresense or PadSpan?</h1>
-<p class="lead">Three ways to get Bluetooth room presence in Home Assistant. All three answer the same question, which room each phone, watch and tag is in, in different ways. This is what each one does, from their own docs as of October 2026, and which fits which house. PadSpan's developer wrote it, so the sources are at the end.</p>
+<p class="lead">Three of the ways to get Bluetooth room presence in Home Assistant. All three answer the same question, which room each phone, watch and tag is in, in different ways. This is what each one does, from their own docs as of October 2026, and which fits which house. PadSpan's developer wrote it, so the sources are at the end.</p>
 
 <h2>The short version</h2>
 <ul>
@@ -109,7 +109,7 @@ footer p{margin:4px 0}
 
 <h2>Can I run them together?</h2>
 <p>PadSpan and Bermuda: yes. PadSpan installs next to Bermuda, uses the same proxies and leaves Bermuda as it is. By default, devices Bermuda tracks show up in PadSpan in the room Bermuda's Area sensor reports; <a href="/guides/bermuda/">Bermuda and PadSpan together</a> explains how. PadSpan can also take its readings from ESPresense nodes over MQTT.</p>
-<p>Room Assistant, the fourth name in older comparisons, hasn't had a release since March 2022.</p>
+<p>Room Assistant, a name in older comparisons, hasn't had a release since March 2022. NeonPlan 3D added room presence to its free 3D floor plan in October 2026; <a href="/guides/bermuda-vs-neonplan/">Bermuda, NeonPlan 3D or PadSpan?</a> compares it.</p>
 
 <p style="font-size:13px;color:var(--mut)">Sources: <a href="https://github.com/agittins/bermuda">Bermuda's README</a>, <a href="https://github.com/agittins/bermuda/wiki">wiki</a> and <a href="https://github.com/agittins/bermuda/releases">releases</a>; <a href="https://espresense.com/">ESPresense's site</a> and <a href="https://espresense.com/companion/">Companion docs</a>; <a href="https://github.com/gbroeckling/padspanHA">PadSpan's README</a>. Something here out of date? <a href="https://github.com/gbroeckling/padspanHA/issues">Open an issue</a> and it gets fixed.</p>
 
