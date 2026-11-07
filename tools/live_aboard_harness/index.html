@@ -52,7 +52,12 @@ host = { el, view, floors: MODEL.floors, model: MODEL, byRoom: {}, hiddenEids: n
   ...(q.get("theme") ? { showcase: true, showcaseTheme: q.get("theme") } : {}),
   layoutV2: true, displayMode: q.get("display") !== "0", codeChip: true, hitHalo: true, collapseUnplaced: true,
   screen: { slot: "atlas", shownAt: 1 },
-  house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto", ...(q.get("look") ? { atlas_3d_look: q.get("look") } : {}), ...(PLANS ? PLANS.settings : {}) },
+  // people=1, tags=1: Show people / Show tags & scanners on; admin=1: an administrator; goto=1: the ⋯ list's
+  // links recorded in window.__went (no page to go to here); maponly=1: the sidebar's screen.
+  house3d: q.get("la") === "0" ? undefined : { slot: "atlas", settings: { atlas_3d_enabled: true, atlas_3d_quality: q.get("quality") || "auto", ...(q.get("look") ? { atlas_3d_look: q.get("look") } : {}), ...(PLANS ? PLANS.settings : {}),
+      ...(q.get("people") ? { atlas_3d_people: true } : {}), ...(q.get("tags") ? { atlas_3d_tags: true } : {}) },
+    ...(q.get("admin") ? { admin: true, saveSetting: async () => true } : {}), ...(q.get("maponly") ? { mapOnly: true } : {}),
+    ...(q.get("goto") ? { goTo: (t) => { (window.__went ||= []).push(t); } } : {}),
     ...(PLANS ? { callWS: PLANS.callWS, openAtlasRoom: PLANS.openAtlasRoom } : {}),
     telemetry: () => {}, useApi: () => ({ lbe: LBE, states: STATES, hass: { states: STATES, callService: () => Promise.resolve() } }),
     edit: q.get("edit") ? (ch) => Promise.resolve({ data: PLANS ? JSON.parse(JSON.stringify(FILE)) : {} }) : undefined,

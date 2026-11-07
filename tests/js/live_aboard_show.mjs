@@ -306,16 +306,17 @@ await tryCase("hide: room names and outlines, receivers, tags, people, codes, ra
   await later(200, 20);
   const namesBack = S().names.filter(n => n.shown).length;
   await toggle("theme");
-  const theme = S().look.key;
+  const theme = S().look.key, stillOpen = S().show.menu.open;
   await toggle("theme");
   const themeBack = S().look.key;
+  const codesOn = S().codes;
   await toggle("codes");
   const codesOff = S().codes;
   await toggle("codes");
   check("hide: room names and outlines, receivers, tags, people, codes, rain and the theme",
     t0.includes("scanner") && t0.includes("beacon") && !noRadios.includes("scanner") && noRadios.includes("beacon") && !noTags.includes("beacon")
-    && JSON.stringify(t3) === JSON.stringify(t0) && names === 0 && namesBack > 0 && theme === "classic" && themeBack !== "classic",
-    { t0, noRadios, noTags, t3, names, namesBack, theme, themeBack, codesOff });
+    && JSON.stringify(t3) === JSON.stringify(t0) && names === 0 && namesBack > 0 && theme === "classic" && stillOpen && themeBack !== "classic" && codesOn.chips.length > 0 && codesOff.chips.length === 0,
+    { t0, noRadios, noTags, t3, names, namesBack, theme, themeBack, codesOn, codesOff, stillOpen });
 });
 
 await tryCase("hide: railings, furniture, devices in furniture and stairs, room and floor outlines", async () => {

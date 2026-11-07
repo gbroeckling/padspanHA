@@ -58,8 +58,9 @@ export const SHOW_ITEMS = [
   { key: "locks", group: "openings", words: "Locks", hint: "Lock markers, and an unlocked door's red glow", link: "place" },
   { key: "railings", group: "openings", words: "Railings", hint: "Deck rails and the rails on open edges", link: "walls" },
   { key: "radios", group: "tracked", words: "Receivers (radios)", hint: "The Bluetooth receivers (scanners) where they are placed", link: "receivers" },
-  { key: "tags", group: "tracked", words: "Beacons and tags", hint: "Every tag PadSpan places, with its name", link: "live_aboard" },
-  { key: "people", group: "tracked", words: "People", hint: "Each person where their phone or tag is", link: "live_aboard" },
+  // People and tags are switched for the house in Views ▾ while Live Aboard is on (settings.js says so): no Settings link.
+  { key: "tags", group: "tracked", words: "Beacons and tags", hint: "Every tag PadSpan places, with its name" },
+  { key: "people", group: "tracked", words: "People", hint: "Each person where their phone or tag is" },
   { key: "trails", group: "tracked", words: "Trails, last 30 min", hint: "Where each person and tag went in the last half hour" },
   { key: "codes", group: "tracked", words: "Device codes", hint: "The small code chips beside devices", link: "place" },
   { key: "furniture", group: "house", words: "Furniture", hint: "Every piece placed in Furnish", link: "furnish" },
@@ -172,7 +173,7 @@ export function setupLine(key, admin, canGo = true, why = null){
   if (key === "people" || key === "tags") {
     const sw = key === "people" ? "Show people" : "Show tags & scanners";
     return { text: admin ? `${name} are off for the whole house. Turn them on?` : `${name} are off for the whole house: an administrator turns them on (Views ▾ → ${sw}).`,
-             go: null, perm: key, button: admin ? "Show me the switch" : null };
+             go: null, perm: key, button: admin ? "Show me the switch ›" : null };
   }
   const SAYS = {
     lights: "No lights are placed yet.", strips: "No LED strips are placed yet.", fans: "No ceiling fans are placed yet.",
@@ -185,12 +186,13 @@ export function setupLine(key, admin, canGo = true, why = null){
     theme: "No theme is on yet.", forest: "The trees come with the West Coast Forest theme.",
     floor_outlines: "Floor outlines come with the Atlas's look.",
     trails: "Trails follow people and tags: turn one of them on first.",
+    trails_live: "Trails need live data (Traceback's last half hour).",
   };
   const said = typeof why === "string" && why ? why : SAYS[key] || `${name} isn't set up yet.`;
   const go = it && it.link && key !== "trails" ? it.link : null;
   const text = !go ? said : !admin ? `${said} An administrator sets it up in ${LINK_WORDS[go][1]}.`
     : canGo ? `${said} Set it up?` : `${said} It's set up in ${LINK_WORDS[go][1]}.`;
-  return { text, go: admin && canGo ? go : null, perm: null, button: admin && canGo && go ? "Set it up" : null };
+  return { text, go: admin && canGo ? go : null, perm: null, button: admin && canGo && go ? "Yes ›" : null };
 }
 
 // ── the dropdown ─────────────────────────────────────────────────────────────
@@ -228,13 +230,16 @@ const CSS = `
 .la3d-show .la3d-stick[aria-checked="false"] .la3d-sname{color:#94a3b8}
 .la3d-show .la3d-stick[aria-disabled="true"]{cursor:default}
 .la3d-show .la3d-stick[aria-disabled="true"] .la3d-sbox{background:#3f5a4b;border-color:#3f5a4b;color:#cbd5e1}
+.la3d-show .la3d-stick.la3d-snot .la3d-sbox{background:none;border:2px dashed #475569}
+.la3d-show .la3d-stick.la3d-snot .la3d-sname{color:#94a3b8}
 .la3d-show .la3d-sname{display:block;font-weight:600;font-size:14px}
 .la3d-show .la3d-snote{display:block;font-size:11.5px;color:#94a3b8;margin-top:1px}
 .la3d-show .la3d-slink{flex:none;margin:6px 2px 0 0;padding:6px 8px;border-radius:8px;font-size:11.5px;font-weight:700;color:#7dd3fc;white-space:nowrap}
 .la3d-show .la3d-slink:hover,.la3d-show .la3d-slink:focus-visible{background:rgba(125,211,252,.12)}
-.la3d-show .la3d-setup{margin:0 6px 4px 38px;padding:6px 8px;border-radius:9px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.28);
-  font-size:12px;color:#fde68a;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.la3d-show .la3d-setup button{padding:6px 11px;border-radius:8px;font-weight:700;color:#071008;background:#fbbf24}
+.la3d-show .la3d-setup{margin:-2px 6px 5px 38px;padding:4px 4px 4px 9px;border-radius:9px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.28);
+  font-size:12px;color:#fde68a;display:flex;align-items:center;gap:8px}
+.la3d-show .la3d-setup span{flex:1;min-width:0}
+.la3d-show .la3d-setup button{flex:none;min-height:30px;padding:5px 11px;border-radius:8px;font-weight:700;color:#071008;background:#fbbf24;white-space:nowrap}
 .la3d-show .la3d-setup button:hover,.la3d-show .la3d-setup button:focus-visible{background:#fcd34d}
 .la3d-show .la3d-sfoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px 10px;border-top:1px solid rgba(120,190,155,.18)}
 .la3d-show .la3d-sfoot button{padding:8px 12px;border-radius:9px;font-weight:700}
@@ -272,7 +277,7 @@ export function createShowMenu(v){
   btn.setAttribute("aria-expanded", "false");
   btn.setAttribute("data-la3d-more", "");
   v.root.appendChild(btn);
-  let box = null, off = null, lastFocus = null;
+  let box = null, off = null;
   const stop = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
   for (const ev of ["pointerup", "wheel", "dblclick"]) btn.addEventListener(ev, stop);
   btn.addEventListener("click", v.guard((e) => { stop(e); if (box) close(); else open(); }));
@@ -310,10 +315,12 @@ export function createShowMenu(v){
         words.appendChild(d("span", "la3d-snote", r.always ? "Always shown" : r.hint));
         tick.append(box0, words);
         tick.title = r.always ? `${r.words}: always shown, so an alarm is never missed` : `${r.on ? "Hide" : "Show"} ${r.words.toLowerCase()} on this screen`;
-        if (r.always) tick.setAttribute("aria-disabled", "true");
+        // Not set up: greyed, a dashed box (people and tags: a tap still takes an administrator to their switch).
+        if (r.setup) tick.classList.add("la3d-snot");
+        if (r.always || (r.setup && !r.setup.perm)) { tick.setAttribute("aria-disabled", "true"); if (r.setup) tick.title = r.setup.text; }
         else tick.addEventListener("click", v.guard((e) => { stop(e); v.toggle(r.key); paint(); }));
         row.appendChild(tick);
-        if (r.link && v.canGo()) {
+        if (r.link && v.canGo() && !(r.setup && r.setup.button)) {
           const a = d("button", "la3d-slink", `${r.link.words} ›`);
           a.type = "button";
           a.title = `Open ${r.link.title}`;
@@ -386,8 +393,6 @@ export function createShowMenu(v){
       win.addEventListener("keydown", esc);
       off = () => { win.removeEventListener("pointerdown", away, true); win.removeEventListener("keydown", esc); };
     }
-    lastFocus = body.querySelector("button");
-    try { if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true }); } catch (_) { /* no focus here */ }
   }
   return {
     button: btn,

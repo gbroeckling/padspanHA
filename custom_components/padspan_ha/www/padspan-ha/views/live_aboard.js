@@ -4943,6 +4943,8 @@ function createSlot(slotKey){
     };
     const canGo = typeof p.goTo === "function";
     for (const [k, v] of Object.entries(not)) if (v) out[k] = SHOW.setupLine(k, admin, canGo);
+    // People or tags on with no history to read (sample data): trails wait on that, not on them.
+    if (out.trails && (onObj(p.people) || onObj(p.tags))) out.trails = SHOW.setupLine("trails", admin, canGo, SHOW.setupLine("trails_live", admin).text);
     return out;
   }
   /** The list's lines now: ticks, set-up lines, and a line waiting on another. */
@@ -5037,7 +5039,11 @@ function createSlot(slotKey){
   function applyShow(){
     for (const L of lights) L.key = null;
     lampsDirty = true;
+    // A line that builds the house again (the theme) keeps the camera where it is:
+    // no fit back to the home view, which would close the list under the finger.
+    const fitting = cam.needsFit;
     redraw();
+    if (!fitting) cam.needsFit = false;
     for (const F of floorsUi) {
       for (const P of F.pieces) placePiece(F, P, !!P.cut);
       if (F.plate) F.plate.visible = shownHere("floor_outlines");
