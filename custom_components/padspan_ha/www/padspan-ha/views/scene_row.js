@@ -102,8 +102,11 @@ export function haScenesOf(states, { placed = {}, isLight = (e) => LIGHTISH.test
  * The Whole house presets (settings.whole_house_presets, entities in
  * scene.apply's shape) whose lights that are on all sit on one floor, by
  * name: [{kind: "preset", key, name, preset, lights (placed, on), all
- * (every light it turns on), floor}]. Two floors or more: left out. A light
- * whose floor isn't known doesn't decide it; none placed: left out.
+ * (every light it turns on), floor, applyPreset}]. Two floors or more: left
+ * out. A light whose floor isn't known doesn't decide it; none placed: left
+ * out. applyPreset is what a tap applies: the preset with only its own
+ * floor's lights (and the ones it turns on), so a tile for one floor never
+ * switches off lights the preset saved as off on another floor.
  */
 export function presetScenesOf(presets, { placed = {}, isLight = (e) => LIGHTISH.test(e), floorOf = () => null } = {}){
   const out = [];
@@ -114,7 +117,9 @@ export function presetScenesOf(presets, { placed = {}, isLight = (e) => LIGHTISH
     if (floors.size !== 1) continue;
     const lights = all.filter(e => placed[e]);
     if (!lights.length) continue;
-    out.push({ kind: "preset", key: `preset:${p.name}`, name: p.name, preset: p, lights, all, floor: [...floors][0] });
+    const floor = [...floors][0], keep = new Set(all);
+    const applyPreset = { ...p, entities: Object.fromEntries(Object.entries(p.entities).filter(([e]) => keep.has(e) || floorOf(e) === floor)) };
+    out.push({ kind: "preset", key: `preset:${p.name}`, name: p.name, preset: p, lights, all, floor, applyPreset });
   }
   return out.sort(byName);
 }
@@ -272,7 +277,7 @@ export function sceneTiles(h){
     const map = miniMap(rooms.get(top) || [], pts, size);
     const state = sceneStateOf(s.all, isOn);
     const t = { key: s.key, kind: s.kind, name: s.name, eid: s.eid || null, id: s.kind === "scene" ? s.id : null,
-                preset: s.kind === "preset" ? s.preset : null, floor: top, floorName: many && top ? floorName(top, floors) : "",
+                preset: s.kind === "preset" ? s.preset : null, applyPreset: s.kind === "preset" ? s.applyPreset || s.preset : null, floor: top, floorName: many && top ? floorName(top, floors) : "",
                 others: fl.slice(1).map(f => floorName(f.id, floors)), state, offEids: s.all.slice(), lights: s.lights.slice(), map };
     t.sig = JSON.stringify([t.kind, t.name, t.id, t.floorName, t.others, t.state, map.rooms, map.lights.map(l => [l.x, l.y, l.mine ? 1 : 0, l.on ? 1 : 0, l.colour || ""])]);
     out.push(t);

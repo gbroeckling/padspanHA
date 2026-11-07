@@ -3630,7 +3630,7 @@ export function buildLightsMapCard(hostIn){
     const later = () => { if (typeof sc.rerender === "function") setTimeout(() => sc.rerender(), 900); };
     if (off) { Promise.resolve(sc.setMany(t.offEids, false)).catch(() => sceneToast(`Couldn't turn ${t.name} off`, true)); return; }
     if (t.kind === "preset") {
-      Promise.resolve(typeof host.onWholeHouseApply === "function" ? host.onWholeHouseApply(t.preset) : null)
+      Promise.resolve(typeof host.onWholeHouseApply === "function" ? host.onWholeHouseApply(t.applyPreset || t.preset) : null)
         .then((r) => { if (r && ((r.problems || []).length || r.skipped || r.failed)) sceneToast(`${t.name}: ${wholeHouseText(r)}`); later(); })
         .catch(() => sceneToast(`Couldn't run ${t.name}`, true));
       return;

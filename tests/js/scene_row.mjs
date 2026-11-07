@@ -126,6 +126,15 @@ await tryCase("qualify: a preset with an on light whose floor isn't known is jud
     && SC.canonFloor("__outside__", [{ id: "outside" }]) === "outside" && SC.floorName("outside", []) === "Outside", pr);
 });
 
+await tryCase("qualify: a preset tile applies only its own floor", async () => {
+  const pr = SC.presetScenesOf(PRESETS, { placed, isLight, floorOf });
+  const ap = pr[0] && pr[0].applyPreset && pr[0].applyPreset.entities;
+  check("qualify: a preset tile applies only its own floor",
+    !!ap && Object.keys(ap).every(e => floorOf(e) === "up" || pr[0].all.includes(e)) && ap["light.loft"] && ap["light.bed"]
+    && Object.keys(PRESETS[0].entities).some(e => floorOf(e) && floorOf(e) !== "up" && !(e in ap))
+    && pr[0].preset === PRESETS[0], { ap });
+});
+
 // ── on / mixed / off ────────────────────────────────────────────────────────
 await tryCase("state: on, mixed, off; unavailable not counted; the tap runs unless all are on", async () => {
   const on = (m) => (e) => (e in m ? m[e] : null);
